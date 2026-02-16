@@ -1,0 +1,313 @@
+generator client {
+  provider        = "prisma-client-js"
+  output          = "../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Enums ──────────────────────────────────────────────────────────────────
+
+enum Gender {
+  MALE
+  FEMALE
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum VerificationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum SuggestionStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  EXPIRED
+}
+
+enum VisitStatus {
+  REQUESTED
+  FAMILIES_CONTACTED
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum PaymentProvider {
+  EFAWATEERCOM
+  PAYPAL
+  STRIPE
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+}
+
+enum NotificationType {
+  SUGGESTION
+  INTEREST
+  MATCH
+  VISIT_UPDATE
+  SYSTEM
+}
+
+// ─── Models ─────────────────────────────────────────────────────────────────
+
+model User {
+  id                String             @id @default(cuid())
+  email             String             @unique
+  passwordHash      String
+  firstName         String
+  lastName          String
+  gender            Gender
+  role              UserRole           @default(USER)
+  isVerified        Boolean            @default(false)
+  freeSuggestions   Int                @default(5)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  profile           Profile?
+  personalityResult PersonalityResult?
+  parentInfo        ParentInfo?
+  identityDoc       IdentityDoc?
+  photos            Photo[]
+  subscriptions     Subscription[]
+  payments          Payment[]
+  notifications     Notification[]
+
+  // Suggestions where this user is the female (receiver)
+  receivedSuggestions Suggestion[]     @relation("SuggestionFemale")
+  // Suggestions where this user is the male (suggested)
+  givenSuggestions    Suggestion[]     @relation("SuggestionMale")
+
+  likesGiven        Like[]             @relation("LikeFrom")
+  likesReceived     Like[]             @relation("LikeTo")
+
+  matchesAsFemale   MutualMatch[]      @relation("MatchFemale")
+  matchesAsMale     MutualMatch[]      @relation("MatchMale")
+
+  @@map("users")
+}
+
+model Profile {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  dateOfBirth     DateTime?
+  city            String?
+  nationality     String?
+  education       String?
+  job             String?
+  height          Int?
+  weight          Int?
+  skinColor       String?
+  maritalStatus   String?
+  religiosity     String?
+  ppilesHijab     Boolean?
+  smokingStatus   String?
+  aboutMe         String?
+  spousePrefs     String?
+
+  isComplete      Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("profiles")
+}
+
+model PersonalityResult {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  answers         Json     // Raw quiz answers
+  vector          Float[]  // Personality vector for cosine similarity
+  personalityType String?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("personality_results")
+}
+
+model ParentInfo {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  parentName      String
+  parentPhone     String
+  relationship    String   // father, mother, brother, guardian
+  notes           String?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("parent_info")
+}
+
+model IdentityDoc {
+  id              String             @id @default(cuid())
+  userId          String             @unique
+  user            User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  documentUrl     String             // Encrypted cloud storage URL
+  documentType    String             // national_id, passport, etc.
+  status          VerificationStatus @default(PENDING)
+  reviewNotes     String?
+  reviewedAt      DateTime?
+
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  @@map("identity_docs")
+}
+
+model Photo {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  url             String
+  order           Int      @default(0)
+  isApproved      Boolean  @default(false)
+
+  createdAt       DateTime @default(now())
+
+  @@map("photos")
+}
+
+model Suggestion {
+  id              String           @id @default(cuid())
+  femaleId        String
+  female          User             @relation("SuggestionFemale", fields: [femaleId], references: [id], onDelete: Cascade)
+  maleId          String
+  male            User             @relation("SuggestionMale", fields: [maleId], references: [id], onDelete: Cascade)
+
+  compatibilityScore Float
+  status          SuggestionStatus @default(PENDING)
+  isManual        Boolean          @default(false) // Admin-created suggestion
+  expiresAt       DateTime?
+
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@unique([femaleId, maleId])
+  @@map("suggestions")
+}
+
+model Like {
+  id              String   @id @default(cuid())
+  fromUserId      String
+  fromUser        User     @relation("LikeFrom", fields: [fromUserId], references: [id], onDelete: Cascade)
+  toUserId        String
+  toUser          User     @relation("LikeTo", fields: [toUserId], references: [id], onDelete: Cascade)
+
+  suggestionId    String?
+
+  createdAt       DateTime @default(now())
+
+  @@unique([fromUserId, toUserId])
+  @@map("likes")
+}
+
+model MutualMatch {
+  id              String       @id @default(cuid())
+  femaleId        String
+  female          User         @relation("MatchFemale", fields: [femaleId], references: [id], onDelete: Cascade)
+  maleId          String
+  male            User         @relation("MatchMale", fields: [maleId], references: [id], onDelete: Cascade)
+
+  photosRevealed  Boolean      @default(true)
+
+  visitRequest    VisitRequest?
+
+  createdAt       DateTime     @default(now())
+
+  @@unique([femaleId, maleId])
+  @@map("mutual_matches")
+}
+
+model VisitRequest {
+  id              String      @id @default(cuid())
+  matchId         String      @unique
+  match           MutualMatch @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  status          VisitStatus @default(REQUESTED)
+  adminNotes      String?
+  scheduledDate   DateTime?
+  location        String?
+
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@map("visit_requests")
+}
+
+model Payment {
+  id              String        @id @default(cuid())
+  userId          String
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  amount          Decimal       @db.Decimal(10, 2)
+  currency        String        @default("JOD")
+  provider        PaymentProvider
+  providerTxId    String?
+  status          PaymentStatus @default(PENDING)
+  description     String?
+
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@map("payments")
+}
+
+model Subscription {
+  id              String             @id @default(cuid())
+  userId          String
+  user            User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  plan            String             // e.g. "basic", "premium", "vip"
+  suggestionsLeft Int
+  status          SubscriptionStatus @default(ACTIVE)
+  startsAt        DateTime           @default(now())
+  expiresAt       DateTime
+
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  @@map("subscriptions")
+}
+
+model Notification {
+  id              String           @id @default(cuid())
+  userId          String
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type            NotificationType
+  title           String
+  body            String
+  isRead          Boolean          @default(false)
+  metadata        Json?
+
+  createdAt       DateTime         @default(now())
+
+  @@map("notifications")
+}

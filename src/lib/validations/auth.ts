@@ -7,7 +7,7 @@ const jordanPhoneRegex = /^(?:00962|0?0?\+?962|0)?7[789]\d{7}$/;
 const phoneSchema = z.string().regex(jordanPhoneRegex, "رقم الهاتف غير صالح. الصيغ المقبولة: 07X, 7X, 9627X, +9627X, 009627X");
 
 /**
- * Normalize any valid Jordanian phone format to 07XXXXXXXX
+ * Normalize any valid Jordanian phone format to 962XXXXXXXXX (international)
  * Call this before sending to the API.
  */
 export function normalizePhone(phone: string): string {
@@ -15,7 +15,7 @@ export function normalizePhone(phone: string): string {
   // Remove leading 00962, +962, 962, or 0
   const normalized = cleaned.replace(/^(?:00962|\+962|962|0)/, "");
   // normalized should now be 7[789]XXXXXXX (9 digits)
-  return `0${normalized}`;
+  return `962${normalized}`;
 }
 
 export const sendOtpSchema = z.object({

@@ -55,28 +55,28 @@ describe("sendOtpSchema", () => {
 
 describe("normalizePhone", () => {
   it("should normalize 07x format", () => {
-    expect(normalizePhone("0791234567")).toBe("0791234567");
+    expect(normalizePhone("0791234567")).toBe("962791234567");
   });
 
   it("should normalize 7x format", () => {
-    expect(normalizePhone("791234567")).toBe("0791234567");
+    expect(normalizePhone("791234567")).toBe("962791234567");
   });
 
   it("should normalize +962 format", () => {
-    expect(normalizePhone("+962791234567")).toBe("0791234567");
+    expect(normalizePhone("+962791234567")).toBe("962791234567");
   });
 
   it("should normalize 962 format", () => {
-    expect(normalizePhone("962791234567")).toBe("0791234567");
+    expect(normalizePhone("962791234567")).toBe("962791234567");
   });
 
   it("should normalize 00962 format", () => {
-    expect(normalizePhone("00962791234567")).toBe("0791234567");
+    expect(normalizePhone("00962791234567")).toBe("962791234567");
   });
 
   it("should strip spaces and dashes", () => {
-    expect(normalizePhone("079 123 4567")).toBe("0791234567");
-    expect(normalizePhone("079-123-4567")).toBe("0791234567");
+    expect(normalizePhone("079 123 4567")).toBe("962791234567");
+    expect(normalizePhone("079-123-4567")).toBe("962791234567");
   });
 });
 

@@ -4,14 +4,8 @@ import { rateLimit } from "@/lib/rate-limit";
 import { sendOtpSchema, normalizePhone } from "@/lib/validations/auth";
 
 // Fixed OTP for test number — bypass SMS
-// Phone stored as 07XXXXXXXX in DB
-const TEST_PHONE = "0796922292";
+const TEST_PHONE = "962796922292";
 const TEST_OTP = "111111";
-
-// Convert 07XXXXXXXX to 962XXXXXXXX for Broadnet API
-function toInternational(phone: string): string {
-  return phone.replace(/^0/, "962");
-}
 
 async function sendSms(phone: string, text: string): Promise<boolean> {
   try {
@@ -19,7 +13,7 @@ async function sendSms(phone: string, text: string): Promise<boolean> {
       user: "naseebak6",
       pass: "954N@LtoK",
       sid: "naseebak",
-      mno: toInternational(phone),
+      mno: phone,
       type: "1",
       text,
     });
@@ -52,7 +46,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // Normalize phone to 07XXXXXXXX regardless of input format
+    // Normalize phone to 962XXXXXXXXX regardless of input format
     const phone = normalizePhone(result.data.phone);
 
     // Rate limit: 3 OTP requests per phone per 5 minutes

@@ -104,17 +104,17 @@ export async function POST(
         userId: otherUserId,
         type: "INTEREST",
         title: "شخص مهتم بك!",
-        body: "هناك شخص أبدى اهتمامه بملفك. قم بمراجعة الإشعارات.",
+        body: "هناك شخص أبدى اهتمامه بملفك. راجع طلبات الاهتمام وقرر.",
         metadata: { suggestionId: suggestion.id },
       },
     });
 
-    // Push notification
+    // Push notification — link to suggestions page where males see interests
     sendPushNotification({
       userId: otherUserId,
       title: "شخص مهتم بك!",
       body: "هناك شخص أبدى اهتمامه بملفك.",
-      url: "/dashboard/notifications",
+      url: "/dashboard/suggestions",
     });
 
     return NextResponse.json({ message: "تم قبول الاقتراح", match: false });

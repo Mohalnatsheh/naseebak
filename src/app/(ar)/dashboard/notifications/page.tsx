@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import {
   Loader2,
   Bell,
@@ -11,6 +12,7 @@ import {
   CalendarHeart,
   Info,
   Clock,
+  ArrowLeft,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -90,7 +92,15 @@ function timeAgo(dateStr: string) {
   return new Date(dateStr).toLocaleDateString("ar-JO");
 }
 
+const NOTIFICATION_LINKS: Record<string, string> = {
+  INTEREST: "/dashboard/suggestions",
+  MATCH: "/dashboard/matches",
+  VISIT_UPDATE: "/dashboard/matches",
+  PAYMENT: "/dashboard/payments",
+};
+
 export default function NotificationsPage() {
+  const router = useRouter();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -232,7 +242,11 @@ export default function NotificationsPage() {
                       ? "border-border/60 bg-gradient-to-l from-primary/[0.03] to-transparent"
                       : "border-border/30"
                   }`}
-                  onClick={() => !n.isRead && markRead(n.id)}
+                  onClick={() => {
+                    if (!n.isRead) markRead(n.id);
+                    const link = NOTIFICATION_LINKS[n.type];
+                    if (link) router.push(link);
+                  }}
                 >
                   <CardContent className="p-4 md:p-5">
                     <div className="flex items-start gap-4">
@@ -285,6 +299,12 @@ export default function NotificationsPage() {
                         >
                           {n.body}
                         </p>
+                        {NOTIFICATION_LINKS[n.type] && (
+                          <span className="inline-flex items-center gap-1 mt-2 text-xs font-semibold text-primary/70 hover:text-primary transition-colors">
+                            <ArrowLeft className="h-3 w-3" />
+                            عرض التفاصيل
+                          </span>
+                        )}
                       </div>
                     </div>
                   </CardContent>

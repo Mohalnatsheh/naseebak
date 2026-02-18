@@ -1,48 +1,46 @@
 import { z } from "zod/v4";
 
+// Matches all Jordanian mobile formats:
+// 07[789]XXXXXXX, 7[789]XXXXXXX, 9627[789]XXXXXXX, +9627[789]XXXXXXX, 009627[789]XXXXXXX
+const jordanPhoneRegex = /^(?:00962|0?0?\+?962|0)?7[789]\d{7}$/;
+
+const phoneSchema = z.string().regex(jordanPhoneRegex, "رقم الهاتف غير صالح. الصيغ المقبولة: 07X, 7X, 9627X, +9627X, 009627X");
+
+/**
+ * Normalize any valid Jordanian phone format to 07XXXXXXXX
+ * Call this before sending to the API.
+ */
+export function normalizePhone(phone: string): string {
+  const cleaned = phone.replace(/[\s\-()]/g, "");
+  // Remove leading 00962, +962, 962, or 0
+  const normalized = cleaned.replace(/^(?:00962|\+962|962|0)/, "");
+  // normalized should now be 7[789]XXXXXXX (9 digits)
+  return `0${normalized}`;
+}
+
+export const sendOtpSchema = z.object({
+  phone: phoneSchema,
+});
+
+export const verifyOtpSchema = z.object({
+  phone: phoneSchema,
+  code: z.string().length(6, "رمز التحقق يجب أن يكون 6 أرقام"),
+});
+
+export const registerSchema = z.object({
+  firstName: z.string().min(2, "الاسم الأول يجب أن يكون حرفين على الأقل"),
+  lastName: z.string().min(2, "اسم العائلة يجب أن يكون حرفين على الأقل"),
+  phone: phoneSchema,
+  gender: z.enum(["MALE", "FEMALE"]),
+  otp: z.string().length(6, "رمز التحقق يجب أن يكون 6 أرقام"),
+});
+
 export const loginSchema = z.object({
-  email: z.email("البريد الإلكتروني غير صالح"),
-  password: z.string().min(8, "كلمة المرور يجب أن تكون 8 أحرف على الأقل"),
+  phone: phoneSchema,
+  otp: z.string().length(6, "رمز التحقق يجب أن يكون 6 أرقام"),
 });
 
-export const registerSchema = z
-  .object({
-    firstName: z.string().min(2, "الاسم الأول يجب أن يكون حرفين على الأقل"),
-    lastName: z.string().min(2, "اسم العائلة يجب أن يكون حرفين على الأقل"),
-    email: z.email("البريد الإلكتروني غير صالح"),
-    password: z
-      .string()
-      .min(8, "كلمة المرور يجب أن تكون 8 أحرف على الأقل")
-      .regex(/[A-Z]/, "يجب أن تحتوي على حرف كبير واحد على الأقل")
-      .regex(/[0-9]/, "يجب أن تحتوي على رقم واحد على الأقل"),
-    confirmPassword: z.string(),
-    gender: z.enum(["MALE", "FEMALE"]),
-  })
-  .refine((data) => data.password === data.confirmPassword, {
-    message: "كلمات المرور غير متطابقة",
-    path: ["confirmPassword"],
-  });
-
-export const forgotPasswordSchema = z.object({
-  email: z.email("البريد الإلكتروني غير صالح"),
-});
-
-export const resetPasswordSchema = z
-  .object({
-    token: z.string(),
-    password: z
-      .string()
-      .min(8, "كلمة المرور يجب أن تكون 8 أحرف على الأقل")
-      .regex(/[A-Z]/, "يجب أن تحتوي على حرف كبير واحد على الأقل")
-      .regex(/[0-9]/, "يجب أن تحتوي على رقم واحد على الأقل"),
-    confirmPassword: z.string(),
-  })
-  .refine((data) => data.password === data.confirmPassword, {
-    message: "كلمات المرور غير متطابقة",
-    path: ["confirmPassword"],
-  });
-
-export type LoginInput = z.infer<typeof loginSchema>;
+export type SendOtpInput = z.infer<typeof sendOtpSchema>;
+export type VerifyOtpInput = z.infer<typeof verifyOtpSchema>;
 export type RegisterInput = z.infer<typeof registerSchema>;
-export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
-export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
+export type LoginInput = z.infer<typeof loginSchema>;

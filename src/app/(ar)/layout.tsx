@@ -1,11 +1,10 @@
 import type { Metadata } from "next";
-import { IBM_Plex_Sans_Arabic } from "next/font/google";
+import { Cairo } from "next/font/google";
 import "../globals.css";
 
-const ibmPlexArabic = IBM_Plex_Sans_Arabic({
-  subsets: ["arabic"],
-  weight: ["300", "400", "500", "600", "700"],
-  variable: "--font-arabic",
+const cairo = Cairo({
+  subsets: ["arabic", "latin"],
+  weight: ["300", "400", "500", "600", "700", "800"],
 });
 
 export const metadata: Metadata = {
@@ -20,7 +19,7 @@ export default function ArabicLayout({
 }) {
   return (
     <html lang="ar" dir="rtl">
-      <body className={`${ibmPlexArabic.variable} font-sans antialiased`}>
+      <body className={`${cairo.className} antialiased`}>
         {children}
       </body>
     </html>

@@ -1,8 +1,313 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import {
+  Loader2,
+  Bell,
+  BellOff,
+  CheckCheck,
+  Heart,
+  Sparkles,
+  CalendarHeart,
+  Info,
+  Clock,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+
+interface Notification {
+  id: string;
+  type: string;
+  title: string;
+  body: string;
+  isRead: boolean;
+  createdAt: string;
+}
+
+const typeConfig: Record<
+  string,
+  {
+    icon: typeof Bell;
+    gradient: string;
+    borderColor: string;
+    iconBg: string;
+    iconColor: string;
+    dotColor: string;
+  }
+> = {
+  SUGGESTION: {
+    icon: Sparkles,
+    gradient: "from-violet-500 to-purple-600",
+    borderColor: "border-s-violet-400",
+    iconBg: "from-violet-100 to-purple-100",
+    iconColor: "text-violet-600",
+    dotColor: "bg-violet-500",
+  },
+  INTEREST: {
+    icon: Heart,
+    gradient: "from-rose-500 to-pink-500",
+    borderColor: "border-s-rose-400",
+    iconBg: "from-rose-100 to-pink-100",
+    iconColor: "text-rose-600",
+    dotColor: "bg-rose-500",
+  },
+  MATCH: {
+    icon: Heart,
+    gradient: "from-blue-500 to-blue-500",
+    borderColor: "border-s-blue-400",
+    iconBg: "from-blue-100 to-blue-100",
+    iconColor: "text-blue-600",
+    dotColor: "bg-blue-500",
+  },
+  VISIT_UPDATE: {
+    icon: CalendarHeart,
+    gradient: "from-blue-500 to-sky-500",
+    borderColor: "border-s-blue-400",
+    iconBg: "from-blue-100 to-sky-100",
+    iconColor: "text-blue-600",
+    dotColor: "bg-blue-500",
+  },
+  SYSTEM: {
+    icon: Info,
+    gradient: "from-amber-500 to-orange-500",
+    borderColor: "border-s-amber-400",
+    iconBg: "from-amber-100 to-orange-100",
+    iconColor: "text-amber-600",
+    dotColor: "bg-amber-500",
+  },
+};
+
+const defaultConfig = {
+  icon: Bell,
+  gradient: "from-gray-500 to-slate-500",
+  borderColor: "border-s-gray-400",
+  iconBg: "from-gray-100 to-slate-100",
+  iconColor: "text-gray-600",
+  dotColor: "bg-gray-500",
+};
+
+function timeAgo(dateStr: string) {
+  return new Date(dateStr).toLocaleDateString("ar-JO");
+}
+
 export default function NotificationsPage() {
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchNotifications();
+  }, []);
+
+  async function fetchNotifications() {
+    try {
+      const res = await fetch("/api/notifications");
+      const data = await res.json();
+      setNotifications(data.notifications || []);
+      setUnreadCount(data.unreadCount || 0);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function markAllRead() {
+    try {
+      await fetch("/api/notifications/all/read", { method: "PATCH" });
+      setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+      setUnreadCount(0);
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  async function markRead(id: string) {
+    try {
+      await fetch(`/api/notifications/${id}/read`, { method: "PATCH" });
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
+      );
+      setUnreadCount((c) => Math.max(0, c - 1));
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 gap-4">
+        <div className="relative">
+          <div className="h-16 w-16 rounded-full bg-gradient-to-br from-primary/20 to-blue-200/30 flex items-center justify-center">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+          <div className="absolute inset-0 h-16 w-16 rounded-full bg-primary/10 animate-ping" />
+        </div>
+        <p className="text-sm text-muted-foreground animate-pulse">جاري تحميل الإشعارات...</p>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-bold">الإشعارات</h1>
-      <p className="text-muted-foreground">سيتم عرض الإشعارات هنا</p>
+    <div className="max-w-2xl mx-auto space-y-8 pb-8">
+      {/* Page Header */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-l from-blue-50/80 via-primary/5 to-transparent border border-primary/10 p-6 md:p-8">
+        <div className="absolute top-0 left-0 w-40 h-40 bg-blue-100/40 rounded-full -translate-x-16 -translate-y-16 blur-3xl" />
+        <div className="absolute bottom-0 right-0 w-32 h-32 bg-primary/5 rounded-full translate-x-8 translate-y-8 blur-2xl" />
+
+        <div className="relative flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div className="space-y-2">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-blue-500 to-primary flex items-center justify-center shadow-lg shadow-blue-500/20">
+                <Bell className="h-5 w-5 text-white" />
+              </div>
+              <div className="flex items-center gap-3">
+                <h1 className="text-2xl md:text-3xl font-bold bg-gradient-to-l from-primary to-blue-600 bg-clip-text text-transparent">
+                  الإشعارات
+                </h1>
+                {unreadCount > 0 && (
+                  <span className="inline-flex items-center justify-center h-7 min-w-7 px-2 rounded-full bg-gradient-to-br from-blue-500 to-primary text-white text-xs font-bold shadow-sm animate-pulse">
+                    {unreadCount}
+                  </span>
+                )}
+              </div>
+            </div>
+            <p className="text-muted-foreground text-sm md:text-base">
+              ستجد هنا جميع التحديثات والإشعارات الخاصة بحسابك
+            </p>
+          </div>
+
+          {unreadCount > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={markAllRead}
+              className="self-start md:self-auto border-primary/30 text-primary hover:bg-primary/5 hover:border-primary/50 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 rounded-xl gap-2 font-semibold backdrop-blur-sm bg-card/80"
+            >
+              <CheckCheck className="h-4 w-4" />
+              تحديد الكل كمقروء
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* Notification Cards */}
+      {notifications.length === 0 ? (
+        <Card className="border-dashed border-2 border-muted-foreground/20 bg-gradient-to-b from-card to-blue-50/20">
+          <CardContent className="text-center py-16 md:py-20 space-y-5">
+            <div className="relative mx-auto w-24 h-24">
+              <div className="absolute inset-0 bg-gradient-to-br from-blue-100/60 to-primary/10 rounded-full animate-pulse" />
+              <div className="relative h-24 w-24 rounded-full bg-gradient-to-br from-blue-50 to-primary/5 flex items-center justify-center border-2 border-dashed border-blue-200/50">
+                <BellOff className="h-10 w-10 text-muted-foreground/40" />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <h3 className="font-semibold text-lg text-foreground">لا توجد إشعارات</h3>
+              <p className="text-sm text-muted-foreground max-w-xs mx-auto leading-relaxed">
+                ستظهر الإشعارات هنا عند وجود تحديثات جديدة على حسابك مثل الاقتراحات والتوافقات والزيارات.
+              </p>
+            </div>
+            <div className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground/60 pt-2">
+              <Bell className="h-3.5 w-3.5" />
+              <span>سيتم إعلامك فور وصول أي تحديث</span>
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-3">
+          {notifications.map((n, index) => {
+            const config = typeConfig[n.type] || defaultConfig;
+            const Icon = config.icon;
+
+            return (
+              <div
+                key={n.id}
+                style={{
+                  animation: `fadeSlideIn 0.5s ease-out ${index * 0.08}s both`,
+                }}
+              >
+                <Card
+                  className={`group overflow-hidden cursor-pointer transition-all duration-300 hover:shadow-xl hover:shadow-primary/5 hover:-translate-y-1 border-s-4 ${config.borderColor} ${
+                    !n.isRead
+                      ? "border-border/60 bg-gradient-to-l from-primary/[0.03] to-transparent"
+                      : "border-border/30"
+                  }`}
+                  onClick={() => !n.isRead && markRead(n.id)}
+                >
+                  <CardContent className="p-4 md:p-5">
+                    <div className="flex items-start gap-4">
+                      {/* Icon with gradient background */}
+                      <div className="relative flex-shrink-0">
+                        <div
+                          className={`h-11 w-11 rounded-xl bg-gradient-to-br ${config.iconBg} flex items-center justify-center border border-border/30 group-hover:scale-110 transition-transform duration-300`}
+                        >
+                          <Icon className={`h-5 w-5 ${config.iconColor}`} />
+                        </div>
+                        {/* Unread pulse indicator */}
+                        {!n.isRead && (
+                          <div className="absolute -top-1 -end-1">
+                            <span className="relative flex h-3 w-3">
+                              <span
+                                className={`animate-ping absolute inline-flex h-full w-full rounded-full ${config.dotColor} opacity-75`}
+                              />
+                              <span
+                                className={`relative inline-flex rounded-full h-3 w-3 ${config.dotColor} ring-2 ring-card`}
+                              />
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Content */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-2 mb-1">
+                          <h3
+                            className={`text-sm leading-snug ${
+                              !n.isRead
+                                ? "font-bold text-foreground"
+                                : "font-medium text-foreground/80"
+                            }`}
+                          >
+                            {n.title}
+                          </h3>
+                          {/* Time badge */}
+                          <span className="inline-flex items-center gap-1 shrink-0 rounded-lg bg-muted/60 border border-border/50 px-2 py-0.5 text-[10px] text-muted-foreground font-medium">
+                            <Clock className="h-2.5 w-2.5" />
+                            {timeAgo(n.createdAt)}
+                          </span>
+                        </div>
+                        <p
+                          className={`text-sm leading-relaxed ${
+                            !n.isRead
+                              ? "text-muted-foreground"
+                              : "text-muted-foreground/70"
+                          }`}
+                        >
+                          {n.body}
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Inline keyframes style */}
+      <style jsx global>{`
+        @keyframes fadeSlideIn {
+          from {
+            opacity: 0;
+            transform: translateY(20px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+      `}</style>
     </div>
   );
 }

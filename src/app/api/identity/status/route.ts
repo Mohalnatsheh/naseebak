@@ -1,8 +1,30 @@
 import { NextResponse } from "next/server";
+import { auth } from "@/lib/auth";
+import { db } from "@/lib/db";
 
 export async function GET() {
-  return NextResponse.json(
-    { error: "Not implemented", message: "Identity verification status" },
-    { status: 501 }
-  );
+  try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "غير مصرح" }, { status: 401 });
+    }
+
+    const doc = await db.identityDoc.findUnique({
+      where: { userId: session.user.id },
+      select: {
+        id: true,
+        documentType: true,
+        status: true,
+        rejectionReason: true,
+        reviewNotes: true,
+        reviewedAt: true,
+        createdAt: true,
+      },
+    });
+
+    return NextResponse.json({ doc });
+  } catch (error) {
+    console.error("Identity status error:", error);
+    return NextResponse.json({ error: "حدث خطأ في الخادم" }, { status: 500 });
+  }
 }

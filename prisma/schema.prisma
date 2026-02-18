@@ -19,6 +19,13 @@ enum UserRole {
   ADMIN
 }
 
+enum UserStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+  SUSPENDED
+}
+
 enum VerificationStatus {
   PENDING
   APPROVED
@@ -30,6 +37,11 @@ enum SuggestionStatus {
   ACCEPTED
   REJECTED
   EXPIRED
+}
+
+enum SuggestionSource {
+  AI
+  ADMIN
 }
 
 enum VisitStatus {
@@ -45,6 +57,12 @@ enum PaymentStatus {
   COMPLETED
   FAILED
   REFUNDED
+}
+
+enum PaymentType {
+  PACKAGE
+  SUBSCRIPTION
+  MATCH_CREDITS
 }
 
 enum PaymentProvider {
@@ -64,23 +82,36 @@ enum NotificationType {
   INTEREST
   MATCH
   VISIT_UPDATE
+  IDENTITY
+  PAYMENT
+  SUBSCRIPTION
   SYSTEM
+}
+
+enum BlogPostStatus {
+  DRAFT
+  PUBLISHED
 }
 
 // ─── Models ─────────────────────────────────────────────────────────────────
 
 model User {
-  id                String             @id @default(cuid())
-  email             String             @unique
-  passwordHash      String
+  id                String     @id @default(cuid())
+  email             String     @unique
+  phone             String?    @unique
+  passwordHash      String?
   firstName         String
   lastName          String
   gender            Gender
-  role              UserRole           @default(USER)
-  isVerified        Boolean            @default(false)
-  freeSuggestions   Int                @default(5)
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
+  role              UserRole   @default(USER)
+  status            UserStatus @default(PENDING)
+  isVerified        Boolean    @default(false)
+  isDeactivated     Boolean    @default(false)
+  matchCredits      Int        @default(1)
+  oneSignalPlayerId String?
+  verifiedAt        DateTime?
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
 
   profile           Profile?
   personalityResult PersonalityResult?
@@ -102,32 +133,65 @@ model User {
   matchesAsFemale   MutualMatch[]      @relation("MatchFemale")
   matchesAsMale     MutualMatch[]      @relation("MatchMale")
 
+  // Identity docs reviewed by this admin
+  reviewedDocs      IdentityDoc[]      @relation("ReviewedBy")
+
+  profileUpdateRequests ProfileUpdateRequest[]
+
   @@map("users")
 }
 
 model Profile {
-  id              String   @id @default(cuid())
-  userId          String   @unique
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                  String   @id @default(cuid())
+  userId              String   @unique
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  dateOfBirth     DateTime?
-  city            String?
-  nationality     String?
-  education       String?
-  job             String?
-  height          Int?
-  weight          Int?
-  skinColor       String?
-  maritalStatus   String?
-  religiosity     String?
-  ppilesHijab     Boolean?
-  smokingStatus   String?
-  aboutMe         String?
-  spousePrefs     String?
+  dateOfBirth         DateTime?
+  city                String?
+  nationality         String?
+  maritalStatus       String?   // single, divorced, widowed
+  education           String?
+  fieldOfStudy        String?
+  job                 String?
+  incomeRange         String?
+  religiosity         String?
+  familyValues        String?
+  partnerExpectations String?
+  hobbies             String?
+  interests           String?
+  lifestyle           String?
+  height              Int?
+  weight              Int?
+  skinColor           String?
+  childrenCount       Int       @default(0)
+  willingToRelocate   String?
+  hijab               Boolean?
+  smokingStatus       String?
+  aboutMe             String?
 
-  isComplete      Boolean  @default(false)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  area                String?
+  latitude            Float?
+  longitude           Float?
+  tribe               String?
+  familyOriginArea    String?
+  numberOfSiblings    Int?
+  housingType         String?
+  beard               Boolean?
+  cookingAbility      String?
+  drivingLicense      Boolean?
+  healthConditions    String?
+  monthlyExpenses     String?
+  wantsPhoto          Boolean?
+
+  prefAgeMin          Int?
+  prefAgeMax          Int?
+  prefCity            String[]
+  prefEducation       String[]
+  prefMaritalStatus   String[]
+
+  isComplete          Boolean  @default(false)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 
   @@map("profiles")
 }
@@ -155,6 +219,7 @@ model ParentInfo {
   parentName      String
   parentPhone     String
   relationship    String   // father, mother, brother, guardian
+  address         String?  // Home address for visit coordination
   notes           String?
 
   createdAt       DateTime @default(now())
@@ -168,10 +233,14 @@ model IdentityDoc {
   userId          String             @unique
   user            User               @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  documentUrl     String             // Encrypted cloud storage URL
+  frontImageUrl   String             // Front of government ID
+  backImageUrl    String?            // Back of government ID
   documentType    String             // national_id, passport, etc.
   status          VerificationStatus @default(PENDING)
+  rejectionReason String?
   reviewNotes     String?
+  reviewedById    String?
+  reviewedBy      User?              @relation("ReviewedBy", fields: [reviewedById], references: [id])
   reviewedAt      DateTime?
 
   createdAt       DateTime           @default(now())
@@ -186,8 +255,8 @@ model Photo {
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   url             String
+  isPrimary       Boolean  @default(false)
   order           Int      @default(0)
-  isApproved      Boolean  @default(false)
 
   createdAt       DateTime @default(now())
 
@@ -195,19 +264,19 @@ model Photo {
 }
 
 model Suggestion {
-  id              String           @id @default(cuid())
-  femaleId        String
-  female          User             @relation("SuggestionFemale", fields: [femaleId], references: [id], onDelete: Cascade)
-  maleId          String
-  male            User             @relation("SuggestionMale", fields: [maleId], references: [id], onDelete: Cascade)
+  id                 String           @id @default(cuid())
+  femaleId           String
+  female             User             @relation("SuggestionFemale", fields: [femaleId], references: [id], onDelete: Cascade)
+  maleId             String
+  male               User             @relation("SuggestionMale", fields: [maleId], references: [id], onDelete: Cascade)
 
   compatibilityScore Float
-  status          SuggestionStatus @default(PENDING)
-  isManual        Boolean          @default(false) // Admin-created suggestion
-  expiresAt       DateTime?
+  status             SuggestionStatus @default(PENDING)
+  source             SuggestionSource @default(AI)
+  expiresAt          DateTime?
 
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
 
   @@unique([femaleId, maleId])
   @@map("suggestions")
@@ -221,6 +290,7 @@ model Like {
   toUser          User     @relation("LikeTo", fields: [toUserId], references: [id], onDelete: Cascade)
 
   suggestionId    String?
+  isLiked         Boolean  @default(true)
 
   createdAt       DateTime @default(now())
 
@@ -235,7 +305,9 @@ model MutualMatch {
   maleId          String
   male            User         @relation("MatchMale", fields: [maleId], references: [id], onDelete: Cascade)
 
-  photosRevealed  Boolean      @default(true)
+  suggestionId       String?
+  photosRevealed     Boolean      @default(true)
+  revealedByFemale   Boolean      @default(false)
 
   visitRequest    VisitRequest?
 
@@ -266,12 +338,16 @@ model Payment {
   userId          String
   user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  type            PaymentType   @default(SUBSCRIPTION)
+  planName        String?       // e.g. "basic", "premium", "suggestion_pack"
   amount          Decimal       @db.Decimal(10, 2)
   currency        String        @default("JOD")
   provider        PaymentProvider
   providerTxId    String?
   status          PaymentStatus @default(PENDING)
   description     String?
+
+  subscription    Subscription?
 
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
@@ -284,9 +360,13 @@ model Subscription {
   userId          String
   user            User               @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  plan            String             // e.g. "basic", "premium", "vip"
+  paymentId       String?            @unique
+  payment         Payment?           @relation(fields: [paymentId], references: [id])
+
+  plan            String             // e.g. "basic", "premium"
   suggestionsLeft Int
   status          SubscriptionStatus @default(ACTIVE)
+  autoRenew       Boolean            @default(false)
   startsAt        DateTime           @default(now())
   expiresAt       DateTime
 
@@ -310,4 +390,62 @@ model Notification {
   createdAt       DateTime         @default(now())
 
   @@map("notifications")
+}
+
+model ProfileUpdateRequest {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  changes    Json      // { field: newValue, ... }
+  message    String?   // User's reason for change
+  status     String    @default("PENDING") // PENDING, APPROVED, REJECTED
+  adminNote  String?
+  reviewedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@map("profile_update_requests")
+}
+
+model Otp {
+  id        String   @id @default(cuid())
+  phone     String
+  code      String
+  expiresAt DateTime
+  verified  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([phone, code])
+  @@map("otps")
+}
+
+model BlogCategory {
+  id        String     @id @default(cuid())
+  slug      String     @unique
+  nameAr    String
+  nameEn    String
+  posts     BlogPost[]
+  createdAt DateTime   @default(now())
+
+  @@map("blog_categories")
+}
+
+model BlogPost {
+  id          String         @id @default(cuid())
+  title       String
+  slug        String         @unique
+  excerpt     String
+  content     String         @db.Text
+  status      BlogPostStatus @default(DRAFT)
+  categoryId  String
+  category    BlogCategory   @relation(fields: [categoryId], references: [id])
+  authorId    String?
+  readTime    String?
+  publishedAt DateTime?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@index([status, publishedAt])
+  @@index([categoryId])
+  @@map("blog_posts")
 }

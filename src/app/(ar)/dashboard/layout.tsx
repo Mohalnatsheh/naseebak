@@ -1,4 +1,6 @@
-import Link from "next/link";
+import { DashboardSidebar } from "@/components/shared/dashboard-sidebar";
+import { Providers } from "@/components/shared/providers";
+import { OneSignalProvider } from "@/components/shared/onesignal-provider";
 
 export default function DashboardLayout({
   children,
@@ -6,34 +8,19 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-h-screen flex flex-col">
-      <header className="border-b bg-card">
-        <nav className="container mx-auto flex items-center justify-between px-4 py-3">
-          <Link href="/dashboard" className="text-xl font-bold text-primary">
-            نصيب
-          </Link>
-          <div className="flex items-center gap-4">
-            <Link href="/dashboard/profile" className="text-sm hover:text-primary transition">
-              الملف الشخصي
-            </Link>
-            <Link href="/dashboard/suggestions" className="text-sm hover:text-primary transition">
-              الاقتراحات
-            </Link>
-            <Link href="/dashboard/matches" className="text-sm hover:text-primary transition">
-              التوافقات
-            </Link>
-            <Link href="/dashboard/notifications" className="text-sm hover:text-primary transition">
-              الإشعارات
-            </Link>
+    <Providers>
+      <OneSignalProvider />
+      <div className="flex min-h-screen" dir="rtl">
+        <DashboardSidebar />
+        <main className="flex-1 md:pt-0 pt-16">
+          <div className="max-w-5xl mx-auto px-4 md:px-6 py-6 md:py-8">
+            {children}
           </div>
-        </nav>
-      </header>
-      <main className="flex-1 container mx-auto px-4 py-6">
-        {children}
-      </main>
-      <footer className="border-t py-4 text-center text-sm text-muted-foreground">
-        نصيب © {new Date().getFullYear()} - جميع الحقوق محفوظة
-      </footer>
-    </div>
+          <footer className="border-t py-4 text-center text-sm text-muted-foreground">
+            نصيب © {new Date().getFullYear()} - جميع الحقوق محفوظة
+          </footer>
+        </main>
+      </div>
+    </Providers>
   );
 }

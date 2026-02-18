@@ -1,10 +1,22 @@
+"use client";
+
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { Loader2 } from "lucide-react";
+
 export default function ForgotPasswordPage() {
+  const router = useRouter();
+
+  useEffect(() => {
+    router.replace("/login");
+  }, [router]);
+
   return (
-    <main className="flex min-h-screen items-center justify-center p-4">
-      <div className="w-full max-w-md space-y-6 text-center">
-        <h1 className="text-3xl font-bold">نسيت كلمة المرور</h1>
-        <p className="text-muted-foreground">سيتم تنفيذ نموذج استعادة كلمة المرور هنا</p>
+    <div className="flex min-h-screen items-center justify-center">
+      <div className="text-center space-y-4">
+        <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto" />
+        <p className="text-muted-foreground">جاري التحويل...</p>
       </div>
-    </main>
+    </div>
   );
 }

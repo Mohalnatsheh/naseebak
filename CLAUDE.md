@@ -353,7 +353,7 @@ pm2 restart ecosystem.config.cjs
 
 ## Known Limitations / TODOs
 
-- OTP is returned in API response (mock/dev mode) — needs SMS gateway integration for production
+- OTP SMS sent via Broadnet gateway; test number 962796922292 uses fixed OTP `111111` (bypasses SMS)
 - Photo and identity document storage uses base64 in DB — needs cloud storage (S3/R2) for production
 - Suggestion algorithm returns mock data — needs Python ML microservice integration
 - No email notification service connected

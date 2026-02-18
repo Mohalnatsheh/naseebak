@@ -3,6 +3,37 @@ import { db } from "@/lib/db";
 import { rateLimit } from "@/lib/rate-limit";
 import { sendOtpSchema } from "@/lib/validations/auth";
 
+// Fixed OTP for test number — bypass SMS
+const TEST_PHONE = "962796922292";
+const TEST_OTP = "111111";
+
+async function sendSms(phone: string, text: string): Promise<boolean> {
+  try {
+    const params = new URLSearchParams({
+      user: "naseebak6",
+      pass: "954N@LtoK",
+      sid: "SRVnaseebak",
+      mno: phone,
+      type: "3",
+      text,
+    });
+
+    const res = await fetch(
+      `https://gwjo1s.broadnet.me:8443/websmpp/websms?${params.toString()}`
+    );
+
+    if (!res.ok) {
+      console.error(`[SMS] Broadnet returned ${res.status}:`, await res.text());
+      return false;
+    }
+
+    return true;
+  } catch (err) {
+    console.error("[SMS] Send error:", err);
+    return false;
+  }
+}
+
 export async function POST(request: Request) {
   try {
     const body = await request.json();
@@ -39,8 +70,11 @@ export async function POST(request: Request) {
       },
     });
 
-    // Generate 6-digit OTP
-    const generatedCode = Math.floor(100000 + Math.random() * 900000).toString();
+    // Use fixed OTP for test number, random for everyone else
+    const isTestPhone = phone === TEST_PHONE;
+    const generatedCode = isTestPhone
+      ? TEST_OTP
+      : Math.floor(100000 + Math.random() * 900000).toString();
 
     // Store OTP with 5-minute expiry
     await db.otp.create({
@@ -51,16 +85,25 @@ export async function POST(request: Request) {
       },
     });
 
-    // Check if user exists (used by login page to avoid redirect-to-register for existing users)
+    // Send SMS (skip for test phone)
+    if (!isTestPhone) {
+      const sent = await sendSms(
+        phone,
+        `رمز التحقق الخاص بك في نصيبك: ${generatedCode}`
+      );
+      if (!sent) {
+        console.warn(`[SMS] Failed to send OTP to ${phone}, code stored in DB`);
+      }
+    }
+
+    // Check if user exists
     const existingUser = await db.user.findUnique({
       where: { phone },
       select: { id: true },
     });
 
-    // Mock mode: return OTP in response for development
     return NextResponse.json({
       message: "تم إرسال رمز التحقق",
-      otp: generatedCode,
       userExists: !!existingUser,
     });
   } catch (error) {

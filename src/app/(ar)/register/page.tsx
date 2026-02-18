@@ -169,7 +169,7 @@ function RegisterPageContent() {
   }, [searchParams]);
   const [otpSent, setOtpSent] = useState(false);
   const [sendingOtp, setSendingOtp] = useState(false);
-  const [devOtp, setDevOtp] = useState("");
+
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -273,9 +273,6 @@ function RegisterPageContent() {
       }
 
       setOtpSent(true);
-      if (data.otp) {
-        setDevOtp(data.otp);
-      }
     } catch {
       setError("حدث خطأ غير متوقع. حاول مرة أخرى.");
     } finally {
@@ -565,19 +562,6 @@ function RegisterPageContent() {
             }
           `}</style>
 
-          {/* Dev OTP banner */}
-          {devOtp && step === 1 && (
-            <div
-              className="rounded-xl bg-accent/10 border border-accent/30 p-3.5 text-sm text-accent-foreground mb-5 flex items-center gap-2"
-              style={{ animation: "fadeSlideIn 0.3s ease-out both" }}
-            >
-              <Phone className="size-4 shrink-0 text-accent" />
-              <span>
-                رمز التحقق (وضع التطوير): <strong className="font-mono tracking-widest text-base">{devOtp}</strong>
-              </span>
-            </div>
-          )}
-
           {/* ============================================ */}
           {/*  Animated step container                     */}
           {/* ============================================ */}
@@ -787,7 +771,6 @@ function RegisterPageContent() {
                         updateField("phone", e.target.value);
                         if (otpSent) {
                           setOtpSent(false);
-                          setDevOtp("");
                           updateField("otp", "");
                         }
                       }}

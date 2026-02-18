@@ -22,7 +22,7 @@ export default function LoginPage() {
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
   const [otpSent, setOtpSent] = useState(false);
-  const [devOtp, setDevOtp] = useState("");
+
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [sendingOtp, setSendingOtp] = useState(false);
@@ -74,10 +74,6 @@ export default function LoginPage() {
 
       setOtpSent(true);
       setUserExists(!!data.userExists);
-      // Dev mode: show OTP
-      if (data.otp) {
-        setDevOtp(data.otp);
-      }
     } catch {
       setError("حدث خطأ غير متوقع. حاول مرة أخرى.");
       setShake(true);
@@ -348,19 +344,6 @@ export default function LoginPage() {
                   </div>
                 )}
 
-                {/* Dev OTP banner */}
-                {devOtp && (
-                  <div
-                    className="rounded-xl bg-accent/10 border border-accent/30 p-4 text-sm text-accent-foreground flex items-center gap-2"
-                    style={{ animation: "fadeSlideDown 0.3s ease-out both" }}
-                  >
-                    <Phone className="size-4 shrink-0 text-accent" />
-                    <span>
-                      رمز التحقق (وضع التطوير): <strong className="font-mono tracking-widest text-base">{devOtp}</strong>
-                    </span>
-                  </div>
-                )}
-
                 {/* Phone field */}
                 <div
                   className="space-y-2"
@@ -396,7 +379,6 @@ export default function LoginPage() {
                         setPhone(e.target.value);
                         if (otpSent) {
                           setOtpSent(false);
-                          setDevOtp("");
                           setOtp("");
                         }
                       }}

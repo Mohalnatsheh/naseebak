@@ -7,6 +7,13 @@ import { sendOtpSchema, normalizePhone } from "@/lib/validations/auth";
 const TEST_PHONE = "962796922292";
 const TEST_OTP = "111111";
 
+// Encode text as UTF-16BE hex for Broadnet Unicode SMS (type=2)
+function toUnicodeHex(text: string): string {
+  return Array.from(text)
+    .map((c) => c.charCodeAt(0).toString(16).padStart(4, "0"))
+    .join("");
+}
+
 async function sendSms(phone: string, text: string): Promise<boolean> {
   try {
     const params = new URLSearchParams({
@@ -14,8 +21,8 @@ async function sendSms(phone: string, text: string): Promise<boolean> {
       pass: "954N@LtoK",
       sid: "naseebak",
       mno: phone,
-      type: "1",
-      text,
+      type: "2",
+      text: toUnicodeHex(text),
     });
 
     const res = await fetch(

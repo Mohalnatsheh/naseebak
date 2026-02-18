@@ -303,6 +303,7 @@ export default function DashboardPage() {
       {/* ============================================ */}
       {/*  Profile completion checklist                 */}
       {/* ============================================ */}
+      {completionPercent < 100 && (
       <Card className="relative overflow-hidden border-border/40 shadow-md">
         <div className="absolute top-0 right-0 h-32 w-32 rounded-full bg-primary/5 blur-2xl translate-x-8 -translate-y-8" />
         <CardContent className="pt-6 pb-5">
@@ -386,6 +387,7 @@ export default function DashboardPage() {
           </div>
         </CardContent>
       </Card>
+      )}
 
       {/* ============================================ */}
       {/*  Stats grid                                  */}

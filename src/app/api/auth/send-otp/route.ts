@@ -22,8 +22,17 @@ async function sendSms(phone: string, text: string): Promise<boolean> {
       `https://gwjo1s.broadnet.me:8443/websmpp/websms?${params.toString()}`
     );
 
+    const body = await res.text();
+    console.log(`[SMS] Broadnet response for ${phone}: status=${res.status} body="${body}"`);
+
     if (!res.ok) {
-      console.error(`[SMS] Broadnet returned ${res.status}:`, await res.text());
+      console.error(`[SMS] Broadnet HTTP error ${res.status}:`, body);
+      return false;
+    }
+
+    // Broadnet returns "Response: <messageId>" on success, error messages otherwise
+    if (!body.includes("Response:")) {
+      console.error(`[SMS] Broadnet rejected message for ${phone}:`, body);
       return false;
     }
 

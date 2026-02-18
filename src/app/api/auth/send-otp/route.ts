@@ -12,7 +12,7 @@ async function sendSms(phone: string, text: string): Promise<boolean> {
     const params = new URLSearchParams({
       user: "naseebak6",
       pass: "954N@LtoK",
-      sid: "SRVnaseebak",
+      sid: "naseebak",
       mno: phone,
       type: "3",
       text,

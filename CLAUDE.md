@@ -122,7 +122,7 @@ Two authentication methods exist — phone+OTP for regular users, email+password
 - `src/lib/validations/auth.ts` — exports `sendOtpSchema`, `verifyOtpSchema`, `registerSchema`, `loginSchema`
 - `src/lib/auth.ts` — NextAuth config with both Credentials providers
 - `src/lib/auth.config.ts` — Route protection, JWT/session callbacks
-- `src/app/api/auth/send-otp/route.ts` — OTP generation (6-digit, 5-min expiry, rate limited 3/5min), returns `userExists`
+- `src/app/api/auth/send-otp/route.ts` — OTP generation (6-digit, 5-min expiry, rate limited 3/phone/5min + 10/IP/15min), returns `userExists`
 - `src/app/api/auth/verify-otp/route.ts` — OTP verification
 - `src/app/api/auth/register/route.ts` — Registration (verifies OTP, creates user)
 - `src/app/(en)/admin/login/page.tsx` — Admin login page (email+password)
@@ -135,7 +135,8 @@ Two authentication methods exist — phone+OTP for regular users, email+password
 
 Key points:
 - `User.passwordHash` is optional (`String?`) — set for admin accounts (bcrypt), null for regular users
-- `User.email` is required by NextAuth but populated as `phone_07xx@naseeb.local` for users, real email for admins
+- `User.phone` stored in international format `962XXXXXXXXX` (not `07...`). `normalizePhone()` in `src/lib/validations/auth.ts` converts any input format to `962...`
+- `User.email` is required by NextAuth but populated as `phone_962xx@naseeb.local` for users, real email for admins
 - `User.oneSignalPlayerId` stores the push notification player ID
 - `Profile` has 35+ fields including location (lat/lng), tribe, preferences (prefAge*, prefCity, etc.), gender-specific fields (beard, hijab)
 - `Otp` model stores codes with phone, expiry, and verified status
@@ -351,9 +352,22 @@ pm2 restart ecosystem.config.cjs
 2. **Horizontal:** Add more droplets behind a DigitalOcean Load Balancer
 3. **CDN:** Add Cloudflare in front for static asset caching + DDoS protection
 
+## SMS (Broadnet)
+
+OTP SMS sent via Broadnet gateway (`gwjo1s.broadnet.me:8443`).
+
+**Important:** Arabic text requires `type=2` (Unicode) with UTF-16BE hex encoding. `type=1` only works for ASCII/English text. The `toUnicodeHex()` helper in `send-otp/route.ts` handles this conversion.
+
+**Rate limiting (send-otp):**
+- Per phone: 3 requests / 5 minutes
+- Per IP: 10 requests / 15 minutes (extracted from `x-forwarded-for` header)
+
+**Test number:** `962796922292` (input as `0796922292`) uses fixed OTP `111111` — bypasses SMS entirely.
+
+**Broadnet credentials:** user=`naseebak6`, pass=`954N@LtoK`, sid=`naseebak`
+
 ## Known Limitations / TODOs
 
-- OTP SMS sent via Broadnet gateway; test number 962796922292 uses fixed OTP `111111` (bypasses SMS)
 - Photo and identity document storage uses base64 in DB — needs cloud storage (S3/R2) for production
 - Suggestion algorithm returns mock data — needs Python ML microservice integration
 - No email notification service connected

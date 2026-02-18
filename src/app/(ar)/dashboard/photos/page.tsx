@@ -44,39 +44,43 @@ export default function PhotosPage() {
     }
   }
 
+  function readFileAsDataURL(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const remaining = MAX_PHOTOS - photos.length;
+    const filesToUpload = Array.from(files).slice(0, remaining);
 
     setUploading(true);
     try {
-      const reader = new FileReader();
-      reader.onload = async () => {
-        const photoData = reader.result as string;
-        const res = await fetch("/api/profile/photos", {
+      for (let i = 0; i < filesToUpload.length; i++) {
+        const photoData = await readFileAsDataURL(filesToUpload[i]);
+        await fetch("/api/profile/photos", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             photoData,
-            isPrimary: photos.length === 0,
+            isPrimary: photos.length === 0 && i === 0,
           }),
         });
-
-        if (res.ok) {
-          await fetchPhotos();
-        }
-        setUploading(false);
-      };
-      reader.onerror = () => {
-        setUploading(false);
-      };
-      reader.readAsDataURL(file);
+      }
+      await fetchPhotos();
     } catch (err) {
       console.error("Upload failed", err);
+    } finally {
       setUploading(false);
     }
 
-    // Reset input so same file can be selected again
+    // Reset input so same files can be selected again
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -145,6 +149,7 @@ export default function PhotosPage() {
               ref={fileInputRef}
               type="file"
               accept="image/*"
+              multiple
               className="hidden"
               onChange={handleUpload}
               disabled={photos.length >= MAX_PHOTOS || uploading}

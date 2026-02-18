@@ -221,13 +221,32 @@ export default function MatchesPage() {
   const [matches, setMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
   const [showPhotos, setShowPhotos] = useState<Record<string, boolean>>({});
+  const [matchPhotos, setMatchPhotos] = useState<Record<string, { id: string; url: string }[]>>({});
+  const [loadingPhotos, setLoadingPhotos] = useState<Record<string, boolean>>({});
   const [accountComplete, setAccountComplete] = useState<boolean | null>(null);
   const [isFemale, setIsFemale] = useState(false);
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
 
-  const togglePhotos = useCallback((matchId: string) => {
+  const togglePhotos = useCallback(async (matchId: string) => {
+    const isCurrentlyShown = showPhotos[matchId];
     setShowPhotos((prev) => ({ ...prev, [matchId]: !prev[matchId] }));
-  }, []);
+
+    // Fetch photos on first open if not already loaded
+    if (!isCurrentlyShown && !matchPhotos[matchId]) {
+      setLoadingPhotos((prev) => ({ ...prev, [matchId]: true }));
+      try {
+        const res = await fetch(`/api/matches/${matchId}/photos`);
+        if (res.ok) {
+          const data = await res.json();
+          setMatchPhotos((prev) => ({ ...prev, [matchId]: data.photos || [] }));
+        }
+      } catch (err) {
+        console.error("Failed to fetch photos", err);
+      } finally {
+        setLoadingPhotos((prev) => ({ ...prev, [matchId]: false }));
+      }
+    }
+  }, [showPhotos, matchPhotos]);
 
   function toggleExpand(id: string) {
     setExpandedCards((prev) => {
@@ -606,9 +625,14 @@ export default function MatchesPage() {
                     {/* Photos toggle */}
                     {m.photosRevealed && showPhotos[m.id] && (
                       <div className="mx-5 md:mx-6 mb-4">
-                        {m.partner.photos && m.partner.photos.length > 0 ? (
+                        {loadingPhotos[m.id] ? (
+                          <div className="flex flex-col items-center justify-center gap-2 p-6 bg-muted/30 rounded-xl border border-border/40">
+                            <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                            <span className="text-sm text-muted-foreground">جاري تحميل الصور...</span>
+                          </div>
+                        ) : matchPhotos[m.id] && matchPhotos[m.id].length > 0 ? (
                           <div className="grid grid-cols-2 gap-2.5 p-3 bg-muted/30 rounded-xl border border-border/40">
-                            {m.partner.photos.map((photo) => (
+                            {matchPhotos[m.id].map((photo) => (
                               <div
                                 key={photo.id}
                                 className="rounded-lg overflow-hidden relative"

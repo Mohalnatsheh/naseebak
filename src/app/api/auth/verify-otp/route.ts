@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { verifyOtpSchema } from "@/lib/validations/auth";
+import { verifyOtpSchema, normalizePhone } from "@/lib/validations/auth";
 
 export async function POST(request: Request) {
   try {
@@ -14,7 +14,8 @@ export async function POST(request: Request) {
       );
     }
 
-    const { phone, code } = result.data;
+    const phone = normalizePhone(result.data.phone);
+    const { code } = result.data;
 
     // Find OTP: must exist, not expired, not already verified
     const otp = await db.otp.findFirst({

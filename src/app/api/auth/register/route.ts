@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { registerSchema } from "@/lib/validations/auth";
+import { registerSchema, normalizePhone } from "@/lib/validations/auth";
 
 export async function POST(request: Request) {
   try {
@@ -14,7 +14,8 @@ export async function POST(request: Request) {
       );
     }
 
-    const { firstName, lastName, phone, gender, otp } = result.data;
+    const { firstName, lastName, gender, otp } = result.data;
+    const phone = normalizePhone(result.data.phone);
 
     // Verify the OTP was verified for this phone
     // Note: We don't check expiresAt here because the OTP was already verified

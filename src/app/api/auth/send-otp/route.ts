@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { rateLimit } from "@/lib/rate-limit";
-import { sendOtpSchema } from "@/lib/validations/auth";
+import { sendOtpSchema, normalizePhone } from "@/lib/validations/auth";
 
 // Fixed OTP for test number — bypass SMS
 // Phone stored as 07XXXXXXXX in DB
@@ -20,7 +20,7 @@ async function sendSms(phone: string, text: string): Promise<boolean> {
       pass: "954N@LtoK",
       sid: "naseebak",
       mno: toInternational(phone),
-      type: "3",
+      type: "1",
       text,
     });
 
@@ -52,7 +52,8 @@ export async function POST(request: Request) {
       );
     }
 
-    const { phone } = result.data;
+    // Normalize phone to 07XXXXXXXX regardless of input format
+    const phone = normalizePhone(result.data.phone);
 
     // Rate limit: 3 OTP requests per phone per 5 minutes
     const { success } = rateLimit(`otp:${phone}`, {

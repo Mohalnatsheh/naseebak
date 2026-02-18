@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
 import { authConfig } from "@/lib/auth.config";
 import { rateLimit } from "@/lib/rate-limit";
+import { normalizePhone } from "@/lib/validations/auth";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
@@ -15,10 +16,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         otp: { label: "OTP", type: "text" },
       },
       async authorize(credentials) {
-        const phone = credentials?.phone as string | undefined;
+        const rawPhone = credentials?.phone as string | undefined;
         const otp = credentials?.otp as string | undefined;
 
-        if (!phone || !otp) return null;
+        if (!rawPhone || !otp) return null;
+        const phone = normalizePhone(rawPhone);
 
         // Rate limit login attempts by phone
         const { success } = rateLimit(`login:${phone}`, {

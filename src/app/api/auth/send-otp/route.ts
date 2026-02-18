@@ -36,6 +36,23 @@ async function sendSms(phone: string, text: string): Promise<boolean> {
 
 export async function POST(request: Request) {
   try {
+    // IP-based rate limit: 10 OTP requests per IP per 15 minutes
+    const ip =
+      request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+      request.headers.get("x-real-ip") ||
+      "unknown";
+    const { success: ipAllowed } = rateLimit(`otp-ip:${ip}`, {
+      maxAttempts: 10,
+      windowMs: 15 * 60 * 1000,
+    });
+
+    if (!ipAllowed) {
+      return NextResponse.json(
+        { error: "تم تجاوز الحد المسموح من هذا الجهاز. حاول مرة أخرى بعد 15 دقيقة." },
+        { status: 429 }
+      );
+    }
+
     const body = await request.json();
     const result = sendOtpSchema.safeParse(body);
 

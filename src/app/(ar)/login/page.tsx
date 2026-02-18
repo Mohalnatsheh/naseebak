@@ -63,7 +63,16 @@ export default function LoginPage() {
         body: JSON.stringify({ phone: normalizedPhone }),
       });
 
-      const data = await res.json();
+      let data;
+      try {
+        data = await res.json();
+      } catch {
+        // Nginx may return HTML on 503 rate limit
+        setError("الخادم مشغول حالياً. حاول مرة أخرى بعد قليل.");
+        setShake(true);
+        setTimeout(() => setShake(false), 600);
+        return;
+      }
 
       if (!res.ok) {
         setError(data.error || "حدث خطأ أثناء إرسال رمز التحقق");
@@ -98,7 +107,15 @@ export default function LoginPage() {
         body: JSON.stringify({ phone: normalizedPhone, code: otp }),
       });
 
-      const verifyData = await verifyRes.json();
+      let verifyData;
+      try {
+        verifyData = await verifyRes.json();
+      } catch {
+        setError("الخادم مشغول حالياً. حاول مرة أخرى بعد قليل.");
+        setShake(true);
+        setTimeout(() => setShake(false), 600);
+        return;
+      }
 
       if (!verifyRes.ok) {
         setError(verifyData.error || "رمز التحقق غير صالح");

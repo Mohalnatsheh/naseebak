@@ -265,7 +265,13 @@ function RegisterPageContent() {
         body: JSON.stringify({ phone: normalizedPhone }),
       });
 
-      const data = await res.json();
+      let data;
+      try {
+        data = await res.json();
+      } catch {
+        setError("الخادم مشغول حالياً. حاول مرة أخرى بعد قليل.");
+        return;
+      }
 
       if (!res.ok) {
         setError(data.error || "حدث خطأ أثناء إرسال رمز التحقق");
@@ -367,7 +373,13 @@ function RegisterPageContent() {
           body: JSON.stringify({ phone: normalizedPhone, code: form.otp }),
         });
 
-        const verifyData = await verifyRes.json();
+        let verifyData;
+        try {
+          verifyData = await verifyRes.json();
+        } catch {
+          setError("الخادم مشغول حالياً. حاول مرة أخرى بعد قليل.");
+          return;
+        }
 
         if (!verifyRes.ok) {
           setError(verifyData.error || "رمز التحقق غير صالح");
@@ -388,7 +400,13 @@ function RegisterPageContent() {
         }),
       });
 
-      const data = await res.json();
+      let data;
+      try {
+        data = await res.json();
+      } catch {
+        setError("الخادم مشغول حالياً. حاول مرة أخرى بعد قليل.");
+        return;
+      }
 
       if (!res.ok) {
         setError(data.error || "حدث خطأ أثناء التسجيل");

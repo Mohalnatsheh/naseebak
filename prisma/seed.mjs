@@ -478,9 +478,12 @@ async function main() {
     [69.0, 74.5, 85.0],  // Lina ↔ Omar, Ahmad, Khaled
   ];
 
+  // Track suggestions by [femaleIdx][maleIdx]
+  const suggestions = [];
   for (let fi = 0; fi < createdFemales.length; fi++) {
+    suggestions[fi] = [];
     for (let mi = 0; mi < createdMales.length; mi++) {
-      await db.suggestion.upsert({
+      const s = await db.suggestion.upsert({
         where: {
           femaleId_maleId: {
             femaleId: createdFemales[fi].id,
@@ -496,9 +499,123 @@ async function main() {
           status: "PENDING",
         },
       });
+      suggestions[fi][mi] = s;
     }
   }
   console.log("9 suggestions created (3 females × 3 males)");
+
+  const [sara, noor, lina] = createdFemales;
+  const [omar, ahmad, khaled] = createdMales;
+
+  // ─── Mutual Match: Sara ↔ Omar (87.5%, visit: FAMILIES_CONTACTED) ──────
+  // Update suggestion to ACCEPTED
+  await db.suggestion.update({
+    where: { id: suggestions[0][0].id },
+    data: { status: "ACCEPTED" },
+  });
+
+  // Likes both ways
+  await db.like.upsert({
+    where: { fromUserId_toUserId: { fromUserId: sara.id, toUserId: omar.id } },
+    update: {},
+    create: { fromUserId: sara.id, toUserId: omar.id, suggestionId: suggestions[0][0].id, isLiked: true },
+  });
+  await db.like.upsert({
+    where: { fromUserId_toUserId: { fromUserId: omar.id, toUserId: sara.id } },
+    update: {},
+    create: { fromUserId: omar.id, toUserId: sara.id, suggestionId: suggestions[0][0].id, isLiked: true },
+  });
+
+  // MutualMatch + VisitRequest
+  const match1 = await db.mutualMatch.upsert({
+    where: { femaleId_maleId: { femaleId: sara.id, maleId: omar.id } },
+    update: {},
+    create: {
+      femaleId: sara.id,
+      maleId: omar.id,
+      suggestionId: suggestions[0][0].id,
+      photosRevealed: true,
+      revealedByFemale: true,
+      visitRequest: {
+        create: { status: "FAMILIES_CONTACTED", adminNotes: "تم التواصل مع عائلة سارة وعائلة عمر" },
+      },
+    },
+  });
+
+  // Notifications for the match
+  await db.notification.createMany({
+    data: [
+      { userId: sara.id, type: "MATCH", title: "توافق متبادل!", body: "لديك توافق متبادل مع عمر. يمكنك الآن مشاهدة الصور.", isRead: false },
+      { userId: omar.id, type: "MATCH", title: "توافق متبادل!", body: "لديك توافق متبادل مع سارة. يمكنك الآن مشاهدة الصور.", isRead: false },
+      { userId: sara.id, type: "VISIT_UPDATE", title: "تحديث الزيارة", body: "تم التواصل مع العائلتين لترتيب الزيارة.", isRead: false },
+      { userId: omar.id, type: "VISIT_UPDATE", title: "تحديث الزيارة", body: "تم التواصل مع العائلتين لترتيب الزيارة.", isRead: false },
+    ],
+  });
+  console.log("Match 1: سارة ↔ عمر (mutual match, visit: FAMILIES_CONTACTED)");
+
+  // ─── Mutual Match: Noor ↔ Ahmad (92%, visit: SCHEDULED) ────────────────
+  await db.suggestion.update({
+    where: { id: suggestions[1][1].id },
+    data: { status: "ACCEPTED" },
+  });
+
+  await db.like.upsert({
+    where: { fromUserId_toUserId: { fromUserId: noor.id, toUserId: ahmad.id } },
+    update: {},
+    create: { fromUserId: noor.id, toUserId: ahmad.id, suggestionId: suggestions[1][1].id, isLiked: true },
+  });
+  await db.like.upsert({
+    where: { fromUserId_toUserId: { fromUserId: ahmad.id, toUserId: noor.id } },
+    update: {},
+    create: { fromUserId: ahmad.id, toUserId: noor.id, suggestionId: suggestions[1][1].id, isLiked: true },
+  });
+
+  const match2 = await db.mutualMatch.upsert({
+    where: { femaleId_maleId: { femaleId: noor.id, maleId: ahmad.id } },
+    update: {},
+    create: {
+      femaleId: noor.id,
+      maleId: ahmad.id,
+      suggestionId: suggestions[1][1].id,
+      photosRevealed: true,
+      revealedByFemale: true,
+      visitRequest: {
+        create: {
+          status: "SCHEDULED",
+          adminNotes: "تم تحديد موعد الزيارة",
+          scheduledDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 1 week from now
+          location: "منزل عائلة الزعبي - إربد",
+        },
+      },
+    },
+  });
+
+  await db.notification.createMany({
+    data: [
+      { userId: noor.id, type: "MATCH", title: "توافق متبادل!", body: "لديك توافق متبادل مع أحمد. يمكنك الآن مشاهدة الصور.", isRead: true },
+      { userId: ahmad.id, type: "MATCH", title: "توافق متبادل!", body: "لديك توافق متبادل مع نور. يمكنك الآن مشاهدة الصور.", isRead: true },
+      { userId: noor.id, type: "VISIT_UPDATE", title: "موعد الزيارة", body: "تم تحديد موعد الزيارة العائلية. يرجى الاستعداد.", isRead: false },
+      { userId: ahmad.id, type: "VISIT_UPDATE", title: "موعد الزيارة", body: "تم تحديد موعد الزيارة العائلية. يرجى الاستعداد.", isRead: false },
+    ],
+  });
+  console.log("Match 2: نور ↔ أحمد (mutual match, visit: SCHEDULED)");
+
+  // ─── Lina ↔ Khaled: One-way interest (Lina accepted, Khaled pending) ──
+  await db.suggestion.update({
+    where: { id: suggestions[2][2].id },
+    data: { status: "ACCEPTED" },
+  });
+
+  await db.like.upsert({
+    where: { fromUserId_toUserId: { fromUserId: lina.id, toUserId: khaled.id } },
+    update: {},
+    create: { fromUserId: lina.id, toUserId: khaled.id, suggestionId: suggestions[2][2].id, isLiked: true },
+  });
+
+  await db.notification.create({
+    data: { userId: khaled.id, type: "INTEREST", title: "اهتمام جديد!", body: "شخص ما أبدى اهتماماً بك. قم بمراجعة الاقتراحات.", isRead: false },
+  });
+  console.log("Interest: لينا → خالد (one-way, pending his response)");
 
   // ─── Summary ─────────────────────────────────────────────────────────────
   console.log("\n╔══════════════════════════════════════════════════════════╗");
@@ -516,8 +633,13 @@ async function main() {
   console.log("║  أحمد   0790000005                                     ║");
   console.log("║  خالد   0790000006                                     ║");
   console.log("╠══════════════════════════════════════════════════════════╣");
+  console.log("║  MATCHES:                                              ║");
+  console.log("║  سارة ↔ عمر   (mutual, visit: FAMILIES_CONTACTED)     ║");
+  console.log("║  نور  ↔ أحمد  (mutual, visit: SCHEDULED)              ║");
+  console.log("║  لينا → خالد  (one-way interest, pending)             ║");
+  console.log("╠══════════════════════════════════════════════════════════╣");
   console.log("║  All users: verified, complete profiles, 10 credits    ║");
-  console.log("║  9 AI suggestions with varying compatibility scores    ║");
+  console.log("║  9 suggestions + 2 mutual matches + 1 pending interest ║");
   console.log("╚══════════════════════════════════════════════════════════╝");
 }
 

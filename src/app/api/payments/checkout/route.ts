@@ -49,9 +49,10 @@ export async function POST(request: Request) {
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
-    // Create Stripe Checkout Session (charged in USD)
+    // Create Stripe Checkout Session in embedded mode (no redirect)
     const checkoutSession = await getStripe().checkout.sessions.create({
       mode: "payment",
+      ui_mode: "embedded",
       line_items: [
         {
           price_data: {
@@ -70,17 +71,10 @@ export async function POST(request: Request) {
         packageId,
         credits: String(pkg.credits),
       },
-      success_url: `${appUrl}/dashboard/payments?success=true`,
-      cancel_url: `${appUrl}/dashboard/payments?cancelled=true`,
+      return_url: `${appUrl}/dashboard/payments?session_id={CHECKOUT_SESSION_ID}`,
     });
 
-    // Save Stripe session ID on the payment record
-    await db.payment.update({
-      where: { id: payment.id },
-      data: { providerTxId: checkoutSession.id },
-    });
-
-    return NextResponse.json({ url: checkoutSession.url });
+    return NextResponse.json({ clientSecret: checkoutSession.client_secret });
   } catch (error) {
     console.error("Checkout error:", error);
     return NextResponse.json({ error: "حدث خطأ في الخادم" }, { status: 500 });

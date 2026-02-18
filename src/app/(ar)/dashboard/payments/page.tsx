@@ -2,9 +2,13 @@
 
 import { useState, useEffect, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { loadStripe } from "@stripe/stripe-js";
+import {
+  EmbeddedCheckoutProvider,
+  EmbeddedCheckout,
+} from "@stripe/react-stripe-js";
 import {
   Loader2,
-  CreditCard,
   CheckCircle2,
   Star,
   Sparkles,
@@ -15,10 +19,16 @@ import {
   CircleDollarSign,
   Coins,
   XCircle,
+  ArrowRight,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+
+const stripePromise = loadStripe(
+  process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!
+);
 
 interface CreditPackage {
   id: string;
@@ -67,7 +77,11 @@ function PaymentsContent() {
   const [loading, setLoading] = useState(true);
   const [purchasing, setPurchasing] = useState<string | null>(null);
   const [isMale, setIsMale] = useState<boolean | null>(null);
-  const [toast, setToast] = useState<{ type: "success" | "info"; message: string } | null>(null);
+  const [toast, setToast] = useState<{ type: "success" | "info" | "error"; message: string } | null>(null);
+
+  // Embedded checkout state
+  const [checkoutSecret, setCheckoutSecret] = useState<string | null>(null);
+  const [checkoutPackageName, setCheckoutPackageName] = useState<string>("");
 
   const loadData = useCallback(async () => {
     try {
@@ -102,17 +116,25 @@ function PaymentsContent() {
     init();
   }, [loadData]);
 
-  // Handle Stripe redirect success/cancel params
+  // Handle return from embedded checkout
   useEffect(() => {
-    if (searchParams.get("success") === "true") {
-      setToast({ type: "success", message: "تم الدفع بنجاح! تمت إضافة الرصيد" });
-      // Refresh data to pick up webhook-credited balance
-      loadData();
-      // Clean URL params
-      router.replace("/dashboard/payments");
-    } else if (searchParams.get("cancelled") === "true") {
-      setToast({ type: "info", message: "تم إلغاء عملية الدفع" });
-      router.replace("/dashboard/payments");
+    const sessionId = searchParams.get("session_id");
+    if (sessionId) {
+      // Check session status
+      fetch(`/api/payments/session-status?session_id=${sessionId}`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.status === "complete" && data.paymentStatus === "paid") {
+            setToast({ type: "success", message: "تم الدفع بنجاح! تمت إضافة الرصيد" });
+            loadData();
+          } else {
+            setToast({ type: "info", message: "لم تكتمل عملية الدفع" });
+          }
+          router.replace("/dashboard/payments");
+        })
+        .catch(() => {
+          router.replace("/dashboard/payments");
+        });
     }
   }, [searchParams, loadData, router]);
 
@@ -123,7 +145,7 @@ function PaymentsContent() {
     return () => clearTimeout(timer);
   }, [toast]);
 
-  async function handlePurchase(packageId: string) {
+  async function handlePurchase(packageId: string, packageName: string) {
     setPurchasing(packageId);
     try {
       const res = await fetch("/api/payments/checkout", {
@@ -132,17 +154,45 @@ function PaymentsContent() {
         body: JSON.stringify({ packageId }),
       });
       const result = await res.json();
-      if (res.ok && result.url) {
-        // Redirect to Stripe Checkout
-        window.location.href = result.url;
+      if (res.ok && result.clientSecret) {
+        setCheckoutSecret(result.clientSecret);
+        setCheckoutPackageName(packageName);
         return;
       }
       console.error("Checkout failed:", result.error);
+      setToast({ type: "error", message: result.error || "حدث خطأ أثناء إنشاء عملية الدفع" });
     } catch (err) {
       console.error(err);
+      setToast({ type: "error", message: "حدث خطأ في الاتصال" });
     } finally {
       setPurchasing(null);
     }
+  }
+
+  async function handleCancelPayment(paymentId: string) {
+    try {
+      await fetch("/api/payments/cancel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ paymentId }),
+      });
+      setToast({ type: "info", message: "تم إلغاء عملية الدفع" });
+      loadData();
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  function closeCheckout() {
+    setCheckoutSecret(null);
+    setCheckoutPackageName("");
+    // Cancel stale payments when user closes checkout
+    fetch("/api/payments/cancel", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    loadData();
   }
 
   if (loading) {
@@ -165,6 +215,47 @@ function PaymentsContent() {
     return null;
   }
 
+  // Show embedded checkout form
+  if (checkoutSecret) {
+    return (
+      <div className="max-w-2xl mx-auto space-y-6 pb-8">
+        {/* Checkout header */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-amber-500 to-primary flex items-center justify-center shadow-lg shadow-amber-500/20">
+              <Coins className="h-5 w-5 text-white" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-foreground">إتمام الدفع</h2>
+              <p className="text-sm text-muted-foreground">{checkoutPackageName}</p>
+            </div>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={closeCheckout}
+            className="rounded-xl text-muted-foreground hover:text-foreground"
+          >
+            <ArrowRight className="h-4 w-4 me-1.5" />
+            رجوع
+          </Button>
+        </div>
+
+        {/* Embedded Stripe Checkout */}
+        <Card className="overflow-hidden border-primary/20">
+          <CardContent className="p-0">
+            <EmbeddedCheckoutProvider
+              stripe={stripePromise}
+              options={{ clientSecret: checkoutSecret }}
+            >
+              <EmbeddedCheckout className="min-h-[400px]" />
+            </EmbeddedCheckoutProvider>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-8">
       {/* Toast notification */}
@@ -173,12 +264,16 @@ function PaymentsContent() {
           className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 rounded-xl px-5 py-3 shadow-lg border backdrop-blur-sm transition-all duration-300 ${
             toast.type === "success"
               ? "bg-emerald-50/95 border-emerald-200 text-emerald-800"
-              : "bg-amber-50/95 border-amber-200 text-amber-800"
+              : toast.type === "error"
+                ? "bg-red-50/95 border-red-200 text-red-800"
+                : "bg-amber-50/95 border-amber-200 text-amber-800"
           }`}
           style={{ animation: "fadeSlideIn 0.3s ease-out" }}
         >
           {toast.type === "success" ? (
             <CheckCircle2 className="h-5 w-5 text-emerald-500 flex-shrink-0" />
+          ) : toast.type === "error" ? (
+            <XCircle className="h-5 w-5 text-red-500 flex-shrink-0" />
           ) : (
             <XCircle className="h-5 w-5 text-amber-500 flex-shrink-0" />
           )}
@@ -324,7 +419,7 @@ function PaymentsContent() {
                       ? "bg-gradient-to-l from-amber-500 via-yellow-500 to-orange-500 hover:from-amber-600 hover:via-yellow-600 hover:to-orange-600 text-white shadow-lg shadow-amber-500/30 hover:shadow-xl hover:shadow-amber-500/40 border-0"
                       : "bg-gradient-to-l from-primary to-blue-500 hover:from-primary/90 hover:to-blue-600 text-white shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 border-0"
                   }`}
-                  onClick={() => handlePurchase(pkg.id)}
+                  onClick={() => handlePurchase(pkg.id, pkg.name)}
                   disabled={purchasing === pkg.id}
                 >
                   {purchasing === pkg.id ? (
@@ -360,6 +455,8 @@ function PaymentsContent() {
           <div className="space-y-3">
             {payments.map((p, index) => {
               const isCompleted = p.status === "COMPLETED";
+              const isFailed = p.status === "FAILED";
+              const isPending = p.status === "PENDING";
 
               return (
                 <div
@@ -374,7 +471,9 @@ function PaymentsContent() {
                         className={`w-1.5 flex-shrink-0 ${
                           isCompleted
                             ? "bg-gradient-to-b from-emerald-400 to-emerald-600"
-                            : "bg-gradient-to-b from-amber-400 to-amber-600"
+                            : isFailed
+                              ? "bg-gradient-to-b from-red-400 to-red-600"
+                              : "bg-gradient-to-b from-amber-400 to-amber-600"
                         }`}
                       />
                       <CardContent className="flex-1 flex items-center justify-between py-4 px-5">
@@ -383,11 +482,15 @@ function PaymentsContent() {
                             className={`h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
                               isCompleted
                                 ? "bg-emerald-50 border border-emerald-200/50"
-                                : "bg-amber-50 border border-amber-200/50"
+                                : isFailed
+                                  ? "bg-red-50 border border-red-200/50"
+                                  : "bg-amber-50 border border-amber-200/50"
                             }`}
                           >
                             {isCompleted ? (
                               <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                            ) : isFailed ? (
+                              <XCircle className="h-5 w-5 text-red-500" />
                             ) : (
                               <Clock className="h-5 w-5 text-amber-500" />
                             )}
@@ -409,31 +512,51 @@ function PaymentsContent() {
                             className={`text-lg font-black bg-gradient-to-l ${
                               isCompleted
                                 ? "from-emerald-500 to-emerald-700"
-                                : "from-amber-500 to-amber-700"
+                                : isFailed
+                                  ? "from-red-500 to-red-700"
+                                  : "from-amber-500 to-amber-700"
                             } bg-clip-text text-transparent`}
                           >
                             {p.amount}{" "}
                             <span className="text-xs font-semibold">{p.currency}</span>
                           </span>
-                          <Badge
-                            className={`text-[10px] px-2.5 py-0.5 font-semibold border ${
-                              isCompleted
-                                ? "bg-gradient-to-l from-emerald-100 to-emerald-50 text-emerald-700 border-emerald-200/60"
-                                : "bg-gradient-to-l from-amber-100 to-amber-50 text-amber-700 border-amber-200/60"
-                            }`}
-                          >
-                            {isCompleted ? (
-                              <>
-                                <CircleDollarSign className="h-3 w-3 me-1" />
-                                مكتمل
-                              </>
-                            ) : (
-                              <>
-                                <Clock className="h-3 w-3 me-1" />
-                                قيد المعالجة
-                              </>
+                          <div className="flex items-center gap-2">
+                            <Badge
+                              className={`text-[10px] px-2.5 py-0.5 font-semibold border ${
+                                isCompleted
+                                  ? "bg-gradient-to-l from-emerald-100 to-emerald-50 text-emerald-700 border-emerald-200/60"
+                                  : isFailed
+                                    ? "bg-gradient-to-l from-red-100 to-red-50 text-red-700 border-red-200/60"
+                                    : "bg-gradient-to-l from-amber-100 to-amber-50 text-amber-700 border-amber-200/60"
+                              }`}
+                            >
+                              {isCompleted ? (
+                                <>
+                                  <CircleDollarSign className="h-3 w-3 me-1" />
+                                  مكتمل
+                                </>
+                              ) : isFailed ? (
+                                <>
+                                  <XCircle className="h-3 w-3 me-1" />
+                                  ملغى
+                                </>
+                              ) : (
+                                <>
+                                  <Clock className="h-3 w-3 me-1" />
+                                  قيد المعالجة
+                                </>
+                              )}
+                            </Badge>
+                            {isPending && (
+                              <button
+                                onClick={() => handleCancelPayment(p.id)}
+                                className="text-[10px] text-red-500 hover:text-red-700 font-semibold transition-colors flex items-center gap-0.5"
+                              >
+                                <X className="h-3 w-3" />
+                                إلغاء
+                              </button>
                             )}
-                          </Badge>
+                          </div>
                         </div>
                       </CardContent>
                     </div>

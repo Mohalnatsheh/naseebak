@@ -140,20 +140,22 @@ function InfoRow({
   icon: Icon,
   label,
   value,
+  wide,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   value: string | number | null | undefined;
+  wide?: boolean;
 }) {
   if (value === null || value === undefined || value === "") return null;
   return (
-    <div className="flex items-start gap-3 py-2.5 border-b border-border/30 last:border-0">
-      <div className="flex-shrink-0 mt-0.5 h-7 w-7 rounded-lg bg-primary/8 flex items-center justify-center">
+    <div className={`flex items-center gap-2.5 p-2.5 rounded-lg bg-muted/30 ${wide ? "col-span-2" : ""}`}>
+      <div className="flex-shrink-0 h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
         <Icon className="h-3.5 w-3.5 text-primary/60" />
       </div>
       <div className="flex-1 min-w-0">
-        <span className="text-xs text-muted-foreground/70 block mb-0.5">{label}</span>
-        <span className="text-sm font-medium text-foreground">{value}</span>
+        <span className="text-[11px] text-muted-foreground/70 block leading-tight">{label}</span>
+        <span className="text-sm font-semibold text-foreground truncate block">{value}</span>
       </div>
     </div>
   );
@@ -192,7 +194,7 @@ function Section({
           <ChevronDown className="h-4 w-4 text-muted-foreground" />
         )}
       </button>
-      {open && <div className="px-4 pb-3">{children}</div>}
+      {open && <div className="px-4 pb-3 grid grid-cols-2 gap-2">{children}</div>}
     </div>
   );
 }
@@ -679,27 +681,15 @@ export default function SuggestionsPage() {
                               <InfoRow icon={Users} label="عدد الإخوة" value={c.numberOfSiblings !== null && c.numberOfSiblings !== undefined ? `${c.numberOfSiblings}` : null} />
                               <InfoRow icon={Home} label="نوع السكن" value={c.housingType} />
                               <InfoRow icon={MapPin} label="الاستعداد للانتقال" value={c.willingToRelocate} />
-                              {c.familyValues && (
-                                <div className="py-2.5">
-                                  <div className="flex items-start gap-3">
-                                    <div className="flex-shrink-0 mt-0.5 h-7 w-7 rounded-lg bg-primary/8 flex items-center justify-center">
-                                      <Heart className="h-3.5 w-3.5 text-primary/60" />
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                      <span className="text-xs text-muted-foreground/70 block mb-1">القيم العائلية</span>
-                                      <p className="text-sm text-foreground leading-relaxed">{c.familyValues}</p>
-                                    </div>
-                                  </div>
-                                </div>
-                              )}
+                              <InfoRow icon={Heart} label="القيم العائلية" value={c.familyValues} wide />
                             </Section>
 
                             {/* Hobbies & Interests */}
                             {(c.hobbies || c.interests) && (
                               <Section title="الهوايات والاهتمامات" icon={Sparkles} defaultOpen={true}>
                                 {c.hobbies && (
-                                  <div className="py-2.5">
-                                    <span className="text-xs text-muted-foreground/70 block mb-2">الهوايات</span>
+                                  <div className="col-span-2 py-2">
+                                    <span className="text-[11px] text-muted-foreground/70 block mb-2">الهوايات</span>
                                     <div className="flex flex-wrap gap-1.5">
                                       {c.hobbies.split("،").map((h, i) => (
                                         <span key={`h-${i}`} className="inline-flex items-center rounded-full bg-accent/10 border border-accent/20 px-3 py-1 text-xs font-medium text-accent-foreground">
@@ -710,8 +700,8 @@ export default function SuggestionsPage() {
                                   </div>
                                 )}
                                 {c.interests && (
-                                  <div className="py-2.5">
-                                    <span className="text-xs text-muted-foreground/70 block mb-2">الاهتمامات</span>
+                                  <div className="col-span-2 py-2">
+                                    <span className="text-[11px] text-muted-foreground/70 block mb-2">الاهتمامات</span>
                                     <div className="flex flex-wrap gap-1.5">
                                       {c.interests.split("،").map((interest, i) => (
                                         <span key={`i-${i}`} className="inline-flex items-center rounded-full bg-blue-50 border border-blue-200/50 px-3 py-1 text-xs font-medium text-blue-700">

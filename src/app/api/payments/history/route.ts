@@ -9,6 +9,16 @@ export async function GET() {
       return NextResponse.json({ error: "غير مصرح" }, { status: 401 });
     }
 
+    // Auto-expire PENDING payments older than 30 minutes
+    await db.payment.updateMany({
+      where: {
+        userId: session.user.id,
+        status: "PENDING",
+        createdAt: { lt: new Date(Date.now() - 30 * 60 * 1000) },
+      },
+      data: { status: "FAILED" },
+    });
+
     const [payments, user] = await Promise.all([
       db.payment.findMany({
         where: { userId: session.user.id },

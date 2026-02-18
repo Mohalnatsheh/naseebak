@@ -29,6 +29,17 @@ import {
   Activity,
   Moon,
   Flag,
+  ChevronDown,
+  ChevronUp,
+  Home,
+  Users,
+  Baby,
+  MapPinned,
+  UtensilsCrossed,
+  Car,
+  Gem,
+  Quote,
+  Sparkle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -52,6 +63,7 @@ interface Suggestion {
     weight: number | null;
     skinColor: string | null;
     maritalStatus: string | null;
+    childrenCount: number;
     religiosity: string | null;
     smokingStatus: string | null;
     aboutMe: string | null;
@@ -59,6 +71,14 @@ interface Suggestion {
     interests: string | null;
     lifestyle: string | null;
     beard: boolean | null;
+    tribe: string | null;
+    familyOriginArea: string | null;
+    numberOfSiblings: number | null;
+    housingType: string | null;
+    cookingAbility: string | null;
+    drivingLicense: boolean | null;
+    willingToRelocate: string | null;
+    familyValues: string | null;
   };
 }
 
@@ -75,8 +95,6 @@ interface SentRequest {
   };
 }
 
-// Suggestions are now free to browse — no limit on accepting/rejecting
-
 function getScoreColor(score: number) {
   if (score >= 80) return "from-blue-400 to-blue-600";
   if (score >= 60) return "from-primary to-blue-500";
@@ -89,6 +107,14 @@ function getScoreRingColor(score: number) {
   if (score >= 60) return "ring-primary/30";
   if (score >= 40) return "ring-amber-400/30";
   return "ring-rose-400/30";
+}
+
+function getScoreLabel(score: number) {
+  if (score >= 85) return "توافق ممتاز";
+  if (score >= 70) return "توافق جيد جداً";
+  if (score >= 55) return "توافق جيد";
+  if (score >= 40) return "توافق مقبول";
+  return "توافق منخفض";
 }
 
 const STATUS_CONFIG = {
@@ -109,6 +135,68 @@ const STATUS_CONFIG = {
   },
 } as const;
 
+/* ── Section row helper ── */
+function InfoRow({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  value: string | number | null | undefined;
+}) {
+  if (value === null || value === undefined || value === "") return null;
+  return (
+    <div className="flex items-start gap-3 py-2.5 border-b border-border/30 last:border-0">
+      <div className="flex-shrink-0 mt-0.5 h-7 w-7 rounded-lg bg-primary/8 flex items-center justify-center">
+        <Icon className="h-3.5 w-3.5 text-primary/60" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <span className="text-xs text-muted-foreground/70 block mb-0.5">{label}</span>
+        <span className="text-sm font-medium text-foreground">{value}</span>
+      </div>
+    </div>
+  );
+}
+
+/* ── Collapsible section ── */
+function Section({
+  title,
+  icon: Icon,
+  children,
+  defaultOpen = true,
+}: {
+  title: string;
+  icon: React.ComponentType<{ className?: string }>;
+  children: React.ReactNode;
+  defaultOpen?: boolean;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+
+  // Don't render the section if children are all null
+  return (
+    <div className="border border-border/40 rounded-xl overflow-hidden bg-card/50">
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between px-4 py-3 hover:bg-muted/30 transition-colors"
+      >
+        <div className="flex items-center gap-2.5">
+          <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-primary/15 to-primary/5 flex items-center justify-center">
+            <Icon className="h-4 w-4 text-primary/70" />
+          </div>
+          <span className="text-sm font-bold text-foreground">{title}</span>
+        </div>
+        {open ? (
+          <ChevronUp className="h-4 w-4 text-muted-foreground" />
+        ) : (
+          <ChevronDown className="h-4 w-4 text-muted-foreground" />
+        )}
+      </button>
+      {open && <div className="px-4 pb-3">{children}</div>}
+    </div>
+  );
+}
+
 export default function SuggestionsPage() {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [sentRequests, setSentRequests] = useState<SentRequest[]>([]);
@@ -118,6 +206,7 @@ export default function SuggestionsPage() {
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [accountComplete, setAccountComplete] = useState<boolean | null>(null);
   const [activeTab, setActiveTab] = useState<"new" | "sent">("new");
+  const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
 
   const [isMale, setIsMale] = useState<boolean | null>(null);
 
@@ -172,6 +261,15 @@ export default function SuggestionsPage() {
     }
   }
 
+  function toggleExpand(id: string) {
+    setExpandedCards((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
   async function handleAction(id: string, action: "like" | "reject") {
     setActing(id);
     try {
@@ -185,7 +283,6 @@ export default function SuggestionsPage() {
           setRemovingId(null);
         }, 400);
         if (action === "like") {
-          // Refresh sent requests so the new one appears
           fetchSentRequests();
         }
         if (data.match) {
@@ -309,7 +406,6 @@ export default function SuggestionsPage() {
                 : "تتبعي حالة طلبات الاهتمام التي أرسلتيها"}
             </p>
           </div>
-
         </div>
       </div>
 
@@ -378,10 +474,12 @@ export default function SuggestionsPage() {
               </CardContent>
             </Card>
           ) : (
-            <div className="space-y-5">
+            <div className="space-y-6">
               {suggestions.map((s, index) => {
                 const score = Math.round(s.compatibilityScore);
                 const isRemoving = removingId === s.id;
+                const isExpanded = expandedCards.has(s.id);
+                const c = s.candidate;
 
                 return (
                   <div
@@ -393,205 +491,267 @@ export default function SuggestionsPage() {
                       animation: `fadeSlideIn 0.5s ease-out ${index * 0.1}s both`,
                     }}
                   >
-                    <Card className="group overflow-hidden border-border/50 hover:border-primary/30 hover:shadow-xl hover:shadow-primary/5 transition-all duration-300 hover:-translate-y-1">
+                    <Card className="group overflow-hidden border-border/50 hover:border-primary/20 hover:shadow-xl hover:shadow-primary/5 transition-all duration-300">
                       {/* Gradient header strip */}
                       <div className={`h-1.5 bg-gradient-to-l ${getScoreColor(score)}`} />
 
-                      <CardContent className="p-5 md:p-6">
-                        <div className="flex items-start gap-4 mb-5">
-                          {/* Avatar with initial */}
-                          <div className="relative flex-shrink-0">
-                            <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-primary/20 via-primary/10 to-accent/10 flex items-center justify-center border border-primary/10 group-hover:border-primary/20 transition-colors">
-                              <span className="text-2xl font-bold bg-gradient-to-br from-primary to-primary/60 bg-clip-text text-transparent">
-                                {s.candidate.firstName.charAt(0)}
-                              </span>
-                            </div>
-                            {s.isManual && (
-                              <div className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-gradient-to-br from-accent to-amber-500 flex items-center justify-center shadow-sm">
-                                <Star className="h-2.5 w-2.5 text-white fill-white" />
+                      <CardContent className="p-0">
+                        {/* ── Card Header: Name + Score ── */}
+                        <div className="p-5 md:p-6 pb-4">
+                          <div className="flex items-start gap-4">
+                            {/* Avatar */}
+                            <div className="relative flex-shrink-0">
+                              <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-primary/20 via-primary/10 to-accent/10 flex items-center justify-center border border-primary/10 shadow-sm">
+                                <span className="text-2xl font-bold bg-gradient-to-br from-primary to-primary/60 bg-clip-text text-transparent">
+                                  {c.firstName.charAt(0)}
+                                </span>
                               </div>
-                            )}
-                          </div>
-
-                          {/* Name and age */}
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-1">
-                              <h3 className="font-bold text-lg text-foreground truncate">
-                                {s.candidate.firstName}
-                              </h3>
                               {s.isManual && (
-                                <Badge className="bg-gradient-to-l from-accent/20 to-amber-100 text-amber-700 border border-amber-200/50 text-[10px] px-2 py-0">
-                                  اقتراح الإدارة
-                                </Badge>
+                                <div className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-gradient-to-br from-accent to-amber-500 flex items-center justify-center shadow-sm">
+                                  <Star className="h-2.5 w-2.5 text-white fill-white" />
+                                </div>
                               )}
                             </div>
-                            {s.candidate.age && (
-                              <p className="text-sm text-muted-foreground flex items-center gap-1.5">
-                                <Calendar className="h-3.5 w-3.5" />
-                                {s.candidate.age} سنة
-                              </p>
-                            )}
-                          </div>
 
-                          {/* Compatibility score circular badge */}
-                          <div className="flex-shrink-0">
-                            <div className={`relative h-[72px] w-[72px] rounded-full flex items-center justify-center ring-4 ${getScoreRingColor(score)} bg-gradient-to-br ${getScoreColor(score)} shadow-lg group-hover:scale-105 transition-transform duration-300`}>
-                              <div className="h-[56px] w-[56px] rounded-full bg-card flex flex-col items-center justify-center">
-                                <span className="text-xl font-black text-foreground leading-none">
-                                  {score}
-                                </span>
-                                <span className="text-[9px] text-muted-foreground font-medium leading-none mt-0.5">
-                                  % توافق
-                                </span>
+                            {/* Name + Age + Tags */}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                <h3 className="font-bold text-xl text-foreground truncate">
+                                  {c.firstName}
+                                </h3>
+                                {s.isManual && (
+                                  <Badge className="bg-gradient-to-l from-accent/20 to-amber-100 text-amber-700 border border-amber-200/50 text-[10px] px-2 py-0">
+                                    اقتراح الإدارة
+                                  </Badge>
+                                )}
+                              </div>
+                              {/* Key info line */}
+                              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5">
+                                {c.age && (
+                                  <span className="inline-flex items-center gap-1 text-sm text-muted-foreground">
+                                    <Calendar className="h-3.5 w-3.5" />
+                                    {c.age} سنة
+                                  </span>
+                                )}
+                                {c.city && (
+                                  <span className="inline-flex items-center gap-1 text-sm text-muted-foreground">
+                                    <MapPin className="h-3.5 w-3.5" />
+                                    {c.city}{c.area ? ` - ${c.area}` : ""}
+                                  </span>
+                                )}
+                                {c.job && (
+                                  <span className="inline-flex items-center gap-1 text-sm text-muted-foreground">
+                                    <Briefcase className="h-3.5 w-3.5" />
+                                    {c.job}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Compatibility score */}
+                            <div className="flex-shrink-0">
+                              <div className={`relative h-[72px] w-[72px] rounded-full flex items-center justify-center ring-4 ${getScoreRingColor(score)} bg-gradient-to-br ${getScoreColor(score)} shadow-lg`}>
+                                <div className="h-[56px] w-[56px] rounded-full bg-card flex flex-col items-center justify-center">
+                                  <span className="text-xl font-black text-foreground leading-none">
+                                    {score}
+                                  </span>
+                                  <span className="text-[8px] text-muted-foreground font-medium leading-none mt-0.5">
+                                    % توافق
+                                  </span>
+                                </div>
                               </div>
                             </div>
                           </div>
+
+                          {/* Score label */}
+                          <div className="mt-3 flex items-center gap-2">
+                            <Sparkle className="h-3.5 w-3.5 text-primary/50" />
+                            <span className="text-xs font-medium text-primary/70">{getScoreLabel(score)}</span>
+                          </div>
                         </div>
 
-                        {/* Quick info chips */}
-                        <div className="flex flex-wrap gap-2 mb-4">
-                          {s.candidate.city && (
-                            <div className="inline-flex items-center gap-1.5 rounded-lg bg-muted/60 border border-border/50 px-3 py-1.5 text-sm text-foreground/80">
-                              <MapPin className="h-3.5 w-3.5 text-primary/60" />
-                              {s.candidate.city}{s.candidate.area ? ` - ${s.candidate.area}` : ""}
-                            </div>
-                          )}
-                          {s.candidate.maritalStatus && (
-                            <div className="inline-flex items-center gap-1.5 rounded-lg bg-muted/60 border border-border/50 px-3 py-1.5 text-sm text-foreground/80">
-                              <User className="h-3.5 w-3.5 text-primary/60" />
-                              {s.candidate.maritalStatus}
-                            </div>
-                          )}
-                          {s.candidate.religiosity && (
-                            <div className="inline-flex items-center gap-1.5 rounded-lg bg-muted/60 border border-border/50 px-3 py-1.5 text-sm text-foreground/80">
-                              <Moon className="h-3.5 w-3.5 text-primary/60" />
-                              {s.candidate.religiosity}
-                            </div>
-                          )}
+                        {/* ── Quick Summary Chips ── */}
+                        <div className="px-5 md:px-6 pb-4">
+                          <div className="flex flex-wrap gap-2">
+                            {c.maritalStatus && (
+                              <div className="inline-flex items-center gap-1.5 rounded-full bg-muted/60 border border-border/50 px-3 py-1.5 text-xs font-medium text-foreground/80">
+                                <User className="h-3 w-3 text-primary/50" />
+                                {c.maritalStatus}
+                              </div>
+                            )}
+                            {c.education && (
+                              <div className="inline-flex items-center gap-1.5 rounded-full bg-muted/60 border border-border/50 px-3 py-1.5 text-xs font-medium text-foreground/80">
+                                <GraduationCap className="h-3 w-3 text-primary/50" />
+                                {c.education}
+                              </div>
+                            )}
+                            {c.religiosity && (
+                              <div className="inline-flex items-center gap-1.5 rounded-full bg-muted/60 border border-border/50 px-3 py-1.5 text-xs font-medium text-foreground/80">
+                                <Moon className="h-3 w-3 text-primary/50" />
+                                {c.religiosity}
+                              </div>
+                            )}
+                            {c.smokingStatus && (
+                              <div className="inline-flex items-center gap-1.5 rounded-full bg-muted/60 border border-border/50 px-3 py-1.5 text-xs font-medium text-foreground/80">
+                                <Cigarette className="h-3 w-3 text-primary/50" />
+                                {c.smokingStatus}
+                              </div>
+                            )}
+                            {c.nationality && (
+                              <div className="inline-flex items-center gap-1.5 rounded-full bg-muted/60 border border-border/50 px-3 py-1.5 text-xs font-medium text-foreground/80">
+                                <Flag className="h-3 w-3 text-primary/50" />
+                                {c.nationality}
+                              </div>
+                            )}
+                          </div>
                         </div>
 
-                        {/* Detailed info grid */}
-                        <div className="grid grid-cols-2 gap-x-4 gap-y-2.5 mb-4 p-4 rounded-xl bg-muted/30 border border-border/30">
-                          {s.candidate.education && (
-                            <div className="flex items-center gap-2 text-sm">
-                              <GraduationCap className="h-3.5 w-3.5 text-primary/50 flex-shrink-0" />
-                              <span className="text-muted-foreground">التعليم:</span>
-                              <span className="text-foreground font-medium truncate">{s.candidate.education}</span>
+                        {/* ── About Me (always visible if available) ── */}
+                        {c.aboutMe && (
+                          <div className="mx-5 md:mx-6 mb-4 p-4 rounded-xl bg-gradient-to-l from-primary/5 to-primary/[0.02] border border-primary/10">
+                            <div className="flex items-start gap-2.5">
+                              <Quote className="h-4 w-4 text-primary/40 flex-shrink-0 mt-0.5" />
+                              <p className="text-sm text-foreground/80 leading-relaxed">{c.aboutMe}</p>
                             </div>
-                          )}
-                          {s.candidate.fieldOfStudy && (
-                            <div className="flex items-center gap-2 text-sm">
-                              <BookOpen className="h-3.5 w-3.5 text-primary/50 flex-shrink-0" />
-                              <span className="text-muted-foreground">التخصص:</span>
-                              <span className="text-foreground font-medium truncate">{s.candidate.fieldOfStudy}</span>
-                            </div>
-                          )}
-                          {s.candidate.job && (
-                            <div className="flex items-center gap-2 text-sm">
-                              <Briefcase className="h-3.5 w-3.5 text-primary/50 flex-shrink-0" />
-                              <span className="text-muted-foreground">الوظيفة:</span>
-                              <span className="text-foreground font-medium truncate">{s.candidate.job}</span>
-                            </div>
-                          )}
-                          {s.candidate.incomeRange && (
-                            <div className="flex items-center gap-2 text-sm">
-                              <Wallet className="h-3.5 w-3.5 text-primary/50 flex-shrink-0" />
-                              <span className="text-muted-foreground">الدخل:</span>
-                              <span className="text-foreground font-medium truncate">{s.candidate.incomeRange}</span>
-                            </div>
-                          )}
-                          {s.candidate.height && (
-                            <div className="flex items-center gap-2 text-sm">
-                              <Ruler className="h-3.5 w-3.5 text-primary/50 flex-shrink-0" />
-                              <span className="text-muted-foreground">الطول:</span>
-                              <span className="text-foreground font-medium">{s.candidate.height} سم</span>
-                            </div>
-                          )}
-                          {s.candidate.weight && (
-                            <div className="flex items-center gap-2 text-sm">
-                              <Weight className="h-3.5 w-3.5 text-primary/50 flex-shrink-0" />
-                              <span className="text-muted-foreground">الوزن:</span>
-                              <span className="text-foreground font-medium">{s.candidate.weight} كغ</span>
-                            </div>
-                          )}
-                          {s.candidate.skinColor && (
-                            <div className="flex items-center gap-2 text-sm">
-                              <Palette className="h-3.5 w-3.5 text-primary/50 flex-shrink-0" />
-                              <span className="text-muted-foreground">البشرة:</span>
-                              <span className="text-foreground font-medium">{s.candidate.skinColor}</span>
-                            </div>
-                          )}
-                          {s.candidate.smokingStatus && (
-                            <div className="flex items-center gap-2 text-sm">
-                              <Cigarette className="h-3.5 w-3.5 text-primary/50 flex-shrink-0" />
-                              <span className="text-muted-foreground">التدخين:</span>
-                              <span className="text-foreground font-medium">{s.candidate.smokingStatus}</span>
-                            </div>
-                          )}
-                          {s.candidate.lifestyle && (
-                            <div className="flex items-center gap-2 text-sm">
-                              <Activity className="h-3.5 w-3.5 text-primary/50 flex-shrink-0" />
-                              <span className="text-muted-foreground">نمط الحياة:</span>
-                              <span className="text-foreground font-medium">{s.candidate.lifestyle}</span>
-                            </div>
-                          )}
-                          {s.candidate.nationality && (
-                            <div className="flex items-center gap-2 text-sm">
-                              <Flag className="h-3.5 w-3.5 text-primary/50 flex-shrink-0" />
-                              <span className="text-muted-foreground">الجنسية:</span>
-                              <span className="text-foreground font-medium">{s.candidate.nationality}</span>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* About me */}
-                        {s.candidate.aboutMe && (
-                          <div className="mb-4 p-3 rounded-xl bg-primary/5 border border-primary/10">
-                            <p className="text-sm text-foreground/80 leading-relaxed">{s.candidate.aboutMe}</p>
                           </div>
                         )}
 
-                        {/* Hobbies & Interests */}
-                        {(s.candidate.hobbies || s.candidate.interests) && (
-                          <div className="flex flex-wrap gap-1.5 mb-5">
-                            {s.candidate.hobbies?.split("،").map((h, i) => (
-                              <span key={`h-${i}`} className="inline-flex items-center rounded-full bg-accent/10 border border-accent/20 px-2.5 py-0.5 text-xs text-accent-foreground font-medium">
-                                {h.trim()}
-                              </span>
-                            ))}
-                            {s.candidate.interests?.split("،").map((interest, i) => (
-                              <span key={`i-${i}`} className="inline-flex items-center rounded-full bg-blue-50 border border-blue-200/50 px-2.5 py-0.5 text-xs text-blue-700 font-medium">
-                                {interest.trim()}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-
-                        {/* Action buttons */}
-                        <div className="flex gap-3">
-                          <Button
-                            onClick={() => handleAction(s.id, "like")}
-                            disabled={acting === s.id}
-                            className="flex-1 h-11 bg-gradient-to-l from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-md shadow-blue-500/20 hover:shadow-lg hover:shadow-blue-500/30 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 rounded-xl font-semibold"
+                        {/* ── Expand / Collapse Toggle ── */}
+                        <div className="px-5 md:px-6 mb-4">
+                          <button
+                            onClick={() => toggleExpand(s.id)}
+                            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-border/50 bg-muted/30 hover:bg-muted/50 transition-colors text-sm font-semibold text-muted-foreground hover:text-foreground"
                           >
-                            {acting === s.id ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
+                            {isExpanded ? (
+                              <>
+                                <ChevronUp className="h-4 w-4" />
+                                إخفاء التفاصيل
+                              </>
                             ) : (
                               <>
-                                <HeartHandshake className="h-5 w-5 me-1.5" />
-                                قبول
+                                <ChevronDown className="h-4 w-4" />
+                                عرض جميع التفاصيل
                               </>
                             )}
-                          </Button>
-                          <Button
-                            variant="outline"
-                            onClick={() => handleAction(s.id, "reject")}
-                            disabled={acting === s.id}
-                            className="flex-1 h-11 border-destructive/30 text-destructive/80 hover:bg-destructive/5 hover:text-destructive hover:border-destructive/50 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 rounded-xl font-semibold"
-                          >
-                            <X className="h-5 w-5 me-1.5" />
-                            رفض
-                          </Button>
+                          </button>
+                        </div>
+
+                        {/* ── Expanded Details ── */}
+                        {isExpanded && (
+                          <div className="px-5 md:px-6 pb-4 space-y-3" style={{ animation: "fadeSlideIn 0.3s ease-out" }}>
+                            {/* Personal Info */}
+                            <Section title="المعلومات الشخصية" icon={User} defaultOpen={true}>
+                              <InfoRow icon={Calendar} label="العمر" value={c.age ? `${c.age} سنة` : null} />
+                              <InfoRow icon={MapPin} label="المدينة" value={c.city} />
+                              <InfoRow icon={MapPinned} label="المنطقة" value={c.area} />
+                              <InfoRow icon={Flag} label="الجنسية" value={c.nationality} />
+                              <InfoRow icon={User} label="الحالة الاجتماعية" value={c.maritalStatus} />
+                              <InfoRow icon={Baby} label="عدد الأبناء" value={c.childrenCount > 0 ? `${c.childrenCount}` : "لا يوجد"} />
+                              <InfoRow icon={Ruler} label="الطول" value={c.height ? `${c.height} سم` : null} />
+                              <InfoRow icon={Weight} label="الوزن" value={c.weight ? `${c.weight} كغ` : null} />
+                              <InfoRow icon={Palette} label="لون البشرة" value={c.skinColor} />
+                              {c.beard !== null && c.beard !== undefined && (
+                                <InfoRow icon={User} label="اللحية" value={c.beard ? "نعم" : "لا"} />
+                              )}
+                            </Section>
+
+                            {/* Education & Work */}
+                            <Section title="التعليم والعمل" icon={GraduationCap} defaultOpen={true}>
+                              <InfoRow icon={GraduationCap} label="المستوى التعليمي" value={c.education} />
+                              <InfoRow icon={BookOpen} label="التخصص" value={c.fieldOfStudy} />
+                              <InfoRow icon={Briefcase} label="الوظيفة" value={c.job} />
+                              <InfoRow icon={Wallet} label="مستوى الدخل" value={c.incomeRange} />
+                            </Section>
+
+                            {/* Religion & Lifestyle */}
+                            <Section title="الدين ونمط الحياة" icon={Moon} defaultOpen={true}>
+                              <InfoRow icon={Moon} label="مستوى التدين" value={c.religiosity} />
+                              <InfoRow icon={Cigarette} label="التدخين" value={c.smokingStatus} />
+                              <InfoRow icon={Activity} label="نمط الحياة" value={c.lifestyle} />
+                              <InfoRow icon={UtensilsCrossed} label="القدرة على الطبخ" value={c.cookingAbility} />
+                              <InfoRow icon={Car} label="رخصة قيادة" value={c.drivingLicense !== null && c.drivingLicense !== undefined ? (c.drivingLicense ? "نعم" : "لا") : null} />
+                            </Section>
+
+                            {/* Family */}
+                            <Section title="العائلة" icon={Users} defaultOpen={true}>
+                              <InfoRow icon={Gem} label="العشيرة" value={c.tribe} />
+                              <InfoRow icon={MapPinned} label="منطقة أصل العائلة" value={c.familyOriginArea} />
+                              <InfoRow icon={Users} label="عدد الإخوة" value={c.numberOfSiblings !== null && c.numberOfSiblings !== undefined ? `${c.numberOfSiblings}` : null} />
+                              <InfoRow icon={Home} label="نوع السكن" value={c.housingType} />
+                              <InfoRow icon={MapPin} label="الاستعداد للانتقال" value={c.willingToRelocate} />
+                              {c.familyValues && (
+                                <div className="py-2.5">
+                                  <div className="flex items-start gap-3">
+                                    <div className="flex-shrink-0 mt-0.5 h-7 w-7 rounded-lg bg-primary/8 flex items-center justify-center">
+                                      <Heart className="h-3.5 w-3.5 text-primary/60" />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <span className="text-xs text-muted-foreground/70 block mb-1">القيم العائلية</span>
+                                      <p className="text-sm text-foreground leading-relaxed">{c.familyValues}</p>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                            </Section>
+
+                            {/* Hobbies & Interests */}
+                            {(c.hobbies || c.interests) && (
+                              <Section title="الهوايات والاهتمامات" icon={Sparkles} defaultOpen={true}>
+                                {c.hobbies && (
+                                  <div className="py-2.5">
+                                    <span className="text-xs text-muted-foreground/70 block mb-2">الهوايات</span>
+                                    <div className="flex flex-wrap gap-1.5">
+                                      {c.hobbies.split("،").map((h, i) => (
+                                        <span key={`h-${i}`} className="inline-flex items-center rounded-full bg-accent/10 border border-accent/20 px-3 py-1 text-xs font-medium text-accent-foreground">
+                                          {h.trim()}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                                {c.interests && (
+                                  <div className="py-2.5">
+                                    <span className="text-xs text-muted-foreground/70 block mb-2">الاهتمامات</span>
+                                    <div className="flex flex-wrap gap-1.5">
+                                      {c.interests.split("،").map((interest, i) => (
+                                        <span key={`i-${i}`} className="inline-flex items-center rounded-full bg-blue-50 border border-blue-200/50 px-3 py-1 text-xs font-medium text-blue-700">
+                                          {interest.trim()}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </Section>
+                            )}
+                          </div>
+                        )}
+
+                        {/* ── Action Buttons ── */}
+                        <div className="p-5 md:p-6 pt-0">
+                          <div className="flex gap-3">
+                            <Button
+                              onClick={() => handleAction(s.id, "like")}
+                              disabled={acting === s.id}
+                              className="flex-1 h-12 bg-gradient-to-l from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-md shadow-blue-500/20 hover:shadow-lg hover:shadow-blue-500/30 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 rounded-xl font-bold text-base"
+                            >
+                              {acting === s.id ? (
+                                <Loader2 className="h-5 w-5 animate-spin" />
+                              ) : (
+                                <>
+                                  <HeartHandshake className="h-5 w-5 me-2" />
+                                  أبدي اهتماماً
+                                </>
+                              )}
+                            </Button>
+                            <Button
+                              variant="outline"
+                              onClick={() => handleAction(s.id, "reject")}
+                              disabled={acting === s.id}
+                              className="h-12 px-5 border-destructive/30 text-destructive/80 hover:bg-destructive/5 hover:text-destructive hover:border-destructive/50 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 rounded-xl font-bold"
+                            >
+                              <X className="h-5 w-5" />
+                            </Button>
+                          </div>
                         </div>
                       </CardContent>
                     </Card>
@@ -702,7 +862,7 @@ export default function SuggestionsPage() {
                               )}
                             </div>
 
-                            {/* Footer: date + link */}
+                            {/* Footer */}
                             <div className="flex items-center justify-between">
                               <span className="text-xs text-muted-foreground/60">
                                 أُرسل في {sentDate}

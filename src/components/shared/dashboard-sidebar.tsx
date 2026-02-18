@@ -15,6 +15,7 @@ import {
   Sparkles,
   Home,
   Brain,
+  Camera,
   X,
   ChevronRight,
   ChevronLeft,
@@ -34,13 +35,14 @@ interface NavLink {
 
 const mainLinks: NavLink[] = [
   { href: "/dashboard", label: "الرئيسية", icon: Home },
-  { href: "/dashboard/suggestions", label: "الاقتراحات", icon: Sparkles, femaleOnly: true },
+  { href: "/dashboard/suggestions", label: "الاقتراحات", icon: Sparkles },
   { href: "/dashboard/matches", label: "التوافقات", icon: Heart },
   { href: "/dashboard/notifications", label: "الإشعارات", icon: Bell },
 ];
 
 const accountLinks: NavLink[] = [
   { href: "/dashboard/profile", label: "الملف الشخصي", icon: User },
+  { href: "/dashboard/photos", label: "صوري", icon: Camera },
   { href: "/dashboard/personality-quiz", label: "اختبار الشخصية", icon: Brain },
   { href: "/dashboard/identity", label: "التحقق من الهوية", icon: FileCheck },
   { href: "/dashboard/payments", label: "رصيد التوافقات", icon: CreditCard, femaleOnly: true },

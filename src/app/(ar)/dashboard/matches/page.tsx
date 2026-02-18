@@ -21,8 +21,27 @@ import {
   Sparkles,
   AlertCircle,
   ArrowLeft,
-  Lock,
-  Coins,
+  Calendar,
+  User,
+  Moon,
+  Flag,
+  ChevronDown,
+  ChevronUp,
+  Ruler,
+  Weight,
+  Cigarette,
+  BookOpen,
+  Wallet,
+  Palette,
+  Activity,
+  MapPinned,
+  Baby,
+  Home,
+  UtensilsCrossed,
+  Car,
+  Gem,
+  Quote,
+  Sparkle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -35,11 +54,39 @@ interface Match {
   createdAt: string;
   visitStatus: string | null;
   scheduledDate: string | null;
+  compatibilityScore: number;
   partner: {
+    id: string;
     firstName: string;
+    age: number | null;
     city: string | null;
+    area: string | null;
+    nationality: string | null;
     education: string | null;
+    fieldOfStudy: string | null;
     job: string | null;
+    incomeRange: string | null;
+    height: number | null;
+    weight: number | null;
+    skinColor: string | null;
+    maritalStatus: string | null;
+    childrenCount: number;
+    religiosity: string | null;
+    smokingStatus: string | null;
+    aboutMe: string | null;
+    hobbies: string | null;
+    interests: string | null;
+    lifestyle: string | null;
+    beard: boolean | null;
+    hijab: boolean | null;
+    tribe: string | null;
+    familyOriginArea: string | null;
+    numberOfSiblings: number | null;
+    housingType: string | null;
+    cookingAbility: string | null;
+    drivingLicense: boolean | null;
+    willingToRelocate: string | null;
+    familyValues: string | null;
     photos?: { id: string; url: string }[];
   };
 }
@@ -85,18 +132,111 @@ const visitStatusConfig: Record<string, { color: string; borderColor: string; bg
   },
 };
 
+function getScoreColor(score: number) {
+  if (score >= 80) return "from-blue-400 to-blue-600";
+  if (score >= 60) return "from-primary to-blue-500";
+  if (score >= 40) return "from-amber-400 to-orange-500";
+  return "from-rose-400 to-red-500";
+}
+
+function getScoreRingColor(score: number) {
+  if (score >= 80) return "ring-blue-400/30";
+  if (score >= 60) return "ring-primary/30";
+  if (score >= 40) return "ring-amber-400/30";
+  return "ring-rose-400/30";
+}
+
+function getScoreLabel(score: number) {
+  if (score >= 85) return "توافق ممتاز";
+  if (score >= 70) return "توافق جيد جداً";
+  if (score >= 55) return "توافق جيد";
+  if (score >= 40) return "توافق مقبول";
+  return "توافق منخفض";
+}
+
+/* ── Section row helper ── */
+function InfoRow({
+  icon: Icon,
+  label,
+  value,
+  wide,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  value: string | number | null | undefined;
+  wide?: boolean;
+}) {
+  if (value === null || value === undefined || value === "") return null;
+  return (
+    <div className={`flex items-center gap-2.5 p-2.5 rounded-lg bg-muted/30 ${wide ? "col-span-2" : ""}`}>
+      <div className="flex-shrink-0 h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
+        <Icon className="h-3.5 w-3.5 text-primary/60" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <span className="text-[11px] text-muted-foreground/70 block leading-tight">{label}</span>
+        <span className="text-sm font-semibold text-foreground truncate block">{value}</span>
+      </div>
+    </div>
+  );
+}
+
+/* ── Collapsible section ── */
+function Section({
+  title,
+  icon: Icon,
+  children,
+  defaultOpen = true,
+}: {
+  title: string;
+  icon: React.ComponentType<{ className?: string }>;
+  children: React.ReactNode;
+  defaultOpen?: boolean;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+
+  return (
+    <div className="border border-border/40 rounded-xl overflow-hidden bg-card/50">
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between px-4 py-3 hover:bg-muted/30 transition-colors"
+      >
+        <div className="flex items-center gap-2.5">
+          <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-primary/15 to-primary/5 flex items-center justify-center">
+            <Icon className="h-4 w-4 text-primary/70" />
+          </div>
+          <span className="text-sm font-bold text-foreground">{title}</span>
+        </div>
+        {open ? (
+          <ChevronUp className="h-4 w-4 text-muted-foreground" />
+        ) : (
+          <ChevronDown className="h-4 w-4 text-muted-foreground" />
+        )}
+      </button>
+      {open && <div className="px-4 pb-3 grid grid-cols-2 gap-2">{children}</div>}
+    </div>
+  );
+}
+
 export default function MatchesPage() {
   const [matches, setMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
   const [showPhotos, setShowPhotos] = useState<Record<string, boolean>>({});
   const [accountComplete, setAccountComplete] = useState<boolean | null>(null);
   const [isFemale, setIsFemale] = useState(false);
-  const [matchCredits, setMatchCredits] = useState(0);
-  const [revealingId, setRevealingId] = useState<string | null>(null);
+  const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
 
   const togglePhotos = useCallback((matchId: string) => {
     setShowPhotos((prev) => ({ ...prev, [matchId]: !prev[matchId] }));
   }, []);
+
+  function toggleExpand(id: string) {
+    setExpandedCards((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   useEffect(() => {
     async function checkCompletion() {
@@ -118,9 +258,6 @@ export default function MatchesPage() {
         const res = await fetch("/api/matches");
         const data = await res.json();
         setMatches(data.matches || []);
-        if (data.matchCredits !== undefined) {
-          setMatchCredits(data.matchCredits);
-        }
       } catch (err) {
         console.error(err);
       } finally {
@@ -130,32 +267,6 @@ export default function MatchesPage() {
     checkCompletion();
     fetchMatches();
   }, []);
-
-  async function handleReveal(matchId: string) {
-    setRevealingId(matchId);
-    try {
-      const res = await fetch(`/api/matches/${matchId}/reveal`, {
-        method: "POST",
-      });
-      const data = await res.json();
-
-      if (res.ok && data.revealed) {
-        setMatches((prev) =>
-          prev.map((m) => (m.id === matchId ? { ...m, revealed: true } : m))
-        );
-        if (data.creditsRemaining !== undefined) {
-          setMatchCredits(data.creditsRemaining);
-        }
-      } else if (data.code === "NO_CREDITS") {
-        // Redirect to payments
-        window.location.href = "/dashboard/payments";
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setRevealingId(null);
-    }
-  }
 
   if (loading) {
     return (
@@ -198,10 +309,6 @@ export default function MatchesPage() {
     );
   }
 
-  const unrevealedCount = isFemale
-    ? matches.filter((m) => !m.revealed).length
-    : 0;
-
   return (
     <div className="max-w-2xl mx-auto space-y-8 pb-8">
       {/* Page Header */}
@@ -209,47 +316,27 @@ export default function MatchesPage() {
         <div className="absolute top-0 left-0 w-40 h-40 bg-rose-100/40 rounded-full -translate-x-16 -translate-y-16 blur-3xl" />
         <div className="absolute bottom-0 right-0 w-32 h-32 bg-primary/5 rounded-full translate-x-8 translate-y-8 blur-2xl" />
 
-        <div className="relative flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div className="space-y-2">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-rose-500 to-primary flex items-center justify-center shadow-lg shadow-rose-500/20">
-                <Heart className="h-5 w-5 text-white fill-white" />
-              </div>
-              <div className="flex items-center gap-3">
-                <h1 className="text-2xl md:text-3xl font-bold bg-gradient-to-l from-primary to-rose-600 bg-clip-text text-transparent">
-                  التوافقات المتبادلة
-                </h1>
-                {matches.length > 0 && (
-                  <span className="inline-flex items-center justify-center h-7 min-w-7 px-2 rounded-full bg-gradient-to-br from-rose-500 to-primary text-white text-xs font-bold shadow-sm">
-                    {matches.length}
-                  </span>
-                )}
-              </div>
+        <div className="relative space-y-2">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-rose-500 to-primary flex items-center justify-center shadow-lg shadow-rose-500/20">
+              <Heart className="h-5 w-5 text-white fill-white" />
             </div>
-            <p className="text-muted-foreground text-sm md:text-base">
-              {isFemale
-                ? "استخدمي رصيد التوافق لرؤية تفاصيل التوافقات المتبادلة"
-                : "الأشخاص الذين تبادلتم الإعجاب. يمكنك رؤية تفاصيلهم وطلب زيارة عائلية."}
-            </p>
-          </div>
-
-          {/* Credits indicator for females */}
-          {isFemale && (
-            <div className="flex-shrink-0 bg-card/80 backdrop-blur-sm rounded-xl border border-amber-200/50 p-4 min-w-[140px]">
-              <p className="text-xs text-muted-foreground mb-1">رصيدك</p>
-              <div className="flex items-baseline gap-1.5">
-                <span className="text-2xl font-black bg-gradient-to-l from-amber-500 to-primary bg-clip-text text-transparent">
-                  {matchCredits}
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl md:text-3xl font-bold bg-gradient-to-l from-primary to-rose-600 bg-clip-text text-transparent">
+                التوافقات المتبادلة
+              </h1>
+              {matches.length > 0 && (
+                <span className="inline-flex items-center justify-center h-7 min-w-7 px-2 rounded-full bg-gradient-to-br from-rose-500 to-primary text-white text-xs font-bold shadow-sm">
+                  {matches.length}
                 </span>
-                <span className="text-xs text-muted-foreground font-medium">رصيد</span>
-              </div>
-              {unrevealedCount > 0 && (
-                <p className="text-[10px] text-amber-600 mt-1 font-medium">
-                  {unrevealedCount} توافق بانتظار الكشف
-                </p>
               )}
             </div>
-          )}
+          </div>
+          <p className="text-muted-foreground text-sm md:text-base">
+            {isFemale
+              ? "الأشخاص الذين تبادلتم الإعجاب. يمكنك رؤية تفاصيلهم وطلب زيارة عائلية."
+              : "الأشخاص الذين تبادلتم الإعجاب. يمكنك رؤية تفاصيلهم وطلب زيارة عائلية."}
+          </p>
         </div>
       </div>
 
@@ -271,16 +358,18 @@ export default function MatchesPage() {
             </div>
             <div className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground/60 pt-2">
               <Sparkles className="h-3.5 w-3.5" />
-              <span>راجعي اقتراحاتك لزيادة فرص التوافق</span>
+              <span>راجع اقتراحاتك لزيادة فرص التوافق</span>
             </div>
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-5">
+        <div className="space-y-6">
           {matches.map((m, index) => {
             const statusConfig = m.visitStatus ? visitStatusConfig[m.visitStatus] : null;
             const StatusIcon = statusConfig?.icon || Clock;
-            const isUnrevealed = isFemale && !m.revealed;
+            const score = Math.round(m.compatibilityScore);
+            const isExpanded = expandedCards.has(m.id);
+            const c = m.partner;
 
             return (
               <div
@@ -290,187 +379,292 @@ export default function MatchesPage() {
                 }}
               >
                 <Card
-                  className={`group overflow-hidden transition-all duration-300 hover:-translate-y-1 ${
-                    isUnrevealed
-                      ? "border-amber-200/60 hover:border-amber-300/80 hover:shadow-lg hover:shadow-amber-500/5"
-                      : `border-border/50 hover:shadow-xl hover:shadow-primary/5 ${statusConfig ? `border-r-4 ${statusConfig.borderColor}` : "border-r-4 border-r-primary/30"}`
+                  className={`group overflow-hidden transition-all duration-300 hover:-translate-y-1 border-border/50 hover:shadow-xl hover:shadow-primary/5 ${
+                    statusConfig ? `border-r-4 ${statusConfig.borderColor}` : "border-r-4 border-r-primary/30"
                   }`}
                 >
-                  {/* Status gradient background for revealed matches */}
-                  {!isUnrevealed && statusConfig && (
+                  {/* Score gradient header strip */}
+                  <div className={`h-1.5 bg-gradient-to-l ${getScoreColor(score)}`} />
+
+                  {/* Status gradient background */}
+                  {statusConfig && (
                     <div className={`absolute inset-0 bg-gradient-to-l ${statusConfig.bgColor} pointer-events-none opacity-40`} />
                   )}
 
-                  <CardContent className="relative p-5 md:p-6">
-                    {isUnrevealed ? (
-                      /* Unrevealed match card */
-                      <div className="text-center space-y-4 py-4">
-                        <div className="relative mx-auto w-20 h-20">
-                          <div className="h-20 w-20 rounded-2xl bg-gradient-to-br from-amber-100 via-amber-50 to-orange-50 flex items-center justify-center border border-amber-200/40">
-                            <Lock className="h-8 w-8 text-amber-400" />
+                  <CardContent className="relative p-0">
+                    {/* Card Header: Name + Score */}
+                    <div className="p-5 md:p-6 pb-4">
+                      <div className="flex items-start gap-4">
+                        {/* Avatar */}
+                        <div className="relative flex-shrink-0">
+                          <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-rose-200/40 via-rose-100/20 to-accent/10 flex items-center justify-center border border-rose-200/30 shadow-sm">
+                            <span className="text-2xl font-bold bg-gradient-to-br from-rose-500 to-primary bg-clip-text text-transparent">
+                              {c.firstName.charAt(0)}
+                            </span>
                           </div>
                         </div>
-                        <div className="space-y-1.5">
-                          <h3 className="font-bold text-lg text-foreground">
-                            {m.partner.firstName}
-                          </h3>
-                          <p className="text-sm text-muted-foreground">
-                            لديك توافق متبادل جديد! استخدمي رصيد لرؤية التفاصيل
-                          </p>
-                          <p className="text-xs text-muted-foreground/70">
+
+                        {/* Name + Tags */}
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-bold text-xl text-foreground truncate mb-1">{c.firstName}</h3>
+                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5">
+                            {c.age && (
+                              <span className="inline-flex items-center gap-1 text-sm text-muted-foreground">
+                                <Calendar className="h-3.5 w-3.5" />{c.age} سنة
+                              </span>
+                            )}
+                            {c.city && (
+                              <span className="inline-flex items-center gap-1 text-sm text-muted-foreground">
+                                <MapPin className="h-3.5 w-3.5" />{c.city}{c.area ? ` - ${c.area}` : ""}
+                              </span>
+                            )}
+                            {c.job && (
+                              <span className="inline-flex items-center gap-1 text-sm text-muted-foreground">
+                                <Briefcase className="h-3.5 w-3.5" />{c.job}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-1.5">
                             توافق بتاريخ {new Date(m.createdAt).toLocaleDateString("ar-JO")}
                           </p>
                         </div>
-                        <Button
-                          onClick={() => handleReveal(m.id)}
-                          disabled={revealingId === m.id}
-                          className="bg-gradient-to-l from-amber-500 via-yellow-500 to-orange-500 hover:from-amber-600 hover:via-yellow-600 hover:to-orange-600 text-white shadow-lg shadow-amber-500/20 rounded-xl font-semibold transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
-                        >
-                          {revealingId === m.id ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : matchCredits > 0 ? (
-                            <>
-                              <Coins className="h-4 w-4 me-2" />
-                              كشف التوافق (1 رصيد)
-                            </>
-                          ) : (
-                            <>
-                              <Coins className="h-4 w-4 me-2" />
-                              اشتري رصيد للكشف
-                            </>
-                          )}
-                        </Button>
-                      </div>
-                    ) : (
-                      /* Revealed match card */
-                      <>
-                        <div className="flex items-start gap-4 mb-4">
-                          <div className="flex-shrink-0">
-                            <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-rose-100 via-primary/10 to-rose-50 flex items-center justify-center border border-rose-200/30 group-hover:border-rose-300/40 transition-colors">
-                              <Heart className="h-7 w-7 text-rose-400 fill-rose-400/20" />
-                            </div>
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <h3 className="font-bold text-lg text-foreground truncate mb-0.5">
-                              {m.partner.firstName}
-                            </h3>
-                            <p className="text-xs text-muted-foreground mb-2.5">
-                              توافق بتاريخ {new Date(m.createdAt).toLocaleDateString("ar-JO")}
-                            </p>
-                            <div className="flex flex-wrap gap-1.5">
-                              {m.partner.city && (
-                                <div className="inline-flex items-center gap-1 rounded-md bg-muted/60 border border-border/50 px-2 py-0.5 text-xs text-foreground/80">
-                                  <MapPin className="h-3 w-3 text-primary/60" />
-                                  {m.partner.city}
-                                </div>
-                              )}
-                              {m.partner.education && (
-                                <div className="inline-flex items-center gap-1 rounded-md bg-muted/60 border border-border/50 px-2 py-0.5 text-xs text-foreground/80">
-                                  <GraduationCap className="h-3 w-3 text-primary/60" />
-                                  {m.partner.education}
-                                </div>
-                              )}
-                              {m.partner.job && (
-                                <div className="inline-flex items-center gap-1 rounded-md bg-muted/60 border border-border/50 px-2 py-0.5 text-xs text-foreground/80">
-                                  <Briefcase className="h-3 w-3 text-primary/60" />
-                                  {m.partner.job}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                          {m.visitStatus && statusConfig && (
-                            <Badge className={`flex-shrink-0 gap-1.5 px-3 py-1 border text-xs font-semibold ${statusConfig.color}`}>
-                              <StatusIcon className="h-3.5 w-3.5" />
-                              {visitStatusLabels[m.visitStatus] || m.visitStatus}
-                            </Badge>
-                          )}
-                        </div>
 
-                        {m.scheduledDate && (
-                          <div className="mb-4 p-3.5 bg-gradient-to-l from-green-50 to-emerald-50/50 rounded-xl flex items-center gap-3 text-sm text-green-800 border border-green-200/40">
-                            <div className="h-9 w-9 rounded-lg bg-green-100 flex items-center justify-center flex-shrink-0">
-                              <CalendarHeart className="h-5 w-5 text-green-600" />
-                            </div>
-                            <div>
-                              <p className="text-xs text-green-600 font-medium mb-0.5">موعد الزيارة</p>
-                              <p className="font-bold text-green-800">
-                                {new Date(m.scheduledDate).toLocaleDateString("ar-JO", {
-                                  weekday: "long",
-                                  year: "numeric",
-                                  month: "long",
-                                  day: "numeric",
-                                })}
-                              </p>
+                        {/* Compatibility score ring */}
+                        {score > 0 && (
+                          <div className="flex-shrink-0">
+                            <div className={`relative h-[72px] w-[72px] rounded-full flex items-center justify-center ring-4 ${getScoreRingColor(score)} bg-gradient-to-br ${getScoreColor(score)} shadow-lg`}>
+                              <div className="h-[56px] w-[56px] rounded-full bg-card flex flex-col items-center justify-center">
+                                <span className="text-xl font-black text-foreground leading-none">{score}</span>
+                                <span className="text-[8px] text-muted-foreground font-medium leading-none mt-0.5">% توافق</span>
+                              </div>
                             </div>
                           </div>
                         )}
+                      </div>
 
-                        {m.photosRevealed && showPhotos[m.id] && (
-                          <div className="mb-4">
-                            {m.partner.photos && m.partner.photos.length > 0 ? (
-                              <div className="grid grid-cols-2 gap-2.5 p-3 bg-muted/30 rounded-xl border border-border/40">
-                                {m.partner.photos.map((photo) => (
-                                  <div
-                                    key={photo.id}
-                                    className="rounded-lg overflow-hidden relative"
-                                    onContextMenu={(e) => e.preventDefault()}
-                                  >
-                                    <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent z-10 pointer-events-none rounded-lg" />
-                                    <img
-                                      src={photo.url}
-                                      alt="صورة الشريك"
-                                      className="w-full h-44 object-cover rounded-lg transition-transform duration-300"
-                                      draggable={false}
-                                      onContextMenu={(e) => e.preventDefault()}
-                                    />
-                                  </div>
-                                ))}
-                              </div>
-                            ) : (
-                              <div className="flex flex-col items-center justify-center gap-2 p-6 bg-muted/30 rounded-xl border border-border/40 text-sm text-muted-foreground">
-                                <ImageOff className="h-8 w-8 text-muted-foreground/30" />
-                                <span>لا توجد صور مرفوعة</span>
+                      {/* Score label + Visit status */}
+                      <div className="mt-3 flex items-center justify-between">
+                        {score > 0 && (
+                          <div className="flex items-center gap-2">
+                            <Sparkle className="h-3.5 w-3.5 text-primary/50" />
+                            <span className="text-xs font-medium text-primary/70">{getScoreLabel(score)}</span>
+                          </div>
+                        )}
+                        {m.visitStatus && statusConfig && (
+                          <Badge className={`gap-1.5 px-3 py-1 border text-xs font-semibold ${statusConfig.color}`}>
+                            <StatusIcon className="h-3.5 w-3.5" />
+                            {visitStatusLabels[m.visitStatus] || m.visitStatus}
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Quick chips */}
+                    <div className="px-5 md:px-6 pb-4">
+                      <div className="flex flex-wrap gap-2">
+                        {c.maritalStatus && (
+                          <div className="inline-flex items-center gap-1.5 rounded-full bg-muted/60 border border-border/50 px-3 py-1.5 text-xs font-medium text-foreground/80">
+                            <User className="h-3 w-3 text-primary/50" />{c.maritalStatus}
+                          </div>
+                        )}
+                        {c.education && (
+                          <div className="inline-flex items-center gap-1.5 rounded-full bg-muted/60 border border-border/50 px-3 py-1.5 text-xs font-medium text-foreground/80">
+                            <GraduationCap className="h-3 w-3 text-primary/50" />{c.education}
+                          </div>
+                        )}
+                        {c.religiosity && (
+                          <div className="inline-flex items-center gap-1.5 rounded-full bg-muted/60 border border-border/50 px-3 py-1.5 text-xs font-medium text-foreground/80">
+                            <Moon className="h-3 w-3 text-primary/50" />{c.religiosity}
+                          </div>
+                        )}
+                        {c.nationality && (
+                          <div className="inline-flex items-center gap-1.5 rounded-full bg-muted/60 border border-border/50 px-3 py-1.5 text-xs font-medium text-foreground/80">
+                            <Flag className="h-3 w-3 text-primary/50" />{c.nationality}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* About Me */}
+                    {c.aboutMe && (
+                      <div className="mx-5 md:mx-6 mb-4 p-4 rounded-xl bg-gradient-to-l from-primary/5 to-primary/[0.02] border border-primary/10">
+                        <div className="flex items-start gap-2.5">
+                          <Quote className="h-4 w-4 text-primary/40 flex-shrink-0 mt-0.5" />
+                          <p className="text-sm text-foreground/80 leading-relaxed">{c.aboutMe}</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Expand toggle */}
+                    <div className="px-5 md:px-6 mb-4">
+                      <button
+                        onClick={() => toggleExpand(m.id)}
+                        className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-border/50 bg-muted/30 hover:bg-muted/50 transition-colors text-sm font-semibold text-muted-foreground hover:text-foreground"
+                      >
+                        {isExpanded ? (
+                          <><ChevronUp className="h-4 w-4" />إخفاء التفاصيل</>
+                        ) : (
+                          <><ChevronDown className="h-4 w-4" />عرض جميع التفاصيل</>
+                        )}
+                      </button>
+                    </div>
+
+                    {/* Expanded Details */}
+                    {isExpanded && (
+                      <div className="px-5 md:px-6 pb-4 space-y-3" style={{ animation: "fadeSlideIn 0.3s ease-out" }}>
+                        <Section title="المعلومات الشخصية" icon={User} defaultOpen={true}>
+                          <InfoRow icon={Calendar} label="العمر" value={c.age ? `${c.age} سنة` : null} />
+                          <InfoRow icon={MapPin} label="المدينة" value={c.city} />
+                          <InfoRow icon={MapPinned} label="المنطقة" value={c.area} />
+                          <InfoRow icon={Flag} label="الجنسية" value={c.nationality} />
+                          <InfoRow icon={User} label="الحالة الاجتماعية" value={c.maritalStatus} />
+                          <InfoRow icon={Baby} label="عدد الأبناء" value={c.childrenCount > 0 ? `${c.childrenCount}` : "لا يوجد"} />
+                          <InfoRow icon={Ruler} label="الطول" value={c.height ? `${c.height} سم` : null} />
+                          <InfoRow icon={Weight} label="الوزن" value={c.weight ? `${c.weight} كغ` : null} />
+                          <InfoRow icon={Palette} label="لون البشرة" value={c.skinColor} />
+                          {/* Show beard when viewing male partner (isFemale means partner is male) */}
+                          {isFemale && c.beard !== null && c.beard !== undefined && (
+                            <InfoRow icon={User} label="اللحية" value={c.beard ? "نعم" : "لا"} />
+                          )}
+                          {/* Show hijab when viewing female partner (!isFemale means partner is female) */}
+                          {!isFemale && c.hijab !== null && c.hijab !== undefined && (
+                            <InfoRow icon={User} label="الحجاب" value={c.hijab ? "نعم" : "لا"} />
+                          )}
+                        </Section>
+
+                        <Section title="التعليم والعمل" icon={GraduationCap} defaultOpen={true}>
+                          <InfoRow icon={GraduationCap} label="المستوى التعليمي" value={c.education} />
+                          <InfoRow icon={BookOpen} label="التخصص" value={c.fieldOfStudy} />
+                          <InfoRow icon={Briefcase} label="الوظيفة" value={c.job} />
+                          <InfoRow icon={Wallet} label="مستوى الدخل" value={c.incomeRange} />
+                        </Section>
+
+                        <Section title="الدين ونمط الحياة" icon={Moon} defaultOpen={true}>
+                          <InfoRow icon={Moon} label="مستوى التدين" value={c.religiosity} />
+                          <InfoRow icon={Cigarette} label="التدخين" value={c.smokingStatus} />
+                          <InfoRow icon={Activity} label="نمط الحياة" value={c.lifestyle} />
+                          <InfoRow icon={UtensilsCrossed} label="القدرة على الطبخ" value={c.cookingAbility} />
+                          <InfoRow icon={Car} label="رخصة قيادة" value={c.drivingLicense !== null && c.drivingLicense !== undefined ? (c.drivingLicense ? "نعم" : "لا") : null} />
+                        </Section>
+
+                        <Section title="العائلة" icon={Users} defaultOpen={true}>
+                          <InfoRow icon={Gem} label="العشيرة" value={c.tribe} />
+                          <InfoRow icon={MapPinned} label="منطقة أصل العائلة" value={c.familyOriginArea} />
+                          <InfoRow icon={Users} label="عدد الإخوة" value={c.numberOfSiblings !== null && c.numberOfSiblings !== undefined ? `${c.numberOfSiblings}` : null} />
+                          <InfoRow icon={Home} label="نوع السكن" value={c.housingType} />
+                          <InfoRow icon={MapPin} label="الاستعداد للانتقال" value={c.willingToRelocate} />
+                          <InfoRow icon={Heart} label="القيم العائلية" value={c.familyValues} wide />
+                        </Section>
+
+                        {(c.hobbies || c.interests) && (
+                          <Section title="الهوايات والاهتمامات" icon={Sparkles} defaultOpen={true}>
+                            {c.hobbies && (
+                              <div className="col-span-2 py-2">
+                                <span className="text-[11px] text-muted-foreground/70 block mb-2">الهوايات</span>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {c.hobbies.split("،").map((h, i) => (
+                                    <span key={`h-${i}`} className="inline-flex items-center rounded-full bg-accent/10 border border-accent/20 px-3 py-1 text-xs font-medium text-accent-foreground">{h.trim()}</span>
+                                  ))}
+                                </div>
                               </div>
                             )}
+                            {c.interests && (
+                              <div className="col-span-2 py-2">
+                                <span className="text-[11px] text-muted-foreground/70 block mb-2">الاهتمامات</span>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {c.interests.split("،").map((interest, i) => (
+                                    <span key={`i-${i}`} className="inline-flex items-center rounded-full bg-blue-50 border border-blue-200/50 px-3 py-1 text-xs font-medium text-blue-700">{interest.trim()}</span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </Section>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Scheduled visit date */}
+                    {m.scheduledDate && (
+                      <div className="mx-5 md:mx-6 mb-4 p-3.5 bg-gradient-to-l from-green-50 to-emerald-50/50 rounded-xl flex items-center gap-3 text-sm text-green-800 border border-green-200/40">
+                        <div className="h-9 w-9 rounded-lg bg-green-100 flex items-center justify-center flex-shrink-0">
+                          <CalendarHeart className="h-5 w-5 text-green-600" />
+                        </div>
+                        <div>
+                          <p className="text-xs text-green-600 font-medium mb-0.5">موعد الزيارة</p>
+                          <p className="font-bold text-green-800">
+                            {new Date(m.scheduledDate).toLocaleDateString("ar-JO", {
+                              weekday: "long",
+                              year: "numeric",
+                              month: "long",
+                              day: "numeric",
+                            })}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Photos toggle */}
+                    {m.photosRevealed && showPhotos[m.id] && (
+                      <div className="mx-5 md:mx-6 mb-4">
+                        {m.partner.photos && m.partner.photos.length > 0 ? (
+                          <div className="grid grid-cols-2 gap-2.5 p-3 bg-muted/30 rounded-xl border border-border/40">
+                            {m.partner.photos.map((photo) => (
+                              <div
+                                key={photo.id}
+                                className="rounded-lg overflow-hidden relative"
+                                onContextMenu={(e) => e.preventDefault()}
+                              >
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent z-10 pointer-events-none rounded-lg" />
+                                <img
+                                  src={photo.url}
+                                  alt="صورة الشريك"
+                                  className="w-full h-44 object-cover rounded-lg transition-transform duration-300"
+                                  draggable={false}
+                                  onContextMenu={(e) => e.preventDefault()}
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="flex flex-col items-center justify-center gap-2 p-6 bg-muted/30 rounded-xl border border-border/40 text-sm text-muted-foreground">
+                            <ImageOff className="h-8 w-8 text-muted-foreground/30" />
+                            <span>لا توجد صور مرفوعة</span>
                           </div>
                         )}
-
-                        <div className="flex gap-3">
-                          {m.photosRevealed ? (
-                            <Button
-                              variant="outline"
-                              className={`flex-1 h-11 rounded-xl font-semibold transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] ${
-                                showPhotos[m.id]
-                                  ? "bg-primary/5 border-primary/30 text-primary hover:bg-primary/10"
-                                  : "border-rose-200/60 text-rose-600 hover:bg-rose-50 hover:border-rose-300/60"
-                              }`}
-                              onClick={() => togglePhotos(m.id)}
-                            >
-                              {showPhotos[m.id] ? (
-                                <>
-                                  <EyeOff className="h-4 w-4 me-2" />
-                                  إخفاء الصور
-                                </>
-                              ) : (
-                                <>
-                                  <Eye className="h-4 w-4 me-2" />
-                                  عرض الصور
-                                </>
-                              )}
-                            </Button>
-                          ) : (
-                            <Button
-                              variant="outline"
-                              className="flex-1 h-11 rounded-xl font-semibold border-border/50 text-muted-foreground"
-                              disabled
-                            >
-                              <Eye className="h-4 w-4 me-2" />
-                              الصور غير متاحة بعد
-                            </Button>
-                          )}
-                        </div>
-                      </>
+                      </div>
                     )}
+
+                    {/* Action buttons */}
+                    <div className="p-5 md:p-6 pt-0">
+                      <div className="flex gap-3">
+                        {m.photosRevealed ? (
+                          <Button
+                            variant="outline"
+                            className={`flex-1 h-11 rounded-xl font-semibold transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] ${
+                              showPhotos[m.id]
+                                ? "bg-primary/5 border-primary/30 text-primary hover:bg-primary/10"
+                                : "border-rose-200/60 text-rose-600 hover:bg-rose-50 hover:border-rose-300/60"
+                            }`}
+                            onClick={() => togglePhotos(m.id)}
+                          >
+                            {showPhotos[m.id] ? (
+                              <><EyeOff className="h-4 w-4 me-2" />إخفاء الصور</>
+                            ) : (
+                              <><Eye className="h-4 w-4 me-2" />عرض الصور</>
+                            )}
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="outline"
+                            className="flex-1 h-11 rounded-xl font-semibold border-border/50 text-muted-foreground"
+                            disabled
+                          >
+                            <Eye className="h-4 w-4 me-2" />
+                            الصور غير متاحة بعد
+                          </Button>
+                        )}
+                      </div>
+                    </div>
                   </CardContent>
                 </Card>
               </div>

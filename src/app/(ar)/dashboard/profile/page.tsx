@@ -22,6 +22,7 @@ import {
   Calendar,
   Moon,
   Clock,
+  Camera,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -618,6 +619,14 @@ export default function ProfilePage() {
               desc: user.identityDoc?.status === "APPROVED" ? "تم التحقق" : "قيد المراجعة",
               gradient: "from-sky-500 to-blue-500",
               hoverBorder: "hover:border-sky-300",
+            },
+            {
+              href: "/dashboard/photos",
+              icon: Camera,
+              label: "صوري الشخصية",
+              desc: `${user.photos?.length ?? 0} صور مرفوعة`,
+              gradient: "from-violet-500 to-purple-600",
+              hoverBorder: "hover:border-violet-300",
             },
           ].map((item) => (
             <Link key={item.href} href={item.href}>

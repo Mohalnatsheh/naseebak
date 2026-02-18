@@ -53,7 +53,8 @@ src/
 │   │       ├── profile/edit/      # Profile editing
 │   │       ├── identity/          # ID document upload + status
 │   │       ├── suggestions/       # View/accept/reject + sent interest tracking (tabs)
-│   │       ├── matches/           # Mutual matches + photos + visits
+│   │       ├── matches/           # Mutual matches with full profile details + photos + visits
+│   │       ├── photos/            # Photo upload/manage (max 5, base64)
 │   │       ├── personality-quiz/  # 20-question quiz (5 dimensions)
 │   │       ├── payments/          # Plans + payment history
 │   │       └── notifications/     # Notification center
@@ -151,7 +152,7 @@ Key points:
 | Identity | `upload` (supports both FormData + JSON/base64), `status` |
 | Profile | GET/PUT profile, `parent-info`, `personality-quiz` (20 Qs, 5 dimensions, 3-month retake cooldown), `photos` (max 5), `photos/[id]`, `deactivate`, `update-request` |
 | Suggestions | GET list, `[id]/like`, `[id]/reject`, `sent` (GET — sent interest tracking) |
-| Matches | GET list, `[id]/photos`, `[id]/reveal`, `[id]/visit-status` |
+| Matches | GET list (full profile details + compatibility score), `[id]/photos`, `[id]/reveal` (no-op), `[id]/visit-status` |
 | Payments | `plans`, `checkout`, `history`, `webhook` |
 | Notifications | GET list, `[id]/read`, `read-all`, `unread-count` |
 | Push | `register` (POST — save OneSignal player ID) |
@@ -176,20 +177,22 @@ These are hard constraints that must never be violated:
 
 - **No messaging/chat/communication** between users — ever
 - **Photos are hidden** until both users mutually like each other
-- **Only female users receive suggestions**; males only respond to interest notifications
+- **Only female users receive suggestions**; males see received interests and can accept/reject
 - **Identity verification** (government ID upload + admin review) is mandatory before platform usage
 - **Parent/guardian data** is visible to admin only, never to the other user
-- **Free tier:** 5 lifetime suggestions per account; paid packages/subscriptions for more
+- **Free tier:** 5 lifetime suggestions per account; paid packages for more
+- **No credit gate on matches** — mutual match details are always fully visible (no reveal/credit cost)
 - **No pricing on landing page** — packages are only visible in the dashboard payments section
-- **Suggestion cards** show only: first name, age, city, education, job, compatibility %
+- **Suggestion cards** show full profile details (expandable): personal info, education/work, religion/lifestyle, family, hobbies
+- **Match cards** show same full profile details as suggestions, plus compatibility score, visit status, and photo toggle
 
 ## Matching Workflow
 
 ```
-Female receives suggestion → accepts/rejects (no photos) →
-  if accepted: male gets notified → accepts/rejects (no photos) →
-    if mutual like: photos revealed + visit request created →
-      admin contacts families → arranges in-person visit
+Female receives suggestion → accepts/rejects (full profile, no photos) →
+  if accepted: male gets notified → accepts/rejects (full profile, no photos) →
+    if mutual like: full details + photos revealed immediately (no credit cost) →
+      visit request created → admin contacts families → arranges in-person visit
 ```
 
 ## Sent Interest Tracking
@@ -228,6 +231,32 @@ The profile wizard (`dashboard/profile/setup`) has 5 steps:
 3. **About Me & Preferences** — Bio, partner expectations, hobbies, family values, preferred age/city/education/marital status
 4. **Family Info** — Tribe, family origin area, siblings count, housing type, monthly expenses, health conditions
 5. **Guardian Info** — Parent/guardian name, phone, relationship, address
+
+## Photo Management
+
+Photo upload page at `/dashboard/photos`. Uses existing API endpoints:
+- `GET /api/profile/photos` → list photos
+- `POST /api/profile/photos` → upload (base64 data URL, `isPrimary` flag)
+- `DELETE /api/profile/photos/[id]` → delete
+
+**Constraints:** Max 5 photos per user. Photos are only visible to mutual matches. First uploaded photo is auto-set as primary.
+
+**Key files:**
+- `src/app/(ar)/dashboard/photos/page.tsx` — Photo upload/manage UI
+- Accessible from sidebar ("صوري") and profile page quick links
+
+## Notification Routing
+
+All notification types navigate to the correct page on click:
+| Type | Route |
+|---|---|
+| SUGGESTION | `/dashboard/suggestions` |
+| INTEREST | `/dashboard/suggestions` |
+| MATCH | `/dashboard/matches` |
+| VISIT_UPDATE | `/dashboard/matches` |
+| PAYMENT | `/dashboard/payments` |
+| IDENTITY | `/dashboard/identity` |
+| SYSTEM | `/dashboard` |
 
 ## Testing
 

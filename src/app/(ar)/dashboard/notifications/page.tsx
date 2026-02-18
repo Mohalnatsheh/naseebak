@@ -13,6 +13,8 @@ import {
   Info,
   Clock,
   ArrowLeft,
+  Shield,
+  CreditCard,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -69,6 +71,22 @@ const typeConfig: Record<
     iconColor: "text-blue-600",
     dotColor: "bg-blue-500",
   },
+  IDENTITY: {
+    icon: Shield,
+    gradient: "from-sky-500 to-blue-500",
+    borderColor: "border-s-sky-400",
+    iconBg: "from-sky-100 to-blue-100",
+    iconColor: "text-sky-600",
+    dotColor: "bg-sky-500",
+  },
+  PAYMENT: {
+    icon: CreditCard,
+    gradient: "from-green-500 to-emerald-500",
+    borderColor: "border-s-green-400",
+    iconBg: "from-green-100 to-emerald-100",
+    iconColor: "text-green-600",
+    dotColor: "bg-green-500",
+  },
   SYSTEM: {
     icon: Info,
     gradient: "from-amber-500 to-orange-500",
@@ -93,10 +111,13 @@ function timeAgo(dateStr: string) {
 }
 
 const NOTIFICATION_LINKS: Record<string, string> = {
+  SUGGESTION: "/dashboard/suggestions",
   INTEREST: "/dashboard/suggestions",
   MATCH: "/dashboard/matches",
   VISIT_UPDATE: "/dashboard/matches",
   PAYMENT: "/dashboard/payments",
+  IDENTITY: "/dashboard/identity",
+  SYSTEM: "/dashboard",
 };
 
 export default function NotificationsPage() {

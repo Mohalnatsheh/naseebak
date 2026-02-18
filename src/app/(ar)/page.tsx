@@ -13,9 +13,6 @@ import {
   Sparkles,
   ArrowLeft,
   Quote,
-  ShieldCheck,
-  MapPin,
-  Headphones,
   ChevronDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -296,7 +293,6 @@ export default function HomePage() {
   const stepsView = useInView(0.15);
   const statsView = useInView(0.3);
   const testimonialsView = useInView(0.15);
-  const trustView = useInView(0.15);
   const faqView = useInView(0.15);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
 
@@ -722,36 +718,6 @@ export default function HomePage() {
             </div>
           </div>
         </section>
-
-        {/* ═══════════════ TRUST STRIP SECTION ═══════════════ */}
-        <div
-          ref={trustView.ref}
-          className={`relative bg-gradient-to-l from-primary/[0.04] via-background to-secondary/[0.04] transition-all duration-700 ${
-            trustView.inView ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"
-          }`}
-        >
-          <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-l from-transparent via-border to-transparent" />
-          <div className="absolute bottom-0 inset-x-0 h-px bg-gradient-to-l from-transparent via-border to-transparent" />
-
-          <div className="container mx-auto px-4 py-8">
-            <div className="flex flex-wrap items-center justify-center gap-4">
-              {[
-                { icon: Shield, text: "تشفير AES-256" },
-                { icon: ShieldCheck, text: "OWASP متوافق" },
-                { icon: MapPin, text: "مسجلة في الأردن" },
-                { icon: Headphones, text: "خدمة عملاء ٢٤/٧" },
-              ].map((badge, i) => (
-                <span
-                  key={i}
-                  className="inline-flex items-center gap-2 rounded-full bg-muted/60 backdrop-blur-sm px-5 py-2.5 text-sm font-medium text-muted-foreground border border-border/30"
-                >
-                  <badge.icon className="size-4 text-primary" />
-                  {badge.text}
-                </span>
-              ))}
-            </div>
-          </div>
-        </div>
 
         {/* ═══════════════ FAQ PREVIEW SECTION ═══════════════ */}
         <section id="faq-preview" className="relative py-28 sm:py-36">

@@ -366,13 +366,13 @@ export default function HomePage() {
 
             {/* Headline */}
             <h1
-              className="mx-auto max-w-5xl text-5xl font-bold leading-tight tracking-tight sm:text-6xl md:text-7xl lg:text-8xl"
+              className="mx-auto max-w-5xl text-5xl font-bold leading-tight tracking-tight sm:text-6xl md:text-7xl lg:text-8xl text-center"
               style={{ animation: "fadeSlideUp 0.8s ease-out 0.2s both" }}
             >
               <span className="bg-gradient-to-l from-primary via-primary/90 to-primary bg-clip-text text-transparent drop-shadow-sm">
                 نصيبك
               </span>
-              <span className="mx-3 text-muted-foreground/40">—</span>
+              <span className="mx-3 text-muted-foreground/40 hidden sm:inline">—</span>
               <br className="sm:hidden" />
               <span className="bg-gradient-to-l from-primary via-secondary to-accent bg-clip-text text-transparent">
                 طريقك نحو زواج مبارك

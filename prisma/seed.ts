@@ -591,30 +591,202 @@ async function main() {
   });
   console.log("Interest: لينا → خالد (one-way, pending his response)");
 
+  // ─── WALKTHROUGH TEST PAIR (clean, no matches — test the full flow) ────
+  const testFemale = await db.user.upsert({
+    where: { email: "phone_962777000001@naseeb.local" },
+    update: {},
+    create: {
+      email: "phone_962777000001@naseeb.local",
+      phone: "962777000001",
+      firstName: "هديل",
+      lastName: "ياسين",
+      gender: "FEMALE",
+      status: "VERIFIED",
+      isVerified: true,
+      verifiedAt: new Date(),
+      matchCredits: 10,
+      profile: {
+        create: {
+          dateOfBirth: new Date("1998-06-10"),
+          city: "عمّان",
+          area: "الصويفية",
+          nationality: "أردنية",
+          education: "بكالوريوس",
+          fieldOfStudy: "تصميم جرافيك",
+          job: "مصممة",
+          incomeRange: "500-1000 د.أ",
+          height: 163,
+          weight: 56,
+          skinColor: "أبيض",
+          childrenCount: 0,
+          willingToRelocate: "maybe",
+          maritalStatus: "أعزب/عزباء",
+          religiosity: "ملتزم",
+          familyValues: "أؤمن بأن الأسرة المتحابة هي سر السعادة",
+          partnerExpectations: "أبحث عن شخص صادق وطموح يحب الحياة ويقدر الشراكة الحقيقية",
+          hobbies: "الرسم، التصوير، السفر",
+          interests: "الفنون، التصميم، الموسيقى",
+          lifestyle: "نشيط",
+          hijab: true,
+          smokingStatus: "لا أدخن",
+          aboutMe: "مصممة جرافيك أحب الإبداع والفن. أبحث عن شريك حياة يشاركني طموحاتي وأحلامي.",
+          tribe: "الشمايلة",
+          familyOriginArea: "السلط",
+          numberOfSiblings: 2,
+          housingType: "مع العائلة",
+          cookingAbility: "أطبخ جيداً",
+          drivingLicense: true,
+          healthConditions: "لا يوجد",
+          monthlyExpenses: "300-500 د.أ",
+          prefAgeMin: 25,
+          prefAgeMax: 35,
+          prefCity: ["عمّان", "السلط"],
+          prefEducation: ["بكالوريوس", "ماجستير"],
+          prefMaritalStatus: ["أعزب/عزباء"],
+          isComplete: true,
+        },
+      },
+      parentInfo: {
+        create: {
+          parentName: "ياسين عبدالرحمن الشمايلة",
+          parentPhone: "0795551234",
+          relationship: "father",
+          address: "عمّان، الصويفية، شارع الوكالات، بناية 5",
+        },
+      },
+      personalityResult: {
+        create: {
+          answers: { q1: 5, q2: 4, q3: 4, q4: 3, q5: 5, q6: 4, q7: 4, q8: 3, q9: 4, q10: 4, q11: 5, q12: 3, q13: 4, q14: 2, q15: 5, q16: 4, q17: 4, q18: 3, q19: 5, q20: 4 },
+          vector: [0.80, 0.70, 0.75, 0.30, 0.85],
+          personalityType: "مبدع-اجتماعي",
+        },
+      },
+      identityDoc: {
+        create: {
+          frontImageUrl: PLACEHOLDER_IMG,
+          backImageUrl: PLACEHOLDER_IMG,
+          documentType: "national_id",
+          status: "APPROVED",
+          reviewedById: admin.id,
+          reviewedAt: new Date(),
+        },
+      },
+    },
+  });
+  console.log(`Test female created: هديل ياسين (0777000001)`);
+
+  const testMale = await db.user.upsert({
+    where: { email: "phone_962777000002@naseeb.local" },
+    update: {},
+    create: {
+      email: "phone_962777000002@naseeb.local",
+      phone: "962777000002",
+      firstName: "يزن",
+      lastName: "حسان",
+      gender: "MALE",
+      status: "VERIFIED",
+      isVerified: true,
+      verifiedAt: new Date(),
+      matchCredits: 10,
+      profile: {
+        create: {
+          dateOfBirth: new Date("1994-02-18"),
+          city: "عمّان",
+          area: "خلدا",
+          nationality: "أردني",
+          education: "ماجستير",
+          fieldOfStudy: "هندسة برمجيات",
+          job: "مدير تقني",
+          incomeRange: "أكثر من 2000 د.أ",
+          height: 180,
+          weight: 78,
+          skinColor: "حنطي",
+          childrenCount: 0,
+          willingToRelocate: "no",
+          maritalStatus: "أعزب/عزباء",
+          religiosity: "ملتزم",
+          familyValues: "العائلة هي الركيزة الأساسية في حياتي، أسعى لبناء بيت مستقر",
+          partnerExpectations: "أبحث عن شريكة متعلمة ومبدعة تقدر العائلة والطموح",
+          hobbies: "البرمجة، كرة السلة، القراءة",
+          interests: "التكنولوجيا، ريادة الأعمال، الرياضة",
+          lifestyle: "متوازن",
+          beard: false,
+          smokingStatus: "لا أدخن",
+          aboutMe: "مدير تقني في شركة ناشئة، أحب التكنولوجيا والابتكار. أبحث عن شريكة حياة تشاركني المشوار.",
+          tribe: "القضاة",
+          familyOriginArea: "عمّان",
+          numberOfSiblings: 3,
+          housingType: "ملك",
+          cookingAbility: "أطبخ قليلاً",
+          drivingLicense: true,
+          healthConditions: "لا يوجد",
+          monthlyExpenses: "أكثر من 800 د.أ",
+          prefAgeMin: 22,
+          prefAgeMax: 30,
+          prefCity: ["عمّان"],
+          prefEducation: ["بكالوريوس", "ماجستير"],
+          prefMaritalStatus: ["أعزب/عزباء"],
+          isComplete: true,
+        },
+      },
+      parentInfo: {
+        create: {
+          parentName: "حسان محمد القضاة",
+          parentPhone: "0795559876",
+          relationship: "father",
+          address: "عمّان، خلدا، شارع الأمير حسن، فيلا 18",
+        },
+      },
+      personalityResult: {
+        create: {
+          answers: { q1: 4, q2: 5, q3: 4, q4: 4, q5: 4, q6: 4, q7: 5, q8: 4, q9: 3, q10: 4, q11: 4, q12: 4, q13: 4, q14: 2, q15: 4, q16: 5, q17: 4, q18: 4, q19: 4, q20: 4 },
+          vector: [0.75, 0.80, 0.80, 0.25, 0.80],
+          personalityType: "قيادي-تحليلي",
+        },
+      },
+      identityDoc: {
+        create: {
+          frontImageUrl: PLACEHOLDER_IMG,
+          backImageUrl: PLACEHOLDER_IMG,
+          documentType: "national_id",
+          status: "APPROVED",
+          reviewedById: admin.id,
+          reviewedAt: new Date(),
+        },
+      },
+    },
+  });
+  console.log(`Test male created: يزن حسان (0777000002)`);
+
+  await db.suggestion.upsert({
+    where: { femaleId_maleId: { femaleId: testFemale.id, maleId: testMale.id } },
+    update: {},
+    create: {
+      femaleId: testFemale.id,
+      maleId: testMale.id,
+      compatibilityScore: 91.0,
+      source: "AI",
+      status: "PENDING",
+    },
+  });
+  console.log("Suggestion: هديل ← يزن (91%, PENDING — ready for walkthrough)");
+
   // ─── Summary ─────────────────────────────────────────────────────────────
-  console.log("\n╔══════════════════════════════════════════════════════════╗");
-  console.log("║              Test Accounts (Phone + OTP)               ║");
-  console.log("╠══════════════════════════════════════════════════════════╣");
-  console.log("║  Admin:   admin@naseeb.jo  /  Admin123!                ║");
-  console.log("╠══════════════════════════════════════════════════════════╣");
-  console.log("║  FEMALES (receive suggestions):                        ║");
-  console.log("║  سارة   0796922292  (test#, OTP=111111)                ║");
-  console.log("║  نور    0790000002                                     ║");
-  console.log("║  لينا   0790000003                                     ║");
-  console.log("╠══════════════════════════════════════════════════════════╣");
-  console.log("║  MALES (respond to interest):                          ║");
-  console.log("║  عمر    0790000004                                     ║");
-  console.log("║  أحمد   0790000005                                     ║");
-  console.log("║  خالد   0790000006                                     ║");
-  console.log("╠══════════════════════════════════════════════════════════╣");
-  console.log("║  MATCHES:                                              ║");
-  console.log("║  سارة ↔ عمر   (mutual, visit: FAMILIES_CONTACTED)     ║");
-  console.log("║  نور  ↔ أحمد  (mutual, visit: SCHEDULED)              ║");
-  console.log("║  لينا → خالد  (one-way interest, pending)             ║");
-  console.log("╠══════════════════════════════════════════════════════════╣");
-  console.log("║  All users: verified, complete profiles, 10 credits    ║");
-  console.log("║  9 suggestions + 2 mutual matches + 1 pending interest ║");
-  console.log("╚══════════════════════════════════════════════════════════╝");
+  console.log("\n╔══════════════════════════════════════════════════════════════╗");
+  console.log("║                 Test Accounts (OTP = 111111)                ║");
+  console.log("╠══════════════════════════════════════════════════════════════╣");
+  console.log("║  Admin:   admin@naseeb.jo  /  Admin123!                     ║");
+  console.log("╠══════════════════════════════════════════════════════════════╣");
+  console.log("║  ★ WALKTHROUGH PAIR (clean — test full flow):               ║");
+  console.log("║  هديل (Female)  0777000001  OTP=111111                      ║");
+  console.log("║  يزن  (Male)    0777000002  OTP=111111                      ║");
+  console.log("║  → Login as هديل → see suggestion → accept                 ║");
+  console.log("║  → Login as يزن  → see interest → accept → mutual match!   ║");
+  console.log("╠══════════════════════════════════════════════════════════════╣");
+  console.log("║  Other test users:                                          ║");
+  console.log("║  سارة 0796922292 | نور 0790000002 | لينا 0790000003        ║");
+  console.log("║  عمر 0790000004  | أحمد 0790000005 | خالد 0790000006       ║");
+  console.log("╚══════════════════════════════════════════════════════════════╝");
 }
 
 main()

@@ -94,9 +94,17 @@ interface Match {
 const visitStatusLabels: Record<string, string> = {
   REQUESTED: "طلب زيارة مرسل",
   FAMILIES_CONTACTED: "تم التواصل مع العائلات",
-  SCHEDULED: "تم تحديد موعد",
+  SCHEDULED: "تم تحديد موعد الزيارة",
   COMPLETED: "تمت الزيارة",
   CANCELLED: "ملغاة",
+};
+
+const visitStatusDescriptions: Record<string, string> = {
+  REQUESTED: "سيقوم فريق نصيبك بالتواصل مع عائلتكم وعائلة الطرف الآخر لترتيب موعد مناسب للزيارة العائلية.",
+  FAMILIES_CONTACTED: "تم التواصل مع العائلتين وجارٍ التنسيق لتحديد موعد مناسب للطرفين.",
+  SCHEDULED: "تم الاتفاق على موعد الزيارة. نتمنى لكم التوفيق!",
+  COMPLETED: "تمت الزيارة العائلية بنجاح. نسأل الله أن يكتب لكم الخير.",
+  CANCELLED: "تم إلغاء طلب الزيارة. يمكنك التواصل مع الدعم لمزيد من المعلومات.",
 };
 
 const visitStatusConfig: Record<string, { color: string; borderColor: string; bgColor: string; icon: typeof Clock }> = {
@@ -476,6 +484,23 @@ export default function MatchesPage() {
                           </Badge>
                         )}
                       </div>
+
+                      {/* Visit status explanation */}
+                      {m.visitStatus && visitStatusDescriptions[m.visitStatus] && (
+                        <div className={`mt-3 p-3 rounded-xl border text-sm leading-relaxed ${
+                          m.visitStatus === "REQUESTED" ? "bg-amber-50/60 border-amber-200/40 text-amber-800" :
+                          m.visitStatus === "FAMILIES_CONTACTED" ? "bg-blue-50/60 border-blue-200/40 text-blue-800" :
+                          m.visitStatus === "SCHEDULED" ? "bg-green-50/60 border-green-200/40 text-green-800" :
+                          m.visitStatus === "COMPLETED" ? "bg-emerald-50/60 border-emerald-200/40 text-emerald-800" :
+                          m.visitStatus === "CANCELLED" ? "bg-red-50/60 border-red-200/40 text-red-800" :
+                          "bg-muted/30 border-border/40 text-muted-foreground"
+                        }`}>
+                          <div className="flex items-start gap-2.5">
+                            <StatusIcon className="h-4 w-4 flex-shrink-0 mt-0.5 opacity-70" />
+                            <p>{visitStatusDescriptions[m.visitStatus]}</p>
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     {/* Quick chips */}

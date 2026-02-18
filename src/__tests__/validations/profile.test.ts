@@ -31,6 +31,7 @@ const validProfile = {
   housingType: "ملك",
   cookingAbility: "أطبخ جيداً",
   drivingLicense: true,
+  healthConditions: "لا يوجد",
   monthlyExpenses: "500-800 د.أ",
   prefAgeMin: 20,
   prefAgeMax: 35,
@@ -52,7 +53,6 @@ describe("profileSchema", () => {
       beard: false,
       latitude: 31.95,
       longitude: 35.93,
-      healthConditions: "لا يوجد",
       wantsPhoto: true,
     });
     expect(result.success).toBe(true);

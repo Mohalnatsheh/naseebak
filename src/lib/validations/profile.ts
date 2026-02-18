@@ -33,7 +33,7 @@ export const profileSchema = z.object({
   beard: z.boolean().optional(),
   cookingAbility: z.string().min(1, "مهارة الطبخ مطلوبة"),
   drivingLicense: z.boolean(),
-  healthConditions: z.string().max(500).optional(),
+  healthConditions: z.string().min(1, "الحالات الصحية مطلوبة").max(500, "الحد الأقصى 500 حرف"),
   monthlyExpenses: z.string().min(1, "المصاريف الشهرية مطلوبة"),
   wantsPhoto: z.boolean().optional(),
   prefAgeMin: z.number().min(18).max(70),

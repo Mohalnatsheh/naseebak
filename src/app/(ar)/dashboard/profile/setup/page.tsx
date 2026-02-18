@@ -18,6 +18,7 @@ const housingTypes = ["ملك", "إيجار", "مع العائلة"];
 const expenseRanges = ["أقل من 300 د.أ", "300-500 د.أ", "500-800 د.أ", "أكثر من 800 د.أ"];
 const skinColors = ["أبيض", "حنطي", "أسمر", "غامق"];
 const incomeRanges = ["أقل من 300 د.أ", "300-500 د.أ", "500-1000 د.أ", "1000-2000 د.أ", "أكثر من 2000 د.أ"];
+const lifestyleOptions = ["نشيط", "هادئ", "متوازن", "اجتماعي"];
 const relocateOptions = [
   { value: "yes", label: "نعم" },
   { value: "no", label: "لا" },
@@ -44,6 +45,7 @@ export default function ProfileSetupPage() {
     area: "",
     nationality: "أردني",
     education: "",
+    fieldOfStudy: "",
     job: "",
     height: "",
     weight: "",
@@ -57,10 +59,12 @@ export default function ProfileSetupPage() {
     beard: false,
     smokingStatus: "",
     cookingAbility: "",
+    lifestyle: "",
     drivingLicense: false,
     aboutMe: "",
     partnerExpectations: "",
     hobbies: "",
+    interests: "",
     familyValues: "",
     tribe: "",
     familyOriginArea: "",
@@ -109,6 +113,7 @@ export default function ProfileSetupPage() {
               area: p.area || "",
               nationality: p.nationality || "أردني",
               education: p.education || "",
+              fieldOfStudy: p.fieldOfStudy || "",
               job: p.job || "",
               height: p.height ? String(p.height) : "",
               weight: p.weight ? String(p.weight) : "",
@@ -122,10 +127,12 @@ export default function ProfileSetupPage() {
               beard: p.beard || false,
               smokingStatus: p.smokingStatus || "",
               cookingAbility: p.cookingAbility || "",
+              lifestyle: p.lifestyle || "",
               drivingLicense: p.drivingLicense || false,
               aboutMe: p.aboutMe || "",
               partnerExpectations: p.partnerExpectations || "",
               hobbies: p.hobbies || "",
+              interests: p.interests || "",
               familyValues: p.familyValues || "",
               tribe: p.tribe || "",
               familyOriginArea: p.familyOriginArea || "",
@@ -188,6 +195,66 @@ export default function ProfileSetupPage() {
     }
   }
 
+  function validateStep(s: number): string {
+    switch (s) {
+      case 1: {
+        if (!form.dateOfBirth) return "تاريخ الميلاد مطلوب";
+        if (!form.nationality) return "الجنسية مطلوبة";
+        if (!form.city) return "المدينة مطلوبة";
+        if (!form.area) return "المنطقة مطلوبة";
+        if (!form.height) return "الطول مطلوب";
+        if (!form.weight) return "الوزن مطلوب";
+        if (!form.skinColor) return "لون البشرة مطلوب";
+        if (!form.education) return "المستوى التعليمي مطلوب";
+        if (!form.fieldOfStudy) return "التخصص مطلوب";
+        if (!form.job) return "الوظيفة مطلوبة";
+        if (!form.incomeRange) return "مستوى الدخل مطلوب";
+        return "";
+      }
+      case 2: {
+        if (!form.maritalStatus) return "الحالة الاجتماعية مطلوبة";
+        if (form.childrenCount === "") return "عدد الأبناء مطلوب";
+        if (!form.religiosity) return "مستوى التدين مطلوب";
+        if (!form.smokingStatus) return "حالة التدخين مطلوبة";
+        if (!form.cookingAbility) return "مهارة الطبخ مطلوبة";
+        if (!form.lifestyle) return "نمط الحياة مطلوب";
+        return "";
+      }
+      case 3: {
+        if (!form.aboutMe) return "نبذة عنك مطلوبة";
+        if (!form.partnerExpectations) return "مواصفات الشريك مطلوبة";
+        if (!form.hobbies) return "الهوايات مطلوبة";
+        if (!form.interests) return "الاهتمامات مطلوبة";
+        if (!form.familyValues) return "القيم العائلية مطلوبة";
+        if (!form.prefAgeMin) return "العمر الأدنى مطلوب";
+        if (!form.prefAgeMax) return "العمر الأقصى مطلوب";
+        if (form.prefCity.length === 0) return "اختر مدينة مفضلة واحدة على الأقل";
+        if (form.prefEducation.length === 0) return "اختر مستوى تعليمي مفضل واحد على الأقل";
+        if (form.prefMaritalStatus.length === 0) return "اختر حالة اجتماعية مفضلة واحدة على الأقل";
+        if (!form.willingToRelocate) return "الاستعداد للانتقال مطلوب";
+        return "";
+      }
+      case 4: {
+        if (!form.tribe) return "العشيرة مطلوبة";
+        if (!form.familyOriginArea) return "منطقة أصل العائلة مطلوبة";
+        if (form.numberOfSiblings === "") return "عدد الإخوة والأخوات مطلوب";
+        if (!form.housingType) return "نوع السكن مطلوب";
+        if (!form.monthlyExpenses) return "المصاريف الشهرية مطلوبة";
+        if (!form.healthConditions) return "الحالات الصحية مطلوبة";
+        return "";
+      }
+      case 5: {
+        if (!parentForm.parentName) return "اسم ولي الأمر مطلوب";
+        if (!parentForm.parentPhone) return "رقم هاتف ولي الأمر مطلوب";
+        if (!parentForm.relationship) return "صلة القرابة مطلوبة";
+        if (!parentForm.address) return "العنوان مطلوب";
+        return "";
+      }
+      default:
+        return "";
+    }
+  }
+
   async function handleSubmit() {
     setLoading(true);
     setError("");
@@ -215,18 +282,16 @@ export default function ProfileSetupPage() {
       }
 
       // Save parent/guardian info
-      if (parentForm.parentName && parentForm.parentPhone && parentForm.relationship) {
-        const parentRes = await fetch("/api/profile/parent-info", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(parentForm),
-        });
+      const parentRes = await fetch("/api/profile/parent-info", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(parentForm),
+      });
 
-        if (!parentRes.ok) {
-          const data = await parentRes.json();
-          setError(data.error || "حدث خطأ أثناء حفظ بيانات ولي الأمر");
-          return;
-        }
+      if (!parentRes.ok) {
+        const data = await parentRes.json();
+        setError(data.error || "حدث خطأ أثناء حفظ بيانات ولي الأمر");
+        return;
       }
 
       router.push("/dashboard/profile");
@@ -352,6 +417,11 @@ export default function ProfileSetupPage() {
             </div>
 
             <div className="space-y-2">
+              <Label>التخصص</Label>
+              <Input value={form.fieldOfStudy} onChange={(e) => update("fieldOfStudy", e.target.value)} placeholder="مثال: هندسة حاسوب، محاسبة، طب..." />
+            </div>
+
+            <div className="space-y-2">
               <Label>الوظيفة</Label>
               <Input value={form.job} onChange={(e) => update("job", e.target.value)} placeholder="مثال: مهندس، طبيب، معلم..." />
             </div>
@@ -462,6 +532,17 @@ export default function ProfileSetupPage() {
             </div>
 
             <div className="space-y-2">
+              <Label>نمط الحياة</Label>
+              <div className="grid grid-cols-4 gap-2">
+                {lifestyleOptions.map((l) => (
+                  <button key={l} type="button" onClick={() => update("lifestyle", l)}
+                    className={`rounded-xl border px-3 py-2 text-sm transition-all ${form.lifestyle === l ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
+                  >{l}</button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-2">
               <Label>رخصة قيادة</Label>
               <button
                 type="button"
@@ -512,8 +593,13 @@ export default function ProfileSetupPage() {
             </div>
 
             <div className="space-y-2">
-              <Label>الهوايات والاهتمامات</Label>
+              <Label>الهوايات</Label>
               <Input value={form.hobbies} onChange={(e) => update("hobbies", e.target.value)} placeholder="مثال: القراءة، الرياضة، السفر..." />
+            </div>
+
+            <div className="space-y-2">
+              <Label>الاهتمامات</Label>
+              <Input value={form.interests} onChange={(e) => update("interests", e.target.value)} placeholder="مثال: التكنولوجيا، الطبخ، التصوير..." />
             </div>
 
             <div className="space-y-2">
@@ -733,12 +819,22 @@ export default function ProfileSetupPage() {
         )}
 
         {step < totalSteps ? (
-          <Button onClick={() => setStep(step + 1)} className="bg-gradient-to-l from-primary to-primary/80">
+          <Button onClick={() => {
+            const err = validateStep(step);
+            if (err) { setError(err); return; }
+            setError("");
+            setStep(step + 1);
+          }} className="bg-gradient-to-l from-primary to-primary/80">
             التالي
             <ArrowLeft className="h-4 w-4 ms-2" />
           </Button>
         ) : (
-          <Button onClick={handleSubmit} disabled={loading} className="bg-gradient-to-l from-primary to-accent">
+          <Button onClick={() => {
+            const err = validateStep(step);
+            if (err) { setError(err); return; }
+            setError("");
+            handleSubmit();
+          }} disabled={loading} className="bg-gradient-to-l from-primary to-accent">
             {loading ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (

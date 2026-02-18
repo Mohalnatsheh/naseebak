@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { profileSchema } from "@/lib/validations/profile";
 
 export async function GET() {
   try {
@@ -66,6 +67,13 @@ export async function PUT(request: Request) {
     }
 
     const body = await request.json();
+
+    const validation = profileSchema.safeParse(body);
+    if (!validation.success) {
+      const firstError = validation.error.issues[0]?.message || "بيانات غير صالحة";
+      return NextResponse.json({ error: firstError }, { status: 400 });
+    }
+
     const {
       dateOfBirth, city, nationality, education, fieldOfStudy, job, incomeRange,
       height, weight, skinColor, childrenCount, willingToRelocate, maritalStatus, religiosity,

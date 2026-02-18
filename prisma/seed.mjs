@@ -27,7 +27,13 @@ for (const line of envContent.split("\n")) {
 const adapter = new PrismaNeon({ connectionString: process.env.DATABASE_URL });
 const db = new PrismaClient({ adapter });
 
+// Placeholder 1x1 transparent PNG for identity docs
+const PLACEHOLDER_IMG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+
 async function main() {
+  console.log("Seeding database...\n");
+
+  // ─── Admin ───────────────────────────────────────────────────────────────
   const adminPassword = await bcrypt.hash("Admin123!", 12);
   const admin = await db.user.upsert({
     where: { email: "admin@naseeb.jo" },
@@ -46,98 +52,473 @@ async function main() {
   });
   console.log("Admin created:", admin.email);
 
-  const testPw = await bcrypt.hash("Test1234!", 12);
-  const female = await db.user.upsert({
-    where: { email: "sara@test.com" },
-    update: {},
-    create: {
-      email: "sara@test.com",
-      passwordHash: testPw,
+  // ─── Female Users ────────────────────────────────────────────────────────
+  const females = [
+    {
+      phone: "962796922292", // Test number — OTP is always 111111
+      email: "phone_962796922292@naseeb.local",
       firstName: "سارة",
       lastName: "أحمد",
-      gender: "FEMALE",
-      status: "VERIFIED",
-      isVerified: true,
-      verifiedAt: new Date(),
       profile: {
-        create: {
-          dateOfBirth: new Date("1997-03-15"),
-          city: "عمّان",
-          nationality: "أردنية",
-          education: "بكالوريوس",
-          fieldOfStudy: "علوم حاسوب",
-          job: "مطورة برمجيات",
-          maritalStatus: "عزباء",
-          religiosity: "ملتزمة",
-          isComplete: true,
-        },
+        dateOfBirth: new Date("1997-03-15"),
+        city: "عمّان",
+        area: "عبدون",
+        nationality: "أردنية",
+        education: "بكالوريوس",
+        fieldOfStudy: "علوم حاسوب",
+        job: "مطورة برمجيات",
+        incomeRange: "1000-2000 د.أ",
+        height: 165,
+        weight: 58,
+        skinColor: "حنطي",
+        childrenCount: 0,
+        willingToRelocate: "maybe",
+        maritalStatus: "أعزب/عزباء",
+        religiosity: "ملتزم",
+        familyValues: "أؤمن بأهمية التواصل والاحترام المتبادل بين أفراد العائلة",
+        partnerExpectations: "أبحث عن شخص طموح ومتدين ويقدر العائلة",
+        hobbies: "القراءة، البرمجة، السباحة",
+        interests: "التكنولوجيا، الذكاء الاصطناعي، التعليم",
+        lifestyle: "متوازن",
+        hijab: true,
+        smokingStatus: "لا أدخن",
+        aboutMe: "مطورة برمجيات طموحة أحب التعلم المستمر والتطور. أقدر العائلة كثيراً وأسعى لبناء حياة مستقرة.",
+        tribe: "العبادي",
+        familyOriginArea: "عمّان",
+        numberOfSiblings: 3,
+        housingType: "مع العائلة",
+        cookingAbility: "أطبخ جيداً",
+        drivingLicense: true,
+        healthConditions: "لا يوجد",
+        monthlyExpenses: "300-500 د.أ",
+        prefAgeMin: 25,
+        prefAgeMax: 35,
+        prefCity: ["عمّان", "إربد"],
+        prefEducation: ["بكالوريوس", "ماجستير", "دكتوراه"],
+        prefMaritalStatus: ["أعزب/عزباء"],
       },
-      parentInfo: {
-        create: {
-          parentName: "أحمد محمد",
-          parentPhone: "0791234567",
-          relationship: "father",
-          address: "عمّان - شارع الجامعة",
-        },
+      parent: {
+        parentName: "أحمد محمد العبادي",
+        parentPhone: "0791234567",
+        relationship: "father",
+        address: "عمّان، عبدون، شارع الأمير هاشم، بناية 12",
+      },
+      personality: {
+        answers: { q1: 4, q2: 5, q3: 3, q4: 4, q5: 5, q6: 3, q7: 4, q8: 5, q9: 3, q10: 4, q11: 5, q12: 3, q13: 4, q14: 2, q15: 4, q16: 5, q17: 3, q18: 4, q19: 5, q20: 4 },
+        vector: [0.75, 0.85, 0.70, 0.30, 0.80],
+        personalityType: "تحليلي-اجتماعي",
       },
     },
-  });
-  console.log("Female user created:", female.email);
-
-  const male = await db.user.upsert({
-    where: { email: "omar@test.com" },
-    update: {},
-    create: {
-      email: "omar@test.com",
-      passwordHash: testPw,
-      firstName: "عمر",
+    {
+      phone: "962790000002",
+      email: "phone_962790000002@naseeb.local",
+      firstName: "نور",
+      lastName: "محمود",
+      profile: {
+        dateOfBirth: new Date("1999-07-22"),
+        city: "إربد",
+        area: "الحي الشرقي",
+        nationality: "أردنية",
+        education: "بكالوريوس",
+        fieldOfStudy: "صيدلة",
+        job: "صيدلانية",
+        incomeRange: "500-1000 د.أ",
+        height: 160,
+        weight: 55,
+        skinColor: "أبيض",
+        childrenCount: 0,
+        willingToRelocate: "yes",
+        maritalStatus: "أعزب/عزباء",
+        religiosity: "ملتزم جداً",
+        familyValues: "العائلة هي أساس المجتمع، أحرص على صلة الرحم والتواصل الدائم",
+        partnerExpectations: "أبحث عن شخص ملتزم دينياً وذو أخلاق عالية ومستقر مادياً",
+        hobbies: "الطبخ، المشي، قراءة القرآن",
+        interests: "الصحة، التغذية، العمل التطوعي",
+        lifestyle: "هادئ",
+        hijab: true,
+        smokingStatus: "لا أدخن",
+        aboutMe: "صيدلانية أحب عملي وأسعى لخدمة المجتمع. هادئة الطباع وأحب الحياة البسيطة.",
+        tribe: "الزعبي",
+        familyOriginArea: "إربد",
+        numberOfSiblings: 5,
+        housingType: "ملك",
+        cookingAbility: "أطبخ ممتازاً",
+        drivingLicense: false,
+        healthConditions: "لا يوجد",
+        monthlyExpenses: "أقل من 300 د.أ",
+        prefAgeMin: 26,
+        prefAgeMax: 38,
+        prefCity: ["إربد", "عمّان", "الزرقاء"],
+        prefEducation: ["بكالوريوس", "ماجستير"],
+        prefMaritalStatus: ["أعزب/عزباء"],
+      },
+      parent: {
+        parentName: "محمود يوسف الزعبي",
+        parentPhone: "0781112233",
+        relationship: "father",
+        address: "إربد، الحي الشرقي، شارع الملك عبدالله، عمارة 7",
+      },
+      personality: {
+        answers: { q1: 3, q2: 5, q3: 4, q4: 5, q5: 4, q6: 4, q7: 5, q8: 4, q9: 3, q10: 5, q11: 4, q12: 4, q13: 5, q14: 2, q15: 3, q16: 5, q17: 4, q18: 5, q19: 4, q20: 3 },
+        vector: [0.60, 0.90, 0.80, 0.25, 0.70],
+        personalityType: "منظم-متعاطف",
+      },
+    },
+    {
+      phone: "962790000003",
+      email: "phone_962790000003@naseeb.local",
+      firstName: "لينا",
       lastName: "خالد",
-      gender: "MALE",
-      status: "VERIFIED",
-      isVerified: true,
-      verifiedAt: new Date(),
       profile: {
-        create: {
-          dateOfBirth: new Date("1995-08-20"),
-          city: "إربد",
-          nationality: "أردني",
-          education: "ماجستير",
-          fieldOfStudy: "هندسة كهربائية",
-          job: "مهندس",
-          maritalStatus: "أعزب",
-          religiosity: "ملتزم",
-          isComplete: true,
-        },
+        dateOfBirth: new Date("1995-11-08"),
+        city: "الزرقاء",
+        area: "الزرقاء الجديدة",
+        nationality: "أردنية",
+        education: "ماجستير",
+        fieldOfStudy: "إدارة أعمال",
+        job: "مديرة مشاريع",
+        incomeRange: "1000-2000 د.أ",
+        height: 168,
+        weight: 62,
+        skinColor: "أبيض",
+        childrenCount: 0,
+        willingToRelocate: "yes",
+        maritalStatus: "أعزب/عزباء",
+        religiosity: "ملتزم",
+        familyValues: "الاحترام والثقة أساس كل علاقة ناجحة",
+        partnerExpectations: "أبحث عن شريك حياة طموح ومثقف يشاركني أهدافي",
+        hobbies: "السفر، التصوير، اليوغا",
+        interests: "ريادة الأعمال، التنمية البشرية، الفنون",
+        lifestyle: "نشيط",
+        hijab: false,
+        smokingStatus: "لا أدخن",
+        aboutMe: "مديرة مشاريع بخبرة 5 سنوات. أحب التحديات وأسعى دائماً للتطور المهني والشخصي.",
+        tribe: "الطراونة",
+        familyOriginArea: "الكرك",
+        numberOfSiblings: 2,
+        housingType: "إيجار",
+        cookingAbility: "أطبخ قليلاً",
+        drivingLicense: true,
+        healthConditions: "لا يوجد",
+        monthlyExpenses: "500-800 د.أ",
+        prefAgeMin: 28,
+        prefAgeMax: 40,
+        prefCity: ["عمّان", "الزرقاء"],
+        prefEducation: ["ماجستير", "دكتوراه"],
+        prefMaritalStatus: ["أعزب/عزباء", "مطلق/مطلقة"],
       },
-      parentInfo: {
-        create: {
-          parentName: "خالد سعيد",
-          parentPhone: "0787654321",
-          relationship: "father",
-          address: "إربد - شارع الحصن",
-        },
+      parent: {
+        parentName: "خالد سليمان الطراونة",
+        parentPhone: "0799887766",
+        relationship: "father",
+        address: "الزرقاء الجديدة، شارع الاستقلال، بناية 3",
+      },
+      personality: {
+        answers: { q1: 5, q2: 4, q3: 4, q4: 3, q5: 5, q6: 5, q7: 4, q8: 3, q9: 4, q10: 3, q11: 5, q12: 4, q13: 3, q14: 3, q15: 5, q16: 4, q17: 5, q18: 3, q19: 5, q20: 5 },
+        vector: [0.85, 0.75, 0.65, 0.35, 0.90],
+        personalityType: "قيادي-مبدع",
       },
     },
-  });
-  console.log("Male user created:", male.email);
+  ];
 
-  await db.suggestion.upsert({
-    where: { femaleId_maleId: { femaleId: female.id, maleId: male.id } },
-    update: {},
-    create: {
-      femaleId: female.id,
-      maleId: male.id,
-      compatibilityScore: 87.5,
-      source: "AI",
-      status: "PENDING",
+  // ─── Male Users ──────────────────────────────────────────────────────────
+  const males = [
+    {
+      phone: "962790000004",
+      email: "phone_962790000004@naseeb.local",
+      firstName: "عمر",
+      lastName: "سعيد",
+      profile: {
+        dateOfBirth: new Date("1995-08-20"),
+        city: "عمّان",
+        area: "الجبيهة",
+        nationality: "أردني",
+        education: "ماجستير",
+        fieldOfStudy: "هندسة كهربائية",
+        job: "مهندس أول",
+        incomeRange: "1000-2000 د.أ",
+        height: 178,
+        weight: 80,
+        skinColor: "حنطي",
+        childrenCount: 0,
+        willingToRelocate: "maybe",
+        maritalStatus: "أعزب/عزباء",
+        religiosity: "ملتزم",
+        familyValues: "العائلة هي الأولوية القصوى في حياتي وأسعى لبنائها على أسس متينة",
+        partnerExpectations: "أبحث عن شريكة متفهمة ومثقفة تقدر الحياة العائلية",
+        hobbies: "كرة القدم، القراءة، الرحلات",
+        interests: "الهندسة، التكنولوجيا، الاستثمار",
+        lifestyle: "نشيط",
+        beard: true,
+        smokingStatus: "لا أدخن",
+        aboutMe: "مهندس كهربائي طموح أعمل في قطاع الطاقة. أحب الرياضة والقراءة وأسعى لحياة مستقرة.",
+        tribe: "البطاينة",
+        familyOriginArea: "إربد",
+        numberOfSiblings: 4,
+        housingType: "ملك",
+        cookingAbility: "أطبخ قليلاً",
+        drivingLicense: true,
+        healthConditions: "لا يوجد",
+        monthlyExpenses: "500-800 د.أ",
+        prefAgeMin: 22,
+        prefAgeMax: 30,
+        prefCity: ["عمّان", "إربد"],
+        prefEducation: ["بكالوريوس", "ماجستير"],
+        prefMaritalStatus: ["أعزب/عزباء"],
+      },
+      parent: {
+        parentName: "سعيد حسن البطاينة",
+        parentPhone: "0787654321",
+        relationship: "father",
+        address: "عمّان، الجبيهة، شارع الجامعة، فيلا 22",
+      },
+      personality: {
+        answers: { q1: 4, q2: 4, q3: 5, q4: 4, q5: 4, q6: 4, q7: 5, q8: 4, q9: 3, q10: 4, q11: 4, q12: 5, q13: 4, q14: 2, q15: 4, q16: 4, q17: 4, q18: 5, q19: 4, q20: 4 },
+        vector: [0.70, 0.80, 0.85, 0.25, 0.75],
+        personalityType: "عملي-اجتماعي",
+      },
     },
-  });
-  console.log("Suggestion created");
+    {
+      phone: "962790000005",
+      email: "phone_962790000005@naseeb.local",
+      firstName: "أحمد",
+      lastName: "يوسف",
+      profile: {
+        dateOfBirth: new Date("1993-01-12"),
+        city: "إربد",
+        area: "حي الحسين",
+        nationality: "أردني",
+        education: "دكتوراه",
+        fieldOfStudy: "طب بشري",
+        job: "طبيب",
+        incomeRange: "أكثر من 2000 د.أ",
+        height: 182,
+        weight: 85,
+        skinColor: "أبيض",
+        childrenCount: 0,
+        willingToRelocate: "no",
+        maritalStatus: "أعزب/عزباء",
+        religiosity: "ملتزم جداً",
+        familyValues: "أحرص على بناء عائلة متماسكة مبنية على المودة والرحمة",
+        partnerExpectations: "أبحث عن شريكة ملتزمة دينياً وذات أخلاق حميدة ومتعلمة",
+        hobbies: "القراءة، الخيل، السباحة",
+        interests: "الطب، البحث العلمي، العمل الخيري",
+        lifestyle: "متوازن",
+        beard: true,
+        smokingStatus: "لا أدخن",
+        aboutMe: "طبيب متخصص أحب مهنتي وأسعى لخدمة المجتمع. أقدر العلم والأخلاق.",
+        tribe: "المعايطة",
+        familyOriginArea: "الكرك",
+        numberOfSiblings: 6,
+        housingType: "ملك",
+        cookingAbility: "لا أطبخ",
+        drivingLicense: true,
+        healthConditions: "لا يوجد",
+        monthlyExpenses: "أكثر من 800 د.أ",
+        prefAgeMin: 22,
+        prefAgeMax: 32,
+        prefCity: ["إربد", "عمّان"],
+        prefEducation: ["بكالوريوس", "ماجستير", "دكتوراه"],
+        prefMaritalStatus: ["أعزب/عزباء"],
+      },
+      parent: {
+        parentName: "يوسف عبدالله المعايطة",
+        parentPhone: "0771234567",
+        relationship: "father",
+        address: "إربد، حي الحسين، شارع فلسطين، بناية 15",
+      },
+      personality: {
+        answers: { q1: 3, q2: 5, q3: 5, q4: 5, q5: 4, q6: 3, q7: 5, q8: 5, q9: 4, q10: 5, q11: 3, q12: 5, q13: 5, q14: 1, q15: 3, q16: 5, q17: 4, q18: 5, q19: 4, q20: 3 },
+        vector: [0.55, 0.95, 0.90, 0.20, 0.65],
+        personalityType: "تحليلي-منضبط",
+      },
+    },
+    {
+      phone: "962790000006",
+      email: "phone_962790000006@naseeb.local",
+      firstName: "خالد",
+      lastName: "ناصر",
+      profile: {
+        dateOfBirth: new Date("1996-05-30"),
+        city: "الزرقاء",
+        area: "جبل الأمير حسن",
+        nationality: "أردني",
+        education: "بكالوريوس",
+        fieldOfStudy: "محاسبة",
+        job: "محاسب أول",
+        incomeRange: "500-1000 د.أ",
+        height: 175,
+        weight: 75,
+        skinColor: "حنطي",
+        childrenCount: 0,
+        willingToRelocate: "yes",
+        maritalStatus: "أعزب/عزباء",
+        religiosity: "ملتزم",
+        familyValues: "أقدر الصدق والوفاء وأسعى لبناء أسرة سعيدة",
+        partnerExpectations: "أبحث عن شريكة مسؤولة وطيبة القلب تحب الحياة العائلية",
+        hobbies: "المشي، الطبخ، مشاهدة الأفلام الوثائقية",
+        interests: "المالية، العقارات، التكنولوجيا",
+        lifestyle: "اجتماعي",
+        beard: false,
+        smokingStatus: "تركت التدخين",
+        aboutMe: "محاسب طموح أعمل على تطوير نفسي مهنياً. أحب الحياة الاجتماعية وأقدر العلاقات الأسرية.",
+        tribe: "الحنيطي",
+        familyOriginArea: "الزرقاء",
+        numberOfSiblings: 3,
+        housingType: "مع العائلة",
+        cookingAbility: "أطبخ جيداً",
+        drivingLicense: true,
+        healthConditions: "لا يوجد",
+        monthlyExpenses: "300-500 د.أ",
+        prefAgeMin: 20,
+        prefAgeMax: 30,
+        prefCity: ["الزرقاء", "عمّان"],
+        prefEducation: ["بكالوريوس", "ماجستير"],
+        prefMaritalStatus: ["أعزب/عزباء", "مطلق/مطلقة"],
+      },
+      parent: {
+        parentName: "ناصر فهد الحنيطي",
+        parentPhone: "0791122334",
+        relationship: "father",
+        address: "الزرقاء، جبل الأمير حسن، شارع المدينة المنورة، بناية 9",
+      },
+      personality: {
+        answers: { q1: 5, q2: 3, q3: 4, q4: 3, q5: 4, q6: 5, q7: 3, q8: 3, q9: 4, q10: 3, q11: 5, q12: 4, q13: 3, q14: 3, q15: 5, q16: 3, q17: 5, q18: 3, q19: 5, q20: 5 },
+        vector: [0.80, 0.65, 0.70, 0.40, 0.85],
+        personalityType: "اجتماعي-مبدع",
+      },
+    },
+  ];
 
-  console.log("\n=== Test Accounts ===");
-  console.log("Admin:  admin@naseeb.jo / Admin123!");
-  console.log("Female: sara@test.com  / Test1234!");
-  console.log("Male:   omar@test.com  / Test1234!");
+  // ─── Create Users ────────────────────────────────────────────────────────
+  const createdFemales = [];
+  for (const f of females) {
+    const user = await db.user.upsert({
+      where: { email: f.email },
+      update: {},
+      create: {
+        email: f.email,
+        phone: f.phone,
+        firstName: f.firstName,
+        lastName: f.lastName,
+        gender: "FEMALE",
+        status: "VERIFIED",
+        isVerified: true,
+        verifiedAt: new Date(),
+        matchCredits: 10,
+        profile: {
+          create: { ...f.profile, isComplete: true },
+        },
+        parentInfo: {
+          create: f.parent,
+        },
+        personalityResult: {
+          create: f.personality,
+        },
+        identityDoc: {
+          create: {
+            frontImageUrl: PLACEHOLDER_IMG,
+            backImageUrl: PLACEHOLDER_IMG,
+            documentType: "national_id",
+            status: "APPROVED",
+            reviewedById: admin.id,
+            reviewedAt: new Date(),
+          },
+        },
+      },
+    });
+    createdFemales.push(user);
+    console.log(`Female created: ${f.firstName} ${f.lastName} (${f.phone})`);
+  }
+
+  const createdMales = [];
+  for (const m of males) {
+    const user = await db.user.upsert({
+      where: { email: m.email },
+      update: {},
+      create: {
+        email: m.email,
+        phone: m.phone,
+        firstName: m.firstName,
+        lastName: m.lastName,
+        gender: "MALE",
+        status: "VERIFIED",
+        isVerified: true,
+        verifiedAt: new Date(),
+        matchCredits: 10,
+        profile: {
+          create: { ...m.profile, isComplete: true },
+        },
+        parentInfo: {
+          create: m.parent,
+        },
+        personalityResult: {
+          create: m.personality,
+        },
+        identityDoc: {
+          create: {
+            frontImageUrl: PLACEHOLDER_IMG,
+            backImageUrl: PLACEHOLDER_IMG,
+            documentType: "national_id",
+            status: "APPROVED",
+            reviewedById: admin.id,
+            reviewedAt: new Date(),
+          },
+        },
+      },
+    });
+    createdMales.push(user);
+    console.log(`Male created: ${m.firstName} ${m.lastName} (${m.phone})`);
+  }
+
+  // ─── Suggestions (each female gets suggestions from all males) ───────────
+  const scores = [
+    [87.5, 72.0, 65.0],  // Sara ↔ Omar, Ahmad, Khaled
+    [78.0, 92.0, 60.5],  // Noor ↔ Omar, Ahmad, Khaled
+    [69.0, 74.5, 85.0],  // Lina ↔ Omar, Ahmad, Khaled
+  ];
+
+  for (let fi = 0; fi < createdFemales.length; fi++) {
+    for (let mi = 0; mi < createdMales.length; mi++) {
+      await db.suggestion.upsert({
+        where: {
+          femaleId_maleId: {
+            femaleId: createdFemales[fi].id,
+            maleId: createdMales[mi].id,
+          },
+        },
+        update: {},
+        create: {
+          femaleId: createdFemales[fi].id,
+          maleId: createdMales[mi].id,
+          compatibilityScore: scores[fi][mi],
+          source: "AI",
+          status: "PENDING",
+        },
+      });
+    }
+  }
+  console.log("9 suggestions created (3 females × 3 males)");
+
+  // ─── Summary ─────────────────────────────────────────────────────────────
+  console.log("\n╔══════════════════════════════════════════════════════════╗");
+  console.log("║              Test Accounts (Phone + OTP)               ║");
+  console.log("╠══════════════════════════════════════════════════════════╣");
+  console.log("║  Admin:   admin@naseeb.jo  /  Admin123!                ║");
+  console.log("╠══════════════════════════════════════════════════════════╣");
+  console.log("║  FEMALES (receive suggestions):                        ║");
+  console.log("║  سارة   0796922292  (test#, OTP=111111)                ║");
+  console.log("║  نور    0790000002                                     ║");
+  console.log("║  لينا   0790000003                                     ║");
+  console.log("╠══════════════════════════════════════════════════════════╣");
+  console.log("║  MALES (respond to interest):                          ║");
+  console.log("║  عمر    0790000004                                     ║");
+  console.log("║  أحمد   0790000005                                     ║");
+  console.log("║  خالد   0790000006                                     ║");
+  console.log("╠══════════════════════════════════════════════════════════╣");
+  console.log("║  All users: verified, complete profiles, 10 credits    ║");
+  console.log("║  9 AI suggestions with varying compatibility scores    ║");
+  console.log("╚══════════════════════════════════════════════════════════╝");
 }
 
 main().catch(console.error).finally(() => db.$disconnect());

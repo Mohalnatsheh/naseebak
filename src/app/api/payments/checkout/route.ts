@@ -3,10 +3,12 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getStripe } from "@/lib/stripe";
 
-const creditPackages: Record<string, { credits: number; price: number; name: string }> = {
-  credits_3: { credits: 3, price: 3, name: "3 رصيد توافق" },
-  credits_5: { credits: 5, price: 4, name: "5 رصيد توافق" },
-  credits_10: { credits: 10, price: 7, name: "10 رصيد توافق" },
+// priceJod = display price in JOD, priceUsdCents = Stripe charge in USD cents
+// JOD→USD ~1.41 rate: 3 JOD≈$4.23, 4 JOD≈$5.64, 7 JOD≈$9.87
+const creditPackages: Record<string, { credits: number; priceJod: number; priceUsdCents: number; name: string }> = {
+  credits_3: { credits: 3, priceJod: 3, priceUsdCents: 423, name: "3 رصيد توافق" },
+  credits_5: { credits: 5, priceJod: 4, priceUsdCents: 564, name: "5 رصيد توافق" },
+  credits_10: { credits: 10, priceJod: 7, priceUsdCents: 987, name: "10 رصيد توافق" },
 };
 
 export async function POST(request: Request) {
@@ -32,35 +34,32 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "الباقة غير صالحة" }, { status: 400 });
     }
 
-    // Create a PENDING payment record
+    // Create a PENDING payment record (amount stored in JOD for display)
     const payment = await db.payment.create({
       data: {
         userId: session.user.id,
         type: "MATCH_CREDITS",
         planName: packageId,
-        amount: pkg.price,
+        amount: pkg.priceJod,
         provider: "STRIPE",
         status: "PENDING",
         description: `شراء ${pkg.credits} رصيد توافق`,
       },
     });
 
-    // JOD is a 3-decimal currency — amount in fils = price × 1000
-    const amountInFils = pkg.price * 1000;
-
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
-    // Create Stripe Checkout Session
+    // Create Stripe Checkout Session (charged in USD)
     const checkoutSession = await getStripe().checkout.sessions.create({
       mode: "payment",
       line_items: [
         {
           price_data: {
-            currency: "jod",
+            currency: "usd",
             product_data: {
               name: pkg.name,
             },
-            unit_amount: amountInFils,
+            unit_amount: pkg.priceUsdCents,
           },
           quantity: 1,
         },

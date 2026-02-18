@@ -20,6 +20,15 @@ import {
   Clock,
   Eye,
   Heart,
+  Ruler,
+  Weight,
+  Cigarette,
+  BookOpen,
+  Wallet,
+  Palette,
+  Activity,
+  Moon,
+  Flag,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -33,8 +42,23 @@ interface Suggestion {
     firstName: string;
     age: number | null;
     city: string | null;
+    area: string | null;
+    nationality: string | null;
     education: string | null;
+    fieldOfStudy: string | null;
     job: string | null;
+    incomeRange: string | null;
+    height: number | null;
+    weight: number | null;
+    skinColor: string | null;
+    maritalStatus: string | null;
+    religiosity: string | null;
+    smokingStatus: string | null;
+    aboutMe: string | null;
+    hobbies: string | null;
+    interests: string | null;
+    lifestyle: string | null;
+    beard: boolean | null;
   };
 }
 
@@ -424,27 +448,124 @@ export default function SuggestionsPage() {
                           </div>
                         </div>
 
-                        {/* Info row with icons */}
-                        <div className="flex flex-wrap gap-2 mb-5">
+                        {/* Quick info chips */}
+                        <div className="flex flex-wrap gap-2 mb-4">
                           {s.candidate.city && (
                             <div className="inline-flex items-center gap-1.5 rounded-lg bg-muted/60 border border-border/50 px-3 py-1.5 text-sm text-foreground/80">
                               <MapPin className="h-3.5 w-3.5 text-primary/60" />
-                              {s.candidate.city}
+                              {s.candidate.city}{s.candidate.area ? ` - ${s.candidate.area}` : ""}
                             </div>
                           )}
-                          {s.candidate.education && (
+                          {s.candidate.maritalStatus && (
                             <div className="inline-flex items-center gap-1.5 rounded-lg bg-muted/60 border border-border/50 px-3 py-1.5 text-sm text-foreground/80">
-                              <GraduationCap className="h-3.5 w-3.5 text-primary/60" />
-                              {s.candidate.education}
+                              <User className="h-3.5 w-3.5 text-primary/60" />
+                              {s.candidate.maritalStatus}
                             </div>
                           )}
-                          {s.candidate.job && (
+                          {s.candidate.religiosity && (
                             <div className="inline-flex items-center gap-1.5 rounded-lg bg-muted/60 border border-border/50 px-3 py-1.5 text-sm text-foreground/80">
-                              <Briefcase className="h-3.5 w-3.5 text-primary/60" />
-                              {s.candidate.job}
+                              <Moon className="h-3.5 w-3.5 text-primary/60" />
+                              {s.candidate.religiosity}
                             </div>
                           )}
                         </div>
+
+                        {/* Detailed info grid */}
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-2.5 mb-4 p-4 rounded-xl bg-muted/30 border border-border/30">
+                          {s.candidate.education && (
+                            <div className="flex items-center gap-2 text-sm">
+                              <GraduationCap className="h-3.5 w-3.5 text-primary/50 flex-shrink-0" />
+                              <span className="text-muted-foreground">التعليم:</span>
+                              <span className="text-foreground font-medium truncate">{s.candidate.education}</span>
+                            </div>
+                          )}
+                          {s.candidate.fieldOfStudy && (
+                            <div className="flex items-center gap-2 text-sm">
+                              <BookOpen className="h-3.5 w-3.5 text-primary/50 flex-shrink-0" />
+                              <span className="text-muted-foreground">التخصص:</span>
+                              <span className="text-foreground font-medium truncate">{s.candidate.fieldOfStudy}</span>
+                            </div>
+                          )}
+                          {s.candidate.job && (
+                            <div className="flex items-center gap-2 text-sm">
+                              <Briefcase className="h-3.5 w-3.5 text-primary/50 flex-shrink-0" />
+                              <span className="text-muted-foreground">الوظيفة:</span>
+                              <span className="text-foreground font-medium truncate">{s.candidate.job}</span>
+                            </div>
+                          )}
+                          {s.candidate.incomeRange && (
+                            <div className="flex items-center gap-2 text-sm">
+                              <Wallet className="h-3.5 w-3.5 text-primary/50 flex-shrink-0" />
+                              <span className="text-muted-foreground">الدخل:</span>
+                              <span className="text-foreground font-medium truncate">{s.candidate.incomeRange}</span>
+                            </div>
+                          )}
+                          {s.candidate.height && (
+                            <div className="flex items-center gap-2 text-sm">
+                              <Ruler className="h-3.5 w-3.5 text-primary/50 flex-shrink-0" />
+                              <span className="text-muted-foreground">الطول:</span>
+                              <span className="text-foreground font-medium">{s.candidate.height} سم</span>
+                            </div>
+                          )}
+                          {s.candidate.weight && (
+                            <div className="flex items-center gap-2 text-sm">
+                              <Weight className="h-3.5 w-3.5 text-primary/50 flex-shrink-0" />
+                              <span className="text-muted-foreground">الوزن:</span>
+                              <span className="text-foreground font-medium">{s.candidate.weight} كغ</span>
+                            </div>
+                          )}
+                          {s.candidate.skinColor && (
+                            <div className="flex items-center gap-2 text-sm">
+                              <Palette className="h-3.5 w-3.5 text-primary/50 flex-shrink-0" />
+                              <span className="text-muted-foreground">البشرة:</span>
+                              <span className="text-foreground font-medium">{s.candidate.skinColor}</span>
+                            </div>
+                          )}
+                          {s.candidate.smokingStatus && (
+                            <div className="flex items-center gap-2 text-sm">
+                              <Cigarette className="h-3.5 w-3.5 text-primary/50 flex-shrink-0" />
+                              <span className="text-muted-foreground">التدخين:</span>
+                              <span className="text-foreground font-medium">{s.candidate.smokingStatus}</span>
+                            </div>
+                          )}
+                          {s.candidate.lifestyle && (
+                            <div className="flex items-center gap-2 text-sm">
+                              <Activity className="h-3.5 w-3.5 text-primary/50 flex-shrink-0" />
+                              <span className="text-muted-foreground">نمط الحياة:</span>
+                              <span className="text-foreground font-medium">{s.candidate.lifestyle}</span>
+                            </div>
+                          )}
+                          {s.candidate.nationality && (
+                            <div className="flex items-center gap-2 text-sm">
+                              <Flag className="h-3.5 w-3.5 text-primary/50 flex-shrink-0" />
+                              <span className="text-muted-foreground">الجنسية:</span>
+                              <span className="text-foreground font-medium">{s.candidate.nationality}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* About me */}
+                        {s.candidate.aboutMe && (
+                          <div className="mb-4 p-3 rounded-xl bg-primary/5 border border-primary/10">
+                            <p className="text-sm text-foreground/80 leading-relaxed">{s.candidate.aboutMe}</p>
+                          </div>
+                        )}
+
+                        {/* Hobbies & Interests */}
+                        {(s.candidate.hobbies || s.candidate.interests) && (
+                          <div className="flex flex-wrap gap-1.5 mb-5">
+                            {s.candidate.hobbies?.split("،").map((h, i) => (
+                              <span key={`h-${i}`} className="inline-flex items-center rounded-full bg-accent/10 border border-accent/20 px-2.5 py-0.5 text-xs text-accent-foreground font-medium">
+                                {h.trim()}
+                              </span>
+                            ))}
+                            {s.candidate.interests?.split("،").map((interest, i) => (
+                              <span key={`i-${i}`} className="inline-flex items-center rounded-full bg-blue-50 border border-blue-200/50 px-2.5 py-0.5 text-xs text-blue-700 font-medium">
+                                {interest.trim()}
+                              </span>
+                            ))}
+                          </div>
+                        )}
 
                         {/* Action buttons */}
                         <div className="flex gap-3">

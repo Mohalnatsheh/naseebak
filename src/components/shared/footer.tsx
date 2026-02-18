@@ -24,7 +24,7 @@ export function Footer() {
                 <Sparkles className="h-4.5 w-4.5 text-primary-foreground" />
               </div>
               <span className="text-2xl font-black bg-gradient-to-l from-primary to-primary/70 bg-clip-text text-transparent">
-                نصيب
+                نصيبك
               </span>
             </Link>
             <p className="text-sm text-muted-foreground leading-relaxed max-w-xs">
@@ -99,7 +99,7 @@ export function Footer() {
               <span className="text-border">|</span>
               <Link href="/terms" className="hover:text-primary transition-colors duration-200">شروط الاستخدام</Link>
             </div>
-            <p>&copy; {new Date().getFullYear()} نصيب. جميع الحقوق محفوظة.</p>
+            <p>&copy; {new Date().getFullYear()} نصيبك. جميع الحقوق محفوظة.</p>
           </div>
         </div>
       </div>

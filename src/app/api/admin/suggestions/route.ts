@@ -35,7 +35,7 @@ export async function POST(request: Request) {
         userId: femaleId,
         type: "SUGGESTION",
         title: "اقتراح جديد من الإدارة",
-        body: "لديك اقتراح توافق جديد من فريق نصيب. قومي بمراجعته.",
+        body: "لديك اقتراح توافق جديد من فريق نصيبك. قومي بمراجعته.",
       },
     });
 
@@ -43,7 +43,7 @@ export async function POST(request: Request) {
     sendPushNotification({
       userId: femaleId,
       title: "اقتراح جديد من الإدارة",
-      body: "لديك اقتراح توافق جديد من فريق نصيب. قومي بمراجعته.",
+      body: "لديك اقتراح توافق جديد من فريق نصيبك. قومي بمراجعته.",
       url: "/dashboard/suggestions",
     });
 

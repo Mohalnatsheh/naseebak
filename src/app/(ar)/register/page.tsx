@@ -465,7 +465,7 @@ function RegisterPageContent() {
             href="/"
             className="inline-block text-4xl font-extrabold bg-gradient-to-l from-primary via-primary to-accent bg-clip-text text-transparent tracking-tight"
           >
-            نصيب
+            نصيبك
           </Link>
           <CardTitle className="text-xl font-bold">
             إنشاء حساب جديد

@@ -110,7 +110,7 @@ const heroStats = [
 ];
 
 const testimonials = [
-  { quote: "الحمد لله، وجدنا من خلال منصة نصيب شريكًا مناسبًا لابنتنا. العملية كانت محترمة وتحفظ كرامة الجميع.", name: "أم محمد", city: "عمّان" },
+  { quote: "الحمد لله، وجدنا من خلال منصة نصيبك شريكًا مناسبًا لابنتنا. العملية كانت محترمة وتحفظ كرامة الجميع.", name: "أم محمد", city: "عمّان" },
   { quote: "ما أعجبني في المنصة أنها تعتمد على التوافق الحقيقي وليس المظاهر. الزيارة العائلية كانت خطوة رائعة.", name: "أبو أحمد", city: "إربد" },
   { quote: "تجربة مختلفة تمامًا عن أي تطبيق آخر. الخصوصية والاحترام في كل خطوة. بارك الله في القائمين عليها.", name: "أم سارة", city: "الزرقاء" },
 ];
@@ -370,7 +370,7 @@ export default function HomePage() {
               style={{ animation: "fadeSlideUp 0.8s ease-out 0.2s both" }}
             >
               <span className="bg-gradient-to-l from-primary via-primary/90 to-primary bg-clip-text text-transparent drop-shadow-sm">
-                نصيب
+                نصيبك
               </span>
               <span className="mx-3 text-muted-foreground/40">—</span>
               <br className="sm:hidden" />
@@ -477,7 +477,7 @@ export default function HomePage() {
               <h2 className="text-3xl font-bold sm:text-4xl lg:text-5xl">
                 لماذا{" "}
                 <span className="bg-gradient-to-l from-primary to-secondary bg-clip-text text-transparent">
-                  نصيب
+                  نصيبك
                 </span>
                 ؟
               </h2>
@@ -771,7 +771,7 @@ export default function HomePage() {
                 </span>
               </h2>
               <p className="mt-5 text-lg text-muted-foreground leading-relaxed">
-                كل ما تحتاج معرفته عن منصة نصيب.
+                كل ما تحتاج معرفته عن منصة نصيبك.
               </p>
               <div className="mx-auto mt-6 h-1 w-20 rounded-full bg-gradient-to-l from-primary via-accent to-secondary" />
             </div>
@@ -858,7 +858,7 @@ export default function HomePage() {
                   ابدأ رحلتك نحو زواج مبارك
                 </h2>
                 <p className="mx-auto mt-6 max-w-xl text-lg leading-relaxed opacity-85">
-                  انضم إلى آلاف العائلات الأردنية التي وثقت بمنصة نصيب.
+                  انضم إلى آلاف العائلات الأردنية التي وثقت بمنصة نصيبك.
                   سجّل الآن وابدأ خطوتك الأولى.
                 </p>
                 <div className="mt-12 flex flex-col items-center justify-center gap-4 sm:flex-row">

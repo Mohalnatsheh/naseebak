@@ -17,7 +17,7 @@ export default function DashboardLayout({
             {children}
           </div>
           <footer className="border-t py-4 text-center text-sm text-muted-foreground">
-            نصيب © {new Date().getFullYear()} - جميع الحقوق محفوظة
+            نصيبك © {new Date().getFullYear()} - جميع الحقوق محفوظة
           </footer>
         </main>
       </div>

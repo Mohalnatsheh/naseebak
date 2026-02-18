@@ -79,7 +79,7 @@ export function Navbar() {
               ? "bg-gradient-to-l from-primary to-primary/70 bg-clip-text text-transparent"
               : "text-primary"
           )}>
-            نصيب
+            نصيبك
           </span>
         </Link>
 
@@ -160,7 +160,7 @@ export function Navbar() {
                 <Sparkles className="h-4.5 w-4.5 text-primary-foreground" />
               </div>
               <SheetTitle className="text-2xl font-black bg-gradient-to-l from-primary to-primary/70 bg-clip-text text-transparent">
-                نصيب
+                نصيبك
               </SheetTitle>
             </div>
 
@@ -226,7 +226,7 @@ export function Navbar() {
             {/* Bottom decoration */}
             <div className="absolute bottom-8 left-0 right-0 flex justify-center">
               <p className="text-xs text-muted-foreground/40">
-                منصة نصيب للتيسير الزواج
+                منصة نصيبك للتيسير الزواج
               </p>
             </div>
           </SheetContent>

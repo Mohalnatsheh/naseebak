@@ -59,7 +59,7 @@ const milestones = [
     year: "٢٠٢٣",
     title: "بداية الفكرة",
     description:
-      "انطلقت فكرة نصيب من حاجة حقيقية لمنصة زواج تقليدية تحترم القيم الأردنية.",
+      "انطلقت فكرة نصيبك من حاجة حقيقية لمنصة زواج تقليدية تحترم القيم الأردنية.",
   },
   {
     year: "٢٠٢٤",
@@ -134,7 +134,7 @@ export default function AboutPage() {
               style={{ animation: "fadeSlideUp 0.8s ease-out 0.2s both" }}
             >
               <span className="bg-gradient-to-l from-primary via-primary/90 to-primary bg-clip-text text-transparent drop-shadow-sm">
-                نصيب
+                نصيبك
               </span>
               <span className="mx-3 text-muted-foreground/40">—</span>
               <br className="sm:hidden" />
@@ -148,7 +148,7 @@ export default function AboutPage() {
               className="mx-auto mt-8 max-w-2xl text-lg leading-relaxed text-muted-foreground sm:text-xl"
               style={{ animation: "fadeSlideUp 0.8s ease-out 0.4s both" }}
             >
-              نصيب منصة أردنية رائدة في تيسير الزواج التقليدي، تجمع بين أحدث
+              نصيبك منصة أردنية رائدة في تيسير الزواج التقليدي، تجمع بين أحدث
               تقنيات الذكاء الاصطناعي والقيم العربية الأصيلة لمساعدة العائلات
               في إيجاد الشريك المناسب بكرامة واحترام.
             </p>
@@ -393,7 +393,7 @@ export default function AboutPage() {
                 </h2>
                 <p className="mx-auto mt-6 max-w-xl text-lg leading-relaxed opacity-85">
                   سجّل الآن وانضم إلى آلاف العائلات الأردنية التي وثقت بمنصة
-                  نصيب. ابدأ رحلتك نحو زواج مبارك بخطوة واحدة.
+                  نصيبك. ابدأ رحلتك نحو زواج مبارك بخطوة واحدة.
                 </p>
                 <div className="mt-12">
                   <Button

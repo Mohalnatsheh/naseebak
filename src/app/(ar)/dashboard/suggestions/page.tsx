@@ -201,7 +201,7 @@ export default function SuggestionsPage() {
             <div className="space-y-2">
               <h3 className="text-lg font-bold text-foreground">الاقتراحات مخصصة للإناث</h3>
               <p className="text-sm text-muted-foreground max-w-sm mx-auto leading-relaxed">
-                في منصة نصيب، يتم إرسال اقتراحات التوافق للإناث فقط. سيتم إعلامك عبر الإشعارات عندما تبدي إحداهن اهتماماً بملفك الشخصي.
+                في منصة نصيبك، يتم إرسال اقتراحات التوافق للإناث فقط. سيتم إعلامك عبر الإشعارات عندما تبدي إحداهن اهتماماً بملفك الشخصي.
               </p>
             </div>
             <div className="flex flex-col sm:flex-row gap-3 justify-center">

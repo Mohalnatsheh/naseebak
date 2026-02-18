@@ -166,7 +166,7 @@ export default function PrivacyPage() {
               className="mx-auto mt-8 max-w-2xl text-lg leading-relaxed text-muted-foreground sm:text-xl"
               style={{ animation: "fadeSlideUp 0.8s ease-out 0.4s both" }}
             >
-              نلتزم في منصة نصيب بحماية بياناتك الشخصية وخصوصيتك. تشرح هذه
+              نلتزم في منصة نصيبك بحماية بياناتك الشخصية وخصوصيتك. تشرح هذه
               السياسة كيف نجمع بياناتك ونستخدمها ونحميها.
             </p>
 
@@ -200,7 +200,7 @@ export default function PrivacyPage() {
                   <div className="space-y-3">
                     <h2 className="text-xl font-bold">مقدمة</h2>
                     <p className="text-sm leading-relaxed text-muted-foreground">
-                      منصة نصيب (&ldquo;نحن&rdquo; أو &ldquo;المنصة&rdquo;) هي
+                      منصة نصيبك (&ldquo;نحن&rdquo; أو &ldquo;المنصة&rdquo;) هي
                       منصة أردنية متخصصة في تيسير الزواج التقليدي. نحن نحترم
                       خصوصية مستخدمينا ونلتزم بحماية بياناتهم الشخصية وفقاً
                       لأعلى المعايير الأمنية والقوانين المعمول بها في المملكة

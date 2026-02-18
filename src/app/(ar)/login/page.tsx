@@ -235,7 +235,7 @@ export default function LoginPage() {
               <HeartHandshake className="size-10 opacity-90" />
             </div>
             <h1 className="text-7xl font-bold tracking-tight xl:text-8xl" style={{ fontFamily: "inherit" }}>
-              نصيب
+              نصيبك
             </h1>
           </div>
 
@@ -291,7 +291,7 @@ export default function LoginPage() {
           >
             <Link href="/" className="inline-block">
               <span className="text-4xl font-bold bg-gradient-to-l from-primary to-secondary bg-clip-text text-transparent">
-                نصيب
+                نصيبك
               </span>
             </Link>
             <p className="mt-2 text-sm text-muted-foreground">
@@ -327,7 +327,7 @@ export default function LoginPage() {
                 href="/"
                 className="hidden lg:inline-block text-3xl font-bold bg-gradient-to-l from-primary to-secondary bg-clip-text text-transparent hover:opacity-80 transition-opacity duration-300"
               >
-                نصيب
+                نصيبك
               </Link>
               <CardTitle className="text-2xl font-bold">تسجيل الدخول</CardTitle>
               <CardDescription className="text-base text-muted-foreground">

@@ -313,7 +313,7 @@ export default function ContactPage() {
               </h2>
               <p className="mt-4 text-muted-foreground leading-relaxed">
                 يمكنك الاطلاع على صفحة الأسئلة الشائعة للحصول على إجابات
-                لأكثر الأسئلة تكراراً حول منصة نصيب.
+                لأكثر الأسئلة تكراراً حول منصة نصيبك.
               </p>
               <div className="mt-8">
                 <Button

@@ -539,7 +539,7 @@ export default function DashboardPage() {
                         iconColor: "text-green-500",
                         iconBg: "bg-green-50",
                         title: "تم إنشاء الحساب",
-                        desc: "مرحباً بك في منصة نصيب",
+                        desc: "مرحباً بك في منصة نصيبك",
                         time: new Date(profile.createdAt).toLocaleDateString(
                           "ar-JO"
                         ),

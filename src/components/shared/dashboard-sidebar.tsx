@@ -168,7 +168,7 @@ export function DashboardSidebar() {
             </div>
             {(!collapsed || mobile) && (
               <span className="text-xl font-black bg-gradient-to-l from-primary to-primary/70 bg-clip-text text-transparent">
-                نصيب
+                نصيبك
               </span>
             )}
           </Link>
@@ -290,7 +290,7 @@ export function DashboardSidebar() {
               <Sparkles className="h-4 w-4 text-primary-foreground" />
             </div>
             <span className="text-lg font-black bg-gradient-to-l from-primary to-primary/70 bg-clip-text text-transparent">
-              نصيب
+              نصيبك
             </span>
           </Link>
 

@@ -62,7 +62,7 @@ export function DashboardNavbar() {
             </div>
           </div>
           <span className="text-xl font-black bg-gradient-to-l from-primary to-primary/70 bg-clip-text text-transparent hidden sm:inline">
-            نصيب
+            نصيبك
           </span>
         </Link>
 
@@ -187,7 +187,7 @@ export function DashboardNavbar() {
                     <Sparkles className="h-4 w-4 text-primary-foreground" />
                   </div>
                   <SheetTitle className="text-xl font-black bg-gradient-to-l from-primary to-primary/70 bg-clip-text text-transparent">
-                    نصيب
+                    نصيبك
                   </SheetTitle>
                 </div>
               </div>

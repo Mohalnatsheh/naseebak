@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, useCallback, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Loader2,
   CreditCard,
@@ -14,6 +14,7 @@ import {
   Gem,
   CircleDollarSign,
   Coins,
+  XCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -38,44 +39,89 @@ interface PaymentRecord {
 }
 
 export default function PaymentsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex flex-col items-center justify-center py-20 gap-4">
+          <div className="relative">
+            <div className="h-16 w-16 rounded-full bg-gradient-to-br from-primary/20 to-amber-200/30 flex items-center justify-center">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+            <div className="absolute inset-0 h-16 w-16 rounded-full bg-primary/10 animate-ping" />
+          </div>
+          <p className="text-sm text-muted-foreground animate-pulse">جاري التحميل...</p>
+        </div>
+      }
+    >
+      <PaymentsContent />
+    </Suspense>
+  );
+}
+
+function PaymentsContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [packages, setPackages] = useState<CreditPackage[]>([]);
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
   const [matchCredits, setMatchCredits] = useState(0);
   const [loading, setLoading] = useState(true);
   const [purchasing, setPurchasing] = useState<string | null>(null);
   const [isMale, setIsMale] = useState<boolean | null>(null);
+  const [toast, setToast] = useState<{ type: "success" | "info"; message: string } | null>(null);
+
+  const loadData = useCallback(async () => {
+    try {
+      const [plansRes, histRes, profileRes] = await Promise.all([
+        fetch("/api/payments/plans"),
+        fetch("/api/payments/history"),
+        fetch("/api/profile"),
+      ]);
+      const plansData = await plansRes.json();
+      const histData = await histRes.json();
+      const profileData = await profileRes.json();
+
+      if (profileData.user?.gender === "MALE") {
+        setIsMale(true);
+        return;
+      }
+      setIsMale(false);
+
+      setPackages(plansData.packages || []);
+      setPayments(histData.payments || []);
+      setMatchCredits(histData.matchCredits ?? 0);
+    } catch (err) {
+      console.error(err);
+    }
+  }, []);
 
   useEffect(() => {
-    async function load() {
-      try {
-        const [plansRes, histRes, profileRes] = await Promise.all([
-          fetch("/api/payments/plans"),
-          fetch("/api/payments/history"),
-          fetch("/api/profile"),
-        ]);
-        const plansData = await plansRes.json();
-        const histData = await histRes.json();
-        const profileData = await profileRes.json();
-
-        if (profileData.user?.gender === "MALE") {
-          setIsMale(true);
-          setLoading(false);
-          return;
-        }
-        setIsMale(false);
-
-        setPackages(plansData.packages || []);
-        setPayments(histData.payments || []);
-        setMatchCredits(histData.matchCredits ?? 0);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
+    async function init() {
+      await loadData();
+      setLoading(false);
     }
-    load();
-  }, []);
+    init();
+  }, [loadData]);
+
+  // Handle Stripe redirect success/cancel params
+  useEffect(() => {
+    if (searchParams.get("success") === "true") {
+      setToast({ type: "success", message: "تم الدفع بنجاح! تمت إضافة الرصيد" });
+      // Refresh data to pick up webhook-credited balance
+      loadData();
+      // Clean URL params
+      router.replace("/dashboard/payments");
+    } else if (searchParams.get("cancelled") === "true") {
+      setToast({ type: "info", message: "تم إلغاء عملية الدفع" });
+      router.replace("/dashboard/payments");
+    }
+  }, [searchParams, loadData, router]);
+
+  // Auto-dismiss toast
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(null), 5000);
+    return () => clearTimeout(timer);
+  }, [toast]);
 
   async function handlePurchase(packageId: string) {
     setPurchasing(packageId);
@@ -83,15 +129,15 @@ export default function PaymentsPage() {
       const res = await fetch("/api/payments/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ packageId, provider: "STRIPE" }),
+        body: JSON.stringify({ packageId }),
       });
-      if (res.ok) {
-        const result = await res.json();
-        setMatchCredits((prev) => prev + (result.creditsAdded || 0));
-        const histRes = await fetch("/api/payments/history");
-        const histData = await histRes.json();
-        setPayments(histData.payments || []);
+      const result = await res.json();
+      if (res.ok && result.url) {
+        // Redirect to Stripe Checkout
+        window.location.href = result.url;
+        return;
       }
+      console.error("Checkout failed:", result.error);
     } catch (err) {
       console.error(err);
     } finally {
@@ -121,6 +167,25 @@ export default function PaymentsPage() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-8">
+      {/* Toast notification */}
+      {toast && (
+        <div
+          className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 rounded-xl px-5 py-3 shadow-lg border backdrop-blur-sm transition-all duration-300 ${
+            toast.type === "success"
+              ? "bg-emerald-50/95 border-emerald-200 text-emerald-800"
+              : "bg-amber-50/95 border-amber-200 text-amber-800"
+          }`}
+          style={{ animation: "fadeSlideIn 0.3s ease-out" }}
+        >
+          {toast.type === "success" ? (
+            <CheckCircle2 className="h-5 w-5 text-emerald-500 flex-shrink-0" />
+          ) : (
+            <XCircle className="h-5 w-5 text-amber-500 flex-shrink-0" />
+          )}
+          <span className="text-sm font-medium">{toast.message}</span>
+        </div>
+      )}
+
       {/* Page Header */}
       <div className="relative overflow-hidden rounded-2xl bg-gradient-to-l from-amber-50/80 via-primary/5 to-transparent border border-primary/10 p-6 md:p-8">
         <div className="absolute top-0 left-0 w-40 h-40 bg-amber-100/40 rounded-full -translate-x-16 -translate-y-16 blur-3xl" />

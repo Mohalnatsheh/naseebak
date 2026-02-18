@@ -32,6 +32,7 @@ pnpm db:studio        # Open Prisma Studio GUI
 - **Validation:** Zod v4 (`zod/v4` import path)
 - **UI Components:** shadcn/ui (Radix primitives)
 - **Icons:** lucide-react
+- **Payments:** Stripe Checkout (one-time payments, JOD currency)
 - **Push Notifications:** OneSignal (react-onesignal SDK + REST API)
 - **Testing:** Vitest + Testing Library
 - **Package Manager:** pnpm 10.24
@@ -73,6 +74,7 @@ src/
 │   ├── auth.ts            # NextAuth config (two Credentials providers)
 │   ├── auth.config.ts     # Auth callbacks (JWT, session, route protection)
 │   ├── db.ts              # Prisma client singleton (PrismaNeon adapter)
+│   ├── stripe.ts          # Stripe client singleton (lazy-initialized)
 │   ├── onesignal.ts       # OneSignal push notification helpers (server-side)
 │   ├── rate-limit.ts      # In-memory rate limiter
 │   ├── validations/       # Zod schemas (auth.ts, profile.ts, blog.ts)
@@ -260,6 +262,34 @@ Database-backed blog with admin management. No direct communication — blog is 
 - `src/app/(ar)/blog/page.tsx` — Public blog listing (dynamic)
 - `src/app/(ar)/blog/[slug]/page.tsx` — Public blog detail page
 
+## Stripe Payments
+
+Real payment processing via Stripe Checkout Sessions. Currency is JOD (Jordanian Dinar, 3-decimal — fils = price × 1000).
+
+**Flow:**
+```
+User clicks "Buy" → POST /api/payments/checkout → creates PENDING Payment + Stripe Checkout Session →
+  returns session URL → client redirects to Stripe hosted page →
+    user pays → Stripe sends webhook → POST /api/payments/webhook →
+      verifies signature → fulfills order (COMPLETED, add credits, notification, push) →
+        Stripe redirects user to /dashboard/payments?success=true
+```
+
+**Key files:**
+- `src/lib/stripe.ts` — Lazy-initialized Stripe client (`getStripe()`) — avoids build-time errors when env vars aren't set
+- `src/app/api/payments/checkout/route.ts` — Creates PENDING payment + Stripe Checkout Session, returns `{ url }` for client redirect
+- `src/app/api/payments/webhook/route.ts` — Verifies Stripe signature, handles `checkout.session.completed` (credits + notification + push) and `checkout.session.expired` (marks FAILED)
+- `src/app/(ar)/dashboard/payments/page.tsx` — Redirects to Stripe on purchase, shows success/cancel toast on return
+
+**Webhook events handled:**
+- `checkout.session.completed` — Fulfills order: updates Payment to COMPLETED, increments `User.matchCredits`, creates PAYMENT notification, sends push
+- `checkout.session.expired` — Updates Payment to FAILED
+
+**Environment variables required:**
+- `STRIPE_SECRET_KEY` — Stripe secret key (starts with `sk_test_` or `sk_live_`)
+- `STRIPE_WEBHOOK_SECRET` — Webhook signing secret (starts with `whsec_`)
+- `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` — Publishable key (starts with `pk_test_` or `pk_live_`)
+
 ## Production Deployment
 
 ### Infrastructure
@@ -325,7 +355,6 @@ pm2 restart ecosystem.config.cjs
 
 - OTP is returned in API response (mock/dev mode) — needs SMS gateway integration for production
 - Photo and identity document storage uses base64 in DB — needs cloud storage (S3/R2) for production
-- Payment checkout is simulated — needs real Stripe/PayPal/eFAWATEERcom integration
 - Suggestion algorithm returns mock data — needs Python ML microservice integration
 - No email notification service connected
 - OneSignal web push requires domain configuration in OneSignal dashboard (Settings → Platforms → Web → Site URL: `https://naseebak.com`)

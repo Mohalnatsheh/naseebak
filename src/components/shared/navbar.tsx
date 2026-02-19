@@ -8,6 +8,18 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 
+function JordanFlag({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 1200 600" className={className} aria-label="علم الأردن">
+      <rect width="1200" height="200" fill="#000" />
+      <rect y="200" width="1200" height="200" fill="#fff" />
+      <rect y="400" width="1200" height="200" fill="#007A3D" />
+      <polygon points="0,0 450,300 0,600" fill="#CE1126" />
+      <polygon points="135,260 150,300 190,300 158,325 170,365 135,343 100,365 112,325 80,300 120,300" fill="#fff" />
+    </svg>
+  );
+}
+
 const sectionLinks = [
   { href: "#features", label: "المميزات" },
   { href: "#how-it-works", label: "كيف تعمل المنصة" },
@@ -81,6 +93,7 @@ export function Navbar() {
           )}>
             نصيبك
           </span>
+          <JordanFlag className="h-4 w-6 rounded-[2px] shadow-sm" />
         </Link>
 
         {/* Desktop nav links */}
@@ -162,6 +175,7 @@ export function Navbar() {
               <SheetTitle className="text-2xl font-black bg-gradient-to-l from-primary to-primary/70 bg-clip-text text-transparent">
                 نصيبك
               </SheetTitle>
+              <JordanFlag className="h-4 w-6 rounded-[2px] shadow-sm" />
             </div>
 
             {/* Mobile section links (only on home) */}

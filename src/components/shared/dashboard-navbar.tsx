@@ -29,6 +29,18 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 
+function JordanFlag({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 1200 600" className={className} aria-label="علم الأردن">
+      <rect width="1200" height="200" fill="#000" />
+      <rect y="200" width="1200" height="200" fill="#fff" />
+      <rect y="400" width="1200" height="200" fill="#007A3D" />
+      <polygon points="0,0 450,300 0,600" fill="#CE1126" />
+      <polygon points="135,260 150,300 190,300 158,325 170,365 135,343 100,365 112,325 80,300 120,300" fill="#fff" />
+    </svg>
+  );
+}
+
 const navLinks = [
   { href: "/dashboard", label: "الرئيسية", icon: Home },
   { href: "/dashboard/suggestions", label: "الاقتراحات", icon: Sparkles },
@@ -64,6 +76,7 @@ export function DashboardNavbar() {
           <span className="text-xl font-black bg-gradient-to-l from-primary to-primary/70 bg-clip-text text-transparent hidden sm:inline">
             نصيبك
           </span>
+          <JordanFlag className="h-3.5 w-5 rounded-[2px] shadow-sm hidden sm:block" />
         </Link>
 
         {/* Desktop navigation links */}
@@ -189,6 +202,7 @@ export function DashboardNavbar() {
                   <SheetTitle className="text-xl font-black bg-gradient-to-l from-primary to-primary/70 bg-clip-text text-transparent">
                     نصيبك
                   </SheetTitle>
+                  <JordanFlag className="h-3.5 w-5 rounded-[2px] shadow-sm" />
                 </div>
               </div>
 

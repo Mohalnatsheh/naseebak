@@ -25,6 +25,7 @@ import {
   Camera,
   Lock,
   ImagePlus,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -128,6 +129,7 @@ function CompletionRing({
 export default function ProfilePage() {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [completeness, setCompleteness] = useState<any>(null);
   const [deactivating, setDeactivating] = useState(false);
   const [showDeactivateConfirm, setShowDeactivateConfirm] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
@@ -135,6 +137,11 @@ export default function ProfilePage() {
 
   // Update request state
   const [pendingRequest, setPendingRequest] = useState<{ id: string; status: string; createdAt: string } | null>(null);
+  // Deletion state
+  const [deletionRequest, setDeletionRequest] = useState<{ scheduledAt: string } | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteReason, setDeleteReason] = useState("");
+  const [deletionLoading, setDeletionLoading] = useState(false);
 
   useEffect(() => {
     async function fetchProfile() {
@@ -142,6 +149,7 @@ export default function ProfilePage() {
         const res = await fetch("/api/profile");
         const data = await res.json();
         setUser(data.user);
+        if (data.completeness) setCompleteness(data.completeness);
       } catch (err) {
         console.error("Failed to fetch profile", err);
       } finally {
@@ -158,8 +166,20 @@ export default function ProfilePage() {
         // Silently fail
       }
     }
+    async function fetchDeletionStatus() {
+      try {
+        const res = await fetch("/api/profile/delete");
+        const data = await res.json();
+        if (data.hasPendingDeletion) {
+          setDeletionRequest(data.deletionRequest);
+        }
+      } catch {
+        // Silently fail
+      }
+    }
     fetchProfile();
     fetchPendingRequest();
+    fetchDeletionStatus();
   }, []);
 
   async function handleAvatarUpload(file: File) {
@@ -236,27 +256,7 @@ export default function ProfilePage() {
     );
   }
 
-  const completionItems = [
-    {
-      label: "الملف الشخصي",
-      done: user.profile?.isComplete,
-      icon: User,
-    },
-    {
-      label: "التحقق من الهوية",
-      done: user.identityDoc?.status === "APPROVED",
-      icon: Shield,
-    },
-    {
-      label: "اختبار الشخصية",
-      done: !!user.personalityResult,
-      icon: Brain,
-    },
-  ];
-  const completionPct = Math.round(
-    (completionItems.filter((i) => i.done).length / completionItems.length) *
-      100
-  );
+  const completionPct = completeness?.total ?? 0;
 
   const totalMatches =
     user._count.matchesAsFemale + user._count.matchesAsMale;
@@ -385,49 +385,66 @@ export default function ProfilePage() {
       </div>
 
       {/* ============================================ */}
-      {/*  Completion Ring Section                     */}
+      {/*  Completion Section — field-level              */}
       {/* ============================================ */}
-      {completionPct < 100 && (
+      {completionPct < 100 && completeness && (
         <Card
           className="relative overflow-hidden border-amber-200/60 bg-gradient-to-l from-amber-50/80 to-orange-50/50 shadow-md"
-          style={{
-            animation: "fadeSlideIn 0.5s ease-out 0.1s both",
-          }}
+          style={{ animation: "fadeSlideIn 0.5s ease-out 0.1s both" }}
         >
           <div className="absolute top-0 right-0 h-32 w-32 rounded-full bg-amber-200/20 blur-2xl translate-x-8 -translate-y-8" />
           <CardContent className="pt-6 pb-5">
-            <div className="flex items-center gap-5">
+            <div className="flex items-center gap-5 mb-4">
               <CompletionRing percentage={completionPct} />
-              <div className="flex-1 space-y-2">
+              <div className="flex-1">
                 <h3 className="font-bold text-amber-900 text-base">
                   أكمل ملفك الشخصي
                 </h3>
-                <p className="text-sm text-amber-700/80 leading-relaxed">
-                  كلما اكتمل ملفك الشخصي، زادت فرص التوافق وجودة الاقتراحات
+                <p className="text-xs text-amber-700/80 mt-0.5">
+                  كلما زادت نسبة الاكتمال، زادت جودة الاقتراحات
                 </p>
-                <div className="flex flex-wrap gap-2 pt-1">
-                  {completionItems.map((item) => {
-                    const ItemIcon = item.icon;
-                    return (
-                      <span
-                        key={item.label}
-                        className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium border transition-colors ${
-                          item.done
-                            ? "bg-emerald-100 border-emerald-200/60 text-emerald-800"
-                            : "bg-amber-100 border-amber-200/60 text-amber-800"
-                        }`}
-                      >
-                        {item.done ? (
-                          <CheckCircle2 className="h-3 w-3 text-emerald-600" />
-                        ) : (
-                          <AlertCircle className="h-3 w-3 text-amber-600" />
-                        )}
-                        {item.label}
-                      </span>
-                    );
-                  })}
-                </div>
               </div>
+            </div>
+            <div className="space-y-2.5">
+              {completeness.sections.map((section: any) => (
+                <Link key={section.key} href={section.link} className="block">
+                  <div className={`flex items-center gap-3 p-2.5 rounded-xl border transition-colors ${
+                    section.percentage === 100
+                      ? "bg-emerald-50/60 border-emerald-200/50"
+                      : "bg-amber-50/60 border-amber-200/50 hover:bg-amber-50"
+                  }`}>
+                    {section.percentage === 100 ? (
+                      <CheckCircle2 className="h-5 w-5 text-emerald-500 shrink-0" />
+                    ) : (
+                      <AlertCircle className="h-5 w-5 text-amber-500 shrink-0" />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className={`text-sm font-medium ${section.percentage === 100 ? "text-emerald-800" : "text-amber-800"}`}>
+                          {section.label}
+                        </span>
+                        <span className={`text-xs font-bold ${section.percentage === 100 ? "text-emerald-600" : "text-amber-600"}`}>
+                          {section.percentage}%
+                        </span>
+                      </div>
+                      <div className="h-1.5 rounded-full bg-muted/60 overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all duration-500 ${
+                            section.percentage === 100 ? "bg-emerald-500" : "bg-amber-500"
+                          }`}
+                          style={{ width: `${section.percentage}%` }}
+                        />
+                      </div>
+                      {section.missingFields.length > 0 && section.percentage < 100 && (
+                        <p className="text-[10px] text-amber-600/70 mt-1 truncate">
+                          ينقص: {section.missingFields.slice(0, 3).join("، ")}
+                          {section.missingFields.length > 3 && ` (+${section.missingFields.length - 3})`}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </Link>
+              ))}
             </div>
           </CardContent>
         </Card>
@@ -436,9 +453,7 @@ export default function ProfilePage() {
       {completionPct === 100 && (
         <Card
           className="relative overflow-hidden border-emerald-200/60 bg-gradient-to-l from-emerald-50/80 to-green-50/50 shadow-md"
-          style={{
-            animation: "fadeSlideIn 0.5s ease-out 0.1s both",
-          }}
+          style={{ animation: "fadeSlideIn 0.5s ease-out 0.1s both" }}
         >
           <div className="absolute top-0 right-0 h-32 w-32 rounded-full bg-emerald-200/20 blur-2xl translate-x-8 -translate-y-8" />
           <CardContent className="pt-6 pb-5">
@@ -451,17 +466,6 @@ export default function ProfilePage() {
                 <p className="text-sm text-emerald-700/80 leading-relaxed">
                   ملفك الشخصي مكتمل بالكامل. أنت مؤهل للحصول على أفضل الاقتراحات!
                 </p>
-                <div className="flex flex-wrap gap-2 pt-1">
-                  {completionItems.map((item) => (
-                    <span
-                      key={item.label}
-                      className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 border border-emerald-200/60 px-3 py-1.5 text-xs font-medium text-emerald-800"
-                    >
-                      <CheckCircle2 className="h-3 w-3 text-emerald-600" />
-                      {item.label}
-                    </span>
-                  ))}
-                </div>
               </div>
             </div>
           </CardContent>
@@ -858,6 +862,153 @@ export default function ProfilePage() {
                     variant="outline"
                     className="rounded-xl font-semibold"
                     onClick={() => setShowDeactivateConfirm(false)}
+                  >
+                    إلغاء
+                  </Button>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* ============================================ */}
+      {/*  Account Deletion (30-day grace period)       */}
+      {/* ============================================ */}
+      <div style={{ animation: "fadeSlideIn 0.5s ease-out 0.5s both" }}>
+        <Card className="relative overflow-hidden border-red-300/30 shadow-sm">
+          <div className="h-1 bg-gradient-to-l from-red-600 to-red-400" />
+          <CardContent className="p-5 md:p-6">
+            {deletionRequest ? (
+              /* Active deletion request — show countdown */
+              <div className="space-y-4">
+                <div className="flex items-start gap-4">
+                  <div className="h-11 w-11 rounded-xl bg-gradient-to-br from-red-100 to-rose-100 flex items-center justify-center flex-shrink-0">
+                    <Trash2 className="h-5 w-5 text-red-600" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-red-700 text-base">حذف الحساب قيد التنفيذ</h3>
+                    <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
+                      سيتم حذف حسابك نهائياً في{" "}
+                      <span className="font-bold text-red-600">
+                        {new Date(deletionRequest.scheduledAt).toLocaleDateString("ar-JO", {
+                          year: "numeric",
+                          month: "long",
+                          day: "numeric",
+                        })}
+                      </span>
+                      . يمكنك إلغاء الطلب قبل هذا الموعد.
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  className="border-green-300 text-green-700 hover:bg-green-50 hover:border-green-400 rounded-xl font-semibold"
+                  disabled={deletionLoading}
+                  onClick={async () => {
+                    setDeletionLoading(true);
+                    try {
+                      const res = await fetch("/api/profile/delete", { method: "DELETE" });
+                      if (res.ok) {
+                        setDeletionRequest(null);
+                        setShowDeleteConfirm(false);
+                      }
+                    } catch {
+                      // Error handling
+                    } finally {
+                      setDeletionLoading(false);
+                    }
+                  }}
+                >
+                  {deletionLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    "إلغاء طلب الحذف وتفعيل الحساب"
+                  )}
+                </Button>
+              </div>
+            ) : (
+              /* No deletion request — show delete button */
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-start gap-4">
+                  <div className="h-11 w-11 rounded-xl bg-gradient-to-br from-red-100 to-rose-100 flex items-center justify-center flex-shrink-0">
+                    <Trash2 className="h-5 w-5 text-red-600" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-red-700 text-base">حذف الحساب نهائياً</h3>
+                    <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
+                      سيتم حذف جميع بياناتك نهائياً بعد 30 يوماً من تقديم الطلب. لا يمكن استعادة البيانات بعد الحذف.
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  className="border-red-300/50 text-red-600 hover:bg-red-50 hover:border-red-400 shrink-0 rounded-xl font-semibold"
+                  onClick={() => setShowDeleteConfirm(true)}
+                >
+                  <Trash2 className="h-4 w-4 me-2" />
+                  حذف الحساب
+                </Button>
+              </div>
+            )}
+
+            {showDeleteConfirm && !deletionRequest && (
+              <div className="mt-5 p-5 bg-gradient-to-l from-red-50/80 to-rose-50/50 rounded-xl border border-red-200/40 space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="h-9 w-9 rounded-lg bg-red-100 flex items-center justify-center flex-shrink-0">
+                    <AlertCircle className="h-5 w-5 text-red-600" />
+                  </div>
+                  <p className="text-sm font-bold text-red-700">
+                    هل أنت متأكد من رغبتك في حذف حسابك نهائياً؟
+                  </p>
+                </div>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  سيتم تعطيل حسابك فوراً وحذفه نهائياً بعد 30 يوماً. يمكنك إلغاء الطلب خلال هذه الفترة.
+                </p>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">سبب الحذف (اختياري)</label>
+                  <textarea
+                    value={deleteReason}
+                    onChange={(e) => setDeleteReason(e.target.value)}
+                    className="w-full rounded-xl border border-input bg-background px-3 py-2.5 text-sm min-h-[60px] resize-none"
+                    placeholder="ساعدنا في تحسين المنصة..."
+                  />
+                </div>
+                <div className="flex gap-3">
+                  <Button
+                    variant="destructive"
+                    disabled={deletionLoading}
+                    className="rounded-xl font-semibold"
+                    onClick={async () => {
+                      setDeletionLoading(true);
+                      try {
+                        const res = await fetch("/api/profile/delete", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ reason: deleteReason || undefined }),
+                        });
+                        if (res.ok) {
+                          const data = await res.json();
+                          setDeletionRequest(data.deletionRequest);
+                          setShowDeleteConfirm(false);
+                        }
+                      } catch {
+                        // Error handling
+                      } finally {
+                        setDeletionLoading(false);
+                      }
+                    }}
+                  >
+                    {deletionLoading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      "نعم، حذف الحساب"
+                    )}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="rounded-xl font-semibold"
+                    onClick={() => setShowDeleteConfirm(false)}
                   >
                     إلغاء
                   </Button>

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { profileSchema } from "@/lib/validations/profile";
+import { calculateCompleteness } from "@/lib/profile-completeness";
 
 export async function GET() {
   try {
@@ -52,7 +53,9 @@ export async function GET() {
       return NextResponse.json({ error: "المستخدم غير موجود" }, { status: 404 });
     }
 
-    return NextResponse.json({ user });
+    const completeness = calculateCompleteness(user);
+
+    return NextResponse.json({ user, completeness });
   } catch (error) {
     console.error("Profile get error:", error);
     return NextResponse.json({ error: "حدث خطأ في الخادم" }, { status: 500 });

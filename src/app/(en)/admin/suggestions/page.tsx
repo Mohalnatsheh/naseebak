@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Sparkles, Loader2, CheckCircle2, Search } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Sparkles, Loader2, CheckCircle2, Search, Zap } from "lucide-react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -25,6 +25,26 @@ export default function AdminSuggestionsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
+  const [generating, setGenerating] = useState(false);
+  const [generateResult, setGenerateResult] = useState("");
+
+  async function handleGenerate() {
+    setGenerating(true);
+    setGenerateResult("");
+    try {
+      const res = await fetch("/api/admin/suggestions/generate", { method: "POST" });
+      const data = await res.json();
+      if (res.ok) {
+        setGenerateResult(`Generated ${data.count} suggestions successfully!`);
+      } else {
+        setGenerateResult(data.error || "Failed to generate suggestions");
+      }
+    } catch {
+      setGenerateResult("An unexpected error occurred");
+    } finally {
+      setGenerating(false);
+    }
+  }
 
   useEffect(() => {
     async function load() {
@@ -92,6 +112,38 @@ export default function AdminSuggestionsPage() {
         </h1>
         <p className="text-muted-foreground mt-1">Create manual match suggestions between users</p>
       </div>
+
+      {/* Auto-generate suggestions */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Auto-Generate Suggestions</CardTitle>
+          <CardDescription>
+            Automatically generate suggestions for all eligible users using the matching algorithm.
+            Scores compatible profiles based on preferences, personality, and profile quality.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {generateResult && (
+            <div className={`rounded-lg p-3 text-sm mb-4 ${
+              generateResult.includes("successfully") || generateResult.includes("Generated")
+                ? "bg-green-50 border border-green-200 text-green-800"
+                : "bg-destructive/10 border border-destructive/20 text-destructive"
+            }`}>
+              {generateResult}
+            </div>
+          )}
+          <Button onClick={handleGenerate} disabled={generating}>
+            {generating ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <>
+                <Zap className="h-4 w-4 me-2" />
+                Generate Suggestions
+              </>
+            )}
+          </Button>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

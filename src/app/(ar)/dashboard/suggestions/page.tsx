@@ -40,6 +40,9 @@ import {
   Gem,
   Quote,
   Sparkle,
+  MoreVertical,
+  ShieldAlert,
+  Ban,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -50,6 +53,7 @@ interface Suggestion {
   compatibilityScore: number;
   isManual: boolean;
   candidate: {
+    id: string;
     firstName: string;
     age: number | null;
     city: string | null;
@@ -89,6 +93,7 @@ interface Interest {
   compatibilityScore: number;
   receivedAt: string;
   candidate: {
+    id: string;
     firstName: string;
     age: number | null;
     city: string | null;
@@ -320,6 +325,54 @@ export default function SuggestionsPage() {
   const [accountComplete, setAccountComplete] = useState<boolean | null>(null);
   const [activeTab, setActiveTab] = useState<"new" | "sent" | "interests">("new");
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
+  const [menuOpen, setMenuOpen] = useState<string | null>(null);
+  const [reportDialog, setReportDialog] = useState<{ userId: string; name: string } | null>(null);
+  const [reportReason, setReportReason] = useState("FAKE_PROFILE");
+  const [reportDetails, setReportDetails] = useState("");
+  const [reportSubmitting, setReportSubmitting] = useState(false);
+
+  async function handleBlock(userId: string, cardId: string, tab: "suggestion" | "interest") {
+    try {
+      const res = await fetch("/api/blocks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ blockedId: userId }),
+      });
+      if (res.ok) {
+        if (tab === "suggestion") {
+          setSuggestions((prev) => prev.filter((s) => s.id !== cardId));
+        } else {
+          setInterests((prev) => prev.filter((i) => i.id !== cardId));
+        }
+      }
+    } catch (err) {
+      console.error(err);
+    }
+    setMenuOpen(null);
+  }
+
+  async function handleReportSubmit() {
+    if (!reportDialog) return;
+    setReportSubmitting(true);
+    try {
+      await fetch("/api/reports", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          reportedId: reportDialog.userId,
+          reason: reportReason,
+          details: reportDetails || undefined,
+        }),
+      });
+      setReportDialog(null);
+      setReportReason("FAKE_PROFILE");
+      setReportDetails("");
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setReportSubmitting(false);
+    }
+  }
 
   useEffect(() => {
     async function init() {
@@ -776,6 +829,35 @@ export default function SuggestionsPage() {
                             >
                               <X className="h-5 w-5" />
                             </Button>
+                            {/* Report/Block menu */}
+                            <div className="relative">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-12 w-12 rounded-xl"
+                                onClick={() => setMenuOpen(menuOpen === s.id ? null : s.id)}
+                              >
+                                <MoreVertical className="h-5 w-5" />
+                              </Button>
+                              {menuOpen === s.id && (
+                                <div className="absolute bottom-full mb-1 left-0 bg-card border rounded-xl shadow-lg py-1 z-50 w-40">
+                                  <button
+                                    className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted/50 text-amber-600"
+                                    onClick={() => { setReportDialog({ userId: c.id, name: c.firstName }); setMenuOpen(null); }}
+                                  >
+                                    <ShieldAlert className="h-4 w-4" />
+                                    إبلاغ
+                                  </button>
+                                  <button
+                                    className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted/50 text-destructive"
+                                    onClick={() => handleBlock(c.id, s.id, "suggestion")}
+                                  >
+                                    <Ban className="h-4 w-4" />
+                                    حظر
+                                  </button>
+                                </div>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </CardContent>
@@ -1076,6 +1158,35 @@ export default function SuggestionsPage() {
                             >
                               <X className="h-5 w-5" />
                             </Button>
+                            {/* Report/Block menu */}
+                            <div className="relative">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-12 w-12 rounded-xl"
+                                onClick={() => setMenuOpen(menuOpen === interest.id ? null : interest.id)}
+                              >
+                                <MoreVertical className="h-5 w-5" />
+                              </Button>
+                              {menuOpen === interest.id && (
+                                <div className="absolute bottom-full mb-1 left-0 bg-card border rounded-xl shadow-lg py-1 z-50 w-40">
+                                  <button
+                                    className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted/50 text-amber-600"
+                                    onClick={() => { setReportDialog({ userId: c.id, name: c.firstName }); setMenuOpen(null); }}
+                                  >
+                                    <ShieldAlert className="h-4 w-4" />
+                                    إبلاغ
+                                  </button>
+                                  <button
+                                    className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted/50 text-destructive"
+                                    onClick={() => handleBlock(c.id, interest.id, "interest")}
+                                  >
+                                    <Ban className="h-4 w-4" />
+                                    حظر
+                                  </button>
+                                </div>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </CardContent>
@@ -1086,6 +1197,50 @@ export default function SuggestionsPage() {
             </div>
           )}
         </>
+      )}
+
+      {/* Report Dialog */}
+      {reportDialog && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setReportDialog(null)}>
+          <div className="bg-card rounded-2xl border shadow-2xl p-6 w-full max-w-sm space-y-4" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-foreground">إبلاغ عن {reportDialog.name}</h3>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">سبب الإبلاغ</label>
+              <select
+                value={reportReason}
+                onChange={(e) => setReportReason(e.target.value)}
+                className="w-full rounded-xl border border-input bg-background px-3 py-2.5 text-sm"
+              >
+                <option value="FAKE_PROFILE">ملف شخصي مزيف</option>
+                <option value="INAPPROPRIATE_CONTENT">محتوى غير لائق</option>
+                <option value="HARASSMENT">تحرّش</option>
+                <option value="SPAM">رسائل مزعجة</option>
+                <option value="OTHER">أخرى</option>
+              </select>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">تفاصيل إضافية (اختياري)</label>
+              <textarea
+                value={reportDetails}
+                onChange={(e) => setReportDetails(e.target.value)}
+                className="w-full rounded-xl border border-input bg-background px-3 py-2.5 text-sm min-h-[80px] resize-none"
+                placeholder="أضف تفاصيل إن وجدت..."
+              />
+            </div>
+            <div className="flex gap-2 pt-2">
+              <Button
+                onClick={handleReportSubmit}
+                disabled={reportSubmitting}
+                className="flex-1 bg-amber-600 hover:bg-amber-700 text-white rounded-xl"
+              >
+                {reportSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "إرسال البلاغ"}
+              </Button>
+              <Button variant="outline" onClick={() => setReportDialog(null)} className="rounded-xl">
+                إلغاء
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Inline keyframes style */}

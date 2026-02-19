@@ -9,11 +9,28 @@ export async function GET() {
       return NextResponse.json({ error: "غير مصرح" }, { status: 401 });
     }
 
+    // Get blocked user IDs (both directions)
+    const blocks = await db.block.findMany({
+      where: {
+        OR: [
+          { blockerId: session.user.id },
+          { blockedId: session.user.id },
+        ],
+      },
+      select: { blockerId: true, blockedId: true },
+    });
+    const blockedIds = new Set(
+      blocks.flatMap((b) => [b.blockerId, b.blockedId]).filter((id) => id !== session.user.id)
+    );
+
     // Find all likes directed at this user
     const likes = await db.like.findMany({
       where: {
         toUserId: session.user.id,
         isLiked: true,
+        ...(blockedIds.size > 0 && {
+          fromUserId: { notIn: [...blockedIds] },
+        }),
       },
       include: {
         fromUser: {
@@ -97,6 +114,7 @@ export async function GET() {
           compatibilityScore: (l.suggestionId ? scoreMap.get(l.suggestionId) : null) ?? 0,
           receivedAt: l.createdAt,
           candidate: {
+            id: l.fromUser.id,
             firstName: l.fromUser.firstName,
             age,
             city: l.fromUser.profile?.city,

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { sendPushNotification } from "@/lib/onesignal";
+import { calculateCompatibility } from "@/lib/matching/score";
 
 export async function POST(request: Request) {
   try {
@@ -14,17 +15,49 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { recipientId, candidateId, compatibilityScore } = body;
+    const { recipientId, candidateId, compatibilityScore: manualScore } = body;
 
     if (!recipientId || !candidateId) {
       return NextResponse.json({ error: "كلا المستخدمين مطلوبان" }, { status: 400 });
+    }
+
+    // Auto-compute score if not manually specified
+    let computedScore = manualScore;
+    if (!computedScore) {
+      try {
+        const [userA, userB] = await Promise.all([
+          db.user.findUnique({
+            where: { id: recipientId },
+            select: {
+              id: true, gender: true, profile: true,
+              personalityResult: { select: { vector: true } },
+              photos: { select: { id: true } },
+              identityDoc: { select: { status: true } },
+            },
+          }),
+          db.user.findUnique({
+            where: { id: candidateId },
+            select: {
+              id: true, gender: true, profile: true,
+              personalityResult: { select: { vector: true } },
+              photos: { select: { id: true } },
+              identityDoc: { select: { status: true } },
+            },
+          }),
+        ]);
+        if (userA && userB) {
+          computedScore = calculateCompatibility(userA as any, userB as any);
+        }
+      } catch {
+        // Fall back to default
+      }
     }
 
     const suggestion = await db.suggestion.create({
       data: {
         recipientId,
         candidateId,
-        compatibilityScore: compatibilityScore || 85,
+        compatibilityScore: computedScore || 85,
         source: "ADMIN",
       },
     });

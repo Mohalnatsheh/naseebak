@@ -93,6 +93,20 @@ enum BlogPostStatus {
   PUBLISHED
 }
 
+enum ReportReason {
+  FAKE_PROFILE
+  INAPPROPRIATE_CONTENT
+  HARASSMENT
+  SPAM
+  OTHER
+}
+
+enum ReportStatus {
+  PENDING
+  REVIEWED
+  DISMISSED
+}
+
 // ─── Models ─────────────────────────────────────────────────────────────────
 
 model User {
@@ -137,6 +151,12 @@ model User {
   reviewedDocs      IdentityDoc[]      @relation("ReviewedBy")
 
   profileUpdateRequests ProfileUpdateRequest[]
+
+  reportsSubmitted  Report[]  @relation("ReportsSubmitted")
+  reportsReceived   Report[]  @relation("ReportsReceived")
+  blocksGiven       Block[]   @relation("BlocksGiven")
+  blocksReceived    Block[]   @relation("BlocksReceived")
+  deletionRequest   AccountDeletionRequest?
 
   @@map("users")
 }
@@ -455,4 +475,45 @@ model BlogPost {
   @@index([status, publishedAt])
   @@index([categoryId])
   @@map("blog_posts")
+}
+
+model Report {
+  id          String       @id @default(cuid())
+  reporterId  String
+  reporter    User         @relation("ReportsSubmitted", fields: [reporterId], references: [id], onDelete: Cascade)
+  reportedId  String
+  reported    User         @relation("ReportsReceived", fields: [reportedId], references: [id], onDelete: Cascade)
+  reason      ReportReason
+  details     String?
+  status      ReportStatus @default(PENDING)
+  adminNote   String?
+  reviewedAt  DateTime?
+  createdAt   DateTime     @default(now())
+
+  @@unique([reporterId, reportedId])
+  @@map("reports")
+}
+
+model Block {
+  id         String   @id @default(cuid())
+  blockerId  String
+  blocker    User     @relation("BlocksGiven", fields: [blockerId], references: [id], onDelete: Cascade)
+  blockedId  String
+  blocked    User     @relation("BlocksReceived", fields: [blockedId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@unique([blockerId, blockedId])
+  @@map("blocks")
+}
+
+model AccountDeletionRequest {
+  id          String    @id @default(cuid())
+  userId      String    @unique
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reason      String?
+  scheduledAt DateTime
+  cancelledAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@map("account_deletion_requests")
 }

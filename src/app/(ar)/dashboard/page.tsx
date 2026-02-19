@@ -126,6 +126,7 @@ function getGreeting() {
 /* ================================================================== */
 export default function DashboardPage() {
   const [profile, setProfile] = useState<any>(null);
+  const [completeness, setCompleteness] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -137,6 +138,7 @@ export default function DashboardPage() {
         const res = await fetch("/api/profile");
         const data = await res.json();
         setProfile(data.user);
+        if (data.completeness) setCompleteness(data.completeness);
       } catch (err) {
         console.error(err);
       } finally {
@@ -179,10 +181,9 @@ export default function DashboardPage() {
   const hasProfile = profile?.profile?.isComplete;
   const hasQuiz = !!profile?.personalityResult;
 
-  /* Calculate profile completion percentage */
-  const completionSteps = [isVerified, hasProfile, hasQuiz];
-  const completionPercent = Math.round(
-    (completionSteps.filter(Boolean).length / completionSteps.length) * 100
+  /* Use server-computed completeness or fall back to old logic */
+  const completionPercent = completeness?.total ?? Math.round(
+    ([isVerified, hasProfile, hasQuiz].filter(Boolean).length / 3) * 100
   );
 
   const matchCreditsCount = profile?.matchCredits || 0;
@@ -299,89 +300,66 @@ export default function DashboardPage() {
       )}
 
       {/* ============================================ */}
-      {/*  Profile completion checklist                 */}
+      {/*  Profile completion — section-based            */}
       {/* ============================================ */}
       {completionPercent < 100 && (
       <Card className="relative overflow-hidden border-border/40 shadow-md">
         <div className="absolute top-0 right-0 h-32 w-32 rounded-full bg-primary/5 blur-2xl translate-x-8 -translate-y-8" />
         <CardContent className="pt-6 pb-5">
-          <div className="flex items-center gap-5">
+          <div className="flex items-center gap-5 mb-4">
             <CompletionRing percentage={completionPercent} />
-            <div className="flex-1 space-y-3">
+            <div className="flex-1">
               <h3 className="font-bold text-foreground text-base">
-                {completionPercent === 100 ? "حسابك مكتمل" : "أكمل ملفك الشخصي"}
+                أكمل ملفك الشخصي
               </h3>
-              <div className="space-y-2">
-                {/* Identity verification */}
-                <Link href="/dashboard/identity" className="block">
-                  <div className={`flex items-center gap-3 p-2.5 rounded-xl border transition-colors ${
-                    isVerified
-                      ? "bg-emerald-50/60 border-emerald-200/50"
-                      : "bg-amber-50/60 border-amber-200/50 hover:bg-amber-50"
-                  }`}>
-                    {isVerified ? (
-                      <CheckCircle2 className="h-5 w-5 text-emerald-500 shrink-0" />
-                    ) : (
-                      <AlertCircle className="h-5 w-5 text-amber-500 shrink-0" />
-                    )}
-                    <div className="flex-1">
-                      <span className={`text-sm font-medium ${isVerified ? "text-emerald-800" : "text-amber-800"}`}>
-                        التحقق من الهوية
-                      </span>
-                    </div>
-                    {!isVerified && (
-                      <ArrowLeft className="h-4 w-4 text-amber-400" />
-                    )}
-                  </div>
-                </Link>
-
-                {/* Profile setup */}
-                <Link href={hasProfile ? "/dashboard/profile" : "/dashboard/profile/setup"} className="block">
-                  <div className={`flex items-center gap-3 p-2.5 rounded-xl border transition-colors ${
-                    hasProfile
-                      ? "bg-emerald-50/60 border-emerald-200/50"
-                      : "bg-amber-50/60 border-amber-200/50 hover:bg-amber-50"
-                  }`}>
-                    {hasProfile ? (
-                      <CheckCircle2 className="h-5 w-5 text-emerald-500 shrink-0" />
-                    ) : (
-                      <AlertCircle className="h-5 w-5 text-amber-500 shrink-0" />
-                    )}
-                    <div className="flex-1">
-                      <span className={`text-sm font-medium ${hasProfile ? "text-emerald-800" : "text-amber-800"}`}>
-                        إعداد الملف الشخصي
-                      </span>
-                    </div>
-                    {!hasProfile && (
-                      <ArrowLeft className="h-4 w-4 text-amber-400" />
-                    )}
-                  </div>
-                </Link>
-
-                {/* Personality quiz */}
-                <Link href="/dashboard/personality-quiz" className="block">
-                  <div className={`flex items-center gap-3 p-2.5 rounded-xl border transition-colors ${
-                    hasQuiz
-                      ? "bg-emerald-50/60 border-emerald-200/50"
-                      : "bg-amber-50/60 border-amber-200/50 hover:bg-amber-50"
-                  }`}>
-                    {hasQuiz ? (
-                      <CheckCircle2 className="h-5 w-5 text-emerald-500 shrink-0" />
-                    ) : (
-                      <AlertCircle className="h-5 w-5 text-amber-500 shrink-0" />
-                    )}
-                    <div className="flex-1">
-                      <span className={`text-sm font-medium ${hasQuiz ? "text-emerald-800" : "text-amber-800"}`}>
-                        اختبار الشخصية
-                      </span>
-                    </div>
-                    {!hasQuiz && (
-                      <ArrowLeft className="h-4 w-4 text-amber-400" />
-                    )}
-                  </div>
-                </Link>
-              </div>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                كلما زادت نسبة الاكتمال، زادت جودة الاقتراحات
+              </p>
             </div>
+          </div>
+          <div className="space-y-2.5">
+            {(completeness?.sections ?? []).map((section: any) => (
+              <Link key={section.key} href={section.link} className="block">
+                <div className={`flex items-center gap-3 p-2.5 rounded-xl border transition-colors ${
+                  section.percentage === 100
+                    ? "bg-emerald-50/60 border-emerald-200/50"
+                    : "bg-amber-50/60 border-amber-200/50 hover:bg-amber-50"
+                }`}>
+                  {section.percentage === 100 ? (
+                    <CheckCircle2 className="h-5 w-5 text-emerald-500 shrink-0" />
+                  ) : (
+                    <AlertCircle className="h-5 w-5 text-amber-500 shrink-0" />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className={`text-sm font-medium ${section.percentage === 100 ? "text-emerald-800" : "text-amber-800"}`}>
+                        {section.label}
+                      </span>
+                      <span className={`text-xs font-bold ${section.percentage === 100 ? "text-emerald-600" : "text-amber-600"}`}>
+                        {section.percentage}%
+                      </span>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-muted/60 overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all duration-500 ${
+                          section.percentage === 100 ? "bg-emerald-500" : "bg-amber-500"
+                        }`}
+                        style={{ width: `${section.percentage}%` }}
+                      />
+                    </div>
+                    {section.missingFields.length > 0 && section.percentage < 100 && (
+                      <p className="text-[10px] text-amber-600/70 mt-1 truncate">
+                        ينقص: {section.missingFields.slice(0, 3).join("، ")}
+                        {section.missingFields.length > 3 && ` (+${section.missingFields.length - 3})`}
+                      </p>
+                    )}
+                  </div>
+                  {section.percentage < 100 && (
+                    <ArrowLeft className="h-4 w-4 text-amber-400 shrink-0" />
+                  )}
+                </div>
+              </Link>
+            ))}
           </div>
         </CardContent>
       </Card>

@@ -9,10 +9,27 @@ export async function GET() {
       return NextResponse.json({ error: "غير مصرح" }, { status: 401 });
     }
 
+    // Get blocked user IDs (both directions)
+    const blocks = await db.block.findMany({
+      where: {
+        OR: [
+          { blockerId: session.user.id },
+          { blockedId: session.user.id },
+        ],
+      },
+      select: { blockerId: true, blockedId: true },
+    });
+    const blockedIds = new Set(
+      blocks.flatMap((b) => [b.blockerId, b.blockedId]).filter((id) => id !== session.user.id)
+    );
+
     const suggestions = await db.suggestion.findMany({
       where: {
         recipientId: session.user.id,
         status: "PENDING",
+        ...(blockedIds.size > 0 && {
+          candidateId: { notIn: [...blockedIds] },
+        }),
       },
       include: {
         candidate: {
@@ -69,6 +86,7 @@ export async function GET() {
         source: s.source,
         createdAt: s.createdAt,
         candidate: {
+          id: s.candidate.id,
           firstName: s.candidate.firstName,
           age,
           city: s.candidate.profile?.city,

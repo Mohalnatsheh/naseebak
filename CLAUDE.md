@@ -6,14 +6,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Naseebak (نصيبك)** is a web-based traditional marriage facilitation platform for Jordan. It is **not** a dating app — there is zero direct communication between users. The platform uses AI-powered matching, admin-mediated family visit coordination, and a freemium suggestion model. The full specification lives in `SRS.md`.
 
-**Current status:** Core platform implemented and deployed to production at **https://naseebak.com**. Auth (phone+OTP for users, email+password for admins), profile management, identity verification, personality quiz, suggestions with sent interest tracking, matches, payments, notifications, admin panel, dynamic blog system, and push notifications (OneSignal) are all functional.
+**Current status:** Core platform implemented and deployed to production at **https://naseebak.com**. Auth (phone+OTP for users, email+password for admins), profile management, identity verification, personality quiz, suggestions with sent interest tracking, matches, payments, notifications, admin panel, dynamic blog system, push notifications (OneSignal), real matching algorithm, report/block system, field-level profile completeness, and account deletion with 30-day grace period are all functional.
 
 ## Commands
 
 ```bash
 pnpm dev              # Start dev server (Turbopack) on localhost:3000
 pnpm build            # Production build (next build)
-pnpm test             # Run all tests (vitest run) — 121 tests across 7 files
+pnpm test             # Run all tests (vitest run) — 159 tests across 9 files
 pnpm test:watch       # Run tests in watch mode
 pnpm db:generate      # Regenerate Prisma client after schema changes
 pnpm db:push          # Push schema changes to database
@@ -71,6 +71,9 @@ src/
 ├── components/
 │   ├── shared/            # Navbar, DashboardNavbar, AdminSidebar, Footer, etc.
 │   └── ui/                # shadcn/ui components (Button, Card, Input, etc.)
+├── hooks/
+│   ├── use-auto-save.ts   # Profile setup auto-save (localStorage + server draft)
+│   └── use-in-view.ts     # Intersection observer hook
 ├── lib/
 │   ├── auth.ts            # NextAuth config (two Credentials providers)
 │   ├── auth.config.ts     # Auth callbacks (JWT, session, route protection)
@@ -78,6 +81,9 @@ src/
 │   ├── stripe.ts          # Stripe client singleton (lazy-initialized)
 │   ├── onesignal.ts       # OneSignal push notification helpers (server-side)
 │   ├── rate-limit.ts      # In-memory rate limiter
+│   ├── profile-completeness.ts  # Field-level profile completeness calculator
+│   ├── matching/
+│   │   └── score.ts       # Weighted compatibility scoring engine
 │   ├── validations/       # Zod schemas (auth.ts, profile.ts, blog.ts)
 │   └── data/
 │       └── jordan-areas.ts  # Jordan cities + neighborhoods for cascading dropdown
@@ -132,19 +138,22 @@ Two authentication methods exist — phone+OTP for regular users, email+password
 
 ## Database Schema
 
-17 models in `prisma/schema.prisma`: User, Profile, PersonalityResult, ParentInfo, IdentityDoc, Photo, Suggestion, Like, MutualMatch, VisitRequest, Payment, Subscription, Notification, ProfileUpdateRequest, Otp, **BlogCategory**, **BlogPost**.
+20 models in `prisma/schema.prisma`: User, Profile, PersonalityResult, ParentInfo, IdentityDoc, Photo, Suggestion, Like, MutualMatch, VisitRequest, Payment, Subscription, Notification, ProfileUpdateRequest, Otp, BlogCategory, BlogPost, **Report**, **Block**, **AccountDeletionRequest**.
 
 Key points:
 - `User.passwordHash` is optional (`String?`) — set for admin accounts (bcrypt), null for regular users
 - `User.phone` stored in international format `962XXXXXXXXX` (not `07...`). `normalizePhone()` in `src/lib/validations/auth.ts` converts any input format to `962...`
 - `User.email` is required by NextAuth but populated as `phone_962xx@naseeb.local` for users, real email for admins
 - `User.oneSignalPlayerId` stores the push notification player ID
-- `Profile` has 40+ fields including location (lat/lng), tribe, preferences (prefAge*, prefCity, prefHijab, prefBeard, prefReligiosity, prefSmokingStatus, prefChildrenAcceptance), gender-specific fields (beard, hijab), `profileImageUrl` (personal avatar, visible only to the user themselves)
+- `Profile` has 40+ fields including location (lat/lng), tribe, preferences (prefAge*, prefCity, prefHijab, prefBeard, prefReligiosity, prefSmokingStatus, prefChildrenAcceptance), gender-specific fields (beard, hijab), `profileImageUrl` (personal avatar, visible only to the user themselves), `setupStep` (Int, tracks which wizard step the user reached, default 1)
 - `Otp` model stores codes with phone, expiry, and verified status
 - `Suggestion` uses `recipientId`/`candidateId` in Prisma code (mapped to `femaleId`/`maleId` DB columns via `@map`). Both genders can be recipient or candidate
 - `MutualMatch` keeps `femaleId`/`maleId` columns — assigned dynamically based on actual user genders at creation time
 - `ProfileUpdateRequest` stores user-submitted profile edit requests for admin review
 - `BlogCategory` has slug, nameAr, nameEn; `BlogPost` has title, slug, excerpt, content (Text), status (DRAFT/PUBLISHED), categoryId, readTime, publishedAt
+- `Report` stores user-submitted reports (reason enum: FAKE_PROFILE, INAPPROPRIATE_CONTENT, HARASSMENT, SPAM, OTHER; status: PENDING/REVIEWED/DISMISSED). Unique per reporter+reported pair
+- `Block` stores bidirectional blocks between users. Blocked users are filtered from suggestions, interests, and matching candidates
+- `AccountDeletionRequest` tracks 30-day grace period deletion requests (scheduledAt, cancelledAt). Account is deactivated immediately, permanently deleted after 30 days via cron
 
 ## API Routes
 
@@ -152,14 +161,17 @@ Key points:
 |---|---|
 | Auth | `send-otp`, `verify-otp`, `register`, `[...nextauth]`, `logout`, `forgot-password` (410), `reset-password` (410) |
 | Identity | `upload` (supports both FormData + JSON/base64), `status` |
-| Profile | GET/PUT profile, `avatar` (POST/DELETE — personal profile image, base64), `parent-info`, `personality-quiz` (20 Qs, 5 dimensions, 3-month retake cooldown), `photos` (max 5), `photos/[id]`, `deactivate`, `update-request` |
+| Profile | GET/PUT profile (GET includes `completeness` field), `draft` (PATCH — partial auto-save for setup wizard), `avatar` (POST/DELETE — personal profile image, base64), `parent-info`, `personality-quiz` (20 Qs, 5 dimensions, 3-month retake cooldown), `photos` (max 5), `photos/[id]`, `deactivate`, `delete` (POST/DELETE/GET — 30-day grace period deletion), `update-request` |
+| Reports | POST `/api/reports` (create report with reason enum) |
+| Blocks | GET/POST `/api/blocks` (list/create blocks), DELETE `/api/blocks/[id]` (unblock) |
+| Cron | GET `/api/cron/process-deletions?token=SECRET` (process expired deletion requests) |
 | Suggestions | GET list, `[id]/like`, `[id]/reject`, `sent` (GET — sent interest tracking) |
 | Matches | GET list (full profile details + compatibility score), `[id]/photos`, `[id]/reveal` (no-op), `[id]/visit-status` |
 | Payments | `plans`, `checkout`, `history`, `webhook` |
 | Notifications | GET list, `[id]/read`, `read-all`, `unread-count` |
 | Push | `register` (POST — save OneSignal player ID) |
 | Blog (public) | GET `/api/blog` (list published, filter by `?category=`, `?page=`), GET `/api/blog/[slug]` (single post), GET `/api/blog/categories` (categories with published counts) |
-| Admin | `stats`, `identity` review, `suggestions` manual send, `visits` management, `users` + `users/[id]` + `users/[id]/suspend`, `profile-requests` |
+| Admin | `stats`, `identity` review, `suggestions` manual send, `suggestions/generate` (POST — auto-generate scored suggestions), `reports` (GET/PATCH — review reports), `visits` management, `users` + `users/[id]` + `users/[id]/suspend`, `profile-requests` |
 | Admin Blog | GET/POST `/api/admin/blog` (list all + create), PUT/DELETE `/api/admin/blog/[id]`, GET/POST `/api/admin/blog/categories`, DELETE `/api/admin/blog/categories/[id]` |
 
 ## Branding & Colors
@@ -242,6 +254,24 @@ The profile wizard (`dashboard/profile/setup`) has 5 steps:
 4. **Family Info** — Tribe, family origin area, siblings count, housing type, monthly expenses, health conditions
 5. **Guardian Info** — Parent/guardian name, phone, relationship, address
 
+### Auto-Save
+
+The setup wizard auto-saves progress so users can leave mid-form and return later without losing data. Two persistence layers work together:
+
+- **localStorage** — Debounced (1s) save of form state + parent form + current step on every field change. Key: `naseeb_profile_draft`. 30-day expiry. Works offline.
+- **Server draft** — `PATCH /api/profile/draft` fires on each "Next" step transition (fire-and-forget). Validates with `profileDraftSchema` (all fields optional, ranges still enforced). Upserts profile with `isComplete: false`. Saves `setupStep` to track progress.
+
+**On page load:** Fetches server profile data, then checks localStorage draft. Whichever is fresher (comparing `savedAt` vs `profile.updatedAt`) wins. Restores form state + step from the chosen source.
+
+**On final submit:** Existing PUT to `/api/profile` + `/api/profile/parent-info` (sets `isComplete: true`). Clears localStorage draft on success.
+
+**Visual indicator:** "تم الحفظ التلقائي" text with Save icon appears below the progress bar for 2s after each localStorage save.
+
+**Key files:**
+- `src/hooks/use-auto-save.ts` — `useAutoSave(enabled)` hook: localStorage debounce, restore, clear, server save, indicator state
+- `src/app/api/profile/draft/route.ts` — PATCH endpoint with `profileDraftSchema` validation
+- `src/lib/validations/profile.ts` — `profileDraftSchema` (all fields optional, value ranges enforced)
+
 ## Profile Avatar
 
 Personal profile image visible only to the user on their own profile page. Never shared with other users, never included in suggestion/match API responses.
@@ -283,14 +313,16 @@ All notification types navigate to the correct page on click:
 
 ## Testing
 
-Tests are in `src/__tests__/`. Run with `pnpm test`. **121 tests across 7 files.**
+Tests are in `src/__tests__/`. Run with `pnpm test`. **159 tests across 9 files.**
 - `validations/auth.test.ts` — OTP schema validation (sendOtp, verifyOtp, login, register) — 38 tests
-- `validations/profile.test.ts` — Profile + parent info schema validation — 13 tests
+- `validations/profile.test.ts` — Profile + parent info + draft schema validation — 18 tests
 - `validations/blog.test.ts` — Blog post + category schema validation — 19 tests
 - `api/matching.test.ts` — Matching workflow domain logic — 19 tests
 - `api/plans.test.ts` — Payment plans logic — 3 tests
 - `domain-rules.test.ts` — Core domain rule enforcement — 23 tests
 - `lib/utils.test.ts` — Utility function tests — 6 tests
+- `matching/score.test.ts` — Compatibility scoring (cosine similarity, preference matching, quality score) — 20 tests
+- `profile-completeness.test.ts` — Field-level completeness calculator — 13 tests
 
 ## Blog System
 
@@ -430,9 +462,87 @@ Privacy reassurance banners are displayed across key pages:
 | **Registration** (Step 2) | Same identity privacy message as the identity page |
 | **Profile** (`dashboard/profile`) | صورة الملف الشخصي تظهر لك فقط ولن يراها أي مستخدم آخر (Lock icon) |
 
+## Matching Algorithm
+
+Weighted compatibility scoring engine in `src/lib/matching/score.ts`. Replaces the old hardcoded 85% score.
+
+**Scoring weights:**
+- **Preference match (50%)**: Bidirectional — checks if each user meets the other's preferences (age range, city, education, marital status, religiosity, smoking, hijab/beard, children acceptance). Missing preferences = full score for that dimension.
+- **Personality similarity (30%)**: Cosine similarity on 5D personality vectors (from `PersonalityResult.vector`). If either user hasn't taken the quiz, weight is redistributed to preferences (65%) and quality (35%).
+- **Profile quality bonus (20%)**: Both users have complete profiles, photos, quiz done, and identity verified.
+
+**Admin integration:**
+- Manual suggestion creation (`POST /api/admin/suggestions`) auto-computes the score when no manual score is provided
+- "Generate Suggestions" button (`POST /api/admin/suggestions/generate`) finds all eligible users, scores all opposite-gender candidates, creates top-3 per user (score ≥ 30), excluding existing suggestions/matches/blocks
+
+**Key files:**
+- `src/lib/matching/score.ts` — `calculateCompatibility()`, `checkPreferenceMatch()`, `cosineSimilarity()`, `profileQualityScore()`
+- `src/app/api/admin/suggestions/generate/route.ts` — Bulk suggestion generation endpoint
+- `src/app/(en)/admin/suggestions/page.tsx` — Generate button UI
+
+## Report & Block System
+
+User safety features — report profiles and block users.
+
+**Report flow:** User clicks three-dot menu on suggestion/interest/match card → selects "إبلاغ" → dialog with reason enum + optional details → `POST /api/reports` → admin reviews in `/admin/reports` (mark as REVIEWED or DISMISSED with note).
+
+**Block flow:** User clicks "حظر" from the three-dot menu → `POST /api/blocks` → user is immediately removed from the card list. Blocked users are filtered out of:
+- `GET /api/suggestions` — excludes blocked candidates
+- `GET /api/interests/received` — excludes blocked senders
+- Matching algorithm — excludes blocked pairs from candidate generation
+
+**Admin reports page** (`/admin/reports`): Filterable by status (All/PENDING/REVIEWED/DISMISSED), paginated, review dialog with admin note.
+
+**Key files:**
+- `src/app/api/reports/route.ts` — POST (create report)
+- `src/app/api/blocks/route.ts` — GET/POST (list/create blocks)
+- `src/app/api/blocks/[id]/route.ts` — DELETE (unblock)
+- `src/app/api/admin/reports/route.ts` — GET/PATCH (admin review)
+- `src/app/(en)/admin/reports/page.tsx` — Admin reports page
+- Three-dot menu added to suggestion cards, interest cards, and match cards
+
+## Profile Completeness Score
+
+Field-level completeness calculator replacing the old 3-item checklist (identity/profile/quiz).
+
+**Sections and weights:**
+| Section | Weight | Fields checked |
+|---------|--------|---------------|
+| Identity verification | 15% | `identityDoc.status === "APPROVED"` |
+| Basic info | 30% | DOB, city, area, nationality, education, job, height, weight, maritalStatus, aboutMe |
+| Preferences | 20% | prefAgeMin, prefAgeMax, prefCity, prefEducation, prefMaritalStatus, prefReligiosity, prefSmokingStatus |
+| Personality quiz | 15% | `personalityResult` exists |
+| Photos | 10% | At least 1 photo uploaded |
+| Family & Guardian | 10% | tribe, familyOriginArea, numberOfSiblings, parentInfo exists |
+
+**Integration:** `GET /api/profile` returns `completeness: { total, sections }`. Dashboard and profile pages show section-level progress bars with percentages, missing field hints, and action links (links to `/dashboard/profile/edit` when profile is complete, `/dashboard/profile/setup` otherwise).
+
+**Key files:**
+- `src/lib/profile-completeness.ts` — `calculateCompleteness()` pure function
+- `src/app/(ar)/dashboard/page.tsx` — Section-based completeness widget
+- `src/app/(ar)/dashboard/profile/page.tsx` — Same widget on profile page
+
+## Account Deletion (30-day Grace Period)
+
+Users can request permanent account deletion with a 30-day cooling-off period.
+
+**Flow:**
+1. User clicks "حذف الحساب" on profile page → confirmation dialog with optional reason
+2. `POST /api/profile/delete` → creates `AccountDeletionRequest` (scheduledAt = now + 30 days), deactivates account immediately
+3. Profile page shows countdown to deletion date + "إلغاء طلب الحذف" button
+4. `DELETE /api/profile/delete` → cancels request, reactivates account
+5. Cron (`GET /api/cron/process-deletions?token=CRON_SECRET`) processes expired requests — cascades delete all user data
+
+**Environment variable:** `CRON_SECRET` — token to protect the cron endpoint.
+
+**Key files:**
+- `src/app/api/profile/delete/route.ts` — POST/DELETE/GET endpoints
+- `src/app/api/cron/process-deletions/route.ts` — Cron processor
+- `src/app/(ar)/dashboard/profile/page.tsx` — Deletion UI (request + countdown + cancel)
+
 ## Known Limitations / TODOs
 
 - Photo and identity document storage uses base64 in DB — needs cloud storage (S3/R2) for production
-- Suggestion algorithm returns mock data — needs Python ML microservice integration
 - No email notification service connected
 - OneSignal web push requires domain configuration in OneSignal dashboard (Settings → Platforms → Web → Site URL: `https://naseebak.com`)
+- Account deletion cron needs external scheduler (e.g. cron job on server, Vercel cron, or similar)

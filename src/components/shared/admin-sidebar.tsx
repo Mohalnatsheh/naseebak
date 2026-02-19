@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
-import { LayoutDashboard, Users, ShieldCheck, Sparkles, CalendarHeart, FileText, Menu, LogOut } from "lucide-react";
+import { LayoutDashboard, Users, ShieldCheck, Sparkles, CalendarHeart, FileText, Menu, LogOut, Flag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
@@ -14,6 +14,7 @@ const sidebarLinks = [
   { href: "/admin/identity", label: "Identity Review", icon: ShieldCheck },
   { href: "/admin/suggestions", label: "Suggestions", icon: Sparkles },
   { href: "/admin/visits", label: "Visit Requests", icon: CalendarHeart },
+  { href: "/admin/reports", label: "Reports", icon: Flag },
   { href: "/admin/blog", label: "Blog", icon: FileText },
 ];
 

@@ -257,9 +257,9 @@ export default function LoginPage() {
             className="max-w-sm text-xl leading-relaxed opacity-85 font-medium"
             style={{ animation: "fadeSlideUp 1s ease-out 0.4s both" }}
           >
-            منصة تيسير الزواج التقليدي
+            نوصّلك بشريك العمر بالحلال
             <br />
-            بكرامة واحترام
+            بسترة واحترام
           </p>
 
           {/* Decorative separator */}
@@ -279,7 +279,7 @@ export default function LoginPage() {
             </span>
             <span className="flex items-center justify-center gap-2">
               <Sparkles className="size-4" />
-              ذكاء اصطناعي لتوافق أفضل
+              توافق ذكي ودقيق
             </span>
           </div>
         </div>
@@ -308,7 +308,7 @@ export default function LoginPage() {
               </span>
             </Link>
             <p className="mt-2 text-sm text-muted-foreground">
-              منصة تيسير الزواج التقليدي
+              نوصّلك بشريك العمر بالحلال
             </p>
           </div>
 

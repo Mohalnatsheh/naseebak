@@ -28,7 +28,7 @@ export function Footer() {
               </span>
             </Link>
             <p className="text-sm text-muted-foreground leading-relaxed max-w-xs">
-              منصة أردنية متخصصة في تيسير الزواج التقليدي بكرامة واحترام، تجمع بين الذكاء الاصطناعي والقيم الأصيلة.
+              منصة أردنية توصّل العائلات بالشريك الأنسب بالحلال — تقنية ذكية مع عادات أردنية أصيلة، بسترة واحترام.
             </p>
             {/* Newsletter */}
             <div className="space-y-2">

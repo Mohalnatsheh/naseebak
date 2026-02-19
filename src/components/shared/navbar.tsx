@@ -226,7 +226,7 @@ export function Navbar() {
             {/* Bottom decoration */}
             <div className="absolute bottom-8 left-0 right-0 flex justify-center">
               <p className="text-xs text-muted-foreground/40">
-                منصة نصيبك للتيسير الزواج
+                نصيبك — الزواج بالحلال
               </p>
             </div>
           </SheetContent>

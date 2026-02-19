@@ -8,8 +8,8 @@ const cairo = Cairo({
 });
 
 export const metadata: Metadata = {
-  title: "نصيبك - منصة تيسير الزواج",
-  description: "منصة نصيبك لتيسير الزواج التقليدي في الأردن",
+  title: "نصيبك - نوصّلك بشريك العمر بالحلال",
+  description: "منصة أردنية توصّل العائلات بالشريك الأنسب بالحلال — تقنية ذكية مع عادات أردنية أصيلة",
 };
 
 export default function ArabicLayout({

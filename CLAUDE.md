@@ -139,7 +139,7 @@ Key points:
 - `User.phone` stored in international format `962XXXXXXXXX` (not `07...`). `normalizePhone()` in `src/lib/validations/auth.ts` converts any input format to `962...`
 - `User.email` is required by NextAuth but populated as `phone_962xx@naseeb.local` for users, real email for admins
 - `User.oneSignalPlayerId` stores the push notification player ID
-- `Profile` has 35+ fields including location (lat/lng), tribe, preferences (prefAge*, prefCity, etc.), gender-specific fields (beard, hijab)
+- `Profile` has 40+ fields including location (lat/lng), tribe, preferences (prefAge*, prefCity, prefHijab, prefBeard, prefReligiosity, prefSmokingStatus, prefChildrenAcceptance), gender-specific fields (beard, hijab)
 - `Otp` model stores codes with phone, expiry, and verified status
 - `Suggestion` uses `recipientId`/`candidateId` in Prisma code (mapped to `femaleId`/`maleId` DB columns via `@map`). Both genders can be recipient or candidate
 - `MutualMatch` keeps `femaleId`/`maleId` columns — assigned dynamically based on actual user genders at creation time
@@ -236,9 +236,9 @@ Web push notifications via OneSignal SDK. Sends real-time alerts for suggestions
 ## Profile Setup (5 Steps)
 
 The profile wizard (`dashboard/profile/setup`) has 5 steps:
-1. **Personal Info** — DOB, nationality, city (grid), area (cascading from `jordan-areas.ts`), height, weight, education, job
-2. **Lifestyle & Religion** — Marital status, religiosity, smoking, hijab (women), beard (men), cooking ability, driving license
-3. **About Me & Preferences** — Bio, partner expectations, hobbies, family values, preferred age/city/education/marital status
+1. **Personal Info** — DOB, nationality, city (grid), area (cascading from `jordan-areas.ts`), height, weight, education, job (dropdown with 24 options + "أخرى" custom input)
+2. **Lifestyle & Religion** — Marital status, religiosity, smoking, hijab (women), beard (men), cooking ability, driving license, children count (conditional — only shown for divorced/widowed, hidden for single)
+3. **About Me & Preferences** — Bio, partner expectations, hobbies, family values, preferred age/city/education/marital status, prefHijab (males only), prefBeard (females only), prefReligiosity (multi-select), prefSmokingStatus (multi-select), prefChildrenAcceptance
 4. **Family Info** — Tribe, family origin area, siblings count, housing type, monthly expenses, health conditions
 5. **Guardian Info** — Parent/guardian name, phone, relationship, address
 
@@ -263,7 +263,7 @@ All notification types navigate to the correct page on click:
 | SUGGESTION | `/dashboard/suggestions` |
 | INTEREST | `/dashboard/suggestions` |
 | MATCH | `/dashboard/matches` |
-| VISIT_UPDATE | `/dashboard/matches` |
+| VISIT_UPDATE | `/dashboard/matches` (status shown in Arabic via `visitStatusLabels` map in `api/admin/visits/route.ts`) |
 | PAYMENT | `/dashboard/payments` |
 | IDENTITY | `/dashboard/identity` |
 | SYSTEM | `/dashboard` |

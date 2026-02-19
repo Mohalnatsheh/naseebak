@@ -501,7 +501,7 @@ export default function IdentityPage() {
                       <ShieldCheck className="h-4 w-4 text-primary" />
                     </div>
                     <span className="leading-relaxed">
-                      سيتم مراجعة الوثائق من قبل فريق الإدارة للتحقق من هويتك بسرية تامة
+                      وثائق الهوية تُستخدم فقط للتحقق من هويتك ولن يطّلع عليها أي مستخدم آخر. يتم مراجعتها بسرية تامة من قبل الإدارة
                     </span>
                   </div>
 

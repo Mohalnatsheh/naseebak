@@ -8,6 +8,7 @@ import {
   Star,
   ImagePlus,
   ImageOff,
+  Lock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -168,6 +169,16 @@ export default function PhotosPage() {
             </Button>
           </div>
         </div>
+      </div>
+
+      {/* Privacy Banner */}
+      <div className="flex items-center gap-3 p-3.5 bg-gradient-to-l from-primary/5 to-blue-50/50 rounded-xl border border-primary/10 text-sm text-muted-foreground">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+          <Lock className="h-4 w-4 text-primary" />
+        </div>
+        <span className="leading-relaxed">
+          صورك الشخصية لن تظهر لأي مستخدم إلا بعد التوافق المتبادل بينكما. لا يمكن لأي شخص آخر على المنصة الاطلاع عليها
+        </span>
       </div>
 
       {/* Photo Grid */}

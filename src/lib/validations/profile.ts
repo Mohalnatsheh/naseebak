@@ -36,6 +36,7 @@ export const profileSchema = z.object({
   healthConditions: z.string().min(1, "الحالات الصحية مطلوبة").max(500, "الحد الأقصى 500 حرف"),
   monthlyExpenses: z.string().min(1, "المصاريف الشهرية مطلوبة"),
   wantsPhoto: z.boolean().optional(),
+  profileImageUrl: z.string().optional(),
   prefAgeMin: z.number().min(18).max(70),
   prefAgeMax: z.number().min(18).max(70),
   prefCity: z.array(z.string()).min(1, "المدينة المفضلة مطلوبة"),

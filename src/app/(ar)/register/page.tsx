@@ -855,6 +855,16 @@ function RegisterPageContent() {
                   }
                 `}</style>
 
+                {/* ---- Privacy note ---- */}
+                <div className="flex items-center gap-3 p-3 bg-gradient-to-l from-primary/5 to-blue-50/50 rounded-xl border border-primary/10 text-sm text-muted-foreground">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                    <Shield className="h-4 w-4 text-primary" />
+                  </div>
+                  <span className="leading-relaxed text-xs">
+                    اسمك الكامل ورقم هاتفك محميان بالكامل ولن يظهرا لأي مستخدم آخر على المنصة. يُعرض فقط الاسم الأول للمستخدمين الآخرين
+                  </span>
+                </div>
+
                 {/* ---- Optional photo upload ---- */}
                 <div className="space-y-3">
                   <label className="flex items-center gap-3 cursor-pointer">
@@ -1087,8 +1097,7 @@ function RegisterPageContent() {
                     <FileImage className="h-4 w-4 text-primary" />
                   </div>
                   <span className="leading-relaxed">
-                    سيتم مراجعة الوثائق من قبل فريق الإدارة للتحقق من هويتك
-                    بسرية تامة
+                    وثائق الهوية تُستخدم فقط للتحقق من هويتك ولن يطّلع عليها أي مستخدم آخر. يتم مراجعتها بسرية تامة من قبل الإدارة
                   </span>
                 </div>
               </div>

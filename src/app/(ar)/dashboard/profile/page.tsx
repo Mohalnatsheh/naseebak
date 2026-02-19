@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import {
   Loader2,
@@ -23,6 +23,8 @@ import {
   Moon,
   Clock,
   Camera,
+  Lock,
+  ImagePlus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -44,6 +46,7 @@ interface UserProfile {
     aboutMe: string | null;
     isComplete: boolean;
     dateOfBirth: string | null;
+    profileImageUrl: string | null;
   } | null;
   personalityResult: {
     personalityType: string | null;
@@ -127,6 +130,8 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [deactivating, setDeactivating] = useState(false);
   const [showDeactivateConfirm, setShowDeactivateConfirm] = useState(false);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
 
   // Update request state
   const [pendingRequest, setPendingRequest] = useState<{ id: string; status: string; createdAt: string } | null>(null);
@@ -156,6 +161,48 @@ export default function ProfilePage() {
     fetchProfile();
     fetchPendingRequest();
   }, []);
+
+  async function handleAvatarUpload(file: File) {
+    const maxSize = 5 * 1024 * 1024;
+    if (file.size > maxSize) return;
+    const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
+    if (!allowedTypes.includes(file.type)) return;
+
+    setAvatarUploading(true);
+    try {
+      const imageData = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+      const res = await fetch("/api/profile/avatar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageData }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setUser((prev) =>
+          prev
+            ? {
+                ...prev,
+                profile: prev.profile
+                  ? { ...prev.profile, profileImageUrl: data.profileImageUrl }
+                  : prev.profile,
+              }
+            : prev
+        );
+      }
+    } catch (err) {
+      console.error("Avatar upload failed", err);
+    } finally {
+      setAvatarUploading(false);
+      if (avatarInputRef.current) avatarInputRef.current.value = "";
+    }
+  }
 
   if (loading) {
     return (
@@ -232,13 +279,44 @@ export default function ProfilePage() {
 
         <div className="relative flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5">
           <div className="flex items-center gap-5">
-            {/* Avatar initial in gradient circle */}
-            <div className="relative">
-              <div className="h-20 w-20 rounded-2xl bg-white/15 backdrop-blur-sm flex items-center justify-center border border-white/20 shadow-lg">
-                <span className="text-3xl font-extrabold text-white">
-                  {user.firstName.charAt(0)}
-                </span>
+            {/* Avatar with profile image or initial */}
+            <div className="relative group/avatar">
+              <input
+                ref={avatarInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleAvatarUpload(file);
+                }}
+              />
+              <div className="h-20 w-20 rounded-2xl bg-white/15 backdrop-blur-sm flex items-center justify-center border border-white/20 shadow-lg overflow-hidden">
+                {user.profile?.profileImageUrl ? (
+                  <img
+                    src={user.profile.profileImageUrl}
+                    alt="صورة الملف الشخصي"
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <span className="text-3xl font-extrabold text-white">
+                    {user.firstName.charAt(0)}
+                  </span>
+                )}
               </div>
+              {/* Camera overlay */}
+              <button
+                type="button"
+                onClick={() => avatarInputRef.current?.click()}
+                disabled={avatarUploading}
+                className="absolute inset-0 rounded-2xl bg-black/40 opacity-0 group-hover/avatar:opacity-100 transition-all duration-300 flex items-center justify-center cursor-pointer"
+              >
+                {avatarUploading ? (
+                  <Loader2 className="h-5 w-5 text-white animate-spin" />
+                ) : (
+                  <Camera className="h-5 w-5 text-white" />
+                )}
+              </button>
               {user.identityDoc?.status === "APPROVED" && (
                 <div className="absolute -bottom-1.5 -end-1.5 h-7 w-7 rounded-full bg-gradient-to-br from-emerald-400 to-green-500 flex items-center justify-center shadow-md ring-2 ring-primary">
                   <Shield className="h-3.5 w-3.5 text-white" />
@@ -294,6 +372,16 @@ export default function ProfilePage() {
             )}
           </div>
         </div>
+      </div>
+
+      {/* Avatar privacy note */}
+      <div className="flex items-center gap-3 p-3 bg-gradient-to-l from-primary/5 to-blue-50/50 rounded-xl border border-primary/10 text-sm text-muted-foreground">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+          <Lock className="h-4 w-4 text-primary" />
+        </div>
+        <span className="leading-relaxed text-xs">
+          صورة الملف الشخصي تظهر لك فقط ولن يراها أي مستخدم آخر
+        </span>
       </div>
 
       {/* ============================================ */}

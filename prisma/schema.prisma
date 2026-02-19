@@ -182,6 +182,7 @@ model Profile {
   healthConditions    String?
   monthlyExpenses     String?
   wantsPhoto          Boolean?
+  profileImageUrl     String?
 
   prefAgeMin          Int?
   prefAgeMax          Int?

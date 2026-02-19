@@ -139,7 +139,7 @@ Key points:
 - `User.phone` stored in international format `962XXXXXXXXX` (not `07...`). `normalizePhone()` in `src/lib/validations/auth.ts` converts any input format to `962...`
 - `User.email` is required by NextAuth but populated as `phone_962xx@naseeb.local` for users, real email for admins
 - `User.oneSignalPlayerId` stores the push notification player ID
-- `Profile` has 40+ fields including location (lat/lng), tribe, preferences (prefAge*, prefCity, prefHijab, prefBeard, prefReligiosity, prefSmokingStatus, prefChildrenAcceptance), gender-specific fields (beard, hijab)
+- `Profile` has 40+ fields including location (lat/lng), tribe, preferences (prefAge*, prefCity, prefHijab, prefBeard, prefReligiosity, prefSmokingStatus, prefChildrenAcceptance), gender-specific fields (beard, hijab), `profileImageUrl` (personal avatar, visible only to the user themselves)
 - `Otp` model stores codes with phone, expiry, and verified status
 - `Suggestion` uses `recipientId`/`candidateId` in Prisma code (mapped to `femaleId`/`maleId` DB columns via `@map`). Both genders can be recipient or candidate
 - `MutualMatch` keeps `femaleId`/`maleId` columns — assigned dynamically based on actual user genders at creation time
@@ -152,7 +152,7 @@ Key points:
 |---|---|
 | Auth | `send-otp`, `verify-otp`, `register`, `[...nextauth]`, `logout`, `forgot-password` (410), `reset-password` (410) |
 | Identity | `upload` (supports both FormData + JSON/base64), `status` |
-| Profile | GET/PUT profile, `parent-info`, `personality-quiz` (20 Qs, 5 dimensions, 3-month retake cooldown), `photos` (max 5), `photos/[id]`, `deactivate`, `update-request` |
+| Profile | GET/PUT profile, `avatar` (POST/DELETE — personal profile image, base64), `parent-info`, `personality-quiz` (20 Qs, 5 dimensions, 3-month retake cooldown), `photos` (max 5), `photos/[id]`, `deactivate`, `update-request` |
 | Suggestions | GET list, `[id]/like`, `[id]/reject`, `sent` (GET — sent interest tracking) |
 | Matches | GET list (full profile details + compatibility score), `[id]/photos`, `[id]/reveal` (no-op), `[id]/visit-status` |
 | Payments | `plans`, `checkout`, `history`, `webhook` |
@@ -241,6 +241,19 @@ The profile wizard (`dashboard/profile/setup`) has 5 steps:
 3. **About Me & Preferences** — Bio, partner expectations, hobbies, family values, preferred age/city/education/marital status, prefHijab (males only), prefBeard (females only), prefReligiosity (multi-select), prefSmokingStatus (multi-select), prefChildrenAcceptance
 4. **Family Info** — Tribe, family origin area, siblings count, housing type, monthly expenses, health conditions
 5. **Guardian Info** — Parent/guardian name, phone, relationship, address
+
+## Profile Avatar
+
+Personal profile image visible only to the user on their own profile page. Never shared with other users, never included in suggestion/match API responses.
+
+- `POST /api/profile/avatar` — Upload base64 data URL (JPG/PNG/WebP, max 5MB), saves to `Profile.profileImageUrl`
+- `DELETE /api/profile/avatar` — Remove the profile image (sets to null)
+- Profile page shows the avatar in the header (or initial letter fallback), with a camera overlay for inline upload
+- Privacy note displayed under the header: "صورة الملف الشخصي تظهر لك فقط ولن يراها أي مستخدم آخر"
+
+**Key files:**
+- `src/app/api/profile/avatar/route.ts` — POST/DELETE avatar endpoint
+- `src/app/(ar)/dashboard/profile/page.tsx` — Avatar display + upload UI
 
 ## Photo Management
 
@@ -404,6 +417,18 @@ OTP SMS sent via Broadnet gateway (`gwjo1s.broadnet.me:8443`).
 **Test number:** `962796922292` (input as `0796922292`) uses fixed OTP `111111` — bypasses SMS entirely.
 
 **Broadnet credentials:** user=`naseebak6`, pass=`954N@LtoK`, sid=`naseebak`
+
+## Privacy Notes (User-Facing)
+
+Privacy reassurance banners are displayed across key pages:
+
+| Page | Message |
+|---|---|
+| **Identity** (`dashboard/identity`) | وثائق الهوية تُستخدم فقط للتحقق من هويتك ولن يطّلع عليها أي مستخدم آخر. يتم مراجعتها بسرية تامة من قبل الإدارة |
+| **Photos** (`dashboard/photos`) | صورك الشخصية لن تظهر لأي مستخدم إلا بعد التوافق المتبادل بينكما (Lock icon) |
+| **Registration** (Step 1) | اسمك الكامل ورقم هاتفك محميان بالكامل ولن يظهرا لأي مستخدم آخر على المنصة. يُعرض فقط الاسم الأول (Shield icon) |
+| **Registration** (Step 2) | Same identity privacy message as the identity page |
+| **Profile** (`dashboard/profile`) | صورة الملف الشخصي تظهر لك فقط ولن يراها أي مستخدم آخر (Lock icon) |
 
 ## Known Limitations / TODOs
 

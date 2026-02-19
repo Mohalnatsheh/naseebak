@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, ArrowLeft, ArrowRight, CheckCircle2 } from "lucide-react";
+import { Loader2, ArrowLeft, ArrowRight, CheckCircle2, Save } from "lucide-react";
+import { useAutoSave } from "@/hooks/use-auto-save";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -100,11 +101,17 @@ export default function ProfileSetupPage() {
     address: "",
   });
 
-  // Fetch existing profile data on load
+  const [autoSaveEnabled, setAutoSaveEnabled] = useState(false);
+  const { savedIndicatorVisible, saveToLocalStorage, restoreDraft, clearDraft, saveToServer } = useAutoSave(autoSaveEnabled);
+
+  // Fetch existing profile data on load, then check localStorage draft
   useEffect(() => {
     async function fetchProfile() {
       try {
         const res = await fetch("/api/profile");
+        let serverUpdatedAt: string | null = null;
+        let serverStep = 1;
+
         if (res.ok) {
           const data = await res.json();
           const user = data.user;
@@ -120,6 +127,8 @@ export default function ProfileSetupPage() {
           }
           if (user?.profile) {
             const p = user.profile;
+            serverUpdatedAt = p.updatedAt || null;
+            serverStep = p.setupStep || 1;
             setForm((prev) => ({
               ...prev,
               dateOfBirth: p.dateOfBirth ? new Date(p.dateOfBirth).toISOString().split("T")[0] : "",
@@ -166,6 +175,7 @@ export default function ProfileSetupPage() {
               prefSmokingStatus: Array.isArray(p.prefSmokingStatus) ? p.prefSmokingStatus : [],
               prefChildrenAcceptance: p.prefChildrenAcceptance || "",
             }));
+            setStep(serverStep);
           }
           if (user?.parentInfo) {
             const pi = user.parentInfo;
@@ -178,14 +188,41 @@ export default function ProfileSetupPage() {
             }));
           }
         }
+
+        // Check localStorage draft — use it if it's fresher than server data
+        const draft = restoreDraft();
+        if (draft) {
+          const draftTime = new Date(draft.savedAt).getTime();
+          const serverTime = serverUpdatedAt ? new Date(serverUpdatedAt).getTime() : 0;
+
+          if (draftTime > serverTime) {
+            if (draft.form) {
+              setForm((prev) => ({ ...prev, ...(draft.form as typeof prev) }));
+            }
+            if (draft.parentForm) {
+              setParentForm((prev) => ({ ...prev, ...(draft.parentForm as typeof prev) }));
+            }
+            if (draft.step >= 1 && draft.step <= 5) {
+              setStep(draft.step);
+            }
+          }
+        }
       } catch {
         // Silently fail - user will fill in fresh data
       } finally {
         setFetchingProfile(false);
+        setAutoSaveEnabled(true);
       }
     }
     fetchProfile();
   }, []);
+
+  // Auto-save to localStorage on form/step changes (debounced)
+  useEffect(() => {
+    if (autoSaveEnabled) {
+      saveToLocalStorage(form, parentForm, step);
+    }
+  }, [form, parentForm, step, autoSaveEnabled, saveToLocalStorage]);
 
   function update(field: string, value: string | boolean) {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -276,6 +313,55 @@ export default function ProfileSetupPage() {
     }
   }
 
+  function buildServerPayload() {
+    const payload: Record<string, unknown> = {};
+    if (form.dateOfBirth) payload.dateOfBirth = form.dateOfBirth;
+    if (form.city) payload.city = form.city;
+    if (form.area) payload.area = form.area;
+    if (form.nationality) payload.nationality = form.nationality;
+    if (form.education) payload.education = form.education;
+    if (form.fieldOfStudy) payload.fieldOfStudy = form.fieldOfStudy;
+    if (form.job) payload.job = form.job === "أخرى" ? form.jobCustom : form.job;
+    if (form.incomeRange) payload.incomeRange = form.incomeRange;
+    if (form.height) payload.height = parseInt(form.height);
+    if (form.weight) payload.weight = parseInt(form.weight);
+    if (form.skinColor) payload.skinColor = form.skinColor;
+    if (form.maritalStatus) {
+      payload.maritalStatus = form.maritalStatus;
+      payload.childrenCount = form.maritalStatus === "أعزب/عزباء" ? 0 : (form.childrenCount ? parseInt(form.childrenCount) : 0);
+    }
+    if (form.willingToRelocate) payload.willingToRelocate = form.willingToRelocate;
+    if (form.religiosity) payload.religiosity = form.religiosity;
+    payload.hijab = form.hijab;
+    payload.beard = form.beard;
+    if (form.smokingStatus) payload.smokingStatus = form.smokingStatus;
+    if (form.cookingAbility) payload.cookingAbility = form.cookingAbility;
+    if (form.lifestyle) payload.lifestyle = form.lifestyle;
+    payload.drivingLicense = form.drivingLicense;
+    if (form.aboutMe) payload.aboutMe = form.aboutMe;
+    if (form.partnerExpectations) payload.partnerExpectations = form.partnerExpectations;
+    if (form.hobbies) payload.hobbies = form.hobbies;
+    if (form.interests) payload.interests = form.interests;
+    if (form.familyValues) payload.familyValues = form.familyValues;
+    if (form.tribe) payload.tribe = form.tribe;
+    if (form.familyOriginArea) payload.familyOriginArea = form.familyOriginArea;
+    if (form.numberOfSiblings) payload.numberOfSiblings = parseInt(form.numberOfSiblings);
+    if (form.housingType) payload.housingType = form.housingType;
+    if (form.monthlyExpenses) payload.monthlyExpenses = form.monthlyExpenses;
+    if (form.healthConditions) payload.healthConditions = form.healthConditions;
+    if (form.prefAgeMin) payload.prefAgeMin = parseInt(form.prefAgeMin);
+    if (form.prefAgeMax) payload.prefAgeMax = parseInt(form.prefAgeMax);
+    if (form.prefCity.length > 0) payload.prefCity = form.prefCity;
+    if (form.prefEducation.length > 0) payload.prefEducation = form.prefEducation;
+    if (form.prefMaritalStatus.length > 0) payload.prefMaritalStatus = form.prefMaritalStatus;
+    if (form.prefHijab) payload.prefHijab = form.prefHijab;
+    if (form.prefBeard) payload.prefBeard = form.prefBeard;
+    if (form.prefReligiosity.length > 0) payload.prefReligiosity = form.prefReligiosity;
+    if (form.prefSmokingStatus.length > 0) payload.prefSmokingStatus = form.prefSmokingStatus;
+    if (form.prefChildrenAcceptance) payload.prefChildrenAcceptance = form.prefChildrenAcceptance;
+    return payload;
+  }
+
   async function handleSubmit() {
     setLoading(true);
     setError("");
@@ -322,6 +408,7 @@ export default function ProfileSetupPage() {
         return;
       }
 
+      clearDraft();
       router.push("/dashboard/profile");
     } catch {
       setError("حدث خطأ غير متوقع");
@@ -356,6 +443,12 @@ export default function ProfileSetupPage() {
           </div>
         ))}
         <span className="text-sm text-muted-foreground">{step}/{totalSteps}</span>
+      </div>
+
+      {/* Auto-save indicator */}
+      <div className={`flex items-center gap-1.5 text-xs text-muted-foreground transition-opacity duration-300 ${savedIndicatorVisible ? "opacity-100" : "opacity-0"}`}>
+        <Save className="h-3 w-3" />
+        <span>تم الحفظ التلقائي</span>
       </div>
 
       {error && (
@@ -930,7 +1023,9 @@ export default function ProfileSetupPage() {
             const err = validateStep(step);
             if (err) { setError(err); return; }
             setError("");
-            setStep(step + 1);
+            const nextStep = step + 1;
+            saveToServer(nextStep, buildServerPayload());
+            setStep(nextStep);
           }} className="bg-gradient-to-l from-primary to-primary/80">
             التالي
             <ArrowLeft className="h-4 w-4 ms-2" />

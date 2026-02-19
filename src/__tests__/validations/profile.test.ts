@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { profileSchema, parentInfoSchema } from "@/lib/validations/profile";
+import { profileSchema, parentInfoSchema, profileDraftSchema } from "@/lib/validations/profile";
 
 // Base valid profile data with all required fields
 const validProfile = {
@@ -161,5 +161,40 @@ describe("parentInfoSchema", () => {
       });
       expect(result.success).toBe(true);
     }
+  });
+});
+
+describe("profileDraftSchema", () => {
+  it("should accept an empty object (all fields optional)", () => {
+    const result = profileDraftSchema.safeParse({});
+    expect(result.success).toBe(true);
+  });
+
+  it("should accept partial data", () => {
+    const result = profileDraftSchema.safeParse({
+      city: "عمّان",
+      height: 175,
+      setupStep: 2,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("should reject height below minimum when provided", () => {
+    const result = profileDraftSchema.safeParse({ height: 50 });
+    expect(result.success).toBe(false);
+  });
+
+  it("should validate setupStep range (1-5)", () => {
+    expect(profileDraftSchema.safeParse({ setupStep: 0 }).success).toBe(false);
+    expect(profileDraftSchema.safeParse({ setupStep: 6 }).success).toBe(false);
+    expect(profileDraftSchema.safeParse({ setupStep: 3 }).success).toBe(true);
+  });
+
+  it("should accept a full valid profile as a draft", () => {
+    const result = profileDraftSchema.safeParse({
+      ...validProfile,
+      setupStep: 5,
+    });
+    expect(result.success).toBe(true);
   });
 });

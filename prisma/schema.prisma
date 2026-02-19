@@ -195,6 +195,7 @@ model Profile {
   prefSmokingStatus       String[]
   prefChildrenAcceptance  String?
 
+  setupStep           Int      @default(1)
   isComplete          Boolean  @default(false)
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt

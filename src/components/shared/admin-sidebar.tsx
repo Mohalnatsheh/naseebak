@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
-import { LayoutDashboard, Users, ShieldCheck, Sparkles, CalendarHeart, FileText, Menu, LogOut, Flag } from "lucide-react";
+import { LayoutDashboard, Users, ShieldCheck, Sparkles, CalendarHeart, FileText, Menu, LogOut, Flag, ClipboardEdit, CreditCard, Bell, Ban, Trash2, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
@@ -15,7 +15,13 @@ const sidebarLinks = [
   { href: "/admin/suggestions", label: "Suggestions", icon: Sparkles },
   { href: "/admin/visits", label: "Visit Requests", icon: CalendarHeart },
   { href: "/admin/reports", label: "Reports", icon: Flag },
+  { href: "/admin/profile-requests", label: "Profile Requests", icon: ClipboardEdit },
+  { href: "/admin/payments", label: "Payments", icon: CreditCard },
+  { href: "/admin/notifications", label: "Notifications", icon: Bell },
+  { href: "/admin/blocks", label: "Blocks", icon: Ban },
+  { href: "/admin/deletions", label: "Deletions", icon: Trash2 },
   { href: "/admin/blog", label: "Blog", icon: FileText },
+  { href: "/admin/settings", label: "Settings", icon: Settings },
 ];
 
 function SidebarNav() {
@@ -29,7 +35,7 @@ function SidebarNav() {
           href={link.href}
           className={cn(
             "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
-            pathname === link.href
+            pathname === link.href || (link.href !== "/admin" && pathname.startsWith(link.href))
               ? "bg-primary text-primary-foreground"
               : "text-muted-foreground hover:bg-muted hover:text-foreground"
           )}

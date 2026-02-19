@@ -4,6 +4,59 @@ import { db } from "@/lib/db";
 import { sendPushNotification } from "@/lib/onesignal";
 import { calculateCompatibility } from "@/lib/matching/score";
 
+export async function GET(request: Request) {
+  try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "غير مصرح" }, { status: 401 });
+    }
+    if (session.user.role !== "ADMIN") {
+      return NextResponse.json({ error: "غير مصرح" }, { status: 403 });
+    }
+
+    const url = new URL(request.url);
+    const page = parseInt(url.searchParams.get("page") || "1");
+    const status = url.searchParams.get("status") || "";
+    const limit = 20;
+    const skip = (page - 1) * limit;
+
+    const where = status ? { status: status as "PENDING" | "ACCEPTED" | "REJECTED" | "EXPIRED" } : {};
+
+    const [suggestions, total] = await Promise.all([
+      db.suggestion.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          compatibilityScore: true,
+          status: true,
+          source: true,
+          createdAt: true,
+          recipient: {
+            select: { id: true, firstName: true, lastName: true, gender: true },
+          },
+          candidate: {
+            select: { id: true, firstName: true, lastName: true, gender: true },
+          },
+        },
+      }),
+      db.suggestion.count({ where }),
+    ]);
+
+    return NextResponse.json({
+      suggestions,
+      total,
+      page,
+      totalPages: Math.ceil(total / limit),
+    });
+  } catch (error) {
+    console.error("Admin suggestions list error:", error);
+    return NextResponse.json({ error: "حدث خطأ في الخادم" }, { status: 500 });
+  }
+}
+
 export async function POST(request: Request) {
   try {
     const session = await auth();

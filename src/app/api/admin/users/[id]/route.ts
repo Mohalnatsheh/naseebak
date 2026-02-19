@@ -97,3 +97,37 @@ export async function GET(
     return NextResponse.json({ error: "حدث خطأ في الخادم" }, { status: 500 });
   }
 }
+
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "غير مصرح" }, { status: 401 });
+    }
+    if (session.user.role !== "ADMIN") {
+      return NextResponse.json({ error: "غير مصرح" }, { status: 403 });
+    }
+
+    const { id } = await params;
+    const body = await request.json();
+    const { matchCredits } = body;
+
+    if (typeof matchCredits !== "number" || matchCredits < 0) {
+      return NextResponse.json({ error: "Invalid credits value" }, { status: 400 });
+    }
+
+    const user = await db.user.update({
+      where: { id },
+      data: { matchCredits },
+      select: { id: true, firstName: true, lastName: true, matchCredits: true },
+    });
+
+    return NextResponse.json({ message: "Credits updated", user });
+  } catch (error) {
+    console.error("Admin user credits error:", error);
+    return NextResponse.json({ error: "حدث خطأ في الخادم" }, { status: 500 });
+  }
+}

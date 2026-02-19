@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Naseebak (نصيبك)** is a web-based traditional marriage facilitation platform for Jordan. It is **not** a dating app — there is zero direct communication between users. The platform uses AI-powered matching, admin-mediated family visit coordination, and a freemium suggestion model. The full specification lives in `SRS.md`.
 
-**Current status:** Core platform implemented and deployed to production at **https://naseebak.com**. Auth (phone+OTP for users, email+password for admins), profile management, identity verification, personality quiz, suggestions with sent interest tracking, matches, payments, notifications, admin panel, dynamic blog system, push notifications (OneSignal), real matching algorithm, report/block system, field-level profile completeness, and account deletion with 30-day grace period are all functional.
+**Current status:** Core platform implemented and deployed to production at **https://naseebak.com**. Auth (phone+OTP for users, email+password for admins), profile management, identity verification, personality quiz, suggestions with sent interest tracking, matches, payments, notifications, full-featured admin panel (13 pages), dynamic blog system, push notifications (OneSignal), real matching algorithm, report/block system, field-level profile completeness, and account deletion with 30-day grace period are all functional.
 
 ## Commands
 
@@ -61,11 +61,19 @@ src/
 │   ├── (en)/              # English LTR admin panel
 │   │   └── admin/
 │   │       ├── login/     # Admin email+password login (separate layout, no sidebar)
-│   │       ├── page.tsx   # Admin dashboard
-│   │       ├── users/     # User management
-│   │       ├── identity/  # Identity review
-│   │       ├── suggestions/ # Manual suggestion management
-│   │       ├── visits/    # Visit request management
+│   │       ├── page.tsx   # Admin dashboard (stats, quick actions, trends, activity)
+│   │       ├── users/     # User management (search, filters, suspend)
+│   │       ├── users/[id] # User detail page (full profile, photos, actions)
+│   │       ├── identity/  # Identity review (pending + history tabs, image preview)
+│   │       ├── suggestions/ # Suggestion management (browse + create/generate tabs)
+│   │       ├── visits/    # Visit request management (filters, date/location/notes)
+│   │       ├── reports/   # Report review
+│   │       ├── profile-requests/ # Profile update request review (diff view)
+│   │       ├── payments/  # Payment management (revenue stats, filters)
+│   │       ├── notifications/ # Send system notifications (single/broadcast)
+│   │       ├── blocks/    # Block management (view/remove)
+│   │       ├── deletions/ # Account deletion request management
+│   │       ├── settings/  # Admin accounts management
 │   │       └── blog/      # Blog post + category management
 │   └── api/               # All API routes
 ├── components/
@@ -171,8 +179,8 @@ Key points:
 | Notifications | GET list, `[id]/read`, `read-all`, `unread-count` |
 | Push | `register` (POST — save OneSignal player ID) |
 | Blog (public) | GET `/api/blog` (list published, filter by `?category=`, `?page=`), GET `/api/blog/[slug]` (single post), GET `/api/blog/categories` (categories with published counts) |
-| Admin | `stats`, `identity` review, `suggestions` manual send, `suggestions/generate` (POST — auto-generate scored suggestions), `reports` (GET/PATCH — review reports), `visits` management, `users` + `users/[id]` + `users/[id]/suspend`, `profile-requests` |
-| Admin Blog | GET/POST `/api/admin/blog` (list all + create), PUT/DELETE `/api/admin/blog/[id]`, GET/POST `/api/admin/blog/categories`, DELETE `/api/admin/blog/categories/[id]` |
+| Admin | `stats` (enhanced with revenue, trends, activity), `identity` review (pending/history tabs), `suggestions` (GET list + POST create + DELETE `[id]`), `suggestions/generate`, `reports` (GET/PATCH), `visits` management, `users` (GET with search/gender/status filters) + `users/[id]` (GET + PATCH credits) + `users/[id]/suspend`, `profile-requests` (with profile diff data), `payments` (GET paginated with status filter + revenue summary), `notifications` (GET recent + POST send to one/all), `blocks` (GET paginated) + `blocks/[id]` (DELETE), `deletions` (GET pending) + `deletions/[id]` (DELETE cancel), `settings/admins` (GET list + POST create) |
+| Admin Blog | GET/POST `/api/admin/blog` (list all + create), PUT/DELETE `/api/admin/blog/[id]`, GET/POST `/api/admin/blog/categories`, PUT/DELETE `/api/admin/blog/categories/[id]` |
 
 ## Branding & Colors
 
@@ -500,6 +508,55 @@ User safety features — report profiles and block users.
 - `src/app/api/admin/reports/route.ts` — GET/PATCH (admin review)
 - `src/app/(en)/admin/reports/page.tsx` — Admin reports page
 - Three-dot menu added to suggestion cards, interest cards, and match cards
+
+## Admin Panel (Complete Feature Set)
+
+The admin panel at `/admin` has 13 pages providing full platform management. All pages use the same patterns: `"use client"`, `useState`+`useEffect`, admin auth check via API, shadcn/ui components.
+
+### Sidebar Navigation (`src/components/shared/admin-sidebar.tsx`)
+13 links: Dashboard, Users, Identity Review, Suggestions, Visit Requests, Reports, Profile Requests, Payments, Notifications, Blocks, Deletions, Blog, Settings. Active link matching uses `pathname === href || (href !== "/admin" && pathname.startsWith(href))` to highlight parent links for sub-routes like `/admin/users/[id]`.
+
+### Admin Pages Summary
+
+| Page | Path | Features |
+|------|------|----------|
+| **Dashboard** | `/admin` | 8 stat cards (incl. revenue), quick action links with pending counts, registration trend (this week vs last), recent activity timeline (registrations, matches, payments) |
+| **Users** | `/admin/users` | Search by name/phone, gender/status filter dropdowns, credits column, clickable rows → detail page, inline suspend/unsuspend button |
+| **User Detail** | `/admin/users/[id]` | Full user profile (40+ fields), identity doc image preview, photos grid, personality quiz results, parent/guardian info, subscriptions, account stats, suspend/unsuspend + credit adjustment actions |
+| **Identity** | `/admin/identity` | Pending/History tabs, document image preview (front+back), predefined rejection reasons dropdown (Blurry, Wrong Doc, Expired, Mismatch, Other), history table with reviewer info + pagination |
+| **Suggestions** | `/admin/suggestions` | Browse/Create tabs. Browse: status filter, paginated table with score color coding (>70 green, 50-70 amber, <50 red), delete action. Create: auto-generate + manual create |
+| **Visits** | `/admin/visits` | Status filter buttons with counts, date picker (datetime-local), location input, admin notes per visit, "Save Details" button, status transition buttons |
+| **Reports** | `/admin/reports` | Status filter (All/PENDING/REVIEWED/DISMISSED), review dialog with admin note, pagination |
+| **Profile Requests** | `/admin/profile-requests` | Change diff table (Field / Current Value / Proposed Value), user message display, admin note + approve/reject |
+| **Payments** | `/admin/payments` | 3 summary cards (Total Revenue, This Month, Completed Count), status filter (All/PENDING/COMPLETED/FAILED/REFUNDED), paginated table |
+| **Notifications** | `/admin/notifications` | Send form with All Users / Specific User toggle, user dropdown, title + body inputs. Recent system notifications list below |
+| **Blocks** | `/admin/blocks` | Paginated table (Blocker / Blocked / Date / Remove), confirmation before removal |
+| **Deletions** | `/admin/deletions` | Cards with user info, reason, countdown badge ("X days remaining"), cancel deletion button with account reactivation |
+| **Settings** | `/admin/settings` | Admin accounts table (Name / Email / Created), "Add Admin" form (firstName, lastName, email, password with bcrypt hash) |
+
+### Admin API Routes
+
+| Route | Methods | Description |
+|-------|---------|-------------|
+| `/api/admin/stats` | GET | Enhanced stats: user counts, revenue, pending items, registration trends, recent activity timeline |
+| `/api/admin/users` | GET | Paginated users with `?search=&gender=&status=` filters, includes `matchCredits` |
+| `/api/admin/users/[id]` | GET, PATCH | GET: full user detail with all relations. PATCH: `{ matchCredits }` to adjust credits |
+| `/api/admin/users/[id]/suspend` | PUT | Toggle suspend/unsuspend with notification + push |
+| `/api/admin/identity` | GET, PATCH | GET: `?tab=pending\|history&page=` with reviewer info for history. PATCH: approve/reject with rejectionReason |
+| `/api/admin/suggestions` | GET, POST | GET: paginated with `?status=` filter. POST: create suggestion (existing) |
+| `/api/admin/suggestions/[id]` | DELETE | Delete a suggestion |
+| `/api/admin/suggestions/generate` | POST | Auto-generate scored suggestions (existing) |
+| `/api/admin/profile-requests` | GET, PATCH | GET: pending requests with user profile for diff. PATCH: approve/reject (existing) |
+| `/api/admin/payments` | GET | Paginated with `?status=` filter, includes revenue summary (total, monthly, count) |
+| `/api/admin/notifications` | GET, POST | GET: last 50 SYSTEM notifications. POST: `{ userId?, title, body }` send to one or all users + push |
+| `/api/admin/blocks` | GET | Paginated blocks with blocker/blocked user info |
+| `/api/admin/blocks/[id]` | DELETE | Remove a block |
+| `/api/admin/deletions` | GET | Pending (non-cancelled) deletion requests with user info |
+| `/api/admin/deletions/[id]` | DELETE | Cancel deletion + reactivate user |
+| `/api/admin/settings/admins` | GET, POST | GET: list admin accounts. POST: create new admin (bcrypt password hash) |
+| `/api/admin/reports` | GET, PATCH | Existing report review |
+| `/api/admin/visits` | GET, PATCH | Existing visit management with scheduledDate, location, adminNotes |
+| `/api/admin/blog/*` | Various | Blog CRUD + category management (now includes PUT for category edit) |
 
 ## Profile Completeness Score
 

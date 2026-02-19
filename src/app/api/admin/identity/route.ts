@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { sendPushNotification } from "@/lib/onesignal";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const session = await auth();
     if (!session?.user?.id) {
@@ -13,6 +13,40 @@ export async function GET() {
       return NextResponse.json({ error: "غير مصرح" }, { status: 403 });
     }
 
+    const url = new URL(request.url);
+    const tab = url.searchParams.get("tab") || "pending";
+    const page = parseInt(url.searchParams.get("page") || "1");
+    const limit = 20;
+    const skip = (page - 1) * limit;
+
+    if (tab === "history") {
+      const [docs, total] = await Promise.all([
+        db.identityDoc.findMany({
+          where: { status: { not: "PENDING" } },
+          skip,
+          take: limit,
+          orderBy: { reviewedAt: "desc" },
+          include: {
+            user: {
+              select: { id: true, firstName: true, lastName: true, email: true, gender: true },
+            },
+            reviewedBy: {
+              select: { firstName: true, lastName: true },
+            },
+          },
+        }),
+        db.identityDoc.count({ where: { status: { not: "PENDING" } } }),
+      ]);
+
+      return NextResponse.json({
+        docs,
+        total,
+        page,
+        totalPages: Math.ceil(total / limit),
+      });
+    }
+
+    // Default: pending
     const docs = await db.identityDoc.findMany({
       where: { status: "PENDING" },
       include: {
@@ -58,7 +92,6 @@ export async function PATCH(request: Request) {
       },
     });
 
-    // If approved, update user's verified status and status enum
     if (action === "approve") {
       await db.user.update({
         where: { id: doc.userId },
@@ -69,7 +102,6 @@ export async function PATCH(request: Request) {
         },
       });
     } else {
-      // If rejected, set user status to REJECTED
       await db.user.update({
         where: { id: doc.userId },
         data: {
@@ -78,7 +110,6 @@ export async function PATCH(request: Request) {
       });
     }
 
-    // Create notification for the user
     const identityTitle = action === "approve" ? "تم التحقق من هويتك" : "تم رفض وثيقة الهوية";
     const identityBody = action === "approve"
       ? "تهانينا! تم التحقق من هويتك بنجاح. يمكنك الآن استخدام جميع ميزات المنصة."
@@ -93,7 +124,6 @@ export async function PATCH(request: Request) {
       },
     });
 
-    // Push notification
     sendPushNotification({
       userId: doc.userId,
       title: identityTitle,

@@ -16,7 +16,10 @@ export async function GET() {
       where: { status: "PENDING" },
       include: {
         user: {
-          select: { id: true, firstName: true, lastName: true, gender: true },
+          select: {
+            id: true, firstName: true, lastName: true, gender: true,
+            profile: true,
+          },
         },
       },
       orderBy: { createdAt: "asc" },

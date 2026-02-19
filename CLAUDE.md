@@ -13,7 +13,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```bash
 pnpm dev              # Start dev server (Turbopack) on localhost:3000
 pnpm build            # Production build (next build)
-pnpm test             # Run all tests (vitest run) — 122 tests across 7 files
+pnpm test             # Run all tests (vitest run) — 121 tests across 7 files
 pnpm test:watch       # Run tests in watch mode
 pnpm db:generate      # Regenerate Prisma client after schema changes
 pnpm db:push          # Push schema changes to database
@@ -52,7 +52,7 @@ src/
 │   │       ├── profile/setup/     # 5-step profile wizard
 │   │       ├── profile/edit/      # Profile editing
 │   │       ├── identity/          # ID document upload + status
-│   │       ├── suggestions/       # View/accept/reject + sent interest tracking (tabs)
+│   │       ├── suggestions/       # 3-tab: new suggestions, sent requests, received interests
 │   │       ├── matches/           # Mutual matches with full profile details + photos + visits
 │   │       ├── photos/            # Photo upload/manage (max 5, base64)
 │   │       ├── personality-quiz/  # 20-question quiz (5 dimensions)
@@ -141,6 +141,8 @@ Key points:
 - `User.oneSignalPlayerId` stores the push notification player ID
 - `Profile` has 35+ fields including location (lat/lng), tribe, preferences (prefAge*, prefCity, etc.), gender-specific fields (beard, hijab)
 - `Otp` model stores codes with phone, expiry, and verified status
+- `Suggestion` uses `recipientId`/`candidateId` in Prisma code (mapped to `femaleId`/`maleId` DB columns via `@map`). Both genders can be recipient or candidate
+- `MutualMatch` keeps `femaleId`/`maleId` columns — assigned dynamically based on actual user genders at creation time
 - `ProfileUpdateRequest` stores user-submitted profile edit requests for admin review
 - `BlogCategory` has slug, nameAr, nameEn; `BlogPost` has title, slug, excerpt, content (Text), status (DRAFT/PUBLISHED), categoryId, readTime, publishedAt
 
@@ -177,7 +179,7 @@ These are hard constraints that must never be violated:
 
 - **No messaging/chat/communication** between users — ever
 - **Photos are hidden** until both users mutually like each other
-- **Only female users receive suggestions**; males see received interests and can accept/reject
+- **Gender-neutral access** — both genders receive suggestions, can accept/reject, receive interests, and purchase credits. The same workflow applies to all users
 - **Identity verification** (government ID upload + admin review) is mandatory before platform usage
 - **Parent/guardian data** is visible to admin only, never to the other user
 - **Free tier:** 5 lifetime suggestions per account; paid packages for more
@@ -189,26 +191,34 @@ These are hard constraints that must never be violated:
 ## Matching Workflow
 
 ```
-Female receives suggestion → accepts/rejects (full profile, no photos) →
-  if accepted: male gets notified → accepts/rejects (full profile, no photos) →
+User receives suggestion → accepts/rejects (full profile, no photos) →
+  if accepted: other user gets interest notification → accepts/rejects (full profile, no photos) →
     if mutual like: full details + photos revealed immediately (no credit cost) →
       visit request created → admin contacts families → arranges in-person visit
 ```
 
-## Sent Interest Tracking
+Both genders follow the same flow. The Suggestion model uses `recipientId`/`candidateId` fields (mapped to `femaleId`/`maleId` DB columns via Prisma `@map`). MutualMatch keeps `femaleId`/`maleId` — assigned dynamically based on actual user genders at match creation time.
 
-Female users can track the status of accepted suggestions via the "الطلبات المرسلة" tab on the suggestions page.
+## Suggestions Page (3-Tab Layout)
 
-**Status logic** (derived from existing DB data, no schema changes):
+All users (both genders) see the same 3-tab suggestions page:
+
+1. **"اقتراحات جديدة" (New Suggestions)** — pending suggestions where user is the recipient
+2. **"الطلبات المرسلة" (Sent Requests)** — tracks status of accepted suggestions (sent interests)
+3. **"طلبات الاهتمام" (Received Interests)** — incoming likes from other users
+
+**Sent interest status logic** (derived from existing DB data, no schema changes):
 | Status | Arabic | Badge Color | Condition |
 |---|---|---|---|
-| Waiting | بانتظار الاطلاع | Amber | INTEREST notification to male has `isRead: false` |
+| Waiting | بانتظار الاطلاع | Amber | INTEREST notification to other user has `isRead: false` |
 | Seen | تم الاطلاع | Blue | Notification `isRead: true`, no `MutualMatch` exists |
-| Matched | توافق متبادل | Green | A `MutualMatch` record exists for this female+male pair |
+| Matched | توافق متبادل | Green | A `MutualMatch` record exists for this pair |
 
 **Key files:**
-- `src/app/api/suggestions/sent/route.ts` — API returning sent interests with status
-- `src/app/(ar)/dashboard/suggestions/page.tsx` — Tab toggle (new suggestions | sent requests)
+- `src/app/api/suggestions/route.ts` — Suggestions list (uses `recipientId`/`candidate`)
+- `src/app/api/suggestions/sent/route.ts` — Sent interests with status
+- `src/app/api/interests/received/route.ts` — Received interests
+- `src/app/(ar)/dashboard/suggestions/page.tsx` — 3-tab UI for all users
 
 ## Push Notifications (OneSignal)
 
@@ -260,11 +270,11 @@ All notification types navigate to the correct page on click:
 
 ## Testing
 
-Tests are in `src/__tests__/`. Run with `pnpm test`. **122 tests across 7 files.**
+Tests are in `src/__tests__/`. Run with `pnpm test`. **121 tests across 7 files.**
 - `validations/auth.test.ts` — OTP schema validation (sendOtp, verifyOtp, login, register) — 38 tests
 - `validations/profile.test.ts` — Profile + parent info schema validation — 13 tests
 - `validations/blog.test.ts` — Blog post + category schema validation — 19 tests
-- `api/matching.test.ts` — Matching workflow domain logic — 20 tests
+- `api/matching.test.ts` — Matching workflow domain logic — 19 tests
 - `api/plans.test.ts` — Payment plans logic — 3 tests
 - `domain-rules.test.ts` — Core domain rule enforcement — 23 tests
 - `lib/utils.test.ts` — Utility function tests — 6 tests

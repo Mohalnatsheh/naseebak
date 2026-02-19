@@ -11,11 +11,11 @@ export async function GET() {
 
     const suggestions = await db.suggestion.findMany({
       where: {
-        femaleId: session.user.id,
+        recipientId: session.user.id,
         status: "PENDING",
       },
       include: {
-        male: {
+        candidate: {
           select: {
             id: true,
             firstName: true,
@@ -41,6 +41,7 @@ export async function GET() {
                 interests: true,
                 lifestyle: true,
                 beard: true,
+                hijab: true,
                 tribe: true,
                 familyOriginArea: true,
                 numberOfSiblings: true,
@@ -58,8 +59,8 @@ export async function GET() {
     });
 
     const formattedSuggestions = suggestions.map((s) => {
-      const age = s.male.profile?.dateOfBirth
-        ? Math.floor((Date.now() - new Date(s.male.profile.dateOfBirth).getTime()) / (365.25 * 24 * 60 * 60 * 1000))
+      const age = s.candidate.profile?.dateOfBirth
+        ? Math.floor((Date.now() - new Date(s.candidate.profile.dateOfBirth).getTime()) / (365.25 * 24 * 60 * 60 * 1000))
         : null;
 
       return {
@@ -68,35 +69,36 @@ export async function GET() {
         source: s.source,
         createdAt: s.createdAt,
         candidate: {
-          firstName: s.male.firstName,
+          firstName: s.candidate.firstName,
           age,
-          city: s.male.profile?.city,
-          area: s.male.profile?.area,
-          nationality: s.male.profile?.nationality,
-          education: s.male.profile?.education,
-          fieldOfStudy: s.male.profile?.fieldOfStudy,
-          job: s.male.profile?.job,
-          incomeRange: s.male.profile?.incomeRange,
-          height: s.male.profile?.height,
-          weight: s.male.profile?.weight,
-          skinColor: s.male.profile?.skinColor,
-          maritalStatus: s.male.profile?.maritalStatus,
-          childrenCount: s.male.profile?.childrenCount ?? 0,
-          religiosity: s.male.profile?.religiosity,
-          smokingStatus: s.male.profile?.smokingStatus,
-          aboutMe: s.male.profile?.aboutMe,
-          hobbies: s.male.profile?.hobbies,
-          interests: s.male.profile?.interests,
-          lifestyle: s.male.profile?.lifestyle,
-          beard: s.male.profile?.beard,
-          tribe: s.male.profile?.tribe,
-          familyOriginArea: s.male.profile?.familyOriginArea,
-          numberOfSiblings: s.male.profile?.numberOfSiblings,
-          housingType: s.male.profile?.housingType,
-          cookingAbility: s.male.profile?.cookingAbility,
-          drivingLicense: s.male.profile?.drivingLicense,
-          willingToRelocate: s.male.profile?.willingToRelocate,
-          familyValues: s.male.profile?.familyValues,
+          city: s.candidate.profile?.city,
+          area: s.candidate.profile?.area,
+          nationality: s.candidate.profile?.nationality,
+          education: s.candidate.profile?.education,
+          fieldOfStudy: s.candidate.profile?.fieldOfStudy,
+          job: s.candidate.profile?.job,
+          incomeRange: s.candidate.profile?.incomeRange,
+          height: s.candidate.profile?.height,
+          weight: s.candidate.profile?.weight,
+          skinColor: s.candidate.profile?.skinColor,
+          maritalStatus: s.candidate.profile?.maritalStatus,
+          childrenCount: s.candidate.profile?.childrenCount ?? 0,
+          religiosity: s.candidate.profile?.religiosity,
+          smokingStatus: s.candidate.profile?.smokingStatus,
+          aboutMe: s.candidate.profile?.aboutMe,
+          hobbies: s.candidate.profile?.hobbies,
+          interests: s.candidate.profile?.interests,
+          lifestyle: s.candidate.profile?.lifestyle,
+          beard: s.candidate.profile?.beard,
+          hijab: s.candidate.profile?.hijab,
+          tribe: s.candidate.profile?.tribe,
+          familyOriginArea: s.candidate.profile?.familyOriginArea,
+          numberOfSiblings: s.candidate.profile?.numberOfSiblings,
+          housingType: s.candidate.profile?.housingType,
+          cookingAbility: s.candidate.profile?.cookingAbility,
+          drivingLicense: s.candidate.profile?.drivingLicense,
+          willingToRelocate: s.candidate.profile?.willingToRelocate,
+          familyValues: s.candidate.profile?.familyValues,
         },
       };
     });

@@ -122,10 +122,10 @@ model User {
   payments          Payment[]
   notifications     Notification[]
 
-  // Suggestions where this user is the female (receiver)
-  receivedSuggestions Suggestion[]     @relation("SuggestionFemale")
-  // Suggestions where this user is the male (suggested)
-  givenSuggestions    Suggestion[]     @relation("SuggestionMale")
+  // Suggestions where this user is the recipient (receives the suggestion)
+  receivedSuggestions Suggestion[]     @relation("SuggestionRecipient")
+  // Suggestions where this user is the candidate (suggested to someone)
+  givenSuggestions    Suggestion[]     @relation("SuggestionCandidate")
 
   likesGiven        Like[]             @relation("LikeFrom")
   likesReceived     Like[]             @relation("LikeTo")
@@ -265,10 +265,10 @@ model Photo {
 
 model Suggestion {
   id                 String           @id @default(cuid())
-  femaleId           String
-  female             User             @relation("SuggestionFemale", fields: [femaleId], references: [id], onDelete: Cascade)
-  maleId             String
-  male               User             @relation("SuggestionMale", fields: [maleId], references: [id], onDelete: Cascade)
+  recipientId        String           @map("femaleId")
+  recipient          User             @relation("SuggestionRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  candidateId        String           @map("maleId")
+  candidate          User             @relation("SuggestionCandidate", fields: [candidateId], references: [id], onDelete: Cascade)
 
   compatibilityScore Float
   status             SuggestionStatus @default(PENDING)
@@ -278,7 +278,7 @@ model Suggestion {
   createdAt          DateTime         @default(now())
   updatedAt          DateTime         @updatedAt
 
-  @@unique([femaleId, maleId])
+  @@unique([recipientId, candidateId])
   @@map("suggestions")
 }
 

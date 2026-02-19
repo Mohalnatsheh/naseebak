@@ -26,8 +26,8 @@ export async function POST(
       data: { status: "ACCEPTED" },
     });
 
-    // Create a Like record
-    const otherUserId = session.user.gender === "FEMALE" ? suggestion.maleId : suggestion.femaleId;
+    // The recipient is the one liking; the candidate is the other user
+    const otherUserId = suggestion.candidateId;
 
     await db.like.create({
       data: {
@@ -49,16 +49,20 @@ export async function POST(
     });
 
     if (mutualLike && mutualLike.isLiked) {
-      // Create mutual match
-      const femaleId = session.user.gender === "FEMALE" ? session.user.id : otherUserId;
-      const maleId = session.user.gender === "MALE" ? session.user.id : otherUserId;
+      // Determine femaleId/maleId from actual user genders for MutualMatch
+      const currentUser = await db.user.findUnique({
+        where: { id: session.user.id },
+        select: { gender: true },
+      });
+      const femaleId = currentUser?.gender === "FEMALE" ? session.user.id : otherUserId;
+      const maleId = currentUser?.gender === "MALE" ? session.user.id : otherUserId;
 
       const match = await db.mutualMatch.create({
         data: {
           femaleId,
           maleId,
           suggestionId: suggestion.id,
-          revealedByFemale: false, // Female must spend credit to reveal
+          revealedByFemale: false,
         },
       });
 
@@ -74,7 +78,7 @@ export async function POST(
             userId: femaleId,
             type: "MATCH",
             title: "توافق متبادل!",
-            body: "تهانينا! لديك توافق متبادل جديد. استخدمي رصيد التوافق لرؤية التفاصيل.",
+            body: "تهانينا! لديك توافق متبادل جديد. يمكنك الآن رؤية التفاصيل.",
           },
           {
             userId: maleId,
@@ -109,7 +113,7 @@ export async function POST(
       },
     });
 
-    // Push notification — link to suggestions page where males see interests
+    // Push notification
     sendPushNotification({
       userId: otherUserId,
       title: "شخص مهتم بك!",

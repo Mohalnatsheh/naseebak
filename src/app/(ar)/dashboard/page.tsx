@@ -287,9 +287,7 @@ export default function DashboardPage() {
               </div>
               <div>
                 <h3 className="font-bold text-amber-900 text-sm">
-                  {profile?.gender === "FEMALE"
-                    ? "أكملي حسابك للبدء في تلقي اقتراحات التوافق"
-                    : "أكمل حسابك لتتمكن من رؤية من أبدت اهتماماً بك"}
+                  أكمل حسابك للبدء في تلقي اقتراحات التوافق
                 </h3>
                 <p className="text-xs text-amber-700/80 mt-0.5">
                   يجب إكمال جميع الخطوات أدناه لتفعيل حسابك بالكامل

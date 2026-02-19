@@ -14,36 +14,36 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { femaleId, maleId, compatibilityScore } = body;
+    const { recipientId, candidateId, compatibilityScore } = body;
 
-    if (!femaleId || !maleId) {
+    if (!recipientId || !candidateId) {
       return NextResponse.json({ error: "كلا المستخدمين مطلوبان" }, { status: 400 });
     }
 
     const suggestion = await db.suggestion.create({
       data: {
-        femaleId,
-        maleId,
+        recipientId,
+        candidateId,
         compatibilityScore: compatibilityScore || 85,
         source: "ADMIN",
       },
     });
 
-    // Notify the female user
+    // Notify the recipient
     await db.notification.create({
       data: {
-        userId: femaleId,
+        userId: recipientId,
         type: "SUGGESTION",
         title: "اقتراح جديد من الإدارة",
-        body: "لديك اقتراح توافق جديد من فريق نصيبك. قومي بمراجعته.",
+        body: "لديك اقتراح توافق جديد من فريق نصيبك. قم بمراجعته.",
       },
     });
 
     // Push notification
     sendPushNotification({
-      userId: femaleId,
+      userId: recipientId,
       title: "اقتراح جديد من الإدارة",
-      body: "لديك اقتراح توافق جديد من فريق نصيبك. قومي بمراجعته.",
+      body: "لديك اقتراح توافق جديد من فريق نصيبك. قم بمراجعته.",
       url: "/dashboard/suggestions",
     });
 

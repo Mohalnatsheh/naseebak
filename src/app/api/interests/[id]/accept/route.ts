@@ -13,10 +13,6 @@ export async function POST(
       return NextResponse.json({ error: "غير مصرح" }, { status: 401 });
     }
 
-    if (session.user.gender !== "MALE") {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 403 });
-    }
-
     const { id } = await params;
 
     // Find the incoming like
@@ -43,7 +39,7 @@ export async function POST(
       return NextResponse.json({ error: "تم الرد على هذا الطلب مسبقاً" }, { status: 400 });
     }
 
-    // Create male's like back
+    // Create the user's like back
     await db.like.create({
       data: {
         fromUserId: session.user.id,
@@ -53,9 +49,13 @@ export async function POST(
       },
     });
 
-    // This creates a mutual match!
-    const femaleId = incomingLike.fromUserId;
-    const maleId = session.user.id;
+    // Determine femaleId/maleId from actual user genders for MutualMatch
+    const [currentUser, otherUser] = await Promise.all([
+      db.user.findUnique({ where: { id: session.user.id }, select: { gender: true } }),
+      db.user.findUnique({ where: { id: incomingLike.fromUserId }, select: { gender: true } }),
+    ]);
+    const femaleId = currentUser?.gender === "FEMALE" ? session.user.id : incomingLike.fromUserId;
+    const maleId = currentUser?.gender === "MALE" ? session.user.id : incomingLike.fromUserId;
 
     const match = await db.mutualMatch.create({
       data: {
@@ -78,7 +78,7 @@ export async function POST(
           userId: femaleId,
           type: "MATCH",
           title: "توافق متبادل!",
-          body: "تهانينا! لديك توافق متبادل جديد. استخدمي رصيد التوافق لرؤية التفاصيل.",
+          body: "تهانينا! لديك توافق متبادل جديد. يمكنك الآن رؤية التفاصيل.",
         },
         {
           userId: maleId,

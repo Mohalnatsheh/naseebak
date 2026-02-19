@@ -76,7 +76,6 @@ function PaymentsContent() {
   const [matchCredits, setMatchCredits] = useState(0);
   const [loading, setLoading] = useState(true);
   const [purchasing, setPurchasing] = useState<string | null>(null);
-  const [isMale, setIsMale] = useState<boolean | null>(null);
   const [toast, setToast] = useState<{ type: "success" | "info" | "error"; message: string } | null>(null);
 
   // Embedded checkout state
@@ -85,20 +84,12 @@ function PaymentsContent() {
 
   const loadData = useCallback(async () => {
     try {
-      const [plansRes, histRes, profileRes] = await Promise.all([
+      const [plansRes, histRes] = await Promise.all([
         fetch("/api/payments/plans"),
         fetch("/api/payments/history"),
-        fetch("/api/profile"),
       ]);
       const plansData = await plansRes.json();
       const histData = await histRes.json();
-      const profileData = await profileRes.json();
-
-      if (profileData.user?.gender === "MALE") {
-        setIsMale(true);
-        return;
-      }
-      setIsMale(false);
 
       setPackages(plansData.packages || []);
       setPayments(histData.payments || []);
@@ -207,12 +198,6 @@ function PaymentsContent() {
         <p className="text-sm text-muted-foreground animate-pulse">جاري التحميل...</p>
       </div>
     );
-  }
-
-  // Redirect males
-  if (isMale) {
-    router.replace("/dashboard");
-    return null;
   }
 
   // Show embedded checkout form

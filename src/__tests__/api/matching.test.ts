@@ -144,29 +144,27 @@ describe("Matching Workflow Logic", () => {
   });
 
   describe("Matching Flow Rules", () => {
-    it("should only allow females to receive suggestions", () => {
-      const userGender = "FEMALE";
-      const canReceiveSuggestions = userGender === "FEMALE";
-      expect(canReceiveSuggestions).toBe(true);
-    });
-
-    it("should not allow males to receive suggestions", () => {
-      const userGender = "MALE";
-      const canReceiveSuggestions = userGender === "FEMALE";
-      expect(canReceiveSuggestions).toBe(false);
+    it("should allow both genders to receive suggestions", () => {
+      const femaleGender = "FEMALE";
+      const maleGender = "MALE";
+      // Both genders can receive suggestions
+      const femaleCanReceive = ["FEMALE", "MALE"].includes(femaleGender);
+      const maleCanReceive = ["FEMALE", "MALE"].includes(maleGender);
+      expect(femaleCanReceive).toBe(true);
+      expect(maleCanReceive).toBe(true);
     });
 
     it("should create mutual match when both users like each other", () => {
-      const femaleLiked = true;
-      const maleLiked = true;
-      const isMutualMatch = femaleLiked && maleLiked;
+      const user1Liked = true;
+      const user2Liked = true;
+      const isMutualMatch = user1Liked && user2Liked;
       expect(isMutualMatch).toBe(true);
     });
 
     it("should not create match when only one likes", () => {
-      const femaleLiked = true;
-      const maleLiked = false;
-      const isMutualMatch = femaleLiked && maleLiked;
+      const user1Liked = true;
+      const user2Liked = false;
+      const isMutualMatch = user1Liked && user2Liked;
       expect(isMutualMatch).toBe(false);
     });
 

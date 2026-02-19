@@ -75,18 +75,20 @@ describe("Domain Rules — Critical Constraints", () => {
     });
   });
 
-  describe("Gender-Based Access Control", () => {
-    it("only female users should receive suggestions", () => {
-      const femaleRole = "FEMALE";
-      const maleRole = "MALE";
+  describe("Gender-Neutral Access", () => {
+    it("both genders can receive suggestions and interests", () => {
+      const femaleGender = "FEMALE";
+      const maleGender = "MALE";
+      const allowedGenders = ["FEMALE", "MALE"];
 
-      expect(femaleRole === "FEMALE").toBe(true); // Can access /suggestions
-      expect(maleRole === "FEMALE").toBe(false); // Cannot access /suggestions
+      expect(allowedGenders).toContain(femaleGender);
+      expect(allowedGenders).toContain(maleGender);
     });
 
-    it("males should only respond to interest notifications", () => {
-      const maleWorkflow = ["receive_notification", "view_suggestion", "accept_or_reject"];
-      expect(maleWorkflow[0]).toBe("receive_notification");
+    it("both genders follow the same workflow", () => {
+      const workflow = ["receive_suggestion", "accept_or_reject", "receive_interests", "accept_or_reject"];
+      expect(workflow[0]).toBe("receive_suggestion");
+      expect(workflow[2]).toBe("receive_interests");
     });
   });
 

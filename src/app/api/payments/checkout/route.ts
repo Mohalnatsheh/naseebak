@@ -18,14 +18,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "غير مصرح" }, { status: 401 });
     }
 
-    // Only females can purchase credits
-    if (session.user.gender !== "FEMALE") {
-      return NextResponse.json(
-        { error: "شراء الرصيد متاح للإناث فقط" },
-        { status: 403 }
-      );
-    }
-
     const body = await request.json();
     const { packageId } = body;
 

@@ -12,10 +12,6 @@ export async function POST(
       return NextResponse.json({ error: "غير مصرح" }, { status: 401 });
     }
 
-    if (session.user.gender !== "MALE") {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 403 });
-    }
-
     const { id } = await params;
 
     // Find the incoming like

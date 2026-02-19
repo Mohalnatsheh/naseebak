@@ -9,18 +9,13 @@ export async function GET() {
       return NextResponse.json({ error: "غير مصرح" }, { status: 401 });
     }
 
-    // Only females send interest via accepted suggestions
-    if (session.user.gender !== "FEMALE") {
-      return NextResponse.json({ sentRequests: [] });
-    }
-
     const suggestions = await db.suggestion.findMany({
       where: {
-        femaleId: session.user.id,
+        recipientId: session.user.id,
         status: "ACCEPTED",
       },
       include: {
-        male: {
+        candidate: {
           select: {
             id: true,
             firstName: true,
@@ -44,13 +39,13 @@ export async function GET() {
 
     // Batch-fetch INTEREST notifications for all suggestion IDs
     const suggestionIds = suggestions.map((s) => s.id);
-    const maleIds = suggestions.map((s) => s.maleId);
+    const candidateIds = suggestions.map((s) => s.candidateId);
 
     const [notifications, mutualMatches] = await Promise.all([
       db.notification.findMany({
         where: {
           type: "INTEREST",
-          userId: { in: maleIds },
+          userId: { in: candidateIds },
         },
         select: {
           userId: true,
@@ -60,17 +55,24 @@ export async function GET() {
       }),
       db.mutualMatch.findMany({
         where: {
-          femaleId: session.user.id,
-          maleId: { in: maleIds },
+          OR: [
+            { femaleId: session.user.id, maleId: { in: candidateIds } },
+            { maleId: session.user.id, femaleId: { in: candidateIds } },
+          ],
         },
         select: {
+          femaleId: true,
           maleId: true,
         },
       }),
     ]);
 
     // Build lookup maps
-    const matchedMaleIds = new Set(mutualMatches.map((m) => m.maleId));
+    const matchedCandidateIds = new Set(
+      mutualMatches.map((m) =>
+        m.femaleId === session.user.id ? m.maleId : m.femaleId
+      )
+    );
 
     // Map notification by suggestionId for quick lookup
     const notificationBySuggestionId = new Map<string, boolean>();
@@ -83,15 +85,15 @@ export async function GET() {
     }
 
     const sentRequests = suggestions.map((s) => {
-      const age = s.male.profile?.dateOfBirth
+      const age = s.candidate.profile?.dateOfBirth
         ? Math.floor(
-            (Date.now() - new Date(s.male.profile.dateOfBirth).getTime()) /
+            (Date.now() - new Date(s.candidate.profile.dateOfBirth).getTime()) /
               (365.25 * 24 * 60 * 60 * 1000)
           )
         : null;
 
       let status: "waiting" | "seen" | "matched";
-      if (matchedMaleIds.has(s.maleId)) {
+      if (matchedCandidateIds.has(s.candidateId)) {
         status = "matched";
       } else if (notificationBySuggestionId.get(s.id) === true) {
         status = "seen";
@@ -104,11 +106,11 @@ export async function GET() {
         status,
         sentAt: s.updatedAt,
         candidate: {
-          firstName: s.male.firstName,
+          firstName: s.candidate.firstName,
           age,
-          city: s.male.profile?.city ?? null,
-          education: s.male.profile?.education ?? null,
-          job: s.male.profile?.job ?? null,
+          city: s.candidate.profile?.city ?? null,
+          education: s.candidate.profile?.education ?? null,
+          job: s.candidate.profile?.job ?? null,
         },
       };
     });

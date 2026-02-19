@@ -9,12 +9,7 @@ export async function GET() {
       return NextResponse.json({ error: "غير مصرح" }, { status: 401 });
     }
 
-    // Only males receive interests
-    if (session.user.gender !== "MALE") {
-      return NextResponse.json({ interests: [] });
-    }
-
-    // Find all likes directed at this male
+    // Find all likes directed at this user
     const likes = await db.like.findMany({
       where: {
         toUserId: session.user.id,
@@ -47,6 +42,7 @@ export async function GET() {
                 interests: true,
                 lifestyle: true,
                 hijab: true,
+                beard: true,
                 tribe: true,
                 familyOriginArea: true,
                 numberOfSiblings: true,
@@ -122,6 +118,7 @@ export async function GET() {
             interests: l.fromUser.profile?.interests,
             lifestyle: l.fromUser.profile?.lifestyle,
             hijab: l.fromUser.profile?.hijab,
+            beard: l.fromUser.profile?.beard,
             tribe: l.fromUser.profile?.tribe,
             familyOriginArea: l.fromUser.profile?.familyOriginArea,
             numberOfSiblings: l.fromUser.profile?.numberOfSiblings,

@@ -82,6 +82,7 @@ export async function PUT(request: Request) {
       area, latitude, longitude, tribe, familyOriginArea, numberOfSiblings, housingType,
       beard, cookingAbility, drivingLicense, healthConditions, monthlyExpenses, wantsPhoto,
       prefAgeMin, prefAgeMax, prefCity, prefEducation, prefMaritalStatus,
+      prefHijab, prefBeard, prefReligiosity, prefSmokingStatus, prefChildrenAcceptance,
     } = body;
 
     const profile = await db.profile.upsert({
@@ -111,6 +112,11 @@ export async function PUT(request: Request) {
         prefCity: Array.isArray(prefCity) ? prefCity : [],
         prefEducation: Array.isArray(prefEducation) ? prefEducation : [],
         prefMaritalStatus: Array.isArray(prefMaritalStatus) ? prefMaritalStatus : [],
+        prefHijab: prefHijab ?? null,
+        prefBeard: prefBeard ?? null,
+        prefReligiosity: Array.isArray(prefReligiosity) ? prefReligiosity : [],
+        prefSmokingStatus: Array.isArray(prefSmokingStatus) ? prefSmokingStatus : [],
+        prefChildrenAcceptance: prefChildrenAcceptance ?? null,
         isComplete: true,
       },
       update: {
@@ -137,6 +143,11 @@ export async function PUT(request: Request) {
         prefCity: Array.isArray(prefCity) ? prefCity : undefined,
         prefEducation: Array.isArray(prefEducation) ? prefEducation : undefined,
         prefMaritalStatus: Array.isArray(prefMaritalStatus) ? prefMaritalStatus : undefined,
+        prefHijab: prefHijab ?? undefined,
+        prefBeard: prefBeard ?? undefined,
+        prefReligiosity: Array.isArray(prefReligiosity) ? prefReligiosity : undefined,
+        prefSmokingStatus: Array.isArray(prefSmokingStatus) ? prefSmokingStatus : undefined,
+        prefChildrenAcceptance: prefChildrenAcceptance ?? undefined,
         isComplete: true,
       },
     });

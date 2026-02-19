@@ -41,6 +41,11 @@ export const profileSchema = z.object({
   prefCity: z.array(z.string()).min(1, "المدينة المفضلة مطلوبة"),
   prefEducation: z.array(z.string()).min(1, "المستوى التعليمي المفضل مطلوب"),
   prefMaritalStatus: z.array(z.string()).min(1, "الحالة الاجتماعية المفضلة مطلوبة"),
+  prefHijab: z.string().optional(),
+  prefBeard: z.string().optional(),
+  prefReligiosity: z.array(z.string()).optional(),
+  prefSmokingStatus: z.array(z.string()).optional(),
+  prefChildrenAcceptance: z.string().optional(),
 });
 
 export const parentInfoSchema = z.object({

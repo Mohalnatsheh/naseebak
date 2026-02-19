@@ -188,6 +188,11 @@ model Profile {
   prefCity            String[]
   prefEducation       String[]
   prefMaritalStatus   String[]
+  prefHijab               String?
+  prefBeard               String?
+  prefReligiosity         String[]
+  prefSmokingStatus       String[]
+  prefChildrenAcceptance  String?
 
   isComplete          Boolean  @default(false)
   createdAt           DateTime @default(now())

@@ -24,6 +24,14 @@ const relocateOptions = [
   { value: "no", label: "لا" },
   { value: "maybe", label: "ربما" },
 ];
+const jobOptions = [
+  "مهندس", "طبيب", "صيدلي", "محامي", "معلم/أستاذ", "محاسب", "ممرض",
+  "ضابط/عسكري", "موظف حكومي", "موظف قطاع خاص", "رجل أعمال",
+  "تاجر", "مبرمج/مطور", "مصمم", "صحفي/إعلامي", "مقاول",
+  "سائق", "حرفي/فني", "طالب/طالبة", "أعمال حرة", "ربة منزل",
+  "متقاعد", "لا يعمل حالياً", "أخرى",
+];
+const preferenceOptions = ["نعم", "لا", "لا يهم"];
 const guardianRelationships = [
   { value: "father", label: "الأب" },
   { value: "mother", label: "الأم" },
@@ -47,6 +55,7 @@ export default function ProfileSetupPage() {
     education: "",
     fieldOfStudy: "",
     job: "",
+    jobCustom: "",
     height: "",
     weight: "",
     skinColor: "",
@@ -77,6 +86,11 @@ export default function ProfileSetupPage() {
     prefCity: [] as string[],
     prefEducation: [] as string[],
     prefMaritalStatus: [] as string[],
+    prefHijab: "",
+    prefBeard: "",
+    prefReligiosity: [] as string[],
+    prefSmokingStatus: [] as string[],
+    prefChildrenAcceptance: "",
   });
 
   const [parentForm, setParentForm] = useState({
@@ -114,7 +128,8 @@ export default function ProfileSetupPage() {
               nationality: p.nationality || "أردني",
               education: p.education || "",
               fieldOfStudy: p.fieldOfStudy || "",
-              job: p.job || "",
+              job: p.job && jobOptions.includes(p.job) ? p.job : p.job ? "أخرى" : "",
+              jobCustom: p.job && !jobOptions.includes(p.job) ? p.job : "",
               height: p.height ? String(p.height) : "",
               weight: p.weight ? String(p.weight) : "",
               skinColor: p.skinColor || "",
@@ -145,6 +160,11 @@ export default function ProfileSetupPage() {
               prefCity: Array.isArray(p.prefCity) ? p.prefCity : [],
               prefEducation: Array.isArray(p.prefEducation) ? p.prefEducation : [],
               prefMaritalStatus: Array.isArray(p.prefMaritalStatus) ? p.prefMaritalStatus : [],
+              prefHijab: p.prefHijab || "",
+              prefBeard: p.prefBeard || "",
+              prefReligiosity: Array.isArray(p.prefReligiosity) ? p.prefReligiosity : [],
+              prefSmokingStatus: Array.isArray(p.prefSmokingStatus) ? p.prefSmokingStatus : [],
+              prefChildrenAcceptance: p.prefChildrenAcceptance || "",
             }));
           }
           if (user?.parentInfo) {
@@ -171,7 +191,7 @@ export default function ProfileSetupPage() {
     setForm((prev) => ({ ...prev, [field]: value }));
   }
 
-  function toggleArray(field: "prefCity" | "prefEducation" | "prefMaritalStatus", value: string) {
+  function toggleArray(field: "prefCity" | "prefEducation" | "prefMaritalStatus" | "prefReligiosity" | "prefSmokingStatus", value: string) {
     setForm((prev) => {
       const arr = prev[field];
       if (arr.includes(value)) {
@@ -208,12 +228,13 @@ export default function ProfileSetupPage() {
         if (!form.education) return "المستوى التعليمي مطلوب";
         if (!form.fieldOfStudy) return "التخصص مطلوب";
         if (!form.job) return "الوظيفة مطلوبة";
+        if (form.job === "أخرى" && !form.jobCustom) return "يرجى تحديد الوظيفة";
         if (!form.incomeRange) return "مستوى الدخل مطلوب";
         return "";
       }
       case 2: {
         if (!form.maritalStatus) return "الحالة الاجتماعية مطلوبة";
-        if (form.childrenCount === "") return "عدد الأبناء مطلوب";
+        if (form.maritalStatus !== "أعزب/عزباء" && form.childrenCount === "") return "عدد الأبناء مطلوب";
         if (!form.religiosity) return "مستوى التدين مطلوب";
         if (!form.smokingStatus) return "حالة التدخين مطلوبة";
         if (!form.cookingAbility) return "مهارة الطبخ مطلوبة";
@@ -266,12 +287,19 @@ export default function ProfileSetupPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...form,
+          job: form.job === "أخرى" ? form.jobCustom : form.job,
+          jobCustom: undefined,
           height: form.height ? parseInt(form.height) : undefined,
           weight: form.weight ? parseInt(form.weight) : undefined,
           numberOfSiblings: form.numberOfSiblings ? parseInt(form.numberOfSiblings) : undefined,
-          childrenCount: form.childrenCount ? parseInt(form.childrenCount) : 0,
+          childrenCount: form.maritalStatus === "أعزب/عزباء" ? 0 : (form.childrenCount ? parseInt(form.childrenCount) : 0),
           prefAgeMin: form.prefAgeMin ? parseInt(form.prefAgeMin) : undefined,
           prefAgeMax: form.prefAgeMax ? parseInt(form.prefAgeMax) : undefined,
+          prefHijab: form.prefHijab || undefined,
+          prefBeard: form.prefBeard || undefined,
+          prefReligiosity: form.prefReligiosity.length > 0 ? form.prefReligiosity : undefined,
+          prefSmokingStatus: form.prefSmokingStatus.length > 0 ? form.prefSmokingStatus : undefined,
+          prefChildrenAcceptance: form.prefChildrenAcceptance || undefined,
         }),
       });
 
@@ -423,7 +451,22 @@ export default function ProfileSetupPage() {
 
             <div className="space-y-2">
               <Label>الوظيفة</Label>
-              <Input value={form.job} onChange={(e) => update("job", e.target.value)} placeholder="مثال: مهندس، طبيب، معلم..." />
+              <select
+                value={form.job}
+                onChange={(e) => {
+                  update("job", e.target.value);
+                  if (e.target.value !== "أخرى") update("jobCustom", "");
+                }}
+                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                <option value="">اختر الوظيفة...</option>
+                {jobOptions.map((j) => (
+                  <option key={j} value={j}>{j}</option>
+                ))}
+              </select>
+              {form.job === "أخرى" && (
+                <Input value={form.jobCustom} onChange={(e) => update("jobCustom", e.target.value)} placeholder="حدد وظيفتك..." className="mt-2" />
+              )}
             </div>
 
             <div className="space-y-2">
@@ -453,17 +496,22 @@ export default function ProfileSetupPage() {
               <Label>الحالة الاجتماعية</Label>
               <div className="grid grid-cols-3 gap-2">
                 {maritalStatuses.map((s) => (
-                  <button key={s} type="button" onClick={() => update("maritalStatus", s)}
+                  <button key={s} type="button" onClick={() => {
+                    update("maritalStatus", s);
+                    if (s === "أعزب/عزباء") update("childrenCount", "0");
+                  }}
                     className={`rounded-xl border px-3 py-2 text-sm transition-all ${form.maritalStatus === s ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
                   >{s}</button>
                 ))}
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label>عدد الأبناء</Label>
-              <Input type="number" value={form.childrenCount} onChange={(e) => update("childrenCount", e.target.value)} placeholder="0" min={0} max={20} dir="ltr" />
-            </div>
+            {form.maritalStatus !== "أعزب/عزباء" && (
+              <div className="space-y-2">
+                <Label>عدد الأبناء</Label>
+                <Input type="number" value={form.childrenCount} onChange={(e) => update("childrenCount", e.target.value)} placeholder="0" min={0} max={20} dir="ltr" />
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label>مستوى التدين</Label>
@@ -659,6 +707,65 @@ export default function ProfileSetupPage() {
                   <button key={s} type="button" onClick={() => toggleArray("prefMaritalStatus", s)}
                     className={`rounded-xl border px-3 py-2 text-sm transition-all ${form.prefMaritalStatus.includes(s) ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
                   >{s}</button>
+                ))}
+              </div>
+            </div>
+
+            {gender === "MALE" && (
+              <div className="space-y-2">
+                <Label>هل تفضل محجبة؟</Label>
+                <div className="grid grid-cols-3 gap-2">
+                  {preferenceOptions.map((o) => (
+                    <button key={o} type="button" onClick={() => update("prefHijab", o)}
+                      className={`rounded-xl border px-3 py-2 text-sm transition-all ${form.prefHijab === o ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
+                    >{o}</button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {gender === "FEMALE" && (
+              <div className="space-y-2">
+                <Label>هل تفضلين ملتحي؟</Label>
+                <div className="grid grid-cols-3 gap-2">
+                  {preferenceOptions.map((o) => (
+                    <button key={o} type="button" onClick={() => update("prefBeard", o)}
+                      className={`rounded-xl border px-3 py-2 text-sm transition-all ${form.prefBeard === o ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
+                    >{o}</button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label>مستوى التدين المفضل <span className="text-xs text-muted-foreground">(يمكن اختيار أكثر من مستوى)</span></Label>
+              <div className="grid grid-cols-2 gap-2">
+                {religiosityLevels.map((r) => (
+                  <button key={r} type="button" onClick={() => toggleArray("prefReligiosity", r)}
+                    className={`rounded-xl border px-3 py-2 text-sm transition-all ${form.prefReligiosity.includes(r) ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
+                  >{r}</button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>حالة التدخين المفضلة <span className="text-xs text-muted-foreground">(يمكن اختيار أكثر من حالة)</span></Label>
+              <div className="grid grid-cols-2 gap-2">
+                {smokingStatuses.map((s) => (
+                  <button key={s} type="button" onClick={() => toggleArray("prefSmokingStatus", s)}
+                    className={`rounded-xl border px-3 py-2 text-sm transition-all ${form.prefSmokingStatus.includes(s) ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
+                  >{s}</button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>قبول وجود أبناء من زواج سابق</Label>
+              <div className="grid grid-cols-3 gap-2">
+                {preferenceOptions.map((o) => (
+                  <button key={o} type="button" onClick={() => update("prefChildrenAcceptance", o)}
+                    className={`rounded-xl border px-3 py-2 text-sm transition-all ${form.prefChildrenAcceptance === o ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
+                  >{o}</button>
                 ))}
               </div>
             </div>

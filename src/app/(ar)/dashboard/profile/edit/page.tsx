@@ -60,6 +60,14 @@ const incomeRanges = [
   "1000-2000 د.أ",
   "أكثر من 2000 د.أ",
 ];
+const jobOptions = [
+  "مهندس", "طبيب", "صيدلي", "محامي", "معلم/أستاذ", "محاسب", "ممرض",
+  "ضابط/عسكري", "موظف حكومي", "موظف قطاع خاص", "رجل أعمال",
+  "تاجر", "مبرمج/مطور", "مصمم", "صحفي/إعلامي", "مقاول",
+  "سائق", "حرفي/فني", "طالب/طالبة", "أعمال حرة", "ربة منزل",
+  "متقاعد", "لا يعمل حالياً", "أخرى",
+];
+const preferenceOptions = ["نعم", "لا", "لا يهم"];
 const relocateOptions = [
   { value: "yes", label: "نعم" },
   { value: "no", label: "لا" },
@@ -73,6 +81,7 @@ interface ProfileForm {
   nationality: string;
   education: string;
   job: string;
+  jobCustom: string;
   height: string;
   weight: string;
   skinColor: string;
@@ -101,6 +110,11 @@ interface ProfileForm {
   prefCity: string[];
   prefEducation: string[];
   prefMaritalStatus: string[];
+  prefHijab: string;
+  prefBeard: string;
+  prefReligiosity: string[];
+  prefSmokingStatus: string[];
+  prefChildrenAcceptance: string;
 }
 
 const emptyForm: ProfileForm = {
@@ -110,6 +124,7 @@ const emptyForm: ProfileForm = {
   nationality: "أردني",
   education: "",
   job: "",
+  jobCustom: "",
   height: "",
   weight: "",
   skinColor: "",
@@ -138,6 +153,11 @@ const emptyForm: ProfileForm = {
   prefCity: [],
   prefEducation: [],
   prefMaritalStatus: [],
+  prefHijab: "",
+  prefBeard: "",
+  prefReligiosity: [],
+  prefSmokingStatus: [],
+  prefChildrenAcceptance: "",
 };
 
 function arraysEqual(a: string[], b: string[]): boolean {
@@ -192,7 +212,8 @@ export default function ProfileEditPage() {
             area: p.area || "",
             nationality: p.nationality || "أردني",
             education: p.education || "",
-            job: p.job || "",
+            job: p.job && jobOptions.includes(p.job) ? p.job : p.job ? "أخرى" : "",
+            jobCustom: p.job && !jobOptions.includes(p.job) ? p.job : "",
             height: p.height ? String(p.height) : "",
             weight: p.weight ? String(p.weight) : "",
             skinColor: p.skinColor || "",
@@ -222,6 +243,11 @@ export default function ProfileEditPage() {
             prefCity: Array.isArray(p.prefCity) ? p.prefCity : [],
             prefEducation: Array.isArray(p.prefEducation) ? p.prefEducation : [],
             prefMaritalStatus: Array.isArray(p.prefMaritalStatus) ? p.prefMaritalStatus : [],
+            prefHijab: p.prefHijab || "",
+            prefBeard: p.prefBeard || "",
+            prefReligiosity: Array.isArray(p.prefReligiosity) ? p.prefReligiosity : [],
+            prefSmokingStatus: Array.isArray(p.prefSmokingStatus) ? p.prefSmokingStatus : [],
+            prefChildrenAcceptance: p.prefChildrenAcceptance || "",
           };
           setOriginalForm(loaded);
           setForm(loaded);
@@ -239,7 +265,7 @@ export default function ProfileEditPage() {
     setForm((prev) => ({ ...prev, [field]: value }));
   }
 
-  function toggleArray(field: "prefCity" | "prefEducation" | "prefMaritalStatus", value: string) {
+  function toggleArray(field: "prefCity" | "prefEducation" | "prefMaritalStatus" | "prefReligiosity" | "prefSmokingStatus", value: string) {
     setForm((prev) => {
       const arr = prev[field];
       if (arr.includes(value)) {
@@ -260,14 +286,21 @@ export default function ProfileEditPage() {
 
   function getChangedFields(): Record<string, unknown> {
     const changes: Record<string, unknown> = {};
-    const arrayFields = ["prefCity", "prefEducation", "prefMaritalStatus"] as const;
+    const arrayFields = ["prefCity", "prefEducation", "prefMaritalStatus", "prefReligiosity", "prefSmokingStatus"] as const;
 
     for (const key of Object.keys(form) as (keyof ProfileForm)[]) {
+      if (key === "jobCustom") continue;
       if (arrayFields.includes(key as typeof arrayFields[number])) {
         const formArr = form[key] as string[];
         const origArr = originalForm[key] as string[];
         if (!arraysEqual(formArr, origArr)) {
           changes[key] = formArr;
+        }
+      } else if (key === "job") {
+        const resolvedJob = form.job === "أخرى" ? form.jobCustom : form.job;
+        const resolvedOrigJob = originalForm.job === "أخرى" ? originalForm.jobCustom : originalForm.job;
+        if (resolvedJob !== resolvedOrigJob) {
+          changes.job = resolvedJob;
         }
       } else if (form[key] !== originalForm[key]) {
         const val = form[key];
@@ -564,11 +597,27 @@ export default function ProfileEditPage() {
 
             <div className="space-y-2">
               <Label>الوظيفة</Label>
-              <Input
+              <select
                 value={form.job}
-                onChange={(e) => update("job", e.target.value)}
-                placeholder="مثال: مهندس، طبيب، معلم..."
-              />
+                onChange={(e) => {
+                  update("job", e.target.value);
+                  if (e.target.value !== "أخرى") update("jobCustom", "");
+                }}
+                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                <option value="">اختر الوظيفة...</option>
+                {jobOptions.map((j) => (
+                  <option key={j} value={j}>{j}</option>
+                ))}
+              </select>
+              {form.job === "أخرى" && (
+                <Input
+                  value={form.jobCustom}
+                  onChange={(e) => update("jobCustom", e.target.value)}
+                  placeholder="حدد وظيفتك..."
+                  className="mt-2"
+                />
+              )}
             </div>
 
             <div className="space-y-2">
@@ -606,7 +655,10 @@ export default function ProfileEditPage() {
                   <button
                     key={s}
                     type="button"
-                    onClick={() => update("maritalStatus", s)}
+                    onClick={() => {
+                      update("maritalStatus", s);
+                      if (s === "أعزب/عزباء") update("childrenCount", "0");
+                    }}
                     className={`rounded-xl border px-3 py-2 text-sm transition-all ${form.maritalStatus === s ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
                   >
                     {s}
@@ -615,18 +667,20 @@ export default function ProfileEditPage() {
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label>عدد الأبناء</Label>
-              <Input
-                type="number"
-                value={form.childrenCount}
-                onChange={(e) => update("childrenCount", e.target.value)}
-                placeholder="0"
-                min={0}
-                max={20}
-                dir="ltr"
-              />
-            </div>
+            {form.maritalStatus !== "أعزب/عزباء" && (
+              <div className="space-y-2">
+                <Label>عدد الأبناء</Label>
+                <Input
+                  type="number"
+                  value={form.childrenCount}
+                  onChange={(e) => update("childrenCount", e.target.value)}
+                  placeholder="0"
+                  min={0}
+                  max={20}
+                  dir="ltr"
+                />
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label>مستوى التدين</Label>
@@ -879,6 +933,65 @@ export default function ProfileEditPage() {
                   >
                     {s}
                   </button>
+                ))}
+              </div>
+            </div>
+
+            {gender === "MALE" && (
+              <div className="space-y-2">
+                <Label>هل تفضل محجبة؟</Label>
+                <div className="grid grid-cols-3 gap-2">
+                  {preferenceOptions.map((o) => (
+                    <button key={o} type="button" onClick={() => update("prefHijab", o)}
+                      className={`rounded-xl border px-3 py-2 text-sm transition-all ${form.prefHijab === o ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
+                    >{o}</button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {gender === "FEMALE" && (
+              <div className="space-y-2">
+                <Label>هل تفضلين ملتحي؟</Label>
+                <div className="grid grid-cols-3 gap-2">
+                  {preferenceOptions.map((o) => (
+                    <button key={o} type="button" onClick={() => update("prefBeard", o)}
+                      className={`rounded-xl border px-3 py-2 text-sm transition-all ${form.prefBeard === o ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
+                    >{o}</button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label>مستوى التدين المفضل <span className="text-xs text-muted-foreground">(يمكن اختيار أكثر من مستوى)</span></Label>
+              <div className="grid grid-cols-2 gap-2">
+                {religiosityLevels.map((r) => (
+                  <button key={r} type="button" onClick={() => toggleArray("prefReligiosity", r)}
+                    className={`rounded-xl border px-3 py-2 text-sm transition-all ${form.prefReligiosity.includes(r) ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
+                  >{r}</button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>حالة التدخين المفضلة <span className="text-xs text-muted-foreground">(يمكن اختيار أكثر من حالة)</span></Label>
+              <div className="grid grid-cols-2 gap-2">
+                {smokingStatuses.map((s) => (
+                  <button key={s} type="button" onClick={() => toggleArray("prefSmokingStatus", s)}
+                    className={`rounded-xl border px-3 py-2 text-sm transition-all ${form.prefSmokingStatus.includes(s) ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
+                  >{s}</button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>قبول وجود أبناء من زواج سابق</Label>
+              <div className="grid grid-cols-3 gap-2">
+                {preferenceOptions.map((o) => (
+                  <button key={o} type="button" onClick={() => update("prefChildrenAcceptance", o)}
+                    className={`rounded-xl border px-3 py-2 text-sm transition-all ${form.prefChildrenAcceptance === o ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
+                  >{o}</button>
                 ))}
               </div>
             </div>

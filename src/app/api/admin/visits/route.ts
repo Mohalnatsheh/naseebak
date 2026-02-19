@@ -64,6 +64,14 @@ export async function GET() {
   }
 }
 
+const visitStatusLabels: Record<string, string> = {
+  REQUESTED: "طلب زيارة مرسل",
+  FAMILIES_CONTACTED: "تم التواصل مع العائلات",
+  SCHEDULED: "تم تحديد موعد الزيارة",
+  COMPLETED: "تمت الزيارة",
+  CANCELLED: "ملغاة",
+};
+
 export async function PATCH(request: Request) {
   try {
     const session = await auth();
@@ -101,13 +109,13 @@ export async function PATCH(request: Request) {
           userId: visit.match.femaleId,
           type: "VISIT_UPDATE",
           title: "تحديث طلب الزيارة",
-          body: `تم تحديث حالة طلب الزيارة إلى: ${status}`,
+          body: `تم تحديث حالة طلب الزيارة إلى: ${visitStatusLabels[status] || status}`,
         },
         {
           userId: visit.match.maleId,
           type: "VISIT_UPDATE",
           title: "تحديث طلب الزيارة",
-          body: `تم تحديث حالة طلب الزيارة إلى: ${status}`,
+          body: `تم تحديث حالة طلب الزيارة إلى: ${visitStatusLabels[status] || status}`,
         },
       ],
     });
@@ -115,7 +123,7 @@ export async function PATCH(request: Request) {
     // Push notifications
     sendPushNotificationToMany([visit.match.femaleId, visit.match.maleId], {
       title: "تحديث طلب الزيارة",
-      body: `تم تحديث حالة طلب الزيارة إلى: ${status}`,
+      body: `تم تحديث حالة طلب الزيارة إلى: ${visitStatusLabels[status] || status}`,
       url: "/dashboard/matches",
     });
 

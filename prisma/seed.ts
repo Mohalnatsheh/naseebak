@@ -463,15 +463,15 @@ async function main() {
     for (let mi = 0; mi < createdMales.length; mi++) {
       const s = await db.suggestion.upsert({
         where: {
-          femaleId_maleId: {
-            femaleId: createdFemales[fi].id,
-            maleId: createdMales[mi].id,
+          recipientId_candidateId: {
+            recipientId: createdFemales[fi].id,
+            candidateId: createdMales[mi].id,
           },
         },
         update: {},
         create: {
-          femaleId: createdFemales[fi].id,
-          maleId: createdMales[mi].id,
+          recipientId: createdFemales[fi].id,
+          candidateId: createdMales[mi].id,
           compatibilityScore: scores[fi][mi],
           source: "AI",
           status: "PENDING",
@@ -759,11 +759,11 @@ async function main() {
   console.log(`Test male created: يزن حسان (0777000002)`);
 
   await db.suggestion.upsert({
-    where: { femaleId_maleId: { femaleId: testFemale.id, maleId: testMale.id } },
+    where: { recipientId_candidateId: { recipientId: testFemale.id, candidateId: testMale.id } },
     update: {},
     create: {
-      femaleId: testFemale.id,
-      maleId: testMale.id,
+      recipientId: testFemale.id,
+      candidateId: testMale.id,
       compatibilityScore: 91.0,
       source: "AI",
       status: "PENDING",

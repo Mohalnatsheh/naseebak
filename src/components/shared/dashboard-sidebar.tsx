@@ -284,14 +284,14 @@ export function DashboardSidebar() {
       </aside>
 
       {/* Mobile hamburger + sheet */}
-      <div className="md:hidden fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-xl border-b border-border/40">
+      <div className="md:hidden fixed top-0 left-0 right-0 z-50 bg-background border-b border-border/40 shadow-sm">
         <div className="h-[2px] bg-gradient-to-l from-primary via-accent to-primary/50" />
         <div className="flex items-center justify-between px-4 h-14">
           <Link href="/dashboard" className="flex items-center gap-2">
             <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-sm shadow-primary/20">
               <Sparkles className="h-4 w-4 text-primary-foreground" />
             </div>
-            <span className="text-lg font-black bg-gradient-to-l from-primary to-primary/70 bg-clip-text text-transparent">
+            <span className="text-lg font-black text-primary">
               نصيبك
             </span>
           </Link>

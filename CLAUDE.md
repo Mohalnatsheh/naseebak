@@ -79,7 +79,7 @@ src/
 │   │       └── blog/      # Blog post + category management
 │   └── api/               # All API routes
 ├── components/
-│   ├── shared/            # Navbar, DashboardNavbar, AdminSidebar, Footer, etc.
+│   ├── shared/            # DashboardSidebar, AdminSidebar, Navbar, Footer, etc.
 │   └── ui/                # shadcn/ui components (Button, Card, Input, etc.)
 ├── hooks/
 │   ├── use-auto-save.ts   # Profile setup auto-save (localStorage + server draft)
@@ -367,6 +367,17 @@ Photo upload page at `/dashboard/photos`. Uses existing API endpoints:
 **Key files:**
 - `src/app/(ar)/dashboard/photos/page.tsx` — Photo upload/manage UI
 - Accessible from sidebar ("صوري") and profile page quick links
+
+## Dashboard Sidebar (`src/components/shared/dashboard-sidebar.tsx`)
+
+The user dashboard uses `DashboardSidebar` (NOT `DashboardNavbar` — the navbar is unused/legacy). It's a collapsible sidebar on desktop, hamburger sheet on mobile.
+
+**Main links (القائمة الرئيسية):** الرئيسية, الاقتراحات, التوافقات, الإشعارات (with unread badge)
+**Account links (الحساب):** الملف الشخصي, صوري, اختبار الشخصية, التحقق من الهوية, رصيد التوافقات, الدعم والملاحظات
+
+The sidebar fetches user data (`/api/profile`) for the user card and polls unread notifications (`/api/notifications/unread-count`) every 30s. Logout calls `signOut({ callbackUrl: "/login" })`.
+
+**Key file:** `src/components/shared/dashboard-sidebar.tsx` — `mainLinks` array for primary nav, `accountLinks` array for account section. Add new dashboard links to the appropriate array.
 
 ## Notification Routing
 

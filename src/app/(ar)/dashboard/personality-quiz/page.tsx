@@ -37,14 +37,14 @@ interface QuizResult {
   retakeDate: string;
 }
 
-const scaleLabels = ["أعارض بشدة", "أعارض", "محايد", "أوافق", "أوافق بشدة"];
+const scaleLabels = ["ما بوافق أبداً", "ما بوافق", "محايد", "بوافق", "بوافق بشدة"];
 
 const dimensionLabels: Record<string, string> = {
-  extraversion: "الانبساطية",
-  conscientiousness: "يقظة الضمير",
-  agreeableness: "الانسجام",
+  extraversion: "الاجتماعية",
+  conscientiousness: "الالتزام والتنظيم",
+  agreeableness: "التفاهم والانسجام",
   neuroticism: "الاستقرار العاطفي",
-  openness: "الانفتاح",
+  openness: "الانفتاح والتطوير",
 };
 
 const dimensionConfig: Record<string, { gradient: string; bg: string; icon: typeof Zap; color: string }> = {
@@ -135,7 +135,7 @@ export default function PersonalityQuizPage() {
 
   async function handleSubmit() {
     if (answeredCount < questions.length) {
-      setError("يرجى الإجابة على جميع الأسئلة");
+      setError("لازم تجاوب على كل الأسئلة");
       return;
     }
 
@@ -164,7 +164,7 @@ export default function PersonalityQuizPage() {
       }
       setShowQuiz(false);
     } catch {
-      setError("حدث خطأ غير متوقع");
+      setError("صار خطأ غير متوقع");
     } finally {
       setSubmitting(false);
     }
@@ -180,7 +180,7 @@ export default function PersonalityQuizPage() {
           </div>
           <div className="absolute inset-0 h-16 w-16 rounded-full bg-primary/10 animate-ping" />
         </div>
-        <p className="text-sm text-muted-foreground animate-pulse">جاري تحميل اختبار الشخصية...</p>
+        <p className="text-sm text-muted-foreground animate-pulse">عم نحمّل اختبار الشخصية...</p>
       </div>
     );
   }
@@ -294,7 +294,7 @@ export default function PersonalityQuizPage() {
         >
           <p className="text-sm text-muted-foreground inline-flex items-center gap-1.5">
             <Sparkles className="h-3.5 w-3.5 text-primary/50" />
-            يتم استخدام هذه النتيجة في حساب نسبة التوافق مع المرشحين
+            هاي النتيجة بنستخدمها عشان نحسب نسبة التوافق مع المرشحين
           </p>
         </div>
 
@@ -320,7 +320,7 @@ export default function PersonalityQuizPage() {
                   </div>
                   <div className="flex-1 space-y-1">
                     <p className="text-sm text-muted-foreground">
-                      يمكنك إعادة الاختبار بعد
+                      بتقدر تعيد الاختبار بعد
                     </p>
                     <p className="text-2xl font-bold bg-gradient-to-l from-amber-500 to-orange-600 bg-clip-text text-transparent">
                       {existingResult.daysRemaining} يوم
@@ -380,11 +380,11 @@ export default function PersonalityQuizPage() {
             </h1>
           </div>
           <p className="text-muted-foreground text-sm md:text-base">
-            أجب عن الأسئلة العشرين التالية لمساعدتنا في إيجاد أفضل توافق لك.
+            جاوب على الأسئلة العشرين عشان نساعدك نلاقي أفضل توافق إلك.
           </p>
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-card/80 backdrop-blur-sm border border-border/50 text-xs text-muted-foreground">
             <Clock className="h-3 w-3 text-primary/60" />
-            <span>يستغرق حوالي 5 دقائق</span>
+            <span>بياخذ تقريباً 5 دقائق</span>
           </div>
         </div>
       </div>
@@ -417,7 +417,10 @@ export default function PersonalityQuizPage() {
               key={i}
               onClick={() => {
                 // Only allow going to pages that are <= current page or completed
-                if (i <= currentPage) setCurrentPage(i);
+                if (i <= currentPage) {
+                  setCurrentPage(i);
+                  window.scrollTo({ top: 0, behavior: "smooth" });
+                }
               }}
               className={`rounded-full transition-all duration-300 ${
                 i === currentPage
@@ -495,7 +498,10 @@ export default function PersonalityQuizPage() {
         <div className="flex gap-2">
           {currentPage > 0 && (
             <button
-              onClick={() => setCurrentPage((p) => p - 1)}
+              onClick={() => {
+                setCurrentPage((p) => p - 1);
+                window.scrollTo({ top: 0, behavior: "smooth" });
+              }}
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border-2 border-border/60 text-sm font-medium text-foreground hover:border-primary/40 hover:bg-primary/5 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200"
             >
               <ArrowRight className="h-4 w-4" />
@@ -515,7 +521,10 @@ export default function PersonalityQuizPage() {
         <div className="flex gap-2">
           {currentPage < totalPages - 1 ? (
             <button
-              onClick={() => setCurrentPage((p) => p + 1)}
+              onClick={() => {
+                setCurrentPage((p) => p + 1);
+                window.scrollTo({ top: 0, behavior: "smooth" });
+              }}
               disabled={!currentPageComplete}
               className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${
                 currentPageComplete

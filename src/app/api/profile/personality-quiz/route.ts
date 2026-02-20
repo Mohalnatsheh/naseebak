@@ -3,40 +3,35 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 
 const quizQuestions = [
-  // --- الانبساطية (Extraversion) - 4 questions ---
-  // Communication style + Lifestyle
-  { id: "q1", text: "أفضّل قضاء الوقت مع مجموعة كبيرة من الناس على الجلوس بمفردي", dimension: "extraversion", topic: "lifestyle" },
-  { id: "q2", text: "أبادر بالحديث عند التعرف على أشخاص جدد بسهولة", dimension: "extraversion", topic: "communication" },
-  { id: "q3", text: "أستمد طاقتي من التفاعل الاجتماعي والتجمعات العائلية", dimension: "extraversion", topic: "communication" },
-  { id: "q4", text: "أفضّل النشاطات الخارجية والفعاليات الاجتماعية على البقاء في المنزل", dimension: "extraversion", topic: "lifestyle" },
+  // --- الاجتماعية (Extraversion) - 4 questions ---
+  { id: "q1", text: "بحب أقضي وقتي مع ناس كثير أكثر من إني أقعد لحالي", dimension: "extraversion", topic: "lifestyle" },
+  { id: "q2", text: "بكون أول واحد يحكي لما أتعرف على حدا جديد", dimension: "extraversion", topic: "communication" },
+  { id: "q3", text: "بحس بطاقة أكثر لما أكون بين الناس والتجمعات العيلية", dimension: "extraversion", topic: "communication" },
+  { id: "q4", text: "بفضّل الطلعات والنشاطات الاجتماعية على القعدة بالبيت", dimension: "extraversion", topic: "lifestyle" },
 
-  // --- يقظة الضمير (Conscientiousness) - 4 questions ---
-  // Decision-making + Ambition
-  { id: "q5", text: "أخطط لمستقبلي المهني والشخصي بشكل مفصّل ومنظّم", dimension: "conscientiousness", topic: "ambition" },
-  { id: "q6", text: "أنجز مهامي ومسؤولياتي قبل المواعيد النهائية دائماً", dimension: "conscientiousness", topic: "decision-making" },
-  { id: "q7", text: "أضع أهدافاً واضحة وأعمل بجد لتحقيقها خطوة بخطوة", dimension: "conscientiousness", topic: "ambition" },
-  { id: "q8", text: "أتخذ قراراتي بعد دراسة جميع الخيارات بعناية وتمعّن", dimension: "conscientiousness", topic: "decision-making" },
+  // --- الالتزام والتنظيم (Conscientiousness) - 4 questions ---
+  { id: "q5", text: "بخطط لمستقبلي المهني والشخصي بشكل مرتب ومنظم", dimension: "conscientiousness", topic: "ambition" },
+  { id: "q6", text: "دايماً بخلّص شغلي ومسؤولياتي قبل الموعد", dimension: "conscientiousness", topic: "decision-making" },
+  { id: "q7", text: "بحط أهداف واضحة وبشتغل بجد عشان أحققها", dimension: "conscientiousness", topic: "ambition" },
+  { id: "q8", text: "بآخذ قراراتي بعد ما أدرس كل الخيارات بتأني", dimension: "conscientiousness", topic: "decision-making" },
 
-  // --- الانسجام (Agreeableness) - 4 questions ---
-  // Family values + Conflict resolution
-  { id: "q9", text: "أتعاطف بسهولة مع مشاعر الآخرين وأحاول مساعدتهم", dimension: "agreeableness", topic: "family-values" },
-  { id: "q10", text: "أسامح الآخرين بسهولة وأتجنب حمل الضغينة", dimension: "agreeableness", topic: "conflict-resolution" },
-  { id: "q11", text: "أعتبر رضا الوالدين وصلة الرحم من أهم أولوياتي في الحياة", dimension: "agreeableness", topic: "family-values" },
-  { id: "q12", text: "عند حدوث خلاف، أسعى للحوار الهادئ والوصول لحل يرضي الجميع", dimension: "agreeableness", topic: "conflict-resolution" },
+  // --- التفاهم والانسجام (Agreeableness) - 4 questions ---
+  { id: "q9", text: "بتأثر بمشاعر الناس اللي حوالي وبحاول أساعدهم", dimension: "agreeableness", topic: "family-values" },
+  { id: "q10", text: "بسامح بسرعة وما بحمل بقلبي على حدا", dimension: "agreeableness", topic: "conflict-resolution" },
+  { id: "q11", text: "رضا الوالدين وصلة الرحم من أهم الأشياء بحياتي", dimension: "agreeableness", topic: "family-values" },
+  { id: "q12", text: "لما يصير خلاف، بحاول أحكي بهدوء ونوصل لحل يرضي الكل", dimension: "agreeableness", topic: "conflict-resolution" },
 
   // --- الاستقرار العاطفي (Neuroticism - reversed) - 4 questions ---
-  // Conflict resolution + Communication style
-  { id: "q13", text: "أتعامل مع الضغوط والمواقف الصعبة بهدوء وثبات", dimension: "neuroticism", topic: "conflict-resolution" },
-  { id: "q14", text: "أستطيع التعبير عن مشاعري ومخاوفي بوضوح دون انفعال", dimension: "neuroticism", topic: "communication" },
-  { id: "q15", text: "لا أدع المشاكل اليومية تؤثر على مزاجي العام بشكل كبير", dimension: "neuroticism", topic: "lifestyle" },
-  { id: "q16", text: "أتقبّل النقد البنّاء برحابة صدر وأستفيد منه في تطوير نفسي", dimension: "neuroticism", topic: "conflict-resolution" },
+  { id: "q13", text: "بتعامل مع الضغوط والمواقف الصعبة بهدوء وثبات", dimension: "neuroticism", topic: "conflict-resolution" },
+  { id: "q14", text: "بقدر أعبّر عن مشاعري ومخاوفي بوضوح بدون ما أنفعل", dimension: "neuroticism", topic: "communication" },
+  { id: "q15", text: "ما بخلي المشاكل اليومية تأثر على مزاجي بشكل كبير", dimension: "neuroticism", topic: "lifestyle" },
+  { id: "q16", text: "بتقبّل النقد البنّاء برحابة صدر وبستفيد منه لتطوير حالي", dimension: "neuroticism", topic: "conflict-resolution" },
 
-  // --- الانفتاح (Openness) - 4 questions ---
-  // Lifestyle + Decision-making + Family values
-  { id: "q17", text: "أستمتع بتجربة أشياء جديدة ومختلفة واكتشاف ثقافات أخرى", dimension: "openness", topic: "lifestyle" },
-  { id: "q18", text: "أحب القراءة والتعلم المستمر وتطوير مهاراتي باستمرار", dimension: "openness", topic: "ambition" },
-  { id: "q19", text: "أؤمن بأهمية تطوير أساليب التربية مع الحفاظ على القيم الأساسية", dimension: "openness", topic: "family-values" },
-  { id: "q20", text: "أرحّب بالأفكار المختلفة وأعتبر تنوع الآراء مصدر قوة وإثراء", dimension: "openness", topic: "decision-making" },
+  // --- الانفتاح والتطوير (Openness) - 4 questions ---
+  { id: "q17", text: "بستمتع بتجربة أشياء جديدة ومختلفة واكتشاف ثقافات ثانية", dimension: "openness", topic: "lifestyle" },
+  { id: "q18", text: "بحب القراءة والتعلم المستمر وتطوير مهاراتي", dimension: "openness", topic: "ambition" },
+  { id: "q19", text: "بؤمن بأهمية تطوير أساليب التربية مع الحفاظ على القيم الأساسية", dimension: "openness", topic: "family-values" },
+  { id: "q20", text: "برحّب بالأفكار المختلفة وبعتبر تنوع الآراء قوة وإثراء", dimension: "openness", topic: "decision-making" },
 ];
 
 // Retake cooldown in months
@@ -106,7 +101,7 @@ export async function POST(request: Request) {
       if (!retakeInfo.canRetake) {
         return NextResponse.json(
           {
-            error: `لا يمكنك إعادة الاختبار حالياً. يمكنك إعادة الاختبار بعد ${retakeInfo.daysRemaining} يوم`,
+            error: `ما بتقدر تعيد الاختبار هلأ. بتقدر تعيده بعد ${retakeInfo.daysRemaining} يوم`,
             daysRemaining: retakeInfo.daysRemaining,
             retakeDate: retakeInfo.retakeDate,
           },
@@ -119,7 +114,7 @@ export async function POST(request: Request) {
     const { answers } = body;
 
     if (!answers || typeof answers !== "object") {
-      return NextResponse.json({ error: "الإجابات مطلوبة" }, { status: 400 });
+      return NextResponse.json({ error: "لازم تبعث الإجابات" }, { status: 400 });
     }
 
     // Validate that all 20 questions are answered
@@ -129,7 +124,7 @@ export async function POST(request: Request) {
 
     if (answeredCount < quizQuestions.length) {
       return NextResponse.json(
-        { error: `يرجى الإجابة على جميع الأسئلة (${answeredCount}/${quizQuestions.length})` },
+        { error: `لازم تجاوب على كل الأسئلة (${answeredCount}/${quizQuestions.length})` },
         { status: 400 }
       );
     }
@@ -160,7 +155,7 @@ export async function POST(request: Request) {
     );
 
     // Determine dominant personality type
-    const labels = ["الانبساطية", "يقظة الضمير", "الانسجام", "الاستقرار العاطفي", "الانفتاح"];
+    const labels = ["الاجتماعية", "الالتزام والتنظيم", "التفاهم والانسجام", "الاستقرار العاطفي", "الانفتاح والتطوير"];
     const maxIdx = vector.indexOf(Math.max(...vector));
     const personalityType = labels[maxIdx];
 
@@ -180,7 +175,7 @@ export async function POST(request: Request) {
     });
 
     return NextResponse.json({
-      message: "تم حفظ نتائج اختبار الشخصية بنجاح",
+      message: "تم حفظ نتيجة اختبار الشخصية بنجاح",
       result: {
         personalityType: result.personalityType,
         vector: result.vector,

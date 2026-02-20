@@ -323,6 +323,8 @@ export default function SuggestionsPage() {
   const [acting, setActing] = useState<string | null>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [accountComplete, setAccountComplete] = useState<boolean | null>(null);
+  const [completionPercent, setCompletionPercent] = useState<number>(0);
+  const [incompleteSections, setIncompleteSections] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState<"new" | "sent" | "interests">("new");
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
   const [menuOpen, setMenuOpen] = useState<string | null>(null);
@@ -379,11 +381,19 @@ export default function SuggestionsPage() {
       try {
         const res = await fetch("/api/profile");
         const data = await res.json();
-        const user = data.user;
-        const isVerified = user?.identityDoc?.status === "APPROVED";
-        const hasProfile = user?.profile?.isComplete;
-        const hasQuiz = !!user?.personalityResult;
-        setAccountComplete(isVerified && hasProfile && hasQuiz);
+        const total = data.completeness?.total ?? 0;
+        setCompletionPercent(total);
+
+        // Collect incomplete section labels
+        const missing: string[] = [];
+        if (data.completeness?.sections) {
+          for (const s of data.completeness.sections) {
+            if (s.percentage < 100) missing.push(s.label);
+          }
+        }
+        setIncompleteSections(missing);
+
+        setAccountComplete(total >= 100);
 
         await fetchSuggestions();
       } catch {
@@ -517,18 +527,30 @@ export default function SuggestionsPage() {
   if (accountComplete === false) {
     return (
       <div className="max-w-2xl mx-auto space-y-6 pb-8">
-        <Card className="relative overflow-hidden border-amber-300/50 bg-gradient-to-l from-amber-50/80 to-amber-50/30 shadow-md">
-          <div className="absolute top-0 right-0 h-32 w-32 rounded-full bg-amber-200/20 blur-2xl translate-x-8 -translate-y-8" />
-          <CardContent className="pt-8 pb-8 text-center space-y-4">
-            <div className="flex h-16 w-16 mx-auto items-center justify-center rounded-2xl bg-amber-100 border border-amber-200/60">
-              <AlertCircle className="h-8 w-8 text-amber-600" />
+        <Card className="relative overflow-hidden border-accent/40 bg-gradient-to-l from-accent/10 via-accent/5 to-transparent shadow-md">
+          <div className="absolute top-0 right-0 h-32 w-32 rounded-full bg-accent/10 blur-2xl translate-x-8 -translate-y-8" />
+          <CardContent className="pt-8 pb-8 text-center space-y-5">
+            <div className="flex h-16 w-16 mx-auto items-center justify-center rounded-2xl bg-accent/15 border border-accent/20">
+              <AlertCircle className="h-8 w-8 text-accent-foreground" />
             </div>
             <div className="space-y-2">
-              <h3 className="text-lg font-bold text-amber-900">أكمل حسابك أولاً</h3>
-              <p className="text-sm text-amber-700/80 max-w-sm mx-auto leading-relaxed">
-                يجب إكمال جميع خطوات إعداد الحساب (التحقق من الهوية، الملف الشخصي، واختبار الشخصية) قبل الوصول إلى الاقتراحات.
+              <h3 className="text-lg font-bold text-foreground">أكمل حسابك لتلقي الاقتراحات</h3>
+              <p className="text-sm text-muted-foreground max-w-sm mx-auto leading-relaxed">
+                يجب إكمال ملفك الشخصي بنسبة 100% قبل البدء في تلقي اقتراحات التوافق. نسبة الاكتمال الحالية: <span className="font-bold text-accent-foreground">{completionPercent}%</span>
               </p>
             </div>
+            {incompleteSections.length > 0 && (
+              <div className="flex flex-wrap items-center justify-center gap-2 max-w-sm mx-auto">
+                {incompleteSections.map((label) => (
+                  <span
+                    key={label}
+                    className="inline-flex items-center rounded-full bg-accent/10 border border-accent/20 px-3 py-1 text-xs font-medium text-accent-foreground"
+                  >
+                    {label}
+                  </span>
+                ))}
+              </div>
+            )}
             <Button asChild className="bg-gradient-to-l from-primary to-primary/80 rounded-xl font-semibold">
               <Link href="/dashboard">
                 <ArrowLeft className="h-4 w-4 me-2" />

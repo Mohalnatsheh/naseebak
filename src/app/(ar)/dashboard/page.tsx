@@ -287,10 +287,10 @@ export default function DashboardPage() {
               </div>
               <div>
                 <h3 className="font-bold text-foreground text-sm">
-                  أكمل حسابك للبدء في تلقي اقتراحات التوافق
+                  أكمل حسابك بنسبة 100% لتلقي اقتراحات التوافق
                 </h3>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  يجب إكمال جميع الخطوات أدناه لتفعيل حسابك بالكامل
+                  لن تتمكن من تلقي أو عرض الاقتراحات حتى يكتمل حسابك بالكامل ({completionPercent}% مكتمل)
                 </p>
               </div>
             </div>

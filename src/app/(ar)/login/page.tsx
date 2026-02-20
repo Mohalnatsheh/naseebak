@@ -94,6 +94,13 @@ export default function LoginPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+
+    // If OTP hasn't been sent yet, send it instead of submitting
+    if (!otpSent) {
+      handleSendOtp();
+      return;
+    }
+
     setError("");
     setLoading(true);
 
@@ -374,7 +381,7 @@ export default function LoginPage() {
                     رقم الهاتف
                   </Label>
                   <div className="relative group">
-                    <div className="absolute left-0 top-0 bottom-0 flex items-center pl-3 pointer-events-none z-10">
+                    <div dir="ltr" className="absolute left-0 top-0 bottom-0 flex items-center pl-3 pointer-events-none z-10">
                       <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
                         <svg width="22" height="16" viewBox="0 0 22 16" className="rounded-sm shadow-sm shrink-0">
                           <rect width="22" height="5.33" fill="#000" />

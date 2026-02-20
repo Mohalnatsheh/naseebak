@@ -47,6 +47,7 @@ const navLinks = [
   { href: "/dashboard/suggestions", label: "الاقتراحات", icon: Sparkles },
   { href: "/dashboard/matches", label: "التوافقات", icon: Heart },
   { href: "/dashboard/notifications", label: "الإشعارات", icon: Bell },
+  { href: "/dashboard/support", label: "الدعم", icon: LifeBuoy },
 ];
 
 const secondaryLinks = [

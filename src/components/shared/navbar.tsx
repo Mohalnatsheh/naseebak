@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, ArrowLeft, Sparkles } from "lucide-react";
+import Image from "next/image";
+import { Menu, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
@@ -73,18 +74,15 @@ export function Navbar() {
     >
       <nav className="container mx-auto max-w-7xl flex items-center justify-between px-4 py-3 md:py-4">
         {/* Logo / Brand */}
-        <Link href="/" className="group flex items-center gap-2.5 relative">
-          <div className="relative">
-            <div className={cn(
-              "h-9 w-9 rounded-xl flex items-center justify-center transition-all duration-500",
-              scrolled
-                ? "bg-gradient-to-br from-primary to-primary/80 shadow-md shadow-primary/20"
-                : "bg-gradient-to-br from-primary/90 to-primary/60 shadow-lg shadow-primary/30"
-            )}>
-              <Sparkles className="h-4.5 w-4.5 text-primary-foreground" />
-            </div>
-            <div className="absolute -inset-1 bg-primary/20 rounded-xl blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-          </div>
+        <Link href="/" className="group flex items-center gap-2 relative">
+          <Image
+            src="/images/logo-icon.png"
+            alt="نصيبك"
+            width={36}
+            height={36}
+            className="transition-transform duration-300 group-hover:scale-105"
+            priority
+          />
           <span className={cn(
             "text-2xl font-black tracking-tight transition-all duration-300",
             scrolled
@@ -168,10 +166,13 @@ export function Navbar() {
           </SheetTrigger>
           <SheetContent side="right" className="w-80 border-r-0">
             {/* Mobile menu header */}
-            <div className="flex items-center gap-2.5 mb-8">
-              <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-md shadow-primary/20">
-                <Sparkles className="h-4.5 w-4.5 text-primary-foreground" />
-              </div>
+            <div className="flex items-center gap-2 mb-8">
+              <Image
+                src="/images/logo-icon.png"
+                alt="نصيبك"
+                width={36}
+                height={36}
+              />
               <SheetTitle className="text-2xl font-black bg-gradient-to-l from-primary to-primary/70 bg-clip-text text-transparent">
                 نصيبك
               </SheetTitle>

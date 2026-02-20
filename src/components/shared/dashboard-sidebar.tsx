@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
+import Image from "next/image";
 import {
   Menu,
   Bell,
@@ -165,9 +166,13 @@ export function DashboardSidebar() {
       <div className={cn("p-4 border-b border-border/40", collapsed && !mobile && "p-3")}>
         <div className="flex items-center justify-between mb-3">
           <Link href="/dashboard" className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-sm shadow-primary/20 flex-shrink-0">
-              <Sparkles className="h-4 w-4 text-primary-foreground" />
-            </div>
+            <Image
+              src="/images/logo-icon.png"
+              alt="نصيبك"
+              width={32}
+              height={32}
+              className="flex-shrink-0"
+            />
             {(!collapsed || mobile) && (
               <span className="text-xl font-black bg-gradient-to-l from-primary to-primary/70 bg-clip-text text-transparent">
                 نصيبك
@@ -288,9 +293,12 @@ export function DashboardSidebar() {
         <div className="h-[2px] bg-gradient-to-l from-primary via-accent to-primary/50" />
         <div className="flex items-center justify-between px-4 h-14">
           <Link href="/dashboard" className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-sm shadow-primary/20">
-              <Sparkles className="h-4 w-4 text-primary-foreground" />
-            </div>
+            <Image
+              src="/images/logo-icon.png"
+              alt="نصيبك"
+              width={32}
+              height={32}
+            />
             <span className="text-lg font-black text-primary">
               نصيبك
             </span>

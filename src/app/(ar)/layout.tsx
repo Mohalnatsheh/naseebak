@@ -10,6 +10,10 @@ const cairo = Cairo({
 export const metadata: Metadata = {
   title: "نصيبك - نوصّلك بشريك العمر بالحلال",
   description: "منصة أردنية توصّل العائلات بالشريك الأنسب بالحلال — تقنية ذكية مع عادات أردنية أصيلة",
+  icons: {
+    icon: "/favicon.ico",
+    apple: "/apple-touch-icon.png",
+  },
 };
 
 export default function ArabicLayout({

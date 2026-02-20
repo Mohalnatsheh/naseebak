@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { Heart, Sparkles, Send, Facebook, Twitter, Instagram, Youtube } from "lucide-react";
+import Image from "next/image";
+import { Heart, Send, Facebook, Twitter, Instagram, Youtube } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -20,9 +21,12 @@ export function Footer() {
           {/* Column 1: Brand + Newsletter */}
           <div className="sm:col-span-2 lg:col-span-1 space-y-5">
             <Link href="/" className="inline-flex items-center gap-2">
-              <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-md shadow-primary/20">
-                <Sparkles className="h-4.5 w-4.5 text-primary-foreground" />
-              </div>
+              <Image
+                src="/images/logo-icon.png"
+                alt="نصيبك"
+                width={36}
+                height={36}
+              />
               <span className="text-2xl font-black bg-gradient-to-l from-primary to-primary/70 bg-clip-text text-transparent">
                 نصيبك
               </span>

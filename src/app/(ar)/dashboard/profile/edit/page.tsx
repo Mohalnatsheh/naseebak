@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -11,6 +11,7 @@ import {
   CheckCircle2,
   AlertCircle,
   Clock,
+  Shield,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -68,6 +69,12 @@ const jobOptions = [
   "متقاعد", "لا يعمل حالياً", "أخرى",
 ];
 const preferenceOptions = ["نعم", "لا", "لا يهم"];
+const guardianRelationships = [
+  { value: "father", label: "الأب" },
+  { value: "mother", label: "الأم" },
+  { value: "brother", label: "الأخ" },
+  { value: "guardian", label: "ولي الأمر" },
+];
 function RequiredLabel({ children }: { children: React.ReactNode }) {
   return (
     <Label>
@@ -122,6 +129,11 @@ interface ProfileForm {
   prefReligiosity: string[];
   prefSmokingStatus: string[];
   prefChildrenAcceptance: string;
+  // Guardian fields
+  parentName: string;
+  parentPhone: string;
+  relationship: string;
+  parentAddress: string;
 }
 
 const emptyForm: ProfileForm = {
@@ -165,6 +177,10 @@ const emptyForm: ProfileForm = {
   prefReligiosity: [],
   prefSmokingStatus: [],
   prefChildrenAcceptance: "",
+  parentName: "",
+  parentPhone: "",
+  relationship: "",
+  parentAddress: "",
 };
 
 function arraysEqual(a: string[], b: string[]): boolean {
@@ -183,6 +199,7 @@ export default function ProfileEditPage() {
   const [success, setSuccess] = useState(false);
   const [gender, setGender] = useState<string>("");
   const [hasPendingRequest, setHasPendingRequest] = useState(false);
+  const errorRef = useRef<HTMLDivElement>(null);
 
   // Original values from server — used to compute changes
   const [originalForm, setOriginalForm] = useState<ProfileForm>(emptyForm);
@@ -191,12 +208,14 @@ export default function ProfileEditPage() {
   useEffect(() => {
     async function load() {
       try {
-        const [profileRes, requestsRes] = await Promise.all([
+        const [profileRes, requestsRes, parentRes] = await Promise.all([
           fetch("/api/profile"),
           fetch("/api/profile/update-request"),
+          fetch("/api/profile/parent-info"),
         ]);
         const profileData = await profileRes.json();
         const requestsData = await requestsRes.json();
+        const parentData = parentRes.ok ? await parentRes.json() : null;
 
         // Check for pending request
         const pending = requestsData.requests?.find(
@@ -211,6 +230,7 @@ export default function ProfileEditPage() {
 
         if (user?.profile) {
           const p = user.profile;
+          const pi = parentData?.parentInfo;
           const loaded: ProfileForm = {
             dateOfBirth: p.dateOfBirth
               ? new Date(p.dateOfBirth).toISOString().split("T")[0]
@@ -255,6 +275,10 @@ export default function ProfileEditPage() {
             prefReligiosity: Array.isArray(p.prefReligiosity) ? p.prefReligiosity : [],
             prefSmokingStatus: Array.isArray(p.prefSmokingStatus) ? p.prefSmokingStatus : [],
             prefChildrenAcceptance: p.prefChildrenAcceptance || "",
+            parentName: pi?.parentName || "",
+            parentPhone: pi?.parentPhone || "",
+            relationship: pi?.relationship || "",
+            parentAddress: pi?.address || "",
           };
           setOriginalForm(loaded);
           setForm(loaded);
@@ -328,25 +352,41 @@ export default function ProfileEditPage() {
       if (!form.housingType) return "يرجى اختيار نوع السكن";
       if (!form.monthlyExpenses) return "يرجى اختيار المصاريف الشهرية";
     }
+    if (s === 5) {
+      if (!form.parentName) return "يرجى إدخال اسم ولي الأمر";
+      if (!form.parentPhone) return "يرجى إدخال رقم هاتف ولي الأمر";
+      if (!form.relationship) return "يرجى اختيار صلة القرابة";
+      if (!form.parentAddress) return "يرجى إدخال العنوان";
+    }
     return null;
+  }
+
+  function scrollToError() {
+    setTimeout(() => {
+      errorRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 50);
   }
 
   function handleNextStep() {
     const err = validateStep(step);
     if (err) {
       setError(err);
+      scrollToError();
       return;
     }
     setError("");
     setStep(step + 1);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   function getChangedFields(): Record<string, unknown> {
     const changes: Record<string, unknown> = {};
     const arrayFields = ["prefCity", "prefEducation", "prefMaritalStatus", "prefReligiosity", "prefSmokingStatus"] as const;
+    const guardianFields = ["parentName", "parentPhone", "relationship", "parentAddress"];
 
     for (const key of Object.keys(form) as (keyof ProfileForm)[]) {
       if (key === "jobCustom") continue;
+      if (guardianFields.includes(key)) continue;
       if (arrayFields.includes(key as typeof arrayFields[number])) {
         const formArr = form[key] as string[];
         const origArr = originalForm[key] as string[];
@@ -377,6 +417,15 @@ export default function ProfileEditPage() {
     return changes;
   }
 
+  function hasGuardianChanges(): boolean {
+    return (
+      form.parentName !== originalForm.parentName ||
+      form.parentPhone !== originalForm.parentPhone ||
+      form.relationship !== originalForm.relationship ||
+      form.parentAddress !== originalForm.parentAddress
+    );
+  }
+
   async function handleSubmit() {
     // Validate all steps before submitting
     for (let s = 1; s <= totalSteps; s++) {
@@ -384,14 +433,17 @@ export default function ProfileEditPage() {
       if (err) {
         setStep(s);
         setError(err);
+        scrollToError();
         return;
       }
     }
 
     const changes = getChangedFields();
+    const guardianChanged = hasGuardianChanges();
 
-    if (Object.keys(changes).length === 0) {
+    if (Object.keys(changes).length === 0 && !guardianChanged) {
       setError("لم تقم بإجراء أي تعديلات");
+      scrollToError();
       return;
     }
 
@@ -399,28 +451,59 @@ export default function ProfileEditPage() {
     setError("");
 
     try {
-      const res = await fetch("/api/profile/update-request", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ changes }),
-      });
+      const promises: Promise<Response>[] = [];
 
-      if (res.ok) {
+      // Submit profile changes for admin review (if any)
+      if (Object.keys(changes).length > 0) {
+        promises.push(
+          fetch("/api/profile/update-request", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ changes }),
+          })
+        );
+      }
+
+      // Save guardian info directly (admin-only data, no review needed)
+      if (guardianChanged) {
+        promises.push(
+          fetch("/api/profile/parent-info", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              parentName: form.parentName,
+              parentPhone: form.parentPhone,
+              relationship: form.relationship,
+              address: form.parentAddress,
+            }),
+          })
+        );
+      }
+
+      const results = await Promise.all(promises);
+      const allOk = results.every((r) => r.ok);
+
+      if (allOk) {
         setSuccess(true);
       } else {
-        const data = await res.json();
-        setError(data.error || "حدث خطأ أثناء إرسال طلب التعديل");
+        const failedRes = results.find((r) => !r.ok);
+        if (failedRes) {
+          const data = await failedRes.json();
+          setError(data.error || "حدث خطأ أثناء إرسال طلب التعديل");
+          scrollToError();
+        }
       }
     } catch {
       setError("حدث خطأ غير متوقع");
+      scrollToError();
     } finally {
       setSubmitting(false);
     }
   }
 
-  const totalSteps = 4;
+  const totalSteps = 5;
   const availableAreas = form.city ? jordanAreas[form.city] || [] : [];
-  const changedCount = Object.keys(getChangedFields()).length;
+  const changedCount = Object.keys(getChangedFields()).length + (hasGuardianChanges() ? 1 : 0);
 
   if (loading) {
     return (
@@ -540,7 +623,7 @@ export default function ProfileEditPage() {
       </div>
 
       {error && (
-        <div className="rounded-lg bg-destructive/10 border border-destructive/20 p-3 text-sm text-destructive">
+        <div ref={errorRef} className="rounded-lg bg-destructive/10 border border-destructive/20 p-3 text-sm text-destructive">
           {error}
         </div>
       )}
@@ -1169,6 +1252,75 @@ export default function ProfileEditPage() {
                 }
                 className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm min-h-[80px] resize-none focus:outline-none focus:ring-2 focus:ring-ring"
                 placeholder="أي حالات صحية تود الإفصاح عنها..."
+                maxLength={500}
+              />
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Step 5: Guardian Info */}
+      {step === 5 && (
+        <Card className="overflow-hidden">
+          <div className="h-1.5 bg-gradient-to-l from-primary via-primary/50 to-accent" />
+          <CardHeader>
+            <CardTitle>معلومات ولي الأمر</CardTitle>
+            <CardDescription>
+              بيانات ولي الأمر لتنسيق الزيارات العائلية
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-start gap-3 rounded-xl bg-blue-50 border border-blue-200/60 p-4">
+              <Shield className="h-5 w-5 text-blue-600 shrink-0 mt-0.5" />
+              <p className="text-sm text-blue-800 leading-relaxed">
+                هذه البيانات سرية وتستخدم فقط من قبل الإدارة لتنسيق الزيارات العائلية ولن تظهر للمستخدمين الآخرين. يتم حفظها مباشرة دون الحاجة لمراجعة الإدارة.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <RequiredLabel>اسم ولي الأمر</RequiredLabel>
+              <Input
+                value={form.parentName}
+                onChange={(e) => update("parentName", e.target.value)}
+                placeholder="الاسم الكامل لولي الأمر"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <RequiredLabel>رقم هاتف ولي الأمر</RequiredLabel>
+              <Input
+                type="tel"
+                value={form.parentPhone}
+                onChange={(e) => update("parentPhone", e.target.value)}
+                placeholder="07XXXXXXXX"
+                dir="ltr"
+                className="text-left"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <RequiredLabel>صلة القرابة</RequiredLabel>
+              <div className="grid grid-cols-2 gap-2">
+                {guardianRelationships.map((r) => (
+                  <button
+                    key={r.value}
+                    type="button"
+                    onClick={() => update("relationship", r.value)}
+                    className={`rounded-xl border px-3 py-2 text-sm transition-all ${form.relationship === r.value ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
+                  >
+                    {r.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <RequiredLabel>العنوان</RequiredLabel>
+              <textarea
+                value={form.parentAddress}
+                onChange={(e) => update("parentAddress", e.target.value)}
+                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm min-h-[80px] resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+                placeholder="العنوان التفصيلي (المدينة، الحي، الشارع...)"
                 maxLength={500}
               />
             </div>

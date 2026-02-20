@@ -55,6 +55,12 @@ interface UserProfile {
   identityDoc: {
     status: string;
   } | null;
+  parentInfo: {
+    id: string;
+    parentName: string;
+    relationship: string;
+    address: string | null;
+  } | null;
   photos: { id: string; url: string }[];
   _count: {
     receivedSuggestions: number;
@@ -62,6 +68,13 @@ interface UserProfile {
     matchesAsMale: number;
   };
 }
+
+const relationshipLabels: Record<string, string> = {
+  father: "الأب",
+  mother: "الأم",
+  brother: "الأخ",
+  guardian: "ولي الأمر",
+};
 
 /* ------------------------------------------------------------------ */
 /*  Profile completion ring (SVG circle)                               */
@@ -616,6 +629,66 @@ export default function ProfilePage() {
                 <p className="text-sm text-foreground/80 leading-relaxed relative z-10">
                   {user.profile.aboutMe}
                 </p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* ============================================ */}
+      {/*  Guardian Info                                */}
+      {/* ============================================ */}
+      {user.parentInfo && (
+        <div
+          style={{
+            animation: "fadeSlideIn 0.5s ease-out 0.27s both",
+          }}
+        >
+          <Card className="overflow-hidden border-border/40 shadow-sm">
+            <div className="h-1 bg-gradient-to-l from-sky-400 to-blue-500" />
+            <CardContent className="p-5 md:p-6">
+              <h2 className="text-lg font-bold text-foreground mb-4 flex items-center gap-2">
+                <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-sky-100 to-blue-100 flex items-center justify-center">
+                  <Shield className="h-4 w-4 text-sky-600" />
+                </div>
+                معلومات ولي الأمر
+              </h2>
+              <div className="flex items-start gap-3 rounded-xl bg-blue-50/60 border border-blue-200/40 p-3 mb-4">
+                <Lock className="h-4 w-4 text-blue-500 shrink-0 mt-0.5" />
+                <p className="text-xs text-blue-700/80 leading-relaxed">
+                  هذه البيانات سرية ولن تظهر لأي مستخدم آخر. تُستخدم فقط لتنسيق الزيارات العائلية.
+                </p>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/40 border border-border/30">
+                  <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-sky-100 to-blue-100 flex items-center justify-center flex-shrink-0">
+                    <User className="h-5 w-5 text-sky-600" />
+                  </div>
+                  <div>
+                    <p className="text-[11px] text-muted-foreground font-medium">اسم ولي الأمر</p>
+                    <p className="text-sm font-semibold text-foreground">{user.parentInfo.parentName}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/40 border border-border/30">
+                  <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-violet-100 to-purple-100 flex items-center justify-center flex-shrink-0">
+                    <Heart className="h-5 w-5 text-violet-600" />
+                  </div>
+                  <div>
+                    <p className="text-[11px] text-muted-foreground font-medium">صلة القرابة</p>
+                    <p className="text-sm font-semibold text-foreground">{relationshipLabels[user.parentInfo.relationship] || user.parentInfo.relationship}</p>
+                  </div>
+                </div>
+                {user.parentInfo.address && (
+                  <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/40 border border-border/30 sm:col-span-2">
+                    <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-emerald-100 to-green-100 flex items-center justify-center flex-shrink-0">
+                      <MapPin className="h-5 w-5 text-emerald-600" />
+                    </div>
+                    <div>
+                      <p className="text-[11px] text-muted-foreground font-medium">العنوان</p>
+                      <p className="text-sm font-semibold text-foreground">{user.parentInfo.address}</p>
+                    </div>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>

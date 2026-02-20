@@ -68,6 +68,13 @@ const jobOptions = [
   "متقاعد", "لا يعمل حالياً", "أخرى",
 ];
 const preferenceOptions = ["نعم", "لا", "لا يهم"];
+function RequiredLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <Label>
+      {children} <span className="text-destructive">*</span>
+    </Label>
+  );
+}
 const relocateOptions = [
   { value: "yes", label: "نعم" },
   { value: "no", label: "لا" },
@@ -284,6 +291,56 @@ export default function ProfileEditPage() {
     }
   }
 
+  function validateStep(s: number): string | null {
+    if (s === 1) {
+      if (!form.dateOfBirth) return "يرجى إدخال تاريخ الميلاد";
+      if (!form.nationality) return "يرجى إدخال الجنسية";
+      if (!form.city) return "يرجى اختيار المدينة";
+      if (!form.area) return "يرجى اختيار المنطقة";
+      if (!form.height) return "يرجى إدخال الطول";
+      if (!form.weight) return "يرجى إدخال الوزن";
+      if (!form.skinColor) return "يرجى اختيار لون البشرة";
+      if (!form.education) return "يرجى اختيار المستوى التعليمي";
+      if (!form.job) return "يرجى اختيار الوظيفة";
+      if (form.job === "أخرى" && !form.jobCustom) return "يرجى تحديد الوظيفة";
+      if (!form.incomeRange) return "يرجى اختيار مستوى الدخل";
+    }
+    if (s === 2) {
+      if (!form.maritalStatus) return "يرجى اختيار الحالة الاجتماعية";
+      if (form.maritalStatus !== "أعزب/عزباء" && !form.childrenCount) return "يرجى إدخال عدد الأبناء";
+      if (!form.religiosity) return "يرجى اختيار مستوى التدين";
+      if (!form.smokingStatus) return "يرجى اختيار حالة التدخين";
+      if (!form.cookingAbility) return "يرجى اختيار مهارة الطبخ";
+    }
+    if (s === 3) {
+      if (!form.aboutMe || form.aboutMe.length < 10) return "يرجى كتابة نبذة عنك (10 أحرف على الأقل)";
+      if (!form.partnerExpectations || form.partnerExpectations.length < 10) return "يرجى كتابة مواصفات الشريك المطلوبة (10 أحرف على الأقل)";
+      if (!form.hobbies) return "يرجى إدخال الهوايات والاهتمامات";
+      if (!form.prefAgeMin) return "يرجى إدخال العمر الأدنى المفضل";
+      if (!form.prefAgeMax) return "يرجى إدخال العمر الأقصى المفضل";
+      if (parseInt(form.prefAgeMin) > parseInt(form.prefAgeMax)) return "العمر الأدنى يجب أن يكون أقل من العمر الأقصى";
+      if (!form.prefChildrenAcceptance) return "يرجى اختيار تفضيل قبول الأبناء";
+    }
+    if (s === 4) {
+      if (!form.tribe) return "يرجى إدخال اسم العشيرة";
+      if (!form.familyOriginArea) return "يرجى إدخال منطقة أصل العائلة";
+      if (!form.numberOfSiblings && form.numberOfSiblings !== "0") return "يرجى إدخال عدد الإخوة والأخوات";
+      if (!form.housingType) return "يرجى اختيار نوع السكن";
+      if (!form.monthlyExpenses) return "يرجى اختيار المصاريف الشهرية";
+    }
+    return null;
+  }
+
+  function handleNextStep() {
+    const err = validateStep(step);
+    if (err) {
+      setError(err);
+      return;
+    }
+    setError("");
+    setStep(step + 1);
+  }
+
   function getChangedFields(): Record<string, unknown> {
     const changes: Record<string, unknown> = {};
     const arrayFields = ["prefCity", "prefEducation", "prefMaritalStatus", "prefReligiosity", "prefSmokingStatus"] as const;
@@ -321,6 +378,16 @@ export default function ProfileEditPage() {
   }
 
   async function handleSubmit() {
+    // Validate all steps before submitting
+    for (let s = 1; s <= totalSteps; s++) {
+      const err = validateStep(s);
+      if (err) {
+        setStep(s);
+        setError(err);
+        return;
+      }
+    }
+
     const changes = getChangedFields();
 
     if (Object.keys(changes).length === 0) {
@@ -489,7 +556,7 @@ export default function ProfileEditPage() {
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>تاريخ الميلاد</Label>
+                <RequiredLabel>تاريخ الميلاد</RequiredLabel>
                 <Input
                   type="date"
                   value={form.dateOfBirth}
@@ -498,7 +565,7 @@ export default function ProfileEditPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label>الجنسية</Label>
+                <RequiredLabel>الجنسية</RequiredLabel>
                 <Input
                   value={form.nationality}
                   onChange={(e) => update("nationality", e.target.value)}
@@ -507,7 +574,7 @@ export default function ProfileEditPage() {
             </div>
 
             <div className="space-y-2">
-              <Label>المدينة</Label>
+              <RequiredLabel>المدينة</RequiredLabel>
               <div className="grid grid-cols-3 gap-2">
                 {jordanCities.map((c) => (
                   <button
@@ -524,7 +591,7 @@ export default function ProfileEditPage() {
 
             {form.city && availableAreas.length > 0 && (
               <div className="space-y-2">
-                <Label>المنطقة</Label>
+                <RequiredLabel>المنطقة</RequiredLabel>
                 <select
                   value={form.area}
                   onChange={(e) => update("area", e.target.value)}
@@ -542,7 +609,7 @@ export default function ProfileEditPage() {
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>الطول (سم)</Label>
+                <RequiredLabel>الطول (سم)</RequiredLabel>
                 <Input
                   type="number"
                   value={form.height}
@@ -552,7 +619,7 @@ export default function ProfileEditPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label>الوزن (كغ)</Label>
+                <RequiredLabel>الوزن (كغ)</RequiredLabel>
                 <Input
                   type="number"
                   value={form.weight}
@@ -564,7 +631,7 @@ export default function ProfileEditPage() {
             </div>
 
             <div className="space-y-2">
-              <Label>لون البشرة</Label>
+              <RequiredLabel>لون البشرة</RequiredLabel>
               <div className="grid grid-cols-4 gap-2">
                 {skinColors.map((c) => (
                   <button
@@ -580,7 +647,7 @@ export default function ProfileEditPage() {
             </div>
 
             <div className="space-y-2">
-              <Label>المستوى التعليمي</Label>
+              <RequiredLabel>المستوى التعليمي</RequiredLabel>
               <div className="grid grid-cols-3 gap-2">
                 {educationLevels.map((e) => (
                   <button
@@ -596,7 +663,7 @@ export default function ProfileEditPage() {
             </div>
 
             <div className="space-y-2">
-              <Label>الوظيفة</Label>
+              <RequiredLabel>الوظيفة</RequiredLabel>
               <select
                 value={form.job}
                 onChange={(e) => {
@@ -621,7 +688,7 @@ export default function ProfileEditPage() {
             </div>
 
             <div className="space-y-2">
-              <Label>مستوى الدخل</Label>
+              <RequiredLabel>مستوى الدخل</RequiredLabel>
               <div className="grid grid-cols-3 gap-2">
                 {incomeRanges.map((r) => (
                   <button
@@ -649,7 +716,7 @@ export default function ProfileEditPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label>الحالة الاجتماعية</Label>
+              <RequiredLabel>الحالة الاجتماعية</RequiredLabel>
               <div className="grid grid-cols-3 gap-2">
                 {maritalStatuses.map((s) => (
                   <button
@@ -669,7 +736,7 @@ export default function ProfileEditPage() {
 
             {form.maritalStatus !== "أعزب/عزباء" && (
               <div className="space-y-2">
-                <Label>عدد الأبناء</Label>
+                <RequiredLabel>عدد الأبناء</RequiredLabel>
                 <Input
                   type="number"
                   value={form.childrenCount}
@@ -683,7 +750,7 @@ export default function ProfileEditPage() {
             )}
 
             <div className="space-y-2">
-              <Label>مستوى التدين</Label>
+              <RequiredLabel>مستوى التدين</RequiredLabel>
               <div className="grid grid-cols-2 gap-2">
                 {religiosityLevels.map((r) => (
                   <button
@@ -699,7 +766,7 @@ export default function ProfileEditPage() {
             </div>
 
             <div className="space-y-2">
-              <Label>التدخين</Label>
+              <RequiredLabel>التدخين</RequiredLabel>
               <div className="grid grid-cols-2 gap-2">
                 {smokingStatuses.map((s) => (
                   <button
@@ -755,7 +822,7 @@ export default function ProfileEditPage() {
             )}
 
             <div className="space-y-2">
-              <Label>مهارة الطبخ</Label>
+              <RequiredLabel>مهارة الطبخ</RequiredLabel>
               <div className="grid grid-cols-2 gap-2">
                 {cookingLevels.map((c) => (
                   <button
@@ -803,7 +870,7 @@ export default function ProfileEditPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label>نبذة عني</Label>
+              <RequiredLabel>نبذة عني</RequiredLabel>
               <textarea
                 value={form.aboutMe}
                 onChange={(e) => update("aboutMe", e.target.value)}
@@ -817,7 +884,7 @@ export default function ProfileEditPage() {
             </div>
 
             <div className="space-y-2">
-              <Label>مواصفات الشريك المطلوبة</Label>
+              <RequiredLabel>مواصفات الشريك المطلوبة</RequiredLabel>
               <textarea
                 value={form.partnerExpectations}
                 onChange={(e) =>
@@ -833,7 +900,7 @@ export default function ProfileEditPage() {
             </div>
 
             <div className="space-y-2">
-              <Label>الهوايات والاهتمامات</Label>
+              <RequiredLabel>الهوايات والاهتمامات</RequiredLabel>
               <Input
                 value={form.hobbies}
                 onChange={(e) => update("hobbies", e.target.value)}
@@ -864,7 +931,7 @@ export default function ProfileEditPage() {
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>العمر الأدنى</Label>
+                <RequiredLabel>العمر الأدنى</RequiredLabel>
                 <Input
                   type="number"
                   value={form.prefAgeMin}
@@ -876,7 +943,7 @@ export default function ProfileEditPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label>العمر الأقصى</Label>
+                <RequiredLabel>العمر الأقصى</RequiredLabel>
                 <Input
                   type="number"
                   value={form.prefAgeMax}
@@ -986,7 +1053,7 @@ export default function ProfileEditPage() {
             </div>
 
             <div className="space-y-2">
-              <Label>قبول وجود أبناء من زواج سابق</Label>
+              <RequiredLabel>قبول وجود أبناء من زواج سابق</RequiredLabel>
               <div className="grid grid-cols-3 gap-2">
                 {preferenceOptions.map((o) => (
                   <button key={o} type="button" onClick={() => update("prefChildrenAcceptance", o)}
@@ -1027,7 +1094,7 @@ export default function ProfileEditPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label>العشيرة</Label>
+              <RequiredLabel>العشيرة</RequiredLabel>
               <Input
                 value={form.tribe}
                 onChange={(e) => update("tribe", e.target.value)}
@@ -1036,7 +1103,7 @@ export default function ProfileEditPage() {
             </div>
 
             <div className="space-y-2">
-              <Label>منطقة أصل العائلة</Label>
+              <RequiredLabel>منطقة أصل العائلة</RequiredLabel>
               <Input
                 value={form.familyOriginArea}
                 onChange={(e) =>
@@ -1047,7 +1114,7 @@ export default function ProfileEditPage() {
             </div>
 
             <div className="space-y-2">
-              <Label>عدد الإخوة والأخوات</Label>
+              <RequiredLabel>عدد الإخوة والأخوات</RequiredLabel>
               <Input
                 type="number"
                 value={form.numberOfSiblings}
@@ -1062,7 +1129,7 @@ export default function ProfileEditPage() {
             </div>
 
             <div className="space-y-2">
-              <Label>نوع السكن</Label>
+              <RequiredLabel>نوع السكن</RequiredLabel>
               <div className="grid grid-cols-3 gap-2">
                 {housingTypes.map((h) => (
                   <button
@@ -1078,7 +1145,7 @@ export default function ProfileEditPage() {
             </div>
 
             <div className="space-y-2">
-              <Label>المصاريف الشهرية</Label>
+              <RequiredLabel>المصاريف الشهرية</RequiredLabel>
               <div className="grid grid-cols-2 gap-2">
                 {expenseRanges.map((e) => (
                   <button
@@ -1137,7 +1204,7 @@ export default function ProfileEditPage() {
 
         {step < totalSteps ? (
           <Button
-            onClick={() => setStep(step + 1)}
+            onClick={handleNextStep}
             className="bg-gradient-to-l from-primary to-primary/80"
           >
             التالي

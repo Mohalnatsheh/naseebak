@@ -282,7 +282,7 @@ function CandidateDetails({ c }: { c: Suggestion["candidate"] | Interest["candid
         <InfoRow icon={MapPinned} label="منطقة أصل العائلة" value={c.familyOriginArea} />
         <InfoRow icon={Users} label="عدد الإخوة" value={c.numberOfSiblings !== null && c.numberOfSiblings !== undefined ? `${c.numberOfSiblings}` : null} />
         <InfoRow icon={Home} label="نوع السكن" value={c.housingType} />
-        <InfoRow icon={MapPin} label="الاستعداد للانتقال" value={c.willingToRelocate} />
+        <InfoRow icon={MapPin} label="الاستعداد للانتقال" value={c.willingToRelocate === "yes" ? "نعم" : c.willingToRelocate === "no" ? "لا" : c.willingToRelocate === "maybe" ? "ربما" : c.willingToRelocate} />
         <InfoRow icon={Heart} label="القيم العائلية" value={c.familyValues} wide />
       </Section>
       {(c.hobbies || c.interests) && (

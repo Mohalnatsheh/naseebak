@@ -188,11 +188,50 @@ Key points:
 **Brand name:** نصيبك (Naseebak) — note: Arabic words like "النصيب" (fate) and "نصيبها" (her destiny) are regular vocabulary, not the brand name. Only standalone "نصيبك" is the brand.
 
 The color palette is **deep blue + warm gold** using oklch values in `globals.css`:
-- **Primary:** Deep blue `oklch(0.35 0.08 250)`
-- **Secondary:** Muted blue `oklch(0.45 0.06 250)`
-- **Accent:** Warm gold `oklch(0.72 0.12 75)`
+- **Primary:** Deep blue `oklch(0.35 0.08 250)` — main UI elements, headers, icons, buttons
+- **Secondary:** Muted blue `oklch(0.45 0.06 250)` — supporting elements, gradient endpoints
+- **Accent:** Warm gold `oklch(0.72 0.12 75)` — highlights, badges, attention elements
 
-Green/emerald is used **only** for semantic success states (verified badges, completed payments, approved identity). Never use green for branding or decorative elements.
+### Color Usage Rules (Strictly Enforced)
+
+All pages (dashboard AND public landing pages) use CSS variable-based color tokens. **Never use hardcoded Tailwind color classes** like `blue-500`, `violet-600`, `rose-400`, etc.
+
+| Purpose | Use | Examples |
+|---|---|---|
+| Main UI / decorative | `primary`, `secondary`, `accent` tokens | `bg-primary/10`, `text-primary`, `from-primary to-secondary` |
+| Success states only | `emerald-` / `green-` | Verified badges, approved identity, completed payments, matched status |
+| Pending/warning states only | `amber-` | Pending identity, medium compatibility scores, "waiting" status badges |
+| Error/destructive only | `destructive` token | Delete buttons, rejected status, failed payments, low scores |
+| Muted/neutral | `muted`, `muted-foreground` tokens | Subtle backgrounds, placeholder text, disabled states |
+
+**Never use** `blue-`, `violet-`, `purple-`, `rose-`, `pink-`, `sky-`, `cyan-`, `indigo-`, `slate-`, `gray-`, `orange-` as Tailwind color classes. Always use the CSS variable tokens (`primary`, `secondary`, `accent`, `muted`, `destructive`) instead.
+
+**Gradient patterns:**
+- Primary gradient: `from-primary to-secondary`
+- Accent gradient: `from-accent to-accent/70`
+- Subtle backgrounds: `bg-primary/5`, `bg-primary/10`, `bg-accent/10`
+- Icon containers: `from-primary/10 to-primary/5`, `from-secondary/10 to-primary/5`
+
+## Landing Page UI Patterns
+
+### Title Dash Hidden on Mobile
+
+Several landing pages (home, about, terms, privacy) use an em-dash `—` separator in h1 titles between the brand/keyword and the subtitle. On mobile, the dash is hidden and replaced with a line break:
+
+```tsx
+<span className="mx-3 text-muted-foreground/40 hidden sm:inline">—</span>
+<br className="sm:hidden" />
+```
+
+This pattern must be applied to any new landing page title that uses a dash separator.
+
+### Footer
+
+The footer (`src/components/shared/footer.tsx`) has 4 columns: Brand description, Quick Links, Pages, Contact Info + social icons. No newsletter/email subscription section — it was intentionally removed.
+
+### Blog Category Filter
+
+The blog page (`/blog`) uses a centered, wrapping category filter bar matching the FAQ page pattern: `flex flex-wrap items-center justify-center gap-2`. Do not use horizontal scroll (`overflow-x-auto`) for filter bars.
 
 ## Critical Domain Rules
 
@@ -232,8 +271,8 @@ All users (both genders) see the same 3-tab suggestions page:
 | Status | Arabic | Badge Color | Condition |
 |---|---|---|---|
 | Waiting | بانتظار الاطلاع | Amber | INTEREST notification to other user has `isRead: false` |
-| Seen | تم الاطلاع | Blue | Notification `isRead: true`, no `MutualMatch` exists |
-| Matched | توافق متبادل | Green | A `MutualMatch` record exists for this pair |
+| Seen | تم الاطلاع | Primary (deep blue) | Notification `isRead: true`, no `MutualMatch` exists |
+| Matched | توافق متبادل | Emerald (success) | A `MutualMatch` record exists for this pair |
 
 **Key files:**
 - `src/app/api/suggestions/route.ts` — Suggestions list (uses `recipientId`/`candidate`)

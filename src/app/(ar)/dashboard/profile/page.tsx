@@ -241,7 +241,7 @@ export default function ProfilePage() {
     return (
       <div className="flex flex-col items-center justify-center py-20 gap-4">
         <div className="relative">
-          <div className="h-16 w-16 rounded-full bg-gradient-to-br from-primary/20 to-blue-200/30 flex items-center justify-center">
+          <div className="h-16 w-16 rounded-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
           <div className="absolute inset-0 h-16 w-16 rounded-full bg-primary/10 animate-ping" />
@@ -257,8 +257,8 @@ export default function ProfilePage() {
     return (
       <div className="flex flex-col items-center justify-center py-20 gap-4">
         <div className="relative mx-auto w-24 h-24">
-          <div className="absolute inset-0 bg-gradient-to-br from-rose-100/60 to-primary/10 rounded-full animate-pulse" />
-          <div className="relative h-24 w-24 rounded-full bg-gradient-to-br from-rose-50 to-primary/5 flex items-center justify-center border-2 border-dashed border-rose-200/50">
+          <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-primary/5 rounded-full animate-pulse" />
+          <div className="relative h-24 w-24 rounded-full bg-gradient-to-br from-primary/5 to-primary/[0.03] flex items-center justify-center border-2 border-dashed border-primary/20">
             <User className="h-10 w-10 text-muted-foreground/40" />
           </div>
         </div>
@@ -331,7 +331,7 @@ export default function ProfilePage() {
                 )}
               </button>
               {user.identityDoc?.status === "APPROVED" && (
-                <div className="absolute -bottom-1.5 -end-1.5 h-7 w-7 rounded-full bg-gradient-to-br from-emerald-400 to-green-500 flex items-center justify-center shadow-md ring-2 ring-primary">
+                <div className="absolute -bottom-1.5 -end-1.5 h-7 w-7 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-500 flex items-center justify-center shadow-md ring-2 ring-primary">
                   <Shield className="h-3.5 w-3.5 text-white" />
                 </div>
               )}
@@ -346,14 +346,14 @@ export default function ProfilePage() {
                 <span
                   className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold ${
                     user.gender === "MALE"
-                      ? "bg-blue-400/20 text-blue-100 border border-blue-300/20"
-                      : "bg-pink-400/20 text-pink-100 border border-pink-300/20"
+                      ? "bg-white/15 text-white/90 border border-white/20"
+                      : "bg-white/15 text-white/90 border border-white/20"
                   }`}
                 >
                   {user.gender === "MALE" ? "ذكر" : "أنثى"}
                 </span>
                 {user.identityDoc?.status === "APPROVED" && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-400/20 text-emerald-100 border border-emerald-300/20 px-3 py-1 text-xs font-bold">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-white/15 text-white/90 border border-white/20 px-3 py-1 text-xs font-bold">
                     <Shield className="h-3 w-3" />
                     موثّق
                   </span>
@@ -388,7 +388,7 @@ export default function ProfilePage() {
       </div>
 
       {/* Avatar privacy note */}
-      <div className="flex items-center gap-3 p-3 bg-gradient-to-l from-primary/5 to-blue-50/50 rounded-xl border border-primary/10 text-sm text-muted-foreground">
+      <div className="flex items-center gap-3 p-3 bg-gradient-to-l from-primary/5 to-primary/[0.03] rounded-xl border border-primary/10 text-sm text-muted-foreground">
         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10">
           <Lock className="h-4 w-4 text-primary" />
         </div>
@@ -402,18 +402,18 @@ export default function ProfilePage() {
       {/* ============================================ */}
       {completionPct < 100 && completeness && (
         <Card
-          className="relative overflow-hidden border-amber-200/60 bg-gradient-to-l from-amber-50/80 to-orange-50/50 shadow-md"
+          className="relative overflow-hidden border-accent/30 bg-gradient-to-l from-accent/8 to-accent/3 shadow-md"
           style={{ animation: "fadeSlideIn 0.5s ease-out 0.1s both" }}
         >
-          <div className="absolute top-0 right-0 h-32 w-32 rounded-full bg-amber-200/20 blur-2xl translate-x-8 -translate-y-8" />
+          <div className="absolute top-0 right-0 h-32 w-32 rounded-full bg-accent/10 blur-2xl translate-x-8 -translate-y-8" />
           <CardContent className="pt-6 pb-5">
             <div className="flex items-center gap-5 mb-4">
               <CompletionRing percentage={completionPct} />
               <div className="flex-1">
-                <h3 className="font-bold text-amber-900 text-base">
+                <h3 className="font-bold text-foreground text-base">
                   أكمل ملفك الشخصي
                 </h3>
-                <p className="text-xs text-amber-700/80 mt-0.5">
+                <p className="text-xs text-muted-foreground mt-0.5">
                   كلما زادت نسبة الاكتمال، زادت جودة الاقتراحات
                 </p>
               </div>
@@ -424,32 +424,32 @@ export default function ProfilePage() {
                   <div className={`flex items-center gap-3 p-2.5 rounded-xl border transition-colors ${
                     section.percentage === 100
                       ? "bg-emerald-50/60 border-emerald-200/50"
-                      : "bg-amber-50/60 border-amber-200/50 hover:bg-amber-50"
+                      : "bg-accent/5 border-accent/20 hover:bg-accent/8"
                   }`}>
                     {section.percentage === 100 ? (
                       <CheckCircle2 className="h-5 w-5 text-emerald-500 shrink-0" />
                     ) : (
-                      <AlertCircle className="h-5 w-5 text-amber-500 shrink-0" />
+                      <AlertCircle className="h-5 w-5 text-accent-foreground shrink-0" />
                     )}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between mb-1">
-                        <span className={`text-sm font-medium ${section.percentage === 100 ? "text-emerald-800" : "text-amber-800"}`}>
+                        <span className={`text-sm font-medium ${section.percentage === 100 ? "text-emerald-800" : "text-foreground"}`}>
                           {section.label}
                         </span>
-                        <span className={`text-xs font-bold ${section.percentage === 100 ? "text-emerald-600" : "text-amber-600"}`}>
+                        <span className={`text-xs font-bold ${section.percentage === 100 ? "text-emerald-600" : "text-accent-foreground"}`}>
                           {section.percentage}%
                         </span>
                       </div>
                       <div className="h-1.5 rounded-full bg-muted/60 overflow-hidden">
                         <div
                           className={`h-full rounded-full transition-all duration-500 ${
-                            section.percentage === 100 ? "bg-emerald-500" : "bg-amber-500"
+                            section.percentage === 100 ? "bg-emerald-500" : "bg-accent"
                           }`}
                           style={{ width: `${section.percentage}%` }}
                         />
                       </div>
                       {section.missingFields.length > 0 && section.percentage < 100 && (
-                        <p className="text-[10px] text-amber-600/70 mt-1 truncate">
+                        <p className="text-[10px] text-muted-foreground mt-1 truncate">
                           ينقص: {section.missingFields.slice(0, 3).join("، ")}
                           {section.missingFields.length > 3 && ` (+${section.missingFields.length - 3})`}
                         </p>
@@ -465,10 +465,10 @@ export default function ProfilePage() {
 
       {completionPct === 100 && (
         <Card
-          className="relative overflow-hidden border-emerald-200/60 bg-gradient-to-l from-emerald-50/80 to-green-50/50 shadow-md"
+          className="relative overflow-hidden border-emerald-200/60 bg-gradient-to-l from-emerald-50/80 to-emerald-50/30 shadow-md"
           style={{ animation: "fadeSlideIn 0.5s ease-out 0.1s both" }}
         >
-          <div className="absolute top-0 right-0 h-32 w-32 rounded-full bg-emerald-200/20 blur-2xl translate-x-8 -translate-y-8" />
+          <div className="absolute top-0 right-0 h-32 w-32 rounded-full bg-emerald-100/20 blur-2xl translate-x-8 -translate-y-8" />
           <CardContent className="pt-6 pb-5">
             <div className="flex items-center gap-5">
               <CompletionRing percentage={completionPct} />
@@ -507,8 +507,8 @@ export default function ProfilePage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {user.profile.city && (
                   <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/40 border border-border/30 hover:border-border/60 transition-colors">
-                    <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-blue-100 to-sky-100 flex items-center justify-center flex-shrink-0">
-                      <MapPin className="h-5 w-5 text-blue-600" />
+                    <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary/10 to-primary/5 flex items-center justify-center flex-shrink-0">
+                      <MapPin className="h-5 w-5 text-primary" />
                     </div>
                     <div>
                       <p className="text-[11px] text-muted-foreground font-medium">
@@ -522,8 +522,8 @@ export default function ProfilePage() {
                 )}
                 {user.profile.education && (
                   <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/40 border border-border/30 hover:border-border/60 transition-colors">
-                    <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-violet-100 to-purple-100 flex items-center justify-center flex-shrink-0">
-                      <GraduationCap className="h-5 w-5 text-violet-600" />
+                    <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-secondary/10 to-primary/5 flex items-center justify-center flex-shrink-0">
+                      <GraduationCap className="h-5 w-5 text-secondary" />
                     </div>
                     <div>
                       <p className="text-[11px] text-muted-foreground font-medium">
@@ -537,8 +537,8 @@ export default function ProfilePage() {
                 )}
                 {user.profile.job && (
                   <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/40 border border-border/30 hover:border-border/60 transition-colors">
-                    <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-blue-100 to-sky-100 flex items-center justify-center flex-shrink-0">
-                      <Briefcase className="h-5 w-5 text-blue-600" />
+                    <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary/10 to-primary/5 flex items-center justify-center flex-shrink-0">
+                      <Briefcase className="h-5 w-5 text-primary" />
                     </div>
                     <div>
                       <p className="text-[11px] text-muted-foreground font-medium">
@@ -552,8 +552,8 @@ export default function ProfilePage() {
                 )}
                 {user.profile.maritalStatus && (
                   <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/40 border border-border/30 hover:border-border/60 transition-colors">
-                    <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-rose-100 to-pink-100 flex items-center justify-center flex-shrink-0">
-                      <Heart className="h-5 w-5 text-rose-600" />
+                    <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary/10 to-secondary/5 flex items-center justify-center flex-shrink-0">
+                      <Heart className="h-5 w-5 text-primary" />
                     </div>
                     <div>
                       <p className="text-[11px] text-muted-foreground font-medium">
@@ -567,8 +567,8 @@ export default function ProfilePage() {
                 )}
                 {user.profile.religiosity && (
                   <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/40 border border-border/30 hover:border-border/60 transition-colors">
-                    <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-amber-100 to-orange-100 flex items-center justify-center flex-shrink-0">
-                      <Moon className="h-5 w-5 text-amber-600" />
+                    <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-accent/10 to-accent/5 flex items-center justify-center flex-shrink-0">
+                      <Moon className="h-5 w-5 text-accent-foreground" />
                     </div>
                     <div>
                       <p className="text-[11px] text-muted-foreground font-medium">
@@ -582,8 +582,8 @@ export default function ProfilePage() {
                 )}
                 {user.profile.dateOfBirth && (
                   <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/40 border border-border/30 hover:border-border/60 transition-colors">
-                    <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-cyan-100 to-blue-100 flex items-center justify-center flex-shrink-0">
-                      <Calendar className="h-5 w-5 text-cyan-600" />
+                    <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary/10 to-secondary/5 flex items-center justify-center flex-shrink-0">
+                      <Calendar className="h-5 w-5 text-primary" />
                     </div>
                     <div>
                       <p className="text-[11px] text-muted-foreground font-medium">
@@ -613,17 +613,17 @@ export default function ProfilePage() {
           }}
         >
           <Card className="overflow-hidden border-border/40 shadow-sm">
-            <div className="h-1 bg-gradient-to-l from-violet-400 to-purple-500" />
+            <div className="h-1 bg-gradient-to-l from-primary to-secondary" />
             <CardContent className="p-5 md:p-6">
               <h2 className="text-lg font-bold text-foreground mb-4 flex items-center gap-2">
-                <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-violet-100 to-purple-100 flex items-center justify-center">
-                  <Quote className="h-4 w-4 text-violet-600" />
+                <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-primary/10 to-secondary/10 flex items-center justify-center">
+                  <Quote className="h-4 w-4 text-primary" />
                 </div>
                 نبذة عني
               </h2>
-              <div className="relative bg-gradient-to-l from-violet-50/50 to-purple-50/30 rounded-xl p-5 border border-violet-100/50">
+              <div className="relative bg-gradient-to-l from-primary/5 to-secondary/5 rounded-xl p-5 border border-primary/10">
                 {/* Decorative quote marks */}
-                <div className="absolute top-3 end-4 text-violet-200/60">
+                <div className="absolute top-3 end-4 text-primary/15">
                   <Quote className="h-8 w-8" />
                 </div>
                 <p className="text-sm text-foreground/80 leading-relaxed relative z-10">
@@ -645,24 +645,24 @@ export default function ProfilePage() {
           }}
         >
           <Card className="overflow-hidden border-border/40 shadow-sm">
-            <div className="h-1 bg-gradient-to-l from-sky-400 to-blue-500" />
+            <div className="h-1 bg-gradient-to-l from-primary to-secondary" />
             <CardContent className="p-5 md:p-6">
               <h2 className="text-lg font-bold text-foreground mb-4 flex items-center gap-2">
-                <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-sky-100 to-blue-100 flex items-center justify-center">
-                  <Shield className="h-4 w-4 text-sky-600" />
+                <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-primary/10 to-primary/5 flex items-center justify-center">
+                  <Shield className="h-4 w-4 text-primary" />
                 </div>
                 معلومات ولي الأمر
               </h2>
-              <div className="flex items-start gap-3 rounded-xl bg-blue-50/60 border border-blue-200/40 p-3 mb-4">
-                <Lock className="h-4 w-4 text-blue-500 shrink-0 mt-0.5" />
-                <p className="text-xs text-blue-700/80 leading-relaxed">
+              <div className="flex items-start gap-3 rounded-xl bg-primary/5 border border-primary/15 p-3 mb-4">
+                <Lock className="h-4 w-4 text-primary/70 shrink-0 mt-0.5" />
+                <p className="text-xs text-primary leading-relaxed">
                   هذه البيانات سرية ولن تظهر لأي مستخدم آخر. تُستخدم فقط لتنسيق الزيارات العائلية.
                 </p>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/40 border border-border/30">
-                  <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-sky-100 to-blue-100 flex items-center justify-center flex-shrink-0">
-                    <User className="h-5 w-5 text-sky-600" />
+                  <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary/10 to-primary/5 flex items-center justify-center flex-shrink-0">
+                    <User className="h-5 w-5 text-primary" />
                   </div>
                   <div>
                     <p className="text-[11px] text-muted-foreground font-medium">اسم ولي الأمر</p>
@@ -670,8 +670,8 @@ export default function ProfilePage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/40 border border-border/30">
-                  <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-violet-100 to-purple-100 flex items-center justify-center flex-shrink-0">
-                    <Heart className="h-5 w-5 text-violet-600" />
+                  <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-secondary/10 to-primary/5 flex items-center justify-center flex-shrink-0">
+                    <Heart className="h-5 w-5 text-secondary" />
                   </div>
                   <div>
                     <p className="text-[11px] text-muted-foreground font-medium">صلة القرابة</p>
@@ -680,8 +680,8 @@ export default function ProfilePage() {
                 </div>
                 {user.parentInfo.address && (
                   <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/40 border border-border/30 sm:col-span-2">
-                    <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-emerald-100 to-green-100 flex items-center justify-center flex-shrink-0">
-                      <MapPin className="h-5 w-5 text-emerald-600" />
+                    <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-accent/10 to-accent/5 flex items-center justify-center flex-shrink-0">
+                      <MapPin className="h-5 w-5 text-accent-foreground" />
                     </div>
                     <div>
                       <p className="text-[11px] text-muted-foreground font-medium">العنوان</p>
@@ -709,28 +709,28 @@ export default function ProfilePage() {
             value: user.matchCredits,
             label: "رصيد التوافقات",
             icon: Sparkles,
-            gradient: "from-violet-500 to-purple-600",
-            bgLight: "from-violet-50 to-purple-50",
-            textColor: "text-violet-700",
-            shadowColor: "shadow-violet-500/10",
+            gradient: "from-primary to-secondary",
+            bgLight: "from-primary/10 to-secondary/10",
+            textColor: "text-primary",
+            shadowColor: "shadow-primary/10",
           },
           {
             value: user._count.receivedSuggestions,
             label: "اقتراحات مستلمة",
             icon: Star,
-            gradient: "from-amber-500 to-orange-500",
-            bgLight: "from-amber-50 to-orange-50",
-            textColor: "text-amber-700",
-            shadowColor: "shadow-amber-500/10",
+            gradient: "from-accent to-accent/70",
+            bgLight: "from-accent/10 to-accent/5",
+            textColor: "text-accent-foreground",
+            shadowColor: "shadow-accent/10",
           },
           {
             value: totalMatches,
             label: "توافقات",
             icon: Heart,
-            gradient: "from-rose-500 to-pink-500",
-            bgLight: "from-rose-50 to-pink-50",
-            textColor: "text-rose-700",
-            shadowColor: "shadow-rose-500/10",
+            gradient: "from-secondary to-primary",
+            bgLight: "from-secondary/10 to-primary/10",
+            textColor: "text-primary",
+            shadowColor: "shadow-primary/10",
           },
         ].map((stat, i) => (
           <Card
@@ -774,24 +774,24 @@ export default function ProfilePage() {
               desc: user.personalityResult
                 ? `النتيجة: ${user.personalityResult.personalityType}`
                 : "لم يُجرَ بعد",
-              gradient: "from-pink-500 to-rose-600",
-              hoverBorder: "hover:border-pink-300",
+              gradient: "from-primary to-secondary",
+              hoverBorder: "hover:border-primary/30",
             },
             {
               href: "/dashboard/identity",
               icon: Shield,
               label: "التحقق من الهوية",
               desc: user.identityDoc?.status === "APPROVED" ? "تم التحقق" : "قيد المراجعة",
-              gradient: "from-sky-500 to-blue-500",
-              hoverBorder: "hover:border-sky-300",
+              gradient: "from-secondary to-primary",
+              hoverBorder: "hover:border-secondary/30",
             },
             {
               href: "/dashboard/photos",
               icon: Camera,
               label: "صوري الشخصية",
               desc: `${user.photos?.length ?? 0} صور مرفوعة`,
-              gradient: "from-violet-500 to-purple-600",
-              hoverBorder: "hover:border-violet-300",
+              gradient: "from-primary to-primary/70",
+              hoverBorder: "hover:border-primary/30",
             },
           ].map((item) => (
             <Link key={item.href} href={item.href}>
@@ -831,19 +831,19 @@ export default function ProfilePage() {
       {/* ============================================ */}
       {pendingRequest && (
         <Card
-          className="relative overflow-hidden border-blue-200/60 bg-gradient-to-l from-blue-50/80 to-sky-50/50 shadow-sm"
+          className="relative overflow-hidden border-primary/20 bg-gradient-to-l from-primary/8 to-primary/3 shadow-sm"
           style={{ animation: "fadeSlideIn 0.5s ease-out both" }}
         >
           <CardContent className="pt-5 pb-4">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-100 border border-blue-200/60">
-                <Clock className="h-5 w-5 text-blue-600" />
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 border border-primary/20">
+                <Clock className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <h3 className="font-bold text-blue-900 text-sm">
+                <h3 className="font-bold text-primary text-sm">
                   طلب تعديل قيد المراجعة
                 </h3>
-                <p className="text-xs text-blue-700/80 mt-0.5">
+                <p className="text-xs text-primary/80 mt-0.5">
                   تم إرسال طلب تعديل الملف الشخصي. سيتم مراجعته من قبل الإدارة وإعلامك بالنتيجة.
                 </p>
               </div>
@@ -862,11 +862,11 @@ export default function ProfilePage() {
       >
         <Card className="relative overflow-hidden border-destructive/20 shadow-sm">
           {/* Subtle red gradient border top */}
-          <div className="h-1 bg-gradient-to-l from-red-400 to-destructive" />
+          <div className="h-1 bg-gradient-to-l from-destructive/70 to-destructive" />
           <CardContent className="p-5 md:p-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="flex items-start gap-4">
-                <div className="h-11 w-11 rounded-xl bg-gradient-to-br from-red-100 to-rose-100 flex items-center justify-center flex-shrink-0">
+                <div className="h-11 w-11 rounded-xl bg-gradient-to-br from-destructive/10 to-destructive/5 flex items-center justify-center flex-shrink-0">
                   <Ban className="h-5 w-5 text-destructive" />
                 </div>
                 <div>
@@ -890,10 +890,10 @@ export default function ProfilePage() {
             </div>
 
             {showDeactivateConfirm && (
-              <div className="mt-5 p-5 bg-gradient-to-l from-destructive/5 to-red-50/50 rounded-xl border border-destructive/20 space-y-4">
+              <div className="mt-5 p-5 bg-gradient-to-l from-destructive/5 to-destructive/[0.03] rounded-xl border border-destructive/20 space-y-4">
                 {/* Backdrop blur modal feel */}
                 <div className="flex items-center gap-3">
-                  <div className="h-9 w-9 rounded-lg bg-red-100 flex items-center justify-center flex-shrink-0">
+                  <div className="h-9 w-9 rounded-lg bg-destructive/10 flex items-center justify-center flex-shrink-0">
                     <AlertCircle className="h-5 w-5 text-destructive" />
                   </div>
                   <p className="text-sm font-bold text-destructive">
@@ -902,7 +902,7 @@ export default function ProfilePage() {
                 </div>
                 <p className="text-xs text-muted-foreground leading-relaxed">
                   سيتم إخفاء ملفك الشخصي من جميع الاقتراحات والبحث. يمكنك
-                  إعادة تفعيل حسابك في أي وقت عبر تسجيل الدخول مجدداً.
+                  إعادة تفعيل حسابك في أي وقت عبر تسجيل الدخول مجددًا.
                 </p>
                 <div className="flex gap-3">
                   <Button
@@ -949,21 +949,21 @@ export default function ProfilePage() {
       {/*  Account Deletion (30-day grace period)       */}
       {/* ============================================ */}
       <div style={{ animation: "fadeSlideIn 0.5s ease-out 0.5s both" }}>
-        <Card className="relative overflow-hidden border-red-300/30 shadow-sm">
-          <div className="h-1 bg-gradient-to-l from-red-600 to-red-400" />
+        <Card className="relative overflow-hidden border-destructive/20 shadow-sm">
+          <div className="h-1 bg-gradient-to-l from-destructive to-destructive/70" />
           <CardContent className="p-5 md:p-6">
             {deletionRequest ? (
               /* Active deletion request — show countdown */
               <div className="space-y-4">
                 <div className="flex items-start gap-4">
-                  <div className="h-11 w-11 rounded-xl bg-gradient-to-br from-red-100 to-rose-100 flex items-center justify-center flex-shrink-0">
-                    <Trash2 className="h-5 w-5 text-red-600" />
+                  <div className="h-11 w-11 rounded-xl bg-gradient-to-br from-destructive/10 to-destructive/5 flex items-center justify-center flex-shrink-0">
+                    <Trash2 className="h-5 w-5 text-destructive" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-red-700 text-base">حذف الحساب قيد التنفيذ</h3>
+                    <h3 className="font-bold text-destructive text-base">حذف الحساب قيد التنفيذ</h3>
                     <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
                       سيتم حذف حسابك نهائياً في{" "}
-                      <span className="font-bold text-red-600">
+                      <span className="font-bold text-destructive">
                         {new Date(deletionRequest.scheduledAt).toLocaleDateString("ar-JO", {
                           year: "numeric",
                           month: "long",
@@ -976,7 +976,7 @@ export default function ProfilePage() {
                 </div>
                 <Button
                   variant="outline"
-                  className="border-green-300 text-green-700 hover:bg-green-50 hover:border-green-400 rounded-xl font-semibold"
+                  className="border-emerald-300 text-emerald-700 hover:bg-emerald-50 hover:border-emerald-400 rounded-xl font-semibold"
                   disabled={deletionLoading}
                   onClick={async () => {
                     setDeletionLoading(true);
@@ -1004,11 +1004,11 @@ export default function ProfilePage() {
               /* No deletion request — show delete button */
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="flex items-start gap-4">
-                  <div className="h-11 w-11 rounded-xl bg-gradient-to-br from-red-100 to-rose-100 flex items-center justify-center flex-shrink-0">
-                    <Trash2 className="h-5 w-5 text-red-600" />
+                  <div className="h-11 w-11 rounded-xl bg-gradient-to-br from-destructive/10 to-destructive/5 flex items-center justify-center flex-shrink-0">
+                    <Trash2 className="h-5 w-5 text-destructive" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-red-700 text-base">حذف الحساب نهائياً</h3>
+                    <h3 className="font-bold text-destructive text-base">حذف الحساب نهائياً</h3>
                     <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
                       سيتم حذف جميع بياناتك نهائياً بعد 30 يوماً من تقديم الطلب. لا يمكن استعادة البيانات بعد الحذف.
                     </p>
@@ -1016,7 +1016,7 @@ export default function ProfilePage() {
                 </div>
                 <Button
                   variant="outline"
-                  className="border-red-300/50 text-red-600 hover:bg-red-50 hover:border-red-400 shrink-0 rounded-xl font-semibold"
+                  className="border-destructive/30 text-destructive hover:bg-destructive/5 hover:border-destructive/50 shrink-0 rounded-xl font-semibold"
                   onClick={() => setShowDeleteConfirm(true)}
                 >
                   <Trash2 className="h-4 w-4 me-2" />
@@ -1026,12 +1026,12 @@ export default function ProfilePage() {
             )}
 
             {showDeleteConfirm && !deletionRequest && (
-              <div className="mt-5 p-5 bg-gradient-to-l from-red-50/80 to-rose-50/50 rounded-xl border border-red-200/40 space-y-4">
+              <div className="mt-5 p-5 bg-gradient-to-l from-destructive/5 to-destructive/[0.03] rounded-xl border border-destructive/20 space-y-4">
                 <div className="flex items-center gap-3">
-                  <div className="h-9 w-9 rounded-lg bg-red-100 flex items-center justify-center flex-shrink-0">
-                    <AlertCircle className="h-5 w-5 text-red-600" />
+                  <div className="h-9 w-9 rounded-lg bg-destructive/10 flex items-center justify-center flex-shrink-0">
+                    <AlertCircle className="h-5 w-5 text-destructive" />
                   </div>
-                  <p className="text-sm font-bold text-red-700">
+                  <p className="text-sm font-bold text-destructive">
                     هل أنت متأكد من رغبتك في حذف حسابك نهائياً؟
                   </p>
                 </div>

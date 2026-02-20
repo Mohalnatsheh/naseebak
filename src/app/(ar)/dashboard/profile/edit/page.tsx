@@ -524,17 +524,17 @@ export default function ProfileEditPage() {
   if (hasPendingRequest) {
     return (
       <div className="max-w-2xl mx-auto space-y-6 pb-8">
-        <Card className="relative overflow-hidden border-blue-200/60 bg-gradient-to-l from-blue-50/80 to-sky-50/50 shadow-md">
-          <div className="absolute top-0 right-0 h-32 w-32 rounded-full bg-blue-200/20 blur-2xl translate-x-8 -translate-y-8" />
+        <Card className="relative overflow-hidden border-primary/20 bg-gradient-to-l from-primary/8 to-primary/3 shadow-md">
+          <div className="absolute top-0 right-0 h-32 w-32 rounded-full bg-primary/10 blur-2xl translate-x-8 -translate-y-8" />
           <CardContent className="pt-8 pb-8 text-center space-y-4">
-            <div className="flex h-16 w-16 mx-auto items-center justify-center rounded-2xl bg-blue-100 border border-blue-200/60">
-              <Clock className="h-8 w-8 text-blue-600" />
+            <div className="flex h-16 w-16 mx-auto items-center justify-center rounded-2xl bg-primary/10 border border-primary/20">
+              <Clock className="h-8 w-8 text-primary" />
             </div>
             <div className="space-y-2">
-              <h3 className="text-lg font-bold text-blue-900">
+              <h3 className="text-lg font-bold text-primary">
                 لديك طلب تعديل قيد المراجعة
               </h3>
-              <p className="text-sm text-blue-700/80 max-w-sm mx-auto leading-relaxed">
+              <p className="text-sm text-primary/80 max-w-sm mx-auto leading-relaxed">
                 يجب انتظار مراجعة الإدارة لطلب التعديل الحالي قبل إرسال طلب
                 جديد. سيتم إعلامك بالنتيجة عبر الإشعارات.
               </p>
@@ -558,7 +558,7 @@ export default function ProfileEditPage() {
   if (success) {
     return (
       <div className="max-w-2xl mx-auto space-y-6 pb-8">
-        <Card className="relative overflow-hidden border-emerald-200/60 bg-gradient-to-l from-emerald-50/80 to-green-50/50 shadow-md">
+        <Card className="relative overflow-hidden border-emerald-200/60 bg-gradient-to-l from-emerald-50/80 to-emerald-50/30 shadow-md">
           <div className="absolute top-0 right-0 h-32 w-32 rounded-full bg-emerald-200/20 blur-2xl translate-x-8 -translate-y-8" />
           <CardContent className="pt-8 pb-8 text-center space-y-4">
             <div className="flex h-16 w-16 mx-auto items-center justify-center rounded-2xl bg-emerald-100 border border-emerald-200/60">
@@ -600,9 +600,9 @@ export default function ProfileEditPage() {
       </div>
 
       {/* Info banner */}
-      <div className="flex items-start gap-3 rounded-xl bg-blue-50 border border-blue-200/60 p-4">
-        <AlertCircle className="h-5 w-5 text-blue-600 shrink-0 mt-0.5" />
-        <p className="text-sm text-blue-800 leading-relaxed">
+      <div className="flex items-start gap-3 rounded-xl bg-primary/5 border border-primary/15 p-4">
+        <AlertCircle className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+        <p className="text-sm text-primary leading-relaxed">
           التعديلات لن تُطبَّق مباشرة. سيقوم فريق الإدارة بمراجعتها والموافقة
           عليها أو رفضها.
         </p>
@@ -1270,9 +1270,9 @@ export default function ProfileEditPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex items-start gap-3 rounded-xl bg-blue-50 border border-blue-200/60 p-4">
-              <Shield className="h-5 w-5 text-blue-600 shrink-0 mt-0.5" />
-              <p className="text-sm text-blue-800 leading-relaxed">
+            <div className="flex items-start gap-3 rounded-xl bg-primary/5 border border-primary/15 p-4">
+              <Shield className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+              <p className="text-sm text-primary leading-relaxed">
                 هذه البيانات سرية وتستخدم فقط من قبل الإدارة لتنسيق الزيارات العائلية ولن تظهر للمستخدمين الآخرين. يتم حفظها مباشرة دون الحاجة لمراجعة الإدارة.
               </p>
             </div>

@@ -1,8 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
-import { Heart, Send, Facebook, Twitter, Instagram, Youtube } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Heart, Facebook, Twitter, Instagram, Youtube } from "lucide-react";
 
 export function Footer() {
   return (
@@ -34,21 +32,6 @@ export function Footer() {
             <p className="text-sm text-muted-foreground leading-relaxed max-w-xs">
               منصة أردنية توصّل العائلات بالشريك الأنسب بالحلال — تقنية ذكية مع عادات أردنية أصيلة، بسترة واحترام.
             </p>
-            {/* Newsletter */}
-            <div className="space-y-2">
-              <p className="text-sm font-semibold">اشترك في نشرتنا البريدية</p>
-              <div className="flex gap-2">
-                <Input
-                  type="email"
-                  placeholder="email@example.com"
-                  dir="ltr"
-                  className="text-left h-10 text-sm bg-background/60 backdrop-blur-sm border-border/50 rounded-xl flex-1"
-                />
-                <Button size="icon" className="h-10 w-10 rounded-xl bg-gradient-to-l from-primary to-primary/85 shadow-md shadow-primary/15 shrink-0">
-                  <Send className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
           </div>
 
           {/* Column 2: Quick Links */}

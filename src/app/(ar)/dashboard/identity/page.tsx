@@ -152,7 +152,7 @@ export default function IdentityPage() {
     return (
       <div className="flex flex-col items-center justify-center py-20 gap-4">
         <div className="relative">
-          <div className="h-16 w-16 rounded-full bg-gradient-to-br from-primary/20 to-blue-200/30 flex items-center justify-center">
+          <div className="h-16 w-16 rounded-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
           <div className="absolute inset-0 h-16 w-16 rounded-full bg-primary/10 animate-ping" />
@@ -167,16 +167,16 @@ export default function IdentityPage() {
   return (
     <div className="max-w-2xl mx-auto space-y-8 pb-8">
       {/* Page Header */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-l from-blue-50/80 via-primary/5 to-transparent border border-primary/10 p-6 md:p-8">
-        <div className="absolute top-0 left-0 w-40 h-40 bg-blue-100/40 rounded-full -translate-x-16 -translate-y-16 blur-3xl" />
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-l from-primary/10 via-primary/5 to-transparent border border-primary/10 p-6 md:p-8">
+        <div className="absolute top-0 left-0 w-40 h-40 bg-primary/10 rounded-full -translate-x-16 -translate-y-16 blur-3xl" />
         <div className="absolute bottom-0 right-0 w-32 h-32 bg-primary/5 rounded-full translate-x-8 translate-y-8 blur-2xl" />
 
         <div className="relative space-y-2">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-blue-500 to-primary flex items-center justify-center shadow-lg shadow-blue-500/20">
+            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-lg shadow-primary/20">
               <ShieldCheck className="h-5 w-5 text-white" />
             </div>
-            <h1 className="text-2xl md:text-3xl font-bold bg-gradient-to-l from-primary to-blue-600 bg-clip-text text-transparent">
+            <h1 className="text-2xl md:text-3xl font-bold bg-gradient-to-l from-primary to-secondary bg-clip-text text-transparent">
               التحقق من الهوية
             </h1>
           </div>
@@ -263,37 +263,37 @@ export default function IdentityPage() {
 
       {doc && doc.status === "REJECTED" && (
         <div style={{ animation: "fadeSlideIn 0.5s ease-out 0.1s both" }}>
-          <Card className="group overflow-hidden border-red-200/60 hover:border-red-300/80 hover:shadow-xl hover:shadow-red-500/5 transition-all duration-300">
-            <div className="h-1.5 bg-gradient-to-l from-red-400 via-rose-500 to-red-600" />
+          <Card className="group overflow-hidden border-destructive/30 hover:border-destructive/50 hover:shadow-xl hover:shadow-destructive/5 transition-all duration-300">
+            <div className="h-1.5 bg-gradient-to-l from-destructive/70 via-destructive to-destructive/80" />
             <CardContent className="relative p-6 overflow-hidden">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-red-100/30 rounded-full translate-x-10 -translate-y-10 blur-2xl" />
-              <div className="absolute bottom-0 left-0 w-24 h-24 bg-rose-100/20 rounded-full -translate-x-8 translate-y-8 blur-2xl" />
+              <div className="absolute top-0 right-0 w-32 h-32 bg-destructive/10 rounded-full translate-x-10 -translate-y-10 blur-2xl" />
+              <div className="absolute bottom-0 left-0 w-24 h-24 bg-destructive/5 rounded-full -translate-x-8 translate-y-8 blur-2xl" />
 
               <div className="relative flex items-start gap-4">
                 <div className="relative flex-shrink-0">
-                  <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-red-100 via-rose-50 to-red-50 flex items-center justify-center border border-red-200/40">
-                    <XCircle className="h-7 w-7 text-red-500" />
+                  <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-destructive/15 via-destructive/5 to-destructive/10 flex items-center justify-center border border-destructive/20">
+                    <XCircle className="h-7 w-7 text-destructive" />
                   </div>
-                  <div className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-red-400 flex items-center justify-center">
+                  <div className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-destructive flex items-center justify-center">
                     <AlertTriangle className="h-2.5 w-2.5 text-white" />
                   </div>
                 </div>
                 <div className="flex-1">
-                  <h3 className="font-bold text-lg bg-gradient-to-l from-red-600 to-rose-600 bg-clip-text text-transparent">
+                  <h3 className="font-bold text-lg text-destructive">
                     مرفوض
                   </h3>
                   <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
                     تم رفض وثيقة الهوية. يرجى رفع وثيقة جديدة واضحة.
                   </p>
                   {doc.reviewNotes && (
-                    <div className="mt-3 p-3 bg-red-50/80 border border-red-200/40 rounded-xl">
-                      <p className="text-sm text-red-800">
-                        <strong className="text-red-700">ملاحظات المراجع:</strong> {doc.reviewNotes}
+                    <div className="mt-3 p-3 bg-destructive/5 border border-destructive/20 rounded-xl">
+                      <p className="text-sm text-destructive">
+                        <strong className="text-destructive font-bold">ملاحظات المراجع:</strong> {doc.reviewNotes}
                       </p>
                     </div>
                   )}
                   <div className="flex items-center gap-2 mt-3">
-                    <span className="inline-flex items-center text-[11px] text-red-700 bg-red-50 border border-red-200/50 rounded-lg px-3 py-1 font-medium">
+                    <span className="inline-flex items-center text-[11px] text-destructive bg-destructive/5 border border-destructive/20 rounded-lg px-3 py-1 font-medium">
                       <Upload className="h-3 w-3 me-1.5" />
                       يرجى إعادة الرفع أدناه
                     </span>
@@ -330,11 +330,11 @@ export default function IdentityPage() {
                 <form onSubmit={handleUpload} className="space-y-5 mt-5">
                   {/* Error display */}
                   {error && (
-                    <div className="flex items-center gap-3 rounded-xl bg-gradient-to-l from-red-50 to-rose-50/80 border border-red-200/50 p-4">
-                      <div className="h-9 w-9 rounded-lg bg-red-100 flex items-center justify-center flex-shrink-0">
-                        <AlertTriangle className="h-5 w-5 text-red-500" />
+                    <div className="flex items-center gap-3 rounded-xl bg-gradient-to-l from-destructive/10 to-destructive/5 border border-destructive/20 p-4">
+                      <div className="h-9 w-9 rounded-lg bg-destructive/10 flex items-center justify-center flex-shrink-0">
+                        <AlertTriangle className="h-5 w-5 text-destructive" />
                       </div>
-                      <p className="text-sm text-red-700 font-medium">{error}</p>
+                      <p className="text-sm text-destructive font-medium">{error}</p>
                     </div>
                   )}
 
@@ -496,7 +496,7 @@ export default function IdentityPage() {
                   </div>
 
                   {/* Info banner */}
-                  <div className="flex items-center gap-3 p-3.5 bg-gradient-to-l from-primary/5 to-blue-50/50 rounded-xl border border-primary/10 text-sm text-muted-foreground">
+                  <div className="flex items-center gap-3 p-3.5 bg-gradient-to-l from-primary/5 to-primary/[0.03] rounded-xl border border-primary/10 text-sm text-muted-foreground">
                     <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10">
                       <ShieldCheck className="h-4 w-4 text-primary" />
                     </div>
@@ -532,33 +532,33 @@ export default function IdentityPage() {
         className="grid grid-cols-1 sm:grid-cols-3 gap-3"
         style={{ animation: "fadeSlideIn 0.5s ease-out 0.4s both" }}
       >
-        <div className="flex items-center gap-3 rounded-xl bg-gradient-to-l from-blue-50/80 to-transparent border border-blue-200/40 p-4 hover:shadow-md hover:shadow-blue-500/5 transition-all duration-300">
-          <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-blue-100 to-blue-50 flex items-center justify-center flex-shrink-0 border border-blue-200/40">
-            <Lock className="h-5 w-5 text-blue-600" />
+        <div className="flex items-center gap-3 rounded-xl bg-gradient-to-l from-primary/10 to-transparent border border-primary/20 p-4 hover:shadow-md hover:shadow-primary/5 transition-all duration-300">
+          <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary/15 to-primary/5 flex items-center justify-center flex-shrink-0 border border-primary/20">
+            <Lock className="h-5 w-5 text-primary" />
           </div>
           <div>
-            <p className="text-xs font-bold text-blue-700">تشفير كامل</p>
-            <p className="text-[10px] text-blue-600/70 mt-0.5">AES-256 encryption</p>
+            <p className="text-xs font-bold text-primary">تشفير كامل</p>
+            <p className="text-[10px] text-primary/70 mt-0.5">AES-256 encryption</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-3 rounded-xl bg-gradient-to-l from-blue-50/80 to-transparent border border-blue-200/40 p-4 hover:shadow-md hover:shadow-blue-500/5 transition-all duration-300">
-          <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-blue-100 to-blue-50 flex items-center justify-center flex-shrink-0 border border-blue-200/40">
-            <Eye className="h-5 w-5 text-blue-600" />
+        <div className="flex items-center gap-3 rounded-xl bg-gradient-to-l from-primary/10 to-transparent border border-primary/20 p-4 hover:shadow-md hover:shadow-primary/5 transition-all duration-300">
+          <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary/15 to-primary/5 flex items-center justify-center flex-shrink-0 border border-primary/20">
+            <Eye className="h-5 w-5 text-primary" />
           </div>
           <div>
-            <p className="text-xs font-bold text-blue-700">مراجعة خلال 24 ساعة</p>
-            <p className="text-[10px] text-blue-600/70 mt-0.5">فريق مختص</p>
+            <p className="text-xs font-bold text-primary">مراجعة خلال 24 ساعة</p>
+            <p className="text-[10px] text-primary/70 mt-0.5">فريق مختص</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-3 rounded-xl bg-gradient-to-l from-purple-50/80 to-transparent border border-purple-200/40 p-4 hover:shadow-md hover:shadow-purple-500/5 transition-all duration-300">
-          <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-purple-100 to-purple-50 flex items-center justify-center flex-shrink-0 border border-purple-200/40">
-            <ShieldCheck className="h-5 w-5 text-purple-600" />
+        <div className="flex items-center gap-3 rounded-xl bg-gradient-to-l from-primary/10 to-transparent border border-primary/20 p-4 hover:shadow-md hover:shadow-primary/5 transition-all duration-300">
+          <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary/15 to-primary/5 flex items-center justify-center flex-shrink-0 border border-primary/20">
+            <ShieldCheck className="h-5 w-5 text-primary" />
           </div>
           <div>
-            <p className="text-xs font-bold text-purple-700">بيانات محمية</p>
-            <p className="text-[10px] text-purple-600/70 mt-0.5">خصوصية تامة</p>
+            <p className="text-xs font-bold text-primary">بيانات محمية</p>
+            <p className="text-[10px] text-primary/70 mt-0.5">خصوصية تامة</p>
           </div>
         </div>
       </div>

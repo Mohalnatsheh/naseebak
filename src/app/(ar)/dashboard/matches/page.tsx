@@ -118,9 +118,9 @@ const visitStatusConfig: Record<string, { color: string; borderColor: string; bg
     icon: Clock,
   },
   FAMILIES_CONTACTED: {
-    color: "bg-gradient-to-l from-blue-100 to-blue-50 text-blue-700 border-blue-200/60",
-    borderColor: "border-r-blue-400",
-    bgColor: "from-blue-50/50 to-transparent",
+    color: "bg-gradient-to-l from-primary/15 to-primary/5 text-primary border-primary/20",
+    borderColor: "border-r-primary",
+    bgColor: "from-primary/5 to-transparent",
     icon: Phone,
   },
   SCHEDULED: {
@@ -136,25 +136,25 @@ const visitStatusConfig: Record<string, { color: string; borderColor: string; bg
     icon: CheckCircle2,
   },
   CANCELLED: {
-    color: "bg-gradient-to-l from-red-100 to-red-50 text-red-700 border-red-200/60",
-    borderColor: "border-r-red-400",
-    bgColor: "from-red-50/50 to-transparent",
+    color: "bg-gradient-to-l from-destructive/15 to-destructive/5 text-destructive border-destructive/20",
+    borderColor: "border-r-destructive",
+    bgColor: "from-destructive/5 to-transparent",
     icon: XCircle,
   },
 };
 
 function getScoreColor(score: number) {
-  if (score >= 80) return "from-blue-400 to-blue-600";
-  if (score >= 60) return "from-primary to-blue-500";
-  if (score >= 40) return "from-amber-400 to-orange-500";
-  return "from-rose-400 to-red-500";
+  if (score >= 80) return "from-primary to-secondary";
+  if (score >= 60) return "from-primary to-primary/70";
+  if (score >= 40) return "from-accent to-accent/70";
+  return "from-destructive to-destructive/70";
 }
 
 function getScoreRingColor(score: number) {
-  if (score >= 80) return "ring-blue-400/30";
-  if (score >= 60) return "ring-primary/30";
-  if (score >= 40) return "ring-amber-400/30";
-  return "ring-rose-400/30";
+  if (score >= 80) return "ring-primary/30";
+  if (score >= 60) return "ring-primary/20";
+  if (score >= 40) return "ring-accent/30";
+  return "ring-destructive/30";
 }
 
 function getScoreLabel(score: number) {
@@ -330,7 +330,7 @@ export default function MatchesPage() {
     return (
       <div className="flex flex-col items-center justify-center py-20 gap-4">
         <div className="relative">
-          <div className="h-16 w-16 rounded-full bg-gradient-to-br from-primary/20 to-rose-200/30 flex items-center justify-center">
+          <div className="h-16 w-16 rounded-full bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
           <div className="absolute inset-0 h-16 w-16 rounded-full bg-primary/10 animate-ping" />
@@ -343,7 +343,7 @@ export default function MatchesPage() {
   if (accountComplete === false) {
     return (
       <div className="max-w-2xl mx-auto space-y-6 pb-8">
-        <Card className="relative overflow-hidden border-amber-300/50 bg-gradient-to-l from-amber-50/80 to-orange-50/50 shadow-md">
+        <Card className="relative overflow-hidden border-amber-300/50 bg-gradient-to-l from-amber-50/80 to-accent/5 shadow-md">
           <div className="absolute top-0 right-0 h-32 w-32 rounded-full bg-amber-200/20 blur-2xl translate-x-8 -translate-y-8" />
           <CardContent className="pt-8 pb-8 text-center space-y-4">
             <div className="flex h-16 w-16 mx-auto items-center justify-center rounded-2xl bg-amber-100 border border-amber-200/60">
@@ -370,21 +370,21 @@ export default function MatchesPage() {
   return (
     <div className="max-w-2xl mx-auto space-y-8 pb-8">
       {/* Page Header */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-l from-rose-50/80 via-primary/5 to-transparent border border-primary/10 p-6 md:p-8">
-        <div className="absolute top-0 left-0 w-40 h-40 bg-rose-100/40 rounded-full -translate-x-16 -translate-y-16 blur-3xl" />
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-l from-primary/5 via-secondary/5 to-transparent border border-primary/10 p-6 md:p-8">
+        <div className="absolute top-0 left-0 w-40 h-40 bg-primary/10 rounded-full -translate-x-16 -translate-y-16 blur-3xl" />
         <div className="absolute bottom-0 right-0 w-32 h-32 bg-primary/5 rounded-full translate-x-8 translate-y-8 blur-2xl" />
 
         <div className="relative space-y-2">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-rose-500 to-primary flex items-center justify-center shadow-lg shadow-rose-500/20">
+            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-lg shadow-primary/20">
               <Heart className="h-5 w-5 text-white fill-white" />
             </div>
             <div className="flex items-center gap-3">
-              <h1 className="text-2xl md:text-3xl font-bold bg-gradient-to-l from-primary to-rose-600 bg-clip-text text-transparent">
+              <h1 className="text-2xl md:text-3xl font-bold bg-gradient-to-l from-primary to-secondary bg-clip-text text-transparent">
                 التوافقات المتبادلة
               </h1>
               {matches.length > 0 && (
-                <span className="inline-flex items-center justify-center h-7 min-w-7 px-2 rounded-full bg-gradient-to-br from-rose-500 to-primary text-white text-xs font-bold shadow-sm">
+                <span className="inline-flex items-center justify-center h-7 min-w-7 px-2 rounded-full bg-gradient-to-br from-primary to-secondary text-white text-xs font-bold shadow-sm">
                   {matches.length}
                 </span>
               )}
@@ -400,11 +400,11 @@ export default function MatchesPage() {
 
       {/* Match Cards */}
       {matches.length === 0 ? (
-        <Card className="border-dashed border-2 border-muted-foreground/20 bg-gradient-to-b from-card to-rose-50/20">
+        <Card className="border-dashed border-2 border-muted-foreground/20 bg-gradient-to-b from-card to-primary/5">
           <CardContent className="text-center py-16 md:py-20 space-y-5">
             <div className="relative mx-auto w-24 h-24">
-              <div className="absolute inset-0 bg-gradient-to-br from-rose-100/60 to-primary/10 rounded-full animate-pulse" />
-              <div className="relative h-24 w-24 rounded-full bg-gradient-to-br from-rose-50 to-primary/5 flex items-center justify-center border-2 border-dashed border-rose-200/50">
+              <div className="absolute inset-0 bg-gradient-to-br from-primary/15 to-secondary/10 rounded-full animate-pulse" />
+              <div className="relative h-24 w-24 rounded-full bg-gradient-to-br from-primary/5 to-secondary/5 flex items-center justify-center border-2 border-dashed border-primary/20">
                 <Users className="h-10 w-10 text-muted-foreground/40" />
               </div>
             </div>
@@ -455,8 +455,8 @@ export default function MatchesPage() {
                       <div className="flex items-start gap-4">
                         {/* Avatar */}
                         <div className="relative flex-shrink-0">
-                          <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-rose-200/40 via-rose-100/20 to-accent/10 flex items-center justify-center border border-rose-200/30 shadow-sm">
-                            <span className="text-2xl font-bold bg-gradient-to-br from-rose-500 to-primary bg-clip-text text-transparent">
+                          <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-primary/15 via-primary/10 to-accent/10 flex items-center justify-center border border-primary/15 shadow-sm">
+                            <span className="text-2xl font-bold bg-gradient-to-br from-primary to-secondary bg-clip-text text-transparent">
                               {c.firstName.charAt(0)}
                             </span>
                           </div>
@@ -520,10 +520,10 @@ export default function MatchesPage() {
                       {m.visitStatus && visitStatusDescriptions[m.visitStatus] && (
                         <div className={`mt-3 p-3 rounded-xl border text-sm leading-relaxed ${
                           m.visitStatus === "REQUESTED" ? "bg-amber-50/60 border-amber-200/40 text-amber-800" :
-                          m.visitStatus === "FAMILIES_CONTACTED" ? "bg-blue-50/60 border-blue-200/40 text-blue-800" :
+                          m.visitStatus === "FAMILIES_CONTACTED" ? "bg-primary/5 border-primary/15 text-primary" :
                           m.visitStatus === "SCHEDULED" ? "bg-green-50/60 border-green-200/40 text-green-800" :
                           m.visitStatus === "COMPLETED" ? "bg-emerald-50/60 border-emerald-200/40 text-emerald-800" :
-                          m.visitStatus === "CANCELLED" ? "bg-red-50/60 border-red-200/40 text-red-800" :
+                          m.visitStatus === "CANCELLED" ? "bg-destructive/5 border-destructive/15 text-destructive" :
                           "bg-muted/30 border-border/40 text-muted-foreground"
                         }`}>
                           <div className="flex items-start gap-2.5">
@@ -648,7 +648,7 @@ export default function MatchesPage() {
                                 <span className="text-[11px] text-muted-foreground/70 block mb-2">الاهتمامات</span>
                                 <div className="flex flex-wrap gap-1.5">
                                   {c.interests.split("،").map((interest, i) => (
-                                    <span key={`i-${i}`} className="inline-flex items-center rounded-full bg-blue-50 border border-blue-200/50 px-3 py-1 text-xs font-medium text-blue-700">{interest.trim()}</span>
+                                    <span key={`i-${i}`} className="inline-flex items-center rounded-full bg-primary/5 border border-primary/15 px-3 py-1 text-xs font-medium text-primary">{interest.trim()}</span>
                                   ))}
                                 </div>
                               </div>
@@ -723,7 +723,7 @@ export default function MatchesPage() {
                             className={`flex-1 h-11 rounded-xl font-semibold transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] ${
                               showPhotos[m.id]
                                 ? "bg-primary/5 border-primary/30 text-primary hover:bg-primary/10"
-                                : "border-rose-200/60 text-rose-600 hover:bg-rose-50 hover:border-rose-300/60"
+                                : "border-primary/20 text-primary hover:bg-primary/5 hover:border-primary/30"
                             }`}
                             onClick={() => togglePhotos(m.id)}
                           >
@@ -756,7 +756,7 @@ export default function MatchesPage() {
                           {menuOpen === m.id && (
                             <div className="absolute bottom-full mb-1 left-0 bg-card border rounded-xl shadow-lg py-1 z-50 w-40">
                               <button
-                                className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted/50 text-amber-600"
+                                className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted/50 text-accent-foreground"
                                 onClick={() => { setReportDialog({ userId: m.partner.id, name: m.partner.firstName }); setMenuOpen(null); }}
                               >
                                 <ShieldAlert className="h-4 w-4" />
@@ -807,7 +807,7 @@ export default function MatchesPage() {
               <Button
                 onClick={handleReportSubmit}
                 disabled={reportSubmitting}
-                className="flex-1 bg-amber-600 hover:bg-amber-700 text-white rounded-xl"
+                className="flex-1 bg-accent hover:bg-accent/90 text-accent-foreground rounded-xl"
               >
                 {reportSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "إرسال البلاغ"}
               </Button>

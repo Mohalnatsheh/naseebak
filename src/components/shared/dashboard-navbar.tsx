@@ -107,7 +107,7 @@ export function DashboardNavbar() {
                 )}
                 {/* Notification badge */}
                 {isNotification && notificationCount > 0 && (
-                  <span className="absolute -top-0.5 -left-0.5 h-4.5 min-w-4.5 px-1 rounded-full bg-gradient-to-br from-rose-500 to-red-500 text-white text-[10px] font-bold flex items-center justify-center shadow-sm animate-pulse">
+                  <span className="absolute -top-0.5 -left-0.5 h-4.5 min-w-4.5 px-1 rounded-full bg-gradient-to-br from-accent to-accent text-white text-[10px] font-bold flex items-center justify-center shadow-sm animate-pulse">
                     {notificationCount > 9 ? "+9" : notificationCount}
                   </span>
                 )}
@@ -130,7 +130,7 @@ export function DashboardNavbar() {
                 pathname === "/dashboard/notifications" ? "text-primary" : "text-muted-foreground"
               )} />
               {notificationCount > 0 && (
-                <span className="absolute top-1 right-1 h-2.5 w-2.5 rounded-full bg-rose-500 border-2 border-background animate-pulse" />
+                <span className="absolute top-1 right-1 h-2.5 w-2.5 rounded-full bg-accent border-2 border-background animate-pulse" />
               )}
             </Button>
           </Link>
@@ -258,7 +258,7 @@ export function DashboardNavbar() {
                         <div className="absolute right-0 top-1/2 -translate-y-1/2 h-6 w-1 bg-primary rounded-s-full" />
                       )}
                       {isNotification && notificationCount > 0 && (
-                        <span className="ms-auto h-5 min-w-5 px-1 rounded-full bg-gradient-to-br from-rose-500 to-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+                        <span className="ms-auto h-5 min-w-5 px-1 rounded-full bg-gradient-to-br from-accent to-accent text-white text-[10px] font-bold flex items-center justify-center">
                           {notificationCount > 9 ? "+9" : notificationCount}
                         </span>
                       )}

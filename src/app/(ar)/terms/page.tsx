@@ -157,7 +157,7 @@ export default function TermsPage() {
               <span className="bg-gradient-to-l from-primary via-primary/90 to-primary bg-clip-text text-transparent drop-shadow-sm">
                 شروط
               </span>
-              <span className="mx-3 text-muted-foreground/40">—</span>
+              <span className="mx-3 text-muted-foreground/40 hidden sm:inline">—</span>
               <br className="sm:hidden" />
               <span className="bg-gradient-to-l from-primary via-secondary to-accent bg-clip-text text-transparent">
                 استخدام المنصة

@@ -49,34 +49,34 @@ const dimensionLabels: Record<string, string> = {
 
 const dimensionConfig: Record<string, { gradient: string; bg: string; icon: typeof Zap; color: string }> = {
   extraversion: {
-    gradient: "from-amber-400 to-orange-500",
-    bg: "bg-amber-50",
+    gradient: "from-secondary to-secondary/80",
+    bg: "bg-secondary/10",
     icon: Zap,
-    color: "text-amber-600",
+    color: "text-secondary",
   },
   conscientiousness: {
-    gradient: "from-blue-400 to-blue-600",
-    bg: "bg-blue-50",
+    gradient: "from-primary to-primary/80",
+    bg: "bg-primary/10",
     icon: CheckCircle2,
-    color: "text-blue-600",
+    color: "text-primary",
   },
   agreeableness: {
-    gradient: "from-blue-400 to-blue-600",
-    bg: "bg-blue-50",
+    gradient: "from-primary/80 to-primary/60",
+    bg: "bg-primary/10",
     icon: Heart,
-    color: "text-blue-600",
+    color: "text-primary",
   },
   neuroticism: {
-    gradient: "from-rose-400 to-rose-600",
-    bg: "bg-rose-50",
+    gradient: "from-secondary/80 to-secondary/60",
+    bg: "bg-secondary/10",
     icon: Eye,
-    color: "text-rose-600",
+    color: "text-secondary",
   },
   openness: {
-    gradient: "from-violet-400 to-violet-600",
-    bg: "bg-violet-50",
+    gradient: "from-accent to-accent/80",
+    bg: "bg-accent/10",
     icon: Palette,
-    color: "text-violet-600",
+    color: "text-accent-foreground",
   },
 };
 
@@ -175,7 +175,7 @@ export default function PersonalityQuizPage() {
     return (
       <div className="flex flex-col items-center justify-center py-20 gap-4">
         <div className="relative">
-          <div className="h-16 w-16 rounded-full bg-gradient-to-br from-violet-200/40 to-primary/10 flex items-center justify-center">
+          <div className="h-16 w-16 rounded-full bg-gradient-to-br from-secondary/20 to-primary/10 flex items-center justify-center">
             <Brain className="h-8 w-8 animate-spin text-primary" />
           </div>
           <div className="absolute inset-0 h-16 w-16 rounded-full bg-primary/10 animate-ping" />
@@ -198,23 +198,23 @@ export default function PersonalityQuizPage() {
       <div className="max-w-2xl mx-auto space-y-8 pb-8">
         {/* Page Header - Gradient Card */}
         <div
-          className="relative overflow-hidden rounded-2xl bg-gradient-to-l from-violet-50/80 via-primary/5 to-transparent border border-primary/10 p-6 md:p-8"
+          className="relative overflow-hidden rounded-2xl bg-gradient-to-l from-secondary/10 via-primary/5 to-transparent border border-primary/10 p-6 md:p-8"
           style={{ animation: "fadeSlideIn 0.5s ease-out both" }}
         >
-          <div className="absolute top-0 left-0 w-40 h-40 bg-violet-100/40 rounded-full -translate-x-16 -translate-y-16 blur-3xl" />
+          <div className="absolute top-0 left-0 w-40 h-40 bg-secondary/10 rounded-full -translate-x-16 -translate-y-16 blur-3xl" />
           <div className="absolute bottom-0 right-0 w-32 h-32 bg-primary/5 rounded-full translate-x-8 translate-y-8 blur-2xl" />
 
           <div className="relative flex flex-col items-center text-center space-y-4">
-            <div className="h-14 w-14 rounded-xl bg-gradient-to-br from-violet-500 to-primary flex items-center justify-center shadow-lg shadow-violet-500/20">
+            <div className="h-14 w-14 rounded-xl bg-gradient-to-br from-secondary to-primary flex items-center justify-center shadow-lg shadow-primary/20">
               <Brain className="h-7 w-7 text-white" />
             </div>
             <div className="space-y-2">
-              <h1 className="text-2xl md:text-3xl font-bold bg-gradient-to-l from-primary to-violet-600 bg-clip-text text-transparent">
+              <h1 className="text-2xl md:text-3xl font-bold bg-gradient-to-l from-primary to-secondary bg-clip-text text-transparent">
                 نتيجة اختبار الشخصية
               </h1>
-              <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-l from-violet-100/80 to-primary/10 border border-violet-200/40">
-                <Sparkles className="h-5 w-5 text-violet-500" />
-                <span className="text-xl font-bold bg-gradient-to-l from-violet-600 to-primary bg-clip-text text-transparent">
+              <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-l from-secondary/15 to-primary/10 border border-secondary/20">
+                <Sparkles className="h-5 w-5 text-secondary" />
+                <span className="text-xl font-bold bg-gradient-to-l from-secondary to-primary bg-clip-text text-transparent">
                   {existingResult.personalityType}
                 </span>
               </div>
@@ -304,25 +304,25 @@ export default function PersonalityQuizPage() {
             <div className="flex justify-center">
               <button
                 onClick={handleRetake}
-                className="group relative inline-flex items-center gap-2.5 px-8 py-3.5 rounded-xl bg-gradient-to-l from-violet-500 to-primary text-white font-semibold shadow-lg shadow-violet-500/20 hover:shadow-xl hover:shadow-violet-500/30 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200"
+                className="group relative inline-flex items-center gap-2.5 px-8 py-3.5 rounded-xl bg-gradient-to-l from-secondary to-primary text-white font-semibold shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200"
               >
                 <RefreshCw className="h-5 w-5 group-hover:rotate-180 transition-transform duration-500" />
                 إعادة الاختبار
               </button>
             </div>
           ) : (
-            <Card className="overflow-hidden border-border/50 bg-gradient-to-l from-amber-50/30 via-card to-card">
-              <div className="h-1 bg-gradient-to-l from-amber-400 to-orange-500" />
+            <Card className="overflow-hidden border-border/50 bg-gradient-to-l from-accent/10 via-card to-card">
+              <div className="h-1 bg-gradient-to-l from-accent to-accent/80" />
               <CardContent className="p-5 md:p-6">
                 <div className="flex items-center gap-4">
-                  <div className="h-14 w-14 rounded-xl bg-gradient-to-br from-amber-100 to-orange-100 flex items-center justify-center flex-shrink-0">
-                    <CalendarClock className="h-7 w-7 text-amber-600" />
+                  <div className="h-14 w-14 rounded-xl bg-gradient-to-br from-accent/20 to-accent/10 flex items-center justify-center flex-shrink-0">
+                    <CalendarClock className="h-7 w-7 text-accent-foreground" />
                   </div>
                   <div className="flex-1 space-y-1">
                     <p className="text-sm text-muted-foreground">
                       بتقدر تعيد الاختبار بعد
                     </p>
-                    <p className="text-2xl font-bold bg-gradient-to-l from-amber-500 to-orange-600 bg-clip-text text-transparent">
+                    <p className="text-2xl font-bold bg-gradient-to-l from-accent to-accent/80 bg-clip-text text-transparent">
                       {existingResult.daysRemaining} يوم
                     </p>
                     <p className="text-xs text-muted-foreground">
@@ -364,18 +364,18 @@ export default function PersonalityQuizPage() {
     <div className="max-w-2xl mx-auto space-y-8 pb-8">
       {/* Gradient Header */}
       <div
-        className="relative overflow-hidden rounded-2xl bg-gradient-to-l from-violet-50/80 via-primary/5 to-transparent border border-primary/10 p-6 md:p-8"
+        className="relative overflow-hidden rounded-2xl bg-gradient-to-l from-secondary/10 via-primary/5 to-transparent border border-primary/10 p-6 md:p-8"
         style={{ animation: "fadeSlideIn 0.5s ease-out both" }}
       >
-        <div className="absolute top-0 left-0 w-32 h-32 bg-violet-100/40 rounded-full -translate-x-10 -translate-y-10 blur-2xl" />
+        <div className="absolute top-0 left-0 w-32 h-32 bg-secondary/10 rounded-full -translate-x-10 -translate-y-10 blur-2xl" />
         <div className="absolute bottom-0 right-0 w-24 h-24 bg-primary/5 rounded-full translate-x-6 translate-y-6 blur-2xl" />
 
         <div className="relative space-y-3">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-violet-500 to-primary flex items-center justify-center shadow-lg shadow-violet-500/20">
+            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-secondary to-primary flex items-center justify-center shadow-lg shadow-primary/20">
               <Brain className="h-5 w-5 text-white" />
             </div>
-            <h1 className="text-2xl md:text-3xl font-bold bg-gradient-to-l from-primary to-violet-600 bg-clip-text text-transparent">
+            <h1 className="text-2xl md:text-3xl font-bold bg-gradient-to-l from-primary to-secondary bg-clip-text text-transparent">
               اختبار الشخصية
             </h1>
           </div>
@@ -398,13 +398,13 @@ export default function PersonalityQuizPage() {
           <span className="text-muted-foreground">
             السؤال {Math.min(currentPage * QUESTIONS_PER_PAGE + 1, questions.length)} - {Math.min((currentPage + 1) * QUESTIONS_PER_PAGE, questions.length)} من {questions.length}
           </span>
-          <span className="font-bold bg-gradient-to-l from-primary to-violet-600 bg-clip-text text-transparent">
+          <span className="font-bold bg-gradient-to-l from-primary to-secondary bg-clip-text text-transparent">
             {progressPercent}%
           </span>
         </div>
         <div className="h-3 bg-muted rounded-full overflow-hidden shadow-inner">
           <div
-            className="h-full bg-gradient-to-l from-violet-500 to-primary rounded-full transition-all duration-500 ease-out relative"
+            className="h-full bg-gradient-to-l from-secondary to-primary rounded-full transition-all duration-500 ease-out relative"
             style={{ width: `${progressPercent}%` }}
           >
             <div className="absolute inset-0 bg-gradient-to-l from-white/20 to-transparent rounded-full" />
@@ -424,7 +424,7 @@ export default function PersonalityQuizPage() {
               }}
               className={`rounded-full transition-all duration-300 ${
                 i === currentPage
-                  ? "w-8 h-2.5 bg-gradient-to-l from-violet-500 to-primary shadow-sm shadow-primary/30"
+                  ? "w-8 h-2.5 bg-gradient-to-l from-secondary to-primary shadow-sm shadow-primary/30"
                   : i < currentPage
                   ? "w-2.5 h-2.5 bg-primary/40 hover:bg-primary/60 cursor-pointer"
                   : "w-2.5 h-2.5 bg-muted"
@@ -458,10 +458,10 @@ export default function PersonalityQuizPage() {
                 animation: `fadeSlideIn 0.5s ease-out ${0.15 + idx * 0.1}s both`,
               }}
             >
-              <div className="h-1 bg-gradient-to-l from-violet-400/60 to-primary/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              <div className="h-1 bg-gradient-to-l from-secondary/60 to-primary/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
               <CardHeader className="pb-3 pt-5">
                 <CardTitle className="text-base flex items-start gap-3">
-                  <span className="inline-flex items-center justify-center h-7 min-w-7 px-1.5 rounded-lg bg-gradient-to-br from-violet-500 to-primary text-white text-xs font-bold shadow-sm flex-shrink-0 mt-0.5">
+                  <span className="inline-flex items-center justify-center h-7 min-w-7 px-1.5 rounded-lg bg-gradient-to-br from-secondary to-primary text-white text-xs font-bold shadow-sm flex-shrink-0 mt-0.5">
                     {globalIdx + 1}
                   </span>
                   <span className="leading-relaxed">{q.text}</span>
@@ -476,7 +476,7 @@ export default function PersonalityQuizPage() {
                       onClick={() => setAnswers((prev) => ({ ...prev, [q.id]: i + 1 }))}
                       className={`flex-1 rounded-xl border-2 px-2 py-2.5 text-xs transition-all duration-200 ${
                         answers[q.id] === i + 1
-                          ? "border-transparent bg-gradient-to-br from-violet-500 to-primary text-white font-semibold shadow-md shadow-primary/20 scale-[1.03]"
+                          ? "border-transparent bg-gradient-to-br from-secondary to-primary text-white font-semibold shadow-md shadow-primary/20 scale-[1.03]"
                           : "border-border/60 hover:border-primary/40 hover:bg-primary/5 hover:scale-[1.01]"
                       }`}
                     >
@@ -528,7 +528,7 @@ export default function PersonalityQuizPage() {
               disabled={!currentPageComplete}
               className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${
                 currentPageComplete
-                  ? "bg-gradient-to-l from-violet-500 to-primary text-white shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 hover:scale-[1.02] active:scale-[0.98]"
+                  ? "bg-gradient-to-l from-secondary to-primary text-white shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 hover:scale-[1.02] active:scale-[0.98]"
                   : "bg-muted text-muted-foreground cursor-not-allowed"
               }`}
             >
@@ -541,7 +541,7 @@ export default function PersonalityQuizPage() {
               disabled={submitting || answeredCount < questions.length}
               className={`inline-flex items-center gap-2 px-7 py-3 rounded-xl text-sm font-bold transition-all duration-200 ${
                 !submitting && answeredCount >= questions.length
-                  ? "bg-gradient-to-l from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/20 hover:shadow-xl hover:shadow-blue-500/30 hover:scale-[1.02] active:scale-[0.98]"
+                  ? "bg-gradient-to-l from-primary to-secondary text-white shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 hover:scale-[1.02] active:scale-[0.98]"
                   : "bg-muted text-muted-foreground cursor-not-allowed"
               }`}
             >

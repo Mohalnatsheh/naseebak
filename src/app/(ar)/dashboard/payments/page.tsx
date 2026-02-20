@@ -10,21 +10,22 @@ import {
 import {
   Loader2,
   CheckCircle2,
-  Star,
+  Crown,
   Sparkles,
   Receipt,
   Clock,
-  ArrowUpRight,
   Gem,
   CircleDollarSign,
   Coins,
   XCircle,
   ArrowRight,
   X,
+  Zap,
+  Shield,
+  TrendingUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 
 const stripePromise = loadStripe(
   process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!
@@ -54,12 +55,14 @@ export default function PaymentsPage() {
       fallback={
         <div className="flex flex-col items-center justify-center py-20 gap-4">
           <div className="relative">
-            <div className="h-16 w-16 rounded-full bg-gradient-to-br from-primary/20 to-amber-200/30 flex items-center justify-center">
+            <div className="h-16 w-16 rounded-full bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
             <div className="absolute inset-0 h-16 w-16 rounded-full bg-primary/10 animate-ping" />
           </div>
-          <p className="text-sm text-muted-foreground animate-pulse">جاري التحميل...</p>
+          <p className="text-sm text-muted-foreground animate-pulse">
+            جاري التحميل...
+          </p>
         </div>
       }
     >
@@ -76,7 +79,10 @@ function PaymentsContent() {
   const [matchCredits, setMatchCredits] = useState(0);
   const [loading, setLoading] = useState(true);
   const [purchasing, setPurchasing] = useState<string | null>(null);
-  const [toast, setToast] = useState<{ type: "success" | "info" | "error"; message: string } | null>(null);
+  const [toast, setToast] = useState<{
+    type: "success" | "info" | "error";
+    message: string;
+  } | null>(null);
 
   // Embedded checkout state
   const [checkoutSecret, setCheckoutSecret] = useState<string | null>(null);
@@ -111,12 +117,14 @@ function PaymentsContent() {
   useEffect(() => {
     const sessionId = searchParams.get("session_id");
     if (sessionId) {
-      // Check session status
       fetch(`/api/payments/session-status?session_id=${sessionId}`)
         .then((res) => res.json())
         .then((data) => {
           if (data.status === "complete" && data.paymentStatus === "paid") {
-            setToast({ type: "success", message: "تم الدفع بنجاح! تمت إضافة الرصيد" });
+            setToast({
+              type: "success",
+              message: "تم الدفع بنجاح! تمت إضافة الرصيد",
+            });
             loadData();
           } else {
             setToast({ type: "info", message: "لم تكتمل عملية الدفع" });
@@ -151,7 +159,10 @@ function PaymentsContent() {
         return;
       }
       console.error("Checkout failed:", result.error);
-      setToast({ type: "error", message: result.error || "حدث خطأ أثناء إنشاء عملية الدفع" });
+      setToast({
+        type: "error",
+        message: result.error || "حدث خطأ أثناء إنشاء عملية الدفع",
+      });
     } catch (err) {
       console.error(err);
       setToast({ type: "error", message: "حدث خطأ في الاتصال" });
@@ -177,7 +188,6 @@ function PaymentsContent() {
   function closeCheckout() {
     setCheckoutSecret(null);
     setCheckoutPackageName("");
-    // Cancel stale payments when user closes checkout
     fetch("/api/payments/cancel", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -190,12 +200,14 @@ function PaymentsContent() {
     return (
       <div className="flex flex-col items-center justify-center py-20 gap-4">
         <div className="relative">
-          <div className="h-16 w-16 rounded-full bg-gradient-to-br from-primary/20 to-amber-200/30 flex items-center justify-center">
+          <div className="h-16 w-16 rounded-full bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
           <div className="absolute inset-0 h-16 w-16 rounded-full bg-primary/10 animate-ping" />
         </div>
-        <p className="text-sm text-muted-foreground animate-pulse">جاري التحميل...</p>
+        <p className="text-sm text-muted-foreground animate-pulse">
+          جاري التحميل...
+        </p>
       </div>
     );
   }
@@ -204,15 +216,16 @@ function PaymentsContent() {
   if (checkoutSecret) {
     return (
       <div className="max-w-2xl mx-auto space-y-6 pb-8">
-        {/* Checkout header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-amber-500 to-primary flex items-center justify-center shadow-lg shadow-amber-500/20">
+            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-lg shadow-primary/20">
               <Coins className="h-5 w-5 text-white" />
             </div>
             <div>
               <h2 className="text-lg font-bold text-foreground">إتمام الدفع</h2>
-              <p className="text-sm text-muted-foreground">{checkoutPackageName}</p>
+              <p className="text-sm text-muted-foreground">
+                {checkoutPackageName}
+              </p>
             </div>
           </div>
           <Button
@@ -226,7 +239,6 @@ function PaymentsContent() {
           </Button>
         </div>
 
-        {/* Embedded Stripe Checkout */}
         <Card className="overflow-hidden border-primary/20">
           <CardContent className="p-0">
             <EmbeddedCheckoutProvider
@@ -241,8 +253,16 @@ function PaymentsContent() {
     );
   }
 
+  // Package card icons based on index
+  const packageIcons = [Zap, Crown, Gem];
+  const packageFeatures = [
+    ["تجربة المنصة", "اقتراحات أساسية"],
+    ["توفير أكثر", "أفضل قيمة"],
+    ["أقل سعر للرصيد", "تجربة كاملة"],
+  ];
+
   return (
-    <div className="max-w-4xl mx-auto space-y-8 pb-8">
+    <div className="max-w-4xl mx-auto space-y-10 pb-8">
       {/* Toast notification */}
       {toast && (
         <div
@@ -250,176 +270,261 @@ function PaymentsContent() {
             toast.type === "success"
               ? "bg-emerald-50/95 border-emerald-200 text-emerald-800"
               : toast.type === "error"
-                ? "bg-red-50/95 border-red-200 text-red-800"
-                : "bg-amber-50/95 border-amber-200 text-amber-800"
+                ? "bg-destructive/5 border-destructive/20 text-destructive"
+                : "bg-accent/10 border-accent/30 text-accent-foreground"
           }`}
           style={{ animation: "fadeSlideIn 0.3s ease-out" }}
         >
           {toast.type === "success" ? (
             <CheckCircle2 className="h-5 w-5 text-emerald-500 flex-shrink-0" />
           ) : toast.type === "error" ? (
-            <XCircle className="h-5 w-5 text-red-500 flex-shrink-0" />
+            <XCircle className="h-5 w-5 text-destructive flex-shrink-0" />
           ) : (
-            <XCircle className="h-5 w-5 text-amber-500 flex-shrink-0" />
+            <Sparkles className="h-5 w-5 text-accent flex-shrink-0" />
           )}
           <span className="text-sm font-medium">{toast.message}</span>
         </div>
       )}
 
-      {/* Page Header */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-l from-amber-50/80 via-primary/5 to-transparent border border-primary/10 p-6 md:p-8">
-        <div className="absolute top-0 left-0 w-40 h-40 bg-amber-100/40 rounded-full -translate-x-16 -translate-y-16 blur-3xl" />
-        <div className="absolute bottom-0 right-0 w-32 h-32 bg-primary/5 rounded-full translate-x-8 translate-y-8 blur-2xl" />
+      {/* Hero Header */}
+      <div
+        className="relative overflow-hidden rounded-3xl bg-gradient-to-l from-primary via-primary/95 to-secondary p-8 md:p-10"
+        style={{ animation: "fadeSlideIn 0.6s ease-out both" }}
+      >
+        {/* Background decorations */}
+        <div className="absolute top-0 left-0 w-64 h-64 bg-white/[0.04] rounded-full -translate-x-32 -translate-y-32 blur-3xl" />
+        <div className="absolute bottom-0 right-0 w-48 h-48 bg-accent/[0.08] rounded-full translate-x-16 translate-y-16 blur-3xl" />
+        <div className="absolute top-1/2 left-1/3 w-32 h-32 bg-white/[0.03] rounded-full blur-2xl" />
 
-        <div className="relative flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div className="space-y-2">
+        {/* Geometric pattern */}
+        <div className="absolute inset-0 opacity-[0.04]">
+          <svg
+            className="w-full h-full"
+            viewBox="0 0 400 200"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <defs>
+              <pattern
+                id="paymentPattern"
+                x="0"
+                y="0"
+                width="40"
+                height="40"
+                patternUnits="userSpaceOnUse"
+              >
+                <circle
+                  cx="20"
+                  cy="20"
+                  r="8"
+                  fill="none"
+                  stroke="white"
+                  strokeWidth="0.5"
+                />
+                <circle
+                  cx="20"
+                  cy="20"
+                  r="2"
+                  fill="white"
+                  opacity="0.5"
+                />
+              </pattern>
+            </defs>
+            <rect width="400" height="200" fill="url(#paymentPattern)" />
+          </svg>
+        </div>
+
+        <div className="relative flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+          <div className="space-y-3">
             <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-amber-500 to-primary flex items-center justify-center shadow-lg shadow-amber-500/20">
-                <Coins className="h-5 w-5 text-white" />
+              <div className="h-12 w-12 rounded-2xl bg-white/10 backdrop-blur-sm flex items-center justify-center ring-1 ring-white/20">
+                <Coins className="h-6 w-6 text-white" />
               </div>
-              <h1 className="text-2xl md:text-3xl font-bold bg-gradient-to-l from-primary to-amber-600 bg-clip-text text-transparent">
-                رصيد التوافقات
-              </h1>
+              <div>
+                <h1 className="text-2xl md:text-3xl font-bold text-white">
+                  رصيد التوافقات
+                </h1>
+                <p className="text-white/60 text-sm mt-0.5">
+                  اشتري رصيد عشان تشوف اقتراحات أكثر
+                </p>
+              </div>
             </div>
-            <p className="text-muted-foreground text-sm md:text-base">
-              اشتري رصيد لرؤية تفاصيل التوافقات المتبادلة
-            </p>
           </div>
 
-          {/* Current balance */}
-          <div className="flex-shrink-0 bg-card/80 backdrop-blur-sm rounded-xl border border-amber-200/50 p-4 min-w-[160px]">
-            <p className="text-xs text-muted-foreground mb-1">رصيدك الحالي</p>
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-3xl font-black bg-gradient-to-l from-amber-500 to-primary bg-clip-text text-transparent">
+          {/* Current balance card */}
+          <div className="flex-shrink-0 bg-white/10 backdrop-blur-md rounded-2xl border border-white/15 p-5 min-w-[180px]">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="h-6 w-6 rounded-lg bg-accent/20 flex items-center justify-center">
+                <Sparkles className="h-3.5 w-3.5 text-accent" />
+              </div>
+              <p className="text-xs text-white/60 font-medium">رصيدك الحالي</p>
+            </div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-4xl font-black text-white">
                 {matchCredits}
               </span>
-              <span className="text-sm text-muted-foreground font-medium">رصيد</span>
+              <span className="text-sm text-white/50 font-medium">رصيد</span>
             </div>
           </div>
         </div>
       </div>
 
       {/* Credit Packages */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-        {packages.map((pkg, index) => (
-          <div
-            key={pkg.id}
-            style={{
-              animation: `fadeSlideIn 0.5s ease-out ${index * 0.12}s both`,
-            }}
-          >
-            <Card
-              className={`group relative overflow-hidden transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl ${
-                pkg.popular
-                  ? "border-amber-300/70 hover:border-amber-400 shadow-xl shadow-amber-500/10 hover:shadow-amber-500/20 scale-[1.02] md:scale-105"
-                  : "border-border/50 hover:border-primary/30 hover:shadow-primary/5"
-              }`}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {packages.map((pkg, index) => {
+          const Icon = packageIcons[index] || Gem;
+          const features = packageFeatures[index] || [];
+
+          return (
+            <div
+              key={pkg.id}
+              style={{
+                animation: `fadeSlideIn 0.5s ease-out ${0.15 + index * 0.12}s both`,
+              }}
             >
-              {/* Gradient top strip */}
-              <div
-                className={`h-2 bg-gradient-to-l ${
+              <Card
+                className={`group relative overflow-hidden transition-all duration-500 hover:-translate-y-2 ${
                   pkg.popular
-                    ? "from-amber-400 via-yellow-500 to-orange-500"
-                    : "from-primary to-blue-500"
+                    ? "border-accent/50 shadow-2xl shadow-accent/15 hover:shadow-accent/25 ring-1 ring-accent/20"
+                    : "border-border/40 hover:border-primary/30 hover:shadow-xl hover:shadow-primary/10"
                 }`}
-              />
-
-              {/* Popular badge */}
-              {pkg.popular && (
-                <div className="absolute -top-0 left-1/2 -translate-x-1/2 translate-y-3 z-10">
-                  <div className="flex items-center gap-1.5 bg-gradient-to-l from-amber-500 via-yellow-500 to-orange-500 text-white text-xs font-bold px-4 py-1.5 rounded-full shadow-lg shadow-amber-500/30">
-                    <Star className="h-3.5 w-3.5 fill-white" />
-                    الأفضل قيمة
-                  </div>
-                </div>
-              )}
-
-              {pkg.popular && (
-                <>
-                  <div className="absolute top-10 right-0 w-24 h-24 bg-amber-200/20 rounded-full translate-x-8 blur-2xl" />
-                  <div className="absolute bottom-10 left-0 w-20 h-20 bg-orange-200/20 rounded-full -translate-x-8 blur-2xl" />
-                </>
-              )}
-
-              <CardContent className={`relative p-6 ${pkg.popular ? "pt-10" : "pt-6"}`}>
-                {/* Credits count */}
-                <div className="flex justify-center mb-4">
-                  <div
-                    className={`h-14 w-14 rounded-2xl bg-gradient-to-br ${
-                      pkg.popular
-                        ? "from-amber-400 via-yellow-500 to-orange-500 shadow-amber-500/30"
-                        : "from-primary to-blue-500 shadow-primary/20"
-                    } flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300`}
-                  >
-                    <Gem className="h-7 w-7 text-white" />
-                  </div>
-                </div>
-
-                <h3 className="text-center font-bold text-lg mb-3">{pkg.name}</h3>
-
-                {/* Price */}
-                <div className="text-center mb-1">
-                  <div className="flex items-baseline justify-center gap-1">
-                    <span
-                      className={`text-4xl font-black bg-gradient-to-l ${
-                        pkg.popular
-                          ? "from-amber-400 via-yellow-500 to-orange-500"
-                          : "from-primary to-blue-500"
-                      } bg-clip-text text-transparent`}
-                    >
-                      {pkg.price}
-                    </span>
-                    <span className="text-sm text-muted-foreground font-medium">
-                      د.أ
-                    </span>
-                  </div>
-                </div>
-
-                {/* Per credit price */}
-                <p className="text-center text-xs text-muted-foreground mb-5">
-                  {(pkg.price / pkg.credits).toFixed(2)} د.أ لكل رصيد
-                </p>
-
-                {/* Credits highlight */}
+              >
+                {/* Top accent line */}
                 <div
-                  className={`text-center rounded-xl py-2.5 px-3 mb-5 ${
+                  className={`h-1.5 ${
                     pkg.popular
-                      ? "bg-amber-50 border border-amber-200/60"
-                      : "bg-blue-50 border border-blue-200/60"
+                      ? "bg-gradient-to-l from-accent via-accent/80 to-accent/60"
+                      : "bg-gradient-to-l from-primary via-secondary to-primary/60"
                   }`}
-                >
-                  <span
-                    className={`text-sm font-bold ${
-                      pkg.popular ? "text-amber-700" : "text-blue-600"
-                    }`}
-                  >
-                    {pkg.credits} رصيد توافق
-                  </span>
-                </div>
+                />
 
-                {/* CTA Button */}
-                <Button
-                  className={`w-full h-12 rounded-xl font-bold text-base transition-all duration-200 hover:scale-[1.03] active:scale-[0.98] ${
-                    pkg.popular
-                      ? "bg-gradient-to-l from-amber-500 via-yellow-500 to-orange-500 hover:from-amber-600 hover:via-yellow-600 hover:to-orange-600 text-white shadow-lg shadow-amber-500/30 hover:shadow-xl hover:shadow-amber-500/40 border-0"
-                      : "bg-gradient-to-l from-primary to-blue-500 hover:from-primary/90 hover:to-blue-600 text-white shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 border-0"
-                  }`}
-                  onClick={() => handlePurchase(pkg.id, pkg.name)}
-                  disabled={purchasing === pkg.id}
+                {/* Popular badge */}
+                {pkg.popular && (
+                  <div className="absolute top-5 left-1/2 -translate-x-1/2 z-10">
+                    <div className="flex items-center gap-1.5 bg-accent text-accent-foreground text-xs font-bold px-4 py-1.5 rounded-full shadow-lg shadow-accent/30">
+                      <Crown className="h-3.5 w-3.5" />
+                      الأكثر طلباً
+                    </div>
+                  </div>
+                )}
+
+                {/* Background decorations for popular */}
+                {pkg.popular && (
+                  <div className="absolute inset-0 bg-gradient-to-b from-accent/[0.04] via-transparent to-accent/[0.02] pointer-events-none" />
+                )}
+
+                <CardContent
+                  className={`relative p-6 ${pkg.popular ? "pt-12" : "pt-8"}`}
                 >
-                  {purchasing === pkg.id ? (
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                  ) : (
-                    <>
-                      <ArrowUpRight className="h-5 w-5 me-2" />
-                      شراء الآن
-                    </>
-                  )}
-                </Button>
-              </CardContent>
-            </Card>
-          </div>
-        ))}
+                  {/* Icon */}
+                  <div className="flex justify-center mb-5">
+                    <div
+                      className={`h-16 w-16 rounded-2xl flex items-center justify-center transition-transform duration-500 group-hover:scale-110 group-hover:rotate-3 ${
+                        pkg.popular
+                          ? "bg-gradient-to-br from-accent to-accent/70 shadow-lg shadow-accent/25"
+                          : "bg-gradient-to-br from-primary to-secondary shadow-lg shadow-primary/20"
+                      }`}
+                    >
+                      <Icon className="h-8 w-8 text-white" />
+                    </div>
+                  </div>
+
+                  {/* Package name */}
+                  <h3 className="text-center font-bold text-lg text-foreground mb-2">
+                    {pkg.name}
+                  </h3>
+
+                  {/* Credits count */}
+                  <div className="text-center mb-4">
+                    <span
+                      className={`inline-flex items-center gap-1.5 text-sm font-semibold px-3 py-1 rounded-full ${
+                        pkg.popular
+                          ? "bg-accent/10 text-accent-foreground border border-accent/20"
+                          : "bg-primary/5 text-primary border border-primary/10"
+                      }`}
+                    >
+                      <Gem className="h-3.5 w-3.5" />
+                      {pkg.credits} رصيد توافق
+                    </span>
+                  </div>
+
+                  {/* Price */}
+                  <div className="text-center mb-1">
+                    <div className="flex items-baseline justify-center gap-1.5">
+                      <span
+                        className={`text-5xl font-black ${
+                          pkg.popular ? "text-accent-foreground" : "text-primary"
+                        }`}
+                      >
+                        {pkg.price}
+                      </span>
+                      <span className="text-base text-muted-foreground font-semibold">
+                        د.أ
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Per credit */}
+                  <p className="text-center text-xs text-muted-foreground mb-6">
+                    {(pkg.price / pkg.credits).toFixed(2)} د.أ لكل رصيد
+                  </p>
+
+                  {/* Features */}
+                  <div className="space-y-2.5 mb-6">
+                    {features.map((feat, i) => (
+                      <div
+                        key={i}
+                        className="flex items-center gap-2.5 text-sm text-muted-foreground"
+                      >
+                        <div
+                          className={`h-5 w-5 rounded-full flex items-center justify-center flex-shrink-0 ${
+                            pkg.popular
+                              ? "bg-accent/15 text-accent-foreground"
+                              : "bg-primary/10 text-primary"
+                          }`}
+                        >
+                          <CheckCircle2 className="h-3 w-3" />
+                        </div>
+                        {feat}
+                      </div>
+                    ))}
+                    <div className="flex items-center gap-2.5 text-sm text-muted-foreground">
+                      <div
+                        className={`h-5 w-5 rounded-full flex items-center justify-center flex-shrink-0 ${
+                          pkg.popular
+                            ? "bg-accent/15 text-accent-foreground"
+                            : "bg-primary/10 text-primary"
+                        }`}
+                      >
+                        <Shield className="h-3 w-3" />
+                      </div>
+                      دفع آمن ومشفر
+                    </div>
+                  </div>
+
+                  {/* CTA Button */}
+                  <Button
+                    className={`w-full h-12 rounded-xl font-bold text-base transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] border-0 ${
+                      pkg.popular
+                        ? "bg-accent text-accent-foreground shadow-lg shadow-accent/25 hover:shadow-xl hover:shadow-accent/35 hover:brightness-110"
+                        : "bg-primary text-primary-foreground shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 hover:brightness-110"
+                    }`}
+                    onClick={() => handlePurchase(pkg.id, pkg.name)}
+                    disabled={purchasing === pkg.id}
+                  >
+                    {purchasing === pkg.id ? (
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                    ) : (
+                      <>
+                        <TrendingUp className="h-5 w-5 me-2" />
+                        شراء الآن
+                      </>
+                    )}
+                  </Button>
+                </CardContent>
+              </Card>
+            </div>
+          );
+        })}
       </div>
 
       {/* Payment History */}
@@ -427,14 +532,19 @@ function PaymentsContent() {
         <div className="space-y-5">
           <div
             className="flex items-center gap-3"
-            style={{ animation: "fadeSlideIn 0.5s ease-out 0.4s both" }}
+            style={{ animation: "fadeSlideIn 0.5s ease-out 0.5s both" }}
           >
-            <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-primary/10 to-primary/5 flex items-center justify-center border border-primary/10">
+            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary/10 to-secondary/10 flex items-center justify-center border border-primary/10">
               <Receipt className="h-5 w-5 text-primary" />
             </div>
-            <h2 className="text-xl font-bold bg-gradient-to-l from-primary to-primary/70 bg-clip-text text-transparent">
-              سجل المدفوعات
-            </h2>
+            <div>
+              <h2 className="text-xl font-bold text-foreground">
+                سجل المدفوعات
+              </h2>
+              <p className="text-xs text-muted-foreground">
+                كل عمليات الدفع السابقة
+              </p>
+            </div>
           </div>
 
           <div className="space-y-3">
@@ -447,18 +557,18 @@ function PaymentsContent() {
                 <div
                   key={p.id}
                   style={{
-                    animation: `fadeSlideIn 0.5s ease-out ${0.5 + index * 0.08}s both`,
+                    animation: `fadeSlideIn 0.4s ease-out ${0.55 + index * 0.07}s both`,
                   }}
                 >
-                  <Card className="group overflow-hidden border-border/50 hover:border-primary/20 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 hover:-translate-y-0.5">
+                  <Card className="group overflow-hidden border-border/40 hover:border-primary/20 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 hover:-translate-y-0.5">
                     <div className="flex">
                       <div
-                        className={`w-1.5 flex-shrink-0 ${
+                        className={`w-1 flex-shrink-0 ${
                           isCompleted
-                            ? "bg-gradient-to-b from-emerald-400 to-emerald-600"
+                            ? "bg-emerald-500"
                             : isFailed
-                              ? "bg-gradient-to-b from-red-400 to-red-600"
-                              : "bg-gradient-to-b from-amber-400 to-amber-600"
+                              ? "bg-destructive/70"
+                              : "bg-accent"
                         }`}
                       />
                       <CardContent className="flex-1 flex items-center justify-between py-4 px-5">
@@ -466,76 +576,75 @@ function PaymentsContent() {
                           <div
                             className={`h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
                               isCompleted
-                                ? "bg-emerald-50 border border-emerald-200/50"
+                                ? "bg-emerald-500/10"
                                 : isFailed
-                                  ? "bg-red-50 border border-red-200/50"
-                                  : "bg-amber-50 border border-amber-200/50"
+                                  ? "bg-destructive/10"
+                                  : "bg-accent/10"
                             }`}
                           >
                             {isCompleted ? (
                               <CheckCircle2 className="h-5 w-5 text-emerald-500" />
                             ) : isFailed ? (
-                              <XCircle className="h-5 w-5 text-red-500" />
+                              <XCircle className="h-5 w-5 text-destructive/70" />
                             ) : (
-                              <Clock className="h-5 w-5 text-amber-500" />
+                              <Clock className="h-5 w-5 text-accent" />
                             )}
                           </div>
                           <div>
                             <p className="text-sm font-semibold text-foreground">
                               {p.description}
                             </p>
-                            <div className="flex items-center gap-2 mt-1">
-                              <span className="inline-flex items-center text-[11px] text-muted-foreground bg-muted/60 border border-border/50 rounded-md px-2 py-0.5">
-                                {new Date(p.createdAt).toLocaleDateString("ar-JO")}
-                              </span>
-                            </div>
+                            <span className="text-[11px] text-muted-foreground">
+                              {new Date(p.createdAt).toLocaleDateString(
+                                "ar-JO",
+                                {
+                                  year: "numeric",
+                                  month: "short",
+                                  day: "numeric",
+                                }
+                              )}
+                            </span>
                           </div>
                         </div>
 
                         <div className="flex flex-col items-end gap-1.5">
-                          <span
-                            className={`text-lg font-black bg-gradient-to-l ${
-                              isCompleted
-                                ? "from-emerald-500 to-emerald-700"
-                                : isFailed
-                                  ? "from-red-500 to-red-700"
-                                  : "from-amber-500 to-amber-700"
-                            } bg-clip-text text-transparent`}
-                          >
+                          <span className="text-lg font-bold text-foreground">
                             {p.amount}{" "}
-                            <span className="text-xs font-semibold">{p.currency}</span>
+                            <span className="text-xs font-medium text-muted-foreground">
+                              {p.currency}
+                            </span>
                           </span>
                           <div className="flex items-center gap-2">
-                            <Badge
-                              className={`text-[10px] px-2.5 py-0.5 font-semibold border ${
+                            <span
+                              className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2.5 py-0.5 rounded-full ${
                                 isCompleted
-                                  ? "bg-gradient-to-l from-emerald-100 to-emerald-50 text-emerald-700 border-emerald-200/60"
+                                  ? "bg-emerald-500/10 text-emerald-600"
                                   : isFailed
-                                    ? "bg-gradient-to-l from-red-100 to-red-50 text-red-700 border-red-200/60"
-                                    : "bg-gradient-to-l from-amber-100 to-amber-50 text-amber-700 border-amber-200/60"
+                                    ? "bg-destructive/10 text-destructive"
+                                    : "bg-accent/10 text-accent-foreground"
                               }`}
                             >
                               {isCompleted ? (
                                 <>
-                                  <CircleDollarSign className="h-3 w-3 me-1" />
+                                  <CircleDollarSign className="h-3 w-3" />
                                   مكتمل
                                 </>
                               ) : isFailed ? (
                                 <>
-                                  <XCircle className="h-3 w-3 me-1" />
+                                  <XCircle className="h-3 w-3" />
                                   ملغى
                                 </>
                               ) : (
                                 <>
-                                  <Clock className="h-3 w-3 me-1" />
+                                  <Clock className="h-3 w-3" />
                                   قيد المعالجة
                                 </>
                               )}
-                            </Badge>
+                            </span>
                             {isPending && (
                               <button
                                 onClick={() => handleCancelPayment(p.id)}
-                                className="text-[10px] text-red-500 hover:text-red-700 font-semibold transition-colors flex items-center gap-0.5"
+                                className="text-[10px] text-destructive hover:text-destructive font-semibold transition-colors flex items-center gap-0.5"
                               >
                                 <X className="h-3 w-3" />
                                 إلغاء

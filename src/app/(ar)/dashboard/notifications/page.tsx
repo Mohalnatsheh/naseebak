@@ -41,43 +41,43 @@ const typeConfig: Record<
 > = {
   SUGGESTION: {
     icon: Sparkles,
-    gradient: "from-violet-500 to-purple-600",
-    borderColor: "border-s-violet-400",
-    iconBg: "from-violet-100 to-purple-100",
-    iconColor: "text-violet-600",
-    dotColor: "bg-violet-500",
+    gradient: "from-primary to-secondary",
+    borderColor: "border-s-primary",
+    iconBg: "from-primary/10 to-secondary/10",
+    iconColor: "text-primary",
+    dotColor: "bg-primary",
   },
   INTEREST: {
     icon: Heart,
-    gradient: "from-rose-500 to-pink-500",
-    borderColor: "border-s-rose-400",
-    iconBg: "from-rose-100 to-pink-100",
-    iconColor: "text-rose-600",
-    dotColor: "bg-rose-500",
+    gradient: "from-accent to-accent/70",
+    borderColor: "border-s-accent",
+    iconBg: "from-accent/10 to-accent/5",
+    iconColor: "text-accent-foreground",
+    dotColor: "bg-accent",
   },
   MATCH: {
     icon: Heart,
-    gradient: "from-blue-500 to-blue-500",
-    borderColor: "border-s-blue-400",
-    iconBg: "from-blue-100 to-blue-100",
-    iconColor: "text-blue-600",
-    dotColor: "bg-blue-500",
+    gradient: "from-primary to-primary",
+    borderColor: "border-s-primary",
+    iconBg: "from-primary/10 to-primary/10",
+    iconColor: "text-primary",
+    dotColor: "bg-primary",
   },
   VISIT_UPDATE: {
     icon: CalendarHeart,
-    gradient: "from-blue-500 to-sky-500",
-    borderColor: "border-s-blue-400",
-    iconBg: "from-blue-100 to-sky-100",
-    iconColor: "text-blue-600",
-    dotColor: "bg-blue-500",
+    gradient: "from-secondary to-primary",
+    borderColor: "border-s-secondary",
+    iconBg: "from-secondary/10 to-primary/10",
+    iconColor: "text-secondary",
+    dotColor: "bg-secondary",
   },
   IDENTITY: {
     icon: Shield,
-    gradient: "from-sky-500 to-blue-500",
-    borderColor: "border-s-sky-400",
-    iconBg: "from-sky-100 to-blue-100",
-    iconColor: "text-sky-600",
-    dotColor: "bg-sky-500",
+    gradient: "from-secondary to-primary",
+    borderColor: "border-s-secondary",
+    iconBg: "from-secondary/10 to-primary/10",
+    iconColor: "text-secondary",
+    dotColor: "bg-secondary",
   },
   PAYMENT: {
     icon: CreditCard,
@@ -89,21 +89,21 @@ const typeConfig: Record<
   },
   SYSTEM: {
     icon: Info,
-    gradient: "from-amber-500 to-orange-500",
-    borderColor: "border-s-amber-400",
-    iconBg: "from-amber-100 to-orange-100",
-    iconColor: "text-amber-600",
-    dotColor: "bg-amber-500",
+    gradient: "from-accent to-accent/70",
+    borderColor: "border-s-accent",
+    iconBg: "from-accent/10 to-accent/5",
+    iconColor: "text-accent-foreground",
+    dotColor: "bg-accent",
   },
 };
 
 const defaultConfig = {
   icon: Bell,
-  gradient: "from-gray-500 to-slate-500",
-  borderColor: "border-s-gray-400",
-  iconBg: "from-gray-100 to-slate-100",
-  iconColor: "text-gray-600",
-  dotColor: "bg-gray-500",
+  gradient: "from-muted-foreground to-muted-foreground/70",
+  borderColor: "border-s-muted-foreground",
+  iconBg: "from-muted to-muted",
+  iconColor: "text-muted-foreground",
+  dotColor: "bg-muted-foreground",
 };
 
 function timeAgo(dateStr: string) {
@@ -169,7 +169,7 @@ export default function NotificationsPage() {
     return (
       <div className="flex flex-col items-center justify-center py-20 gap-4">
         <div className="relative">
-          <div className="h-16 w-16 rounded-full bg-gradient-to-br from-primary/20 to-blue-200/30 flex items-center justify-center">
+          <div className="h-16 w-16 rounded-full bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
           <div className="absolute inset-0 h-16 w-16 rounded-full bg-primary/10 animate-ping" />
@@ -182,22 +182,22 @@ export default function NotificationsPage() {
   return (
     <div className="max-w-2xl mx-auto space-y-8 pb-8">
       {/* Page Header */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-l from-blue-50/80 via-primary/5 to-transparent border border-primary/10 p-6 md:p-8">
-        <div className="absolute top-0 left-0 w-40 h-40 bg-blue-100/40 rounded-full -translate-x-16 -translate-y-16 blur-3xl" />
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-l from-primary/5 via-primary/5 to-transparent border border-primary/10 p-6 md:p-8">
+        <div className="absolute top-0 left-0 w-40 h-40 bg-primary/10 rounded-full -translate-x-16 -translate-y-16 blur-3xl" />
         <div className="absolute bottom-0 right-0 w-32 h-32 bg-primary/5 rounded-full translate-x-8 translate-y-8 blur-2xl" />
 
         <div className="relative flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div className="space-y-2">
             <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-blue-500 to-primary flex items-center justify-center shadow-lg shadow-blue-500/20">
+              <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-secondary to-primary flex items-center justify-center shadow-lg shadow-primary/20">
                 <Bell className="h-5 w-5 text-white" />
               </div>
               <div className="flex items-center gap-3">
-                <h1 className="text-2xl md:text-3xl font-bold bg-gradient-to-l from-primary to-blue-600 bg-clip-text text-transparent">
+                <h1 className="text-2xl md:text-3xl font-bold bg-gradient-to-l from-primary to-secondary bg-clip-text text-transparent">
                   الإشعارات
                 </h1>
                 {unreadCount > 0 && (
-                  <span className="inline-flex items-center justify-center h-7 min-w-7 px-2 rounded-full bg-gradient-to-br from-blue-500 to-primary text-white text-xs font-bold shadow-sm animate-pulse">
+                  <span className="inline-flex items-center justify-center h-7 min-w-7 px-2 rounded-full bg-gradient-to-br from-secondary to-primary text-white text-xs font-bold shadow-sm animate-pulse">
                     {unreadCount}
                   </span>
                 )}
@@ -224,11 +224,11 @@ export default function NotificationsPage() {
 
       {/* Notification Cards */}
       {notifications.length === 0 ? (
-        <Card className="border-dashed border-2 border-muted-foreground/20 bg-gradient-to-b from-card to-blue-50/20">
+        <Card className="border-dashed border-2 border-muted-foreground/20 bg-gradient-to-b from-card to-primary/5">
           <CardContent className="text-center py-16 md:py-20 space-y-5">
             <div className="relative mx-auto w-24 h-24">
-              <div className="absolute inset-0 bg-gradient-to-br from-blue-100/60 to-primary/10 rounded-full animate-pulse" />
-              <div className="relative h-24 w-24 rounded-full bg-gradient-to-br from-blue-50 to-primary/5 flex items-center justify-center border-2 border-dashed border-blue-200/50">
+              <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-secondary/10 rounded-full animate-pulse" />
+              <div className="relative h-24 w-24 rounded-full bg-gradient-to-br from-primary/5 to-secondary/5 flex items-center justify-center border-2 border-dashed border-primary/20">
                 <BellOff className="h-10 w-10 text-muted-foreground/40" />
               </div>
             </div>

@@ -141,17 +141,17 @@ interface SentRequest {
 }
 
 function getScoreColor(score: number) {
-  if (score >= 80) return "from-blue-400 to-blue-600";
-  if (score >= 60) return "from-primary to-blue-500";
-  if (score >= 40) return "from-amber-400 to-orange-500";
-  return "from-rose-400 to-red-500";
+  if (score >= 80) return "from-primary to-secondary";
+  if (score >= 60) return "from-primary to-secondary";
+  if (score >= 40) return "from-amber-400 to-amber-500";
+  return "from-destructive/80 to-destructive";
 }
 
 function getScoreRingColor(score: number) {
-  if (score >= 80) return "ring-blue-400/30";
+  if (score >= 80) return "ring-primary/30";
   if (score >= 60) return "ring-primary/30";
   if (score >= 40) return "ring-amber-400/30";
-  return "ring-rose-400/30";
+  return "ring-destructive/30";
 }
 
 function getScoreLabel(score: number) {
@@ -170,7 +170,7 @@ const STATUS_CONFIG = {
   },
   seen: {
     label: "تم الاطلاع",
-    className: "bg-blue-100 text-blue-700 border-blue-200/60",
+    className: "bg-primary/10 text-primary border-primary/20",
     icon: Eye,
   },
   matched: {
@@ -302,7 +302,7 @@ function CandidateDetails({ c }: { c: Suggestion["candidate"] | Interest["candid
               <span className="text-[11px] text-muted-foreground/70 block mb-2">الاهتمامات</span>
               <div className="flex flex-wrap gap-1.5">
                 {c.interests.split("،").map((interest2, i) => (
-                  <span key={`i-${i}`} className="inline-flex items-center rounded-full bg-blue-50 border border-blue-200/50 px-3 py-1 text-xs font-medium text-blue-700">{interest2.trim()}</span>
+                  <span key={`i-${i}`} className="inline-flex items-center rounded-full bg-primary/10 border border-primary/20 px-3 py-1 text-xs font-medium text-primary">{interest2.trim()}</span>
                 ))}
               </div>
             </div>
@@ -517,7 +517,7 @@ export default function SuggestionsPage() {
   if (accountComplete === false) {
     return (
       <div className="max-w-2xl mx-auto space-y-6 pb-8">
-        <Card className="relative overflow-hidden border-amber-300/50 bg-gradient-to-l from-amber-50/80 to-orange-50/50 shadow-md">
+        <Card className="relative overflow-hidden border-amber-300/50 bg-gradient-to-l from-amber-50/80 to-amber-50/30 shadow-md">
           <div className="absolute top-0 right-0 h-32 w-32 rounded-full bg-amber-200/20 blur-2xl translate-x-8 -translate-y-8" />
           <CardContent className="pt-8 pb-8 text-center space-y-4">
             <div className="flex h-16 w-16 mx-auto items-center justify-center rounded-2xl bg-amber-100 border border-amber-200/60">
@@ -569,7 +569,7 @@ export default function SuggestionsPage() {
                   </span>
                 )}
                 {activeTab === "interests" && interests.length > 0 && (
-                  <span className="inline-flex items-center justify-center h-7 min-w-7 px-2 rounded-full bg-rose-500 text-white text-xs font-bold animate-pulse">
+                  <span className="inline-flex items-center justify-center h-7 min-w-7 px-2 rounded-full bg-primary text-primary-foreground text-xs font-bold animate-pulse">
                     {interests.length}
                   </span>
                 )}
@@ -639,7 +639,7 @@ export default function SuggestionsPage() {
           <span className="sm:hidden">الاهتمام</span>
           {interests.length > 0 && (
             <span className={`inline-flex items-center justify-center h-5 min-w-5 px-1.5 rounded-full text-[10px] font-bold ${
-              activeTab === "interests" ? "bg-rose-500 text-white" : "bg-rose-500/20 text-rose-600"
+              activeTab === "interests" ? "bg-primary text-primary-foreground" : "bg-primary/20 text-primary"
             }`}>
               {interests.length}
             </span>
@@ -702,7 +702,7 @@ export default function SuggestionsPage() {
                                 </span>
                               </div>
                               {s.isManual && (
-                                <div className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-gradient-to-br from-accent to-amber-500 flex items-center justify-center shadow-sm">
+                                <div className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-gradient-to-br from-accent to-accent/70 flex items-center justify-center shadow-sm">
                                   <Star className="h-2.5 w-2.5 text-white fill-white" />
                                 </div>
                               )}
@@ -711,7 +711,7 @@ export default function SuggestionsPage() {
                               <div className="flex items-center gap-2 mb-1">
                                 <h3 className="font-bold text-xl text-foreground truncate">{c.firstName}</h3>
                                 {s.isManual && (
-                                  <Badge className="bg-gradient-to-l from-accent/20 to-amber-100 text-amber-700 border border-amber-200/50 text-[10px] px-2 py-0">
+                                  <Badge className="bg-gradient-to-l from-accent/20 to-accent/10 text-accent-foreground border border-accent/20 text-[10px] px-2 py-0">
                                     اقتراح الإدارة
                                   </Badge>
                                 )}
@@ -813,7 +813,7 @@ export default function SuggestionsPage() {
                             <Button
                               onClick={() => handleAction(s.id, "like")}
                               disabled={acting === s.id}
-                              className="flex-1 h-12 bg-gradient-to-l from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-md shadow-blue-500/20 hover:shadow-lg hover:shadow-blue-500/30 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 rounded-xl font-bold text-base"
+                              className="flex-1 h-12 bg-gradient-to-l from-primary to-secondary hover:from-secondary hover:to-primary text-primary-foreground shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 rounded-xl font-bold text-base"
                             >
                               {acting === s.id ? (
                                 <Loader2 className="h-5 w-5 animate-spin" />
@@ -994,8 +994,8 @@ export default function SuggestionsPage() {
           {interestsLoading ? (
             <div className="flex flex-col items-center justify-center py-16 gap-4">
               <div className="relative">
-                <div className="h-14 w-14 rounded-full bg-gradient-to-br from-rose-200/40 to-primary/10 flex items-center justify-center">
-                  <Loader2 className="h-7 w-7 animate-spin text-rose-500" />
+                <div className="h-14 w-14 rounded-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center">
+                  <Loader2 className="h-7 w-7 animate-spin text-primary" />
                 </div>
               </div>
               <p className="text-sm text-muted-foreground animate-pulse">جاري تحميل طلبات الاهتمام...</p>
@@ -1004,8 +1004,8 @@ export default function SuggestionsPage() {
             <Card className="border-dashed border-2 border-muted-foreground/20 bg-gradient-to-b from-card to-muted/30">
               <CardContent className="text-center py-16 md:py-20 space-y-5">
                 <div className="relative mx-auto w-24 h-24">
-                  <div className="absolute inset-0 bg-gradient-to-br from-rose-100/60 to-primary/10 rounded-full animate-pulse" />
-                  <div className="relative h-24 w-24 rounded-full bg-gradient-to-br from-rose-50 to-primary/5 flex items-center justify-center border-2 border-dashed border-rose-200/50">
+                  <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-secondary/10 rounded-full animate-pulse" />
+                  <div className="relative h-24 w-24 rounded-full bg-gradient-to-br from-primary/5 to-secondary/5 flex items-center justify-center border-2 border-dashed border-primary/20">
                     <Heart className="h-10 w-10 text-muted-foreground/40" />
                   </div>
                 </div>
@@ -1035,15 +1035,15 @@ export default function SuggestionsPage() {
                       animation: `fadeSlideIn 0.5s ease-out ${index * 0.1}s both`,
                     }}
                   >
-                    <Card className="group overflow-hidden border-border/50 hover:border-rose-300/50 hover:shadow-xl hover:shadow-rose-500/5 transition-all duration-300">
+                    <Card className="group overflow-hidden border-border/50 hover:border-primary/20 hover:shadow-xl hover:shadow-primary/5 transition-all duration-300">
                       <div className={`h-1.5 bg-gradient-to-l ${getScoreColor(score)}`} />
                       <CardContent className="p-0">
                         {/* Card Header */}
                         <div className="p-5 md:p-6 pb-4">
                           <div className="flex items-start gap-4">
                             <div className="relative flex-shrink-0">
-                              <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-rose-200/40 via-rose-100/20 to-accent/10 flex items-center justify-center border border-rose-200/30 shadow-sm">
-                                <span className="text-2xl font-bold bg-gradient-to-br from-rose-500 to-primary bg-clip-text text-transparent">
+                              <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-primary/20 via-primary/10 to-accent/10 flex items-center justify-center border border-primary/10 shadow-sm">
+                                <span className="text-2xl font-bold bg-gradient-to-br from-primary to-primary/60 bg-clip-text text-transparent">
                                   {c.firstName.charAt(0)}
                                 </span>
                               </div>
@@ -1142,7 +1142,7 @@ export default function SuggestionsPage() {
                             <Button
                               onClick={() => handleInterestAction(interest.id, "accept")}
                               disabled={acting === interest.id}
-                              className="flex-1 h-12 bg-gradient-to-l from-rose-500 to-rose-600 hover:from-rose-600 hover:to-rose-700 text-white shadow-md shadow-rose-500/20 hover:shadow-lg hover:shadow-rose-500/30 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 rounded-xl font-bold text-base"
+                              className="flex-1 h-12 bg-gradient-to-l from-primary to-secondary hover:from-secondary hover:to-primary text-primary-foreground shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 rounded-xl font-bold text-base"
                             >
                               {acting === interest.id ? (
                                 <Loader2 className="h-5 w-5 animate-spin" />

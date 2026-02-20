@@ -41,10 +41,10 @@ const categoryIcons: Record<string, typeof Heart> = {
 };
 
 const categoryGradients: Record<string, string> = {
-  tips: "from-primary/20 to-blue-500/20",
-  stories: "from-secondary/20 to-blue-400/20",
-  development: "from-accent/20 to-amber-500/20",
-  family: "from-primary/20 to-indigo-500/20",
+  tips: "from-primary/20 to-primary/10",
+  stories: "from-secondary/20 to-secondary/10",
+  development: "from-accent/20 to-accent/10",
+  family: "from-primary/20 to-secondary/10",
 };
 
 const defaultGradient = "from-primary/20 to-secondary/20";
@@ -169,7 +169,7 @@ export default function BlogPage() {
         {/* ═══════════════ CATEGORY FILTER BAR ═══════════════ */}
         <div className="sticky top-16 z-40 bg-background/80 backdrop-blur-md border-b border-border/50 py-4">
           <div className="container mx-auto max-w-7xl px-4">
-            <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+            <div className="flex flex-wrap items-center justify-center gap-2">
               {/* "All" button */}
               <button
                 onClick={() => handleCategoryChange("all")}

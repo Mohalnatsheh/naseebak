@@ -20,7 +20,6 @@ import {
   ArrowLeft,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { PushPermissionPrompt } from "@/components/shared/push-permission-prompt";
 
 /* ------------------------------------------------------------------ */
@@ -97,8 +96,8 @@ function CompletionRing({
         />
         <defs>
           <linearGradient id="ring-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="hsl(var(--primary))" />
-            <stop offset="100%" stopColor="hsl(var(--accent))" />
+            <stop offset="0%" stopColor="oklch(0.35 0.08 250)" />
+            <stop offset="100%" stopColor="oklch(0.72 0.12 75)" />
           </linearGradient>
         </defs>
       </svg>
@@ -217,7 +216,7 @@ export default function DashboardPage() {
               <div className="flex items-center gap-3">
                 <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 border border-primary/20">
                   <Bell className="h-5 w-5 text-primary" />
-                  <span className="absolute -top-1 -right-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-gradient-to-r from-red-500 to-rose-500 px-1.5 text-[10px] font-bold text-white shadow-sm">
+                  <span className="absolute -top-1 -right-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-accent px-1.5 text-[10px] font-bold text-accent-foreground shadow-sm">
                     {unreadCount > 99 ? "99+" : unreadCount}
                   </span>
                 </div>
@@ -239,13 +238,13 @@ export default function DashboardPage() {
       {/* ============================================ */}
       {/*  Welcome banner                              */}
       {/* ============================================ */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-l from-primary via-primary/90 to-primary/80 p-5 sm:p-10 text-primary-foreground shadow-xl shadow-primary/15">
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-l from-primary via-primary/90 to-secondary p-5 sm:p-10 text-primary-foreground shadow-xl shadow-primary/15">
         {/* Decorative elements */}
         <div className="absolute top-0 left-0 h-40 w-40 rounded-full bg-white/5 blur-2xl -translate-x-12 -translate-y-12" />
         <div className="absolute bottom-0 right-0 h-32 w-32 rounded-full bg-white/5 blur-2xl translate-x-8 translate-y-8" />
         <div className="absolute top-1/2 left-1/3 h-24 w-24 rounded-full bg-accent/10 blur-xl" />
         {/* Gold accent circle */}
-        <div className="absolute top-4 end-4 h-20 w-20 rounded-full bg-accent/20 blur-2xl" />
+        <div className="absolute top-4 end-4 h-20 w-20 rounded-full bg-accent/15 blur-2xl" />
 
         <div className="relative flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5">
           <div className="space-y-3">
@@ -279,18 +278,18 @@ export default function DashboardPage() {
       {/*  "Account must be completed" banner           */}
       {/* ============================================ */}
       {completionPercent < 100 && (
-        <Card className="relative overflow-hidden border-amber-300/50 bg-gradient-to-l from-amber-50/80 to-orange-50/50 shadow-md">
-          <div className="absolute top-0 right-0 h-32 w-32 rounded-full bg-amber-200/20 blur-2xl translate-x-8 -translate-y-8" />
+        <Card className="relative overflow-hidden border-accent/40 bg-gradient-to-l from-accent/10 via-accent/5 to-transparent shadow-md">
+          <div className="absolute top-0 right-0 h-32 w-32 rounded-full bg-accent/10 blur-2xl translate-x-8 -translate-y-8" />
           <CardContent className="pt-5 pb-4">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-100 border border-amber-200/60">
-                <AlertCircle className="h-5 w-5 text-amber-600" />
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent/15 border border-accent/20">
+                <AlertCircle className="h-5 w-5 text-accent-foreground" />
               </div>
               <div>
-                <h3 className="font-bold text-amber-900 text-sm">
+                <h3 className="font-bold text-foreground text-sm">
                   أكمل حسابك للبدء في تلقي اقتراحات التوافق
                 </h3>
-                <p className="text-xs text-amber-700/80 mt-0.5">
+                <p className="text-xs text-muted-foreground mt-0.5">
                   يجب إكمال جميع الخطوات أدناه لتفعيل حسابك بالكامل
                 </p>
               </div>
@@ -323,39 +322,39 @@ export default function DashboardPage() {
                 <div className={`flex items-center gap-3 p-2.5 rounded-xl border transition-colors ${
                   section.percentage === 100
                     ? "bg-emerald-50/60 border-emerald-200/50"
-                    : "bg-amber-50/60 border-amber-200/50 hover:bg-amber-50"
+                    : "bg-primary/[0.03] border-primary/10 hover:bg-primary/[0.06]"
                 }`}>
                   {section.percentage === 100 ? (
                     <CheckCircle2 className="h-5 w-5 text-emerald-500 shrink-0" />
                   ) : (
-                    <AlertCircle className="h-5 w-5 text-amber-500 shrink-0" />
+                    <AlertCircle className="h-5 w-5 text-primary/60 shrink-0" />
                   )}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between mb-1">
-                      <span className={`text-sm font-medium ${section.percentage === 100 ? "text-emerald-800" : "text-amber-800"}`}>
+                      <span className={`text-sm font-medium ${section.percentage === 100 ? "text-emerald-800" : "text-foreground"}`}>
                         {section.label}
                       </span>
-                      <span className={`text-xs font-bold ${section.percentage === 100 ? "text-emerald-600" : "text-amber-600"}`}>
+                      <span className={`text-xs font-bold ${section.percentage === 100 ? "text-emerald-600" : "text-primary"}`}>
                         {section.percentage}%
                       </span>
                     </div>
                     <div className="h-1.5 rounded-full bg-muted/60 overflow-hidden">
                       <div
                         className={`h-full rounded-full transition-all duration-500 ${
-                          section.percentage === 100 ? "bg-emerald-500" : "bg-amber-500"
+                          section.percentage === 100 ? "bg-emerald-500" : "bg-primary/70"
                         }`}
                         style={{ width: `${section.percentage}%` }}
                       />
                     </div>
                     {section.missingFields.length > 0 && section.percentage < 100 && (
-                      <p className="text-[10px] text-amber-600/70 mt-1 truncate">
+                      <p className="text-[10px] text-muted-foreground mt-1 truncate">
                         ينقص: {section.missingFields.slice(0, 3).join("، ")}
                         {section.missingFields.length > 3 && ` (+${section.missingFields.length - 3})`}
                       </p>
                     )}
                   </div>
                   {section.percentage < 100 && (
-                    <ArrowLeft className="h-4 w-4 text-amber-400 shrink-0" />
+                    <ArrowLeft className="h-4 w-4 text-primary/40 shrink-0" />
                   )}
                 </div>
               </Link>
@@ -374,8 +373,8 @@ export default function DashboardPage() {
             value: matchCreditsCount,
             label: "رصيد التوافقات",
             icon: Sparkles,
-            gradient: "from-primary to-blue-500",
-            bgLight: "from-primary/15 to-blue-500/10",
+            gradient: "from-primary to-secondary",
+            bgLight: "from-primary/10 to-secondary/5",
             textColor: "text-primary",
             shadowColor: "shadow-primary/10",
           },
@@ -383,8 +382,8 @@ export default function DashboardPage() {
             value: receivedSuggestions,
             label: "اقتراحات مستلمة",
             icon: Star,
-            gradient: "from-accent to-amber-500",
-            bgLight: "from-accent/15 to-amber-500/10",
+            gradient: "from-accent to-accent/70",
+            bgLight: "from-accent/10 to-accent/5",
             textColor: "text-accent-foreground",
             shadowColor: "shadow-accent/10",
           },
@@ -392,10 +391,10 @@ export default function DashboardPage() {
             value: matchesCount,
             label: "توافقات",
             icon: Heart,
-            gradient: "from-rose-500 to-pink-500",
-            bgLight: "from-rose-500/15 to-pink-500/10",
-            textColor: "text-rose-700",
-            shadowColor: "shadow-rose-500/10",
+            gradient: "from-secondary to-primary",
+            bgLight: "from-secondary/10 to-primary/5",
+            textColor: "text-primary",
+            shadowColor: "shadow-primary/10",
           },
         ].map((stat, i) => (
           <Card
@@ -437,32 +436,32 @@ export default function DashboardPage() {
               icon: Sparkles,
               label: "عرض الاقتراحات",
               desc: "اكتشف اقتراحات التوافق المخصصة لك",
-              gradient: "from-violet-500 to-purple-600",
-              hoverBorder: "hover:border-violet-300",
+              gradient: "from-primary to-secondary",
+              hoverBorder: "hover:border-primary/30",
             },
             {
               href: "/dashboard/profile",
               icon: User,
               label: "الملف الشخصي",
               desc: "عرض ملفك الشخصي",
-              gradient: "from-primary/80 to-blue-500",
-              hoverBorder: "hover:border-primary/40",
+              gradient: "from-secondary to-primary",
+              hoverBorder: "hover:border-secondary/30",
             },
             {
               href: "/dashboard/personality-quiz",
               icon: Brain,
               label: "اختبار الشخصية",
               desc: "أكمل الاختبار لتحسين جودة التوافق",
-              gradient: "from-pink-500 to-rose-600",
-              hoverBorder: "hover:border-pink-300",
+              gradient: "from-primary to-primary/70",
+              hoverBorder: "hover:border-primary/30",
             },
             {
               href: "/dashboard/payments",
               icon: CreditCard,
               label: "رصيد التوافقات",
               desc: "اشتري رصيد لرؤية تفاصيل التوافقات",
-              gradient: "from-amber-500 to-orange-500",
-              hoverBorder: "hover:border-amber-300",
+              gradient: "from-accent to-accent/70",
+              hoverBorder: "hover:border-accent/30",
             },
           ].map((item) => (
             <Link key={item.href} href={item.href}>
@@ -514,8 +513,8 @@ export default function DashboardPage() {
                   ? [
                       {
                         icon: CheckCircle2,
-                        iconColor: "text-green-500",
-                        iconBg: "bg-green-50",
+                        iconColor: "text-emerald-500",
+                        iconBg: "bg-emerald-50",
                         title: "تم إنشاء الحساب",
                         desc: "مرحباً بك في منصة نصيبك",
                         time: new Date(profile.createdAt).toLocaleDateString(
@@ -528,8 +527,8 @@ export default function DashboardPage() {
                   ? [
                       {
                         icon: AlertCircle,
-                        iconColor: "text-amber-500",
-                        iconBg: "bg-amber-50",
+                        iconColor: "text-accent-foreground",
+                        iconBg: "bg-accent/10",
                         title: "بانتظار التحقق من الهوية",
                         desc: "فريقنا يراجع وثائق الهوية المرفقة",
                         time: "قيد المراجعة",
@@ -538,8 +537,8 @@ export default function DashboardPage() {
                   : [
                       {
                         icon: Shield,
-                        iconColor: "text-green-500",
-                        iconBg: "bg-green-50",
+                        iconColor: "text-emerald-500",
+                        iconBg: "bg-emerald-50",
                         title: "تم التحقق من الهوية",
                         desc: "حسابك موثّق ومفعّل بالكامل",
                         time: "مكتمل",
@@ -549,8 +548,8 @@ export default function DashboardPage() {
                   ? [
                       {
                         icon: Heart,
-                        iconColor: "text-rose-500",
-                        iconBg: "bg-rose-50",
+                        iconColor: "text-primary",
+                        iconBg: "bg-primary/10",
                         title: `لديك ${matchesCount} توافق متبادل`,
                         desc: "يمكنك الآن عرض الصور وطلب زيارة",
                         time: "جديد",
@@ -561,8 +560,8 @@ export default function DashboardPage() {
                   ? [
                       {
                         icon: Sparkles,
-                        iconColor: "text-violet-500",
-                        iconBg: "bg-violet-50",
+                        iconColor: "text-accent-foreground",
+                        iconBg: "bg-accent/10",
                         title: `تلقيت ${receivedSuggestions} اقتراح`,
                         desc: "راجع الاقتراحات واتخذ قرارك",
                         time: "متاح",
@@ -619,10 +618,10 @@ export default function DashboardPage() {
       {/* ============================================ */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <Link href="/dashboard/matches">
-          <Card className="group border-border/40 hover:border-rose-200 hover:shadow-md transition-all duration-300 cursor-pointer">
+          <Card className="group border-border/40 hover:border-primary/20 hover:shadow-md transition-all duration-300 cursor-pointer">
             <CardContent className="pt-5 pb-4 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-50 text-rose-500 group-hover:bg-rose-100 transition-colors">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary group-hover:bg-primary/15 transition-colors">
                   <Heart className="h-5 w-5" />
                 </div>
                 <div>
@@ -632,18 +631,18 @@ export default function DashboardPage() {
                   </p>
                 </div>
               </div>
-              <ChevronLeft className="h-5 w-5 text-muted-foreground/40 group-hover:text-rose-400 group-hover:-translate-x-1 transition-all" />
+              <ChevronLeft className="h-5 w-5 text-muted-foreground/40 group-hover:text-primary group-hover:-translate-x-1 transition-all" />
             </CardContent>
           </Card>
         </Link>
         <Link href="/dashboard/notifications">
-          <Card className="group border-border/40 hover:border-blue-200 hover:shadow-md transition-all duration-300 cursor-pointer">
+          <Card className="group border-border/40 hover:border-primary/20 hover:shadow-md transition-all duration-300 cursor-pointer">
             <CardContent className="pt-5 pb-4 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-500 group-hover:bg-blue-100 transition-colors">
+                <div className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary group-hover:bg-primary/15 transition-colors">
                   <Bell className="h-5 w-5" />
                   {unreadCount > 0 && (
-                    <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-gradient-to-r from-red-500 to-rose-500 px-1 text-[9px] font-bold text-white shadow-sm">
+                    <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[9px] font-bold text-accent-foreground shadow-sm">
                       {unreadCount > 99 ? "99+" : unreadCount}
                     </span>
                   )}
@@ -657,7 +656,7 @@ export default function DashboardPage() {
                   </p>
                 </div>
               </div>
-              <ChevronLeft className="h-5 w-5 text-muted-foreground/40 group-hover:text-blue-400 group-hover:-translate-x-1 transition-all" />
+              <ChevronLeft className="h-5 w-5 text-muted-foreground/40 group-hover:text-primary group-hover:-translate-x-1 transition-all" />
             </CardContent>
           </Card>
         </Link>

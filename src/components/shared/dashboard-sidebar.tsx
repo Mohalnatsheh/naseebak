@@ -284,7 +284,7 @@ export function DashboardSidebar() {
       </aside>
 
       {/* Mobile hamburger + sheet */}
-      <div className="md:hidden fixed top-0 left-0 right-0 z-50 bg-background border-b border-border/40 shadow-sm">
+      <div className="md:hidden fixed top-0 inset-x-0 z-50 bg-background border-b border-border/40 shadow-sm w-full">
         <div className="h-[2px] bg-gradient-to-l from-primary via-accent to-primary/50" />
         <div className="flex items-center justify-between px-4 h-14">
           <Link href="/dashboard" className="flex items-center gap-2">

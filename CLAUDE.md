@@ -6,14 +6,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Naseebak (نصيبك)** is a web-based traditional marriage facilitation platform for Jordan. It is **not** a dating app — there is zero direct communication between users. The platform uses AI-powered matching, admin-mediated family visit coordination, and a freemium suggestion model. The full specification lives in `SRS.md`.
 
-**Current status:** Core platform implemented and deployed to production at **https://naseebak.com**. Auth (phone+OTP for users, email+password for admins), profile management, identity verification, personality quiz, suggestions with sent interest tracking, matches, payments, notifications, full-featured admin panel (13 pages), dynamic blog system, push notifications (OneSignal), real matching algorithm, report/block system, field-level profile completeness, and account deletion with 30-day grace period are all functional.
+**Current status:** Core platform implemented and deployed to production at **https://naseebak.com**. Auth (phone+OTP for users, email+password for admins), profile management, identity verification, personality quiz, suggestions with sent interest tracking, matches, payments, notifications, full-featured admin panel (14 pages), dynamic blog system, push notifications (OneSignal), real matching algorithm, report/block system, field-level profile completeness, account deletion with 30-day grace period, and support/feedback ticket system are all functional.
 
 ## Commands
 
 ```bash
 pnpm dev              # Start dev server (Turbopack) on localhost:3000
 pnpm build            # Production build (next build)
-pnpm test             # Run all tests (vitest run) — 159 tests across 9 files
+pnpm test             # Run all tests (vitest run) — 167 tests across 10 files
 pnpm test:watch       # Run tests in watch mode
 pnpm db:generate      # Regenerate Prisma client after schema changes
 pnpm db:push          # Push schema changes to database
@@ -57,7 +57,8 @@ src/
 │   │       ├── photos/            # Photo upload/manage (max 5, base64)
 │   │       ├── personality-quiz/  # 20-question quiz (5 dimensions)
 │   │       ├── payments/          # Plans + payment history
-│   │       └── notifications/     # Notification center
+│   │       ├── notifications/     # Notification center
+│   │       └── support/           # Support/feedback ticket system
 │   ├── (en)/              # English LTR admin panel
 │   │   └── admin/
 │   │       ├── login/     # Admin email+password login (separate layout, no sidebar)
@@ -73,6 +74,7 @@ src/
 │   │       ├── notifications/ # Send system notifications (single/broadcast)
 │   │       ├── blocks/    # Block management (view/remove)
 │   │       ├── deletions/ # Account deletion request management
+│   │       ├── support/   # Support ticket management
 │   │       ├── settings/  # Admin accounts management
 │   │       └── blog/      # Blog post + category management
 │   └── api/               # All API routes
@@ -92,7 +94,7 @@ src/
 │   ├── profile-completeness.ts  # Field-level profile completeness calculator
 │   ├── matching/
 │   │   └── score.ts       # Weighted compatibility scoring engine
-│   ├── validations/       # Zod schemas (auth.ts, profile.ts, blog.ts)
+│   ├── validations/       # Zod schemas (auth.ts, profile.ts, blog.ts, support.ts)
 │   └── data/
 │       └── jordan-areas.ts  # Jordan cities + neighborhoods for cascading dropdown
 └── __tests__/             # Vitest test files
@@ -147,7 +149,7 @@ Two authentication methods exist — phone+OTP for regular users, email+password
 
 ## Database Schema
 
-20 models in `prisma/schema.prisma`: User, Profile, PersonalityResult, ParentInfo, IdentityDoc, Photo, Suggestion, Like, MutualMatch, VisitRequest, Payment, Subscription, Notification, ProfileUpdateRequest, Otp, BlogCategory, BlogPost, **Report**, **Block**, **AccountDeletionRequest**.
+21 models in `prisma/schema.prisma`: User, Profile, PersonalityResult, ParentInfo, IdentityDoc, Photo, Suggestion, Like, MutualMatch, VisitRequest, Payment, Subscription, Notification, ProfileUpdateRequest, Otp, BlogCategory, BlogPost, Report, Block, AccountDeletionRequest, **SupportTicket**.
 
 Key points:
 - `User.passwordHash` is optional (`String?`) — set for admin accounts (bcrypt), null for regular users
@@ -181,6 +183,8 @@ Key points:
 | Push | `register` (POST — save OneSignal player ID) |
 | Blog (public) | GET `/api/blog` (list published, filter by `?category=`, `?page=`), GET `/api/blog/[slug]` (single post), GET `/api/blog/categories` (categories with published counts) |
 | Admin | `stats` (enhanced with revenue, trends, activity), `identity` review (pending/history tabs), `suggestions` (GET list + POST create + DELETE `[id]`), `suggestions/generate`, `reports` (GET/PATCH), `visits` management, `users` (GET with search/gender/status filters) + `users/[id]` (GET + PATCH credits) + `users/[id]/suspend`, `profile-requests` (with profile diff data), `payments` (GET paginated with status filter + revenue summary), `notifications` (GET recent + POST send to one/all), `blocks` (GET paginated) + `blocks/[id]` (DELETE), `deletions` (GET pending) + `deletions/[id]` (DELETE cancel), `settings/admins` (GET list + POST create) |
+| Support | POST `/api/support` (create ticket, max 5 open), GET `/api/support` (list own tickets) |
+| Admin Support | GET `/api/admin/support` (list all, filter by status/type, paginated), PATCH (update status + respond, notifies user) |
 | Admin Blog | GET/POST `/api/admin/blog` (list all + create), PUT/DELETE `/api/admin/blog/[id]`, GET/POST `/api/admin/blog/categories`, PUT/DELETE `/api/admin/blog/categories/[id]` |
 
 ## Branding & Colors
@@ -375,11 +379,12 @@ All notification types navigate to the correct page on click:
 | VISIT_UPDATE | `/dashboard/matches` (status shown in Arabic via `visitStatusLabels` map in `api/admin/visits/route.ts`) |
 | PAYMENT | `/dashboard/payments` |
 | IDENTITY | `/dashboard/identity` |
+| SUPPORT | `/dashboard/support` |
 | SYSTEM | `/dashboard` |
 
 ## Testing
 
-Tests are in `src/__tests__/`. Run with `pnpm test`. **159 tests across 9 files.**
+Tests are in `src/__tests__/`. Run with `pnpm test`. **167 tests across 10 files.**
 - `validations/auth.test.ts` — OTP schema validation (sendOtp, verifyOtp, login, register) — 38 tests
 - `validations/profile.test.ts` — Profile + parent info + draft schema validation — 18 tests
 - `validations/blog.test.ts` — Blog post + category schema validation — 19 tests
@@ -389,6 +394,7 @@ Tests are in `src/__tests__/`. Run with `pnpm test`. **159 tests across 9 files.
 - `lib/utils.test.ts` — Utility function tests — 6 tests
 - `matching/score.test.ts` — Compatibility scoring (cosine similarity, preference matching, quality score) — 20 tests
 - `profile-completeness.test.ts` — Field-level completeness calculator — 13 tests
+- `validations/support.test.ts` — Support ticket schema validation — 8 tests
 
 ## Blog System
 
@@ -569,10 +575,10 @@ User safety features — report profiles and block users.
 
 ## Admin Panel (Complete Feature Set)
 
-The admin panel at `/admin` has 13 pages providing full platform management. All pages use the same patterns: `"use client"`, `useState`+`useEffect`, admin auth check via API, shadcn/ui components.
+The admin panel at `/admin` has 14 pages providing full platform management. All pages use the same patterns: `"use client"`, `useState`+`useEffect`, admin auth check via API, shadcn/ui components.
 
 ### Sidebar Navigation (`src/components/shared/admin-sidebar.tsx`)
-13 links: Dashboard, Users, Identity Review, Suggestions, Visit Requests, Reports, Profile Requests, Payments, Notifications, Blocks, Deletions, Blog, Settings. Active link matching uses `pathname === href || (href !== "/admin" && pathname.startsWith(href))` to highlight parent links for sub-routes like `/admin/users/[id]`.
+14 links: Dashboard, Users, Identity Review, Suggestions, Visit Requests, Reports, Profile Requests, Payments, Notifications, Blocks, Deletions, Support Tickets, Blog, Settings. Active link matching uses `pathname === href || (href !== "/admin" && pathname.startsWith(href))` to highlight parent links for sub-routes like `/admin/users/[id]`.
 
 ### Admin Pages Summary
 
@@ -590,6 +596,7 @@ The admin panel at `/admin` has 13 pages providing full platform management. All
 | **Notifications** | `/admin/notifications` | Send form with All Users / Specific User toggle, user dropdown, title + body inputs. Recent system notifications list below |
 | **Blocks** | `/admin/blocks` | Paginated table (Blocker / Blocked / Date / Remove), confirmation before removal |
 | **Deletions** | `/admin/deletions` | Cards with user info, reason, countdown badge ("X days remaining"), cancel deletion button with account reactivation |
+| **Support Tickets** | `/admin/support` | Status + type filters, ticket list with user info, review dialog with admin note + status actions (In Progress/Resolve/Close), pagination |
 | **Settings** | `/admin/settings` | Admin accounts table (Name / Email / Created), "Add Admin" form (firstName, lastName, email, password with bcrypt hash) |
 
 ### Admin API Routes
@@ -611,6 +618,7 @@ The admin panel at `/admin` has 13 pages providing full platform management. All
 | `/api/admin/blocks/[id]` | DELETE | Remove a block |
 | `/api/admin/deletions` | GET | Pending (non-cancelled) deletion requests with user info |
 | `/api/admin/deletions/[id]` | DELETE | Cancel deletion + reactivate user |
+| `/api/admin/support` | GET, PATCH | GET: paginated with `?status=&type=` filters. PATCH: update status + admin note, creates SUPPORT notification + push |
 | `/api/admin/settings/admins` | GET, POST | GET: list admin accounts. POST: create new admin (bcrypt password hash) |
 | `/api/admin/reports` | GET, PATCH | Existing report review |
 | `/api/admin/visits` | GET, PATCH | Existing visit management with scheduledDate, location, adminNotes |
@@ -654,6 +662,33 @@ Users can request permanent account deletion with a 30-day cooling-off period.
 - `src/app/api/profile/delete/route.ts` — POST/DELETE/GET endpoints
 - `src/app/api/cron/process-deletions/route.ts` — Cron processor
 - `src/app/(ar)/dashboard/profile/page.tsx` — Deletion UI (request + countdown + cancel)
+
+## Support/Feedback Ticket System
+
+Users can submit support tickets (issues, suggestions, change requests) from the dashboard. Admin reviews and responds via the admin panel.
+
+**User flow:**
+1. User navigates to `/dashboard/support` (accessible from sidebar "الدعم والملاحظات")
+2. Selects ticket type (ISSUE/SUGGESTION/CHANGE_REQUEST), enters subject + description
+3. `POST /api/support` creates the ticket (max 5 open per user)
+4. User views their tickets + admin responses in "تذاكري" tab
+
+**Admin flow:**
+1. Admin navigates to `/admin/support` (sidebar "Support Tickets")
+2. Filters by status (OPEN/IN_PROGRESS/RESOLVED/CLOSED) and type
+3. Reviews ticket, adds admin note, changes status
+4. `PATCH /api/admin/support` updates status + creates SUPPORT notification + push to user
+
+**Status flow:** `OPEN` → `IN_PROGRESS` → `RESOLVED` / `CLOSED`
+
+**Notification:** When admin responds/changes status, user receives a SUPPORT notification: `تم تحديث حالة تذكرتك "subject" إلى: status` — routes to `/dashboard/support`.
+
+**Key files:**
+- `src/lib/validations/support.ts` — `createTicketSchema` (type, subject 5-200, description 20-2000)
+- `src/app/api/support/route.ts` — User POST (create) + GET (list own)
+- `src/app/api/admin/support/route.ts` — Admin GET (list all, filtered, paginated) + PATCH (update + notify)
+- `src/app/(ar)/dashboard/support/page.tsx` — 2-tab user page (new ticket form + ticket list)
+- `src/app/(en)/admin/support/page.tsx` — Admin ticket management (follows reports page pattern)
 
 ## Known Limitations / TODOs
 

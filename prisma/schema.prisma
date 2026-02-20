@@ -86,11 +86,25 @@ enum NotificationType {
   PAYMENT
   SUBSCRIPTION
   SYSTEM
+  SUPPORT
 }
 
 enum BlogPostStatus {
   DRAFT
   PUBLISHED
+}
+
+enum TicketType {
+  ISSUE
+  SUGGESTION
+  CHANGE_REQUEST
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
 }
 
 enum ReportReason {
@@ -157,6 +171,7 @@ model User {
   blocksGiven       Block[]   @relation("BlocksGiven")
   blocksReceived    Block[]   @relation("BlocksReceived")
   deletionRequest   AccountDeletionRequest?
+  supportTickets    SupportTicket[]
 
   @@map("users")
 }
@@ -516,4 +531,20 @@ model AccountDeletionRequest {
   createdAt   DateTime  @default(now())
 
   @@map("account_deletion_requests")
+}
+
+model SupportTicket {
+  id          String       @id @default(cuid())
+  userId      String
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type        TicketType
+  subject     String
+  description String       @db.Text
+  status      TicketStatus @default(OPEN)
+  adminNote   String?      @db.Text
+  resolvedAt  DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@map("support_tickets")
 }

@@ -15,6 +15,7 @@ import {
   ArrowLeft,
   Shield,
   CreditCard,
+  LifeBuoy,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -95,6 +96,14 @@ const typeConfig: Record<
     iconColor: "text-accent-foreground",
     dotColor: "bg-accent",
   },
+  SUPPORT: {
+    icon: LifeBuoy,
+    gradient: "from-secondary to-primary",
+    borderColor: "border-s-secondary",
+    iconBg: "from-secondary/10 to-primary/10",
+    iconColor: "text-secondary",
+    dotColor: "bg-secondary",
+  },
 };
 
 const defaultConfig = {
@@ -117,6 +126,7 @@ const NOTIFICATION_LINKS: Record<string, string> = {
   VISIT_UPDATE: "/dashboard/matches",
   PAYMENT: "/dashboard/payments",
   IDENTITY: "/dashboard/identity",
+  SUPPORT: "/dashboard/support",
   SYSTEM: "/dashboard",
 };
 

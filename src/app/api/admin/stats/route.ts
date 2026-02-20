@@ -21,7 +21,7 @@ export async function GET() {
       pendingVerifications, totalMatches, totalSuggestions,
       activeSubscriptions, suspendedUsers,
       totalRevenue, completedPayments,
-      pendingReports, pendingProfileRequests,
+      pendingReports, pendingProfileRequests, pendingSupportTickets,
       registrationsThisWeek, registrationsLastWeek,
       recentUsers, recentMatches, recentPayments,
     ] = await Promise.all([
@@ -42,6 +42,7 @@ export async function GET() {
       db.payment.count({ where: { status: "COMPLETED" } }),
       db.report.count({ where: { status: "PENDING" } }),
       db.profileUpdateRequest.count({ where: { status: "PENDING" } }),
+      db.supportTicket.count({ where: { status: { in: ["OPEN", "IN_PROGRESS"] } } }),
       db.user.count({ where: { createdAt: { gte: oneWeekAgo } } }),
       db.user.count({ where: { createdAt: { gte: twoWeeksAgo, lt: oneWeekAgo } } }),
       db.user.findMany({
@@ -110,6 +111,7 @@ export async function GET() {
         completedPayments,
         pendingReports,
         pendingProfileRequests,
+        pendingSupportTickets,
         registrationsThisWeek,
         registrationsLastWeek,
       },

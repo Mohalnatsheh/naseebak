@@ -16,6 +16,7 @@ import {
   ChevronDown,
   Settings,
   X,
+  LifeBuoy,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
@@ -52,6 +53,7 @@ const secondaryLinks = [
   { href: "/dashboard/profile", label: "الملف الشخصي", icon: User },
   { href: "/dashboard/identity", label: "التحقق من الهوية", icon: FileCheck },
   { href: "/dashboard/payments", label: "الباقات والاشتراكات", icon: CreditCard },
+  { href: "/dashboard/support", label: "الدعم والملاحظات", icon: LifeBuoy },
 ];
 
 export function DashboardNavbar() {

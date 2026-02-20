@@ -5,7 +5,7 @@ import Link from "next/link";
 import {
   Users, UserCheck, Heart, Sparkles, ShieldCheck, CreditCard,
   TrendingUp, Clock, DollarSign, Flag, ClipboardEdit,
-  ArrowUpRight, ArrowDownRight, UserPlus,
+  ArrowUpRight, ArrowDownRight, UserPlus, LifeBuoy,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -24,6 +24,7 @@ interface Stats {
   completedPayments: number;
   pendingReports: number;
   pendingProfileRequests: number;
+  pendingSupportTickets: number;
   registrationsThisWeek: number;
   registrationsLastWeek: number;
 }
@@ -180,6 +181,13 @@ export default function AdminDashboardPage() {
                     <span className="text-sm font-medium">Profile Requests</span>
                   </div>
                   <Badge variant="secondary">{stats.pendingProfileRequests}</Badge>
+                </Link>
+                <Link href="/admin/support" className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <LifeBuoy className="h-5 w-5 text-purple-600" />
+                    <span className="text-sm font-medium">Support Tickets</span>
+                  </div>
+                  <Badge variant="secondary">{stats.pendingSupportTickets}</Badge>
                 </Link>
               </CardContent>
             </Card>

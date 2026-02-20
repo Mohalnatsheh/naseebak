@@ -106,10 +106,11 @@ Two authentication methods exist — phone+OTP for regular users, email+password
 
 **Flow:**
 1. Client calls `POST /api/auth/send-otp` with `{ phone }` → returns OTP (dev mode shows OTP in response) + `userExists` flag
-2. Client calls `POST /api/auth/verify-otp` with `{ phone, code }` → marks OTP verified in DB
-3. For registration: `POST /api/auth/register` with `{ firstName, lastName, phone, gender, otp }` → creates user with `email: phone_${phone}@naseeb.local`
-4. For login: `signIn("credentials", { phone, otp })` via NextAuth → verifies OTP in DB, looks up user by phone
-5. If login fails and `userExists` is false → redirects to `/register`; if true → shows error (account may be suspended)
+2. **Registration page checks `userExists` immediately** — if true, blocks registration with error "رقم الهاتف مسجل مسبقاً" before OTP input is shown
+3. Client calls `POST /api/auth/verify-otp` with `{ phone, code }` → marks OTP verified in DB
+4. For registration: `POST /api/auth/register` with `{ firstName, lastName, phone, gender, otp }` → creates user with `email: phone_${phone}@naseeb.local`
+5. For login: `signIn("credentials", { phone, otp })` via NextAuth → verifies OTP in DB, looks up user by phone
+6. If login fails and `userExists` is false → redirects to `/register`; if true → shows error (account may be suspended)
 
 ### Admin Auth (Email + Password)
 
@@ -527,7 +528,7 @@ The admin panel at `/admin` has 13 pages providing full platform management. All
 | **Suggestions** | `/admin/suggestions` | Browse/Create tabs. Browse: status filter, paginated table with score color coding (>70 green, 50-70 amber, <50 red), delete action. Create: auto-generate + manual create |
 | **Visits** | `/admin/visits` | Status filter buttons with counts, date picker (datetime-local), location input, admin notes per visit, "Save Details" button, status transition buttons |
 | **Reports** | `/admin/reports` | Status filter (All/PENDING/REVIEWED/DISMISSED), review dialog with admin note, pagination |
-| **Profile Requests** | `/admin/profile-requests` | Change diff table (Field / Current Value / Proposed Value), user message display, admin note + approve/reject |
+| **Profile Requests** | `/admin/profile-requests` | Change diff table (Field / Current Value / Proposed Value), user message display, admin note + approve/reject. Approval applies all profile fields including preference arrays (prefReligiosity, prefSmokingStatus) |
 | **Payments** | `/admin/payments` | 3 summary cards (Total Revenue, This Month, Completed Count), status filter (All/PENDING/COMPLETED/FAILED/REFUNDED), paginated table |
 | **Notifications** | `/admin/notifications` | Send form with All Users / Specific User toggle, user dropdown, title + body inputs. Recent system notifications list below |
 | **Blocks** | `/admin/blocks` | Paginated table (Blocker / Blocked / Date / Remove), confirmation before removal |
@@ -546,7 +547,7 @@ The admin panel at `/admin` has 13 pages providing full platform management. All
 | `/api/admin/suggestions` | GET, POST | GET: paginated with `?status=` filter. POST: create suggestion (existing) |
 | `/api/admin/suggestions/[id]` | DELETE | Delete a suggestion |
 | `/api/admin/suggestions/generate` | POST | Auto-generate scored suggestions (existing) |
-| `/api/admin/profile-requests` | GET, PATCH | GET: pending requests with user profile for diff. PATCH: approve/reject (existing) |
+| `/api/admin/profile-requests` | GET, PATCH | GET: pending requests with user profile for diff. PATCH: approve/reject with field application (supports string, int, bool, and array fields including prefReligiosity/prefSmokingStatus) |
 | `/api/admin/payments` | GET | Paginated with `?status=` filter, includes revenue summary (total, monthly, count) |
 | `/api/admin/notifications` | GET, POST | GET: last 50 SYSTEM notifications. POST: `{ userId?, title, body }` send to one or all users + push |
 | `/api/admin/blocks` | GET | Paginated blocks with blocker/blocked user info |

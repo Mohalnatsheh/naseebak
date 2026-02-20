@@ -50,7 +50,7 @@ src/
 │   │   └── dashboard/     # Protected dashboard pages
 │   │       ├── page.tsx           # Main dashboard (stats, actions, timeline)
 │   │       ├── profile/setup/     # 5-step profile wizard
-│   │       ├── profile/edit/      # Profile editing
+│   │       ├── profile/edit/      # Profile editing (5-step, all fields required with validation + guardian info)
 │   │       ├── identity/          # ID document upload + status
 │   │       ├── suggestions/       # 3-tab: new suggestions, sent requests, received interests
 │   │       ├── matches/           # Mutual matches with full profile details + photos + visits
@@ -281,6 +281,24 @@ The setup wizard auto-saves progress so users can leave mid-form and return late
 - `src/app/api/profile/draft/route.ts` — PATCH endpoint with `profileDraftSchema` validation
 - `src/lib/validations/profile.ts` — `profileDraftSchema` (all fields optional, value ranges enforced)
 
+## Profile Edit (5 Steps)
+
+The profile edit page (`dashboard/profile/edit`) mirrors the setup wizard structure but for existing profiles. All fields are required with step-by-step validation. Steps 1-4 changes are submitted as a `ProfileUpdateRequest` for admin review. Step 5 (guardian info) saves directly since it's admin-only data.
+
+**Steps:**
+1. **Personal Info** — DOB, nationality, city, area, height, weight, skin color, education, job, income range
+2. **Lifestyle & Religion** — Marital status, children count (conditional), religiosity, smoking, hijab/beard (gender-specific), cooking ability, driving license
+3. **About Me & Preferences** — Bio (min 10 chars), partner expectations (min 10 chars), hobbies, family values, preferred age/city/education/marital status, prefReligiosity, prefSmokingStatus, prefHijab/prefBeard (gender-specific), prefChildrenAcceptance
+4. **Family Info** — Tribe, family origin area, siblings count, housing type, monthly expenses, health conditions
+5. **Guardian Info** — Parent/guardian name, phone, relationship (father/mother/brother/guardian), address. Saves directly via `/api/profile/parent-info` (no admin review needed)
+
+**Validation:** `validateStep()` function checks all required fields per step. Navigation between steps is blocked until the current step passes validation. Submit validates all 5 steps. Arabic error messages shown in a banner that auto-scrolls into view on validation failure.
+
+**Key files:**
+- `src/app/(ar)/dashboard/profile/edit/page.tsx` — 5-step edit form with validation and scroll-to-error
+- `src/app/api/profile/update-request/route.ts` — POST endpoint (creates ProfileUpdateRequest for admin review)
+- `src/app/api/profile/parent-info/route.ts` — GET/POST guardian info (direct save)
+
 ## Profile Avatar
 
 Personal profile image visible only to the user on their own profile page. Never shared with other users, never included in suggestion/match API responses.
@@ -292,7 +310,7 @@ Personal profile image visible only to the user on their own profile page. Never
 
 **Key files:**
 - `src/app/api/profile/avatar/route.ts` — POST/DELETE avatar endpoint
-- `src/app/(ar)/dashboard/profile/page.tsx` — Avatar display + upload UI
+- `src/app/(ar)/dashboard/profile/page.tsx` — Avatar display + upload UI + guardian info display section (name, relationship, address with privacy notice)
 
 ## Photo Management
 

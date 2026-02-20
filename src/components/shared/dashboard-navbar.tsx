@@ -177,6 +177,12 @@ export function DashboardNavbar() {
                   الباقات والاشتراكات
                 </Link>
               </DropdownMenuItem>
+              <DropdownMenuItem asChild className="rounded-lg cursor-pointer gap-2.5 py-2.5 px-3 my-0.5">
+                <Link href="/dashboard/support">
+                  <LifeBuoy className="h-4 w-4 text-muted-foreground" />
+                  الدعم والملاحظات
+                </Link>
+              </DropdownMenuItem>
               <DropdownMenuSeparator className="mx-1" />
               <DropdownMenuItem className="rounded-lg cursor-pointer gap-2.5 py-2.5 px-3 my-0.5 text-destructive focus:text-destructive focus:bg-destructive/5">
                 <LogOut className="h-4 w-4" />

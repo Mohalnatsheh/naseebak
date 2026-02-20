@@ -12,7 +12,7 @@ export default function DashboardLayout({
       <OneSignalProvider />
       <div className="flex min-h-screen" dir="rtl">
         <DashboardSidebar />
-        <main className="flex-1 md:pt-0 pt-16">
+        <main className="flex-1 md:pt-0 pt-14">
           <div className="max-w-5xl mx-auto px-4 md:px-6 py-6 md:py-8">
             {children}
           </div>

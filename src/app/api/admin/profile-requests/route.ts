@@ -69,10 +69,12 @@ export async function PATCH(request: Request) {
         "hobbies", "familyValues", "tribe", "familyOriginArea", "housingType",
         "monthlyExpenses", "healthConditions", "cookingAbility",
         "prefCity", "prefEducation", "prefMaritalStatus",
+        "prefHijab", "prefBeard", "prefChildrenAcceptance",
       ];
 
       const intFields = ["height", "weight", "numberOfSiblings", "prefAgeMin", "prefAgeMax"];
       const boolFields = ["hijab", "beard", "drivingLicense"];
+      const arrayFields = ["prefReligiosity", "prefSmokingStatus"];
 
       for (const [key, value] of Object.entries(changes)) {
         if (allowedFields.includes(key)) {
@@ -81,6 +83,8 @@ export async function PATCH(request: Request) {
           updateData[key] = value != null ? parseInt(String(value)) : null;
         } else if (boolFields.includes(key)) {
           updateData[key] = value;
+        } else if (arrayFields.includes(key)) {
+          updateData[key] = Array.isArray(value) ? value : [];
         }
       }
 

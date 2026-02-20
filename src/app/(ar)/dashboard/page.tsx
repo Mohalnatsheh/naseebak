@@ -239,7 +239,7 @@ export default function DashboardPage() {
       {/* ============================================ */}
       {/*  Welcome banner                              */}
       {/* ============================================ */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-l from-primary via-primary/90 to-primary/80 p-7 sm:p-10 text-primary-foreground shadow-xl shadow-primary/15">
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-l from-primary via-primary/90 to-primary/80 p-5 sm:p-10 text-primary-foreground shadow-xl shadow-primary/15">
         {/* Decorative elements */}
         <div className="absolute top-0 left-0 h-40 w-40 rounded-full bg-white/5 blur-2xl -translate-x-12 -translate-y-12" />
         <div className="absolute bottom-0 right-0 h-32 w-32 rounded-full bg-white/5 blur-2xl translate-x-8 translate-y-8" />
@@ -368,7 +368,7 @@ export default function DashboardPage() {
       {/* ============================================ */}
       {/*  Stats grid                                  */}
       {/* ============================================ */}
-      <div className="grid grid-cols-3 gap-3 sm:gap-4">
+      <div className="grid grid-cols-3 gap-2 sm:gap-4">
         {[
           {
             value: matchCreditsCount,
@@ -402,19 +402,19 @@ export default function DashboardPage() {
             key={i}
             className={`group relative overflow-hidden border-0 bg-gradient-to-br ${stat.bgLight} hover:shadow-lg ${stat.shadowColor} transition-all duration-300 hover:-translate-y-1`}
           >
-            <CardContent className="pt-5 pb-4 px-4 text-center relative">
+            <CardContent className="pt-4 pb-3 px-2 sm:pt-5 sm:pb-4 sm:px-4 text-center relative">
               {/* Decorative circle */}
               <div className="absolute -top-6 -left-6 h-16 w-16 rounded-full bg-gradient-to-br opacity-5 group-hover:opacity-10 transition-opacity" />
 
               <div
-                className={`mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br ${stat.gradient} text-white shadow-md transition-transform duration-300 group-hover:scale-110`}
+                className={`mx-auto mb-2 sm:mb-3 flex h-9 w-9 sm:h-11 sm:w-11 items-center justify-center rounded-xl bg-gradient-to-br ${stat.gradient} text-white shadow-md transition-transform duration-300 group-hover:scale-110`}
               >
-                <stat.icon className="h-5 w-5" />
+                <stat.icon className="h-4 w-4 sm:h-5 sm:w-5" />
               </div>
-              <p className={`text-3xl font-extrabold ${stat.textColor} mb-0.5`}>
+              <p className={`text-2xl sm:text-3xl font-extrabold ${stat.textColor} mb-0.5`}>
                 {stat.value}
               </p>
-              <p className="text-[11px] font-medium text-muted-foreground">
+              <p className="text-[10px] sm:text-[11px] font-medium text-muted-foreground">
                 {stat.label}
               </p>
             </CardContent>

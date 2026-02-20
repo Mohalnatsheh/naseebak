@@ -278,6 +278,12 @@ function RegisterPageContent() {
         return;
       }
 
+      // If phone already registered, block registration immediately
+      if (data.userExists) {
+        setError("رقم الهاتف مسجل مسبقاً. يرجى تسجيل الدخول بدلاً من إنشاء حساب جديد.");
+        return;
+      }
+
       setOtpSent(true);
     } catch {
       setError("حدث خطأ غير متوقع. حاول مرة أخرى.");

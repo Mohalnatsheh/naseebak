@@ -619,9 +619,13 @@ function RegisterPageContent() {
                     <Input
                       id="firstName"
                       value={form.firstName}
-                      onChange={(e) => updateField("firstName", e.target.value)}
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/[^\u0600-\u06FF\s]/g, "");
+                        updateField("firstName", val);
+                      }}
                       className="h-11 rounded-xl border-border/60 bg-muted/30 focus:bg-background transition-colors"
                       required
+                      dir="rtl"
                     />
                   </div>
                   <div className="space-y-2">
@@ -634,12 +638,19 @@ function RegisterPageContent() {
                     <Input
                       id="lastName"
                       value={form.lastName}
-                      onChange={(e) => updateField("lastName", e.target.value)}
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/[^\u0600-\u06FF\s]/g, "");
+                        updateField("lastName", val);
+                      }}
                       className="h-11 rounded-xl border-border/60 bg-muted/30 focus:bg-background transition-colors"
                       required
+                      dir="rtl"
                     />
                   </div>
                 </div>
+                <p className="text-[11px] text-muted-foreground -mt-2">
+                  يرجى إدخال الاسم باللغة العربية فقط
+                </p>
 
                 {/* ---- Gender selection cards ---- */}
                 <div className="space-y-2">

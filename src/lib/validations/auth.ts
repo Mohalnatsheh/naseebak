@@ -27,9 +27,11 @@ export const verifyOtpSchema = z.object({
   code: z.string().length(6, "رمز التحقق يجب أن يكون 6 أرقام"),
 });
 
+const arabicNameRegex = /^[\u0600-\u06FF\s]+$/;
+
 export const registerSchema = z.object({
-  firstName: z.string().min(2, "الاسم الأول يجب أن يكون حرفين على الأقل"),
-  lastName: z.string().min(2, "اسم العائلة يجب أن يكون حرفين على الأقل"),
+  firstName: z.string().min(2, "الاسم الأول يجب أن يكون حرفين على الأقل").regex(arabicNameRegex, "الاسم الأول يجب أن يكون بالعربية فقط"),
+  lastName: z.string().min(2, "اسم العائلة يجب أن يكون حرفين على الأقل").regex(arabicNameRegex, "اسم العائلة يجب أن يكون بالعربية فقط"),
   phone: phoneSchema,
   gender: z.enum(["MALE", "FEMALE"]),
   otp: z.string().length(6, "رمز التحقق يجب أن يكون 6 أرقام"),

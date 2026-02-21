@@ -1,6 +1,7 @@
 import { DashboardSidebar } from "@/components/shared/dashboard-sidebar";
 import { Providers } from "@/components/shared/providers";
 import { OneSignalProvider } from "@/components/shared/onesignal-provider";
+import { PushPermissionPrompt } from "@/components/shared/push-permission-prompt";
 
 export default function DashboardLayout({
   children,
@@ -10,6 +11,7 @@ export default function DashboardLayout({
   return (
     <Providers>
       <OneSignalProvider />
+      <PushPermissionPrompt />
       <div className="flex min-h-screen overflow-x-hidden">
         <DashboardSidebar />
         <main className="flex-1 md:pt-0 pt-[58px] min-w-0">

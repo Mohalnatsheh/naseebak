@@ -136,8 +136,10 @@ Two authentication methods exist — phone+OTP for regular users, email+password
 - `/dashboard/*` → requires auth (unauthenticated → `/login`)
 - `/login`, `/register` → redirects to `/dashboard` if already logged in
 
+**Registration name validation:** First and last names must be Arabic-only (`/^[\u0600-\u06FF\s]+$/`). Enforced both server-side (Zod regex in `registerSchema`) and client-side (non-Arabic characters stripped on input). A note "يرجى إدخال الاسم باللغة العربية فقط" is shown below each name field.
+
 **Key files:**
-- `src/lib/validations/auth.ts` — exports `sendOtpSchema`, `verifyOtpSchema`, `registerSchema`, `loginSchema`
+- `src/lib/validations/auth.ts` — exports `sendOtpSchema`, `verifyOtpSchema`, `registerSchema` (with Arabic-only name regex), `loginSchema`
 - `src/lib/auth.ts` — NextAuth config with both Credentials providers
 - `src/lib/auth.config.ts` — Route protection, JWT/session callbacks
 - `src/app/api/auth/send-otp/route.ts` — OTP generation (6-digit, 5-min expiry, rate limited 3/phone/5min + 10/IP/15min), returns `userExists`
@@ -191,10 +193,32 @@ Key points:
 
 **Brand name:** نصيبك (Naseebak) — note: Arabic words like "النصيب" (fate) and "نصيبها" (her destiny) are regular vocabulary, not the brand name. Only standalone "نصيبك" is the brand.
 
-The color palette is **deep blue + warm gold** using oklch values in `globals.css`:
-- **Primary:** Deep blue `oklch(0.35 0.08 250)` — main UI elements, headers, icons, buttons
-- **Secondary:** Muted blue `oklch(0.45 0.06 250)` — supporting elements, gradient endpoints
-- **Accent:** Warm gold `oklch(0.72 0.12 75)` — highlights, badges, attention elements
+### Logo
+
+The brand logo SVG (`public/images/logo.svg`) is used across all navigation and brand areas: navbar, footer, dashboard sidebar, admin sidebar, login page, register page, and admin login page. The logo contains Arabic branding text within the SVG itself.
+
+**Usage rules:**
+- **Navigation/brand areas:** Use the logo image (`/images/logo.svg`) via Next.js `Image` component
+- **Page section titles/headings:** Use text "نصيبك" with gradient styling — do NOT use the logo image inline in headings
+- Login page decorative panel uses `brightness-0 invert` filter to render the logo white on dark backgrounds
+
+**Key sizes:**
+| Location | Size |
+|----------|------|
+| Navbar | `h-12 w-auto` |
+| Footer | `h-9 w-auto` |
+| Dashboard sidebar | `h-8 w-auto` |
+| Admin sidebar | `h-8 w-auto` |
+| Login decorative panel | `h-32 xl:h-40` |
+| Login card header | `h-14` |
+| Register card header | `h-12` |
+
+### Colors
+
+The color palette is **deep blue + warm gold** derived from the logo colors (`#22476a` blue, `#c19250` gold), using oklch values in `globals.css`:
+- **Primary:** Deep blue `oklch(0.39 0.07 249)` (matches logo `#22476a`) — main UI elements, headers, icons, buttons
+- **Secondary:** Muted blue `oklch(0.48 0.06 249)` — supporting elements, gradient endpoints
+- **Accent:** Warm gold `oklch(0.69 0.10 74)` (matches logo `#c19250`) — highlights, badges, attention elements
 
 ### Color Usage Rules (Strictly Enforced)
 
@@ -245,6 +269,7 @@ These are hard constraints that must never be violated:
 - **Photos are hidden** until both users mutually like each other
 - **Gender-neutral access** — both genders receive suggestions, can accept/reject, receive interests, and purchase credits. The same workflow applies to all users
 - **Identity verification** (government ID upload + admin review) is mandatory before platform usage
+- **100% profile completeness required for suggestions** — users cannot view or receive suggestions until their completeness score reaches 100%. Both the dashboard and suggestions page enforce this with alert banners showing the current percentage and incomplete sections
 - **Parent/guardian data** is visible to admin only, never to the other user
 - **Free tier:** 5 lifetime suggestions per account; paid packages for more
 - **No credit gate on matches** — mutual match details are always fully visible (no reveal/credit cost)
@@ -266,6 +291,8 @@ Both genders follow the same flow. The Suggestion model uses `recipientId`/`cand
 ## Suggestions Page (3-Tab Layout)
 
 All users (both genders) see the same 3-tab suggestions page:
+
+**Eligibility gate:** The suggestions page checks `completeness.total >= 100` from `/api/profile`. If < 100%, the entire page is blocked with a card showing the current percentage and chips listing incomplete sections (e.g., "الصور", "العائلة والولي"). The dashboard also shows a banner: "أكمل حسابك بنسبة 100% لتلقي اقتراحات التوافق" with the percentage.
 
 1. **"اقتراحات جديدة" (New Suggestions)** — pending suggestions where user is the recipient
 2. **"الطلبات المرسلة" (Sent Requests)** — tracks status of accepted suggestions (sent interests)
@@ -290,10 +317,12 @@ Web push notifications via OneSignal SDK. Sends real-time alerts for suggestions
 
 **Architecture:**
 - `src/components/shared/onesignal-provider.tsx` — Client-side SDK init (rendered in dashboard layout), registers user by session ID
-- `src/components/shared/push-permission-prompt.tsx` — Arabic UI prompt shown 5s after dashboard load
+- `src/components/shared/push-permission-prompt.tsx` — Arabic UI prompt card shown 5s after dashboard load, asks users to enable push notifications. Renders in dashboard layout. Only appears when `Notification.permission === "default"`. Dismissal stored in localStorage (`naseeb_push_prompt_dismissed`)
 - `src/lib/onesignal.ts` — Server-side `sendPushNotification()` and `sendPushNotificationToMany()` helpers
 - `src/app/api/push/register/route.ts` — Saves OneSignal player ID to `User.oneSignalPlayerId`
 - `public/OneSignalSDKWorker.js` — Service worker required by OneSignal
+
+Both `OneSignalProvider` and `PushPermissionPrompt` are rendered in the dashboard layout (`src/app/(ar)/dashboard/layout.tsx`).
 
 **OneSignal setup required:** In the OneSignal dashboard, set Site URL to `https://naseebak.com` under Settings → Platforms → Web.
 
@@ -649,7 +678,7 @@ Field-level completeness calculator replacing the old 3-item checklist (identity
 | Photos | 10% | At least 1 photo uploaded |
 | Family & Guardian | 10% | tribe, familyOriginArea, numberOfSiblings, parentInfo exists |
 
-**Integration:** `GET /api/profile` returns `completeness: { total, sections }`. Dashboard and profile pages show section-level progress bars with percentages, missing field hints, and action links (links to `/dashboard/profile/edit` when profile is complete, `/dashboard/profile/setup` otherwise).
+**Integration:** `GET /api/profile` returns `completeness: { total, sections }`. Dashboard and profile pages show section-level progress bars with percentages, missing field hints, and action links (links to `/dashboard/profile/edit` when profile is complete, `/dashboard/profile/setup` otherwise). The suggestions page uses `completeness.total` to gate access — users with < 100% are blocked from viewing suggestions.
 
 **Key files:**
 - `src/lib/profile-completeness.ts` — `calculateCompleteness()` pure function
@@ -700,6 +729,19 @@ Users can submit support tickets (issues, suggestions, change requests) from the
 - `src/app/api/admin/support/route.ts` — Admin GET (list all, filtered, paginated) + PATCH (update + notify)
 - `src/app/(ar)/dashboard/support/page.tsx` — 2-tab user page (new ticket form + ticket list)
 - `src/app/(en)/admin/support/page.tsx` — Admin ticket management (follows reports page pattern)
+
+## SEO & Social Sharing
+
+Full SEO metadata configured in `src/app/(ar)/layout.tsx` with `metadataBase: https://naseebak.com`.
+
+**Files:**
+- `src/app/(ar)/opengraph-image.tsx` — Dynamic OG image (1200x630) using `ImageResponse` from `next/og`. Renders the logo SVG (embedded as base64), English subtitle "Jordanian Marriage Platform", and brand gradient bars. Arabic text is NOT used in OG images due to Satori rendering engine limitations with Arabic fonts.
+- `src/app/(ar)/twitter-image.tsx` — Re-exports from `opengraph-image.tsx`
+- `src/app/robots.ts` — Allows `/`, disallows `/dashboard/`, `/admin/`, `/api/`. Points to sitemap
+- `src/app/sitemap.ts` — 9 public pages with priorities and change frequencies
+- `public/site.webmanifest` — PWA manifest with Arabic name, RTL direction, theme_color `#22476a`
+
+**Metadata in layout:** Title template (`%s | نصيبك`), description, Arabic SEO keywords, authors, icons (16/32/180px), manifest link, openGraph (locale `ar_JO`), Twitter (summary_large_image), robots directives.
 
 ## Known Limitations / TODOs
 

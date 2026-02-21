@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
 import {
   Shield,
   Heart,
@@ -134,15 +133,8 @@ export default function AboutPage() {
               className="mx-auto max-w-4xl text-4xl font-bold leading-tight tracking-tight sm:text-5xl md:text-6xl lg:text-7xl"
               style={{ animation: "fadeSlideUp 0.8s ease-out 0.2s both" }}
             >
-              <span className="inline-flex items-center justify-center">
-                <Image
-                  src="/images/logo.svg"
-                  alt="نصيبك"
-                  width={220}
-                  height={96}
-                  className="h-14 sm:h-18 md:h-20 lg:h-24 w-auto"
-                  priority
-                />
+              <span className="bg-gradient-to-l from-primary via-primary/90 to-primary bg-clip-text text-transparent drop-shadow-sm">
+                نصيبك
               </span>
               <span className="mx-3 text-muted-foreground/40 hidden sm:inline">—</span>
               <br className="sm:hidden" />

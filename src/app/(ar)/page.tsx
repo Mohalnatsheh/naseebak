@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import {
   Brain,
   Shield,
@@ -366,15 +365,8 @@ export default function HomePage() {
               className="mx-auto max-w-5xl text-5xl font-bold leading-tight tracking-tight sm:text-6xl md:text-7xl lg:text-8xl text-center"
               style={{ animation: "fadeSlideUp 0.8s ease-out 0.2s both" }}
             >
-              <span className="inline-flex items-center justify-center">
-                <Image
-                  src="/images/logo.svg"
-                  alt="نصيبك"
-                  width={280}
-                  height={122}
-                  className="h-16 sm:h-20 md:h-24 lg:h-28 w-auto"
-                  priority
-                />
+              <span className="bg-gradient-to-l from-primary via-primary/90 to-primary bg-clip-text text-transparent drop-shadow-sm">
+                نصيبك
               </span>
               <span className="mx-3 text-muted-foreground/40 hidden sm:inline">—</span>
               <br className="sm:hidden" />
@@ -479,8 +471,8 @@ export default function HomePage() {
               </Badge>
               <h2 className="text-3xl font-bold sm:text-4xl lg:text-5xl">
                 لماذا{" "}
-                <span className="inline-flex items-baseline translate-y-1">
-                  <Image src="/images/logo.svg" alt="نصيبك" width={120} height={52} className="h-8 sm:h-10 lg:h-12 w-auto" />
+                <span className="bg-gradient-to-l from-primary to-secondary bg-clip-text text-transparent">
+                  نصيبك
                 </span>
                 ؟
               </h2>
@@ -546,8 +538,8 @@ export default function HomePage() {
               </Badge>
               <h2 className="text-3xl font-bold sm:text-4xl lg:text-5xl">
                 أربع خطوات نحو{" "}
-                <span className="inline-flex items-baseline translate-y-1">
-                  <Image src="/images/logo.svg" alt="نصيبك" width={120} height={52} className="h-8 sm:h-10 lg:h-12 w-auto" />
+                <span className="bg-gradient-to-l from-primary to-accent bg-clip-text text-transparent">
+                  نصيبك
                 </span>
               </h2>
               <p className="mt-5 text-lg text-muted-foreground leading-relaxed">

@@ -260,7 +260,7 @@ export default function LoginPage() {
               alt="نصيبك"
               width={320}
               height={140}
-              className="h-24 xl:h-28 w-auto mx-auto brightness-0 invert"
+              className="h-32 xl:h-40 w-auto mx-auto brightness-0 invert"
             />
           </div>
 
@@ -320,7 +320,7 @@ export default function LoginPage() {
                 alt="نصيبك"
                 width={160}
                 height={70}
-                className="h-12 w-auto mx-auto"
+                className="h-16 w-auto mx-auto"
               />
             </Link>
             <p className="mt-2 text-sm text-muted-foreground">
@@ -361,7 +361,7 @@ export default function LoginPage() {
                   alt="نصيبك"
                   width={140}
                   height={61}
-                  className="h-10 w-auto mx-auto"
+                  className="h-14 w-auto mx-auto"
                 />
               </Link>
               <CardTitle className="text-2xl font-bold">تسجيل الدخول</CardTitle>

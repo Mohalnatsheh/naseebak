@@ -80,7 +80,7 @@ export function Navbar() {
             alt="نصيبك"
             width={120}
             height={52}
-            className="h-9 w-auto transition-transform duration-300 group-hover:scale-105"
+            className="h-12 w-auto transition-transform duration-300 group-hover:scale-105"
             priority
           />
           <JordanFlag className="h-4 w-6 rounded-[2px] shadow-sm" />
@@ -165,7 +165,7 @@ export function Navbar() {
                 alt="نصيبك"
                 width={120}
                 height={52}
-                className="h-9 w-auto"
+                className="h-12 w-auto"
               />
               <JordanFlag className="h-4 w-6 rounded-[2px] shadow-sm" />
             </div>

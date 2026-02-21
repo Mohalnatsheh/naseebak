@@ -11,11 +11,11 @@ export default function DashboardLayout({
   return (
     <Providers>
       <OneSignalProvider />
-      <PushPermissionPrompt />
       <div className="flex min-h-screen overflow-x-hidden">
         <DashboardSidebar />
         <main className="flex-1 md:pt-0 pt-[58px] min-w-0">
           <div className="max-w-5xl mx-auto px-4 md:px-6 py-6 md:py-8">
+            <PushPermissionPrompt />
             {children}
           </div>
           <footer className="border-t py-4 text-center text-sm text-muted-foreground">

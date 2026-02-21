@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Image from "next/image";
-import { Menu, ArrowLeft } from "lucide-react";
+import { Menu, ArrowLeft, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
@@ -156,18 +156,28 @@ export function Navbar() {
               <Menu className="h-5 w-5" />
             </Button>
           </SheetTrigger>
-          <SheetContent side="right" className="w-80 border-r-0">
+          <SheetContent side="right" className="w-80 border-r-0" showCloseButton={false}>
             {/* Mobile menu header */}
-            <div className="flex items-center gap-2 mb-8">
-              <SheetTitle className="sr-only">القائمة</SheetTitle>
-              <Image
-                src="/images/logo.svg"
-                alt="نصيبك"
-                width={120}
-                height={52}
-                className="h-12 w-auto"
-              />
-              <JordanFlag className="h-4 w-6 rounded-[2px] shadow-sm" />
+            <div className="flex items-center justify-between mb-8">
+              <div className="flex items-center gap-2">
+                <SheetTitle className="sr-only">القائمة</SheetTitle>
+                <Image
+                  src="/images/logo.svg"
+                  alt="نصيبك"
+                  width={120}
+                  height={52}
+                  className="h-12 w-auto"
+                />
+                <JordanFlag className="h-4 w-6 rounded-[2px] shadow-sm" />
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 rounded-lg text-muted-foreground hover:text-foreground"
+                onClick={() => setMobileOpen(false)}
+              >
+                <X className="h-5 w-5" />
+              </Button>
             </div>
 
             {/* Mobile section links (only on home) */}

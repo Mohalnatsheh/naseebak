@@ -176,7 +176,16 @@ export function DashboardSidebar() {
               className={cn("w-auto flex-shrink-0", collapsed && !mobile ? "h-8" : "h-8")}
             />
           </Link>
-          {!mobile && (
+          {mobile ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 rounded-lg text-muted-foreground hover:text-foreground"
+              onClick={() => setMobileOpen(false)}
+            >
+              <X className="h-5 w-5" />
+            </Button>
+          ) : (
             <Button
               variant="ghost"
               size="icon"
@@ -314,7 +323,7 @@ export function DashboardSidebar() {
                   <Menu className="h-5 w-5" />
                 </Button>
               </SheetTrigger>
-            <SheetContent side="right" className="w-80 p-0 border-r-0 flex flex-col">
+            <SheetContent side="right" className="w-80 p-0 border-r-0 flex flex-col" showCloseButton={false}>
               <SheetTitle className="sr-only">القائمة</SheetTitle>
               {sidebarContent(true)}
             </SheetContent>

@@ -39,7 +39,7 @@ export function PushPermissionPrompt() {
   };
 
   return (
-    <Card className="relative overflow-hidden border-primary/30 bg-gradient-to-l from-primary/5 via-primary/3 to-transparent shadow-md animate-in slide-in-from-top-2 duration-500">
+    <Card className="relative overflow-hidden border-primary/30 bg-gradient-to-l from-primary/5 via-primary/3 to-transparent shadow-md animate-in slide-in-from-top-2 duration-500 mb-4">
       <div className="absolute top-0 right-0 h-24 w-24 rounded-full bg-primary/5 blur-2xl translate-x-6 -translate-y-6" />
       <CardContent className="pt-5 pb-4">
         <div className="flex items-start gap-3">

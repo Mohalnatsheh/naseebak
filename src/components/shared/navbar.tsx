@@ -76,21 +76,13 @@ export function Navbar() {
         {/* Logo / Brand */}
         <Link href="/" className="group flex items-center gap-2 relative">
           <Image
-            src="/images/logo-icon.png"
+            src="/images/logo.svg"
             alt="نصيبك"
-            width={36}
-            height={36}
-            className="transition-transform duration-300 group-hover:scale-105"
+            width={120}
+            height={52}
+            className="h-9 w-auto transition-transform duration-300 group-hover:scale-105"
             priority
           />
-          <span className={cn(
-            "text-2xl font-black tracking-tight transition-all duration-300",
-            scrolled
-              ? "bg-gradient-to-l from-primary to-primary/70 bg-clip-text text-transparent"
-              : "text-primary"
-          )}>
-            نصيبك
-          </span>
           <JordanFlag className="h-4 w-6 rounded-[2px] shadow-sm" />
         </Link>
 
@@ -167,15 +159,14 @@ export function Navbar() {
           <SheetContent side="right" className="w-80 border-r-0">
             {/* Mobile menu header */}
             <div className="flex items-center gap-2 mb-8">
+              <SheetTitle className="sr-only">القائمة</SheetTitle>
               <Image
-                src="/images/logo-icon.png"
+                src="/images/logo.svg"
                 alt="نصيبك"
-                width={36}
-                height={36}
+                width={120}
+                height={52}
+                className="h-9 w-auto"
               />
-              <SheetTitle className="text-2xl font-black bg-gradient-to-l from-primary to-primary/70 bg-clip-text text-transparent">
-                نصيبك
-              </SheetTitle>
               <JordanFlag className="h-4 w-6 rounded-[2px] shadow-sm" />
             </div>
 
@@ -241,7 +232,7 @@ export function Navbar() {
             {/* Bottom decoration */}
             <div className="absolute bottom-8 left-0 right-0 flex justify-center">
               <p className="text-xs text-muted-foreground/40">
-                نصيبك — الزواج بالحلال
+                الزواج بالحلال
               </p>
             </div>
           </SheetContent>

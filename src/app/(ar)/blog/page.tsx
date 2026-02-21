@@ -120,7 +120,7 @@ export default function BlogPage() {
             className="absolute inset-0 opacity-30"
             style={{
               background:
-                "radial-gradient(ellipse 80% 50% at 50% 0%, oklch(0.35 0.08 250 / 0.08), transparent), radial-gradient(ellipse 60% 40% at 80% 100%, oklch(0.45 0.06 250 / 0.06), transparent)",
+                "radial-gradient(ellipse 80% 50% at 50% 0%, oklch(0.39 0.07 249 / 0.08), transparent), radial-gradient(ellipse 60% 40% at 80% 100%, oklch(0.48 0.06 249 / 0.06), transparent)",
             }}
           />
 

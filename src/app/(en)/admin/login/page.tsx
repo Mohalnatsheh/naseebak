@@ -3,11 +3,12 @@
 import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { ShieldCheck, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -43,10 +44,10 @@ export default function AdminLoginPage() {
   return (
     <Card className="w-full max-w-sm">
       <CardHeader className="text-center">
-        <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
-          <ShieldCheck className="h-6 w-6 text-primary" />
+        <div className="mx-auto mb-2">
+          <Image src="/images/logo.svg" alt="Naseeb" width={140} height={61} className="h-12 w-auto mx-auto" />
         </div>
-        <CardTitle className="text-2xl font-bold">Naseeb Admin</CardTitle>
+        <CardTitle className="text-lg font-bold text-muted-foreground">Admin Panel</CardTitle>
         <CardDescription>Sign in to the management panel</CardDescription>
       </CardHeader>
       <CardContent>

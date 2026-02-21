@@ -2,6 +2,7 @@
 
 import { useState, useRef, useMemo, useCallback, useEffect, Suspense } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
 import {
@@ -482,11 +483,14 @@ function RegisterPageContent() {
       {/* ---- Main card with glassmorphism ---- */}
       <Card className="relative w-full max-w-lg border-white/40 bg-card/80 backdrop-blur-xl shadow-2xl shadow-primary/5">
         <CardHeader className="text-center space-y-3 pb-2">
-          <Link
-            href="/"
-            className="inline-block text-4xl font-extrabold bg-gradient-to-l from-primary via-primary to-accent bg-clip-text text-transparent tracking-tight"
-          >
-            نصيبك
+          <Link href="/" className="inline-block">
+            <Image
+              src="/images/logo.svg"
+              alt="نصيبك"
+              width={160}
+              height={70}
+              className="h-12 w-auto mx-auto"
+            />
           </Link>
           <CardTitle className="text-xl font-bold">
             إنشاء حساب جديد

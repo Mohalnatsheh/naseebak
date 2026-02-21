@@ -96,8 +96,8 @@ function CompletionRing({
         />
         <defs>
           <linearGradient id="ring-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="oklch(0.35 0.08 250)" />
-            <stop offset="100%" stopColor="oklch(0.72 0.12 75)" />
+            <stop offset="0%" stopColor="oklch(0.39 0.07 249)" />
+            <stop offset="100%" stopColor="oklch(0.69 0.10 74)" />
           </linearGradient>
         </defs>
       </svg>

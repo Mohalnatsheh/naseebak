@@ -169,17 +169,12 @@ export function DashboardSidebar() {
         <div className="flex items-center justify-between mb-3">
           <Link href="/dashboard" className="flex items-center gap-2">
             <Image
-              src="/images/logo-icon.png"
+              src="/images/logo.svg"
               alt="نصيبك"
-              width={32}
-              height={32}
-              className="flex-shrink-0"
+              width={110}
+              height={48}
+              className={cn("w-auto flex-shrink-0", collapsed && !mobile ? "h-8" : "h-8")}
             />
-            {(!collapsed || mobile) && (
-              <span className="text-xl font-black bg-gradient-to-l from-primary to-primary/70 bg-clip-text text-transparent">
-                نصيبك
-              </span>
-            )}
           </Link>
           {!mobile && (
             <Button
@@ -296,14 +291,12 @@ export function DashboardSidebar() {
         <div className="flex items-center justify-between px-4 h-14">
           <Link href="/dashboard" className="flex items-center gap-2">
             <Image
-              src="/images/logo-icon.png"
+              src="/images/logo.svg"
               alt="نصيبك"
-              width={32}
-              height={32}
+              width={100}
+              height={44}
+              className="h-8 w-auto"
             />
-            <span className="text-lg font-black text-primary">
-              نصيبك
-            </span>
           </Link>
 
           <div className="flex items-center gap-1">

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { LayoutDashboard, Users, ShieldCheck, Sparkles, CalendarHeart, FileText, Menu, LogOut, Flag, ClipboardEdit, CreditCard, Bell, Ban, Trash2, Settings, LifeBuoy } from "lucide-react";
@@ -55,7 +56,10 @@ export function AdminSidebar() {
       {/* Desktop sidebar */}
       <aside className="hidden lg:flex w-64 flex-col border-r bg-card">
         <div className="p-6">
-          <h2 className="text-xl font-bold text-primary">Naseeb Admin</h2>
+          <div className="flex items-center gap-2">
+            <Image src="/images/logo.svg" alt="Naseeb" width={100} height={44} className="h-8 w-auto" />
+            <span className="text-sm font-semibold text-muted-foreground">Admin</span>
+          </div>
           <p className="text-xs text-muted-foreground mt-1">Management Panel</p>
         </div>
         <div className="flex-1 px-3">
@@ -74,7 +78,10 @@ export function AdminSidebar() {
 
       {/* Mobile sidebar */}
       <div className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-card border-b px-4 py-3 flex items-center justify-between">
-        <h2 className="text-lg font-bold text-primary">Naseeb Admin</h2>
+        <div className="flex items-center gap-2">
+          <Image src="/images/logo.svg" alt="Naseeb" width={90} height={40} className="h-7 w-auto" />
+          <span className="text-sm font-semibold text-muted-foreground">Admin</span>
+        </div>
         <Sheet>
           <SheetTrigger asChild>
             <Button variant="ghost" size="icon">
@@ -83,7 +90,11 @@ export function AdminSidebar() {
           </SheetTrigger>
           <SheetContent side="left" className="w-64 p-0">
             <div className="p-6">
-              <SheetTitle className="text-xl font-bold text-primary">Naseeb Admin</SheetTitle>
+              <SheetTitle className="sr-only">Naseeb Admin</SheetTitle>
+              <div className="flex items-center gap-2">
+                <Image src="/images/logo.svg" alt="Naseeb" width={100} height={44} className="h-8 w-auto" />
+                <span className="text-sm font-semibold text-muted-foreground">Admin</span>
+              </div>
             </div>
             <div className="px-3">
               <SidebarNav />

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
+import Image from "next/image";
 import { LogIn, Loader2, Shield, HeartHandshake, Sparkles, Phone, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -254,9 +255,13 @@ export default function LoginPage() {
             <div className="mx-auto mb-6 flex size-20 items-center justify-center rounded-full bg-white/10 backdrop-blur-sm ring-1 ring-white/20">
               <HeartHandshake className="size-10 opacity-90" />
             </div>
-            <h1 className="text-7xl font-bold tracking-tight xl:text-8xl" style={{ fontFamily: "inherit" }}>
-              نصيبك
-            </h1>
+            <Image
+              src="/images/logo.svg"
+              alt="نصيبك"
+              width={320}
+              height={140}
+              className="h-24 xl:h-28 w-auto mx-auto brightness-0 invert"
+            />
           </div>
 
           {/* Tagline */}
@@ -310,9 +315,13 @@ export default function LoginPage() {
             }}
           >
             <Link href="/" className="inline-block">
-              <span className="text-4xl font-bold bg-gradient-to-l from-primary to-secondary bg-clip-text text-transparent">
-                نصيبك
-              </span>
+              <Image
+                src="/images/logo.svg"
+                alt="نصيبك"
+                width={160}
+                height={70}
+                className="h-12 w-auto mx-auto"
+              />
             </Link>
             <p className="mt-2 text-sm text-muted-foreground">
               نوصّلك بشريك العمر بالحلال
@@ -337,7 +346,7 @@ export default function LoginPage() {
             <div
               className="absolute inset-0 opacity-[0.015]"
               style={{
-                backgroundImage: `radial-gradient(circle at 80% 20%, oklch(0.35 0.08 250 / 0.5), transparent 50%)`,
+                backgroundImage: `radial-gradient(circle at 80% 20%, oklch(0.39 0.07 249 / 0.5), transparent 50%)`,
               }}
             />
 
@@ -345,9 +354,15 @@ export default function LoginPage() {
               {/* Desktop: link back */}
               <Link
                 href="/"
-                className="hidden lg:inline-block text-3xl font-bold bg-gradient-to-l from-primary to-secondary bg-clip-text text-transparent hover:opacity-80 transition-opacity duration-300"
+                className="hidden lg:inline-block hover:opacity-80 transition-opacity duration-300"
               >
-                نصيبك
+                <Image
+                  src="/images/logo.svg"
+                  alt="نصيبك"
+                  width={140}
+                  height={61}
+                  className="h-10 w-auto mx-auto"
+                />
               </Link>
               <CardTitle className="text-2xl font-bold">تسجيل الدخول</CardTitle>
               <CardDescription className="text-base text-muted-foreground">

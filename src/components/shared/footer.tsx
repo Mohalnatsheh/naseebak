@@ -20,14 +20,12 @@ export function Footer() {
           <div className="sm:col-span-2 lg:col-span-1 space-y-5">
             <Link href="/" className="inline-flex items-center gap-2">
               <Image
-                src="/images/logo-icon.png"
+                src="/images/logo.svg"
                 alt="نصيبك"
-                width={36}
-                height={36}
+                width={120}
+                height={52}
+                className="h-9 w-auto"
               />
-              <span className="text-2xl font-black bg-gradient-to-l from-primary to-primary/70 bg-clip-text text-transparent">
-                نصيبك
-              </span>
             </Link>
             <p className="text-sm text-muted-foreground leading-relaxed max-w-xs">
               منصة أردنية توصّل العائلات بالشريك الأنسب بالحلال — تقنية ذكية مع عادات أردنية أصيلة، بسترة واحترام.

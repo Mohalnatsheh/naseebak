@@ -67,12 +67,12 @@ export async function PATCH(request: Request) {
         "city", "area", "nationality", "education", "job", "maritalStatus",
         "religiosity", "smokingStatus", "aboutMe", "partnerExpectations",
         "hobbies", "familyValues", "tribe", "familyOriginArea", "housingType",
-        "monthlyExpenses", "healthConditions", "cookingAbility",
+        "monthlyExpenses", "healthConditions", "cookingAbility", "skinColor", "incomeRange",
         "prefCity", "prefEducation", "prefMaritalStatus",
         "prefHijab", "prefBeard", "prefChildrenAcceptance",
       ];
 
-      const intFields = ["height", "weight", "numberOfSiblings", "prefAgeMin", "prefAgeMax"];
+      const intFields = ["height", "weight", "numberOfSiblings", "childrenCount", "prefAgeMin", "prefAgeMax"];
       const boolFields = ["hijab", "beard", "drivingLicense"];
       const arrayFields = ["prefReligiosity", "prefSmokingStatus"];
 
@@ -85,6 +85,8 @@ export async function PATCH(request: Request) {
           updateData[key] = value;
         } else if (arrayFields.includes(key)) {
           updateData[key] = Array.isArray(value) ? value : [];
+        } else if (key === "dateOfBirth" && value) {
+          updateData[key] = new Date(String(value));
         }
       }
 

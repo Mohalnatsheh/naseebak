@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Image from "next/image";
-import { Menu, ArrowLeft, X } from "lucide-react";
+import { Menu, ArrowLeft, X, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
@@ -39,6 +39,16 @@ export function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [activeSection, setActiveSection] = useState("");
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [registrationClosed, setRegistrationClosed] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/settings/registration-status")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.registrationOpen === false) setRegistrationClosed(true);
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -72,6 +82,14 @@ export function Navbar() {
           : "bg-transparent"
       )}
     >
+      {registrationClosed && (
+        <div className="bg-gradient-to-l from-primary to-secondary text-primary-foreground">
+          <div className="container mx-auto max-w-7xl flex items-center justify-center gap-2 px-4 py-2 text-xs sm:text-sm font-medium">
+            <Info className="h-3.5 w-3.5 shrink-0" />
+            <span>التسجيل مغلق حالياً — يمكن للمستخدمين الحاليين تسجيل الدخول</span>
+          </div>
+        </div>
+      )}
       <nav className="container mx-auto max-w-7xl flex items-center justify-between px-4 py-3 md:py-4">
         {/* Logo / Brand */}
         <Link href="/" className="group flex items-center gap-2 relative">

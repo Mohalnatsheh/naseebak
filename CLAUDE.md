@@ -775,12 +775,15 @@ Admin-controlled toggle to open or close new user registration platform-wide.
 - `POST /api/auth/register` returns 403 when closed
 - **Fail-open:** If the status check fails (network error, DB down), registration is allowed
 
+**Landing page banner:** When closed, a sticky gradient banner ("التسجيل مغلق حالياً — يمكن للمستخدمين الحاليين تسجيل الدخول") appears above the navbar on all 8 landing pages that use the `Navbar` component. The banner is rendered inside the `<header>` above the `<nav>`.
+
 **Key files:**
 - `src/lib/settings.ts` — Cached settings helper
 - `src/app/api/settings/registration-status/route.ts` — Public status endpoint (no auth)
 - `src/app/api/admin/settings/registration/route.ts` — Admin GET/PATCH toggle
 - `src/app/(en)/admin/settings/page.tsx` — Toggle UI card
 - `src/app/(ar)/register/page.tsx` — Closed alert UI
+- `src/components/shared/navbar.tsx` — Landing page closed registration banner
 
 ## Known Limitations / TODOs
 

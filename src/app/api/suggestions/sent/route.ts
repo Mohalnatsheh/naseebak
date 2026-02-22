@@ -2,42 +2,53 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const session = await auth();
     if (!session?.user?.id) {
       return NextResponse.json({ error: "غير مصرح" }, { status: 401 });
     }
 
-    const suggestions = await db.suggestion.findMany({
-      where: {
-        recipientId: session.user.id,
-        status: "ACCEPTED",
-      },
-      include: {
-        candidate: {
-          select: {
-            id: true,
-            firstName: true,
-            profile: {
-              select: {
-                city: true,
-                education: true,
-                job: true,
-                dateOfBirth: true,
+    const { searchParams } = new URL(request.url);
+    const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
+    const pageSize = 10;
+
+    const where = {
+      recipientId: session.user.id,
+      status: "ACCEPTED" as const,
+    };
+
+    const [suggestions, total] = await Promise.all([
+      db.suggestion.findMany({
+        where,
+        include: {
+          candidate: {
+            select: {
+              id: true,
+              firstName: true,
+              profile: {
+                select: {
+                  city: true,
+                  education: true,
+                  job: true,
+                  dateOfBirth: true,
+                },
               },
             },
           },
         },
-      },
-      orderBy: { updatedAt: "desc" },
-    });
+        orderBy: { updatedAt: "desc" },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      db.suggestion.count({ where }),
+    ]);
 
     if (suggestions.length === 0) {
-      return NextResponse.json({ sentRequests: [] });
+      return NextResponse.json({ sentRequests: [], page, totalPages: Math.ceil(total / pageSize), total });
     }
 
-    // Batch-fetch INTEREST notifications for all suggestion IDs
+    // Batch-fetch INTEREST notifications for page items
     const suggestionIds = suggestions.map((s) => s.id);
     const candidateIds = suggestions.map((s) => s.candidateId);
 
@@ -115,7 +126,7 @@ export async function GET() {
       };
     });
 
-    return NextResponse.json({ sentRequests });
+    return NextResponse.json({ sentRequests, page, totalPages: Math.ceil(total / pageSize), total });
   } catch (error) {
     console.error("Sent suggestions error:", error);
     return NextResponse.json({ error: "حدث خطأ في الخادم" }, { status: 500 });

@@ -2,12 +2,16 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const session = await auth();
     if (!session?.user?.id) {
       return NextResponse.json({ error: "غير مصرح" }, { status: 401 });
     }
+
+    const { searchParams } = new URL(request.url);
+    const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
+    const pageSize = 10;
 
     // Get blocked user IDs (both directions)
     const blocks = await db.block.findMany({
@@ -23,60 +27,75 @@ export async function GET() {
       blocks.flatMap((b) => [b.blockerId, b.blockedId]).filter((id) => id !== session.user.id)
     );
 
-    // Find all likes directed at this user
-    const likes = await db.like.findMany({
-      where: {
-        toUserId: session.user.id,
-        isLiked: true,
-        ...(blockedIds.size > 0 && {
-          fromUserId: { notIn: [...blockedIds] },
-        }),
-      },
-      include: {
-        fromUser: {
-          select: {
-            id: true,
-            firstName: true,
-            profile: {
-              select: {
-                dateOfBirth: true,
-                city: true,
-                area: true,
-                nationality: true,
-                education: true,
-                fieldOfStudy: true,
-                job: true,
-                incomeRange: true,
-                height: true,
-                weight: true,
-                skinColor: true,
-                maritalStatus: true,
-                childrenCount: true,
-                religiosity: true,
-                smokingStatus: true,
-                aboutMe: true,
-                hobbies: true,
-                interests: true,
-                lifestyle: true,
-                hijab: true,
-                beard: true,
-                tribe: true,
-                familyOriginArea: true,
-                numberOfSiblings: true,
-                housingType: true,
-                cookingAbility: true,
-                drivingLicense: true,
-                willingToRelocate: true,
-                familyValues: true,
+    // Get IDs of users I've already responded to
+    const myResponses = await db.like.findMany({
+      where: { fromUserId: session.user.id },
+      select: { toUserId: true },
+    });
+    const excludeIds = new Set([...blockedIds]);
+    myResponses.forEach((r) => excludeIds.add(r.toUserId));
+
+    const where = {
+      toUserId: session.user.id,
+      isLiked: true,
+      ...(excludeIds.size > 0 && {
+        fromUserId: { notIn: [...excludeIds] },
+      }),
+    };
+
+    // Find likes directed at this user (paginated, excluding blocked & responded)
+    const [likes, total] = await Promise.all([
+      db.like.findMany({
+        where,
+        include: {
+          fromUser: {
+            select: {
+              id: true,
+              firstName: true,
+              profile: {
+                select: {
+                  dateOfBirth: true,
+                  city: true,
+                  area: true,
+                  nationality: true,
+                  education: true,
+                  fieldOfStudy: true,
+                  job: true,
+                  incomeRange: true,
+                  height: true,
+                  weight: true,
+                  skinColor: true,
+                  maritalStatus: true,
+                  childrenCount: true,
+                  religiosity: true,
+                  smokingStatus: true,
+                  aboutMe: true,
+                  hobbies: true,
+                  interests: true,
+                  lifestyle: true,
+                  hijab: true,
+                  beard: true,
+                  tribe: true,
+                  familyOriginArea: true,
+                  numberOfSiblings: true,
+                  housingType: true,
+                  cookingAbility: true,
+                  drivingLicense: true,
+                  willingToRelocate: true,
+                  familyValues: true,
+                },
               },
             },
           },
         },
-      },
-      orderBy: { createdAt: "desc" },
-    });
+        orderBy: { createdAt: "desc" },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      db.like.count({ where }),
+    ]);
 
-    // Fetch compatibility scores from Suggestion table
+    // Fetch compatibility scores from Suggestion table (scoped to page items)
     const suggestionIds = likes
       .map((l) => l.suggestionId)
       .filter((id): id is string => !!id);
@@ -88,18 +107,7 @@ export async function GET() {
       : [];
     const scoreMap = new Map(suggestions.map((s) => [s.id, s.compatibilityScore]));
 
-    // Check which ones the male has already responded to
-    const maleResponses = await db.like.findMany({
-      where: {
-        fromUserId: session.user.id,
-        toUserId: { in: likes.map((l) => l.fromUserId) },
-      },
-      select: { toUserId: true },
-    });
-    const respondedSet = new Set(maleResponses.map((r) => r.toUserId));
-
     const interests = likes
-      .filter((l) => !respondedSet.has(l.fromUserId))
       .map((l) => {
         const age = l.fromUser.profile?.dateOfBirth
           ? Math.floor(
@@ -149,7 +157,7 @@ export async function GET() {
         };
       });
 
-    return NextResponse.json({ interests });
+    return NextResponse.json({ interests, page, totalPages: Math.ceil(total / pageSize), total });
   } catch (error) {
     console.error("Received interests error:", error);
     return NextResponse.json({ error: "حدث خطأ في الخادم" }, { status: 500 });

@@ -23,6 +23,8 @@ import {
   Zap,
   Shield,
   TrendingUp,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -78,6 +80,8 @@ function PaymentsContent() {
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
   const [matchCredits, setMatchCredits] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [histPage, setHistPage] = useState(1);
+  const [histTotalPages, setHistTotalPages] = useState(1);
   const [purchasing, setPurchasing] = useState<string | null>(null);
   const [toast, setToast] = useState<{
     type: "success" | "info" | "error";
@@ -88,11 +92,11 @@ function PaymentsContent() {
   const [checkoutSecret, setCheckoutSecret] = useState<string | null>(null);
   const [checkoutPackageName, setCheckoutPackageName] = useState<string>("");
 
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (p = histPage) => {
     try {
       const [plansRes, histRes] = await Promise.all([
         fetch("/api/payments/plans"),
-        fetch("/api/payments/history"),
+        fetch(`/api/payments/history?page=${p}`),
       ]);
       const plansData = await plansRes.json();
       const histData = await histRes.json();
@@ -100,10 +104,11 @@ function PaymentsContent() {
       setPackages(plansData.packages || []);
       setPayments(histData.payments || []);
       setMatchCredits(histData.matchCredits ?? 0);
+      setHistTotalPages(histData.totalPages || 1);
     } catch (err) {
       console.error(err);
     }
-  }, []);
+  }, [histPage]);
 
   useEffect(() => {
     async function init() {
@@ -659,6 +664,21 @@ function PaymentsContent() {
               );
             })}
           </div>
+          {histTotalPages > 1 && (
+            <div className="flex items-center justify-center gap-4 mt-8">
+              <Button variant="outline" size="sm" disabled={histPage <= 1} onClick={() => { const p = histPage - 1; setHistPage(p); loadData(p); }}>
+                <ChevronRight className="h-4 w-4 ml-1" />
+                السابق
+              </Button>
+              <span className="text-sm text-muted-foreground">
+                صفحة {histPage} من {histTotalPages}
+              </span>
+              <Button variant="outline" size="sm" disabled={histPage >= histTotalPages} onClick={() => { const p = histPage + 1; setHistPage(p); loadData(p); }}>
+                التالي
+                <ChevronLeft className="h-4 w-4 mr-1" />
+              </Button>
+            </div>
+          )}
         </div>
       )}
 

@@ -31,6 +31,8 @@ import {
   Flag,
   ChevronDown,
   ChevronUp,
+  ChevronLeft,
+  ChevronRight,
   Home,
   Users,
   Baby,
@@ -326,6 +328,12 @@ export default function SuggestionsPage() {
   const [completionPercent, setCompletionPercent] = useState<number>(0);
   const [incompleteSections, setIncompleteSections] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState<"new" | "sent" | "interests">("new");
+  const [sugPage, setSugPage] = useState(1);
+  const [sugTotalPages, setSugTotalPages] = useState(1);
+  const [sentPage, setSentPage] = useState(1);
+  const [sentTotalPages, setSentTotalPages] = useState(1);
+  const [intPage, setIntPage] = useState(1);
+  const [intTotalPages, setIntTotalPages] = useState(1);
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
   const [menuOpen, setMenuOpen] = useState<string | null>(null);
   const [reportDialog, setReportDialog] = useState<{ userId: string; name: string } | null>(null);
@@ -404,11 +412,12 @@ export default function SuggestionsPage() {
     init();
   }, []);
 
-  async function fetchSuggestions() {
+  async function fetchSuggestions(p = sugPage) {
     try {
-      const res = await fetch("/api/suggestions");
+      const res = await fetch(`/api/suggestions?page=${p}`);
       const data = await res.json();
       setSuggestions(data.suggestions || []);
+      setSugTotalPages(data.totalPages || 1);
     } catch (err) {
       console.error(err);
     } finally {
@@ -416,12 +425,13 @@ export default function SuggestionsPage() {
     }
   }
 
-  async function fetchSentRequests() {
+  async function fetchSentRequests(p = sentPage) {
     setSentLoading(true);
     try {
-      const res = await fetch("/api/suggestions/sent");
+      const res = await fetch(`/api/suggestions/sent?page=${p}`);
       const data = await res.json();
       setSentRequests(data.sentRequests || []);
+      setSentTotalPages(data.totalPages || 1);
     } catch (err) {
       console.error(err);
     } finally {
@@ -429,12 +439,13 @@ export default function SuggestionsPage() {
     }
   }
 
-  async function fetchInterests() {
+  async function fetchInterests(p = intPage) {
     setInterestsLoading(true);
     try {
-      const res = await fetch("/api/interests/received");
+      const res = await fetch(`/api/interests/received?page=${p}`);
       const data = await res.json();
       setInterests(data.interests || []);
+      setIntTotalPages(data.totalPages || 1);
     } catch (err) {
       console.error(err);
     } finally {
@@ -444,11 +455,11 @@ export default function SuggestionsPage() {
 
   function handleTabChange(tab: "new" | "sent" | "interests") {
     setActiveTab(tab);
-    if (tab === "sent" && sentRequests.length === 0) {
-      fetchSentRequests();
+    if (tab === "sent") {
+      fetchSentRequests(sentPage);
     }
-    if (tab === "interests" && interests.length === 0) {
-      fetchInterests();
+    if (tab === "interests") {
+      fetchInterests(intPage);
     }
   }
 
@@ -888,6 +899,21 @@ export default function SuggestionsPage() {
                   </div>
                 );
               })}
+              {sugTotalPages > 1 && (
+                <div className="flex items-center justify-center gap-4 mt-8">
+                  <Button variant="outline" size="sm" disabled={sugPage <= 1} onClick={() => { const p = sugPage - 1; setSugPage(p); fetchSuggestions(p); }}>
+                    <ChevronRight className="h-4 w-4 ml-1" />
+                    السابق
+                  </Button>
+                  <span className="text-sm text-muted-foreground">
+                    صفحة {sugPage} من {sugTotalPages}
+                  </span>
+                  <Button variant="outline" size="sm" disabled={sugPage >= sugTotalPages} onClick={() => { const p = sugPage + 1; setSugPage(p); fetchSuggestions(p); }}>
+                    التالي
+                    <ChevronLeft className="h-4 w-4 mr-1" />
+                  </Button>
+                </div>
+              )}
             </div>
           )}
         </>
@@ -1006,6 +1032,21 @@ export default function SuggestionsPage() {
                   </div>
                 );
               })}
+              {sentTotalPages > 1 && (
+                <div className="flex items-center justify-center gap-4 mt-8">
+                  <Button variant="outline" size="sm" disabled={sentPage <= 1} onClick={() => { const p = sentPage - 1; setSentPage(p); fetchSentRequests(p); }}>
+                    <ChevronRight className="h-4 w-4 ml-1" />
+                    السابق
+                  </Button>
+                  <span className="text-sm text-muted-foreground">
+                    صفحة {sentPage} من {sentTotalPages}
+                  </span>
+                  <Button variant="outline" size="sm" disabled={sentPage >= sentTotalPages} onClick={() => { const p = sentPage + 1; setSentPage(p); fetchSentRequests(p); }}>
+                    التالي
+                    <ChevronLeft className="h-4 w-4 mr-1" />
+                  </Button>
+                </div>
+              )}
             </div>
           )}
         </>
@@ -1218,6 +1259,21 @@ export default function SuggestionsPage() {
                   </div>
                 );
               })}
+              {intTotalPages > 1 && (
+                <div className="flex items-center justify-center gap-4 mt-8">
+                  <Button variant="outline" size="sm" disabled={intPage <= 1} onClick={() => { const p = intPage - 1; setIntPage(p); fetchInterests(p); }}>
+                    <ChevronRight className="h-4 w-4 ml-1" />
+                    السابق
+                  </Button>
+                  <span className="text-sm text-muted-foreground">
+                    صفحة {intPage} من {intTotalPages}
+                  </span>
+                  <Button variant="outline" size="sm" disabled={intPage >= intTotalPages} onClick={() => { const p = intPage + 1; setIntPage(p); fetchInterests(p); }}>
+                    التالي
+                    <ChevronLeft className="h-4 w-4 mr-1" />
+                  </Button>
+                </div>
+              )}
             </div>
           )}
         </>

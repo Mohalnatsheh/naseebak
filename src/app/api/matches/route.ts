@@ -2,12 +2,16 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const session = await auth();
     if (!session?.user?.id) {
       return NextResponse.json({ error: "غير مصرح" }, { status: 401 });
     }
+
+    const { searchParams } = new URL(request.url);
+    const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
+    const pageSize = 10;
 
     const profileSelect = {
       dateOfBirth: true,
@@ -41,28 +45,35 @@ export async function GET() {
       familyValues: true,
     } as const;
 
-    const matches = await db.mutualMatch.findMany({
-      where: {
-        OR: [
-          { femaleId: session.user.id },
-          { maleId: session.user.id },
-        ],
-      },
-      include: {
-        female: {
-          select: { id: true, firstName: true, profile: { select: profileSelect } },
-        },
-        male: {
-          select: { id: true, firstName: true, profile: { select: profileSelect } },
-        },
-        visitRequest: {
-          select: { status: true, scheduledDate: true },
-        },
-      },
-      orderBy: { createdAt: "desc" },
-    });
+    const where = {
+      OR: [
+        { femaleId: session.user.id },
+        { maleId: session.user.id },
+      ],
+    };
 
-    // Fetch compatibility scores from suggestions
+    const [matches, total] = await Promise.all([
+      db.mutualMatch.findMany({
+        where,
+        include: {
+          female: {
+            select: { id: true, firstName: true, profile: { select: profileSelect } },
+          },
+          male: {
+            select: { id: true, firstName: true, profile: { select: profileSelect } },
+          },
+          visitRequest: {
+            select: { status: true, scheduledDate: true },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      db.mutualMatch.count({ where }),
+    ]);
+
+    // Fetch compatibility scores from page items
     const suggestionIds = matches
       .map((m) => m.suggestionId)
       .filter((id): id is string => id !== null);
@@ -128,7 +139,7 @@ export async function GET() {
       };
     });
 
-    return NextResponse.json({ matches: formatted });
+    return NextResponse.json({ matches: formatted, page, totalPages: Math.ceil(total / pageSize), total });
   } catch (error) {
     console.error("Matches error:", error);
     return NextResponse.json({ error: "حدث خطأ في الخادم" }, { status: 500 });

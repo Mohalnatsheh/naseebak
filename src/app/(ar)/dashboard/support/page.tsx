@@ -11,6 +11,8 @@ import {
   Clock,
   CheckCircle2,
   MessageSquare,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -65,6 +67,8 @@ export default function SupportPage() {
   const [tab, setTab] = useState<"new" | "list">("new");
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(false);
+  const [ticketPage, setTicketPage] = useState(1);
+  const [ticketTotalPages, setTicketTotalPages] = useState(1);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
@@ -76,14 +80,15 @@ export default function SupportPage() {
 
   useEffect(() => {
     if (tab === "list") loadTickets();
-  }, [tab]);
+  }, [tab, ticketPage]);
 
   async function loadTickets() {
     setLoading(true);
     try {
-      const res = await fetch("/api/support");
+      const res = await fetch(`/api/support?page=${ticketPage}`);
       const data = await res.json();
       setTickets(data.tickets || []);
+      setTicketTotalPages(data.totalPages || 1);
     } catch {
       console.error("Failed to load tickets");
     } finally {
@@ -355,6 +360,21 @@ export default function SupportPage() {
                 </div>
               );
             })
+          )}
+          {ticketTotalPages > 1 && (
+            <div className="flex items-center justify-center gap-4 mt-8">
+              <Button variant="outline" size="sm" disabled={ticketPage <= 1} onClick={() => setTicketPage(ticketPage - 1)}>
+                <ChevronRight className="h-4 w-4 ml-1" />
+                السابق
+              </Button>
+              <span className="text-sm text-muted-foreground">
+                صفحة {ticketPage} من {ticketTotalPages}
+              </span>
+              <Button variant="outline" size="sm" disabled={ticketPage >= ticketTotalPages} onClick={() => setTicketPage(ticketPage + 1)}>
+                التالي
+                <ChevronLeft className="h-4 w-4 mr-1" />
+              </Button>
+            </div>
           )}
         </div>
       )}

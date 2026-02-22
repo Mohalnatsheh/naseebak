@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Naseebak (نصيبك)** is a web-based traditional marriage facilitation platform for Jordan. It is **not** a dating app — there is zero direct communication between users. The platform uses AI-powered matching, admin-mediated family visit coordination, and a freemium suggestion model. The full specification lives in `SRS.md`.
 
-**Current status:** Core platform implemented and deployed to production at **https://naseebak.com**. Auth (phone+OTP for users, email+password for admins), profile management, identity verification, personality quiz, suggestions with sent interest tracking, matches, payments, notifications, full-featured admin panel (14 pages), dynamic blog system, push notifications (OneSignal), real matching algorithm, report/block system, field-level profile completeness, account deletion with 30-day grace period, support/feedback ticket system, and registration open/closed toggle are all functional.
+**Current status:** Core platform implemented and deployed to production at **https://naseebak.com**. Auth (phone+OTP for users, email+password for admins), profile management, identity verification, personality quiz, suggestions with sent interest tracking, matches, payments, notifications, full-featured admin panel (14 pages), dynamic blog system, push notifications (OneSignal), real matching algorithm, report/block system, field-level profile completeness, account deletion with 30-day grace period, support/feedback ticket system, registration open/closed toggle, and server-side pagination on all dashboard list pages are all functional.
 
 ## Commands
 
@@ -180,15 +180,16 @@ Key points:
 | Reports | POST `/api/reports` (create report with reason enum) |
 | Blocks | GET/POST `/api/blocks` (list/create blocks), DELETE `/api/blocks/[id]` (unblock) |
 | Cron | GET `/api/cron/process-deletions?token=SECRET` (process expired deletion requests) |
-| Suggestions | GET list, `[id]/like`, `[id]/reject`, `sent` (GET — sent interest tracking) |
-| Matches | GET list (full profile details + compatibility score), `[id]/photos`, `[id]/reveal` (no-op), `[id]/visit-status` |
-| Payments | `plans`, `checkout`, `history`, `webhook` |
-| Notifications | GET list, `[id]/read`, `read-all`, `unread-count` |
+| Suggestions | GET list (`?page=`, paginated 10/page), `[id]/like`, `[id]/reject`, `sent` (GET `?page=`, paginated 10/page — sent interest tracking) |
+| Interests | GET `/api/interests/received` (`?page=`, paginated 10/page — received interests) |
+| Matches | GET list (`?page=`, paginated 10/page, full profile details + compatibility score), `[id]/photos`, `[id]/reveal` (no-op), `[id]/visit-status` |
+| Payments | `plans`, `checkout`, `history` (GET `?page=`, paginated 10/page), `webhook` |
+| Notifications | GET list (`?page=`, paginated 20/page), `[id]/read`, `read-all`, `unread-count` |
 | Push | `register` (POST — save OneSignal player ID) |
 | Blog (public) | GET `/api/blog` (list published, filter by `?category=`, `?page=`), GET `/api/blog/[slug]` (single post), GET `/api/blog/categories` (categories with published counts) |
 | Settings (public) | GET `/api/settings/registration-status` (no auth, returns `{ registrationOpen }`, 30s cache) |
 | Admin | `stats` (enhanced with revenue, trends, activity), `identity` review (pending/history tabs), `suggestions` (GET list + POST create + DELETE `[id]`), `suggestions/generate`, `reports` (GET/PATCH), `visits` management, `users` (GET with search/gender/status filters) + `users/[id]` (GET + PATCH credits) + `users/[id]/suspend`, `profile-requests` (with profile diff data), `payments` (GET paginated with status filter + revenue summary), `notifications` (GET recent + POST send to one/all), `blocks` (GET paginated) + `blocks/[id]` (DELETE), `deletions` (GET pending) + `deletions/[id]` (DELETE cancel), `settings/admins` (GET list + POST create), `settings/registration` (GET + PATCH toggle) |
-| Support | POST `/api/support` (create ticket, max 5 open), GET `/api/support` (list own tickets) |
+| Support | POST `/api/support` (create ticket, max 5 open), GET `/api/support` (`?page=`, paginated 10/page, list own tickets) |
 | Admin Support | GET `/api/admin/support` (list all, filter by status/type, paginated), PATCH (update status + respond, notifies user) |
 | Admin Blog | GET/POST `/api/admin/blog` (list all + create), PUT/DELETE `/api/admin/blog/[id]`, GET/POST `/api/admin/blog/categories`, PUT/DELETE `/api/admin/blog/categories/[id]` |
 
@@ -784,6 +785,48 @@ Admin-controlled toggle to open or close new user registration platform-wide.
 - `src/app/(en)/admin/settings/page.tsx` — Toggle UI card
 - `src/app/(ar)/register/page.tsx` — Closed alert UI
 - `src/components/shared/navbar.tsx` — Landing page closed registration banner
+
+## Dashboard Pagination
+
+All dashboard list pages use server-side pagination with a consistent pattern.
+
+**API pattern:** Each paginated GET endpoint accepts `?page=` (defaults to 1), uses `skip/take` + parallel `count()`, and returns `{ data, page, totalPages, total }` alongside the existing response fields.
+
+**Page sizes:**
+| Route | Page Size |
+|-------|-----------|
+| Suggestions, Sent Requests, Received Interests, Matches, Payments History, Support Tickets | 10 |
+| Notifications | 20 |
+
+**UI pattern (RTL Arabic):** Pagination controls are inline in each page (not extracted to a shared component). Only shown when `totalPages > 1`. Uses `ChevronRight` = السابق (previous), `ChevronLeft` = التالي (next), centered with `variant="outline" size="sm"`.
+
+```tsx
+{totalPages > 1 && (
+  <div className="flex items-center justify-center gap-4 mt-8">
+    <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>
+      <ChevronRight className="h-4 w-4 ml-1" />
+      السابق
+    </Button>
+    <span className="text-sm text-muted-foreground">
+      صفحة {page} من {totalPages}
+    </span>
+    <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>
+      التالي
+      <ChevronLeft className="h-4 w-4 mr-1" />
+    </Button>
+  </div>
+)}
+```
+
+**Suggestions page:** Has 3 independent page counters (`sugPage`/`sugTotalPages`, `sentPage`/`sentTotalPages`, `intPage`/`intTotalPages`) — one per tab. Each tab fetches independently with its own page state.
+
+**Matches, Notifications:** Re-fetch via `useEffect` dependency on `page` state.
+
+**Payments:** Pagination on history list only (packages section is not paginated). Uses `loadData(page)` callback.
+
+**Support:** Pagination on "list" tab only. Re-fetches via `useEffect` dependency on `ticketPage` + `tab`.
+
+**Interests/received API optimization:** The responded-user filter (previously done client-side after fetching all likes) was moved into the `where` clause by pre-fetching responded user IDs and merging them with blocked IDs into a single `notIn` filter. This enables accurate `count()` for pagination.
 
 ## Known Limitations / TODOs
 

@@ -50,19 +50,30 @@ export async function POST(request: Request) {
   }
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const session = await auth();
     if (!session?.user?.id) {
       return NextResponse.json({ error: "غير مصرح" }, { status: 401 });
     }
 
-    const tickets = await db.supportTicket.findMany({
-      where: { userId: session.user.id },
-      orderBy: { createdAt: "desc" },
-    });
+    const { searchParams } = new URL(request.url);
+    const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
+    const pageSize = 10;
 
-    return NextResponse.json({ tickets });
+    const where = { userId: session.user.id };
+
+    const [tickets, total] = await Promise.all([
+      db.supportTicket.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      db.supportTicket.count({ where }),
+    ]);
+
+    return NextResponse.json({ tickets, page, totalPages: Math.ceil(total / pageSize), total });
   } catch (error) {
     console.error("Support ticket list error:", error);
     return NextResponse.json({ error: "حدث خطأ في الخادم" }, { status: 500 });

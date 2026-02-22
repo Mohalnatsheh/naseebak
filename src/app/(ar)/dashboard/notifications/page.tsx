@@ -13,6 +13,8 @@ import {
   Info,
   Clock,
   ArrowLeft,
+  ChevronLeft,
+  ChevronRight,
   Shield,
   CreditCard,
   LifeBuoy,
@@ -135,17 +137,20 @@ export default function NotificationsPage() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
 
   useEffect(() => {
     fetchNotifications();
-  }, []);
+  }, [page]);
 
   async function fetchNotifications() {
     try {
-      const res = await fetch("/api/notifications");
+      const res = await fetch(`/api/notifications?page=${page}`);
       const data = await res.json();
       setNotifications(data.notifications || []);
       setUnreadCount(data.unreadCount || 0);
+      setTotalPages(data.totalPages || 1);
     } catch (err) {
       console.error(err);
     } finally {
@@ -343,6 +348,21 @@ export default function NotificationsPage() {
               </div>
             );
           })}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-4 mt-8">
+              <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>
+                <ChevronRight className="h-4 w-4 ml-1" />
+                السابق
+              </Button>
+              <span className="text-sm text-muted-foreground">
+                صفحة {page} من {totalPages}
+              </span>
+              <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>
+                التالي
+                <ChevronLeft className="h-4 w-4 mr-1" />
+              </Button>
+            </div>
+          )}
         </div>
       )}
 

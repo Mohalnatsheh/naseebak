@@ -27,6 +27,8 @@ import {
   Flag,
   ChevronDown,
   ChevronUp,
+  ChevronLeft,
+  ChevronRight,
   Ruler,
   Weight,
   Cigarette,
@@ -231,6 +233,8 @@ function Section({
 export default function MatchesPage() {
   const [matches, setMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   const [showPhotos, setShowPhotos] = useState<Record<string, boolean>>({});
   const [matchPhotos, setMatchPhotos] = useState<Record<string, { id: string; url: string }[]>>({});
   const [loadingPhotos, setLoadingPhotos] = useState<Record<string, boolean>>({});
@@ -313,9 +317,10 @@ export default function MatchesPage() {
     }
     async function fetchMatches() {
       try {
-        const res = await fetch("/api/matches");
+        const res = await fetch(`/api/matches?page=${page}`);
         const data = await res.json();
         setMatches(data.matches || []);
+        setTotalPages(data.totalPages || 1);
       } catch (err) {
         console.error(err);
       } finally {
@@ -324,7 +329,7 @@ export default function MatchesPage() {
     }
     checkCompletion();
     fetchMatches();
-  }, []);
+  }, [page]);
 
   if (loading) {
     return (
@@ -773,6 +778,21 @@ export default function MatchesPage() {
               </div>
             );
           })}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-4 mt-8">
+              <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>
+                <ChevronRight className="h-4 w-4 ml-1" />
+                السابق
+              </Button>
+              <span className="text-sm text-muted-foreground">
+                صفحة {page} من {totalPages}
+              </span>
+              <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>
+                التالي
+                <ChevronLeft className="h-4 w-4 mr-1" />
+              </Button>
+            </div>
+          )}
         </div>
       )}
 

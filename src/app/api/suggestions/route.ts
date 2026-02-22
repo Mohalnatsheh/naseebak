@@ -2,12 +2,16 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const session = await auth();
     if (!session?.user?.id) {
       return NextResponse.json({ error: "غير مصرح" }, { status: 401 });
     }
+
+    const { searchParams } = new URL(request.url);
+    const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
+    const pageSize = 10;
 
     // Get blocked user IDs (both directions)
     const blocks = await db.block.findMany({
@@ -23,57 +27,64 @@ export async function GET() {
       blocks.flatMap((b) => [b.blockerId, b.blockedId]).filter((id) => id !== session.user.id)
     );
 
-    const suggestions = await db.suggestion.findMany({
-      where: {
-        recipientId: session.user.id,
-        status: "PENDING",
-        ...(blockedIds.size > 0 && {
-          candidateId: { notIn: [...blockedIds] },
-        }),
-      },
-      include: {
-        candidate: {
-          select: {
-            id: true,
-            firstName: true,
-            profile: {
-              select: {
-                dateOfBirth: true,
-                city: true,
-                area: true,
-                nationality: true,
-                education: true,
-                fieldOfStudy: true,
-                job: true,
-                incomeRange: true,
-                height: true,
-                weight: true,
-                skinColor: true,
-                maritalStatus: true,
-                childrenCount: true,
-                religiosity: true,
-                smokingStatus: true,
-                aboutMe: true,
-                hobbies: true,
-                interests: true,
-                lifestyle: true,
-                beard: true,
-                hijab: true,
-                tribe: true,
-                familyOriginArea: true,
-                numberOfSiblings: true,
-                housingType: true,
-                cookingAbility: true,
-                drivingLicense: true,
-                willingToRelocate: true,
-                familyValues: true,
+    const where = {
+      recipientId: session.user.id,
+      status: "PENDING" as const,
+      ...(blockedIds.size > 0 && {
+        candidateId: { notIn: [...blockedIds] },
+      }),
+    };
+
+    const [suggestions, total] = await Promise.all([
+      db.suggestion.findMany({
+        where,
+        include: {
+          candidate: {
+            select: {
+              id: true,
+              firstName: true,
+              profile: {
+                select: {
+                  dateOfBirth: true,
+                  city: true,
+                  area: true,
+                  nationality: true,
+                  education: true,
+                  fieldOfStudy: true,
+                  job: true,
+                  incomeRange: true,
+                  height: true,
+                  weight: true,
+                  skinColor: true,
+                  maritalStatus: true,
+                  childrenCount: true,
+                  religiosity: true,
+                  smokingStatus: true,
+                  aboutMe: true,
+                  hobbies: true,
+                  interests: true,
+                  lifestyle: true,
+                  beard: true,
+                  hijab: true,
+                  tribe: true,
+                  familyOriginArea: true,
+                  numberOfSiblings: true,
+                  housingType: true,
+                  cookingAbility: true,
+                  drivingLicense: true,
+                  willingToRelocate: true,
+                  familyValues: true,
+                },
               },
             },
           },
         },
-      },
-      orderBy: { createdAt: "desc" },
-    });
+        orderBy: { createdAt: "desc" },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      db.suggestion.count({ where }),
+    ]);
 
     const formattedSuggestions = suggestions.map((s) => {
       const age = s.candidate.profile?.dateOfBirth
@@ -123,6 +134,9 @@ export async function GET() {
 
     return NextResponse.json({
       suggestions: formattedSuggestions,
+      page,
+      totalPages: Math.ceil(total / pageSize),
+      total,
     });
   } catch (error) {
     console.error("Suggestions error:", error);

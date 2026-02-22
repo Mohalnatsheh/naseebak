@@ -748,6 +748,7 @@ export default function MatchesPage() {
                           <Button
                             variant="ghost"
                             size="icon"
+                            aria-label="خيارات إضافية"
                             className="h-11 w-11 rounded-xl"
                             onClick={() => setMenuOpen(menuOpen === m.id ? null : m.id)}
                           >

@@ -84,7 +84,7 @@ export function AdminSidebar() {
         </div>
         <Sheet>
           <SheetTrigger asChild>
-            <Button variant="ghost" size="icon">
+            <Button variant="ghost" size="icon" aria-label="Open menu">
               <Menu className="h-5 w-5" />
             </Button>
           </SheetTrigger>

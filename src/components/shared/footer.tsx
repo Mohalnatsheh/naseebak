@@ -64,8 +64,13 @@ export function Footer() {
             </ul>
             {/* Social Icons */}
             <div className="flex gap-2 pt-2">
-              {[Facebook, Twitter, Instagram, Youtube].map((Icon, i) => (
-                <button key={i} className="h-9 w-9 rounded-xl bg-muted/60 hover:bg-primary/10 hover:text-primary flex items-center justify-center text-muted-foreground transition-all duration-200">
+              {([
+                { Icon: Facebook, label: "فيسبوك" },
+                { Icon: Twitter, label: "تويتر" },
+                { Icon: Instagram, label: "انستغرام" },
+                { Icon: Youtube, label: "يوتيوب" },
+              ] as const).map(({ Icon, label }) => (
+                <button key={label} aria-label={label} className="h-9 w-9 rounded-xl bg-muted/60 hover:bg-primary/10 hover:text-primary flex items-center justify-center text-muted-foreground transition-all duration-200">
                   <Icon className="h-4 w-4" />
                 </button>
               ))}

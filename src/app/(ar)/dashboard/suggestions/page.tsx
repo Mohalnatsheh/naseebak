@@ -856,6 +856,7 @@ export default function SuggestionsPage() {
                               <Button
                                 variant="ghost"
                                 size="icon"
+                                aria-label="خيارات إضافية"
                                 className="h-12 w-12 rounded-xl"
                                 onClick={() => setMenuOpen(menuOpen === s.id ? null : s.id)}
                               >
@@ -1185,6 +1186,7 @@ export default function SuggestionsPage() {
                               <Button
                                 variant="ghost"
                                 size="icon"
+                                aria-label="خيارات إضافية"
                                 className="h-12 w-12 rounded-xl"
                                 onClick={() => setMenuOpen(menuOpen === interest.id ? null : interest.id)}
                               >

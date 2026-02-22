@@ -180,6 +180,7 @@ export function DashboardSidebar() {
             <Button
               variant="ghost"
               size="icon"
+              aria-label="إغلاق القائمة"
               className="h-8 w-8 rounded-lg text-muted-foreground hover:text-foreground"
               onClick={() => setMobileOpen(false)}
             >
@@ -189,6 +190,7 @@ export function DashboardSidebar() {
             <Button
               variant="ghost"
               size="icon"
+              aria-label={collapsed ? "توسيع القائمة" : "تصغير القائمة"}
               className="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground"
               onClick={() => setCollapsed(!collapsed)}
             >
@@ -319,7 +321,7 @@ export function DashboardSidebar() {
             </Link>
             <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
               <SheetTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-10 w-10 rounded-xl">
+                <Button variant="ghost" size="icon" aria-label="فتح القائمة" className="h-10 w-10 rounded-xl">
                   <Menu className="h-5 w-5" />
                 </Button>
               </SheetTrigger>

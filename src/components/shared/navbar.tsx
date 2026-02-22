@@ -149,6 +149,7 @@ export function Navbar() {
             <Button
               variant="ghost"
               size="icon"
+              aria-label="فتح القائمة"
               className="h-10 w-10 rounded-xl hover:bg-muted/60"
             >
               <Menu className="h-5 w-5" />
@@ -171,6 +172,7 @@ export function Navbar() {
               <Button
                 variant="ghost"
                 size="icon"
+                aria-label="إغلاق القائمة"
                 className="h-8 w-8 rounded-lg text-muted-foreground hover:text-foreground"
                 onClick={() => setMobileOpen(false)}
               >

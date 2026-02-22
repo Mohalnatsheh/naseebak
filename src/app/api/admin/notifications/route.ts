@@ -47,11 +47,13 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { userId, title, body: notifBody } = body;
+    const { userId, title, body: notifBody, url } = body;
 
     if (!title || !notifBody) {
       return NextResponse.json({ error: "Title and body are required" }, { status: 400 });
     }
+
+    const pushUrl = url || "/dashboard";
 
     if (userId) {
       // Send to a specific user
@@ -68,7 +70,7 @@ export async function POST(request: Request) {
         userId,
         title,
         body: notifBody,
-        url: "/dashboard",
+        url: pushUrl,
       });
 
       return NextResponse.json({ message: "Notification sent to user" });
@@ -96,7 +98,7 @@ export async function POST(request: Request) {
       sendPushNotificationToMany(userIds, {
         title,
         body: notifBody,
-        url: "/dashboard",
+        url: pushUrl,
       });
 
       return NextResponse.json({ message: `Notification sent to ${users.length} users` });

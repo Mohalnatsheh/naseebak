@@ -32,6 +32,7 @@ export default function AdminNotificationsPage() {
   const [selectedUser, setSelectedUser] = useState("");
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
+  const [url, setUrl] = useState("/dashboard");
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState("");
 
@@ -60,12 +61,14 @@ export default function AdminNotificationsPage() {
           userId: sendAll ? undefined : selectedUser,
           title,
           body,
+          url,
         }),
       });
       const data = await res.json();
       setResult(data.message || "Sent!");
       setTitle("");
       setBody("");
+      setUrl("/dashboard");
 
       // Refresh list
       const notifRes = await fetch("/api/admin/notifications");
@@ -160,6 +163,26 @@ export default function AdminNotificationsPage() {
                 placeholder="Notification body..."
                 required
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Route (where user goes when tapping the notification)</Label>
+              <select
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+              >
+                <option value="/dashboard">Dashboard (الرئيسية)</option>
+                <option value="/dashboard/suggestions">Suggestions (الاقتراحات)</option>
+                <option value="/dashboard/matches">Matches (التوافقات)</option>
+                <option value="/dashboard/notifications">Notifications (الإشعارات)</option>
+                <option value="/dashboard/profile">Profile (الملف الشخصي)</option>
+                <option value="/dashboard/photos">Photos (صوري)</option>
+                <option value="/dashboard/personality-quiz">Personality Quiz (اختبار الشخصية)</option>
+                <option value="/dashboard/identity">Identity (التحقق من الهوية)</option>
+                <option value="/dashboard/payments">Payments (رصيد التوافقات)</option>
+                <option value="/dashboard/support">Support (الدعم والملاحظات)</option>
+              </select>
             </div>
 
             <Button type="submit" disabled={sending}>

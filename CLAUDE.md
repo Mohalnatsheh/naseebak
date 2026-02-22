@@ -253,6 +253,10 @@ Several landing pages (home, about, terms, privacy) use an em-dash `—` separat
 
 This pattern must be applied to any new landing page title that uses a dash separator.
 
+### Navbar Section Links
+
+The navbar has two types of links: **section links** (المميزات, كيف تعمل المنصة) that anchor to homepage sections, and **page links** (من نحن, تواصل معنا, المدونة, الأسئلة الشائعة). Section links use `Link href="/#features"` so they work from any page — navigating to the homepage and scrolling to the section. Both types are always visible on all pages.
+
 ### Footer
 
 The footer (`src/components/shared/footer.tsx`) has 4 columns: Brand description, Quick Links, Pages, Contact Info + social icons. No newsletter/email subscription section — it was intentionally removed.
@@ -316,13 +320,18 @@ All users (both genders) see the same 3-tab suggestions page:
 Web push notifications via OneSignal SDK. Sends real-time alerts for suggestions, matches, visits, identity status, and payments.
 
 **Architecture:**
-- `src/components/shared/onesignal-provider.tsx` — Client-side SDK init (rendered in dashboard layout), registers user by session ID
-- `src/components/shared/push-permission-prompt.tsx` — Arabic UI prompt card shown 5s after dashboard load, asks users to enable push notifications. Renders in dashboard layout. Only appears when `Notification.permission === "default"`. Dismissal stored in localStorage (`naseeb_push_prompt_dismissed`)
-- `src/lib/onesignal.ts` — Server-side `sendPushNotification()` and `sendPushNotificationToMany()` helpers
+- `src/components/shared/onesignal-provider.tsx` — Client-side SDK init (rendered in dashboard layout), calls `OneSignal.login(userId)` to register user by external_id
+- `src/components/shared/push-permission-prompt.tsx` — Arabic UI prompt card shown 5s after dashboard load, asks users to enable push notifications. Renders inside the dashboard content area (below mobile header). Only appears when `Notification.permission === "default"`. Dismissal stored in localStorage (`naseeb_push_prompt_dismissed`)
+- `src/lib/onesignal.ts` — Server-side helpers using **OneSignal REST API v2** (`api.onesignal.com/notifications`). Uses `Authorization: Key` header and targets users by `include_aliases: { external_id: [userId] }` (not deprecated `include_player_ids`)
 - `src/app/api/push/register/route.ts` — Saves OneSignal player ID to `User.oneSignalPlayerId`
 - `public/OneSignalSDKWorker.js` — Service worker required by OneSignal
 
 Both `OneSignalProvider` and `PushPermissionPrompt` are rendered in the dashboard layout (`src/app/(ar)/dashboard/layout.tsx`).
+
+**Platform support:**
+- Android Chrome (browser + PWA): Full push support
+- iOS Safari: No web push support
+- iOS PWA (Add to Home Screen, iOS 16.4+): Push supported only after installing as PWA
 
 **OneSignal setup required:** In the OneSignal dashboard, set Site URL to `https://naseebak.com` under Settings → Platforms → Web.
 
@@ -405,6 +414,8 @@ The user dashboard uses `DashboardSidebar` (NOT `DashboardNavbar` — the navbar
 **Account links (الحساب):** الملف الشخصي, صوري, اختبار الشخصية, التحقق من الهوية, رصيد التوافقات, الدعم والملاحظات
 
 The sidebar fetches user data (`/api/profile`) for the user card and polls unread notifications (`/api/notifications/unread-count`) every 30s. Logout calls `signOut({ callbackUrl: "/login" })`.
+
+The mobile Sheet menu uses `showCloseButton={false}` with a custom X button placed inline next to the logo (avoids overlap with the default Sheet close button). The landing page navbar (`src/components/shared/navbar.tsx`) follows the same pattern.
 
 **Key file:** `src/components/shared/dashboard-sidebar.tsx` — `mainLinks` array for primary nav, `accountLinks` array for account section. Add new dashboard links to the appropriate array.
 
@@ -631,9 +642,9 @@ The admin panel at `/admin` has 14 pages providing full platform management. All
 | **Suggestions** | `/admin/suggestions` | Browse/Create tabs. Browse: status filter, paginated table with score color coding (>70 green, 50-70 amber, <50 red), delete action. Create: auto-generate + manual create |
 | **Visits** | `/admin/visits` | Status filter buttons with counts, date picker (datetime-local), location input, admin notes per visit, "Save Details" button, status transition buttons |
 | **Reports** | `/admin/reports` | Status filter (All/PENDING/REVIEWED/DISMISSED), review dialog with admin note, pagination |
-| **Profile Requests** | `/admin/profile-requests` | Change diff table (Field / Current Value / Proposed Value), user message display, admin note + approve/reject. Approval applies all profile fields including preference arrays (prefReligiosity, prefSmokingStatus) |
+| **Profile Requests** | `/admin/profile-requests` | Change diff table (Field / Current Value / Proposed Value), user message display, admin note + approve/reject. Approval applies all profile fields: strings (including skinColor, incomeRange), ints (height, weight, childrenCount, etc.), bools, arrays (prefReligiosity, prefSmokingStatus), and dateOfBirth |
 | **Payments** | `/admin/payments` | 3 summary cards (Total Revenue, This Month, Completed Count), status filter (All/PENDING/COMPLETED/FAILED/REFUNDED), paginated table |
-| **Notifications** | `/admin/notifications` | Send form with All Users / Specific User toggle, user dropdown, title + body inputs. Recent system notifications list below |
+| **Notifications** | `/admin/notifications` | Send form with All Users / Specific User toggle, user dropdown, title + body inputs, route selector (which page the notification opens). Recent system notifications list below |
 | **Blocks** | `/admin/blocks` | Paginated table (Blocker / Blocked / Date / Remove), confirmation before removal |
 | **Deletions** | `/admin/deletions` | Cards with user info, reason, countdown badge ("X days remaining"), cancel deletion button with account reactivation |
 | **Support Tickets** | `/admin/support` | Status + type filters, ticket list with user info, review dialog with admin note + status actions (In Progress/Resolve/Close), pagination |
@@ -740,6 +751,8 @@ Full SEO metadata configured in `src/app/(ar)/layout.tsx` with `metadataBase: ht
 - `src/app/robots.ts` — Allows `/`, disallows `/dashboard/`, `/admin/`, `/api/`. Points to sitemap
 - `src/app/sitemap.ts` — 9 public pages with priorities and change frequencies
 - `public/site.webmanifest` — PWA manifest with Arabic name, RTL direction, theme_color `#22476a`
+
+**PWA icons:** All icons (`public/images/icon-{16,32,192,512}.png`, `public/apple-touch-icon.png`, `public/favicon.ico`) are generated from `logo.svg` — the Arabic "نصيبك" text logo on a light gradient background with rounded corners.
 
 **Metadata in layout:** Title template (`%s | نصيبك`), description, Arabic SEO keywords, authors, icons (16/32/180px), manifest link, openGraph (locale `ar_JO`), Twitter (summary_large_image), robots directives.
 

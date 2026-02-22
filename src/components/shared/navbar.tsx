@@ -88,13 +88,13 @@ export function Navbar() {
 
         {/* Desktop nav links */}
         <div className="hidden md:flex items-center gap-1 bg-muted/40 backdrop-blur-sm rounded-full px-1.5 py-1 border border-border/30">
-          {isHome && sectionLinks.map((link) => {
+          {sectionLinks.map((link) => {
             const sectionId = link.href.replace("#", "");
-            const isActive = activeSection === sectionId;
+            const isActive = isHome && activeSection === sectionId;
             return (
-              <a
+              <Link
                 key={link.href}
-                href={link.href}
+                href={`/${link.href}`}
                 className={cn(
                   "relative text-sm font-medium px-4 py-2 rounded-full transition-all duration-300",
                   isActive
@@ -103,12 +103,10 @@ export function Navbar() {
                 )}
               >
                 {link.label}
-              </a>
+              </Link>
             );
           })}
-          {isHome && (
-            <div className="h-4 w-px bg-border/50 mx-1" />
-          )}
+          <div className="h-4 w-px bg-border/50 mx-1" />
           {pageLinks.map((link) => (
             <Link
               key={link.href}
@@ -180,23 +178,21 @@ export function Navbar() {
               </Button>
             </div>
 
-            {/* Mobile section links (only on home) */}
-            {isHome && (
-              <div className="flex flex-col gap-1">
-                {sectionLinks.map((link) => (
-                  <a
-                    key={link.href}
-                    href={link.href}
-                    onClick={() => setMobileOpen(false)}
-                    className="flex items-center gap-3 text-lg font-medium text-foreground/80 hover:text-primary hover:bg-primary/5 rounded-xl px-4 py-3.5 transition-all duration-200"
-                  >
-                    {link.label}
-                  </a>
+            {/* Mobile section links */}
+            <div className="flex flex-col gap-1">
+              {sectionLinks.map((link) => (
+                <Link
+                  key={link.href}
+                  href={`/${link.href}`}
+                  onClick={() => setMobileOpen(false)}
+                  className="flex items-center gap-3 text-lg font-medium text-foreground/80 hover:text-primary hover:bg-primary/5 rounded-xl px-4 py-3.5 transition-all duration-200"
+                >
+                  {link.label}
+                </Link>
                 ))}
-              </div>
-            )}
+            </div>
 
-            {isHome && <div className="my-3 h-px bg-border/30" />}
+            <div className="my-3 h-px bg-border/30" />
 
             {/* Mobile page links */}
             <div className="flex flex-col gap-1">

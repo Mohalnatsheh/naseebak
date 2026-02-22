@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { Cairo } from "next/font/google";
 import "../globals.css";
+import TrackingScripts from "@/components/shared/tracking-scripts";
 
 const cairo = Cairo({
   subsets: ["arabic", "latin"],
@@ -118,6 +120,9 @@ export default function ArabicLayout({
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd) }}
         />
+        <Suspense fallback={null}>
+          <TrackingScripts />
+        </Suspense>
         {children}
       </body>
     </html>

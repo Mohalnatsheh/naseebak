@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Naseebak (نصيبك)** is a web-based traditional marriage facilitation platform for Jordan. It is **not** a dating app — there is zero direct communication between users. The platform uses AI-powered matching, admin-mediated family visit coordination, and a freemium suggestion model. The full specification lives in `SRS.md`.
 
-**Current status:** Core platform implemented and deployed to production at **https://naseebak.com**. Auth (phone+OTP for users, email+password for admins), profile management, identity verification, personality quiz, suggestions with sent interest tracking, matches, payments, notifications, full-featured admin panel (14 pages), dynamic blog system, push notifications (OneSignal), real matching algorithm, report/block system, field-level profile completeness, account deletion with 30-day grace period, support/feedback ticket system, registration open/closed toggle, server-side pagination on all dashboard list pages, and full SEO (per-page metadata, canonical URLs, JSON-LD structured data, dynamic sitemap) are all functional.
+**Current status:** Core platform implemented and deployed to production at **https://naseebak.com**. Auth (phone+OTP for users, email+password for admins), profile management, identity verification, personality quiz, suggestions with sent interest tracking, matches, payments, notifications, full-featured admin panel (14 pages), dynamic blog system, push notifications (OneSignal), real matching algorithm, report/block system, field-level profile completeness, account deletion with 30-day grace period, support/feedback ticket system, registration open/closed toggle, server-side pagination on all dashboard list pages, full SEO (per-page metadata, canonical URLs, JSON-LD structured data, dynamic sitemap), and admin-configurable tracking (GTM + Facebook Pixel) are all functional.
 
 ## Commands
 
@@ -187,8 +187,8 @@ Key points:
 | Notifications | GET list (`?page=`, paginated 20/page), `[id]/read`, `read-all`, `unread-count` |
 | Push | `register` (POST — save OneSignal player ID) |
 | Blog (public) | GET `/api/blog` (list published, filter by `?category=`, `?page=`), GET `/api/blog/[slug]` (single post), GET `/api/blog/categories` (categories with published counts) |
-| Settings (public) | GET `/api/settings/registration-status` (no auth, returns `{ registrationOpen }`, 30s cache) |
-| Admin | `stats` (enhanced with revenue, trends, activity), `identity` review (pending/history tabs), `suggestions` (GET list + POST create + DELETE `[id]`), `suggestions/generate`, `reports` (GET/PATCH), `visits` management, `users` (GET with search/gender/status filters) + `users/[id]` (GET + PATCH credits) + `users/[id]/suspend`, `profile-requests` (with profile diff data), `payments` (GET paginated with status filter + revenue summary), `notifications` (GET recent + POST send to one/all), `blocks` (GET paginated) + `blocks/[id]` (DELETE), `deletions` (GET pending) + `deletions/[id]` (DELETE cancel), `settings/admins` (GET list + POST create), `settings/registration` (GET + PATCH toggle) |
+| Settings (public) | GET `/api/settings/registration-status` (no auth, returns `{ registrationOpen }`, 30s cache), GET `/api/settings/tracking` (no auth, returns `{ gtmId?, fbPixelId? }`, 30s cache) |
+| Admin | `stats` (enhanced with revenue, trends, activity), `identity` review (pending/history tabs), `suggestions` (GET list + POST create + DELETE `[id]`), `suggestions/generate`, `reports` (GET/PATCH), `visits` management, `users` (GET with search/gender/status filters) + `users/[id]` (GET + PATCH credits) + `users/[id]/suspend`, `profile-requests` (with profile diff data), `payments` (GET paginated with status filter + revenue summary), `notifications` (GET recent + POST send to one/all), `blocks` (GET paginated) + `blocks/[id]` (DELETE), `deletions` (GET pending) + `deletions/[id]` (DELETE cancel), `settings/admins` (GET list + POST create), `settings/registration` (GET + PATCH toggle), `settings/tracking` (GET + PATCH GTM/FB Pixel IDs) |
 | Support | POST `/api/support` (create ticket, max 5 open), GET `/api/support` (`?page=`, paginated 10/page, list own tickets) |
 | Admin Support | GET `/api/admin/support` (list all, filter by status/type, paginated), PATCH (update status + respond, notifies user) |
 | Admin Blog | GET/POST `/api/admin/blog` (list all + create), PUT/DELETE `/api/admin/blog/[id]`, GET/POST `/api/admin/blog/categories`, PUT/DELETE `/api/admin/blog/categories/[id]` |
@@ -652,7 +652,7 @@ The admin panel at `/admin` has 14 pages providing full platform management. All
 | **Blocks** | `/admin/blocks` | Paginated table (Blocker / Blocked / Date / Remove), confirmation before removal |
 | **Deletions** | `/admin/deletions` | Cards with user info, reason, countdown badge ("X days remaining"), cancel deletion button with account reactivation |
 | **Support Tickets** | `/admin/support` | Status + type filters, ticket list with user info, review dialog with admin note + status actions (In Progress/Resolve/Close), pagination |
-| **Settings** | `/admin/settings` | Platform Settings card (registration open/closed toggle with badge), Admin accounts table (Name / Email / Created), "Add Admin" form (firstName, lastName, email, password with bcrypt hash) |
+| **Settings** | `/admin/settings` | Platform Settings card (registration open/closed toggle with badge), Tracking & Analytics card (GTM Container ID + Facebook Pixel ID inputs with save), Admin accounts table (Name / Email / Created), "Add Admin" form (firstName, lastName, email, password with bcrypt hash) |
 
 ### Admin API Routes
 
@@ -676,6 +676,7 @@ The admin panel at `/admin` has 14 pages providing full platform management. All
 | `/api/admin/support` | GET, PATCH | GET: paginated with `?status=&type=` filters. PATCH: update status + admin note, creates SUPPORT notification + push |
 | `/api/admin/settings/admins` | GET, POST | GET: list admin accounts. POST: create new admin (bcrypt password hash) |
 | `/api/admin/settings/registration` | GET, PATCH | GET: current registration status. PATCH: `{ registrationOpen: boolean }` toggle |
+| `/api/admin/settings/tracking` | GET, PATCH | GET: `{ gtmId, fbPixelId }`. PATCH: `{ gtmId?, fbPixelId? }` with format validation |
 | `/api/admin/reports` | GET, PATCH | Existing report review |
 | `/api/admin/visits` | GET, PATCH | Existing visit management with scheduledDate, location, adminNotes |
 | `/api/admin/blog/*` | Various | Blog CRUD + category management (now includes PUT for category edit) |
@@ -808,6 +809,27 @@ Admin-controlled toggle to open or close new user registration platform-wide.
 - `src/app/(en)/admin/settings/page.tsx` — Toggle UI card
 - `src/app/(ar)/register/page.tsx` — Closed alert UI
 - `src/components/shared/navbar.tsx` — Landing page closed registration banner
+
+## Tracking & Analytics (GTM + Facebook Pixel)
+
+Admin-configurable Google Tag Manager and Facebook Pixel integration. Only container/pixel IDs are stored (not raw script tags) for security — script templates are hardcoded in the component.
+
+**DB keys:** `gtm_id` and `fb_pixel_id` in `SystemSetting` table.
+
+**How it works:**
+- Admin sets IDs via Settings page → `PATCH /api/admin/settings/tracking`
+- `TrackingScripts` server component in `src/components/shared/tracking-scripts.tsx` reads IDs via `getSetting()` (30s cache)
+- Component renders GTM `<script>` + `<noscript>` and/or FB Pixel `<script>` + `<noscript>` tags
+- Rendered in Arabic layout (`src/app/(ar)/layout.tsx`) inside `<Suspense>` — only user-facing pages are tracked
+- Admin panel pages (`/admin/*`) are NOT tracked
+- Empty IDs = scripts not rendered
+
+**Key files:**
+- `src/app/api/admin/settings/tracking/route.ts` — Admin GET/PATCH for GTM + FB Pixel IDs (validates format)
+- `src/app/api/settings/tracking/route.ts` — Public GET endpoint (30s cache, no auth)
+- `src/components/shared/tracking-scripts.tsx` — Server component rendering tracking scripts
+- `src/app/(en)/admin/settings/page.tsx` — "Tracking & Analytics" card UI
+- `src/app/(ar)/layout.tsx` — `<TrackingScripts />` integration
 
 ## Dashboard Pagination
 

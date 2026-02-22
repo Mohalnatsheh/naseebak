@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Settings, Loader2, Plus, UserPlus } from "lucide-react";
+import { Settings, Loader2, Plus, UserPlus, BarChart3, Check } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,9 +33,19 @@ export default function AdminSettingsPage() {
   const [regLoading, setRegLoading] = useState(true);
   const [regToggling, setRegToggling] = useState(false);
 
+  // Tracking settings state
+  const [gtmId, setGtmId] = useState("");
+  const [fbPixelId, setFbPixelId] = useState("");
+  const [trackingLoading, setTrackingLoading] = useState(true);
+  const [gtmSaving, setGtmSaving] = useState(false);
+  const [fbSaving, setFbSaving] = useState(false);
+  const [trackingError, setTrackingError] = useState("");
+  const [trackingSuccess, setTrackingSuccess] = useState("");
+
   useEffect(() => {
     fetchAdmins();
     fetchRegistrationStatus();
+    fetchTrackingSettings();
   }, []);
 
   async function fetchRegistrationStatus() {
@@ -66,6 +76,50 @@ export default function AdminSettingsPage() {
       console.error(err);
     } finally {
       setRegToggling(false);
+    }
+  }
+
+  async function fetchTrackingSettings() {
+    try {
+      const res = await fetch("/api/admin/settings/tracking");
+      const data = await res.json();
+      setGtmId(data.gtmId || "");
+      setFbPixelId(data.fbPixelId || "");
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setTrackingLoading(false);
+    }
+  }
+
+  async function saveTracking(field: "gtmId" | "fbPixelId") {
+    setTrackingError("");
+    setTrackingSuccess("");
+    const isSavingGtm = field === "gtmId";
+    if (isSavingGtm) setGtmSaving(true);
+    else setFbSaving(true);
+
+    try {
+      const body = isSavingGtm ? { gtmId } : { fbPixelId };
+      const res = await fetch("/api/admin/settings/tracking", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setTrackingSuccess(
+          isSavingGtm ? "GTM ID saved successfully" : "Facebook Pixel ID saved successfully"
+        );
+        setTimeout(() => setTrackingSuccess(""), 3000);
+      } else {
+        setTrackingError(data.error || "Failed to save tracking settings");
+      }
+    } catch {
+      setTrackingError("An unexpected error occurred");
+    } finally {
+      if (isSavingGtm) setGtmSaving(false);
+      else setFbSaving(false);
     }
   }
 
@@ -175,6 +229,86 @@ export default function AdminSettingsPage() {
               )}
             </button>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Tracking & Analytics */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <BarChart3 className="h-5 w-5 text-primary" />
+            Tracking & Analytics
+          </CardTitle>
+          <CardDescription>
+            Configure Google Tag Manager and Facebook Pixel for user-facing pages
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {trackingLoading ? (
+            <div className="flex justify-center py-4">
+              <Loader2 className="h-5 w-5 animate-spin text-primary" />
+            </div>
+          ) : (
+            <>
+              {trackingError && (
+                <div className="rounded-lg bg-destructive/10 border border-destructive/20 p-3 text-sm text-destructive">
+                  {trackingError}
+                </div>
+              )}
+              {trackingSuccess && (
+                <div className="rounded-lg bg-green-50 border border-green-200 p-3 text-sm text-green-800 flex items-center gap-2">
+                  <Check className="h-4 w-4" />
+                  {trackingSuccess}
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <Label htmlFor="gtm-id">Google Tag Manager Container ID</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="gtm-id"
+                    value={gtmId}
+                    onChange={(e) => setGtmId(e.target.value)}
+                    placeholder="GTM-XXXXXXX"
+                    className="max-w-xs"
+                  />
+                  <Button
+                    size="sm"
+                    onClick={() => saveTracking("gtmId")}
+                    disabled={gtmSaving}
+                  >
+                    {gtmSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Format: GTM-XXXXXXX. Leave empty to disable.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="fb-pixel-id">Facebook Pixel ID</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="fb-pixel-id"
+                    value={fbPixelId}
+                    onChange={(e) => setFbPixelId(e.target.value)}
+                    placeholder="123456789012345"
+                    className="max-w-xs"
+                  />
+                  <Button
+                    size="sm"
+                    onClick={() => saveTracking("fbPixelId")}
+                    disabled={fbSaving}
+                  >
+                    {fbSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Numeric ID from Facebook Events Manager. Leave empty to disable.
+                </p>
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
 

@@ -771,6 +771,14 @@ async function main() {
   });
   console.log("Suggestion: هديل ← يزن (91%, PENDING — ready for walkthrough)");
 
+  // ─── System Settings ─────────────────────────────────────────────────────
+  await db.systemSetting.upsert({
+    where: { key: "registration_open" },
+    update: {},
+    create: { key: "registration_open", value: "true" },
+  });
+  console.log("System setting: registration_open = true");
+
   // ─── Summary ─────────────────────────────────────────────────────────────
   console.log("\n╔══════════════════════════════════════════════════════════════╗");
   console.log("║                 Test Accounts (OTP = 111111)                ║");

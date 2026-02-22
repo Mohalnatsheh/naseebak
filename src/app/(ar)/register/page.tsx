@@ -140,6 +140,24 @@ function RegisterPageContent() {
   const searchParams = useSearchParams();
   const [step, setStep] = useState(1);
 
+  /* Registration open/closed status */
+  const [registrationClosed, setRegistrationClosed] = useState(false);
+  const [statusChecking, setStatusChecking] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/settings/registration-status")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.registrationOpen === false) {
+          setRegistrationClosed(true);
+        }
+      })
+      .catch(() => {
+        // Fail-open: if status check fails, allow registration
+      })
+      .finally(() => setStatusChecking(false));
+  }, []);
+
   /* Slide animation direction */
   const [slideDir, setSlideDir] = useState<"next" | "prev">("next");
   const [animating, setAnimating] = useState(false);
@@ -469,6 +487,62 @@ function RegisterPageContent() {
   /*  Step labels for the wizard                                      */
   /* ---------------------------------------------------------------- */
   const stepLabels = ["معلومات الحساب", "وثائق الهوية", "تم بنجاح"];
+
+  /* Loading state while checking registration status */
+  if (statusChecking) {
+    return (
+      <main className="relative flex min-h-screen items-center justify-center p-4 overflow-hidden">
+        <div className="fixed inset-0 -z-10 bg-gradient-to-br from-primary/10 via-background to-accent/10" />
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </main>
+    );
+  }
+
+  /* Registration closed alert */
+  if (registrationClosed) {
+    return (
+      <main className="relative flex min-h-screen items-center justify-center p-4 overflow-hidden">
+        <div className="fixed inset-0 -z-10 bg-gradient-to-br from-primary/10 via-background to-accent/10" />
+        <div className="fixed inset-0 -z-10 opacity-40">
+          <div className="absolute -top-24 -right-24 h-96 w-96 rounded-full bg-primary/10 blur-3xl" />
+          <div className="absolute -bottom-24 -left-24 h-96 w-96 rounded-full bg-accent/10 blur-3xl" />
+        </div>
+        <Card className="relative w-full max-w-lg border-white/40 bg-card/80 backdrop-blur-xl shadow-2xl shadow-primary/5">
+          <CardHeader className="text-center space-y-3 pb-2">
+            <Link href="/" className="inline-block">
+              <Image
+                src="/images/logo.svg"
+                alt="نصيبك"
+                width={160}
+                height={70}
+                className="h-12 w-auto mx-auto"
+              />
+            </Link>
+          </CardHeader>
+          <CardContent className="text-center space-y-6 py-8">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/10 to-accent/10">
+              <Shield className="h-8 w-8 text-primary" />
+            </div>
+            <div className="space-y-2">
+              <h2 className="text-xl font-bold text-foreground">
+                التسجيل مغلق حالياً
+              </h2>
+              <p className="text-sm text-muted-foreground leading-relaxed max-w-xs mx-auto">
+                عذراً، التسجيل في المنصة مغلق مؤقتاً. نعمل على تحسين خدماتنا وسنفتح التسجيل قريباً إن شاء الله.
+              </p>
+            </div>
+            <div className="pt-2">
+              <Link href="/login">
+                <Button className="w-full h-11 rounded-xl text-sm font-semibold bg-gradient-to-l from-primary to-primary/90 shadow-md shadow-primary/15">
+                  تسجيل الدخول لحساب موجود
+                </Button>
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+      </main>
+    );
+  }
 
   return (
     <main className="relative flex min-h-screen items-center justify-center p-4 overflow-hidden">

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Settings, Loader2, Plus, UserPlus } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,9 +28,46 @@ export default function AdminSettingsPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
+  // Registration toggle state
+  const [registrationOpen, setRegistrationOpen] = useState(true);
+  const [regLoading, setRegLoading] = useState(true);
+  const [regToggling, setRegToggling] = useState(false);
+
   useEffect(() => {
     fetchAdmins();
+    fetchRegistrationStatus();
   }, []);
+
+  async function fetchRegistrationStatus() {
+    try {
+      const res = await fetch("/api/admin/settings/registration");
+      const data = await res.json();
+      setRegistrationOpen(data.registrationOpen ?? true);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setRegLoading(false);
+    }
+  }
+
+  async function toggleRegistration() {
+    setRegToggling(true);
+    try {
+      const res = await fetch("/api/admin/settings/registration", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ registrationOpen: !registrationOpen }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setRegistrationOpen(data.registrationOpen);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setRegToggling(false);
+    }
+  }
 
   async function fetchAdmins() {
     try {
@@ -85,6 +122,61 @@ export default function AdminSettingsPage() {
         </h1>
         <p className="text-muted-foreground mt-1">Manage admin accounts and platform settings</p>
       </div>
+
+      {/* Platform Settings */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Platform Settings</CardTitle>
+          <CardDescription>Control platform-wide features</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="font-medium text-sm">User Registration</span>
+                {regLoading ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+                ) : (
+                  <Badge variant={registrationOpen ? "default" : "destructive"}>
+                    {registrationOpen ? "Open" : "Closed"}
+                  </Badge>
+                )}
+              </div>
+              <p className="text-sm text-muted-foreground">
+                {registrationOpen
+                  ? "New users can create accounts on the platform."
+                  : "Registration is closed. Only existing users can log in."}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={toggleRegistration}
+              disabled={regLoading || regToggling}
+              className="relative shrink-0 ms-4"
+              aria-label="Toggle registration"
+            >
+              <div
+                className={`h-6 w-11 rounded-full transition-colors duration-300 ${
+                  regLoading || regToggling
+                    ? "bg-muted"
+                    : registrationOpen
+                    ? "bg-primary"
+                    : "bg-muted"
+                }`}
+              >
+                <div
+                  className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-all duration-300 ${
+                    registrationOpen ? "left-[calc(100%-1.375rem)]" : "left-0.5"
+                  }`}
+                />
+              </div>
+              {regToggling && (
+                <Loader2 className="absolute -top-1 -right-1 h-3 w-3 animate-spin text-primary" />
+              )}
+            </button>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Admin Accounts */}
       <Card>

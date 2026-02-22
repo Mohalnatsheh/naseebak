@@ -548,3 +548,12 @@ model SupportTicket {
 
   @@map("support_tickets")
 }
+
+model SystemSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+
+  @@map("system_settings")
+}

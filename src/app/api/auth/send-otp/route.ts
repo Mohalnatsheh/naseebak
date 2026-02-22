@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { rateLimit } from "@/lib/rate-limit";
 import { sendOtpSchema, normalizePhone } from "@/lib/validations/auth";
+import { isRegistrationOpen } from "@/lib/settings";
 
 // Fixed OTP for test numbers — bypass SMS
 const TEST_PHONES = new Set([
@@ -99,6 +100,22 @@ export async function POST(request: Request) {
       );
     }
 
+    // If phone is new and registration is closed, block OTP
+    const existingUserForGate = await db.user.findUnique({
+      where: { phone },
+      select: { id: true },
+    });
+
+    if (!existingUserForGate) {
+      const regOpen = await isRegistrationOpen();
+      if (!regOpen) {
+        return NextResponse.json(
+          { error: "التسجيل مغلق حالياً. يرجى المحاولة لاحقاً." },
+          { status: 403 }
+        );
+      }
+    }
+
     // Delete previous unexpired OTPs for this phone
     await db.otp.deleteMany({
       where: {
@@ -134,15 +151,9 @@ export async function POST(request: Request) {
       }
     }
 
-    // Check if user exists
-    const existingUser = await db.user.findUnique({
-      where: { phone },
-      select: { id: true },
-    });
-
     return NextResponse.json({
       message: "تم إرسال رمز التحقق",
-      userExists: !!existingUser,
+      userExists: !!existingUserForGate,
     });
   } catch (error) {
     console.error("Send OTP error:", error);

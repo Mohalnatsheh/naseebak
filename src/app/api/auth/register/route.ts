@@ -1,9 +1,19 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { registerSchema, normalizePhone } from "@/lib/validations/auth";
+import { isRegistrationOpen } from "@/lib/settings";
 
 export async function POST(request: Request) {
   try {
+    // Check if registration is open
+    const open = await isRegistrationOpen();
+    if (!open) {
+      return NextResponse.json(
+        { error: "التسجيل مغلق حالياً. يرجى المحاولة لاحقاً." },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
     const result = registerSchema.safeParse(body);
 

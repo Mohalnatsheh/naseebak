@@ -34,7 +34,7 @@ export function Footer() {
 
           {/* Column 2: Quick Links */}
           <div className="space-y-4">
-            <h4 className="font-bold text-sm">روابط سريعة</h4>
+            <p className="font-bold text-sm">روابط سريعة</p>
             <ul className="space-y-2.5 text-sm text-muted-foreground">
               <li><Link href="/#features" className="hover:text-primary transition-colors duration-200">المميزات</Link></li>
               <li><Link href="/#how-it-works" className="hover:text-primary transition-colors duration-200">كيف تعمل المنصة</Link></li>
@@ -45,7 +45,7 @@ export function Footer() {
 
           {/* Column 3: Pages */}
           <div className="space-y-4">
-            <h4 className="font-bold text-sm">صفحات</h4>
+            <p className="font-bold text-sm">صفحات</p>
             <ul className="space-y-2.5 text-sm text-muted-foreground">
               <li><Link href="/about" className="hover:text-primary transition-colors duration-200">من نحن</Link></li>
               <li><Link href="/contact" className="hover:text-primary transition-colors duration-200">تواصل معنا</Link></li>
@@ -56,7 +56,7 @@ export function Footer() {
 
           {/* Column 4: Contact Info */}
           <div className="space-y-4">
-            <h4 className="font-bold text-sm">تواصل معنا</h4>
+            <p className="font-bold text-sm">تواصل معنا</p>
             <ul className="space-y-2.5 text-sm text-muted-foreground">
               <li>البريد: info@naseeb.jo</li>
               <li>الهاتف: +962 7 0000 0000</li>

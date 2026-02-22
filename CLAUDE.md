@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Naseebak (نصيبك)** is a web-based traditional marriage facilitation platform for Jordan. It is **not** a dating app — there is zero direct communication between users. The platform uses AI-powered matching, admin-mediated family visit coordination, and a freemium suggestion model. The full specification lives in `SRS.md`.
 
-**Current status:** Core platform implemented and deployed to production at **https://naseebak.com**. Auth (phone+OTP for users, email+password for admins), profile management, identity verification, personality quiz, suggestions with sent interest tracking, matches, payments, notifications, full-featured admin panel (14 pages), dynamic blog system, push notifications (OneSignal), real matching algorithm, report/block system, field-level profile completeness, account deletion with 30-day grace period, and support/feedback ticket system are all functional.
+**Current status:** Core platform implemented and deployed to production at **https://naseebak.com**. Auth (phone+OTP for users, email+password for admins), profile management, identity verification, personality quiz, suggestions with sent interest tracking, matches, payments, notifications, full-featured admin panel (14 pages), dynamic blog system, push notifications (OneSignal), real matching algorithm, report/block system, field-level profile completeness, account deletion with 30-day grace period, support/feedback ticket system, and registration open/closed toggle are all functional.
 
 ## Commands
 
@@ -75,7 +75,7 @@ src/
 │   │       ├── blocks/    # Block management (view/remove)
 │   │       ├── deletions/ # Account deletion request management
 │   │       ├── support/   # Support ticket management
-│   │       ├── settings/  # Admin accounts management
+│   │       ├── settings/  # Admin accounts + platform settings (registration toggle)
 │   │       └── blog/      # Blog post + category management
 │   └── api/               # All API routes
 ├── components/
@@ -91,6 +91,7 @@ src/
 │   ├── stripe.ts          # Stripe client singleton (lazy-initialized)
 │   ├── onesignal.ts       # OneSignal push notification helpers (server-side)
 │   ├── rate-limit.ts      # In-memory rate limiter
+│   ├── settings.ts        # System settings helper (cached reads, DB-backed)
 │   ├── profile-completeness.ts  # Field-level profile completeness calculator
 │   ├── matching/
 │   │   └── score.ts       # Weighted compatibility scoring engine
@@ -151,7 +152,7 @@ Two authentication methods exist — phone+OTP for regular users, email+password
 
 ## Database Schema
 
-21 models in `prisma/schema.prisma`: User, Profile, PersonalityResult, ParentInfo, IdentityDoc, Photo, Suggestion, Like, MutualMatch, VisitRequest, Payment, Subscription, Notification, ProfileUpdateRequest, Otp, BlogCategory, BlogPost, Report, Block, AccountDeletionRequest, **SupportTicket**.
+22 models in `prisma/schema.prisma`: User, Profile, PersonalityResult, ParentInfo, IdentityDoc, Photo, Suggestion, Like, MutualMatch, VisitRequest, Payment, Subscription, Notification, ProfileUpdateRequest, Otp, BlogCategory, BlogPost, Report, Block, AccountDeletionRequest, SupportTicket, **SystemSetting**.
 
 Key points:
 - `User.passwordHash` is optional (`String?`) — set for admin accounts (bcrypt), null for regular users
@@ -167,6 +168,7 @@ Key points:
 - `Report` stores user-submitted reports (reason enum: FAKE_PROFILE, INAPPROPRIATE_CONTENT, HARASSMENT, SPAM, OTHER; status: PENDING/REVIEWED/DISMISSED). Unique per reporter+reported pair
 - `Block` stores bidirectional blocks between users. Blocked users are filtered from suggestions, interests, and matching candidates
 - `AccountDeletionRequest` tracks 30-day grace period deletion requests (scheduledAt, cancelledAt). Account is deactivated immediately, permanently deleted after 30 days via cron
+- `SystemSetting` is a key-value store for platform settings (e.g. `registration_open`). Uses `key` as primary key, read via cached helper in `src/lib/settings.ts` (30s TTL)
 
 ## API Routes
 
@@ -184,7 +186,8 @@ Key points:
 | Notifications | GET list, `[id]/read`, `read-all`, `unread-count` |
 | Push | `register` (POST — save OneSignal player ID) |
 | Blog (public) | GET `/api/blog` (list published, filter by `?category=`, `?page=`), GET `/api/blog/[slug]` (single post), GET `/api/blog/categories` (categories with published counts) |
-| Admin | `stats` (enhanced with revenue, trends, activity), `identity` review (pending/history tabs), `suggestions` (GET list + POST create + DELETE `[id]`), `suggestions/generate`, `reports` (GET/PATCH), `visits` management, `users` (GET with search/gender/status filters) + `users/[id]` (GET + PATCH credits) + `users/[id]/suspend`, `profile-requests` (with profile diff data), `payments` (GET paginated with status filter + revenue summary), `notifications` (GET recent + POST send to one/all), `blocks` (GET paginated) + `blocks/[id]` (DELETE), `deletions` (GET pending) + `deletions/[id]` (DELETE cancel), `settings/admins` (GET list + POST create) |
+| Settings (public) | GET `/api/settings/registration-status` (no auth, returns `{ registrationOpen }`, 30s cache) |
+| Admin | `stats` (enhanced with revenue, trends, activity), `identity` review (pending/history tabs), `suggestions` (GET list + POST create + DELETE `[id]`), `suggestions/generate`, `reports` (GET/PATCH), `visits` management, `users` (GET with search/gender/status filters) + `users/[id]` (GET + PATCH credits) + `users/[id]/suspend`, `profile-requests` (with profile diff data), `payments` (GET paginated with status filter + revenue summary), `notifications` (GET recent + POST send to one/all), `blocks` (GET paginated) + `blocks/[id]` (DELETE), `deletions` (GET pending) + `deletions/[id]` (DELETE cancel), `settings/admins` (GET list + POST create), `settings/registration` (GET + PATCH toggle) |
 | Support | POST `/api/support` (create ticket, max 5 open), GET `/api/support` (list own tickets) |
 | Admin Support | GET `/api/admin/support` (list all, filter by status/type, paginated), PATCH (update status + respond, notifies user) |
 | Admin Blog | GET/POST `/api/admin/blog` (list all + create), PUT/DELETE `/api/admin/blog/[id]`, GET/POST `/api/admin/blog/categories`, PUT/DELETE `/api/admin/blog/categories/[id]` |
@@ -648,7 +651,7 @@ The admin panel at `/admin` has 14 pages providing full platform management. All
 | **Blocks** | `/admin/blocks` | Paginated table (Blocker / Blocked / Date / Remove), confirmation before removal |
 | **Deletions** | `/admin/deletions` | Cards with user info, reason, countdown badge ("X days remaining"), cancel deletion button with account reactivation |
 | **Support Tickets** | `/admin/support` | Status + type filters, ticket list with user info, review dialog with admin note + status actions (In Progress/Resolve/Close), pagination |
-| **Settings** | `/admin/settings` | Admin accounts table (Name / Email / Created), "Add Admin" form (firstName, lastName, email, password with bcrypt hash) |
+| **Settings** | `/admin/settings` | Platform Settings card (registration open/closed toggle with badge), Admin accounts table (Name / Email / Created), "Add Admin" form (firstName, lastName, email, password with bcrypt hash) |
 
 ### Admin API Routes
 
@@ -671,6 +674,7 @@ The admin panel at `/admin` has 14 pages providing full platform management. All
 | `/api/admin/deletions/[id]` | DELETE | Cancel deletion + reactivate user |
 | `/api/admin/support` | GET, PATCH | GET: paginated with `?status=&type=` filters. PATCH: update status + admin note, creates SUPPORT notification + push |
 | `/api/admin/settings/admins` | GET, POST | GET: list admin accounts. POST: create new admin (bcrypt password hash) |
+| `/api/admin/settings/registration` | GET, PATCH | GET: current registration status. PATCH: `{ registrationOpen: boolean }` toggle |
 | `/api/admin/reports` | GET, PATCH | Existing report review |
 | `/api/admin/visits` | GET, PATCH | Existing visit management with scheduledDate, location, adminNotes |
 | `/api/admin/blog/*` | Various | Blog CRUD + category management (now includes PUT for category edit) |
@@ -755,6 +759,28 @@ Full SEO metadata configured in `src/app/(ar)/layout.tsx` with `metadataBase: ht
 **PWA icons:** All icons (`public/images/icon-{16,32,192,512}.png`, `public/apple-touch-icon.png`, `public/favicon.ico`) are generated from `logo.svg` — the Arabic "نصيبك" text logo on a light gradient background with rounded corners.
 
 **Metadata in layout:** Title template (`%s | نصيبك`), description, Arabic SEO keywords, authors, icons (16/32/180px), manifest link, openGraph (locale `ar_JO`), Twitter (summary_large_image), robots directives.
+
+## Registration Open/Closed Toggle
+
+Admin-controlled toggle to open or close new user registration platform-wide.
+
+**Default:** Registration is open (`registration_open = "true"`). Works even without a DB row (falls back to default).
+
+**How it works:**
+- `SystemSetting` model stores key-value pairs in `system_settings` table
+- `src/lib/settings.ts` provides `getSetting()`, `setSetting()`, `isRegistrationOpen()` with 30s in-memory cache
+- Admin toggles via Settings page → `PATCH /api/admin/settings/registration`
+- Register page checks `GET /api/settings/registration-status` on mount; if closed, shows Arabic alert instead of wizard
+- `POST /api/auth/send-otp` blocks OTP for new phones when closed (existing users can still login)
+- `POST /api/auth/register` returns 403 when closed
+- **Fail-open:** If the status check fails (network error, DB down), registration is allowed
+
+**Key files:**
+- `src/lib/settings.ts` — Cached settings helper
+- `src/app/api/settings/registration-status/route.ts` — Public status endpoint (no auth)
+- `src/app/api/admin/settings/registration/route.ts` — Admin GET/PATCH toggle
+- `src/app/(en)/admin/settings/page.tsx` — Toggle UI card
+- `src/app/(ar)/register/page.tsx` — Closed alert UI
 
 ## Known Limitations / TODOs
 

@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Naseebak (نصيبك)** is a web-based traditional marriage facilitation platform for Jordan. It is **not** a dating app — there is zero direct communication between users. The platform uses AI-powered matching, admin-mediated family visit coordination, and a freemium suggestion model. The full specification lives in `SRS.md`.
 
-**Current status:** Core platform implemented and deployed to production at **https://naseebak.com**. Auth (phone+OTP for users, email+password for admins), profile management, identity verification, personality quiz, suggestions with sent interest tracking, matches, payments, notifications, full-featured admin panel (14 pages), dynamic blog system, push notifications (OneSignal), real matching algorithm, report/block system, field-level profile completeness, account deletion with 30-day grace period, support/feedback ticket system, registration open/closed toggle, and server-side pagination on all dashboard list pages are all functional.
+**Current status:** Core platform implemented and deployed to production at **https://naseebak.com**. Auth (phone+OTP for users, email+password for admins), profile management, identity verification, personality quiz, suggestions with sent interest tracking, matches, payments, notifications, full-featured admin panel (14 pages), dynamic blog system, push notifications (OneSignal), real matching algorithm, report/block system, field-level profile completeness, account deletion with 30-day grace period, support/feedback ticket system, registration open/closed toggle, server-side pagination on all dashboard list pages, and full SEO (per-page metadata, canonical URLs, JSON-LD structured data, dynamic sitemap) are all functional.
 
 ## Commands
 
@@ -754,12 +754,35 @@ Full SEO metadata configured in `src/app/(ar)/layout.tsx` with `metadataBase: ht
 - `src/app/(ar)/opengraph-image.tsx` — Dynamic OG image (1200x630) using `ImageResponse` from `next/og`. Renders the logo SVG (embedded as base64), English subtitle "Jordanian Marriage Platform", and brand gradient bars. Arabic text is NOT used in OG images due to Satori rendering engine limitations with Arabic fonts.
 - `src/app/(ar)/twitter-image.tsx` — Re-exports from `opengraph-image.tsx`
 - `src/app/robots.ts` — Allows `/`, disallows `/dashboard/`, `/admin/`, `/api/`. Points to sitemap
-- `src/app/sitemap.ts` — 9 public pages with priorities and change frequencies
+- `src/app/sitemap.ts` — Static pages + dynamic blog posts from DB (async function)
 - `public/site.webmanifest` — PWA manifest with Arabic name, RTL direction, theme_color `#22476a`
 
 **PWA icons:** All icons (`public/images/icon-{16,32,192,512}.png`, `public/apple-touch-icon.png`, `public/favicon.ico`) are generated from `logo.svg` — the Arabic "نصيبك" text logo on a light gradient background with rounded corners.
 
-**Metadata in layout:** Title template (`%s | نصيبك`), description, Arabic SEO keywords, authors, icons (16/32/180px), manifest link, openGraph (locale `ar_JO`), Twitter (summary_large_image), robots directives.
+**Metadata in layout:** Title template (`%s | نصيبك`), description, Arabic SEO keywords, authors, icons (16/32/180px), manifest link, openGraph (locale `ar_JO`), Twitter (summary_large_image), robots directives, canonical URL.
+
+### Page-Specific SEO Metadata
+
+Each landing page has its own `layout.tsx` with unique `title`, `description`, `canonical` URL, and OpenGraph tags. Since all landing pages are `"use client"` components and cannot export `metadata` directly, metadata is exported from sibling `layout.tsx` files.
+
+| Page | Layout File | Title |
+|------|-------------|-------|
+| Home | `src/app/(ar)/layout.tsx` | نصيبك - نوصّلك بشريك العمر بالحلال |
+| About | `src/app/(ar)/about/layout.tsx` | من نحن |
+| Contact | `src/app/(ar)/contact/layout.tsx` | تواصل معنا |
+| Blog | `src/app/(ar)/blog/layout.tsx` | المدونة |
+| Blog Post | `src/app/(ar)/blog/[slug]/layout.tsx` | Dynamic (`generateMetadata`) |
+| FAQ | `src/app/(ar)/faq/layout.tsx` | الأسئلة الشائعة |
+| Login | `src/app/(ar)/login/layout.tsx` | تسجيل الدخول |
+| Register | `src/app/(ar)/register/layout.tsx` | إنشاء حساب |
+| Privacy | `src/app/(ar)/privacy/layout.tsx` | سياسة الخصوصية |
+| Terms | `src/app/(ar)/terms/layout.tsx` | شروط الاستخدام |
+
+### JSON-LD Structured Data
+
+- **Organization + WebSite** — `src/app/(ar)/layout.tsx` — Global schemas injected into `<body>` on every page
+- **FAQPage** — `src/app/(ar)/faq/layout.tsx` — All 15 FAQs as structured data for Google rich results
+- **BlogPosting + BreadcrumbList** — `src/app/(ar)/blog/[slug]/layout.tsx` — Dynamic per-post schemas with headline, datePublished, author, publisher, articleSection, readTime
 
 ## Registration Open/Closed Toggle
 

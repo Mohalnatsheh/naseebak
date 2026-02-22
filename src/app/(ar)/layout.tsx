@@ -16,6 +16,7 @@ export const metadata: Metadata = {
   },
   description:
     "منصة أردنية توصّل العائلات بالشريك الأنسب بالحلال — تقنية ذكية مع عادات أردنية أصيلة، بسترة واحترام",
+  alternates: { canonical: "https://naseebak.com" },
   keywords: [
     "زواج",
     "زواج بالحلال",
@@ -69,6 +70,36 @@ export const metadata: Metadata = {
   },
 };
 
+const organizationJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  name: "نصيبك",
+  alternateName: "Naseebak",
+  url: "https://naseebak.com",
+  logo: "https://naseebak.com/images/logo.svg",
+  description:
+    "منصة أردنية توصّل العائلات بالشريك الأنسب بالحلال — تقنية ذكية مع عادات أردنية أصيلة",
+  foundingDate: "2025",
+  areaServed: {
+    "@type": "Country",
+    name: "Jordan",
+  },
+  sameAs: [],
+};
+
+const websiteJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  name: "نصيبك",
+  alternateName: "Naseebak",
+  url: "https://naseebak.com",
+  inLanguage: "ar",
+  publisher: {
+    "@type": "Organization",
+    name: "نصيبك",
+  },
+};
+
 export default function ArabicLayout({
   children,
 }: {
@@ -77,6 +108,16 @@ export default function ArabicLayout({
   return (
     <html lang="ar" dir="rtl">
       <body className={`${cairo.className} antialiased`}>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify(organizationJsonLd),
+          }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd) }}
+        />
         {children}
       </body>
     </html>

@@ -1,39 +1,55 @@
-import { getSetting } from "@/lib/settings";
+"use client";
 
-export default async function TrackingScripts() {
-  const gtmId = await getSetting("gtm_id");
-  const fbPixelId = await getSetting("fb_pixel_id");
+import { useEffect, useState } from "react";
 
-  if (!gtmId && !fbPixelId) return null;
+export default function TrackingScripts() {
+  const [gtmId, setGtmId] = useState("");
+  const [fbPixelId, setFbPixelId] = useState("");
 
-  return (
-    <>
-      {gtmId && (
-        <>
-          <script
-            dangerouslySetInnerHTML={{
-              __html: `(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+  useEffect(() => {
+    fetch("/api/settings/tracking")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.gtmId) setGtmId(data.gtmId);
+        if (data.fbPixelId) setFbPixelId(data.fbPixelId);
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!gtmId) return;
+
+    // GTM inline script
+    const script = document.createElement("script");
+    script.innerHTML = `(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
 new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
 j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
-})(window,document,'script','dataLayer','${gtmId}');`,
-            }}
-          />
-          <noscript>
-            <iframe
-              src={`https://www.googletagmanager.com/ns.html?id=${gtmId}`}
-              height="0"
-              width="0"
-              style={{ display: "none", visibility: "hidden" }}
-            />
-          </noscript>
-        </>
-      )}
-      {fbPixelId && (
-        <>
-          <script
-            dangerouslySetInnerHTML={{
-              __html: `!function(f,b,e,v,n,t,s)
+})(window,document,'script','dataLayer','${gtmId}');`;
+    document.head.appendChild(script);
+
+    // GTM noscript iframe
+    const noscript = document.createElement("noscript");
+    const iframe = document.createElement("iframe");
+    iframe.src = `https://www.googletagmanager.com/ns.html?id=${gtmId}`;
+    iframe.height = "0";
+    iframe.width = "0";
+    iframe.style.display = "none";
+    iframe.style.visibility = "hidden";
+    noscript.appendChild(iframe);
+    document.body.insertBefore(noscript, document.body.firstChild);
+
+    return () => {
+      script.remove();
+      noscript.remove();
+    };
+  }, [gtmId]);
+
+  useEffect(() => {
+    if (!fbPixelId) return;
+
+    const script = document.createElement("script");
+    script.innerHTML = `!function(f,b,e,v,n,t,s)
 {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
 n.callMethod.apply(n,arguments):n.queue.push(arguments)};
 if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
@@ -42,20 +58,13 @@ t.src=v;s=b.getElementsByTagName(e)[0];
 s.parentNode.insertBefore(t,s)}(window, document,'script',
 'https://connect.facebook.net/en_US/fbevents.js');
 fbq('init', '${fbPixelId}');
-fbq('track', 'PageView');`,
-            }}
-          />
-          <noscript>
-            <img
-              height="1"
-              width="1"
-              style={{ display: "none" }}
-              src={`https://www.facebook.com/tr?id=${fbPixelId}&ev=PageView&noscript=1`}
-              alt=""
-            />
-          </noscript>
-        </>
-      )}
-    </>
-  );
+fbq('track', 'PageView');`;
+    document.head.appendChild(script);
+
+    return () => {
+      script.remove();
+    };
+  }, [fbPixelId]);
+
+  return null;
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
@@ -27,6 +27,7 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
+import { useDashboardData } from "@/contexts/dashboard-context";
 
 interface NavLink {
   href: string;
@@ -109,55 +110,13 @@ export function DashboardSidebar() {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [userData, setUserData] = useState<{
-    firstName?: string;
-    lastName?: string;
-    gender?: string;
-  } | null>(null);
+  const { profile, unreadCount } = useDashboardData();
 
-  useEffect(() => {
-    async function fetchUser() {
-      try {
-        const res = await fetch("/api/profile");
-        const data = await res.json();
-        setUserData({
-          firstName: data.user?.firstName,
-          lastName: data.user?.lastName,
-          gender: data.user?.gender,
-        });
-      } catch {
-        // Silently fail
-      }
-    }
-    fetchUser();
-  }, []);
-
-  useEffect(() => {
-    async function fetchUnread() {
-      try {
-        const res = await fetch("/api/notifications/unread-count");
-        if (res.ok) {
-          const data = await res.json();
-          setUnreadCount(data.count || 0);
-        }
-      } catch {
-        // Silently fail
-      }
-    }
-    fetchUnread();
-    const interval = setInterval(fetchUnread, 30000);
-
-    function handleNotificationsRead() {
-      fetchUnread();
-    }
-    window.addEventListener("naseeb:notifications-read", handleNotificationsRead);
-
-    return () => {
-      clearInterval(interval);
-      window.removeEventListener("naseeb:notifications-read", handleNotificationsRead);
-    };
-  }, []);
+  const userData = profile ? {
+    firstName: profile.firstName,
+    lastName: profile.lastName,
+    gender: profile.gender,
+  } : null;
 
   const isMale = userData?.gender === "MALE";
   const filterLinks = (links: NavLink[]) =>

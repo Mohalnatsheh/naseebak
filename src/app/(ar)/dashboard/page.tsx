@@ -21,6 +21,7 @@ import {
   Zap,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+import { useDashboardData } from "@/contexts/dashboard-context";
 
 /* ------------------------------------------------------------------ */
 /*  Arabic date formatter                                              */
@@ -124,42 +125,11 @@ function getGreeting() {
 /*  Main Component                                                    */
 /* ================================================================== */
 export default function DashboardPage() {
-  const [profile, setProfile] = useState<any>(null);
-  const [completeness, setCompleteness] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const { profile, completeness, unreadCount, loading } = useDashboardData();
   const [mounted, setMounted] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
     setMounted(true);
-    async function load() {
-      try {
-        const res = await fetch("/api/profile");
-        const data = await res.json();
-        setProfile(data.user);
-        if (data.completeness) setCompleteness(data.completeness);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    }
-    load();
-  }, []);
-
-  useEffect(() => {
-    async function fetchUnread() {
-      try {
-        const res = await fetch("/api/notifications/unread-count");
-        if (res.ok) {
-          const data = await res.json();
-          setUnreadCount(data.count || 0);
-        }
-      } catch {
-        // Silently fail
-      }
-    }
-    fetchUnread();
   }, []);
 
   if (loading) {

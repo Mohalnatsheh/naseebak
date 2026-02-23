@@ -24,50 +24,30 @@ import {
   Clock,
   Camera,
   Lock,
-  ImagePlus,
   Trash2,
+  Ruler,
+  Weight,
+  Palette,
+  Baby,
+  Cigarette,
+  ChefHat,
+  Car,
+  Globe,
+  Wallet,
+  Home as HomeIcon,
+  Users,
+  HeartHandshake,
+  Activity,
+  BookOpen,
+  Target,
+  Gamepad2,
+  TreePine,
+  Scaling,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
-interface UserProfile {
-  id: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  gender: string;
-  isVerified: boolean;
-  matchCredits: number;
-  profile: {
-    city: string | null;
-    education: string | null;
-    job: string | null;
-    maritalStatus: string | null;
-    religiosity: string | null;
-    aboutMe: string | null;
-    isComplete: boolean;
-    dateOfBirth: string | null;
-    profileImageUrl: string | null;
-  } | null;
-  personalityResult: {
-    personalityType: string | null;
-  } | null;
-  identityDoc: {
-    status: string;
-  } | null;
-  parentInfo: {
-    id: string;
-    parentName: string;
-    relationship: string;
-    address: string | null;
-  } | null;
-  photos: { id: string; url: string }[];
-  _count: {
-    receivedSuggestions: number;
-    matchesAsFemale: number;
-    matchesAsMale: number;
-  };
-}
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 const relationshipLabels: Record<string, string> = {
   father: "الأب",
@@ -94,7 +74,6 @@ function CompletionRing({
   return (
     <div className="relative" style={{ width: size, height: size }}>
       <svg width={size} height={size} className="-rotate-90">
-        {/* Background circle */}
         <circle
           cx={size / 2}
           cy={size / 2}
@@ -104,7 +83,6 @@ function CompletionRing({
           strokeWidth={strokeWidth}
           className="text-muted/50"
         />
-        {/* Progress circle */}
         <circle
           cx={size / 2}
           cy={size / 2}
@@ -139,8 +117,85 @@ function CompletionRing({
   );
 }
 
+/* ------------------------------------------------------------------ */
+/*  Reusable info field row                                            */
+/* ------------------------------------------------------------------ */
+function InfoField({
+  icon: Icon,
+  label,
+  value,
+  gradient = "from-primary/10 to-primary/5",
+  iconColor = "text-primary",
+  colSpan,
+}: {
+  icon: any;
+  label: string;
+  value: string | number;
+  gradient?: string;
+  iconColor?: string;
+  colSpan?: boolean;
+}) {
+  return (
+    <div
+      className={`flex items-center gap-3 p-3 rounded-xl bg-muted/40 border border-border/30 hover:border-border/60 transition-colors ${
+        colSpan ? "sm:col-span-2" : ""
+      }`}
+    >
+      <div
+        className={`h-10 w-10 rounded-xl bg-gradient-to-br ${gradient} flex items-center justify-center flex-shrink-0`}
+      >
+        <Icon className={`h-5 w-5 ${iconColor}`} />
+      </div>
+      <div className="min-w-0">
+        <p className="text-[11px] text-muted-foreground font-medium">{label}</p>
+        <p className="text-sm font-semibold text-foreground truncate">{value}</p>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Section card wrapper                                               */
+/* ------------------------------------------------------------------ */
+function SectionCard({
+  icon: Icon,
+  title,
+  gradient = "from-primary to-primary/50",
+  iconGradient = "from-primary/10 to-primary/5",
+  iconColor = "text-primary",
+  children,
+  delay = "0.2s",
+}: {
+  icon: any;
+  title: string;
+  gradient?: string;
+  iconGradient?: string;
+  iconColor?: string;
+  children: React.ReactNode;
+  delay?: string;
+}) {
+  return (
+    <div style={{ animation: `fadeSlideIn 0.5s ease-out ${delay} both` }}>
+      <Card className="overflow-hidden border-border/40 shadow-sm">
+        <div className={`h-1 bg-gradient-to-l ${gradient}`} />
+        <CardContent className="p-5 md:p-6">
+          <h2 className="text-lg font-bold text-foreground mb-5 flex items-center gap-2">
+            <div
+              className={`h-8 w-8 rounded-lg bg-gradient-to-br ${iconGradient} flex items-center justify-center`}
+            >
+              <Icon className={`h-4 w-4 ${iconColor}`} />
+            </div>
+            {title}
+          </h2>
+          {children}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 export default function ProfilePage() {
-  const [user, setUser] = useState<UserProfile | null>(null);
+  const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [completeness, setCompleteness] = useState<any>(null);
   const [deactivating, setDeactivating] = useState(false);
@@ -148,10 +203,14 @@ export default function ProfilePage() {
   const [avatarUploading, setAvatarUploading] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
-  // Update request state
-  const [pendingRequest, setPendingRequest] = useState<{ id: string; status: string; createdAt: string } | null>(null);
-  // Deletion state
-  const [deletionRequest, setDeletionRequest] = useState<{ scheduledAt: string } | null>(null);
+  const [pendingRequest, setPendingRequest] = useState<{
+    id: string;
+    status: string;
+    createdAt: string;
+  } | null>(null);
+  const [deletionRequest, setDeletionRequest] = useState<{
+    scheduledAt: string;
+  } | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteReason, setDeleteReason] = useState("");
   const [deletionLoading, setDeletionLoading] = useState(false);
@@ -173,7 +232,9 @@ export default function ProfilePage() {
       try {
         const res = await fetch("/api/profile/update-request");
         const data = await res.json();
-        const pending = data.requests?.find((r: { status: string }) => r.status === "PENDING");
+        const pending = data.requests?.find(
+          (r: { status: string }) => r.status === "PENDING"
+        );
         if (pending) setPendingRequest(pending);
       } catch {
         // Silently fail
@@ -218,7 +279,7 @@ export default function ProfilePage() {
 
       if (res.ok) {
         const data = await res.json();
-        setUser((prev) =>
+        setUser((prev: any) =>
           prev
             ? {
                 ...prev,
@@ -269,10 +330,28 @@ export default function ProfilePage() {
     );
   }
 
+  const p = user.profile;
   const completionPct = completeness?.total ?? 0;
-
   const totalMatches =
     user._count.matchesAsFemale + user._count.matchesAsMale;
+  const isMale = user.gender === "MALE";
+
+  // Calculate age from date of birth
+  const getAge = (dob: string) => {
+    const birth = new Date(dob);
+    const today = new Date();
+    let age = today.getFullYear() - birth.getFullYear();
+    const m = today.getMonth() - birth.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+    return age;
+  };
+
+  // Check if any fields in a section have values
+  const hasPersonalInfo = p && (p.dateOfBirth || p.nationality || p.city || p.area || p.height || p.weight || p.skinColor || p.education || p.fieldOfStudy || p.job || p.incomeRange);
+  const hasLifestyle = p && (p.maritalStatus || p.religiosity || p.smokingStatus || p.hijab !== null || p.beard !== null || p.cookingAbility || p.drivingLicense !== null || p.childrenCount > 0);
+  const hasAboutSection = p && (p.aboutMe || p.partnerExpectations || p.hobbies || p.interests || p.familyValues || p.lifestyle);
+  const hasFamilyInfo = p && (p.tribe || p.familyOriginArea || p.numberOfSiblings !== null || p.housingType || p.monthlyExpenses || p.healthConditions);
+  const hasPreferences = p && (p.prefAgeMin || p.prefAgeMax || (p.prefCity && p.prefCity.length > 0) || (p.prefEducation && p.prefEducation.length > 0) || (p.prefMaritalStatus && p.prefMaritalStatus.length > 0) || (p.prefReligiosity && p.prefReligiosity.length > 0) || (p.prefSmokingStatus && p.prefSmokingStatus.length > 0) || p.prefHijab || p.prefBeard || p.prefChildrenAcceptance);
 
   return (
     <div className="max-w-3xl mx-auto space-y-6 pb-8">
@@ -281,18 +360,14 @@ export default function ProfilePage() {
       {/* ============================================ */}
       <div
         className="relative overflow-hidden rounded-3xl bg-gradient-to-l from-primary via-primary/90 to-primary/80 p-6 sm:p-8 text-primary-foreground shadow-xl shadow-primary/15"
-        style={{
-          animation: "fadeSlideIn 0.5s ease-out both",
-        }}
+        style={{ animation: "fadeSlideIn 0.5s ease-out both" }}
       >
-        {/* Decorative elements */}
         <div className="absolute top-0 left-0 h-40 w-40 rounded-full bg-white/5 blur-2xl -translate-x-12 -translate-y-12" />
         <div className="absolute bottom-0 right-0 h-32 w-32 rounded-full bg-white/5 blur-2xl translate-x-8 translate-y-8" />
         <div className="absolute top-1/2 left-1/3 h-24 w-24 rounded-full bg-accent/10 blur-xl" />
 
         <div className="relative flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5">
           <div className="flex items-center gap-5">
-            {/* Avatar with profile image or initial */}
             <div className="relative group/avatar">
               <input
                 ref={avatarInputRef}
@@ -305,9 +380,9 @@ export default function ProfilePage() {
                 }}
               />
               <div className="h-20 w-20 rounded-2xl bg-white/15 backdrop-blur-sm flex items-center justify-center border border-white/20 shadow-lg overflow-hidden">
-                {user.profile?.profileImageUrl ? (
+                {p?.profileImageUrl ? (
                   <img
-                    src={user.profile.profileImageUrl}
+                    src={p.profileImageUrl}
                     alt="صورة الملف الشخصي"
                     className="w-full h-full object-cover"
                   />
@@ -317,7 +392,6 @@ export default function ProfilePage() {
                   </span>
                 )}
               </div>
-              {/* Camera overlay */}
               <button
                 type="button"
                 onClick={() => avatarInputRef.current?.click()}
@@ -337,21 +411,19 @@ export default function ProfilePage() {
               )}
             </div>
 
-            {/* Name and badges */}
             <div className="space-y-2">
               <h1 className="text-2xl sm:text-3xl font-extrabold leading-tight">
                 {user.firstName} {user.lastName}
               </h1>
-              <div className="flex items-center gap-2">
-                <span
-                  className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold ${
-                    user.gender === "MALE"
-                      ? "bg-white/15 text-white/90 border border-white/20"
-                      : "bg-white/15 text-white/90 border border-white/20"
-                  }`}
-                >
-                  {user.gender === "MALE" ? "ذكر" : "أنثى"}
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold bg-white/15 text-white/90 border border-white/20">
+                  {isMale ? "ذكر" : "أنثى"}
                 </span>
+                {p?.dateOfBirth && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-white/15 text-white/90 border border-white/20 px-3 py-1 text-xs font-bold">
+                    {getAge(p.dateOfBirth)} سنة
+                  </span>
+                )}
                 {user.identityDoc?.status === "APPROVED" && (
                   <span className="inline-flex items-center gap-1 rounded-full bg-white/15 text-white/90 border border-white/20 px-3 py-1 text-xs font-bold">
                     <Shield className="h-3 w-3" />
@@ -362,9 +434,8 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          {/* Action buttons */}
           <div className="flex gap-2 self-start sm:self-auto">
-            {!user.profile?.isComplete && (
+            {!p?.isComplete && (
               <Button
                 asChild
                 className="bg-white/15 hover:bg-white/25 text-white border border-white/20 backdrop-blur-sm rounded-xl font-semibold transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
@@ -372,7 +443,7 @@ export default function ProfilePage() {
                 <Link href="/dashboard/profile/setup">إكمال الملف</Link>
               </Button>
             )}
-            {user.profile?.isComplete && (
+            {p?.isComplete && (
               <Button
                 asChild
                 className="bg-white/15 hover:bg-white/25 text-white border border-white/20 backdrop-blur-sm rounded-xl font-semibold transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
@@ -398,7 +469,7 @@ export default function ProfilePage() {
       </div>
 
       {/* ============================================ */}
-      {/*  Completion Section — field-level              */}
+      {/*  Completion Section                          */}
       {/* ============================================ */}
       {completionPct < 100 && completeness && (
         <Card
@@ -421,11 +492,13 @@ export default function ProfilePage() {
             <div className="space-y-2.5">
               {completeness.sections.map((section: any) => (
                 <Link key={section.key} href={section.link} className="block">
-                  <div className={`flex items-center gap-3 p-2.5 rounded-xl border transition-colors ${
-                    section.percentage === 100
-                      ? "bg-emerald-50/60 border-emerald-200/50"
-                      : "bg-accent/5 border-accent/20 hover:bg-accent/8"
-                  }`}>
+                  <div
+                    className={`flex items-center gap-3 p-2.5 rounded-xl border transition-colors ${
+                      section.percentage === 100
+                        ? "bg-emerald-50/60 border-emerald-200/50"
+                        : "bg-accent/5 border-accent/20 hover:bg-accent/8"
+                    }`}
+                  >
                     {section.percentage === 100 ? (
                       <CheckCircle2 className="h-5 w-5 text-emerald-500 shrink-0" />
                     ) : (
@@ -433,27 +506,44 @@ export default function ProfilePage() {
                     )}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between mb-1">
-                        <span className={`text-sm font-medium ${section.percentage === 100 ? "text-emerald-800" : "text-foreground"}`}>
+                        <span
+                          className={`text-sm font-medium ${
+                            section.percentage === 100
+                              ? "text-emerald-800"
+                              : "text-foreground"
+                          }`}
+                        >
                           {section.label}
                         </span>
-                        <span className={`text-xs font-bold ${section.percentage === 100 ? "text-emerald-600" : "text-accent-foreground"}`}>
+                        <span
+                          className={`text-xs font-bold ${
+                            section.percentage === 100
+                              ? "text-emerald-600"
+                              : "text-accent-foreground"
+                          }`}
+                        >
                           {section.percentage}%
                         </span>
                       </div>
                       <div className="h-1.5 rounded-full bg-muted/60 overflow-hidden">
                         <div
                           className={`h-full rounded-full transition-all duration-500 ${
-                            section.percentage === 100 ? "bg-emerald-500" : "bg-accent"
+                            section.percentage === 100
+                              ? "bg-emerald-500"
+                              : "bg-accent"
                           }`}
                           style={{ width: `${section.percentage}%` }}
                         />
                       </div>
-                      {section.missingFields.length > 0 && section.percentage < 100 && (
-                        <p className="text-[10px] text-muted-foreground mt-1 truncate">
-                          ينقص: {section.missingFields.slice(0, 3).join("، ")}
-                          {section.missingFields.length > 3 && ` (+${section.missingFields.length - 3})`}
-                        </p>
-                      )}
+                      {section.missingFields.length > 0 &&
+                        section.percentage < 100 && (
+                          <p className="text-[10px] text-muted-foreground mt-1 truncate">
+                            ينقص:{" "}
+                            {section.missingFields.slice(0, 3).join("، ")}
+                            {section.missingFields.length > 3 &&
+                              ` (+${section.missingFields.length - 3})`}
+                          </p>
+                        )}
                     </div>
                   </div>
                 </Link>
@@ -477,7 +567,8 @@ export default function ProfilePage() {
                   ملفك الشخصي مكتمل
                 </h3>
                 <p className="text-sm text-emerald-700/80 leading-relaxed">
-                  ملفك الشخصي مكتمل بالكامل. أنت مؤهل للحصول على أفضل الاقتراحات!
+                  ملفك الشخصي مكتمل بالكامل. أنت مؤهل للحصول على أفضل
+                  الاقتراحات!
                 </p>
               </div>
             </div>
@@ -486,213 +577,502 @@ export default function ProfilePage() {
       )}
 
       {/* ============================================ */}
-      {/*  Info Grid                                   */}
+      {/*  Personal Information                        */}
       {/* ============================================ */}
-      {user.profile && (
-        <div
-          style={{
-            animation: "fadeSlideIn 0.5s ease-out 0.2s both",
-          }}
+      {hasPersonalInfo && (
+        <SectionCard
+          icon={User}
+          title="المعلومات الشخصية"
+          gradient="from-primary to-primary/50"
+          delay="0.15s"
         >
-          <Card className="overflow-hidden border-border/40 shadow-sm">
-            <div className="h-1 bg-gradient-to-l from-primary to-primary/50" />
-            <CardContent className="p-5 md:p-6">
-              <h2 className="text-lg font-bold text-foreground mb-5 flex items-center gap-2">
-                <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-primary/10 to-primary/5 flex items-center justify-center">
-                  <User className="h-4 w-4 text-primary" />
-                </div>
-                المعلومات الأساسية
-              </h2>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {user.profile.city && (
-                  <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/40 border border-border/30 hover:border-border/60 transition-colors">
-                    <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary/10 to-primary/5 flex items-center justify-center flex-shrink-0">
-                      <MapPin className="h-5 w-5 text-primary" />
-                    </div>
-                    <div>
-                      <p className="text-[11px] text-muted-foreground font-medium">
-                        المدينة
-                      </p>
-                      <p className="text-sm font-semibold text-foreground">
-                        {user.profile.city}
-                      </p>
-                    </div>
-                  </div>
-                )}
-                {user.profile.education && (
-                  <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/40 border border-border/30 hover:border-border/60 transition-colors">
-                    <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-secondary/10 to-primary/5 flex items-center justify-center flex-shrink-0">
-                      <GraduationCap className="h-5 w-5 text-secondary" />
-                    </div>
-                    <div>
-                      <p className="text-[11px] text-muted-foreground font-medium">
-                        التعليم
-                      </p>
-                      <p className="text-sm font-semibold text-foreground">
-                        {user.profile.education}
-                      </p>
-                    </div>
-                  </div>
-                )}
-                {user.profile.job && (
-                  <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/40 border border-border/30 hover:border-border/60 transition-colors">
-                    <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary/10 to-primary/5 flex items-center justify-center flex-shrink-0">
-                      <Briefcase className="h-5 w-5 text-primary" />
-                    </div>
-                    <div>
-                      <p className="text-[11px] text-muted-foreground font-medium">
-                        العمل
-                      </p>
-                      <p className="text-sm font-semibold text-foreground">
-                        {user.profile.job}
-                      </p>
-                    </div>
-                  </div>
-                )}
-                {user.profile.maritalStatus && (
-                  <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/40 border border-border/30 hover:border-border/60 transition-colors">
-                    <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary/10 to-secondary/5 flex items-center justify-center flex-shrink-0">
-                      <Heart className="h-5 w-5 text-primary" />
-                    </div>
-                    <div>
-                      <p className="text-[11px] text-muted-foreground font-medium">
-                        الحالة الاجتماعية
-                      </p>
-                      <p className="text-sm font-semibold text-foreground">
-                        {user.profile.maritalStatus}
-                      </p>
-                    </div>
-                  </div>
-                )}
-                {user.profile.religiosity && (
-                  <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/40 border border-border/30 hover:border-border/60 transition-colors">
-                    <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-accent/10 to-accent/5 flex items-center justify-center flex-shrink-0">
-                      <Moon className="h-5 w-5 text-accent-foreground" />
-                    </div>
-                    <div>
-                      <p className="text-[11px] text-muted-foreground font-medium">
-                        الالتزام الديني
-                      </p>
-                      <p className="text-sm font-semibold text-foreground">
-                        {user.profile.religiosity}
-                      </p>
-                    </div>
-                  </div>
-                )}
-                {user.profile.dateOfBirth && (
-                  <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/40 border border-border/30 hover:border-border/60 transition-colors">
-                    <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary/10 to-secondary/5 flex items-center justify-center flex-shrink-0">
-                      <Calendar className="h-5 w-5 text-primary" />
-                    </div>
-                    <div>
-                      <p className="text-[11px] text-muted-foreground font-medium">
-                        تاريخ الميلاد
-                      </p>
-                      <p className="text-sm font-semibold text-foreground">
-                        {new Date(user.profile.dateOfBirth).toLocaleDateString(
-                          "ar-JO"
-                        )}
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {p.dateOfBirth && (
+              <InfoField
+                icon={Calendar}
+                label="تاريخ الميلاد"
+                value={`${new Date(p.dateOfBirth).toLocaleDateString("ar-JO")} (${getAge(p.dateOfBirth)} سنة)`}
+                gradient="from-primary/10 to-secondary/5"
+              />
+            )}
+            {p.nationality && (
+              <InfoField
+                icon={Globe}
+                label="الجنسية"
+                value={p.nationality}
+                gradient="from-secondary/10 to-primary/5"
+                iconColor="text-secondary"
+              />
+            )}
+            {p.city && (
+              <InfoField
+                icon={MapPin}
+                label="المدينة"
+                value={p.city}
+              />
+            )}
+            {p.area && (
+              <InfoField
+                icon={MapPin}
+                label="المنطقة"
+                value={p.area}
+                gradient="from-accent/10 to-accent/5"
+                iconColor="text-accent-foreground"
+              />
+            )}
+            {p.height && (
+              <InfoField
+                icon={Ruler}
+                label="الطول"
+                value={`${p.height} سم`}
+                gradient="from-secondary/10 to-primary/5"
+                iconColor="text-secondary"
+              />
+            )}
+            {p.weight && (
+              <InfoField
+                icon={Weight}
+                label="الوزن"
+                value={`${p.weight} كغ`}
+              />
+            )}
+            {p.skinColor && (
+              <InfoField
+                icon={Palette}
+                label="لون البشرة"
+                value={p.skinColor}
+                gradient="from-accent/10 to-accent/5"
+                iconColor="text-accent-foreground"
+              />
+            )}
+            {p.education && (
+              <InfoField
+                icon={GraduationCap}
+                label="المستوى التعليمي"
+                value={p.education}
+                gradient="from-secondary/10 to-primary/5"
+                iconColor="text-secondary"
+              />
+            )}
+            {p.fieldOfStudy && (
+              <InfoField
+                icon={BookOpen}
+                label="التخصص"
+                value={p.fieldOfStudy}
+              />
+            )}
+            {p.job && (
+              <InfoField
+                icon={Briefcase}
+                label="الوظيفة"
+                value={p.job}
+              />
+            )}
+            {p.incomeRange && (
+              <InfoField
+                icon={Wallet}
+                label="الدخل الشهري"
+                value={p.incomeRange}
+                gradient="from-accent/10 to-accent/5"
+                iconColor="text-accent-foreground"
+              />
+            )}
+          </div>
+        </SectionCard>
       )}
 
       {/* ============================================ */}
-      {/*  About Me                                    */}
+      {/*  Lifestyle & Religion                        */}
       {/* ============================================ */}
-      {user.profile?.aboutMe && (
-        <div
-          style={{
-            animation: "fadeSlideIn 0.5s ease-out 0.25s both",
-          }}
+      {hasLifestyle && (
+        <SectionCard
+          icon={Moon}
+          title="نمط الحياة والدين"
+          gradient="from-accent to-accent/50"
+          iconGradient="from-accent/10 to-accent/5"
+          iconColor="text-accent-foreground"
+          delay="0.2s"
         >
-          <Card className="overflow-hidden border-border/40 shadow-sm">
-            <div className="h-1 bg-gradient-to-l from-primary to-secondary" />
-            <CardContent className="p-5 md:p-6">
-              <h2 className="text-lg font-bold text-foreground mb-4 flex items-center gap-2">
-                <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-primary/10 to-secondary/10 flex items-center justify-center">
-                  <Quote className="h-4 w-4 text-primary" />
-                </div>
-                نبذة عني
-              </h2>
-              <div className="relative bg-gradient-to-l from-primary/5 to-secondary/5 rounded-xl p-5 border border-primary/10">
-                {/* Decorative quote marks */}
-                <div className="absolute top-3 end-4 text-primary/15">
-                  <Quote className="h-8 w-8" />
-                </div>
-                <p className="text-sm text-foreground/80 leading-relaxed relative z-10">
-                  {user.profile.aboutMe}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {p.maritalStatus && (
+              <InfoField
+                icon={Heart}
+                label="الحالة الاجتماعية"
+                value={p.maritalStatus}
+                gradient="from-primary/10 to-secondary/5"
+              />
+            )}
+            {p.childrenCount > 0 && (
+              <InfoField
+                icon={Baby}
+                label="عدد الأطفال"
+                value={p.childrenCount}
+                gradient="from-secondary/10 to-primary/5"
+                iconColor="text-secondary"
+              />
+            )}
+            {p.religiosity && (
+              <InfoField
+                icon={Moon}
+                label="الالتزام الديني"
+                value={p.religiosity}
+                gradient="from-accent/10 to-accent/5"
+                iconColor="text-accent-foreground"
+              />
+            )}
+            {p.smokingStatus && (
+              <InfoField
+                icon={Cigarette}
+                label="التدخين"
+                value={p.smokingStatus}
+              />
+            )}
+            {!isMale && p.hijab !== null && p.hijab !== undefined && (
+              <InfoField
+                icon={User}
+                label="الحجاب"
+                value={p.hijab ? "محجبة" : "غير محجبة"}
+                gradient="from-primary/10 to-secondary/5"
+              />
+            )}
+            {isMale && p.beard !== null && p.beard !== undefined && (
+              <InfoField
+                icon={User}
+                label="اللحية"
+                value={p.beard ? "ملتحي" : "غير ملتحي"}
+                gradient="from-primary/10 to-secondary/5"
+              />
+            )}
+            {p.cookingAbility && (
+              <InfoField
+                icon={ChefHat}
+                label="الطبخ"
+                value={p.cookingAbility}
+                gradient="from-secondary/10 to-primary/5"
+                iconColor="text-secondary"
+              />
+            )}
+            {p.drivingLicense !== null && p.drivingLicense !== undefined && (
+              <InfoField
+                icon={Car}
+                label="رخصة القيادة"
+                value={p.drivingLicense ? "يوجد" : "لا يوجد"}
+                gradient="from-accent/10 to-accent/5"
+                iconColor="text-accent-foreground"
+              />
+            )}
+          </div>
+        </SectionCard>
+      )}
+
+      {/* ============================================ */}
+      {/*  About Me & Expectations                     */}
+      {/* ============================================ */}
+      {hasAboutSection && (
+        <SectionCard
+          icon={Quote}
+          title="نبذة عني وتطلعاتي"
+          gradient="from-primary to-secondary"
+          iconGradient="from-primary/10 to-secondary/10"
+          delay="0.25s"
+        >
+          <div className="space-y-4">
+            {p.aboutMe && (
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+                  <Quote className="h-3 w-3" />
+                  نبذة عني
                 </p>
+                <div className="relative bg-gradient-to-l from-primary/5 to-secondary/5 rounded-xl p-4 border border-primary/10">
+                  <div className="absolute top-2 end-3 text-primary/10">
+                    <Quote className="h-6 w-6" />
+                  </div>
+                  <p className="text-sm text-foreground/80 leading-relaxed relative z-10">
+                    {p.aboutMe}
+                  </p>
+                </div>
               </div>
-            </CardContent>
-          </Card>
-        </div>
+            )}
+            {p.partnerExpectations && (
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+                  <Target className="h-3 w-3" />
+                  تطلعاتي في شريك الحياة
+                </p>
+                <div className="relative bg-gradient-to-l from-accent/5 to-accent/[0.03] rounded-xl p-4 border border-accent/10">
+                  <p className="text-sm text-foreground/80 leading-relaxed">
+                    {p.partnerExpectations}
+                  </p>
+                </div>
+              </div>
+            )}
+            {p.hobbies && (
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+                  <Gamepad2 className="h-3 w-3" />
+                  الهوايات
+                </p>
+                <div className="bg-muted/30 rounded-xl p-4 border border-border/30">
+                  <p className="text-sm text-foreground/80 leading-relaxed">
+                    {p.hobbies}
+                  </p>
+                </div>
+              </div>
+            )}
+            {p.interests && (
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+                  <Sparkles className="h-3 w-3" />
+                  الاهتمامات
+                </p>
+                <div className="bg-muted/30 rounded-xl p-4 border border-border/30">
+                  <p className="text-sm text-foreground/80 leading-relaxed">
+                    {p.interests}
+                  </p>
+                </div>
+              </div>
+            )}
+            {p.familyValues && (
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+                  <HeartHandshake className="h-3 w-3" />
+                  القيم العائلية
+                </p>
+                <div className="bg-muted/30 rounded-xl p-4 border border-border/30">
+                  <p className="text-sm text-foreground/80 leading-relaxed">
+                    {p.familyValues}
+                  </p>
+                </div>
+              </div>
+            )}
+            {p.lifestyle && (
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+                  <TreePine className="h-3 w-3" />
+                  نمط الحياة
+                </p>
+                <div className="bg-muted/30 rounded-xl p-4 border border-border/30">
+                  <p className="text-sm text-foreground/80 leading-relaxed">
+                    {p.lifestyle}
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        </SectionCard>
+      )}
+
+      {/* ============================================ */}
+      {/*  Family Information                          */}
+      {/* ============================================ */}
+      {hasFamilyInfo && (
+        <SectionCard
+          icon={Users}
+          title="معلومات العائلة"
+          gradient="from-secondary to-primary"
+          iconGradient="from-secondary/10 to-primary/5"
+          iconColor="text-secondary"
+          delay="0.3s"
+        >
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {p.tribe && (
+              <InfoField
+                icon={Users}
+                label="العشيرة"
+                value={p.tribe}
+                gradient="from-secondary/10 to-primary/5"
+                iconColor="text-secondary"
+              />
+            )}
+            {p.familyOriginArea && (
+              <InfoField
+                icon={MapPin}
+                label="منطقة الأصل"
+                value={p.familyOriginArea}
+              />
+            )}
+            {p.numberOfSiblings !== null && p.numberOfSiblings !== undefined && (
+              <InfoField
+                icon={Users}
+                label="عدد الإخوة"
+                value={p.numberOfSiblings}
+                gradient="from-accent/10 to-accent/5"
+                iconColor="text-accent-foreground"
+              />
+            )}
+            {p.housingType && (
+              <InfoField
+                icon={HomeIcon}
+                label="نوع السكن"
+                value={p.housingType}
+                gradient="from-secondary/10 to-primary/5"
+                iconColor="text-secondary"
+              />
+            )}
+            {p.monthlyExpenses && (
+              <InfoField
+                icon={Wallet}
+                label="المصاريف الشهرية"
+                value={p.monthlyExpenses}
+              />
+            )}
+            {p.healthConditions && (
+              <InfoField
+                icon={Activity}
+                label="الحالة الصحية"
+                value={p.healthConditions}
+                gradient="from-accent/10 to-accent/5"
+                iconColor="text-accent-foreground"
+                colSpan
+              />
+            )}
+          </div>
+        </SectionCard>
+      )}
+
+      {/* ============================================ */}
+      {/*  Partner Preferences                         */}
+      {/* ============================================ */}
+      {hasPreferences && (
+        <SectionCard
+          icon={Scaling}
+          title="تفضيلات شريك الحياة"
+          gradient="from-primary to-accent"
+          iconGradient="from-primary/10 to-accent/10"
+          delay="0.35s"
+        >
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {(p.prefAgeMin || p.prefAgeMax) && (
+              <InfoField
+                icon={Calendar}
+                label="العمر المفضل"
+                value={
+                  p.prefAgeMin && p.prefAgeMax
+                    ? `${p.prefAgeMin} - ${p.prefAgeMax} سنة`
+                    : p.prefAgeMin
+                      ? `من ${p.prefAgeMin} سنة`
+                      : `حتى ${p.prefAgeMax} سنة`
+                }
+                gradient="from-primary/10 to-secondary/5"
+              />
+            )}
+            {p.prefCity && p.prefCity.length > 0 && (
+              <InfoField
+                icon={MapPin}
+                label="المدن المفضلة"
+                value={p.prefCity.join("، ")}
+                gradient="from-accent/10 to-accent/5"
+                iconColor="text-accent-foreground"
+              />
+            )}
+            {p.prefEducation && p.prefEducation.length > 0 && (
+              <InfoField
+                icon={GraduationCap}
+                label="التعليم المفضل"
+                value={p.prefEducation.join("، ")}
+                gradient="from-secondary/10 to-primary/5"
+                iconColor="text-secondary"
+              />
+            )}
+            {p.prefMaritalStatus && p.prefMaritalStatus.length > 0 && (
+              <InfoField
+                icon={Heart}
+                label="الحالة الاجتماعية المفضلة"
+                value={p.prefMaritalStatus.join("، ")}
+              />
+            )}
+            {p.prefReligiosity && p.prefReligiosity.length > 0 && (
+              <InfoField
+                icon={Moon}
+                label="الالتزام الديني المفضل"
+                value={p.prefReligiosity.join("، ")}
+                gradient="from-accent/10 to-accent/5"
+                iconColor="text-accent-foreground"
+              />
+            )}
+            {p.prefSmokingStatus && p.prefSmokingStatus.length > 0 && (
+              <InfoField
+                icon={Cigarette}
+                label="التدخين المفضل"
+                value={p.prefSmokingStatus.join("، ")}
+                gradient="from-secondary/10 to-primary/5"
+                iconColor="text-secondary"
+              />
+            )}
+            {isMale && p.prefHijab && (
+              <InfoField
+                icon={User}
+                label="الحجاب المفضل"
+                value={p.prefHijab}
+              />
+            )}
+            {!isMale && p.prefBeard && (
+              <InfoField
+                icon={User}
+                label="اللحية المفضلة"
+                value={p.prefBeard}
+                gradient="from-secondary/10 to-primary/5"
+                iconColor="text-secondary"
+              />
+            )}
+            {p.prefChildrenAcceptance && (
+              <InfoField
+                icon={Baby}
+                label="قبول وجود أطفال"
+                value={p.prefChildrenAcceptance}
+                gradient="from-accent/10 to-accent/5"
+                iconColor="text-accent-foreground"
+              />
+            )}
+          </div>
+        </SectionCard>
       )}
 
       {/* ============================================ */}
       {/*  Guardian Info                                */}
       {/* ============================================ */}
       {user.parentInfo && (
-        <div
-          style={{
-            animation: "fadeSlideIn 0.5s ease-out 0.27s both",
-          }}
+        <SectionCard
+          icon={Shield}
+          title="معلومات ولي الأمر"
+          gradient="from-primary to-secondary"
+          delay="0.4s"
         >
-          <Card className="overflow-hidden border-border/40 shadow-sm">
-            <div className="h-1 bg-gradient-to-l from-primary to-secondary" />
-            <CardContent className="p-5 md:p-6">
-              <h2 className="text-lg font-bold text-foreground mb-4 flex items-center gap-2">
-                <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-primary/10 to-primary/5 flex items-center justify-center">
-                  <Shield className="h-4 w-4 text-primary" />
-                </div>
-                معلومات ولي الأمر
-              </h2>
-              <div className="flex items-start gap-3 rounded-xl bg-primary/5 border border-primary/15 p-3 mb-4">
-                <Lock className="h-4 w-4 text-primary/70 shrink-0 mt-0.5" />
-                <p className="text-xs text-primary leading-relaxed">
-                  هذه البيانات سرية ولن تظهر لأي مستخدم آخر. تُستخدم فقط لتنسيق الزيارات العائلية.
-                </p>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/40 border border-border/30">
-                  <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary/10 to-primary/5 flex items-center justify-center flex-shrink-0">
-                    <User className="h-5 w-5 text-primary" />
-                  </div>
-                  <div>
-                    <p className="text-[11px] text-muted-foreground font-medium">اسم ولي الأمر</p>
-                    <p className="text-sm font-semibold text-foreground">{user.parentInfo.parentName}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/40 border border-border/30">
-                  <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-secondary/10 to-primary/5 flex items-center justify-center flex-shrink-0">
-                    <Heart className="h-5 w-5 text-secondary" />
-                  </div>
-                  <div>
-                    <p className="text-[11px] text-muted-foreground font-medium">صلة القرابة</p>
-                    <p className="text-sm font-semibold text-foreground">{relationshipLabels[user.parentInfo.relationship] || user.parentInfo.relationship}</p>
-                  </div>
-                </div>
-                {user.parentInfo.address && (
-                  <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/40 border border-border/30 sm:col-span-2">
-                    <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-accent/10 to-accent/5 flex items-center justify-center flex-shrink-0">
-                      <MapPin className="h-5 w-5 text-accent-foreground" />
-                    </div>
-                    <div>
-                      <p className="text-[11px] text-muted-foreground font-medium">العنوان</p>
-                      <p className="text-sm font-semibold text-foreground">{user.parentInfo.address}</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+          <div className="flex items-start gap-3 rounded-xl bg-primary/5 border border-primary/15 p-3 mb-4">
+            <Lock className="h-4 w-4 text-primary/70 shrink-0 mt-0.5" />
+            <p className="text-xs text-primary leading-relaxed">
+              هذه البيانات سرية ولن تظهر لأي مستخدم آخر. تُستخدم فقط لتنسيق
+              الزيارات العائلية.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <InfoField
+              icon={User}
+              label="اسم ولي الأمر"
+              value={user.parentInfo.parentName}
+            />
+            <InfoField
+              icon={Heart}
+              label="صلة القرابة"
+              value={
+                relationshipLabels[user.parentInfo.relationship] ||
+                user.parentInfo.relationship
+              }
+              gradient="from-secondary/10 to-primary/5"
+              iconColor="text-secondary"
+            />
+            {user.parentInfo.address && (
+              <InfoField
+                icon={MapPin}
+                label="العنوان"
+                value={user.parentInfo.address}
+                gradient="from-accent/10 to-accent/5"
+                iconColor="text-accent-foreground"
+                colSpan
+              />
+            )}
+          </div>
+        </SectionCard>
       )}
 
       {/* ============================================ */}
@@ -700,9 +1080,7 @@ export default function ProfilePage() {
       {/* ============================================ */}
       <div
         className="grid grid-cols-3 gap-3 sm:gap-4"
-        style={{
-          animation: "fadeSlideIn 0.5s ease-out 0.3s both",
-        }}
+        style={{ animation: "fadeSlideIn 0.5s ease-out 0.45s both" }}
       >
         {[
           {
@@ -738,15 +1116,15 @@ export default function ProfilePage() {
             className={`group relative overflow-hidden border-0 bg-gradient-to-br ${stat.bgLight} hover:shadow-lg ${stat.shadowColor} transition-all duration-300 hover:-translate-y-1`}
           >
             <CardContent className="pt-5 pb-4 px-4 text-center relative">
-              {/* Decorative circle */}
               <div className="absolute -top-6 -left-6 h-16 w-16 rounded-full bg-gradient-to-br opacity-5 group-hover:opacity-10 transition-opacity" />
-
               <div
                 className={`mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br ${stat.gradient} text-white shadow-md transition-transform duration-300 group-hover:scale-110`}
               >
                 <stat.icon className="h-5 w-5" />
               </div>
-              <p className={`text-3xl font-extrabold ${stat.textColor} mb-0.5`}>
+              <p
+                className={`text-3xl font-extrabold ${stat.textColor} mb-0.5`}
+              >
                 {stat.value}
               </p>
               <p className="text-[11px] font-medium text-muted-foreground">
@@ -760,11 +1138,7 @@ export default function ProfilePage() {
       {/* ============================================ */}
       {/*  Quick Links                                 */}
       {/* ============================================ */}
-      <div
-        style={{
-          animation: "fadeSlideIn 0.5s ease-out 0.35s both",
-        }}
-      >
+      <div style={{ animation: "fadeSlideIn 0.5s ease-out 0.5s both" }}>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {[
             {
@@ -781,7 +1155,10 @@ export default function ProfilePage() {
               href: "/dashboard/identity",
               icon: Shield,
               label: "التحقق من الهوية",
-              desc: user.identityDoc?.status === "APPROVED" ? "تم التحقق" : "قيد المراجعة",
+              desc:
+                user.identityDoc?.status === "APPROVED"
+                  ? "تم التحقق"
+                  : "قيد المراجعة",
               gradient: "from-secondary to-primary",
               hoverBorder: "hover:border-secondary/30",
             },
@@ -798,7 +1175,6 @@ export default function ProfilePage() {
               <Card
                 className={`group relative overflow-hidden border-border/40 hover:shadow-lg transition-all duration-300 hover:-translate-y-0.5 cursor-pointer ${item.hoverBorder}`}
               >
-                {/* Subtle gradient overlay on hover */}
                 <div
                   className={`absolute inset-0 bg-gradient-to-l ${item.gradient} opacity-0 group-hover:opacity-[0.03] transition-opacity duration-300`}
                 />
@@ -844,7 +1220,8 @@ export default function ProfilePage() {
                   طلب تعديل قيد المراجعة
                 </h3>
                 <p className="text-xs text-primary/80 mt-0.5">
-                  تم إرسال طلب تعديل الملف الشخصي. سيتم مراجعته من قبل الإدارة وإعلامك بالنتيجة.
+                  تم إرسال طلب تعديل الملف الشخصي. سيتم مراجعته من قبل الإدارة
+                  وإعلامك بالنتيجة.
                 </p>
               </div>
             </div>
@@ -855,13 +1232,8 @@ export default function ProfilePage() {
       {/* ============================================ */}
       {/*  Deactivate Account                          */}
       {/* ============================================ */}
-      <div
-        style={{
-          animation: "fadeSlideIn 0.5s ease-out 0.4s both",
-        }}
-      >
+      <div style={{ animation: "fadeSlideIn 0.5s ease-out 0.55s both" }}>
         <Card className="relative overflow-hidden border-destructive/20 shadow-sm">
-          {/* Subtle red gradient border top */}
           <div className="h-1 bg-gradient-to-l from-destructive/70 to-destructive" />
           <CardContent className="p-5 md:p-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -891,7 +1263,6 @@ export default function ProfilePage() {
 
             {showDeactivateConfirm && (
               <div className="mt-5 p-5 bg-gradient-to-l from-destructive/5 to-destructive/[0.03] rounded-xl border border-destructive/20 space-y-4">
-                {/* Backdrop blur modal feel */}
                 <div className="flex items-center gap-3">
                   <div className="h-9 w-9 rounded-lg bg-destructive/10 flex items-center justify-center flex-shrink-0">
                     <AlertCircle className="h-5 w-5 text-destructive" />
@@ -901,8 +1272,8 @@ export default function ProfilePage() {
                   </p>
                 </div>
                 <p className="text-xs text-muted-foreground leading-relaxed">
-                  سيتم إخفاء ملفك الشخصي من جميع الاقتراحات والبحث. يمكنك
-                  إعادة تفعيل حسابك في أي وقت عبر تسجيل الدخول مجددًا.
+                  سيتم إخفاء ملفك الشخصي من جميع الاقتراحات والبحث. يمكنك إعادة
+                  تفعيل حسابك في أي وقت عبر تسجيل الدخول مجددًا.
                 </p>
                 <div className="flex gap-3">
                   <Button
@@ -948,23 +1319,26 @@ export default function ProfilePage() {
       {/* ============================================ */}
       {/*  Account Deletion (30-day grace period)       */}
       {/* ============================================ */}
-      <div style={{ animation: "fadeSlideIn 0.5s ease-out 0.5s both" }}>
+      <div style={{ animation: "fadeSlideIn 0.5s ease-out 0.6s both" }}>
         <Card className="relative overflow-hidden border-destructive/20 shadow-sm">
           <div className="h-1 bg-gradient-to-l from-destructive to-destructive/70" />
           <CardContent className="p-5 md:p-6">
             {deletionRequest ? (
-              /* Active deletion request — show countdown */
               <div className="space-y-4">
                 <div className="flex items-start gap-4">
                   <div className="h-11 w-11 rounded-xl bg-gradient-to-br from-destructive/10 to-destructive/5 flex items-center justify-center flex-shrink-0">
                     <Trash2 className="h-5 w-5 text-destructive" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-destructive text-base">حذف الحساب قيد التنفيذ</h3>
+                    <h3 className="font-bold text-destructive text-base">
+                      حذف الحساب قيد التنفيذ
+                    </h3>
                     <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
                       سيتم حذف حسابك نهائياً في{" "}
                       <span className="font-bold text-destructive">
-                        {new Date(deletionRequest.scheduledAt).toLocaleDateString("ar-JO", {
+                        {new Date(
+                          deletionRequest.scheduledAt
+                        ).toLocaleDateString("ar-JO", {
                           year: "numeric",
                           month: "long",
                           day: "numeric",
@@ -981,7 +1355,9 @@ export default function ProfilePage() {
                   onClick={async () => {
                     setDeletionLoading(true);
                     try {
-                      const res = await fetch("/api/profile/delete", { method: "DELETE" });
+                      const res = await fetch("/api/profile/delete", {
+                        method: "DELETE",
+                      });
                       if (res.ok) {
                         setDeletionRequest(null);
                         setShowDeleteConfirm(false);
@@ -1001,16 +1377,18 @@ export default function ProfilePage() {
                 </Button>
               </div>
             ) : (
-              /* No deletion request — show delete button */
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="flex items-start gap-4">
                   <div className="h-11 w-11 rounded-xl bg-gradient-to-br from-destructive/10 to-destructive/5 flex items-center justify-center flex-shrink-0">
                     <Trash2 className="h-5 w-5 text-destructive" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-destructive text-base">حذف الحساب نهائياً</h3>
+                    <h3 className="font-bold text-destructive text-base">
+                      حذف الحساب نهائياً
+                    </h3>
                     <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
-                      سيتم حذف جميع بياناتك نهائياً بعد 30 يوماً من تقديم الطلب. لا يمكن استعادة البيانات بعد الحذف.
+                      سيتم حذف جميع بياناتك نهائياً بعد 30 يوماً من تقديم
+                      الطلب. لا يمكن استعادة البيانات بعد الحذف.
                     </p>
                   </div>
                 </div>
@@ -1036,10 +1414,13 @@ export default function ProfilePage() {
                   </p>
                 </div>
                 <p className="text-xs text-muted-foreground leading-relaxed">
-                  سيتم تعطيل حسابك فوراً وحذفه نهائياً بعد 30 يوماً. يمكنك إلغاء الطلب خلال هذه الفترة.
+                  سيتم تعطيل حسابك فوراً وحذفه نهائياً بعد 30 يوماً. يمكنك
+                  إلغاء الطلب خلال هذه الفترة.
                 </p>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">سبب الحذف (اختياري)</label>
+                  <label className="text-sm font-medium text-foreground">
+                    سبب الحذف (اختياري)
+                  </label>
                   <textarea
                     value={deleteReason}
                     onChange={(e) => setDeleteReason(e.target.value)}
@@ -1058,7 +1439,9 @@ export default function ProfilePage() {
                         const res = await fetch("/api/profile/delete", {
                           method: "POST",
                           headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ reason: deleteReason || undefined }),
+                          body: JSON.stringify({
+                            reason: deleteReason || undefined,
+                          }),
                         });
                         if (res.ok) {
                           const data = await res.json();

@@ -980,7 +980,7 @@ function RegisterPageContent() {
                     htmlFor="referralCode"
                     className="text-xs font-semibold text-muted-foreground"
                   >
-                    رمز الإحالة <span className="text-muted-foreground/60">(اختياري)</span>
+                    رمز الدعوة <span className="text-muted-foreground/60">(اختياري)</span>
                   </Label>
                   <Input
                     id="referralCode"
@@ -995,7 +995,7 @@ function RegisterPageContent() {
                     className="h-11 rounded-xl border-border/60 bg-muted/30 text-center text-sm tracking-[0.1em] font-mono focus:bg-background transition-colors"
                   />
                   <p className="text-[11px] text-muted-foreground">
-                    إذا تمت دعوتك من صديق، أدخل رمز الإحالة الخاص به
+                    إذا دعاك أحد أصحابك، أدخل رمز الدعوة الخاص فيه
                   </p>
                 </div>
 

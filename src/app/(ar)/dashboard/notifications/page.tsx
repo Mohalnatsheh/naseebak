@@ -285,34 +285,62 @@ export default function NotificationsPage() {
                   الإعدادات
                 </Button>
               </SheetTrigger>
-              <SheetContent side="left" className="w-80">
-                <SheetHeader>
-                  <SheetTitle className="text-right">إعدادات الإشعارات</SheetTitle>
-                </SheetHeader>
-                <div className="space-y-4 mt-6">
+              <SheetContent side="right" className="w-[320px] sm:w-[380px] p-0 border-l-0 border-r" dir="rtl">
+                <div className="p-6 border-b border-border/40">
+                  <SheetHeader className="text-right">
+                    <SheetTitle className="flex items-center gap-3">
+                      <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-md shadow-primary/20">
+                        <Settings2 className="h-4.5 w-4.5 text-white" />
+                      </div>
+                      <span className="text-lg font-bold">إعدادات الإشعارات</span>
+                    </SheetTitle>
+                  </SheetHeader>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    تحكّم بأنواع الإشعارات اللي توصلك
+                  </p>
+                </div>
+
+                <div className="p-5 space-y-1 overflow-y-auto">
                   {prefs ? prefLabels.map(({ key, label, icon: PrefIcon }) => (
-                    <div key={key} className="flex items-center justify-between gap-3 py-2">
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => togglePref(key)}
+                      className="flex items-center justify-between gap-3 w-full rounded-xl px-3 py-3.5 hover:bg-muted/50 transition-colors duration-200"
+                    >
                       <div className="flex items-center gap-3">
-                        <PrefIcon className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm font-medium">{label}</span>
+                        <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                          <PrefIcon className="h-4 w-4 text-primary" />
+                        </div>
+                        <span className="text-sm font-medium text-foreground">{label}</span>
                       </div>
                       <Switch checked={prefs[key]} onCheckedChange={() => togglePref(key)} />
-                    </div>
+                    </button>
                   )) : (
-                    <div className="flex justify-center py-8">
+                    <div className="flex justify-center py-12">
                       <Loader2 className="h-6 w-6 animate-spin text-primary" />
                     </div>
                   )}
-                  <div className="flex items-center justify-between gap-3 py-2 opacity-60">
+
+                  {/* System notifications - always on */}
+                  <div className="flex items-center justify-between gap-3 w-full rounded-xl px-3 py-3.5 opacity-50">
                     <div className="flex items-center gap-3">
-                      <Info className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-sm font-medium">إشعارات النظام</span>
+                      <div className="h-8 w-8 rounded-lg bg-muted/80 flex items-center justify-center flex-shrink-0">
+                        <Info className="h-4 w-4 text-muted-foreground" />
+                      </div>
+                      <span className="text-sm font-medium text-foreground">إشعارات النظام</span>
                     </div>
                     <Switch checked disabled />
                   </div>
-                  <p className="text-xs text-muted-foreground text-right">
-                    إشعارات النظام لا يمكن تعطيلها
-                  </p>
+                </div>
+
+                <div className="p-5 pt-0">
+                  <div className="flex items-center gap-2 p-3 rounded-xl bg-muted/40 border border-border/30">
+                    <Info className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                    <p className="text-[11px] text-muted-foreground leading-relaxed">
+                      إشعارات النظام مفعّلة دائماً ولا يمكن إيقافها
+                    </p>
+                  </div>
                 </div>
               </SheetContent>
             </Sheet>

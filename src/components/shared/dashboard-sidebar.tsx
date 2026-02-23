@@ -50,7 +50,7 @@ const accountLinks: NavLink[] = [
   { href: "/dashboard/identity", label: "التحقق من الهوية", icon: FileCheck },
   { href: "/dashboard/payments", label: "رصيد التوافقات", icon: CreditCard },
   { href: "/dashboard/support", label: "الدعم والملاحظات", icon: LifeBuoy },
-  { href: "/dashboard/referral", label: "دعوة صديق", icon: Gift },
+  { href: "/dashboard/referral", label: "ادعِ صاحبك", icon: Gift },
 ];
 
 function NavItem({

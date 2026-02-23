@@ -50,7 +50,7 @@ export default function ReferralPage() {
 
   async function handleCopy() {
     if (!data) return;
-    const text = `انضم إلى نصيبك واحصل على رصيد مجاني! استخدم رمز الإحالة: ${data.referralCode}\nhttps://naseebak.com/register`;
+    const text = `سجّل بنصيبك واحصل على رصيد مجاني! استخدم رمز الدعوة: ${data.referralCode}\nhttps://naseebak.com/register`;
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
@@ -62,12 +62,12 @@ export default function ReferralPage() {
 
   async function handleShare() {
     if (!data) return;
-    const text = `انضم إلى نصيبك واحصل على رصيد مجاني! استخدم رمز الإحالة: ${data.referralCode}`;
+    const text = `سجّل بنصيبك واحصل على رصيد مجاني! استخدم رمز الدعوة: ${data.referralCode}`;
     const url = "https://naseebak.com/register";
 
     if (navigator.share) {
       try {
-        await navigator.share({ title: "دعوة لنصيبك", text, url });
+        await navigator.share({ title: "دعوة لمنصة نصيبك", text, url });
       } catch {
         // User cancelled or share failed
       }
@@ -111,11 +111,11 @@ export default function ReferralPage() {
               <Gift className="h-5 w-5 text-white" />
             </div>
             <h1 className="text-2xl md:text-3xl font-bold bg-gradient-to-l from-primary to-secondary bg-clip-text text-transparent">
-              دعوة صديق
+              ادعِ صاحبك
             </h1>
           </div>
           <p className="text-muted-foreground text-sm md:text-base">
-            ادعُ أصدقاءك للانضمام إلى نصيبك واحصل على رصيد مجاني عند اكتمال ملفاتهم الشخصية
+            شارك رمز الدعوة مع أصحابك وخلّيهم يسجّلوا بنصيبك، وكل واحد يكمّل ملفه بتحصل رصيد مجاني
           </p>
         </div>
       </div>
@@ -125,7 +125,7 @@ export default function ReferralPage() {
         <div className="h-1.5 bg-gradient-to-l from-accent via-primary to-accent/60" />
         <CardContent className="p-6 space-y-5">
           <div className="text-center space-y-2">
-            <p className="text-sm text-muted-foreground">رمز الإحالة الخاص بك</p>
+            <p className="text-sm text-muted-foreground">رمز الدعوة الخاص فيك</p>
             <div className="inline-flex items-center gap-3 px-6 py-3 rounded-xl bg-gradient-to-l from-primary/10 to-accent/10 border border-primary/20">
               <span className="text-2xl font-bold tracking-[0.15em] text-foreground font-mono">
                 {data.referralCode}
@@ -144,7 +144,7 @@ export default function ReferralPage() {
               ) : (
                 <Copy className="h-4 w-4 me-2" />
               )}
-              {copied ? "تم النسخ!" : "نسخ الرمز"}
+              {copied ? "تم النسخ!" : "انسخ الرمز"}
             </Button>
             <Button
               onClick={handleShare}
@@ -165,7 +165,7 @@ export default function ReferralPage() {
             <div className="h-9 w-9 rounded-xl bg-accent/10 flex items-center justify-center">
               <Sparkles className="h-5 w-5 text-accent-foreground" />
             </div>
-            <h3 className="font-bold text-foreground">المكافآت</h3>
+            <h3 className="font-bold text-foreground">المكافآت والرصيد</h3>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -174,19 +174,19 @@ export default function ReferralPage() {
                 <CreditCard className="h-5 w-5 text-primary" />
               </div>
               <p className="text-2xl font-bold text-primary">+2</p>
-              <p className="text-xs text-muted-foreground">رصيد للمُحيل (أنت)</p>
+              <p className="text-xs text-muted-foreground">رصيد إلك (الداعي)</p>
             </div>
             <div className="rounded-xl bg-gradient-to-br from-accent/5 to-accent/10 border border-accent/10 p-4 text-center space-y-2">
               <div className="h-10 w-10 rounded-full bg-accent/10 flex items-center justify-center mx-auto">
                 <CreditCard className="h-5 w-5 text-accent-foreground" />
               </div>
               <p className="text-2xl font-bold text-accent-foreground">+1</p>
-              <p className="text-xs text-muted-foreground">رصيد للمُحال إليه</p>
+              <p className="text-xs text-muted-foreground">رصيد لصاحبك (المدعو)</p>
             </div>
           </div>
 
           <p className="text-xs text-muted-foreground text-center leading-relaxed">
-            يتم منح المكافآت عند اكتمال الملف الشخصي للشخص المُحال إليه بنسبة 100%
+            بتحصل على الرصيد لمّا صاحبك يكمّل ملفه الشخصي بنسبة 100%
           </p>
         </CardContent>
       </Card>
@@ -199,7 +199,7 @@ export default function ReferralPage() {
               <Users className="h-5 w-5 text-primary" />
             </div>
             <p className="text-2xl font-bold text-foreground">{data.totalReferrals}</p>
-            <p className="text-xs text-muted-foreground">إجمالي الإحالات</p>
+            <p className="text-xs text-muted-foreground">إجمالي الدعوات</p>
           </CardContent>
         </Card>
         <Card className="border-border/50">
@@ -208,7 +208,7 @@ export default function ReferralPage() {
               <CheckCircle2 className="h-5 w-5 text-emerald-500" />
             </div>
             <p className="text-2xl font-bold text-foreground">{data.completedReferrals}</p>
-            <p className="text-xs text-muted-foreground">إحالات مكتملة</p>
+            <p className="text-xs text-muted-foreground">دعوات مكتملة</p>
           </CardContent>
         </Card>
       </div>
@@ -217,7 +217,7 @@ export default function ReferralPage() {
       {data.referrals.length > 0 && (
         <div className="space-y-3">
           <h3 className="text-sm font-semibold text-muted-foreground px-1">
-            سجل الإحالات
+            سجل الدعوات
           </h3>
           <div className="space-y-2">
             {data.referrals.map((referral) => (
@@ -252,12 +252,12 @@ export default function ReferralPage() {
                     {referral.creditsAwarded ? (
                       <>
                         <CheckCircle2 className="h-3 w-3" />
-                        تم المنح
+                        تم منح الرصيد
                       </>
                     ) : (
                       <>
                         <Clock className="h-3 w-3" />
-                        بانتظار الاكتمال
+                        بانتظار اكتمال الملف
                       </>
                     )}
                   </div>
@@ -274,7 +274,7 @@ export default function ReferralPage() {
             <Users className="h-8 w-8 text-muted-foreground/40" />
           </div>
           <p className="text-sm text-muted-foreground">
-            لم تقم بأي إحالة بعد. شارك رمزك مع أصدقائك!
+            ما دعيت حدا لسّا. شارك رمزك مع أصحابك!
           </p>
         </div>
       )}

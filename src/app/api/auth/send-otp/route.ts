@@ -100,12 +100,23 @@ export async function POST(request: Request) {
       );
     }
 
-    // If phone is new and registration is closed, block OTP
+    // Check if user already exists
     const existingUserForGate = await db.user.findUnique({
       where: { phone },
       select: { id: true },
     });
 
+    // If called from register context and phone is already registered,
+    // return immediately without generating or sending OTP
+    const context = body.context;
+    if (context === "register" && existingUserForGate) {
+      return NextResponse.json({
+        message: "رقم الهاتف مسجل مسبقاً",
+        userExists: true,
+      });
+    }
+
+    // If phone is new and registration is closed, block OTP
     if (!existingUserForGate) {
       const regOpen = await isRegistrationOpen();
       if (!regOpen) {

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { uploadBase64ToBunny, deleteFromBunny, getBunnyPathFromUrl } from "@/lib/bunny";
 
 const MAX_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
 const ALLOWED_PREFIXES = [
@@ -53,13 +54,38 @@ export async function POST(request: Request) {
       );
     }
 
-    // Upsert profile with the image
+    // Delete old avatar from Bunny if it exists
+    const existingProfile = await db.profile.findUnique({
+      where: { userId: session.user.id },
+      select: { profileImageUrl: true },
+    });
+    if (existingProfile?.profileImageUrl) {
+      const oldPath = getBunnyPathFromUrl(existingProfile.profileImageUrl);
+      if (oldPath) {
+        await deleteFromBunny(oldPath);
+      }
+    }
+
+    // Upload to Bunny CDN
+    const path = `avatars/${session.user.id}/avatar`;
+    let cdnUrl: string;
+    try {
+      cdnUrl = await uploadBase64ToBunny(imageData, path);
+    } catch (err) {
+      console.error("Bunny avatar upload error:", err);
+      return NextResponse.json(
+        { error: "فشل رفع الصورة. حاول مرة أخرى" },
+        { status: 500 }
+      );
+    }
+
+    // Upsert profile with the CDN URL
     const profile = await db.profile.upsert({
       where: { userId: session.user.id },
-      update: { profileImageUrl: imageData },
+      update: { profileImageUrl: cdnUrl },
       create: {
         userId: session.user.id,
-        profileImageUrl: imageData,
+        profileImageUrl: cdnUrl,
       },
       select: { profileImageUrl: true },
     });
@@ -79,6 +105,18 @@ export async function DELETE() {
     const session = await auth();
     if (!session?.user?.id) {
       return NextResponse.json({ error: "غير مصرح" }, { status: 401 });
+    }
+
+    // Delete from Bunny if it's a CDN URL
+    const profile = await db.profile.findUnique({
+      where: { userId: session.user.id },
+      select: { profileImageUrl: true },
+    });
+    if (profile?.profileImageUrl) {
+      const bunnyPath = getBunnyPathFromUrl(profile.profileImageUrl);
+      if (bunnyPath) {
+        await deleteFromBunny(bunnyPath);
+      }
     }
 
     await db.profile.updateMany({

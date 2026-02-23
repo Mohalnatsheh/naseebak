@@ -6,14 +6,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Naseebak (نصيبك)** is a web-based traditional marriage facilitation platform for Jordan. It is **not** a dating app — there is zero direct communication between users. The platform uses AI-powered matching, admin-mediated family visit coordination, and a freemium suggestion model. The full specification lives in `SRS.md`.
 
-**Current status:** Core platform implemented and deployed to production at **https://naseebak.com**. Auth (phone+OTP for users, email+password for admins), profile management, identity verification, personality quiz, suggestions with sent interest tracking, matches, payments, notifications, full-featured admin panel (14 pages), dynamic blog system, push notifications (OneSignal), real matching algorithm, report/block system, field-level profile completeness, account deletion with 30-day grace period, support/feedback ticket system, registration open/closed toggle, server-side pagination on all dashboard list pages, full SEO (per-page metadata, canonical URLs, JSON-LD structured data, dynamic sitemap), and admin-configurable tracking (GTM + Facebook Pixel) are all functional.
+**Current status:** Core platform implemented and deployed to production at **https://naseebak.com**. Auth (phone+OTP for users, email+password for admins), profile management, identity verification, personality quiz, suggestions with sent interest tracking, matches, payments, notifications, full-featured admin panel (14 pages), dynamic blog system, push notifications (OneSignal), real matching algorithm, report/block system, field-level profile completeness, account deletion with 30-day grace period, support/feedback ticket system, registration open/closed toggle, server-side pagination on all dashboard list pages, full SEO (per-page metadata, canonical URLs, JSON-LD structured data, dynamic sitemap), admin-configurable tracking (GTM + Facebook Pixel), referral system (invite friends for bonus credits), and shared dashboard data context (deduplicated API calls) are all functional.
 
 ## Commands
 
 ```bash
 pnpm dev              # Start dev server (Turbopack) on localhost:3000
 pnpm build            # Production build (next build)
-pnpm test             # Run all tests (vitest run) — 167 tests across 10 files
+pnpm test             # Run all tests (vitest run) — 199 tests across 13 files
 pnpm test:watch       # Run tests in watch mode
 pnpm db:generate      # Regenerate Prisma client after schema changes
 pnpm db:push          # Push schema changes to database
@@ -58,7 +58,8 @@ src/
 │   │       ├── personality-quiz/  # 20-question quiz (5 dimensions)
 │   │       ├── payments/          # Plans + payment history
 │   │       ├── notifications/     # Notification center
-│   │       └── support/           # Support/feedback ticket system
+│   │       ├── support/           # Support/feedback ticket system
+│   │       └── referral/          # Invite friends referral page
 │   ├── (en)/              # English LTR admin panel
 │   │   └── admin/
 │   │       ├── login/     # Admin email+password login (separate layout, no sidebar)
@@ -84,6 +85,8 @@ src/
 ├── hooks/
 │   ├── use-auto-save.ts   # Profile setup auto-save (localStorage + server draft)
 │   └── use-in-view.ts     # Intersection observer hook
+├── contexts/
+│   └── dashboard-context.tsx  # Shared dashboard data provider (profile, unread count)
 ├── lib/
 │   ├── auth.ts            # NextAuth config (two Credentials providers)
 │   ├── auth.config.ts     # Auth callbacks (JWT, session, route protection)
@@ -109,7 +112,7 @@ Two authentication methods exist — phone+OTP for regular users, email+password
 
 **Flow:**
 1. Client calls `POST /api/auth/send-otp` with `{ phone }` → returns OTP (dev mode shows OTP in response) + `userExists` flag
-2. **Registration page checks `userExists` immediately** — if true, blocks registration with error "رقم الهاتف مسجل مسبقاً" before OTP input is shown
+2. **Registration page checks `userExists` immediately** — if true, redirects to `/login?exists=true` (no OTP sent, no error shown on register page). Login page reads `?exists=true` and shows an info banner: "رقم الهاتف مسجل مسبقاً. سجّل دخولك من هنا"
 3. Client calls `POST /api/auth/verify-otp` with `{ phone, code }` → marks OTP verified in DB
 4. For registration: `POST /api/auth/register` with `{ firstName, lastName, phone, gender, otp }` → creates user with `email: phone_${phone}@naseeb.local`
 5. For login: `signIn("credentials", { phone, otp })` via NextAuth → verifies OTP in DB, looks up user by phone
@@ -189,6 +192,7 @@ Key points:
 | Blog (public) | GET `/api/blog` (list published, filter by `?category=`, `?page=`), GET `/api/blog/[slug]` (single post), GET `/api/blog/categories` (categories with published counts) |
 | Settings (public) | GET `/api/settings/registration-status` (no auth, returns `{ registrationOpen }`, 30s cache), GET `/api/settings/tracking` (no auth, returns `{ gtmId?, fbPixelId? }`, 30s cache) |
 | Admin | `stats` (enhanced with revenue, trends, activity), `identity` review (pending/history tabs), `suggestions` (GET list + POST create + DELETE `[id]`), `suggestions/generate`, `reports` (GET/PATCH), `visits` management, `users` (GET with search/gender/status filters) + `users/[id]` (GET + PATCH credits) + `users/[id]/suspend`, `profile-requests` (with profile diff data), `payments` (GET paginated with status filter + revenue summary), `notifications` (GET recent + POST send to one/all), `blocks` (GET paginated) + `blocks/[id]` (DELETE), `deletions` (GET pending) + `deletions/[id]` (DELETE cancel), `settings/admins` (GET list + POST create), `settings/registration` (GET + PATCH toggle), `settings/tracking` (GET + PATCH GTM/FB Pixel IDs) |
+| Referral | GET `/api/referral` (get own referral code + stats), POST `/api/referral/apply` (apply a referral code) |
 | Support | POST `/api/support` (create ticket, max 5 open), GET `/api/support` (`?page=`, paginated 10/page, list own tickets) |
 | Admin Support | GET `/api/admin/support` (list all, filter by status/type, paginated), PATCH (update status + respond, notifies user) |
 | Admin Blog | GET/POST `/api/admin/blog` (list all + create), PUT/DELETE `/api/admin/blog/[id]`, GET/POST `/api/admin/blog/categories`, PUT/DELETE `/api/admin/blog/categories/[id]` |
@@ -325,7 +329,7 @@ Web push notifications via OneSignal SDK. Sends real-time alerts for suggestions
 
 **Architecture:**
 - `src/components/shared/onesignal-provider.tsx` — Client-side SDK init (rendered in dashboard layout), calls `OneSignal.login(userId)` to register user by external_id
-- `src/components/shared/push-permission-prompt.tsx` — Arabic UI prompt card shown 5s after dashboard load, asks users to enable push notifications. Renders inside the dashboard content area (below mobile header). Only appears when `Notification.permission === "default"`. Dismissal stored in localStorage (`naseeb_push_prompt_dismissed`)
+- `src/components/shared/push-permission-prompt.tsx` — Centered overlay popup (fixed position with semi-transparent backdrop + blur) shown 5s after dashboard load, asks users to enable push notifications. Features Bell icon, Arabic title/description, "تفعيل الإشعارات" and "لاحقاً" buttons. Only appears when `Notification.permission === "default"`. Dismissal stored in localStorage (`naseeb_push_prompt_dismissed`)
 - `src/lib/onesignal.ts` — Server-side helpers using **OneSignal REST API v2** (`api.onesignal.com/notifications`). Uses `Authorization: Key` header and targets users by `include_aliases: { external_id: [userId] }` (not deprecated `include_player_ids`)
 - `src/app/api/push/register/route.ts` — Saves OneSignal player ID to `User.oneSignalPlayerId`
 - `public/OneSignalSDKWorker.js` — Service worker required by OneSignal
@@ -415,9 +419,9 @@ Photo upload page at `/dashboard/photos`. Uses existing API endpoints:
 The user dashboard uses `DashboardSidebar` (NOT `DashboardNavbar` — the navbar is unused/legacy). It's a collapsible sidebar on desktop, hamburger sheet on mobile.
 
 **Main links (القائمة الرئيسية):** الرئيسية, الاقتراحات, التوافقات, الإشعارات (with unread badge)
-**Account links (الحساب):** الملف الشخصي, صوري, اختبار الشخصية, التحقق من الهوية, رصيد التوافقات, الدعم والملاحظات
+**Account links (الحساب):** الملف الشخصي, صوري, اختبار الشخصية, التحقق من الهوية, رصيد التوافقات, الدعم والملاحظات, ادعِ صاحبك (referral)
 
-The sidebar fetches user data (`/api/profile`) for the user card and polls unread notifications (`/api/notifications/unread-count`) every 30s. Logout calls `signOut({ callbackUrl: "/login" })`.
+The sidebar consumes shared data from `DashboardDataProvider` context (profile for user card, unread count for notification badge). It does NOT fetch APIs directly — all data comes from the context. Logout calls `signOut({ callbackUrl: "/login" })`.
 
 The mobile Sheet menu uses `showCloseButton={false}` with a custom X button placed inline next to the logo (avoids overlap with the default Sheet close button). The landing page navbar (`src/components/shared/navbar.tsx`) follows the same pattern.
 
@@ -439,7 +443,7 @@ All notification types navigate to the correct page on click:
 
 ## Testing
 
-Tests are in `src/__tests__/`. Run with `pnpm test`. **167 tests across 10 files.**
+Tests are in `src/__tests__/`. Run with `pnpm test`. **199 tests across 13 files.**
 - `validations/auth.test.ts` — OTP schema validation (sendOtp, verifyOtp, login, register) — 38 tests
 - `validations/profile.test.ts` — Profile + parent info + draft schema validation — 18 tests
 - `validations/blog.test.ts` — Blog post + category schema validation — 19 tests
@@ -450,6 +454,9 @@ Tests are in `src/__tests__/`. Run with `pnpm test`. **167 tests across 10 files
 - `matching/score.test.ts` — Compatibility scoring (cosine similarity, preference matching, quality score) — 20 tests
 - `profile-completeness.test.ts` — Field-level completeness calculator — 13 tests
 - `validations/support.test.ts` — Support ticket schema validation — 8 tests
+- `features/notification-preferences.test.ts` — Notification preference settings — 10 tests
+- `features/visit-feedback.test.ts` — Visit feedback system — 11 tests
+- `features/referral.test.ts` — Referral system (code generation, validation, rewards) — 11 tests
 
 ## Blog System
 
@@ -873,9 +880,83 @@ All dashboard list pages use server-side pagination with a consistent pattern.
 
 **Interests/received API optimization:** The responded-user filter (previously done client-side after fetching all likes) was moved into the `where` clause by pre-fetching responded user IDs and merging them with blocked IDs into a single `notIn` filter. This enables accurate `count()` for pagination.
 
+## Dashboard Data Context (`DashboardDataProvider`)
+
+Shared React context that deduplicates API calls across dashboard components. Previously, both `DashboardSidebar` and `DashboardPage` independently fetched `/api/profile` and `/api/notifications/unread-count`, causing duplicate requests on every page load.
+
+**How it works:**
+- `DashboardDataProvider` wraps the entire dashboard layout in `src/app/(ar)/dashboard/layout.tsx`
+- Fetches `/api/profile` once → provides `profile`, `completeness`, `loading`
+- Fetches `/api/notifications/unread-count` once → provides `unreadCount`
+- Polls unread count every 30s
+- Listens for `naseeb:notifications-read` custom DOM event to refresh unread count immediately when user marks notifications as read
+- Exposes `refreshProfile()` and `refreshUnread()` for manual refresh
+
+**Consumers:**
+- `DashboardSidebar` — uses `profile` for user card, `unreadCount` for notification badge
+- `DashboardPage` — uses `profile`, `completeness`, `unreadCount`, `loading` for dashboard widgets
+
+**Key files:**
+- `src/contexts/dashboard-context.tsx` — Context provider with `useDashboardData()` hook
+- `src/app/(ar)/dashboard/layout.tsx` — Wraps content in `<DashboardDataProvider>`
+
+## Notification Counter Real-Time Sync
+
+When users mark notifications as read (single or all), the sidebar notification badge updates immediately without waiting for the next 30s poll.
+
+**Mechanism:** The notifications page dispatches a `naseeb:notifications-read` custom DOM event after `markRead()` and `markAllRead()`. The `DashboardDataProvider` listens for this event and calls `refreshUnread()` immediately.
+
+**Key files:**
+- `src/app/(ar)/dashboard/notifications/page.tsx` — Dispatches `window.dispatchEvent(new CustomEvent("naseeb:notifications-read"))` after marking read
+- `src/contexts/dashboard-context.tsx` — Listens for the event
+
+## Referral System
+
+Users can invite friends via a unique referral code. The referral page is at `/dashboard/referral` (sidebar link "ادعِ صاحبك").
+
+**Share flow:**
+- Referral page shows the user's unique code + share/copy buttons
+- Share URL includes the referral code: `https://naseebak.com/register?invitationCode=CODE`
+- Copy and Web Share API both use the full URL with params
+
+**Registration integration:**
+- Register page reads `?invitationCode=` from URL params via `useSearchParams`
+- If present: pre-fills the referral code field and auto-enables the referral toggle
+- If absent: referral input is hidden behind a "عندك رمز دعوة؟" toggle link (cleaner default UI)
+- The referral code field only appears when the toggle is enabled
+
+**Key files:**
+- `src/app/(ar)/dashboard/referral/page.tsx` — Referral dashboard page with share/copy
+- `src/app/(ar)/register/page.tsx` — Reads `invitationCode` param, toggle for referral input
+
+## Image Storage (Bunny.net CDN)
+
+All user-uploaded images (photos, identity docs, avatars) are stored on Bunny.net Storage and served via CDN at `https://cdn.naseebak.com`. Legacy base64 data URLs in the DB are still supported for backward compatibility — `getBunnyPathFromUrl()` returns `null` for non-CDN URLs, so deletion is safe.
+
+**Storage structure:**
+```
+naseebak/
+├── photos/{userId}/{uuid}.{jpg|png|webp}     # User photos (max 5)
+├── identity/{userId}/{front|back}.{ext}       # Identity documents
+└── avatars/{userId}/avatar.{ext}              # Profile avatars
+```
+
+**Key file:** `src/lib/bunny.ts` — Upload/delete/conversion utilities (`uploadToBunny`, `deleteFromBunny`, `uploadBase64ToBunny`, `base64ToBuffer`, `getBunnyPathFromUrl`)
+
+**Environment variables:**
+- `BUNNY_STORAGE_API_KEY` — Bunny Storage API key
+- `BUNNY_STORAGE_ZONE` — Storage zone name (`naseebak`)
+- `BUNNY_STORAGE_ENDPOINT` — Storage endpoint (`storage.bunnycdn.com`)
+- `BUNNY_CDN_URL` — CDN URL (`https://cdn.naseebak.com`)
+
+**Design decisions:**
+- Upload-before-save: Bunny upload happens before DB write. On failure → 500, no orphan DB records
+- Silent deletion: `deleteFromBunny` logs warnings but never throws — CDN errors don't break user flows
+- Fixed paths for avatars/identity prevent orphans on re-upload. Photos use UUID paths for uniqueness
+- `next.config.ts` includes `cdn.naseebak.com` in `images.remotePatterns`
+
 ## Known Limitations / TODOs
 
-- Photo and identity document storage uses base64 in DB — needs cloud storage (S3/R2) for production
 - No email notification service connected
 - OneSignal web push requires domain configuration in OneSignal dashboard (Settings → Platforms → Web → Site URL: `https://naseebak.com`)
 - Account deletion cron needs external scheduler (e.g. cron job on server, Vercel cron, or similar)

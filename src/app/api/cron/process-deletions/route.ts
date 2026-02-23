@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { deleteFromBunny, getBunnyPathFromUrl } from "@/lib/bunny";
 
 /**
  * Cron endpoint to process expired account deletion requests.
@@ -30,6 +31,53 @@ export async function GET(request: Request) {
 
     for (const req of expiredRequests) {
       try {
+        // Clean up Bunny CDN files before DB deletion
+        try {
+          const [photos, identityDoc, profile] = await Promise.all([
+            db.photo.findMany({
+              where: { userId: req.userId },
+              select: { url: true },
+            }),
+            db.identityDoc.findUnique({
+              where: { userId: req.userId },
+              select: { frontImageUrl: true, backImageUrl: true },
+            }),
+            db.profile.findUnique({
+              where: { userId: req.userId },
+              select: { profileImageUrl: true },
+            }),
+          ]);
+
+          const deletions: Promise<void>[] = [];
+
+          // Delete photos from Bunny
+          for (const photo of photos) {
+            const path = getBunnyPathFromUrl(photo.url);
+            if (path) deletions.push(deleteFromBunny(path));
+          }
+
+          // Delete identity docs from Bunny
+          if (identityDoc?.frontImageUrl) {
+            const path = getBunnyPathFromUrl(identityDoc.frontImageUrl);
+            if (path) deletions.push(deleteFromBunny(path));
+          }
+          if (identityDoc?.backImageUrl) {
+            const path = getBunnyPathFromUrl(identityDoc.backImageUrl);
+            if (path) deletions.push(deleteFromBunny(path));
+          }
+
+          // Delete avatar from Bunny
+          if (profile?.profileImageUrl) {
+            const path = getBunnyPathFromUrl(profile.profileImageUrl);
+            if (path) deletions.push(deleteFromBunny(path));
+          }
+
+          await Promise.all(deletions);
+        } catch (bunnyErr) {
+          // Bunny cleanup failures must not block DB deletion
+          console.warn(`Bunny cleanup warning for user ${req.userId}:`, bunnyErr);
+        }
+
         // Delete all user data (cascade will handle most relations)
         // But we need to clean up manual relations first
         await db.$transaction([

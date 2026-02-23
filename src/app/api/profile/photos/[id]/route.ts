@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { deleteFromBunny, getBunnyPathFromUrl } from "@/lib/bunny";
 
 export async function DELETE(
   request: Request,
@@ -25,6 +26,12 @@ export async function DELETE(
 
     if (photo.userId !== session.user.id) {
       return NextResponse.json({ error: "غير مصرح" }, { status: 403 });
+    }
+
+    // Delete from Bunny CDN (silently handles legacy base64 URLs)
+    const bunnyPath = getBunnyPathFromUrl(photo.url);
+    if (bunnyPath) {
+      await deleteFromBunny(bunnyPath);
     }
 
     // Delete the photo

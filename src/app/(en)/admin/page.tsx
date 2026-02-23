@@ -25,6 +25,7 @@ interface Stats {
   pendingReports: number;
   pendingProfileRequests: number;
   pendingSupportTickets: number;
+  flaggedUsers: number;
   registrationsThisWeek: number;
   registrationsLastWeek: number;
 }
@@ -72,6 +73,7 @@ export default function AdminDashboardPage() {
         { label: "Mutual Matches", value: stats.totalMatches, icon: Heart, gradient: "from-red-500 to-red-600", lightBg: "bg-red-50", lightColor: "text-red-600", shadowColor: "shadow-red-500/20", borderColor: "from-red-400 to-red-600" },
         { label: "Total Suggestions", value: stats.totalSuggestions, icon: Sparkles, gradient: "from-purple-500 to-purple-600", lightBg: "bg-purple-50", lightColor: "text-purple-600", shadowColor: "shadow-purple-500/20", borderColor: "from-purple-400 to-purple-600" },
         { label: "Total Revenue", value: `${Number(stats.totalRevenue).toFixed(0)} JOD`, icon: DollarSign, gradient: "from-emerald-500 to-emerald-600", lightBg: "bg-emerald-50", lightColor: "text-emerald-600", shadowColor: "shadow-emerald-500/20", borderColor: "from-emerald-400 to-emerald-600", isString: true },
+        { label: "Flagged Users", value: stats.flaggedUsers, icon: Flag, gradient: "from-red-500 to-red-600", lightBg: "bg-red-50", lightColor: "text-red-600", shadowColor: "shadow-red-500/20", borderColor: "from-red-400 to-red-600" },
       ]
     : [];
 

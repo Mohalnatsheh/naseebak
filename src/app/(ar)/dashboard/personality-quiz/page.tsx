@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { FirstVisitTip } from "@/components/shared/first-visit-tip";
 
 interface Question {
   id: string;
@@ -362,6 +363,12 @@ export default function PersonalityQuizPage() {
   // --- Quiz Screen ---
   return (
     <div className="max-w-2xl mx-auto space-y-8 pb-8">
+      <FirstVisitTip
+        storageKey="naseeb_tip_quiz"
+        icon={<Brain className="h-5 w-5 text-primary" />}
+        title="اختبار الشخصية يحسّن التوافق"
+        body="اختبار قصير من 20 سؤال يساعدنا في فهم شخصيتك وتقديم اقتراحات توافق أدق. نتائجك تُستخدم لحساب نسبة التوافق مع المرشحين."
+      />
       {/* Gradient Header */}
       <div
         className="relative overflow-hidden rounded-2xl bg-gradient-to-l from-secondary/10 via-primary/5 to-transparent border border-primary/10 p-6 md:p-8"

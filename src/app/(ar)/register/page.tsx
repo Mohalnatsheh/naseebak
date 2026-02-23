@@ -168,6 +168,7 @@ function RegisterPageContent() {
     phone: "",
     gender: "" as "MALE" | "FEMALE" | "",
     otp: "",
+    referralCode: "",
   });
 
   // Track if OTP was already verified (e.g. redirected from login)
@@ -448,6 +449,19 @@ function RegisterPageContent() {
       if (signInResult?.error) {
         setError("حدث خطأ أثناء تسجيل الدخول التلقائي");
         return;
+      }
+
+      // Step 3.5: Apply referral code if provided
+      if (form.referralCode && form.referralCode.length === 8) {
+        try {
+          await fetch("/api/referral/apply", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ code: form.referralCode }),
+          });
+        } catch {
+          // Referral apply failure is non-blocking
+        }
       }
 
       // Step 4: Upload identity documents (convert to base64)
@@ -958,6 +972,31 @@ function RegisterPageContent() {
                   <span className="leading-relaxed text-xs">
                     اسمك الكامل ورقم هاتفك محميان بالكامل ولن يظهرا لأي مستخدم آخر على المنصة. يُعرض فقط الاسم الأول للمستخدمين الآخرين
                   </span>
+                </div>
+
+                {/* ---- Referral code (optional) ---- */}
+                <div className="space-y-2">
+                  <Label
+                    htmlFor="referralCode"
+                    className="text-xs font-semibold text-muted-foreground"
+                  >
+                    رمز الإحالة <span className="text-muted-foreground/60">(اختياري)</span>
+                  </Label>
+                  <Input
+                    id="referralCode"
+                    type="text"
+                    placeholder="XXXXXXXX"
+                    maxLength={8}
+                    value={form.referralCode}
+                    onChange={(e) =>
+                      updateField("referralCode", e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8))
+                    }
+                    dir="ltr"
+                    className="h-11 rounded-xl border-border/60 bg-muted/30 text-center text-sm tracking-[0.1em] font-mono focus:bg-background transition-colors"
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    إذا تمت دعوتك من صديق، أدخل رمز الإحالة الخاص به
+                  </p>
                 </div>
 
                 {/* ---- Optional photo upload ---- */}

@@ -18,6 +18,7 @@ import {
   CheckCircle2,
   AlertCircle,
   ArrowLeft,
+  Zap,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { PushPermissionPrompt } from "@/components/shared/push-permission-prompt";
@@ -299,70 +300,113 @@ export default function DashboardPage() {
       )}
 
       {/* ============================================ */}
-      {/*  Profile completion — section-based            */}
+      {/*  Profile Strength Indicator (gamified)          */}
       {/* ============================================ */}
-      {completionPercent < 100 && (
       <Card className="relative overflow-hidden border-border/40 shadow-md">
         <div className="absolute top-0 right-0 h-32 w-32 rounded-full bg-primary/5 blur-2xl translate-x-8 -translate-y-8" />
         <CardContent className="pt-6 pb-5">
-          <div className="flex items-center gap-5 mb-4">
-            <CompletionRing percentage={completionPercent} />
+          <div className="flex items-center gap-4 mb-4">
+            <div className={`flex h-12 w-12 items-center justify-center rounded-2xl shadow-md ${
+              completeness?.level === "excellent" ? "bg-gradient-to-br from-emerald-500 to-emerald-600" :
+              completeness?.level === "strong" ? "bg-gradient-to-br from-primary to-secondary" :
+              completeness?.level === "good" ? "bg-gradient-to-br from-amber-500 to-amber-600" :
+              "bg-gradient-to-br from-destructive to-destructive/70"
+            } text-white`}>
+              <Zap className="h-6 w-6" />
+            </div>
             <div className="flex-1">
-              <h3 className="font-bold text-foreground text-base">
-                أكمل ملفك الشخصي
-              </h3>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                كلما زادت نسبة الاكتمال، زادت جودة الاقتراحات
-              </p>
+              <div className="flex items-center gap-2 mb-1">
+                <h3 className="font-bold text-foreground text-base">قوة الملف الشخصي</h3>
+                <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${
+                  completeness?.level === "excellent" ? "bg-emerald-100 text-emerald-700" :
+                  completeness?.level === "strong" ? "bg-primary/10 text-primary" :
+                  completeness?.level === "good" ? "bg-amber-100 text-amber-700" :
+                  "bg-destructive/10 text-destructive"
+                }`}>
+                  {completeness?.level === "excellent" ? "ممتاز" :
+                   completeness?.level === "strong" ? "قوي" :
+                   completeness?.level === "good" ? "جيد" : "ضعيف"}
+                </span>
+              </div>
+              {/* Strength bar */}
+              <div className="h-3 rounded-full bg-muted/60 overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all duration-700 ${
+                    completeness?.level === "excellent" ? "bg-gradient-to-l from-emerald-500 to-emerald-400" :
+                    completeness?.level === "strong" ? "bg-gradient-to-l from-primary to-secondary" :
+                    completeness?.level === "good" ? "bg-gradient-to-l from-amber-500 to-amber-400" :
+                    "bg-gradient-to-l from-destructive to-destructive/70"
+                  }`}
+                  style={{ width: `${completionPercent}%` }}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">{completionPercent}% مكتمل</p>
             </div>
           </div>
-          <div className="space-y-2.5">
-            {(completeness?.sections ?? []).map((section: any) => (
-              <Link key={section.key} href={section.link} className="block">
-                <div className={`flex items-center gap-3 p-2.5 rounded-xl border transition-colors ${
-                  section.percentage === 100
-                    ? "bg-emerald-50/60 border-emerald-200/50"
-                    : "bg-primary/[0.03] border-primary/10 hover:bg-primary/[0.06]"
-                }`}>
-                  {section.percentage === 100 ? (
-                    <CheckCircle2 className="h-5 w-5 text-emerald-500 shrink-0" />
-                  ) : (
-                    <AlertCircle className="h-5 w-5 text-primary/60 shrink-0" />
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className={`text-sm font-medium ${section.percentage === 100 ? "text-emerald-800" : "text-foreground"}`}>
-                        {section.label}
-                      </span>
-                      <span className={`text-xs font-bold ${section.percentage === 100 ? "text-emerald-600" : "text-primary"}`}>
-                        {section.percentage}%
-                      </span>
+
+          {/* Tips for improvement */}
+          {completeness?.tips && completeness.tips.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-muted-foreground mb-2">نصائح لتحسين ملفك:</p>
+              {completeness.tips.map((tip: any) => (
+                <Link key={tip.sectionKey} href={tip.link} className="block">
+                  <div className="flex items-center gap-3 p-2.5 rounded-xl border border-primary/10 bg-primary/[0.03] hover:bg-primary/[0.06] transition-colors">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 shrink-0">
+                      <Zap className="h-4 w-4 text-primary" />
                     </div>
-                    <div className="h-1.5 rounded-full bg-muted/60 overflow-hidden">
-                      <div
-                        className={`h-full rounded-full transition-all duration-500 ${
-                          section.percentage === 100 ? "bg-emerald-500" : "bg-primary/70"
-                        }`}
-                        style={{ width: `${section.percentage}%` }}
-                      />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-foreground">{tip.message}</p>
                     </div>
-                    {section.missingFields.length > 0 && section.percentage < 100 && (
-                      <p className="text-[10px] text-muted-foreground mt-1 truncate">
-                        ينقص: {section.missingFields.slice(0, 3).join("، ")}
-                        {section.missingFields.length > 3 && ` (+${section.missingFields.length - 3})`}
-                      </p>
-                    )}
-                  </div>
-                  {section.percentage < 100 && (
+                    <span className="text-xs font-bold text-primary bg-primary/10 rounded-full px-2 py-0.5 shrink-0">
+                      +{tip.impact}%
+                    </span>
                     <ArrowLeft className="h-4 w-4 text-primary/40 shrink-0" />
-                  )}
-                </div>
-              </Link>
-            ))}
-          </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
+
+          {/* Section progress bars — only when not 100% */}
+          {completionPercent < 100 && (
+            <div className="space-y-2 mt-4">
+              {(completeness?.sections ?? []).map((section: any) => (
+                <Link key={section.key} href={section.link} className="block">
+                  <div className={`flex items-center gap-3 p-2.5 rounded-xl border transition-colors ${
+                    section.percentage === 100
+                      ? "bg-emerald-50/60 border-emerald-200/50"
+                      : "bg-primary/[0.03] border-primary/10 hover:bg-primary/[0.06]"
+                  }`}>
+                    {section.percentage === 100 ? (
+                      <CheckCircle2 className="h-5 w-5 text-emerald-500 shrink-0" />
+                    ) : (
+                      <AlertCircle className="h-5 w-5 text-primary/60 shrink-0" />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className={`text-sm font-medium ${section.percentage === 100 ? "text-emerald-800" : "text-foreground"}`}>
+                          {section.label}
+                        </span>
+                        <span className={`text-xs font-bold ${section.percentage === 100 ? "text-emerald-600" : "text-primary"}`}>
+                          {section.percentage}%
+                        </span>
+                      </div>
+                      <div className="h-1.5 rounded-full bg-muted/60 overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all duration-500 ${
+                            section.percentage === 100 ? "bg-emerald-500" : "bg-primary/70"
+                          }`}
+                          style={{ width: `${section.percentage}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
-      )}
 
       {/* ============================================ */}
       {/*  Stats grid                                  */}

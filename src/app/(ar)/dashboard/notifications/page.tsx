@@ -18,9 +18,12 @@ import {
   Shield,
   CreditCard,
   LifeBuoy,
+  Settings2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { Switch } from "@/components/ui/switch";
 
 interface Notification {
   id: string;
@@ -132,6 +135,26 @@ const NOTIFICATION_LINKS: Record<string, string> = {
   SYSTEM: "/dashboard",
 };
 
+interface NotificationPrefs {
+  suggestions: boolean;
+  interests: boolean;
+  matches: boolean;
+  visitUpdates: boolean;
+  payments: boolean;
+  identity: boolean;
+  support: boolean;
+}
+
+const prefLabels: { key: keyof NotificationPrefs; label: string; icon: typeof Bell }[] = [
+  { key: "suggestions", label: "الاقتراحات", icon: Sparkles },
+  { key: "interests", label: "طلبات الاهتمام", icon: Heart },
+  { key: "matches", label: "التوافقات", icon: Heart },
+  { key: "visitUpdates", label: "تحديثات الزيارات", icon: CalendarHeart },
+  { key: "payments", label: "المدفوعات", icon: CreditCard },
+  { key: "identity", label: "التحقق من الهوية", icon: Shield },
+  { key: "support", label: "الدعم", icon: LifeBuoy },
+];
+
 export default function NotificationsPage() {
   const router = useRouter();
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -139,6 +162,33 @@ export default function NotificationsPage() {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [prefsOpen, setPrefsOpen] = useState(false);
+  const [prefs, setPrefs] = useState<NotificationPrefs | null>(null);
+
+  async function fetchPrefs() {
+    try {
+      const res = await fetch("/api/notifications/preferences");
+      const data = await res.json();
+      setPrefs(data.preferences);
+    } catch {
+      // Silently fail
+    }
+  }
+
+  async function togglePref(key: keyof NotificationPrefs) {
+    if (!prefs) return;
+    const newVal = !prefs[key];
+    setPrefs({ ...prefs, [key]: newVal });
+    try {
+      await fetch("/api/notifications/preferences", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ [key]: newVal }),
+      });
+    } catch {
+      setPrefs({ ...prefs, [key]: !newVal });
+    }
+  }
 
   useEffect(() => {
     fetchNotifications();
@@ -223,17 +273,61 @@ export default function NotificationsPage() {
             </p>
           </div>
 
-          {unreadCount > 0 && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={markAllRead}
-              className="self-start md:self-auto border-primary/30 text-primary hover:bg-primary/5 hover:border-primary/50 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 rounded-xl gap-2 font-semibold backdrop-blur-sm bg-card/80"
-            >
-              <CheckCheck className="h-4 w-4" />
-              تحديد الكل كمقروء
-            </Button>
-          )}
+          <div className="flex items-center gap-2 self-start md:self-auto">
+            <Sheet open={prefsOpen} onOpenChange={(open) => { setPrefsOpen(open); if (open) fetchPrefs(); }}>
+              <SheetTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="border-primary/30 text-primary hover:bg-primary/5 hover:border-primary/50 rounded-xl gap-2 font-semibold backdrop-blur-sm bg-card/80"
+                >
+                  <Settings2 className="h-4 w-4" />
+                  الإعدادات
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="left" className="w-80">
+                <SheetHeader>
+                  <SheetTitle className="text-right">إعدادات الإشعارات</SheetTitle>
+                </SheetHeader>
+                <div className="space-y-4 mt-6">
+                  {prefs ? prefLabels.map(({ key, label, icon: PrefIcon }) => (
+                    <div key={key} className="flex items-center justify-between gap-3 py-2">
+                      <div className="flex items-center gap-3">
+                        <PrefIcon className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm font-medium">{label}</span>
+                      </div>
+                      <Switch checked={prefs[key]} onCheckedChange={() => togglePref(key)} />
+                    </div>
+                  )) : (
+                    <div className="flex justify-center py-8">
+                      <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between gap-3 py-2 opacity-60">
+                    <div className="flex items-center gap-3">
+                      <Info className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm font-medium">إشعارات النظام</span>
+                    </div>
+                    <Switch checked disabled />
+                  </div>
+                  <p className="text-xs text-muted-foreground text-right">
+                    إشعارات النظام لا يمكن تعطيلها
+                  </p>
+                </div>
+              </SheetContent>
+            </Sheet>
+            {unreadCount > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={markAllRead}
+                className="border-primary/30 text-primary hover:bg-primary/5 hover:border-primary/50 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 rounded-xl gap-2 font-semibold backdrop-blur-sm bg-card/80"
+              >
+                <CheckCheck className="h-4 w-4" />
+                تحديد الكل كمقروء
+              </Button>
+            )}
+          </div>
         </div>
       </div>
 

@@ -176,4 +176,127 @@ describe("calculateCompleteness", () => {
     // prefAgeMin + prefAgeMax + prefCity = 3 of 7
     expect(prefSection?.percentage).toBe(43); // Math.round(3/7 * 100) = 43
   });
+
+  // ─── Strength level tests ─────────────────────
+
+  it("level is 'weak' when total is 0", () => {
+    const user: UserForCompleteness = {};
+    const result = calculateCompleteness(user);
+    expect(result.level).toBe("weak");
+  });
+
+  it("level is 'weak' at 40%", () => {
+    // identity (15) + quiz (15) + photos (10) = 40%
+    const user: UserForCompleteness = {
+      identityDoc: { status: "APPROVED" },
+      personalityResult: { personalityType: "INTJ" },
+      photos: [{ id: "p1" }],
+    };
+    const result = calculateCompleteness(user);
+    expect(result.total).toBe(40);
+    expect(result.level).toBe("weak");
+  });
+
+  it("level is 'good' at 41%+", () => {
+    // identity (15) + quiz (15) + photos (10) + partial basic
+    const user: UserForCompleteness = {
+      identityDoc: { status: "APPROVED" },
+      personalityResult: { personalityType: "INTJ" },
+      photos: [{ id: "p1" }],
+      profile: { dateOfBirth: "1995-01-01" },
+    };
+    const result = calculateCompleteness(user);
+    expect(result.total).toBeGreaterThanOrEqual(41);
+    expect(result.level).toBe("good");
+  });
+
+  it("level is 'excellent' at 100%", () => {
+    const user: UserForCompleteness = {
+      identityDoc: { status: "APPROVED" },
+      profile: {
+        dateOfBirth: "1995-01-01",
+        city: "عمان",
+        area: "الصويفية",
+        nationality: "أردني",
+        education: "بكالوريوس",
+        job: "مهندس",
+        height: 175,
+        weight: 70,
+        maritalStatus: "أعزب",
+        aboutMe: "مرحباً",
+        prefAgeMin: 20,
+        prefAgeMax: 30,
+        prefCity: ["عمان"],
+        prefEducation: ["بكالوريوس"],
+        prefMaritalStatus: ["عزباء"],
+        prefReligiosity: ["متدينة"],
+        prefSmokingStatus: ["غير مدخنة"],
+        tribe: "عشيرة",
+        familyOriginArea: "عمان",
+        numberOfSiblings: 3,
+      },
+      personalityResult: { personalityType: "INTJ" },
+      photos: [{ id: "p1" }],
+      parentInfo: { id: "pi1", parentName: "أحمد" },
+    };
+    const result = calculateCompleteness(user);
+    expect(result.level).toBe("excellent");
+  });
+
+  // ─── Tips tests ────────────────────────────────
+
+  it("tips are empty at 100%", () => {
+    const user: UserForCompleteness = {
+      identityDoc: { status: "APPROVED" },
+      profile: {
+        dateOfBirth: "1995-01-01",
+        city: "عمان",
+        area: "الصويفية",
+        nationality: "أردني",
+        education: "بكالوريوس",
+        job: "مهندس",
+        height: 175,
+        weight: 70,
+        maritalStatus: "أعزب",
+        aboutMe: "مرحباً",
+        prefAgeMin: 20,
+        prefAgeMax: 30,
+        prefCity: ["عمان"],
+        prefEducation: ["بكالوريوس"],
+        prefMaritalStatus: ["عزباء"],
+        prefReligiosity: ["متدينة"],
+        prefSmokingStatus: ["غير مدخنة"],
+        tribe: "عشيرة",
+        familyOriginArea: "عمان",
+        numberOfSiblings: 3,
+      },
+      personalityResult: { personalityType: "INTJ" },
+      photos: [{ id: "p1" }],
+      parentInfo: { id: "pi1", parentName: "أحمد" },
+    };
+    const result = calculateCompleteness(user);
+    expect(result.tips).toHaveLength(0);
+  });
+
+  it("tips max 3 items", () => {
+    const user: UserForCompleteness = {};
+    const result = calculateCompleteness(user);
+    expect(result.tips.length).toBeLessThanOrEqual(3);
+  });
+
+  it("tips are sorted by impact descending", () => {
+    const user: UserForCompleteness = {};
+    const result = calculateCompleteness(user);
+    for (let i = 1; i < result.tips.length; i++) {
+      expect(result.tips[i - 1].impact).toBeGreaterThanOrEqual(result.tips[i].impact);
+    }
+  });
+
+  it("backward compatibility: total and sections still present", () => {
+    const user: UserForCompleteness = {};
+    const result = calculateCompleteness(user);
+    expect(typeof result.total).toBe("number");
+    expect(Array.isArray(result.sections)).toBe(true);
+    expect(result.sections.length).toBe(6);
+  });
 });

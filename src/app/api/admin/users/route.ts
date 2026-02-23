@@ -35,7 +35,9 @@ export async function GET(request: Request) {
       where.gender = gender;
     }
 
-    if (status === "VERIFIED" || status === "PENDING" || status === "SUSPENDED" || status === "REJECTED") {
+    if (status === "FLAGGED") {
+      where.isFlagged = true;
+    } else if (status === "VERIFIED" || status === "PENDING" || status === "SUSPENDED" || status === "REJECTED") {
       where.status = status;
     }
 
@@ -56,6 +58,7 @@ export async function GET(request: Request) {
           status: true,
           isVerified: true,
           isDeactivated: true,
+          isFlagged: true,
           matchCredits: true,
           verifiedAt: true,
           createdAt: true,

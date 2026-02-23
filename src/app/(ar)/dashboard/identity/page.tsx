@@ -21,6 +21,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
+import { FirstVisitTip } from "@/components/shared/first-visit-tip";
 
 type DocStatus = {
   doc: {
@@ -166,6 +167,12 @@ export default function IdentityPage() {
 
   return (
     <div className="max-w-2xl mx-auto space-y-8 pb-8">
+      <FirstVisitTip
+        storageKey="naseeb_tip_identity"
+        icon={<ShieldCheck className="h-5 w-5 text-primary" />}
+        title="لماذا التحقق من الهوية مهم؟"
+        body="التحقق من هويتك يزيد من مصداقية حسابك ويتيح لك تلقي اقتراحات التوافق. جميع بياناتك محمية ولن يطّلع عليها أي مستخدم آخر."
+      />
       {/* Page Header */}
       <div className="relative overflow-hidden rounded-2xl bg-gradient-to-l from-primary/10 via-primary/5 to-transparent border border-primary/10 p-6 md:p-8">
         <div className="absolute top-0 left-0 w-40 h-40 bg-primary/10 rounded-full -translate-x-16 -translate-y-16 blur-3xl" />

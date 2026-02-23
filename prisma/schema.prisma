@@ -121,6 +121,11 @@ enum ReportStatus {
   DISMISSED
 }
 
+enum FeedbackOutcome {
+  PROCEEDED
+  DECLINED
+}
+
 // ─── Models ─────────────────────────────────────────────────────────────────
 
 model User {
@@ -137,6 +142,10 @@ model User {
   isDeactivated     Boolean    @default(false)
   matchCredits      Int        @default(1)
   oneSignalPlayerId String?
+  isFlagged         Boolean    @default(false)
+  flagReason        String?
+  referralCode      String?    @unique
+  referredBy        String?
   verifiedAt        DateTime?
   createdAt         DateTime   @default(now())
   updatedAt         DateTime   @updatedAt
@@ -172,6 +181,11 @@ model User {
   blocksReceived    Block[]   @relation("BlocksReceived")
   deletionRequest   AccountDeletionRequest?
   supportTickets    SupportTicket[]
+
+  visitFeedbacks          VisitFeedback[]
+  notificationPreferences NotificationPreference?
+  referralsGiven          Referral[]  @relation("ReferralsGiven")
+  referralsReceived       Referral?   @relation("ReferralsReceived")
 
   @@map("users")
 }
@@ -369,6 +383,8 @@ model VisitRequest {
   scheduledDate   DateTime?
   location        String?
 
+  feedbacks       VisitFeedback[]
+
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
 
@@ -556,4 +572,49 @@ model SystemSetting {
   createdAt DateTime @default(now())
 
   @@map("system_settings")
+}
+
+model VisitFeedback {
+  id        String          @id @default(cuid())
+  visitId   String
+  visit     VisitRequest    @relation(fields: [visitId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  outcome   FeedbackOutcome
+  reason    String?
+  rating    Int             // 1-5
+  createdAt DateTime        @default(now())
+
+  @@unique([visitId, userId])
+  @@map("visit_feedbacks")
+}
+
+model NotificationPreference {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  suggestions  Boolean  @default(true)
+  interests    Boolean  @default(true)
+  matches      Boolean  @default(true)
+  visitUpdates Boolean  @default(true)
+  payments     Boolean  @default(true)
+  identity     Boolean  @default(true)
+  support      Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("notification_preferences")
+}
+
+model Referral {
+  id             String    @id @default(cuid())
+  referrerId     String
+  referrer       User      @relation("ReferralsGiven", fields: [referrerId], references: [id], onDelete: Cascade)
+  refereeId      String    @unique
+  referee        User      @relation("ReferralsReceived", fields: [refereeId], references: [id], onDelete: Cascade)
+  creditsAwarded Boolean   @default(false)
+  awardedAt      DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@map("referrals")
 }

@@ -30,6 +30,8 @@ export async function GET(
         status: true,
         isVerified: true,
         isDeactivated: true,
+        isFlagged: true,
+        flagReason: true,
         matchCredits: true,
         verifiedAt: true,
         createdAt: true,
@@ -113,19 +115,33 @@ export async function PATCH(
 
     const { id } = await params;
     const body = await request.json();
-    const { matchCredits } = body;
+    const { matchCredits, isFlagged, flagReason } = body;
 
-    if (typeof matchCredits !== "number" || matchCredits < 0) {
-      return NextResponse.json({ error: "Invalid credits value" }, { status: 400 });
+    const data: Record<string, unknown> = {};
+
+    if (typeof matchCredits === "number") {
+      if (matchCredits < 0) {
+        return NextResponse.json({ error: "Invalid credits value" }, { status: 400 });
+      }
+      data.matchCredits = matchCredits;
+    }
+
+    if (typeof isFlagged === "boolean") {
+      data.isFlagged = isFlagged;
+      data.flagReason = isFlagged ? (flagReason || null) : null;
+    }
+
+    if (Object.keys(data).length === 0) {
+      return NextResponse.json({ error: "No valid fields to update" }, { status: 400 });
     }
 
     const user = await db.user.update({
       where: { id },
-      data: { matchCredits },
-      select: { id: true, firstName: true, lastName: true, matchCredits: true },
+      data,
+      select: { id: true, firstName: true, lastName: true, matchCredits: true, isFlagged: true, flagReason: true },
     });
 
-    return NextResponse.json({ message: "Credits updated", user });
+    return NextResponse.json({ message: "User updated", user });
   } catch (error) {
     console.error("Admin user credits error:", error);
     return NextResponse.json({ error: "حدث خطأ في الخادم" }, { status: 500 });

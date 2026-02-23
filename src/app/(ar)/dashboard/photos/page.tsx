@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { FirstVisitTip } from "@/components/shared/first-visit-tip";
 
 interface Photo {
   id: string;
@@ -119,6 +120,12 @@ export default function PhotosPage() {
 
   return (
     <div className="max-w-2xl mx-auto space-y-8 pb-8">
+      <FirstVisitTip
+        storageKey="naseeb_tip_photos"
+        icon={<Camera className="h-5 w-5 text-primary" />}
+        title="صورك محمية ومؤمنة"
+        body="صورك الشخصية لن تظهر لأي مستخدم إلا بعد التوافق المتبادل بينكما. تأكد من إضافة صور واضحة لزيادة فرصك."
+      />
       {/* Page Header */}
       <div className="relative overflow-hidden rounded-2xl bg-gradient-to-l from-primary/5 via-primary/5 to-transparent border border-primary/10 p-6 md:p-8">
         <div className="absolute top-0 left-0 w-40 h-40 bg-primary/10 rounded-full -translate-x-16 -translate-y-16 blur-3xl" />

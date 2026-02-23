@@ -47,6 +47,8 @@ import {
   MoreVertical,
   ShieldAlert,
   Ban,
+  Star,
+  MessageSquare,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -57,6 +59,7 @@ interface Match {
   photosRevealed: boolean;
   revealed: boolean;
   createdAt: string;
+  visitRequestId: string | null;
   visitStatus: string | null;
   scheduledDate: string | null;
   compatibilityScore: number;
@@ -246,6 +249,58 @@ export default function MatchesPage() {
   const [reportReason, setReportReason] = useState("FAKE_PROFILE");
   const [reportDetails, setReportDetails] = useState("");
   const [reportSubmitting, setReportSubmitting] = useState(false);
+  const [feedbackDialog, setFeedbackDialog] = useState<{ visitId: string; matchId: string } | null>(null);
+  const [feedbackOutcome, setFeedbackOutcome] = useState<"PROCEEDED" | "DECLINED">("PROCEEDED");
+  const [feedbackRating, setFeedbackRating] = useState(5);
+  const [feedbackReason, setFeedbackReason] = useState("");
+  const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
+  const [feedbackSubmitted, setFeedbackSubmitted] = useState<Set<string>>(new Set());
+
+  async function handleFeedbackSubmit() {
+    if (!feedbackDialog) return;
+    setFeedbackSubmitting(true);
+    try {
+      const res = await fetch(`/api/visits/${feedbackDialog.visitId}/feedback`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          outcome: feedbackOutcome,
+          rating: feedbackRating,
+          reason: feedbackReason || undefined,
+        }),
+      });
+      if (res.ok) {
+        setFeedbackSubmitted((prev) => new Set(prev).add(feedbackDialog.matchId));
+        setFeedbackDialog(null);
+        setFeedbackOutcome("PROCEEDED");
+        setFeedbackRating(5);
+        setFeedbackReason("");
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setFeedbackSubmitting(false);
+    }
+  }
+
+  // Check existing feedback for completed visits
+  useEffect(() => {
+    async function checkFeedback() {
+      const completedMatches = matches.filter((m) => m.visitStatus === "COMPLETED" && m.visitRequestId);
+      for (const m of completedMatches) {
+        try {
+          const res = await fetch(`/api/visits/${m.visitRequestId}/feedback`);
+          const data = await res.json();
+          if (data.feedback) {
+            setFeedbackSubmitted((prev) => new Set(prev).add(m.id));
+          }
+        } catch {
+          // Silently fail
+        }
+      }
+    }
+    if (matches.length > 0) checkFeedback();
+  }, [matches]);
 
   async function handleReportSubmit() {
     if (!reportDialog) return;
@@ -719,6 +774,27 @@ export default function MatchesPage() {
                       </div>
                     )}
 
+                    {/* Feedback for completed visits */}
+                    {m.visitStatus === "COMPLETED" && m.visitRequestId && (
+                      <div className="mx-5 md:mx-6 mb-4">
+                        {feedbackSubmitted.has(m.id) ? (
+                          <div className="flex items-center gap-2 p-3 rounded-xl bg-emerald-50/60 border border-emerald-200/40 text-emerald-700 text-sm font-medium">
+                            <CheckCircle2 className="h-4 w-4" />
+                            تم التقييم
+                          </div>
+                        ) : (
+                          <Button
+                            variant="outline"
+                            className="w-full h-11 rounded-xl font-semibold border-primary/30 text-primary hover:bg-primary/5"
+                            onClick={() => setFeedbackDialog({ visitId: m.visitRequestId!, matchId: m.id })}
+                          >
+                            <Star className="h-4 w-4 me-2" />
+                            قيّم الزيارة
+                          </Button>
+                        )}
+                      </div>
+                    )}
+
                     {/* Action buttons */}
                     <div className="p-5 md:p-6 pt-0">
                       <div className="flex gap-3">
@@ -833,6 +909,66 @@ export default function MatchesPage() {
                 {reportSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "إرسال البلاغ"}
               </Button>
               <Button variant="outline" onClick={() => setReportDialog(null)} className="rounded-xl">
+                إلغاء
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Feedback Dialog */}
+      {feedbackDialog && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setFeedbackDialog(null)}>
+          <div className="bg-card rounded-2xl border shadow-2xl p-6 w-full max-w-sm space-y-4" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-foreground">تقييم الزيارة</h3>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">النتيجة</label>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setFeedbackOutcome("PROCEEDED")}
+                  className={`flex-1 p-3 rounded-xl border text-sm font-medium transition-colors ${feedbackOutcome === "PROCEEDED" ? "bg-emerald-50 border-emerald-300 text-emerald-700" : "border-border hover:bg-muted/30"}`}
+                >
+                  <CheckCircle2 className="h-5 w-5 mx-auto mb-1" />
+                  نرغب بالإكمال
+                </button>
+                <button
+                  onClick={() => setFeedbackOutcome("DECLINED")}
+                  className={`flex-1 p-3 rounded-xl border text-sm font-medium transition-colors ${feedbackOutcome === "DECLINED" ? "bg-destructive/10 border-destructive/30 text-destructive" : "border-border hover:bg-muted/30"}`}
+                >
+                  <XCircle className="h-5 w-5 mx-auto mb-1" />
+                  لا نرغب بالإكمال
+                </button>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">تقييم التجربة</label>
+              <div className="flex justify-center gap-1">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <button key={star} onClick={() => setFeedbackRating(star)} className="p-1">
+                    <Star className={`h-8 w-8 transition-colors ${star <= feedbackRating ? "text-accent fill-accent" : "text-muted-foreground/30"}`} />
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">ملاحظات (اختياري)</label>
+              <textarea
+                value={feedbackReason}
+                onChange={(e) => setFeedbackReason(e.target.value)}
+                className="w-full rounded-xl border border-input bg-background px-3 py-2.5 text-sm min-h-[80px] resize-none"
+                placeholder="أضف ملاحظاتك حول الزيارة..."
+                maxLength={500}
+              />
+            </div>
+            <div className="flex gap-2 pt-2">
+              <Button
+                onClick={handleFeedbackSubmit}
+                disabled={feedbackSubmitting}
+                className="flex-1 bg-gradient-to-l from-primary to-secondary text-white rounded-xl"
+              >
+                {feedbackSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "إرسال التقييم"}
+              </Button>
+              <Button variant="outline" onClick={() => setFeedbackDialog(null)} className="rounded-xl">
                 إلغاء
               </Button>
             </div>

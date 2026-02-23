@@ -61,9 +61,20 @@ export interface CompletenessSection {
   link: string;
 }
 
+export type StrengthLevel = "weak" | "good" | "strong" | "excellent";
+
+export interface StrengthTip {
+  message: string;  // Arabic tip
+  impact: number;   // Weight % this would add
+  link: string;     // Action link
+  sectionKey: string;
+}
+
 export interface CompletenessResult {
   total: number; // 0-100
   sections: CompletenessSection[];
+  level: StrengthLevel;
+  tips: StrengthTip[];
 }
 
 function hasValue(val: unknown): boolean {
@@ -186,5 +197,44 @@ export function calculateCompleteness(user: UserForCompleteness): CompletenessRe
     sections.reduce((sum, s) => sum + (s.percentage / 100) * s.weight, 0)
   );
 
-  return { total, sections };
+  const level = getLevel(total);
+  const tips = generateTips(sections);
+
+  return { total, sections, level, tips };
+}
+
+function getLevel(total: number): StrengthLevel {
+  if (total >= 100) return "excellent";
+  if (total >= 71) return "strong";
+  if (total >= 41) return "good";
+  return "weak";
+}
+
+const sectionTipMessages: Record<string, string> = {
+  identity: "أكمل التحقق من هويتك لزيادة مصداقية ملفك",
+  basic: "أضف معلوماتك الأساسية لتحسين فرص التوافق",
+  preferences: "حدّد تفضيلاتك لتلقي اقتراحات أفضل",
+  quiz: "أكمل اختبار الشخصية لتحسين دقة التوافق",
+  photos: "أضف صورك لإكمال ملفك الشخصي",
+  family: "أكمل معلومات العائلة وولي الأمر",
+};
+
+function generateTips(sections: CompletenessSection[]): StrengthTip[] {
+  const tips: StrengthTip[] = [];
+
+  for (const section of sections) {
+    if (section.percentage < 100) {
+      const missingWeight = Math.round(((100 - section.percentage) / 100) * section.weight);
+      tips.push({
+        message: sectionTipMessages[section.key] || `أكمل ${section.label}`,
+        impact: missingWeight,
+        link: section.link,
+        sectionKey: section.key,
+      });
+    }
+  }
+
+  // Sort by impact descending, return top 3
+  tips.sort((a, b) => b.impact - a.impact);
+  return tips.slice(0, 3);
 }

@@ -2,6 +2,7 @@ import { DashboardSidebar } from "@/components/shared/dashboard-sidebar";
 import { Providers } from "@/components/shared/providers";
 import { OneSignalProvider } from "@/components/shared/onesignal-provider";
 import { PushPermissionPrompt } from "@/components/shared/push-permission-prompt";
+import { OnboardingGuide } from "@/components/shared/onboarding-guide";
 
 export default function DashboardLayout({
   children,
@@ -16,6 +17,7 @@ export default function DashboardLayout({
         <main className="flex-1 md:pt-0 pt-[58px] min-w-0">
           <div className="max-w-5xl mx-auto px-4 md:px-6 py-6 md:py-8">
             <PushPermissionPrompt />
+            <OnboardingGuide />
             {children}
           </div>
           <footer className="border-t py-4 text-center text-sm text-muted-foreground">

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   ArrowLeft, User, Shield, ShieldCheck, Loader2, Ban, CreditCard,
   Calendar, MapPin, Heart, GraduationCap, Briefcase, Camera, Brain,
-  Users as UsersIcon, Phone, Mail,
+  Users as UsersIcon, Phone, Mail, Flag,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,8 @@ interface UserDetail {
   status: string;
   isVerified: boolean;
   isDeactivated: boolean;
+  isFlagged: boolean;
+  flagReason: string | null;
   matchCredits: number;
   verifiedAt: string | null;
   createdAt: string;
@@ -60,6 +62,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
   const [creditsDialogOpen, setCreditsDialogOpen] = useState(false);
   const [newCredits, setNewCredits] = useState("");
   const [savingCredits, setSavingCredits] = useState(false);
+  const [flagging, setFlagging] = useState(false);
 
   useEffect(() => {
     fetchUser();
@@ -113,6 +116,26 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
     }
   }
 
+  async function handleToggleFlag() {
+    if (!user) return;
+    setFlagging(true);
+    try {
+      const res = await fetch(`/api/admin/users/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          isFlagged: !user.isFlagged,
+          flagReason: !user.isFlagged ? "Manually flagged by admin" : null,
+        }),
+      });
+      if (res.ok) await fetchUser();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setFlagging(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex justify-center py-12">
@@ -157,7 +180,15 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
               </Badge>
               {user.role === "ADMIN" && <Badge variant="destructive">Admin</Badge>}
               {user.isDeactivated && <Badge variant="outline" className="text-red-600">Deactivated</Badge>}
+              {user.isFlagged && (
+                <Badge variant="outline" className="text-destructive border-destructive/30">
+                  <Flag className="h-3 w-3 me-1" />Flagged
+                </Badge>
+              )}
             </div>
+            {user.isFlagged && user.flagReason && (
+              <p className="text-sm text-destructive mt-1">{user.flagReason}</p>
+            )}
           </div>
         </div>
 
@@ -171,6 +202,18 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
             >
               {suspending ? <Loader2 className="h-4 w-4 animate-spin" /> : (
                 <><Ban className="h-4 w-4 me-2" />{user.status === "SUSPENDED" ? "Unsuspend" : "Suspend"}</>
+              )}
+            </Button>
+          )}
+          {user.role !== "ADMIN" && (
+            <Button
+              variant={user.isFlagged ? "outline" : "destructive"}
+              size="sm"
+              onClick={handleToggleFlag}
+              disabled={flagging}
+            >
+              {flagging ? <Loader2 className="h-4 w-4 animate-spin" /> : (
+                <><Flag className="h-4 w-4 me-2" />{user.isFlagged ? "Unflag" : "Flag"}</>
               )}
             </Button>
           )}

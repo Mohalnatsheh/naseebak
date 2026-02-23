@@ -48,6 +48,23 @@ export async function POST(request: Request) {
       },
     });
 
+    // Auto-flag user if they have 3+ reports
+    const reportCount = await db.report.count({
+      where: {
+        reportedId,
+        status: { in: ["PENDING", "REVIEWED"] },
+      },
+    });
+    if (reportCount >= 3) {
+      await db.user.update({
+        where: { id: reportedId },
+        data: {
+          isFlagged: true,
+          flagReason: `Auto-flagged: ${reportCount} reports from different users`,
+        },
+      });
+    }
+
     return NextResponse.json({ message: "تم إرسال البلاغ بنجاح", report });
   } catch (error) {
     console.error("Report error:", error);

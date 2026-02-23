@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Users, Shield, ShieldCheck, ChevronLeft, ChevronRight, Search, Ban, Loader2, CreditCard } from "lucide-react";
+import { Users, Shield, ShieldCheck, ChevronLeft, ChevronRight, Search, Ban, Loader2, CreditCard, Flag } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,7 @@ interface UserRow {
   status: string;
   isVerified: boolean;
   isDeactivated: boolean;
+  isFlagged: boolean;
   matchCredits: number;
   createdAt: string;
   identityDoc: { status: string } | null;
@@ -124,6 +125,7 @@ export default function AdminUsersPage() {
           <option value="VERIFIED">Verified</option>
           <option value="SUSPENDED">Suspended</option>
           <option value="REJECTED">Rejected</option>
+          <option value="FLAGGED">Flagged</option>
         </select>
         <Button type="submit">
           <Search className="h-4 w-4 me-2" /> Search
@@ -194,6 +196,11 @@ export default function AdminUsersPage() {
                         </Badge>
                         {u.isDeactivated && (
                           <Badge variant="outline" className="text-xs text-red-600 ms-1">Deactivated</Badge>
+                        )}
+                        {u.isFlagged && (
+                          <Badge variant="outline" className="text-xs text-destructive border-destructive/30 ms-1">
+                            <Flag className="h-3 w-3 me-1" />Flagged
+                          </Badge>
                         )}
                       </td>
                       <td className="p-3 text-sm">

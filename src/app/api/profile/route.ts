@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { profileSchema } from "@/lib/validations/profile";
 import { calculateCompleteness } from "@/lib/profile-completeness";
+import { createNotificationIfAllowed } from "@/lib/notification-helper";
 
 export async function GET() {
   try {
@@ -154,6 +155,76 @@ export async function PUT(request: Request) {
         isComplete: true,
       },
     });
+
+    // After profile is complete, check for referral credit awarding
+    try {
+      // Re-fetch full user data to calculate completeness
+      const fullUser = await db.user.findUnique({
+        where: { id: session.user.id },
+        select: {
+          identityDoc: { select: { status: true } },
+          profile: true,
+          personalityResult: { select: { personalityType: true } },
+          photos: { select: { id: true } },
+          parentInfo: { select: { id: true, parentName: true } },
+        },
+      });
+
+      if (fullUser) {
+        const completeness = calculateCompleteness(fullUser);
+
+        if (completeness.total === 100) {
+          // Check for un-awarded referral
+          const referral = await db.referral.findUnique({
+            where: { refereeId: session.user.id },
+            select: { id: true, referrerId: true, creditsAwarded: true },
+          });
+
+          if (referral && !referral.creditsAwarded) {
+            await db.$transaction([
+              // Award referee +1 credit
+              db.user.update({
+                where: { id: session.user.id },
+                data: { matchCredits: { increment: 1 } },
+              }),
+              // Award referrer +2 credits
+              db.user.update({
+                where: { id: referral.referrerId },
+                data: { matchCredits: { increment: 2 } },
+              }),
+              // Mark referral as awarded
+              db.referral.update({
+                where: { id: referral.id },
+                data: { creditsAwarded: true, awardedAt: new Date() },
+              }),
+            ]);
+
+            // Notify both users
+            await Promise.all([
+              createNotificationIfAllowed(
+                session.user.id,
+                "SYSTEM",
+                "مكافأة الإحالة",
+                "تهانينا! حصلت على رصيد إضافي (+1) كمكافأة إحالة لاكتمال ملفك الشخصي",
+                undefined,
+                "https://naseebak.com/dashboard/payments",
+              ),
+              createNotificationIfAllowed(
+                referral.referrerId,
+                "SYSTEM",
+                "مكافأة الإحالة",
+                "تهانينا! حصلت على رصيد إضافي (+2) لأن شخصاً أحلته أكمل ملفه الشخصي",
+                undefined,
+                "https://naseebak.com/dashboard/payments",
+              ),
+            ]);
+          }
+        }
+      }
+    } catch (referralError) {
+      // Don't fail the profile update if referral awarding fails
+      console.error("Referral credit awarding error:", referralError);
+    }
 
     return NextResponse.json({ message: "تم تحديث الملف الشخصي", profile });
   } catch (error) {

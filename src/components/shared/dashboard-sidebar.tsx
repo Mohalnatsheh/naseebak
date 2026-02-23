@@ -21,6 +21,7 @@ import {
   ChevronRight,
   ChevronLeft,
   LifeBuoy,
+  Gift,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
@@ -49,6 +50,7 @@ const accountLinks: NavLink[] = [
   { href: "/dashboard/identity", label: "التحقق من الهوية", icon: FileCheck },
   { href: "/dashboard/payments", label: "رصيد التوافقات", icon: CreditCard },
   { href: "/dashboard/support", label: "الدعم والملاحظات", icon: LifeBuoy },
+  { href: "/dashboard/referral", label: "دعوة صديق", icon: Gift },
 ];
 
 function NavItem({

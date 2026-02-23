@@ -63,7 +63,7 @@ export async function GET(request: Request) {
             select: { id: true, firstName: true, profile: { select: profileSelect } },
           },
           visitRequest: {
-            select: { status: true, scheduledDate: true },
+            select: { id: true, status: true, scheduledDate: true },
           },
         },
         orderBy: { createdAt: "desc" },
@@ -100,6 +100,7 @@ export async function GET(request: Request) {
         photosRevealed: m.photosRevealed,
         revealed: true,
         createdAt: m.createdAt,
+        visitRequestId: m.visitRequest?.id || null,
         visitStatus: m.visitRequest?.status || null,
         scheduledDate: m.visitRequest?.scheduledDate || null,
         compatibilityScore: m.suggestionId ? (scoreMap.get(m.suggestionId) ?? 0) : 0,

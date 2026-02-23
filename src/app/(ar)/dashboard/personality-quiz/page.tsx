@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   Loader2,
   Brain,
@@ -18,6 +19,7 @@ import {
   RefreshCw,
   CalendarClock,
   Send,
+  User,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -107,6 +109,13 @@ export default function PersonalityQuizPage() {
 
   // Check if all questions on the current page are answered
   const currentPageComplete = currentQuestions.every((q) => answers[q.id] !== undefined);
+
+  // Scroll to top when page changes (after React re-renders)
+  useEffect(() => {
+    if (currentPage > 0 || showQuiz) {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }, [currentPage]);
 
   useEffect(() => {
     async function load() {
@@ -299,8 +308,32 @@ export default function PersonalityQuizPage() {
           </p>
         </div>
 
+        {/* Profile link card */}
+        <div style={{ animation: "fadeSlideIn 0.5s ease-out 0.75s both" }}>
+          <Card className="overflow-hidden border-border/50 hover:border-primary/20 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300">
+            <div className="h-1 bg-gradient-to-l from-primary to-secondary" />
+            <CardContent className="p-5 md:p-6">
+              <div className="flex items-center gap-4">
+                <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-primary/15 to-primary/5 flex items-center justify-center flex-shrink-0">
+                  <User className="h-6 w-6 text-primary" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-sm font-bold text-foreground">شوف ملفك الشخصي</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">اطّلع على ملفك الشخصي وكيف يظهر للآخرين</p>
+                </div>
+                <Button asChild size="sm" className="bg-gradient-to-l from-primary to-secondary text-white rounded-xl font-semibold shadow-sm hover:shadow-md transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]">
+                  <Link href="/dashboard/profile">
+                    عرض الملف
+                    <ArrowLeft className="h-3.5 w-3.5 ms-1.5" />
+                  </Link>
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
         {/* Retake Section */}
-        <div style={{ animation: "fadeSlideIn 0.5s ease-out 0.8s both" }}>
+        <div style={{ animation: "fadeSlideIn 0.5s ease-out 0.85s both" }}>
           {existingResult.canRetake ? (
             <div className="flex justify-center">
               <button
@@ -426,7 +459,6 @@ export default function PersonalityQuizPage() {
                 // Only allow going to pages that are <= current page or completed
                 if (i <= currentPage) {
                   setCurrentPage(i);
-                  window.scrollTo({ top: 0, behavior: "smooth" });
                 }
               }}
               className={`rounded-full transition-all duration-300 ${
@@ -505,10 +537,7 @@ export default function PersonalityQuizPage() {
         <div className="flex gap-2">
           {currentPage > 0 && (
             <button
-              onClick={() => {
-                setCurrentPage((p) => p - 1);
-                window.scrollTo({ top: 0, behavior: "smooth" });
-              }}
+              onClick={() => setCurrentPage((p) => p - 1)}
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border-2 border-border/60 text-sm font-medium text-foreground hover:border-primary/40 hover:bg-primary/5 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200"
             >
               <ArrowRight className="h-4 w-4" />
@@ -528,10 +557,7 @@ export default function PersonalityQuizPage() {
         <div className="flex gap-2">
           {currentPage < totalPages - 1 ? (
             <button
-              onClick={() => {
-                setCurrentPage((p) => p + 1);
-                window.scrollTo({ top: 0, behavior: "smooth" });
-              }}
+              onClick={() => setCurrentPage((p) => p + 1)}
               disabled={!currentPageComplete}
               className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${
                 currentPageComplete

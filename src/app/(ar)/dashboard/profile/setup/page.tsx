@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, ArrowLeft, ArrowRight, CheckCircle2, Save } from "lucide-react";
+import { Loader2, ArrowLeft, ArrowRight, CheckCircle2, Save, AlertCircle } from "lucide-react";
 import { useAutoSave } from "@/hooks/use-auto-save";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,6 +47,7 @@ export default function ProfileSetupPage() {
   const [fetchingProfile, setFetchingProfile] = useState(true);
   const [error, setError] = useState("");
   const [gender, setGender] = useState<string>("");
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const [form, setForm] = useState({
     dateOfBirth: "",
@@ -226,6 +227,9 @@ export default function ProfileSetupPage() {
 
   function update(field: string, value: string | boolean) {
     setForm((prev) => ({ ...prev, [field]: value }));
+    if (fieldErrors[field]) {
+      setFieldErrors((prev) => { const next = { ...prev }; delete next[field]; return next; });
+    }
   }
 
   function toggleArray(field: "prefCity" | "prefEducation" | "prefMaritalStatus" | "prefReligiosity" | "prefSmokingStatus", value: string) {
@@ -237,10 +241,16 @@ export default function ProfileSetupPage() {
         return { ...prev, [field]: [...arr, value] };
       }
     });
+    if (fieldErrors[field]) {
+      setFieldErrors((prev) => { const next = { ...prev }; delete next[field]; return next; });
+    }
   }
 
   function updateParent(field: string, value: string) {
     setParentForm((prev) => ({ ...prev, [field]: value }));
+    if (fieldErrors[field]) {
+      setFieldErrors((prev) => { const next = { ...prev }; delete next[field]; return next; });
+    }
   }
 
   // When city changes, reset area if it doesn't belong to the new city
@@ -252,64 +262,84 @@ export default function ProfileSetupPage() {
     }
   }
 
-  function validateStep(s: number): string {
+  function validateStep(s: number): Record<string, string> {
+    const errors: Record<string, string> = {};
     switch (s) {
       case 1: {
-        if (!form.dateOfBirth) return "تاريخ الميلاد مطلوب";
-        if (!form.nationality) return "الجنسية مطلوبة";
-        if (!form.city) return "المدينة مطلوبة";
-        if (!form.area) return "المنطقة مطلوبة";
-        if (!form.height) return "الطول مطلوب";
-        if (!form.weight) return "الوزن مطلوب";
-        if (!form.skinColor) return "لون البشرة مطلوب";
-        if (!form.education) return "المستوى التعليمي مطلوب";
-        if (!form.fieldOfStudy) return "التخصص مطلوب";
-        if (!form.job) return "الوظيفة مطلوبة";
-        if (form.job === "أخرى" && !form.jobCustom) return "يرجى تحديد الوظيفة";
-        if (!form.incomeRange) return "مستوى الدخل مطلوب";
-        return "";
+        if (!form.dateOfBirth) errors.dateOfBirth = "تاريخ الميلاد مطلوب";
+        if (!form.nationality) errors.nationality = "الجنسية مطلوبة";
+        if (!form.city) errors.city = "المدينة مطلوبة";
+        if (!form.area) errors.area = "المنطقة مطلوبة";
+        if (!form.height) errors.height = "الطول مطلوب";
+        else { const h = parseInt(form.height); if (h < 100 || h > 250) errors.height = "الطول يجب أن يكون بين 100 و 250 سم"; }
+        if (!form.weight) errors.weight = "الوزن مطلوب";
+        else { const w = parseInt(form.weight); if (w < 30 || w > 300) errors.weight = "الوزن يجب أن يكون بين 30 و 300 كغ"; }
+        if (!form.skinColor) errors.skinColor = "لون البشرة مطلوب";
+        if (!form.education) errors.education = "المستوى التعليمي مطلوب";
+        if (!form.fieldOfStudy) errors.fieldOfStudy = "التخصص مطلوب";
+        if (!form.job) errors.job = "الوظيفة مطلوبة";
+        if (form.job === "أخرى" && !form.jobCustom) errors.jobCustom = "يرجى تحديد الوظيفة";
+        if (!form.incomeRange) errors.incomeRange = "مستوى الدخل مطلوب";
+        break;
       }
       case 2: {
-        if (!form.maritalStatus) return "الحالة الاجتماعية مطلوبة";
-        if (form.maritalStatus !== "أعزب/عزباء" && form.childrenCount === "") return "عدد الأبناء مطلوب";
-        if (!form.religiosity) return "مستوى التدين مطلوب";
-        if (!form.smokingStatus) return "حالة التدخين مطلوبة";
-        if (!form.cookingAbility) return "مهارة الطبخ مطلوبة";
-        if (!form.lifestyle) return "نمط الحياة مطلوب";
-        return "";
+        if (!form.maritalStatus) errors.maritalStatus = "الحالة الاجتماعية مطلوبة";
+        if (form.maritalStatus !== "أعزب/عزباء" && form.childrenCount === "") errors.childrenCount = "عدد الأبناء مطلوب";
+        else if (form.maritalStatus !== "أعزب/عزباء" && form.childrenCount !== "") { const c = parseInt(form.childrenCount); if (c < 0 || c > 20) errors.childrenCount = "عدد الأبناء يجب أن يكون بين 0 و 20"; }
+        if (!form.religiosity) errors.religiosity = "مستوى التدين مطلوب";
+        if (!form.smokingStatus) errors.smokingStatus = "حالة التدخين مطلوبة";
+        if (!form.cookingAbility) errors.cookingAbility = "مهارة الطبخ مطلوبة";
+        if (!form.lifestyle) errors.lifestyle = "نمط الحياة مطلوب";
+        break;
       }
       case 3: {
-        if (!form.aboutMe) return "نبذة عنك مطلوبة";
-        if (!form.partnerExpectations) return "مواصفات الشريك مطلوبة";
-        if (!form.hobbies) return "الهوايات مطلوبة";
-        if (!form.interests) return "الاهتمامات مطلوبة";
-        if (!form.familyValues) return "القيم العائلية مطلوبة";
-        if (!form.prefAgeMin) return "العمر الأدنى مطلوب";
-        if (!form.prefAgeMax) return "العمر الأقصى مطلوب";
-        if (form.prefCity.length === 0) return "اختر مدينة مفضلة واحدة على الأقل";
-        if (form.prefEducation.length === 0) return "اختر مستوى تعليمي مفضل واحد على الأقل";
-        if (form.prefMaritalStatus.length === 0) return "اختر حالة اجتماعية مفضلة واحدة على الأقل";
-        if (!form.willingToRelocate) return "الاستعداد للانتقال مطلوب";
-        return "";
+        if (!form.aboutMe) errors.aboutMe = "نبذة عنك مطلوبة";
+        if (!form.partnerExpectations) errors.partnerExpectations = "مواصفات الشريك مطلوبة";
+        if (!form.hobbies) errors.hobbies = "الهوايات مطلوبة";
+        if (!form.interests) errors.interests = "الاهتمامات مطلوبة";
+        if (!form.familyValues) errors.familyValues = "القيم العائلية مطلوبة";
+        if (!form.prefAgeMin) errors.prefAgeMin = "العمر الأدنى مطلوب";
+        else { const min = parseInt(form.prefAgeMin); if (min < 18 || min > 70) errors.prefAgeMin = "العمر الأدنى يجب أن يكون بين 18 و 70"; }
+        if (!form.prefAgeMax) errors.prefAgeMax = "العمر الأقصى مطلوب";
+        else { const max = parseInt(form.prefAgeMax); if (max < 18 || max > 70) errors.prefAgeMax = "العمر الأقصى يجب أن يكون بين 18 و 70"; }
+        if (form.prefAgeMin && form.prefAgeMax && parseInt(form.prefAgeMin) > parseInt(form.prefAgeMax)) {
+          errors.prefAgeMin = "العمر الأدنى يجب أن يكون أقل من العمر الأقصى";
+          errors.prefAgeMax = "العمر الأقصى يجب أن يكون أكبر من العمر الأدنى";
+        }
+        if (form.prefCity.length === 0) errors.prefCity = "اختر مدينة مفضلة واحدة على الأقل";
+        if (form.prefEducation.length === 0) errors.prefEducation = "اختر مستوى تعليمي مفضل واحد على الأقل";
+        if (form.prefMaritalStatus.length === 0) errors.prefMaritalStatus = "اختر حالة اجتماعية مفضلة واحدة على الأقل";
+        if (!form.willingToRelocate) errors.willingToRelocate = "الاستعداد للانتقال مطلوب";
+        break;
       }
       case 4: {
-        if (!form.tribe) return "العشيرة مطلوبة";
-        if (!form.familyOriginArea) return "منطقة أصل العائلة مطلوبة";
-        if (form.numberOfSiblings === "") return "عدد الإخوة والأخوات مطلوب";
-        if (!form.housingType) return "نوع السكن مطلوب";
-        if (!form.monthlyExpenses) return "المصاريف الشهرية مطلوبة";
-        if (!form.healthConditions) return "الحالات الصحية مطلوبة";
-        return "";
+        if (!form.tribe) errors.tribe = "العشيرة مطلوبة";
+        if (!form.familyOriginArea) errors.familyOriginArea = "منطقة أصل العائلة مطلوبة";
+        if (form.numberOfSiblings === "") errors.numberOfSiblings = "عدد الإخوة والأخوات مطلوب";
+        else { const s = parseInt(form.numberOfSiblings); if (s < 0 || s > 20) errors.numberOfSiblings = "عدد الإخوة يجب أن يكون بين 0 و 20"; }
+        if (!form.housingType) errors.housingType = "نوع السكن مطلوب";
+        if (!form.monthlyExpenses) errors.monthlyExpenses = "المصاريف الشهرية مطلوبة";
+        if (!form.healthConditions) errors.healthConditions = "الحالات الصحية مطلوبة";
+        break;
       }
       case 5: {
-        if (!parentForm.parentName) return "اسم ولي الأمر مطلوب";
-        if (!parentForm.parentPhone) return "رقم هاتف ولي الأمر مطلوب";
-        if (!parentForm.relationship) return "صلة القرابة مطلوبة";
-        if (!parentForm.address) return "العنوان مطلوب";
-        return "";
+        if (!parentForm.parentName) errors.parentName = "اسم ولي الأمر مطلوب";
+        if (!parentForm.parentPhone) errors.parentPhone = "رقم هاتف ولي الأمر مطلوب";
+        if (!parentForm.relationship) errors.relationship = "صلة القرابة مطلوبة";
+        if (!parentForm.address) errors.address = "العنوان مطلوب";
+        break;
       }
-      default:
-        return "";
+    }
+    return errors;
+  }
+
+  function scrollToFirstError(errors: Record<string, string>) {
+    const firstField = Object.keys(errors)[0];
+    if (firstField) {
+      const el = document.querySelector(`[data-field="${firstField}"]`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
     }
   }
 
@@ -457,6 +487,13 @@ export default function ProfileSetupPage() {
         </div>
       )}
 
+      {Object.keys(fieldErrors).length > 0 && (
+        <div className="rounded-lg bg-destructive/10 border border-destructive/20 p-3 text-sm text-destructive flex items-center gap-2">
+          <AlertCircle className="h-4 w-4 flex-shrink-0" />
+          <span>يرجى تصحيح الحقول المطلوبة أدناه ({Object.keys(fieldErrors).length} حقل)</span>
+        </div>
+      )}
+
       {/* Step 1: Personal Info */}
       {step === 1 && (
         <Card className="overflow-hidden">
@@ -467,82 +504,91 @@ export default function ProfileSetupPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
+              <div className="space-y-2" data-field="dateOfBirth">
                 <Label>تاريخ الميلاد</Label>
-                <Input type="date" value={form.dateOfBirth} onChange={(e) => update("dateOfBirth", e.target.value)} dir="ltr" />
+                <Input type="date" value={form.dateOfBirth} onChange={(e) => update("dateOfBirth", e.target.value)} dir="ltr" className={fieldErrors.dateOfBirth ? "border-destructive" : ""} />
+                {fieldErrors.dateOfBirth && <p className="text-xs text-destructive">{fieldErrors.dateOfBirth}</p>}
               </div>
-              <div className="space-y-2">
+              <div className="space-y-2" data-field="nationality">
                 <Label>الجنسية</Label>
-                <Input value={form.nationality} onChange={(e) => update("nationality", e.target.value)} />
+                <Input value={form.nationality} onChange={(e) => update("nationality", e.target.value)} className={fieldErrors.nationality ? "border-destructive" : ""} />
+                {fieldErrors.nationality && <p className="text-xs text-destructive">{fieldErrors.nationality}</p>}
               </div>
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-2" data-field="city">
               <Label>المدينة</Label>
-              <div className="grid grid-cols-3 gap-2">
+              <div className={`grid grid-cols-3 gap-2 ${fieldErrors.city ? "ring-1 ring-destructive rounded-xl p-1" : ""}`}>
                 {jordanCities.map((c) => (
                   <button key={c} type="button" onClick={() => handleCityChange(c)}
                     className={`rounded-xl border px-3 py-2 text-sm transition-all ${form.city === c ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
                   >{c}</button>
                 ))}
               </div>
+              {fieldErrors.city && <p className="text-xs text-destructive">{fieldErrors.city}</p>}
             </div>
 
             {form.city && availableAreas.length > 0 && (
-              <div className="space-y-2">
+              <div className="space-y-2" data-field="area">
                 <Label>المنطقة</Label>
                 <select
                   value={form.area}
                   onChange={(e) => update("area", e.target.value)}
-                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                  className={`w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring ${fieldErrors.area ? "border-destructive" : "border-input"}`}
                 >
                   <option value="">اختر المنطقة...</option>
                   {availableAreas.map((a) => (
                     <option key={a} value={a}>{a}</option>
                   ))}
                 </select>
+                {fieldErrors.area && <p className="text-xs text-destructive">{fieldErrors.area}</p>}
               </div>
             )}
 
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
+              <div className="space-y-2" data-field="height">
                 <Label>الطول (سم)</Label>
-                <Input type="number" value={form.height} onChange={(e) => update("height", e.target.value)} placeholder="170" dir="ltr" />
+                <Input type="number" value={form.height} onChange={(e) => update("height", e.target.value)} placeholder="170" dir="ltr" className={fieldErrors.height ? "border-destructive" : ""} />
+                {fieldErrors.height && <p className="text-xs text-destructive">{fieldErrors.height}</p>}
               </div>
-              <div className="space-y-2">
+              <div className="space-y-2" data-field="weight">
                 <Label>الوزن (كغ)</Label>
-                <Input type="number" value={form.weight} onChange={(e) => update("weight", e.target.value)} placeholder="70" dir="ltr" />
+                <Input type="number" value={form.weight} onChange={(e) => update("weight", e.target.value)} placeholder="70" dir="ltr" className={fieldErrors.weight ? "border-destructive" : ""} />
+                {fieldErrors.weight && <p className="text-xs text-destructive">{fieldErrors.weight}</p>}
               </div>
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-2" data-field="skinColor">
               <Label>لون البشرة</Label>
-              <div className="grid grid-cols-4 gap-2">
+              <div className={`grid grid-cols-4 gap-2 ${fieldErrors.skinColor ? "ring-1 ring-destructive rounded-xl p-1" : ""}`}>
                 {skinColors.map((c) => (
                   <button key={c} type="button" onClick={() => update("skinColor", c)}
                     className={`rounded-xl border px-3 py-2 text-sm transition-all ${form.skinColor === c ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
                   >{c}</button>
                 ))}
               </div>
+              {fieldErrors.skinColor && <p className="text-xs text-destructive">{fieldErrors.skinColor}</p>}
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-2" data-field="education">
               <Label>المستوى التعليمي</Label>
-              <div className="grid grid-cols-3 gap-2">
+              <div className={`grid grid-cols-3 gap-2 ${fieldErrors.education ? "ring-1 ring-destructive rounded-xl p-1" : ""}`}>
                 {educationLevels.map((e) => (
                   <button key={e} type="button" onClick={() => update("education", e)}
                     className={`rounded-xl border px-3 py-2 text-sm transition-all ${form.education === e ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
                   >{e}</button>
                 ))}
               </div>
+              {fieldErrors.education && <p className="text-xs text-destructive">{fieldErrors.education}</p>}
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-2" data-field="fieldOfStudy">
               <Label>التخصص</Label>
-              <Input value={form.fieldOfStudy} onChange={(e) => update("fieldOfStudy", e.target.value)} placeholder="مثال: هندسة حاسوب، محاسبة، طب..." />
+              <Input value={form.fieldOfStudy} onChange={(e) => update("fieldOfStudy", e.target.value)} placeholder="مثال: هندسة حاسوب، محاسبة، طب..." className={fieldErrors.fieldOfStudy ? "border-destructive" : ""} />
+              {fieldErrors.fieldOfStudy && <p className="text-xs text-destructive">{fieldErrors.fieldOfStudy}</p>}
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-2" data-field="job">
               <Label>الوظيفة</Label>
               <select
                 value={form.job}
@@ -550,27 +596,32 @@ export default function ProfileSetupPage() {
                   update("job", e.target.value);
                   if (e.target.value !== "أخرى") update("jobCustom", "");
                 }}
-                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                className={`w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring ${fieldErrors.job ? "border-destructive" : "border-input"}`}
               >
                 <option value="">اختر الوظيفة...</option>
                 {jobOptions.map((j) => (
                   <option key={j} value={j}>{j}</option>
                 ))}
               </select>
+              {fieldErrors.job && <p className="text-xs text-destructive">{fieldErrors.job}</p>}
               {form.job === "أخرى" && (
-                <Input value={form.jobCustom} onChange={(e) => update("jobCustom", e.target.value)} placeholder="حدد وظيفتك..." className="mt-2" />
+                <div data-field="jobCustom">
+                  <Input value={form.jobCustom} onChange={(e) => update("jobCustom", e.target.value)} placeholder="حدد وظيفتك..." className={`mt-2 ${fieldErrors.jobCustom ? "border-destructive" : ""}`} />
+                  {fieldErrors.jobCustom && <p className="text-xs text-destructive mt-1">{fieldErrors.jobCustom}</p>}
+                </div>
               )}
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-2" data-field="incomeRange">
               <Label>مستوى الدخل</Label>
-              <div className="grid grid-cols-3 gap-2">
+              <div className={`grid grid-cols-3 gap-2 ${fieldErrors.incomeRange ? "ring-1 ring-destructive rounded-xl p-1" : ""}`}>
                 {incomeRanges.map((r) => (
                   <button key={r} type="button" onClick={() => update("incomeRange", r)}
                     className={`rounded-xl border px-3 py-2 text-sm transition-all ${form.incomeRange === r ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
                   >{r}</button>
                 ))}
               </div>
+              {fieldErrors.incomeRange && <p className="text-xs text-destructive">{fieldErrors.incomeRange}</p>}
             </div>
           </CardContent>
         </Card>
@@ -585,9 +636,9 @@ export default function ProfileSetupPage() {
             <CardDescription>معلومات عن أسلوب حياتك</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-2">
+            <div className="space-y-2" data-field="maritalStatus">
               <Label>الحالة الاجتماعية</Label>
-              <div className="grid grid-cols-3 gap-2">
+              <div className={`grid grid-cols-3 gap-2 ${fieldErrors.maritalStatus ? "ring-1 ring-destructive rounded-xl p-1" : ""}`}>
                 {maritalStatuses.map((s) => (
                   <button key={s} type="button" onClick={() => {
                     update("maritalStatus", s);
@@ -597,35 +648,39 @@ export default function ProfileSetupPage() {
                   >{s}</button>
                 ))}
               </div>
+              {fieldErrors.maritalStatus && <p className="text-xs text-destructive">{fieldErrors.maritalStatus}</p>}
             </div>
 
             {form.maritalStatus !== "أعزب/عزباء" && (
-              <div className="space-y-2">
+              <div className="space-y-2" data-field="childrenCount">
                 <Label>عدد الأبناء</Label>
-                <Input type="number" value={form.childrenCount} onChange={(e) => update("childrenCount", e.target.value)} placeholder="0" min={0} max={20} dir="ltr" />
+                <Input type="number" value={form.childrenCount} onChange={(e) => update("childrenCount", e.target.value)} placeholder="0" min={0} max={20} dir="ltr" className={fieldErrors.childrenCount ? "border-destructive" : ""} />
+                {fieldErrors.childrenCount && <p className="text-xs text-destructive">{fieldErrors.childrenCount}</p>}
               </div>
             )}
 
-            <div className="space-y-2">
+            <div className="space-y-2" data-field="religiosity">
               <Label>مستوى التدين</Label>
-              <div className="grid grid-cols-2 gap-2">
+              <div className={`grid grid-cols-2 gap-2 ${fieldErrors.religiosity ? "ring-1 ring-destructive rounded-xl p-1" : ""}`}>
                 {religiosityLevels.map((r) => (
                   <button key={r} type="button" onClick={() => update("religiosity", r)}
                     className={`rounded-xl border px-3 py-2 text-sm transition-all ${form.religiosity === r ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
                   >{r}</button>
                 ))}
               </div>
+              {fieldErrors.religiosity && <p className="text-xs text-destructive">{fieldErrors.religiosity}</p>}
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-2" data-field="smokingStatus">
               <Label>التدخين</Label>
-              <div className="grid grid-cols-2 gap-2">
+              <div className={`grid grid-cols-2 gap-2 ${fieldErrors.smokingStatus ? "ring-1 ring-destructive rounded-xl p-1" : ""}`}>
                 {smokingStatuses.map((s) => (
                   <button key={s} type="button" onClick={() => update("smokingStatus", s)}
                     className={`rounded-xl border px-3 py-2 text-sm transition-all ${form.smokingStatus === s ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
                   >{s}</button>
                 ))}
               </div>
+              {fieldErrors.smokingStatus && <p className="text-xs text-destructive">{fieldErrors.smokingStatus}</p>}
             </div>
 
             {/* Gender-specific: hijab for women, beard for men */}
@@ -661,26 +716,28 @@ export default function ProfileSetupPage() {
               </div>
             )}
 
-            <div className="space-y-2">
+            <div className="space-y-2" data-field="cookingAbility">
               <Label>مهارة الطبخ</Label>
-              <div className="grid grid-cols-2 gap-2">
+              <div className={`grid grid-cols-2 gap-2 ${fieldErrors.cookingAbility ? "ring-1 ring-destructive rounded-xl p-1" : ""}`}>
                 {cookingLevels.map((c) => (
                   <button key={c} type="button" onClick={() => update("cookingAbility", c)}
                     className={`rounded-xl border px-3 py-2 text-sm transition-all ${form.cookingAbility === c ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
                   >{c}</button>
                 ))}
               </div>
+              {fieldErrors.cookingAbility && <p className="text-xs text-destructive">{fieldErrors.cookingAbility}</p>}
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-2" data-field="lifestyle">
               <Label>نمط الحياة</Label>
-              <div className="grid grid-cols-4 gap-2">
+              <div className={`grid grid-cols-4 gap-2 ${fieldErrors.lifestyle ? "ring-1 ring-destructive rounded-xl p-1" : ""}`}>
                 {lifestyleOptions.map((l) => (
                   <button key={l} type="button" onClick={() => update("lifestyle", l)}
                     className={`rounded-xl border px-3 py-2 text-sm transition-all ${form.lifestyle === l ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
                   >{l}</button>
                 ))}
               </div>
+              {fieldErrors.lifestyle && <p className="text-xs text-destructive">{fieldErrors.lifestyle}</p>}
             </div>
 
             <div className="space-y-2">
@@ -709,50 +766,55 @@ export default function ProfileSetupPage() {
             <CardDescription>أخبرنا عنك وعن الشريك المثالي</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-2">
+            <div className="space-y-2" data-field="aboutMe">
               <Label>نبذة عني</Label>
               <textarea
                 value={form.aboutMe}
                 onChange={(e) => update("aboutMe", e.target.value)}
-                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm min-h-[100px] resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+                className={`w-full rounded-lg border bg-background px-3 py-2 text-sm min-h-[100px] resize-none focus:outline-none focus:ring-2 focus:ring-ring ${fieldErrors.aboutMe ? "border-destructive" : "border-input"}`}
                 placeholder="تحدث عن نفسك واهتماماتك وطموحاتك..."
                 maxLength={500}
               />
               <p className="text-xs text-muted-foreground text-left" dir="ltr">{form.aboutMe.length}/500</p>
+              {fieldErrors.aboutMe && <p className="text-xs text-destructive">{fieldErrors.aboutMe}</p>}
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-2" data-field="partnerExpectations">
               <Label>مواصفات الشريك المطلوبة</Label>
               <textarea
                 value={form.partnerExpectations}
                 onChange={(e) => update("partnerExpectations", e.target.value)}
-                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm min-h-[100px] resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+                className={`w-full rounded-lg border bg-background px-3 py-2 text-sm min-h-[100px] resize-none focus:outline-none focus:ring-2 focus:ring-ring ${fieldErrors.partnerExpectations ? "border-destructive" : "border-input"}`}
                 placeholder="صف المواصفات التي تبحث عنها في شريك حياتك..."
                 maxLength={500}
               />
               <p className="text-xs text-muted-foreground text-left" dir="ltr">{form.partnerExpectations.length}/500</p>
+              {fieldErrors.partnerExpectations && <p className="text-xs text-destructive">{fieldErrors.partnerExpectations}</p>}
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-2" data-field="hobbies">
               <Label>الهوايات</Label>
-              <Input value={form.hobbies} onChange={(e) => update("hobbies", e.target.value)} placeholder="مثال: القراءة، الرياضة، السفر..." />
+              <Input value={form.hobbies} onChange={(e) => update("hobbies", e.target.value)} placeholder="مثال: القراءة، الرياضة، السفر..." className={fieldErrors.hobbies ? "border-destructive" : ""} />
+              {fieldErrors.hobbies && <p className="text-xs text-destructive">{fieldErrors.hobbies}</p>}
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-2" data-field="interests">
               <Label>الاهتمامات</Label>
-              <Input value={form.interests} onChange={(e) => update("interests", e.target.value)} placeholder="مثال: التكنولوجيا، الطبخ، التصوير..." />
+              <Input value={form.interests} onChange={(e) => update("interests", e.target.value)} placeholder="مثال: التكنولوجيا، الطبخ، التصوير..." className={fieldErrors.interests ? "border-destructive" : ""} />
+              {fieldErrors.interests && <p className="text-xs text-destructive">{fieldErrors.interests}</p>}
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-2" data-field="familyValues">
               <Label>القيم العائلية</Label>
               <textarea
                 value={form.familyValues}
                 onChange={(e) => update("familyValues", e.target.value)}
-                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm min-h-[80px] resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+                className={`w-full rounded-lg border bg-background px-3 py-2 text-sm min-h-[80px] resize-none focus:outline-none focus:ring-2 focus:ring-ring ${fieldErrors.familyValues ? "border-destructive" : "border-input"}`}
                 placeholder="ما هي القيم التي تعتز بها في الحياة الأسرية..."
                 maxLength={500}
               />
               <p className="text-xs text-muted-foreground text-left" dir="ltr">{form.familyValues.length}/500</p>
+              {fieldErrors.familyValues && <p className="text-xs text-destructive">{fieldErrors.familyValues}</p>}
             </div>
 
             {/* Preferences section */}
@@ -761,47 +823,52 @@ export default function ProfileSetupPage() {
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
+              <div className="space-y-2" data-field="prefAgeMin">
                 <Label>العمر الأدنى</Label>
-                <Input type="number" value={form.prefAgeMin} onChange={(e) => update("prefAgeMin", e.target.value)} placeholder="18" min={18} max={70} dir="ltr" />
+                <Input type="number" value={form.prefAgeMin} onChange={(e) => update("prefAgeMin", e.target.value)} placeholder="18" min={18} max={70} dir="ltr" className={fieldErrors.prefAgeMin ? "border-destructive" : ""} />
+                {fieldErrors.prefAgeMin && <p className="text-xs text-destructive">{fieldErrors.prefAgeMin}</p>}
               </div>
-              <div className="space-y-2">
+              <div className="space-y-2" data-field="prefAgeMax">
                 <Label>العمر الأقصى</Label>
-                <Input type="number" value={form.prefAgeMax} onChange={(e) => update("prefAgeMax", e.target.value)} placeholder="40" min={18} max={70} dir="ltr" />
+                <Input type="number" value={form.prefAgeMax} onChange={(e) => update("prefAgeMax", e.target.value)} placeholder="40" min={18} max={70} dir="ltr" className={fieldErrors.prefAgeMax ? "border-destructive" : ""} />
+                {fieldErrors.prefAgeMax && <p className="text-xs text-destructive">{fieldErrors.prefAgeMax}</p>}
               </div>
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-2" data-field="prefCity">
               <Label>المدن المفضلة <span className="text-xs text-muted-foreground">(يمكن اختيار أكثر من مدينة)</span></Label>
-              <div className="grid grid-cols-3 gap-2">
+              <div className={`grid grid-cols-3 gap-2 ${fieldErrors.prefCity ? "ring-1 ring-destructive rounded-xl p-1" : ""}`}>
                 {jordanCities.map((c) => (
                   <button key={c} type="button" onClick={() => toggleArray("prefCity", c)}
                     className={`rounded-xl border px-3 py-2 text-sm transition-all ${form.prefCity.includes(c) ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
                   >{c}</button>
                 ))}
               </div>
+              {fieldErrors.prefCity && <p className="text-xs text-destructive">{fieldErrors.prefCity}</p>}
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-2" data-field="prefEducation">
               <Label>المستوى التعليمي المفضل <span className="text-xs text-muted-foreground">(يمكن اختيار أكثر من مستوى)</span></Label>
-              <div className="grid grid-cols-3 gap-2">
+              <div className={`grid grid-cols-3 gap-2 ${fieldErrors.prefEducation ? "ring-1 ring-destructive rounded-xl p-1" : ""}`}>
                 {educationLevels.map((e) => (
                   <button key={e} type="button" onClick={() => toggleArray("prefEducation", e)}
                     className={`rounded-xl border px-3 py-2 text-sm transition-all ${form.prefEducation.includes(e) ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
                   >{e}</button>
                 ))}
               </div>
+              {fieldErrors.prefEducation && <p className="text-xs text-destructive">{fieldErrors.prefEducation}</p>}
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-2" data-field="prefMaritalStatus">
               <Label>الحالة الاجتماعية المفضلة <span className="text-xs text-muted-foreground">(يمكن اختيار أكثر من حالة)</span></Label>
-              <div className="grid grid-cols-3 gap-2">
+              <div className={`grid grid-cols-3 gap-2 ${fieldErrors.prefMaritalStatus ? "ring-1 ring-destructive rounded-xl p-1" : ""}`}>
                 {maritalStatuses.map((s) => (
                   <button key={s} type="button" onClick={() => toggleArray("prefMaritalStatus", s)}
                     className={`rounded-xl border px-3 py-2 text-sm transition-all ${form.prefMaritalStatus.includes(s) ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
                   >{s}</button>
                 ))}
               </div>
+              {fieldErrors.prefMaritalStatus && <p className="text-xs text-destructive">{fieldErrors.prefMaritalStatus}</p>}
             </div>
 
             {gender === "MALE" && (
@@ -863,15 +930,16 @@ export default function ProfileSetupPage() {
               </div>
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-2" data-field="willingToRelocate">
               <Label>الاستعداد للانتقال</Label>
-              <div className="grid grid-cols-3 gap-2">
+              <div className={`grid grid-cols-3 gap-2 ${fieldErrors.willingToRelocate ? "ring-1 ring-destructive rounded-xl p-1" : ""}`}>
                 {relocateOptions.map((r) => (
                   <button key={r.value} type="button" onClick={() => update("willingToRelocate", r.value)}
                     className={`rounded-xl border px-3 py-2 text-sm transition-all ${form.willingToRelocate === r.value ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
                   >{r.label}</button>
                 ))}
               </div>
+              {fieldErrors.willingToRelocate && <p className="text-xs text-destructive">{fieldErrors.willingToRelocate}</p>}
             </div>
           </CardContent>
         </Card>
@@ -886,52 +954,58 @@ export default function ProfileSetupPage() {
             <CardDescription>بيانات إضافية عن العائلة والسكن</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-2">
+            <div className="space-y-2" data-field="tribe">
               <Label>العشيرة</Label>
-              <Input value={form.tribe} onChange={(e) => update("tribe", e.target.value)} placeholder="اسم العشيرة" />
+              <Input value={form.tribe} onChange={(e) => update("tribe", e.target.value)} placeholder="اسم العشيرة" className={fieldErrors.tribe ? "border-destructive" : ""} />
+              {fieldErrors.tribe && <p className="text-xs text-destructive">{fieldErrors.tribe}</p>}
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-2" data-field="familyOriginArea">
               <Label>منطقة أصل العائلة</Label>
-              <Input value={form.familyOriginArea} onChange={(e) => update("familyOriginArea", e.target.value)} placeholder="منطقة أصل العائلة" />
+              <Input value={form.familyOriginArea} onChange={(e) => update("familyOriginArea", e.target.value)} placeholder="منطقة أصل العائلة" className={fieldErrors.familyOriginArea ? "border-destructive" : ""} />
+              {fieldErrors.familyOriginArea && <p className="text-xs text-destructive">{fieldErrors.familyOriginArea}</p>}
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-2" data-field="numberOfSiblings">
               <Label>عدد الإخوة والأخوات</Label>
-              <Input type="number" value={form.numberOfSiblings} onChange={(e) => update("numberOfSiblings", e.target.value)} placeholder="0" min={0} max={20} dir="ltr" />
+              <Input type="number" value={form.numberOfSiblings} onChange={(e) => update("numberOfSiblings", e.target.value)} placeholder="0" min={0} max={20} dir="ltr" className={fieldErrors.numberOfSiblings ? "border-destructive" : ""} />
+              {fieldErrors.numberOfSiblings && <p className="text-xs text-destructive">{fieldErrors.numberOfSiblings}</p>}
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-2" data-field="housingType">
               <Label>نوع السكن</Label>
-              <div className="grid grid-cols-3 gap-2">
+              <div className={`grid grid-cols-3 gap-2 ${fieldErrors.housingType ? "ring-1 ring-destructive rounded-xl p-1" : ""}`}>
                 {housingTypes.map((h) => (
                   <button key={h} type="button" onClick={() => update("housingType", h)}
                     className={`rounded-xl border px-3 py-2 text-sm transition-all ${form.housingType === h ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
                   >{h}</button>
                 ))}
               </div>
+              {fieldErrors.housingType && <p className="text-xs text-destructive">{fieldErrors.housingType}</p>}
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-2" data-field="monthlyExpenses">
               <Label>المصاريف الشهرية</Label>
-              <div className="grid grid-cols-2 gap-2">
+              <div className={`grid grid-cols-2 gap-2 ${fieldErrors.monthlyExpenses ? "ring-1 ring-destructive rounded-xl p-1" : ""}`}>
                 {expenseRanges.map((e) => (
                   <button key={e} type="button" onClick={() => update("monthlyExpenses", e)}
                     className={`rounded-xl border px-3 py-2 text-sm transition-all ${form.monthlyExpenses === e ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
                   >{e}</button>
                 ))}
               </div>
+              {fieldErrors.monthlyExpenses && <p className="text-xs text-destructive">{fieldErrors.monthlyExpenses}</p>}
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-2" data-field="healthConditions">
               <Label>حالات صحية</Label>
               <textarea
                 value={form.healthConditions}
                 onChange={(e) => update("healthConditions", e.target.value)}
-                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm min-h-[80px] resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+                className={`w-full rounded-lg border bg-background px-3 py-2 text-sm min-h-[80px] resize-none focus:outline-none focus:ring-2 focus:ring-ring ${fieldErrors.healthConditions ? "border-destructive" : "border-input"}`}
                 placeholder="أي حالات صحية تود الإفصاح عنها..."
                 maxLength={500}
               />
+              {fieldErrors.healthConditions && <p className="text-xs text-destructive">{fieldErrors.healthConditions}</p>}
             </div>
           </CardContent>
         </Card>
@@ -946,17 +1020,19 @@ export default function ProfileSetupPage() {
             <CardDescription>هذه البيانات مطلوبة لتنسيق الزيارات العائلية ولن تظهر للمستخدمين الآخرين</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-2">
+            <div className="space-y-2" data-field="parentName">
               <Label htmlFor="parentName">اسم ولي الأمر</Label>
               <Input
                 id="parentName"
                 value={parentForm.parentName}
                 onChange={(e) => updateParent("parentName", e.target.value)}
                 placeholder="الاسم الكامل لولي الأمر"
+                className={fieldErrors.parentName ? "border-destructive" : ""}
               />
+              {fieldErrors.parentName && <p className="text-xs text-destructive">{fieldErrors.parentName}</p>}
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-2" data-field="parentPhone">
               <Label htmlFor="parentPhone">رقم هاتف ولي الأمر</Label>
               <Input
                 id="parentPhone"
@@ -965,13 +1041,14 @@ export default function ProfileSetupPage() {
                 onChange={(e) => updateParent("parentPhone", e.target.value)}
                 placeholder="07XXXXXXXX"
                 dir="ltr"
-                className="text-left"
+                className={`text-left ${fieldErrors.parentPhone ? "border-destructive" : ""}`}
               />
+              {fieldErrors.parentPhone && <p className="text-xs text-destructive">{fieldErrors.parentPhone}</p>}
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-2" data-field="relationship">
               <Label>صلة القرابة</Label>
-              <div className="grid grid-cols-2 gap-2">
+              <div className={`grid grid-cols-2 gap-2 ${fieldErrors.relationship ? "ring-1 ring-destructive rounded-xl p-1" : ""}`}>
                 {guardianRelationships.map((r) => (
                   <button
                     key={r.value}
@@ -987,17 +1064,19 @@ export default function ProfileSetupPage() {
                   </button>
                 ))}
               </div>
+              {fieldErrors.relationship && <p className="text-xs text-destructive">{fieldErrors.relationship}</p>}
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-2" data-field="address">
               <Label htmlFor="address">العنوان</Label>
               <textarea
                 id="address"
                 value={parentForm.address}
                 onChange={(e) => updateParent("address", e.target.value)}
-                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm min-h-[80px] resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+                className={`w-full rounded-lg border bg-background px-3 py-2 text-sm min-h-[80px] resize-none focus:outline-none focus:ring-2 focus:ring-ring ${fieldErrors.address ? "border-destructive" : "border-input"}`}
                 placeholder="العنوان التفصيلي (المدينة، الحي، الشارع...)"
               />
+              {fieldErrors.address && <p className="text-xs text-destructive">{fieldErrors.address}</p>}
             </div>
 
             <div className="flex items-center gap-2 p-3 bg-primary/5 border border-primary/10 rounded-lg text-sm text-muted-foreground">
@@ -1010,7 +1089,7 @@ export default function ProfileSetupPage() {
       {/* Navigation Buttons */}
       <div className="flex items-center justify-between">
         {step > 1 ? (
-          <Button variant="outline" onClick={() => setStep(step - 1)}>
+          <Button variant="outline" onClick={() => { setFieldErrors({}); setStep(step - 1); }}>
             <ArrowRight className="h-4 w-4 me-2" />
             السابق
           </Button>
@@ -1020,8 +1099,9 @@ export default function ProfileSetupPage() {
 
         {step < totalSteps ? (
           <Button onClick={() => {
-            const err = validateStep(step);
-            if (err) { setError(err); return; }
+            const errors = validateStep(step);
+            if (Object.keys(errors).length > 0) { setFieldErrors(errors); setError(""); scrollToFirstError(errors); return; }
+            setFieldErrors({});
             setError("");
             const nextStep = step + 1;
             saveToServer(nextStep, buildServerPayload());
@@ -1032,8 +1112,9 @@ export default function ProfileSetupPage() {
           </Button>
         ) : (
           <Button onClick={() => {
-            const err = validateStep(step);
-            if (err) { setError(err); return; }
+            const errors = validateStep(step);
+            if (Object.keys(errors).length > 0) { setFieldErrors(errors); setError(""); scrollToFirstError(errors); return; }
+            setFieldErrors({});
             setError("");
             handleSubmit();
           }} disabled={loading} className="bg-gradient-to-l from-primary to-accent">

@@ -53,6 +53,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { ImageLightbox } from "@/components/shared/image-lightbox";
 
 interface Match {
   id: string;
@@ -255,6 +256,9 @@ export default function MatchesPage() {
   const [feedbackReason, setFeedbackReason] = useState("");
   const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
   const [feedbackSubmitted, setFeedbackSubmitted] = useState<Set<string>>(new Set());
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxImages, setLightboxImages] = useState<string[]>([]);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
 
   async function handleFeedbackSubmit() {
     if (!feedbackDialog) return;
@@ -748,11 +752,16 @@ export default function MatchesPage() {
                           </div>
                         ) : matchPhotos[m.id] && matchPhotos[m.id].length > 0 ? (
                           <div className="grid grid-cols-2 gap-2.5 p-3 bg-muted/30 rounded-xl border border-border/40">
-                            {matchPhotos[m.id].map((photo) => (
+                            {matchPhotos[m.id].map((photo, photoIdx) => (
                               <div
                                 key={photo.id}
-                                className="rounded-lg overflow-hidden relative"
+                                className="rounded-lg overflow-hidden relative cursor-pointer"
                                 onContextMenu={(e) => e.preventDefault()}
+                                onClick={() => {
+                                  setLightboxImages(matchPhotos[m.id].map((p) => p.url));
+                                  setLightboxIndex(photoIdx);
+                                  setLightboxOpen(true);
+                                }}
                               >
                                 <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent z-10 pointer-events-none rounded-lg" />
                                 <img
@@ -975,6 +984,13 @@ export default function MatchesPage() {
           </div>
         </div>
       )}
+
+      <ImageLightbox
+        images={lightboxImages}
+        initialIndex={lightboxIndex}
+        open={lightboxOpen}
+        onClose={() => setLightboxOpen(false)}
+      />
 
       {/* Inline keyframes style */}
       <style jsx global>{`

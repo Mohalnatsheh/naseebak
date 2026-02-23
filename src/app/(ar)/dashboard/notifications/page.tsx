@@ -19,6 +19,7 @@ import {
   CreditCard,
   LifeBuoy,
   Settings2,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -164,6 +165,8 @@ export default function NotificationsPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [prefsOpen, setPrefsOpen] = useState(false);
   const [prefs, setPrefs] = useState<NotificationPrefs | null>(null);
+  const [deleteAllConfirm, setDeleteAllConfirm] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   async function fetchPrefs() {
     try {
@@ -232,6 +235,37 @@ export default function NotificationsPage() {
     }
   }
 
+  async function deleteNotification(id: string) {
+    setDeletingId(id);
+    try {
+      const res = await fetch(`/api/notifications/${id}/read`, { method: "DELETE" });
+      if (res.ok) {
+        const wasUnread = notifications.find((n) => n.id === id && !n.isRead);
+        setNotifications((prev) => prev.filter((n) => n.id !== id));
+        if (wasUnread) setUnreadCount((c) => Math.max(0, c - 1));
+        window.dispatchEvent(new CustomEvent("naseeb:notifications-read"));
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
+  async function deleteAllNotifications() {
+    try {
+      const res = await fetch("/api/notifications", { method: "DELETE" });
+      if (res.ok) {
+        setNotifications([]);
+        setUnreadCount(0);
+        setDeleteAllConfirm(false);
+        window.dispatchEvent(new CustomEvent("naseeb:notifications-read"));
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-20 gap-4">
@@ -275,7 +309,7 @@ export default function NotificationsPage() {
             </p>
           </div>
 
-          <div className="flex items-center gap-2 self-start md:self-auto">
+          <div className="flex items-center gap-2 self-start md:self-auto flex-wrap">
             <Sheet open={prefsOpen} onOpenChange={(open) => { setPrefsOpen(open); if (open) fetchPrefs(); }}>
               <SheetTrigger asChild>
                 <Button
@@ -355,6 +389,17 @@ export default function NotificationsPage() {
               >
                 <CheckCheck className="h-4 w-4" />
                 تحديد الكل كمقروء
+              </Button>
+            )}
+            {notifications.length > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setDeleteAllConfirm(true)}
+                className="border-destructive/30 text-destructive hover:bg-destructive/5 hover:border-destructive/50 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 rounded-xl gap-2 font-semibold backdrop-blur-sm bg-card/80"
+              >
+                <Trash2 className="h-4 w-4" />
+                حذف الكل
               </Button>
             )}
           </div>
@@ -444,11 +489,26 @@ export default function NotificationsPage() {
                           >
                             {n.title}
                           </h3>
-                          {/* Time badge */}
-                          <span className="inline-flex items-center gap-1 shrink-0 rounded-lg bg-muted/60 border border-border/50 px-2 py-0.5 text-[10px] text-muted-foreground font-medium">
-                            <Clock className="h-2.5 w-2.5" />
-                            {timeAgo(n.createdAt)}
-                          </span>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {/* Time badge */}
+                            <span className="inline-flex items-center gap-1 rounded-lg bg-muted/60 border border-border/50 px-2 py-0.5 text-[10px] text-muted-foreground font-medium">
+                              <Clock className="h-2.5 w-2.5" />
+                              {timeAgo(n.createdAt)}
+                            </span>
+                            {/* Delete button */}
+                            <button
+                              onClick={(e) => { e.stopPropagation(); deleteNotification(n.id); }}
+                              disabled={deletingId === n.id}
+                              className="h-6 w-6 rounded-md flex items-center justify-center text-muted-foreground/50 hover:text-destructive hover:bg-destructive/10 transition-colors opacity-0 group-hover:opacity-100"
+                              aria-label="حذف الإشعار"
+                            >
+                              {deletingId === n.id ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <Trash2 className="h-3 w-3" />
+                              )}
+                            </button>
+                          </div>
                         </div>
                         <p
                           className={`text-sm leading-relaxed ${
@@ -487,6 +547,35 @@ export default function NotificationsPage() {
               </Button>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Delete All Confirmation Dialog */}
+      {deleteAllConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setDeleteAllConfirm(false)}>
+          <div className="bg-card rounded-2xl border shadow-2xl p-6 w-full max-w-sm space-y-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-3">
+              <div className="h-12 w-12 rounded-xl bg-destructive/10 flex items-center justify-center flex-shrink-0">
+                <Trash2 className="h-6 w-6 text-destructive" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-foreground">حذف جميع الإشعارات</h3>
+                <p className="text-sm text-muted-foreground mt-1">هل أنت متأكد من حذف جميع الإشعارات؟ لا يمكن التراجع عن هذا الإجراء.</p>
+              </div>
+            </div>
+            <div className="flex gap-2 pt-2">
+              <Button
+                onClick={deleteAllNotifications}
+                className="flex-1 bg-destructive hover:bg-destructive/90 text-destructive-foreground rounded-xl"
+              >
+                <Trash2 className="h-4 w-4 me-2" />
+                حذف الكل
+              </Button>
+              <Button variant="outline" onClick={() => setDeleteAllConfirm(false)} className="rounded-xl">
+                إلغاء
+              </Button>
+            </div>
+          </div>
         </div>
       )}
 

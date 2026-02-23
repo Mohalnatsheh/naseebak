@@ -13,6 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { FirstVisitTip } from "@/components/shared/first-visit-tip";
+import { ImageLightbox } from "@/components/shared/image-lightbox";
 
 interface Photo {
   id: string;
@@ -28,6 +29,8 @@ export default function PhotosPage() {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -229,9 +232,10 @@ export default function PhotosPage() {
                 <img
                   src={photo.url}
                   alt={`صورة ${index + 1}`}
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-cover cursor-pointer"
                   draggable={false}
                   onContextMenu={(e) => e.preventDefault()}
+                  onClick={() => { setLightboxIndex(index); setLightboxOpen(true); }}
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
 
@@ -266,6 +270,13 @@ export default function PhotosPage() {
           وصلت للحد الأقصى ({MAX_PHOTOS} صور). احذف صورة لرفع واحدة جديدة.
         </p>
       )}
+
+      <ImageLightbox
+        images={photos.map((p) => p.url)}
+        initialIndex={lightboxIndex}
+        open={lightboxOpen}
+        onClose={() => setLightboxOpen(false)}
+      />
 
       {/* Inline keyframes style */}
       <style jsx global>{`

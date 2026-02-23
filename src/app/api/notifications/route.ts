@@ -40,3 +40,21 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "حدث خطأ في الخادم" }, { status: 500 });
   }
 }
+
+export async function DELETE() {
+  try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "غير مصرح" }, { status: 401 });
+    }
+
+    await db.notification.deleteMany({
+      where: { userId: session.user.id },
+    });
+
+    return NextResponse.json({ message: "تم حذف جميع الإشعارات" });
+  } catch (error) {
+    console.error("Delete all notifications error:", error);
+    return NextResponse.json({ error: "حدث خطأ في الخادم" }, { status: 500 });
+  }
+}

@@ -21,7 +21,6 @@ import {
   Zap,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import { PushPermissionPrompt } from "@/components/shared/push-permission-prompt";
 
 /* ------------------------------------------------------------------ */
 /*  Arabic date formatter                                              */
@@ -205,15 +204,13 @@ export default function DashboardPage() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6 pb-10">
-      {/* Push notification permission prompt */}
-      <PushPermissionPrompt />
-
       {/* Unread notifications banner */}
       {unreadCount > 0 && (
+        <div className="mb-2">
         <Link href="/dashboard/notifications">
           <Card className="group relative overflow-hidden border-primary/30 bg-gradient-to-l from-primary/8 via-primary/5 to-transparent hover:shadow-md transition-all duration-300 cursor-pointer">
             <div className="absolute top-0 right-0 h-20 w-20 rounded-full bg-primary/5 blur-2xl translate-x-4 -translate-y-4" />
-            <CardContent className="pt-4 pb-3.5 flex items-center justify-between relative">
+            <CardContent className="pt-2.5 pb-2 flex items-center justify-between relative">
               <div className="flex items-center gap-3">
                 <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 border border-primary/20">
                   <Bell className="h-5 w-5 text-primary" />
@@ -234,6 +231,7 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
         </Link>
+        </div>
       )}
 
       {/* ============================================ */}

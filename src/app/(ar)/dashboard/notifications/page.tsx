@@ -213,6 +213,7 @@ export default function NotificationsPage() {
       await fetch("/api/notifications/all/read", { method: "PATCH" });
       setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
       setUnreadCount(0);
+      window.dispatchEvent(new CustomEvent("naseeb:notifications-read"));
     } catch (err) {
       console.error(err);
     }
@@ -225,6 +226,7 @@ export default function NotificationsPage() {
         prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
       );
       setUnreadCount((c) => Math.max(0, c - 1));
+      window.dispatchEvent(new CustomEvent("naseeb:notifications-read"));
     } catch (err) {
       console.error(err);
     }

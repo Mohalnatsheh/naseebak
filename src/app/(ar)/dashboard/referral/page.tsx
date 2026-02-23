@@ -50,7 +50,8 @@ export default function ReferralPage() {
 
   async function handleCopy() {
     if (!data) return;
-    const text = `سجّل بنصيبك واحصل على رصيد مجاني! استخدم رمز الدعوة: ${data.referralCode}\nhttps://naseebak.com/register`;
+    const url = `https://naseebak.com/register?invitationCode=${data.referralCode}`;
+    const text = `سجّل بنصيبك واحصل على رصيد مجاني!\n${url}`;
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
@@ -62,8 +63,8 @@ export default function ReferralPage() {
 
   async function handleShare() {
     if (!data) return;
-    const text = `سجّل بنصيبك واحصل على رصيد مجاني! استخدم رمز الدعوة: ${data.referralCode}`;
-    const url = "https://naseebak.com/register";
+    const url = `https://naseebak.com/register?invitationCode=${data.referralCode}`;
+    const text = `سجّل بنصيبك واحصل على رصيد مجاني!`;
 
     if (navigator.share) {
       try {

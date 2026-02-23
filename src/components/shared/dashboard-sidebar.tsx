@@ -147,7 +147,16 @@ export function DashboardSidebar() {
     }
     fetchUnread();
     const interval = setInterval(fetchUnread, 30000);
-    return () => clearInterval(interval);
+
+    function handleNotificationsRead() {
+      fetchUnread();
+    }
+    window.addEventListener("naseeb:notifications-read", handleNotificationsRead);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("naseeb:notifications-read", handleNotificationsRead);
+    };
   }, []);
 
   const isMale = userData?.gender === "MALE";

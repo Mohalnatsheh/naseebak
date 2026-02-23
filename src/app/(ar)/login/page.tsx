@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
 import Image from "next/image";
-import { LogIn, Loader2, Shield, HeartHandshake, Sparkles, Phone, Send } from "lucide-react";
+import { LogIn, Loader2, Shield, HeartHandshake, Sparkles, Phone, Send, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,8 +18,9 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 
-export default function LoginPage() {
+function LoginPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
   const [otpSent, setOtpSent] = useState(false);
@@ -30,10 +31,14 @@ export default function LoginPage() {
   const [mounted, setMounted] = useState(false);
   const [shake, setShake] = useState(false);
   const [userExists, setUserExists] = useState(false);
+  const [showExistsBanner, setShowExistsBanner] = useState(false);
 
   useEffect(() => {
     setMounted(true);
-  }, []);
+    if (searchParams.get("exists") === "true") {
+      setShowExistsBanner(true);
+    }
+  }, [searchParams]);
 
   const phoneRegex = /^(?:00962|0?0?\+?962|0)?7[789]\d{7}$/;
 
@@ -372,6 +377,17 @@ export default function LoginPage() {
 
             <CardContent className="relative px-6 sm:px-8 pb-8">
               <form onSubmit={handleSubmit} className="space-y-5">
+                {/* Exists banner (redirected from register) */}
+                {showExistsBanner && (
+                  <div
+                    className="rounded-xl bg-primary/10 border border-primary/20 p-4 text-sm text-primary flex items-center gap-2"
+                    style={{ animation: "fadeSlideDown 0.3s ease-out both" }}
+                  >
+                    <Info className="size-4 shrink-0" />
+                    رقم الهاتف مسجل مسبقاً. سجّل دخولك من هنا
+                  </div>
+                )}
+
                 {/* Error message */}
                 {error && (
                   <div
@@ -613,5 +629,17 @@ export default function LoginPage() {
         }
       `}</style>
     </main>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+      </div>
+    }>
+      <LoginPageContent />
+    </Suspense>
   );
 }

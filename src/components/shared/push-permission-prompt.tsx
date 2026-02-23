@@ -1,8 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Bell, X } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
+import { Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const DISMISSED_KEY = "naseeb_push_prompt_dismissed";
@@ -39,46 +38,37 @@ export function PushPermissionPrompt() {
   };
 
   return (
-    <Card className="relative overflow-hidden border-primary/30 bg-gradient-to-l from-primary/5 via-primary/3 to-transparent shadow-md animate-in slide-in-from-top-2 duration-500 mb-4">
-      <div className="absolute top-0 right-0 h-24 w-24 rounded-full bg-primary/5 blur-2xl translate-x-6 -translate-y-6" />
-      <CardContent className="pt-5 pb-4">
-        <div className="flex items-start gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 border border-primary/20">
-            <Bell className="h-5 w-5 text-primary" />
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm animate-in fade-in duration-300">
+      <div className="relative w-[90%] max-w-sm rounded-2xl border border-border/50 bg-card p-6 shadow-2xl shadow-primary/10 animate-in zoom-in-95 slide-in-from-bottom-4 duration-300">
+        <div className="flex flex-col items-center text-center space-y-4">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-secondary text-white shadow-lg shadow-primary/20">
+            <Bell className="h-7 w-7" />
           </div>
-          <div className="flex-1 min-w-0">
-            <h3 className="font-bold text-foreground text-sm">
+          <div className="space-y-1.5">
+            <h3 className="text-lg font-bold text-foreground">
               فعّل الإشعارات الفورية
             </h3>
-            <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+            <p className="text-sm text-muted-foreground leading-relaxed">
               احصل على تنبيه فوري عند وصول اقتراح جديد أو توافق متبادل
             </p>
-            <div className="flex items-center gap-2 mt-3">
-              <Button
-                size="sm"
-                onClick={handleEnable}
-                className="h-8 rounded-lg text-xs px-4 bg-primary hover:bg-primary/90"
-              >
-                تفعيل الإشعارات
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleDismiss}
-                className="h-8 rounded-lg text-xs px-3 text-muted-foreground hover:text-foreground"
-              >
-                لاحقاً
-              </Button>
-            </div>
           </div>
-          <button
-            onClick={handleDismiss}
-            className="text-muted-foreground/50 hover:text-muted-foreground transition-colors"
-          >
-            <X className="h-4 w-4" />
-          </button>
+          <div className="flex items-center gap-3 w-full pt-1">
+            <Button
+              onClick={handleEnable}
+              className="flex-1 h-11 rounded-xl text-sm font-semibold bg-gradient-to-l from-primary to-primary/90 shadow-md shadow-primary/15"
+            >
+              تفعيل الإشعارات
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleDismiss}
+              className="flex-1 h-11 rounded-xl text-sm font-medium border-border/60"
+            >
+              لاحقاً
+            </Button>
+          </div>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }

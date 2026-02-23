@@ -174,7 +174,11 @@ function RegisterPageContent() {
   // Track if OTP was already verified (e.g. redirected from login)
   const [otpAlreadyVerified, setOtpAlreadyVerified] = useState(false);
 
+  // Toggle for referral code input
+  const [showReferral, setShowReferral] = useState(false);
+
   // Pre-fill phone + OTP from URL params (e.g. redirected from login after OTP verification)
+  // Also read invitationCode from URL params for referral
   useEffect(() => {
     const phoneParam = searchParams.get("phone");
     const otpParam = searchParams.get("otp");
@@ -185,6 +189,12 @@ function RegisterPageContent() {
         setOtpSent(true);
         setOtpAlreadyVerified(true);
       }
+    }
+
+    const invitationCode = searchParams.get("invitationCode");
+    if (invitationCode) {
+      setForm((prev) => ({ ...prev, referralCode: invitationCode.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8) }));
+      setShowReferral(true);
     }
   }, [searchParams]);
   const [otpSent, setOtpSent] = useState(false);
@@ -298,9 +308,9 @@ function RegisterPageContent() {
         return;
       }
 
-      // If phone already registered, block registration immediately
+      // If phone already registered, redirect to login
       if (data.userExists) {
-        setError("رقم الهاتف مسجل مسبقاً. يرجى تسجيل الدخول بدلاً من إنشاء حساب جديد.");
+        window.location.href = "/login?exists=true";
         return;
       }
 
@@ -974,30 +984,40 @@ function RegisterPageContent() {
                   </span>
                 </div>
 
-                {/* ---- Referral code (optional) ---- */}
-                <div className="space-y-2">
-                  <Label
-                    htmlFor="referralCode"
-                    className="text-xs font-semibold text-muted-foreground"
+                {/* ---- Referral code (optional, toggled) ---- */}
+                {!showReferral ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowReferral(true)}
+                    className="text-sm text-primary hover:text-primary/80 hover:underline underline-offset-4 transition-colors duration-300 font-medium"
                   >
-                    رمز الدعوة <span className="text-muted-foreground/60">(اختياري)</span>
-                  </Label>
-                  <Input
-                    id="referralCode"
-                    type="text"
-                    placeholder="XXXXXXXX"
-                    maxLength={8}
-                    value={form.referralCode}
-                    onChange={(e) =>
-                      updateField("referralCode", e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8))
-                    }
-                    dir="ltr"
-                    className="h-11 rounded-xl border-border/60 bg-muted/30 text-center text-sm tracking-[0.1em] font-mono focus:bg-background transition-colors"
-                  />
-                  <p className="text-[11px] text-muted-foreground">
-                    إذا دعاك أحد أصحابك، أدخل رمز الدعوة الخاص فيه
-                  </p>
-                </div>
+                    عندك رمز دعوة؟
+                  </button>
+                ) : (
+                  <div className="space-y-2" style={{ animation: "fadeSlideIn 0.3s ease-out both" }}>
+                    <Label
+                      htmlFor="referralCode"
+                      className="text-xs font-semibold text-muted-foreground"
+                    >
+                      رمز الدعوة <span className="text-muted-foreground/60">(اختياري)</span>
+                    </Label>
+                    <Input
+                      id="referralCode"
+                      type="text"
+                      placeholder="XXXXXXXX"
+                      maxLength={8}
+                      value={form.referralCode}
+                      onChange={(e) =>
+                        updateField("referralCode", e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8))
+                      }
+                      dir="ltr"
+                      className="h-11 rounded-xl border-border/60 bg-muted/30 text-center text-sm tracking-[0.1em] font-mono focus:bg-background transition-colors"
+                    />
+                    <p className="text-[11px] text-muted-foreground">
+                      إذا دعاك أحد أصحابك، أدخل رمز الدعوة الخاص فيه
+                    </p>
+                  </div>
+                )}
 
                 {/* ---- Optional photo upload ---- */}
                 <div className="space-y-3">

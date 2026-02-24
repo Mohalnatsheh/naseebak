@@ -499,7 +499,7 @@ export default function NotificationsPage() {
                             <button
                               onClick={(e) => { e.stopPropagation(); deleteNotification(n.id); }}
                               disabled={deletingId === n.id}
-                              className="h-6 w-6 rounded-md flex items-center justify-center text-muted-foreground/50 hover:text-destructive hover:bg-destructive/10 transition-colors opacity-0 group-hover:opacity-100"
+                              className="h-6 w-6 rounded-md flex items-center justify-center text-muted-foreground/50 hover:text-destructive hover:bg-destructive/10 transition-colors opacity-100 md:opacity-0 md:group-hover:opacity-100"
                               aria-label="حذف الإشعار"
                             >
                               {deletingId === n.id ? (

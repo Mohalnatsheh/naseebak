@@ -249,9 +249,9 @@ export default function PhotosPage() {
 
                 {/* Delete button */}
                 <button
-                  onClick={() => handleDelete(photo.id)}
+                  onClick={(e) => { e.stopPropagation(); handleDelete(photo.id); }}
                   disabled={deletingId === photo.id}
-                  className="absolute top-2 end-2 h-8 w-8 rounded-full bg-destructive/90 backdrop-blur-sm text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 hover:bg-destructive hover:scale-110"
+                  className="absolute top-2 end-2 h-8 w-8 rounded-full bg-destructive/90 backdrop-blur-sm text-white flex items-center justify-center opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all duration-300 hover:bg-destructive hover:scale-110"
                 >
                   {deletingId === photo.id ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />

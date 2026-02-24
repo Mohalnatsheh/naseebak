@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
@@ -32,6 +32,7 @@ function LoginPageContent() {
   const [shake, setShake] = useState(false);
   const [userExists, setUserExists] = useState(false);
   const [showExistsBanner, setShowExistsBanner] = useState(false);
+  const otpInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -39,6 +40,14 @@ function LoginPageContent() {
       setShowExistsBanner(true);
     }
   }, [searchParams]);
+
+  // Auto-focus OTP input after it's sent
+  useEffect(() => {
+    if (otpSent) {
+      // Small delay to let the input render and animation start
+      setTimeout(() => otpInputRef.current?.focus(), 100);
+    }
+  }, [otpSent]);
 
   const phoneRegex = /^(?:00962|0?0?\+?962|0)?7[789]\d{7}$/;
 
@@ -484,6 +493,7 @@ function LoginPageContent() {
                       </Label>
                       <div className="relative group">
                         <Input
+                          ref={otpInputRef}
                           id="otp"
                           type="text"
                           inputMode="numeric"

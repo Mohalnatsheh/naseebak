@@ -83,6 +83,9 @@ export default function AdminBlogPage() {
   const [catForm, setCatForm] = useState({ slug: "", nameAr: "", nameEn: "" });
   const [catSaving, setCatSaving] = useState(false);
   const [catError, setCatError] = useState("");
+  const [editingCat, setEditingCat] = useState<Category | null>(null);
+  const [editCatForm, setEditCatForm] = useState({ slug: "", nameAr: "", nameEn: "" });
+  const [editCatSaving, setEditCatSaving] = useState(false);
 
   /* ──────────────────── Fetchers ──────────────────── */
 
@@ -197,6 +200,34 @@ export default function AdminBlogPage() {
       setCatError("Network error");
     } finally {
       setCatSaving(false);
+    }
+  }
+
+  function openEditCategory(cat: Category) {
+    setEditingCat(cat);
+    setEditCatForm({ slug: cat.slug, nameAr: cat.nameAr, nameEn: cat.nameEn });
+  }
+
+  async function saveEditCategory() {
+    if (!editingCat) return;
+    setEditCatSaving(true);
+    try {
+      const res = await fetch(`/api/admin/blog/categories/${editingCat.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(editCatForm),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        alert(data.error || "Failed to update");
+        return;
+      }
+      setEditingCat(null);
+      fetchCategories();
+    } catch {
+      alert("Network error");
+    } finally {
+      setEditCatSaving(false);
     }
   }
 
@@ -414,24 +445,72 @@ export default function AdminBlogPage() {
                       </tr>
                     ) : (
                       categories.map((cat) => (
-                        <tr key={cat.id} className="border-b hover:bg-muted/30 transition-colors">
-                          <td className="p-3 text-sm font-medium">{cat.nameEn}</td>
-                          <td className="p-3 text-sm">{cat.nameAr}</td>
-                          <td className="p-3 text-sm text-muted-foreground">{cat.slug}</td>
-                          <td className="p-3 text-sm">{cat._count.posts}</td>
-                          <td className="p-3">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-destructive"
-                              disabled={cat._count.posts > 0}
-                              onClick={() => deleteCategory(cat.id)}
-                              title={cat._count.posts > 0 ? "Cannot delete category with posts" : "Delete category"}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          </td>
-                        </tr>
+                        editingCat?.id === cat.id ? (
+                          <tr key={cat.id} className="border-b bg-muted/20">
+                            <td className="p-2">
+                              <Input
+                                className="h-8 text-sm"
+                                value={editCatForm.nameEn}
+                                onChange={(e) => setEditCatForm({ ...editCatForm, nameEn: e.target.value })}
+                              />
+                            </td>
+                            <td className="p-2">
+                              <Input
+                                className="h-8 text-sm"
+                                value={editCatForm.nameAr}
+                                onChange={(e) => setEditCatForm({ ...editCatForm, nameAr: e.target.value })}
+                              />
+                            </td>
+                            <td className="p-2">
+                              <Input
+                                className="h-8 text-sm"
+                                value={editCatForm.slug}
+                                onChange={(e) => setEditCatForm({ ...editCatForm, slug: e.target.value })}
+                              />
+                            </td>
+                            <td className="p-3 text-sm">{cat._count.posts}</td>
+                            <td className="p-3">
+                              <div className="flex gap-1">
+                                <Button size="sm" className="h-7 text-xs" onClick={saveEditCategory} disabled={editCatSaving}>
+                                  {editCatSaving ? "..." : "Save"}
+                                </Button>
+                                <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setEditingCat(null)}>
+                                  Cancel
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        ) : (
+                          <tr key={cat.id} className="border-b hover:bg-muted/30 transition-colors">
+                            <td className="p-3 text-sm font-medium">{cat.nameEn}</td>
+                            <td className="p-3 text-sm">{cat.nameAr}</td>
+                            <td className="p-3 text-sm text-muted-foreground">{cat.slug}</td>
+                            <td className="p-3 text-sm">{cat._count.posts}</td>
+                            <td className="p-3">
+                              <div className="flex gap-1">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  onClick={() => openEditCategory(cat)}
+                                  title="Edit category"
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-destructive"
+                                  disabled={cat._count.posts > 0}
+                                  onClick={() => deleteCategory(cat.id)}
+                                  title={cat._count.posts > 0 ? "Cannot delete category with posts" : "Delete category"}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        )
                       ))
                     )}
                   </tbody>

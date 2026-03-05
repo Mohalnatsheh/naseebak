@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { CreditCard, Loader2, ChevronLeft, ChevronRight, DollarSign, TrendingUp, CheckCircle2 } from "lucide-react";
+import { CreditCard, Loader2, ChevronLeft, ChevronRight, DollarSign, TrendingUp, CheckCircle2, RotateCcw } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -37,6 +37,7 @@ export default function AdminPaymentsPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [filter, setFilter] = useState("");
   const [loading, setLoading] = useState(true);
+  const [refundingId, setRefundingId] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
@@ -52,6 +53,23 @@ export default function AdminPaymentsPage() {
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleRefund(paymentId: string) {
+    if (!confirm("Are you sure you want to refund this payment? Credits will be deducted from the user.")) return;
+    setRefundingId(paymentId);
+    try {
+      const res = await fetch(`/api/admin/payments/${paymentId}/refund`, { method: "POST" });
+      if (!res.ok) {
+        const data = await res.json();
+        alert(data.error || "Refund failed");
+      }
+      await load();
+    } catch {
+      alert("Network error");
+    } finally {
+      setRefundingId(null);
     }
   }
 
@@ -141,20 +159,21 @@ export default function AdminPaymentsPage() {
                   <th className="text-left p-3 text-sm font-medium">Status</th>
                   <th className="text-left p-3 text-sm font-medium">Provider</th>
                   <th className="text-left p-3 text-sm font-medium">Date</th>
+                  <th className="text-left p-3 text-sm font-medium">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   Array.from({ length: 5 }).map((_, i) => (
                     <tr key={i} className="border-b">
-                      <td colSpan={6} className="p-3">
+                      <td colSpan={7} className="p-3">
                         <div className="h-6 bg-muted animate-pulse rounded" />
                       </td>
                     </tr>
                   ))
                 ) : payments.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="text-center p-8 text-muted-foreground">
+                    <td colSpan={7} className="text-center p-8 text-muted-foreground">
                       No payments found
                     </td>
                   </tr>
@@ -175,6 +194,23 @@ export default function AdminPaymentsPage() {
                       <td className="p-3 text-sm">{payment.provider}</td>
                       <td className="p-3 text-sm text-muted-foreground">
                         {new Date(payment.createdAt).toLocaleDateString()}
+                      </td>
+                      <td className="p-3">
+                        {payment.status === "COMPLETED" && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-xs"
+                            onClick={() => handleRefund(payment.id)}
+                            disabled={refundingId === payment.id}
+                          >
+                            {refundingId === payment.id ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                              <><RotateCcw className="h-3 w-3 me-1" />Refund</>
+                            )}
+                          </Button>
+                        )}
                       </td>
                     </tr>
                   ))

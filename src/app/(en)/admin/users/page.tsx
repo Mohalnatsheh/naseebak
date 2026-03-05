@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Users, Shield, ShieldCheck, ChevronLeft, ChevronRight, Search, Ban, Loader2, CreditCard, Flag } from "lucide-react";
+import { Users, Shield, ShieldCheck, ChevronLeft, ChevronRight, Search, Ban, Loader2, CreditCard, Flag, CheckSquare, Square } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -44,6 +44,8 @@ export default function AdminUsersPage() {
   const [gender, setGender] = useState("");
   const [status, setStatus] = useState("");
   const [suspendingId, setSuspendingId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkSuspending, setBulkSuspending] = useState(false);
 
   useEffect(() => {
     fetchUsers();
@@ -72,6 +74,42 @@ export default function AdminUsersPage() {
   function handleSearch(e: React.FormEvent) {
     e.preventDefault();
     fetchUsers(true);
+  }
+
+  function toggleSelect(userId: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(userId)) next.delete(userId);
+      else next.add(userId);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    const selectableUsers = users.filter((u) => u.role !== "ADMIN");
+    if (selectedIds.size === selectableUsers.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(selectableUsers.map((u) => u.id)));
+    }
+  }
+
+  async function handleBulkSuspend() {
+    if (selectedIds.size === 0) return;
+    const action = users.find((u) => selectedIds.has(u.id))?.status === "SUSPENDED" ? "unsuspend" : "suspend";
+    if (!confirm(`Are you sure you want to ${action} ${selectedIds.size} user(s)?`)) return;
+    setBulkSuspending(true);
+    try {
+      for (const userId of selectedIds) {
+        await fetch(`/api/admin/users/${userId}/suspend`, { method: "PUT" });
+      }
+      setSelectedIds(new Set());
+      await fetchUsers();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setBulkSuspending(false);
+    }
   }
 
   async function handleSuspend(e: React.MouseEvent, userId: string) {
@@ -132,12 +170,40 @@ export default function AdminUsersPage() {
         </Button>
       </form>
 
+      {/* Bulk actions bar */}
+      {selectedIds.size > 0 && (
+        <div className="flex items-center gap-3 p-3 bg-primary/5 border rounded-lg">
+          <span className="text-sm font-medium">{selectedIds.size} selected</span>
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={handleBulkSuspend}
+            disabled={bulkSuspending}
+          >
+            {bulkSuspending ? <Loader2 className="h-3 w-3 animate-spin me-1" /> : <Ban className="h-3 w-3 me-1" />}
+            Suspend / Unsuspend
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())}>
+            Clear
+          </Button>
+        </div>
+      )}
+
       <Card>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="border-b bg-muted/50">
+                  <th className="p-3 w-10">
+                    <button onClick={toggleSelectAll} className="text-muted-foreground hover:text-foreground">
+                      {selectedIds.size > 0 && selectedIds.size === users.filter((u) => u.role !== "ADMIN").length ? (
+                        <CheckSquare className="h-4 w-4" />
+                      ) : (
+                        <Square className="h-4 w-4" />
+                      )}
+                    </button>
+                  </th>
                   <th className="text-left p-3 text-sm font-medium">Name</th>
                   <th className="text-left p-3 text-sm font-medium">Phone</th>
                   <th className="text-left p-3 text-sm font-medium">Gender</th>
@@ -153,14 +219,14 @@ export default function AdminUsersPage() {
                 {loading ? (
                   Array.from({ length: 5 }).map((_, i) => (
                     <tr key={i} className="border-b">
-                      <td colSpan={9} className="p-3">
+                      <td colSpan={10} className="p-3">
                         <div className="h-6 bg-muted animate-pulse rounded" />
                       </td>
                     </tr>
                   ))
                 ) : users.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="text-center p-8 text-muted-foreground">
+                    <td colSpan={10} className="text-center p-8 text-muted-foreground">
                       No users found
                     </td>
                   </tr>
@@ -171,6 +237,13 @@ export default function AdminUsersPage() {
                       className="border-b hover:bg-muted/30 transition-colors cursor-pointer"
                       onClick={() => router.push(`/admin/users/${u.id}`)}
                     >
+                      <td className="p-3" onClick={(e) => e.stopPropagation()}>
+                        {u.role !== "ADMIN" && (
+                          <button onClick={() => toggleSelect(u.id)} className="text-muted-foreground hover:text-foreground">
+                            {selectedIds.has(u.id) ? <CheckSquare className="h-4 w-4 text-primary" /> : <Square className="h-4 w-4" />}
+                          </button>
+                        )}
+                      </td>
                       <td className="p-3">
                         <div className="flex items-center gap-2">
                           <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">

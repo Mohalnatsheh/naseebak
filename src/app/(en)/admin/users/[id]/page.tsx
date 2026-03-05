@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   ArrowLeft, User, Shield, ShieldCheck, Loader2, Ban, CreditCard,
   Calendar, MapPin, Heart, GraduationCap, Briefcase, Camera, Brain,
-  Users as UsersIcon, Phone, Mail, Flag,
+  Users as UsersIcon, Phone, Mail, Flag, Sparkles,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -46,6 +46,23 @@ interface UserDetail {
   };
 }
 
+interface SuggestionRow {
+  id: string;
+  compatibilityScore: number | null;
+  status: string;
+  source: string;
+  createdAt: string;
+  candidate?: { id: string; firstName: string; lastName: string; gender: string };
+  recipient?: { id: string; firstName: string; lastName: string; gender: string };
+}
+
+const suggestionStatusColors: Record<string, string> = {
+  PENDING: "bg-amber-100 text-amber-800",
+  ACCEPTED: "bg-green-100 text-green-800",
+  REJECTED: "bg-red-100 text-red-800",
+  EXPIRED: "bg-muted text-muted-foreground",
+};
+
 const statusColors: Record<string, string> = {
   PENDING: "bg-amber-100 text-amber-800",
   VERIFIED: "bg-green-100 text-green-800",
@@ -63,6 +80,12 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
   const [newCredits, setNewCredits] = useState("");
   const [savingCredits, setSavingCredits] = useState(false);
   const [flagging, setFlagging] = useState(false);
+  const [suggestions, setSuggestions] = useState<{
+    asRecipient: SuggestionRow[];
+    asCandidate: SuggestionRow[];
+  } | null>(null);
+  const [sugLoading, setSugLoading] = useState(false);
+  const [sugExpanded, setSugExpanded] = useState(false);
 
   useEffect(() => {
     fetchUser();
@@ -113,6 +136,24 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
       console.error(err);
     } finally {
       setSavingCredits(false);
+    }
+  }
+
+  async function fetchSuggestions() {
+    if (suggestions) {
+      setSugExpanded(!sugExpanded);
+      return;
+    }
+    setSugLoading(true);
+    setSugExpanded(true);
+    try {
+      const res = await fetch(`/api/admin/suggestions/user/${id}`);
+      const data = await res.json();
+      setSuggestions(data);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSugLoading(false);
     }
   }
 
@@ -430,6 +471,95 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
           </CardContent>
         </Card>
       </div>
+
+      {/* Suggestions Section (full width) */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2"><Sparkles className="h-5 w-5" /> Suggestions</CardTitle>
+            <Button variant="outline" size="sm" onClick={fetchSuggestions} disabled={sugLoading}>
+              {sugLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : sugExpanded ? "Hide" : "Show"}
+            </Button>
+          </div>
+        </CardHeader>
+        {sugExpanded && suggestions && (
+          <CardContent className="space-y-4">
+            {/* As Recipient */}
+            <div>
+              <h4 className="text-sm font-semibold mb-2">Received ({suggestions.asRecipient.length})</h4>
+              {suggestions.asRecipient.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No suggestions received</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b bg-muted/50">
+                        <th className="text-left p-2 font-medium">Candidate</th>
+                        <th className="text-left p-2 font-medium">Score</th>
+                        <th className="text-left p-2 font-medium">Status</th>
+                        <th className="text-left p-2 font-medium">Source</th>
+                        <th className="text-left p-2 font-medium">Date</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {suggestions.asRecipient.map((s) => (
+                        <tr key={s.id} className="border-b hover:bg-muted/30 cursor-pointer" onClick={() => s.candidate && router.push(`/admin/users/${s.candidate.id}`)}>
+                          <td className="p-2">{s.candidate?.firstName} {s.candidate?.lastName}</td>
+                          <td className="p-2">
+                            <span className={s.compatibilityScore && s.compatibilityScore >= 70 ? "text-green-600 font-medium" : s.compatibilityScore && s.compatibilityScore >= 50 ? "text-amber-600" : "text-red-600"}>
+                              {s.compatibilityScore ? `${s.compatibilityScore}%` : "—"}
+                            </span>
+                          </td>
+                          <td className="p-2"><Badge className={`text-xs ${suggestionStatusColors[s.status] || ""}`}>{s.status}</Badge></td>
+                          <td className="p-2"><Badge variant="outline" className="text-xs">{s.source}</Badge></td>
+                          <td className="p-2 text-muted-foreground">{new Date(s.createdAt).toLocaleDateString()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* As Candidate */}
+            <div>
+              <h4 className="text-sm font-semibold mb-2">Sent To ({suggestions.asCandidate.length})</h4>
+              {suggestions.asCandidate.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Not suggested to anyone</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b bg-muted/50">
+                        <th className="text-left p-2 font-medium">Recipient</th>
+                        <th className="text-left p-2 font-medium">Score</th>
+                        <th className="text-left p-2 font-medium">Status</th>
+                        <th className="text-left p-2 font-medium">Source</th>
+                        <th className="text-left p-2 font-medium">Date</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {suggestions.asCandidate.map((s) => (
+                        <tr key={s.id} className="border-b hover:bg-muted/30 cursor-pointer" onClick={() => s.recipient && router.push(`/admin/users/${s.recipient.id}`)}>
+                          <td className="p-2">{s.recipient?.firstName} {s.recipient?.lastName}</td>
+                          <td className="p-2">
+                            <span className={s.compatibilityScore && s.compatibilityScore >= 70 ? "text-green-600 font-medium" : s.compatibilityScore && s.compatibilityScore >= 50 ? "text-amber-600" : "text-red-600"}>
+                              {s.compatibilityScore ? `${s.compatibilityScore}%` : "—"}
+                            </span>
+                          </td>
+                          <td className="p-2"><Badge className={`text-xs ${suggestionStatusColors[s.status] || ""}`}>{s.status}</Badge></td>
+                          <td className="p-2"><Badge variant="outline" className="text-xs">{s.source}</Badge></td>
+                          <td className="p-2 text-muted-foreground">{new Date(s.createdAt).toLocaleDateString()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        )}
+      </Card>
     </div>
   );
 }

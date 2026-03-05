@@ -1,12 +1,21 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { CalendarHeart, Loader2, Phone, MapPin, Save } from "lucide-react";
+import { CalendarHeart, Loader2, Phone, MapPin, Save, MessageSquare, Star, ChevronDown, ChevronUp } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+
+interface Feedback {
+  id: string;
+  outcome: string;
+  reason: string | null;
+  rating: number;
+  createdAt: string;
+  user: { id: string; firstName: string; lastName: string; gender: string };
+}
 
 interface Visit {
   id: string;
@@ -36,6 +45,9 @@ export default function AdminVisitsPage() {
   const [statusFilter, setStatusFilter] = useState("");
   const [editValues, setEditValues] = useState<Record<string, { date: string; location: string; notes: string }>>({});
   const [saving, setSaving] = useState<string | null>(null);
+  const [feedbacks, setFeedbacks] = useState<Record<string, Feedback[]>>({});
+  const [feedbackLoading, setFeedbackLoading] = useState<string | null>(null);
+  const [expandedFeedback, setExpandedFeedback] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     fetchVisits();
@@ -102,6 +114,34 @@ export default function AdminVisitsPage() {
       setSaving(null);
     }
   }
+
+  async function toggleFeedback(visitId: string) {
+    const next = new Set(expandedFeedback);
+    if (next.has(visitId)) {
+      next.delete(visitId);
+      setExpandedFeedback(next);
+      return;
+    }
+    next.add(visitId);
+    setExpandedFeedback(next);
+    if (feedbacks[visitId]) return;
+    setFeedbackLoading(visitId);
+    try {
+      const res = await fetch(`/api/admin/visits/${visitId}/feedback`);
+      const data = await res.json();
+      setFeedbacks((prev) => ({ ...prev, [visitId]: data.feedbacks || [] }));
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setFeedbackLoading(null);
+    }
+  }
+
+  const outcomeLabels: Record<string, string> = {
+    INTERESTED: "Interested",
+    NOT_INTERESTED: "Not Interested",
+    NEEDS_ANOTHER_VISIT: "Needs Another Visit",
+  };
 
   const filtered = statusFilter
     ? visits.filter((v) => v.status === statusFilter)
@@ -260,6 +300,76 @@ export default function AdminVisitsPage() {
                         {updating === v.id ? <Loader2 className="h-3 w-3 animate-spin" /> : opt.label}
                       </Button>
                     ))}
+                  </div>
+
+                  {/* Feedback section */}
+                  <div className="border-t pt-3">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-xs"
+                      onClick={() => toggleFeedback(v.id)}
+                    >
+                      <MessageSquare className="h-3 w-3 me-1" />
+                      Feedback
+                      {expandedFeedback.has(v.id) ? (
+                        <ChevronUp className="h-3 w-3 ms-1" />
+                      ) : (
+                        <ChevronDown className="h-3 w-3 ms-1" />
+                      )}
+                    </Button>
+
+                    {expandedFeedback.has(v.id) && (
+                      <div className="mt-2 space-y-2">
+                        {feedbackLoading === v.id ? (
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
+                            <Loader2 className="h-3 w-3 animate-spin" /> Loading feedback...
+                          </div>
+                        ) : !feedbacks[v.id] || feedbacks[v.id].length === 0 ? (
+                          <p className="text-sm text-muted-foreground py-2">No feedback submitted yet</p>
+                        ) : (
+                          feedbacks[v.id].map((fb) => (
+                            <div key={fb.id} className="bg-muted/50 rounded-lg p-3 text-sm space-y-1">
+                              <div className="flex items-center justify-between">
+                                <span className="font-medium">
+                                  {fb.user.firstName} {fb.user.lastName}
+                                  <Badge variant="secondary" className="ms-2 text-xs">
+                                    {fb.user.gender === "MALE" ? "Male" : "Female"}
+                                  </Badge>
+                                </span>
+                                <span className="text-xs text-muted-foreground">
+                                  {new Date(fb.createdAt).toLocaleDateString()}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <Badge
+                                  className={
+                                    fb.outcome === "INTERESTED"
+                                      ? "bg-green-100 text-green-800"
+                                      : fb.outcome === "NOT_INTERESTED"
+                                        ? "bg-red-100 text-red-800"
+                                        : "bg-amber-100 text-amber-800"
+                                  }
+                                >
+                                  {outcomeLabels[fb.outcome] || fb.outcome}
+                                </Badge>
+                                <div className="flex items-center gap-0.5">
+                                  {Array.from({ length: 5 }).map((_, i) => (
+                                    <Star
+                                      key={i}
+                                      className={`h-3.5 w-3.5 ${i < fb.rating ? "fill-amber-400 text-amber-400" : "text-muted-foreground/30"}`}
+                                    />
+                                  ))}
+                                </div>
+                              </div>
+                              {fb.reason && (
+                                <p className="text-muted-foreground">{fb.reason}</p>
+                              )}
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>

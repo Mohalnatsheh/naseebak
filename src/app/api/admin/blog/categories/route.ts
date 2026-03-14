@@ -1,17 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { createCategorySchema } from "@/lib/validations/blog";
 
 export async function GET() {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 401 });
-    }
-    if (session.user.role !== "ADMIN") {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 403 });
-    }
+    const result = await requireAdmin();
+    if ("error" in result) return result.error;
+    const { session } = result;
 
     const categories = await db.blogCategory.findMany({
       include: {
@@ -29,13 +25,9 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 401 });
-    }
-    if (session.user.role !== "ADMIN") {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 403 });
-    }
+    const result = await requireAdmin();
+    if ("error" in result) return result.error;
+    const { session } = result;
 
     const body = await req.json();
     const parsed = createCategorySchema.safeParse(body);

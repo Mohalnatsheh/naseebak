@@ -143,7 +143,7 @@ export function DashboardSidebar() {
               alt="نصيبك"
               width={110}
               height={48}
-              className={cn("w-auto flex-shrink-0", collapsed && !mobile ? "h-8" : "h-8")}
+              className="w-auto flex-shrink-0 h-8"
             />
           </Link>
           {mobile ? (

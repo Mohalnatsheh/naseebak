@@ -1,30 +1,25 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { sendPushNotification } from "@/lib/onesignal";
+import { parsePagination } from "@/lib/utils";
 
 export async function GET(request: Request) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 401 });
-    }
-    if (session.user.role !== "ADMIN") {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 403 });
-    }
+    const result = await requireAdmin();
+    if ("error" in result) return result.error;
+    const { session } = result;
 
     const url = new URL(request.url);
     const tab = url.searchParams.get("tab") || "pending";
-    const page = parseInt(url.searchParams.get("page") || "1");
-    const limit = 20;
-    const skip = (page - 1) * limit;
+    const { page, pageSize, skip } = parsePagination(url.searchParams, 20);
 
     if (tab === "history") {
       const [docs, total] = await Promise.all([
         db.identityDoc.findMany({
           where: { status: { not: "PENDING" } },
           skip,
-          take: limit,
+          take: pageSize,
           orderBy: { reviewedAt: "desc" },
           include: {
             user: {
@@ -42,7 +37,7 @@ export async function GET(request: Request) {
         docs,
         total,
         page,
-        totalPages: Math.ceil(total / limit),
+        totalPages: Math.ceil(total / pageSize),
       });
     }
 
@@ -66,13 +61,9 @@ export async function GET(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 401 });
-    }
-    if (session.user.role !== "ADMIN") {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 403 });
-    }
+    const result = await requireAdmin();
+    if ("error" in result) return result.error;
+    const { session } = result;
 
     const body = await request.json();
     const { docId, action, reviewNotes, rejectionReason } = body;

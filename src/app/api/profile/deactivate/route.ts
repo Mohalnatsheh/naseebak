@@ -1,13 +1,12 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 
 export async function POST() {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 401 });
-    }
+    const result = await requireUser();
+    if ("error" in result) return result.error;
+    const { session } = result;
 
     const user = await db.user.findUnique({
       where: { id: session.user.id },

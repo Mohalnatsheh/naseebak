@@ -1,17 +1,13 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { sendPushNotificationToMany } from "@/lib/onesignal";
 
 export async function GET() {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 401 });
-    }
-    if (session.user.role !== "ADMIN") {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 403 });
-    }
+    const result = await requireAdmin();
+    if ("error" in result) return result.error;
+    const { session } = result;
 
     const visits = await db.visitRequest.findMany({
       include: {
@@ -74,13 +70,9 @@ const visitStatusLabels: Record<string, string> = {
 
 export async function PATCH(request: Request) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 401 });
-    }
-    if (session.user.role !== "ADMIN") {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 403 });
-    }
+    const result = await requireAdmin();
+    if ("error" in result) return result.error;
+    const { session } = result;
 
     const body = await request.json();
     const { visitId, status, scheduledDate, location, adminNotes } = body;

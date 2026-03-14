@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth";
 import { getSetting, setSetting } from "@/lib/settings";
 
 const GTM_REGEX = /^GTM-[A-Z0-9]+$/i;
@@ -7,13 +7,9 @@ const FB_PIXEL_REGEX = /^\d+$/;
 
 export async function GET() {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-    if (session.user.role !== "ADMIN") {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
+    const result = await requireAdmin();
+    if ("error" in result) return result.error;
+    const { session } = result;
 
     const gtmId = await getSetting("gtm_id");
     const fbPixelId = await getSetting("fb_pixel_id");
@@ -26,13 +22,9 @@ export async function GET() {
 
 export async function PATCH(request: Request) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-    if (session.user.role !== "ADMIN") {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
+    const result = await requireAdmin();
+    if ("error" in result) return result.error;
+    const { session } = result;
 
     const body = await request.json();
 

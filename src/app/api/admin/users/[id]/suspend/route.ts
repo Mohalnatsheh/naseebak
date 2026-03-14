@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { sendPushNotification } from "@/lib/onesignal";
 
@@ -8,13 +8,9 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 401 });
-    }
-    if (session.user.role !== "ADMIN") {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 403 });
-    }
+    const result = await requireAdmin();
+    if ("error" in result) return result.error;
+    const { session } = result;
 
     const { id } = await params;
 

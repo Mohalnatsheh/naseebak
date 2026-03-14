@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { parsePagination } from "@/lib/utils";
 
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = req.nextUrl;
     const category = searchParams.get("category");
-    const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
-    const pageSize = 9;
+    const { page, pageSize, skip } = parsePagination(searchParams, 9);
 
     const where: Record<string, unknown> = { status: "PUBLISHED" as const };
     if (category) {
@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
         where,
         include: { category: true },
         orderBy: { publishedAt: "desc" },
-        skip: (page - 1) * pageSize,
+        skip,
         take: pageSize,
       }),
       db.blogPost.count({ where }),

@@ -1,24 +1,19 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { sendPushNotification } from "@/lib/onesignal";
 import { calculateCompatibility } from "@/lib/matching/score";
+import { parsePagination } from "@/lib/utils";
 
 export async function GET(request: Request) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 401 });
-    }
-    if (session.user.role !== "ADMIN") {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 403 });
-    }
+    const result = await requireAdmin();
+    if ("error" in result) return result.error;
+    const { session } = result;
 
     const url = new URL(request.url);
-    const page = parseInt(url.searchParams.get("page") || "1");
+    const { page, pageSize, skip } = parsePagination(url.searchParams, 20);
     const status = url.searchParams.get("status") || "";
-    const limit = 20;
-    const skip = (page - 1) * limit;
 
     const where = status ? { status: status as "PENDING" | "ACCEPTED" | "REJECTED" | "EXPIRED" } : {};
 
@@ -26,7 +21,7 @@ export async function GET(request: Request) {
       db.suggestion.findMany({
         where,
         skip,
-        take: limit,
+        take: pageSize,
         orderBy: { createdAt: "desc" },
         select: {
           id: true,
@@ -49,7 +44,7 @@ export async function GET(request: Request) {
       suggestions,
       total,
       page,
-      totalPages: Math.ceil(total / limit),
+      totalPages: Math.ceil(total / pageSize),
     });
   } catch (error) {
     console.error("Admin suggestions list error:", error);
@@ -59,13 +54,9 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 401 });
-    }
-    if (session.user.role !== "ADMIN") {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 403 });
-    }
+    const result = await requireAdmin();
+    if ("error" in result) return result.error;
+    const { session } = result;
 
     const body = await request.json();
     const { recipientId, candidateId, compatibilityScore: manualScore } = body;

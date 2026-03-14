@@ -1,13 +1,12 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 
 export async function PUT() {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 401 });
-    }
+    const authResult = await requireUser();
+    if ("error" in authResult) return authResult.error;
+    const { session } = authResult;
 
     const result = await db.notification.updateMany({
       where: { userId: session.user.id, isRead: false },

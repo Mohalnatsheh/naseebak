@@ -1,26 +1,21 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { parsePagination } from "@/lib/utils";
 
 export async function GET(request: Request) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-    if (session.user.role !== "ADMIN") {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
+    const result = await requireAdmin();
+    if ("error" in result) return result.error;
+    const { session } = result;
 
     const url = new URL(request.url);
-    const page = parseInt(url.searchParams.get("page") || "1");
-    const limit = 20;
-    const skip = (page - 1) * limit;
+    const { page, pageSize, skip } = parsePagination(url.searchParams, 20);
 
     const [blocks, total] = await Promise.all([
       db.block.findMany({
         skip,
-        take: limit,
+        take: pageSize,
         orderBy: { createdAt: "desc" },
         select: {
           id: true,
@@ -40,7 +35,7 @@ export async function GET(request: Request) {
       blocks,
       total,
       page,
-      totalPages: Math.ceil(total / limit),
+      totalPages: Math.ceil(total / pageSize),
     });
   } catch (error) {
     console.error("Admin blocks error:", error);

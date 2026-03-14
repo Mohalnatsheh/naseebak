@@ -1,17 +1,16 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { parsePagination } from "@/lib/utils";
 
 export async function GET(request: Request) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 401 });
-    }
+    const result = await requireUser();
+    if ("error" in result) return result.error;
+    const { session } = result;
 
     const { searchParams } = new URL(request.url);
-    const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
-    const pageSize = 20;
+    const { page, pageSize, skip } = parsePagination(searchParams, 20);
 
     const where = { userId: session.user.id };
 
@@ -19,7 +18,7 @@ export async function GET(request: Request) {
       db.notification.findMany({
         where,
         orderBy: { createdAt: "desc" },
-        skip: (page - 1) * pageSize,
+        skip,
         take: pageSize,
       }),
       db.notification.count({ where }),
@@ -43,10 +42,9 @@ export async function GET(request: Request) {
 
 export async function DELETE() {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 401 });
-    }
+    const result = await requireUser();
+    if ("error" in result) return result.error;
+    const { session } = result;
 
     await db.notification.deleteMany({
       where: { userId: session.user.id },

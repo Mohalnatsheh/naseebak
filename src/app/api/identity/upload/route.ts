@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { base64ToBuffer, uploadToBunny, deleteFromBunny, getBunnyPathFromUrl } from "@/lib/bunny";
 
@@ -23,10 +23,9 @@ function fileToBufferInfo(file: File): Promise<{ buffer: Buffer; extension: stri
 
 export async function POST(request: Request) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 401 });
-    }
+    const result = await requireUser();
+    if ("error" in result) return result.error;
+    const { session } = result;
 
     let documentType: string | undefined;
     let frontBuffer: { buffer: Buffer; extension: string; mimeType: string } | null = null;

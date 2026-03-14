@@ -1,18 +1,17 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { parsePagination } from "@/lib/utils";
 
 export async function GET(request: Request) {
   try {
-    const session = await auth();
-    if (!session?.user?.id || session.user.role !== "ADMIN") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
-    }
+    const result = await requireAdmin();
+    if ("error" in result) return result.error;
+    const { session } = result;
 
     const { searchParams } = new URL(request.url);
-    const page = parseInt(searchParams.get("page") || "1");
+    const { page, pageSize, skip } = parsePagination(searchParams, 20);
     const status = searchParams.get("status") || undefined;
-    const limit = 20;
 
     const where = status ? { status: status as any } : {};
 
@@ -24,8 +23,8 @@ export async function GET(request: Request) {
           reported: { select: { id: true, firstName: true, lastName: true } },
         },
         orderBy: { createdAt: "desc" },
-        skip: (page - 1) * limit,
-        take: limit,
+        skip,
+        take: pageSize,
       }),
       db.report.count({ where }),
     ]);
@@ -33,7 +32,7 @@ export async function GET(request: Request) {
     return NextResponse.json({
       reports,
       total,
-      pages: Math.ceil(total / limit),
+      pages: Math.ceil(total / pageSize),
       page,
     });
   } catch (error) {
@@ -44,10 +43,9 @@ export async function GET(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
-    const session = await auth();
-    if (!session?.user?.id || session.user.role !== "ADMIN") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
-    }
+    const result = await requireAdmin();
+    if ("error" in result) return result.error;
+    const { session } = result;
 
     const body = await request.json();
     const { reportId, status, adminNote } = body;

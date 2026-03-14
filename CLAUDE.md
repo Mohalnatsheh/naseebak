@@ -1,962 +1,230 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+## Planning & Implementation
+
+**Always use Superpowers skills for planning.** When creating implementation plans, use `superpowers:writing-plans`. When starting a new feature or refactor, use `superpowers:brainstorming` first. Never write ad-hoc plans — always go through the Superpowers skill workflow.
 
 ## Project Overview
 
-**Naseebak (نصيبك)** is a web-based traditional marriage facilitation platform for Jordan. It is **not** a dating app — there is zero direct communication between users. The platform uses AI-powered matching, admin-mediated family visit coordination, and a freemium suggestion model. The full specification lives in `SRS.md`.
-
-**Current status:** Core platform implemented and deployed to production at **https://naseebak.com**. Auth (phone+OTP for users, email+password for admins), profile management, identity verification, personality quiz, suggestions with sent interest tracking, matches, payments, notifications, full-featured admin panel (14 pages), dynamic blog system, push notifications (OneSignal), real matching algorithm, report/block system, field-level profile completeness, account deletion with 30-day grace period, support/feedback ticket system, registration open/closed toggle, server-side pagination on all dashboard list pages, full SEO (per-page metadata, canonical URLs, JSON-LD structured data, dynamic sitemap), admin-configurable tracking (GTM + Facebook Pixel), referral system (invite friends for bonus credits), and shared dashboard data context (deduplicated API calls) are all functional.
+**Naseebak (نصيبك)** — web-based traditional marriage facilitation platform for Jordan. **Not** a dating app — zero direct communication between users. AI-powered matching, admin-mediated family visit coordination, freemium suggestion model. Full spec in `SRS.md`. Production at **https://naseebak.com**.
 
 ## Commands
 
 ```bash
-pnpm dev              # Start dev server (Turbopack) on localhost:3000
-pnpm build            # Production build (next build)
-pnpm test             # Run all tests (vitest run) — 199 tests across 13 files
-pnpm test:watch       # Run tests in watch mode
+pnpm dev              # Dev server (Turbopack) on localhost:3000
+pnpm build            # Production build
+pnpm test             # Run all tests (vitest)
+pnpm test:watch       # Tests in watch mode
 pnpm db:generate      # Regenerate Prisma client after schema changes
 pnpm db:push          # Push schema changes to database
 pnpm db:studio        # Open Prisma Studio GUI
 ```
 
-**Important:** After changing `prisma/schema.prisma`, run `pnpm db:push && pnpm db:generate`. If the dev server shows stale Prisma errors (e.g. model not found), clear cache and restart: `rm -rf .next && pnpm dev`.
+After changing `prisma/schema.prisma`, run `pnpm db:push && pnpm db:generate`. Stale Prisma errors → `rm -rf .next && pnpm dev`.
 
 ## Technology Stack
 
-- **Runtime:** Next.js 16.1.6 (Turbopack), React 19, Node.js 22
-- **Styling:** Tailwind CSS v4 with oklch color system
-- **Database:** PostgreSQL (Neon serverless) + Prisma 7.4 ORM with `@prisma/adapter-neon`
-- **Auth:** NextAuth.js 5 (beta.30) — dual auth: phone+OTP for users, email+password for admins
-- **Password Hashing:** bcryptjs 3.0
-- **Validation:** Zod v4 (`zod/v4` import path)
-- **UI Components:** shadcn/ui (Radix primitives)
-- **Icons:** lucide-react
-- **Payments:** Stripe Checkout (one-time payments, JOD currency)
-- **Push Notifications:** OneSignal (react-onesignal SDK + REST API)
-- **Testing:** Vitest + Testing Library
-- **Package Manager:** pnpm 10.24
+Next.js 16.1.6 (Turbopack), React 19, Node 22 | Tailwind CSS v4 (oklch) | PostgreSQL (Neon) + Prisma 7.4 (`@prisma/adapter-neon`) | NextAuth.js 5 (beta.30) | Zod v4 (`zod/v4` import) | shadcn/ui + lucide-react | Stripe Checkout (JOD) | OneSignal push | Vitest | pnpm 10.24
 
 ## Architecture
 
 ```
 src/
 ├── app/
-│   ├── (ar)/              # Arabic RTL user-facing pages
-│   │   ├── page.tsx       # Landing page
-│   │   ├── login/         # Phone + OTP login
-│   │   ├── register/      # 3-step wizard (info+OTP, identity docs, success)
-│   │   ├── blog/          # Dynamic blog listing + detail (/blog, /blog/[slug])
-│   │   └── dashboard/     # Protected dashboard pages
-│   │       ├── page.tsx           # Main dashboard (stats, actions, timeline)
-│   │       ├── profile/setup/     # 5-step profile wizard
-│   │       ├── profile/edit/      # Profile editing (5-step, all fields required with validation + guardian info)
-│   │       ├── identity/          # ID document upload + status
-│   │       ├── suggestions/       # 3-tab: new suggestions, sent requests, received interests
-│   │       ├── matches/           # Mutual matches with full profile details + photos + visits
-│   │       ├── photos/            # Photo upload/manage (max 5, base64)
-│   │       ├── personality-quiz/  # 20-question quiz (5 dimensions)
-│   │       ├── payments/          # Plans + payment history
-│   │       ├── notifications/     # Notification center
-│   │       ├── support/           # Support/feedback ticket system
-│   │       └── referral/          # Invite friends referral page
-│   ├── (en)/              # English LTR admin panel
-│   │   └── admin/
-│   │       ├── login/     # Admin email+password login (separate layout, no sidebar)
-│   │       ├── page.tsx   # Admin dashboard (stats, quick actions, trends, activity)
-│   │       ├── users/     # User management (search, filters, suspend)
-│   │       ├── users/[id] # User detail page (full profile, photos, actions)
-│   │       ├── identity/  # Identity review (pending + history tabs, image preview)
-│   │       ├── suggestions/ # Suggestion management (browse + create/generate tabs)
-│   │       ├── visits/    # Visit request management (filters, date/location/notes)
-│   │       ├── reports/   # Report review
-│   │       ├── profile-requests/ # Profile update request review (diff view)
-│   │       ├── payments/  # Payment management (revenue stats, filters)
-│   │       ├── notifications/ # Send system notifications (single/broadcast)
-│   │       ├── blocks/    # Block management (view/remove)
-│   │       ├── deletions/ # Account deletion request management
-│   │       ├── support/   # Support ticket management
-│   │       ├── settings/  # Admin accounts + platform settings (registration toggle)
-│   │       └── blog/      # Blog post + category management
+│   ├── (ar)/              # Arabic RTL user-facing pages (landing, login, register, blog, dashboard)
+│   ├── (en)/admin/        # English LTR admin panel (14 pages)
 │   └── api/               # All API routes
-├── components/
-│   ├── shared/            # DashboardSidebar, AdminSidebar, Navbar, Footer, etc.
-│   └── ui/                # shadcn/ui components (Button, Card, Input, etc.)
-├── hooks/
-│   ├── use-auto-save.ts   # Profile setup auto-save (localStorage + server draft)
-│   └── use-in-view.ts     # Intersection observer hook
-├── contexts/
-│   └── dashboard-context.tsx  # Shared dashboard data provider (profile, unread count)
-├── lib/
-│   ├── auth.ts            # NextAuth config (two Credentials providers)
-│   ├── auth.config.ts     # Auth callbacks (JWT, session, route protection)
-│   ├── db.ts              # Prisma client singleton (PrismaNeon adapter)
-│   ├── stripe.ts          # Stripe client singleton (lazy-initialized)
-│   ├── onesignal.ts       # OneSignal push notification helpers (server-side)
-│   ├── rate-limit.ts      # In-memory rate limiter
-│   ├── settings.ts        # System settings helper (cached reads, DB-backed)
-│   ├── profile-completeness.ts  # Field-level profile completeness calculator
-│   ├── matching/
-│   │   └── score.ts       # Weighted compatibility scoring engine
-│   ├── validations/       # Zod schemas (auth.ts, profile.ts, blog.ts, support.ts)
-│   └── data/
-│       └── jordan-areas.ts  # Jordan cities + neighborhoods for cascading dropdown
-└── __tests__/             # Vitest test files
+├── components/{shared,ui}  # DashboardSidebar, AdminSidebar, Navbar, Footer + shadcn/ui
+├── hooks/                  # use-auto-save, use-in-view
+├── contexts/               # dashboard-context (shared profile + unread count)
+└── lib/                    # auth, db, stripe, onesignal, rate-limit, settings, matching/score, validations/, data/jordan-areas
 ```
-
-## Auth System
-
-Two authentication methods exist — phone+OTP for regular users, email+password for admins.
-
-### User Auth (Phone + OTP)
-
-**Flow:**
-1. Client calls `POST /api/auth/send-otp` with `{ phone }` → returns OTP (dev mode shows OTP in response) + `userExists` flag
-2. **Registration page checks `userExists` immediately** — if true, redirects to `/login?exists=true` (no OTP sent, no error shown on register page). Login page reads `?exists=true` and shows an info banner: "رقم الهاتف مسجل مسبقاً. سجّل دخولك من هنا"
-3. Client calls `POST /api/auth/verify-otp` with `{ phone, code }` → marks OTP verified in DB
-4. For registration: `POST /api/auth/register` with `{ firstName, lastName, phone, gender, otp }` → creates user with `email: phone_${phone}@naseeb.local`
-5. For login: `signIn("credentials", { phone, otp })` via NextAuth → verifies OTP in DB, looks up user by phone
-6. If login fails and `userExists` is false → redirects to `/register`; if true → shows error (account may be suspended)
-
-### Admin Auth (Email + Password)
-
-**Flow:**
-1. Admin navigates to `/admin/login` (dedicated page, no sidebar)
-2. Submits email + password → `signIn("admin-credentials", { email, password })`
-3. NextAuth verifies: user exists, `role === "ADMIN"`, `passwordHash` present, bcrypt password match
-4. Success → redirects to `/admin`
-
-**Seed credentials:** `admin@naseeb.jo` / `Admin123!`
-
-### Auth Providers in `src/lib/auth.ts`
-
-- `credentials` (id: `"credentials"`) — phone+OTP for users
-- `admin-credentials` (id: `"admin-credentials"`) — email+password for admins
-
-### Route Protection (`src/lib/auth.config.ts`)
-
-- `/admin/login` → public (redirects to `/admin` if already logged in as admin)
-- `/admin/*` → requires auth + `role === "ADMIN"` (unauthenticated → `/admin/login`, non-admin → `/dashboard`)
-- `/dashboard/*` → requires auth (unauthenticated → `/login`)
-- `/login`, `/register` → redirects to `/dashboard` if already logged in
-
-**Registration name validation:** First and last names must be Arabic-only (`/^[\u0600-\u06FF\s]+$/`). Enforced both server-side (Zod regex in `registerSchema`) and client-side (non-Arabic characters stripped on input). A note "يرجى إدخال الاسم باللغة العربية فقط" is shown below each name field.
-
-**Key files:**
-- `src/lib/validations/auth.ts` — exports `sendOtpSchema`, `verifyOtpSchema`, `registerSchema` (with Arabic-only name regex), `loginSchema`
-- `src/lib/auth.ts` — NextAuth config with both Credentials providers
-- `src/lib/auth.config.ts` — Route protection, JWT/session callbacks
-- `src/app/api/auth/send-otp/route.ts` — OTP generation (6-digit, 5-min expiry, rate limited 3/phone/5min + 10/IP/15min), returns `userExists`
-- `src/app/api/auth/verify-otp/route.ts` — OTP verification
-- `src/app/api/auth/register/route.ts` — Registration (verifies OTP, creates user)
-- `src/app/(en)/admin/login/page.tsx` — Admin login page (email+password)
-- `src/app/(en)/admin/login/layout.tsx` — Admin login layout (no sidebar)
-- Forgot/reset password routes return 410 (not supported)
-
-## Database Schema
-
-22 models in `prisma/schema.prisma`: User, Profile, PersonalityResult, ParentInfo, IdentityDoc, Photo, Suggestion, Like, MutualMatch, VisitRequest, Payment, Subscription, Notification, ProfileUpdateRequest, Otp, BlogCategory, BlogPost, Report, Block, AccountDeletionRequest, SupportTicket, **SystemSetting**.
-
-Key points:
-- `User.passwordHash` is optional (`String?`) — set for admin accounts (bcrypt), null for regular users
-- `User.phone` stored in international format `962XXXXXXXXX` (not `07...`). `normalizePhone()` in `src/lib/validations/auth.ts` converts any input format to `962...`
-- `User.email` is required by NextAuth but populated as `phone_962xx@naseeb.local` for users, real email for admins
-- `User.oneSignalPlayerId` stores the push notification player ID
-- `Profile` has 40+ fields including location (lat/lng), tribe, preferences (prefAge*, prefCity, prefHijab, prefBeard, prefReligiosity, prefSmokingStatus, prefChildrenAcceptance), gender-specific fields (beard, hijab), `profileImageUrl` (personal avatar, visible only to the user themselves), `setupStep` (Int, tracks which wizard step the user reached, default 1)
-- `Otp` model stores codes with phone, expiry, and verified status
-- `Suggestion` uses `recipientId`/`candidateId` in Prisma code (mapped to `femaleId`/`maleId` DB columns via `@map`). Both genders can be recipient or candidate
-- `MutualMatch` keeps `femaleId`/`maleId` columns — assigned dynamically based on actual user genders at creation time
-- `ProfileUpdateRequest` stores user-submitted profile edit requests for admin review
-- `BlogCategory` has slug, nameAr, nameEn; `BlogPost` has title, slug, excerpt, content (Text), status (DRAFT/PUBLISHED), categoryId, readTime, publishedAt
-- `Report` stores user-submitted reports (reason enum: FAKE_PROFILE, INAPPROPRIATE_CONTENT, HARASSMENT, SPAM, OTHER; status: PENDING/REVIEWED/DISMISSED). Unique per reporter+reported pair
-- `Block` stores bidirectional blocks between users. Blocked users are filtered from suggestions, interests, and matching candidates
-- `AccountDeletionRequest` tracks 30-day grace period deletion requests (scheduledAt, cancelledAt). Account is deactivated immediately, permanently deleted after 30 days via cron
-- `SystemSetting` is a key-value store for platform settings (e.g. `registration_open`). Uses `key` as primary key, read via cached helper in `src/lib/settings.ts` (30s TTL)
-
-## API Routes
-
-| Group | Endpoints |
-|---|---|
-| Auth | `send-otp`, `verify-otp`, `register`, `[...nextauth]`, `logout`, `forgot-password` (410), `reset-password` (410) |
-| Identity | `upload` (supports both FormData + JSON/base64), `status` |
-| Profile | GET/PUT profile (GET includes `completeness` field), `draft` (PATCH — partial auto-save for setup wizard), `avatar` (POST/DELETE — personal profile image, base64), `parent-info`, `personality-quiz` (20 Qs, 5 dimensions, 3-month retake cooldown), `photos` (max 5), `photos/[id]`, `deactivate`, `delete` (POST/DELETE/GET — 30-day grace period deletion), `update-request` |
-| Reports | POST `/api/reports` (create report with reason enum) |
-| Blocks | GET/POST `/api/blocks` (list/create blocks), DELETE `/api/blocks/[id]` (unblock) |
-| Cron | GET `/api/cron/process-deletions?token=SECRET` (process expired deletion requests) |
-| Suggestions | GET list (`?page=`, paginated 10/page), `[id]/like`, `[id]/reject`, `sent` (GET `?page=`, paginated 10/page — sent interest tracking) |
-| Interests | GET `/api/interests/received` (`?page=`, paginated 10/page — received interests) |
-| Matches | GET list (`?page=`, paginated 10/page, full profile details + compatibility score), `[id]/photos`, `[id]/reveal` (no-op), `[id]/visit-status` |
-| Payments | `plans`, `checkout`, `history` (GET `?page=`, paginated 10/page), `webhook` |
-| Notifications | GET list (`?page=`, paginated 20/page), `[id]/read`, `read-all`, `unread-count` |
-| Push | `register` (POST — save OneSignal player ID) |
-| Blog (public) | GET `/api/blog` (list published, filter by `?category=`, `?page=`), GET `/api/blog/[slug]` (single post), GET `/api/blog/categories` (categories with published counts) |
-| Settings (public) | GET `/api/settings/registration-status` (no auth, returns `{ registrationOpen }`, 30s cache), GET `/api/settings/tracking` (no auth, returns `{ gtmId?, fbPixelId? }`, 30s cache) |
-| Admin | `stats` (enhanced with revenue, trends, activity), `identity` review (pending/history tabs), `suggestions` (GET list + POST create + DELETE `[id]`), `suggestions/generate`, `reports` (GET/PATCH), `visits` management, `users` (GET with search/gender/status filters) + `users/[id]` (GET + PATCH credits) + `users/[id]/suspend`, `profile-requests` (with profile diff data), `payments` (GET paginated with status filter + revenue summary), `notifications` (GET recent + POST send to one/all), `blocks` (GET paginated) + `blocks/[id]` (DELETE), `deletions` (GET pending) + `deletions/[id]` (DELETE cancel), `settings/admins` (GET list + POST create), `settings/registration` (GET + PATCH toggle), `settings/tracking` (GET + PATCH GTM/FB Pixel IDs) |
-| Referral | GET `/api/referral` (get own referral code + stats), POST `/api/referral/apply` (apply a referral code) |
-| Support | POST `/api/support` (create ticket, max 5 open), GET `/api/support` (`?page=`, paginated 10/page, list own tickets) |
-| Admin Support | GET `/api/admin/support` (list all, filter by status/type, paginated), PATCH (update status + respond, notifies user) |
-| Admin Blog | GET/POST `/api/admin/blog` (list all + create), PUT/DELETE `/api/admin/blog/[id]`, GET/POST `/api/admin/blog/categories`, PUT/DELETE `/api/admin/blog/categories/[id]` |
-
-## Branding & Colors
-
-**Brand name:** نصيبك (Naseebak) — note: Arabic words like "النصيب" (fate) and "نصيبها" (her destiny) are regular vocabulary, not the brand name. Only standalone "نصيبك" is the brand.
-
-### Logo
-
-The brand logo SVG (`public/images/logo.svg`) is used across all navigation and brand areas: navbar, footer, dashboard sidebar, admin sidebar, login page, register page, and admin login page. The logo contains Arabic branding text within the SVG itself.
-
-**Usage rules:**
-- **Navigation/brand areas:** Use the logo image (`/images/logo.svg`) via Next.js `Image` component
-- **Page section titles/headings:** Use text "نصيبك" with gradient styling — do NOT use the logo image inline in headings
-- Login page decorative panel uses `brightness-0 invert` filter to render the logo white on dark backgrounds
-
-**Key sizes:**
-| Location | Size |
-|----------|------|
-| Navbar | `h-12 w-auto` |
-| Footer | `h-9 w-auto` |
-| Dashboard sidebar | `h-8 w-auto` |
-| Admin sidebar | `h-8 w-auto` |
-| Login decorative panel | `h-32 xl:h-40` |
-| Login card header | `h-14` |
-| Register card header | `h-12` |
-
-### Colors
-
-The color palette is **deep blue + warm gold** derived from the logo colors (`#22476a` blue, `#c19250` gold), using oklch values in `globals.css`:
-- **Primary:** Deep blue `oklch(0.39 0.07 249)` (matches logo `#22476a`) — main UI elements, headers, icons, buttons
-- **Secondary:** Muted blue `oklch(0.48 0.06 249)` — supporting elements, gradient endpoints
-- **Accent:** Warm gold `oklch(0.69 0.10 74)` (matches logo `#c19250`) — highlights, badges, attention elements
-
-### Color Usage Rules (Strictly Enforced)
-
-All pages (dashboard AND public landing pages) use CSS variable-based color tokens. **Never use hardcoded Tailwind color classes** like `blue-500`, `violet-600`, `rose-400`, etc.
-
-| Purpose | Use | Examples |
-|---|---|---|
-| Main UI / decorative | `primary`, `secondary`, `accent` tokens | `bg-primary/10`, `text-primary`, `from-primary to-secondary` |
-| Success states only | `emerald-` / `green-` | Verified badges, approved identity, completed payments, matched status |
-| Pending/warning states only | `amber-` | Pending identity, medium compatibility scores, "waiting" status badges |
-| Error/destructive only | `destructive` token | Delete buttons, rejected status, failed payments, low scores |
-| Muted/neutral | `muted`, `muted-foreground` tokens | Subtle backgrounds, placeholder text, disabled states |
-
-**Never use** `blue-`, `violet-`, `purple-`, `rose-`, `pink-`, `sky-`, `cyan-`, `indigo-`, `slate-`, `gray-`, `orange-` as Tailwind color classes. Always use the CSS variable tokens (`primary`, `secondary`, `accent`, `muted`, `destructive`) instead.
-
-**Gradient patterns:**
-- Primary gradient: `from-primary to-secondary`
-- Accent gradient: `from-accent to-accent/70`
-- Subtle backgrounds: `bg-primary/5`, `bg-primary/10`, `bg-accent/10`
-- Icon containers: `from-primary/10 to-primary/5`, `from-secondary/10 to-primary/5`
-
-## Landing Page UI Patterns
-
-### Title Dash Hidden on Mobile
-
-Several landing pages (home, about, terms, privacy) use an em-dash `—` separator in h1 titles between the brand/keyword and the subtitle. On mobile, the dash is hidden and replaced with a line break:
-
-```tsx
-<span className="mx-3 text-muted-foreground/40 hidden sm:inline">—</span>
-<br className="sm:hidden" />
-```
-
-This pattern must be applied to any new landing page title that uses a dash separator.
-
-### Navbar Section Links
-
-The navbar has two types of links: **section links** (المميزات, كيف تعمل المنصة) that anchor to homepage sections, and **page links** (من نحن, تواصل معنا, المدونة, الأسئلة الشائعة). Section links use `Link href="/#features"` so they work from any page — navigating to the homepage and scrolling to the section. Both types are always visible on all pages.
-
-### Footer
-
-The footer (`src/components/shared/footer.tsx`) has 4 columns: Brand description, Quick Links, Pages, Contact Info + social icons. No newsletter/email subscription section — it was intentionally removed.
-
-### Blog Category Filter
-
-The blog page (`/blog`) uses a centered, wrapping category filter bar matching the FAQ page pattern: `flex flex-wrap items-center justify-center gap-2`. Do not use horizontal scroll (`overflow-x-auto`) for filter bars.
 
 ## Critical Domain Rules
 
-These are hard constraints that must never be violated:
-
 - **No messaging/chat/communication** between users — ever
-- **Photos are hidden** until both users mutually like each other
-- **Gender-neutral access** — both genders receive suggestions, can accept/reject, receive interests, and purchase credits. The same workflow applies to all users
-- **Identity verification** (government ID upload + admin review) is mandatory before platform usage
-- **100% profile completeness required for suggestions** — users cannot view or receive suggestions until their completeness score reaches 100%. Both the dashboard and suggestions page enforce this with alert banners showing the current percentage and incomplete sections
-- **Parent/guardian data** is visible to admin only, never to the other user
-- **Free tier:** 5 lifetime suggestions per account; paid packages for more
-- **No credit gate on matches** — mutual match details are always fully visible (no reveal/credit cost)
-- **No pricing on landing page** — packages are only visible in the dashboard payments section
-- **Suggestion cards** show full profile details (expandable): personal info, education/work, religion/lifestyle, family, hobbies
-- **Match cards** show same full profile details as suggestions, plus compatibility score, visit status, and photo toggle
+- **Photos hidden** until mutual like
+- **Gender-neutral access** — same workflow for all users
+- **Identity verification** (gov ID + admin review) mandatory before platform usage
+- **100% profile completeness required** for suggestions (enforced with alert banners)
+- **Parent/guardian data** visible to admin only, never to other users
+- **Free tier:** 5 lifetime suggestions; paid packages for more
+- **No credit gate on matches** — mutual match details always fully visible
+- **No pricing on landing page** — packages only in dashboard payments
+- **Suggestion/match cards** show full expandable profile details
+
+## Branding & Colors
+
+**Brand:** نصيبك (Naseebak). Only standalone "نصيبك" is the brand name. Logo SVG at `public/images/logo.svg` — use via `Image` component in nav/brand areas. In headings use text "نصيبك" with gradient, not the logo image. Login panel: `brightness-0 invert` filter for white logo.
+
+### Color Rules (Strictly Enforced)
+
+Palette: **deep blue `#22476a`** (primary) + **warm gold `#c19250`** (accent), oklch in `globals.css`.
+
+**Never use hardcoded Tailwind color classes** (`blue-`, `violet-`, `purple-`, `rose-`, `pink-`, `sky-`, `cyan-`, `indigo-`, `slate-`, `gray-`, `orange-`). Always use CSS variable tokens:
+
+| Purpose | Token |
+|---|---|
+| Main UI / decorative | `primary`, `secondary`, `accent` |
+| Success states only | `emerald-` / `green-` |
+| Pending/warning only | `amber-` |
+| Error/destructive | `destructive` |
+| Muted/neutral | `muted`, `muted-foreground` |
+
+Gradients: `from-primary to-secondary`, `from-accent to-accent/70`, subtle: `bg-primary/5`, `bg-primary/10`
+
+## Auth System
+
+Dual auth: phone+OTP for users, email+password for admins. Providers in `src/lib/auth.ts`: `"credentials"` (phone+OTP) and `"admin-credentials"` (email+password).
+
+**User flow:** `POST /api/auth/send-otp` → `POST /api/auth/verify-otp` → `signIn("credentials")` or `POST /api/auth/register`. Registration checks `userExists` first — if true, redirects to `/login?exists=true`. User email = `phone_${phone}@naseeb.local`. Names must be Arabic-only (`/^[\u0600-\u06FF\s]+$/`).
+
+**Admin:** `signIn("admin-credentials", { email, password })` → bcrypt verify → `/admin`. Seed: `admin@naseeb.jo` / `Admin123!`
+
+**Route protection** (`src/lib/auth.config.ts`): `/admin/*` → admin role required. `/dashboard/*` → auth required. `/login`, `/register` → redirect if logged in.
+
+## Database Schema
+
+22 models in `prisma/schema.prisma`. Key points:
+- `User.phone` stored as `962XXXXXXXXX`. `normalizePhone()` converts input formats
+- `User.email` = `phone_962xx@naseeb.local` for users, real email for admins
+- `User.passwordHash` optional — set for admins only (bcrypt)
+- `Suggestion` uses `recipientId`/`candidateId` (mapped to `femaleId`/`maleId` DB columns via `@map`)
+- `MutualMatch` `femaleId`/`maleId` — assigned dynamically based on actual genders
+- `SystemSetting` — key-value store, read via `src/lib/settings.ts` (30s cache)
+- `ProfileUpdateRequest` — user profile edits require admin review (steps 1-4); step 5 guardian info saves directly
 
 ## Matching Workflow
 
 ```
-User receives suggestion → accepts/rejects (full profile, no photos) →
-  if accepted: other user gets interest notification → accepts/rejects (full profile, no photos) →
-    if mutual like: full details + photos revealed immediately (no credit cost) →
-      visit request created → admin contacts families → arranges in-person visit
+Suggestion → recipient accepts/rejects (no photos) →
+  accepted: other user gets interest → accepts/rejects →
+    mutual like: photos + full details revealed → visit request → admin arranges family visit
 ```
 
-Both genders follow the same flow. The Suggestion model uses `recipientId`/`candidateId` fields (mapped to `femaleId`/`maleId` DB columns via Prisma `@map`). MutualMatch keeps `femaleId`/`maleId` — assigned dynamically based on actual user genders at match creation time.
+### Suggestions Page (3 Tabs)
 
-## Suggestions Page (3-Tab Layout)
+1. **اقتراحات جديدة** — new suggestions (user is recipient)
+2. **الطلبات المرسلة** — sent interests with status tracking
+3. **طلبات الاهتمام** — received interests
 
-All users (both genders) see the same 3-tab suggestions page:
+**Sent interest status** (derived from DB, no extra schema):
 
-**Eligibility gate:** The suggestions page checks `completeness.total >= 100` from `/api/profile`. If < 100%, the entire page is blocked with a card showing the current percentage and chips listing incomplete sections (e.g., "الصور", "العائلة والولي"). The dashboard also shows a banner: "أكمل حسابك بنسبة 100% لتلقي اقتراحات التوافق" with the percentage.
+| Status | Condition |
+|---|---|
+| بانتظار الاطلاع (Amber) | INTEREST notification `isRead: false` |
+| تم الاطلاع (Primary blue) | Notification read, no MutualMatch |
+| توافق متبادل (Emerald) | MutualMatch exists |
 
-1. **"اقتراحات جديدة" (New Suggestions)** — pending suggestions where user is the recipient
-2. **"الطلبات المرسلة" (Sent Requests)** — tracks status of accepted suggestions (sent interests)
-3. **"طلبات الاهتمام" (Received Interests)** — incoming likes from other users
+## Dashboard Pagination (RTL)
 
-**Sent interest status logic** (derived from existing DB data, no schema changes):
-| Status | Arabic | Badge Color | Condition |
-|---|---|---|---|
-| Waiting | بانتظار الاطلاع | Amber | INTEREST notification to other user has `isRead: false` |
-| Seen | تم الاطلاع | Primary (deep blue) | Notification `isRead: true`, no `MutualMatch` exists |
-| Matched | توافق متبادل | Emerald (success) | A `MutualMatch` record exists for this pair |
+All list pages use server-side pagination. RTL chevron direction: `ChevronRight` = السابق (previous), `ChevronLeft` = التالي (next). Page sizes: 10 (suggestions, matches, payments, support), 20 (notifications).
 
-**Key files:**
-- `src/app/api/suggestions/route.ts` — Suggestions list (uses `recipientId`/`candidate`)
-- `src/app/api/suggestions/sent/route.ts` — Sent interests with status
-- `src/app/api/interests/received/route.ts` — Received interests
-- `src/app/(ar)/dashboard/suggestions/page.tsx` — 3-tab UI for all users
+```tsx
+<Button onClick={() => setPage(page - 1)}><ChevronRight /> السابق</Button>
+<Button onClick={() => setPage(page + 1)}>التالي <ChevronLeft /></Button>
+```
 
-## Push Notifications (OneSignal)
+## Landing Page UI Patterns
 
-Web push notifications via OneSignal SDK. Sends real-time alerts for suggestions, matches, visits, identity status, and payments.
+- **Title dash on mobile:** Em-dash `—` hidden on mobile, replaced with `<br>`: `<span className="hidden sm:inline">—</span><br className="sm:hidden" />`
+- **Blog/FAQ filter bars:** Use `flex flex-wrap justify-center gap-2`, never `overflow-x-auto`
+- **Footer:** 4 columns. No newsletter section (intentionally removed)
+- **Navbar section links:** Use `Link href="/#features"` for homepage anchors
 
-**Architecture:**
-- `src/components/shared/onesignal-provider.tsx` — Client-side SDK init (rendered in dashboard layout), calls `OneSignal.login(userId)` to register user by external_id
-- `src/components/shared/push-permission-prompt.tsx` — Centered overlay popup (fixed position with semi-transparent backdrop + blur) shown 5s after dashboard load, asks users to enable push notifications. Features Bell icon, Arabic title/description, "تفعيل الإشعارات" and "لاحقاً" buttons. Only appears when `Notification.permission === "default"`. Dismissal stored in localStorage (`naseeb_push_prompt_dismissed`)
-- `src/lib/onesignal.ts` — Server-side helpers using **OneSignal REST API v2** (`api.onesignal.com/notifications`). Uses `Authorization: Key` header and targets users by `include_aliases: { external_id: [userId] }` (not deprecated `include_player_ids`)
-- `src/app/api/push/register/route.ts` — Saves OneSignal player ID to `User.oneSignalPlayerId`
-- `public/OneSignalSDKWorker.js` — Service worker required by OneSignal
+## SMS (Broadnet)
 
-Both `OneSignalProvider` and `PushPermissionPrompt` are rendered in the dashboard layout (`src/app/(ar)/dashboard/layout.tsx`).
+Gateway: `gwjo1s.broadnet.me:8443`. Arabic SMS requires `type=2` (Unicode) with UTF-16BE hex encoding via `toUnicodeHex()`.
 
-**Platform support:**
-- Android Chrome (browser + PWA): Full push support
-- iOS Safari: No web push support
-- iOS PWA (Add to Home Screen, iOS 16.4+): Push supported only after installing as PWA
+Rate limits: 3/phone/5min, 10/IP/15min. Test number: `962796922292` → fixed OTP `111111`.
 
-**OneSignal setup required:** In the OneSignal dashboard, set Site URL to `https://naseebak.com` under Settings → Platforms → Web.
+Credentials: user=`naseebak6`, pass=`954N@LtoK`, sid=`naseebak`
 
-## Profile Setup (5 Steps)
+## Stripe Payments
 
-The profile wizard (`dashboard/profile/setup`) has 5 steps:
-1. **Personal Info** — DOB, nationality, city (grid), area (cascading from `jordan-areas.ts`), height, weight, education, job (dropdown with 24 options + "أخرى" custom input)
-2. **Lifestyle & Religion** — Marital status, religiosity, smoking, hijab (women), beard (men), cooking ability, driving license, children count (conditional — only shown for divorced/widowed, hidden for single)
-3. **About Me & Preferences** — Bio, partner expectations, hobbies, family values, preferred age/city/education/marital status, prefHijab (males only), prefBeard (females only), prefReligiosity (multi-select), prefSmokingStatus (multi-select), prefChildrenAcceptance
-4. **Family Info** — Tribe, family origin area, siblings count, housing type, monthly expenses, health conditions
-5. **Guardian Info** — Parent/guardian name, phone, relationship, address
+JOD currency (3-decimal — fils = price × 1000). Flow: `POST /api/payments/checkout` → Stripe Checkout Session → webhook fulfills order. Lazy-init client in `src/lib/stripe.ts`.
 
-### Auto-Save
+Env vars: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`
 
-The setup wizard auto-saves progress so users can leave mid-form and return later without losing data. Two persistence layers work together:
+## Image Storage (Bunny.net CDN)
 
-- **localStorage** — Debounced (1s) save of form state + parent form + current step on every field change. Key: `naseeb_profile_draft`. 30-day expiry. Works offline.
-- **Server draft** — `PATCH /api/profile/draft` fires on each "Next" step transition (fire-and-forget). Validates with `profileDraftSchema` (all fields optional, ranges still enforced). Upserts profile with `isComplete: false`. Saves `setupStep` to track progress.
+All uploads stored on Bunny.net, served via `https://cdn.naseebak.com`. Key file: `src/lib/bunny.ts`.
 
-**On page load:** Fetches server profile data, then checks localStorage draft. Whichever is fresher (comparing `savedAt` vs `profile.updatedAt`) wins. Restores form state + step from the chosen source.
+```
+naseebak/{photos,identity,avatars}/{userId}/...
+```
 
-**On final submit:** Existing PUT to `/api/profile` + `/api/profile/parent-info` (sets `isComplete: true`). Clears localStorage draft on success.
+Env vars: `BUNNY_STORAGE_API_KEY`, `BUNNY_STORAGE_ZONE` (`naseebak`), `BUNNY_STORAGE_ENDPOINT` (`storage.bunnycdn.com`), `BUNNY_CDN_URL` (`https://cdn.naseebak.com`). `next.config.ts` includes `cdn.naseebak.com` in `images.remotePatterns`.
 
-**Visual indicator:** "تم الحفظ التلقائي" text with Save icon appears below the progress bar for 2s after each localStorage save.
+## Production Deployment
 
-**Key files:**
-- `src/hooks/use-auto-save.ts` — `useAutoSave(enabled)` hook: localStorage debounce, restore, clear, server save, indicator state
-- `src/app/api/profile/draft/route.ts` — PATCH endpoint with `profileDraftSchema` validation
-- `src/lib/validations/profile.ts` — `profileDraftSchema` (all fields optional, value ranges enforced)
+**Server:** DigitalOcean droplet (Ubuntu 24.04, 2 vCPU, 4GB RAM) at `64.226.64.239`. Domain: `naseebak.com`. SSL: Let's Encrypt. Reverse proxy: Nginx. Process manager: PM2 (**fork mode, NOT cluster** — Next.js manages own workers).
 
-## Profile Edit (5 Steps)
+**Deploy:** `ssh root@64.226.64.239 "/var/www/naseebak/deploy.sh"`
 
-The profile edit page (`dashboard/profile/edit`) mirrors the setup wizard structure but for existing profiles. All fields are required with step-by-step validation. Steps 1-4 changes are submitted as a `ProfileUpdateRequest` for admin review. Step 5 (guardian info) saves directly since it's admin-only data.
+**Git remote:** `git@gitlab.evokeyit.com:gitlab-instance-54ffc071/naseebak.git` (branch: `main`)
 
-**Steps:**
-1. **Personal Info** — DOB, nationality, city, area, height, weight, skin color, education, job, income range
-2. **Lifestyle & Religion** — Marital status, children count (conditional), religiosity, smoking, hijab/beard (gender-specific), cooking ability, driving license
-3. **About Me & Preferences** — Bio (min 10 chars), partner expectations (min 10 chars), hobbies, family values, preferred age/city/education/marital status, prefReligiosity, prefSmokingStatus, prefHijab/prefBeard (gender-specific), prefChildrenAcceptance
-4. **Family Info** — Tribe, family origin area, siblings count, housing type, monthly expenses, health conditions
-5. **Guardian Info** — Parent/guardian name, phone, relationship (father/mother/brother/guardian), address. Saves directly via `/api/profile/parent-info` (no admin review needed)
+**App path:** `/var/www/naseebak` | **Logs:** `/var/log/naseebak/`
 
-**Validation:** `validateStep()` function checks all required fields per step. Navigation between steps is blocked until the current step passes validation. Submit validates all 5 steps. Arabic error messages shown in a banner that auto-scrolls into view on validation failure.
+## Matching Algorithm
 
-**Key files:**
-- `src/app/(ar)/dashboard/profile/edit/page.tsx` — 5-step edit form with validation and scroll-to-error
-- `src/app/api/profile/update-request/route.ts` — POST endpoint (creates ProfileUpdateRequest for admin review)
-- `src/app/api/profile/parent-info/route.ts` — GET/POST guardian info (direct save)
-
-## Profile Avatar
-
-Personal profile image visible only to the user on their own profile page. Never shared with other users, never included in suggestion/match API responses.
-
-- `POST /api/profile/avatar` — Upload base64 data URL (JPG/PNG/WebP, max 5MB), saves to `Profile.profileImageUrl`
-- `DELETE /api/profile/avatar` — Remove the profile image (sets to null)
-- Profile page shows the avatar in the header (or initial letter fallback), with a camera overlay for inline upload
-- Privacy note displayed under the header: "صورة الملف الشخصي تظهر لك فقط ولن يراها أي مستخدم آخر"
-
-**Key files:**
-- `src/app/api/profile/avatar/route.ts` — POST/DELETE avatar endpoint
-- `src/app/(ar)/dashboard/profile/page.tsx` — Avatar display + upload UI + guardian info display section (name, relationship, address with privacy notice)
-
-## Photo Management
-
-Photo upload page at `/dashboard/photos`. Uses existing API endpoints:
-- `GET /api/profile/photos` → list photos
-- `POST /api/profile/photos` → upload (base64 data URL, `isPrimary` flag)
-- `DELETE /api/profile/photos/[id]` → delete
-
-**Constraints:** Max 5 photos per user. Photos are only visible to mutual matches. First uploaded photo is auto-set as primary.
-
-**Key files:**
-- `src/app/(ar)/dashboard/photos/page.tsx` — Photo upload/manage UI
-- Accessible from sidebar ("صوري") and profile page quick links
-
-## Dashboard Sidebar (`src/components/shared/dashboard-sidebar.tsx`)
-
-The user dashboard uses `DashboardSidebar` (NOT `DashboardNavbar` — the navbar is unused/legacy). It's a collapsible sidebar on desktop, hamburger sheet on mobile.
-
-**Main links (القائمة الرئيسية):** الرئيسية, الاقتراحات, التوافقات, الإشعارات (with unread badge)
-**Account links (الحساب):** الملف الشخصي, صوري, اختبار الشخصية, التحقق من الهوية, رصيد التوافقات, الدعم والملاحظات, ادعِ صاحبك (referral)
-
-The sidebar consumes shared data from `DashboardDataProvider` context (profile for user card, unread count for notification badge). It does NOT fetch APIs directly — all data comes from the context. Logout calls `signOut({ callbackUrl: "/login" })`.
-
-The mobile Sheet menu uses `showCloseButton={false}` with a custom X button placed inline next to the logo (avoids overlap with the default Sheet close button). The landing page navbar (`src/components/shared/navbar.tsx`) follows the same pattern.
-
-**Key file:** `src/components/shared/dashboard-sidebar.tsx` — `mainLinks` array for primary nav, `accountLinks` array for account section. Add new dashboard links to the appropriate array.
+Weighted scoring in `src/lib/matching/score.ts`: Preference match (50%), Personality similarity (30% — cosine on 5D vectors, redistributed if no quiz), Profile quality (20%). Admin generate creates top-3 per user (score >= 30).
 
 ## Notification Routing
 
-All notification types navigate to the correct page on click:
 | Type | Route |
 |---|---|
-| SUGGESTION | `/dashboard/suggestions` |
-| INTEREST | `/dashboard/suggestions` |
-| MATCH | `/dashboard/matches` |
-| VISIT_UPDATE | `/dashboard/matches` (status shown in Arabic via `visitStatusLabels` map in `api/admin/visits/route.ts`) |
+| SUGGESTION, INTEREST | `/dashboard/suggestions` |
+| MATCH, VISIT_UPDATE | `/dashboard/matches` |
 | PAYMENT | `/dashboard/payments` |
 | IDENTITY | `/dashboard/identity` |
 | SUPPORT | `/dashboard/support` |
 | SYSTEM | `/dashboard` |
 
-## Testing
+## Dashboard Data Context
 
-Tests are in `src/__tests__/`. Run with `pnpm test`. **199 tests across 13 files.**
-- `validations/auth.test.ts` — OTP schema validation (sendOtp, verifyOtp, login, register) — 38 tests
-- `validations/profile.test.ts` — Profile + parent info + draft schema validation — 18 tests
-- `validations/blog.test.ts` — Blog post + category schema validation — 19 tests
-- `api/matching.test.ts` — Matching workflow domain logic — 19 tests
-- `api/plans.test.ts` — Payment plans logic — 3 tests
-- `domain-rules.test.ts` — Core domain rule enforcement — 23 tests
-- `lib/utils.test.ts` — Utility function tests — 6 tests
-- `matching/score.test.ts` — Compatibility scoring (cosine similarity, preference matching, quality score) — 20 tests
-- `profile-completeness.test.ts` — Field-level completeness calculator — 13 tests
-- `validations/support.test.ts` — Support ticket schema validation — 8 tests
-- `features/notification-preferences.test.ts` — Notification preference settings — 10 tests
-- `features/visit-feedback.test.ts` — Visit feedback system — 11 tests
-- `features/referral.test.ts` — Referral system (code generation, validation, rewards) — 11 tests
+`DashboardDataProvider` in dashboard layout deduplicates API calls. Provides `profile`, `completeness`, `unreadCount`. Polls unread every 30s. Listens for `naseeb:notifications-read` custom DOM event for instant badge updates.
 
-## Blog System
+## Profile Completeness Weights
 
-Database-backed blog with admin management. No direct communication — blog is public content only.
+| Section | Weight |
+|---------|--------|
+| Identity verification | 15% |
+| Basic info (10 fields) | 30% |
+| Preferences (7 fields) | 20% |
+| Personality quiz | 15% |
+| Photos (≥1) | 10% |
+| Family & Guardian | 10% |
 
-**Public pages:**
-- `/blog` — Dynamic listing with category filter, pagination, shimmer loading states
-- `/blog/[slug]` — Detail page with mini hero, back link, 404 handling
+## Admin Panel
 
-**Admin page:**
-- `/admin/blog` — Two-tab layout (Posts + Categories)
-  - Posts tab: table with CRUD via dialog, pagination, status badges (DRAFT/PUBLISHED)
-  - Categories tab: inline add form + table with delete (blocked if posts exist)
+14 pages at `/admin`. All use `"use client"`, `useState`+`useEffect`, admin auth check. Sidebar in `src/components/shared/admin-sidebar.tsx`. Profile request approval applies all field types (strings, ints, bools, arrays, dates).
 
-**Category icon/gradient mapping:** Category slugs (`tips`, `stories`, `development`, `family`) map to specific icons and gradient colors in the blog listing page via lookup objects. New categories get a default gradient.
+## Registration Toggle
 
-**Key files:**
-- `src/lib/validations/blog.ts` — `createBlogPostSchema`, `createCategorySchema`
-- `src/app/api/blog/` — Public endpoints (list, single, categories)
-- `src/app/api/admin/blog/` — Admin CRUD endpoints (auth guarded)
-- `src/app/(en)/admin/blog/page.tsx` — Admin blog management page
-- `src/app/(ar)/blog/page.tsx` — Public blog listing (dynamic)
-- `src/app/(ar)/blog/[slug]/page.tsx` — Public blog detail page
+`SystemSetting` key `registration_open`. Default: open (fail-open on error). When closed: banner on landing pages, register page shows alert, `send-otp` blocks new phones, `register` returns 403.
 
-## Stripe Payments
+## Known Limitations
 
-Real payment processing via Stripe Checkout Sessions. Currency is JOD (Jordanian Dinar, 3-decimal — fils = price × 1000).
+- No email notification service
+- OneSignal requires domain config in dashboard (Site URL: `https://naseebak.com`)
+- Account deletion cron needs external scheduler
 
-**Flow:**
-```
-User clicks "Buy" → POST /api/payments/checkout → creates PENDING Payment + Stripe Checkout Session →
-  returns session URL → client redirects to Stripe hosted page →
-    user pays → Stripe sends webhook → POST /api/payments/webhook →
-      verifies signature → fulfills order (COMPLETED, add credits, notification, push) →
-        Stripe redirects user to /dashboard/payments?success=true
-```
+<!-- gitnexus:start -->
+# GitNexus MCP
 
-**Key files:**
-- `src/lib/stripe.ts` — Lazy-initialized Stripe client (`getStripe()`) — avoids build-time errors when env vars aren't set
-- `src/app/api/payments/checkout/route.ts` — Creates PENDING payment + Stripe Checkout Session, returns `{ url }` for client redirect
-- `src/app/api/payments/webhook/route.ts` — Verifies Stripe signature, handles `checkout.session.completed` (credits + notification + push) and `checkout.session.expired` (marks FAILED)
-- `src/app/(ar)/dashboard/payments/page.tsx` — Redirects to Stripe on purchase, shows success/cancel toast on return
+Indexed as **naseeb** (1009 symbols, 2031 relationships, 49 execution flows).
 
-**Webhook events handled:**
-- `checkout.session.completed` — Fulfills order: updates Payment to COMPLETED, increments `User.matchCredits`, creates PAYMENT notification, sends push
-- `checkout.session.expired` — Updates Payment to FAILED
+1. Read `gitnexus://repo/{name}/context` — overview + freshness check
+2. Match task to skill → read skill file
+3. Follow workflow
 
-**Environment variables required:**
-- `STRIPE_SECRET_KEY` — Stripe secret key (starts with `sk_test_` or `sk_live_`)
-- `STRIPE_WEBHOOK_SECRET` — Webhook signing secret (starts with `whsec_`)
-- `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` — Publishable key (starts with `pk_test_` or `pk_live_`)
-
-## Production Deployment
-
-### Infrastructure
-
-| Component | Details |
-|---|---|
-| **Server** | DigitalOcean droplet, Ubuntu 24.04 LTS, 2 vCPU, 4GB RAM, 120GB SSD |
-| **IP** | 64.226.64.239 |
-| **Domain** | naseebak.com (+ www.naseebak.com → redirects to non-www) |
-| **SSL** | Let's Encrypt, auto-renews via certbot timer |
-| **Process Manager** | PM2 (fork mode — Next.js manages its own workers internally) |
-| **Reverse Proxy** | Nginx with HTTP2, gzip, security headers, rate limiting |
-| **App Path** | `/var/www/naseebak` |
-| **Logs** | `/var/log/naseebak/` (PM2 logs, deploy logs) |
-| **Config** | `/var/www/naseebak/ecosystem.config.cjs` (PM2), `/etc/nginx/sites-available/naseebak` (Nginx) |
-
-### Deploy to Production
-
-```bash
-ssh root@64.226.64.239 "/var/www/naseebak/deploy.sh"
-```
-
-Or manually:
-```bash
-ssh root@64.226.64.239
-cd /var/www/naseebak
-git pull origin main
-pnpm install --frozen-lockfile
-npx prisma generate
-npx prisma db push
-pnpm build
-pm2 restart ecosystem.config.cjs
-```
-
-### Git Remote
-
-- **GitLab:** `git@gitlab.evokeyit.com:gitlab-instance-54ffc071/naseebak.git`
-- **Branch:** `main`
-- Server SSH key (Ed25519) is registered as a deploy key in GitLab
-
-### Server Security & Performance
-
-- **Firewall (UFW):** Only SSH + Nginx (80/443)
-- **Fail2ban:** SSH (3 retries / 2h ban), Nginx rate-limit + bot protection
-- **Rate Limiting (Nginx):** Auth endpoints: 5/min, API: 10/s, General: 30/s
-- **Security Headers:** HSTS (2yr preload), X-Frame-Options, X-Content-Type-Options, XSS Protection, Referrer-Policy, Permissions-Policy
-- **Kernel Tuning:** `somaxconn=65535`, `tcp_tw_reuse=1`, `swappiness=10`, file descriptors 65535
-- **Swap:** 2GB
-- **Log Rotation:** Daily, 14 days retention, compressed
-- **Auto Security Updates:** `unattended-upgrades` enabled
-
-### Important: PM2 Mode
-
-**Use fork mode, NOT cluster mode** for Next.js. Next.js manages its own internal workers. PM2 cluster mode causes port conflicts during restarts, leading to 503 errors. The `ecosystem.config.cjs` is set to `exec_mode: 'fork'` with `instances: 1`.
-
-### Scaling Path
-
-1. **Vertical:** Resize droplet → more RAM/CPU, Next.js uses workers automatically
-2. **Horizontal:** Add more droplets behind a DigitalOcean Load Balancer
-3. **CDN:** Add Cloudflare in front for static asset caching + DDoS protection
-
-## SMS (Broadnet)
-
-OTP SMS sent via Broadnet gateway (`gwjo1s.broadnet.me:8443`).
-
-**Important:** Arabic text requires `type=2` (Unicode) with UTF-16BE hex encoding. `type=1` only works for ASCII/English text. The `toUnicodeHex()` helper in `send-otp/route.ts` handles this conversion.
-
-**Rate limiting (send-otp):**
-- Per phone: 3 requests / 5 minutes
-- Per IP: 10 requests / 15 minutes (extracted from `x-forwarded-for` header)
-
-**Test number:** `962796922292` (input as `0796922292`) uses fixed OTP `111111` — bypasses SMS entirely.
-
-**Broadnet credentials:** user=`naseebak6`, pass=`954N@LtoK`, sid=`naseebak`
-
-## Privacy Notes (User-Facing)
-
-Privacy reassurance banners are displayed across key pages:
-
-| Page | Message |
-|---|---|
-| **Identity** (`dashboard/identity`) | وثائق الهوية تُستخدم فقط للتحقق من هويتك ولن يطّلع عليها أي مستخدم آخر. يتم مراجعتها بسرية تامة من قبل الإدارة |
-| **Photos** (`dashboard/photos`) | صورك الشخصية لن تظهر لأي مستخدم إلا بعد التوافق المتبادل بينكما (Lock icon) |
-| **Registration** (Step 1) | اسمك الكامل ورقم هاتفك محميان بالكامل ولن يظهرا لأي مستخدم آخر على المنصة. يُعرض فقط الاسم الأول (Shield icon) |
-| **Registration** (Step 2) | Same identity privacy message as the identity page |
-| **Profile** (`dashboard/profile`) | صورة الملف الشخصي تظهر لك فقط ولن يراها أي مستخدم آخر (Lock icon) |
-
-## Matching Algorithm
-
-Weighted compatibility scoring engine in `src/lib/matching/score.ts`. Replaces the old hardcoded 85% score.
-
-**Scoring weights:**
-- **Preference match (50%)**: Bidirectional — checks if each user meets the other's preferences (age range, city, education, marital status, religiosity, smoking, hijab/beard, children acceptance). Missing preferences = full score for that dimension.
-- **Personality similarity (30%)**: Cosine similarity on 5D personality vectors (from `PersonalityResult.vector`). If either user hasn't taken the quiz, weight is redistributed to preferences (65%) and quality (35%).
-- **Profile quality bonus (20%)**: Both users have complete profiles, photos, quiz done, and identity verified.
-
-**Admin integration:**
-- Manual suggestion creation (`POST /api/admin/suggestions`) auto-computes the score when no manual score is provided
-- "Generate Suggestions" button (`POST /api/admin/suggestions/generate`) finds all eligible users, scores all opposite-gender candidates, creates top-3 per user (score ≥ 30), excluding existing suggestions/matches/blocks
-
-**Key files:**
-- `src/lib/matching/score.ts` — `calculateCompatibility()`, `checkPreferenceMatch()`, `cosineSimilarity()`, `profileQualityScore()`
-- `src/app/api/admin/suggestions/generate/route.ts` — Bulk suggestion generation endpoint
-- `src/app/(en)/admin/suggestions/page.tsx` — Generate button UI
-
-## Report & Block System
-
-User safety features — report profiles and block users.
-
-**Report flow:** User clicks three-dot menu on suggestion/interest/match card → selects "إبلاغ" → dialog with reason enum + optional details → `POST /api/reports` → admin reviews in `/admin/reports` (mark as REVIEWED or DISMISSED with note).
-
-**Block flow:** User clicks "حظر" from the three-dot menu → `POST /api/blocks` → user is immediately removed from the card list. Blocked users are filtered out of:
-- `GET /api/suggestions` — excludes blocked candidates
-- `GET /api/interests/received` — excludes blocked senders
-- Matching algorithm — excludes blocked pairs from candidate generation
-
-**Admin reports page** (`/admin/reports`): Filterable by status (All/PENDING/REVIEWED/DISMISSED), paginated, review dialog with admin note.
-
-**Key files:**
-- `src/app/api/reports/route.ts` — POST (create report)
-- `src/app/api/blocks/route.ts` — GET/POST (list/create blocks)
-- `src/app/api/blocks/[id]/route.ts` — DELETE (unblock)
-- `src/app/api/admin/reports/route.ts` — GET/PATCH (admin review)
-- `src/app/(en)/admin/reports/page.tsx` — Admin reports page
-- Three-dot menu added to suggestion cards, interest cards, and match cards
-
-## Admin Panel (Complete Feature Set)
-
-The admin panel at `/admin` has 14 pages providing full platform management. All pages use the same patterns: `"use client"`, `useState`+`useEffect`, admin auth check via API, shadcn/ui components.
-
-### Sidebar Navigation (`src/components/shared/admin-sidebar.tsx`)
-14 links: Dashboard, Users, Identity Review, Suggestions, Visit Requests, Reports, Profile Requests, Payments, Notifications, Blocks, Deletions, Support Tickets, Blog, Settings. Active link matching uses `pathname === href || (href !== "/admin" && pathname.startsWith(href))` to highlight parent links for sub-routes like `/admin/users/[id]`.
-
-### Admin Pages Summary
-
-| Page | Path | Features |
-|------|------|----------|
-| **Dashboard** | `/admin` | 8 stat cards (incl. revenue), quick action links with pending counts, registration trend (this week vs last), recent activity timeline (registrations, matches, payments) |
-| **Users** | `/admin/users` | Search by name/phone, gender/status filter dropdowns, credits column, clickable rows → detail page, inline suspend/unsuspend button |
-| **User Detail** | `/admin/users/[id]` | Full user profile (40+ fields), identity doc image preview, photos grid, personality quiz results, parent/guardian info, subscriptions, account stats, suspend/unsuspend + credit adjustment actions |
-| **Identity** | `/admin/identity` | Pending/History tabs, document image preview (front+back), predefined rejection reasons dropdown (Blurry, Wrong Doc, Expired, Mismatch, Other), history table with reviewer info + pagination |
-| **Suggestions** | `/admin/suggestions` | Browse/Create tabs. Browse: status filter, paginated table with score color coding (>70 green, 50-70 amber, <50 red), delete action. Create: auto-generate + manual create |
-| **Visits** | `/admin/visits` | Status filter buttons with counts, date picker (datetime-local), location input, admin notes per visit, "Save Details" button, status transition buttons |
-| **Reports** | `/admin/reports` | Status filter (All/PENDING/REVIEWED/DISMISSED), review dialog with admin note, pagination |
-| **Profile Requests** | `/admin/profile-requests` | Change diff table (Field / Current Value / Proposed Value), user message display, admin note + approve/reject. Approval applies all profile fields: strings (including skinColor, incomeRange), ints (height, weight, childrenCount, etc.), bools, arrays (prefReligiosity, prefSmokingStatus), and dateOfBirth |
-| **Payments** | `/admin/payments` | 3 summary cards (Total Revenue, This Month, Completed Count), status filter (All/PENDING/COMPLETED/FAILED/REFUNDED), paginated table |
-| **Notifications** | `/admin/notifications` | Send form with All Users / Specific User toggle, user dropdown, title + body inputs, route selector (which page the notification opens). Recent system notifications list below |
-| **Blocks** | `/admin/blocks` | Paginated table (Blocker / Blocked / Date / Remove), confirmation before removal |
-| **Deletions** | `/admin/deletions` | Cards with user info, reason, countdown badge ("X days remaining"), cancel deletion button with account reactivation |
-| **Support Tickets** | `/admin/support` | Status + type filters, ticket list with user info, review dialog with admin note + status actions (In Progress/Resolve/Close), pagination |
-| **Settings** | `/admin/settings` | Platform Settings card (registration open/closed toggle with badge), Tracking & Analytics card (GTM Container ID + Facebook Pixel ID inputs with save), Admin accounts table (Name / Email / Created), "Add Admin" form (firstName, lastName, email, password with bcrypt hash) |
-
-### Admin API Routes
-
-| Route | Methods | Description |
-|-------|---------|-------------|
-| `/api/admin/stats` | GET | Enhanced stats: user counts, revenue, pending items, registration trends, recent activity timeline |
-| `/api/admin/users` | GET | Paginated users with `?search=&gender=&status=` filters, includes `matchCredits` |
-| `/api/admin/users/[id]` | GET, PATCH | GET: full user detail with all relations. PATCH: `{ matchCredits }` to adjust credits |
-| `/api/admin/users/[id]/suspend` | PUT | Toggle suspend/unsuspend with notification + push |
-| `/api/admin/identity` | GET, PATCH | GET: `?tab=pending\|history&page=` with reviewer info for history. PATCH: approve/reject with rejectionReason |
-| `/api/admin/suggestions` | GET, POST | GET: paginated with `?status=` filter. POST: create suggestion (existing) |
-| `/api/admin/suggestions/[id]` | DELETE | Delete a suggestion |
-| `/api/admin/suggestions/generate` | POST | Auto-generate scored suggestions (existing) |
-| `/api/admin/profile-requests` | GET, PATCH | GET: pending requests with user profile for diff. PATCH: approve/reject with field application (supports string, int, bool, and array fields including prefReligiosity/prefSmokingStatus) |
-| `/api/admin/payments` | GET | Paginated with `?status=` filter, includes revenue summary (total, monthly, count) |
-| `/api/admin/notifications` | GET, POST | GET: last 50 SYSTEM notifications. POST: `{ userId?, title, body }` send to one or all users + push |
-| `/api/admin/blocks` | GET | Paginated blocks with blocker/blocked user info |
-| `/api/admin/blocks/[id]` | DELETE | Remove a block |
-| `/api/admin/deletions` | GET | Pending (non-cancelled) deletion requests with user info |
-| `/api/admin/deletions/[id]` | DELETE | Cancel deletion + reactivate user |
-| `/api/admin/support` | GET, PATCH | GET: paginated with `?status=&type=` filters. PATCH: update status + admin note, creates SUPPORT notification + push |
-| `/api/admin/settings/admins` | GET, POST | GET: list admin accounts. POST: create new admin (bcrypt password hash) |
-| `/api/admin/settings/registration` | GET, PATCH | GET: current registration status. PATCH: `{ registrationOpen: boolean }` toggle |
-| `/api/admin/settings/tracking` | GET, PATCH | GET: `{ gtmId, fbPixelId }`. PATCH: `{ gtmId?, fbPixelId? }` with format validation |
-| `/api/admin/reports` | GET, PATCH | Existing report review |
-| `/api/admin/visits` | GET, PATCH | Existing visit management with scheduledDate, location, adminNotes |
-| `/api/admin/blog/*` | Various | Blog CRUD + category management (now includes PUT for category edit) |
-
-## Profile Completeness Score
-
-Field-level completeness calculator replacing the old 3-item checklist (identity/profile/quiz).
-
-**Sections and weights:**
-| Section | Weight | Fields checked |
-|---------|--------|---------------|
-| Identity verification | 15% | `identityDoc.status === "APPROVED"` |
-| Basic info | 30% | DOB, city, area, nationality, education, job, height, weight, maritalStatus, aboutMe |
-| Preferences | 20% | prefAgeMin, prefAgeMax, prefCity, prefEducation, prefMaritalStatus, prefReligiosity, prefSmokingStatus |
-| Personality quiz | 15% | `personalityResult` exists |
-| Photos | 10% | At least 1 photo uploaded |
-| Family & Guardian | 10% | tribe, familyOriginArea, numberOfSiblings, parentInfo exists |
-
-**Integration:** `GET /api/profile` returns `completeness: { total, sections }`. Dashboard and profile pages show section-level progress bars with percentages, missing field hints, and action links (links to `/dashboard/profile/edit` when profile is complete, `/dashboard/profile/setup` otherwise). The suggestions page uses `completeness.total` to gate access — users with < 100% are blocked from viewing suggestions.
-
-**Key files:**
-- `src/lib/profile-completeness.ts` — `calculateCompleteness()` pure function
-- `src/app/(ar)/dashboard/page.tsx` — Section-based completeness widget
-- `src/app/(ar)/dashboard/profile/page.tsx` — Same widget on profile page
-
-## Account Deletion (30-day Grace Period)
-
-Users can request permanent account deletion with a 30-day cooling-off period.
-
-**Flow:**
-1. User clicks "حذف الحساب" on profile page → confirmation dialog with optional reason
-2. `POST /api/profile/delete` → creates `AccountDeletionRequest` (scheduledAt = now + 30 days), deactivates account immediately
-3. Profile page shows countdown to deletion date + "إلغاء طلب الحذف" button
-4. `DELETE /api/profile/delete` → cancels request, reactivates account
-5. Cron (`GET /api/cron/process-deletions?token=CRON_SECRET`) processes expired requests — cascades delete all user data
-
-**Environment variable:** `CRON_SECRET` — token to protect the cron endpoint.
-
-**Key files:**
-- `src/app/api/profile/delete/route.ts` — POST/DELETE/GET endpoints
-- `src/app/api/cron/process-deletions/route.ts` — Cron processor
-- `src/app/(ar)/dashboard/profile/page.tsx` — Deletion UI (request + countdown + cancel)
-
-## Support/Feedback Ticket System
-
-Users can submit support tickets (issues, suggestions, change requests) from the dashboard. Admin reviews and responds via the admin panel.
-
-**User flow:**
-1. User navigates to `/dashboard/support` (accessible from sidebar "الدعم والملاحظات")
-2. Selects ticket type (ISSUE/SUGGESTION/CHANGE_REQUEST), enters subject + description
-3. `POST /api/support` creates the ticket (max 5 open per user)
-4. User views their tickets + admin responses in "تذاكري" tab
-
-**Admin flow:**
-1. Admin navigates to `/admin/support` (sidebar "Support Tickets")
-2. Filters by status (OPEN/IN_PROGRESS/RESOLVED/CLOSED) and type
-3. Reviews ticket, adds admin note, changes status
-4. `PATCH /api/admin/support` updates status + creates SUPPORT notification + push to user
-
-**Status flow:** `OPEN` → `IN_PROGRESS` → `RESOLVED` / `CLOSED`
-
-**Notification:** When admin responds/changes status, user receives a SUPPORT notification: `تم تحديث حالة تذكرتك "subject" إلى: status` — routes to `/dashboard/support`.
-
-**Key files:**
-- `src/lib/validations/support.ts` — `createTicketSchema` (type, subject 5-200, description 20-2000)
-- `src/app/api/support/route.ts` — User POST (create) + GET (list own)
-- `src/app/api/admin/support/route.ts` — Admin GET (list all, filtered, paginated) + PATCH (update + notify)
-- `src/app/(ar)/dashboard/support/page.tsx` — 2-tab user page (new ticket form + ticket list)
-- `src/app/(en)/admin/support/page.tsx` — Admin ticket management (follows reports page pattern)
-
-## SEO & Social Sharing
-
-Full SEO metadata configured in `src/app/(ar)/layout.tsx` with `metadataBase: https://naseebak.com`.
-
-**Files:**
-- `src/app/(ar)/opengraph-image.tsx` — Dynamic OG image (1200x630) using `ImageResponse` from `next/og`. Renders the logo SVG (embedded as base64), English subtitle "Jordanian Marriage Platform", and brand gradient bars. Arabic text is NOT used in OG images due to Satori rendering engine limitations with Arabic fonts.
-- `src/app/(ar)/twitter-image.tsx` — Re-exports from `opengraph-image.tsx`
-- `src/app/robots.ts` — Allows `/`, disallows `/dashboard/`, `/admin/`, `/api/`. Points to sitemap
-- `src/app/sitemap.ts` — Static pages + dynamic blog posts from DB (async function)
-- `public/site.webmanifest` — PWA manifest with Arabic name, RTL direction, theme_color `#22476a`
-
-**PWA icons:** All icons (`public/images/icon-{16,32,192,512}.png`, `public/apple-touch-icon.png`, `public/favicon.ico`) are generated from `logo.svg` — the Arabic "نصيبك" text logo on a light gradient background with rounded corners.
-
-**Metadata in layout:** Title template (`%s | نصيبك`), description, Arabic SEO keywords, authors, icons (16/32/180px), manifest link, openGraph (locale `ar_JO`), Twitter (summary_large_image), robots directives, canonical URL.
-
-### Page-Specific SEO Metadata
-
-Each landing page has its own `layout.tsx` with unique `title`, `description`, `canonical` URL, and OpenGraph tags. Since all landing pages are `"use client"` components and cannot export `metadata` directly, metadata is exported from sibling `layout.tsx` files.
-
-| Page | Layout File | Title |
-|------|-------------|-------|
-| Home | `src/app/(ar)/layout.tsx` | نصيبك - نوصّلك بشريك العمر بالحلال |
-| About | `src/app/(ar)/about/layout.tsx` | من نحن |
-| Contact | `src/app/(ar)/contact/layout.tsx` | تواصل معنا |
-| Blog | `src/app/(ar)/blog/layout.tsx` | المدونة |
-| Blog Post | `src/app/(ar)/blog/[slug]/layout.tsx` | Dynamic (`generateMetadata`) |
-| FAQ | `src/app/(ar)/faq/layout.tsx` | الأسئلة الشائعة |
-| Login | `src/app/(ar)/login/layout.tsx` | تسجيل الدخول |
-| Register | `src/app/(ar)/register/layout.tsx` | إنشاء حساب |
-| Privacy | `src/app/(ar)/privacy/layout.tsx` | سياسة الخصوصية |
-| Terms | `src/app/(ar)/terms/layout.tsx` | شروط الاستخدام |
-
-### JSON-LD Structured Data
-
-- **Organization + WebSite** — `src/app/(ar)/layout.tsx` — Global schemas injected into `<body>` on every page
-- **FAQPage** — `src/app/(ar)/faq/layout.tsx` — All 15 FAQs as structured data for Google rich results
-- **BlogPosting + BreadcrumbList** — `src/app/(ar)/blog/[slug]/layout.tsx` — Dynamic per-post schemas with headline, datePublished, author, publisher, articleSection, readTime
-
-## Registration Open/Closed Toggle
-
-Admin-controlled toggle to open or close new user registration platform-wide.
-
-**Default:** Registration is open (`registration_open = "true"`). Works even without a DB row (falls back to default).
-
-**How it works:**
-- `SystemSetting` model stores key-value pairs in `system_settings` table
-- `src/lib/settings.ts` provides `getSetting()`, `setSetting()`, `isRegistrationOpen()` with 30s in-memory cache
-- Admin toggles via Settings page → `PATCH /api/admin/settings/registration`
-- Register page checks `GET /api/settings/registration-status` on mount; if closed, shows Arabic alert instead of wizard
-- `POST /api/auth/send-otp` blocks OTP for new phones when closed (existing users can still login)
-- `POST /api/auth/register` returns 403 when closed
-- **Fail-open:** If the status check fails (network error, DB down), registration is allowed
-
-**Landing page banner:** When closed, a sticky gradient banner ("التسجيل مغلق حالياً — يمكن للمستخدمين الحاليين تسجيل الدخول") appears above the navbar on all 8 landing pages that use the `Navbar` component. The banner is rendered inside the `<header>` above the `<nav>`.
-
-**Key files:**
-- `src/lib/settings.ts` — Cached settings helper
-- `src/app/api/settings/registration-status/route.ts` — Public status endpoint (no auth)
-- `src/app/api/admin/settings/registration/route.ts` — Admin GET/PATCH toggle
-- `src/app/(en)/admin/settings/page.tsx` — Toggle UI card
-- `src/app/(ar)/register/page.tsx` — Closed alert UI
-- `src/components/shared/navbar.tsx` — Landing page closed registration banner
-
-## Tracking & Analytics (GTM + Facebook Pixel)
-
-Admin-configurable Google Tag Manager and Facebook Pixel integration. Only container/pixel IDs are stored (not raw script tags) for security — script templates are hardcoded in the component.
-
-**DB keys:** `gtm_id` and `fb_pixel_id` in `SystemSetting` table.
-
-**How it works:**
-- Admin sets IDs via Settings page → `PATCH /api/admin/settings/tracking`
-- `TrackingScripts` server component in `src/components/shared/tracking-scripts.tsx` reads IDs via `getSetting()` (30s cache)
-- Component renders GTM `<script>` + `<noscript>` and/or FB Pixel `<script>` + `<noscript>` tags
-- Rendered in Arabic layout (`src/app/(ar)/layout.tsx`) inside `<Suspense>` — only user-facing pages are tracked
-- Admin panel pages (`/admin/*`) are NOT tracked
-- Empty IDs = scripts not rendered
-
-**Key files:**
-- `src/app/api/admin/settings/tracking/route.ts` — Admin GET/PATCH for GTM + FB Pixel IDs (validates format)
-- `src/app/api/settings/tracking/route.ts` — Public GET endpoint (30s cache, no auth)
-- `src/components/shared/tracking-scripts.tsx` — Server component rendering tracking scripts
-- `src/app/(en)/admin/settings/page.tsx` — "Tracking & Analytics" card UI
-- `src/app/(ar)/layout.tsx` — `<TrackingScripts />` integration
-
-## Dashboard Pagination
-
-All dashboard list pages use server-side pagination with a consistent pattern.
-
-**API pattern:** Each paginated GET endpoint accepts `?page=` (defaults to 1), uses `skip/take` + parallel `count()`, and returns `{ data, page, totalPages, total }` alongside the existing response fields.
-
-**Page sizes:**
-| Route | Page Size |
-|-------|-----------|
-| Suggestions, Sent Requests, Received Interests, Matches, Payments History, Support Tickets | 10 |
-| Notifications | 20 |
-
-**UI pattern (RTL Arabic):** Pagination controls are inline in each page (not extracted to a shared component). Only shown when `totalPages > 1`. Uses `ChevronRight` = السابق (previous), `ChevronLeft` = التالي (next), centered with `variant="outline" size="sm"`.
-
-```tsx
-{totalPages > 1 && (
-  <div className="flex items-center justify-center gap-4 mt-8">
-    <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>
-      <ChevronRight className="h-4 w-4 ml-1" />
-      السابق
-    </Button>
-    <span className="text-sm text-muted-foreground">
-      صفحة {page} من {totalPages}
-    </span>
-    <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>
-      التالي
-      <ChevronLeft className="h-4 w-4 mr-1" />
-    </Button>
-  </div>
-)}
-```
-
-**Suggestions page:** Has 3 independent page counters (`sugPage`/`sugTotalPages`, `sentPage`/`sentTotalPages`, `intPage`/`intTotalPages`) — one per tab. Each tab fetches independently with its own page state.
-
-**Matches, Notifications:** Re-fetch via `useEffect` dependency on `page` state.
-
-**Payments:** Pagination on history list only (packages section is not paginated). Uses `loadData(page)` callback.
-
-**Support:** Pagination on "list" tab only. Re-fetches via `useEffect` dependency on `ticketPage` + `tab`.
-
-**Interests/received API optimization:** The responded-user filter (previously done client-side after fetching all likes) was moved into the `where` clause by pre-fetching responded user IDs and merging them with blocked IDs into a single `notIn` filter. This enables accurate `count()` for pagination.
-
-## Dashboard Data Context (`DashboardDataProvider`)
-
-Shared React context that deduplicates API calls across dashboard components. Previously, both `DashboardSidebar` and `DashboardPage` independently fetched `/api/profile` and `/api/notifications/unread-count`, causing duplicate requests on every page load.
-
-**How it works:**
-- `DashboardDataProvider` wraps the entire dashboard layout in `src/app/(ar)/dashboard/layout.tsx`
-- Fetches `/api/profile` once → provides `profile`, `completeness`, `loading`
-- Fetches `/api/notifications/unread-count` once → provides `unreadCount`
-- Polls unread count every 30s
-- Listens for `naseeb:notifications-read` custom DOM event to refresh unread count immediately when user marks notifications as read
-- Exposes `refreshProfile()` and `refreshUnread()` for manual refresh
-
-**Consumers:**
-- `DashboardSidebar` — uses `profile` for user card, `unreadCount` for notification badge
-- `DashboardPage` — uses `profile`, `completeness`, `unreadCount`, `loading` for dashboard widgets
-
-**Key files:**
-- `src/contexts/dashboard-context.tsx` — Context provider with `useDashboardData()` hook
-- `src/app/(ar)/dashboard/layout.tsx` — Wraps content in `<DashboardDataProvider>`
-
-## Notification Counter Real-Time Sync
-
-When users mark notifications as read (single or all), the sidebar notification badge updates immediately without waiting for the next 30s poll.
-
-**Mechanism:** The notifications page dispatches a `naseeb:notifications-read` custom DOM event after `markRead()` and `markAllRead()`. The `DashboardDataProvider` listens for this event and calls `refreshUnread()` immediately.
-
-**Key files:**
-- `src/app/(ar)/dashboard/notifications/page.tsx` — Dispatches `window.dispatchEvent(new CustomEvent("naseeb:notifications-read"))` after marking read
-- `src/contexts/dashboard-context.tsx` — Listens for the event
-
-## Referral System
-
-Users can invite friends via a unique referral code. The referral page is at `/dashboard/referral` (sidebar link "ادعِ صاحبك").
-
-**Share flow:**
-- Referral page shows the user's unique code + share/copy buttons
-- Share URL includes the referral code: `https://naseebak.com/register?invitationCode=CODE`
-- Copy and Web Share API both use the full URL with params
-
-**Registration integration:**
-- Register page reads `?invitationCode=` from URL params via `useSearchParams`
-- If present: pre-fills the referral code field and auto-enables the referral toggle
-- If absent: referral input is hidden behind a "عندك رمز دعوة؟" toggle link (cleaner default UI)
-- The referral code field only appears when the toggle is enabled
-
-**Key files:**
-- `src/app/(ar)/dashboard/referral/page.tsx` — Referral dashboard page with share/copy
-- `src/app/(ar)/register/page.tsx` — Reads `invitationCode` param, toggle for referral input
-
-## Image Storage (Bunny.net CDN)
-
-All user-uploaded images (photos, identity docs, avatars) are stored on Bunny.net Storage and served via CDN at `https://cdn.naseebak.com`. Legacy base64 data URLs in the DB are still supported for backward compatibility — `getBunnyPathFromUrl()` returns `null` for non-CDN URLs, so deletion is safe.
-
-**Storage structure:**
-```
-naseebak/
-├── photos/{userId}/{uuid}.{jpg|png|webp}     # User photos (max 5)
-├── identity/{userId}/{front|back}.{ext}       # Identity documents
-└── avatars/{userId}/avatar.{ext}              # Profile avatars
-```
-
-**Key file:** `src/lib/bunny.ts` — Upload/delete/conversion utilities (`uploadToBunny`, `deleteFromBunny`, `uploadBase64ToBunny`, `base64ToBuffer`, `getBunnyPathFromUrl`)
-
-**Environment variables:**
-- `BUNNY_STORAGE_API_KEY` — Bunny Storage API key
-- `BUNNY_STORAGE_ZONE` — Storage zone name (`naseebak`)
-- `BUNNY_STORAGE_ENDPOINT` — Storage endpoint (`storage.bunnycdn.com`)
-- `BUNNY_CDN_URL` — CDN URL (`https://cdn.naseebak.com`)
-
-**Design decisions:**
-- Upload-before-save: Bunny upload happens before DB write. On failure → 500, no orphan DB records
-- Silent deletion: `deleteFromBunny` logs warnings but never throws — CDN errors don't break user flows
-- Fixed paths for avatars/identity prevent orphans on re-upload. Photos use UUID paths for uniqueness
-- `next.config.ts` includes `cdn.naseebak.com` in `images.remotePatterns`
-
-## Known Limitations / TODOs
-
-- No email notification service connected
-- OneSignal web push requires domain configuration in OneSignal dashboard (Settings → Platforms → Web → Site URL: `https://naseebak.com`)
-- Account deletion cron needs external scheduler (e.g. cron job on server, Vercel cron, or similar)
+| Task | Skill |
+|------|-------|
+| Architecture / "How does X work?" | `.claude/skills/gitnexus/gitnexus-exploring/SKILL.md` |
+| "What breaks if I change X?" | `.claude/skills/gitnexus/gitnexus-impact-analysis/SKILL.md` |
+| Trace bugs | `.claude/skills/gitnexus/gitnexus-debugging/SKILL.md` |
+| Rename / refactor | `.claude/skills/gitnexus/gitnexus-refactoring/SKILL.md` |
+| Tools / schema reference | `.claude/skills/gitnexus/gitnexus-guide/SKILL.md` |
+| CLI commands | `.claude/skills/gitnexus/gitnexus-cli/SKILL.md` |
+<!-- gitnexus:end -->

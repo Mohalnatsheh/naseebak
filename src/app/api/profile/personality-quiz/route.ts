@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 
 const quizQuestions = [
@@ -50,10 +50,9 @@ function getRetakeInfo(updatedAt: Date): { canRetake: boolean; daysRemaining: nu
 
 export async function GET() {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 401 });
-    }
+    const authResult = await requireUser();
+    if ("error" in authResult) return authResult.error;
+    const { session } = authResult;
 
     const result = await db.personalityResult.findUnique({
       where: { userId: session.user.id },
@@ -86,10 +85,9 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 401 });
-    }
+    const authResult = await requireUser();
+    if ("error" in authResult) return authResult.error;
+    const { session } = authResult;
 
     // Retake policy enforcement: check if a result already exists
     const existingResult = await db.personalityResult.findUnique({

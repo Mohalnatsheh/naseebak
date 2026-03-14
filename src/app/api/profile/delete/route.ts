@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 
 /**
@@ -10,10 +10,9 @@ import { db } from "@/lib/db";
 
 export async function POST(request: Request) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 401 });
-    }
+    const result = await requireUser();
+    if ("error" in result) return result.error;
+    const { session } = result;
 
     // Check if already has a pending request
     const existing = await db.accountDeletionRequest.findUnique({
@@ -65,10 +64,9 @@ export async function POST(request: Request) {
 
 export async function DELETE() {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 401 });
-    }
+    const result = await requireUser();
+    if ("error" in result) return result.error;
+    const { session } = result;
 
     const existing = await db.accountDeletionRequest.findUnique({
       where: { userId: session.user.id },
@@ -99,10 +97,9 @@ export async function DELETE() {
 
 export async function GET() {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 401 });
-    }
+    const result = await requireUser();
+    if ("error" in result) return result.error;
+    const { session } = result;
 
     const deletionRequest = await db.accountDeletionRequest.findUnique({
       where: { userId: session.user.id },

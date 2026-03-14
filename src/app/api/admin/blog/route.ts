@@ -1,27 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { createBlogPostSchema } from "@/lib/validations/blog";
+import { parsePagination } from "@/lib/utils";
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 401 });
-    }
-    if (session.user.role !== "ADMIN") {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 403 });
-    }
+    const result = await requireAdmin();
+    if ("error" in result) return result.error;
+    const { session } = result;
 
     const { searchParams } = req.nextUrl;
-    const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
-    const pageSize = 10;
+    const { page, pageSize, skip } = parsePagination(searchParams, 10);
 
     const [posts, total] = await Promise.all([
       db.blogPost.findMany({
         include: { category: true },
         orderBy: { createdAt: "desc" },
-        skip: (page - 1) * pageSize,
+        skip,
         take: pageSize,
       }),
       db.blogPost.count(),
@@ -41,13 +37,9 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 401 });
-    }
-    if (session.user.role !== "ADMIN") {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 403 });
-    }
+    const result = await requireAdmin();
+    if ("error" in result) return result.error;
+    const { session } = result;
 
     const body = await req.json();
     const parsed = createBlogPostSchema.safeParse(body);

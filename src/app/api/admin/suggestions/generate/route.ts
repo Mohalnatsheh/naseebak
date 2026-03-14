@@ -1,15 +1,14 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { calculateCompatibility } from "@/lib/matching/score";
 import { sendPushNotification } from "@/lib/onesignal";
 
 export async function POST() {
   try {
-    const session = await auth();
-    if (!session?.user?.id || session.user.role !== "ADMIN") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
-    }
+    const result = await requireAdmin();
+    if ("error" in result) return result.error;
+    const { session } = result;
 
     // Find eligible users: verified, complete profile, not deactivated
     const eligibleUsers = await db.user.findMany({

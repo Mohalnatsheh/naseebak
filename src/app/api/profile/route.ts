@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { profileSchema } from "@/lib/validations/profile";
 import { calculateCompleteness } from "@/lib/profile-completeness";
@@ -7,10 +7,9 @@ import { createNotificationIfAllowed } from "@/lib/notification-helper";
 
 export async function GET() {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 401 });
-    }
+    const result = await requireUser();
+    if ("error" in result) return result.error;
+    const { session } = result;
 
     const user = await db.user.findUnique({
       where: { id: session.user.id },
@@ -65,10 +64,9 @@ export async function GET() {
 
 export async function PUT(request: Request) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 401 });
-    }
+    const result = await requireUser();
+    if ("error" in result) return result.error;
+    const { session } = result;
 
     const body = await request.json();
 

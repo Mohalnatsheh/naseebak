@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { createTicketSchema } from "@/lib/validations/support";
+import { parsePagination } from "@/lib/utils";
 
 export async function POST(request: Request) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 401 });
-    }
+    const result = await requireUser();
+    if ("error" in result) return result.error;
+    const { session } = result;
 
     const body = await request.json();
     const parsed = createTicketSchema.safeParse(body);
@@ -52,14 +52,12 @@ export async function POST(request: Request) {
 
 export async function GET(request: Request) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 401 });
-    }
+    const result = await requireUser();
+    if ("error" in result) return result.error;
+    const { session } = result;
 
     const { searchParams } = new URL(request.url);
-    const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
-    const pageSize = 10;
+    const { page, pageSize, skip } = parsePagination(searchParams, 10);
 
     const where = { userId: session.user.id };
 
@@ -67,7 +65,7 @@ export async function GET(request: Request) {
       db.supportTicket.findMany({
         where,
         orderBy: { createdAt: "desc" },
-        skip: (page - 1) * pageSize,
+        skip,
         take: pageSize,
       }),
       db.supportTicket.count({ where }),

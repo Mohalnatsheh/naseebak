@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { sendPushNotification } from "@/lib/onesignal";
+import { parsePagination } from "@/lib/utils";
 
 const statusLabels: Record<string, string> = {
   OPEN: "مفتوحة",
@@ -12,16 +13,14 @@ const statusLabels: Record<string, string> = {
 
 export async function GET(request: Request) {
   try {
-    const session = await auth();
-    if (!session?.user?.id || session.user.role !== "ADMIN") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
-    }
+    const result = await requireAdmin();
+    if ("error" in result) return result.error;
+    const { session } = result;
 
     const { searchParams } = new URL(request.url);
-    const page = parseInt(searchParams.get("page") || "1");
+    const { page, pageSize, skip } = parsePagination(searchParams, 20);
     const status = searchParams.get("status") || undefined;
     const type = searchParams.get("type") || undefined;
-    const limit = 20;
 
     const where: Record<string, unknown> = {};
     if (status) where.status = status;
@@ -34,8 +33,8 @@ export async function GET(request: Request) {
           user: { select: { id: true, firstName: true, lastName: true, phone: true } },
         },
         orderBy: { createdAt: "desc" },
-        skip: (page - 1) * limit,
-        take: limit,
+        skip,
+        take: pageSize,
       }),
       db.supportTicket.count({ where }),
     ]);
@@ -43,7 +42,7 @@ export async function GET(request: Request) {
     return NextResponse.json({
       tickets,
       total,
-      pages: Math.ceil(total / limit),
+      pages: Math.ceil(total / pageSize),
       page,
     });
   } catch (error) {
@@ -54,10 +53,9 @@ export async function GET(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
-    const session = await auth();
-    if (!session?.user?.id || session.user.role !== "ADMIN") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
-    }
+    const result = await requireAdmin();
+    if ("error" in result) return result.error;
+    const { session } = result;
 
     const body = await request.json();
     const { ticketId, status, adminNote } = body;

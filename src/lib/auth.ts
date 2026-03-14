@@ -1,6 +1,7 @@
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
+import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { authConfig } from "@/lib/auth.config";
 import { rateLimit } from "@/lib/rate-limit";
@@ -107,3 +108,19 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   ],
   session: { strategy: "jwt" },
 });
+
+export async function requireAdmin() {
+  const session = await auth();
+  if (!session?.user?.id || session.user.role !== "ADMIN") {
+    return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
+  }
+  return { session };
+}
+
+export async function requireUser() {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return { error: NextResponse.json({ error: "غير مصرح" }, { status: 401 }) };
+  }
+  return { session };
+}

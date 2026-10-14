@@ -1,0 +1,620 @@
+generator client {
+  provider        = "prisma-client-js"
+  output          = "../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Enums ──────────────────────────────────────────────────────────────────
+
+enum Gender {
+  MALE
+  FEMALE
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum UserStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+  SUSPENDED
+}
+
+enum VerificationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum SuggestionStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  EXPIRED
+}
+
+enum SuggestionSource {
+  AI
+  ADMIN
+}
+
+enum VisitStatus {
+  REQUESTED
+  FAMILIES_CONTACTED
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum PaymentType {
+  PACKAGE
+  SUBSCRIPTION
+  MATCH_CREDITS
+}
+
+enum PaymentProvider {
+  EFAWATEERCOM
+  PAYPAL
+  STRIPE
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+}
+
+enum NotificationType {
+  SUGGESTION
+  INTEREST
+  MATCH
+  VISIT_UPDATE
+  IDENTITY
+  PAYMENT
+  SUBSCRIPTION
+  SYSTEM
+  SUPPORT
+}
+
+enum BlogPostStatus {
+  DRAFT
+  PUBLISHED
+}
+
+enum TicketType {
+  ISSUE
+  SUGGESTION
+  CHANGE_REQUEST
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum ReportReason {
+  FAKE_PROFILE
+  INAPPROPRIATE_CONTENT
+  HARASSMENT
+  SPAM
+  OTHER
+}
+
+enum ReportStatus {
+  PENDING
+  REVIEWED
+  DISMISSED
+}
+
+enum FeedbackOutcome {
+  PROCEEDED
+  DECLINED
+}
+
+// ─── Models ─────────────────────────────────────────────────────────────────
+
+model User {
+  id                String     @id @default(cuid())
+  email             String     @unique
+  phone             String?    @unique
+  passwordHash      String?
+  firstName         String
+  lastName          String
+  gender            Gender
+  role              UserRole   @default(USER)
+  status            UserStatus @default(PENDING)
+  isVerified        Boolean    @default(false)
+  isDeactivated     Boolean    @default(false)
+  matchCredits      Int        @default(1)
+  oneSignalPlayerId String?
+  isFlagged         Boolean    @default(false)
+  flagReason        String?
+  referralCode      String?    @unique
+  referredBy        String?
+  verifiedAt        DateTime?
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  profile           Profile?
+  personalityResult PersonalityResult?
+  parentInfo        ParentInfo?
+  identityDoc       IdentityDoc?
+  photos            Photo[]
+  subscriptions     Subscription[]
+  payments          Payment[]
+  notifications     Notification[]
+
+  // Suggestions where this user is the recipient (receives the suggestion)
+  receivedSuggestions Suggestion[]     @relation("SuggestionRecipient")
+  // Suggestions where this user is the candidate (suggested to someone)
+  givenSuggestions    Suggestion[]     @relation("SuggestionCandidate")
+
+  likesGiven        Like[]             @relation("LikeFrom")
+  likesReceived     Like[]             @relation("LikeTo")
+
+  matchesAsFemale   MutualMatch[]      @relation("MatchFemale")
+  matchesAsMale     MutualMatch[]      @relation("MatchMale")
+
+  // Identity docs reviewed by this admin
+  reviewedDocs      IdentityDoc[]      @relation("ReviewedBy")
+
+  profileUpdateRequests ProfileUpdateRequest[]
+
+  reportsSubmitted  Report[]  @relation("ReportsSubmitted")
+  reportsReceived   Report[]  @relation("ReportsReceived")
+  blocksGiven       Block[]   @relation("BlocksGiven")
+  blocksReceived    Block[]   @relation("BlocksReceived")
+  deletionRequest   AccountDeletionRequest?
+  supportTickets    SupportTicket[]
+
+  visitFeedbacks          VisitFeedback[]
+  notificationPreferences NotificationPreference?
+  referralsGiven          Referral[]  @relation("ReferralsGiven")
+  referralsReceived       Referral?   @relation("ReferralsReceived")
+
+  @@map("users")
+}
+
+model Profile {
+  id                  String   @id @default(cuid())
+  userId              String   @unique
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  dateOfBirth         DateTime?
+  city                String?
+  nationality         String?
+  maritalStatus       String?   // single, divorced, widowed
+  education           String?
+  fieldOfStudy        String?
+  job                 String?
+  incomeRange         String?
+  religiosity         String?
+  familyValues        String?
+  partnerExpectations String?
+  hobbies             String?
+  interests           String?
+  lifestyle           String?
+  height              Int?
+  weight              Int?
+  skinColor           String?
+  childrenCount       Int       @default(0)
+  willingToRelocate   String?
+  hijab               Boolean?
+  smokingStatus       String?
+  aboutMe             String?
+
+  area                String?
+  latitude            Float?
+  longitude           Float?
+  tribe               String?
+  familyOriginArea    String?
+  numberOfSiblings    Int?
+  housingType         String?
+  beard               Boolean?
+  cookingAbility      String?
+  drivingLicense      Boolean?
+  healthConditions    String?
+  monthlyExpenses     String?
+  wantsPhoto          Boolean?
+  profileImageUrl     String?
+
+  prefAgeMin          Int?
+  prefAgeMax          Int?
+  prefCity            String[]
+  prefEducation       String[]
+  prefMaritalStatus   String[]
+  prefHijab               String?
+  prefBeard               String?
+  prefReligiosity         String[]
+  prefSmokingStatus       String[]
+  prefChildrenAcceptance  String?
+
+  setupStep           Int      @default(1)
+  isComplete          Boolean  @default(false)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@map("profiles")
+}
+
+model PersonalityResult {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  answers         Json     // Raw quiz answers
+  vector          Float[]  // Personality vector for cosine similarity
+  personalityType String?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("personality_results")
+}
+
+model ParentInfo {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  parentName      String
+  parentPhone     String
+  relationship    String   // father, mother, brother, guardian
+  address         String?  // Home address for visit coordination
+  notes           String?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("parent_info")
+}
+
+model IdentityDoc {
+  id              String             @id @default(cuid())
+  userId          String             @unique
+  user            User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  frontImageUrl   String             // Selfie photo (legacy rows: front of government ID)
+  backImageUrl    String?            // Legacy only: back of government ID (null for selfies)
+  documentType    String             // "selfie" (legacy: national_id, passport)
+  status          VerificationStatus @default(PENDING)
+  rejectionReason String?
+  reviewNotes     String?
+  reviewedById    String?
+  reviewedBy      User?              @relation("ReviewedBy", fields: [reviewedById], references: [id])
+  reviewedAt      DateTime?
+
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  @@map("identity_docs")
+}
+
+model Photo {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  url             String
+  isPrimary       Boolean  @default(false)
+  order           Int      @default(0)
+
+  createdAt       DateTime @default(now())
+
+  @@map("photos")
+}
+
+model Suggestion {
+  id                 String           @id @default(cuid())
+  recipientId        String           @map("femaleId")
+  recipient          User             @relation("SuggestionRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  candidateId        String           @map("maleId")
+  candidate          User             @relation("SuggestionCandidate", fields: [candidateId], references: [id], onDelete: Cascade)
+
+  compatibilityScore Float
+  status             SuggestionStatus @default(PENDING)
+  source             SuggestionSource @default(AI)
+  expiresAt          DateTime?
+
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  @@unique([recipientId, candidateId])
+  @@map("suggestions")
+}
+
+model Like {
+  id              String   @id @default(cuid())
+  fromUserId      String
+  fromUser        User     @relation("LikeFrom", fields: [fromUserId], references: [id], onDelete: Cascade)
+  toUserId        String
+  toUser          User     @relation("LikeTo", fields: [toUserId], references: [id], onDelete: Cascade)
+
+  suggestionId    String?
+  isLiked         Boolean  @default(true)
+
+  createdAt       DateTime @default(now())
+
+  @@unique([fromUserId, toUserId])
+  @@map("likes")
+}
+
+model MutualMatch {
+  id              String       @id @default(cuid())
+  femaleId        String
+  female          User         @relation("MatchFemale", fields: [femaleId], references: [id], onDelete: Cascade)
+  maleId          String
+  male            User         @relation("MatchMale", fields: [maleId], references: [id], onDelete: Cascade)
+
+  suggestionId       String?
+  photosRevealed     Boolean      @default(true)
+  revealedByFemale   Boolean      @default(false)
+
+  visitRequest    VisitRequest?
+
+  createdAt       DateTime     @default(now())
+
+  @@unique([femaleId, maleId])
+  @@map("mutual_matches")
+}
+
+model VisitRequest {
+  id              String      @id @default(cuid())
+  matchId         String      @unique
+  match           MutualMatch @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  status          VisitStatus @default(REQUESTED)
+  adminNotes      String?
+  scheduledDate   DateTime?
+  location        String?
+
+  feedbacks       VisitFeedback[]
+
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@map("visit_requests")
+}
+
+model Payment {
+  id              String        @id @default(cuid())
+  userId          String
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type            PaymentType   @default(SUBSCRIPTION)
+  planName        String?       // e.g. "basic", "premium", "suggestion_pack"
+  amount          Decimal       @db.Decimal(10, 2)
+  currency        String        @default("JOD")
+  provider        PaymentProvider
+  providerTxId    String?
+  status          PaymentStatus @default(PENDING)
+  description     String?
+
+  subscription    Subscription?
+
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@map("payments")
+}
+
+model Subscription {
+  id              String             @id @default(cuid())
+  userId          String
+  user            User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  paymentId       String?            @unique
+  payment         Payment?           @relation(fields: [paymentId], references: [id])
+
+  plan            String             // e.g. "basic", "premium"
+  suggestionsLeft Int
+  status          SubscriptionStatus @default(ACTIVE)
+  autoRenew       Boolean            @default(false)
+  startsAt        DateTime           @default(now())
+  expiresAt       DateTime
+
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  @@map("subscriptions")
+}
+
+model Notification {
+  id              String           @id @default(cuid())
+  userId          String
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type            NotificationType
+  title           String
+  body            String
+  isRead          Boolean          @default(false)
+  metadata        Json?
+
+  createdAt       DateTime         @default(now())
+
+  @@map("notifications")
+}
+
+model ProfileUpdateRequest {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  changes    Json      // { field: newValue, ... }
+  message    String?   // User's reason for change
+  status     String    @default("PENDING") // PENDING, APPROVED, REJECTED
+  adminNote  String?
+  reviewedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@map("profile_update_requests")
+}
+
+model Otp {
+  id        String   @id @default(cuid())
+  phone     String
+  code      String
+  expiresAt DateTime
+  verified  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([phone, code])
+  @@map("otps")
+}
+
+model BlogCategory {
+  id        String     @id @default(cuid())
+  slug      String     @unique
+  nameAr    String
+  nameEn    String
+  posts     BlogPost[]
+  createdAt DateTime   @default(now())
+
+  @@map("blog_categories")
+}
+
+model BlogPost {
+  id          String         @id @default(cuid())
+  title       String
+  slug        String         @unique
+  excerpt     String
+  content     String         @db.Text
+  status      BlogPostStatus @default(DRAFT)
+  categoryId  String
+  category    BlogCategory   @relation(fields: [categoryId], references: [id])
+  authorId    String?
+  readTime    String?
+  publishedAt DateTime?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@index([status, publishedAt])
+  @@index([categoryId])
+  @@map("blog_posts")
+}
+
+model Report {
+  id          String       @id @default(cuid())
+  reporterId  String
+  reporter    User         @relation("ReportsSubmitted", fields: [reporterId], references: [id], onDelete: Cascade)
+  reportedId  String
+  reported    User         @relation("ReportsReceived", fields: [reportedId], references: [id], onDelete: Cascade)
+  reason      ReportReason
+  details     String?
+  status      ReportStatus @default(PENDING)
+  adminNote   String?
+  reviewedAt  DateTime?
+  createdAt   DateTime     @default(now())
+
+  @@unique([reporterId, reportedId])
+  @@map("reports")
+}
+
+model Block {
+  id         String   @id @default(cuid())
+  blockerId  String
+  blocker    User     @relation("BlocksGiven", fields: [blockerId], references: [id], onDelete: Cascade)
+  blockedId  String
+  blocked    User     @relation("BlocksReceived", fields: [blockedId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@unique([blockerId, blockedId])
+  @@map("blocks")
+}
+
+model AccountDeletionRequest {
+  id          String    @id @default(cuid())
+  userId      String    @unique
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reason      String?
+  scheduledAt DateTime
+  cancelledAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@map("account_deletion_requests")
+}
+
+model SupportTicket {
+  id          String       @id @default(cuid())
+  userId      String
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type        TicketType
+  subject     String
+  description String       @db.Text
+  status      TicketStatus @default(OPEN)
+  adminNote   String?      @db.Text
+  resolvedAt  DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@map("support_tickets")
+}
+
+model SystemSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+
+  @@map("system_settings")
+}
+
+model VisitFeedback {
+  id        String          @id @default(cuid())
+  visitId   String
+  visit     VisitRequest    @relation(fields: [visitId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  outcome   FeedbackOutcome
+  reason    String?
+  rating    Int             // 1-5
+  createdAt DateTime        @default(now())
+
+  @@unique([visitId, userId])
+  @@map("visit_feedbacks")
+}
+
+model NotificationPreference {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  suggestions  Boolean  @default(true)
+  interests    Boolean  @default(true)
+  matches      Boolean  @default(true)
+  visitUpdates Boolean  @default(true)
+  payments     Boolean  @default(true)
+  identity     Boolean  @default(true)
+  support      Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("notification_preferences")
+}
+
+model Referral {
+  id             String    @id @default(cuid())
+  referrerId     String
+  referrer       User      @relation("ReferralsGiven", fields: [referrerId], references: [id], onDelete: Cascade)
+  refereeId      String    @unique
+  referee        User      @relation("ReferralsReceived", fields: [refereeId], references: [id], onDelete: Cascade)
+  creditsAwarded Boolean   @default(false)
+  awardedAt      DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@map("referrals")
+}

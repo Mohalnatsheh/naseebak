@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getCycleFlags } from "@/lib/settings";
+import { chatHousekeepingForUser } from "@/lib/chat/service";
 
 /**
  * Dashboard badges for the new cycle, polled with the unread-notification count:
@@ -18,6 +19,9 @@ export async function GET() {
     if (!flags.introRequests) {
       return NextResponse.json({ flags, pendingIntros: 0, unreadChats: 0, guardian: null });
     }
+
+    // Expire overdue chats and send "2 days left" warnings (no scheduler needed)
+    await chatHousekeepingForUser(userId).catch((e) => console.error("Chat housekeeping:", e));
 
     const [pendingIntros, unreadChats, guardian] = await Promise.all([
       db.introRequest.count({ where: { receiverId: userId, status: "PENDING", expiresAt: { gt: new Date() } } }),

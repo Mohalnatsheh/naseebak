@@ -17,7 +17,7 @@
 - Free credits at registration: 3 when `intro_requests_enabled` is on, else 2; a request costs 1 credit from the sender; never refunded. A declined request is final for that type on that match; an expired one may be re-sent (paid).
 - Request expiry 7 days; chat 14 days, one extension of 7 days, allowed in the last 3 days; expiry warning at 2 days left.
 - Suggestions in per-request mode: free, max 3 created per recipient per rolling 7 days.
-- Chat: text only, `body` 1–1000 chars, 50 messages/day and 1/second per user; push throttle 1 per conversation per recipient per 3 minutes; no in-app Notification row per message.
+- Chat: text only, `body` 1–1000 chars, 50 messages/day and 5 per 5 seconds per user (filter runs before the limits); push throttle 1 per conversation per recipient per 3 minutes; no in-app Notification row per message.
 - Ably channel name `chat:<conversationId>`; browser tokens are subscribe-only; only the server publishes.
 - Colours: brand tokens only (`primary`, `secondary`, `accent`, `muted`, `destructive`; `emerald-/green-` success, `amber-` pending). No `blue-`, `gray-`, `rose-` etc.
 - User-facing copy in Arabic; RTL; `ChevronRight` = السابق, `ChevronLeft` = التالي.

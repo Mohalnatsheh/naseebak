@@ -5,8 +5,10 @@ import { useRouter } from "next/navigation";
 import {
   ArrowLeft, User, Shield, ShieldCheck, Loader2, Ban, CreditCard,
   Calendar, MapPin, Heart, GraduationCap, Briefcase, Camera, Brain,
-  Users as UsersIcon, Phone, Mail, Flag, Sparkles,
+  Users as UsersIcon, Phone, Mail, Flag, Sparkles, HeartHandshake, MessagesSquare, History,
 } from "lucide-react";
+import Link from "next/link";
+import { effectiveRequestStatus } from "@/lib/admin/cycle-stats";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -52,23 +54,82 @@ interface SuggestionRow {
   status: string;
   source: string;
   createdAt: string;
+  flow: "LEGACY" | "MUTUAL";
+  expiresAt: string | null;
+  recipientDecision: "INTERESTED" | "DECLINED" | null;
+  candidateDecision: "INTERESTED" | "DECLINED" | null;
   candidate?: { id: string; firstName: string; lastName: string; gender: string };
   recipient?: { id: string; firstName: string; lastName: string; gender: string };
+}
+
+interface PersonRef { id: string; firstName: string; lastName: string }
+
+interface CycleData {
+  introRequests: {
+    id: string; type: "FAMILY" | "CHAT"; direction: "sent" | "received"; other: PersonRef;
+    status: string; createdAt: string; respondedAt: string | null; expiresAt: string;
+  }[];
+  chats: {
+    id: string; other: PersonRef; status: string; createdAt: string; expiresAt: string; extended: boolean;
+    endedBy: "user" | "other" | null; endedAt: string | null;
+    messages: { total: number; byUser: number; byOther: number };
+  }[];
+  ledger: {
+    id: string; delta: number; reason: string; refId: string | null; admin: string | null;
+    note: string | null; createdAt: string;
+  }[];
 }
 
 const suggestionStatusColors: Record<string, string> = {
   PENDING: "bg-amber-100 text-amber-800",
   ACCEPTED: "bg-green-100 text-green-800",
-  REJECTED: "bg-red-100 text-red-800",
+  REJECTED: "bg-destructive/10 text-destructive",
   EXPIRED: "bg-muted text-muted-foreground",
 };
 
 const statusColors: Record<string, string> = {
   PENDING: "bg-amber-100 text-amber-800",
   VERIFIED: "bg-green-100 text-green-800",
-  REJECTED: "bg-red-100 text-red-800",
-  SUSPENDED: "bg-red-100 text-red-800",
+  REJECTED: "bg-destructive/10 text-destructive",
+  SUSPENDED: "bg-destructive/10 text-destructive",
 };
+
+/** Intro requests and chats (effective statuses from cycle-stats). */
+const cycleStatusColors: Record<string, string> = {
+  PENDING: "bg-amber-100 text-amber-800",
+  ACCEPTED: "bg-green-100 text-green-800",
+  ACTIVE: "bg-green-100 text-green-800",
+  DECLINED: "bg-destructive/10 text-destructive",
+  ENDED: "bg-muted text-muted-foreground",
+  EXPIRED: "bg-muted text-muted-foreground",
+  CANCELLED: "bg-muted text-muted-foreground",
+};
+
+const decisionLabel: Record<string, { text: string; className: string }> = {
+  INTERESTED: { text: "Interested", className: "text-emerald-600" },
+  DECLINED: { text: "Declined", className: "text-destructive" },
+};
+
+const creditReasonLabel: Record<string, string> = {
+  REGISTRATION: "Registration",
+  PURCHASE: "Purchase",
+  REQUEST: "Family/chat request",
+  SUGGESTION: "Suggestion (legacy)",
+  ADMIN_ADJUST: "Admin adjustment",
+  MIGRATION_GIFT: "New-cycle top-up",
+  REFUND: "Refund",
+  REFERRAL: "Referral reward",
+};
+
+function formatDate(d: string | null) {
+  return d ? new Date(d).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "—";
+}
+
+function Decision({ value }: { value: string | null }) {
+  if (!value) return <span className="text-muted-foreground">—</span>;
+  const d = decisionLabel[value];
+  return <span className={`font-medium ${d?.className ?? ""}`}>{d?.text ?? value}</span>;
+}
 
 export default function AdminUserDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -86,10 +147,27 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
   } | null>(null);
   const [sugLoading, setSugLoading] = useState(false);
   const [sugExpanded, setSugExpanded] = useState(false);
+  const [cycle, setCycle] = useState<CycleData | null>(null);
 
   useEffect(() => {
     fetchUser();
+    fetchCycle();
   }, [id]);
+
+  // Links like #chats or #chat-<id> (from the reports page) point into sections that load later
+  useEffect(() => {
+    if (!cycle || !window.location.hash) return;
+    document.getElementById(window.location.hash.slice(1))?.scrollIntoView({ block: "center" });
+  }, [cycle]);
+
+  async function fetchCycle() {
+    try {
+      const res = await fetch(`/api/admin/users/${id}/cycle`);
+      if (res.ok) setCycle(await res.json());
+    } catch (err) {
+      console.error(err);
+    }
+  }
 
   async function fetchUser() {
     try {
@@ -130,7 +208,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
       });
       if (res.ok) {
         setCreditsDialogOpen(false);
-        await fetchUser();
+        await Promise.all([fetchUser(), fetchCycle()]);
       }
     } catch (err) {
       console.error(err);
@@ -220,7 +298,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
                 {user.gender === "MALE" ? "Male" : "Female"}
               </Badge>
               {user.role === "ADMIN" && <Badge variant="destructive">Admin</Badge>}
-              {user.isDeactivated && <Badge variant="outline" className="text-red-600">Deactivated</Badge>}
+              {user.isDeactivated && <Badge variant="outline" className="text-destructive">Deactivated</Badge>}
               {user.isFlagged && (
                 <Badge variant="outline" className="text-destructive border-destructive/30">
                   <Flag className="h-3 w-3 me-1" />Flagged
@@ -343,7 +421,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
                   <Badge className={statusColors[user.identityDoc.status] || ""}>{user.identityDoc.status}</Badge>
                 </div>
                 {user.identityDoc.rejectionReason && (
-                  <p className="text-sm text-red-600 bg-red-50 rounded p-2">Rejection: {user.identityDoc.rejectionReason}</p>
+                  <p className="text-sm text-destructive bg-destructive/10 rounded p-2">Rejection: {user.identityDoc.rejectionReason}</p>
                 )}
                 <div className="grid grid-cols-2 gap-3">
                   {user.identityDoc.frontImageUrl && (
@@ -445,7 +523,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
                       <span className="font-medium">{sub.plan}</span>
                       <span className="text-muted-foreground ml-2">({sub.suggestionsLeft} left)</span>
                     </div>
-                    <Badge className={sub.status === "ACTIVE" ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"}>
+                    <Badge className={sub.status === "ACTIVE" ? "bg-green-100 text-green-800" : "bg-muted text-muted-foreground"}>
                       {sub.status}
                     </Badge>
                   </div>
@@ -472,6 +550,8 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
         </Card>
       </div>
 
+      {cycle && <CycleSections cycle={cycle} />}
+
       {/* Suggestions Section (full width) */}
       <Card>
         <CardHeader>
@@ -496,7 +576,10 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
                       <tr className="border-b bg-muted/50">
                         <th className="text-left p-2 font-medium">Candidate</th>
                         <th className="text-left p-2 font-medium">Score</th>
+                        <th className="text-left p-2 font-medium">Flow</th>
                         <th className="text-left p-2 font-medium">Status</th>
+                        <th className="text-left p-2 font-medium">This user</th>
+                        <th className="text-left p-2 font-medium">Other side</th>
                         <th className="text-left p-2 font-medium">Source</th>
                         <th className="text-left p-2 font-medium">Date</th>
                       </tr>
@@ -506,11 +589,14 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
                         <tr key={s.id} className="border-b hover:bg-muted/30 cursor-pointer" onClick={() => s.candidate && router.push(`/admin/users/${s.candidate.id}`)}>
                           <td className="p-2">{s.candidate?.firstName} {s.candidate?.lastName}</td>
                           <td className="p-2">
-                            <span className={s.compatibilityScore && s.compatibilityScore >= 70 ? "text-green-600 font-medium" : s.compatibilityScore && s.compatibilityScore >= 50 ? "text-amber-600" : "text-red-600"}>
-                              {s.compatibilityScore ? `${s.compatibilityScore}%` : "—"}
+                            <span className={s.compatibilityScore && s.compatibilityScore >= 70 ? "text-green-600 font-medium" : s.compatibilityScore && s.compatibilityScore >= 50 ? "text-amber-600" : "text-destructive"}>
+                              {s.compatibilityScore ? `${Math.round(s.compatibilityScore)}%` : "—"}
                             </span>
                           </td>
-                          <td className="p-2"><Badge className={`text-xs ${suggestionStatusColors[s.status] || ""}`}>{s.status}</Badge></td>
+                          <td className="p-2"><FlowBadge flow={s.flow} /></td>
+                          <td className="p-2"><SuggestionStatus s={s} /></td>
+                          <td className="p-2">{s.flow === "MUTUAL" ? <Decision value={s.recipientDecision} /> : "—"}</td>
+                          <td className="p-2">{s.flow === "MUTUAL" ? <Decision value={s.candidateDecision} /> : "—"}</td>
                           <td className="p-2"><Badge variant="outline" className="text-xs">{s.source}</Badge></td>
                           <td className="p-2 text-muted-foreground">{new Date(s.createdAt).toLocaleDateString()}</td>
                         </tr>
@@ -533,7 +619,10 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
                       <tr className="border-b bg-muted/50">
                         <th className="text-left p-2 font-medium">Recipient</th>
                         <th className="text-left p-2 font-medium">Score</th>
+                        <th className="text-left p-2 font-medium">Flow</th>
                         <th className="text-left p-2 font-medium">Status</th>
+                        <th className="text-left p-2 font-medium">This user</th>
+                        <th className="text-left p-2 font-medium">Other side</th>
                         <th className="text-left p-2 font-medium">Source</th>
                         <th className="text-left p-2 font-medium">Date</th>
                       </tr>
@@ -543,11 +632,14 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
                         <tr key={s.id} className="border-b hover:bg-muted/30 cursor-pointer" onClick={() => s.recipient && router.push(`/admin/users/${s.recipient.id}`)}>
                           <td className="p-2">{s.recipient?.firstName} {s.recipient?.lastName}</td>
                           <td className="p-2">
-                            <span className={s.compatibilityScore && s.compatibilityScore >= 70 ? "text-green-600 font-medium" : s.compatibilityScore && s.compatibilityScore >= 50 ? "text-amber-600" : "text-red-600"}>
-                              {s.compatibilityScore ? `${s.compatibilityScore}%` : "—"}
+                            <span className={s.compatibilityScore && s.compatibilityScore >= 70 ? "text-green-600 font-medium" : s.compatibilityScore && s.compatibilityScore >= 50 ? "text-amber-600" : "text-destructive"}>
+                              {s.compatibilityScore ? `${Math.round(s.compatibilityScore)}%` : "—"}
                             </span>
                           </td>
-                          <td className="p-2"><Badge className={`text-xs ${suggestionStatusColors[s.status] || ""}`}>{s.status}</Badge></td>
+                          <td className="p-2"><FlowBadge flow={s.flow} /></td>
+                          <td className="p-2"><SuggestionStatus s={s} /></td>
+                          <td className="p-2">{s.flow === "MUTUAL" ? <Decision value={s.candidateDecision} /> : "—"}</td>
+                          <td className="p-2">{s.flow === "MUTUAL" ? <Decision value={s.recipientDecision} /> : "—"}</td>
                           <td className="p-2"><Badge variant="outline" className="text-xs">{s.source}</Badge></td>
                           <td className="p-2 text-muted-foreground">{new Date(s.createdAt).toLocaleDateString()}</td>
                         </tr>
@@ -580,5 +672,167 @@ function StatItem({ label, value }: { label: string; value: number }) {
       <p className="text-2xl font-bold">{value}</p>
       <p className="text-xs text-muted-foreground">{label}</p>
     </div>
+  );
+}
+
+function FlowBadge({ flow }: { flow: "LEGACY" | "MUTUAL" }) {
+  return flow === "MUTUAL" ? (
+    <Badge className="text-xs bg-primary/10 text-primary">Shared</Badge>
+  ) : (
+    <Badge variant="outline" className="text-xs">Legacy</Badge>
+  );
+}
+
+function SuggestionStatus({ s }: { s: SuggestionRow }) {
+  const status = effectiveRequestStatus(s);
+  return <Badge className={`text-xs ${suggestionStatusColors[status] || ""}`}>{status}</Badge>;
+}
+
+function CycleSections({ cycle }: { cycle: CycleData }) {
+  return (
+    <>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <HeartHandshake className="h-5 w-5" /> Introduction requests ({cycle.introRequests.length})
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {cycle.introRequests.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No family or chat requests</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b bg-muted/50">
+                    <th className="text-left p-2 font-medium">Type</th>
+                    <th className="text-left p-2 font-medium">Direction</th>
+                    <th className="text-left p-2 font-medium">Other person</th>
+                    <th className="text-left p-2 font-medium">Status</th>
+                    <th className="text-left p-2 font-medium">Sent</th>
+                    <th className="text-left p-2 font-medium hidden md:table-cell">Responded</th>
+                    <th className="text-left p-2 font-medium hidden md:table-cell">Expires</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {cycle.introRequests.map((r) => (
+                    <tr key={r.id} className="border-b">
+                      <td className="p-2"><Badge variant="outline" className="text-xs">{r.type === "FAMILY" ? "Family" : "Chat"}</Badge></td>
+                      <td className="p-2 text-muted-foreground">{r.direction === "sent" ? "Sent to" : "Received from"}</td>
+                      <td className="p-2">
+                        <Link href={`/admin/users/${r.other.id}`} className="text-primary hover:underline">
+                          {r.other.firstName} {r.other.lastName}
+                        </Link>
+                      </td>
+                      <td className="p-2"><Badge className={`text-xs ${cycleStatusColors[r.status] || ""}`}>{r.status}</Badge></td>
+                      <td className="p-2 text-muted-foreground">{formatDate(r.createdAt)}</td>
+                      <td className="p-2 text-muted-foreground hidden md:table-cell">{formatDate(r.respondedAt)}</td>
+                      <td className="p-2 text-muted-foreground hidden md:table-cell">{formatDate(r.expiresAt)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card id="chats" className="scroll-mt-20">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <MessagesSquare className="h-5 w-5" /> Chats ({cycle.chats.length})
+          </CardTitle>
+          <p className="text-xs text-muted-foreground">Dates, status and message counts only — message content is never shown to admins.</p>
+        </CardHeader>
+        <CardContent>
+          {cycle.chats.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No chats</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b bg-muted/50">
+                    <th className="text-left p-2 font-medium">With</th>
+                    <th className="text-left p-2 font-medium">Status</th>
+                    <th className="text-left p-2 font-medium">Started</th>
+                    <th className="text-left p-2 font-medium">Expires</th>
+                    <th className="text-left p-2 font-medium">Ended</th>
+                    <th className="text-right p-2 font-medium">Messages</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {cycle.chats.map((c) => (
+                    <tr key={c.id} id={`chat-${c.id}`} className="border-b target:bg-primary/5">
+                      <td className="p-2">
+                        <Link href={`/admin/users/${c.other.id}`} className="text-primary hover:underline">
+                          {c.other.firstName} {c.other.lastName}
+                        </Link>
+                      </td>
+                      <td className="p-2"><Badge className={`text-xs ${cycleStatusColors[c.status] || ""}`}>{c.status}</Badge></td>
+                      <td className="p-2 text-muted-foreground">{formatDate(c.createdAt)}</td>
+                      <td className="p-2 text-muted-foreground">
+                        {formatDate(c.expiresAt)}
+                        {c.extended && <span className="ms-1 text-xs">(extended)</span>}
+                      </td>
+                      <td className="p-2 text-muted-foreground">
+                        {c.endedAt ? `${formatDate(c.endedAt)} · by ${c.endedBy === "user" ? "this user" : "the other"}` : "—"}
+                      </td>
+                      <td className="p-2 text-right tabular-nums">
+                        <span className="font-medium">{c.messages.total}</span>
+                        <span className="text-muted-foreground text-xs ms-1">({c.messages.byUser} / {c.messages.byOther})</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p className="text-xs text-muted-foreground mt-2">Messages: total (this user / the other).</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card id="credits" className="scroll-mt-20">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <History className="h-5 w-5" /> Credit history
+          </CardTitle>
+          <p className="text-xs text-muted-foreground">Recorded from the credit-history release on; earlier changes are not listed. Last 100.</p>
+        </CardHeader>
+        <CardContent>
+          {cycle.ledger.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No recorded credit changes</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b bg-muted/50">
+                    <th className="text-left p-2 font-medium">Date</th>
+                    <th className="text-left p-2 font-medium">Reason</th>
+                    <th className="text-right p-2 font-medium">Change</th>
+                    <th className="text-left p-2 font-medium hidden md:table-cell">Details</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {cycle.ledger.map((l) => (
+                    <tr key={l.id} className="border-b">
+                      <td className="p-2 text-muted-foreground">
+                        {formatDate(l.createdAt)} {new Date(l.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                      </td>
+                      <td className="p-2">{creditReasonLabel[l.reason] ?? l.reason}</td>
+                      <td className={`p-2 text-right tabular-nums font-semibold ${l.delta > 0 ? "text-emerald-600" : "text-destructive"}`}>
+                        {l.delta > 0 ? `+${l.delta}` : l.delta}
+                      </td>
+                      <td className="p-2 text-muted-foreground text-xs hidden md:table-cell">
+                        {[l.note, l.admin && `by ${l.admin}`, l.refId && `ref ${l.refId}`].filter(Boolean).join(" · ") || "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </>
   );
 }

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { recordCredit } from "@/lib/credits";
 
 export async function GET(
   request: Request,
@@ -127,11 +128,20 @@ export async function PATCH(
       return NextResponse.json({ error: "No valid fields to update" }, { status: 400 });
     }
 
+    const before = await db.user.findUnique({ where: { id }, select: { matchCredits: true } });
     const user = await db.user.update({
       where: { id },
       data,
       select: { id: true, firstName: true, lastName: true, matchCredits: true, isFlagged: true, flagReason: true },
     });
+    if (before && typeof data.matchCredits === "number") {
+      await recordCredit({
+        userId: id,
+        delta: user.matchCredits - before.matchCredits,
+        reason: "ADMIN_ADJUST",
+        adminId: session.user.id,
+      });
+    }
 
     return NextResponse.json({ message: "User updated", user });
   } catch (error) {

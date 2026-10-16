@@ -10,10 +10,27 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { effectiveRequestStatus } from "@/lib/admin/cycle-stats";
 
 // --- Types ---
 
-interface SuggestionRow {
+type Decision = "INTERESTED" | "DECLINED" | null;
+
+/** Fields shared by every suggestion row the admin APIs return. */
+interface SuggestionFlowFields {
+  flow: "LEGACY" | "MUTUAL";
+  expiresAt: string | null;
+  recipientDecision: Decision;
+  candidateDecision: Decision;
+}
+
+interface CycleFlags {
+  introRequests: boolean;
+  chat: boolean;
+  mutualSuggestions: boolean;
+}
+
+interface SuggestionRow extends SuggestionFlowFields {
   id: string;
   compatibilityScore: number;
   status: string;
@@ -79,7 +96,7 @@ interface CandidateResult {
   alreadySuggested: boolean;
 }
 
-interface UserSuggestionAsRecipient {
+interface UserSuggestionAsRecipient extends SuggestionFlowFields {
   id: string;
   compatibilityScore: number;
   status: string;
@@ -88,7 +105,7 @@ interface UserSuggestionAsRecipient {
   candidate: { id: string; firstName: string; lastName: string; gender: string };
 }
 
-interface UserSuggestionAsCandidate {
+interface UserSuggestionAsCandidate extends SuggestionFlowFields {
   id: string;
   compatibilityScore: number;
   status: string;
@@ -102,20 +119,38 @@ interface UserSuggestionAsCandidate {
 const statusStyles: Record<string, string> = {
   PENDING: "bg-amber-100 text-amber-800",
   ACCEPTED: "bg-green-100 text-green-800",
-  REJECTED: "bg-red-100 text-red-800",
-  EXPIRED: "bg-gray-100 text-gray-800",
+  REJECTED: "bg-destructive/10 text-destructive",
+  EXPIRED: "bg-muted text-muted-foreground",
 };
+
+const decisionText: Record<string, { label: string; className: string }> = {
+  INTERESTED: { label: "Interested", className: "text-emerald-600" },
+  DECLINED: { label: "Declined", className: "text-destructive" },
+};
+
+function DecisionText({ value }: { value: Decision }) {
+  if (!value) return <span className="text-muted-foreground">No answer yet</span>;
+  return <span className={decisionText[value].className}>{decisionText[value].label}</span>;
+}
+
+function FlowBadge({ flow }: { flow: "LEGACY" | "MUTUAL" }) {
+  return flow === "MUTUAL" ? (
+    <Badge className="text-xs bg-primary/10 text-primary" title="Shown to both people at once; each decides">Shared</Badge>
+  ) : (
+    <Badge variant="outline" className="text-xs" title="Recipient decides first, then the candidate">Legacy</Badge>
+  );
+}
 
 function scoreColor(s: number): string {
   if (s >= 70) return "text-green-600";
   if (s >= 50) return "text-amber-600";
-  return "text-red-600";
+  return "text-destructive";
 }
 
 function scoreBg(s: number): string {
   if (s >= 70) return "bg-green-500";
   if (s >= 50) return "bg-amber-500";
-  return "bg-red-500";
+  return "bg-destructive";
 }
 
 function pctBar(value: number, colorClass: string) {
@@ -163,6 +198,7 @@ export default function AdminSuggestionsPage() {
   // ── Generate state ──
   const [generating, setGenerating] = useState(false);
   const [generateResult, setGenerateResult] = useState("");
+  const [flags, setFlags] = useState<CycleFlags | null>(null);
 
   // ── Browse data ──
   useEffect(() => {
@@ -177,6 +213,7 @@ export default function AdminSuggestionsPage() {
       const res = await fetch(`/api/admin/suggestions?${params}`);
       const data = await res.json();
       setSuggestions(data.suggestions || []);
+      if (data.flags) setFlags(data.flags);
       setBrowseTotalPages(data.totalPages || 1);
     } catch (err) {
       console.error(err);
@@ -319,6 +356,15 @@ export default function AdminSuggestionsPage() {
     }
   }
 
+  // The Generate tab explains the rules for the current switches
+  useEffect(() => {
+    if (tab !== "generate" || flags) return;
+    fetch("/api/admin/suggestions?pageSize=1")
+      .then((r) => r.json())
+      .then((d) => d.flags && setFlags(d.flags))
+      .catch(console.error);
+  }, [tab, flags]);
+
   // ── Generate ──
   async function handleGenerate() {
     setGenerating(true);
@@ -345,7 +391,8 @@ export default function AdminSuggestionsPage() {
       otherUser: s.candidate,
       direction: "outgoing" as const,
       score: s.compatibilityScore,
-      status: s.status,
+      status: effectiveRequestStatus(s),
+      flow: s.flow,
       source: s.source,
       createdAt: s.createdAt,
     })),
@@ -354,7 +401,8 @@ export default function AdminSuggestionsPage() {
       otherUser: s.recipient,
       direction: "incoming" as const,
       score: s.compatibilityScore,
-      status: s.status,
+      status: effectiveRequestStatus(s),
+      flow: s.flow,
       source: s.source,
       createdAt: s.createdAt,
     })),
@@ -405,9 +453,10 @@ export default function AdminSuggestionsPage() {
                 <table className="w-full">
                   <thead>
                     <tr className="border-b bg-muted/50">
-                      <th className="text-left p-3 text-sm font-medium">Recipient</th>
-                      <th className="text-left p-3 text-sm font-medium">Candidate</th>
+                      <th className="text-left p-3 text-sm font-medium">Recipient / Person A</th>
+                      <th className="text-left p-3 text-sm font-medium">Candidate / Person B</th>
                       <th className="text-left p-3 text-sm font-medium">Score</th>
+                      <th className="text-left p-3 text-sm font-medium">Flow</th>
                       <th className="text-left p-3 text-sm font-medium">Status</th>
                       <th className="text-left p-3 text-sm font-medium">Source</th>
                       <th className="text-left p-3 text-sm font-medium">Date</th>
@@ -418,32 +467,46 @@ export default function AdminSuggestionsPage() {
                     {browseLoading ? (
                       Array.from({ length: 5 }).map((_, i) => (
                         <tr key={i} className="border-b">
-                          <td colSpan={7} className="p-3"><div className="h-6 bg-muted animate-pulse rounded" /></td>
+                          <td colSpan={8} className="p-3"><div className="h-6 bg-muted animate-pulse rounded" /></td>
                         </tr>
                       ))
                     ) : suggestions.length === 0 ? (
-                      <tr><td colSpan={7} className="text-center p-8 text-muted-foreground">No suggestions found</td></tr>
+                      <tr><td colSpan={8} className="text-center p-8 text-muted-foreground">No suggestions found</td></tr>
                     ) : (
                       suggestions.map((s) => (
                         <tr key={s.id} className="border-b hover:bg-muted/30 transition-colors">
                           <td className="p-3">
                             <p className="text-sm font-medium">{s.recipient.firstName} {s.recipient.lastName}</p>
-                            <Badge variant={s.recipient.gender === "MALE" ? "default" : "secondary"} className="text-xs">
-                              {s.recipient.gender === "MALE" ? "M" : "F"}
-                            </Badge>
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              {s.flow === "MUTUAL" && <span className="text-xs font-semibold text-primary">A</span>}
+                              <Badge variant={s.recipient.gender === "MALE" ? "default" : "secondary"} className="text-xs">
+                                {s.recipient.gender === "MALE" ? "M" : "F"}
+                              </Badge>
+                              {s.flow === "MUTUAL" && <span className="text-xs"><DecisionText value={s.recipientDecision} /></span>}
+                            </div>
                           </td>
                           <td className="p-3">
                             <p className="text-sm font-medium">{s.candidate.firstName} {s.candidate.lastName}</p>
-                            <Badge variant={s.candidate.gender === "MALE" ? "default" : "secondary"} className="text-xs">
-                              {s.candidate.gender === "MALE" ? "M" : "F"}
-                            </Badge>
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              {s.flow === "MUTUAL" && <span className="text-xs font-semibold text-primary">B</span>}
+                              <Badge variant={s.candidate.gender === "MALE" ? "default" : "secondary"} className="text-xs">
+                                {s.candidate.gender === "MALE" ? "M" : "F"}
+                              </Badge>
+                              {s.flow === "MUTUAL" && <span className="text-xs"><DecisionText value={s.candidateDecision} /></span>}
+                            </div>
                           </td>
                           <td className="p-3">
                             <span className={`font-bold ${scoreColor(s.compatibilityScore)}`}>
                               {Math.round(s.compatibilityScore)}%
                             </span>
                           </td>
-                          <td className="p-3"><Badge className={statusStyles[s.status] || ""}>{s.status}</Badge></td>
+                          <td className="p-3"><FlowBadge flow={s.flow} /></td>
+                          <td className="p-3">
+                            {(() => {
+                              const status = effectiveRequestStatus(s);
+                              return <Badge className={statusStyles[status] || ""}>{status}</Badge>;
+                            })()}
+                          </td>
                           <td className="p-3 text-sm">{s.source}</td>
                           <td className="p-3 text-sm text-muted-foreground">{new Date(s.createdAt).toLocaleDateString()}</td>
                           <td className="p-3">
@@ -584,6 +647,7 @@ export default function AdminSuggestionsPage() {
                             <th className="text-left p-2 text-xs font-medium">Dir</th>
                             <th className="text-left p-2 text-xs font-medium">Other User</th>
                             <th className="text-left p-2 text-xs font-medium">Score</th>
+                            <th className="text-left p-2 text-xs font-medium">Flow</th>
                             <th className="text-left p-2 text-xs font-medium">Status</th>
                             <th className="text-left p-2 text-xs font-medium">Source</th>
                             <th className="text-left p-2 text-xs font-medium">Date</th>
@@ -609,6 +673,7 @@ export default function AdminSuggestionsPage() {
                               <td className="p-2">
                                 <span className={`text-sm font-bold ${scoreColor(s.score)}`}>{Math.round(s.score)}%</span>
                               </td>
+                              <td className="p-2"><FlowBadge flow={s.flow} /></td>
                               <td className="p-2"><Badge className={`text-xs ${statusStyles[s.status] || ""}`}>{s.status}</Badge></td>
                               <td className="p-2 text-xs text-muted-foreground">{s.source}</td>
                               <td className="p-2 text-xs text-muted-foreground">{new Date(s.createdAt).toLocaleDateString()}</td>
@@ -674,7 +739,7 @@ export default function AdminSuggestionsPage() {
                                     <path
                                       d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
                                       fill="none" strokeWidth="3" strokeDasharray={`${b.totalScore}, 100`}
-                                      className={b.totalScore >= 70 ? "stroke-green-500" : b.totalScore >= 50 ? "stroke-amber-500" : "stroke-red-500"}
+                                      className={b.totalScore >= 70 ? "stroke-green-500" : b.totalScore >= 50 ? "stroke-amber-500" : "stroke-destructive"}
                                     />
                                   </svg>
                                   <span className={`absolute inset-0 flex items-center justify-center text-xs font-bold ${scoreColor(b.totalScore)}`}>
@@ -740,7 +805,7 @@ export default function AdminSuggestionsPage() {
                                             {d.matched ? (
                                               <Check className="h-3.5 w-3.5 text-green-600 flex-shrink-0" />
                                             ) : (
-                                              <X className="h-3.5 w-3.5 text-red-500 flex-shrink-0" />
+                                              <X className="h-3.5 w-3.5 text-destructive flex-shrink-0" />
                                             )}
                                             <span className="font-medium w-24 shrink-0">{d.label}</span>
                                             <span className="text-muted-foreground">Wants: {d.userPref}</span>
@@ -764,7 +829,7 @@ export default function AdminSuggestionsPage() {
                                             {d.matched ? (
                                               <Check className="h-3.5 w-3.5 text-green-600 flex-shrink-0" />
                                             ) : (
-                                              <X className="h-3.5 w-3.5 text-red-500 flex-shrink-0" />
+                                              <X className="h-3.5 w-3.5 text-destructive flex-shrink-0" />
                                             )}
                                             <span className="font-medium w-24 shrink-0">{d.label}</span>
                                             <span className="text-muted-foreground">Wants: {d.userPref}</span>
@@ -849,6 +914,7 @@ export default function AdminSuggestionsPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
+            {flags && <GenerateRules flags={flags} />}
             {generateResult && (
               <div className={`rounded-lg p-3 text-sm mb-4 ${
                 generateResult.includes("successfully") || generateResult.includes("Generated")
@@ -886,11 +952,46 @@ function QualityChecklist({ detail }: { detail: QualityDetail }) {
           {item.ok ? (
             <Check className="h-3.5 w-3.5 text-green-600" />
           ) : (
-            <X className="h-3.5 w-3.5 text-red-500" />
+            <X className="h-3.5 w-3.5 text-destructive" />
           )}
           <span>{item.label}</span>
         </div>
       ))}
+    </div>
+  );
+}
+
+/** What Generate will do with the current "New user cycle" switches. */
+function GenerateRules({ flags }: { flags: CycleFlags }) {
+  const rules: string[] = flags.introRequests
+    ? [
+        "Suggestions are free — no credits are taken.",
+        flags.mutualSuggestions
+          ? "Weekly cap: at most 3 new suggestions per person per rolling 7 days, counted on either side (being suggested to someone counts too). People who already have 3 this week are skipped."
+          : "Weekly cap: at most 3 new suggestions per recipient per rolling 7 days.",
+        ...(flags.mutualSuggestions
+          ? [
+              "Shared suggestions: one row shown to both people; each answers once. Both interested → mutual match. No one is told about a “no”.",
+              "Dealbreakers (شروطي الأساسية) are hard filters both ways — a missing value fails the dealbreaker.",
+              "Shared suggestions expire after 14 days if not both answered.",
+            ]
+          : []),
+      ]
+    : [
+        "Legacy mode: each suggestion received uses 1 of the recipient's credits; users with 0 credits get none.",
+        "Admin hand-picked suggestions (Manage User) stay free.",
+      ];
+  return (
+    <div className="rounded-lg border bg-primary/5 p-4 mb-4 space-y-2">
+      <div className="flex flex-wrap items-center gap-2 text-sm font-medium">
+        Rules right now
+        <Badge className="text-xs bg-primary/10 text-primary">
+          {flags.mutualSuggestions ? "Shared suggestions" : flags.introRequests ? "Per-request credits" : "Legacy"}
+        </Badge>
+      </div>
+      <ul className="list-disc ps-5 text-sm text-muted-foreground space-y-1">
+        {rules.map((r) => <li key={r}>{r}</li>)}
+      </ul>
     </div>
   );
 }

@@ -7,7 +7,7 @@ import { db } from "@/lib/db";
 import { calculateCompatibility, mutuallyAcceptable } from "@/lib/matching/score";
 import { calculateCompleteness, SUGGESTIONS_MIN_COMPLETENESS } from "@/lib/profile-completeness";
 import { sendPushNotification } from "@/lib/onesignal";
-import { notifyCreditsExhausted, refundCredits, reserveCredits, WEEKLY_FREE_SUGGESTIONS } from "@/lib/credits";
+import { notifyCreditsExhausted, recordCredit, refundCredits, reserveCredits, WEEKLY_FREE_SUGGESTIONS } from "@/lib/credits";
 import { getCycleFlags } from "@/lib/settings";
 import { notify, notifyMany } from "@/lib/notify";
 import { MUTUAL_SUGGESTION_MS, openMutualWhere } from "@/lib/suggestions/mutual";
@@ -142,7 +142,10 @@ async function generate(userId: string): Promise<number> {
     })),
     skipDuplicates: true,
   });
-  if (!perRequestCredits) await refundCredits(userId, top.length - created.count);
+  if (!perRequestCredits) {
+    await refundCredits(userId, top.length - created.count);
+    await recordCredit({ userId, delta: -created.count, reason: "SUGGESTION", note: "Automatic suggestions" });
+  }
   if (created.count === 0) return 0;
 
   const title = "اقتراحات توافق جديدة";

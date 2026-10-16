@@ -1,6 +1,50 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { getCycleFlags } from "@/lib/settings";
+import { calculateCompleteness, SUGGESTIONS_MIN_COMPLETENESS } from "@/lib/profile-completeness";
+import { buildFunnel, summarizeIntroRequests } from "@/lib/admin/cycle-stats";
+
+/** New-cycle numbers for the dashboard (only computed while `intro_requests_enabled` is on). */
+async function cycleStats(now: Date, oneWeekAgo: Date) {
+  const [intro, activeChats, spent, users, suggestionUsers, matches, acceptedIntros] = await Promise.all([
+    db.introRequest.findMany({ select: { type: true, status: true, expiresAt: true } }),
+    db.conversation.count({ where: { status: "ACTIVE", expiresAt: { gt: now } } }),
+    db.creditLedger.aggregate({
+      where: { reason: "REQUEST", createdAt: { gte: oneWeekAgo } },
+      _sum: { delta: true },
+    }),
+    db.user.findMany({
+      where: { role: "USER" },
+      select: {
+        id: true,
+        profile: true,
+        personalityResult: { select: { personalityType: true } },
+        photos: { select: { id: true } },
+        parentInfo: { select: { id: true, parentName: true } },
+      },
+    }),
+    db.suggestion.findMany({ select: { recipientId: true, candidateId: true } }),
+    db.mutualMatch.findMany({ select: { femaleId: true, maleId: true } }),
+    db.introRequest.findMany({ where: { status: "ACCEPTED" }, select: { senderId: true, receiverId: true } }),
+  ]);
+
+  const registered = new Set(users.map((u) => u.id));
+  const inRegistered = (ids: string[]) => new Set(ids.filter((id) => registered.has(id))).size;
+
+  return {
+    intro: summarizeIntroRequests(intro, now),
+    activeChats,
+    creditsSpentThisWeek: -(spent._sum.delta ?? 0),
+    funnel: buildFunnel({
+      registered: users.length,
+      profileReady: users.filter((u) => calculateCompleteness(u).total >= SUGGESTIONS_MIN_COMPLETENESS).length,
+      gotSuggestions: inRegistered(suggestionUsers.flatMap((s) => [s.recipientId, s.candidateId])),
+      matched: inRegistered(matches.flatMap((m) => [m.femaleId, m.maleId])),
+      introAccepted: inRegistered(acceptedIntros.flatMap((r) => [r.senderId, r.receiverId])),
+    }),
+  };
+}
 
 export async function GET() {
   try {
@@ -21,6 +65,7 @@ export async function GET() {
       flaggedUsers,
       registrationsThisWeek, registrationsLastWeek,
       recentUsers, recentMatches, recentPayments,
+      revenueThisWeek, flags,
     ] = await Promise.all([
       db.user.count(),
       db.user.count({ where: { gender: "MALE" } }),
@@ -70,6 +115,11 @@ export async function GET() {
           user: { select: { firstName: true, lastName: true } },
         },
       }),
+      db.payment.aggregate({
+        where: { status: "COMPLETED", createdAt: { gte: oneWeekAgo } },
+        _sum: { amount: true },
+      }),
+      getCycleFlags(),
     ]);
 
     // Build recent activity timeline
@@ -100,12 +150,17 @@ export async function GET() {
 
     recentActivity.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
+    const cycle = flags.introRequests ? await cycleStats(now, oneWeekAgo) : null;
+
     return NextResponse.json({
+      flags,
+      cycle,
       stats: {
         totalUsers, maleUsers, femaleUsers, verifiedUsers,
         pendingVerifications, totalMatches, totalSuggestions,
         activeSubscriptions, suspendedUsers,
         totalRevenue: totalRevenue._sum.amount || 0,
+        revenueThisWeek: revenueThisWeek._sum.amount || 0,
         completedPayments,
         pendingReports,
         pendingProfileRequests,

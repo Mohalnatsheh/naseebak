@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getStripe } from "@/lib/stripe";
 import { db } from "@/lib/db";
 import { sendPushNotification } from "@/lib/onesignal";
+import { recordCredit } from "@/lib/credits";
 import type Stripe from "stripe";
 
 export async function POST(request: Request) {
@@ -57,6 +58,8 @@ export async function POST(request: Request) {
           return true;
         });
         if (!fulfilled) break;
+        // Outside the transaction: a missing history row must never block a purchase
+        await recordCredit({ userId, delta: creditsNum, reason: "PURCHASE", refId: paymentId });
 
         // Create notification
         await db.notification.create({

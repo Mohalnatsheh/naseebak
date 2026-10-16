@@ -5,6 +5,7 @@ import { sendPushNotification } from "@/lib/onesignal";
 import { calculateCompatibility } from "@/lib/matching/score";
 import { parsePagination } from "@/lib/utils";
 import { getCycleFlags } from "@/lib/settings";
+import type { Prisma } from "@prisma/client";
 import { notifyMany } from "@/lib/notify";
 import { MUTUAL_SUGGESTION_MS } from "@/lib/suggestions/mutual";
 
@@ -18,9 +19,18 @@ export async function GET(request: Request) {
     const { page, pageSize, skip } = parsePagination(url.searchParams, 20);
     const status = url.searchParams.get("status") || "";
 
-    const where = status ? { status: status as "PENDING" | "ACCEPTED" | "REJECTED" | "EXPIRED" } : {};
+    // Shared (MUTUAL) suggestions expire lazily: a PENDING row past expiresAt is shown as EXPIRED
+    const now = new Date();
+    const where: Prisma.SuggestionWhereInput =
+      status === "EXPIRED"
+        ? { OR: [{ status: "EXPIRED" }, { status: "PENDING", expiresAt: { lt: now } }] }
+        : status === "PENDING"
+          ? { status: "PENDING", OR: [{ expiresAt: null }, { expiresAt: { gte: now } }] }
+          : status
+            ? { status: status as "ACCEPTED" | "REJECTED" }
+            : {};
 
-    const [suggestions, total] = await Promise.all([
+    const [suggestions, total, flags] = await Promise.all([
       db.suggestion.findMany({
         where,
         skip,
@@ -32,6 +42,10 @@ export async function GET(request: Request) {
           status: true,
           source: true,
           createdAt: true,
+          flow: true,
+          expiresAt: true,
+          recipientDecision: true,
+          candidateDecision: true,
           recipient: {
             select: { id: true, firstName: true, lastName: true, gender: true },
           },
@@ -41,9 +55,11 @@ export async function GET(request: Request) {
         },
       }),
       db.suggestion.count({ where }),
+      getCycleFlags(),
     ]);
 
     return NextResponse.json({
+      flags,
       suggestions,
       total,
       page,

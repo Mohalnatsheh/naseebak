@@ -180,7 +180,10 @@ describe("endConversation", () => {
       data: expect.objectContaining({ status: "ENDED", endedById: "u1" }),
     }));
     expect(notifyMod.notify).toHaveBeenCalledWith(expect.objectContaining({ userId: "f1", title: "انتهت المحادثة" }));
-    expect(db.report.upsert).toHaveBeenCalled();
+    expect(db.report.upsert).toHaveBeenCalledWith(expect.objectContaining({
+      create: expect.objectContaining({ reporterId: "u1", reportedId: "f1", conversationId: c.id }),
+      update: expect.objectContaining({ conversationId: c.id }),
+    }));
     expect(db.block.create).toHaveBeenCalledWith({ data: { blockerId: "u1", blockedId: "f1" } });
   });
 });

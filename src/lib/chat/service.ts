@@ -336,8 +336,8 @@ export async function endConversation(args: {
   if (report) {
     await db.report.upsert({
       where: { reporterId_reportedId: { reporterId: userId, reportedId: partner.id } },
-      create: { reporterId: userId, reportedId: partner.id, reason: report.reason, details: report.details },
-      update: { reason: report.reason, details: report.details, status: "PENDING" },
+      create: { reporterId: userId, reportedId: partner.id, reason: report.reason, details: report.details, conversationId },
+      update: { reason: report.reason, details: report.details, status: "PENDING", conversationId },
     });
     const existing = await db.block.findFirst({ where: { blockerId: userId, blockedId: partner.id } });
     if (!existing) await db.block.create({ data: { blockerId: userId, blockedId: partner.id } });

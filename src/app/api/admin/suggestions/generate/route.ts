@@ -6,7 +6,7 @@ import { weeklyCounts } from "@/lib/matching/auto-suggest";
 import { notify } from "@/lib/notify";
 import { MUTUAL_SUGGESTION_MS } from "@/lib/suggestions/mutual";
 import { sendPushNotification } from "@/lib/onesignal";
-import { notifyCreditsExhausted, reserveCredits, WEEKLY_FREE_SUGGESTIONS } from "@/lib/credits";
+import { notifyCreditsExhausted, recordCredit, reserveCredits, WEEKLY_FREE_SUGGESTIONS } from "@/lib/credits";
 import { getCycleFlags } from "@/lib/settings";
 
 export async function POST() {
@@ -157,6 +157,15 @@ export async function POST() {
         createdForUser++;
       }
 
+      if (!perRequestCredits && createdForUser > 0) {
+        await recordCredit({
+          userId: user.id,
+          delta: -createdForUser,
+          reason: "SUGGESTION",
+          adminId: session.user.id,
+          note: "Admin Generate",
+        });
+      }
       if (!perRequestCredits && createdForUser > 0 && user.matchCredits - createdForUser <= 0) {
         await notifyCreditsExhausted(user.id);
       }

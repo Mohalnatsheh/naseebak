@@ -7,6 +7,7 @@
  *
  * - Tops every user below 3 credits up to 3 (paid balances above 3 are untouched)
  * - Sends every user a SYSTEM notification explaining the new credit rules
+ * - Writes a MIGRATION_GIFT row in the credit history for every topped-up user
  */
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
@@ -66,6 +67,14 @@ async function main() {
         title: "نظام رصيد جديد",
         body: "أصبح الرصيد يُستخدم فقط عند إرسال طلب تعارف عائلي أو طلب محادثة، والاقتراحات أصبحت مجانية. أهديناك رصيداً ليصبح ٣ على الأقل.",
         metadata: { url: "/dashboard/payments" },
+      })),
+    }),
+    db.creditLedger.createMany({
+      data: toTopUp.map((u) => ({
+        userId: u.id,
+        delta: MIN_CREDITS - u.matchCredits,
+        reason: "MIGRATION_GIFT",
+        note: MARKER,
       })),
     }),
     db.systemSetting.create({ data: { key: MARKER, value: new Date().toISOString() } }),

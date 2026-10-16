@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { recordCredit } from "@/lib/credits";
 import { getStripe } from "@/lib/stripe";
 import { sendPushNotification } from "@/lib/onesignal";
 
@@ -66,6 +67,13 @@ export async function POST(
       await db.user.update({
         where: { id: payment.userId },
         data: { matchCredits: newCredits },
+      });
+      await recordCredit({
+        userId: payment.userId,
+        delta: newCredits - (user?.matchCredits || 0),
+        reason: "REFUND",
+        refId: payment.id,
+        adminId: session.user.id,
       });
     }
 

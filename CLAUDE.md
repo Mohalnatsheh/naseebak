@@ -89,7 +89,7 @@ Dual auth: phone+OTP for users, email+password for admins. Providers in `src/lib
 
 ## Database Schema
 
-22 models in `prisma/schema.prisma`. Key points:
+29 models in `prisma/schema.prisma`. Key points:
 - `User.phone` stored as `962XXXXXXXXX`. `normalizePhone()` converts input formats
 - `User.email` = `phone_962xx@naseeb.local` for users, real email for admins
 - `User.passwordHash` optional — set for admins only (bcrypt)
@@ -222,6 +222,10 @@ Always use `notify()` / `notifyMany()` from `src/lib/notify.ts`: stores the in-a
 ## Admin Panel
 
 14 pages at `/admin`, mobile-friendly (layout `main` has `min-w-0` so tables scroll inside their card; secondary table columns use `hidden md:table-cell`). Users list shows photo thumbnails + a Photos quick-view dialog. All use `"use client"`, `useState`+`useEffect`, admin auth check. Sidebar in `src/components/shared/admin-sidebar.tsx`. Profile request approval applies all field types (strings, ints, bools, arrays, dates).
+
+**New-cycle admin views** (spec `docs/superpowers/specs/2026-10-16-admin-new-cycle-design.md`): with `intro_requests_enabled` on, the dashboard (`/api/admin/stats` → `cycle`) shows intro requests by type/status, active chats, credits spent on requests this week and a registered → introduction-accepted funnel; the sidebar groups Identity Review / Visit Requests / Profile Requests under a collapsed "Legacy" section (layout passes `legacyGrouped`). User page loads `GET /api/admin/users/[id]/cycle` (intro requests, chats with message **counts only**, credit history). Reports show "From chat" via `Report.conversationId` (set by `endConversation`). Lazily-expired rows: use `effectiveRequestStatus` / `effectiveConversationStatus` from `src/lib/admin/cycle-stats.ts`.
+
+**Credit history:** every change to `matchCredits` must call `recordCredit()` (`src/lib/credits.ts`) → `CreditLedger` row with a `CreditReason` (REGISTRATION, PURCHASE, REQUEST, SUGGESTION, ADMIN_ADJUST, MIGRATION_GIFT, REFUND, REFERRAL). Best-effort outside a transaction client, so a history write never blocks a purchase or request. History starts with this release (no backfill).
 
 ## Registration Toggle
 

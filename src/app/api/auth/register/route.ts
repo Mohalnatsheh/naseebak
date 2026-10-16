@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { registerSchema, normalizePhone } from "@/lib/validations/auth";
 import { getMaintenanceState, isRegistrationOpen } from "@/lib/settings";
-import { getRegistrationCredits } from "@/lib/credits";
+import { getRegistrationCredits, recordCredit } from "@/lib/credits";
 import { sendNewUserNotification } from "@/lib/email";
 
 export async function POST(request: Request) {
@@ -63,6 +63,7 @@ export async function POST(request: Request) {
     }
 
     // Create user with phone-based email placeholder
+    const registrationCredits = await getRegistrationCredits();
     const user = await db.user.create({
       data: {
         firstName,
@@ -71,7 +72,7 @@ export async function POST(request: Request) {
         phone,
         passwordHash: null,
         gender,
-        matchCredits: await getRegistrationCredits(),
+        matchCredits: registrationCredits,
       },
       select: {
         id: true,
@@ -82,6 +83,8 @@ export async function POST(request: Request) {
         createdAt: true,
       },
     });
+
+    await recordCredit({ userId: user.id, delta: registrationCredits, reason: "REGISTRATION" });
 
     // Notify admin by email — fire-and-forget so SMTP delays/failures never block registration
     sendNewUserNotification({

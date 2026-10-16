@@ -158,6 +158,17 @@ enum FeedbackOutcome {
   DECLINED
 }
 
+enum CreditReason {
+  REGISTRATION
+  PURCHASE
+  REQUEST
+  SUGGESTION
+  ADMIN_ADJUST
+  MIGRATION_GIFT
+  REFUND
+  REFERRAL
+}
+
 // ─── Models ─────────────────────────────────────────────────────────────────
 
 model User {
@@ -222,6 +233,7 @@ model User {
   sentIntroRequests     IntroRequest[] @relation("IntroSender")
   receivedIntroRequests IntroRequest[] @relation("IntroReceiver")
   messages              Message[]
+  creditLedger          CreditLedger[]
 
   @@map("users")
 }
@@ -568,6 +580,8 @@ model Report {
   status      ReportStatus @default(PENDING)
   adminNote   String?
   reviewedAt  DateTime?
+  // Set when the report was sent while ending a chat (new cycle); no FK so deleting a chat never touches reports
+  conversationId String?
   createdAt   DateTime     @default(now())
 
   @@unique([reporterId, reportedId])
@@ -721,4 +735,24 @@ model Message {
 
   @@index([conversationId, createdAt])
   @@map("messages")
+}
+
+// ─── Credit history ─────────────────────────────────────────────────────────
+
+/// One row per change to User.matchCredits (written by recordCredit in src/lib/credits.ts).
+/// History starts with the release that added this table; earlier changes are not reconstructed.
+model CreditLedger {
+  id        String       @id @default(cuid())
+  userId    String
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  delta     Int
+  reason    CreditReason
+  refId     String?      // payment / intro request / referral id
+  adminId   String?
+  note      String?
+  createdAt DateTime     @default(now())
+
+  @@index([userId, createdAt])
+  @@index([reason, createdAt])
+  @@map("credit_ledger")
 }

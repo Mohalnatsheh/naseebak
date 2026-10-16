@@ -8,6 +8,7 @@ import { db } from "@/lib/db";
 import { sendPushNotification } from "@/lib/onesignal";
 import { notify } from "@/lib/notify";
 import { getCycleFlags } from "@/lib/settings";
+import type { CreditReason } from "@prisma/client";
 
 /** Free credits granted at registration in legacy mode. */
 export const FREE_MATCH_CREDITS = 2;
@@ -36,6 +37,36 @@ export async function reserveCredits(
     data: { matchCredits: { decrement: count } },
   });
   return res.count === 1;
+}
+
+export interface CreditEntry {
+  userId: string;
+  delta: number;
+  reason: CreditReason;
+  refId?: string;
+  adminId?: string;
+  note?: string;
+}
+
+/**
+ * Add a row to the credit history (CreditLedger). Call it next to every change to matchCredits.
+ * With a transaction client the write is part of that transaction (errors propagate); without one
+ * it is best-effort — a missing history row must never fail the user's action.
+ */
+export async function recordCredit(
+  entry: CreditEntry,
+  client?: Pick<typeof db, "creditLedger">
+): Promise<void> {
+  if (!entry.delta) return;
+  if (client) {
+    await client.creditLedger.create({ data: entry });
+    return;
+  }
+  try {
+    await db.creditLedger.create({ data: entry });
+  } catch (error) {
+    console.error("Credit ledger write failed:", entry, error);
+  }
 }
 
 /** Give back credits that were reserved but not used. */

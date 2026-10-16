@@ -14,6 +14,7 @@ const credits = vi.hoisted(() => ({
   reserveCredits: vi.fn(),
   refundCredits: vi.fn(),
   notifyRequestCreditsExhausted: vi.fn(),
+  recordCredit: vi.fn(),
 }));
 const notifyMod = vi.hoisted(() => ({ notify: vi.fn(), notifyMany: vi.fn() }));
 const settings = vi.hoisted(() => ({ getCycleFlags: vi.fn() }));
@@ -84,6 +85,7 @@ describe("sendIntroRequest", () => {
   it("charges 1 credit, creates a 7-day request and notifies the receiver", async () => {
     const res = await sendIntroRequest({ matchId: "m1", senderId: "u1", type: "CHAT" });
     expect(credits.reserveCredits).toHaveBeenCalledWith("u1", 1, expect.anything());
+    expect(credits.recordCredit).toHaveBeenCalledWith({ userId: "u1", delta: -1, reason: "REQUEST", refId: "new" });
     const { data } = db.introRequest.create.mock.calls[0][0];
     expect(data).toMatchObject({ matchId: "m1", type: "CHAT", senderId: "u1", receiverId: "f1" });
     expect(data.expiresAt.getTime() - Date.now()).toBeGreaterThan(6.9 * DAY);
@@ -97,6 +99,7 @@ describe("sendIntroRequest", () => {
     credits.reserveCredits.mockResolvedValue(false);
     await expectCode(sendIntroRequest({ matchId: "m1", senderId: "u1", type: "CHAT" }), "NO_CREDITS");
     expect(db.introRequest.create).not.toHaveBeenCalled();
+    expect(credits.recordCredit).not.toHaveBeenCalled();
   });
 
   it("does not charge twice while a request is pending", async () => {

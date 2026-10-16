@@ -12,7 +12,7 @@
 import type { IntroRequest, IntroRequestType } from "@prisma/client";
 import { db } from "@/lib/db";
 import { notify } from "@/lib/notify";
-import { reserveCredits, notifyRequestCreditsExhausted } from "@/lib/credits";
+import { reserveCredits, notifyRequestCreditsExhausted, recordCredit } from "@/lib/credits";
 import { getCycleFlags, type CycleFlags } from "@/lib/settings";
 import { IntroError } from "@/lib/intro/errors";
 
@@ -240,6 +240,8 @@ export async function sendIntroRequest(args: {
         },
       });
     });
+
+    if (!free) await recordCredit({ userId: senderId, delta: -1, reason: "REQUEST", refId: request.id });
 
     const sender = await db.user.findUnique({
       where: { id: senderId },

@@ -6,6 +6,7 @@ const db = vi.hoisted(() => ({
   mutualMatch: { findMany: vi.fn() },
   block: { findMany: vi.fn() },
   notification: { create: vi.fn() },
+  creditLedger: { create: vi.fn() },
 }));
 vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/onesignal", () => ({ sendPushNotification: vi.fn() }));

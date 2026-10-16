@@ -5,6 +5,7 @@ import { profileSchema } from "@/lib/validations/profile";
 import { calculateCompleteness } from "@/lib/profile-completeness";
 import { createNotificationIfAllowed } from "@/lib/notification-helper";
 import { autoSuggestForUser } from "@/lib/matching/auto-suggest";
+import { recordCredit } from "@/lib/credits";
 
 export async function GET() {
   try {
@@ -200,6 +201,8 @@ export async function PUT(request: Request) {
                 data: { creditsAwarded: true, awardedAt: new Date() },
               }),
             ]);
+            await recordCredit({ userId: session.user.id, delta: 1, reason: "REFERRAL", refId: referral.id });
+            await recordCredit({ userId: referral.referrerId, delta: 2, reason: "REFERRAL", refId: referral.id });
 
             // Notify both users
             await Promise.all([

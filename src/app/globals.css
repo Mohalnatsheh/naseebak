@@ -295,3 +295,19 @@ img.protected-photo {
   20%, 40%, 60%, 80% { transform: translateX(4px); }
 }
 .animate-shake { animation: shake 0.6s ease-in-out; }
+
+/* ─── Chat ─── */
+@keyframes bubbleIn {
+  from { opacity: 0; transform: translateY(6px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.animate-bubble-in { animation: bubbleIn 0.22s ease-out both; }
+.chat-backdrop {
+  background-color: color-mix(in oklch, var(--muted) 35%, transparent);
+  background-image:
+    radial-gradient(circle at 20% 10%, color-mix(in oklch, var(--primary) 5%, transparent) 0, transparent 40%),
+    radial-gradient(circle at 85% 90%, color-mix(in oklch, var(--accent) 7%, transparent) 0, transparent 45%);
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-bubble-in { animation: none; }
+}

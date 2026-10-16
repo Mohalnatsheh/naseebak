@@ -36,11 +36,16 @@ export interface ApiError {
 }
 
 export async function postJson<T>(url: string, body?: unknown): Promise<{ ok: true; data: T } | { ok: false; status: number; data: ApiError }> {
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+  } catch {
+    return { ok: false, status: 0, data: { error: "تعذّر الاتصال. تحقق من الإنترنت وحاول مرة أخرى." } };
+  }
   const data = await res.json().catch(() => ({}));
   return res.ok ? { ok: true, data: data as T } : { ok: false, status: res.status, data: data as ApiError };
 }

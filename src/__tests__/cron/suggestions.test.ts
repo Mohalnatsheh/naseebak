@@ -7,7 +7,7 @@ const db = vi.hoisted(() => ({
 }));
 const notifyMod = vi.hoisted(() => ({ notify: vi.fn(), notifyMany: vi.fn() }));
 const settings = vi.hoisted(() => ({ getCycleFlags: vi.fn() }));
-const auto = vi.hoisted(() => ({ autoSuggestForUser: vi.fn(), weeklyCounts: vi.fn() }));
+const auto = vi.hoisted(() => ({ autoSuggestForUser: vi.fn(), weeklyCounts: vi.fn(), openCounts: vi.fn(), MAX_OPEN_SUGGESTIONS: 5 }));
 vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/notify", () => notifyMod);
 vi.mock("@/lib/settings", () => settings);
@@ -32,6 +32,7 @@ beforeEach(() => {
   db.user.findMany.mockResolvedValue([]);
   settings.getCycleFlags.mockResolvedValue({ introRequests: true, chat: true, mutualSuggestions: true });
   auto.weeklyCounts.mockResolvedValue(new Map());
+  auto.openCounts.mockResolvedValue(new Map());
   auto.autoSuggestForUser.mockResolvedValue(0);
 });
 
@@ -104,6 +105,16 @@ describe("runWeeklySuggestions", () => {
     expect(where.OR).toBeDefined(); // activity filter
     expect(auto.autoSuggestForUser.mock.calls.map((c) => c[0])).toEqual(["a", "c"]);
     expect(res).toEqual({ eligible: 2, processed: 2, created: 3, failed: 0 });
+  });
+
+  it("selects users with < 5 open when credit-on-interest is on (the weekly counts are not used)", async () => {
+    settings.getCycleFlags.mockResolvedValue({ introRequests: true, chat: true, mutualSuggestions: true, creditOnInterest: true });
+    db.user.findMany.mockResolvedValue([{ id: "a" }, { id: "b" }, { id: "c" }]);
+    auto.openCounts.mockResolvedValue(new Map([["a", 4], ["b", 5], ["c", 0]]));
+    const res = await runWeeklySuggestions(now);
+    expect(auto.weeklyCounts).not.toHaveBeenCalled();
+    expect(auto.autoSuggestForUser.mock.calls.map((c) => c[0])).toEqual(["a", "c"]);
+    expect(res.eligible).toBe(2);
   });
 
   it("respects the per-run limit and keeps going after a failure", async () => {

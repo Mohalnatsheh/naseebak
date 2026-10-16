@@ -15,8 +15,17 @@ vi.mock("@/lib/settings", () => flags);
 const notifyMod = vi.hoisted(() => ({ notify: vi.fn(), notifyMany: vi.fn() }));
 vi.mock("@/lib/notify", () => notifyMod);
 vi.mock("@/lib/intro/match", () => ({ createMutualMatch: vi.fn() }));
+// Real scoring, but a test can pin a candidate's score through `scoreFor`
+const scoring = vi.hoisted(() => ({ scoreFor: new Map<string, number>() }));
+vi.mock("@/lib/matching/score", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/lib/matching/score")>();
+  return {
+    ...real,
+    calculateCompatibility: (a: never, b: { id: string }) => scoring.scoreFor.get(b.id) ?? real.calculateCompatibility(a, b as never),
+  };
+});
 
-import { autoSuggestForUser, autoSuggestWithReason } from "@/lib/matching/auto-suggest";
+import { autoSuggestForUser, autoSuggestWithReason, minSuggestionScore, nextSuggestionsAtFor } from "@/lib/matching/auto-suggest";
 
 // Profile with every basic + preference field filled → 60% completeness (above the 50% threshold)
 const fullProfile = (gender: "MALE" | "FEMALE") => ({
@@ -57,6 +66,7 @@ const person = (id: string, gender: "MALE" | "FEMALE", profile: object | null = 
 
 beforeEach(() => {
   vi.clearAllMocks();
+  scoring.scoreFor.clear();
   db.suggestion.count.mockResolvedValue(0);
   db.suggestion.findMany.mockResolvedValue([]);
   db.mutualMatch.findMany.mockResolvedValue([]);
@@ -366,5 +376,99 @@ describe("autoSuggestWithReason", () => {
     db.user.findUnique.mockResolvedValue(person("why4", "MALE"));
     db.user.findMany.mockResolvedValue([person("y4", "FEMALE")]);
     expect(await autoSuggestWithReason("why4")).toEqual({ created: 1, reason: null, nextSuggestionsAt: null });
+  });
+});
+
+describe("credit on interest: open cap 5", () => {
+  const on = { introRequests: true, chat: true, mutualSuggestions: true, creditOnInterest: true };
+  const females = (n: number) => Array.from({ length: n }, (_, i) => person(`cf${i}`, "FEMALE"));
+  /** count() answers: MUTUAL open rows first, then LEGACY pending */
+  const openRows = (mutual: number, legacy = 0) => {
+    db.suggestion.count.mockImplementation(async ({ where }: { where: { flow?: string } }) =>
+      where.flow === "LEGACY" ? legacy : mutual
+    );
+  };
+  beforeEach(() => {
+    flags.getCycleFlags.mockResolvedValue(on);
+    db.suggestion.findMany.mockImplementation(async ({ where }: { where: { flow?: string } }) =>
+      where.flow === "MUTUAL" ? females(6).map((f) => ({ candidateId: f.id })) : []
+    );
+  });
+
+  it("tops up to 5 when 0 open", async () => {
+    openRows(0);
+    db.user.findUnique.mockResolvedValue(person("co1", "MALE"));
+    db.user.findMany.mockResolvedValue(females(7));
+    expect(await autoSuggestForUser("co1")).toBe(5);
+    expect(db.suggestion.createMany.mock.calls[0][0].data).toHaveLength(5);
+  });
+
+  it("tops up 2 when 3 open (legacy pending counts too)", async () => {
+    openRows(2, 1);
+    db.user.findUnique.mockResolvedValue(person("co2", "MALE"));
+    db.user.findMany.mockResolvedValue(females(7));
+    expect(await autoSuggestForUser("co2")).toBe(2);
+  });
+
+  it('creates nothing and says reason "pending" when 5 open', async () => {
+    openRows(5);
+    db.user.findUnique.mockResolvedValue(person("co3", "MALE"));
+    expect(await autoSuggestWithReason("co3")).toEqual({ created: 0, reason: "pending", nextSuggestionsAt: null });
+    expect(db.user.findMany).not.toHaveBeenCalled();
+  });
+
+  it("skips a candidate with 5 open", async () => {
+    openRows(0);
+    db.user.findUnique.mockResolvedValue(person("co4", "MALE"));
+    db.user.findMany.mockResolvedValue([person("busy", "FEMALE"), person("free", "FEMALE")]);
+    db.suggestion.groupBy
+      .mockResolvedValueOnce([{ recipientId: "busy", _count: 3 }]) // as recipient
+      .mockResolvedValueOnce([{ candidateId: "busy", _count: 2 }]) // as candidate
+      .mockResolvedValueOnce([]); // legacy
+    await autoSuggestForUser("co4");
+    expect(db.suggestion.createMany.mock.calls[0][0].data.map((d: { candidateId: string }) => d.candidateId)).toEqual(["free"]);
+  });
+
+  it("never reports weekly_cap and has no weekly window (nextSuggestionsAt null)", async () => {
+    // 3 created this week would be the cap with the flag off; with it on the cap does not apply
+    db.suggestion.count.mockImplementation(async ({ where }: { where: { createdAt?: unknown; flow?: string } }) =>
+      where.createdAt ? 3 : 0
+    );
+    db.user.findUnique.mockResolvedValue(person("co5", "MALE"));
+    db.user.findMany.mockResolvedValue(females(2));
+    const res = await autoSuggestWithReason("co5");
+    expect(res.reason).toBeNull();
+    expect(res.created).toBe(2);
+    expect(res.nextSuggestionsAt).toBeNull();
+    expect(await nextSuggestionsAtFor("co5")).toBeNull();
+    expect(db.suggestion.findFirst).not.toHaveBeenCalled();
+  });
+
+  it("drops candidates below 50 (30 is enough with the flag off)", async () => {
+    expect(minSuggestionScore({ ...on })).toBe(50);
+    expect(minSuggestionScore({ ...on, creditOnInterest: false })).toBe(30);
+    scoring.scoreFor.set("lo", 40);
+    scoring.scoreFor.set("hi", 55);
+    openRows(0);
+    db.user.findUnique.mockResolvedValue(person("co7", "MALE"));
+    db.user.findMany.mockResolvedValue([person("lo", "FEMALE"), person("hi", "FEMALE")]);
+    await autoSuggestForUser("co7");
+    expect(db.suggestion.createMany.mock.calls[0][0].data.map((d: { candidateId: string }) => d.candidateId)).toEqual(["hi"]);
+  });
+
+  it("flag off keeps candidates scoring 30-49", async () => {
+    flags.getCycleFlags.mockResolvedValue({ ...on, creditOnInterest: false });
+    scoring.scoreFor.set("lo2", 40);
+    db.suggestion.count.mockResolvedValue(0);
+    db.user.findUnique.mockResolvedValue(person("co8", "MALE"));
+    db.user.findMany.mockResolvedValue([person("lo2", "FEMALE")]);
+    expect(await autoSuggestForUser("co8")).toBe(1);
+  });
+
+  it("flag off keeps the weekly cap and score 30 (unchanged)", async () => {
+    flags.getCycleFlags.mockResolvedValue({ introRequests: true, chat: false, mutualSuggestions: true, creditOnInterest: false });
+    db.user.findUnique.mockResolvedValue(person("co6", "MALE"));
+    db.suggestion.count.mockImplementation(async ({ where }: { where: { createdAt?: unknown } }) => (where.createdAt ? 3 : 0));
+    expect((await autoSuggestWithReason("co6")).reason).toBe("weekly_cap");
   });
 });

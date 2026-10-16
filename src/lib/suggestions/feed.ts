@@ -9,11 +9,19 @@ import { calculateCompatibility } from "@/lib/matching/score";
 import { suggestionReason } from "@/lib/matching/reasons";
 import { MUTUAL_SUGGESTION_MS, expireMutualSuggestions, openMutualWhere } from "@/lib/suggestions/mutual";
 import { isUnavailable } from "@/lib/matches/state";
+import { getCycleFlags, type CycleFlags } from "@/lib/settings";
 
 export type FeedTab = "new" | "waiting";
 export type FeedKind = "mutual" | "legacy_suggestion" | "legacy_interest" | "legacy_sent";
 
 const SOURCE_LIMIT = 50;
+
+/** Feed order: today newest first; credit-on-interest shows the best matches first (newest first among equals). */
+export function suggestionOrder(flags: CycleFlags) {
+  return flags.creditOnInterest
+    ? [{ compatibilityScore: "desc" as const }, { createdAt: "desc" as const }]
+    : [{ createdAt: "desc" as const }];
+}
 
 const personSelect = {
   id: true,
@@ -132,6 +140,8 @@ export async function getSuggestionFeed(
 ): Promise<{ items: FeedItem[]; page: number; totalPages: number; total: number }> {
   await expireMutualSuggestions(userId);
   const now = new Date();
+  const flags = await getCycleFlags();
+  const order = suggestionOrder(flags);
 
   const [viewer, blocked] = await Promise.all([
     db.user.findUnique({ where: { id: userId }, select: personSelect }),
@@ -152,7 +162,7 @@ export async function getSuggestionFeed(
       db.suggestion.findMany({
         where: openMutualWhere(userId, now),
         select: mutualSelect,
-        orderBy: { createdAt: "desc" },
+        orderBy: order,
         take: SOURCE_LIMIT,
       }),
       db.suggestion.findMany({
@@ -191,7 +201,7 @@ export async function getSuggestionFeed(
           ],
         },
         select: mutualSelect,
-        orderBy: { createdAt: "desc" },
+        orderBy: order,
         take: SOURCE_LIMIT,
       }),
       db.suggestion.findMany({
@@ -216,7 +226,11 @@ export async function getSuggestionFeed(
   const visible = rows
     // Blocked either way, or deactivated / suspended since the suggestion was made
     .filter((r) => !blocked.has(r.other.id) && !isUnavailable(r.other))
-    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    .sort((a, b) =>
+      flags.creditOnInterest
+        ? (b.score ?? -1) - (a.score ?? -1) || b.createdAt.getTime() - a.createdAt.getTime()
+        : b.createdAt.getTime() - a.createdAt.getTime()
+    );
   const total = visible.length;
   const items = visible.slice((page - 1) * pageSize, page * pageSize).map((r) => {
     const v = viewer as unknown as Parameters<typeof suggestionReason>[0];

@@ -9,6 +9,7 @@ import { db } from "@/lib/db";
 import { IntroError } from "@/lib/intro/errors";
 import { createMutualMatch } from "@/lib/intro/match";
 import { isUnavailable } from "@/lib/matches/state";
+import { getCycleFlags } from "@/lib/settings";
 
 /** A MUTUAL suggestion stays open this long; after that "waiting" ends without a word. */
 export const MUTUAL_SUGGESTION_DAYS = 14;
@@ -31,15 +32,35 @@ export function openMutualWhere(userId: string, now = new Date()): Prisma.Sugges
 
 /** Lazily close MUTUAL rows of this user whose time ran out. */
 export async function expireMutualSuggestions(userId: string): Promise<void> {
-  await db.suggestion.updateMany({
+  const startedAt = new Date();
+  const { count } = await db.suggestion.updateMany({
     where: {
       flow: "MUTUAL",
       status: "PENDING",
-      expiresAt: { lte: new Date() },
+      expiresAt: { lte: startedAt },
       OR: [{ recipientId: userId }, { candidateId: userId }],
     },
     data: { status: "EXPIRED" },
   });
+  if (count === 0) return;
+  // Credit-on-interest: expiry frees slots, so both sides of the expired rows get topped up
+  if (!(await getCycleFlags()).creditOnInterest) return;
+  const rows = await db.suggestion.findMany({
+    where: {
+      flow: "MUTUAL",
+      status: "EXPIRED",
+      updatedAt: { gte: startedAt },
+      OR: [{ recipientId: userId }, { candidateId: userId }],
+    },
+    select: { recipientId: true, candidateId: true },
+  });
+  const people = [...new Set([userId, ...rows.flatMap((r) => [r.recipientId, r.candidateId])])];
+  // Fire-and-forget; lazy import avoids the auto-suggest <-> mutual cycle
+  void import("@/lib/matching/auto-suggest")
+    .then(({ autoSuggestForUser }) =>
+      Promise.all(people.map((id) => autoSuggestForUser(id).catch((e) => console.error("[suggestions] expiry top-up:", id, e))))
+    )
+    .catch((e) => console.error("[suggestions] expiry top-up:", e));
 }
 
 export async function decideSuggestion(args: {

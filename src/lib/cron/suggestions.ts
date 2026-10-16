@@ -9,7 +9,7 @@ import { notify } from "@/lib/notify";
 import { getCycleFlags } from "@/lib/settings";
 import { isUnavailable } from "@/lib/matches/state";
 import { activeWhere } from "@/lib/activity";
-import { autoSuggestForUser, weeklyCounts } from "@/lib/matching/auto-suggest";
+import { MAX_OPEN_SUGGESTIONS, autoSuggestForUser, openCounts, weeklyCounts } from "@/lib/matching/auto-suggest";
 import { WEEKLY_FREE_SUGGESTIONS } from "@/lib/credits";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -119,11 +119,11 @@ export async function runWeeklySuggestions(
   if (users.length === 0) return { eligible: 0, processed: 0, created: 0, failed: 0 };
 
   // Skip people already at the weekly cap without running the full candidate scan for them
-  const counts = await weeklyCounts(
-    users.map((u) => u.id),
-    new Date(now.getTime() - 7 * DAY_MS)
-  );
-  const underCap = users.filter((u) => (counts.get(u.id) ?? 0) < WEEKLY_FREE_SUGGESTIONS);
+  // (credit-on-interest: skip those already holding MAX_OPEN_SUGGESTIONS undecided ones instead)
+  const ids = users.map((u) => u.id);
+  const counts = flags.creditOnInterest ? await openCounts(ids) : await weeklyCounts(ids, new Date(now.getTime() - 7 * DAY_MS));
+  const cap = flags.creditOnInterest ? MAX_OPEN_SUGGESTIONS : WEEKLY_FREE_SUGGESTIONS;
+  const underCap = users.filter((u) => (counts.get(u.id) ?? 0) < cap);
 
   let processed = 0;
   let created = 0;

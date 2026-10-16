@@ -9,6 +9,8 @@ const db = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/intro/match", () => ({ createMutualMatch: vi.fn() }));
+const settings = vi.hoisted(() => ({ getCycleFlags: vi.fn() }));
+vi.mock("@/lib/settings", () => settings);
 
 import { getSuggestionFeed } from "@/lib/suggestions/feed";
 
@@ -27,6 +29,7 @@ const mutualRow = (id: string, other = person("f1", "FEMALE"), iAmRecipient = fa
 
 beforeEach(() => {
   vi.clearAllMocks();
+  settings.getCycleFlags.mockResolvedValue({ introRequests: true, chat: true, mutualSuggestions: true, creditOnInterest: false });
   db.user.findUnique.mockResolvedValue(me);
   db.block.findMany.mockResolvedValue([]);
   db.suggestion.updateMany.mockResolvedValue({ count: 0 });
@@ -124,5 +127,27 @@ describe("getSuggestionFeed — waiting", () => {
     db.mutualMatch.findMany.mockResolvedValue([{ femaleId: "f6", maleId: "me" }]);
     const { items } = await getSuggestionFeed("me", "waiting", 1);
     expect(items.map((i) => [i.kind, i.id])).toEqual([["legacy_sent", "L1"]]);
+  });
+});
+
+describe("getSuggestionFeed — ordering", () => {
+  it("orders by compatibilityScore desc then createdAt desc when credit-on-interest is on", async () => {
+    settings.getCycleFlags.mockResolvedValue({ introRequests: true, chat: true, mutualSuggestions: true, creditOnInterest: true });
+    const older = { ...mutualRow("low", person("f1", "FEMALE")), compatibilityScore: 60 };
+    const best = { ...mutualRow("best", person("f2", "FEMALE")), compatibilityScore: 90, createdAt: new Date(Date.now() - 5 * DAY) };
+    const tie = { ...mutualRow("tie", person("f3", "FEMALE")), compatibilityScore: 60, createdAt: new Date() };
+    db.suggestion.findMany.mockResolvedValueOnce([older, best, tie]).mockResolvedValueOnce([]);
+    const { items } = await getSuggestionFeed("me", "new", 1);
+    expect(db.suggestion.findMany.mock.calls[0][0].orderBy).toEqual([{ compatibilityScore: "desc" }, { createdAt: "desc" }]);
+    expect(items.map((i) => i.id)).toEqual(["best", "tie", "low"]);
+  });
+
+  it("stays newest-first when the flag is off", async () => {
+    const old = { ...mutualRow("old", person("f1", "FEMALE")), compatibilityScore: 95, createdAt: new Date(Date.now() - 5 * DAY) };
+    const fresh = { ...mutualRow("fresh", person("f2", "FEMALE")), compatibilityScore: 40, createdAt: new Date() };
+    db.suggestion.findMany.mockResolvedValueOnce([old, fresh]).mockResolvedValueOnce([]);
+    const { items } = await getSuggestionFeed("me", "new", 1);
+    expect(db.suggestion.findMany.mock.calls[0][0].orderBy).toEqual([{ createdAt: "desc" }]);
+    expect(items.map((i) => i.id)).toEqual(["fresh", "old"]);
   });
 });

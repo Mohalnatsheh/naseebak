@@ -283,7 +283,9 @@ export function MutualSuggestionsView({
                   ? "لا يوجد حالياً من يطابق شروطك"
                   : emptyReason === "weekly_cap" && nextSuggestionsAt
                     ? `اقتراحاتك القادمة يوم ${formatNextDate(nextSuggestionsAt)}`
-                    : "نبحث لك عن اقتراحات مناسبة"}
+                    : emptyReason === "pending"
+                      ? "لديك اقتراحات بانتظار قرارك"
+                      : "نبحث لك عن اقتراحات مناسبة"}
             </h3>
             <p className="text-sm text-muted-foreground max-w-xs mx-auto leading-relaxed">
               {tab !== "new"
@@ -295,7 +297,9 @@ export function MutualSuggestionsView({
                   ? "لم نجد حالياً أحداً تنطبق عليه شروطك الأساسية وتفضيلاتك. مراجعتها قد توسّع فرصك، ونبحث لك من جديد تلقائياً كلما انضم أشخاص جدد."
                   : emptyReason === "weekly_cap"
                     ? "تصلك حتى 3 اقتراحات مجانية كل 7 أيام، وسنرسل لك إشعاراً فور وصولها."
-                    : "تصلك حتى 3 اقتراحات مجانية كل أسبوع، وسنرسل لك إشعاراً فور وصولها. إكمال ملفك واختبار الشخصية يجعلها أدق."}
+                    : emptyReason === "pending"
+                      ? "عندما تقرّر في اقتراحاتك الحالية أو تنتهي مدتها، تصلك اقتراحات جديدة وسنرسل لك إشعاراً فور وصولها."
+                      : "تصلك حتى 3 اقتراحات مجانية كل أسبوع، وسنرسل لك إشعاراً فور وصولها. إكمال ملفك واختبار الشخصية يجعلها أدق."}
             </p>
             {tab === "new" && emptyReason === "no_candidates" && (
               <div className="flex flex-wrap items-center justify-center gap-2 pt-1">

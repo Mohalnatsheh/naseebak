@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { calculateCompatibility, mutuallyAcceptable } from "@/lib/matching/score";
-import { weeklyCounts } from "@/lib/matching/auto-suggest";
+import { MAX_OPEN_SUGGESTIONS, minSuggestionScore, openCounts, weeklyCounts } from "@/lib/matching/auto-suggest";
 import { notify } from "@/lib/notify";
 import { MUTUAL_SUGGESTION_MS } from "@/lib/suggestions/mutual";
 import { meetsSuggestionGate } from "@/lib/profile-completeness";
@@ -15,7 +15,8 @@ export async function POST() {
     if ("error" in result) return result.error;
     const { session } = result;
 
-    const { introRequests: perRequestCredits, mutualSuggestions: mutual } = await getCycleFlags();
+    const flags = await getCycleFlags();
+    const { introRequests: perRequestCredits, mutualSuggestions: mutual, creditOnInterest } = flags;
 
     // Eligible: active users who pass the same suggestion gate as auto-suggest
     // (new cycle: completed short setup; legacy: ≥ 50% completeness).
@@ -75,7 +76,10 @@ export async function POST() {
     const thisWeek = perRequestCredits && !mutual
       ? await db.suggestion.groupBy({ by: ["recipientId"], where: { createdAt: { gte: weekAgo } }, _count: true })
       : [];
-    const thisWeekByUser = mutual
+    // Credit-on-interest: no weekly cap; each person holds up to MAX_OPEN_SUGGESTIONS undecided ones
+    const thisWeekByUser = creditOnInterest
+      ? await openCounts(eligibleUsers.map((u) => u.id))
+      : mutual
       ? await weeklyCounts(eligibleUsers.map((u) => u.id), weekAgo)
       : new Map(thisWeek.map((r) => [r.recipientId, r._count]));
 
@@ -91,7 +95,7 @@ export async function POST() {
         if (matchPairs.has(`${user.id}:${c.id}`)) return false;
         // Skip if blocked
         if (blockPairs.has(`${user.id}:${c.id}`)) return false;
-        if (mutual && (thisWeekByUser.get(c.id) ?? 0) >= WEEKLY_FREE_SUGGESTIONS) return false;
+        if (mutual && (thisWeekByUser.get(c.id) ?? 0) >= (creditOnInterest ? MAX_OPEN_SUGGESTIONS : WEEKLY_FREE_SUGGESTIONS)) return false;
         if (mutual && !mutuallyAcceptable(user, c)) return false;
         return true;
       });
@@ -104,14 +108,18 @@ export async function POST() {
       scored.sort((a, b) => b.score - a.score);
 
       // Take top N — limited by credits (legacy: 1 credit per suggestion) or by the weekly cap
-      const limit = perRequestCredits
-        ? WEEKLY_FREE_SUGGESTIONS - (thisWeekByUser.get(user.id) ?? 0)
-        : user.matchCredits;
-      const topCandidates = scored.slice(0, Math.min(MAX_SUGGESTIONS_PER_USER, Math.max(0, limit)));
+      const limit = creditOnInterest
+        ? MAX_OPEN_SUGGESTIONS - (thisWeekByUser.get(user.id) ?? 0)
+        : perRequestCredits
+          ? WEEKLY_FREE_SUGGESTIONS - (thisWeekByUser.get(user.id) ?? 0)
+          : user.matchCredits;
+      const topCandidates = creditOnInterest
+        ? scored.filter((r) => r.score >= minSuggestionScore(flags)).slice(0, Math.max(0, limit))
+        : scored.slice(0, Math.min(MAX_SUGGESTIONS_PER_USER, Math.max(0, limit)));
       let createdForUser = 0;
 
       for (const { candidate, score } of topCandidates) {
-        if (score < 30) continue; // Skip very low scores
+        if (score < minSuggestionScore(flags)) continue; // Skip very low scores
         if (!perRequestCredits && !(await reserveCredits(user.id, 1))) break;
 
         await db.suggestion.create({

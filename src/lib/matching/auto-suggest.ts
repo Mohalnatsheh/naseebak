@@ -8,13 +8,16 @@ import { calculateCompatibility, mutuallyAcceptable } from "@/lib/matching/score
 import { meetsSuggestionGate } from "@/lib/profile-completeness";
 import { sendPushNotification } from "@/lib/onesignal";
 import { notifyCreditsExhausted, recordCredit, refundCredits, reserveCredits, WEEKLY_FREE_SUGGESTIONS } from "@/lib/credits";
-import { getCycleFlags } from "@/lib/settings";
+import { getCycleFlags, type CycleFlags } from "@/lib/settings";
 import { notify, notifyMany } from "@/lib/notify";
 import { MUTUAL_SUGGESTION_MS, openMutualWhere } from "@/lib/suggestions/mutual";
 import { activeWhere, isActive } from "@/lib/activity";
 
 const MAX_NEW_SUGGESTIONS = 3;
 const MIN_SCORE = 30;
+/** Credit-on-interest: a person holds at most this many undecided suggestions (replaces the weekly cap) */
+export const MAX_OPEN_SUGGESTIONS = 5;
+const MIN_SCORE_CREDIT_ON_INTEREST = 50;
 // When a run finds no suitable candidate, wait before scanning again (per user, per server process)
 const RETRY_COOLDOWN_MS = 30 * 60 * 1000;
 const lastEmptyRun = new Map<string, number>();
@@ -28,6 +31,47 @@ export interface SuggestOutcome {
   reason: SuggestEmptyReason | null;
 }
 const outcome = (created: number, reason: SuggestEmptyReason | null = null): SuggestOutcome => ({ created, reason });
+
+/** Lowest compatibility score that may be suggested (credit-on-interest raises it, since an "interested" costs a credit). */
+export function minSuggestionScore(flags: CycleFlags): number {
+  return flags.creditOnInterest ? MIN_SCORE_CREDIT_ON_INTEREST : MIN_SCORE;
+}
+
+/** Suggestions waiting for this user's decision: MUTUAL rows they haven't decided on (either side) + legacy PENDING. */
+export async function openSuggestionCount(userId: string): Promise<number> {
+  const [mutual, legacy] = await Promise.all([
+    db.suggestion.count({ where: openMutualWhere(userId) }),
+    db.suggestion.count({ where: { recipientId: userId, status: "PENDING", flow: "LEGACY" } }),
+  ]);
+  return mutual + legacy;
+}
+
+/** openSuggestionCount for many users at once (users with none are absent from the map). */
+export async function openCounts(userIds: string[]): Promise<Map<string, number>> {
+  const now = new Date();
+  const open = { flow: "MUTUAL" as const, status: "PENDING" as const, expiresAt: { gt: now } };
+  const [asRecipient, asCandidate, legacy] = await Promise.all([
+    db.suggestion.groupBy({
+      by: ["recipientId"],
+      where: { ...open, recipientId: { in: userIds }, recipientDecision: null },
+      _count: true,
+    }),
+    db.suggestion.groupBy({
+      by: ["candidateId"],
+      where: { ...open, candidateId: { in: userIds }, candidateDecision: null },
+      _count: true,
+    }),
+    db.suggestion.groupBy({
+      by: ["recipientId"],
+      where: { recipientId: { in: userIds }, status: "PENDING", flow: "LEGACY" },
+      _count: true,
+    }),
+  ]);
+  const counts = new Map<string, number>();
+  for (const r of [...asRecipient, ...legacy]) counts.set(r.recipientId, (counts.get(r.recipientId) ?? 0) + r._count);
+  for (const r of asCandidate) counts.set(r.candidateId, (counts.get(r.candidateId) ?? 0) + r._count);
+  return counts;
+}
 
 const scoringSelect = {
   id: true,
@@ -70,7 +114,9 @@ function shared(userId: string): Promise<SuggestOutcome> {
 
 /** When the oldest suggestion of the rolling 7-day window ages out (a free slot opens). */
 export async function nextSuggestionsAtFor(userId: string, now = new Date()): Promise<Date | null> {
-  const { mutualSuggestions: mutual } = await getCycleFlags();
+  const { mutualSuggestions: mutual, creditOnInterest } = await getCycleFlags();
+  // Credit-on-interest has no weekly cap, so there is no "next suggestions" date
+  if (creditOnInterest) return null;
   const weekAgo = new Date(now.getTime() - WEEK_MS);
   const oldest = await db.suggestion.findFirst({
     where: mutual
@@ -109,20 +155,26 @@ async function generate(userId: string): Promise<SuggestOutcome> {
   // Per-request mode: suggestions are free (capped weekly); credits are spent on intro requests.
   // Legacy mode: each suggestion uses 1 credit — none left means the user must recharge.
   // Simultaneous flow: one row shown to both people, dealbreakers are hard filters
-  const { introRequests: perRequestCredits, mutualSuggestions: mutual } = await getCycleFlags();
+  const flags = await getCycleFlags();
+  const { introRequests: perRequestCredits, mutualSuggestions: mutual, creditOnInterest } = flags;
   if (!perRequestCredits && user.matchCredits <= 0) return outcome(0);
   if (!meetsSuggestionGate(user, perRequestCredits)) return outcome(0);
 
   // Only top up when the user has nothing waiting
-  const pending = mutual
-    ? (await db.suggestion.count({ where: openMutualWhere(userId) })) +
-      (await db.suggestion.count({ where: { recipientId: userId, status: "PENDING", flow: "LEGACY" } }))
-    : await db.suggestion.count({ where: { recipientId: userId, status: "PENDING" } });
-  if (pending > 0) return outcome(0, "pending");
-
-  let limit = Math.min(MAX_NEW_SUGGESTIONS, user.matchCredits);
+  // (credit-on-interest: top up to MAX_OPEN_SUGGESTIONS instead, with no weekly cap)
   const weekAgo = new Date(Date.now() - WEEK_MS);
-  if (perRequestCredits) {
+  let limit = Math.min(MAX_NEW_SUGGESTIONS, user.matchCredits);
+  if (creditOnInterest) {
+    const open = await openSuggestionCount(userId);
+    limit = MAX_OPEN_SUGGESTIONS - open;
+    if (limit <= 0) return outcome(0, "pending");
+  } else {
+    const pending = mutual
+      ? await openSuggestionCount(userId)
+      : await db.suggestion.count({ where: { recipientId: userId, status: "PENDING" } });
+    if (pending > 0) return outcome(0, "pending");
+  }
+  if (perRequestCredits && !creditOnInterest) {
     // Both people see a MUTUAL row, so it counts on either side
     const thisWeek = await db.suggestion.count({
       where: mutual
@@ -173,12 +225,18 @@ async function generate(userId: string): Promise<SuggestOutcome> {
     .filter((c) => meetsSuggestionGate(c, perRequestCredits))
     .filter((c) => !mutual || mutuallyAcceptable(user, c))
     .map((c) => ({ candidate: c, score: calculateCompatibility(user, c) }))
-    .filter(({ score }) => score >= MIN_SCORE)
+    .filter(({ score }) => score >= minSuggestionScore(flags))
     .sort((a, b) => b.score - a.score);
   if (mutual && ranked.length > 0) {
-    // Skip people who already got their weekly suggestions, so popular profiles aren't flooded
-    const busy = await weeklyCounts(ranked.map((r) => r.candidate.id), weekAgo);
-    ranked = ranked.filter((r) => (busy.get(r.candidate.id) ?? 0) < WEEKLY_FREE_SUGGESTIONS);
+    // Skip people who already got their share, so popular profiles aren't flooded
+    const ids = ranked.map((r) => r.candidate.id);
+    if (creditOnInterest) {
+      const busy = await openCounts(ids);
+      ranked = ranked.filter((r) => (busy.get(r.candidate.id) ?? 0) < MAX_OPEN_SUGGESTIONS);
+    } else {
+      const busy = await weeklyCounts(ids, weekAgo);
+      ranked = ranked.filter((r) => (busy.get(r.candidate.id) ?? 0) < WEEKLY_FREE_SUGGESTIONS);
+    }
   }
   const top = ranked.slice(0, limit);
 

@@ -5,7 +5,7 @@ import { parsePagination } from "@/lib/utils";
 import { autoSuggestWithReason, type SuggestEmptyReason } from "@/lib/matching/auto-suggest";
 import { touchLastActive } from "@/lib/activity";
 import { getCycleFlags } from "@/lib/settings";
-import { countNewItems, hasOpenMutual } from "@/lib/suggestions/feed";
+import { countNewItems, hasOpenMutual, suggestionOrder } from "@/lib/suggestions/feed";
 
 export async function GET(request: Request) {
   try {
@@ -35,7 +35,8 @@ export async function GET(request: Request) {
 
     // Simultaneous flow (or open simultaneous suggestions left after a switch-off): the page
     // renders the two-tab view from /api/suggestions/feed; `total` = items still to decide
-    const { mutualSuggestions } = await getCycleFlags();
+    const flags = await getCycleFlags();
+    const { mutualSuggestions } = flags;
     if (mutualSuggestions || (await hasOpenMutual(session.user.id))) {
       const [total, me] = await Promise.all([
         countNewItems(session.user.id),
@@ -121,7 +122,7 @@ export async function GET(request: Request) {
             },
           },
         },
-        orderBy: { createdAt: "desc" },
+        orderBy: suggestionOrder(flags),
         skip,
         take: pageSize,
       }),

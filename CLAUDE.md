@@ -30,6 +30,7 @@ After changing `prisma/schema.prisma`, run `pnpm db:push && pnpm db:generate`. S
 - Docker: `docker compose up -d --build` → http://localhost:3001 (app + Postgres 17, reads `.env`, seeds once, turns the 3 new-cycle switches on, runs the credit top-up). `docker compose down -v` resets the DB.
 - Digits: Western (0-9) everywhere; format dates with `"ar-JO-u-nu-latn"`.
 - Admin enum labels: `src/lib/admin/enum-labels.ts` (English). Suggestion & match cards share `src/components/shared/person-card.tsx`.
+- `node scripts/score-distribution.ts` (read-only; `DATABASE_URL=… ` to target another DB): compatibility score buckets for all eligible pairs and how many users would have 0 candidates per minimum score — run it on a prod copy before changing the minimum
 - Switches for local testing: `system_settings` keys `intro_requests_enabled`, `chat_enabled`, `new_suggestions_flow` (or Admin → Settings); 30s cache.
 - Tests mock the DB with `vi.hoisted()` + `vi.mock("@/lib/db")` (see `src/__tests__/intro/requests.test.ts`); mock `@/lib/settings` for switch-dependent code and `$transaction` as `fn => fn(db)`.
 - Parallel sessions sharing this checkout: stage files by path (never `git add -A`) and don't switch branches; prefer separate `git worktree`s.
@@ -154,6 +155,8 @@ All list pages use server-side pagination. RTL chevron direction: `ChevronRight`
 - **Footer:** 4 columns. No newsletter section (intentionally removed)
 - **Navbar section links:** Use `Link href="/#features"` for homepage anchors
 - **Switch-aware public pages:** `src/app/(ar)/page.tsx` is a server component that reads `getCycleFlags()` and renders `src/components/landing/*` with copy from `content.ts`; FAQ answers come from `src/app/(ar)/faq/faq-data.ts` (`faqsFor()`), used by both the page and its JSON-LD. Never describe a feature that is switched off
+- **Live numbers band** (`principles.tsx`, `/api/stats/public`): each number is hidden until it reaches its minimum (`MIN_PUBLIC_USERS = 100`, `MIN_PUBLIC_MATCHES = 20`) — a small count reads as an empty site
+- **Hero example card** mirrors the real suggestion card labels («مهتم» / «لا»)
 
 ## SMS (Broadnet)
 
@@ -206,6 +209,15 @@ Spec: `docs/superpowers/specs/2026-10-16-new-cycle-design.md`. After a mutual ma
 - Expiry + "2 days left" warning run lazily (counts poll `/api/me/counts`, chat reads) and again in the daily scheduler (below)
 - Admin: Settings → "New user cycle" switches; `/admin/introductions` overview
 
+## Account & Match Safety
+
+- **Deactivation / deletion grace:** deactivated users (incl. the 30-day deletion grace) can still sign in; the dashboard layout shows only `/dashboard/reactivate` (`DeactivatedGate`), and `requireUser()` rejects them with 403 `DEACTIVATED` unless a route opts in with `{ allowDeactivated: true }` (`/api/profile/reactivate`, `/delete`, `/deactivate`). `POST /api/profile/reactivate` clears the flag and cancels a pending deletion. Suspended users stay blocked everywhere
+- **Match states** (`src/lib/matches/state.ts`, `MatchClosure` = `blocked` | `inactive` | `finished`): a block hides the match from the blocked person (404s) and shows the blocker a closed card with unblock (photos 403, no guardian contact, pending requests CANCELLED, no refund); a deactivated/suspended partner is skipped in the feed, can't be matched, requested or messaged; a match with both paths used up (declined, or a user-ended chat) is "finished". `/api/me/counts` → `actionableMatches` drives the next-step card
+- A user-ended chat closes the family path on that match (expired / admin-ended chats keep the free move). Senders can cancel a PENDING request (`POST /api/intro-requests/[id]/cancel`, no refund). Match cards offer حظر / إبلاغ وحظر; blocked users list at `/dashboard/blocks`
+- **Profile edits after setup:** `PUT /api/profile` and `PATCH /api/profile/draft` apply `reviewedChanges()` (`src/lib/profile-review.ts`) once `isComplete`: empty fields may be filled, identical values resent, but changing/clearing a stored value → 409 `PROFILE_EDIT_NEEDS_REVIEW` (use the edit page → review request)
+- **Flagged users** (`isFlagged`, 3+ reports) get no new automatic/admin-generated suggestions and are not suggested; existing matches untouched. Admin "Manage User" still shows them with a Flagged badge
+- **Verified badge** is hidden everywhere user-facing when `intro_requests_enabled` is on
+
 ## Credit on interest (switch `credit_on_interest`)
 
 Spec: `docs/superpowers/specs/2026-10-16-credit-on-interest-design.md`. `CycleFlags.creditOnInterest` = `mutualSuggestions` && setting (Admin → Settings → New user cycle; needs Shared suggestions on — turning Shared suggestions or intro requests off also sets `credit_on_interest` to false, so it never comes back on by itself). Off = the per-request behaviour above, unchanged; matches/chats opened under the flag keep working after a switch-off.
@@ -249,7 +261,7 @@ Always use `notify()` / `notifyMany()` from `src/lib/notify.ts`: stores the in-a
 
 Dashboard home shows one `NextStepCard` (`src/components/dashboard/next-step-card.tsx`) plus one helper card at a time (guardian consent, else `InstallAppCard`). `OnboardingGuide` follows the switches, never covers `/dashboard/profile/setup`, and fires `naseeb:onboarding-done`; `PushPermissionPrompt` waits for it. iPhone web push only works when installed to the Home Screen — `InstallAppCard` handles install/guide.
 
-UI gotchas: profile setup drafts in localStorage are keyed to their owner (`useAutoSave` — never restore another user's draft); photos go through `compressImage()` (`src/lib/image-compress.ts`) before `/api/profile/photos` (5MB limit; `PATCH /api/profile/photos/[id]` sets the main photo); call `maybeAwardReferral()` (`src/lib/referral.ts`) after any save that raises completeness; login → register hands phone + OTP via `sessionStorage` (never in the URL); use `arabicCount()` for counted nouns and gender-aware copy (partner gender = opposite of the viewer's).
+UI gotchas: profile setup drafts in localStorage are keyed to their owner (`useAutoSave` — never restore another user's draft); photos go through `compressImage()` (`src/lib/image-compress.ts`) before `/api/profile/photos` (5MB limit; `PATCH /api/profile/photos/[id]` sets the main photo); call `maybeAwardReferral()` (`src/lib/referral.ts`) after any save that raises completeness; login → register hands phone + OTP via `sessionStorage` (never in the URL); use `arabicCount()` for counted nouns and gender-aware copy (partner gender = opposite of the viewer's). **Client components ("use client") must never import a runtime value from a module that imports `@/lib/db`** (feed.ts, settings.ts, credits.ts, intro/*, matching/*) — it breaks `next build` (pg pulls `fs`) even though tsc/vitest pass; put shared types/pure helpers in a db-free module (e.g. `src/lib/suggestions/feed-types.ts`) and use `import type`. Run `pnpm build` (or the Docker build) before calling UI work done.
 
 ## Profile Completeness Weights
 

@@ -1,5 +1,7 @@
 # Naseebak (نصيبك) — Go-Live Readiness Report
 
+> **Historical snapshot (2026-10-06).** Written before the new user cycle, the safety fixes (batch 1), the scheduler (batch 2) and credit on interest. Many items may since be fixed; re-run a fresh go-live review before launching instead of relying on this list.
+
 **Date:** 2026-10-06
 **Scope:** Full review of the `naseebak-main` codebase before production launch.
 **Method:** Five parallel reviews — security audit, domain-rule & privacy compliance, live end-to-end testing against a seeded test database, build & operations readiness, and product/SRS gap analysis. Every finding below was verified by reading the code or reproduced live; nothing was tested against production.

@@ -83,17 +83,20 @@ export default function AdminDashboardPage() {
   const [activity, setActivity] = useState<ActivityItem[]>([]);
   const [cycle, setCycle] = useState<CycleStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
     async function load() {
       try {
         const res = await fetch("/api/admin/stats");
+        if (!res.ok) throw new Error(`stats ${res.status}`);
         const data = await res.json();
         setStats(data.stats);
         setActivity(data.recentActivity || []);
         setCycle(data.cycle ?? null);
       } catch (err) {
         console.error(err);
+        setLoadError(true);
       } finally {
         setLoading(false);
       }
@@ -148,6 +151,12 @@ export default function AdminDashboardPage() {
             </p>
           </div>
         </div>
+
+        {loadError && (
+          <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+            Could not load the dashboard numbers. Refresh the page; if it keeps failing, check the server logs.
+          </div>
+        )}
 
         {/* Stats Grid */}
         {loading ? (
@@ -331,6 +340,7 @@ const requestColumns: { key: keyof RequestCounts; label: string; className?: str
   { key: "accepted", label: "Accepted", className: "text-emerald-600" },
   { key: "declined", label: "Declined", className: "text-destructive" },
   { key: "expired", label: "Expired", className: "text-muted-foreground" },
+  { key: "cancelled", label: "Cancelled", className: "text-muted-foreground" },
 ];
 
 function NewCycleSection({ cycle }: { cycle: CycleStats }) {
@@ -398,7 +408,7 @@ function NewCycleSection({ cycle }: { cycle: CycleStats }) {
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">Funnel</CardTitle>
-          <p className="text-sm text-muted-foreground">All-time, registered users (role USER). Share of registered.</p>
+          <p className="text-sm text-muted-foreground">All-time, members only (no admins). "Profile ready" = finished the setup, the same gate as suggestions. Share of registered.</p>
         </CardHeader>
         <CardContent className="space-y-3">
           {cycle.funnel.map((step) => (

@@ -2,8 +2,11 @@ import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getCycleFlags } from "@/lib/settings";
-import { calculateCompleteness, SUGGESTIONS_MIN_COMPLETENESS } from "@/lib/profile-completeness";
+import { meetsSuggestionGate } from "@/lib/profile-completeness";
 import { buildFunnel, summarizeIntroRequests } from "@/lib/admin/cycle-stats";
+
+/** Every count on the dashboard is about members, not admins. */
+const USERS = { role: "USER" as const };
 
 /** New-cycle numbers for the dashboard (only computed while `intro_requests_enabled` is on). */
 async function cycleStats(now: Date, oneWeekAgo: Date) {
@@ -38,7 +41,8 @@ async function cycleStats(now: Date, oneWeekAgo: Date) {
     creditsSpentThisWeek: -(spent._sum.delta ?? 0),
     funnel: buildFunnel({
       registered: users.length,
-      profileReady: users.filter((u) => calculateCompleteness(u).total >= SUGGESTIONS_MIN_COMPLETENESS).length,
+      // Same gate as auto-suggest: in the new cycle a completed short setup qualifies
+      profileReady: users.filter((u) => meetsSuggestionGate(u, true)).length,
       gotSuggestions: inRegistered(suggestionUsers.flatMap((s) => [s.recipientId, s.candidateId])),
       matched: inRegistered(matches.flatMap((m) => [m.femaleId, m.maleId])),
       introAccepted: inRegistered(acceptedIntros.flatMap((r) => [r.senderId, r.receiverId])),
@@ -67,15 +71,15 @@ export async function GET() {
       recentUsers, recentMatches, recentPayments,
       revenueThisWeek, flags,
     ] = await Promise.all([
-      db.user.count(),
-      db.user.count({ where: { gender: "MALE" } }),
-      db.user.count({ where: { gender: "FEMALE" } }),
-      db.user.count({ where: { status: "VERIFIED" } }),
+      db.user.count({ where: USERS }),
+      db.user.count({ where: { ...USERS, gender: "MALE" } }),
+      db.user.count({ where: { ...USERS, gender: "FEMALE" } }),
+      db.user.count({ where: { ...USERS, status: "VERIFIED" } }),
       db.identityDoc.count({ where: { status: "PENDING" } }),
       db.mutualMatch.count(),
       db.suggestion.count(),
       db.subscription.count({ where: { status: "ACTIVE" } }),
-      db.user.count({ where: { status: "SUSPENDED" } }),
+      db.user.count({ where: { ...USERS, status: "SUSPENDED" } }),
       db.payment.aggregate({
         where: { status: "COMPLETED" },
         _sum: { amount: true },
@@ -85,10 +89,11 @@ export async function GET() {
       db.report.count({ where: { status: "PENDING" } }),
       db.profileUpdateRequest.count({ where: { status: "PENDING" } }),
       db.supportTicket.count({ where: { status: { in: ["OPEN", "IN_PROGRESS"] } } }),
-      db.user.count({ where: { isFlagged: true } }),
-      db.user.count({ where: { createdAt: { gte: oneWeekAgo } } }),
-      db.user.count({ where: { createdAt: { gte: twoWeeksAgo, lt: oneWeekAgo } } }),
+      db.user.count({ where: { ...USERS, isFlagged: true } }),
+      db.user.count({ where: { ...USERS, createdAt: { gte: oneWeekAgo } } }),
+      db.user.count({ where: { ...USERS, createdAt: { gte: twoWeeksAgo, lt: oneWeekAgo } } }),
       db.user.findMany({
+        where: USERS,
         orderBy: { createdAt: "desc" },
         take: 5,
         select: { id: true, firstName: true, lastName: true, gender: true, createdAt: true },

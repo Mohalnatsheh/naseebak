@@ -62,7 +62,7 @@ export interface FunnelCounts {
 
 const FUNNEL_LABELS: [keyof FunnelCounts, string][] = [
   ["registered", "Registered"],
-  ["profileReady", "Profile ≥ 50%"],
+  ["profileReady", "Profile ready"],
   ["gotSuggestions", "Got suggestions"],
   ["matched", "Mutual match"],
   ["introAccepted", "Introduction accepted"],

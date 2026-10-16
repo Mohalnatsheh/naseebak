@@ -63,7 +63,7 @@ describe("buildFunnel", () => {
     const f = buildFunnel({ registered: 200, profileReady: 100, gotSuggestions: 50, matched: 10, introAccepted: 2 });
     expect(f.map((s) => s.label)).toEqual([
       "Registered",
-      "Profile ≥ 50%",
+      "Profile ready",
       "Got suggestions",
       "Mutual match",
       "Introduction accepted",

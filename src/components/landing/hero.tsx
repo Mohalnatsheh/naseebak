@@ -77,7 +77,7 @@ export function LandingHero({ content, verseClass }: { content: LandingContent; 
             ﴿ وَجَعَلَ بَيْنَكُم مَّوَدَّةً وَرَحْمَةً ﴾
           </p>
           <h1
-            className="landing-rise mt-5 text-[2.6rem] font-extrabold leading-[1.15] tracking-tight text-primary sm:text-6xl lg:text-[4.25rem]"
+            className="landing-rise mt-5 text-[2.5rem] font-extrabold leading-[1.2] tracking-tight text-primary sm:text-6xl lg:text-[3.4rem] xl:text-[4.1rem]"
             style={{ animationDelay: "80ms" }}
           >
             نوصّلك بشريك العمر

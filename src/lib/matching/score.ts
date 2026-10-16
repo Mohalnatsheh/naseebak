@@ -44,7 +44,7 @@ export interface CompatibilityBreakdown {
 
 // --- Core types ---
 
-interface ProfileForScoring {
+export interface ProfileForScoring {
   dateOfBirth?: Date | string | null;
   city?: string | null;
   education?: string | null;
@@ -65,9 +65,10 @@ interface ProfileForScoring {
   prefHijab?: string | null;
   prefBeard?: string | null;
   prefChildrenAcceptance?: string | null;
+  dealbreakers?: string[];
 }
 
-interface UserForScoring {
+export interface UserForScoring {
   id: string;
   gender: string;
   profile?: ProfileForScoring | null;
@@ -321,4 +322,71 @@ export function calculateCompatibilityDetailed(
     qualityUserDetail,
     qualityCandidateDetail,
   };
+}
+
+// --- Dealbreakers (hard filters, simultaneous suggestions flow) ---
+
+/** Preference keys a user can mark as "شرط أساسي". */
+export const DEALBREAKER_KEYS = [
+  "age", "city", "education", "maritalStatus", "religiosity", "smokingStatus", "hijab", "beard", "children",
+] as const;
+export type DealbreakerKey = (typeof DEALBREAKER_KEYS)[number];
+
+export const DEALBREAKER_LABELS: Record<DealbreakerKey, string> = {
+  age: "العمر",
+  city: "المدينة",
+  education: "التعليم",
+  maritalStatus: "الحالة الاجتماعية",
+  religiosity: "التدين",
+  smokingStatus: "التدخين",
+  hijab: "الحجاب",
+  beard: "اللحية",
+  children: "الأبناء",
+};
+
+const inList = (pref: string[] | undefined, value: string | null | undefined) =>
+  !pref || pref.length === 0 ? null : !!value && pref.includes(value);
+
+/**
+ * Whether one dealbreaker of `owner` holds for `other`.
+ * null = the preference isn't filled in (or doesn't apply to that gender), so it can't be a hard filter.
+ * A missing value on `other` fails: someone who asked for "non-smoker only" must not get "unknown".
+ */
+function dealbreakerHolds(key: DealbreakerKey, owner: ProfileForScoring, other: ProfileForScoring, otherGender: string): boolean | null {
+  switch (key) {
+    case "age": {
+      if (!owner.prefAgeMin && !owner.prefAgeMax) return null;
+      const age = getAge(other.dateOfBirth);
+      if (age === null) return false;
+      return (!owner.prefAgeMin || age >= owner.prefAgeMin) && (!owner.prefAgeMax || age <= owner.prefAgeMax);
+    }
+    case "city": return inList(owner.prefCity, other.city);
+    case "education": return inList(owner.prefEducation, other.education);
+    case "maritalStatus": return inList(owner.prefMaritalStatus, other.maritalStatus);
+    case "religiosity": return inList(owner.prefReligiosity, other.religiosity);
+    case "smokingStatus": return inList(owner.prefSmokingStatus, other.smokingStatus);
+    case "hijab":
+      if (!owner.prefHijab || otherGender !== "FEMALE") return null;
+      return other.hijab === null || other.hijab === undefined ? false : other.hijab === (owner.prefHijab === "yes");
+    case "beard":
+      if (!owner.prefBeard || otherGender !== "MALE") return null;
+      return other.beard === null || other.beard === undefined ? false : other.beard === (owner.prefBeard === "yes");
+    case "children":
+      if (owner.prefChildrenAcceptance !== "no_children") return null;
+      return (other.childrenCount ?? 0) === 0;
+  }
+}
+
+/** True when `other` meets every preference `owner` marked as a dealbreaker. */
+export function passesDealbreakers(owner: ProfileForScoring, other: ProfileForScoring, otherGender: string): boolean {
+  const keys = (owner.dealbreakers ?? []).filter((k): k is DealbreakerKey =>
+    (DEALBREAKER_KEYS as readonly string[]).includes(k)
+  );
+  return keys.every((k) => dealbreakerHolds(k, owner, other, otherGender) !== false);
+}
+
+/** A pair may be suggested only when each passes the other's dealbreakers. */
+export function mutuallyAcceptable(a: UserForScoring, b: UserForScoring): boolean {
+  if (!a.profile || !b.profile) return false;
+  return passesDealbreakers(a.profile, b.profile, b.gender) && passesDealbreakers(b.profile, a.profile, a.gender);
 }

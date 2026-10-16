@@ -10,7 +10,8 @@ export type IntroErrorCode =
   | "CONSENT_REQUIRED"
   | "EXPIRED"
   | "RATE_LIMITED"
-  | "FILTERED";
+  | "FILTERED"
+  | "PREFERENCE_REQUIRED";
 
 const DEFAULTS: Record<IntroErrorCode, { status: number; message: string }> = {
   NOT_FOUND: { status: 404, message: "غير موجود" },
@@ -24,6 +25,7 @@ const DEFAULTS: Record<IntroErrorCode, { status: number; message: string }> = {
   EXPIRED: { status: 410, message: "انتهت صلاحية هذا الطلب" },
   RATE_LIMITED: { status: 429, message: "أرسلت رسائل كثيرة. حاول بعد قليل." },
   FILTERED: { status: 422, message: "لا يمكن إرسال هذه الرسالة" },
+  PREFERENCE_REQUIRED: { status: 400, message: "اختر طريقة التعارف: محادثة أو تعارف عائلي" },
 };
 
 export class IntroError extends Error {

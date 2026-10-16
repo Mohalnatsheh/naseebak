@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { createMutualMatch } from "@/lib/intro/match";
+import { notifyInterestCreditsExhausted, recordCredit, reserveCredits } from "@/lib/credits";
+import { IntroError } from "@/lib/intro/errors";
+import { introErrorResponse } from "@/lib/intro/http";
+import { getCycleFlags } from "@/lib/settings";
 
 export async function POST(
   request: Request,
@@ -39,14 +43,30 @@ export async function POST(
     }
 
     // Create the user's like back
-    await db.like.create({
-      data: {
-        fromUserId: session.user.id,
-        toUserId: incomingLike.fromUserId,
-        suggestionId: incomingLike.suggestionId,
-        isLiked: true,
-      },
-    });
+    const likeData = {
+      fromUserId: session.user.id,
+      toUserId: incomingLike.fromUserId,
+      suggestionId: incomingLike.suggestionId,
+      isLiked: true,
+    };
+    if ((await getCycleFlags()).creditOnInterest) {
+      // Credit on interest: accepting is the "مهتم" — the like back and the 1-credit charge commit together
+      // (a concurrent second accept fails on the unique like and its charge rolls back)
+      await db.$transaction(async (tx) => {
+        await tx.like.create({ data: likeData });
+        if (!(await reserveCredits(session.user.id, 1, tx))) throw new IntroError("NO_CREDITS");
+        await recordCredit(
+          { userId: session.user.id, delta: -1, reason: "INTEREST", refId: incomingLike.suggestionId ?? incomingLike.id },
+          tx
+        );
+      });
+      const me = await db.user.findUnique({ where: { id: session.user.id }, select: { matchCredits: true } });
+      if ((me?.matchCredits ?? 0) <= 0) {
+        await notifyInterestCreditsExhausted(session.user.id).catch((e) => console.error("Accept interest: exhausted notice", e));
+      }
+    } else {
+      await db.like.create({ data: likeData });
+    }
 
     // Determine femaleId/maleId from actual user genders for MutualMatch
     const [currentUser] = await Promise.all([
@@ -63,7 +83,6 @@ export async function POST(
       match: true,
     });
   } catch (error) {
-    console.error("Accept interest error:", error);
-    return NextResponse.json({ error: "حدث خطأ في الخادم" }, { status: 500 });
+    return introErrorResponse(error, "Accept interest");
   }
 }

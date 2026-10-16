@@ -3,6 +3,8 @@
  * Legacy mode: every suggestion a user receives uses 1 credit.
  * Per-request mode (switch `intro_requests_enabled`): suggestions are free (WEEKLY_FREE_SUGGESTIONS
  * per rolling 7 days) and each family/chat request costs the sender 1 credit, never refunded.
+ * Credit-on-interest mode (switch `credit_on_interest`): "مهتم" on a suggestion costs 1 credit
+ * (reason INTEREST, never refunded); "لا" is free.
  */
 import { db } from "@/lib/db";
 import { notify } from "@/lib/notify";
@@ -88,6 +90,17 @@ export async function notifyRequestCreditsExhausted(userId: string): Promise<voi
     type: "PAYMENT",
     title: "انتهى رصيدك",
     body: "استخدمت كل رصيدك. اشحن رصيدك لإرسال طلبات تعارف أو محادثة جديدة.",
+    url: "/dashboard/payments",
+  });
+}
+
+/** Credit-on-interest mode: the user spent their last credit on a "مهتم". */
+export async function notifyInterestCreditsExhausted(userId: string): Promise<void> {
+  await notify({
+    userId,
+    type: "PAYMENT",
+    title: "انتهى رصيدك",
+    body: "انتهى رصيدك — اشحن لتتابع",
     url: "/dashboard/payments",
   });
 }

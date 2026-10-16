@@ -3,6 +3,10 @@ import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { sendPushNotification } from "@/lib/onesignal";
 import { createMutualMatch } from "@/lib/intro/match";
+import { notifyInterestCreditsExhausted, recordCredit, reserveCredits } from "@/lib/credits";
+import { IntroError } from "@/lib/intro/errors";
+import { introErrorResponse } from "@/lib/intro/http";
+import { getCycleFlags } from "@/lib/settings";
 
 export async function POST(
   request: Request,
@@ -22,26 +26,43 @@ export async function POST(
       return NextResponse.json({ error: "الاقتراح غير موجود" }, { status: 404 });
     }
 
-    // Update suggestion status (only once, even with a double tap)
-    const accepted = await db.suggestion.updateMany({
-      where: { id, status: "PENDING", flow: "LEGACY" },
-      data: { status: "ACCEPTED" },
-    });
-    if (accepted.count === 0) {
-      return NextResponse.json({ error: "الاقتراح غير موجود" }, { status: 404 });
-    }
-
     // The recipient is the one liking; the candidate is the other user
     const otherUserId = suggestion.candidateId;
+    const likeData = { fromUserId: session.user.id, toUserId: otherUserId, suggestionId: suggestion.id, isLiked: true };
 
-    await db.like.create({
-      data: {
-        fromUserId: session.user.id,
-        toUserId: otherUserId,
-        suggestionId: suggestion.id,
-        isLiked: true,
-      },
-    });
+    if ((await getCycleFlags()).creditOnInterest) {
+      // Credit on interest: this like is the "مهتم" — accept, charge 1 and record the like together
+      // (a lost claim charges nothing; no credit rolls the acceptance back)
+      const claimed = await db.$transaction(async (tx) => {
+        const accepted = await tx.suggestion.updateMany({
+          where: { id, status: "PENDING", flow: "LEGACY" },
+          data: { status: "ACCEPTED" },
+        });
+        if (accepted.count === 0) return false;
+        if (!(await reserveCredits(session.user.id, 1, tx))) throw new IntroError("NO_CREDITS");
+        await recordCredit({ userId: session.user.id, delta: -1, reason: "INTEREST", refId: suggestion.id }, tx);
+        await tx.like.create({ data: likeData });
+        return true;
+      });
+      if (!claimed) {
+        return NextResponse.json({ error: "الاقتراح غير موجود" }, { status: 404 });
+      }
+      const me = await db.user.findUnique({ where: { id: session.user.id }, select: { matchCredits: true } });
+      if ((me?.matchCredits ?? 0) <= 0) {
+        await notifyInterestCreditsExhausted(session.user.id).catch((e) => console.error("Like: exhausted notice", e));
+      }
+    } else {
+      // Update suggestion status (only once, even with a double tap)
+      const accepted = await db.suggestion.updateMany({
+        where: { id, status: "PENDING", flow: "LEGACY" },
+        data: { status: "ACCEPTED" },
+      });
+      if (accepted.count === 0) {
+        return NextResponse.json({ error: "الاقتراح غير موجود" }, { status: 404 });
+      }
+
+      await db.like.create({ data: likeData });
+    }
 
     // Check for mutual like
     const mutualLike = await db.like.findUnique({
@@ -91,7 +112,6 @@ export async function POST(
 
     return NextResponse.json({ message: "تم قبول الاقتراح", match: false });
   } catch (error) {
-    console.error("Like error:", error);
-    return NextResponse.json({ error: "حدث خطأ في الخادم" }, { status: 500 });
+    return introErrorResponse(error, "Like");
   }
 }

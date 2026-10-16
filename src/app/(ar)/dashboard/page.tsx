@@ -447,7 +447,7 @@ export default function DashboardPage() {
                         title: "تم إنشاء الحساب",
                         desc: "مرحباً بك في منصة نصيبك",
                         time: new Date(profile.createdAt).toLocaleDateString(
-                          "ar-JO"
+                          "ar-JO-u-nu-latn"
                         ),
                       },
                     ]

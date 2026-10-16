@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { enumLabel } from "@/lib/admin/enum-labels";
 
 interface IdentityDoc {
   id: string;
@@ -331,7 +332,7 @@ export default function AdminIdentityPage() {
                       </td>
                       <td className="p-3 text-sm">{documentTypeLabel(doc.documentType)}</td>
                       <td className="p-3">
-                        <Badge className={statusBadgeStyles[doc.status] || ""}>{doc.status}</Badge>
+                        <Badge className={statusBadgeStyles[doc.status] || ""}>{enumLabel("identityStatus", doc.status)}</Badge>
                       </td>
                       <td className="p-3 text-sm text-muted-foreground min-w-[160px]">{doc.rejectionReason || doc.reviewNotes || "—"}</td>
                       <td className="p-3 text-sm">

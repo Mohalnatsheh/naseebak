@@ -8,6 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { enumLabel } from "@/lib/admin/enum-labels";
 
 interface UserRow {
   id: string;
@@ -195,11 +196,9 @@ export default function AdminUsersPage() {
           className="rounded-lg border border-input bg-background px-3 py-2 text-sm"
         >
           <option value="">All Status</option>
-          <option value="PENDING">Pending</option>
-          <option value="VERIFIED">Verified</option>
-          <option value="SUSPENDED">Suspended</option>
-          <option value="REJECTED">Rejected</option>
-          <option value="FLAGGED">Flagged</option>
+          {(["PENDING", "VERIFIED", "SUSPENDED", "REJECTED", "FLAGGED"] as const).map((s) => (
+            <option key={s} value={s}>{enumLabel("userStatus", s)}</option>
+          ))}
         </select>
         <Button type="submit">
           <Search className="h-4 w-4 me-2" /> Search
@@ -339,7 +338,7 @@ export default function AdminUsersPage() {
                       <td className="p-3">
                         <Badge variant="outline" className={`text-xs ${statusStyles[u.status] || ""}`}>
                           {u.status === "VERIFIED" && <ShieldCheck className="h-3 w-3 me-1" />}
-                          {u.status}
+                          {enumLabel("userStatus", u.status)}
                         </Badge>
                         {u.isDeactivated && (
                           <Badge variant="outline" className="text-xs text-destructive ms-1">Deactivated</Badge>

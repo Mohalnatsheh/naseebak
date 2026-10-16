@@ -39,7 +39,7 @@ export function ChatList() {
           </div>
           <div>
             <h1 className="bg-gradient-to-l from-primary to-secondary bg-clip-text text-2xl font-bold text-transparent">المحادثات</h1>
-            <p className="text-sm text-muted-foreground">محادثات خاصة للتعارف قبل الزيارة العائلية، لمدة ١٤ يوماً.</p>
+            <p className="text-sm text-muted-foreground">محادثات خاصة للتعارف قبل الزيارة العائلية، لمدة 14 يوماً.</p>
           </div>
         </div>
       </div>

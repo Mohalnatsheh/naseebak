@@ -604,7 +604,7 @@ export default function ProfilePage() {
               <InfoField
                 icon={Calendar}
                 label="تاريخ الميلاد"
-                value={`${new Date(p.dateOfBirth).toLocaleDateString("ar-JO")} (${getAge(p.dateOfBirth)} سنة)`}
+                value={`${new Date(p.dateOfBirth).toLocaleDateString("ar-JO-u-nu-latn")} (${getAge(p.dateOfBirth)} سنة)`}
                 gradient="from-primary/10 to-secondary/5"
               />
             )}
@@ -1341,7 +1341,7 @@ export default function ProfilePage() {
                       <span className="font-bold text-destructive">
                         {new Date(
                           deletionRequest.scheduledAt
-                        ).toLocaleDateString("ar-JO", {
+                        ).toLocaleDateString("ar-JO-u-nu-latn", {
                           year: "numeric",
                           month: "long",
                           day: "numeric",

@@ -5,7 +5,7 @@ import { useInView } from "@/hooks/use-in-view";
 import { cn } from "@/lib/utils";
 import type { LandingContent } from "./content";
 
-const NUMERALS = ["١", "٢", "٣", "٤", "٥", "٦"];
+const NUMERALS = ["1", "2", "3", "4", "5", "6"];
 
 /**
  * The cycle as one gold thread: steps in sequence, a fork into the two ways to get

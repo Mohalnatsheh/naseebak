@@ -5,6 +5,7 @@ import { CreditCard, Loader2, ChevronLeft, ChevronRight, DollarSign, TrendingUp,
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { enumLabel } from "@/lib/admin/enum-labels";
 
 interface PaymentRow {
   id: string;
@@ -141,7 +142,7 @@ export default function AdminPaymentsPage() {
             size="sm"
             onClick={() => { setFilter(s); setPage(1); }}
           >
-            {s || "All"}
+            {s ? enumLabel("paymentStatus", s) : "All"}
           </Button>
         ))}
       </div>
@@ -188,10 +189,10 @@ export default function AdminPaymentsPage() {
                       <td className="p-3 text-sm font-medium whitespace-nowrap">{Number(payment.amount).toFixed(2)} {payment.currency}</td>
                       <td className="p-3">
                         <Badge className={statusStyles[payment.status] || ""}>
-                          {payment.status}
+                          {enumLabel("paymentStatus", payment.status)}
                         </Badge>
                       </td>
-                      <td className="p-3 text-sm">{payment.provider}</td>
+                      <td className="p-3 text-sm">{enumLabel("paymentProvider", payment.provider)}</td>
                       <td className="p-3 text-sm text-muted-foreground whitespace-nowrap">
                         {new Date(payment.createdAt).toLocaleDateString()}
                       </td>

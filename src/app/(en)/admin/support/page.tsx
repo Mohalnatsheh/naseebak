@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { LifeBuoy, Loader2, ChevronLeft, ChevronRight, Eye } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { enumLabel } from "@/lib/admin/enum-labels";
 
 interface Ticket {
   id: string;
@@ -16,12 +17,6 @@ interface Ticket {
   createdAt: string;
   user: { id: string; firstName: string; lastName: string; phone: string | null };
 }
-
-const typeLabels: Record<string, string> = {
-  ISSUE: "Issue",
-  SUGGESTION: "Suggestion",
-  CHANGE_REQUEST: "Change Request",
-};
 
 const statusStyles: Record<string, string> = {
   OPEN: "bg-amber-100 text-amber-800",
@@ -115,7 +110,7 @@ export default function AdminSupportPage() {
               size="sm"
               onClick={() => { setStatusFilter(s); setPage(1); }}
             >
-              {s || "All"}
+              {s ? enumLabel("ticketStatus", s) : "All"}
             </Button>
           ))}
         </div>
@@ -128,7 +123,7 @@ export default function AdminSupportPage() {
               size="sm"
               onClick={() => { setTypeFilter(t); setPage(1); }}
             >
-              {t ? typeLabels[t] : "All"}
+              {t ? enumLabel("ticketType", t) : "All"}
             </Button>
           ))}
         </div>
@@ -152,10 +147,10 @@ export default function AdminSupportPage() {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <span className={`text-xs font-medium px-2 py-1 rounded-full ${statusStyles[ticket.status] || ""}`}>
-                        {ticket.status}
+                        {enumLabel("ticketStatus", ticket.status)}
                       </span>
                       <span className={`text-xs font-medium px-2 py-1 rounded-full ${typeStyles[ticket.type] || ""}`}>
-                        {typeLabels[ticket.type] || ticket.type}
+                        {enumLabel("ticketType", ticket.type)}
                       </span>
                     </div>
                     <span className="text-xs text-muted-foreground">

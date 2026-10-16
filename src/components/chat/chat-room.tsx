@@ -233,7 +233,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
     setBusy(false);
     if (res.ok) {
       setConversation((c) => (c ? { ...c, ...res.data.conversation, lastMessage: c.lastMessage } : c));
-      toast.success("تم تمديد المحادثة ٧ أيام");
+      toast.success("تم تمديد المحادثة 7 أيام");
     } else toast.error(res.data.error ?? "تعذّر التمديد");
   }
 
@@ -336,7 +336,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
           <DropdownMenuContent align="end" className="w-56">
             {conversation.canExtend && (
               <DropdownMenuItem onClick={extend} disabled={busy}>
-                <CalendarPlus className="h-4 w-4" /> تمديد ٧ أيام
+                <CalendarPlus className="h-4 w-4" /> تمديد 7 أيام
               </DropdownMenuItem>
             )}
             <DropdownMenuItem asChild>
@@ -377,7 +377,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
         )}
         {conversation.canExtend && (
           <button type="button" onClick={extend} disabled={busy} className="font-semibold text-primary hover:underline">
-            تمديد ٧ أيام
+            تمديد 7 أيام
           </button>
         )}
         <span className="hidden text-muted-foreground sm:inline">لا تشارك أرقام الهواتف أو الحسابات.</span>

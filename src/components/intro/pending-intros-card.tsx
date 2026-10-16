@@ -30,7 +30,7 @@ export function PendingIntrosCard() {
                   : `لديك ${n} طلبات تعارف بانتظار ردك`}
             </h3>
             <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
-              الطلبات تنتهي بعد ٧ أيام من إرسالها.
+              الطلبات تنتهي بعد 7 أيام من إرسالها.
             </p>
           </div>
           <span className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-primary px-3 py-2 text-xs font-bold text-primary-foreground">

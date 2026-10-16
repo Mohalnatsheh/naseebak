@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Heart, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { fmtDate, Pager, PersonLink, SearchBox, StateBadge, type PersonRef } from "@/components/admin/admin-list-bits";
+import { enumLabel } from "@/lib/admin/enum-labels";
 
 interface RequestState {
   status: string;
@@ -121,10 +122,10 @@ export default function AdminMatchesPage() {
                         )}
                       </td>
                       <td className="py-3 pe-4">
-                        {m.chat ? <StateBadge value={m.chat.status} /> : <span className="text-muted-foreground">—</span>}
+                        {m.chat ? <StateBadge value={m.chat.status} group="chatStatus" /> : <span className="text-muted-foreground">—</span>}
                       </td>
                       <td className="hidden py-3 text-muted-foreground md:table-cell">
-                        {m.visit ? m.visit.replace(/_/g, " ").toLowerCase() : "—"}
+                        {m.visit ? enumLabel("visitStatus", m.visit) : "—"}
                       </td>
                     </tr>
                   ))}

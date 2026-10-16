@@ -15,6 +15,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { enumLabel } from "@/lib/admin/enum-labels";
 
 /* ──────────────────── Types ──────────────────── */
 
@@ -325,7 +326,7 @@ export default function AdminBlogPage() {
                               variant={post.status === "PUBLISHED" ? "default" : "outline"}
                               className="text-xs"
                             >
-                              {post.status}
+                              {enumLabel("blogPostStatus", post.status)}
                             </Badge>
                           </td>
                           <td className="p-3 text-sm text-muted-foreground">
@@ -605,8 +606,8 @@ export default function AdminBlogPage() {
                   value={postForm.status}
                   onChange={(e) => setPostForm({ ...postForm, status: e.target.value as "DRAFT" | "PUBLISHED" })}
                 >
-                  <option value="DRAFT">Draft</option>
-                  <option value="PUBLISHED">Published</option>
+                  <option value="DRAFT">{enumLabel("blogPostStatus", "DRAFT")}</option>
+                  <option value="PUBLISHED">{enumLabel("blogPostStatus", "PUBLISHED")}</option>
                 </select>
               </div>
 

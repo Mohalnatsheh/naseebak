@@ -51,7 +51,7 @@ export default function ReferralPage() {
   async function handleCopy() {
     if (!data) return;
     const url = `https://naseebak.com/register?invitationCode=${data.referralCode}`;
-    const text = `سجّل بنصيبك واحصل على رصيد مجاني!\n${url}`;
+    const text = `سجّل في نصيبك واحصل على رصيد مجاني!\n${url}`;
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
@@ -64,7 +64,7 @@ export default function ReferralPage() {
   async function handleShare() {
     if (!data) return;
     const url = `https://naseebak.com/register?invitationCode=${data.referralCode}`;
-    const text = `سجّل بنصيبك واحصل على رصيد مجاني!`;
+    const text = `سجّل في نصيبك واحصل على رصيد مجاني!`;
 
     if (navigator.share) {
       try {
@@ -86,7 +86,7 @@ export default function ReferralPage() {
           </div>
           <div className="absolute inset-0 h-16 w-16 rounded-full bg-primary/10 animate-ping" />
         </div>
-        <p className="text-sm text-muted-foreground animate-pulse">جاري التحميل...</p>
+        <p className="text-sm text-muted-foreground animate-pulse">جارٍ التحميل...</p>
       </div>
     );
   }
@@ -116,7 +116,7 @@ export default function ReferralPage() {
             </h1>
           </div>
           <p className="text-muted-foreground text-sm md:text-base">
-            شارك رمز الدعوة مع أصحابك وخلّيهم يسجّلوا بنصيبك، وكل واحد يكمّل ملفه بتحصل رصيد مجاني
+            شارك رمز الدعوة مع أصدقائك ليسجّلوا في نصيبك، وستحصل على رصيد مجاني عن كل صديق يُكمل ملفه الشخصي
           </p>
         </div>
       </div>
@@ -126,7 +126,7 @@ export default function ReferralPage() {
         <div className="h-1.5 bg-gradient-to-l from-accent via-primary to-accent/60" />
         <CardContent className="p-6 space-y-5">
           <div className="text-center space-y-2">
-            <p className="text-sm text-muted-foreground">رمز الدعوة الخاص فيك</p>
+            <p className="text-sm text-muted-foreground">رمز الدعوة الخاص بك</p>
             <div className="inline-flex items-center gap-3 px-6 py-3 rounded-xl bg-gradient-to-l from-primary/10 to-accent/10 border border-primary/20">
               <span className="text-2xl font-bold tracking-[0.15em] text-foreground font-mono">
                 {data.referralCode}
@@ -175,19 +175,19 @@ export default function ReferralPage() {
                 <CreditCard className="h-5 w-5 text-primary" />
               </div>
               <p className="text-2xl font-bold text-primary">+2</p>
-              <p className="text-xs text-muted-foreground">رصيد إلك (الداعي)</p>
+              <p className="text-xs text-muted-foreground">رصيد لك (الداعي)</p>
             </div>
             <div className="rounded-xl bg-gradient-to-br from-accent/5 to-accent/10 border border-accent/10 p-4 text-center space-y-2">
               <div className="h-10 w-10 rounded-full bg-accent/10 flex items-center justify-center mx-auto">
                 <CreditCard className="h-5 w-5 text-accent-foreground" />
               </div>
               <p className="text-2xl font-bold text-accent-foreground">+1</p>
-              <p className="text-xs text-muted-foreground">رصيد لصاحبك (المدعو)</p>
+              <p className="text-xs text-muted-foreground">رصيد لصديقك (المدعو)</p>
             </div>
           </div>
 
           <p className="text-xs text-muted-foreground text-center leading-relaxed">
-            بتحصل على الرصيد لمّا صاحبك يكمّل ملفه الشخصي بنسبة 100%
+            تحصل على الرصيد عندما يُكمل صديقك ملفه الشخصي بنسبة 100%
           </p>
         </CardContent>
       </Card>
@@ -237,7 +237,7 @@ export default function ReferralPage() {
                         {referral.referee.firstName}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {new Date(referral.createdAt).toLocaleDateString("ar-JO", {
+                        {new Date(referral.createdAt).toLocaleDateString("ar-JO-u-nu-latn", {
                           year: "numeric",
                           month: "short",
                           day: "numeric",
@@ -275,7 +275,7 @@ export default function ReferralPage() {
             <Users className="h-8 w-8 text-muted-foreground/40" />
           </div>
           <p className="text-sm text-muted-foreground">
-            ما دعيت حدا لسّا. شارك رمزك مع أصحابك!
+            لم تدعُ أحداً بعد. شارك رمزك مع أصدقائك!
           </p>
         </div>
       )}

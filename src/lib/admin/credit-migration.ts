@@ -38,7 +38,7 @@ export async function runCreditMigration(adminId: string): Promise<MigrationResu
           userId: u.id,
           type: "SYSTEM" as const,
           title: "نظام رصيد جديد",
-          body: "أصبح الرصيد يُستخدم فقط عند إرسال طلب تعارف عائلي أو طلب محادثة، والاقتراحات أصبحت مجانية. أهديناك رصيداً ليصبح ٣ على الأقل.",
+          body: "أصبح الرصيد يُستخدم فقط عند إرسال طلب تعارف عائلي أو طلب محادثة، والاقتراحات أصبحت مجانية. أهديناك رصيداً ليصبح 3 على الأقل.",
           metadata: { url: "/dashboard/payments" },
         })),
       });

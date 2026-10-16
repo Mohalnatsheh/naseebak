@@ -143,7 +143,7 @@ const defaultConfig = {
 };
 
 function timeAgo(dateStr: string) {
-  return new Date(dateStr).toLocaleDateString("ar-JO");
+  return new Date(dateStr).toLocaleDateString("ar-JO-u-nu-latn");
 }
 
 interface NotificationPrefs {

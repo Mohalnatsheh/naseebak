@@ -240,7 +240,7 @@ export async function sendMessage(args: {
     throw new IntroError("RATE_LIMITED", "تمهّل قليلاً قبل إرسال رسالة أخرى");
   }
   if (!rateLimit(`chat-day:${senderId}`, { maxAttempts: MESSAGES_PER_DAY, windowMs: DAY_MS }).success) {
-    throw new IntroError("RATE_LIMITED", "وصلت للحد اليومي للرسائل (٥٠ رسالة). تابع غداً.");
+    throw new IntroError("RATE_LIMITED", "وصلت للحد اليومي للرسائل (50 رسالة). تابع غداً.");
   }
 
   const message = await db.message.create({ data: { conversationId, senderId, body: check.text } });
@@ -292,7 +292,7 @@ export async function extendConversation(conversationId: string, userId: string)
   const c = await loadForUser(conversationId, userId);
   const left = c.expiresAt.getTime() - Date.now();
   if (c.status !== "ACTIVE" || c.extended || left > EXTEND_WINDOW_DAYS * DAY_MS) {
-    throw new IntroError("NOT_ALLOWED", "يمكن تمديد المحادثة مرة واحدة خلال آخر ٣ أيام فقط");
+    throw new IntroError("NOT_ALLOWED", "يمكن تمديد المحادثة مرة واحدة خلال آخر 3 أيام فقط");
   }
   const expiresAt = new Date(c.expiresAt.getTime() + EXTENSION_DAYS * DAY_MS);
   await db.conversation.update({
@@ -305,7 +305,7 @@ export async function extendConversation(conversationId: string, userId: string)
     userId: partner.id,
     type: "CHAT",
     title: "تم تمديد المحادثة",
-    body: "تم تمديد المحادثة ٧ أيام إضافية.",
+    body: "تم تمديد المحادثة 7 أيام إضافية.",
     url: `/dashboard/chats/${conversationId}`,
     metadata: { conversationId },
   });

@@ -12,7 +12,7 @@ function startOfDay(d: Date): number {
 }
 
 export function timeLabel(iso: string): string {
-  return new Date(iso).toLocaleTimeString("ar-JO", { hour: "numeric", minute: "2-digit" });
+  return new Date(iso).toLocaleTimeString("ar-JO-u-nu-latn", { hour: "numeric", minute: "2-digit" });
 }
 
 export function dayLabel(iso: string): string {
@@ -20,7 +20,7 @@ export function dayLabel(iso: string): string {
   const diff = Math.round((startOfDay(new Date()) - startOfDay(d)) / DAY_MS);
   if (diff === 0) return "اليوم";
   if (diff === 1) return "أمس";
-  return d.toLocaleDateString("ar-JO", { weekday: "long", day: "numeric", month: "long" });
+  return d.toLocaleDateString("ar-JO-u-nu-latn", { weekday: "long", day: "numeric", month: "long" });
 }
 
 /** Chat list: time today, "أمس", else a short date */
@@ -29,7 +29,7 @@ export function listTimeLabel(iso: string): string {
   const diff = Math.round((startOfDay(new Date()) - startOfDay(d)) / DAY_MS);
   if (diff === 0) return timeLabel(iso);
   if (diff === 1) return "أمس";
-  return d.toLocaleDateString("ar-JO", { day: "numeric", month: "short" });
+  return d.toLocaleDateString("ar-JO-u-nu-latn", { day: "numeric", month: "short" });
 }
 
 export function sameDay(a: string, b: string): boolean {

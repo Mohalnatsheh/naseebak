@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { effectiveRequestStatus } from "@/lib/admin/cycle-stats";
+import { enumLabel } from "@/lib/admin/enum-labels";
 
 // --- Types ---
 
@@ -452,7 +453,7 @@ export default function AdminSuggestionsPage() {
                 size="sm"
                 onClick={() => { setBrowseFilter(s); setBrowsePage(1); }}
               >
-                {s || "All"}
+                {s ? enumLabel("suggestionStatus", s) : "All"}
               </Button>
             ))}
           </div>
@@ -514,10 +515,10 @@ export default function AdminSuggestionsPage() {
                           <td className="p-3">
                             {(() => {
                               const status = effectiveRequestStatus(s);
-                              return <Badge className={statusStyles[status] || ""}>{status}</Badge>;
+                              return <Badge className={statusStyles[status] || ""}>{enumLabel("suggestionStatus", status)}</Badge>;
                             })()}
                           </td>
-                          <td className="p-3 text-sm">{s.source}</td>
+                          <td className="p-3 text-sm">{enumLabel("suggestionSource", s.source)}</td>
                           <td className="p-3 text-sm text-muted-foreground">{new Date(s.createdAt).toLocaleDateString()}</td>
                           <td className="p-3">
                             <Button variant="destructive" size="sm" onClick={() => handleDeleteBrowse(s.id)} disabled={deleting === s.id}>
@@ -684,8 +685,8 @@ export default function AdminSuggestionsPage() {
                                 <span className={`text-sm font-bold ${scoreColor(s.score)}`}>{Math.round(s.score)}%</span>
                               </td>
                               <td className="p-2"><FlowBadge flow={s.flow} /></td>
-                              <td className="p-2"><Badge className={`text-xs ${statusStyles[s.status] || ""}`}>{s.status}</Badge></td>
-                              <td className="p-2 text-xs text-muted-foreground">{s.source}</td>
+                              <td className="p-2"><Badge className={`text-xs ${statusStyles[s.status] || ""}`}>{enumLabel("suggestionStatus", s.status)}</Badge></td>
+                              <td className="p-2 text-xs text-muted-foreground">{enumLabel("suggestionSource", s.source)}</td>
                               <td className="p-2 text-xs text-muted-foreground">{new Date(s.createdAt).toLocaleDateString()}</td>
                               <td className="p-2">
                                 {s.status === "PENDING" && (

@@ -381,7 +381,7 @@ export async function respondToIntroRequest(args: {
     body:
       request.type === "FAMILY"
         ? "تم قبول طلب التعارف العائلي. يمكنك الآن رؤية بيانات وليّ الأمر للطرف الآخر."
-        : "تم قبول طلب المحادثة. يمكنكما الآن التعارف داخل نصيبك لمدة ١٤ يوماً.",
+        : "تم قبول طلب المحادثة. يمكنكما الآن التعارف داخل نصيبك لمدة 14 يوماً.",
     url: conversationId ? `/dashboard/chats/${conversationId}` : matchUrl,
     metadata: { matchId: request.matchId, requestId },
   });

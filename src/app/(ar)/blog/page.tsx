@@ -53,7 +53,7 @@ const defaultGradient = "from-primary/20 to-secondary/20";
 
 function formatDate(dateStr: string | null) {
   if (!dateStr) return "";
-  return new Date(dateStr).toLocaleDateString("ar-JO", {
+  return new Date(dateStr).toLocaleDateString("ar-JO-u-nu-latn", {
     year: "numeric",
     month: "long",
     day: "numeric",

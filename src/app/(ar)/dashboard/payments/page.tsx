@@ -609,7 +609,7 @@ function PaymentsContent() {
                             </p>
                             <span className="text-[11px] text-muted-foreground">
                               {new Date(p.createdAt).toLocaleDateString(
-                                "ar-JO",
+                                "ar-JO-u-nu-latn",
                                 {
                                   year: "numeric",
                                   month: "short",

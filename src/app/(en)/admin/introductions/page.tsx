@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { enumLabel } from "@/lib/admin/enum-labels";
 
 interface Person {
   id: string;
@@ -39,14 +40,6 @@ const STATUS_STYLE: Record<IntroRow["status"], string> = {
   DECLINED: "bg-muted text-muted-foreground",
   EXPIRED: "bg-muted text-muted-foreground",
   CANCELLED: "bg-muted text-muted-foreground",
-};
-
-const STATUS_LABEL: Record<IntroRow["status"], string> = {
-  PENDING: "Waiting for answer",
-  ACCEPTED: "Accepted",
-  DECLINED: "Declined",
-  EXPIRED: "Expired (no answer)",
-  CANCELLED: "Cancelled",
 };
 
 function fmt(d: string | null) {
@@ -170,14 +163,14 @@ export default function AdminIntroductionsPage() {
             </Button>
           </form>
           <div className="flex flex-wrap gap-2">
-            {[["", "All types"], ["FAMILY", "Family"], ["CHAT", "Chat"]].map(([v, l]) =>
+            {[["", "All types"], ...(["FAMILY", "CHAT"] as const).map((v) => [v, enumLabel("introType", v)])].map(([v, l]) =>
               filterButton(l, type === v, () => {
                 setType(v);
                 setPage(1);
               })
             )}
             <span className="mx-1 w-px bg-border" />
-            {[["", "Any status"], ["PENDING", "Waiting"], ["ACCEPTED", "Accepted"], ["DECLINED", "Declined"], ["EXPIRED", "Expired"], ["CANCELLED", "Cancelled"]].map(
+            {[["", "Any status"], ...(["PENDING", "ACCEPTED", "DECLINED", "EXPIRED", "CANCELLED"] as const).map((v) => [v, enumLabel("requestStatus", v)])].map(
               ([v, l]) =>
                 filterButton(l, status === v, () => {
                   setStatus(v);
@@ -216,12 +209,12 @@ export default function AdminIntroductionsPage() {
                       <td className="py-3 pe-4">
                         <span className="inline-flex items-center gap-1.5">
                           {r.type === "FAMILY" ? <Users className="h-4 w-4 text-primary" /> : <MessageCircle className="h-4 w-4 text-primary" />}
-                          {r.type === "FAMILY" ? "Family" : "Chat"}
+                          {enumLabel("introType", r.type)}
                         </span>
                       </td>
                       <td className="py-3 pe-4">
                         <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-medium", STATUS_STYLE[r.status])}>
-                          {STATUS_LABEL[r.status]}
+                          {enumLabel("requestStatus", r.status)}
                         </span>
                       </td>
                       <td className="hidden py-3 pe-4 text-muted-foreground md:table-cell">{fmt(r.createdAt)}</td>

@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { fmtDate, Pager, PersonLink, SearchBox, StateBadge, type PersonRef } from "@/components/admin/admin-list-bits";
+import { enumLabel } from "@/lib/admin/enum-labels";
 
 interface ChatRow {
   id: string;
@@ -19,7 +20,7 @@ interface ChatRow {
   messages: number;
 }
 
-const FILTERS: [string, string][] = [["", "All"], ["ACTIVE", "Active"], ["ENDED", "Ended"], ["EXPIRED", "Expired"]];
+const FILTERS: [string, string][] = [["", "All"], ...(["ACTIVE", "ENDED", "EXPIRED"] as const).map((s): [string, string] => [s, enumLabel("chatStatus", s)])];
 
 /** Every in-app chat — dates, status and message counts only. Admins never see message content. */
 export default function AdminChatsPage() {
@@ -131,7 +132,7 @@ export default function AdminChatsPage() {
                         <PersonLink p={c.people[0]} hash={`#chat-${c.id}`} /> <span className="text-muted-foreground">&amp;</span>{" "}
                         <PersonLink p={c.people[1]} hash={`#chat-${c.id}`} />
                       </td>
-                      <td className="py-3 pe-4"><StateBadge value={c.status} /></td>
+                      <td className="py-3 pe-4"><StateBadge value={c.status} group="chatStatus" /></td>
                       <td className="hidden py-3 pe-4 text-muted-foreground md:table-cell">{fmtDate(c.createdAt)}</td>
                       <td className="hidden py-3 pe-4 text-muted-foreground md:table-cell">
                         {fmtDate(c.expiresAt)}

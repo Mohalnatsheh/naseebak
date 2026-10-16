@@ -13,6 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { enumLabel } from "@/lib/admin/enum-labels";
 
 interface UserDetail {
   id: string;
@@ -356,7 +357,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
           <div>
             <h1 className="text-2xl font-bold">{user.firstName} {user.lastName}</h1>
             <div className="flex flex-wrap items-center gap-2 mt-1">
-              <Badge className={statusColors[user.status] || ""}>{user.status}</Badge>
+              <Badge className={statusColors[user.status] || ""}>{enumLabel("userStatus", user.status)}</Badge>
               <Badge variant={user.gender === "MALE" ? "default" : "secondary"}>
                 {user.gender === "MALE" ? "Male" : "Female"}
               </Badge>
@@ -503,7 +504,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
               <div className="space-y-3">
                 <div className="flex items-center gap-2 text-sm">
                   <Badge variant="outline">{user.identityDoc.documentType === "selfie" ? "Selfie" : user.identityDoc.documentType === "national_id" ? "National ID (legacy)" : "Passport (legacy)"}</Badge>
-                  <Badge className={statusColors[user.identityDoc.status] || ""}>{user.identityDoc.status}</Badge>
+                  <Badge className={statusColors[user.identityDoc.status] || ""}>{enumLabel("identityStatus", user.identityDoc.status)}</Badge>
                 </div>
                 {user.identityDoc.rejectionReason && (
                   <p className="text-sm text-destructive bg-destructive/10 rounded p-2">Rejection: {user.identityDoc.rejectionReason}</p>
@@ -665,7 +666,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
                           <td className="p-2"><SuggestionStatus s={s} /></td>
                           <td className="p-2">{s.flow === "MUTUAL" ? <Decision value={s.recipientDecision} /> : "—"}</td>
                           <td className="p-2">{s.flow === "MUTUAL" ? <Decision value={s.candidateDecision} /> : "—"}</td>
-                          <td className="p-2"><Badge variant="outline" className="text-xs">{s.source}</Badge></td>
+                          <td className="p-2"><Badge variant="outline" className="text-xs">{enumLabel("suggestionSource", s.source)}</Badge></td>
                           <td className="p-2 text-muted-foreground">{new Date(s.createdAt).toLocaleDateString()}</td>
                         </tr>
                       ))}
@@ -708,7 +709,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
                           <td className="p-2"><SuggestionStatus s={s} /></td>
                           <td className="p-2">{s.flow === "MUTUAL" ? <Decision value={s.candidateDecision} /> : "—"}</td>
                           <td className="p-2">{s.flow === "MUTUAL" ? <Decision value={s.recipientDecision} /> : "—"}</td>
-                          <td className="p-2"><Badge variant="outline" className="text-xs">{s.source}</Badge></td>
+                          <td className="p-2"><Badge variant="outline" className="text-xs">{enumLabel("suggestionSource", s.source)}</Badge></td>
                           <td className="p-2 text-muted-foreground">{new Date(s.createdAt).toLocaleDateString()}</td>
                         </tr>
                       ))}
@@ -753,7 +754,7 @@ function FlowBadge({ flow }: { flow: "LEGACY" | "MUTUAL" }) {
 
 function SuggestionStatus({ s }: { s: SuggestionRow }) {
   const status = effectiveRequestStatus(s);
-  return <Badge className={`text-xs ${suggestionStatusColors[status] || ""}`}>{status}</Badge>;
+  return <Badge className={`text-xs ${suggestionStatusColors[status] || ""}`}>{enumLabel("suggestionStatus", status)}</Badge>;
 }
 
 function chatEndedLabel(c: CycleData["chats"][number]) {
@@ -799,14 +800,14 @@ function CycleSections({
                 <tbody>
                   {cycle.introRequests.map((r) => (
                     <tr key={r.id} className="border-b">
-                      <td className="p-2"><Badge variant="outline" className="text-xs">{r.type === "FAMILY" ? "Family" : "Chat"}</Badge></td>
+                      <td className="p-2"><Badge variant="outline" className="text-xs">{enumLabel("introType", r.type)}</Badge></td>
                       <td className="p-2 text-muted-foreground">{r.direction === "sent" ? "Sent to" : "Received from"}</td>
                       <td className="p-2">
                         <Link href={`/admin/users/${r.other.id}`} className="text-primary hover:underline">
                           {r.other.firstName} {r.other.lastName}
                         </Link>
                       </td>
-                      <td className="p-2"><Badge className={`text-xs ${cycleStatusColors[r.status] || ""}`}>{r.status}</Badge></td>
+                      <td className="p-2"><Badge className={`text-xs ${cycleStatusColors[r.status] || ""}`}>{enumLabel("requestStatus", r.status)}</Badge></td>
                       <td className="p-2 text-muted-foreground">{formatDate(r.createdAt)}</td>
                       <td className="p-2 text-muted-foreground hidden md:table-cell">{formatDate(r.respondedAt)}</td>
                       <td className="p-2 text-muted-foreground hidden md:table-cell">{formatDate(r.expiresAt)}</td>
@@ -851,7 +852,7 @@ function CycleSections({
                           {c.other.firstName} {c.other.lastName}
                         </Link>
                       </td>
-                      <td className="p-2"><Badge className={`text-xs ${cycleStatusColors[c.status] || ""}`}>{c.status}</Badge></td>
+                      <td className="p-2"><Badge className={`text-xs ${cycleStatusColors[c.status] || ""}`}>{enumLabel("chatStatus", c.status)}</Badge></td>
                       <td className="p-2 text-muted-foreground">{formatDate(c.createdAt)}</td>
                       <td className="p-2 text-muted-foreground">
                         {formatDate(c.expiresAt)}

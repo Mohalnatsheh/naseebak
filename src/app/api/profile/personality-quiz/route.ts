@@ -5,34 +5,34 @@ import { maybeAwardReferral } from "@/lib/referral";
 
 const quizQuestions = [
   // --- الاجتماعية (Extraversion) - 4 questions ---
-  { id: "q1", text: "بحب أقضي وقتي مع ناس كثير أكثر من إني أقعد لحالي", dimension: "extraversion", topic: "lifestyle" },
-  { id: "q2", text: "بكون أول واحد يحكي لما أتعرف على حدا جديد", dimension: "extraversion", topic: "communication" },
-  { id: "q3", text: "بحس بطاقة أكثر لما أكون بين الناس والتجمعات العيلية", dimension: "extraversion", topic: "communication" },
-  { id: "q4", text: "بفضّل الطلعات والنشاطات الاجتماعية على القعدة بالبيت", dimension: "extraversion", topic: "lifestyle" },
+  { id: "q1", text: "أحب قضاء وقتي مع الناس أكثر من الجلوس وحدي", dimension: "extraversion", topic: "lifestyle" },
+  { id: "q2", text: "أكون أول من يبدأ الحديث عندما أتعرف على شخص جديد", dimension: "extraversion", topic: "communication" },
+  { id: "q3", text: "أشعر بطاقة أكبر عندما أكون بين الناس وفي التجمعات العائلية", dimension: "extraversion", topic: "communication" },
+  { id: "q4", text: "أفضّل الخروج والأنشطة الاجتماعية على البقاء في البيت", dimension: "extraversion", topic: "lifestyle" },
 
   // --- الالتزام والتنظيم (Conscientiousness) - 4 questions ---
-  { id: "q5", text: "بخطط لمستقبلي المهني والشخصي بشكل مرتب ومنظم", dimension: "conscientiousness", topic: "ambition" },
-  { id: "q6", text: "دايماً بخلّص شغلي ومسؤولياتي قبل الموعد", dimension: "conscientiousness", topic: "decision-making" },
-  { id: "q7", text: "بحط أهداف واضحة وبشتغل بجد عشان أحققها", dimension: "conscientiousness", topic: "ambition" },
-  { id: "q8", text: "بآخذ قراراتي بعد ما أدرس كل الخيارات بتأني", dimension: "conscientiousness", topic: "decision-making" },
+  { id: "q5", text: "أخطط لمستقبلي المهني والشخصي بشكل مرتب ومنظم", dimension: "conscientiousness", topic: "ambition" },
+  { id: "q6", text: "أنجز عملي ومسؤولياتي دائماً قبل موعدها", dimension: "conscientiousness", topic: "decision-making" },
+  { id: "q7", text: "أضع أهدافاً واضحة وأعمل بجد لتحقيقها", dimension: "conscientiousness", topic: "ambition" },
+  { id: "q8", text: "أتخذ قراراتي بعد دراسة كل الخيارات بتأنٍّ", dimension: "conscientiousness", topic: "decision-making" },
 
   // --- التفاهم والانسجام (Agreeableness) - 4 questions ---
-  { id: "q9", text: "بتأثر بمشاعر الناس اللي حوالي وبحاول أساعدهم", dimension: "agreeableness", topic: "family-values" },
-  { id: "q10", text: "بسامح بسرعة وما بحمل بقلبي على حدا", dimension: "agreeableness", topic: "conflict-resolution" },
-  { id: "q11", text: "رضا الوالدين وصلة الرحم من أهم الأشياء بحياتي", dimension: "agreeableness", topic: "family-values" },
-  { id: "q12", text: "لما يصير خلاف، بحاول أحكي بهدوء ونوصل لحل يرضي الكل", dimension: "agreeableness", topic: "conflict-resolution" },
+  { id: "q9", text: "أتأثر بمشاعر من حولي وأحاول مساعدتهم", dimension: "agreeableness", topic: "family-values" },
+  { id: "q10", text: "أسامح بسرعة ولا أحمل في قلبي على أحد", dimension: "agreeableness", topic: "conflict-resolution" },
+  { id: "q11", text: "رضا الوالدين وصلة الرحم من أهم الأمور في حياتي", dimension: "agreeableness", topic: "family-values" },
+  { id: "q12", text: "عند حدوث خلاف، أحاول التحدث بهدوء للوصول إلى حل يرضي الجميع", dimension: "agreeableness", topic: "conflict-resolution" },
 
   // --- الاستقرار العاطفي (Neuroticism - reversed) - 4 questions ---
-  { id: "q13", text: "بتعامل مع الضغوط والمواقف الصعبة بهدوء وثبات", dimension: "neuroticism", topic: "conflict-resolution" },
-  { id: "q14", text: "بقدر أعبّر عن مشاعري ومخاوفي بوضوح بدون ما أنفعل", dimension: "neuroticism", topic: "communication" },
-  { id: "q15", text: "ما بخلي المشاكل اليومية تأثر على مزاجي بشكل كبير", dimension: "neuroticism", topic: "lifestyle" },
-  { id: "q16", text: "بتقبّل النقد البنّاء برحابة صدر وبستفيد منه لتطوير حالي", dimension: "neuroticism", topic: "conflict-resolution" },
+  { id: "q13", text: "أتعامل مع الضغوط والمواقف الصعبة بهدوء وثبات", dimension: "neuroticism", topic: "conflict-resolution" },
+  { id: "q14", text: "أستطيع التعبير عن مشاعري ومخاوفي بوضوح دون انفعال", dimension: "neuroticism", topic: "communication" },
+  { id: "q15", text: "لا أدع المشكلات اليومية تؤثر في مزاجي كثيراً", dimension: "neuroticism", topic: "lifestyle" },
+  { id: "q16", text: "أتقبّل النقد البنّاء برحابة صدر وأستفيد منه في تطوير نفسي", dimension: "neuroticism", topic: "conflict-resolution" },
 
   // --- الانفتاح والتطوير (Openness) - 4 questions ---
-  { id: "q17", text: "بستمتع بتجربة أشياء جديدة ومختلفة واكتشاف ثقافات ثانية", dimension: "openness", topic: "lifestyle" },
-  { id: "q18", text: "بحب القراءة والتعلم المستمر وتطوير مهاراتي", dimension: "openness", topic: "ambition" },
-  { id: "q19", text: "بؤمن بأهمية تطوير أساليب التربية مع الحفاظ على القيم الأساسية", dimension: "openness", topic: "family-values" },
-  { id: "q20", text: "برحّب بالأفكار المختلفة وبعتبر تنوع الآراء قوة وإثراء", dimension: "openness", topic: "decision-making" },
+  { id: "q17", text: "أستمتع بتجربة أشياء جديدة ومختلفة واكتشاف ثقافات أخرى", dimension: "openness", topic: "lifestyle" },
+  { id: "q18", text: "أحب القراءة والتعلم المستمر وتطوير مهاراتي", dimension: "openness", topic: "ambition" },
+  { id: "q19", text: "أؤمن بأهمية تطوير أساليب التربية مع الحفاظ على القيم الأساسية", dimension: "openness", topic: "family-values" },
+  { id: "q20", text: "أرحّب بالأفكار المختلفة وأعدّ تنوع الآراء قوة وإثراءً", dimension: "openness", topic: "decision-making" },
 ];
 
 // Retake cooldown in months
@@ -100,7 +100,7 @@ export async function POST(request: Request) {
       if (!retakeInfo.canRetake) {
         return NextResponse.json(
           {
-            error: `ما بتقدر تعيد الاختبار هلأ. بتقدر تعيده بعد ${retakeInfo.daysRemaining} يوم`,
+            error: `لا يمكنك إعادة الاختبار الآن. يمكنك إعادته بعد ${retakeInfo.daysRemaining} يوم`,
             daysRemaining: retakeInfo.daysRemaining,
             retakeDate: retakeInfo.retakeDate,
           },
@@ -113,7 +113,7 @@ export async function POST(request: Request) {
     const { answers } = body;
 
     if (!answers || typeof answers !== "object") {
-      return NextResponse.json({ error: "لازم تبعث الإجابات" }, { status: 400 });
+      return NextResponse.json({ error: "يرجى إرسال الإجابات" }, { status: 400 });
     }
 
     // Validate that all 20 questions are answered
@@ -123,7 +123,7 @@ export async function POST(request: Request) {
 
     if (answeredCount < quizQuestions.length) {
       return NextResponse.json(
-        { error: `لازم تجاوب على كل الأسئلة (${answeredCount}/${quizQuestions.length})` },
+        { error: `يرجى الإجابة عن جميع الأسئلة (${answeredCount}/${quizQuestions.length})` },
         { status: 400 }
       );
     }

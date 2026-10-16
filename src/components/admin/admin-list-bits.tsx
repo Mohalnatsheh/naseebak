@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { enumLabel, type EnumLabelGroup } from "@/lib/admin/enum-labels";
 
 /** Small shared pieces for the admin list pages (matches, chats). */
 
@@ -38,10 +39,19 @@ export const STATE_STYLE: Record<string, string> = {
   CANCELLED: "bg-muted text-muted-foreground",
 };
 
-export function StateBadge({ value, label }: { value: string; label?: string }) {
+export function StateBadge({
+  value,
+  label,
+  group = "requestStatus",
+}: {
+  value: string;
+  label?: string;
+  /** Which label map to use for `value` (see `@/lib/admin/enum-labels`). */
+  group?: EnumLabelGroup;
+}) {
   return (
     <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-medium whitespace-nowrap", STATE_STYLE[value] ?? "bg-muted text-muted-foreground")}>
-      {label ?? value.charAt(0) + value.slice(1).toLowerCase()}
+      {label ?? enumLabel(group, value)}
     </span>
   );
 }

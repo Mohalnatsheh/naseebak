@@ -21,12 +21,12 @@ function SuggestionPreview() {
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <p className="text-lg font-bold text-foreground">سارة، ٢٧</p>
+              <p className="text-lg font-bold text-foreground">سارة، 27</p>
             </div>
             <p className="mt-0.5 text-sm text-muted-foreground">صيدلانية</p>
           </div>
           <div className="text-center">
-            <p className="text-2xl font-extrabold text-primary">٨٧٪</p>
+            <p className="text-2xl font-extrabold text-primary">87%</p>
             <p className="text-[11px] text-muted-foreground">توافق</p>
           </div>
         </div>

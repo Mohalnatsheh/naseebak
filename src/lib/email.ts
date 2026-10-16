@@ -51,7 +51,7 @@ export async function sendNewUserNotification(user: NewUserInfo): Promise<void> 
   const fullName = `${user.firstName} ${user.lastName}`;
   const phone = `+${user.phone}`;
   const gender = user.gender === "MALE" ? "ذكر" : "أنثى";
-  const date = user.createdAt.toLocaleString("ar-JO", { timeZone: "Asia/Amman" });
+  const date = user.createdAt.toLocaleString("ar-JO-u-nu-latn", { timeZone: "Asia/Amman" });
 
   await smtp.sendMail({
     from: process.env.SMTP_FROM || `"نصيبك Naseebak" <${process.env.SMTP_USER}>`,

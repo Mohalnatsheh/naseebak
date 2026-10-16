@@ -245,7 +245,7 @@ export function MatchIntroPanel({ matchId, partnerName }: { matchId: string; par
       key: "CHAT",
       icon: MessageCircle,
       title: "محادثة قبل الزيارة",
-      text: "محادثة نصية داخل نصيبك لمدة ١٤ يوماً للتعارف.",
+      text: "محادثة نصية داخل نصيبك لمدة 14 يوماً للتعارف.",
       chip: chatChip,
       action: chatAction,
       highlight: chat.status === "pending_received",

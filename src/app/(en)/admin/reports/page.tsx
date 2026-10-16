@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Flag, Loader2, ChevronLeft, ChevronRight, Eye, MessagesSquare } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { enumLabel } from "@/lib/admin/enum-labels";
 
 interface Report {
   id: string;
@@ -32,14 +33,6 @@ interface Report {
 function shortDate(d: string) {
   return new Date(d).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 }
-
-const reasonLabels: Record<string, string> = {
-  FAKE_PROFILE: "Fake Profile",
-  INAPPROPRIATE_CONTENT: "Inappropriate Content",
-  HARASSMENT: "Harassment",
-  SPAM: "Spam",
-  OTHER: "Other",
-};
 
 const statusStyles: Record<string, string> = {
   PENDING: "bg-amber-100 text-amber-800",
@@ -139,7 +132,7 @@ export default function AdminReportsPage() {
             size="sm"
             onClick={() => { setFilter(s); setPage(1); }}
           >
-            {s || "All"}
+            {s ? enumLabel("reportStatus", s) : "All"}
           </Button>
         ))}
       </div>
@@ -162,10 +155,10 @@ export default function AdminReportsPage() {
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex items-center gap-3">
                       <span className={`text-xs font-medium px-2 py-1 rounded-full ${statusStyles[report.status] || ""}`}>
-                        {report.status}
+                        {enumLabel("reportStatus", report.status)}
                       </span>
                       <span className="text-sm font-medium">
-                        {reasonLabels[report.reason] || report.reason}
+                        {enumLabel("reportReason", report.reason)}
                       </span>
                       {report.chat?.fromChat && (
                         <span className="text-xs font-medium px-2 py-1 rounded-full bg-primary/10 text-primary inline-flex items-center gap-1">
@@ -186,7 +179,7 @@ export default function AdminReportsPage() {
                     <div className="text-xs text-muted-foreground border rounded-md px-3 py-2 flex flex-wrap items-center gap-x-3 gap-y-1">
                       <span className="font-medium text-foreground">{report.chat.fromChat ? "Reported while ending their chat" : "They had a chat"}</span>
                       <span>Started {shortDate(report.chat.createdAt)}</span>
-                      <span>Status {report.chat.status}</span>
+                      <span>Status {enumLabel("chatStatus", report.chat.status)}</span>
                       {report.chat.endedAt && (
                         <span>
                           Ended {shortDate(report.chat.endedAt)} by{" "}

@@ -42,20 +42,16 @@ import {
   UtensilsCrossed,
   Car,
   Gem,
-  Quote,
-  Sparkle,
   MoreVertical,
   ShieldAlert,
-  Ban,
   Star,
-  MessageSquare,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ImageLightbox } from "@/components/shared/image-lightbox";
-import { VerifiedBadge } from "@/components/shared/verified-badge";
 import { MatchIntroPanel } from "@/components/intro/match-intro-panel";
+import { PersonCard, type PersonCardTone } from "@/components/shared/person-card";
 import { describeOption, oppositeGender } from "@/lib/profile-options";
 import { useDashboardData } from "@/contexts/dashboard-context";
 
@@ -154,27 +150,14 @@ const visitStatusConfig: Record<string, { color: string; borderColor: string; bg
   },
 };
 
-function getScoreColor(score: number) {
-  if (score >= 80) return "from-primary to-secondary";
-  if (score >= 60) return "from-primary to-primary/70";
-  if (score >= 40) return "from-accent to-accent/70";
-  return "from-destructive to-destructive/70";
-}
-
-function getScoreRingColor(score: number) {
-  if (score >= 80) return "ring-primary/30";
-  if (score >= 60) return "ring-primary/20";
-  if (score >= 40) return "ring-accent/30";
-  return "ring-destructive/30";
-}
-
-function getScoreLabel(score: number) {
-  if (score >= 85) return "توافق ممتاز";
-  if (score >= 70) return "توافق جيد جداً";
-  if (score >= 55) return "توافق جيد";
-  if (score >= 40) return "توافق مقبول";
-  return "توافق منخفض";
-}
+/** Side stripe of the shared card per visit status */
+const visitStatusTone: Record<string, PersonCardTone> = {
+  REQUESTED: "pending",
+  FAMILIES_CONTACTED: "info",
+  SCHEDULED: "success",
+  COMPLETED: "success",
+  CANCELLED: "danger",
+};
 
 /* ── Section row helper ── */
 function InfoRow({
@@ -546,161 +529,36 @@ export default function MatchesPage() {
                   animation: `fadeSlideIn 0.5s ease-out ${index * 0.1}s both`,
                 }}
               >
-                <Card
-                  className={`group overflow-hidden transition-all duration-300 hover:-translate-y-1 border-border/50 hover:shadow-xl hover:shadow-primary/5 ${
-                    statusConfig ? `border-r-4 ${statusConfig.borderColor}` : "border-r-4 border-r-primary/30"
-                  }`}
-                >
-                  {/* Score gradient header strip */}
-                  <div className={`h-1.5 bg-gradient-to-l ${getScoreColor(score)}`} />
-
-                  {/* Status gradient background */}
-                  {statusConfig && (
-                    <div className={`absolute inset-0 bg-gradient-to-l ${statusConfig.bgColor} pointer-events-none opacity-40`} />
-                  )}
-
-                  <CardContent className="relative p-0">
-                    {/* Card Header: Name + Score */}
-                    <div className="p-5 md:p-6 pb-4">
-                      <div className="flex items-start gap-4">
-                        {/* Avatar */}
-                        <div className="relative flex-shrink-0">
-                          <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-primary/15 via-primary/10 to-accent/10 flex items-center justify-center border border-primary/15 shadow-sm">
-                            <span className="text-2xl font-bold bg-gradient-to-br from-primary to-secondary bg-clip-text text-transparent">
-                              {c.firstName.charAt(0)}
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Name + Tags */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1 min-w-0">
-                            <h3 className="font-bold text-xl text-foreground truncate">{c.firstName}</h3>
-                            <VerifiedBadge verified={c.isVerified} />
-                          </div>
-                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5">
-                            {c.age && (
-                              <span className="inline-flex items-center gap-1 text-sm text-muted-foreground">
-                                <Calendar className="h-3.5 w-3.5" />{c.age} سنة
-                              </span>
-                            )}
-                            {c.city && (
-                              <span className="inline-flex items-center gap-1 text-sm text-muted-foreground">
-                                <MapPin className="h-3.5 w-3.5" />{c.city}{c.area ? ` - ${c.area}` : ""}
-                              </span>
-                            )}
-                            {c.job && (
-                              <span className="inline-flex items-center gap-1 text-sm text-muted-foreground">
-                                <Briefcase className="h-3.5 w-3.5" />{describeOption("job", c.job, isFemale ? "MALE" : "FEMALE")}
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-xs text-muted-foreground mt-1.5">
-                            توافق بتاريخ {new Date(m.createdAt).toLocaleDateString("ar-JO")}
-                          </p>
-                        </div>
-
-                        {/* Compatibility score ring */}
-                        {score > 0 && (
-                          <div className="flex-shrink-0">
-                            <div className={`relative h-[72px] w-[72px] rounded-full flex items-center justify-center ring-4 ${getScoreRingColor(score)} bg-gradient-to-br ${getScoreColor(score)} shadow-lg`}>
-                              <div className="h-[56px] w-[56px] rounded-full bg-card flex flex-col items-center justify-center">
-                                <span className="text-xl font-black text-foreground leading-none">{score}</span>
-                                <span className="text-[8px] text-muted-foreground font-medium leading-none mt-0.5">% توافق</span>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Score label + Visit status */}
-                      <div className="mt-3 flex items-center justify-between">
-                        {score > 0 && (
-                          <div className="flex items-center gap-2">
-                            <Sparkle className="h-3.5 w-3.5 text-primary/50" />
-                            <span className="text-xs font-medium text-primary/70">{getScoreLabel(score)}</span>
-                          </div>
-                        )}
-                        {showVisitBanner && m.visitStatus && statusConfig && (
-                          <Badge className={`gap-1.5 px-3 py-1 border text-xs font-semibold ${statusConfig.color}`}>
-                            <StatusIcon className="h-3.5 w-3.5" />
-                            {visitStatusLabels[m.visitStatus] || m.visitStatus}
-                          </Badge>
-                        )}
-                      </div>
-
-                      {/* Visit status explanation */}
-                      {showVisitBanner && m.visitStatus && visitStatusDescriptions[m.visitStatus] && (
-                        <div className={`mt-3 p-3 rounded-xl border text-sm leading-relaxed ${
-                          m.visitStatus === "REQUESTED" ? "bg-amber-50/60 border-amber-200/40 text-amber-800" :
-                          m.visitStatus === "FAMILIES_CONTACTED" ? "bg-primary/5 border-primary/15 text-primary" :
-                          m.visitStatus === "SCHEDULED" ? "bg-green-50/60 border-green-200/40 text-green-800" :
-                          m.visitStatus === "COMPLETED" ? "bg-emerald-50/60 border-emerald-200/40 text-emerald-800" :
-                          m.visitStatus === "CANCELLED" ? "bg-destructive/5 border-destructive/15 text-destructive" :
-                          "bg-muted/30 border-border/40 text-muted-foreground"
-                        }`}>
-                          <div className="flex items-start gap-2.5">
-                            <StatusIcon className="h-4 w-4 flex-shrink-0 mt-0.5 opacity-70" />
-                            <p>{visitStatusDescriptions[m.visitStatus]}</p>
-                          </div>
-                        </div>
-                      )}
-
-                      <MatchIntroPanel matchId={m.id} partnerName={c.firstName} />
-                    </div>
-
-                    {/* Quick chips */}
-                    <div className="px-5 md:px-6 pb-4">
-                      <div className="flex flex-wrap gap-2">
-                        {c.maritalStatus && (
-                          <div className="inline-flex items-center gap-1.5 rounded-full bg-muted/60 border border-border/50 px-3 py-1.5 text-xs font-medium text-foreground/80">
-                            <User className="h-3 w-3 text-primary/50" />{describeOption("maritalStatus", c.maritalStatus, isFemale ? "MALE" : "FEMALE")}
-                          </div>
-                        )}
-                        {c.education && (
-                          <div className="inline-flex items-center gap-1.5 rounded-full bg-muted/60 border border-border/50 px-3 py-1.5 text-xs font-medium text-foreground/80">
-                            <GraduationCap className="h-3 w-3 text-primary/50" />{c.education}
-                          </div>
-                        )}
-                        {c.religiosity && (
-                          <div className="inline-flex items-center gap-1.5 rounded-full bg-muted/60 border border-border/50 px-3 py-1.5 text-xs font-medium text-foreground/80">
-                            <Moon className="h-3 w-3 text-primary/50" />{describeOption("religiosity", c.religiosity, isFemale ? "MALE" : "FEMALE")}
-                          </div>
-                        )}
-                        {c.nationality && (
-                          <div className="inline-flex items-center gap-1.5 rounded-full bg-muted/60 border border-border/50 px-3 py-1.5 text-xs font-medium text-foreground/80">
-                            <Flag className="h-3 w-3 text-primary/50" />{c.nationality}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* About Me */}
-                    {c.aboutMe && (
-                      <div className="mx-5 md:mx-6 mb-4 p-4 rounded-xl bg-gradient-to-l from-primary/5 to-primary/[0.02] border border-primary/10">
-                        <div className="flex items-start gap-2.5">
-                          <Quote className="h-4 w-4 text-primary/40 flex-shrink-0 mt-0.5" />
-                          <p className="text-sm text-foreground/80 leading-relaxed">{c.aboutMe}</p>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Expand toggle */}
-                    <div className="px-5 md:px-6 mb-4">
-                      <button
-                        onClick={() => toggleExpand(m.id)}
-                        className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-border/50 bg-muted/30 hover:bg-muted/50 transition-colors text-sm font-semibold text-muted-foreground hover:text-foreground"
-                      >
-                        {isExpanded ? (
-                          <><ChevronUp className="h-4 w-4" />إخفاء التفاصيل</>
-                        ) : (
-                          <><ChevronDown className="h-4 w-4" />عرض جميع التفاصيل</>
-                        )}
-                      </button>
-                    </div>
-
-                    {/* Expanded Details */}
-                    {isExpanded && (
+                <PersonCard
+                  name={c.firstName}
+                  verified={c.isVerified}
+                  age={c.age}
+                  city={c.city}
+                  area={c.area}
+                  job={c.job && describeOption("job", c.job, isFemale ? "MALE" : "FEMALE")}
+                  score={score}
+                  photoUrl={m.photosRevealed ? matchPhotos[m.id]?.[0]?.url : undefined}
+                  photoLocked={!m.photosRevealed}
+                  tone={showVisitBanner && m.visitStatus ? visitStatusTone[m.visitStatus] ?? "default" : "default"}
+                  meta={<>توافق بتاريخ {new Date(m.createdAt).toLocaleDateString("ar-JO-u-nu-latn")}</>}
+                  status={
+                    showVisitBanner && m.visitStatus && statusConfig ? (
+                      <Badge className={`gap-1.5 px-3 py-1 border text-xs font-semibold ${statusConfig.color}`}>
+                        <StatusIcon className="h-3.5 w-3.5" />
+                        {visitStatusLabels[m.visitStatus] || m.visitStatus}
+                      </Badge>
+                    ) : undefined
+                  }
+                  tags={[
+                    { icon: User, label: c.maritalStatus && describeOption("maritalStatus", c.maritalStatus, isFemale ? "MALE" : "FEMALE") },
+                    { icon: GraduationCap, label: c.education },
+                    { icon: Moon, label: c.religiosity && describeOption("religiosity", c.religiosity, isFemale ? "MALE" : "FEMALE") },
+                    { icon: Flag, label: c.nationality },
+                  ]}
+                  aboutMe={c.aboutMe}
+                  expanded={isExpanded}
+                  onToggleExpand={() => toggleExpand(m.id)}
+                  details={
                       <div className="px-5 md:px-6 pb-4 space-y-3" style={{ animation: "fadeSlideIn 0.3s ease-out" }}>
                         <Section title="المعلومات الشخصية" icon={User} defaultOpen={true}>
                           <InfoRow icon={Calendar} label="العمر" value={c.age ? `${c.age} سنة` : null} />
@@ -771,8 +629,9 @@ export default function MatchesPage() {
                           </Section>
                         )}
                       </div>
-                    )}
-
+                  }
+                  afterDetails={
+                    <>
                     {/* Scheduled visit date */}
                     {m.scheduledDate && (
                       <div className="mx-5 md:mx-6 mb-4 p-3.5 bg-gradient-to-l from-green-50 to-emerald-50/50 rounded-xl flex items-center gap-3 text-sm text-green-800 border border-green-200/40">
@@ -782,7 +641,7 @@ export default function MatchesPage() {
                         <div>
                           <p className="text-xs text-green-600 font-medium mb-0.5">موعد الزيارة</p>
                           <p className="font-bold text-green-800">
-                            {new Date(m.scheduledDate).toLocaleDateString("ar-JO", {
+                            {new Date(m.scheduledDate).toLocaleDateString("ar-JO-u-nu-latn", {
                               weekday: "long",
                               year: "numeric",
                               month: "long",
@@ -854,9 +713,9 @@ export default function MatchesPage() {
                         )}
                       </div>
                     )}
-
-                    {/* Action buttons */}
-                    <div className="p-5 md:p-6 pt-0">
+                    </>
+                  }
+                  actions={
                       <div className="flex gap-3">
                         {m.photosRevealed ? (
                           <Button
@@ -908,9 +767,25 @@ export default function MatchesPage() {
                           )}
                         </div>
                       </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                  }
+                >
+                      {showVisitBanner && m.visitStatus && visitStatusDescriptions[m.visitStatus] && (
+                        <div className={`p-3 rounded-xl border text-sm leading-relaxed ${
+                          m.visitStatus === "REQUESTED" ? "bg-amber-50/60 border-amber-200/40 text-amber-800" :
+                          m.visitStatus === "FAMILIES_CONTACTED" ? "bg-primary/5 border-primary/15 text-primary" :
+                          m.visitStatus === "SCHEDULED" ? "bg-green-50/60 border-green-200/40 text-green-800" :
+                          m.visitStatus === "COMPLETED" ? "bg-emerald-50/60 border-emerald-200/40 text-emerald-800" :
+                          m.visitStatus === "CANCELLED" ? "bg-destructive/5 border-destructive/15 text-destructive" :
+                          "bg-muted/30 border-border/40 text-muted-foreground"
+                        }`}>
+                          <div className="flex items-start gap-2.5">
+                            <StatusIcon className="h-4 w-4 flex-shrink-0 mt-0.5 opacity-70" />
+                            <p>{visitStatusDescriptions[m.visitStatus]}</p>
+                          </div>
+                        </div>
+                      )}
+                  <MatchIntroPanel matchId={m.id} partnerName={c.firstName} />
+                </PersonCard>
               </div>
             );
           })}

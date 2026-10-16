@@ -13,7 +13,7 @@ export type FilterResult =
 
 const MESSAGES: Record<FilterReason, string> = {
   EMPTY: "اكتب رسالة أولاً",
-  TOO_LONG: "الرسالة طويلة جداً (الحد ١٠٠٠ حرف).",
+  TOO_LONG: "الرسالة طويلة جداً (الحد 1000 حرف).",
   CONTACT:
     "لا يمكن مشاركة أرقام الهواتف أو الروابط أو حسابات التواصل. مشاركة التواصل تتم عبر التعارف العائلي.",
   LINK:

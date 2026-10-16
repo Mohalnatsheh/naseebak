@@ -8,7 +8,7 @@ export function DashboardFooter() {
   if (/^\/dashboard\/chats\/[^/]+/.test(pathname)) return null;
   return (
     <footer className="border-t py-4 text-center text-sm text-muted-foreground">
-      © {new Date().getFullYear()} نصيبك - جميع الحقوق محفوظة
+      9 {new Date().getFullYear()} نصيبك - جميع الحقوق محفوظة
     </footer>
   );
 }

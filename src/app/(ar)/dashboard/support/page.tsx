@@ -338,7 +338,7 @@ export default function SupportPage() {
                           </div>
                         </div>
                         <span className="text-xs text-muted-foreground shrink-0">
-                          {new Date(ticket.createdAt).toLocaleDateString("ar-JO")}
+                          {new Date(ticket.createdAt).toLocaleDateString("ar-JO-u-nu-latn")}
                         </span>
                       </div>
 

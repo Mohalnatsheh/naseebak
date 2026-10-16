@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { enumLabel } from "@/lib/admin/enum-labels";
 
 interface Feedback {
   id: string;
@@ -39,11 +40,11 @@ function toLocalInputValue(iso: string): string {
 }
 
 const statusOptions = [
-  { value: "REQUESTED", label: "Requested", color: "bg-amber-100 text-amber-800" },
-  { value: "FAMILIES_CONTACTED", label: "Families Contacted", color: "bg-primary/10 text-primary" },
-  { value: "SCHEDULED", label: "Scheduled", color: "bg-green-100 text-green-800" },
-  { value: "COMPLETED", label: "Completed", color: "bg-emerald-100 text-emerald-800" },
-  { value: "CANCELLED", label: "Cancelled", color: "bg-destructive/10 text-destructive" },
+  { value: "REQUESTED", label: enumLabel("visitStatus", "REQUESTED"), color: "bg-amber-100 text-amber-800" },
+  { value: "FAMILIES_CONTACTED", label: enumLabel("visitStatus", "FAMILIES_CONTACTED"), color: "bg-primary/10 text-primary" },
+  { value: "SCHEDULED", label: enumLabel("visitStatus", "SCHEDULED"), color: "bg-green-100 text-green-800" },
+  { value: "COMPLETED", label: enumLabel("visitStatus", "COMPLETED"), color: "bg-emerald-100 text-emerald-800" },
+  { value: "CANCELLED", label: enumLabel("visitStatus", "CANCELLED"), color: "bg-destructive/10 text-destructive" },
 ];
 
 export default function AdminVisitsPage() {
@@ -224,7 +225,7 @@ export default function AdminVisitsPage() {
             <CalendarHeart className="h-12 w-12 mx-auto text-muted-foreground/30 mb-3" />
             <h3 className="font-medium text-lg">No Visit Requests</h3>
             <p className="text-sm text-muted-foreground">
-              {statusFilter ? `No visits with status "${statusFilter}"` : "Visit requests will appear here when mutual matches are made."}
+              {statusFilter ? `No visits with status "${enumLabel("visitStatus", statusFilter)}"` : "Visit requests will appear here when mutual matches are made."}
             </p>
           </CardContent>
         </Card>
@@ -246,7 +247,7 @@ export default function AdminVisitsPage() {
                       </p>
                     </div>
                     <Badge className={`shrink-0 ${currentStatus?.color || ""}`}>
-                      {currentStatus?.label || v.status}
+                      {currentStatus?.label || enumLabel("visitStatus", v.status)}
                     </Badge>
                   </div>
 

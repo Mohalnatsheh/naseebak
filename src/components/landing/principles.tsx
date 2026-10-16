@@ -57,7 +57,7 @@ export function LandingPrinciples({ content, chat }: { content: LandingContent; 
           <div className="mx-auto mt-16 flex max-w-xl flex-wrap justify-center gap-x-14 gap-y-6 border-t border-primary-foreground/15 pt-10 text-center">
             {numbers.map((n) => (
               <div key={n.label}>
-                <p className="text-4xl font-extrabold text-accent">{n.value.toLocaleString("ar-EG")}</p>
+                <p className="text-4xl font-extrabold text-accent">{n.value.toLocaleString("ar-JO-u-nu-latn")}</p>
                 <p className="mt-1 text-sm text-primary-foreground/75">{n.label}</p>
               </div>
             ))}

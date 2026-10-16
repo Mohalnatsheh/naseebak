@@ -7,10 +7,7 @@ import {
   Sparkles,
   HeartHandshake,
   X,
-  MapPin,
   GraduationCap,
-  Briefcase,
-  Calendar,
   Search,
   Star,
   AlertCircle,
@@ -20,28 +17,11 @@ import {
   Clock,
   Eye,
   Heart,
-  Ruler,
-  Weight,
   Cigarette,
-  BookOpen,
-  Wallet,
-  Palette,
-  Activity,
   Moon,
   Flag,
-  ChevronDown,
-  ChevronUp,
   ChevronLeft,
   ChevronRight,
-  Home,
-  Users,
-  Baby,
-  MapPinned,
-  UtensilsCrossed,
-  Car,
-  Gem,
-  Quote,
-  Sparkle,
   MoreVertical,
   ShieldAlert,
   Ban,
@@ -51,7 +31,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { SUGGESTIONS_MIN_COMPLETENESS, qualifiesForSuggestions as qualifiesForSuggestionsGate } from "@/lib/profile-completeness";
-import { VerifiedBadge } from "@/components/shared/verified-badge";
+import { PersonCard } from "@/components/shared/person-card";
 import { trackEvent } from "@/lib/analytics";
 import { useDashboardData } from "@/contexts/dashboard-context";
 import { describeOption, oppositeGender } from "@/lib/profile-options";
@@ -151,28 +131,6 @@ interface SentRequest {
     education: string | null;
     job: string | null;
   };
-}
-
-function getScoreColor(score: number) {
-  if (score >= 80) return "from-primary to-secondary";
-  if (score >= 60) return "from-primary to-secondary";
-  if (score >= 40) return "from-amber-400 to-amber-500";
-  return "from-destructive/80 to-destructive";
-}
-
-function getScoreRingColor(score: number) {
-  if (score >= 80) return "ring-primary/30";
-  if (score >= 60) return "ring-primary/30";
-  if (score >= 40) return "ring-amber-400/30";
-  return "ring-destructive/30";
-}
-
-function getScoreLabel(score: number) {
-  if (score >= 85) return "توافق ممتاز";
-  if (score >= 70) return "توافق جيد جداً";
-  if (score >= 55) return "توافق جيد";
-  if (score >= 40) return "توافق مقبول";
-  return "توافق منخفض";
 }
 
 const STATUS_CONFIG = {
@@ -650,127 +608,41 @@ export default function SuggestionsPage() {
                       animation: `fadeSlideIn 0.5s ease-out ${index * 0.1}s both`,
                     }}
                   >
-                    <Card className="group overflow-hidden border-border/50 hover:border-primary/20 hover:shadow-xl hover:shadow-primary/5 transition-all duration-300">
-                      <div className={`h-1.5 bg-gradient-to-l ${getScoreColor(score)}`} />
-                      <CardContent className="p-0">
-                        {/* Card Header */}
-                        <div className="p-5 md:p-6 pb-4">
-                          <div className="flex items-start gap-4">
-                            <div className="relative flex-shrink-0">
-                              <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-primary/20 via-primary/10 to-accent/10 flex items-center justify-center border border-primary/10 shadow-sm">
-                                <span className="text-2xl font-bold bg-gradient-to-br from-primary to-primary/60 bg-clip-text text-transparent">
-                                  {c.firstName.charAt(0)}
-                                </span>
-                              </div>
-                              {s.isManual && (
-                                <div className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-gradient-to-br from-accent to-accent/70 flex items-center justify-center shadow-sm">
-                                  <Star className="h-2.5 w-2.5 text-white fill-white" />
-                                </div>
-                              )}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-1">
-                                <h3 className="font-bold text-xl text-foreground truncate">{c.firstName}</h3>
-                                <VerifiedBadge verified={c.isVerified} />
-                                {s.isManual && (
-                                  <Badge className="bg-gradient-to-l from-accent/20 to-accent/10 text-accent-foreground border border-accent/20 text-[10px] px-2 py-0">
-                                    اقتراح الإدارة
-                                  </Badge>
-                                )}
-                              </div>
-                              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5">
-                                {c.age && (
-                                  <span className="inline-flex items-center gap-1 text-sm text-muted-foreground">
-                                    <Calendar className="h-3.5 w-3.5" />{c.age} سنة
-                                  </span>
-                                )}
-                                {c.city && (
-                                  <span className="inline-flex items-center gap-1 text-sm text-muted-foreground">
-                                    <MapPin className="h-3.5 w-3.5" />{c.city}{c.area ? ` - ${c.area}` : ""}
-                                  </span>
-                                )}
-                                {c.job && (
-                                  <span className="inline-flex items-center gap-1 text-sm text-muted-foreground">
-                                    <Briefcase className="h-3.5 w-3.5" />{describeOption("job", c.job, partnerGender)}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                            <div className="flex-shrink-0">
-                              <div className={`relative h-[72px] w-[72px] rounded-full flex items-center justify-center ring-4 ${getScoreRingColor(score)} bg-gradient-to-br ${getScoreColor(score)} shadow-lg`}>
-                                <div className="h-[56px] w-[56px] rounded-full bg-card flex flex-col items-center justify-center">
-                                  <span className="text-xl font-black text-foreground leading-none">{score}</span>
-                                  <span className="text-[8px] text-muted-foreground font-medium leading-none mt-0.5">% توافق</span>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                          <div className="mt-3 flex items-center gap-2">
-                            <Sparkle className="h-3.5 w-3.5 text-primary/50" />
-                            <span className="text-xs font-medium text-primary/70">{getScoreLabel(score)}</span>
-                          </div>
-                        </div>
-
-                        {/* Quick chips */}
-                        <div className="px-5 md:px-6 pb-4">
-                          <div className="flex flex-wrap gap-2">
-                            {c.maritalStatus && (
-                              <div className="inline-flex items-center gap-1.5 rounded-full bg-muted/60 border border-border/50 px-3 py-1.5 text-xs font-medium text-foreground/80">
-                                <User className="h-3 w-3 text-primary/50" />{describeOption("maritalStatus", c.maritalStatus, partnerGender)}
-                              </div>
-                            )}
-                            {c.education && (
-                              <div className="inline-flex items-center gap-1.5 rounded-full bg-muted/60 border border-border/50 px-3 py-1.5 text-xs font-medium text-foreground/80">
-                                <GraduationCap className="h-3 w-3 text-primary/50" />{c.education}
-                              </div>
-                            )}
-                            {c.religiosity && (
-                              <div className="inline-flex items-center gap-1.5 rounded-full bg-muted/60 border border-border/50 px-3 py-1.5 text-xs font-medium text-foreground/80">
-                                <Moon className="h-3 w-3 text-primary/50" />{describeOption("religiosity", c.religiosity, partnerGender)}
-                              </div>
-                            )}
-                            {c.smokingStatus && (
-                              <div className="inline-flex items-center gap-1.5 rounded-full bg-muted/60 border border-border/50 px-3 py-1.5 text-xs font-medium text-foreground/80">
-                                <Cigarette className="h-3 w-3 text-primary/50" />{describeOption("smokingStatus", c.smokingStatus, partnerGender)}
-                              </div>
-                            )}
-                            {c.nationality && (
-                              <div className="inline-flex items-center gap-1.5 rounded-full bg-muted/60 border border-border/50 px-3 py-1.5 text-xs font-medium text-foreground/80">
-                                <Flag className="h-3 w-3 text-primary/50" />{c.nationality}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* About Me */}
-                        {c.aboutMe && (
-                          <div className="mx-5 md:mx-6 mb-4 p-4 rounded-xl bg-gradient-to-l from-primary/5 to-primary/[0.02] border border-primary/10">
-                            <div className="flex items-start gap-2.5">
-                              <Quote className="h-4 w-4 text-primary/40 flex-shrink-0 mt-0.5" />
-                              <p className="text-sm text-foreground/80 leading-relaxed">{c.aboutMe}</p>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Expand toggle */}
-                        <div className="px-5 md:px-6 mb-4">
-                          <button
-                            onClick={() => toggleExpand(s.id)}
-                            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-border/50 bg-muted/30 hover:bg-muted/50 transition-colors text-sm font-semibold text-muted-foreground hover:text-foreground"
-                          >
-                            {isExpanded ? (
-                              <><ChevronUp className="h-4 w-4" />إخفاء التفاصيل</>
-                            ) : (
-                              <><ChevronDown className="h-4 w-4" />عرض جميع التفاصيل</>
-                            )}
-                          </button>
-                        </div>
-
-                        {/* Expanded Details */}
-                        {isExpanded && <CandidateDetails c={c} />}
-
-                        {/* Action Buttons */}
-                        <div className="p-5 md:p-6 pt-0">
+                    <PersonCard
+                      name={c.firstName}
+                      verified={c.isVerified}
+                      age={c.age}
+                      city={c.city}
+                      area={c.area}
+                      job={c.job && describeOption("job", c.job, partnerGender)}
+                      score={score}
+                      photoLocked
+                      avatarMark={
+                        s.isManual ? (
+                          <span className="h-5 w-5 rounded-full bg-gradient-to-br from-accent to-accent/70 flex items-center justify-center shadow-sm">
+                            <Star className="h-2.5 w-2.5 text-white fill-white" aria-hidden="true" />
+                          </span>
+                        ) : undefined
+                      }
+                      badges={
+                        s.isManual ? (
+                          <Badge className="bg-gradient-to-l from-accent/20 to-accent/10 text-accent-foreground border border-accent/20 text-[10px] px-2 py-0">
+                            اقتراح الإدارة
+                          </Badge>
+                        ) : undefined
+                      }
+                      tags={[
+                        { icon: User, label: c.maritalStatus && describeOption("maritalStatus", c.maritalStatus, partnerGender) },
+                        { icon: GraduationCap, label: c.education },
+                        { icon: Moon, label: c.religiosity && describeOption("religiosity", c.religiosity, partnerGender) },
+                        { icon: Cigarette, label: c.smokingStatus && describeOption("smokingStatus", c.smokingStatus, partnerGender) },
+                        { icon: Flag, label: c.nationality },
+                      ]}
+                      aboutMe={c.aboutMe}
+                      expanded={isExpanded}
+                      onToggleExpand={() => toggleExpand(s.id)}
+                      details={<CandidateDetails c={c} />}
+                      actions={
                           <div className="flex gap-3">
                             <Button
                               onClick={() => handleAction(s.id, "like")}
@@ -822,9 +694,8 @@ export default function SuggestionsPage() {
                               )}
                             </div>
                           </div>
-                        </div>
-                      </CardContent>
-                    </Card>
+                      }
+                    />
                   </div>
                 );
               })}
@@ -882,7 +753,7 @@ export default function SuggestionsPage() {
               {sentRequests.map((req, index) => {
                 const config = STATUS_CONFIG[req.status];
                 const StatusIcon = config.icon;
-                const sentDate = new Date(req.sentAt).toLocaleDateString("ar-JO", {
+                const sentDate = new Date(req.sentAt).toLocaleDateString("ar-JO-u-nu-latn", {
                   year: "numeric",
                   month: "short",
                   day: "numeric",
@@ -895,72 +766,36 @@ export default function SuggestionsPage() {
                       animation: `fadeSlideIn 0.5s ease-out ${index * 0.08}s both`,
                     }}
                   >
-                    <Card className="overflow-hidden border-border/50 transition-all duration-300 hover:shadow-md">
-                      <CardContent className="p-5 md:p-6">
-                        <div className="flex items-start gap-4">
-                          <div className="flex-shrink-0">
-                            <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-primary/20 via-primary/10 to-accent/10 flex items-center justify-center border border-primary/10">
-                              <span className="text-xl font-bold bg-gradient-to-br from-primary to-primary/60 bg-clip-text text-transparent">
-                                {req.candidate.firstName.charAt(0)}
-                              </span>
-                            </div>
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center justify-between gap-2 mb-2">
-                              <div className="flex items-center gap-2 min-w-0">
-                                <h3 className="font-bold text-base text-foreground truncate">
-                                  {req.candidate.firstName}
-                                </h3>
-                                <VerifiedBadge verified={req.candidate.isVerified} />
-                              </div>
-                              <Badge className={`${config.className} border text-[11px] px-2.5 py-0.5 flex items-center gap-1 flex-shrink-0`}>
-                                <StatusIcon className="h-3 w-3" />
-                                {config.label}
-                              </Badge>
-                            </div>
-                            <div className="flex flex-wrap gap-2 mb-3">
-                              {req.candidate.age && (
-                                <div className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                                  <Calendar className="h-3 w-3" />
-                                  {req.candidate.age} سنة
-                                </div>
-                              )}
-                              {req.candidate.city && (
-                                <div className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                                  <MapPin className="h-3 w-3" />
-                                  {req.candidate.city}
-                                </div>
-                              )}
-                              {req.candidate.education && (
-                                <div className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                                  <GraduationCap className="h-3 w-3" />
-                                  {req.candidate.education}
-                                </div>
-                              )}
-                              {req.candidate.job && (
-                                <div className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                                  <Briefcase className="h-3 w-3" />
-                                  {req.candidate.job && describeOption("job", req.candidate.job, partnerGender)}
-                                </div>
-                              )}
-                            </div>
-                            <div className="flex items-center justify-between">
-                              <span className="text-xs text-muted-foreground/60">
-                                أُرسل في {sentDate}
-                              </span>
-                              {req.status === "matched" && (
-                                <Link
-                                  href="/dashboard/matches"
-                                  className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 transition-colors"
-                                >
-                                  عرض التوافق ←
-                                </Link>
-                              )}
-                            </div>
-                          </div>
+                    <PersonCard
+                      compact
+                      name={req.candidate.firstName}
+                      verified={req.candidate.isVerified}
+                      age={req.candidate.age}
+                      city={req.candidate.city}
+                      job={req.candidate.job && describeOption("job", req.candidate.job, partnerGender)}
+                      photoLocked={req.status !== "matched"}
+                      tone={req.status === "matched" ? "success" : req.status === "seen" ? "info" : "pending"}
+                      badges={
+                        <Badge className={`${config.className} border text-[11px] px-2.5 py-0.5 flex items-center gap-1 flex-shrink-0`}>
+                          <StatusIcon className="h-3 w-3" />
+                          {config.label}
+                        </Badge>
+                      }
+                      tags={[{ icon: GraduationCap, label: req.candidate.education }]}
+                      actions={
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs text-muted-foreground/70">أُرسل في {sentDate}</span>
+                          {req.status === "matched" && (
+                            <Link
+                              href="/dashboard/matches"
+                              className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 transition-colors"
+                            >
+                              عرض التوافق ←
+                            </Link>
+                          )}
                         </div>
-                      </CardContent>
-                    </Card>
+                      }
+                    />
                   </div>
                 );
               })}
@@ -1031,112 +866,26 @@ export default function SuggestionsPage() {
                       animation: `fadeSlideIn 0.5s ease-out ${index * 0.1}s both`,
                     }}
                   >
-                    <Card className="group overflow-hidden border-border/50 hover:border-primary/20 hover:shadow-xl hover:shadow-primary/5 transition-all duration-300">
-                      <div className={`h-1.5 bg-gradient-to-l ${getScoreColor(score)}`} />
-                      <CardContent className="p-0">
-                        {/* Card Header */}
-                        <div className="p-5 md:p-6 pb-4">
-                          <div className="flex items-start gap-4">
-                            <div className="relative flex-shrink-0">
-                              <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-primary/20 via-primary/10 to-accent/10 flex items-center justify-center border border-primary/10 shadow-sm">
-                                <span className="text-2xl font-bold bg-gradient-to-br from-primary to-primary/60 bg-clip-text text-transparent">
-                                  {c.firstName.charAt(0)}
-                                </span>
-                              </div>
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-1 min-w-0">
-                                <h3 className="font-bold text-xl text-foreground truncate">{c.firstName}</h3>
-                                <VerifiedBadge verified={c.isVerified} />
-                              </div>
-                              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5">
-                                {c.age && (
-                                  <span className="inline-flex items-center gap-1 text-sm text-muted-foreground">
-                                    <Calendar className="h-3.5 w-3.5" />{c.age} سنة
-                                  </span>
-                                )}
-                                {c.city && (
-                                  <span className="inline-flex items-center gap-1 text-sm text-muted-foreground">
-                                    <MapPin className="h-3.5 w-3.5" />{c.city}{c.area ? ` - ${c.area}` : ""}
-                                  </span>
-                                )}
-                                {c.job && (
-                                  <span className="inline-flex items-center gap-1 text-sm text-muted-foreground">
-                                    <Briefcase className="h-3.5 w-3.5" />{describeOption("job", c.job, partnerGender)}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                            <div className="flex-shrink-0">
-                              <div className={`relative h-[72px] w-[72px] rounded-full flex items-center justify-center ring-4 ${getScoreRingColor(score)} bg-gradient-to-br ${getScoreColor(score)} shadow-lg`}>
-                                <div className="h-[56px] w-[56px] rounded-full bg-card flex flex-col items-center justify-center">
-                                  <span className="text-xl font-black text-foreground leading-none">{score}</span>
-                                  <span className="text-[8px] text-muted-foreground font-medium leading-none mt-0.5">% توافق</span>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                          <div className="mt-3 flex items-center gap-2">
-                            <Sparkle className="h-3.5 w-3.5 text-primary/50" />
-                            <span className="text-xs font-medium text-primary/70">{getScoreLabel(score)}</span>
-                          </div>
-                        </div>
-
-                        {/* Quick chips */}
-                        <div className="px-5 md:px-6 pb-4">
-                          <div className="flex flex-wrap gap-2">
-                            {c.maritalStatus && (
-                              <div className="inline-flex items-center gap-1.5 rounded-full bg-muted/60 border border-border/50 px-3 py-1.5 text-xs font-medium text-foreground/80">
-                                <User className="h-3 w-3 text-primary/50" />{describeOption("maritalStatus", c.maritalStatus, partnerGender)}
-                              </div>
-                            )}
-                            {c.education && (
-                              <div className="inline-flex items-center gap-1.5 rounded-full bg-muted/60 border border-border/50 px-3 py-1.5 text-xs font-medium text-foreground/80">
-                                <GraduationCap className="h-3 w-3 text-primary/50" />{c.education}
-                              </div>
-                            )}
-                            {c.religiosity && (
-                              <div className="inline-flex items-center gap-1.5 rounded-full bg-muted/60 border border-border/50 px-3 py-1.5 text-xs font-medium text-foreground/80">
-                                <Moon className="h-3 w-3 text-primary/50" />{describeOption("religiosity", c.religiosity, partnerGender)}
-                              </div>
-                            )}
-                            {c.nationality && (
-                              <div className="inline-flex items-center gap-1.5 rounded-full bg-muted/60 border border-border/50 px-3 py-1.5 text-xs font-medium text-foreground/80">
-                                <Flag className="h-3 w-3 text-primary/50" />{c.nationality}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* About Me */}
-                        {c.aboutMe && (
-                          <div className="mx-5 md:mx-6 mb-4 p-4 rounded-xl bg-gradient-to-l from-primary/5 to-primary/[0.02] border border-primary/10">
-                            <div className="flex items-start gap-2.5">
-                              <Quote className="h-4 w-4 text-primary/40 flex-shrink-0 mt-0.5" />
-                              <p className="text-sm text-foreground/80 leading-relaxed">{c.aboutMe}</p>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Expand toggle */}
-                        <div className="px-5 md:px-6 mb-4">
-                          <button
-                            onClick={() => toggleExpand(interest.id)}
-                            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-border/50 bg-muted/30 hover:bg-muted/50 transition-colors text-sm font-semibold text-muted-foreground hover:text-foreground"
-                          >
-                            {isExpanded ? (
-                              <><ChevronUp className="h-4 w-4" />إخفاء التفاصيل</>
-                            ) : (
-                              <><ChevronDown className="h-4 w-4" />عرض جميع التفاصيل</>
-                            )}
-                          </button>
-                        </div>
-
-                        {/* Expanded Details */}
-                        {isExpanded && <CandidateDetails c={c} />}
-
-                        {/* Action Buttons */}
-                        <div className="p-5 md:p-6 pt-0">
+                    <PersonCard
+                      name={c.firstName}
+                      verified={c.isVerified}
+                      age={c.age}
+                      city={c.city}
+                      area={c.area}
+                      job={c.job && describeOption("job", c.job, partnerGender)}
+                      score={score}
+                      photoLocked
+                      tags={[
+                        { icon: User, label: c.maritalStatus && describeOption("maritalStatus", c.maritalStatus, partnerGender) },
+                        { icon: GraduationCap, label: c.education },
+                        { icon: Moon, label: c.religiosity && describeOption("religiosity", c.religiosity, partnerGender) },
+                        { icon: Flag, label: c.nationality },
+                      ]}
+                      aboutMe={c.aboutMe}
+                      expanded={isExpanded}
+                      onToggleExpand={() => toggleExpand(interest.id)}
+                      details={<CandidateDetails c={c} />}
+                      actions={
                           <div className="flex gap-3">
                             <Button
                               onClick={() => handleInterestAction(interest.id, "accept")}
@@ -1188,9 +937,8 @@ export default function SuggestionsPage() {
                               )}
                             </div>
                           </div>
-                        </div>
-                      </CardContent>
-                    </Card>
+                      }
+                    />
                   </div>
                 );
               })}

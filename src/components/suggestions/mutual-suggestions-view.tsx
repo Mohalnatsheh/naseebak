@@ -4,15 +4,15 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import {
-  Loader2, Sparkles, HeartHandshake, X, MapPin, Briefcase, Calendar, Search, Clock, User, GraduationCap,
-  Moon, Cigarette, Flag, Quote, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, MoreVertical,
+  Loader2, Sparkles, HeartHandshake, X, Search, Clock, User, GraduationCap,
+  Moon, Cigarette, Flag, ChevronLeft, ChevronRight, MoreVertical,
   ShieldAlert, Ban, Lightbulb, Heart, Hourglass,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { VerifiedBadge } from "@/components/shared/verified-badge";
+import { PersonCard } from "@/components/shared/person-card";
 import { CandidateDetails } from "@/components/suggestions/candidate-details";
 import { DealbreakersCard } from "@/components/suggestions/dealbreakers-card";
 import { trackEvent } from "@/lib/analytics";
@@ -21,14 +21,6 @@ import { describeOption, oppositeGender } from "@/lib/profile-options";
 import type { FeedItem, FeedTab } from "@/lib/suggestions/feed";
 
 type Notice = { kind: "match"; matchId?: string } | { kind: "interested" } | { kind: "declined" } | { kind: "error"; message: string };
-
-function scoreLabel(score: number) {
-  if (score >= 85) return "توافق ممتاز";
-  if (score >= 70) return "توافق جيد جداً";
-  if (score >= 55) return "توافق جيد";
-  if (score >= 40) return "توافق مقبول";
-  return "توافق منخفض";
-}
 
 /** Which endpoint answers a card: simultaneous rows, or legacy items still in flight. */
 function decisionRequest(item: FeedItem, interested: boolean): { url: string; body?: string } {
@@ -271,7 +263,7 @@ export function MutualSuggestionsView() {
             </h3>
             <p className="text-sm text-muted-foreground max-w-xs mx-auto leading-relaxed">
               {tab === "new"
-                ? "تصلك حتى ٣ اقتراحات مجانية كل أسبوع، وسنرسل لك إشعاراً فور وصولها. إكمال ملفك واختبار الشخصية يجعلها أدق."
+                ? "تصلك حتى 3 اقتراحات مجانية كل أسبوع، وسنرسل لك إشعاراً فور وصولها. إكمال ملفك واختبار الشخصية يجعلها أدق."
                 : "عندما تختار «مهتم» على اقتراح، يظهر هنا حتى يقرّر الطرف الآخر أو تنتهي مدته."}
             </p>
           </CardContent>
@@ -285,98 +277,52 @@ export function MutualSuggestionsView() {
             const waiting = tab === "waiting";
             return (
               <div key={item.id} style={{ animation: `fadeSlideIn 0.4s ease-out ${index * 0.08}s both` }}>
-                <Card className="overflow-hidden border-border/50 hover:border-primary/20 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300">
-                  <div className="h-1.5 bg-gradient-to-l from-primary to-secondary" />
-                  <CardContent className="p-0">
-                    {/* Header */}
-                    <div className="p-5 md:p-6 pb-4 flex items-start gap-4">
-                      <div className="h-16 w-16 shrink-0 rounded-2xl bg-gradient-to-br from-primary/20 via-primary/10 to-accent/10 flex items-center justify-center border border-primary/10">
-                        <span className="text-2xl font-bold text-primary">{c.firstName.charAt(0)}</span>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex flex-wrap items-center gap-2 mb-1">
-                          <h3 className="font-bold text-xl text-foreground truncate">{c.firstName}</h3>
-                          <VerifiedBadge verified={c.isVerified} />
-                          {waiting && (
-                            <Badge className="bg-amber-100 text-amber-800 border border-amber-200/60 text-[11px] gap-1">
-                              <Hourglass className="h-3 w-3" /> بانتظار الطرف الآخر
-                            </Badge>
-                          )}
-                          {item.kind === "legacy_interest" && (
-                            <Badge className="bg-accent/15 text-accent-foreground border border-accent/25 text-[11px]">{partnerGender === "FEMALE" ? "أبدت اهتمامها بك" : "أبدى اهتمامه بك"}</Badge>
-                          )}
-                        </div>
-                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5 text-sm text-muted-foreground">
-                          {c.age && <span className="inline-flex items-center gap-1"><Calendar className="h-3.5 w-3.5" />{c.age} سنة</span>}
-                          {c.city && <span className="inline-flex items-center gap-1"><MapPin className="h-3.5 w-3.5" />{c.city}{c.area ? ` - ${c.area}` : ""}</span>}
-                          {c.job && <span className="inline-flex items-center gap-1"><Briefcase className="h-3.5 w-3.5" />{describeOption("job", c.job, partnerGender)}</span>}
-                        </div>
-                      </div>
-                      <div className="shrink-0 h-[68px] w-[68px] rounded-full bg-gradient-to-br from-primary to-secondary p-[6px] ring-4 ring-primary/15">
-                        <div className="h-full w-full rounded-full bg-card flex flex-col items-center justify-center">
-                          <span className="text-lg font-black text-foreground leading-none">{score}</span>
-                          <span className="text-[8px] text-muted-foreground font-medium leading-none mt-0.5">% توافق</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Why this suggestion */}
-                    <div className="mx-5 md:mx-6 mb-4 rounded-xl border border-accent/25 bg-accent/10 p-3.5 flex items-start gap-2.5">
-                      <Lightbulb className="h-4 w-4 mt-0.5 shrink-0 text-accent-foreground" />
-                      <p className="text-sm leading-relaxed text-foreground/90">
-                        <span className="font-bold">لماذا هذا الاقتراح؟ </span>
-                        {item.reason}
-                        <span className="text-muted-foreground"> · {scoreLabel(score)}</span>
-                      </p>
-                    </div>
-
-                    {/* Chips */}
-                    <div className="px-5 md:px-6 pb-4 flex flex-wrap gap-2">
-                      {/* Third-person, gender-correct labels about the other person */}
-                      {[
-                        { v: c.maritalStatus && describeOption("maritalStatus", c.maritalStatus, partnerGender), icon: User },
-                        { v: c.education, icon: GraduationCap },
-                        { v: c.religiosity && describeOption("religiosity", c.religiosity, partnerGender), icon: Moon },
-                        { v: c.smokingStatus && describeOption("smokingStatus", c.smokingStatus, partnerGender), icon: Cigarette },
-                        { v: c.nationality, icon: Flag },
-                      ]
-                        .filter((x) => x.v)
-                        .map((x) => (
-                          <span key={x.v as string} className="inline-flex items-center gap-1.5 rounded-full bg-muted/60 border border-border/50 px-3 py-1.5 text-xs font-medium text-foreground/80">
-                            <x.icon className="h-3 w-3 text-primary/50" />{x.v}
-                          </span>
-                        ))}
-                    </div>
-
-                    {c.aboutMe && (
-                      <div className="mx-5 md:mx-6 mb-4 p-4 rounded-xl bg-primary/5 border border-primary/10 flex items-start gap-2.5">
-                        <Quote className="h-4 w-4 text-primary/40 shrink-0 mt-0.5" />
-                        <p className="text-sm text-foreground/80 leading-relaxed">{c.aboutMe}</p>
-                      </div>
-                    )}
-
-                    <div className="px-5 md:px-6 mb-4">
-                      <button
-                        onClick={() =>
-                          setExpanded((prev) => {
-                            const next = new Set(prev);
-                            if (next.has(item.id)) next.delete(item.id);
-                            else next.add(item.id);
-                            return next;
-                          })
-                        }
-                        className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-border/50 bg-muted/30 hover:bg-muted/50 transition-colors text-sm font-semibold text-muted-foreground hover:text-foreground"
-                      >
-                        {isOpen ? <><ChevronUp className="h-4 w-4" />إخفاء التفاصيل</> : <><ChevronDown className="h-4 w-4" />عرض جميع التفاصيل</>}
-                      </button>
-                    </div>
-                    {isOpen && <CandidateDetails c={c} />}
-
-                    {/* Actions */}
-                    <div className="p-5 md:p-6 pt-0">
+                <PersonCard
+                  name={c.firstName}
+                  verified={c.isVerified}
+                  age={c.age}
+                  city={c.city}
+                  area={c.area}
+                  job={c.job && describeOption("job", c.job, partnerGender)}
+                  score={score}
+                  photoLocked
+                  badges={
+                    <>
+                      {waiting && (
+                        <Badge className="bg-amber-100 text-amber-800 border border-amber-200/60 text-[11px] gap-1">
+                          <Hourglass className="h-3 w-3" /> بانتظار الطرف الآخر
+                        </Badge>
+                      )}
+                      {item.kind === "legacy_interest" && (
+                        <Badge className="bg-accent/15 text-accent-foreground border border-accent/25 text-[11px]">{partnerGender === "FEMALE" ? "أبدت اهتمامها بك" : "أبدى اهتمامه بك"}</Badge>
+                      )}
+                    </>
+                  }
+                  tone={waiting ? "pending" : "default"}
+                  /* Third-person, gender-correct labels about the other person */
+                  tags={[
+                    { icon: User, label: c.maritalStatus && describeOption("maritalStatus", c.maritalStatus, partnerGender) },
+                    { icon: GraduationCap, label: c.education },
+                    { icon: Moon, label: c.religiosity && describeOption("religiosity", c.religiosity, partnerGender) },
+                    { icon: Cigarette, label: c.smokingStatus && describeOption("smokingStatus", c.smokingStatus, partnerGender) },
+                    { icon: Flag, label: c.nationality },
+                  ]}
+                  aboutMe={c.aboutMe}
+                  expanded={isOpen}
+                  onToggleExpand={() =>
+                    setExpanded((prev) => {
+                      const next = new Set(prev);
+                      if (next.has(item.id)) next.delete(item.id);
+                      else next.add(item.id);
+                      return next;
+                    })
+                  }
+                  details={<CandidateDetails c={c} />}
+                  actions={
+                    <>
                       {waiting && (
                         <p className="mb-3 text-xs text-muted-foreground leading-relaxed">
-                          {partnerGender === "FEMALE" ? "إذا أبدت اهتمامها أيضاً" : "إذا أبدى اهتمامه أيضاً"} يصبح توافقاً متبادلاً ونخبرك فوراً. يُغلق الاقتراح تلقائياً بعد ١٤ يوماً من وصوله إن لم يكتمل.
+                          {partnerGender === "FEMALE" ? "إذا أبدت اهتمامها أيضاً" : "إذا أبدى اهتمامه أيضاً"} يصبح توافقاً متبادلاً ونخبرك فوراً. يُغلق الاقتراح تلقائياً بعد 14 يوماً من وصوله إن لم يكتمل.
                         </p>
                       )}
                       <div className="flex gap-3">
@@ -427,9 +373,18 @@ export function MutualSuggestionsView() {
                           )}
                         </div>
                       </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                    </>
+                  }
+                >
+                  {/* Why this suggestion */}
+                  <div className="rounded-xl border border-accent/25 bg-accent/10 p-3.5 flex items-start gap-2.5">
+                    <Lightbulb className="h-4 w-4 mt-0.5 shrink-0 text-accent-foreground" aria-hidden="true" />
+                    <p className="text-sm leading-relaxed text-foreground/90">
+                      <span className="font-bold">لماذا هذا الاقتراح؟ </span>
+                      {item.reason}
+                    </p>
+                  </div>
+                </PersonCard>
               </div>
             );
           })}

@@ -43,7 +43,7 @@ export function NextStepCard({ qualifies, pendingSuggestions, matchesCount, cred
     step = {
       icon: Inbox,
       title: counts.pendingIntros === 1 ? "لديك طلب تعارف بانتظار ردك" : "لديك طلبات تعارف بانتظار ردك",
-      text: "الطلبات تنتهي بعد ٧ أيام من إرسالها.",
+      text: "الطلبات تنتهي بعد 7 أيام من إرسالها.",
       href: "/dashboard/matches",
       cta: "عرض الطلب",
       tone: "accent",
@@ -98,7 +98,7 @@ export function NextStepCard({ qualifies, pendingSuggestions, matchesCount, cred
       icon: Search,
       title: pendingSuggestions === null ? "جارٍ تجهيز اقتراحاتك…" : "نبحث لك عن اقتراحات مناسبة",
       text: newCycle
-        ? "تصلك حتى ٣ اقتراحات مجانية كل أسبوع، وسنرسل لك إشعاراً فور وصولها."
+        ? "تصلك حتى 3 اقتراحات مجانية كل أسبوع، وسنرسل لك إشعاراً فور وصولها."
         : "سنرسل لك إشعاراً فور وصول اقتراح جديد.",
       href: "/dashboard/suggestions",
       cta: "صفحة الاقتراحات",

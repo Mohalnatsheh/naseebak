@@ -41,7 +41,7 @@ interface QuizResult {
   retakeDate: string;
 }
 
-const scaleLabels = ["ما بوافق أبداً", "ما بوافق", "محايد", "بوافق", "بوافق بشدة"];
+const scaleLabels = ["لا أوافق إطلاقاً", "لا أوافق", "محايد", "أوافق", "أوافق بشدة"];
 
 const dimensionLabels: Record<string, string> = {
   extraversion: "الاجتماعية",
@@ -146,7 +146,7 @@ export default function PersonalityQuizPage() {
 
   async function handleSubmit() {
     if (answeredCount < questions.length) {
-      setError("لازم تجاوب على كل الأسئلة");
+      setError("يرجى الإجابة عن جميع الأسئلة");
       return;
     }
 
@@ -176,7 +176,7 @@ export default function PersonalityQuizPage() {
       }
       setShowQuiz(false);
     } catch {
-      setError("صار خطأ غير متوقع");
+      setError("حدث خطأ غير متوقع");
     } finally {
       setSubmitting(false);
     }
@@ -192,7 +192,7 @@ export default function PersonalityQuizPage() {
           </div>
           <div className="absolute inset-0 h-16 w-16 rounded-full bg-primary/10 animate-ping" />
         </div>
-        <p className="text-sm text-muted-foreground animate-pulse">عم نحمّل اختبار الشخصية...</p>
+        <p className="text-sm text-muted-foreground animate-pulse">جارٍ تحميل اختبار الشخصية...</p>
       </div>
     );
   }
@@ -200,7 +200,7 @@ export default function PersonalityQuizPage() {
   // --- Result Screen ---
   if (existingResult && !showQuiz) {
     const completedDate = new Date(existingResult.completedAt);
-    const formattedDate = completedDate.toLocaleDateString("ar-JO", {
+    const formattedDate = completedDate.toLocaleDateString("ar-JO-u-nu-latn", {
       year: "numeric",
       month: "long",
       day: "numeric",
@@ -306,7 +306,7 @@ export default function PersonalityQuizPage() {
         >
           <p className="text-sm text-muted-foreground inline-flex items-center gap-1.5">
             <Sparkles className="h-3.5 w-3.5 text-primary/50" />
-            هاي النتيجة بنستخدمها عشان نحسب نسبة التوافق مع المرشحين
+            نستخدم هذه النتيجة لحساب نسبة التوافق مع المرشحين
           </p>
         </div>
 
@@ -320,7 +320,7 @@ export default function PersonalityQuizPage() {
                   <User className="h-6 w-6 text-primary" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h3 className="text-sm font-bold text-foreground">شوف ملفك الشخصي</h3>
+                  <h3 className="text-sm font-bold text-foreground">اطّلع على ملفك الشخصي</h3>
                   <p className="text-xs text-muted-foreground mt-0.5">راجع ملفك الشخصي وأكمل ما ينقصه</p>
                 </div>
                 <Button asChild size="sm" className="bg-gradient-to-l from-primary to-secondary text-white rounded-xl font-semibold shadow-sm hover:shadow-md transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]">
@@ -356,7 +356,7 @@ export default function PersonalityQuizPage() {
                   </div>
                   <div className="flex-1 space-y-1">
                     <p className="text-sm text-muted-foreground">
-                      بتقدر تعيد الاختبار بعد
+                      يمكنك إعادة الاختبار بعد
                     </p>
                     <p className="text-2xl font-bold bg-gradient-to-l from-accent to-accent/80 bg-clip-text text-transparent">
                       {existingResult.daysRemaining} يوم
@@ -364,7 +364,7 @@ export default function PersonalityQuizPage() {
                     <p className="text-xs text-muted-foreground">
                       التاريخ المتاح:{" "}
                       <span className="font-medium text-foreground">
-                        {new Date(existingResult.retakeDate).toLocaleDateString("ar-JO", {
+                        {new Date(existingResult.retakeDate).toLocaleDateString("ar-JO-u-nu-latn", {
                           year: "numeric",
                           month: "long",
                           day: "numeric",
@@ -422,11 +422,11 @@ export default function PersonalityQuizPage() {
             </h1>
           </div>
           <p className="text-muted-foreground text-sm md:text-base">
-            جاوب على الأسئلة العشرين عشان نساعدك نلاقي أفضل توافق إلك.
+            أجب عن الأسئلة العشرين لنساعدك في إيجاد أفضل توافق لك.
           </p>
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-card/80 backdrop-blur-sm border border-border/50 text-xs text-muted-foreground">
             <Clock className="h-3 w-3 text-primary/60" />
-            <span>بياخذ تقريباً 5 دقائق</span>
+            <span>يستغرق نحو 5 دقائق</span>
           </div>
         </div>
       </div>

@@ -15,7 +15,8 @@ interface Report {
   reviewedAt: string | null;
   createdAt: string;
   reporter: { id: string; firstName: string; lastName: string };
-  reported: { id: string; firstName: string; lastName: string };
+  reported: { id: string; firstName: string; lastName: string; status: string };
+  reviewedBy: string | null;
   chat: {
     id: string;
     fromChat: boolean;
@@ -23,6 +24,7 @@ interface Report {
     createdAt: string;
     endedAt: string | null;
     endedByReporter: boolean;
+    endedByAdmin: boolean;
     messages: number;
   } | null;
 }
@@ -54,6 +56,10 @@ export default function AdminReportsPage() {
   const [reviewingId, setReviewingId] = useState<string | null>(null);
   const [adminNote, setAdminNote] = useState("");
   const [updating, setUpdating] = useState(false);
+  const [suspendReported, setSuspendReported] = useState(false);
+  const [endChat, setEndChat] = useState(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
 
   async function load() {
     setLoading(true);
@@ -61,11 +67,13 @@ export default function AdminReportsPage() {
       const params = new URLSearchParams({ page: String(page) });
       if (filter) params.set("status", filter);
       const res = await fetch(`/api/admin/reports?${params}`);
+      if (!res.ok) throw new Error(`reports ${res.status}`);
       const data = await res.json();
       setReports(data.reports || []);
       setPages(data.pages || 1);
     } catch (err) {
       console.error(err);
+      setError("Could not load reports.");
     } finally {
       setLoading(false);
     }
@@ -75,21 +83,35 @@ export default function AdminReportsPage() {
     load();
   }, [page, filter]);
 
+  function closeReview() {
+    setReviewingId(null);
+    setAdminNote("");
+    setSuspendReported(false);
+    setEndChat(false);
+  }
+
   async function handleReview(reportId: string, status: "REVIEWED" | "DISMISSED") {
+    if (suspendReported && !confirm("Suspend the reported user? Their active chats end and they can't use the site until unsuspended.")) return;
     setUpdating(true);
+    setError("");
+    setNotice("");
     try {
       const res = await fetch("/api/admin/reports", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reportId, status, adminNote }),
+        body: JSON.stringify({ reportId, status, adminNote, suspendReported, endChat }),
       });
+      const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        setReviewingId(null);
-        setAdminNote("");
+        closeReview();
+        if (data.actions?.length) setNotice(`Done: ${data.actions.join(", ")}.`);
         load();
+      } else {
+        setError(data.error || "Could not update the report.");
       }
     } catch (err) {
       console.error(err);
+      setError("Could not update the report.");
     } finally {
       setUpdating(false);
     }
@@ -104,6 +126,9 @@ export default function AdminReportsPage() {
         </h1>
         <p className="text-muted-foreground mt-1">Review user reports and take action</p>
       </div>
+
+      {error && <p className="text-sm text-destructive bg-destructive/10 rounded-md px-3 py-2">{error}</p>}
+      {notice && <p className="text-sm text-emerald-700 bg-emerald-50 rounded-md px-3 py-2">{notice}</p>}
 
       {/* Filters */}
       <div className="flex flex-wrap gap-2">
@@ -163,7 +188,10 @@ export default function AdminReportsPage() {
                       <span>Started {shortDate(report.chat.createdAt)}</span>
                       <span>Status {report.chat.status}</span>
                       {report.chat.endedAt && (
-                        <span>Ended {shortDate(report.chat.endedAt)} by {report.chat.endedByReporter ? "the reporter" : "the reported user"}</span>
+                        <span>
+                          Ended {shortDate(report.chat.endedAt)} by{" "}
+                          {report.chat.endedByAdmin ? "an admin" : report.chat.endedByReporter ? "the reporter" : "the reported user"}
+                        </span>
                       )}
                       <span>{report.chat.messages} messages</span>
                       <Link
@@ -176,6 +204,15 @@ export default function AdminReportsPage() {
                   )}
                   {report.details && (
                     <p className="text-sm text-muted-foreground bg-muted/50 rounded p-2 break-words">{report.details}</p>
+                  )}
+                  {report.reviewedAt && (
+                    <p className="text-xs text-muted-foreground">
+                      {report.status === "DISMISSED" ? "Dismissed" : "Reviewed"} {shortDate(report.reviewedAt)}
+                      {report.reviewedBy && <> by {report.reviewedBy}</>}
+                    </p>
+                  )}
+                  {report.reported.status === "SUSPENDED" && (
+                    <p className="text-xs font-medium text-destructive">The reported user is suspended.</p>
                   )}
                   {report.adminNote && (
                     <p className="text-sm text-primary bg-primary/5 rounded p-2 break-words">Admin: {report.adminNote}</p>
@@ -192,6 +229,24 @@ export default function AdminReportsPage() {
                             onChange={(e) => setAdminNote(e.target.value)}
                             rows={2}
                           />
+                          <div className="flex flex-col gap-1.5 text-sm">
+                            {report.reported.status !== "SUSPENDED" && (
+                              <label className="flex items-center gap-2">
+                                <input
+                                  type="checkbox"
+                                  checked={suspendReported}
+                                  onChange={(e) => setSuspendReported(e.target.checked)}
+                                />
+                                Suspend {report.reported.firstName} {report.reported.lastName}
+                              </label>
+                            )}
+                            {report.chat?.status === "ACTIVE" && (
+                              <label className="flex items-center gap-2">
+                                <input type="checkbox" checked={endChat} onChange={(e) => setEndChat(e.target.checked)} />
+                                End their chat (both are told; messages are not read)
+                              </label>
+                            )}
+                          </div>
                           <div className="flex flex-wrap gap-2">
                             <Button
                               size="sm"
@@ -211,7 +266,7 @@ export default function AdminReportsPage() {
                             <Button
                               size="sm"
                               variant="ghost"
-                              onClick={() => { setReviewingId(null); setAdminNote(""); }}
+                              onClick={closeReview}
                             >
                               Cancel
                             </Button>
@@ -221,7 +276,7 @@ export default function AdminReportsPage() {
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => setReviewingId(report.id)}
+                          onClick={() => { closeReview(); setReviewingId(report.id); }}
                         >
                           <Eye className="h-3 w-3 me-1" />
                           Review

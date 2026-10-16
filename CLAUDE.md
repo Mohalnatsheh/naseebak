@@ -6,7 +6,7 @@
 
 ## Project Overview
 
-**Naseebak (نصيبك)** — web-based traditional marriage facilitation platform for Jordan. **Not** a dating app — zero direct communication between users. AI-powered matching, admin-mediated family visit coordination, freemium suggestion model. Full spec in `SRS.md`. Production at **https://naseebak.com**.
+**Naseebak (نصيبك)** — web-based traditional marriage facilitation platform for Jordan. **Not** a dating app. Two flows behind admin switches: **legacy** (admin-arranged family visits, credits per suggestion, no user contact) and the **new cycle** (weekly free shared suggestions → mutual match → family introduction or a short filtered in-app chat; credits per request; no admin work). Full spec in `SRS.md`; new-cycle specs in `docs/superpowers/specs/`, QA notes in `docs/qa/`. Production at **https://naseebak.com**. Live site with real users: keep changes additive and switch-gated.
 
 ## Commands
 
@@ -22,6 +22,15 @@ pnpm db:studio        # Open Prisma Studio GUI
 
 After changing `prisma/schema.prisma`, run `pnpm db:push && pnpm db:generate`. Stale Prisma errors → `rm -rf .next && pnpm dev`.
 
+### Local development notes
+- Local DB: Postgres 17 via Homebrew (`brew services start postgresql@17`, database `naseeb`); `node prisma/seed.mjs` seeds users (test phones `0777000001` / `0777000002` / `0796922292` → OTP `111111`). `prisma/seed-blog.sql` is stale (missing `categoryId`).
+- Other phones: the OTP is still stored locally when SMS fails — read it with `psql -d naseeb -c "select code from otps where phone='9627…' order by \"createdAt\" desc limit 1"`.
+- Run the dev server on port 3000: `AUTH_URL` is `http://localhost:3000`, so sign-out on another port redirects there. If pnpm isn't 10.24 locally, use `npx pnpm@10.24.0 …`.
+- `pnpm lint` is broken (`next lint` was removed in Next 16; ESLint config also needs the missing `@eslint/eslintrc`) — rely on `./node_modules/.bin/tsc --noEmit` + `npx vitest run`.
+- Switches for local testing: `system_settings` keys `intro_requests_enabled`, `chat_enabled`, `new_suggestions_flow` (or Admin → Settings); 30s cache.
+- Tests mock the DB with `vi.hoisted()` + `vi.mock("@/lib/db")` (see `src/__tests__/intro/requests.test.ts`); mock `@/lib/settings` for switch-dependent code and `$transaction` as `fn => fn(db)`.
+- Parallel sessions sharing this checkout: stage files by path (never `git add -A`) and don't switch branches; prefer separate `git worktree`s.
+
 ## Technology Stack
 
 Next.js 16.1.6 (Turbopack), React 19, Node 22 | Tailwind CSS v4 (oklch) | PostgreSQL + Prisma 7.4 (`@prisma/adapter-pg`) | Ably (chat events) | NextAuth.js 5 (beta.30) | Zod v4 (`zod/v4` import) | shadcn/ui + lucide-react | Stripe Checkout (JOD) | OneSignal push | Vitest | pnpm 10.24
@@ -35,9 +44,11 @@ src/
 │   ├── (en)/admin/        # English LTR admin panel (14 pages)
 │   └── api/               # All API routes
 ├── components/{shared,ui}  # DashboardSidebar, AdminSidebar, Navbar, Footer + shadcn/ui
+├── components/{intro,chat,suggestions,landing,dashboard,admin}  # new-cycle UI (match intro panel, chat, shared suggestions, landing, next-step card, admin cards)
 ├── hooks/                  # use-auto-save, use-in-view
 ├── contexts/               # dashboard-context (shared profile + unread count)
-└── lib/                    # auth, db, stripe, onesignal, rate-limit, settings, matching/score, validations/, data/jordan-areas
+└── lib/                    # auth, db, stripe, onesignal, rate-limit, settings, matching/, validations/, data/jordan-areas,
+                            # intro/ (requests, match), chat/ (service, filter), suggestions/ (mutual, feed), admin/, notify, credits
 ```
 
 ## Critical Domain Rules
@@ -49,7 +60,7 @@ src/
 - **Identity verification removed for users** (Oct 2026): no `/dashboard/identity` page or `/api/identity/*` routes (`/dashboard/identity` redirects to `/dashboard`). Existing `IdentityDoc` data is kept; `VerifiedBadge` shows "موثّق" only for already-verified users and renders nothing otherwise. Admin Identity Review page stays for pending docs
 - **Short onboarding:** the setup wizard (and `profileSchema`) requires only birth date, nationality, city, education, marital status (+children if not single), religiosity, partner age range and the guardian step; everything else is optional ("(اختياري)")
 - **Option labels per gender** (`src/lib/profile-options.ts`): stored values never change (`"ملتزم"`, `"لا أدخن"`, `"مهندس"`); show `selfLabel()` for my own profile (feminine for women) and `describeOption()` / `partnerOptions()` when describing someone else (third person)
-- **50% profile completeness required** for suggestions (`SUGGESTIONS_MIN_COMPLETENESS` in `src/lib/profile-completeness.ts`, enforced with alert banners)
+- **Suggestion gate:** always use `meetsSuggestionGate(user, newCycle)` (server) / `qualifiesForSuggestions()` (client) from `src/lib/profile-completeness.ts` — new cycle: a finished short setup (`profile.isComplete`) is enough; legacy: ≥50% (`SUGGESTIONS_MIN_COMPLETENESS`). Matches are never gated (not even by the optional quiz)
 - **Parent/guardian data** visible to admin only — except name/relationship/phone shown to the other family after an **accepted family introduction**, and only if that user consented (`ParentInfo.shareConsentAt`)
 - **Credits, per-request mode (switch on):** suggestions are free (3 per rolling 7 days, `WEEKLY_FREE_SUGGESTIONS`); each family/chat request costs the sender 1 credit, never refunded; new users get 3 (`getRegistrationCredits()`). One-time top-up: `node scripts/new-cycle-migrate.mjs` right after turning the switch on
 - **Suggestion credits (legacy, switch off):** new users get 2 (`FREE_MATCH_CREDITS` in `src/lib/credits.ts`). Each suggestion received uses 1 credit (`reserveCredits`, atomic) — auto-suggest and admin Generate only create as many as the balance allows; admin hand-picked suggestions are free. At 0 the user gets a PAYMENT notification and a recharge alert (dashboard + suggestions page). Packages (3/5/10 suggestions) in `/dashboard/payments`
@@ -96,9 +107,9 @@ Dual auth: phone+OTP for users, email+password for admins. Providers in `src/lib
 - `Suggestion` uses `recipientId`/`candidateId` (mapped to `femaleId`/`maleId` DB columns via `@map`)
 - `MutualMatch` `femaleId`/`maleId` — assigned dynamically based on actual genders
 - `SystemSetting` — key-value store, read via `src/lib/settings.ts` (30s cache)
-- `ProfileUpdateRequest` — user profile edits require admin review (steps 1-4); step 5 guardian info saves directly
+- `ProfileUpdateRequest` — user profile edits require admin review (steps 1-4); step 5 guardian info saves directly and stays editable while a review is pending
 
-## Matching Workflow
+## Matching Workflow (legacy — switches off)
 
 ```
 Suggestion → recipient accepts/rejects (no photos) →
@@ -139,6 +150,7 @@ All list pages use server-side pagination. RTL chevron direction: `ChevronRight`
 - **Blog/FAQ filter bars:** Use `flex flex-wrap justify-center gap-2`, never `overflow-x-auto`
 - **Footer:** 4 columns. No newsletter section (intentionally removed)
 - **Navbar section links:** Use `Link href="/#features"` for homepage anchors
+- **Switch-aware public pages:** `src/app/(ar)/page.tsx` is a server component that reads `getCycleFlags()` and renders `src/components/landing/*` with copy from `content.ts`; FAQ answers come from `src/app/(ar)/faq/faq-data.ts` (`faqsFor()`), used by both the page and its JSON-LD. Never describe a feature that is switched off
 
 ## SMS (Broadnet)
 
@@ -170,13 +182,15 @@ Env vars: `BUNNY_STORAGE_API_KEY`, `BUNNY_STORAGE_ZONE` (`naseebak`), `BUNNY_STO
 
 **Deploy:** `ssh root@64.226.64.239 "/var/www/naseebak/deploy.sh"`
 
-**Git remote:** `git@gitlab.evokeyit.com:gitlab-instance-54ffc071/naseebak.git` (branch: `main`)
+**Git remote:** `git@gitlab.evokeyit.com:gitlab-instance-54ffc071/naseebak.git` (branch: `main`; local clones may only have the GitHub `origin` — add it as `gitlab`). New-cycle work lives on `feature/new-cycle`.
+
+Hosting is ambiguous: this section says DigitalOcean/PM2, but `next.config.ts` and the logs section mention Hostinger — confirm which is live before deploying. Deploy order for the new cycle: back up DB → deploy with switches off → `pnpm db:push` (additive) → turn switches on one at a time → run the credit top-up (Settings button or `node scripts/new-cycle-migrate.mjs`).
 
 **App path:** `/var/www/naseebak` | **Logs:** `/var/log/naseebak/`
 
 ## Matching Algorithm
 
-Weighted scoring in `src/lib/matching/score.ts`: Preference match (50%), Personality similarity (30% — cosine on 5D vectors, redistributed if no quiz), Profile quality (20%). Admin generate creates top-3 per user (score >= 30). **Automatic suggestions** (`src/lib/matching/auto-suggest.ts`): once a user is at ≥50% completeness with no pending suggestions, top-3 (score ≥ 30, opposite gender, excluding past suggestions/matches/blocks) are created on profile save and whenever `/api/suggestions` page 1 loads (dashboard + suggestions page). Concurrent calls share one run; an empty run retries after 30 min.
+Weighted scoring in `src/lib/matching/score.ts`: Preference match (50%), Personality similarity (30% — cosine on 5D vectors, redistributed if no quiz), Profile quality (20%). Admin generate creates top-3 per user (score >= 30). **Automatic suggestions** (`src/lib/matching/auto-suggest.ts`): once a user passes `meetsSuggestionGate` with no pending suggestions, top-3 (score ≥ 30, opposite gender, excluding past suggestions/matches/blocks) are created on profile save and whenever `/api/suggestions` page 1 loads (dashboard + suggestions page). Concurrent calls share one run; an empty run retries after 30 min.
 
 ## New User Cycle (switches on)
 
@@ -207,7 +221,11 @@ Always use `notify()` / `notifyMany()` from `src/lib/notify.ts`: stores the in-a
 
 ## Dashboard Data Context
 
-`DashboardDataProvider` in dashboard layout deduplicates API calls. Provides `profile`, `completeness`, `unreadCount`. Polls unread every 30s. Listens for `naseeb:notifications-read` custom DOM event for instant badge updates.
+`DashboardDataProvider` in dashboard layout deduplicates API calls. Provides `profile`, `completeness`, `unreadCount` and `counts` (`/api/me/counts`: switch flags, pending intro requests, unread chats, guardian consent). Polls every 30s. Listens for `naseeb:notifications-read` custom DOM event for instant badge updates.
+
+Dashboard home shows one `NextStepCard` (`src/components/dashboard/next-step-card.tsx`) plus one helper card at a time (guardian consent, else `InstallAppCard`). `OnboardingGuide` follows the switches, never covers `/dashboard/profile/setup`, and fires `naseeb:onboarding-done`; `PushPermissionPrompt` waits for it. iPhone web push only works when installed to the Home Screen — `InstallAppCard` handles install/guide.
+
+UI gotchas: profile setup drafts in localStorage are keyed to their owner (`useAutoSave` — never restore another user's draft); photos go through `compressImage()` (`src/lib/image-compress.ts`) before `/api/profile/photos` (5MB limit; `PATCH /api/profile/photos/[id]` sets the main photo); call `maybeAwardReferral()` (`src/lib/referral.ts`) after any save that raises completeness; login → register hands phone + OTP via `sessionStorage` (never in the URL); use `arabicCount()` for counted nouns and gender-aware copy (partner gender = opposite of the viewer's).
 
 ## Profile Completeness Weights
 
@@ -221,7 +239,7 @@ Always use `notify()` / `notifyMany()` from `src/lib/notify.ts`: stores the in-a
 
 ## Admin Panel
 
-14 pages at `/admin`, mobile-friendly (layout `main` has `min-w-0` so tables scroll inside their card; secondary table columns use `hidden md:table-cell`). Users list shows photo thumbnails + a Photos quick-view dialog. All use `"use client"`, `useState`+`useEffect`, admin auth check. Sidebar in `src/components/shared/admin-sidebar.tsx`. Profile request approval applies all field types (strings, ints, bools, arrays, dates).
+Pages at `/admin` (incl. new-cycle Matches, Chats, Introductions), mobile-friendly (layout `main` has `min-w-0` so tables scroll inside their card; secondary table columns use `hidden md:table-cell`). Users list shows photo thumbnails + a Photos quick-view dialog. All use `"use client"`, `useState`+`useEffect`, admin auth check. Sidebar in `src/components/shared/admin-sidebar.tsx`. Profile request approval applies all field types (strings, ints, bools, arrays, dates).
 
 **New-cycle admin views** (spec `docs/superpowers/specs/2026-10-16-admin-new-cycle-design.md`): with `intro_requests_enabled` on, the dashboard (`/api/admin/stats` → `cycle`) shows intro requests by type/status, active chats, credits spent on requests this week and a registered → introduction-accepted funnel; the sidebar groups Identity Review / Visit Requests / Profile Requests under a collapsed "Legacy" section (layout passes `legacyGrouped`). User page loads `GET /api/admin/users/[id]/cycle` (intro requests, chats with message **counts only**, credit history). Reports show "From chat" via `Report.conversationId` (set by `endConversation`). Lazily-expired rows: use `effectiveRequestStatus` / `effectiveConversationStatus` from `src/lib/admin/cycle-stats.ts`.
 

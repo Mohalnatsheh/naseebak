@@ -89,14 +89,14 @@ export async function POST() {
         // Skip if blocked
         if (blockPairs.has(`${user.id}:${c.id}`)) return false;
         if (mutual && (thisWeekByUser.get(c.id) ?? 0) >= WEEKLY_FREE_SUGGESTIONS) return false;
-        if (mutual && !mutuallyAcceptable(user as any, c as any)) return false;
+        if (mutual && !mutuallyAcceptable(user, c)) return false;
         return true;
       });
 
       // Score and sort
       const scored = candidates.map((c) => ({
         candidate: c,
-        score: calculateCompatibility(user as any, c as any),
+        score: calculateCompatibility(user, c),
       }));
       scored.sort((a, b) => b.score - a.score);
 

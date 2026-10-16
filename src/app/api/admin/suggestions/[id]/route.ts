@@ -9,7 +9,6 @@ export async function DELETE(
   try {
     const result = await requireAdmin();
     if ("error" in result) return result.error;
-    const { session } = result;
 
     const { id } = await params;
 

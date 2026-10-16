@@ -613,7 +613,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
               <StatItem label="Notifications" value={user._count.notifications} />
             </div>
             <p className="text-xs text-muted-foreground mt-3">
-              Legacy: "received" = suggested to this user, "suggested to others" = this user was shown to someone. Shared suggestions are seen by both people but counted once, under whichever side this user was stored on.
+              Legacy: &quot;received&quot; = suggested to this user, &quot;suggested to others&quot; = this user was shown to someone. Shared suggestions are seen by both people but counted once, under whichever side this user was stored on.
             </p>
           </CardContent>
         </Card>

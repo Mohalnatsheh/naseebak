@@ -7,7 +7,6 @@ export async function GET(request: Request) {
   try {
     const result = await requireAdmin();
     if ("error" in result) return result.error;
-    const { session } = result;
 
     const url = new URL(request.url);
     const { page, pageSize, skip } = parsePagination(url.searchParams, 20);

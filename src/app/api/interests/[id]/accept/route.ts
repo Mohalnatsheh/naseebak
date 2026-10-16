@@ -49,7 +49,7 @@ export async function POST(
     });
 
     // Determine femaleId/maleId from actual user genders for MutualMatch
-    const [currentUser, otherUser] = await Promise.all([
+    const [currentUser] = await Promise.all([
       db.user.findUnique({ where: { id: session.user.id }, select: { gender: true } }),
       db.user.findUnique({ where: { id: incomingLike.fromUserId }, select: { gender: true } }),
     ]);

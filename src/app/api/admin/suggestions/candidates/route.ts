@@ -9,7 +9,6 @@ export async function GET(request: Request) {
   try {
     const result = await requireAdmin();
     if ("error" in result) return result.error;
-    const { session } = result;
 
     const url = new URL(request.url);
     const userId = url.searchParams.get("userId");
@@ -107,8 +106,8 @@ export async function GET(request: Request) {
       .filter((c) => !blockedIds.has(c.id) && !matchedIds.has(c.id))
       .map((candidate) => {
         const breakdown = calculateCompatibilityDetailed(
-          targetUser as any,
-          candidate as any
+          targetUser,
+          candidate
         );
         return {
           user: {
@@ -139,7 +138,7 @@ export async function GET(request: Request) {
         lastName: targetUser.lastName,
         gender: targetUser.gender,
         profile: targetUser.profile
-          ? { city: (targetUser.profile as any).city }
+          ? { city: targetUser.profile.city }
           : null,
       },
       candidates: scored.slice(0, limit),

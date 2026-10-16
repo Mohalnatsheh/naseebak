@@ -52,7 +52,7 @@ import { Badge } from "@/components/ui/badge";
 import { ImageLightbox } from "@/components/shared/image-lightbox";
 import { MatchIntroPanel } from "@/components/intro/match-intro-panel";
 import { PersonCard, type PersonCardTone } from "@/components/shared/person-card";
-import { describeOption, oppositeGender } from "@/lib/profile-options";
+import { describeOption } from "@/lib/profile-options";
 import { useDashboardData } from "@/contexts/dashboard-context";
 
 interface Match {

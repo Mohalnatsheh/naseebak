@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   Loader2,
@@ -89,7 +88,6 @@ const dimensionKeys = ["extraversion", "conscientiousness", "agreeableness", "ne
 const QUESTIONS_PER_PAGE = 4;
 
 export default function PersonalityQuizPage() {
-  const router = useRouter();
   const [questions, setQuestions] = useState<Question[]>([]);
   const [answers, setAnswers] = useState<Record<string, number>>({});
   const [existingResult, setExistingResult] = useState<QuizResult | null>(null);

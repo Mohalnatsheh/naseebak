@@ -9,7 +9,6 @@ export async function GET() {
   try {
     const result = await requireAdmin();
     if ("error" in result) return result.error;
-    const { session } = result;
 
     const gtmId = await getSetting("gtm_id");
     const fbPixelId = await getSetting("fb_pixel_id");
@@ -24,7 +23,6 @@ export async function PATCH(request: Request) {
   try {
     const result = await requireAdmin();
     if ("error" in result) return result.error;
-    const { session } = result;
 
     const body = await request.json();
 

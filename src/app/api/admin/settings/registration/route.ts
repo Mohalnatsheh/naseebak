@@ -6,7 +6,6 @@ export async function GET() {
   try {
     const result = await requireAdmin();
     if ("error" in result) return result.error;
-    const { session } = result;
 
     const value = await getSetting("registration_open");
     return NextResponse.json({ registrationOpen: value === "true" });
@@ -20,7 +19,6 @@ export async function PATCH(request: Request) {
   try {
     const result = await requireAdmin();
     if ("error" in result) return result.error;
-    const { session } = result;
 
     const body = await request.json();
     if (typeof body.registrationOpen !== "boolean") {

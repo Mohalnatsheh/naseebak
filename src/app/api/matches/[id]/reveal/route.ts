@@ -5,7 +5,6 @@ export async function POST() {
   try {
     const result = await requireUser();
     if ("error" in result) return result.error;
-    const { session } = result;
 
     return NextResponse.json({ message: "تم الكشف مسبقاً", revealed: true });
   } catch (error) {

@@ -119,8 +119,6 @@ export default function AdminIdentityPage() {
     }
   }
 
-  const pendingCount = tab === "pending" ? docs.length : 0;
-
   return (
     <div className="space-y-6">
       <div>

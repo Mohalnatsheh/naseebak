@@ -4,6 +4,8 @@ import {
   checkPreferenceMatch,
   profileQualityScore,
   calculateCompatibility,
+  type ProfileForScoring,
+  type UserForScoring,
 } from "@/lib/matching/score";
 
 describe("cosineSimilarity", () => {
@@ -163,7 +165,16 @@ describe("profileQualityScore", () => {
 });
 
 describe("calculateCompatibility", () => {
-  const makeUser = (overrides: any = {}) => ({
+  interface UserOverrides {
+    id?: string;
+    gender?: string;
+    profile?: Partial<ProfileForScoring> | null;
+    personalityResult?: UserForScoring["personalityResult"];
+    photos?: UserForScoring["photos"];
+    identityDoc?: UserForScoring["identityDoc"];
+  }
+
+  const makeUser = (overrides: UserOverrides = {}): UserForScoring => ({
     id: overrides.id || "1",
     gender: overrides.gender || "MALE",
     profile: {
@@ -192,7 +203,7 @@ describe("calculateCompatibility", () => {
     const userA = makeUser({ profile: null });
     const userB = makeUser({ id: "2", gender: "FEMALE" });
     // Need to set profile to null properly
-    userA.profile = null as any;
+    userA.profile = null;
     expect(calculateCompatibility(userA, userB)).toBe(0);
   });
 

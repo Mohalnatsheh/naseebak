@@ -26,7 +26,10 @@ After changing `prisma/schema.prisma`, run `pnpm db:push && pnpm db:generate`. S
 - Local DB: Postgres 17 via Homebrew (`brew services start postgresql@17`, database `naseeb`); `node prisma/seed.mjs` seeds users (test phones `0777000001` / `0777000002` / `0796922292` → OTP `111111`). `prisma/seed-blog.sql` is stale (missing `categoryId`).
 - Other phones: the OTP is still stored locally when SMS fails — read it with `psql -d naseeb -c "select code from otps where phone='9627…' order by \"createdAt\" desc limit 1"`.
 - Run the dev server on port 3000: `AUTH_URL` is `http://localhost:3000`, so sign-out on another port redirects there. If pnpm isn't 10.24 locally, use `npx pnpm@10.24.0 …`.
-- `pnpm lint` is broken (`next lint` was removed in Next 16; ESLint config also needs the missing `@eslint/eslintrc`) — rely on `./node_modules/.bin/tsc --noEmit` + `npx vitest run`.
+- `pnpm lint` = `eslint .` (flat config; React Compiler rules are warnings). 0 errors expected; also run `tsc --noEmit` + `npx vitest run`.
+- Docker: `docker compose up -d --build` → http://localhost:3001 (app + Postgres 17, reads `.env`, seeds once, turns the 3 new-cycle switches on, runs the credit top-up). `docker compose down -v` resets the DB.
+- Digits: Western (0-9) everywhere; format dates with `"ar-JO-u-nu-latn"`.
+- Admin enum labels: `src/lib/admin/enum-labels.ts` (English). Suggestion & match cards share `src/components/shared/person-card.tsx`.
 - Switches for local testing: `system_settings` keys `intro_requests_enabled`, `chat_enabled`, `new_suggestions_flow` (or Admin → Settings); 30s cache.
 - Tests mock the DB with `vi.hoisted()` + `vi.mock("@/lib/db")` (see `src/__tests__/intro/requests.test.ts`); mock `@/lib/settings` for switch-dependent code and `$transaction` as `fn => fn(db)`.
 - Parallel sessions sharing this checkout: stage files by path (never `git add -A`) and don't switch branches; prefer separate `git worktree`s.

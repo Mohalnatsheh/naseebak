@@ -7,7 +7,6 @@ export async function GET() {
   try {
     const result = await requireAdmin();
     if ("error" in result) return result.error;
-    const { session } = result;
 
     const admins = await db.user.findMany({
       where: { role: "ADMIN" },
@@ -32,7 +31,6 @@ export async function POST(request: Request) {
   try {
     const result = await requireAdmin();
     if ("error" in result) return result.error;
-    const { session } = result;
 
     const body = await request.json();
     const { firstName, lastName, email, password } = body;

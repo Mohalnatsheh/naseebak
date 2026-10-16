@@ -4,15 +4,9 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   Loader2,
-  User,
   Sparkles,
   Heart,
-  Bell,
   Shield,
-  Brain,
-  CreditCard,
-  ChevronLeft,
-  TrendingUp,
   Clock,
   Star,
   CheckCircle2,
@@ -26,7 +20,7 @@ import { arabicCount } from "@/lib/utils";
 import { GuardianConsentCard } from "@/components/intro/guardian-consent-card";
 import { NextStepCard } from "@/components/dashboard/next-step-card";
 import { InstallAppCard } from "@/components/shared/install-app-card";
-import { SUGGESTIONS_MIN_COMPLETENESS, qualifiesForSuggestions as qualifiesForSuggestionsGate } from "@/lib/profile-completeness";
+import { qualifiesForSuggestions as qualifiesForSuggestionsGate } from "@/lib/profile-completeness";
 
 /* ------------------------------------------------------------------ */
 /*  Arabic date formatter                                              */
@@ -60,63 +54,6 @@ function getArabicDate() {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Profile completion ring (SVG circle)                               */
-/* ------------------------------------------------------------------ */
-function CompletionRing({
-  percentage,
-  size = 80,
-}: {
-  percentage: number;
-  size?: number;
-}) {
-  const strokeWidth = 6;
-  const radius = (size - strokeWidth) / 2;
-  const circumference = 2 * Math.PI * radius;
-  const offset = circumference - (percentage / 100) * circumference;
-
-  return (
-    <div className="relative" style={{ width: size, height: size }}>
-      <svg width={size} height={size} className="-rotate-90">
-        {/* Background circle */}
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={strokeWidth}
-          className="text-muted/50"
-        />
-        {/* Progress circle */}
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          fill="none"
-          stroke="url(#ring-gradient)"
-          strokeWidth={strokeWidth}
-          strokeLinecap="round"
-          strokeDasharray={circumference}
-          strokeDashoffset={offset}
-          className="transition-all duration-1000 ease-out"
-        />
-        <defs>
-          <linearGradient id="ring-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="oklch(0.39 0.07 249)" />
-            <stop offset="100%" stopColor="oklch(0.69 0.10 74)" />
-          </linearGradient>
-        </defs>
-      </svg>
-      <div className="absolute inset-0 flex items-center justify-center">
-        <span className="text-lg font-extrabold text-foreground">
-          {percentage}%
-        </span>
-      </div>
-    </div>
-  );
-}
-
-/* ------------------------------------------------------------------ */
 /*  Greeting by time of day                                            */
 /* ------------------------------------------------------------------ */
 function getGreeting() {
@@ -130,7 +67,7 @@ function getGreeting() {
 /*  Main Component                                                    */
 /* ================================================================== */
 export default function DashboardPage() {
-  const { profile, completeness, unreadCount, counts, loading } = useDashboardData();
+  const { profile, completeness, counts, loading } = useDashboardData();
   // New cycle: suggestions are free, so "out of credits" no longer blocks suggestions
   const creditsBlockSuggestions = !counts.flags.introRequests;
   const [mounted, setMounted] = useState(false);
@@ -307,7 +244,7 @@ export default function DashboardPage() {
           {completeness?.tips && completeness.tips.length > 0 && (
             <div className="space-y-2">
               <p className="text-xs font-semibold text-muted-foreground mb-2">نصائح لتحسين ملفك:</p>
-              {completeness.tips.map((tip: any) => (
+              {completeness.tips.map((tip) => (
                 <Link key={tip.sectionKey} href={tip.link} className="block">
                   <div className="flex items-center gap-3 p-2.5 rounded-xl border border-primary/10 bg-primary/[0.03] hover:bg-primary/[0.06] transition-colors">
                     <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 shrink-0">
@@ -329,7 +266,7 @@ export default function DashboardPage() {
           {/* Section progress bars — only when not 100% */}
           {completionPercent < 100 && (
             <div className="space-y-2 mt-4">
-              {(completeness?.sections ?? []).map((section: any) => (
+              {(completeness?.sections ?? []).map((section) => (
                 <Link key={section.key} href={section.link} className="block">
                   <div className={`flex items-center gap-3 p-2.5 rounded-xl border transition-colors ${
                     section.percentage === 100

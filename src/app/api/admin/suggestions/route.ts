@@ -13,7 +13,6 @@ export async function GET(request: Request) {
   try {
     const result = await requireAdmin();
     if ("error" in result) return result.error;
-    const { session } = result;
 
     const url = new URL(request.url);
     const { page, pageSize, skip } = parsePagination(url.searchParams, 20);
@@ -111,7 +110,7 @@ export async function POST(request: Request) {
         db.user.findUnique({ where: { id: candidateId }, select: scoringSelect }),
       ]);
       try {
-        score = userA && userB ? calculateCompatibility(userA as any, userB as any) : undefined;
+        score = userA && userB ? calculateCompatibility(userA, userB) : undefined;
       } catch (error) {
         console.error("Admin suggestion scoring failed:", error);
       }

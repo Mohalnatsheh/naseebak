@@ -11,7 +11,6 @@ import {
   Trash2,
   Bell,
   ArrowLeft,
-  Sparkles,
   Users,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";

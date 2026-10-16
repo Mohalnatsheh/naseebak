@@ -457,7 +457,7 @@ async function main() {
   ];
 
   // Track suggestions by [femaleIdx][maleIdx]
-  const suggestions: any[][] = [];
+  const suggestions: { id: string }[][] = [];
   for (let fi = 0; fi < createdFemales.length; fi++) {
     suggestions[fi] = [];
     for (let mi = 0; mi < createdMales.length; mi++) {
@@ -502,7 +502,7 @@ async function main() {
     create: { fromUserId: omar.id, toUserId: sara.id, suggestionId: suggestions[0][0].id, isLiked: true },
   });
 
-  const match1 = await db.mutualMatch.upsert({
+  await db.mutualMatch.upsert({
     where: { femaleId_maleId: { femaleId: sara.id, maleId: omar.id } },
     update: {},
     create: {
@@ -544,7 +544,7 @@ async function main() {
     create: { fromUserId: ahmad.id, toUserId: noor.id, suggestionId: suggestions[1][1].id, isLiked: true },
   });
 
-  const match2 = await db.mutualMatch.upsert({
+  await db.mutualMatch.upsert({
     where: { femaleId_maleId: { femaleId: noor.id, maleId: ahmad.id } },
     update: {},
     create: {

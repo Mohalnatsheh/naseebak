@@ -5,9 +5,8 @@ import Link from "next/link";
 import { Navbar } from "@/components/shared/navbar";
 import { Footer } from "@/components/shared/footer";
 import { useInView } from "@/hooks/use-in-view";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Sparkles, ChevronDown, MessageCircle, Shield, CreditCard, Users, HelpCircle } from "lucide-react";
+import { ChevronDown, MessageCircle, Shield, CreditCard, Users, HelpCircle } from "lucide-react";
 import { faqsFor } from "./faq-data";
 
 /* ──────────────────── DATA ──────────────────── */

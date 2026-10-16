@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import {
   Sparkles, Loader2, Zap, Trash2, ChevronLeft, ChevronRight,
   Search, ArrowRight, ArrowLeft, ChevronDown, ChevronUp,
-  Check, X, UserRound, Plus, ShieldCheck,
+  Check, X, UserRound, Plus, 
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";

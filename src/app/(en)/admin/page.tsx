@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import {
-  Users, UserCheck, Heart, Sparkles, ShieldCheck, CreditCard,
+  Users, UserCheck, Heart, Sparkles, ShieldCheck, 
   TrendingUp, Clock, DollarSign, Flag, ClipboardEdit,
   ArrowUpRight, ArrowDownRight, LifeBuoy, HeartHandshake, MessagesSquare, Coins,
 } from "lucide-react";
@@ -408,7 +408,7 @@ function NewCycleSection({ cycle }: { cycle: CycleStats }) {
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">Funnel</CardTitle>
-          <p className="text-sm text-muted-foreground">All-time, members only (no admins). "Profile ready" = finished the setup, the same gate as suggestions. Share of registered.</p>
+          <p className="text-sm text-muted-foreground">All-time, members only (no admins). &quot;Profile ready&quot; = finished the setup, the same gate as suggestions. Share of registered.</p>
         </CardHeader>
         <CardContent className="space-y-3">
           {cycle.funnel.map((step) => (

@@ -527,7 +527,7 @@ async function main() {
   });
 
   // MutualMatch + VisitRequest
-  const match1 = await db.mutualMatch.upsert({
+  await db.mutualMatch.upsert({
     where: { femaleId_maleId: { femaleId: sara.id, maleId: omar.id } },
     update: {},
     create: {
@@ -570,7 +570,7 @@ async function main() {
     create: { fromUserId: ahmad.id, toUserId: noor.id, suggestionId: suggestions[1][1].id, isLiked: true },
   });
 
-  const match2 = await db.mutualMatch.upsert({
+  await db.mutualMatch.upsert({
     where: { femaleId_maleId: { femaleId: noor.id, maleId: ahmad.id } },
     update: {},
     create: {

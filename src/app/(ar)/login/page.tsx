@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
 import Image from "next/image";
-import { LogIn, Loader2, Shield, HeartHandshake, Sparkles, Phone, Send, Info } from "lucide-react";
+import { LogIn, Loader2, Shield, HeartHandshake, Sparkles, Send, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";

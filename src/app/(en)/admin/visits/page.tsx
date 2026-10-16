@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { CalendarHeart, Loader2, Phone, MapPin, Save, MessageSquare, Star, ChevronDown, ChevronUp } from "lucide-react";
+import { CalendarHeart, Loader2, Phone, Save, MessageSquare, Star, ChevronDown, ChevronUp } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";

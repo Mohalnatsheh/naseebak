@@ -9,7 +9,6 @@ export async function GET(req: NextRequest) {
   try {
     const result = await requireAdmin();
     if ("error" in result) return result.error;
-    const { session } = result;
 
     const { searchParams } = req.nextUrl;
     const { page, pageSize, skip } = parsePagination(searchParams, 10);

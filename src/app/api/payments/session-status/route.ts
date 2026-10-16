@@ -6,7 +6,6 @@ export async function GET(request: Request) {
   try {
     const result = await requireUser();
     if ("error" in result) return result.error;
-    const { session } = result;
 
     const { searchParams } = new URL(request.url);
     const sessionId = searchParams.get("session_id");

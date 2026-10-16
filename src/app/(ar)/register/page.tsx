@@ -11,7 +11,6 @@ import {
   Loader2,
   ArrowLeft,
   ArrowRight,
-  Phone,
   Check,
   Shield,
   Camera,

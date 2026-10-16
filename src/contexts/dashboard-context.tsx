@@ -1,6 +1,34 @@
 "use client";
 
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
+import type { CompletenessResult } from "@/lib/profile-completeness";
+
+/** The signed-in user as returned (JSON-serialised) by GET /api/profile */
+export interface DashboardProfile {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  gender: string;
+  status: string;
+  isVerified: boolean;
+  isDeactivated: boolean;
+  matchCredits: number;
+  createdAt: string;
+  profile: ({ isComplete?: boolean } & Record<string, unknown>) | null;
+  personalityResult: { personalityType: string | null; createdAt: string; updatedAt: string } | null;
+  parentInfo: {
+    id: string;
+    parentName: string;
+    relationship: string;
+    address: string | null;
+    shareConsentAt: string | null;
+  } | null;
+  identityDoc: { status: string } | null;
+  photos: { id: string; url: string; order: number; isPrimary: boolean }[];
+  _count: { receivedSuggestions: number; matchesAsFemale: number; matchesAsMale: number };
+}
 
 /** New-cycle badges from /api/me/counts */
 export interface CycleCounts {
@@ -22,8 +50,8 @@ const EMPTY_COUNTS: CycleCounts = {
 };
 
 interface DashboardData {
-  profile: any;
-  completeness: any;
+  profile: DashboardProfile | null;
+  completeness: CompletenessResult | null;
   unreadCount: number;
   counts: CycleCounts;
   loading: boolean;
@@ -46,8 +74,8 @@ export function useDashboardData() {
 }
 
 export function DashboardDataProvider({ children }: { children: ReactNode }) {
-  const [profile, setProfile] = useState<any>(null);
-  const [completeness, setCompleteness] = useState<any>(null);
+  const [profile, setProfile] = useState<DashboardProfile | null>(null);
+  const [completeness, setCompleteness] = useState<CompletenessResult | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
   const [counts, setCounts] = useState<CycleCounts>(EMPTY_COUNTS);
   const [loading, setLoading] = useState(true);

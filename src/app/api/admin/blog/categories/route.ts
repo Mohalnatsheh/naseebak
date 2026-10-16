@@ -8,7 +8,6 @@ export async function GET() {
   try {
     const result = await requireAdmin();
     if ("error" in result) return result.error;
-    const { session } = result;
 
     const categories = await db.blogCategory.findMany({
       include: {
@@ -31,7 +30,6 @@ export async function POST(req: NextRequest) {
   try {
     const result = await requireAdmin();
     if ("error" in result) return result.error;
-    const { session } = result;
 
     const body = await req.json();
     const parsed = createCategorySchema.safeParse(body);

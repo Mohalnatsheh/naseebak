@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useDashboardData } from "@/contexts/dashboard-context";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   Loader2,
@@ -190,7 +189,6 @@ function arraysEqual(a: string[], b: string[]): boolean {
 }
 
 export default function ProfileEditPage() {
-  const router = useRouter();
   const [step, setStep] = useState(1);
   const introMode = useDashboardData().counts.flags.introRequests;
   const [reviewSent, setReviewSent] = useState(false);

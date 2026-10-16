@@ -3,7 +3,6 @@ import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { profileSchema } from "@/lib/validations/profile";
 import { calculateCompleteness } from "@/lib/profile-completeness";
-import { createNotificationIfAllowed } from "@/lib/notification-helper";
 import { autoSuggestForUser } from "@/lib/matching/auto-suggest";
 import { maybeAwardReferral } from "@/lib/referral";
 

@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { calculateCompatibilityDetailed } from "@/lib/matching/score";
+import { meetsSuggestionGate } from "@/lib/profile-completeness";
+import { getCycleFlags } from "@/lib/settings";
 
 export async function GET(request: Request) {
   try {
@@ -11,7 +13,7 @@ export async function GET(request: Request) {
 
     const url = new URL(request.url);
     const userId = url.searchParams.get("userId");
-    const limit = parseInt(url.searchParams.get("limit") || "10");
+    const limit = Math.min(50, Math.max(1, parseInt(url.searchParams.get("limit") || "10") || 10));
 
     if (!userId) {
       return NextResponse.json({ error: "userId is required" }, { status: 400 });
@@ -38,33 +40,30 @@ export async function GET(request: Request) {
 
     // Fetch eligible opposite-gender users
     const oppositeGender = targetUser.gender === "MALE" ? "FEMALE" : "MALE";
-    const eligibleUsers = await db.user.findMany({
-      where: {
-        role: "USER",
-        isDeactivated: false,
-        gender: oppositeGender,
-        profile: { isComplete: true },
-      },
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        gender: true,
-        profile: {
-          select: {
-            city: true,
-            education: true,
-            maritalStatus: true,
-            religiosity: true,
-            smokingStatus: true,
-            dateOfBirth: true,
-          },
+    // Same gate as auto-suggest and Generate; suspended users are never candidates
+    const { introRequests } = await getCycleFlags();
+    const eligibleUsers = (
+      await db.user.findMany({
+        where: {
+          role: "USER",
+          isDeactivated: false,
+          status: { not: "SUSPENDED" },
+          gender: oppositeGender,
+          profile: { isComplete: true },
         },
-        personalityResult: { select: { vector: true } },
-        photos: { select: { id: true } },
-        identityDoc: { select: { status: true } },
-      },
-    });
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          gender: true,
+          profile: true,
+          personalityResult: { select: { vector: true, personalityType: true } },
+          photos: { select: { id: true } },
+          identityDoc: { select: { status: true } },
+          parentInfo: { select: { id: true, parentName: true } },
+        },
+      })
+    ).filter((u) => meetsSuggestionGate(u, introRequests));
 
     // Build exclusion awareness sets
     const [existingSuggestions, existingMatches, blocks] = await Promise.all([

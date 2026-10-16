@@ -5,7 +5,7 @@ import { calculateCompatibility, mutuallyAcceptable } from "@/lib/matching/score
 import { weeklyCounts } from "@/lib/matching/auto-suggest";
 import { notify } from "@/lib/notify";
 import { MUTUAL_SUGGESTION_MS } from "@/lib/suggestions/mutual";
-import { sendPushNotification } from "@/lib/onesignal";
+import { meetsSuggestionGate } from "@/lib/profile-completeness";
 import { notifyCreditsExhausted, recordCredit, reserveCredits, WEEKLY_FREE_SUGGESTIONS } from "@/lib/credits";
 import { getCycleFlags } from "@/lib/settings";
 
@@ -15,23 +15,30 @@ export async function POST() {
     if ("error" in result) return result.error;
     const { session } = result;
 
-    // Find eligible users: complete profile, not deactivated (identity verification is optional)
-    const eligibleUsers = await db.user.findMany({
-      where: {
-        role: "USER",
-        isDeactivated: false,
-        profile: { isComplete: true },
-      },
-      select: {
-        id: true,
-        gender: true,
-        matchCredits: true,
-        profile: true,
-        personalityResult: { select: { vector: true } },
-        photos: { select: { id: true } },
-        identityDoc: { select: { status: true } },
-      },
-    });
+    const { introRequests: perRequestCredits, mutualSuggestions: mutual } = await getCycleFlags();
+
+    // Eligible: active users who pass the same suggestion gate as auto-suggest
+    // (new cycle: completed short setup; legacy: ≥ 50% completeness)
+    const eligibleUsers = (
+      await db.user.findMany({
+        where: {
+          role: "USER",
+          isDeactivated: false,
+          status: { not: "SUSPENDED" },
+          profile: { isComplete: true },
+        },
+        select: {
+          id: true,
+          gender: true,
+          matchCredits: true,
+          profile: true,
+          personalityResult: { select: { vector: true, personalityType: true } },
+          photos: { select: { id: true } },
+          identityDoc: { select: { status: true } },
+          parentInfo: { select: { id: true, parentName: true } },
+        },
+      })
+    ).filter((u) => meetsSuggestionGate(u, perRequestCredits));
 
     // Get existing suggestions and matches to avoid duplicates
     const existingSuggestions = await db.suggestion.findMany({
@@ -61,7 +68,6 @@ export async function POST() {
 
     // Per-request mode: suggestions are free, capped per rolling 7 days
     // Simultaneous flow: MUTUAL rows (both decide), counted on either side, dealbreakers as hard filters
-    const { introRequests: perRequestCredits, mutualSuggestions: mutual } = await getCycleFlags();
     const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
     const thisWeek = perRequestCredits && !mutual
       ? await db.suggestion.groupBy({ by: ["recipientId"], where: { createdAt: { gte: weekAgo } }, _count: true })
@@ -136,18 +142,9 @@ export async function POST() {
           continue;
         }
 
-        // Notify the recipient
-        await db.notification.create({
-          data: {
-            userId: user.id,
-            type: "SUGGESTION",
-            title: "اقتراح توافق جديد",
-            body: "لديك اقتراح توافق جديد. قم بمراجعته.",
-          },
-        });
-
-        sendPushNotification({
+        await notify({
           userId: user.id,
+          type: "SUGGESTION",
           title: "اقتراح توافق جديد",
           body: "لديك اقتراح توافق جديد. قم بمراجعته.",
           url: "/dashboard/suggestions",

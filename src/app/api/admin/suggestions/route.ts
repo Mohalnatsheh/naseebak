@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { sendPushNotification } from "@/lib/onesignal";
 import { calculateCompatibility } from "@/lib/matching/score";
 import { parsePagination } from "@/lib/utils";
 import { getCycleFlags } from "@/lib/settings";
 import type { Prisma } from "@prisma/client";
 import { notifyMany } from "@/lib/notify";
 import { MUTUAL_SUGGESTION_MS } from "@/lib/suggestions/mutual";
+import { checkSuggestionPair } from "@/lib/admin/suggestion-pair";
 
 export async function GET(request: Request) {
   try {
@@ -17,7 +17,8 @@ export async function GET(request: Request) {
 
     const url = new URL(request.url);
     const { page, pageSize, skip } = parsePagination(url.searchParams, 20);
-    const status = url.searchParams.get("status") || "";
+    const rawStatus = url.searchParams.get("status") || "";
+    const status = ["PENDING", "ACCEPTED", "REJECTED", "EXPIRED"].includes(rawStatus) ? rawStatus : "";
 
     // Shared (MUTUAL) suggestions expire lazily: a PENDING row past expiresAt is shown as EXPIRED
     const now = new Date();
@@ -71,48 +72,54 @@ export async function GET(request: Request) {
   }
 }
 
+const scoringSelect = {
+  id: true,
+  gender: true,
+  profile: true,
+  personalityResult: { select: { vector: true } },
+  photos: { select: { id: true } },
+  identityDoc: { select: { status: true } },
+} as const;
+
+/** Admin hand-picked suggestion. Free in every mode; refused for pairs that could never be suggested. */
 export async function POST(request: Request) {
   try {
     const result = await requireAdmin();
     if ("error" in result) return result.error;
-    const { session } = result;
 
-    const body = await request.json();
-    const { recipientId, candidateId, compatibilityScore: manualScore } = body;
+    const body = await request.json().catch(() => ({}));
+    const { recipientId, candidateId, compatibilityScore: manualScore } = body as {
+      recipientId?: string;
+      candidateId?: string;
+      compatibilityScore?: number;
+    };
 
     if (!recipientId || !candidateId) {
-      return NextResponse.json({ error: "كلا المستخدمين مطلوبان" }, { status: 400 });
+      return NextResponse.json({ error: "Pick both people" }, { status: 400 });
+    }
+    if (manualScore != null && (typeof manualScore !== "number" || manualScore < 0 || manualScore > 100)) {
+      return NextResponse.json({ error: "Score must be between 0 and 100" }, { status: 400 });
     }
 
-    // Auto-compute score if not manually specified
-    let computedScore = manualScore;
-    if (!computedScore) {
+    const refused = await checkSuggestionPair(recipientId, candidateId);
+    if (refused) return NextResponse.json({ error: refused.error }, { status: refused.status });
+
+    let score = manualScore;
+    if (score == null) {
+      const [userA, userB] = await Promise.all([
+        db.user.findUnique({ where: { id: recipientId }, select: scoringSelect }),
+        db.user.findUnique({ where: { id: candidateId }, select: scoringSelect }),
+      ]);
       try {
-        const [userA, userB] = await Promise.all([
-          db.user.findUnique({
-            where: { id: recipientId },
-            select: {
-              id: true, gender: true, profile: true,
-              personalityResult: { select: { vector: true } },
-              photos: { select: { id: true } },
-              identityDoc: { select: { status: true } },
-            },
-          }),
-          db.user.findUnique({
-            where: { id: candidateId },
-            select: {
-              id: true, gender: true, profile: true,
-              personalityResult: { select: { vector: true } },
-              photos: { select: { id: true } },
-              identityDoc: { select: { status: true } },
-            },
-          }),
-        ]);
-        if (userA && userB) {
-          computedScore = calculateCompatibility(userA as any, userB as any);
-        }
-      } catch {
-        // Fall back to default
+        score = userA && userB ? calculateCompatibility(userA as any, userB as any) : undefined;
+      } catch (error) {
+        console.error("Admin suggestion scoring failed:", error);
+      }
+      if (score == null || Number.isNaN(score)) {
+        return NextResponse.json(
+          { error: "Could not calculate the compatibility score — check both profiles, or enter a score" },
+          { status: 422 }
+        );
       }
     }
 
@@ -122,42 +129,21 @@ export async function POST(request: Request) {
       data: {
         recipientId,
         candidateId,
-        compatibilityScore: computedScore || 85,
+        compatibilityScore: score,
         source: "ADMIN",
         ...(mutualSuggestions && { flow: "MUTUAL" as const, expiresAt: new Date(Date.now() + MUTUAL_SUGGESTION_MS) }),
       },
     });
-    if (mutualSuggestions) {
-      await notifyMany([recipientId, candidateId], {
-        type: "SUGGESTION",
-        title: "اقتراح جديد من الإدارة",
-        body: "لديك اقتراح توافق جديد من فريق نصيبك. قم بمراجعته.",
-        url: "/dashboard/suggestions",
-      });
-      return NextResponse.json({ message: "تم إنشاء الاقتراح", suggestion });
-    }
-
-    // Notify the recipient
-    await db.notification.create({
-      data: {
-        userId: recipientId,
-        type: "SUGGESTION",
-        title: "اقتراح جديد من الإدارة",
-        body: "لديك اقتراح توافق جديد من فريق نصيبك. قم بمراجعته.",
-      },
-    });
-
-    // Push notification
-    sendPushNotification({
-      userId: recipientId,
+    await notifyMany(mutualSuggestions ? [recipientId, candidateId] : [recipientId], {
+      type: "SUGGESTION",
       title: "اقتراح جديد من الإدارة",
       body: "لديك اقتراح توافق جديد من فريق نصيبك. قم بمراجعته.",
       url: "/dashboard/suggestions",
     });
 
-    return NextResponse.json({ message: "تم إنشاء الاقتراح", suggestion });
+    return NextResponse.json({ message: "Suggestion created", suggestion });
   } catch (error) {
     console.error("Admin suggestion error:", error);
-    return NextResponse.json({ error: "حدث خطأ في الخادم" }, { status: 500 });
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }

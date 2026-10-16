@@ -199,6 +199,7 @@ export default function AdminSuggestionsPage() {
   const [generating, setGenerating] = useState(false);
   const [generateResult, setGenerateResult] = useState("");
   const [flags, setFlags] = useState<CycleFlags | null>(null);
+  const [assignError, setAssignError] = useState("");
 
   // ── Browse data ──
   useEffect(() => {
@@ -304,6 +305,7 @@ export default function AdminSuggestionsPage() {
   async function handleAssign(candidateId: string, score: number) {
     if (!selectedUser) return;
     setAssigning(candidateId);
+    setAssignError("");
     try {
       const res = await fetch("/api/admin/suggestions", {
         method: "POST",
@@ -324,9 +326,13 @@ export default function AdminSuggestionsPage() {
         const sugData = await sugRes.json();
         setUserSuggestionsRecipient(sugData.asRecipient || []);
         setUserSuggestionsCandidate(sugData.asCandidate || []);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setAssignError(data.error || "Could not create the suggestion");
       }
     } catch (err) {
       console.error(err);
+      setAssignError("Could not create the suggestion");
     } finally {
       setAssigning(null);
     }
@@ -367,6 +373,10 @@ export default function AdminSuggestionsPage() {
 
   // ── Generate ──
   async function handleGenerate() {
+    const what = flags?.introRequests
+      ? "free suggestions for every eligible user (weekly cap applies)"
+      : "suggestions for every eligible user — each one uses 1 of the recipient's credits";
+    if (!confirm(`Generate ${what}? Everyone who gets one is notified.`)) return;
     setGenerating(true);
     setGenerateResult("");
     try {
@@ -708,6 +718,9 @@ export default function AdminSuggestionsPage() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
+                  {assignError && (
+                    <p className="text-sm text-destructive bg-destructive/10 rounded-md px-3 py-2">{assignError}</p>
+                  )}
                   {candidatesLoading && candidates.length === 0 ? (
                     <div className="space-y-3">
                       {Array.from({ length: 3 }).map((_, i) => (
@@ -943,7 +956,6 @@ function QualityChecklist({ detail }: { detail: QualityDetail }) {
     { label: "Profile", ok: detail.hasCompleteProfile },
     { label: "Photos", ok: detail.hasPhotos },
     { label: "Quiz", ok: detail.hasQuiz },
-    { label: "Identity", ok: detail.hasIdentityVerified },
   ];
   return (
     <div className="grid gap-1">

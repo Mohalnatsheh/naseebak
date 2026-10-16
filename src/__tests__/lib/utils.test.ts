@@ -44,3 +44,10 @@ describe("arabicCount", () => {
     expect(arabicCount(103, fields)).toBe("103 حقول");
   });
 });
+
+describe("parsePagination with bad input", () => {
+  it("falls back to page 1 for non-numbers", async () => {
+    const { parsePagination } = await import("@/lib/utils");
+    expect(parsePagination(new URLSearchParams("page=abc"), 20)).toEqual({ page: 1, pageSize: 20, skip: 0 });
+  });
+});

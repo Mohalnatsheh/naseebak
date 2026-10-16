@@ -167,7 +167,8 @@ describe("autoSuggestForUser", () => {
 
     expect(await autoSuggestForUser("c2")).toBe(1);
     const types = db.notification.create.mock.calls.map((c) => c[0].data.type);
-    expect(types).toEqual(["SUGGESTION", "PAYMENT"]);
+    expect(types).toEqual(["SUGGESTION"]);
+    expect(notifyMod.notify).toHaveBeenCalledWith(expect.objectContaining({ userId: "c2", type: "PAYMENT" }));
   });
 
   it("creates nothing when the user has no credits left", async () => {

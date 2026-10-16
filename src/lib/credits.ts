@@ -5,7 +5,6 @@
  * per rolling 7 days) and each family/chat request costs the sender 1 credit, never refunded.
  */
 import { db } from "@/lib/db";
-import { sendPushNotification } from "@/lib/onesignal";
 import { notify } from "@/lib/notify";
 import { getCycleFlags } from "@/lib/settings";
 import type { CreditReason } from "@prisma/client";
@@ -79,8 +78,7 @@ export async function refundCredits(userId: string, count: number): Promise<void
 export async function notifyCreditsExhausted(userId: string): Promise<void> {
   const title = "انتهى رصيد الاقتراحات";
   const body = "استخدمت كل رصيد اقتراحاتك. اشحن رصيدك لتستمر باستلام اقتراحات جديدة.";
-  await db.notification.create({ data: { userId, type: "PAYMENT", title, body } });
-  sendPushNotification({ userId, title, body, url: "/dashboard/payments" });
+  await notify({ userId, type: "PAYMENT", title, body, url: "/dashboard/payments" });
 }
 
 /** Per-request mode: the user spent their last credit on a request. */

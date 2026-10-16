@@ -6,7 +6,7 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function parsePagination(searchParams: URLSearchParams, defaultSize = 10) {
-  const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
+  const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10) || 1);
   return { page, pageSize: defaultSize, skip: (page - 1) * defaultSize };
 }
 

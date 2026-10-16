@@ -26,31 +26,12 @@ import { qualifiesForSuggestions as qualifiesForSuggestionsGate } from "@/lib/pr
 /*  Arabic date formatter                                              */
 /* ------------------------------------------------------------------ */
 function getArabicDate() {
-  const now = new Date();
-  const days = [
-    "الأحد",
-    "الإثنين",
-    "الثلاثاء",
-    "الأربعاء",
-    "الخميس",
-    "الجمعة",
-    "السبت",
-  ];
-  const months = [
-    "يناير",
-    "فبراير",
-    "مارس",
-    "أبريل",
-    "مايو",
-    "يونيو",
-    "يوليو",
-    "أغسطس",
-    "سبتمبر",
-    "أكتوبر",
-    "نوفمبر",
-    "ديسمبر",
-  ];
-  return `${days[now.getDay()]}، ${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear()}`;
+  return new Date().toLocaleDateString("ar-JO-u-nu-latn", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
 }
 
 /* ------------------------------------------------------------------ */

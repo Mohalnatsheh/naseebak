@@ -160,7 +160,7 @@ export default function AdminDashboardPage() {
 
         {/* Stats Grid */}
         {loading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5">
             {Array.from({ length: 8 }).map((_, i) => (
               <div key={i} className="relative overflow-hidden rounded-xl border border-border/50 bg-card p-6" style={{ animation: `fadeSlideIn 0.5s ease-out ${i * 0.07}s both` }}>
                 <div className="h-1 w-full bg-muted rounded-full mb-5 overflow-hidden">
@@ -177,7 +177,7 @@ export default function AdminDashboardPage() {
             ))}
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5">
             {statCards.map((card, index) => {
               const tone = tones[card.tone];
               return (
@@ -188,19 +188,19 @@ export default function AdminDashboardPage() {
               >
                 <div className={`h-1 bg-gradient-to-r ${tone.bar}`} />
                 <div className={`absolute -top-6 -right-6 w-20 h-20 ${tone.bg} rounded-full opacity-0 group-hover:opacity-30 transition-opacity duration-500 blur-xl`} />
-                <div className="relative p-5 pt-4">
-                  <div className="flex items-start justify-between">
-                    <div className="space-y-1.5">
-                      <p className="text-sm text-muted-foreground font-medium flex items-center gap-2">
+                <div className="relative p-4 pt-3 sm:p-5 sm:pt-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 space-y-1.5">
+                      <p className="text-xs sm:text-sm text-muted-foreground font-medium flex flex-wrap items-center gap-x-2 gap-y-1">
                         {card.label}
                         {card.legacy && <Badge variant="outline" className="text-[10px] px-1.5 py-0">Legacy</Badge>}
                       </p>
-                      <p className="text-3xl font-bold text-foreground tracking-tight">
+                      <p className="text-2xl sm:text-3xl font-bold text-foreground tracking-tight">
                         {typeof card.value === "number" ? card.value.toLocaleString() : card.value}
                       </p>
                     </div>
-                    <div className={`h-12 w-12 rounded-xl ${tone.bg} flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-sm`}>
-                      <card.icon className={`h-6 w-6 ${tone.text}`} />
+                    <div className={`h-9 w-9 sm:h-12 sm:w-12 shrink-0 rounded-xl ${tone.bg} flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-sm`}>
+                      <card.icon className={`h-4 w-4 sm:h-6 sm:w-6 ${tone.text}`} />
                     </div>
                   </div>
                 </div>

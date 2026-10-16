@@ -100,11 +100,12 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
   const partnerId = conversation?.partner.id;
   const mode = useChatChannel(conversationId, {
     onMessage: (m) => {
+      if (!partnerId) return; // not loaded yet — the next poll/load picks it up
       const mine = m.senderId !== partnerId;
       setMessages((prev) =>
         mergeMessages(
-          // My own echo replaces the optimistic copy
-          mine ? prev.filter((p) => !(p.pending && p.body === m.body)) : prev,
+          // My own echo replaces exactly the optimistic copy it came from
+          mine && m.clientNonce ? prev.filter((p) => p.id !== m.clientNonce) : prev,
           [{ id: m.id, body: m.body, createdAt: m.createdAt, mine, readAt: null }]
         )
       );
@@ -119,25 +120,39 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
     poll: () => fetchLatest("merge"),
   });
 
-  // Mark the partner's messages read while the chat is on screen
-  const unreadFromPartner = messages.some((m) => !m.mine && !m.readAt && !m.pending);
+  // Mark the partner's messages read while the chat is on screen — only those shown, so a
+  // message that arrives mid-request stays unread until it is actually seen
+  const [visibleTick, setVisibleTick] = useState(0);
   useEffect(() => {
-    if (!unreadFromPartner || markingRead.current) return;
+    if (markingRead.current) return;
     if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+    const unread = messages.filter((m) => !m.mine && !m.readAt && !m.pending);
+    if (unread.length === 0) return;
+    const upTo = unread[unread.length - 1].createdAt;
     markingRead.current = true;
-    fetch(`/api/chats/${conversationId}/read`, { method: "POST" })
-      .then(() => {
+    fetch(`/api/chats/${conversationId}/read`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ upTo }),
+    })
+      .then((res) => {
+        if (!res.ok) return;
         const at = new Date().toISOString();
-        setMessages((prev) => prev.map((m) => (!m.mine && !m.readAt ? { ...m, readAt: at } : m)));
+        setMessages((prev) => prev.map((m) => (!m.mine && !m.readAt && m.createdAt <= upTo ? { ...m, readAt: at } : m)));
         window.dispatchEvent(new CustomEvent("naseeb:notifications-read"));
       })
+      .catch(() => {})
       .finally(() => {
         markingRead.current = false;
       });
-  }, [unreadFromPartner, conversationId]);
+  }, [messages, visibleTick, conversationId]);
 
   useEffect(() => {
-    const onVisible = () => document.visibilityState === "visible" && fetchLatest("merge");
+    const onVisible = () => {
+      if (document.visibilityState !== "visible") return;
+      setVisibleTick((t) => t + 1);
+      fetchLatest("merge");
+    };
     document.addEventListener("visibilitychange", onVisible);
     return () => document.removeEventListener("visibilitychange", onVisible);
   }, [fetchLatest]);
@@ -186,7 +201,10 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
     stickToBottom.current = true;
     setMessages((prev) => (retryId ? prev.map((m) => (m.id === retryId ? optimistic : m)) : [...prev, optimistic]));
 
-    const res = await postJson<{ message: ChatMessage }>(`/api/chats/${conversationId}/messages`, { body: text });
+    const res = await postJson<{ message: ChatMessage }>(`/api/chats/${conversationId}/messages`, {
+      body: text,
+      clientNonce: tempId,
+    });
     if (res.ok) {
       setMessages((prev) => mergeMessages(prev.filter((m) => m.id !== tempId), [res.data.message]));
       return true;
@@ -256,7 +274,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
 
   const left = daysLeft(conversation.expiresAt);
   const open = conversation.status === "ACTIVE";
-  const canSend = open && chatEnabled;
+  const canSend = open && chatEnabled && !conversation.blocked;
   const family = intro?.family;
 
   return (
@@ -404,7 +422,9 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
         <ChatComposer ref={composer} onSend={(t) => send(t)} error={composerError} onTyping={() => composerError && setComposerError(null)} />
       ) : (
         <div className="border-t border-border/60 bg-muted/30 px-4 py-3 text-center text-sm text-muted-foreground">
-          {conversation.status === "ENDED"
+          {conversation.blocked
+            ? "لا يمكن إرسال رسائل في هذه المحادثة."
+            : conversation.status === "ENDED"
             ? conversation.endedByMe
               ? "أنهيتَ هذه المحادثة."
               : "أنهى الطرف الآخر هذه المحادثة."

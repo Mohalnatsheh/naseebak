@@ -31,6 +31,8 @@ export interface ChatSummary {
   canExtend: boolean;
   /** Who ended it, when ENDED */
   endedByMe: boolean;
+  /** One side blocked the other: read-only */
+  blocked: boolean;
   lastMessage: { body: string; createdAt: string; mine: boolean } | null;
   unread: number;
 }
@@ -71,14 +73,19 @@ async function housekeeping(c: LoadedConversation): Promise<LoadedConversation> 
   if (c.status !== "ACTIVE") return c;
   const now = Date.now();
   const left = c.expiresAt.getTime() - now;
+  // Conditional updates: parallel requests (counts poll + chat page, two tabs) act only once
   if (left <= 0) {
-    await db.conversation.update({ where: { id: c.id }, data: { status: "EXPIRED" } });
-    await publishChatEvent(c.id, "status", { status: "EXPIRED" });
+    const { count } = await db.conversation.updateMany({ where: { id: c.id, status: "ACTIVE" }, data: { status: "EXPIRED" } });
+    if (count === 1) await publishChatEvent(c.id, "status", { status: "EXPIRED" });
     return { ...c, status: "EXPIRED" };
   }
   if (left < WARN_BEFORE_DAYS * DAY_MS && !c.expiryWarnedAt) {
     const warnedAt = new Date();
-    await db.conversation.update({ where: { id: c.id }, data: { expiryWarnedAt: warnedAt } });
+    const { count } = await db.conversation.updateMany({
+      where: { id: c.id, expiryWarnedAt: null },
+      data: { expiryWarnedAt: warnedAt },
+    });
+    if (count !== 1) return { ...c, expiryWarnedAt: warnedAt };
     await notifyMany([c.match.femaleId, c.match.maleId], {
       type: "CHAT",
       title: "تنتهي المحادثة قريباً",
@@ -95,7 +102,8 @@ function summarise(
   c: LoadedConversation,
   userId: string,
   last: { body: string; createdAt: Date; senderId: string } | null,
-  unread: number
+  unread: number,
+  blocked = false
 ): ChatSummary {
   const left = c.expiresAt.getTime() - Date.now();
   const partner = partnerOf(c, userId);
@@ -107,6 +115,7 @@ function summarise(
     expiresAt: c.expiresAt.toISOString(),
     canExtend: c.status === "ACTIVE" && !c.extended && left <= EXTEND_WINDOW_DAYS * DAY_MS,
     endedByMe: c.status === "ENDED" && c.endedById === userId,
+    blocked,
     lastMessage: last
       ? { body: last.body, createdAt: last.createdAt.toISOString(), mine: last.senderId === userId }
       : null,
@@ -185,10 +194,13 @@ export async function getConversation(
     messages = page.slice(0, limit).reverse();
   }
 
-  const unread = await db.message.count({ where: { conversationId: id, readAt: null, senderId: { not: userId } } });
+  const [unread, blocked] = await Promise.all([
+    db.message.count({ where: { conversationId: id, readAt: null, senderId: { not: userId } } }),
+    isBlocked(userId, partnerOf(c, userId).id),
+  ]);
   const last = messages.length ? messages[messages.length - 1] : null;
   return {
-    conversation: summarise(c, userId, last, unread),
+    conversation: summarise(c, userId, last, unread, blocked),
     messages: messages.map((m) => toMessage(m, userId)),
     hasMore,
   };
@@ -197,8 +209,14 @@ export async function getConversation(
 // Last push per conversation+recipient, so a burst of messages makes one push (single PM2 process)
 const lastPush = new Map<string, number>();
 
-export async function sendMessage(args: { conversationId: string; senderId: string; body: string }): Promise<ChatMessage> {
-  const { conversationId, senderId, body } = args;
+export async function sendMessage(args: {
+  conversationId: string;
+  senderId: string;
+  body: string;
+  /** Echoed back on the live event so the sender's screen can replace its optimistic copy */
+  clientNonce?: string;
+}): Promise<ChatMessage> {
+  const { conversationId, senderId, body, clientNonce } = args;
   const flags = await getCycleFlags();
   if (!flags.chat) throw new IntroError("DISABLED", "المحادثات متوقفة حالياً");
 
@@ -227,6 +245,7 @@ export async function sendMessage(args: { conversationId: string; senderId: stri
     senderId,
     body: message.body,
     createdAt: message.createdAt.toISOString(),
+    clientNonce,
   });
 
   const key = `${conversationId}:${partner.id}`;
@@ -248,11 +267,13 @@ export async function sendMessage(args: { conversationId: string; senderId: stri
   return toMessage(message, senderId);
 }
 
-export async function markRead(conversationId: string, userId: string): Promise<number> {
+/** Mark the partner's messages read — only those up to `upTo` (what was actually on screen). */
+export async function markRead(conversationId: string, userId: string, upTo?: string): Promise<number> {
   await loadForUser(conversationId, userId);
   const readAt = new Date();
+  const until = upTo && !Number.isNaN(Date.parse(upTo)) ? new Date(upTo) : readAt;
   const { count } = await db.message.updateMany({
-    where: { conversationId, senderId: { not: userId }, readAt: null },
+    where: { conversationId, senderId: { not: userId }, readAt: null, createdAt: { lte: until } },
     data: { readAt },
   });
   if (count > 0) {

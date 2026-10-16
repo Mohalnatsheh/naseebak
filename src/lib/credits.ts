@@ -25,9 +25,13 @@ export async function getRegistrationCredits(): Promise<number> {
  * Atomically take `count` credits from the user. Returns false (and takes nothing)
  * if the balance is lower than `count` — safe against concurrent requests.
  */
-export async function reserveCredits(userId: string, count: number): Promise<boolean> {
+export async function reserveCredits(
+  userId: string,
+  count: number,
+  client: Pick<typeof db, "user"> = db
+): Promise<boolean> {
   if (count <= 0) return true;
-  const res = await db.user.updateMany({
+  const res = await client.user.updateMany({
     where: { id: userId, matchCredits: { gte: count } },
     data: { matchCredits: { decrement: count } },
   });

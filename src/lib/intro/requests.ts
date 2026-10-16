@@ -205,6 +205,8 @@ export async function sendIntroRequest(args: {
   try {
     const { match, partnerId } = await loadMatchForUser(matchId, senderId);
     if (await isBlocked(senderId, partnerId)) throw new IntroError("BLOCKED");
+    const partner = await db.user.findUnique({ where: { id: partnerId }, select: { isDeactivated: true } });
+    if (partner?.isDeactivated) throw new IntroError("NOT_ALLOWED", "هذا الحساب غير نشط حالياً");
     await expireStale(matchId);
 
     const requests = await db.introRequest.findMany({ where: { matchId }, orderBy: { createdAt: "desc" } });
@@ -225,16 +227,18 @@ export async function sendIntroRequest(args: {
       throw new IntroError("NOT_ALLOWED", "المحادثة مفتوحة أو انتهت لهذا التوافق");
     }
 
-    if (!free && !(await reserveCredits(senderId, 1))) throw new IntroError("NO_CREDITS");
-
-    const request = await db.introRequest.create({
-      data: {
-        matchId,
-        type,
-        senderId,
-        receiverId: partnerId,
-        expiresAt: new Date(Date.now() + REQUEST_TTL_DAYS * DAY_MS),
-      },
+    // Charge and create together: a failed create never costs a credit
+    const request = await db.$transaction(async (tx) => {
+      if (!free && !(await reserveCredits(senderId, 1, tx))) throw new IntroError("NO_CREDITS");
+      return tx.introRequest.create({
+        data: {
+          matchId,
+          type,
+          senderId,
+          receiverId: partnerId,
+          expiresAt: new Date(Date.now() + REQUEST_TTL_DAYS * DAY_MS),
+        },
+      });
     });
 
     const sender = await db.user.findUnique({
@@ -291,10 +295,11 @@ export async function respondToIntroRequest(args: {
   const matchUrl = `/dashboard/matches?match=${request.matchId}`;
 
   if (!accept) {
-    await db.introRequest.update({
-      where: { id: requestId },
+    const claimed = await db.introRequest.updateMany({
+      where: { id: requestId, status: "PENDING" },
       data: { status: "DECLINED", respondedAt: new Date() },
     });
+    if (claimed.count !== 1) throw new IntroError("NOT_ALLOWED", "تم الرد على هذا الطلب مسبقاً");
     await notify({
       userId: request.senderId,
       type: "INTRO_REQUEST",
@@ -309,32 +314,50 @@ export async function respondToIntroRequest(args: {
     return { status: "DECLINED" };
   }
 
-  let conversationId: string | undefined;
+  // Check everything before claiming the request
+  let recordConsent = false;
   if (request.type === "FAMILY") {
-    const guardian = await db.parentInfo.findUnique({ where: { userId } });
+    const [guardian, senderGuardian] = await Promise.all([
+      db.parentInfo.findUnique({ where: { userId } }),
+      db.parentInfo.findUnique({ where: { userId: request.senderId } }),
+    ]);
     if (!guardian) throw new IntroError("GUARDIAN_REQUIRED");
     if (!guardian.shareConsentAt) {
       if (!consent) throw new IntroError("CONSENT_REQUIRED");
-      await db.parentInfo.update({ where: { userId }, data: { shareConsentAt: new Date() } });
+      recordConsent = true;
     }
-    const visit = request.match.visitRequest;
-    if (visit && visit.status === "REQUESTED") {
-      await db.visitRequest.update({
-        where: { id: visit.id },
-        data: { status: "CANCELLED", adminNotes: "Closed: families connected via family introduction" },
-      });
+    // Both families must be sharing at the moment of acceptance
+    if (!senderGuardian?.shareConsentAt) {
+      throw new IntroError("NOT_ALLOWED", "لا يمكن إتمام التعارف العائلي حالياً لأن الطرف الآخر لم يعد يشارك بيانات وليّ الأمر");
     }
   } else {
+    if (!(await getCycleFlags()).chat) throw new IntroError("DISABLED", "المحادثات متوقفة حالياً، حاول لاحقاً");
     if (request.match.conversation) throw new IntroError("NOT_ALLOWED");
-    const conversation = await db.conversation.create({
-      data: { matchId: request.matchId, expiresAt: new Date(Date.now() + CHAT_TTL_DAYS * DAY_MS) },
-    });
-    conversationId = conversation.id;
   }
 
-  await db.introRequest.update({
-    where: { id: requestId },
-    data: { status: "ACCEPTED", respondedAt: new Date() },
+  // Claim + side effects in one transaction: a double tap or accept/decline race can only win once
+  const conversationId = await db.$transaction(async (tx) => {
+    const claimed = await tx.introRequest.updateMany({
+      where: { id: requestId, status: "PENDING" },
+      data: { status: "ACCEPTED", respondedAt: new Date() },
+    });
+    if (claimed.count !== 1) throw new IntroError("NOT_ALLOWED", "تم الرد على هذا الطلب مسبقاً");
+
+    if (request.type === "FAMILY") {
+      if (recordConsent) await tx.parentInfo.update({ where: { userId }, data: { shareConsentAt: new Date() } });
+      const visit = request.match.visitRequest;
+      if (visit && visit.status === "REQUESTED") {
+        await tx.visitRequest.update({
+          where: { id: visit.id },
+          data: { status: "CANCELLED", adminNotes: "Closed: families connected via family introduction" },
+        });
+      }
+      return undefined;
+    }
+    const conversation = await tx.conversation.create({
+      data: { matchId: request.matchId, expiresAt: new Date(Date.now() + CHAT_TTL_DAYS * DAY_MS) },
+    });
+    return conversation.id;
   });
 
   await notify({

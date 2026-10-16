@@ -39,21 +39,24 @@ export async function POST(request: Request) {
 
         const creditsNum = parseInt(credits, 10);
 
-        // Mark COMPLETED once — Stripe may deliver the same event more than once
-        const marked = await db.payment.updateMany({
-          where: { id: paymentId, status: { not: "COMPLETED" } },
-          data: {
-            status: "COMPLETED",
-            providerTxId: (session.payment_intent as string) || session.id,
-          },
+        // Mark COMPLETED and add credits together, once — Stripe may deliver the same event more
+        // than once, and a failed credit write must roll back so Stripe's retry can fulfil it
+        const fulfilled = await db.$transaction(async (tx) => {
+          const marked = await tx.payment.updateMany({
+            where: { id: paymentId, status: { not: "COMPLETED" } },
+            data: {
+              status: "COMPLETED",
+              providerTxId: (session.payment_intent as string) || session.id,
+            },
+          });
+          if (marked.count === 0) return false;
+          await tx.user.update({
+            where: { id: userId },
+            data: { matchCredits: { increment: creditsNum } },
+          });
+          return true;
         });
-        if (marked.count === 0) break;
-
-        // Add credits to user
-        await db.user.update({
-          where: { id: userId },
-          data: { matchCredits: { increment: creditsNum } },
-        });
+        if (!fulfilled) break;
 
         // Create notification
         await db.notification.create({

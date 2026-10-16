@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 export interface ChannelHandlers {
-  onMessage: (m: { id: string; senderId: string; body: string; createdAt: string }) => void;
+  onMessage: (m: { id: string; senderId: string; body: string; createdAt: string; clientNonce?: string }) => void;
   onRead: (e: { by: string; at: string }) => void;
   onStatus: (e: { status: string; expiresAt?: string }) => void;
   /** Called every few seconds when real-time isn't available */

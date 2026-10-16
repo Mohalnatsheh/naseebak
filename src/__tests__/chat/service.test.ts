@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const db = vi.hoisted(() => ({
-  conversation: { findUnique: vi.fn(), findMany: vi.fn(), update: vi.fn() },
+  conversation: { findUnique: vi.fn(), findMany: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
   message: { create: vi.fn(), findMany: vi.fn(), updateMany: vi.fn(), count: vi.fn() },
   block: { findFirst: vi.fn(), create: vi.fn() },
   report: { upsert: vi.fn() },
@@ -54,6 +54,7 @@ beforeEach(() => {
   db.message.findMany.mockResolvedValue([]);
   db.message.count.mockResolvedValue(0);
   db.message.updateMany.mockResolvedValue({ count: 0 });
+  db.conversation.updateMany.mockResolvedValue({ count: 1 });
 });
 
 describe("sendMessage", () => {
@@ -99,7 +100,7 @@ describe("sendMessage", () => {
     const c = conv({ expiresAt: new Date(Date.now() - 1000) });
     db.conversation.findUnique.mockResolvedValue(c);
     await expectCode(sendMessage({ conversationId: c.id, senderId: "u1", body: "مرحبا" }), "EXPIRED");
-    expect(db.conversation.update).toHaveBeenCalledWith({ where: { id: c.id }, data: { status: "EXPIRED" } });
+    expect(db.conversation.updateMany).toHaveBeenCalledWith({ where: { id: c.id, status: "ACTIVE" }, data: { status: "EXPIRED" } });
   });
 
   it("refuses ended chats and blocked users", async () => {
@@ -132,6 +133,21 @@ describe("expiry warning", () => {
     db.conversation.findUnique.mockResolvedValue({ ...c, expiryWarnedAt: new Date() });
     await getConversation(c.id, "u1");
     expect(notifyMod.notifyMany).not.toHaveBeenCalled();
+  });
+
+  it("two parallel reads warn only once", async () => {
+    const c = conv({ expiresAt: new Date(Date.now() + DAY) });
+    db.conversation.findUnique.mockResolvedValue(c);
+    db.conversation.updateMany.mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({ count: 0 });
+    await Promise.all([getConversation(c.id, "u1"), getConversation(c.id, "f1")]);
+    expect(notifyMod.notifyMany).toHaveBeenCalledTimes(1);
+  });
+
+  it("a blocked chat is reported as read-only", async () => {
+    db.conversation.findUnique.mockResolvedValue(conv());
+    db.block.findFirst.mockResolvedValue({ id: "b" });
+    const res = await getConversation("c", "u1");
+    expect(res.conversation.blocked).toBe(true);
   });
 });
 

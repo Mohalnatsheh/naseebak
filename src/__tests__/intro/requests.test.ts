@@ -8,6 +8,7 @@ const db = vi.hoisted(() => ({
   user: { findUnique: vi.fn() },
   conversation: { create: vi.fn() },
   visitRequest: { update: vi.fn() },
+  $transaction: vi.fn(),
 }));
 const credits = vi.hoisted(() => ({
   reserveCredits: vi.fn(),
@@ -49,7 +50,8 @@ beforeEach(() => {
   db.mutualMatch.findUnique.mockResolvedValue(match());
   db.block.findFirst.mockResolvedValue(null);
   db.introRequest.findMany.mockResolvedValue([]);
-  db.introRequest.updateMany.mockResolvedValue({ count: 0 });
+  db.introRequest.updateMany.mockResolvedValue({ count: 1 });
+  db.$transaction.mockImplementation(async (fn: (tx: typeof db) => unknown) => fn(db));
   db.introRequest.create.mockImplementation(async ({ data }: { data: object }) => ({ id: "new", ...data }));
   db.introRequest.update.mockImplementation(async ({ data }: { data: object }) => data);
   db.parentInfo.findUnique.mockResolvedValue(guardian());
@@ -81,7 +83,7 @@ describe("sendIntroRequest", () => {
 
   it("charges 1 credit, creates a 7-day request and notifies the receiver", async () => {
     const res = await sendIntroRequest({ matchId: "m1", senderId: "u1", type: "CHAT" });
-    expect(credits.reserveCredits).toHaveBeenCalledWith("u1", 1);
+    expect(credits.reserveCredits).toHaveBeenCalledWith("u1", 1, expect.anything());
     const { data } = db.introRequest.create.mock.calls[0][0];
     expect(data).toMatchObject({ matchId: "m1", type: "CHAT", senderId: "u1", receiverId: "f1" });
     expect(data.expiresAt.getTime() - Date.now()).toBeGreaterThan(6.9 * DAY);
@@ -177,7 +179,9 @@ describe("respondToIntroRequest", () => {
     db.introRequest.findUnique.mockResolvedValue(pending({
       type: "FAMILY", match: match({ visitRequest: { id: "v1", status: "REQUESTED" } }),
     }));
-    db.parentInfo.findUnique.mockResolvedValue(guardian(false));
+    db.parentInfo.findUnique.mockImplementation(async ({ where }: { where: { userId: string } }) =>
+      guardian(where.userId !== "f1")
+    );
     await respondToIntroRequest({ requestId: "r1", userId: "f1", accept: true, consent: true });
     expect(db.parentInfo.update).toHaveBeenCalledWith(expect.objectContaining({ where: { userId: "f1" } }));
     expect(db.visitRequest.update).toHaveBeenCalledWith(expect.objectContaining({
@@ -203,6 +207,40 @@ describe("respondToIntroRequest", () => {
     db.introRequest.findUnique.mockResolvedValue(pending({ expiresAt: new Date(Date.now() - 1000) }));
     await expectCode(respondToIntroRequest({ requestId: "r1", userId: "f1", accept: true }), "EXPIRED");
     expect(db.introRequest.update).toHaveBeenCalledWith(expect.objectContaining({ data: { status: "EXPIRED" } }));
+  });
+});
+
+describe("respondToIntroRequest edge cases", () => {
+  it("a second answer to the same request is refused (double tap / race)", async () => {
+    db.introRequest.findUnique.mockResolvedValue(pending());
+    db.introRequest.updateMany.mockResolvedValue({ count: 0 });
+    await expectCode(respondToIntroRequest({ requestId: "r1", userId: "f1", accept: true }), "NOT_ALLOWED");
+    expect(notifyMod.notify).not.toHaveBeenCalled();
+  });
+
+  it("chat requests can't be accepted while chat is off", async () => {
+    settings.getCycleFlags.mockResolvedValue({ introRequests: true, chat: false });
+    db.introRequest.findUnique.mockResolvedValue(pending());
+    await expectCode(respondToIntroRequest({ requestId: "r1", userId: "f1", accept: true }), "DISABLED");
+    expect(db.conversation.create).not.toHaveBeenCalled();
+  });
+
+  it("family acceptance needs the sender to still be sharing", async () => {
+    db.introRequest.findUnique.mockResolvedValue(pending({ type: "FAMILY" }));
+    db.parentInfo.findUnique.mockImplementation(async ({ where }: { where: { userId: string } }) =>
+      guardian(where.userId === "f1")
+    );
+    await expectCode(respondToIntroRequest({ requestId: "r1", userId: "f1", accept: true }), "NOT_ALLOWED");
+  });
+});
+
+describe("sendIntroRequest edge cases", () => {
+  it("doesn't charge for a deactivated partner", async () => {
+    db.user.findUnique.mockImplementation(async ({ where }: { where: { id: string } }) =>
+      where.id === "f1" ? { isDeactivated: true } : { matchCredits: 2, firstName: "يزن" }
+    );
+    await expectCode(sendIntroRequest({ matchId: "m1", senderId: "u1", type: "CHAT" }), "NOT_ALLOWED");
+    expect(credits.reserveCredits).not.toHaveBeenCalled();
   });
 });
 

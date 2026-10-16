@@ -4,7 +4,7 @@ import { requireUser } from "@/lib/auth";
 import { sendMessage } from "@/lib/chat/service";
 import { introErrorResponse } from "@/lib/intro/http";
 
-const schema = z.object({ body: z.string().max(2000) });
+const schema = z.object({ body: z.string().max(2000), clientNonce: z.string().max(64).optional() });
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -13,7 +13,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const { id } = await params;
     const parsed = schema.safeParse(await request.json().catch(() => null));
     if (!parsed.success) return NextResponse.json({ error: "بيانات غير صالحة" }, { status: 400 });
-    const message = await sendMessage({ conversationId: id, senderId: result.session.user.id, body: parsed.data.body });
+    const message = await sendMessage({ conversationId: id, senderId: result.session.user.id, ...parsed.data });
     return NextResponse.json({ message });
   } catch (error) {
     return introErrorResponse(error, "Send chat message");

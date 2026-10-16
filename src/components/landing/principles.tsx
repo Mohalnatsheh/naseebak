@@ -12,6 +12,10 @@ interface Stats {
   visits: number;
 }
 
+/** Live numbers stay hidden until they are worth showing (a small count reads as an empty site). */
+const MIN_PUBLIC_USERS = 100;
+const MIN_PUBLIC_MATCHES = 20;
+
 /** What we promise families, on the one dark band of the page; live numbers when there are any. */
 export function LandingPrinciples({ content, chat }: { content: LandingContent; chat: boolean }) {
   const [stats, setStats] = useState<Stats | null>(null);
@@ -25,9 +29,9 @@ export function LandingPrinciples({ content, chat }: { content: LandingContent; 
   const icons = [ICONS[0], ICONS[1], chat ? ICONS[2] : ICONS[4]];
   const numbers = stats
     ? [
-        { value: stats.users, label: "مستخدم مسجّل" },
-        { value: stats.matches, label: "توافق متبادل" },
-      ].filter((n) => n.value > 0)
+        { value: stats.users, label: "مستخدم مسجّل", min: MIN_PUBLIC_USERS },
+        { value: stats.matches, label: "توافق متبادل", min: MIN_PUBLIC_MATCHES },
+      ].filter((n) => n.value >= n.min)
     : [];
 
   return (

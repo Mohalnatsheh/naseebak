@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { sendPushNotification, sendPushNotificationToMany } from "@/lib/onesignal";
+import { sendPushNotification } from "@/lib/onesignal";
+import { createMutualMatch } from "@/lib/intro/match";
 
 export async function POST(
   request: Request,
@@ -15,7 +16,8 @@ export async function POST(
     const { id } = await params;
 
     const suggestion = await db.suggestion.findUnique({ where: { id } });
-    if (!suggestion) {
+    // Only the recipient can answer, and only once
+    if (!suggestion || suggestion.recipientId !== session.user.id || suggestion.status !== "PENDING") {
       return NextResponse.json({ error: "الاقتراح غير موجود" }, { status: 404 });
     }
 
@@ -56,44 +58,7 @@ export async function POST(
       const femaleId = currentUser?.gender === "FEMALE" ? session.user.id : otherUserId;
       const maleId = currentUser?.gender === "MALE" ? session.user.id : otherUserId;
 
-      const match = await db.mutualMatch.create({
-        data: {
-          femaleId,
-          maleId,
-          suggestionId: suggestion.id,
-          revealedByFemale: false,
-        },
-      });
-
-      // Create visit request
-      await db.visitRequest.create({
-        data: { matchId: match.id },
-      });
-
-      // Notify both users
-      await db.notification.createMany({
-        data: [
-          {
-            userId: femaleId,
-            type: "MATCH",
-            title: "توافق متبادل!",
-            body: "تهانينا! لديك توافق متبادل جديد. يمكنك الآن رؤية التفاصيل.",
-          },
-          {
-            userId: maleId,
-            type: "MATCH",
-            title: "توافق متبادل!",
-            body: "تهانينا! لديك توافق متبادل جديد. يمكنك الآن رؤية التفاصيل.",
-          },
-        ],
-      });
-
-      // Push notifications
-      sendPushNotificationToMany([femaleId, maleId], {
-        title: "توافق متبادل!",
-        body: "تهانينا! لديك توافق متبادل جديد.",
-        url: "/dashboard/matches",
-      });
+      await createMutualMatch({ femaleId, maleId, suggestionId: suggestion.id });
 
       return NextResponse.json({
         message: "تم قبول الاقتراح! لديك توافق متبادل!",

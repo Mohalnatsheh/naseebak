@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { sendPushNotificationToMany } from "@/lib/onesignal";
+import { createMutualMatch } from "@/lib/intro/match";
 
 export async function POST(
   request: Request,
@@ -56,44 +56,7 @@ export async function POST(
     const femaleId = currentUser?.gender === "FEMALE" ? session.user.id : incomingLike.fromUserId;
     const maleId = currentUser?.gender === "MALE" ? session.user.id : incomingLike.fromUserId;
 
-    const match = await db.mutualMatch.create({
-      data: {
-        femaleId,
-        maleId,
-        suggestionId: incomingLike.suggestionId,
-        revealedByFemale: false,
-      },
-    });
-
-    // Create visit request
-    await db.visitRequest.create({
-      data: { matchId: match.id },
-    });
-
-    // Notify both users
-    await db.notification.createMany({
-      data: [
-        {
-          userId: femaleId,
-          type: "MATCH",
-          title: "توافق متبادل!",
-          body: "تهانينا! لديك توافق متبادل جديد. يمكنك الآن رؤية التفاصيل.",
-        },
-        {
-          userId: maleId,
-          type: "MATCH",
-          title: "توافق متبادل!",
-          body: "تهانينا! لديك توافق متبادل جديد. يمكنك الآن رؤية التفاصيل.",
-        },
-      ],
-    });
-
-    // Push notifications
-    sendPushNotificationToMany([femaleId, maleId], {
-      title: "توافق متبادل!",
-      body: "تهانينا! لديك توافق متبادل جديد.",
-      url: "/dashboard/matches",
-    });
+    await createMutualMatch({ femaleId, maleId, suggestionId: incomingLike.suggestionId });
 
     return NextResponse.json({
       message: "تم قبول الاهتمام! لديك توافق متبادل!",

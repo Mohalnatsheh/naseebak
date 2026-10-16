@@ -13,10 +13,14 @@ export async function POST(
 
     const { id } = await params;
 
-    await db.suggestion.update({
-      where: { id },
+    // Only the recipient can answer, and only once
+    const updated = await db.suggestion.updateMany({
+      where: { id, recipientId: session.user.id, status: "PENDING" },
       data: { status: "REJECTED" },
     });
+    if (updated.count === 0) {
+      return NextResponse.json({ error: "الاقتراح غير موجود" }, { status: 404 });
+    }
 
     return NextResponse.json({ message: "تم رفض الاقتراح" });
   } catch (error) {

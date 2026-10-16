@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2, HeartHandshake, MessageCircle, Info, TriangleAlert, Users } from "lucide-react";
+import { Loader2, HeartHandshake, MessageCircle, Info, TriangleAlert, Users, Coins } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
@@ -19,10 +19,11 @@ interface State {
   introRequests: boolean;
   chat: boolean;
   mutualSuggestions: boolean;
+  creditOnInterest: boolean;
   creditsMigratedAt: string | null;
 }
 
-type Key = "introRequests" | "chat" | "mutualSuggestions";
+type Key = "introRequests" | "chat" | "mutualSuggestions" | "creditOnInterest";
 
 /** Admin → Settings: the switches for the new user cycle, in plain words. */
 export function NewCycleSettingsCard() {
@@ -106,6 +107,14 @@ export function NewCycleSettingsCard() {
       on: !!state?.introRequests && !!state?.mutualSuggestions,
       disabled: !state?.introRequests,
     },
+    {
+      key: "creditOnInterest" as const,
+      icon: Coins,
+      title: "Credit on interest",
+      text: "Suggestions are free (5 open at a time, score ≥ 50, best first). Each 'Interested' costs the user 1 credit; matches, requests and chat are free. A mutual match opens straight into chat or family introduction. Needs Shared suggestions on.",
+      on: !!state?.introRequests && !!state?.mutualSuggestions && !!state?.creditOnInterest,
+      disabled: !state?.introRequests || !state?.mutualSuggestions,
+    },
   ];
 
   return (
@@ -131,7 +140,11 @@ export function NewCycleSettingsCard() {
               <div className="min-w-0 flex-1 space-y-1">
                 <p className="font-medium text-sm">{r.title}</p>
                 <p className="text-sm text-muted-foreground leading-relaxed">{r.text}</p>
-                {r.disabled && <p className="text-xs font-medium text-amber-700">Turn on family and chat requests first.</p>}
+                {r.disabled && (
+                  <p className="text-xs font-medium text-amber-700">
+                    {r.key === "creditOnInterest" ? "Turn on simultaneous suggestions first." : "Turn on family and chat requests first."}
+                  </p>
+                )}
               </div>
               <div className="flex items-center gap-2 pt-1">
                 {saving === r.key && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
@@ -218,12 +231,16 @@ export function NewCycleSettingsCard() {
                 ? "Turn off chat?"
                 : confirmOff === "mutualSuggestions"
                   ? "Turn off simultaneous suggestions?"
+                  : confirmOff === "creditOnInterest"
+                  ? "Turn off credit on interest?"
                   : "Turn off family and chat requests?"}</DialogTitle>
             <DialogDescription>
               {confirmOff === "chat"
                 ? "Users won't be able to send new messages or chat requests. Existing chats stay readable."
                 : confirmOff === "mutualSuggestions"
                   ? "New suggestions go back to the old one-by-one flow. Users can still answer the simultaneous suggestions they already have."
+                  : confirmOff === "creditOnInterest"
+                  ? "'Interested' becomes free again and family and chat requests cost 1 credit again. Open chats and accepted introductions keep working."
                   : "Users won't be able to send new requests, and suggestions go back to costing credits. Accepted introductions and existing chats stay visible. Chat pauses too."}
             </DialogDescription>
           </DialogHeader>

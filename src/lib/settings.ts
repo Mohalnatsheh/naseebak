@@ -7,6 +7,7 @@ const DEFAULTS: Record<string, string> = {
   intro_requests_enabled: "false",
   chat_enabled: "false",
   new_suggestions_flow: "false",
+  credit_on_interest: "false",
 };
 
 const cache = new Map<string, { value: string; expiresAt: number }>();
@@ -59,19 +60,24 @@ export interface CycleFlags {
   chat: boolean;
   /** Simultaneous suggestions (both decide on the same row) — only on when intro requests are on too */
   mutualSuggestions: boolean;
+  /** "Interested" costs 1 credit, suggestions and requests are free — only on when simultaneous suggestions are on too */
+  creditOnInterest: boolean;
 }
 
 /** New user cycle switches (Admin → Settings). Both default to off. */
 export async function getCycleFlags(): Promise<CycleFlags> {
-  const [intro, chat, mutual] = await Promise.all([
+  const [intro, chat, mutual, creditOnInterest] = await Promise.all([
     getSetting("intro_requests_enabled"),
     getSetting("chat_enabled"),
     getSetting("new_suggestions_flow"),
+    getSetting("credit_on_interest"),
   ]);
   const introRequests = intro === "true";
+  const mutualSuggestions = introRequests && mutual === "true";
   return {
     introRequests,
     chat: introRequests && chat === "true",
-    mutualSuggestions: introRequests && mutual === "true",
+    mutualSuggestions,
+    creditOnInterest: mutualSuggestions && creditOnInterest === "true",
   };
 }

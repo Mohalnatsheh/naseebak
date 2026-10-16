@@ -122,6 +122,7 @@ const creditReasonLabel: Record<string, string> = {
   MIGRATION_GIFT: "New-cycle top-up",
   REFUND: "Refund",
   REFERRAL: "Referral reward",
+  INTEREST: "Interest",
 };
 
 function formatDate(d: string | null) {

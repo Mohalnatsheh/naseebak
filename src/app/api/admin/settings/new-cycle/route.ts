@@ -5,16 +5,18 @@ import { getCycleFlags, getSetting, setSetting } from "@/lib/settings";
 import { db } from "@/lib/db";
 
 async function state() {
-  const [flags, chatRaw, mutualRaw, migration] = await Promise.all([
+  const [flags, chatRaw, mutualRaw, creditRaw, migration] = await Promise.all([
     getCycleFlags(),
     getSetting("chat_enabled"),
     getSetting("new_suggestions_flow"),
+    getSetting("credit_on_interest"),
     db.systemSetting.findUnique({ where: { key: "migration_new_cycle_v1" } }),
   ]);
   return {
     introRequests: flags.introRequests,
     chat: chatRaw === "true",
     mutualSuggestions: mutualRaw === "true",
+    creditOnInterest: creditRaw === "true",
     creditsMigratedAt: migration?.value ?? null,
   };
 }
@@ -34,6 +36,7 @@ const schema = z.object({
   introRequests: z.boolean().optional(),
   chat: z.boolean().optional(),
   mutualSuggestions: z.boolean().optional(),
+  creditOnInterest: z.boolean().optional(),
 });
 
 export async function PATCH(request: Request) {
@@ -51,6 +54,9 @@ export async function PATCH(request: Request) {
     }
     if (parsed.data.mutualSuggestions !== undefined) {
       await setSetting("new_suggestions_flow", String(parsed.data.mutualSuggestions));
+    }
+    if (parsed.data.creditOnInterest !== undefined) {
+      await setSetting("credit_on_interest", String(parsed.data.creditOnInterest));
     }
     return NextResponse.json(await state());
   } catch (error) {

@@ -158,6 +158,11 @@ enum FeedbackOutcome {
   DECLINED
 }
 
+enum IntroPreference {
+  CHAT
+  FAMILY
+}
+
 enum CreditReason {
   REGISTRATION
   PURCHASE
@@ -167,6 +172,7 @@ enum CreditReason {
   MIGRATION_GIFT
   REFUND
   REFERRAL
+  INTEREST
 }
 
 // ─── Models ─────────────────────────────────────────────────────────────────
@@ -397,6 +403,9 @@ model Suggestion {
   candidateDecidedAt DateTime?
   /// "3 days left" reminder sent to the undecided side(s) (daily scheduler, once)
   reminderSentAt     DateTime?
+  /// Chosen with "interested" when credit_on_interest is on (null otherwise)
+  recipientIntroPreference IntroPreference?
+  candidateIntroPreference IntroPreference?
 
   createdAt          DateTime         @default(now())
   updatedAt          DateTime         @updatedAt
@@ -435,6 +444,12 @@ model MutualMatch {
   visitRequest    VisitRequest?
   introRequests   IntroRequest[]
   conversation    Conversation?
+
+  /// Set when the match opened straight into chat / family intro (credit_on_interest)
+  openedAt              DateTime?
+  /// Per-match consent to share each side's guardian contact (credit_on_interest)
+  femaleGuardianShareAt DateTime?
+  maleGuardianShareAt   DateTime?
 
   createdAt       DateTime     @default(now())
 

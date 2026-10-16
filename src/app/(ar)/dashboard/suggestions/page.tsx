@@ -37,6 +37,7 @@ import { useDashboardData } from "@/contexts/dashboard-context";
 import { describeOption, oppositeGender } from "@/lib/profile-options";
 import { CandidateDetails } from "@/components/suggestions/candidate-details";
 import { MutualSuggestionsView } from "@/components/suggestions/mutual-suggestions-view";
+import { rechargeToContinue } from "@/components/suggestions/interest-dialog";
 import type { SuggestEmptyReason } from "@/lib/matching/auto-suggest";
 
 interface Suggestion {
@@ -162,6 +163,11 @@ export default function SuggestionsPage() {
   const [credits, setCredits] = useState<number | null>(null);
   // Simultaneous suggestions flow: the API says so, and the page shows the two-tab view instead
   const [mutualView, setMutualView] = useState(false);
+  // Credit on interest (from /api/suggestions): "مهتم" costs 1 credit; chat switch for the dialog
+  const [cycleInfo, setCycleInfo] = useState({ creditOnInterest: false, chatEnabled: true });
+  // Legacy like / accept are the "مهتم" here: 1 credit each with credit on interest on
+  const creditGate = !!cycleCounts.flags.creditOnInterest;
+  const interestLocked = creditGate && credits === 0;
   // Why the "new" tab may be empty (weekly cap / nobody fits / pending), from page 1 of /api/suggestions
   const [emptyInfo, setEmptyInfo] = useState<{ reason: SuggestEmptyReason | null; nextAt: string | null }>({ reason: null, nextAt: null });
   const [interests, setInterests] = useState<Interest[]>([]);
@@ -270,7 +276,10 @@ export default function SuggestionsPage() {
     try {
       const res = await fetch(`/api/suggestions?page=${p}`);
       const data = await res.json();
-      if (data.mutualView) setMutualView(true);
+      if (data.mutualView) {
+        setCycleInfo({ creditOnInterest: !!data.creditOnInterest, chatEnabled: data.chatEnabled !== false });
+        setMutualView(true);
+      }
       if (p === 1) setEmptyInfo({ reason: data.emptyReason ?? null, nextAt: data.nextSuggestionsAt ?? null });
       setSuggestions(data.suggestions || []);
       setSugTotalPages(data.totalPages || 1);
@@ -334,8 +343,10 @@ export default function SuggestionsPage() {
     try {
       const res = await fetch(`/api/interests/${id}/${action}`, { method: "POST" });
       const data = await res.json();
+      if (data.code === "NO_CREDITS") setCredits(0);
 
       if (res.ok) {
+        if (creditGate && action === "accept") setCredits((c) => Math.max(0, (c ?? 1) - 1));
         trackEvent("interest_response", { response: action, mutual_match: !!data.match });
         setRemovingId(id);
         setTimeout(() => {
@@ -358,8 +369,10 @@ export default function SuggestionsPage() {
     try {
       const res = await fetch(`/api/suggestions/${id}/${action}`, { method: "POST" });
       const data = await res.json();
+      if (data.code === "NO_CREDITS") setCredits(0);
 
       if (res.ok) {
+        if (creditGate && action === "like") setCredits((c) => Math.max(0, (c ?? 1) - 1));
         trackEvent("suggestion_response", { response: action === "like" ? "accept" : "reject", mutual_match: !!data.match });
         setRemovingId(id);
         setTimeout(() => {
@@ -439,7 +452,30 @@ export default function SuggestionsPage() {
     );
   }
 
-  if (mutualView) return <MutualSuggestionsView emptyReason={emptyInfo.reason} nextSuggestionsAt={emptyInfo.nextAt} />;
+  if (mutualView) {
+    return (
+      <MutualSuggestionsView
+        emptyReason={emptyInfo.reason}
+        nextSuggestionsAt={emptyInfo.nextAt}
+        creditOnInterest={cycleInfo.creditOnInterest}
+        chatEnabled={cycleInfo.chatEnabled}
+        credits={credits ?? 0}
+      />
+    );
+  }
+
+  /** Credit on interest: cost hint, or a recharge link at 0 (the "مهتم" button is disabled then) */
+  const creditHint = creditGate ? (
+    interestLocked ? (
+      <p className="mb-3 text-xs">
+        <Link href="/dashboard/payments" className="font-semibold text-amber-800 underline underline-offset-4">
+          {rechargeToContinue(me?.gender === "FEMALE")}
+        </Link>
+      </p>
+    ) : (
+      <p className="mb-3 text-xs text-muted-foreground">مهتم يستخدم رصيداً واحداً — رصيدك {credits ?? 0}</p>
+    )
+  ) : null;
 
   return (
     <div className="max-w-2xl mx-auto space-y-8 pb-8">
@@ -647,10 +683,12 @@ export default function SuggestionsPage() {
                       onToggleExpand={() => toggleExpand(s.id)}
                       details={<CandidateDetails c={c} />}
                       actions={
+                          <>
+                          {creditHint}
                           <div className="flex gap-3">
                             <Button
                               onClick={() => handleAction(s.id, "like")}
-                              disabled={acting === s.id}
+                              disabled={acting === s.id || interestLocked}
                               className="flex-1 h-12 bg-gradient-to-l from-primary to-secondary hover:from-secondary hover:to-primary text-primary-foreground shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 rounded-xl font-bold text-base"
                             >
                               {acting === s.id ? (
@@ -698,6 +736,7 @@ export default function SuggestionsPage() {
                               )}
                             </div>
                           </div>
+                          </>
                       }
                     />
                   </div>
@@ -890,10 +929,12 @@ export default function SuggestionsPage() {
                       onToggleExpand={() => toggleExpand(interest.id)}
                       details={<CandidateDetails c={c} />}
                       actions={
+                          <>
+                          {creditHint}
                           <div className="flex gap-3">
                             <Button
                               onClick={() => handleInterestAction(interest.id, "accept")}
-                              disabled={acting === interest.id}
+                              disabled={acting === interest.id || interestLocked}
                               className="flex-1 h-12 bg-gradient-to-l from-primary to-secondary hover:from-secondary hover:to-primary text-primary-foreground shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 rounded-xl font-bold text-base"
                             >
                               {acting === interest.id ? (
@@ -941,6 +982,7 @@ export default function SuggestionsPage() {
                               )}
                             </div>
                           </div>
+                          </>
                       }
                     />
                   </div>

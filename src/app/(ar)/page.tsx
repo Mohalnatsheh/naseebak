@@ -8,5 +8,5 @@ const amiri = Amiri({ subsets: ["arabic"], weight: ["400"], display: "swap" });
 /** The page follows the new-cycle switches, so it never describes a feature that is off. */
 export default async function HomePage() {
   const flags = await getCycleFlags();
-  return <LandingPage mode={{ introRequests: flags.introRequests, chat: flags.chat }} verseClass={amiri.className} />;
+  return <LandingPage mode={{ introRequests: flags.introRequests, chat: flags.chat, creditOnInterest: flags.creditOnInterest }} verseClass={amiri.className} />;
 }

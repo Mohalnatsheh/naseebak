@@ -227,6 +227,23 @@ describe("decideSuggestion with credit on interest", () => {
     expect(matchMod.createMutualMatch).not.toHaveBeenCalled();
   });
 
+  it("decide refuses لا while locked", async () => {
+    balance.u1 = 0;
+    db.suggestion.findUnique.mockResolvedValue(row());
+    await expectCode(decideSuggestion({ suggestionId: "s1", userId: "u1", interested: false }), "NO_CREDITS");
+    expect(db.suggestion.updateMany).not.toHaveBeenCalled();
+    expect(matchMod.createMutualMatch).not.toHaveBeenCalled();
+  });
+
+  it("at 0 credits NO_CREDITS comes before the preference and consent checks", async () => {
+    balance.u1 = 0;
+    db.suggestion.findUnique.mockResolvedValue(row());
+    db.parentInfo.findUnique.mockResolvedValue({ userId: "u1", shareConsentAt: null });
+    await expectCode(yes({ introPreference: "FAMILY", guardianConsent: true }), "NO_CREDITS");
+    await expectCode(yes({ introPreference: undefined }), "NO_CREDITS");
+    expect(requestsMod.setGuardianConsent).not.toHaveBeenCalled();
+  });
+
   it('"لا" costs nothing', async () => {
     db.suggestion.findUnique.mockResolvedValueOnce(row()).mockResolvedValueOnce(row({ recipientDecision: "DECLINED" }));
     const res = await decideSuggestion({ suggestionId: "s1", userId: "u1", interested: false });
@@ -375,6 +392,13 @@ describe("decideSuggestion with credit on interest", () => {
 });
 
 describe("decideSuggestion with credit on interest off", () => {
+  it("flag off: لا and مهتم at 0 credits are still recorded", async () => {
+    balance.u1 = 0;
+    db.suggestion.findUnique.mockResolvedValueOnce(row()).mockResolvedValueOnce(row({ recipientDecision: "DECLINED" }));
+    expect(await decideSuggestion({ suggestionId: "s1", userId: "u1", interested: false })).toEqual({ match: false });
+    expect(db.suggestion.updateMany).toHaveBeenCalledTimes(1);
+  });
+
   it("flag off: free, preference ignored, existing behaviour", async () => {
     db.suggestion.findUnique.mockResolvedValueOnce(row()).mockResolvedValueOnce(row({ recipientDecision: "INTERESTED" }));
     db.parentInfo.findUnique.mockResolvedValue(null);

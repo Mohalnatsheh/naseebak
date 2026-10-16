@@ -12,14 +12,14 @@ vi.mock("@/lib/intro/match", () => ({ createMutualMatch: vi.fn() }));
 const settings = vi.hoisted(() => ({ getCycleFlags: vi.fn() }));
 vi.mock("@/lib/settings", () => settings);
 
-import { getSuggestionFeed } from "@/lib/suggestions/feed";
+import { getSuggestionFeed, type OpenFeedItem } from "@/lib/suggestions/feed";
 
 const DAY = 24 * 60 * 60 * 1000;
 const person = (id: string, gender: "MALE" | "FEMALE", profile: object = {}) => ({
   id, firstName: id, isVerified: false, gender, personalityResult: null,
   profile: { city: "عمان", dateOfBirth: new Date("1995-01-01"), prefCity: ["عمان"], dealbreakers: ["city"], ...profile },
 });
-const me = person("me", "MALE");
+const me = { ...person("me", "MALE"), matchCredits: 3 };
 const mutualRow = (id: string, other = person("f1", "FEMALE"), iAmRecipient = false) => ({
   id, compatibilityScore: 70, createdAt: new Date(Date.now() - DAY),
   recipientId: iAmRecipient ? "me" : other.id,
@@ -44,7 +44,7 @@ describe("getSuggestionFeed — new", () => {
     const { items, total } = await getSuggestionFeed("me", "new", 1);
     expect(total).toBe(1);
     expect(items[0]).toMatchObject({ kind: "mutual", id: "s1", candidate: { id: "f1", city: "عمان" } });
-    expect(items[0].reason).toContain("المدينة");
+    expect((items[0] as OpenFeedItem).reason).toContain("المدينة");
     // only rows where *I* haven't decided, and not expired
     const where = db.suggestion.findMany.mock.calls[0][0].where;
     expect(where).toMatchObject({ flow: "MUTUAL", status: "PENDING" });
@@ -149,5 +149,84 @@ describe("getSuggestionFeed — ordering", () => {
     const { items } = await getSuggestionFeed("me", "new", 1);
     expect(db.suggestion.findMany.mock.calls[0][0].orderBy).toEqual([{ createdAt: "desc" }]);
     expect(items.map((i) => i.id)).toEqual(["fresh", "old"]);
+  });
+});
+
+describe("getSuggestionFeed — locked at 0 credits", () => {
+  const on = { introRequests: true, chat: true, mutualSuggestions: true, creditOnInterest: true };
+  const broke = { ...me, matchCredits: 0 };
+  const withDecision = (id: string, otherDecision: "INTERESTED" | "DECLINED" | null) => ({
+    ...mutualRow(id, person(`f-${id}`, "FEMALE")),
+    expiresAt: new Date(Date.now() + 5 * DAY),
+    recipientDecision: otherDecision,
+    candidateDecision: null,
+  });
+
+  it("feed returns locked items at 0 credits (flag on)", async () => {
+    settings.getCycleFlags.mockResolvedValue(on);
+    db.user.findUnique.mockResolvedValue(broke);
+    db.suggestion.findMany.mockResolvedValueOnce([withDecision("s1", null)]).mockResolvedValueOnce([]);
+    const { items, total } = await getSuggestionFeed("me", "new", 1);
+    expect(total).toBe(1);
+    expect(items[0]).toEqual({
+      kind: "mutual", id: "s1", compatibilityScore: 70, expiresAt: expect.any(String), locked: true,
+    });
+    const json = JSON.stringify(items);
+    for (const key of ["candidate", "firstName", "f-s1", "reason", "city", "Decision"]) expect(json).not.toContain(key);
+  });
+
+  it("likedYou only when the other said INTERESTED (not on DECLINED or undecided)", async () => {
+    settings.getCycleFlags.mockResolvedValue(on);
+    db.user.findUnique.mockResolvedValue(broke);
+    db.suggestion.findMany
+      .mockResolvedValueOnce([withDecision("yes", "INTERESTED"), withDecision("no", "DECLINED"), withDecision("none", null)])
+      .mockResolvedValueOnce([]);
+    const { items } = await getSuggestionFeed("me", "new", 1);
+    const byId = Object.fromEntries(items.map((i) => [i.id, i]));
+    expect(byId.yes).toMatchObject({ locked: true, likedYou: true });
+    expect(byId.no).not.toHaveProperty("likedYou");
+    expect(byId.none).not.toHaveProperty("likedYou");
+    expect(JSON.stringify(byId.no)).toEqual(JSON.stringify({ ...byId.none, id: "no" }));
+  });
+
+  it("likedYou never present when unlocked", async () => {
+    settings.getCycleFlags.mockResolvedValue(on);
+    db.suggestion.findMany.mockResolvedValueOnce([withDecision("s1", "INTERESTED")]).mockResolvedValueOnce([]);
+    const { items } = await getSuggestionFeed("me", "new", 1);
+    expect(items[0]).not.toHaveProperty("likedYou");
+    expect(items[0]).not.toHaveProperty("locked");
+    expect(JSON.stringify(items)).not.toContain("Decision");
+  });
+
+  it("unlocked at ≥1", async () => {
+    settings.getCycleFlags.mockResolvedValue(on);
+    db.user.findUnique.mockResolvedValue({ ...me, matchCredits: 1 });
+    db.suggestion.findMany.mockResolvedValueOnce([withDecision("s1", null)]).mockResolvedValueOnce([]);
+    const { items } = await getSuggestionFeed("me", "new", 1);
+    expect(items[0]).toMatchObject({ kind: "mutual", id: "s1", candidate: { id: "f-s1" } });
+    expect(items[0]).not.toHaveProperty("locked");
+  });
+
+  it("flag off unchanged", async () => {
+    db.user.findUnique.mockResolvedValue(broke);
+    db.suggestion.findMany.mockResolvedValueOnce([withDecision("s1", "INTERESTED")]).mockResolvedValueOnce([]);
+    const { items } = await getSuggestionFeed("me", "new", 1);
+    expect(items[0]).toMatchObject({ kind: "mutual", id: "s1", candidate: { id: "f-s1" } });
+    expect(items[0]).not.toHaveProperty("locked");
+    expect(items[0]).not.toHaveProperty("likedYou");
+  });
+
+  it("legacy items and the waiting tab are never locked", async () => {
+    settings.getCycleFlags.mockResolvedValue(on);
+    db.user.findUnique.mockResolvedValue(broke);
+    db.suggestion.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ id: "L1", compatibilityScore: 60, createdAt: new Date(), candidate: person("f2", "FEMALE") }]);
+    const fresh = await getSuggestionFeed("me", "new", 1);
+    expect(fresh.items[0]).toMatchObject({ kind: "legacy_suggestion", candidate: { id: "f2" } });
+    db.suggestion.findMany.mockReset().mockResolvedValue([]);
+    db.suggestion.findMany.mockResolvedValueOnce([withDecision("w1", null)]).mockResolvedValueOnce([]);
+    const waiting = await getSuggestionFeed("me", "waiting", 1);
+    expect(waiting.items[0]).toMatchObject({ kind: "mutual", id: "w1", candidate: { id: "f-w1" } });
   });
 });

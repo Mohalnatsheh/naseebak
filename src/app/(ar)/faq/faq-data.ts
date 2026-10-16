@@ -2,6 +2,8 @@
  * FAQ questions and answers, shared by the FAQ page and its JSON-LD (what search engines index).
  * New-cycle answers replace legacy ones when the switches are on.
  */
+import { CREDIT_ON_INTEREST_LINE } from "@/lib/suggestions/copy";
+
 export const baseFaqs = [
   // General
   {
@@ -119,8 +121,24 @@ function newCycleAnswers(chat: boolean): Record<number, string> {
   };
 }
 
+/** Credit on interest (switch `credit_on_interest`): "مهتم" costs 1 credit and picks the introduction. */
+function creditOnInterestAnswers(chat: boolean): Record<number, string> {
+  return {
+    2: chat
+      ? "تسجّل برقم هاتفك وتكمل ملفك. تصلك اقتراحات مجانية باستمرار مع نسبة التوافق. عند «مهتم» تختار: محادثة قصيرة داخل نصيبك أولاً أو تعارف عائلي مباشرة. إذا أبدى الطرفان اهتمامهما تظهر الصور ويبدأ التعارف فوراً."
+      : "تسجّل برقم هاتفك وتكمل ملفك. تصلك اقتراحات مجانية باستمرار مع نسبة التوافق. إذا أبدى الطرفان اهتمامهما تظهر الصور ويبدأ التعارف العائلي فوراً، وتتبادل العائلتان بيانات وليّ الأمر لترتيب الزيارة.",
+    4: `نعم، التسجيل والاقتراحات مجانية، وتحصل على 3 أرصدة عند التسجيل. ${CREDIT_ON_INTEREST_LINE}`,
+    9: `التسجيل مجاني ومعه 3 أرصدة. بعدها يمكنك شحن رصيدك من لوحة التحكم: 3 أرصدة بـ 3 د.أ، أو 5 أرصدة بـ 4 د.أ، أو 10 أرصدة بـ 7 د.أ. ${CREDIT_ON_INTEREST_LINE}`,
+    13: "كل المستخدمين — شباب وبنات — يحصلوا على اقتراحات مجانية باستمرار. قرارك يبقى سرّاً، ولا يظهر التوافق إلا إذا أبدى الطرفان اهتمامهما.",
+    14: chat
+      ? "تنكشف الصور والتفاصيل للطرفين ويبدأ التعارف الذي اخترتماه مع «مهتم»: محادثة داخل نصيبك أو تعارف عائلي تتبادل فيه العائلتان بيانات وليّ الأمر. وتبقى الطلبات بعد التوافق مجانية."
+      : "تنكشف الصور والتفاصيل للطرفين ويبدأ التعارف العائلي: تتبادل العائلتان بيانات وليّ الأمر لترتيب الزيارة.",
+  };
+}
 
-export function faqsFor(newCycle: boolean, chat: boolean) {
-  const overrides = newCycle ? newCycleAnswers(chat) : {};
+export function faqsFor(newCycle: boolean, chat: boolean, creditOnInterest = false) {
+  const overrides = newCycle
+    ? { ...newCycleAnswers(chat), ...(creditOnInterest ? creditOnInterestAnswers(chat) : {}) }
+    : {};
   return baseFaqs.map((f) => (overrides[f.id] ? { ...f, a: overrides[f.id] } : f));
 }

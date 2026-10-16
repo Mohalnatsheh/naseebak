@@ -30,6 +30,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { trackEvent } from "@/lib/analytics";
 import { useDashboardData } from "@/contexts/dashboard-context";
+import { CREDIT_ON_INTEREST_LINE } from "@/lib/suggestions/copy";
 
 const stripePromise = loadStripe(
   process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!
@@ -76,8 +77,11 @@ export default function PaymentsPage() {
 }
 
 function PaymentsContent() {
-  // New cycle: a credit is spent per family/chat request, suggestions are free
-  const perRequest = useDashboardData().counts.flags.introRequests;
+  // New cycle: a credit is spent per family/chat request, suggestions are free;
+  // credit on interest: a credit is spent on "مهتم" instead, requests are free
+  const { flags } = useDashboardData().counts;
+  const perRequest = flags.introRequests;
+  const creditOnInterest = !!flags.creditOnInterest;
   const router = useRouter();
   const searchParams = useSearchParams();
   const [packages, setPackages] = useState<CreditPackage[]>([]);
@@ -267,7 +271,9 @@ function PaymentsContent() {
   // Package card icons based on index
   const packageIcons = [Zap, Crown, Gem];
   const packageFeatures = [
-    perRequest ? ["تجربة المنصة", "طلبات تعارف أو محادثة"] : ["تجربة المنصة", "اقتراحات أساسية"],
+    creditOnInterest
+      ? ["تجربة المنصة", "اختيار «مهتم» على الاقتراحات"]
+      : perRequest ? ["تجربة المنصة", "طلبات تعارف أو محادثة"] : ["تجربة المنصة", "اقتراحات أساسية"],
     ["توفير أكثر", "أفضل قيمة"],
     ["أقل سعر للرصيد", "تجربة كاملة"],
   ];
@@ -355,7 +361,9 @@ function PaymentsContent() {
                   {perRequest ? "رصيد التعارف" : "رصيد الاقتراحات"}
                 </h1>
                 <p className="text-white/60 text-sm mt-0.5">
-                  {perRequest
+                  {creditOnInterest
+                    ? `الاقتراحات مجانية. ${CREDIT_ON_INTEREST_LINE}`
+                    : perRequest
                     ? "الاقتراحات مجانية. كل طلب تعارف عائلي أو محادثة يستخدم رصيداً واحداً."
                     : "اشتري رصيد عشان تشوف اقتراحات أكثر"}
                 </p>

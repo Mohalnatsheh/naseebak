@@ -67,7 +67,7 @@ export function scoreLabel(score: number) {
   return "توافق منخفض";
 }
 
-function scoreGradient(score: number) {
+export function scoreGradient(score: number) {
   if (score >= 60) return "from-primary to-secondary";
   if (score >= 40) return "from-accent to-accent/70";
   return "from-destructive to-destructive/70";
@@ -81,7 +81,7 @@ const toneStripe: Record<PersonCardTone, string> = {
   danger: "border-s-destructive",
 };
 
-function ScoreRing({ score, compact }: { score: number; compact?: boolean }) {
+export function ScoreRing({ score, compact }: { score: number; compact?: boolean }) {
   return (
     <div
       className={cn(

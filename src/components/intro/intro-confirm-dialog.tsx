@@ -23,8 +23,10 @@ interface Props {
   type: "FAMILY" | "CHAT";
   partnerName: string;
   credits: number;
-  /** Family request after a chat costs nothing */
+  /** Family request after a chat costs nothing (and every request with credit on interest) */
   free?: boolean;
+  /** Why it is free; defaults to the chat → family wording */
+  freeNote?: string;
   guardian: { exists: boolean; consented: boolean };
   busy: boolean;
   onConfirm: (consent: boolean) => void;
@@ -53,6 +55,7 @@ export function IntroConfirmDialog({
   partnerName,
   credits,
   free,
+  freeNote,
   guardian,
   busy,
   onConfirm,
@@ -116,7 +119,7 @@ export function IntroConfirmDialog({
           (free ? (
             <div className="flex items-start gap-3 rounded-xl border border-emerald-200/60 bg-emerald-50/60 p-3 text-sm text-emerald-800 dark:bg-emerald-950/20 dark:text-emerald-300">
               <Gift className="mt-0.5 h-4 w-4 flex-shrink-0" />
-              <p>مجاناً — لأنكما تتعارفان عبر المحادثة.</p>
+              <p>{freeNote ?? "مجاناً — لأنكما تتعارفان عبر المحادثة."}</p>
             </div>
           ) : noCredits ? (
             <div className="rounded-xl border border-amber-200/60 bg-amber-50/70 p-3 text-sm text-amber-800">

@@ -25,7 +25,7 @@ export default async function FaqLayout({
   const faqJsonLd = {
     "@context": "https://schema.org",
     "@type": "FAQPage",
-    mainEntity: faqsFor(flags.introRequests, flags.chat).map((f) => ({
+    mainEntity: faqsFor(flags.introRequests, flags.chat, flags.creditOnInterest).map((f) => ({
       "@type": "Question",
       name: f.q,
       acceptedAnswer: { "@type": "Answer", text: f.a },

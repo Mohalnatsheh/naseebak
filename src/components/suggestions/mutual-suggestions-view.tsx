@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import {
   Loader2, Sparkles, HeartHandshake, X, Search, Clock, User, GraduationCap,
   Moon, Cigarette, Flag, ChevronLeft, ChevronRight, MoreVertical,
-  ShieldAlert, Ban, Lightbulb, Heart, Hourglass,
+  ShieldAlert, Ban, Lightbulb, Heart, Hourglass, Coins,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -15,19 +15,29 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { PersonCard } from "@/components/shared/person-card";
 import { CandidateDetails } from "@/components/suggestions/candidate-details";
 import { DealbreakersCard } from "@/components/suggestions/dealbreakers-card";
+import { InterestDialog, rechargeToContinue, type IntroPreferenceChoice } from "@/components/suggestions/interest-dialog";
+import { CREDIT_ON_INTEREST_LINE } from "@/lib/suggestions/copy";
+import { LockedSuggestionCard } from "@/components/suggestions/locked-suggestion-card";
 import { trackEvent } from "@/lib/analytics";
 import { useDashboardData } from "@/contexts/dashboard-context";
 import { describeOption, oppositeGender } from "@/lib/profile-options";
-import type { FeedItem, FeedTab } from "@/lib/suggestions/feed";
+import { isLockedItem, type FeedItem, type FeedTab, type OpenFeedItem } from "@/lib/suggestions/feed";
 import type { SuggestEmptyReason } from "@/lib/matching/auto-suggest";
 
-type Notice = { kind: "match"; matchId?: string } | { kind: "interested" } | { kind: "declined" } | { kind: "error"; message: string };
+type Notice =
+  | { kind: "match"; matchId?: string }
+  | { kind: "interested" }
+  | { kind: "declined" }
+  | { kind: "no_credits" }
+  | { kind: "error"; message: string };
+
+type IntroChoice = { introPreference: IntroPreferenceChoice; guardianConsent?: boolean };
 
 /** Which endpoint answers a card: simultaneous rows, or legacy items still in flight. */
-function decisionRequest(item: FeedItem, interested: boolean): { url: string; body?: string } {
+function decisionRequest(item: OpenFeedItem, interested: boolean, choice?: IntroChoice): { url: string; body?: string } {
   switch (item.kind) {
     case "mutual":
-      return { url: `/api/suggestions/${item.id}/decide`, body: JSON.stringify({ interested }) };
+      return { url: `/api/suggestions/${item.id}/decide`, body: JSON.stringify({ interested, ...(interested && choice) }) };
     case "legacy_suggestion":
       return { url: `/api/suggestions/${item.id}/${interested ? "like" : "reject"}` };
     default:
@@ -48,15 +58,37 @@ function formatNextDate(iso: string): string {
 export function MutualSuggestionsView({
   emptyReason = null,
   nextSuggestionsAt = null,
+  creditOnInterest = false,
+  chatEnabled = true,
+  credits = 0,
 }: {
   /** Why no new suggestion came on the last run (from page 1 of /api/suggestions) */
   emptyReason?: SuggestEmptyReason | null;
   /** At the weekly cap: when the oldest suggestion of the 7-day window ages out */
   nextSuggestionsAt?: string | null;
+  /** Switch credit_on_interest (from /api/suggestions): "مهتم" costs 1 credit and opens the chat/family dialog */
+  creditOnInterest?: boolean;
+  /** Chat switch: the dialog hides the chat choice when off */
+  chatEnabled?: boolean;
+  /** Balance when the page loaded (from /api/suggestions) */
+  credits?: number;
 } = {}) {
-  const viewerGender = useDashboardData().profile?.gender;
+  const { profile, counts, refreshProfile, refreshUnread } = useDashboardData();
+  const viewerGender = profile?.gender;
   const partnerGender = oppositeGender(viewerGender);
-  const g = (masculine: string, feminine: string) => (viewerGender === "FEMALE" ? feminine : masculine);
+  const viewerFemale = viewerGender === "FEMALE";
+  const g = (masculine: string, feminine: string) => (viewerFemale ? feminine : masculine);
+  // Credit on interest: my balance, kept in step with each "مهتم"
+  const [balance, setBalance] = useState(credits);
+  const [loadedCredits, setLoadedCredits] = useState(credits);
+  if (credits !== loadedCredits) {
+    // The page reloaded the balance: start from the new value
+    setLoadedCredits(credits);
+    setBalance(credits);
+  }
+  const outOfCredits = creditOnInterest && balance <= 0;
+  const guardian = counts.guardian ?? { exists: !!profile?.parentInfo, consented: !!profile?.parentInfo?.shareConsentAt };
+  const [interestFor, setInterestFor] = useState<OpenFeedItem | null>(null);
   const [tab, setTab] = useState<FeedTab>("new");
   const [items, setItems] = useState<FeedItem[]>([]);
   const [totals, setTotals] = useState<Record<FeedTab, number>>({ new: 0, waiting: 0 });
@@ -100,21 +132,41 @@ export function MutualSuggestionsView({
     setNotice(null);
   }
 
-  async function decide(item: FeedItem, interested: boolean) {
+  /** "مهتم": with credit on interest a shared suggestion first asks chat or family */
+  function onInterested(item: OpenFeedItem) {
+    if (creditOnInterest && item.kind === "mutual") setInterestFor(item);
+    else void decide(item, true);
+  }
+
+  async function decide(item: OpenFeedItem, interested: boolean, choice?: IntroChoice) {
     setActing(item.id);
     setNotice(null);
     try {
-      const { url, body } = decisionRequest(item, interested);
+      const { url, body } = decisionRequest(item, interested, choice);
       const res = await fetch(url, {
         method: "POST",
         ...(body && { headers: { "Content-Type": "application/json" }, body }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setNotice({ kind: "error", message: data.error || "تعذّر حفظ قرارك" });
+        if (data.code === "NO_CREDITS") {
+          // Same message as the disabled "مهتم"; reloading locks the remaining suggestions
+          setBalance(0);
+          setNotice({ kind: "no_credits" });
+        } else {
+          setNotice({ kind: "error", message: data.error || "تعذّر حفظ قرارك" });
+        }
         // The card may be gone (expired / blocked): refresh the list
         load(tab, page);
         return;
+      }
+      if (creditOnInterest && interested) {
+        const left = typeof data.creditsLeft === "number" ? data.creditsLeft : Math.max(0, balance - 1);
+        setBalance(left);
+        refreshUnread();
+        if (choice?.guardianConsent) refreshProfile();
+        // Nothing left: the other new suggestions lock (the feed says so)
+        if (left <= 0) load(tab, page);
       }
       trackEvent("suggestion_response", { response: interested ? "accept" : "reject", mutual_match: !!data.match });
       removeAndRefill(item.id);
@@ -139,7 +191,7 @@ export function MutualSuggestionsView({
     }
   }
 
-  async function block(item: FeedItem) {
+  async function block(item: OpenFeedItem) {
     setMenuOpen(null);
     if (!window.confirm(`حظر ${item.candidate.firstName}؟ لن يظهر لك ولن تظهر له مرة أخرى.`)) return;
     const res = await fetch("/api/blocks", {
@@ -200,6 +252,14 @@ export function MutualSuggestionsView({
           <p className="text-muted-foreground text-sm md:text-base leading-relaxed">
             يرى الطرفان الاقتراح نفسه ويقرّر كلٌّ منكما وحده. إذا كان الاهتمام متبادلاً يصبح توافقاً، ولا يعرف أحد بقرار الآخر غير ذلك.
           </p>
+          {creditOnInterest && (
+            <p className="flex items-center gap-1.5 text-xs md:text-sm font-medium text-foreground/80">
+              <Coins className="h-4 w-4 shrink-0 text-accent" aria-hidden="true" />
+              <span>
+                {CREDIT_ON_INTEREST_LINE} رصيدك: <span className="font-bold text-foreground">{balance}</span>
+              </span>
+            </p>
+          )}
         </div>
       </div>
 
@@ -244,6 +304,8 @@ export function MutualSuggestionsView({
               ? "border-emerald-200 bg-emerald-50 text-emerald-900"
               : notice.kind === "error"
                 ? "border-destructive/30 bg-destructive/5 text-destructive"
+                : notice.kind === "no_credits"
+                  ? "border-amber-200/60 bg-amber-50/70 text-amber-900"
                 : "border-primary/15 bg-primary/5 text-foreground"
           }`}
         >
@@ -261,6 +323,16 @@ export function MutualSuggestionsView({
           )}
           {notice.kind === "interested" && "تم تسجيل اهتمامك. إذا أبدى الطرف الآخر اهتمامه أيضاً يصبح توافقاً متبادلاً ونخبرك فوراً."}
           {notice.kind === "declined" && "تم. لن يظهر لك هذا الاقتراح مجدداً، ولن يعرف الطرف الآخر بقرارك."}
+          {notice.kind === "no_credits" && (
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <span>{rechargeToContinue(viewerFemale)}</span>
+              <Button asChild size="sm" className="rounded-lg">
+                <Link href="/dashboard/payments">
+                  {g("اشحن رصيدك", "اشحني رصيدك")} <ChevronLeft className="h-4 w-4 ms-1" />
+                </Link>
+              </Button>
+            </div>
+          )}
           {notice.kind === "error" && notice.message}
         </div>
       )}
@@ -298,8 +370,13 @@ export function MutualSuggestionsView({
                   : emptyReason === "weekly_cap"
                     ? "تصلك حتى 3 اقتراحات مجانية كل 7 أيام، وسنرسل لك إشعاراً فور وصولها."
                     : emptyReason === "pending"
-                      ? "عندما تقرّر في اقتراحاتك الحالية أو تنتهي مدتها، تصلك اقتراحات جديدة وسنرسل لك إشعاراً فور وصولها."
-                      : "تصلك حتى 3 اقتراحات مجانية كل أسبوع، وسنرسل لك إشعاراً فور وصولها. إكمال ملفك واختبار الشخصية يجعلها أدق."}
+                      ? g(
+                          "عندما تقرّر في اقتراحاتك الحالية أو تنتهي مدتها، تصلك اقتراحات جديدة وسنرسل لك إشعاراً فور وصولها.",
+                          "عندما تقرّرين في اقتراحاتك الحالية أو تنتهي مدتها، تصلك اقتراحات جديدة وسنرسل لك إشعاراً فور وصولها."
+                        )
+                      : creditOnInterest
+                        ? "تصلك اقتراحات مجانية باستمرار، حتى 5 في الوقت نفسه، وسنرسل لك إشعاراً فور وصولها. إكمال ملفك واختبار الشخصية يجعلها أدق."
+                        : "تصلك حتى 3 اقتراحات مجانية كل أسبوع، وسنرسل لك إشعاراً فور وصولها. إكمال ملفك واختبار الشخصية يجعلها أدق."}
             </p>
             {tab === "new" && emptyReason === "no_candidates" && (
               <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
@@ -316,6 +393,13 @@ export function MutualSuggestionsView({
       ) : (
         <div className="space-y-6">
           {items.map((item, index) => {
+            if (isLockedItem(item)) {
+              return (
+                <div key={item.id} style={{ animation: `fadeSlideIn 0.4s ease-out ${index * 0.08}s both` }}>
+                  <LockedSuggestionCard score={item.compatibilityScore} likedYou={item.likedYou} partnerGender={partnerGender} />
+                </div>
+              );
+            }
             const c = item.candidate;
             const score = Math.round(item.compatibilityScore);
             const isOpen = expanded.has(item.id);
@@ -370,12 +454,27 @@ export function MutualSuggestionsView({
                           {partnerGender === "FEMALE" ? "إذا أبدت اهتمامها أيضاً" : "إذا أبدى اهتمامه أيضاً"} يصبح توافقاً متبادلاً ونخبرك فوراً. يُغلق الاقتراح تلقائياً بعد 14 يوماً من وصوله إن لم يكتمل.
                         </p>
                       )}
+                      {!waiting && creditOnInterest && (
+                        outOfCredits ? (
+                          <p className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-amber-800">
+                            <Coins className="h-3.5 w-3.5" aria-hidden="true" />
+                            <Link href="/dashboard/payments" className="font-semibold underline underline-offset-4">
+                              {rechargeToContinue(viewerFemale)}
+                            </Link>
+                          </p>
+                        ) : (
+                          <p className="mb-3 flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <Coins className="h-3.5 w-3.5 text-accent" aria-hidden="true" />
+                            مهتم يستخدم رصيداً واحداً — رصيدك {balance}
+                          </p>
+                        )
+                      )}
                       <div className="flex gap-3">
                         {!waiting && (
                           <>
                             <Button
-                              onClick={() => decide(item, true)}
-                              disabled={acting === item.id}
+                              onClick={() => onInterested(item)}
+                              disabled={acting === item.id || outOfCredits}
                               className="flex-1 h-12 bg-gradient-to-l from-primary to-secondary text-primary-foreground shadow-md shadow-primary/20 rounded-xl font-bold text-base"
                             >
                               {acting === item.id ? <Loader2 className="h-5 w-5 animate-spin" /> : <><HeartHandshake className="h-5 w-5 me-2" />مهتم</>}
@@ -383,7 +482,8 @@ export function MutualSuggestionsView({
                             <Button
                               variant="outline"
                               onClick={() => decide(item, false)}
-                              disabled={acting === item.id}
+                              // A shared suggestion is locked at 0 credits (the API refuses "لا" too)
+                              disabled={acting === item.id || (outOfCredits && item.kind === "mutual")}
                               className="h-12 px-6 border-destructive/30 text-destructive/80 hover:bg-destructive/5 hover:text-destructive rounded-xl font-bold"
                             >
                               <X className="h-5 w-5 me-1" />لا
@@ -446,6 +546,23 @@ export function MutualSuggestionsView({
             </div>
           )}
         </div>
+      )}
+
+      {creditOnInterest && (
+        <InterestDialog
+          open={!!interestFor}
+          onOpenChange={(o) => !o && setInterestFor(null)}
+          partnerGender={partnerGender}
+          credits={balance}
+          chatEnabled={chatEnabled}
+          guardian={guardian}
+          onConfirm={async (choice) => {
+            const item = interestFor;
+            if (!item) return;
+            setInterestFor(null);
+            await decide(item, true, choice);
+          }}
+        />
       )}
 
       <Dialog open={!!report} onOpenChange={(o) => !o && setReport(null)}>

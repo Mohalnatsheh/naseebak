@@ -2,7 +2,10 @@
  * The two-tab suggestions feed (simultaneous flow), per viewer:
  *   new     — what I still have to decide: MUTUAL rows, plus legacy suggestions and interests in flight
  *   waiting — what I said "مهتم" to and isn't a match (yet): MUTUAL rows until they expire, plus legacy sent
- * Items never carry the other person's decision or the row's status.
+ * Items never carry the other person's decision or the row's status — single exception (owner):
+ * with credit_on_interest on and a balance of 0, MUTUAL rows in "new" come back locked (score only,
+ * no profile fields) and carry `likedYou` when the other side already said "مهتم". A "لا" from them
+ * looks exactly like no decision.
  */
 import { db } from "@/lib/db";
 import { calculateCompatibility } from "@/lib/matching/score";
@@ -81,14 +84,32 @@ export interface FeedCandidate {
   familyValues: string | null;
 }
 
-export interface FeedItem {
+export interface OpenFeedItem {
   kind: FeedKind;
+  locked?: never;
   /** Suggestion id, or the Like id for legacy_interest */
   id: string;
   compatibilityScore: number;
   reason: string;
   createdAt: string;
   candidate: FeedCandidate;
+}
+
+/** Credit on interest at 0 credits: a MUTUAL suggestion shown blurred until a recharge (no profile fields). */
+export interface LockedFeedItem {
+  kind: "mutual";
+  id: string;
+  compatibilityScore: number;
+  expiresAt: string;
+  locked: true;
+  /** The other side already said "مهتم" (owner exception; a "لا" is never distinguishable) */
+  likedYou?: true;
+}
+
+export type FeedItem = OpenFeedItem | LockedFeedItem;
+
+export function isLockedItem(item: FeedItem): item is LockedFeedItem {
+  return item.locked === true;
 }
 
 // Only public profile fields — never preferences, dealbreakers or anything private
@@ -144,14 +165,23 @@ export async function getSuggestionFeed(
   const order = suggestionOrder(flags);
 
   const [viewer, blocked] = await Promise.all([
-    db.user.findUnique({ where: { id: userId }, select: personSelect }),
+    db.user.findUnique({ where: { id: userId }, select: { ...personSelect, matchCredits: true } }),
     blockedIdsOf(userId),
   ]);
   if (!viewer) return { items: [], page, totalPages: 0, total: 0 };
 
-  const rows: { kind: FeedKind; id: string; score: number | null; createdAt: Date; other: Person }[] = [];
+  // Credit on interest with nothing left: new MUTUAL suggestions are locked until a recharge
+  const locking = tab === "new" && flags.creditOnInterest && (viewer.matchCredits ?? 0) < 1;
+
+  type Row = {
+    kind: FeedKind; id: string; score: number | null; createdAt: Date; other: Person;
+    lock?: { expiresAt: Date; likedYou: boolean };
+  };
+  const rows: Row[] = [];
   const mutualSelect = {
-    id: true, compatibilityScore: true, createdAt: true, recipientId: true,
+    id: true, compatibilityScore: true, createdAt: true, recipientId: true, expiresAt: true,
+    // Read only for the locked "liked you" tag; never sent to the client
+    recipientDecision: true, candidateDecision: true,
     recipient: { select: personSelect }, candidate: { select: personSelect },
   } as const;
   const otherOf = (s: { recipientId: string; recipient: Person; candidate: Person }) =>
@@ -180,7 +210,13 @@ export async function getSuggestionFeed(
       db.like.findMany({ where: { fromUserId: userId }, select: { toUserId: true } }),
     ]);
     const answered = new Set(myResponses.map((r) => r.toUserId));
-    for (const s of mutual) rows.push({ kind: "mutual", id: s.id, score: s.compatibilityScore, createdAt: s.createdAt, other: otherOf(s as never) });
+    for (const s of mutual) {
+      const theirDecision = s.recipientId === userId ? s.candidateDecision : s.recipientDecision;
+      rows.push({
+        kind: "mutual", id: s.id, score: s.compatibilityScore, createdAt: s.createdAt, other: otherOf(s as never),
+        ...(locking && { lock: { expiresAt: s.expiresAt ?? now, likedYou: theirDecision === "INTERESTED" } }),
+      });
+    }
     for (const s of legacy) rows.push({ kind: "legacy_suggestion", id: s.id, score: s.compatibilityScore, createdAt: s.createdAt, other: s.candidate as Person });
     for (const l of likes) {
       if (answered.has(l.fromUser.id)) continue;
@@ -232,9 +268,19 @@ export async function getSuggestionFeed(
         : b.createdAt.getTime() - a.createdAt.getTime()
     );
   const total = visible.length;
-  const items = visible.slice((page - 1) * pageSize, page * pageSize).map((r) => {
+  const items = visible.slice((page - 1) * pageSize, page * pageSize).map((r): FeedItem => {
     const v = viewer as unknown as Parameters<typeof suggestionReason>[0];
     const o = r.other as unknown as Parameters<typeof suggestionReason>[1];
+    if (r.lock) {
+      return {
+        kind: "mutual",
+        id: r.id,
+        compatibilityScore: r.score ?? calculateCompatibility(v, o),
+        expiresAt: r.lock.expiresAt.toISOString(),
+        locked: true,
+        ...(r.lock.likedYou && { likedYou: true as const }),
+      };
+    }
     return {
       kind: r.kind,
       id: r.id,

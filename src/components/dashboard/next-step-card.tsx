@@ -5,6 +5,7 @@ import { ChevronLeft, UserPen, Inbox, MessageCircle, Sparkles, Users, Coins, Sea
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { useDashboardData } from "@/contexts/dashboard-context";
+import { CREDIT_ON_INTEREST_LINE } from "@/lib/suggestions/copy";
 
 interface Props {
   /** Profile is ready for suggestions (short setup done in the new cycle, 50% in legacy) */
@@ -33,6 +34,9 @@ export function NextStepCard({ qualifies, pendingSuggestions, credits }: Props) 
   const { counts, profile } = useDashboardData();
   const newCycle = counts.flags.introRequests;
   const actionableMatches = counts.actionableMatches ?? 0;
+  // Credit on interest: "مهتم" costs 1 credit; requests are free
+  const creditOnInterest = !!counts.flags.creditOnInterest;
+  const balance = counts.credits ?? credits;
   // Imperatives addressed to the viewer: feminine for women
   const female = profile?.gender === "FEMALE";
   const g = (masculine: string, feminine: string) => (female ? feminine : masculine);
@@ -78,6 +82,15 @@ export function NextStepCard({ qualifies, pendingSuggestions, credits }: Props) 
       cta: g("اشحن رصيدك", "اشحني رصيدك"),
       tone: "accent",
     };
+  } else if (creditOnInterest && (pendingSuggestions ?? 0) > 0 && balance <= 0) {
+    step = {
+      icon: Coins,
+      title: g("اشحن رصيدك لتُبدي اهتمامك", "اشحني رصيدك لتُبدي اهتمامك"),
+      text: CREDIT_ON_INTEREST_LINE,
+      href: "/dashboard/payments",
+      cta: g("اشحن رصيدك", "اشحني رصيدك"),
+      tone: "accent",
+    };
   } else if ((pendingSuggestions ?? 0) > 0) {
     step = {
       icon: Sparkles,
@@ -90,7 +103,7 @@ export function NextStepCard({ qualifies, pendingSuggestions, credits }: Props) 
       cta: "عرض الاقتراحات",
       tone: "primary",
     };
-  } else if (newCycle && actionableMatches > 0 && credits === 0) {
+  } else if (newCycle && !creditOnInterest && actionableMatches > 0 && credits === 0) {
     step = {
       icon: Coins,
       title: "رصيدك صفر",
@@ -115,9 +128,11 @@ export function NextStepCard({ qualifies, pendingSuggestions, credits }: Props) 
     step = {
       icon: Search,
       title: pendingSuggestions === null ? "جارٍ تجهيز اقتراحاتك…" : "نبحث لك عن اقتراحات مناسبة",
-      text: newCycle
-        ? "تصلك حتى 3 اقتراحات مجانية كل أسبوع، وسنرسل لك إشعاراً فور وصولها."
-        : "سنرسل لك إشعاراً فور وصول اقتراح جديد.",
+      text: creditOnInterest
+        ? "تصلك اقتراحات مجانية باستمرار، حتى 5 في الوقت نفسه، وسنرسل لك إشعاراً فور وصولها."
+        : newCycle
+          ? "تصلك حتى 3 اقتراحات مجانية كل أسبوع، وسنرسل لك إشعاراً فور وصولها."
+          : "سنرسل لك إشعاراً فور وصول اقتراح جديد.",
       href: "/dashboard/suggestions",
       cta: "صفحة الاقتراحات",
       tone: "primary",

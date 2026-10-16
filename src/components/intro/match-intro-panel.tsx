@@ -19,6 +19,8 @@ import {
   X,
   HeartOff,
   UserX,
+  PartyPopper,
+  ShieldCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -90,15 +92,21 @@ export function MatchClosedNote({
  * "خطوات التعارف" on a mutual match: family introduction and chat requests.
  * Renders nothing while the new cycle switch is off.
  */
+/** Credit on interest: requests (and chat → family) are free after the match. */
+const FREE_REQUEST_NOTE = "مجاناً — الطلبات والمحادثة مجانية بعد التوافق.";
+
 export function MatchIntroPanel({ matchId, partnerName }: { matchId: string; partnerName: string }) {
   const router = useRouter();
-  const { refreshUnread, profile } = useDashboardData();
+  const { refreshUnread, refreshProfile, profile } = useDashboardData();
   // Partner gender = opposite of the viewer's
   const partnerFemale = profile ? profile.gender !== "FEMALE" : false;
+  const viewerFemale = profile?.gender === "FEMALE";
+  const g = (masculine: string, feminine: string) => (viewerFemale ? feminine : masculine);
   const [state, setState] = useState<IntroState | null>(null);
   const [dialog, setDialog] = useState<DialogState | null>(null);
   const [busy, setBusy] = useState(false);
   const [cancelId, setCancelId] = useState<string | null>(null);
+  const [shareConsent, setShareConsent] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -131,6 +139,8 @@ export function MatchIntroPanel({ matchId, partnerName }: { matchId: string; par
   }
   // Switch off: no new requests, but answers to waiting requests and accepted results stay
   const canSend = state.flags.introRequests;
+  // Credit on interest: requests are free (also on matches from before the switch)
+  const freeRequests = !!state.flags.creditOnInterest;
   const hasHistory =
     !["none", "legacy_admin"].includes(family.status) || !["none", "disabled"].includes(chat.status);
   if (!canSend && !hasHistory) return null;
@@ -181,6 +191,22 @@ export function MatchIntroPanel({ matchId, partnerName }: { matchId: string; par
     if (conversationId) router.push(`/dashboard/chats/${conversationId}`);
   }
 
+  /** Mixed outcome: the chat side agrees to share its guardian contact on this match */
+  async function shareGuardian() {
+    if (busy) return;
+    setBusy(true);
+    const res = await postJson<IntroState>(`/api/matches/${matchId}/guardian-share`, state?.myGuardian.consented ? {} : { consent: true });
+    setBusy(false);
+    if (!res.ok) {
+      toast.error(res.data.error ?? "تعذّر حفظ الموافقة، حاول مرة أخرى");
+      return;
+    }
+    toast.success("تمت مشاركة بيانات وليّ أمرك مع عائلة الطرف الآخر");
+    setState(res.data);
+    refreshProfile();
+    refreshUnread();
+  }
+
   async function cancelRequest() {
     if (!cancelId || busy) return;
     setBusy(true);
@@ -203,8 +229,9 @@ export function MatchIntroPanel({ matchId, partnerName }: { matchId: string; par
 
   // Family is the main (traditional) path; chat is offered as the secondary option.
   // With no credits the action becomes "top up" instead of opening a dialog that can't proceed.
-  const sendButton = (type: "FAMILY" | "CHAT", free?: boolean) =>
-    !free && state.credits <= 0 ? (
+  const sendButton = (type: "FAMILY" | "CHAT", freeOnce?: boolean) => {
+    const free = freeOnce || freeRequests;
+    return !free && state.credits <= 0 ? (
       <Button asChild size="sm" variant="outline" className="gap-1.5">
         <Link href="/dashboard/payments">
           <Coins className="h-4 w-4" />
@@ -222,6 +249,7 @@ export function MatchIntroPanel({ matchId, partnerName }: { matchId: string; par
         {free ? "إرسال الطلب مجاناً" : "إرسال الطلب"}
       </Button>
     );
+  };
 
   const answerButtons = (type: "FAMILY" | "CHAT", requestId?: string) => (
     <div className="flex gap-2">
@@ -328,16 +356,77 @@ export function MatchIntroPanel({ matchId, partnerName }: { matchId: string; par
   ];
 
   const dialogType = dialog?.type ?? "FAMILY";
+  const { outcome, myGuardian } = state;
 
   return (
     <section className="mt-4 rounded-2xl border border-primary/15 bg-gradient-to-b from-primary/[0.04] to-transparent p-4 md:p-5">
       <div className="flex items-center justify-between gap-3">
         <h4 className="font-bold text-foreground">خطوات التعارف</h4>
-        <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-          <Coins className="h-3.5 w-3.5 text-accent" />
-          رصيدك: <span className="font-bold text-foreground">{state.credits}</span>
-        </span>
+        {freeRequests ? (
+          <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+            <Gift className="h-3.5 w-3.5 text-accent" />
+            الطلبات مجانية
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+            <Coins className="h-3.5 w-3.5 text-accent" />
+            رصيدك: <span className="font-bold text-foreground">{state.credits}</span>
+          </span>
+        )}
       </div>
+
+      {/* Credit on interest: the match opened straight into the introduction both chose */}
+      {((outcome === "CHAT" && chat.status === "open") || (outcome === "FAMILY" && family.status === "accepted")) && (
+        <div
+          role="status"
+          className="mt-3 flex items-start gap-3 rounded-xl border border-emerald-200/60 bg-emerald-50/60 p-3 text-sm text-emerald-800 dark:bg-emerald-950/20 dark:text-emerald-300"
+        >
+          <PartyPopper className="mt-0.5 h-4 w-4 flex-shrink-0" aria-hidden="true" />
+          <p className="font-semibold">
+            {outcome === "CHAT" ? "توافق متبادل! المحادثة مفتوحة الآن" : "توافق متبادل! تم مشاركة بيانات التواصل العائلي"}
+          </p>
+        </div>
+      )}
+
+      {/* Mixed outcome: the side that chose chat is asked to share its guardian contact on this match */}
+      {myGuardian.askShare && (
+        <div className="mt-3 rounded-xl border border-accent/40 bg-accent/10 p-4 text-sm">
+          <div className="flex items-start gap-3">
+            <ShieldCheck className="mt-0.5 h-5 w-5 flex-shrink-0 text-accent-foreground" aria-hidden="true" />
+            <div className="min-w-0 flex-1 space-y-3">
+              <p className="font-semibold leading-relaxed text-foreground">
+                {g(
+                  "الطرف الآخر فضّل التعارف العائلي — هل توافق على مشاركة بيانات ولي أمرك؟",
+                  "الطرف الآخر فضّل التعارف العائلي — هل توافقين على مشاركة بيانات ولي أمرك؟"
+                )}
+              </p>
+              {!myGuardian.exists ? (
+                <Link href="/dashboard/profile/edit?step=5" className="inline-block font-semibold underline underline-offset-4">
+                  إضافة بيانات وليّ الأمر
+                </Link>
+              ) : (
+                <>
+                  {!myGuardian.consented && (
+                    <label className="flex cursor-pointer items-start gap-2">
+                      <input
+                        type="checkbox"
+                        checked={shareConsent}
+                        onChange={(e) => setShareConsent(e.target.checked)}
+                        className="mt-0.5 h-4 w-4 flex-shrink-0 accent-[var(--primary)]"
+                      />
+                      <span className="leading-relaxed text-foreground/80">أوافق على مشاركة اسم ورقم ولي الأمر</span>
+                    </label>
+                  )}
+                  <Button size="sm" onClick={shareGuardian} disabled={busy || (!myGuardian.consented && !shareConsent)} className="gap-1.5">
+                    {busy && <Loader2 className="h-4 w-4 animate-spin" />}
+                    مشاركة بيانات وليّ أمري
+                  </Button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         {tiles.map((t) => (
@@ -379,7 +468,7 @@ export function MatchIntroPanel({ matchId, partnerName }: { matchId: string; par
         open={!!cancelId}
         onOpenChange={(o) => !o && setCancelId(null)}
         title="إلغاء الطلب"
-        description={`سيُلغى طلبك ولن ${partnerFemale ? "تتمكن" : "يتمكن"} ${partnerName} من الرد عليه. لا يُسترجع الرصيد المستخدم لإرسال الطلب.`}
+        description={`سيُلغى طلبك ولن ${partnerFemale ? "تتمكن" : "يتمكن"} ${partnerName} من الرد عليه.${freeRequests ? "" : " لا يُسترجع الرصيد المستخدم لإرسال الطلب."}`}
         confirmLabel="إلغاء الطلب"
         destructive
         busy={busy}
@@ -393,7 +482,8 @@ export function MatchIntroPanel({ matchId, partnerName }: { matchId: string; par
         type={dialogType}
         partnerName={partnerName}
         credits={state.credits}
-        free={dialogType === "FAMILY" ? family.free : false}
+        free={freeRequests || (dialogType === "FAMILY" ? family.free : false)}
+        freeNote={freeRequests ? FREE_REQUEST_NOTE : undefined}
         guardian={state.myGuardian}
         busy={busy}
         onConfirm={confirm}

@@ -19,8 +19,16 @@ const faqCategories = [
   { id: "matching", label: "التوافق والاقتراحات", icon: Users },
 ];
 
-export function FaqContent({ newCycle, chat }: { newCycle: boolean; chat: boolean }) {
-  const faqs = faqsFor(newCycle, chat);
+export function FaqContent({
+  newCycle,
+  chat,
+  creditOnInterest = false,
+}: {
+  newCycle: boolean;
+  chat: boolean;
+  creditOnInterest?: boolean;
+}) {
+  const faqs = faqsFor(newCycle, chat, creditOnInterest);
   const [activeCategory, setActiveCategory] = useState("all");
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const faqView = useInView(0.1);

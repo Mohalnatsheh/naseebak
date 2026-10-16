@@ -6,6 +6,7 @@
  *
  * Credit on interest (switch `credit_on_interest`): "مهتم" costs 1 credit, taken in the same
  * transaction that records the decision, and carries the chat/family preference; "لا" is free.
+ * At 0 credits the suggestion is locked: both "مهتم" and "لا" are refused (NO_CREDITS) until a recharge.
  * No refund when the other side declines or never answers (that would reveal their decision).
  */
 import type { IntroPreference, Prisma } from "@prisma/client";
@@ -131,10 +132,13 @@ export async function decideSuggestion(args: {
 
   const charge = flags.creditOnInterest && interested;
   const preference = charge ? args.introPreference : undefined;
-  if (charge) {
-    const { needsConsent } = await checkIntroPreference(userId, preference, flags.chat, args.guardianConsent);
+  if (flags.creditOnInterest) {
+    // At 0 the suggestion is locked (feed.ts): neither "مهتم" nor "لا" until a recharge
     const me = await db.user.findUnique({ where: { id: userId }, select: { matchCredits: true } });
     if ((me?.matchCredits ?? 0) < 1) throw new IntroError("NO_CREDITS");
+  }
+  if (charge) {
+    const { needsConsent } = await checkIntroPreference(userId, preference, flags.chat, args.guardianConsent);
     if (needsConsent) await setGuardianConsent(userId);
   }
 

@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useDashboardData } from "@/contexts/dashboard-context";
 import { Heart, User, Camera, Brain, Shield, Sparkles, ChevronLeft, ChevronRight, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { CREDIT_ON_INTEREST_LINE } from "@/lib/suggestions/copy";
 
 const STORAGE_KEY = "naseeb_onboarding_completed";
 
@@ -72,13 +73,38 @@ const newCycleSteps: Step[] = [
   },
 ];
 
+/** Credit on interest: suggestions flow continuously; "مهتم" costs 1 credit and picks the introduction. */
+function creditOnInterestSteps(chat: boolean): Step[] {
+  return newCycleSteps.map((step, i) =>
+    i === 2
+      ? {
+          ...step,
+          title: "اقتراحات مجانية باستمرار",
+          description: `تصلك اقتراحات تناسبك تباعاً. اضغط «مهتم» أو «لا»، ولا يعرف أحد قرارك إلا عند التوافق. ${CREDIT_ON_INTEREST_LINE}`,
+        }
+      : i === 3
+        ? {
+            ...step,
+            title: "عند «مهتم» تختار طريقة التعارف",
+            description: chat
+              ? "محادثة هنا أولاً أو تعارف عائلي مباشرة. إذا كان الاهتمام متبادلاً يبدأ التعارف فوراً."
+              : "تعارف عائلي تتبادل فيه العائلتان بيانات وليّ الأمر. إذا كان الاهتمام متبادلاً يبدأ التعارف فوراً.",
+          }
+        : step
+  );
+}
+
 export const ONBOARDING_DONE_EVENT = "naseeb:onboarding-done";
 
 export function OnboardingGuide() {
   const router = useRouter();
   const pathname = usePathname();
   const { counts } = useDashboardData();
-  const steps = counts.flags.introRequests ? newCycleSteps : legacySteps;
+  const steps = counts.flags.creditOnInterest
+    ? creditOnInterestSteps(counts.flags.chat)
+    : counts.flags.introRequests
+      ? newCycleSteps
+      : legacySteps;
   const [show, setShow] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
 

@@ -11,6 +11,7 @@ import { touchLastActive } from "@/lib/activity";
  * switches, pending requests waiting for my answer, unread chat messages,
  * whether I still need to give guardian consent, and how many matches still have something
  * to do (`actionableMatches`: not blocked, partner active, a family or chat request can still be sent).
+ * With credit_on_interest on, also my balance (`credits`).
  */
 export async function GET() {
   try {
@@ -34,7 +35,7 @@ export async function GET() {
     await cancelDeadPendingFor(userId).catch((e) => console.error("Cancel dead requests:", e));
 
     const pendingWhere = { receiverId: userId, status: "PENDING" as const, expiresAt: { gt: new Date() } };
-    const [pendingIntros, firstPending, unreadChats, chatCount, guardian, states] = await Promise.all([
+    const [pendingIntros, firstPending, unreadChats, chatCount, guardian, states, me] = await Promise.all([
       db.introRequest.count({ where: pendingWhere }),
       // The one that expires first, so the dashboard card can open that match
       db.introRequest.findFirst({ where: pendingWhere, orderBy: { expiresAt: "asc" }, select: { matchId: true } }),
@@ -48,6 +49,8 @@ export async function GET() {
       db.conversation.count({ where: mine }),
       db.parentInfo.findUnique({ where: { userId }, select: { shareConsentAt: true } }),
       loadMatchStates(userId, flags),
+      // Credit on interest: the balance gates "مهتم" (dashboard next step)
+      flags.creditOnInterest ? db.user.findUnique({ where: { id: userId }, select: { matchCredits: true } }) : null,
     ]);
     const actionableMatches = [...states.values()].filter((s) => s.actionable).length;
 
@@ -59,6 +62,7 @@ export async function GET() {
       hasChats: chatCount > 0,
       guardian: { exists: !!guardian, consented: !!guardian?.shareConsentAt },
       actionableMatches,
+      ...(flags.creditOnInterest && { credits: me?.matchCredits ?? 0 }),
     });
   } catch (error) {
     console.error("Counts error:", error);

@@ -45,6 +45,9 @@ export async function GET(request: Request) {
       return NextResponse.json({
         mutualView: true,
         credits: me?.matchCredits ?? 0,
+        // Credit on interest: "مهتم" opens the chat/family dialog and costs 1 credit (CHAT hidden with chat off)
+        creditOnInterest: flags.creditOnInterest,
+        chatEnabled: flags.chat,
         emptyReason,
         nextSuggestionsAt,
         suggestions: [],

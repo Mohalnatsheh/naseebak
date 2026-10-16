@@ -87,6 +87,27 @@ enum NotificationType {
   SUBSCRIPTION
   SYSTEM
   SUPPORT
+  INTRO_REQUEST
+  CHAT
+}
+
+enum IntroRequestType {
+  FAMILY
+  CHAT
+}
+
+enum IntroRequestStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  EXPIRED
+  CANCELLED
+}
+
+enum ConversationStatus {
+  ACTIVE
+  ENDED
+  EXPIRED
 }
 
 enum BlogPostStatus {
@@ -187,6 +208,10 @@ model User {
   referralsGiven          Referral[]  @relation("ReferralsGiven")
   referralsReceived       Referral?   @relation("ReferralsReceived")
 
+  sentIntroRequests     IntroRequest[] @relation("IntroSender")
+  receivedIntroRequests IntroRequest[] @relation("IntroReceiver")
+  messages              Message[]
+
   @@map("users")
 }
 
@@ -277,6 +302,8 @@ model ParentInfo {
   relationship    String   // father, mother, brother, guardian
   address         String?  // Home address for visit coordination
   notes           String?
+  // Consent to share name/relationship/phone with the other family after an accepted family introduction
+  shareConsentAt  DateTime?
 
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -366,6 +393,8 @@ model MutualMatch {
   revealedByFemale   Boolean      @default(false)
 
   visitRequest    VisitRequest?
+  introRequests   IntroRequest[]
+  conversation    Conversation?
 
   createdAt       DateTime     @default(now())
 
@@ -600,6 +629,8 @@ model NotificationPreference {
   payments     Boolean  @default(true)
   identity     Boolean  @default(true)
   support      Boolean  @default(true)
+  introRequests Boolean @default(true)
+  chatMessages Boolean  @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -617,4 +648,57 @@ model Referral {
   createdAt      DateTime  @default(now())
 
   @@map("referrals")
+}
+
+// ─── New cycle: introductions and chat ─────────────────────────────────────
+
+model IntroRequest {
+  id          String             @id @default(cuid())
+  matchId     String
+  match       MutualMatch        @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  type        IntroRequestType
+  senderId    String
+  sender      User               @relation("IntroSender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiverId  String
+  receiver    User               @relation("IntroReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+  status      IntroRequestStatus @default(PENDING)
+  expiresAt   DateTime
+  respondedAt DateTime?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  @@index([matchId])
+  @@index([receiverId, status])
+  @@map("intro_requests")
+}
+
+model Conversation {
+  id             String             @id @default(cuid())
+  matchId        String             @unique
+  match          MutualMatch        @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  status         ConversationStatus @default(ACTIVE)
+  expiresAt      DateTime
+  extended       Boolean            @default(false)
+  expiryWarnedAt DateTime?
+  endedById      String?
+  endedAt        DateTime?
+  messages       Message[]
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  @@map("conversations")
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderId       String
+  sender         User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  body           String
+  readAt         DateTime?
+  createdAt      DateTime     @default(now())
+
+  @@index([conversationId, createdAt])
+  @@map("messages")
 }

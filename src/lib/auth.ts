@@ -1,4 +1,4 @@
-import NextAuth from "next-auth";
+import NextAuth, { type Session } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { NextResponse } from "next/server";
@@ -53,9 +53,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         if (!user) return null;
 
-        // Check if account is suspended or deactivated
+        // Suspended accounts stay locked out. Deactivated accounts (paused, or inside the
+        // 30-day deletion grace period) may sign in: the dashboard sends them to
+        // /dashboard/reactivate and every other user API refuses them (requireUser).
         if (user.status === "SUSPENDED") return null;
-        if (user.isDeactivated) return null;
 
         return {
           id: user.id,
@@ -117,15 +118,46 @@ export async function requireAdmin() {
   return { session };
 }
 
-export async function requireUser() {
+export const DEACTIVATED_ERROR = "حسابك غير مفعّل. أعد تفعيله للمتابعة";
+
+/**
+ * Signed-in user guard for user APIs. Suspended users are always refused; deactivated
+ * users too, unless the route is part of the reactivation flow (`allowDeactivated`).
+ */
+type RequireUserResult =
+  | { error: NextResponse }
+  | { session: Session & { user: NonNullable<Session["user"]> & { id: string } } };
+
+export async function requireUser(
+  options: { allowDeactivated?: boolean } = {},
+): Promise<RequireUserResult> {
   const session = await auth();
   if (!session?.user?.id) {
     return { error: NextResponse.json({ error: "غير مصرح" }, { status: 401 }) };
   }
-  // A suspension takes effect immediately, even for sessions issued before it
-  const user = await db.user.findUnique({ where: { id: session.user.id }, select: { status: true } });
+  // A suspension or deactivation takes effect immediately, even for sessions issued before it
+  const user = await db.user.findUnique({
+    where: { id: session.user.id },
+    select: { status: true, isDeactivated: true },
+  });
   if (user?.status === "SUSPENDED") {
     return { error: NextResponse.json({ error: "تم إيقاف حسابك" }, { status: 403 }) };
   }
+  if (user?.isDeactivated && !options.allowDeactivated) {
+    return {
+      error: NextResponse.json({ error: DEACTIVATED_ERROR, code: "DEACTIVATED" }, { status: 403 }),
+    };
+  }
   return { session };
+}
+
+/** Whether the signed-in user's account is deactivated (dashboard guard). */
+export async function isSessionUserDeactivated(): Promise<boolean> {
+  const session = await auth();
+  if (!session?.user?.id) return false;
+  const user = await db.user.findUnique({
+    where: { id: session.user.id },
+    select: { isDeactivated: true },
+  });
+  return !!user?.isDeactivated;
 }

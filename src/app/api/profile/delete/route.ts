@@ -10,7 +10,8 @@ import { db } from "@/lib/db";
 
 export async function POST(request: Request) {
   try {
-    const result = await requireUser();
+    // Deactivated users may manage their deletion request (it is part of reactivation)
+    const result = await requireUser({ allowDeactivated: true });
     if ("error" in result) return result.error;
     const { session } = result;
 
@@ -64,7 +65,8 @@ export async function POST(request: Request) {
 
 export async function DELETE() {
   try {
-    const result = await requireUser();
+    // Deactivated users may manage their deletion request (it is part of reactivation)
+    const result = await requireUser({ allowDeactivated: true });
     if ("error" in result) return result.error;
     const { session } = result;
 
@@ -97,7 +99,8 @@ export async function DELETE() {
 
 export async function GET() {
   try {
-    const result = await requireUser();
+    // Deactivated users may manage their deletion request (it is part of reactivation)
+    const result = await requireUser({ allowDeactivated: true });
     if ("error" in result) return result.error;
     const { session } = result;
 

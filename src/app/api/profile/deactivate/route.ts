@@ -4,7 +4,8 @@ import { db } from "@/lib/db";
 
 export async function POST() {
   try {
-    const result = await requireUser();
+    // Deactivated users may toggle back (same as POST /api/profile/reactivate, minus the notice)
+    const result = await requireUser({ allowDeactivated: true });
     if ("error" in result) return result.error;
     const { session } = result;
 

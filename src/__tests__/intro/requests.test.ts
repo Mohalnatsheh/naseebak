@@ -2,12 +2,13 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const db = vi.hoisted(() => ({
   mutualMatch: { findUnique: vi.fn() },
-  block: { findFirst: vi.fn() },
+  block: { findFirst: vi.fn(), findMany: vi.fn() },
   introRequest: { findMany: vi.fn(), findUnique: vi.fn(), create: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
   parentInfo: { findUnique: vi.fn(), update: vi.fn() },
   user: { findUnique: vi.fn(), count: vi.fn() },
   conversation: { create: vi.fn() },
   visitRequest: { update: vi.fn() },
+  notification: { updateMany: vi.fn() },
   $transaction: vi.fn(),
 }));
 const credits = vi.hoisted(() => ({
@@ -23,7 +24,7 @@ vi.mock("@/lib/credits", () => credits);
 vi.mock("@/lib/notify", () => notifyMod);
 vi.mock("@/lib/settings", () => settings);
 
-import { getMatchIntroState, respondToIntroRequest, sendIntroRequest } from "@/lib/intro/requests";
+import { cancelIntroRequest, getMatchIntroState, respondToIntroRequest, sendIntroRequest } from "@/lib/intro/requests";
 import { IntroError } from "@/lib/intro/errors";
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -50,6 +51,8 @@ beforeEach(() => {
   settings.getCycleFlags.mockResolvedValue({ introRequests: true, chat: true });
   db.mutualMatch.findUnique.mockResolvedValue(match());
   db.block.findFirst.mockResolvedValue(null);
+  db.block.findMany.mockResolvedValue([]);
+  db.notification.updateMany.mockResolvedValue({ count: 1 });
   db.introRequest.findMany.mockResolvedValue([]);
   db.introRequest.updateMany.mockResolvedValue({ count: 1 });
   db.$transaction.mockImplementation(async (fn: (tx: typeof db) => unknown) => fn(db));
@@ -305,5 +308,169 @@ describe("getMatchIntroState", () => {
     settings.getCycleFlags.mockResolvedValue({ introRequests: true, chat: false });
     const state = await getMatchIntroState("m1", "u1");
     expect(state.chat.status).toBe("disabled");
+  });
+});
+
+const cancelledPendingCall = () =>
+  db.introRequest.updateMany.mock.calls.find((c) => c[0].data?.status === "CANCELLED");
+const endedChat = (over: object = {}) => ({
+  id: "c1", status: "ENDED", expiresAt: new Date(Date.now() + DAY), endedById: "f1", ...over,
+});
+
+describe("block closes the match", () => {
+  it("the blocked person no longer sees the match at all", async () => {
+    db.block.findMany.mockResolvedValue([{ id: "b1", blockerId: "f1" }]);
+    await expectCode(getMatchIntroState("m1", "u1"), "NOT_FOUND");
+  });
+
+  it("the blocker gets a closed state without guardian contact, and pending requests are cancelled", async () => {
+    db.block.findMany.mockResolvedValue([{ id: "b1", blockerId: "u1" }]);
+    db.introRequest.findMany.mockResolvedValue([pending({ type: "FAMILY", status: "ACCEPTED" })]);
+    const state = await getMatchIntroState("m1", "u1");
+    expect(state.closed).toBe("blocked");
+    expect(state.family).toEqual({ status: "none" });
+    expect(state.family.contacts).toBeUndefined();
+    expect(cancelledPendingCall()?.[0].where).toMatchObject({
+      status: "PENDING",
+      OR: [{ senderId: "u1", receiverId: "f1" }, { senderId: "f1", receiverId: "u1" }],
+    });
+  });
+
+  it("a request can't be answered once either side blocked (and is cancelled, no refund)", async () => {
+    db.introRequest.findUnique.mockResolvedValue(pending());
+    db.block.findFirst.mockResolvedValue({ id: "b1" });
+    await expectCode(respondToIntroRequest({ requestId: "r1", userId: "f1", accept: false }), "BLOCKED");
+    expect(cancelledPendingCall()).toBeTruthy();
+    expect(credits.refundCredits).not.toHaveBeenCalled();
+    expect(notifyMod.notify).not.toHaveBeenCalled();
+  });
+});
+
+describe("unavailable partner", () => {
+  const partnerIs = (u: object) =>
+    db.user.findUnique.mockImplementation(async ({ where }: { where: { id: string } }) =>
+      where.id === "f1" ? u : { matchCredits: 2, firstName: "يزن" }
+    );
+
+  it("intro state is closed as inactive and the guardian contact is withheld", async () => {
+    partnerIs({ isDeactivated: true, status: "VERIFIED" });
+    db.introRequest.findMany.mockResolvedValue([pending({ type: "FAMILY", status: "ACCEPTED" })]);
+    const state = await getMatchIntroState("m1", "u1");
+    expect(state.closed).toBe("inactive");
+    expect(state.family.contacts).toBeUndefined();
+    expect(cancelledPendingCall()).toBeTruthy();
+  });
+
+  it("a suspended partner counts as inactive too", async () => {
+    partnerIs({ isDeactivated: false, status: "SUSPENDED" });
+    expect((await getMatchIntroState("m1", "u1")).closed).toBe("inactive");
+  });
+
+  it("sending to a deactivated partner is refused with a clear message and cancels what is pending", async () => {
+    partnerIs({ isDeactivated: true });
+    const err = await sendIntroRequest({ matchId: "m1", senderId: "u1", type: "FAMILY" }).catch((e) => e);
+    expect(err).toBeInstanceOf(IntroError);
+    expect(err.code).toBe("NOT_ALLOWED");
+    expect(err.message).toBe("هذا الحساب غير نشط حالياً");
+    expect(cancelledPendingCall()).toBeTruthy();
+    expect(credits.reserveCredits).not.toHaveBeenCalled();
+  });
+
+  it("a request from a deactivated sender can't be accepted and becomes CANCELLED", async () => {
+    db.introRequest.findUnique.mockResolvedValue(pending());
+    db.user.findUnique.mockImplementation(async ({ where }: { where: { id: string } }) =>
+      where.id === "u1" ? { isDeactivated: true } : { matchCredits: 2 }
+    );
+    await expectCode(respondToIntroRequest({ requestId: "r1", userId: "f1", accept: true }), "NOT_ALLOWED");
+    expect(cancelledPendingCall()).toBeTruthy();
+    expect(db.conversation.create).not.toHaveBeenCalled();
+  });
+});
+
+describe("ended chat and finished matches", () => {
+  it("a chat ended by a user closes the family path (not free, can't be sent)", async () => {
+    db.mutualMatch.findUnique.mockResolvedValue(match({ conversation: endedChat() }));
+    const state = await getMatchIntroState("m1", "u1");
+    expect(state.family.status).toBe("closed");
+    expect(state.family.free).toBeUndefined();
+    expect(state.closed).toBe("finished");
+    await expectCode(sendIntroRequest({ matchId: "m1", senderId: "u1", type: "FAMILY" }), "NOT_ALLOWED");
+    expect(credits.reserveCredits).not.toHaveBeenCalled();
+    expect(db.introRequest.create).not.toHaveBeenCalled();
+  });
+
+  it("a chat that expired keeps the free family move", async () => {
+    db.mutualMatch.findUnique.mockResolvedValue(
+      match({ conversation: { id: "c1", status: "EXPIRED", expiresAt: new Date(Date.now() - DAY), endedById: null } })
+    );
+    const state = await getMatchIntroState("m1", "u1");
+    expect(state.family).toMatchObject({ status: "none", free: true });
+    expect(state.closed).toBeNull();
+  });
+
+  it("a chat ended by an admin doesn't close the family path", async () => {
+    db.mutualMatch.findUnique.mockResolvedValue(match({ conversation: endedChat({ endedById: null }) }));
+    const state = await getMatchIntroState("m1", "u1");
+    expect(state.family.status).toBe("none");
+    expect(state.closed).toBeNull();
+  });
+
+  it("a family request can't be accepted after the chat was ended by a user", async () => {
+    db.introRequest.findUnique.mockResolvedValue(pending({ type: "FAMILY", match: match({ conversation: endedChat() }) }));
+    await expectCode(respondToIntroRequest({ requestId: "r1", userId: "f1", accept: true, consent: true }), "NOT_ALLOWED");
+    expect(cancelledPendingCall()).toBeTruthy();
+  });
+
+  it("both requests declined → finished", async () => {
+    db.introRequest.findMany.mockResolvedValue([
+      pending({ id: "a", type: "FAMILY", status: "DECLINED" }),
+      pending({ id: "b", type: "CHAT", status: "DECLINED" }),
+    ]);
+    expect((await getMatchIntroState("m1", "u1")).closed).toBe("finished");
+  });
+
+  it("one declined, the other still possible → not finished", async () => {
+    db.introRequest.findMany.mockResolvedValue([pending({ type: "FAMILY", status: "DECLINED" })]);
+    expect((await getMatchIntroState("m1", "u1")).closed).toBeNull();
+  });
+});
+
+describe("cancelIntroRequest", () => {
+  it("only the sender can cancel", async () => {
+    db.introRequest.findUnique.mockResolvedValue(pending());
+    await expectCode(cancelIntroRequest({ requestId: "r1", userId: "f1" }), "NOT_FOUND");
+  });
+
+  it("cancels a pending request without refund or notification, and clears the receiver's badge", async () => {
+    db.introRequest.findUnique.mockResolvedValue(pending());
+    const res = await cancelIntroRequest({ requestId: "r1", userId: "u1" });
+    expect(res).toEqual({ status: "CANCELLED" });
+    expect(db.introRequest.updateMany).toHaveBeenCalledWith({
+      where: { id: "r1", status: "PENDING" }, data: { status: "CANCELLED" },
+    });
+    expect(credits.refundCredits).not.toHaveBeenCalled();
+    expect(credits.recordCredit).not.toHaveBeenCalled();
+    expect(notifyMod.notify).not.toHaveBeenCalled();
+    expect(db.notification.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ userId: "f1", type: "INTRO_REQUEST", isRead: false }),
+      data: { isRead: true },
+    }));
+  });
+
+  it("an answered request can't be cancelled", async () => {
+    db.introRequest.findUnique.mockResolvedValue(pending({ status: "ACCEPTED" }));
+    await expectCode(cancelIntroRequest({ requestId: "r1", userId: "u1" }), "NOT_ALLOWED");
+  });
+
+  it("a race with the receiver's answer loses cleanly", async () => {
+    db.introRequest.findUnique.mockResolvedValue(pending());
+    db.introRequest.updateMany.mockResolvedValue({ count: 0 });
+    await expectCode(cancelIntroRequest({ requestId: "r1", userId: "u1" }), "NOT_ALLOWED");
+    expect(db.notification.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("an expired request is marked expired instead", async () => {
+    db.introRequest.findUnique.mockResolvedValue(pending({ expiresAt: new Date(Date.now() - 1000) }));
+    await expectCode(cancelIntroRequest({ requestId: "r1", userId: "u1" }), "EXPIRED");
   });
 });

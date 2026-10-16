@@ -6,12 +6,26 @@ import { OnboardingGuide } from "@/components/shared/onboarding-guide";
 import { DashboardDataProvider } from "@/contexts/dashboard-context";
 import { Toaster } from "@/components/ui/sonner";
 import { DashboardFooter } from "@/components/shared/dashboard-footer";
+import { isSessionUserDeactivated } from "@/lib/auth";
+import { DeactivatedGate } from "./reactivate/deactivated-gate";
 
-export default function DashboardLayout({
+export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  // Deactivated accounts (paused or pending deletion) only see /dashboard/reactivate
+  if (await isSessionUserDeactivated()) {
+    return (
+      <Providers>
+        <main className="min-h-screen bg-gradient-to-b from-primary/5 via-background to-background">
+          <DeactivatedGate>{children}</DeactivatedGate>
+        </main>
+        <Toaster position="top-center" dir="rtl" richColors closeButton />
+      </Providers>
+    );
+  }
+
   return (
     <Providers>
       <OneSignalProvider />

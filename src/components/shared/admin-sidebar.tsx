@@ -12,8 +12,11 @@ import { cn } from "@/lib/utils";
 
 type SidebarLink = { href: string; label: string; icon: typeof LayoutDashboard };
 
-/** Legacy-flow pages, grouped under "Legacy" once the new user cycle is on. */
-const LEGACY_HREFS = ["/admin/identity", "/admin/visits", "/admin/profile-requests"];
+/**
+ * Legacy-flow pages, grouped under "Legacy" once the new user cycle is on.
+ * Profile Requests stays in the main nav: profile edits are reviewed in both flows.
+ */
+const LEGACY_HREFS = ["/admin/identity", "/admin/visits"];
 
 const sidebarLinks: SidebarLink[] = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },

@@ -3,8 +3,9 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const db = vi.hoisted(() => ({
   conversation: { findUnique: vi.fn(), findMany: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
   message: { create: vi.fn(), findMany: vi.fn(), updateMany: vi.fn(), count: vi.fn() },
-  block: { findFirst: vi.fn(), create: vi.fn() },
+  block: { findFirst: vi.fn(), findMany: vi.fn(), create: vi.fn() },
   report: { upsert: vi.fn() },
+  introRequest: { updateMany: vi.fn() },
 }));
 const ably = vi.hoisted(() => ({ publishChatEvent: vi.fn() }));
 const notifyMod = vi.hoisted(() => ({ notify: vi.fn(), notifyMany: vi.fn() }));
@@ -16,7 +17,7 @@ vi.mock("@/lib/notify", () => notifyMod);
 vi.mock("@/lib/settings", () => settings);
 vi.mock("@/lib/rate-limit", () => rl);
 
-import { endConversation, extendConversation, getConversation, sendMessage } from "@/lib/chat/service";
+import { endConversation, extendConversation, getConversation, listConversations, sendMessage } from "@/lib/chat/service";
 import { IntroError } from "@/lib/intro/errors";
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -55,6 +56,8 @@ beforeEach(() => {
   db.message.count.mockResolvedValue(0);
   db.message.updateMany.mockResolvedValue({ count: 0 });
   db.conversation.updateMany.mockResolvedValue({ count: 1 });
+  db.introRequest.updateMany.mockResolvedValue({ count: 0 });
+  db.block.findMany.mockResolvedValue([]);
 });
 
 describe("sendMessage", () => {
@@ -73,6 +76,18 @@ describe("sendMessage", () => {
       ...base, match: { ...base.match, male: { ...base.match.male, status: "SUSPENDED" } },
     });
     await expectCode(sendMessage({ conversationId: base.id, senderId: "u1", body: "مرحبا" }), "NOT_ALLOWED");
+    expect(db.message.create).not.toHaveBeenCalled();
+  });
+
+  it("refuses a deactivated partner with a clear message", async () => {
+    const base = conv();
+    db.conversation.findUnique.mockResolvedValue({
+      ...base, match: { ...base.match, female: { ...base.match.female, isDeactivated: true } },
+    });
+    const err = await sendMessage({ conversationId: base.id, senderId: "u1", body: "مرحبا" }).catch((e) => e);
+    expect(err).toBeInstanceOf(IntroError);
+    expect(err.code).toBe("NOT_ALLOWED");
+    expect(err.message).toContain("غير نشط");
     expect(db.message.create).not.toHaveBeenCalled();
   });
 
@@ -198,5 +213,37 @@ describe("endConversation", () => {
       update: expect.objectContaining({ conversationId: c.id }),
     }));
     expect(db.block.create).toHaveBeenCalledWith({ data: { blockerId: "u1", blockedId: "f1" } });
+  });
+});
+
+describe("endConversation closes the family path", () => {
+  it("ending a chat cancels a pending family request on that match (no refund)", async () => {
+    const c = conv();
+    db.conversation.findUnique.mockResolvedValue(c);
+    await endConversation({ conversationId: c.id, userId: "u1" });
+    expect(db.introRequest.updateMany).toHaveBeenCalledWith({
+      where: { matchId: "m1", type: "FAMILY", status: "PENDING" },
+      data: { status: "CANCELLED" },
+    });
+  });
+
+  it("report + block also cancels everything pending between the two", async () => {
+    const c = conv();
+    db.conversation.findUnique.mockResolvedValue(c);
+    await endConversation({ conversationId: c.id, userId: "u1", report: { reason: "SPAM" } });
+    expect(db.introRequest.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ status: "PENDING", OR: [{ senderId: "u1", receiverId: "f1" }, { senderId: "f1", receiverId: "u1" }] }),
+      data: { status: "CANCELLED" },
+    }));
+  });
+});
+
+describe("listConversations", () => {
+  it("marks chats with a blocked partner as read-only, like the chat page", async () => {
+    const c = { ...conv(), messages: [], _count: { messages: 0 } };
+    db.conversation.findMany.mockResolvedValue([c]);
+    db.block.findMany.mockResolvedValue([{ blockerId: "f1", blockedId: "u1" }]);
+    const [summary] = await listConversations("u1");
+    expect(summary.blocked).toBe(true);
   });
 });

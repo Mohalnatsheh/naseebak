@@ -16,6 +16,9 @@ import {
   Coins,
   Gift,
   Loader2,
+  X,
+  HeartOff,
+  UserX,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -23,6 +26,7 @@ import { useDashboardData } from "@/contexts/dashboard-context";
 import type { IntroState } from "@/lib/intro/requests";
 import { IntroConfirmDialog, type IntroDialogMode } from "./intro-confirm-dialog";
 import { GuardianContactCard } from "./guardian-contact-card";
+import { ConfirmActionDialog } from "./confirm-action-dialog";
 import { daysLabel, daysLeft, postJson } from "./intro-utils";
 
 type Tone = "amber" | "accent" | "emerald" | "muted" | "primary";
@@ -50,16 +54,51 @@ interface DialogState {
   requestId?: string;
 }
 
+/** Calm note shown instead of the request tiles when a match is closed. */
+export function MatchClosedNote({
+  reason,
+  children,
+}: {
+  reason: "blocked" | "inactive" | "finished";
+  children?: React.ReactNode;
+}) {
+  const Icon = reason === "inactive" ? UserX : reason === "blocked" ? Ban : HeartOff;
+  const title = reason === "inactive" ? "هذا الحساب غير نشط حالياً" : "انتهى هذا التوافق";
+  const text =
+    reason === "inactive"
+      ? "لا يمكن إرسال طلبات أو الرد عليها لهذا التوافق الآن."
+      : reason === "blocked"
+        ? "قمت بحظر هذا الشخص، لذلك لا تظهر صوره ولا تتوفر أي خطوات تعارف."
+        : "لم تعد هناك خطوات تعارف متاحة لهذا التوافق. نتمنى لك التوفيق في اقتراحاتك القادمة.";
+  return (
+    <section className="mt-4 rounded-2xl border border-border/60 bg-muted/30 p-4 md:p-5">
+      <div className="flex items-start gap-3">
+        <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-muted">
+          <Icon className="h-5 w-5 text-muted-foreground" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="font-semibold text-foreground">{title}</p>
+          <p className="mt-0.5 text-sm leading-relaxed text-muted-foreground">{text}</p>
+          {children && <div className="mt-3 flex flex-wrap gap-2">{children}</div>}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 /**
  * "خطوات التعارف" on a mutual match: family introduction and chat requests.
  * Renders nothing while the new cycle switch is off.
  */
 export function MatchIntroPanel({ matchId, partnerName }: { matchId: string; partnerName: string }) {
   const router = useRouter();
-  const { refreshUnread } = useDashboardData();
+  const { refreshUnread, profile } = useDashboardData();
+  // Partner gender = opposite of the viewer's
+  const partnerFemale = profile ? profile.gender !== "FEMALE" : false;
   const [state, setState] = useState<IntroState | null>(null);
   const [dialog, setDialog] = useState<DialogState | null>(null);
   const [busy, setBusy] = useState(false);
+  const [cancelId, setCancelId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -79,6 +118,17 @@ export function MatchIntroPanel({ matchId, partnerName }: { matchId: string; par
     return <div className="mt-4 h-40 animate-pulse rounded-2xl border border-primary/10 bg-primary/[0.03]" aria-hidden />;
   }
   const { family, chat } = state;
+  if (state.closed) {
+    return (
+      <MatchClosedNote reason={state.closed}>
+        {state.closed === "finished" && chat.conversationId && (
+          <Button asChild size="sm" variant="outline">
+            <Link href={`/dashboard/chats/${chat.conversationId}`}>عرض المحادثة</Link>
+          </Button>
+        )}
+      </MatchClosedNote>
+    );
+  }
   // Switch off: no new requests, but answers to waiting requests and accepted results stay
   const canSend = state.flags.introRequests;
   const hasHistory =
@@ -131,6 +181,26 @@ export function MatchIntroPanel({ matchId, partnerName }: { matchId: string; par
     if (conversationId) router.push(`/dashboard/chats/${conversationId}`);
   }
 
+  async function cancelRequest() {
+    if (!cancelId || busy) return;
+    setBusy(true);
+    const res = await postJson(`/api/intro-requests/${cancelId}/cancel`);
+    setBusy(false);
+    setCancelId(null);
+    if (!res.ok) toast.error(res.data.error ?? "تعذّر إلغاء الطلب، حاول مرة أخرى");
+    else toast.success("تم إلغاء الطلب");
+    await load();
+    refreshUnread();
+  }
+
+  const cancelButton = (requestId?: string) =>
+    requestId ? (
+      <Button size="sm" variant="ghost" className="gap-1 text-muted-foreground" onClick={() => setCancelId(requestId)}>
+        <X className="h-4 w-4" />
+        إلغاء الطلب
+      </Button>
+    ) : null;
+
   // Family is the main (traditional) path; chat is offered as the secondary option.
   // With no credits the action becomes "top up" instead of opening a dialog that can't proceed.
   const sendButton = (type: "FAMILY" | "CHAT", free?: boolean) =>
@@ -173,6 +243,7 @@ export function MatchIntroPanel({ matchId, partnerName }: { matchId: string; par
       break;
     case "pending_sent":
       familyChip = <Chip tone="amber" icon={Clock}>بانتظار الرد · {daysLabel(daysLeft(family.expiresAt))}</Chip>;
+      familyAction = cancelButton(family.requestId);
       break;
     case "pending_received":
       familyChip = <Chip tone="accent" icon={Inbox}>وصلك طلب</Chip>;
@@ -187,6 +258,9 @@ export function MatchIntroPanel({ matchId, partnerName }: { matchId: string; par
     case "legacy_admin":
       familyChip = <Chip tone="primary" icon={CalendarHeart}>فريق نصيبك يتابع الزيارة</Chip>;
       break;
+    case "closed":
+      familyChip = <Chip tone="muted" icon={Ban}>غير متاح بعد إنهاء المحادثة</Chip>;
+      break;
   }
 
   // Chat tile
@@ -198,6 +272,7 @@ export function MatchIntroPanel({ matchId, partnerName }: { matchId: string; par
       break;
     case "pending_sent":
       chatChip = <Chip tone="amber" icon={Clock}>بانتظار الرد · {daysLabel(daysLeft(chat.expiresAt))}</Chip>;
+      chatAction = cancelButton(chat.requestId);
       break;
     case "pending_received":
       chatChip = <Chip tone="accent" icon={Inbox}>وصلك طلب</Chip>;
@@ -299,6 +374,17 @@ export function MatchIntroPanel({ matchId, partnerName }: { matchId: string; par
       )}
 
       {busy && !dialog && <Loader2 className="mt-3 h-4 w-4 animate-spin text-muted-foreground" />}
+
+      <ConfirmActionDialog
+        open={!!cancelId}
+        onOpenChange={(o) => !o && setCancelId(null)}
+        title="إلغاء الطلب"
+        description={`سيُلغى طلبك ولن ${partnerFemale ? "تتمكن" : "يتمكن"} ${partnerName} من الرد عليه. لا يُسترجع الرصيد المستخدم لإرسال الطلب.`}
+        confirmLabel="إلغاء الطلب"
+        destructive
+        busy={busy}
+        onConfirm={cancelRequest}
+      />
 
       <IntroConfirmDialog
         open={!!dialog}

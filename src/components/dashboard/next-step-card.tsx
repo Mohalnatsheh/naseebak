@@ -11,7 +11,11 @@ interface Props {
   qualifies: boolean;
   /** null while loading */
   pendingSuggestions: number | null;
-  matchesCount: number;
+  /**
+   * All my matches (kept for callers). The match steps use `counts.actionableMatches` instead:
+   * blocked, inactive and finished matches have nothing left to do.
+   */
+  matchesCount?: number;
   credits: number;
 }
 
@@ -25,15 +29,21 @@ interface Step {
 }
 
 /** The one thing worth doing next, so the dashboard never leaves the user guessing. */
-export function NextStepCard({ qualifies, pendingSuggestions, matchesCount, credits }: Props) {
-  const { counts } = useDashboardData();
+export function NextStepCard({ qualifies, pendingSuggestions, credits }: Props) {
+  const { counts, profile } = useDashboardData();
   const newCycle = counts.flags.introRequests;
+  const actionableMatches = counts.actionableMatches ?? 0;
+  // Imperatives addressed to the viewer: feminine for women
+  const female = profile?.gender === "FEMALE";
+  const g = (masculine: string, feminine: string) => (female ? feminine : masculine);
 
   let step: Step;
   if (!qualifies) {
     step = {
       icon: UserPen,
-      title: newCycle ? "أكمل إعداد ملفك لتبدأ اقتراحاتك" : "أكمل ملفك لتبدأ الاقتراحات",
+      title: newCycle
+        ? g("أكمل إعداد ملفك لتبدأ اقتراحاتك", "أكملي إعداد ملفك لتبدأ اقتراحاتك")
+        : g("أكمل ملفك لتبدأ الاقتراحات", "أكملي ملفك لتبدأ الاقتراحات"),
       text: newCycle ? "خطوات قصيرة فقط، والباقي اختياري يمكنك إكماله لاحقاً." : "يلزم إكمال ملفك بنسبة 50% على الأقل.",
       href: "/dashboard/profile/setup",
       cta: "متابعة الإعداد",
@@ -44,7 +54,9 @@ export function NextStepCard({ qualifies, pendingSuggestions, matchesCount, cred
       icon: Inbox,
       title: counts.pendingIntros === 1 ? "لديك طلب تعارف بانتظار ردك" : "لديك طلبات تعارف بانتظار ردك",
       text: "الطلبات تنتهي بعد 7 أيام من إرسالها.",
-      href: "/dashboard/matches",
+      href: counts.pendingIntroMatchId
+        ? `/dashboard/matches?match=${encodeURIComponent(counts.pendingIntroMatchId)}`
+        : "/dashboard/matches",
       cta: "عرض الطلب",
       tone: "accent",
     };
@@ -52,7 +64,7 @@ export function NextStepCard({ qualifies, pendingSuggestions, matchesCount, cred
     step = {
       icon: MessageCircle,
       title: "لديك رسائل جديدة",
-      text: "تابع محادثتك قبل الزيارة العائلية.",
+      text: g("تابع محادثتك قبل الزيارة العائلية.", "تابعي محادثتك قبل الزيارة العائلية."),
       href: "/dashboard/chats",
       cta: "فتح المحادثات",
       tone: "primary",
@@ -61,33 +73,39 @@ export function NextStepCard({ qualifies, pendingSuggestions, matchesCount, cred
     step = {
       icon: Coins,
       title: "انتهى رصيد اقتراحاتك",
-      text: "اشحن رصيدك لتستمر باستلام اقتراحات جديدة تناسبك.",
+      text: g("اشحن رصيدك لتستمر باستلام اقتراحات جديدة تناسبك.", "اشحني رصيدك لتستمري باستلام اقتراحات جديدة تناسبك."),
       href: "/dashboard/payments",
-      cta: "اشحن رصيدك",
+      cta: g("اشحن رصيدك", "اشحني رصيدك"),
       tone: "accent",
     };
   } else if ((pendingSuggestions ?? 0) > 0) {
     step = {
       icon: Sparkles,
       title: pendingSuggestions === 1 ? "لديك اقتراح جديد" : "لديك اقتراحات جديدة",
-      text: "اطّلع عليها وقرّر. لا يعرف أحد قرارك إلا عند التوافق المتبادل.",
+      text: g(
+        "اطّلع عليها وقرّر. لا يعرف أحد قرارك إلا عند التوافق المتبادل.",
+        "اطّلعي عليها وقرّري. لا يعرف أحد قرارك إلا عند التوافق المتبادل."
+      ),
       href: "/dashboard/suggestions",
       cta: "عرض الاقتراحات",
       tone: "primary",
     };
-  } else if (newCycle && matchesCount > 0 && credits === 0) {
+  } else if (newCycle && actionableMatches > 0 && credits === 0) {
     step = {
       icon: Coins,
       title: "رصيدك صفر",
-      text: "اشحن رصيدك لإرسال طلب تعارف عائلي أو طلب محادثة لتوافقاتك.",
+      text: g(
+        "اشحن رصيدك لإرسال طلب تعارف عائلي أو طلب محادثة لتوافقاتك.",
+        "اشحني رصيدك لإرسال طلب تعارف عائلي أو طلب محادثة لتوافقاتك."
+      ),
       href: "/dashboard/payments",
-      cta: "اشحن رصيدك",
+      cta: g("اشحن رصيدك", "اشحني رصيدك"),
       tone: "accent",
     };
-  } else if (newCycle && matchesCount > 0) {
+  } else if (newCycle && actionableMatches > 0) {
     step = {
       icon: Users,
-      title: "اختر طريقة التعارف مع توافقك",
+      title: g("اختر طريقة التعارف مع توافقك", "اختاري طريقة التعارف مع توافقك"),
       text: "تعارف عائلي أو محادثة قصيرة قبل الزيارة.",
       href: "/dashboard/matches",
       cta: "عرض التوافقات",

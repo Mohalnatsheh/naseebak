@@ -18,13 +18,16 @@ export async function POST() {
     const { introRequests: perRequestCredits, mutualSuggestions: mutual } = await getCycleFlags();
 
     // Eligible: active users who pass the same suggestion gate as auto-suggest
-    // (new cycle: completed short setup; legacy: ≥ 50% completeness)
+    // (new cycle: completed short setup; legacy: ≥ 50% completeness).
+    // Flagged users are left out on both sides (they neither receive nor are suggested);
+    // an admin can still hand-pick them in Manage User.
     const eligibleUsers = (
       await db.user.findMany({
         where: {
           role: "USER",
           isDeactivated: false,
           status: { not: "SUSPENDED" },
+          isFlagged: false,
           profile: { isComplete: true },
         },
         select: {

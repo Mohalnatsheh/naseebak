@@ -91,6 +91,8 @@ interface CandidateResult {
     firstName: string;
     lastName: string;
     gender: string;
+    /** Reported 3+ times (or flagged by an admin): left out of automatic suggestions */
+    isFlagged?: boolean;
     profile: { city: string | null; education: string | null; maritalStatus: string | null } | null;
   };
   breakdown: CompatibilityBreakdown;
@@ -767,6 +769,15 @@ export default function AdminSuggestionsPage() {
                                     <Badge variant={c.user.gender === "MALE" ? "default" : "secondary"} className="text-xs">
                                       {c.user.gender === "MALE" ? "M" : "F"}
                                     </Badge>
+                                    {c.user.isFlagged && (
+                                      <Badge
+                                        variant="outline"
+                                        className="text-xs border-amber-300 bg-amber-50 text-amber-700"
+                                        title="Flagged after reports. Not suggested automatically; check before assigning."
+                                      >
+                                        Flagged
+                                      </Badge>
+                                    )}
                                     {c.user.profile?.city && (
                                       <span className="text-xs text-muted-foreground">{c.user.profile.city}</span>
                                     )}

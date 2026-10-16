@@ -383,7 +383,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
         <span className="hidden text-muted-foreground sm:inline">لا تشارك أرقام الهواتف أو الحسابات.</span>
 
         <span className="ms-auto">
-          {family?.status === "none" && intro?.flags.introRequests && conversation.status !== "ENDED" && (
+          {family?.status === "none" && intro?.flags.introRequests && !intro.closed && !conversation.blocked && conversation.status !== "ENDED" && (
             <Button size="xs" onClick={() => setFamilyDialog(true)} className="gap-1">
               <Users className="h-3.5 w-3.5" /> ننتقل لتعارف عائلي
             </Button>

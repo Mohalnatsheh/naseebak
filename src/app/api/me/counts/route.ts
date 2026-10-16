@@ -3,11 +3,13 @@ import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getCycleFlags } from "@/lib/settings";
 import { chatHousekeepingForUser } from "@/lib/chat/service";
+import { cancelDeadPendingFor, loadMatchStates } from "@/lib/matches/state";
 
 /**
  * Dashboard badges for the new cycle, polled with the unread-notification count:
  * switches, pending requests waiting for my answer, unread chat messages,
- * and whether I still need to give guardian consent.
+ * whether I still need to give guardian consent, and how many matches still have something
+ * to do (`actionableMatches`: not blocked, partner active, a family or chat request can still be sent).
  */
 export async function GET() {
   try {
@@ -20,14 +22,16 @@ export async function GET() {
     if (!flags.introRequests) {
       // Switch off: existing chats stay readable, so keep the chats link for people who have one
       const hasChats = (await db.conversation.count({ where: mine })) > 0;
-      return NextResponse.json({ flags, pendingIntros: 0, pendingIntroMatchId: null, unreadChats: 0, hasChats, guardian: null });
+      return NextResponse.json({ flags, pendingIntros: 0, pendingIntroMatchId: null, unreadChats: 0, hasChats, guardian: null, actionableMatches: 0 });
     }
 
     // Expire overdue chats and send "2 days left" warnings (no scheduler needed)
     await chatHousekeepingForUser(userId).catch((e) => console.error("Chat housekeeping:", e));
+    // Requests to/from someone who blocked, was blocked, deactivated or suspended are cancelled (no refund)
+    await cancelDeadPendingFor(userId).catch((e) => console.error("Cancel dead requests:", e));
 
     const pendingWhere = { receiverId: userId, status: "PENDING" as const, expiresAt: { gt: new Date() } };
-    const [pendingIntros, firstPending, unreadChats, chatCount, guardian] = await Promise.all([
+    const [pendingIntros, firstPending, unreadChats, chatCount, guardian, states] = await Promise.all([
       db.introRequest.count({ where: pendingWhere }),
       // The one that expires first, so the dashboard card can open that match
       db.introRequest.findFirst({ where: pendingWhere, orderBy: { expiresAt: "asc" }, select: { matchId: true } }),
@@ -40,7 +44,9 @@ export async function GET() {
       }),
       db.conversation.count({ where: mine }),
       db.parentInfo.findUnique({ where: { userId }, select: { shareConsentAt: true } }),
+      loadMatchStates(userId, flags),
     ]);
+    const actionableMatches = [...states.values()].filter((s) => s.actionable).length;
 
     return NextResponse.json({
       flags,
@@ -49,6 +55,7 @@ export async function GET() {
       unreadChats,
       hasChats: chatCount > 0,
       guardian: { exists: !!guardian, consented: !!guardian?.shareConsentAt },
+      actionableMatches,
     });
   } catch (error) {
     console.error("Counts error:", error);

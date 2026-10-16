@@ -7,7 +7,13 @@
  *
  * Sending costs the sender 1 credit (never refunded). A declined request is final for
  * that type on that match; an expired (unanswered) one may be sent again.
- * Moving from a chat to a family introduction is free once.
+ * Moving from a chat to a family introduction is free once — unless one of the two ended the
+ * chat: then no family request is possible on that match any more (it is "finished").
+ *
+ * A block (either way) or a partner who is no longer available (deactivated / suspended) closes
+ * the match: nothing can be sent or accepted, the guardian contact is withheld, and requests
+ * still pending between the two are cancelled lazily (never refunded). The sender may also
+ * cancel their own pending request (no refund).
  */
 import type { IntroRequest, IntroRequestType } from "@prisma/client";
 import { db } from "@/lib/db";
@@ -15,13 +21,19 @@ import { notify } from "@/lib/notify";
 import { reserveCredits, notifyRequestCreditsExhausted, recordCredit } from "@/lib/credits";
 import { getCycleFlags, type CycleFlags } from "@/lib/settings";
 import { IntroError } from "@/lib/intro/errors";
+import {
+  LEGACY_ADMIN_VISIT,
+  blockBetween,
+  cancelPendingBetween,
+  chatEndedByUser,
+  describeMatch,
+  isUnavailable,
+  type MatchClosure,
+} from "@/lib/matches/state";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 export const REQUEST_TTL_DAYS = 7;
 export const CHAT_TTL_DAYS = 14;
-
-/** Admin is already arranging (or arranged) the visit the old way */
-const LEGACY_ADMIN_VISIT = ["FAMILIES_CONTACTED", "SCHEDULED", "COMPLETED"];
 
 export type FamilyStatus =
   | "none"
@@ -29,7 +41,9 @@ export type FamilyStatus =
   | "pending_received"
   | "accepted"
   | "declined"
-  | "legacy_admin";
+  | "legacy_admin"
+  /** One of the two ended the chat: no family request on this match any more */
+  | "closed";
 
 export type ChatStatus =
   | "none"
@@ -49,6 +63,8 @@ export interface GuardianContact {
 
 export interface IntroState {
   flags: CycleFlags;
+  /** Set when the match is closed: I blocked them, their account is inactive, or nothing is left to do */
+  closed: MatchClosure | null;
   credits: number;
   family: {
     status: FamilyStatus;
@@ -74,7 +90,7 @@ async function loadMatchForUser(matchId: string, userId: string) {
     where: { id: matchId },
     include: {
       visitRequest: { select: { id: true, status: true } },
-      conversation: { select: { id: true, status: true, expiresAt: true } },
+      conversation: { select: { id: true, status: true, expiresAt: true, endedById: true } },
     },
   });
   if (!match || (match.femaleId !== userId && match.maleId !== userId)) {
@@ -93,6 +109,13 @@ async function isBlocked(a: string, b: string): Promise<boolean> {
 }
 
 const INACTIVE_MESSAGE = "هذا الحساب غير نشط حالياً";
+const CHAT_ENDED_MESSAGE = "انتهت المحادثة على هذا التوافق، لذلك لم يعد طلب التعارف العائلي متاحاً";
+
+/** Deactivated, suspended or deleted. */
+async function partnerUnavailable(partnerId: string): Promise<boolean> {
+  const partner = await db.user.findUnique({ where: { id: partnerId }, select: { isDeactivated: true, status: true } });
+  return isUnavailable(partner);
+}
 
 /** True when either user is suspended by an admin (one count query). */
 async function eitherSuspended(a: string, b: string): Promise<boolean> {
@@ -127,14 +150,45 @@ function conversationStatus(c: { status: string; expiresAt: Date }): ChatStatus 
 
 export async function getMatchIntroState(matchId: string, userId: string): Promise<IntroState> {
   const { match, partnerId } = await loadMatchForUser(matchId, userId);
+  // They blocked me: the match is gone for me
+  const block = await blockBetween(userId, partnerId);
+  if (block.byThem) throw new IntroError("NOT_FOUND", "التوافق غير موجود");
   await expireStale(matchId);
 
-  const [flags, requests, me, myGuardian] = await Promise.all([
+  const [flags, me, myGuardian, unavailable] = await Promise.all([
     getCycleFlags(),
-    db.introRequest.findMany({ where: { matchId }, orderBy: { createdAt: "desc" } }),
     db.user.findUnique({ where: { id: userId }, select: { matchCredits: true } }),
     db.parentInfo.findUnique({ where: { userId } }),
+    partnerUnavailable(partnerId),
   ]);
+  const base = {
+    flags,
+    credits: me?.matchCredits ?? 0,
+    myGuardian: { exists: !!myGuardian, consented: !!myGuardian?.shareConsentAt },
+  };
+
+  // Closed by a block or an inactive partner: nothing to do, no guardian contact, pending requests cancelled
+  if (block.byMe || unavailable) {
+    await cancelPendingBetween(userId, partnerId);
+    return {
+      ...base,
+      closed: block.byMe ? "blocked" : "inactive",
+      family: { status: "none" },
+      chat: { status: "none" },
+    };
+  }
+
+  const requests = await db.introRequest.findMany({ where: { matchId }, orderBy: { createdAt: "desc" } });
+  const endedByUser = chatEndedByUser(match.conversation);
+  const { closed } = describeMatch({
+    requests,
+    conversation: match.conversation,
+    visitStatus: match.visitRequest?.status ?? null,
+    partnerUnavailable: false,
+    blockedByMe: false,
+    chatEnabled: flags.chat,
+    introEnabled: flags.introRequests,
+  });
 
   // Family
   const family: IntroState["family"] = { status: "none" };
@@ -161,7 +215,10 @@ export async function getMatchIntroState(matchId: string, userId: string): Promi
   } else if (declinedFamily) {
     family.status = "declined";
     family.declinedByMe = declinedFamily.receiverId === userId;
+  } else if (endedByUser) {
+    family.status = "closed";
   } else {
+    // Free once after a chat that expired (or was closed by an admin)
     family.free = !!match.conversation && ofType(requests, "FAMILY").length === 0;
   }
 
@@ -184,13 +241,7 @@ export async function getMatchIntroState(matchId: string, userId: string): Promi
     chat.status = "disabled";
   }
 
-  return {
-    flags,
-    credits: me?.matchCredits ?? 0,
-    family,
-    chat,
-    myGuardian: { exists: !!myGuardian, consented: !!myGuardian?.shareConsentAt },
-  };
+  return { ...base, closed, family, chat };
 }
 
 // Serialises sends per match within this server process (PM2 fork mode = one process),
@@ -212,10 +263,14 @@ export async function sendIntroRequest(args: {
   sending.add(lockKey);
   try {
     const { match, partnerId } = await loadMatchForUser(matchId, senderId);
-    if (await isBlocked(senderId, partnerId)) throw new IntroError("BLOCKED");
-    const partner = await db.user.findUnique({ where: { id: partnerId }, select: { isDeactivated: true } });
-    if (partner?.isDeactivated) throw new IntroError("NOT_ALLOWED", INACTIVE_MESSAGE);
-    if (await eitherSuspended(senderId, partnerId)) throw new IntroError("NOT_ALLOWED", INACTIVE_MESSAGE);
+    if (await isBlocked(senderId, partnerId)) {
+      await cancelPendingBetween(senderId, partnerId);
+      throw new IntroError("BLOCKED");
+    }
+    if ((await partnerUnavailable(partnerId)) || (await eitherSuspended(senderId, partnerId))) {
+      await cancelPendingBetween(senderId, partnerId);
+      throw new IntroError("NOT_ALLOWED", INACTIVE_MESSAGE);
+    }
     await expireStale(matchId);
 
     const requests = await db.introRequest.findMany({ where: { matchId }, orderBy: { createdAt: "desc" } });
@@ -228,6 +283,7 @@ export async function sendIntroRequest(args: {
       if (match.visitRequest && LEGACY_ADMIN_VISIT.includes(match.visitRequest.status)) {
         throw new IntroError("NOT_ALLOWED", "فريق نصيبك يتابع ترتيب الزيارة لهذا التوافق");
       }
+      if (chatEndedByUser(match.conversation)) throw new IntroError("NOT_ALLOWED", CHAT_ENDED_MESSAGE);
       const guardian = await db.parentInfo.findUnique({ where: { userId: senderId } });
       if (!guardian) throw new IntroError("GUARDIAN_REQUIRED");
       if (!guardian.shareConsentAt) throw new IntroError("CONSENT_REQUIRED");
@@ -290,7 +346,7 @@ export async function respondToIntroRequest(args: {
       match: {
         include: {
           visitRequest: { select: { id: true, status: true } },
-          conversation: { select: { id: true, status: true, expiresAt: true } },
+          conversation: { select: { id: true, status: true, expiresAt: true, endedById: true } },
         },
       },
     },
@@ -301,9 +357,18 @@ export async function respondToIntroRequest(args: {
     await db.introRequest.update({ where: { id: requestId }, data: { status: "EXPIRED" } });
     throw new IntroError("EXPIRED");
   }
-  if (accept && (await isBlocked(request.senderId, userId))) throw new IntroError("BLOCKED");
-  if (accept && (await eitherSuspended(request.senderId, userId))) {
+  if (await isBlocked(request.senderId, userId)) {
+    // The match is closed: the request goes away quietly (no refund)
+    await cancelPendingBetween(request.senderId, userId);
+    throw new IntroError("BLOCKED");
+  }
+  if ((await partnerUnavailable(request.senderId)) || (accept && (await eitherSuspended(request.senderId, userId)))) {
+    await cancelPendingBetween(request.senderId, userId);
     throw new IntroError("NOT_ALLOWED", INACTIVE_MESSAGE);
+  }
+  if (accept && request.type === "FAMILY" && chatEndedByUser(request.match.conversation)) {
+    await db.introRequest.updateMany({ where: { id: requestId, status: "PENDING" }, data: { status: "CANCELLED" } });
+    throw new IntroError("NOT_ALLOWED", CHAT_ENDED_MESSAGE);
   }
 
   const matchUrl = `/dashboard/matches?match=${request.matchId}`;
@@ -387,6 +452,39 @@ export async function respondToIntroRequest(args: {
   });
 
   return { status: "ACCEPTED", conversationId };
+}
+
+/**
+ * The sender withdraws their own pending request. The credit is not refunded (product rule).
+ * Nobody is notified; the receiver's unread notification for it is marked read so the badge goes.
+ */
+export async function cancelIntroRequest(args: { requestId: string; userId: string }): Promise<{ status: "CANCELLED" }> {
+  const { requestId, userId } = args;
+  const request = await db.introRequest.findUnique({ where: { id: requestId } });
+  if (!request || request.senderId !== userId) throw new IntroError("NOT_FOUND", "الطلب غير موجود");
+  if (request.status !== "PENDING") throw new IntroError("NOT_ALLOWED", "لم يعد هذا الطلب قيد الانتظار");
+  if (request.expiresAt < new Date()) {
+    await db.introRequest.update({ where: { id: requestId }, data: { status: "EXPIRED" } });
+    throw new IntroError("EXPIRED");
+  }
+  const claimed = await db.introRequest.updateMany({
+    where: { id: requestId, status: "PENDING" },
+    data: { status: "CANCELLED" },
+  });
+  if (claimed.count !== 1) throw new IntroError("NOT_ALLOWED", "لم يعد هذا الطلب قيد الانتظار");
+
+  await db.notification
+    .updateMany({
+      where: {
+        userId: request.receiverId,
+        type: "INTRO_REQUEST",
+        isRead: false,
+        metadata: { path: ["requestId"], equals: requestId },
+      },
+      data: { isRead: true },
+    })
+    .catch((e: unknown) => console.error("Cancel intro: clear notification", e));
+  return { status: "CANCELLED" };
 }
 
 /** Consent to share the guardian contact after an accepted family introduction. */

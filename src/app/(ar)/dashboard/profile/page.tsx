@@ -1250,7 +1250,7 @@ export default function ProfilePage() {
                   </h3>
                   <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
                     سيتم إخفاء ملفك الشخصي ولن تتلقى اقتراحات جديدة. يمكنك
-                    إعادة تفعيله لاحقاً.
+                    إعادة تفعيله في أي وقت بتسجيل الدخول مجدداً.
                   </p>
                 </div>
               </div>
@@ -1290,7 +1290,8 @@ export default function ProfilePage() {
                           method: "POST",
                         });
                         if (res.ok) {
-                          window.location.href = "/login?deactivated=true";
+                          // Full reload: the dashboard now shows the reactivation page only
+                          window.location.href = "/dashboard/reactivate";
                         }
                       } catch {
                         // Error handling
@@ -1418,7 +1419,7 @@ export default function ProfilePage() {
                 </div>
                 <p className="text-xs text-muted-foreground leading-relaxed">
                   سيتم تعطيل حسابك فوراً وحذفه نهائياً بعد 30 يوماً. يمكنك
-                  إلغاء الطلب خلال هذه الفترة.
+                  إلغاء الطلب خلال هذه الفترة بتسجيل الدخول مجدداً.
                 </p>
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-foreground">
@@ -1447,9 +1448,10 @@ export default function ProfilePage() {
                           }),
                         });
                         if (res.ok) {
-                          const data = await res.json();
-                          setDeletionRequest(data.deletionRequest);
-                          setShowDeleteConfirm(false);
+                          // The account is deactivated right away: show the
+                          // reactivation page (deletion date + cancel button)
+                          window.location.href = "/dashboard/reactivate";
+                          return;
                         }
                       } catch {
                         // Error handling

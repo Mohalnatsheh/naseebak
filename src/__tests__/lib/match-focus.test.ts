@@ -26,3 +26,18 @@ describe("pageForMatch", () => {
     expect(db.mutualMatch.count).not.toHaveBeenCalled();
   });
 });
+
+describe("pageForMatch with hidden partners", () => {
+  beforeEach(() => vi.resetAllMocks());
+
+  it("a match with someone who blocked me can't be focused", async () => {
+    db.mutualMatch.findFirst.mockResolvedValue(null);
+    expect(await pageForMatch("u1", "m1", 10, ["f1"])).toBeNull();
+    const where = db.mutualMatch.findFirst.mock.calls[0][0].where;
+    expect(where.AND).toEqual([
+      { OR: [{ femaleId: "u1" }, { maleId: "u1" }] },
+      { femaleId: { notIn: ["f1"] } },
+      { maleId: { notIn: ["f1"] } },
+    ]);
+  });
+});

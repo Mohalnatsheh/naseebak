@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { profileDraftSchema } from "@/lib/validations/profile";
+import { needsReviewBody, reviewedChanges } from "@/lib/profile-review";
 
 export async function PATCH(request: Request) {
   try {
@@ -68,6 +69,17 @@ export async function PATCH(request: Request) {
     if (data.prefReligiosity !== undefined) updateData.prefReligiosity = data.prefReligiosity;
     if (data.prefSmokingStatus !== undefined) updateData.prefSmokingStatus = data.prefSmokingStatus;
     if (data.prefChildrenAcceptance !== undefined) updateData.prefChildrenAcceptance = data.prefChildrenAcceptance || null;
+
+    // Setup autosave only (useAutoSave in the setup wizard). Once the setup is finished, same rule
+    // as PUT /api/profile: changing or clearing a stored value needs review (409); same values and
+    // still-empty fields are fine. The wizard step is no longer tracked then.
+    const existing = await db.profile.findUnique({ where: { userId: session.user.id } });
+    if (existing?.isComplete) {
+      delete updateData.setupStep;
+      const changed = reviewedChanges(existing as unknown as Record<string, unknown>, updateData);
+      if (changed.length > 0) return NextResponse.json(needsReviewBody(changed), { status: 409 });
+      if (Object.keys(updateData).length === 0) return NextResponse.json({ message: "تم حفظ المسودة" });
+    }
 
     await db.profile.upsert({
       where: { userId: session.user.id },

@@ -39,6 +39,8 @@ export interface CycleCounts {
   unreadChats: number;
   hasChats: boolean;
   guardian: { exists: boolean; consented: boolean } | null;
+  /** Matches where a family or chat request can still be sent (not blocked, partner active, not finished) */
+  actionableMatches: number;
 }
 
 const EMPTY_COUNTS: CycleCounts = {
@@ -47,6 +49,7 @@ const EMPTY_COUNTS: CycleCounts = {
   unreadChats: 0,
   hasChats: false,
   guardian: null,
+  actionableMatches: 0,
 };
 
 interface DashboardData {
@@ -103,7 +106,7 @@ export function DashboardDataProvider({ children }: { children: ReactNode }) {
         const data = await res.json();
         setUnreadCount(data.count || 0);
       }
-      if (countsRes.ok) setCounts(await countsRes.json());
+      if (countsRes.ok) setCounts({ ...EMPTY_COUNTS, ...(await countsRes.json()) });
     } catch {
       // Silently fail
     }

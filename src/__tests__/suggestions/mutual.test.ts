@@ -62,6 +62,28 @@ describe("decideSuggestion", () => {
     expect(db.suggestion.updateMany).not.toHaveBeenCalled();
   });
 
+  it("refuses when the other person is deactivated or suspended (no decision recorded)", async () => {
+    for (const other of [{ isDeactivated: true, status: "VERIFIED" }, { isDeactivated: false, status: "SUSPENDED" }]) {
+      db.suggestion.findUnique.mockResolvedValue(row());
+      db.user.findUnique.mockResolvedValue(other);
+      await expectNotFound(decideSuggestion({ suggestionId: "s1", userId: "u1", interested: true }));
+    }
+    expect(db.suggestion.updateMany).not.toHaveBeenCalled();
+    expect(matchMod.createMutualMatch).not.toHaveBeenCalled();
+  });
+
+  it("never creates a match with someone who deactivated at the last moment", async () => {
+    db.suggestion.findUnique
+      .mockResolvedValueOnce(row({ candidateDecision: "INTERESTED" }))
+      .mockResolvedValueOnce(row({ candidateDecision: "INTERESTED", recipientDecision: "INTERESTED" }));
+    db.user.findUnique
+      .mockResolvedValueOnce({ isDeactivated: false, status: "VERIFIED" })
+      .mockResolvedValueOnce({ isDeactivated: true, status: "VERIFIED" });
+    const res = await decideSuggestion({ suggestionId: "s1", userId: "u1", interested: true });
+    expect(res).toEqual({ match: false });
+    expect(matchMod.createMutualMatch).not.toHaveBeenCalled();
+  });
+
   it("refuses a second decision by the same person", async () => {
     db.suggestion.findUnique.mockResolvedValue(row({ candidateDecision: "INTERESTED" }));
     await expectNotFound(decideSuggestion({ suggestionId: "s1", userId: "f1", interested: false }));

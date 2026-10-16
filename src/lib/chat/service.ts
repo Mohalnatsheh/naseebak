@@ -12,6 +12,7 @@ import { getCycleFlags } from "@/lib/settings";
 import { publishChatEvent } from "@/lib/ably";
 import { checkMessage } from "@/lib/chat/filter";
 import { IntroError } from "@/lib/intro/errors";
+import { cancelPendingBetween, isUnavailable } from "@/lib/matches/state";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 export const EXTENSION_DAYS = 7;
@@ -45,7 +46,7 @@ export interface ChatMessage {
   readAt: string | null;
 }
 
-const partyUser = { select: { id: true, firstName: true, isVerified: true, status: true } } as const;
+const partyUser = { select: { id: true, firstName: true, isVerified: true, status: true, isDeactivated: true } } as const;
 const conversationInclude = {
   match: { select: { id: true, femaleId: true, maleId: true, female: partyUser, male: partyUser } },
 } as const;
@@ -150,10 +151,19 @@ export async function listConversations(userId: string): Promise<ChatSummary[]> 
       _count: { select: { messages: { where: { readAt: null, senderId: { not: userId } } } } },
     },
   });
+  // Same read-only flag as the chat page: a block either way
+  const blocks = rows.length
+    ? await db.block.findMany({
+        where: { OR: [{ blockerId: userId }, { blockedId: userId }] },
+        select: { blockerId: true, blockedId: true },
+      })
+    : [];
+  const blockedWith = new Set(blocks.map((b) => (b.blockerId === userId ? b.blockedId : b.blockerId)));
   const summaries: ChatSummary[] = [];
   for (const row of rows) {
     const c = await housekeeping(row);
-    summaries.push(summarise(c, userId, row.messages[0] ?? null, row._count.messages));
+    const partnerId = partnerOf(c, userId).id;
+    summaries.push(summarise(c, userId, row.messages[0] ?? null, row._count.messages, blockedWith.has(partnerId)));
   }
   const activity = (s: ChatSummary) => new Date(s.lastMessage?.createdAt ?? 0).getTime();
   return summaries.sort((a, b) => activity(b) - activity(a));
@@ -226,8 +236,9 @@ export async function sendMessage(args: {
 
   const partner = partnerOf(c, senderId);
   const me = senderId === c.match.femaleId ? c.match.female : c.match.male;
-  if (me.status === "SUSPENDED" || partner.status === "SUSPENDED") {
-    throw new IntroError("NOT_ALLOWED", "هذا الحساب غير نشط حالياً");
+  // Suspended or deactivated (account deletion pending) on either side: no new messages
+  if (me.status === "SUSPENDED" || isUnavailable(partner)) {
+    throw new IntroError("NOT_ALLOWED", "هذا الحساب غير نشط حالياً، لا يمكن إرسال رسائل الآن");
   }
   if (await isBlocked(senderId, partner.id)) throw new IntroError("BLOCKED");
 
@@ -326,6 +337,11 @@ export async function endConversation(args: {
       where: { id: conversationId },
       data: { status: "ENDED", endedById: userId, endedAt: new Date() },
     });
+    // A chat ended by a user closes the family path on this match too (no refund)
+    await db.introRequest.updateMany({
+      where: { matchId: c.matchId, type: "FAMILY", status: "PENDING" },
+      data: { status: "CANCELLED" },
+    });
     await publishChatEvent(conversationId, "status", { status: "ENDED" });
     await notify({
       userId: partner.id,
@@ -345,5 +361,6 @@ export async function endConversation(args: {
     });
     const existing = await db.block.findFirst({ where: { blockerId: userId, blockedId: partner.id } });
     if (!existing) await db.block.create({ data: { blockerId: userId, blockedId: partner.id } });
+    await cancelPendingBetween(userId, partner.id);
   }
 }

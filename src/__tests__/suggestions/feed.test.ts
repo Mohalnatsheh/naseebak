@@ -77,6 +77,20 @@ describe("getSuggestionFeed — new", () => {
     expect((await getSuggestionFeed("me", "new", 1)).total).toBe(0);
   });
 
+  it("hides people who deactivated their account or were suspended", async () => {
+    db.suggestion.findMany
+      .mockResolvedValueOnce([
+        mutualRow("s1", { ...person("f1", "FEMALE"), isDeactivated: true, status: "VERIFIED" } as never),
+        mutualRow("s2", { ...person("f2", "FEMALE"), isDeactivated: false, status: "SUSPENDED" } as never),
+        mutualRow("s3", { ...person("f3", "FEMALE"), isDeactivated: false, status: "VERIFIED" } as never),
+      ])
+      .mockResolvedValueOnce([]);
+    const { items, total } = await getSuggestionFeed("me", "new", 1);
+    expect(total).toBe(1);
+    expect(items[0].id).toBe("s3");
+    expect(JSON.stringify(items)).not.toContain("isDeactivated");
+  });
+
   it("never exposes preferences, dealbreakers, decisions or status", async () => {
     db.suggestion.findMany.mockResolvedValueOnce([{ ...mutualRow("s1"), status: "PENDING", candidateDecision: "DECLINED" }]).mockResolvedValueOnce([]);
     const json = JSON.stringify((await getSuggestionFeed("me", "new", 1)).items);

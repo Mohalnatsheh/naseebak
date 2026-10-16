@@ -5,6 +5,7 @@ import { profileSchema } from "@/lib/validations/profile";
 import { calculateCompleteness } from "@/lib/profile-completeness";
 import { autoSuggestForUser } from "@/lib/matching/auto-suggest";
 import { maybeAwardReferral } from "@/lib/referral";
+import { needsReviewBody, reviewedChanges } from "@/lib/profile-review";
 
 export async function GET() {
   try {
@@ -88,6 +89,47 @@ export async function PUT(request: Request) {
       prefHijab, prefBeard, prefReligiosity, prefSmokingStatus, prefChildrenAcceptance,
     } = body;
 
+    // Same values the update below writes; `undefined` = left unchanged
+    const updateData = {
+      dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : undefined,
+      city, nationality, education, fieldOfStudy, job, incomeRange,
+      height: height ? parseInt(height) : undefined,
+      weight: weight ? parseInt(weight) : undefined,
+      skinColor, childrenCount: childrenCount != null ? parseInt(childrenCount) : undefined,
+      willingToRelocate, maritalStatus, religiosity,
+      familyValues, partnerExpectations, hobbies, interests, lifestyle,
+      hijab, smokingStatus, aboutMe,
+      area,
+      latitude: latitude ? parseFloat(latitude) : undefined,
+      longitude: longitude ? parseFloat(longitude) : undefined,
+      tribe, familyOriginArea,
+      numberOfSiblings: numberOfSiblings != null ? parseInt(numberOfSiblings) : undefined,
+      housingType,
+      beard: beard ?? undefined,
+      cookingAbility, drivingLicense: drivingLicense ?? undefined,
+      healthConditions, monthlyExpenses,
+      wantsPhoto: wantsPhoto ?? undefined,
+      prefAgeMin: prefAgeMin != null ? parseInt(prefAgeMin) : undefined,
+      prefAgeMax: prefAgeMax != null ? parseInt(prefAgeMax) : undefined,
+      prefCity: Array.isArray(prefCity) ? prefCity : undefined,
+      prefEducation: Array.isArray(prefEducation) ? prefEducation : undefined,
+      prefMaritalStatus: Array.isArray(prefMaritalStatus) ? prefMaritalStatus : undefined,
+      prefHijab: prefHijab ?? undefined,
+      prefBeard: prefBeard ?? undefined,
+      prefReligiosity: Array.isArray(prefReligiosity) ? prefReligiosity : undefined,
+      prefSmokingStatus: Array.isArray(prefSmokingStatus) ? prefSmokingStatus : undefined,
+      prefChildrenAcceptance: prefChildrenAcceptance ?? undefined,
+    };
+
+    // After the setup is finished, steps 1–4 changes go through /api/profile/update-request
+    // (admin review). This save stays open for a retry of the setup submit and for filling in
+    // optional fields that are still empty — see reviewedChanges().
+    const existing = await db.profile.findUnique({ where: { userId: session.user.id } });
+    if (existing?.isComplete) {
+      const changed = reviewedChanges(existing as unknown as Record<string, unknown>, updateData);
+      if (changed.length > 0) return NextResponse.json(needsReviewBody(changed), { status: 409 });
+    }
+
     const profile = await db.profile.upsert({
       where: { userId: session.user.id },
       create: {
@@ -122,37 +164,7 @@ export async function PUT(request: Request) {
         prefChildrenAcceptance: prefChildrenAcceptance ?? null,
         isComplete: true,
       },
-      update: {
-        dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : undefined,
-        city, nationality, education, fieldOfStudy, job, incomeRange,
-        height: height ? parseInt(height) : undefined,
-        weight: weight ? parseInt(weight) : undefined,
-        skinColor, childrenCount: childrenCount != null ? parseInt(childrenCount) : undefined,
-        willingToRelocate, maritalStatus, religiosity,
-        familyValues, partnerExpectations, hobbies, interests, lifestyle,
-        hijab, smokingStatus, aboutMe,
-        area,
-        latitude: latitude ? parseFloat(latitude) : undefined,
-        longitude: longitude ? parseFloat(longitude) : undefined,
-        tribe, familyOriginArea,
-        numberOfSiblings: numberOfSiblings != null ? parseInt(numberOfSiblings) : undefined,
-        housingType,
-        beard: beard ?? undefined,
-        cookingAbility, drivingLicense: drivingLicense ?? undefined,
-        healthConditions, monthlyExpenses,
-        wantsPhoto: wantsPhoto ?? undefined,
-        prefAgeMin: prefAgeMin != null ? parseInt(prefAgeMin) : undefined,
-        prefAgeMax: prefAgeMax != null ? parseInt(prefAgeMax) : undefined,
-        prefCity: Array.isArray(prefCity) ? prefCity : undefined,
-        prefEducation: Array.isArray(prefEducation) ? prefEducation : undefined,
-        prefMaritalStatus: Array.isArray(prefMaritalStatus) ? prefMaritalStatus : undefined,
-        prefHijab: prefHijab ?? undefined,
-        prefBeard: prefBeard ?? undefined,
-        prefReligiosity: Array.isArray(prefReligiosity) ? prefReligiosity : undefined,
-        prefSmokingStatus: Array.isArray(prefSmokingStatus) ? prefSmokingStatus : undefined,
-        prefChildrenAcceptance: prefChildrenAcceptance ?? undefined,
-        isComplete: true,
-      },
+      update: { ...updateData, isComplete: true },
     });
 
     // Profile is filled in: start suggestions right away (fire-and-forget, never blocks the save)
@@ -167,3 +179,4 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: "حدث خطأ في الخادم" }, { status: 500 });
   }
 }
+

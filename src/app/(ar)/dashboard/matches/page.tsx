@@ -45,18 +45,26 @@ import {
   MoreVertical,
   ShieldAlert,
   Star,
+  Ban,
+  ShieldOff,
 } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ImageLightbox } from "@/components/shared/image-lightbox";
-import { MatchIntroPanel } from "@/components/intro/match-intro-panel";
+import { MatchClosedNote, MatchIntroPanel } from "@/components/intro/match-intro-panel";
+import { ConfirmActionDialog } from "@/components/intro/confirm-action-dialog";
 import { PersonCard, type PersonCardTone } from "@/components/shared/person-card";
 import { describeOption } from "@/lib/profile-options";
 import { useDashboardData } from "@/contexts/dashboard-context";
 
 interface Match {
   id: string;
+  /** blocked: I blocked them · inactive: their account is off · finished: nothing left to do */
+  closed: "blocked" | "inactive" | "finished" | null;
+  /** My block, when closed === "blocked" (for unblocking) */
+  blockId: string | null;
   photosRevealed: boolean;
   revealed: boolean;
   createdAt: string;
@@ -241,7 +249,12 @@ export default function MatchesPage() {
   const focusShown = useRef(false);
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
   const [menuOpen, setMenuOpen] = useState<string | null>(null);
+  // Report always comes with a block here ("إبلاغ وحظر")
   const [reportDialog, setReportDialog] = useState<{ userId: string; name: string } | null>(null);
+  const [blockDialog, setBlockDialog] = useState<{ userId: string; name: string } | null>(null);
+  const [unblockDialog, setUnblockDialog] = useState<{ blockId: string; name: string } | null>(null);
+  const [safetyBusy, setSafetyBusy] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   const [reportReason, setReportReason] = useState("FAKE_PROFILE");
   const [reportDetails, setReportDetails] = useState("");
   const [reportSubmitting, setReportSubmitting] = useState(false);
@@ -301,27 +314,79 @@ export default function MatchesPage() {
     if (matches.length > 0) checkFeedback();
   }, [matches]);
 
+  /** POST/DELETE helper: `{ ok, error }` with the server's Arabic message, never throws. */
+  async function callApi(url: string, method: "POST" | "DELETE", body?: unknown): Promise<{ ok: boolean; status: number; error?: string }> {
+    try {
+      const res = await fetch(url, {
+        method,
+        headers: body ? { "Content-Type": "application/json" } : undefined,
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      const data = await res.json().catch(() => ({}));
+      return { ok: res.ok, status: res.status, error: data.error };
+    } catch {
+      return { ok: false, status: 0, error: "تعذّر الاتصال. تحقق من الإنترنت وحاول مرة أخرى." };
+    }
+  }
+
+  /** Block (409 = already blocked counts as done). */
+  async function blockUser(userId: string): Promise<boolean> {
+    const res = await callApi("/api/blocks", "POST", { blockedId: userId });
+    if (!res.ok && res.status !== 409) {
+      toast.error(res.error ?? "تعذّر الحظر، حاول مرة أخرى");
+      return false;
+    }
+    return true;
+  }
+
   async function handleReportSubmit() {
     if (!reportDialog) return;
     setReportSubmitting(true);
     try {
-      await fetch("/api/reports", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          reportedId: reportDialog.userId,
-          reason: reportReason,
-          details: reportDetails || undefined,
-        }),
+      const report = await callApi("/api/reports", "POST", {
+        reportedId: reportDialog.userId,
+        reason: reportReason,
+        details: reportDetails || undefined,
       });
+      // 409 = already reported earlier: still go on and block
+      if (!report.ok && report.status !== 409) {
+        toast.error(report.error ?? "تعذّر إرسال البلاغ، حاول مرة أخرى");
+        return;
+      }
+      if (!(await blockUser(reportDialog.userId))) return;
+      toast.success("تم إرسال البلاغ وحظر المستخدم", { description: "سيراجع فريق نصيبك البلاغ." });
       setReportDialog(null);
       setReportReason("FAKE_PROFILE");
       setReportDetails("");
-    } catch (err) {
-      console.error(err);
+      setReloadKey((k) => k + 1);
     } finally {
       setReportSubmitting(false);
     }
+  }
+
+  async function handleBlock() {
+    if (!blockDialog || safetyBusy) return;
+    setSafetyBusy(true);
+    const ok = await blockUser(blockDialog.userId);
+    setSafetyBusy(false);
+    if (!ok) return;
+    toast.success("تم الحظر");
+    setBlockDialog(null);
+    setReloadKey((k) => k + 1);
+  }
+
+  async function handleUnblock() {
+    if (!unblockDialog || safetyBusy) return;
+    setSafetyBusy(true);
+    const res = await callApi(`/api/blocks/${unblockDialog.blockId}`, "DELETE");
+    setSafetyBusy(false);
+    if (!res.ok) {
+      toast.error(res.error ?? "تعذّر إلغاء الحظر، حاول مرة أخرى");
+      return;
+    }
+    toast.success("تم إلغاء الحظر");
+    setUnblockDialog(null);
+    setReloadKey((k) => k + 1);
   }
 
   const togglePhotos = useCallback(async (matchId: string) => {
@@ -375,6 +440,7 @@ export default function MatchesPage() {
         const res = await fetch(`/api/matches?page=${page}${focus ? `&focus=${encodeURIComponent(focus)}` : ""}`);
         const data = await res.json();
         if (cancelled) return;
+        if (!res.ok) toast.error(data.error ?? "تعذّر تحميل التوافقات");
         focusLoaded.current = true;
         if (focus && data.page && data.page !== page) {
           skipNextFetch.current = true;
@@ -398,7 +464,7 @@ export default function MatchesPage() {
     return () => {
       cancelled = true;
     };
-  }, [page]);
+  }, [page, reloadKey]);
 
   useEffect(() => {
     const id = new URLSearchParams(window.location.search).get("match");
@@ -514,10 +580,13 @@ export default function MatchesPage() {
             const score = Math.round(m.compatibilityScore);
             const isExpanded = expandedCards.has(m.id);
             const c = m.partner;
+            // Blocked by me / inactive partner: closed card — no photos, details or actions
+            const locked = m.closed === "blocked" || m.closed === "inactive";
 
             // New cycle: a visit the admin never picked up is replaced by the intro panel
             // New cycle: an untouched or closed (superseded by a family intro) admin visit isn't shown
             const showVisitBanner =
+              !locked &&
               !!m.visitStatus && !(introMode && (m.visitStatus === "REQUESTED" || m.visitStatus === "CANCELLED"));
 
             return (
@@ -537,8 +606,8 @@ export default function MatchesPage() {
                   area={c.area}
                   job={c.job && describeOption("job", c.job, isFemale ? "MALE" : "FEMALE")}
                   score={score}
-                  photoUrl={m.photosRevealed ? matchPhotos[m.id]?.[0]?.url : undefined}
-                  photoLocked={!m.photosRevealed}
+                  photoUrl={!locked && m.photosRevealed ? matchPhotos[m.id]?.[0]?.url : undefined}
+                  photoLocked={!locked && !m.photosRevealed}
                   tone={showVisitBanner && m.visitStatus ? visitStatusTone[m.visitStatus] ?? "default" : "default"}
                   meta={<>توافق بتاريخ {new Date(m.createdAt).toLocaleDateString("ar-JO-u-nu-latn")}</>}
                   status={
@@ -556,9 +625,9 @@ export default function MatchesPage() {
                     { icon: Flag, label: c.nationality },
                   ]}
                   aboutMe={c.aboutMe}
-                  expanded={isExpanded}
-                  onToggleExpand={() => toggleExpand(m.id)}
-                  details={
+                  expanded={!locked && isExpanded}
+                  onToggleExpand={locked ? undefined : () => toggleExpand(m.id)}
+                  details={locked ? undefined :
                       <div className="px-5 md:px-6 pb-4 space-y-3" style={{ animation: "fadeSlideIn 0.3s ease-out" }}>
                         <Section title="المعلومات الشخصية" icon={User} defaultOpen={true}>
                           <InfoRow icon={Calendar} label="العمر" value={c.age ? `${c.age} سنة` : null} />
@@ -630,7 +699,7 @@ export default function MatchesPage() {
                         )}
                       </div>
                   }
-                  afterDetails={
+                  afterDetails={locked ? undefined :
                     <>
                     {/* Scheduled visit date */}
                     {m.scheduledDate && (
@@ -715,7 +784,7 @@ export default function MatchesPage() {
                     )}
                     </>
                   }
-                  actions={
+                  actions={locked ? undefined :
                       <div className="flex gap-3">
                         {m.photosRevealed ? (
                           <Button
@@ -755,13 +824,20 @@ export default function MatchesPage() {
                             <MoreVertical className="h-5 w-5" />
                           </Button>
                           {menuOpen === m.id && (
-                            <div className="absolute bottom-full mb-1 left-0 bg-card border rounded-xl shadow-lg py-1 z-50 w-40">
+                            <div className="absolute bottom-full mb-1 left-0 bg-card border rounded-xl shadow-lg py-1 z-50 w-44">
                               <button
-                                className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted/50 text-accent-foreground"
+                                className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted/50 text-foreground"
+                                onClick={() => { setBlockDialog({ userId: m.partner.id, name: m.partner.firstName }); setMenuOpen(null); }}
+                              >
+                                <Ban className="h-4 w-4" />
+                                حظر
+                              </button>
+                              <button
+                                className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted/50 text-destructive"
                                 onClick={() => { setReportDialog({ userId: m.partner.id, name: m.partner.firstName }); setMenuOpen(null); }}
                               >
                                 <ShieldAlert className="h-4 w-4" />
-                                إبلاغ
+                                إبلاغ وحظر
                               </button>
                             </div>
                           )}
@@ -784,7 +860,25 @@ export default function MatchesPage() {
                           </div>
                         </div>
                       )}
-                  <MatchIntroPanel matchId={m.id} partnerName={c.firstName} />
+                  {m.closed === "blocked" ? (
+                    <MatchClosedNote reason="blocked">
+                      {m.blockId && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="gap-1.5"
+                          onClick={() => setUnblockDialog({ blockId: m.blockId!, name: c.firstName })}
+                        >
+                          <ShieldOff className="h-4 w-4" />
+                          إلغاء الحظر
+                        </Button>
+                      )}
+                    </MatchClosedNote>
+                  ) : m.closed === "inactive" ? (
+                    <MatchClosedNote reason="inactive" />
+                  ) : (
+                    <MatchIntroPanel matchId={m.id} partnerName={c.firstName} />
+                  )}
                 </PersonCard>
               </div>
             );
@@ -811,7 +905,10 @@ export default function MatchesPage() {
       {reportDialog && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setReportDialog(null)}>
           <div className="bg-card rounded-2xl border shadow-2xl p-6 w-full max-w-sm space-y-4" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-bold text-foreground">إبلاغ عن {reportDialog.name}</h3>
+            <h3 className="text-lg font-bold text-foreground">إبلاغ وحظر {reportDialog.name}</h3>
+            <p className="text-sm leading-relaxed text-muted-foreground">
+              سيصل البلاغ لفريق نصيبك، ويُحظر {reportDialog.name} فينتهي هذا التوافق ولا {isFemale ? "يرى" : "ترى"} ملفك بعد الآن. تُلغى الطلبات المعلقة بينكما دون استرجاع الرصيد.
+            </p>
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">سبب الإبلاغ</label>
               <select
@@ -839,9 +936,9 @@ export default function MatchesPage() {
               <Button
                 onClick={handleReportSubmit}
                 disabled={reportSubmitting}
-                className="flex-1 bg-accent hover:bg-accent/90 text-accent-foreground rounded-xl"
+                className="flex-1 bg-destructive hover:bg-destructive/90 text-white rounded-xl"
               >
-                {reportSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "إرسال البلاغ"}
+                {reportSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "إبلاغ وحظر"}
               </Button>
               <Button variant="outline" onClick={() => setReportDialog(null)} className="rounded-xl">
                 إلغاء
@@ -850,6 +947,27 @@ export default function MatchesPage() {
           </div>
         </div>
       )}
+
+      <ConfirmActionDialog
+        open={!!blockDialog}
+        onOpenChange={(o) => !o && setBlockDialog(null)}
+        title={`حظر ${blockDialog?.name ?? ""}`}
+        description={`سينتهي هذا التوافق: لن ${isFemale ? "يرى" : "ترى"} ${blockDialog?.name ?? ""} ملفك ولا ${isFemale ? "يتمكن" : "تتمكن"} من مراسلتك، ولن تتوفر أي خطوات تعارف بينكما. تُلغى الطلبات المعلقة بينكما دون استرجاع الرصيد. يمكنك إلغاء الحظر لاحقاً من صفحة «المحظورون».`}
+        confirmLabel="حظر"
+        destructive
+        busy={safetyBusy}
+        onConfirm={handleBlock}
+      />
+
+      <ConfirmActionDialog
+        open={!!unblockDialog}
+        onOpenChange={(o) => !o && setUnblockDialog(null)}
+        title={`إلغاء حظر ${unblockDialog?.name ?? ""}`}
+        description="يعود التوافق ظاهراً لكما. الطلبات التي أُلغيت بسبب الحظر لا تعود."
+        confirmLabel="إلغاء الحظر"
+        busy={safetyBusy}
+        onConfirm={handleUnblock}
+      />
 
       {/* Feedback Dialog */}
       {feedbackDialog && (

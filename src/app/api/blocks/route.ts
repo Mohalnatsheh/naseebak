@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
+import { z } from "zod/v4";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { cancelPendingBetween } from "@/lib/matches/state";
 
 export async function GET() {
   try {
@@ -25,21 +27,31 @@ export async function GET() {
   }
 }
 
+const blockSchema = z.object({ blockedId: z.string().min(1).max(64) });
+
+/**
+ * Block someone. Closes any match with them for both sides (hidden for them, a closed card for
+ * me) and cancels pending intro requests between the two (credits are never refunded).
+ */
 export async function POST(request: Request) {
   try {
     const result = await requireUser();
     if ("error" in result) return result.error;
     const { session } = result;
 
-    const body = await request.json();
-    const { blockedId } = body;
-
-    if (!blockedId) {
+    const parsed = blockSchema.safeParse(await request.json().catch(() => null));
+    if (!parsed.success) {
       return NextResponse.json({ error: "البيانات غير مكتملة" }, { status: 400 });
     }
+    const { blockedId } = parsed.data;
 
     if (blockedId === session.user.id) {
       return NextResponse.json({ error: "لا يمكنك حظر نفسك" }, { status: 400 });
+    }
+
+    const target = await db.user.findUnique({ where: { id: blockedId }, select: { id: true } });
+    if (!target) {
+      return NextResponse.json({ error: "المستخدم غير موجود" }, { status: 404 });
     }
 
     // Check for existing block
@@ -62,6 +74,7 @@ export async function POST(request: Request) {
         blockedId,
       },
     });
+    await cancelPendingBetween(session.user.id, blockedId);
 
     return NextResponse.json({ message: "تم حظر المستخدم بنجاح", block });
   } catch (error) {

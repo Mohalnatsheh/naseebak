@@ -55,6 +55,7 @@ export async function GET(request: Request) {
           firstName: true,
           lastName: true,
           gender: true,
+          isFlagged: true,
           profile: true,
           personalityResult: { select: { vector: true, personalityType: true } },
           photos: { select: { id: true } },
@@ -115,6 +116,8 @@ export async function GET(request: Request) {
             firstName: candidate.firstName,
             lastName: candidate.lastName,
             gender: candidate.gender,
+            // Hand-picking a flagged user is allowed; the admin page shows a warning
+            isFlagged: candidate.isFlagged,
             profile: candidate.profile
               ? {
                   city: candidate.profile.city,

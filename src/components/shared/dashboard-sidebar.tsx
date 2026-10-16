@@ -22,6 +22,7 @@ import {
   LifeBuoy,
   Gift,
   MessageCircle,
+  Ban,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
@@ -50,6 +51,7 @@ const accountLinks: NavLink[] = [
   { href: "/dashboard/photos", label: "صوري", icon: Camera },
   { href: "/dashboard/personality-quiz", label: "اختبار الشخصية", icon: Brain },
   { href: "/dashboard/payments", label: "الرصيد", icon: CreditCard },
+  { href: "/dashboard/blocks", label: "المحظورون", icon: Ban },
   { href: "/dashboard/support", label: "الدعم والملاحظات", icon: LifeBuoy },
   { href: "/dashboard/referral", label: "ادعُ صديقاً", icon: Gift },
 ];

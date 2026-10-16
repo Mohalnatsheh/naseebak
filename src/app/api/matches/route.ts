@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { parsePagination } from "@/lib/utils";
-import { MATCHES_ORDER, myMatchesWhere, pageForMatch } from "@/lib/matches/focus";
+import { MATCHES_ORDER, pageForMatch, visibleMatchesWhere } from "@/lib/matches/focus";
+import { hiddenPartnerIds, loadMatchStates } from "@/lib/matches/state";
+import { getCycleFlags } from "@/lib/settings";
 
 export async function GET(request: Request) {
   try {
@@ -14,10 +16,12 @@ export async function GET(request: Request) {
     const pagination = parsePagination(searchParams, 10);
     const { pageSize } = pagination;
     let { page, skip } = pagination;
+    // A partner who blocked me: the match disappears from my list (and from ?focus links)
+    const hidden = await hiddenPartnerIds(session.user.id);
     // ?focus=<matchId>: return the page that holds that match (links from notifications / dashboard)
     const focus = searchParams.get("focus");
     if (focus) {
-      const focusPage = await pageForMatch(session.user.id, focus, pageSize);
+      const focusPage = await pageForMatch(session.user.id, focus, pageSize, hidden);
       if (focusPage) {
         page = focusPage;
         skip = (focusPage - 1) * pageSize;
@@ -56,7 +60,7 @@ export async function GET(request: Request) {
       familyValues: true,
     } as const;
 
-    const where = myMatchesWhere(session.user.id);
+    const where = visibleMatchesWhere(session.user.id, hidden);
 
     const [matches, total] = await Promise.all([
       db.mutualMatch.findMany({
@@ -93,6 +97,9 @@ export async function GET(request: Request) {
 
     const scoreMap = new Map(suggestions.map((s) => [s.id, s.compatibilityScore]));
 
+    // Closed matches (I blocked them / their account is inactive / nothing left to do)
+    const states = await loadMatchStates(session.user.id, await getCycleFlags(), matches.map((m) => m.id));
+
     const formatted = matches.map((m) => {
       const otherUser = m.femaleId === session.user.id ? m.male : m.female;
       const profile = otherUser.profile;
@@ -101,9 +108,16 @@ export async function GET(request: Request) {
         ? Math.floor((Date.now() - new Date(profile.dateOfBirth).getTime()) / (365.25 * 24 * 60 * 60 * 1000))
         : null;
 
+      const state = states.get(m.id);
+      const closed = state?.closed ?? null;
+      // Blocked or inactive: a closed card — no photos, no actions
+      const locked = closed === "blocked" || closed === "inactive";
+
       return {
         id: m.id,
-        photosRevealed: m.photosRevealed,
+        closed,
+        blockId: closed === "blocked" ? state?.blockId ?? null : null,
+        photosRevealed: locked ? false : m.photosRevealed,
         revealed: true,
         createdAt: m.createdAt,
         visitRequestId: m.visitRequest?.id || null,

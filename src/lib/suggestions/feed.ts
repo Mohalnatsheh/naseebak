@@ -8,6 +8,7 @@ import { db } from "@/lib/db";
 import { calculateCompatibility } from "@/lib/matching/score";
 import { suggestionReason } from "@/lib/matching/reasons";
 import { MUTUAL_SUGGESTION_MS, expireMutualSuggestions, openMutualWhere } from "@/lib/suggestions/mutual";
+import { isUnavailable } from "@/lib/matches/state";
 
 export type FeedTab = "new" | "waiting";
 export type FeedKind = "mutual" | "legacy_suggestion" | "legacy_interest" | "legacy_sent";
@@ -19,6 +20,9 @@ const personSelect = {
   firstName: true,
   isVerified: true,
   gender: true,
+  // Only to leave out people who are no longer available; never sent to the client
+  isDeactivated: true,
+  status: true,
   profile: true,
   personalityResult: { select: { vector: true } },
 } as const;
@@ -28,6 +32,8 @@ type Person = {
   firstName: string;
   isVerified: boolean;
   gender: string;
+  isDeactivated?: boolean;
+  status?: string;
   profile: Record<string, unknown> | null;
   personalityResult: { vector: number[] } | null;
 };
@@ -208,7 +214,8 @@ export async function getSuggestionFeed(
   }
 
   const visible = rows
-    .filter((r) => !blocked.has(r.other.id))
+    // Blocked either way, or deactivated / suspended since the suggestion was made
+    .filter((r) => !blocked.has(r.other.id) && !isUnavailable(r.other))
     .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   const total = visible.length;
   const items = visible.slice((page - 1) * pageSize, page * pageSize).map((r) => {

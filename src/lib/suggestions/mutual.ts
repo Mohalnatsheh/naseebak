@@ -8,6 +8,7 @@ import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { IntroError } from "@/lib/intro/errors";
 import { createMutualMatch } from "@/lib/intro/match";
+import { isUnavailable } from "@/lib/matches/state";
 
 /** A MUTUAL suggestion stays open this long; after that "waiting" ends without a word. */
 export const MUTUAL_SUGGESTION_DAYS = 14;
@@ -68,6 +69,10 @@ export async function decideSuggestion(args: {
   });
   if (blocked) throw notFound();
 
+  // Deactivated or suspended since: the suggestion is gone (it is hidden from the feed too)
+  const other = await db.user.findUnique({ where: { id: otherId }, select: { isDeactivated: true, status: true } });
+  if (isUnavailable(other)) throw notFound();
+
   // Record my decision once (a concurrent second tap loses here)
   const decision = interested ? "INTERESTED" : "DECLINED";
   const recorded = await db.suggestion.updateMany({
@@ -93,6 +98,12 @@ export async function decideSuggestion(args: {
       data: { status: "ACCEPTED" },
     });
     if (closed.count === 0) return { match: true };
+    // Re-check at the last moment: never create a match with someone who just left
+    const partner = await db.user.findUnique({ where: { id: otherId }, select: { isDeactivated: true, status: true } });
+    if (isUnavailable(partner)) {
+      await db.suggestion.updateMany({ where: { id: s.id }, data: { status: "EXPIRED" } });
+      return { match: false };
+    }
     const me = await db.user.findUnique({ where: { id: userId }, select: { gender: true } });
     const femaleId = me?.gender === "FEMALE" ? userId : otherId;
     const maleId = femaleId === userId ? otherId : userId;

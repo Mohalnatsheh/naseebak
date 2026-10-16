@@ -3,6 +3,7 @@ import type { IntroRequestStatus, IntroRequestType } from "@prisma/client";
 import { requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { parsePagination } from "@/lib/utils";
+import { personSearch } from "@/lib/admin/search";
 
 const TYPES = ["FAMILY", "CHAT"];
 const STATUSES = ["PENDING", "ACCEPTED", "DECLINED", "EXPIRED", "CANCELLED"];
@@ -18,9 +19,15 @@ export async function GET(request: Request) {
     const { page, skip, pageSize: take } = parsePagination(searchParams, 20);
     const type = searchParams.get("type");
     const status = searchParams.get("status");
+    // Filter by person: a user id (from the user page) or a name/phone search
+    const userId = searchParams.get("userId");
+    const who = personSearch(searchParams.get("q"));
     const where = {
       ...(type && TYPES.includes(type) && { type: type as IntroRequestType }),
       ...(status && STATUSES.includes(status) && { status: status as IntroRequestStatus }),
+      ...(userId
+        ? { OR: [{ senderId: userId }, { receiverId: userId }] }
+        : who && { OR: [{ sender: who }, { receiver: who }] }),
     };
 
     // Expiry is applied lazily when users read; settle overdue requests first so the numbers are right

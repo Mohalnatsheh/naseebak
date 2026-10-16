@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { HeartHandshake, Loader2, ChevronLeft, ChevronRight, Users, MessageCircle, Lock } from "lucide-react";
+import { HeartHandshake, Loader2, ChevronLeft, ChevronRight, Users, MessageCircle, Lock, Search } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -68,6 +69,9 @@ export default function AdminIntroductionsPage() {
   const [pages, setPages] = useState(1);
   const [type, setType] = useState("");
   const [status, setStatus] = useState("");
+  const [query, setQuery] = useState("");
+  const [search, setSearch] = useState("");
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -75,20 +79,25 @@ export default function AdminIntroductionsPage() {
     const params = new URLSearchParams({ page: String(page) });
     if (type) params.set("type", type);
     if (status) params.set("status", status);
+    if (search) params.set("q", search);
+    setLoadError(false);
     fetch(`/api/admin/introductions?${params}`)
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error(String(r.status));
+        return r.json();
+      })
       .then((d) => {
         if (!alive) return;
         setStats(d.stats ?? null);
         setRows(d.requests ?? []);
         setPages(d.totalPages ?? 1);
       })
-      .catch(() => {})
+      .catch(() => alive && setLoadError(true))
       .finally(() => alive && setLoading(false));
     return () => {
       alive = false;
     };
-  }, [page, type, status]);
+  }, [page, type, status, search]);
 
   const tiles = stats
     ? [
@@ -127,6 +136,10 @@ export default function AdminIntroductionsPage() {
         <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
           <Lock className="h-3.5 w-3.5" /> Message content is private and isn&apos;t shown here.
         </p>
+        <div className="mt-3 flex flex-wrap gap-2 text-sm">
+          <Link href="/admin/matches" className="rounded-md border px-3 py-1.5 hover:bg-muted">Matches</Link>
+          <Link href="/admin/chats" className="rounded-md border px-3 py-1.5 hover:bg-muted">Chats</Link>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
@@ -143,6 +156,19 @@ export default function AdminIntroductionsPage() {
       <Card>
         <CardHeader className="space-y-3">
           <CardTitle>Requests</CardTitle>
+          <form
+            className="flex max-w-md gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              setSearch(query.trim());
+              setPage(1);
+            }}
+          >
+            <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Filter by name or phone" />
+            <Button type="submit" variant="outline" size="icon" aria-label="Search">
+              <Search className="h-4 w-4" />
+            </Button>
+          </form>
           <div className="flex flex-wrap gap-2">
             {[["", "All types"], ["FAMILY", "Family"], ["CHAT", "Chat"]].map(([v, l]) =>
               filterButton(l, type === v, () => {
@@ -151,7 +177,7 @@ export default function AdminIntroductionsPage() {
               })
             )}
             <span className="mx-1 w-px bg-border" />
-            {[["", "Any status"], ["PENDING", "Waiting"], ["ACCEPTED", "Accepted"], ["DECLINED", "Declined"], ["EXPIRED", "Expired"]].map(
+            {[["", "Any status"], ["PENDING", "Waiting"], ["ACCEPTED", "Accepted"], ["DECLINED", "Declined"], ["EXPIRED", "Expired"], ["CANCELLED", "Cancelled"]].map(
               ([v, l]) =>
                 filterButton(l, status === v, () => {
                   setStatus(v);
@@ -165,8 +191,10 @@ export default function AdminIntroductionsPage() {
             <div className="flex justify-center py-10">
               <Loader2 className="h-6 w-6 animate-spin text-primary" />
             </div>
+          ) : loadError ? (
+            <p className="py-10 text-center text-sm text-destructive">Could not load requests.</p>
           ) : rows.length === 0 ? (
-            <p className="py-10 text-center text-sm text-muted-foreground">No requests yet.</p>
+            <p className="py-10 text-center text-sm text-muted-foreground">{search ? "No requests for this person." : "No requests yet."}</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">

@@ -5,7 +5,7 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { signOut } from "next-auth/react";
-import { LayoutDashboard, Users, ShieldCheck, Sparkles, CalendarHeart, FileText, Menu, LogOut, Flag, ClipboardEdit, CreditCard, Bell, Ban, Trash2, Settings, LifeBuoy, HeartHandshake, Archive, ChevronDown } from "lucide-react";
+import { LayoutDashboard, Users, ShieldCheck, Sparkles, CalendarHeart, FileText, Menu, LogOut, Flag, ClipboardEdit, CreditCard, Bell, Ban, Trash2, Settings, LifeBuoy, HeartHandshake, Archive, ChevronDown, Heart, MessagesSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
@@ -21,7 +21,9 @@ const sidebarLinks: SidebarLink[] = [
   { href: "/admin/identity", label: "Identity Review", icon: ShieldCheck },
   { href: "/admin/suggestions", label: "Suggestions", icon: Sparkles },
   { href: "/admin/visits", label: "Visit Requests", icon: CalendarHeart },
+  { href: "/admin/matches", label: "Matches", icon: Heart },
   { href: "/admin/introductions", label: "Introductions", icon: HeartHandshake },
+  { href: "/admin/chats", label: "Chats", icon: MessagesSquare },
   { href: "/admin/reports", label: "Reports", icon: Flag },
   { href: "/admin/profile-requests", label: "Profile Requests", icon: ClipboardEdit },
   { href: "/admin/payments", label: "Payments", icon: CreditCard },

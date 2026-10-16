@@ -22,6 +22,7 @@ import {
   ChevronLeft,
   LifeBuoy,
   Gift,
+  MessageCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
@@ -41,6 +42,7 @@ const mainLinks: NavLink[] = [
   { href: "/dashboard", label: "الرئيسية", icon: Home },
   { href: "/dashboard/suggestions", label: "الاقتراحات", icon: Sparkles },
   { href: "/dashboard/matches", label: "التوافقات", icon: Heart },
+  { href: "/dashboard/chats", label: "المحادثات", icon: MessageCircle },
   { href: "/dashboard/notifications", label: "الإشعارات", icon: Bell },
 ];
 
@@ -110,7 +112,7 @@ export function DashboardSidebar() {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
-  const { profile, unreadCount } = useDashboardData();
+  const { profile, unreadCount, counts } = useDashboardData();
 
   const userData = profile ? {
     firstName: profile.firstName,
@@ -122,9 +124,15 @@ export function DashboardSidebar() {
   const filterLinks = (links: NavLink[]) =>
     links.filter((l) => !l.femaleOnly || !isMale);
 
-  const mainLinksWithBadge = mainLinks.map((link) =>
-    link.href === "/dashboard/notifications" ? { ...link, badge: unreadCount } : link
-  );
+  const badges: Record<string, number> = {
+    "/dashboard/notifications": unreadCount,
+    "/dashboard/matches": counts.pendingIntros,
+    "/dashboard/chats": counts.unreadChats,
+  };
+  const mainLinksWithBadge = mainLinks
+    // Chats appear once the chat switch is on (or the user already has chats to read)
+    .filter((link) => link.href !== "/dashboard/chats" || counts.flags.chat || counts.unreadChats > 0)
+    .map((link) => (badges[link.href] ? { ...link, badge: badges[link.href] } : link));
   const filteredMainLinks = filterLinks(mainLinksWithBadge);
   const filteredAccountLinks = filterLinks(accountLinks);
 

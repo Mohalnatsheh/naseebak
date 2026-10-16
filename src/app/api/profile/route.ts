@@ -31,7 +31,7 @@ export async function GET() {
           select: { personalityType: true, createdAt: true, updatedAt: true },
         },
         parentInfo: {
-          select: { id: true, parentName: true, relationship: true, address: true },
+          select: { id: true, parentName: true, relationship: true, address: true, shareConsentAt: true },
         },
         identityDoc: {
           select: { status: true },

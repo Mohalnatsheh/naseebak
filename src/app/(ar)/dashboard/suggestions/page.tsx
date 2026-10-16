@@ -53,6 +53,7 @@ import { Badge } from "@/components/ui/badge";
 import { SUGGESTIONS_MIN_COMPLETENESS } from "@/lib/profile-completeness";
 import { VerifiedBadge } from "@/components/shared/verified-badge";
 import { trackEvent } from "@/lib/analytics";
+import { useDashboardData } from "@/contexts/dashboard-context";
 
 interface Suggestion {
   id: string;
@@ -323,6 +324,8 @@ function CandidateDetails({ c }: { c: Suggestion["candidate"] | Interest["candid
 }
 
 export default function SuggestionsPage() {
+  // New cycle: suggestions are free, so no "out of credits" banner here
+  const perRequestCredits = useDashboardData().counts.flags.introRequests;
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [credits, setCredits] = useState<number | null>(null);
   const [interests, setInterests] = useState<Interest[]>([]);
@@ -694,7 +697,7 @@ export default function SuggestionsPage() {
       {/* New Suggestions Tab */}
       {activeTab === "new" && (
         <>
-          {credits === 0 && (
+          {credits === 0 && !perRequestCredits && (
             <Card className="border-amber-300/70 bg-gradient-to-l from-amber-50 via-amber-50/60 to-transparent">
               <CardContent className="py-4 flex flex-col sm:flex-row sm:items-center gap-3">
                 <div className="flex items-center gap-3 flex-1 min-w-0">

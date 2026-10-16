@@ -22,6 +22,8 @@ import {
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { useDashboardData } from "@/contexts/dashboard-context";
+import { GuardianConsentCard } from "@/components/intro/guardian-consent-card";
+import { PendingIntrosCard } from "@/components/intro/pending-intros-card";
 import { SUGGESTIONS_MIN_COMPLETENESS } from "@/lib/profile-completeness";
 
 /* ------------------------------------------------------------------ */
@@ -126,7 +128,9 @@ function getGreeting() {
 /*  Main Component                                                    */
 /* ================================================================== */
 export default function DashboardPage() {
-  const { profile, completeness, unreadCount, loading } = useDashboardData();
+  const { profile, completeness, unreadCount, counts, loading } = useDashboardData();
+  // New cycle: suggestions are free, so "out of credits" no longer blocks suggestions
+  const creditsBlockSuggestions = !counts.flags.introRequests;
   const [mounted, setMounted] = useState(false);
   const [pendingSuggestions, setPendingSuggestions] = useState<number | null>(null);
   const [suggestionCredits, setSuggestionCredits] = useState<number | null>(null);
@@ -194,6 +198,9 @@ export default function DashboardPage() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6 pb-10">
+      <PendingIntrosCard />
+      <GuardianConsentCard />
+
       {/* Unread notifications banner */}
       {unreadCount > 0 && (
         <div className="mb-2">
@@ -290,7 +297,7 @@ export default function DashboardPage() {
       {/* ============================================ */}
       {/*  Suggestions status (profile qualifies)       */}
       {/* ============================================ */}
-      {qualifiesForSuggestions && pendingSuggestions === 0 && suggestionCredits === 0 && (
+      {creditsBlockSuggestions && qualifiesForSuggestions && pendingSuggestions === 0 && suggestionCredits === 0 && (
         <Link href="/dashboard/payments" className="block">
           <Card className="group relative overflow-hidden border-amber-300/70 bg-gradient-to-l from-amber-50 via-amber-50/60 to-transparent shadow-md hover:shadow-lg transition-all duration-300">
             <CardContent className="pt-5 pb-4 flex items-center gap-3 sm:gap-4">
@@ -312,7 +319,7 @@ export default function DashboardPage() {
         </Link>
       )}
 
-      {qualifiesForSuggestions && !(pendingSuggestions === 0 && suggestionCredits === 0) && (
+      {qualifiesForSuggestions && !(creditsBlockSuggestions && pendingSuggestions === 0 && suggestionCredits === 0) && (
         <Link href="/dashboard/suggestions" className="block">
           <Card className="group relative overflow-hidden border-primary/30 bg-gradient-to-l from-primary/10 via-primary/5 to-transparent shadow-md hover:shadow-lg transition-all duration-300">
             <div className="absolute top-0 right-0 h-24 w-24 rounded-full bg-primary/10 blur-2xl translate-x-6 -translate-y-6" />
@@ -464,7 +471,7 @@ export default function DashboardPage() {
         {[
           {
             value: matchCreditsCount,
-            label: "رصيد الاقتراحات",
+            label: creditsBlockSuggestions ? "رصيد الاقتراحات" : "رصيد التعارف",
             icon: Sparkles,
             gradient: "from-primary to-secondary",
             bgLight: "from-primary/10 to-secondary/5",
@@ -551,8 +558,10 @@ export default function DashboardPage() {
             {
               href: "/dashboard/payments",
               icon: CreditCard,
-              label: "رصيد الاقتراحات",
-              desc: "اشتري رصيد لرؤية تفاصيل التوافقات",
+              label: creditsBlockSuggestions ? "رصيد الاقتراحات" : "رصيد التعارف",
+              desc: creditsBlockSuggestions
+                ? "اشتري رصيد لرؤية تفاصيل التوافقات"
+                : "كل طلب تعارف عائلي أو محادثة يستخدم رصيداً واحداً",
               gradient: "from-accent to-accent/70",
               hoverBorder: "hover:border-accent/30",
             },

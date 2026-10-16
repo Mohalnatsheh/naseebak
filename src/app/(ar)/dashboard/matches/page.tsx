@@ -55,6 +55,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ImageLightbox } from "@/components/shared/image-lightbox";
 import { VerifiedBadge } from "@/components/shared/verified-badge";
+import { MatchIntroPanel } from "@/components/intro/match-intro-panel";
+import { useDashboardData } from "@/contexts/dashboard-context";
 
 interface Match {
   id: string;
@@ -246,6 +248,10 @@ export default function MatchesPage() {
   const [loadingPhotos, setLoadingPhotos] = useState<Record<string, boolean>>({});
   const [accountComplete, setAccountComplete] = useState<boolean | null>(null);
   const [isFemale, setIsFemale] = useState(false);
+  const { counts } = useDashboardData();
+  const introMode = counts.flags.introRequests;
+  // Opened from a notification link (?match=<id>): scroll to and highlight that card
+  const [focusMatchId, setFocusMatchId] = useState<string | null>(null);
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
   const [menuOpen, setMenuOpen] = useState<string | null>(null);
   const [reportDialog, setReportDialog] = useState<{ userId: string; name: string } | null>(null);
@@ -391,6 +397,16 @@ export default function MatchesPage() {
     fetchMatches();
   }, [page]);
 
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("match");
+    if (!id || loading) return;
+    setFocusMatchId(id);
+    const el = document.getElementById(`match-${id}`);
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    const t = setTimeout(() => setFocusMatchId(null), 4000);
+    return () => clearTimeout(t);
+  }, [loading, matches]);
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-20 gap-4">
@@ -456,8 +472,8 @@ export default function MatchesPage() {
             </div>
           </div>
           <p className="text-muted-foreground text-sm md:text-base">
-            {isFemale
-              ? "الأشخاص الذين تبادلتم الإعجاب. يمكنك رؤية تفاصيلهم وطلب زيارة عائلية."
+            {introMode
+              ? "الأشخاص الذين تبادلتم الإعجاب. اختر طريقة التعارف: تعارف عائلي أو محادثة قبل الزيارة."
               : "الأشخاص الذين تبادلتم الإعجاب. يمكنك رؤية تفاصيلهم وطلب زيارة عائلية."}
           </p>
         </div>
@@ -494,9 +510,14 @@ export default function MatchesPage() {
             const isExpanded = expandedCards.has(m.id);
             const c = m.partner;
 
+            // New cycle: a visit the admin never picked up is replaced by the intro panel
+            const showVisitBanner = !!m.visitStatus && !(introMode && m.visitStatus === "REQUESTED");
+
             return (
               <div
                 key={m.id}
+                id={`match-${m.id}`}
+                className={`scroll-mt-24 rounded-xl transition-shadow duration-700 ${focusMatchId === m.id ? "ring-2 ring-accent ring-offset-4 ring-offset-background" : ""}`}
                 style={{
                   animation: `fadeSlideIn 0.5s ease-out ${index * 0.1}s both`,
                 }}
@@ -576,7 +597,7 @@ export default function MatchesPage() {
                             <span className="text-xs font-medium text-primary/70">{getScoreLabel(score)}</span>
                           </div>
                         )}
-                        {m.visitStatus && statusConfig && (
+                        {showVisitBanner && m.visitStatus && statusConfig && (
                           <Badge className={`gap-1.5 px-3 py-1 border text-xs font-semibold ${statusConfig.color}`}>
                             <StatusIcon className="h-3.5 w-3.5" />
                             {visitStatusLabels[m.visitStatus] || m.visitStatus}
@@ -585,7 +606,7 @@ export default function MatchesPage() {
                       </div>
 
                       {/* Visit status explanation */}
-                      {m.visitStatus && visitStatusDescriptions[m.visitStatus] && (
+                      {showVisitBanner && m.visitStatus && visitStatusDescriptions[m.visitStatus] && (
                         <div className={`mt-3 p-3 rounded-xl border text-sm leading-relaxed ${
                           m.visitStatus === "REQUESTED" ? "bg-amber-50/60 border-amber-200/40 text-amber-800" :
                           m.visitStatus === "FAMILIES_CONTACTED" ? "bg-primary/5 border-primary/15 text-primary" :
@@ -600,6 +621,8 @@ export default function MatchesPage() {
                           </div>
                         </div>
                       )}
+
+                      <MatchIntroPanel matchId={m.id} partnerName={c.firstName} />
                     </div>
 
                     {/* Quick chips */}

@@ -4,6 +4,7 @@ import { OneSignalProvider } from "@/components/shared/onesignal-provider";
 import { PushPermissionPrompt } from "@/components/shared/push-permission-prompt";
 import { OnboardingGuide } from "@/components/shared/onboarding-guide";
 import { DashboardDataProvider } from "@/contexts/dashboard-context";
+import { Toaster } from "@/components/ui/sonner";
 
 export default function DashboardLayout({
   children,
@@ -27,6 +28,7 @@ export default function DashboardLayout({
             </footer>
           </main>
         </div>
+        <Toaster position="top-center" dir="rtl" richColors closeButton />
       </DashboardDataProvider>
     </Providers>
   );

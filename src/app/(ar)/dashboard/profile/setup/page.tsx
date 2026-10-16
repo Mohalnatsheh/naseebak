@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { jordanAreas, jordanCities } from "@/lib/data/jordan-areas";
 import { trackEvent } from "@/lib/analytics";
+import { useDashboardData } from "@/contexts/dashboard-context";
 
 const educationLevels = ["ثانوية عامة", "دبلوم", "بكالوريوس", "ماجستير", "دكتوراه"];
 const maritalStatuses = ["أعزب/عزباء", "مطلق/مطلقة", "أرمل/أرملة"];
@@ -103,6 +104,9 @@ export default function ProfileSetupPage() {
     address: "",
   });
 
+  // Consent to share the guardian contact after an accepted family introduction (new cycle)
+  const [shareConsent, setShareConsent] = useState(false);
+  const { counts } = useDashboardData();
   const [autoSaveEnabled, setAutoSaveEnabled] = useState(false);
   const { savedIndicatorVisible, saveToLocalStorage, restoreDraft, clearDraft, saveToServer } = useAutoSave(autoSaveEnabled);
 
@@ -188,6 +192,7 @@ export default function ProfileSetupPage() {
               relationship: pi.relationship || "",
               address: pi.address || "",
             }));
+            setShareConsent(!!pi.shareConsentAt);
           }
         }
 
@@ -431,7 +436,7 @@ export default function ProfileSetupPage() {
       const parentRes = await fetch("/api/profile/parent-info", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(parentForm),
+        body: JSON.stringify({ ...parentForm, shareConsent }),
       });
 
       if (!parentRes.ok) {
@@ -1081,9 +1086,23 @@ export default function ProfileSetupPage() {
               {fieldErrors.address && <p className="text-xs text-destructive">{fieldErrors.address}</p>}
             </div>
 
-            <div className="flex items-center gap-2 p-3 bg-primary/5 border border-primary/10 rounded-lg text-sm text-muted-foreground">
-              <span>هذه البيانات سرية وتستخدم فقط من قبل الإدارة لتنسيق الزيارات العائلية</span>
-            </div>
+            {counts.flags.introRequests ? (
+              <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-primary/10 bg-primary/5 p-3 text-sm hover:bg-primary/10">
+                <input
+                  type="checkbox"
+                  checked={shareConsent}
+                  onChange={(e) => setShareConsent(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 flex-shrink-0 accent-[var(--primary)]"
+                />
+                <span className="leading-relaxed text-foreground/80">
+                  أوافق على مشاركة اسم ورقم وليّ الأمر مع عائلة الطرف الآخر فقط بعد قبول طلب التعارف العائلي. لا تظهر هذه البيانات لأي شخص قبل ذلك.
+                </span>
+              </label>
+            ) : (
+              <div className="flex items-center gap-2 p-3 bg-primary/5 border border-primary/10 rounded-lg text-sm text-muted-foreground">
+                <span>هذه البيانات سرية وتستخدم فقط من قبل الإدارة لتنسيق الزيارات العائلية</span>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}

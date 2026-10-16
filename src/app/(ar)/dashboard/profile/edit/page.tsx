@@ -204,6 +204,15 @@ export default function ProfileEditPage() {
   // Original values from server — used to compute changes
   const [originalForm, setOriginalForm] = useState<ProfileForm>(emptyForm);
   const [form, setForm] = useState<ProfileForm>(emptyForm);
+  // Consent to share the guardian contact after an accepted family introduction
+  const [shareConsent, setShareConsent] = useState(false);
+  const [originalShareConsent, setOriginalShareConsent] = useState(false);
+
+  // Deep link: /dashboard/profile/edit?step=5 opens the guardian step
+  useEffect(() => {
+    const s = Number(new URLSearchParams(window.location.search).get("step"));
+    if (s >= 1 && s <= 5) setStep(s);
+  }, []);
 
   useEffect(() => {
     async function load() {
@@ -282,6 +291,8 @@ export default function ProfileEditPage() {
           };
           setOriginalForm(loaded);
           setForm(loaded);
+          setShareConsent(!!pi?.shareConsentAt);
+          setOriginalShareConsent(!!pi?.shareConsentAt);
         }
       } catch {
         // Silently fail
@@ -422,7 +433,8 @@ export default function ProfileEditPage() {
       form.parentName !== originalForm.parentName ||
       form.parentPhone !== originalForm.parentPhone ||
       form.relationship !== originalForm.relationship ||
-      form.parentAddress !== originalForm.parentAddress
+      form.parentAddress !== originalForm.parentAddress ||
+      shareConsent !== originalShareConsent
     );
   }
 
@@ -475,6 +487,7 @@ export default function ProfileEditPage() {
               parentPhone: form.parentPhone,
               relationship: form.relationship,
               address: form.parentAddress,
+              shareConsent,
             }),
           })
         );
@@ -1324,6 +1337,17 @@ export default function ProfileEditPage() {
                 maxLength={500}
               />
             </div>
+            <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-border/60 bg-muted/20 p-3 text-sm hover:bg-muted/40">
+              <input
+                type="checkbox"
+                checked={shareConsent}
+                onChange={(e) => setShareConsent(e.target.checked)}
+                className="mt-0.5 h-4 w-4 flex-shrink-0 accent-[var(--primary)]"
+              />
+              <span className="leading-relaxed text-foreground/80">
+                أوافق على مشاركة اسم ورقم وليّ الأمر مع عائلة الطرف الآخر فقط بعد قبول طلب التعارف العائلي.
+              </span>
+            </label>
           </CardContent>
         </Card>
       )}

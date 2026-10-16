@@ -33,22 +33,23 @@ export async function POST(
     if ((await getCycleFlags()).creditOnInterest) {
       // Credit on interest: this like is the "مهتم" — accept, charge 1 and record the like together
       // (a lost claim charges nothing; no credit rolls the acceptance back)
-      const claimed = await db.$transaction(async (tx) => {
+      // The balance is read inside the transaction so only the charge that reached 0 sends the notice
+      const creditsLeft = await db.$transaction(async (tx) => {
         const accepted = await tx.suggestion.updateMany({
           where: { id, status: "PENDING", flow: "LEGACY" },
           data: { status: "ACCEPTED" },
         });
-        if (accepted.count === 0) return false;
+        if (accepted.count === 0) return null;
         if (!(await reserveCredits(session.user.id, 1, tx))) throw new IntroError("NO_CREDITS");
         await recordCredit({ userId: session.user.id, delta: -1, reason: "INTEREST", refId: suggestion.id }, tx);
         await tx.like.create({ data: likeData });
-        return true;
+        const me = await tx.user.findUniqueOrThrow({ where: { id: session.user.id }, select: { matchCredits: true } });
+        return me.matchCredits;
       });
-      if (!claimed) {
+      if (creditsLeft === null) {
         return NextResponse.json({ error: "الاقتراح غير موجود" }, { status: 404 });
       }
-      const me = await db.user.findUnique({ where: { id: session.user.id }, select: { matchCredits: true } });
-      if ((me?.matchCredits ?? 0) <= 0) {
+      if (creditsLeft <= 0) {
         await notifyInterestCreditsExhausted(session.user.id).catch((e) => console.error("Like: exhausted notice", e));
       }
     } else {

@@ -4,7 +4,7 @@ const db = vi.hoisted(() => {
   const d = {
     suggestion: { findUnique: vi.fn(), updateMany: vi.fn() },
     like: { create: vi.fn(), findUnique: vi.fn() },
-    user: { findUnique: vi.fn(), updateMany: vi.fn() },
+    user: { findUnique: vi.fn(), findUniqueOrThrow: vi.fn(), updateMany: vi.fn() },
     creditLedger: { create: vi.fn() },
     notification: { create: vi.fn() },
     $transaction: vi.fn(),
@@ -44,6 +44,7 @@ beforeEach(() => {
     gender: where.id.startsWith("f") ? "FEMALE" : "MALE",
     matchCredits: balance,
   }));
+  db.user.findUniqueOrThrow.mockImplementation(async () => ({ matchCredits: balance }));
   db.user.updateMany.mockImplementation(async () => {
     if (balance < 1) return { count: 0 };
     balance -= 1;
@@ -85,6 +86,23 @@ describe("legacy like / accept with credit on interest", () => {
     balance = 1;
     await like(req(), params("s1"));
     expect(notifyMod.notify).toHaveBeenCalledWith(expect.objectContaining({ userId: "u1", type: "PAYMENT" }));
+  });
+
+  it("two concurrent likes from 2 send exactly one exhausted notice", async () => {
+    balance = 2;
+    db.suggestion.findUnique.mockImplementation(async ({ where }: { where: { id: string } }) => ({
+      id: where.id, flow: "LEGACY", recipientId: "u1", candidateId: "f1", status: "PENDING",
+    }));
+    db.user.findUniqueOrThrow.mockResolvedValueOnce({ matchCredits: 1 }).mockResolvedValueOnce({ matchCredits: 0 });
+    await Promise.all([like(req(), params("s1")), like(req(), params("s2"))]);
+    expect(notifyMod.notify.mock.calls.filter((c) => c[0].type === "PAYMENT")).toHaveLength(1);
+  });
+
+  it("accept sends the exhausted notice once for two concurrent accepts from 2", async () => {
+    balance = 2;
+    db.user.findUniqueOrThrow.mockResolvedValueOnce({ matchCredits: 1 }).mockResolvedValueOnce({ matchCredits: 0 });
+    await Promise.all([accept(req(), params("l1")), accept(req(), params("l2"))]);
+    expect(notifyMod.notify.mock.calls.filter((c) => c[0].type === "PAYMENT")).toHaveLength(1);
   });
 
   it("accept charges 1 when flag on", async () => {

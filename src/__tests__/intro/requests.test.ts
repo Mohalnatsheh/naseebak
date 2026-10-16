@@ -611,4 +611,12 @@ describe("per-match guardian consent (openedAt matches)", () => {
     await getMatchIntroState("m1", "u1");
     expect(outcomeMod.applyIntroOutcome).not.toHaveBeenCalled();
   });
+
+  it("never lazily applies an outcome over a pending manual request", async () => {
+    db.mutualMatch.findUnique.mockResolvedValue(opened());
+    db.introRequest.findMany.mockResolvedValue([pending({ type: "FAMILY" })]);
+    const state = await getMatchIntroState("m1", "u1");
+    expect(outcomeMod.applyIntroOutcome).not.toHaveBeenCalled();
+    expect(state.family.status).toBe("pending_sent");
+  });
 });

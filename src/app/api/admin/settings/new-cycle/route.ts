@@ -58,6 +58,11 @@ export async function PATCH(request: Request) {
     if (parsed.data.creditOnInterest !== undefined) {
       await setSetting("credit_on_interest", String(parsed.data.creditOnInterest));
     }
+    // Credit on interest depends on both: turning either off turns it off too, so switching
+    // them back on later never silently re-enables it
+    if (parsed.data.mutualSuggestions === false || parsed.data.introRequests === false) {
+      await setSetting("credit_on_interest", "false");
+    }
     return NextResponse.json(await state());
   } catch (error) {
     console.error("Update new cycle settings error:", error);

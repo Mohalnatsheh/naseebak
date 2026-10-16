@@ -65,7 +65,12 @@ async function openMatch(
     data: { femaleId, maleId, suggestionId, revealedByFemale: false, openedAt: new Date() },
   });
   const ref = { id: match.id, femaleId, maleId, suggestionId };
-  const outcome = await applyIntroOutcome(ref, flags);
+  // The pair was already charged on "مهتم": an outcome failure must not lose the match. Log it and
+  // send the plain match notice; getMatchIntroState applies the outcome lazily on first view.
+  const outcome = await applyIntroOutcome(ref, flags).catch((e: unknown) => {
+    console.error("[match] intro outcome failed", { matchId: match.id }, e);
+    return "NONE" as const;
+  });
 
   const matchUrl = `/dashboard/matches?match=${match.id}`;
   const metadata = { matchId: match.id };

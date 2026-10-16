@@ -2,13 +2,16 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const db = vi.hoisted(() => {
   const d = {
-    suggestion: { findUnique: vi.fn() },
+    suggestion: { findUnique: vi.fn(), updateMany: vi.fn() },
+    block: { findFirst: vi.fn() },
+    parentInfo: { findUnique: vi.fn() },
     mutualMatch: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn() },
     introRequest: { findFirst: vi.fn(), create: vi.fn() },
     conversation: { create: vi.fn(), findUnique: vi.fn() },
     visitRequest: { create: vi.fn() },
     creditLedger: { create: vi.fn() },
-    user: { updateMany: vi.fn() },
+    user: { updateMany: vi.fn(), findUnique: vi.fn(), findUniqueOrThrow: vi.fn() },
+    $executeRaw: vi.fn(),
     $transaction: vi.fn(),
   };
   d.$transaction.mockImplementation(async (fn: (tx: typeof d) => unknown) => fn(d));
@@ -25,6 +28,7 @@ const credits = vi.hoisted(() => ({
   reserveCredits: vi.fn(),
   recordCredit: vi.fn(),
   notifyRequestCreditsExhausted: vi.fn(),
+  notifyInterestCreditsExhausted: vi.fn(),
 }));
 const flags = vi.hoisted(() => ({
   value: { introRequests: true, chat: true, mutualSuggestions: true, creditOnInterest: true },
@@ -33,10 +37,12 @@ vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/notify", () => notifyMod);
 vi.mock("@/lib/credits", () => credits);
 vi.mock("@/lib/settings", () => ({ getCycleFlags: vi.fn(async () => flags.value) }));
+vi.mock("@/lib/matching/auto-suggest", () => ({ autoSuggestForUser: vi.fn(async () => 0) }));
 
 import { applyIntroOutcome } from "@/lib/intro/outcome";
 import { createMutualMatch } from "@/lib/intro/match";
 import { CHAT_TTL_DAYS } from "@/lib/intro/requests";
+import { decideSuggestion } from "@/lib/suggestions/mutual";
 
 const DAY = 24 * 60 * 60 * 1000;
 const ON = { introRequests: true, chat: true, mutualSuggestions: true, creditOnInterest: true };
@@ -61,6 +67,7 @@ beforeEach(() => {
   db.mutualMatch.findUnique.mockResolvedValue(null);
   db.mutualMatch.create.mockImplementation(async ({ data }: { data: object }) => ({ id: "m1", ...data }));
   db.mutualMatch.update.mockResolvedValue({});
+  db.$executeRaw.mockResolvedValue(1);
 });
 
 describe("applyIntroOutcome", () => {
@@ -132,6 +139,64 @@ describe("applyIntroOutcome", () => {
     }));
     expect(db.introRequest.create).toHaveBeenCalledTimes(1);
     expect(db.conversation.create).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("applyIntroOutcome serialisation", () => {
+  it("locks the match row before the idempotency check", async () => {
+    db.suggestion.findUnique.mockResolvedValue(suggestion("CHAT", "CHAT"));
+    await applyIntroOutcome(match, ON);
+    expect(db.$executeRaw).toHaveBeenCalledTimes(1);
+    const [strings, id] = db.$executeRaw.mock.calls[0];
+    expect(strings.join("?")).toBe("SELECT 1 FROM mutual_matches WHERE id = ? FOR UPDATE");
+    expect(id).toBe("m1");
+    expect(db.$executeRaw.mock.invocationCallOrder[0]).toBeLessThan(db.introRequest.findFirst.mock.invocationCallOrder[0]);
+  });
+});
+
+describe("outcome failure after the charge", () => {
+  const silence = () => vi.spyOn(console, "error").mockImplementation(() => {});
+
+  it("createMutualMatch still notifies both with the match url when the outcome throws", async () => {
+    const spy = silence();
+    db.suggestion.findUnique.mockResolvedValue(suggestion("CHAT", "CHAT"));
+    db.introRequest.create.mockRejectedValueOnce(new Error("db down"));
+    expect(await createMutualMatch({ femaleId: "f1", maleId: "u1", suggestionId: "s1" })).toEqual({ matchId: "m1" });
+    for (const id of ["f1", "u1"]) {
+      expect(notificationsFor(id)).toEqual([expect.objectContaining({
+        type: "MATCH",
+        body: "تهانينا! لديك توافق متبادل جديد. يمكنك الآن إرسال طلب تعارف عائلي أو طلب محادثة.",
+        url: "/dashboard/matches?match=m1",
+      })]);
+    }
+    expect(spy).toHaveBeenCalledWith(expect.stringContaining("intro outcome failed"), { matchId: "m1" }, expect.any(Error));
+    spy.mockRestore();
+  });
+
+  it("decideSuggestion returns { match: true } when the outcome throws", async () => {
+    const spy = silence();
+    const future = new Date(Date.now() + DAY);
+    const row = (over: object = {}) => ({
+      ...suggestion("CHAT", "CHAT"), status: "PENDING", expiresAt: future,
+      recipientDecision: null, candidateDecision: "INTERESTED", ...over,
+    });
+    db.suggestion.findUnique
+      .mockResolvedValueOnce(row())
+      .mockResolvedValueOnce(row({ recipientDecision: "INTERESTED" }))
+      .mockResolvedValue(row({ recipientDecision: "INTERESTED" }));
+    db.suggestion.updateMany.mockResolvedValue({ count: 1 });
+    db.block.findFirst.mockResolvedValue(null);
+    db.user.findUnique.mockImplementation(async ({ where }: { where: { id: string } }) => ({
+      gender: where.id.startsWith("f") ? "FEMALE" : "MALE", matchCredits: 3, isDeactivated: false, status: "VERIFIED",
+    }));
+    db.user.findUniqueOrThrow.mockResolvedValue({ matchCredits: 2 });
+    credits.reserveCredits.mockResolvedValue(true);
+    db.introRequest.create.mockRejectedValueOnce(new Error("db down"));
+    const res = await decideSuggestion({ suggestionId: "s1", userId: "u1", interested: true, introPreference: "CHAT" });
+    expect(res).toMatchObject({ match: true, matchId: "m1" });
+    expect(notificationsFor("f1")[0].url).toBe("/dashboard/matches?match=m1");
+    expect(notificationsFor("u1")[0].url).toBe("/dashboard/matches?match=m1");
+    spy.mockRestore();
   });
 });
 

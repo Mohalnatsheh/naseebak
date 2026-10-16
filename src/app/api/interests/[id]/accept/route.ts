@@ -52,16 +52,18 @@ export async function POST(
     if ((await getCycleFlags()).creditOnInterest) {
       // Credit on interest: accepting is the "مهتم" — the like back and the 1-credit charge commit together
       // (a concurrent second accept fails on the unique like and its charge rolls back)
-      await db.$transaction(async (tx) => {
+      // The balance is read inside the transaction so only the charge that reached 0 sends the notice
+      const creditsLeft = await db.$transaction(async (tx) => {
         await tx.like.create({ data: likeData });
         if (!(await reserveCredits(session.user.id, 1, tx))) throw new IntroError("NO_CREDITS");
         await recordCredit(
           { userId: session.user.id, delta: -1, reason: "INTEREST", refId: incomingLike.suggestionId ?? incomingLike.id },
           tx
         );
+        const me = await tx.user.findUniqueOrThrow({ where: { id: session.user.id }, select: { matchCredits: true } });
+        return me.matchCredits;
       });
-      const me = await db.user.findUnique({ where: { id: session.user.id }, select: { matchCredits: true } });
-      if ((me?.matchCredits ?? 0) <= 0) {
+      if (creditsLeft <= 0) {
         await notifyInterestCreditsExhausted(session.user.id).catch((e) => console.error("Accept interest: exhausted notice", e));
       }
     } else {

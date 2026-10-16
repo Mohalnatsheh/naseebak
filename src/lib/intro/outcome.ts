@@ -61,6 +61,8 @@ export async function applyIntroOutcome(match: OutcomeMatch, flags: CycleFlags):
   if (outcome === "NONE") return outcome;
 
   await db.$transaction(async (tx) => {
+    // Serialise concurrent calls (creation + lazy heal) on the match row before the done-check
+    await tx.$executeRaw`SELECT 1 FROM mutual_matches WHERE id = ${match.id} FOR UPDATE`;
     // Idempotent: a second call finds the accepted request and does nothing
     const done = await tx.introRequest.findFirst({
       where: { matchId: match.id, type: outcome, status: "ACCEPTED" },

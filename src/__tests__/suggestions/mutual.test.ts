@@ -4,7 +4,7 @@ const db = vi.hoisted(() => {
   const d = {
     suggestion: { findUnique: vi.fn(), updateMany: vi.fn() },
     block: { findFirst: vi.fn() },
-    user: { findUnique: vi.fn(), updateMany: vi.fn() },
+    user: { findUnique: vi.fn(), findUniqueOrThrow: vi.fn(), updateMany: vi.fn() },
     creditLedger: { create: vi.fn() },
     parentInfo: { findUnique: vi.fn() },
     $transaction: vi.fn(),
@@ -49,6 +49,9 @@ beforeEach(() => {
   db.suggestion.updateMany.mockResolvedValue({ count: 1 });
   db.user.findUnique.mockImplementation(async ({ where }: { where: { id: string } }) => ({
     gender: where.id.startsWith("f") ? "FEMALE" : "MALE",
+    matchCredits: balance[where.id] ?? 0,
+  }));
+  db.user.findUniqueOrThrow.mockImplementation(async ({ where }: { where: { id: string } }) => ({
     matchCredits: balance[where.id] ?? 0,
   }));
   db.user.updateMany.mockImplementation(async ({ where }: { where: { id: string; matchCredits: { gte: number } } }) => {
@@ -367,6 +370,45 @@ describe("decideSuggestion with credit on interest", () => {
     );
     await flush();
     expect(notifyMod.notify).toHaveBeenCalledTimes(1);
+  });
+
+  it("two concurrent charges from 2 send exactly one exhausted notice (balance read inside the transaction)", async () => {
+    balance.u1 = 2;
+    // In-transaction reads see each charge's own result; a later read outside would see 0 for both
+    db.user.findUniqueOrThrow.mockResolvedValueOnce({ matchCredits: 1 }).mockResolvedValueOnce({ matchCredits: 0 });
+    // Per row: first read is undecided, the re-read after the claim shows my INTERESTED
+    const reads = new Map<string, number>();
+    db.suggestion.findUnique.mockImplementation(async ({ where }: { where: { id: string } }) => {
+      const n = reads.get(where.id) ?? 0;
+      reads.set(where.id, n + 1);
+      return row({ id: where.id, ...(n > 0 && { recipientDecision: "INTERESTED" }) });
+    });
+    const [a, b] = await Promise.all([yes(), yes({ suggestionId: "s2" })]);
+    expect([a.creditsLeft, b.creditsLeft].sort()).toEqual([0, 1]);
+    await flush();
+    const exhausted = notifyMod.notify.mock.calls.filter((c) => c[0].type === "PAYMENT");
+    expect(exhausted).toHaveLength(1);
+  });
+
+  it("logs and rethrows when the match cannot be created after the row closed ACCEPTED (no revert)", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    db.suggestion.findUnique
+      .mockResolvedValueOnce(row({ candidateDecision: "INTERESTED" }))
+      .mockResolvedValueOnce(row({ candidateDecision: "INTERESTED", recipientDecision: "INTERESTED" }));
+    const boom = new Error("db down");
+    matchMod.createMutualMatch.mockRejectedValueOnce(boom);
+    await expect(yes()).rejects.toBe(boom);
+    expect(spy).toHaveBeenCalledWith(
+      expect.stringContaining("createMutualMatch failed"),
+      { suggestionId: "s1", femaleId: "f1", maleId: "u1" },
+      boom
+    );
+    // Closed ACCEPTED once; never reopened, never refunded
+    const statusWrites = db.suggestion.updateMany.mock.calls.map((c) => c[0].data.status).filter(Boolean);
+    expect(statusWrites).toEqual(["ACCEPTED"]);
+    expect(balance.u1).toBe(2);
+    expect(db.creditLedger.create).toHaveBeenCalledTimes(1);
+    spy.mockRestore();
   });
 
   it("tops up the decider after a decision", async () => {

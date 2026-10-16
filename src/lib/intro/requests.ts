@@ -211,8 +211,9 @@ export async function getMatchIntroState(matchId: string, userId: string): Promi
   const loadRequests = () => db.introRequest.findMany({ where: { matchId }, orderBy: { createdAt: "desc" } });
   let requests = await loadRequests();
 
-  // Self-heal: an openedAt match whose outcome step failed gets it on first view (idempotent, no notification)
-  if (match.openedAt && match.suggestionId && !requests.some((r) => r.status === "ACCEPTED")) {
+  // Self-heal: an openedAt match whose outcome step failed gets it on first view (idempotent, no notification).
+  // Only while the match has no intro request at all, so a pending manual request is never superseded.
+  if (match.openedAt && match.suggestionId && requests.length === 0) {
     const applied = await applyIntroOutcome(match, flags).catch((e: unknown) => {
       console.error("Lazy intro outcome", e);
       return "NONE" as const;

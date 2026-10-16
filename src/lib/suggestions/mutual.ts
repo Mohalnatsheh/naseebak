@@ -159,14 +159,16 @@ export async function decideSuggestion(args: {
   let creditsLeft: number | undefined;
   if (charge) {
     // Claim + charge together: a lost claim charges nothing, a failed reserve rolls the claim back
-    await db.$transaction(async (tx) => {
+    // The balance is read inside the transaction (row locked by the decrement), so of two
+    // concurrent charges only the one that really reached 0 sends the exhausted notice
+    creditsLeft = await db.$transaction(async (tx) => {
       const recorded = await claim(tx);
       if (recorded.count === 0) throw notFound();
       if (!(await reserveCredits(userId, 1, tx))) throw new IntroError("NO_CREDITS");
       await recordCredit({ userId, delta: -1, reason: "INTEREST", refId: s.id }, tx);
+      const left = await tx.user.findUniqueOrThrow({ where: { id: userId }, select: { matchCredits: true } });
+      return left.matchCredits;
     });
-    const me = await db.user.findUnique({ where: { id: userId }, select: { matchCredits: true } });
-    creditsLeft = me?.matchCredits ?? 0;
     if (creditsLeft <= 0) {
       await notifyInterestCreditsExhausted(userId).catch((e) => console.error("[suggestions] exhausted notice:", e));
     }
@@ -197,7 +199,16 @@ export async function decideSuggestion(args: {
     const me = await db.user.findUnique({ where: { id: userId }, select: { gender: true } });
     const femaleId = me?.gender === "FEMALE" ? userId : otherId;
     const maleId = femaleId === userId ? otherId : userId;
-    const { matchId } = await createMutualMatch({ femaleId, maleId, suggestionId: s.id });
+    // The row is already ACCEPTED and both "مهتم" were charged. On a failure here we do NOT
+    // reopen the row: both decisions and charges are valid, and reopening would let the pair be
+    // charged again. Log loudly so the match can be created by hand, then surface the error.
+    let matchId: string;
+    try {
+      ({ matchId } = await createMutualMatch({ femaleId, maleId, suggestionId: s.id }));
+    } catch (e) {
+      console.error("[suggestions] createMutualMatch failed after ACCEPTED", { suggestionId: s.id, femaleId, maleId }, e);
+      throw e;
+    }
     return { match: true, matchId, ...extra };
   }
 

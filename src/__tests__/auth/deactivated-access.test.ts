@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const db = vi.hoisted(() => ({
   otp: { findFirst: vi.fn() },
-  user: { findUnique: vi.fn() },
+  user: { findUnique: vi.fn(), updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
 }));
 const authMock = vi.hoisted(() => vi.fn());
 const captured = vi.hoisted(() => ({ config: null as null | { providers: { id: string; authorize: (c: unknown) => unknown }[] } }));
@@ -33,6 +33,10 @@ describe("phone sign-in", () => {
     db.user.findUnique.mockResolvedValue({ ...baseUser, status: "ACTIVE", isDeactivated: true });
     const user = await phoneLogin().authorize({ phone: "0790000000", otp: "111111" });
     expect(user).toMatchObject({ id: "u1", role: "USER" });
+    // Sign-in records "last active" (conditional: at most once per hour)
+    expect(db.user.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ id: "u1" }), data: { lastActiveAt: expect.any(Date) } })
+    );
   });
 
   it("still refuses suspended users", async () => {

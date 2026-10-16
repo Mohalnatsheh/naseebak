@@ -37,6 +37,7 @@ import { useDashboardData } from "@/contexts/dashboard-context";
 import { describeOption, oppositeGender } from "@/lib/profile-options";
 import { CandidateDetails } from "@/components/suggestions/candidate-details";
 import { MutualSuggestionsView } from "@/components/suggestions/mutual-suggestions-view";
+import type { SuggestEmptyReason } from "@/lib/matching/auto-suggest";
 
 interface Suggestion {
   id: string;
@@ -161,6 +162,8 @@ export default function SuggestionsPage() {
   const [credits, setCredits] = useState<number | null>(null);
   // Simultaneous suggestions flow: the API says so, and the page shows the two-tab view instead
   const [mutualView, setMutualView] = useState(false);
+  // Why the "new" tab may be empty (weekly cap / nobody fits / pending), from page 1 of /api/suggestions
+  const [emptyInfo, setEmptyInfo] = useState<{ reason: SuggestEmptyReason | null; nextAt: string | null }>({ reason: null, nextAt: null });
   const [interests, setInterests] = useState<Interest[]>([]);
   const [sentRequests, setSentRequests] = useState<SentRequest[]>([]);
   const [loading, setLoading] = useState(true);
@@ -268,6 +271,7 @@ export default function SuggestionsPage() {
       const res = await fetch(`/api/suggestions?page=${p}`);
       const data = await res.json();
       if (data.mutualView) setMutualView(true);
+      if (p === 1) setEmptyInfo({ reason: data.emptyReason ?? null, nextAt: data.nextSuggestionsAt ?? null });
       setSuggestions(data.suggestions || []);
       setSugTotalPages(data.totalPages || 1);
       if (typeof data.credits === "number") setCredits(data.credits);
@@ -435,7 +439,7 @@ export default function SuggestionsPage() {
     );
   }
 
-  if (mutualView) return <MutualSuggestionsView />;
+  if (mutualView) return <MutualSuggestionsView emptyReason={emptyInfo.reason} nextSuggestionsAt={emptyInfo.nextAt} />;
 
   return (
     <div className="max-w-2xl mx-auto space-y-8 pb-8">

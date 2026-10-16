@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const db = vi.hoisted(() => ({
   user: { findUnique: vi.fn(), findMany: vi.fn(), updateMany: vi.fn(), update: vi.fn() },
-  suggestion: { count: vi.fn(), findMany: vi.fn(), createMany: vi.fn(), groupBy: vi.fn() },
+  suggestion: { count: vi.fn(), findMany: vi.fn(), findFirst: vi.fn(), createMany: vi.fn(), groupBy: vi.fn() },
   mutualMatch: { findMany: vi.fn() },
   block: { findMany: vi.fn() },
   notification: { create: vi.fn() },
@@ -16,7 +16,7 @@ const notifyMod = vi.hoisted(() => ({ notify: vi.fn(), notifyMany: vi.fn() }));
 vi.mock("@/lib/notify", () => notifyMod);
 vi.mock("@/lib/intro/match", () => ({ createMutualMatch: vi.fn() }));
 
-import { autoSuggestForUser } from "@/lib/matching/auto-suggest";
+import { autoSuggestForUser, autoSuggestWithReason } from "@/lib/matching/auto-suggest";
 
 // Profile with every basic + preference field filled → 60% completeness (above the 50% threshold)
 const fullProfile = (gender: "MALE" | "FEMALE") => ({
@@ -298,5 +298,73 @@ describe("autoSuggestForUser — simultaneous flow", () => {
     db.user.findMany.mockResolvedValue([person("h8", "FEMALE")]);
     await autoSuggestForUser("m6");
     expect(db.suggestion.createMany.mock.calls[0][0].data[0].flow).toBeUndefined();
+  });
+});
+
+describe("activity (30 days)", () => {
+  const DAY = 24 * 60 * 60 * 1000;
+
+  it("generates nothing for a user idle 30+ days (they get suggestions lazily when back)", async () => {
+    db.user.findUnique.mockResolvedValue({ ...person("idle1", "MALE"), lastActiveAt: new Date(Date.now() - 31 * DAY) });
+    db.user.findMany.mockResolvedValue([person("x1", "FEMALE")]);
+    expect(await autoSuggestForUser("idle1")).toBe(0);
+    expect(db.user.findMany).not.toHaveBeenCalled();
+  });
+
+  it("falls back to updatedAt when lastActiveAt is null", async () => {
+    db.user.findUnique.mockResolvedValue({ ...person("idle2", "MALE"), lastActiveAt: null, updatedAt: new Date(Date.now() - 45 * DAY) });
+    expect(await autoSuggestForUser("idle2")).toBe(0);
+    db.user.findUnique.mockResolvedValue({ ...person("act2", "MALE"), lastActiveAt: null, updatedAt: new Date(Date.now() - 2 * DAY) });
+    db.user.findMany.mockResolvedValue([person("x2", "FEMALE")]);
+    expect(await autoSuggestForUser("act2")).toBe(1);
+  });
+
+  it("only considers candidates active in the last 30 days", async () => {
+    db.user.findUnique.mockResolvedValue(person("act3", "MALE"));
+    db.user.findMany.mockResolvedValue([]);
+    await autoSuggestForUser("act3");
+    const { where } = db.user.findMany.mock.calls[0][0];
+    expect(where.OR).toHaveLength(2);
+    expect(where.OR[0].lastActiveAt.gte).toBeInstanceOf(Date);
+    expect(where.OR[1]).toMatchObject({ lastActiveAt: null });
+    const since = where.OR[0].lastActiveAt.gte.getTime();
+    expect(Math.abs(Date.now() - 30 * DAY - since)).toBeLessThan(5000);
+  });
+});
+
+describe("autoSuggestWithReason", () => {
+  const DAY = 24 * 60 * 60 * 1000;
+  beforeEach(() => {
+    flags.getCycleFlags.mockResolvedValue({ introRequests: true, chat: true, mutualSuggestions: true });
+  });
+
+  it("says 'pending' while something is undecided", async () => {
+    db.user.findUnique.mockResolvedValue(person("why1", "MALE"));
+    db.suggestion.count.mockResolvedValue(1);
+    expect(await autoSuggestWithReason("why1")).toEqual({ created: 0, reason: "pending", nextSuggestionsAt: null });
+  });
+
+  it("says 'weekly_cap' with the date the oldest suggestion of the window ages out", async () => {
+    db.user.findUnique.mockResolvedValue(person("why2", "MALE"));
+    db.suggestion.count.mockImplementation(async ({ where }: { where: { createdAt?: unknown } }) => (where.createdAt ? 3 : 0));
+    const oldest = new Date(Date.now() - 5 * DAY);
+    db.suggestion.findFirst.mockResolvedValue({ createdAt: oldest });
+    const res = await autoSuggestWithReason("why2");
+    expect(res.reason).toBe("weekly_cap");
+    expect(res.nextSuggestionsAt).toEqual(new Date(oldest.getTime() + 7 * DAY));
+    expect(db.suggestion.findFirst.mock.calls[0][0].orderBy).toEqual({ createdAt: "asc" });
+  });
+
+  it("says 'no_candidates' when nobody fits (and again during the retry cooldown)", async () => {
+    db.user.findUnique.mockResolvedValue(person("why3", "MALE"));
+    db.user.findMany.mockResolvedValue([]);
+    expect((await autoSuggestWithReason("why3")).reason).toBe("no_candidates");
+    expect((await autoSuggestWithReason("why3")).reason).toBe("no_candidates");
+  });
+
+  it("has no reason when suggestions were created", async () => {
+    db.user.findUnique.mockResolvedValue(person("why4", "MALE"));
+    db.user.findMany.mockResolvedValue([person("y4", "FEMALE")]);
+    expect(await autoSuggestWithReason("why4")).toEqual({ created: 1, reason: null, nextSuggestionsAt: null });
   });
 });

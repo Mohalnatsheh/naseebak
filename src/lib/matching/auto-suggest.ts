@@ -11,13 +11,23 @@ import { notifyCreditsExhausted, recordCredit, refundCredits, reserveCredits, WE
 import { getCycleFlags } from "@/lib/settings";
 import { notify, notifyMany } from "@/lib/notify";
 import { MUTUAL_SUGGESTION_MS, openMutualWhere } from "@/lib/suggestions/mutual";
+import { activeWhere, isActive } from "@/lib/activity";
 
 const MAX_NEW_SUGGESTIONS = 3;
 const MIN_SCORE = 30;
 // When a run finds no suitable candidate, wait before scanning again (per user, per server process)
 const RETRY_COOLDOWN_MS = 30 * 60 * 1000;
 const lastEmptyRun = new Map<string, number>();
-const inFlight = new Map<string, Promise<number>>();
+const inFlight = new Map<string, Promise<SuggestOutcome>>();
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** Why a run created nothing (null: created some, or the user isn't eligible at all). */
+export type SuggestEmptyReason = "weekly_cap" | "no_candidates" | "pending";
+export interface SuggestOutcome {
+  created: number;
+  reason: SuggestEmptyReason | null;
+}
+const outcome = (created: number, reason: SuggestEmptyReason | null = null): SuggestOutcome => ({ created, reason });
 
 const scoringSelect = {
   id: true,
@@ -34,6 +44,22 @@ const scoringSelect = {
  * Returns the number of suggestions created. Never throws for "nothing to do" cases.
  */
 export function autoSuggestForUser(userId: string): Promise<number> {
+  return shared(userId).then((o) => o.created);
+}
+
+/**
+ * Same run as autoSuggestForUser, plus why nothing was created (for the suggestions page empty state)
+ * and, at the weekly cap, when the next suggestions can arrive.
+ */
+export async function autoSuggestWithReason(
+  userId: string
+): Promise<SuggestOutcome & { nextSuggestionsAt: Date | null }> {
+  const o = await shared(userId);
+  const nextSuggestionsAt = o.reason === "weekly_cap" ? await nextSuggestionsAtFor(userId) : null;
+  return { ...o, nextSuggestionsAt };
+}
+
+function shared(userId: string): Promise<SuggestOutcome> {
   // Concurrent requests for the same user share one run (avoids duplicate notifications)
   const running = inFlight.get(userId);
   if (running) return running;
@@ -42,35 +68,60 @@ export function autoSuggestForUser(userId: string): Promise<number> {
   return run;
 }
 
-async function generate(userId: string): Promise<number> {
+/** When the oldest suggestion of the rolling 7-day window ages out (a free slot opens). */
+export async function nextSuggestionsAtFor(userId: string, now = new Date()): Promise<Date | null> {
+  const { mutualSuggestions: mutual } = await getCycleFlags();
+  const weekAgo = new Date(now.getTime() - WEEK_MS);
+  const oldest = await db.suggestion.findFirst({
+    where: mutual
+      ? { OR: [{ recipientId: userId }, { candidateId: userId }], createdAt: { gte: weekAgo } }
+      : { recipientId: userId, createdAt: { gte: weekAgo } },
+    orderBy: { createdAt: "asc" },
+    select: { createdAt: true },
+  });
+  return oldest ? new Date(oldest.createdAt.getTime() + WEEK_MS) : null;
+}
+
+async function generate(userId: string): Promise<SuggestOutcome> {
   const last = lastEmptyRun.get(userId);
-  if (last && Date.now() - last < RETRY_COOLDOWN_MS) return 0;
+  if (last && Date.now() - last < RETRY_COOLDOWN_MS) return outcome(0, "no_candidates");
 
   const user = await db.user.findUnique({
     where: { id: userId },
-    select: { ...scoringSelect, role: true, isDeactivated: true, status: true, matchCredits: true, isFlagged: true },
+    select: {
+      ...scoringSelect,
+      role: true,
+      isDeactivated: true,
+      status: true,
+      matchCredits: true,
+      isFlagged: true,
+      lastActiveAt: true,
+      updatedAt: true,
+    },
   });
-  if (!user || user.role !== "USER" || user.isDeactivated || !user.profile?.isComplete) return 0;
-  if (user.status === "SUSPENDED") return 0;
+  if (!user || user.role !== "USER" || user.isDeactivated || !user.profile?.isComplete) return outcome(0);
+  if (user.status === "SUSPENDED") return outcome(0);
   // Flagged (3+ reports, or by an admin): no new automatic suggestions until an admin clears the flag.
   // Existing suggestions and matches are left as they are.
-  if (user.isFlagged) return 0;
+  if (user.isFlagged) return outcome(0);
+  // Idle 30+ days: nothing new is generated; they get suggestions lazily when they come back
+  if (!isActive(user)) return outcome(0);
   // Per-request mode: suggestions are free (capped weekly); credits are spent on intro requests.
   // Legacy mode: each suggestion uses 1 credit — none left means the user must recharge.
   // Simultaneous flow: one row shown to both people, dealbreakers are hard filters
   const { introRequests: perRequestCredits, mutualSuggestions: mutual } = await getCycleFlags();
-  if (!perRequestCredits && user.matchCredits <= 0) return 0;
-  if (!meetsSuggestionGate(user, perRequestCredits)) return 0;
+  if (!perRequestCredits && user.matchCredits <= 0) return outcome(0);
+  if (!meetsSuggestionGate(user, perRequestCredits)) return outcome(0);
 
   // Only top up when the user has nothing waiting
   const pending = mutual
     ? (await db.suggestion.count({ where: openMutualWhere(userId) })) +
       (await db.suggestion.count({ where: { recipientId: userId, status: "PENDING", flow: "LEGACY" } }))
     : await db.suggestion.count({ where: { recipientId: userId, status: "PENDING" } });
-  if (pending > 0) return 0;
+  if (pending > 0) return outcome(0, "pending");
 
   let limit = Math.min(MAX_NEW_SUGGESTIONS, user.matchCredits);
-  const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const weekAgo = new Date(Date.now() - WEEK_MS);
   if (perRequestCredits) {
     // Both people see a MUTUAL row, so it counts on either side
     const thisWeek = await db.suggestion.count({
@@ -79,7 +130,7 @@ async function generate(userId: string): Promise<number> {
         : { recipientId: userId, createdAt: { gte: weekAgo } },
     });
     limit = Math.min(MAX_NEW_SUGGESTIONS, WEEKLY_FREE_SUGGESTIONS - thisWeek);
-    if (limit <= 0) return 0;
+    if (limit <= 0) return outcome(0, "weekly_cap");
   }
 
   const [suggested, matches, blocks] = await Promise.all([
@@ -109,6 +160,8 @@ async function generate(userId: string): Promise<number> {
       isDeactivated: false,
       status: { not: "SUSPENDED" },
       isFlagged: false,
+      // Idle 30+ days (COALESCE(lastActiveAt, updatedAt)): not suggested to anyone until they return
+      ...activeWhere(),
       gender: user.gender === "MALE" ? "FEMALE" : "MALE",
       profile: { isComplete: true },
       ...(excluded.size > 0 && { id: { notIn: [...excluded] } }),
@@ -131,12 +184,12 @@ async function generate(userId: string): Promise<number> {
 
   if (top.length === 0) {
     lastEmptyRun.set(userId, Date.now());
-    return 0;
+    return outcome(0, "no_candidates");
   }
   lastEmptyRun.delete(userId);
 
   // Take the credits first (atomic), then create; unused credits are given back
-  if (!perRequestCredits && !(await reserveCredits(userId, top.length))) return 0;
+  if (!perRequestCredits && !(await reserveCredits(userId, top.length))) return outcome(0);
 
   const created = await db.suggestion.createMany({
     data: top.map(({ candidate, score }) => ({
@@ -152,7 +205,7 @@ async function generate(userId: string): Promise<number> {
     await refundCredits(userId, top.length - created.count);
     await recordCredit({ userId, delta: -created.count, reason: "SUGGESTION", note: "Automatic suggestions" });
   }
-  if (created.count === 0) return 0;
+  if (created.count === 0) return outcome(0);
 
   const title = "اقتراحات توافق جديدة";
   const body =
@@ -179,7 +232,7 @@ async function generate(userId: string): Promise<number> {
 
   if (!perRequestCredits && user.matchCredits - created.count <= 0) await notifyCreditsExhausted(userId);
 
-  return created.count;
+  return outcome(created.count);
 }
 
 /** Suggestions per user (either side) since `since`, for the given users. */

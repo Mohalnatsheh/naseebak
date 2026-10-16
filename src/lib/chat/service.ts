@@ -71,14 +71,19 @@ function partnerOf(c: LoadedConversation, userId: string) {
 
 /** Expire overdue chats and send the one-time "2 days left" warning. */
 async function housekeeping(c: LoadedConversation): Promise<LoadedConversation> {
-  if (c.status !== "ACTIVE") return c;
+  return (await housekeep(c)).c;
+}
+
+/** housekeeping() that also says what this call did (for the daily scheduler's counts). */
+async function housekeep(c: LoadedConversation): Promise<{ c: LoadedConversation; did: "expired" | "warned" | null }> {
+  if (c.status !== "ACTIVE") return { c, did: null };
   const now = Date.now();
   const left = c.expiresAt.getTime() - now;
   // Conditional updates: parallel requests (counts poll + chat page, two tabs) act only once
   if (left <= 0) {
     const { count } = await db.conversation.updateMany({ where: { id: c.id, status: "ACTIVE" }, data: { status: "EXPIRED" } });
     if (count === 1) await publishChatEvent(c.id, "status", { status: "EXPIRED" });
-    return { ...c, status: "EXPIRED" };
+    return { c: { ...c, status: "EXPIRED" }, did: count === 1 ? "expired" : null };
   }
   if (left < WARN_BEFORE_DAYS * DAY_MS && !c.expiryWarnedAt) {
     const warnedAt = new Date();
@@ -86,7 +91,7 @@ async function housekeeping(c: LoadedConversation): Promise<LoadedConversation> 
       where: { id: c.id, expiryWarnedAt: null },
       data: { expiryWarnedAt: warnedAt },
     });
-    if (count !== 1) return { ...c, expiryWarnedAt: warnedAt };
+    if (count !== 1) return { c: { ...c, expiryWarnedAt: warnedAt }, did: null };
     await notifyMany([c.match.femaleId, c.match.maleId], {
       type: "CHAT",
       title: "تنتهي المحادثة قريباً",
@@ -94,9 +99,9 @@ async function housekeeping(c: LoadedConversation): Promise<LoadedConversation> 
       url: `/dashboard/chats/${c.id}`,
       metadata: { conversationId: c.id },
     });
-    return { ...c, expiryWarnedAt: warnedAt };
+    return { c: { ...c, expiryWarnedAt: warnedAt }, did: "warned" };
   }
-  return c;
+  return { c, did: null };
 }
 
 function summarise(
@@ -176,6 +181,35 @@ export async function chatHousekeepingForUser(userId: string): Promise<void> {
     include: conversationInclude,
   });
   for (const row of rows) await housekeeping(row);
+}
+
+/**
+ * Daily scheduler: the same expiry + "2 days left" checks for every active chat (only those that
+ * are due are loaded). The conditional updates make it safe alongside the lazy paths: one warning each.
+ */
+export async function chatHousekeepingAll(now = new Date()): Promise<{ expired: number; warned: number }> {
+  const rows = await db.conversation.findMany({
+    where: {
+      status: "ACTIVE",
+      OR: [
+        { expiresAt: { lte: now } },
+        { expiryWarnedAt: null, expiresAt: { lt: new Date(now.getTime() + WARN_BEFORE_DAYS * DAY_MS) } },
+      ],
+    },
+    include: conversationInclude,
+  });
+  let expired = 0;
+  let warned = 0;
+  for (const row of rows) {
+    try {
+      const { did } = await housekeep(row);
+      if (did === "expired") expired++;
+      if (did === "warned") warned++;
+    } catch (error) {
+      console.error(`[cron] chat housekeeping ${row.id}:`, error);
+    }
+  }
+  return { expired, warned };
 }
 
 export async function getConversation(

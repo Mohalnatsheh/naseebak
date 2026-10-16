@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { parsePagination } from "@/lib/utils";
-import { autoSuggestForUser } from "@/lib/matching/auto-suggest";
+import { autoSuggestWithReason, type SuggestEmptyReason } from "@/lib/matching/auto-suggest";
+import { touchLastActive } from "@/lib/activity";
 import { getCycleFlags } from "@/lib/settings";
 import { countNewItems, hasOpenMutual } from "@/lib/suggestions/feed";
 
@@ -15,10 +16,18 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const { page, pageSize, skip } = parsePagination(searchParams, 10);
 
-    // Users get suggestions automatically once their profile qualifies (no admin run needed)
+    // A returning user counts as active before the run below (idle users get no new suggestions)
+    await touchLastActive(session.user.id);
+
+    // Users get suggestions automatically once their profile qualifies (no admin run needed).
+    // `emptyReason` tells the page why nothing new came: weekly cap, nobody fits, or some still pending
+    let emptyReason: SuggestEmptyReason | null = null;
+    let nextSuggestionsAt: string | null = null;
     if (page === 1) {
       try {
-        await autoSuggestForUser(session.user.id);
+        const run = await autoSuggestWithReason(session.user.id);
+        emptyReason = run.reason;
+        nextSuggestionsAt = run.nextSuggestionsAt?.toISOString() ?? null;
       } catch (err) {
         console.error("Auto-suggest error:", err);
       }
@@ -35,6 +44,8 @@ export async function GET(request: Request) {
       return NextResponse.json({
         mutualView: true,
         credits: me?.matchCredits ?? 0,
+        emptyReason,
+        nextSuggestionsAt,
         suggestions: [],
         page,
         totalPages: Math.ceil(total / pageSize),
@@ -170,6 +181,8 @@ export async function GET(request: Request) {
     return NextResponse.json({
       mutualView: false,
       credits: me?.matchCredits ?? 0,
+      emptyReason,
+      nextSuggestionsAt,
       suggestions: formattedSuggestions,
       page,
       totalPages: Math.ceil(total / pageSize),

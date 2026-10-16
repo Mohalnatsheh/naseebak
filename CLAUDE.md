@@ -201,10 +201,19 @@ Spec: `docs/superpowers/specs/2026-10-16-new-cycle-design.md`. After a mutual ma
 
 - **FAMILY** → accepted: both see the other's guardian contact (`GuardianContactCard`). Legacy visits in FAMILIES_CONTACTED/SCHEDULED/COMPLETED hide this option; a REQUESTED legacy visit is closed when a family intro is accepted
 - **CHAT** → accepted: `Conversation` for 14 days (+7 once in the last 3 days). Free chat→family move once
-- Requests expire after 7 days (lazily); a declined request is final for that type on that match
+- Requests expire after 7 days (lazily, and the daily scheduler notifies the sender); a declined request is final for that type on that match
 - Chat: `src/lib/chat/service.ts` + `src/lib/chat/filter.ts` (blocks phones incl. Arabic digits/words, links, handles, social keywords; runs before rate limits: 5/5s, 50/day). Real time via Ably (`src/lib/ably.ts`, env `ABLY_API_KEY`): only the server publishes to `chat:<id>`; browsers get subscribe-only tokens from `/api/chats/ably-token`. Without the key the page polls every 4s. Admins never see message content
-- Expiry + "2 days left" warning run lazily (counts poll `/api/me/counts`, chat reads) — no cron
+- Expiry + "2 days left" warning run lazily (counts poll `/api/me/counts`, chat reads) and again in the daily scheduler (below)
 - Admin: Settings → "New user cycle" switches; `/admin/introductions` overview
+
+## Last Activity & Daily Scheduler
+
+- **Activity:** `User.lastActiveAt` (null for users from before it) is touched at most once per hour by `/api/me/counts`, `/api/suggestions` and sign-in (`touchLastActive()` in `src/lib/activity.ts`). "Active" = `COALESCE(lastActiveAt, updatedAt)` within 30 days (`isActive()` / `activeWhere()`). Idle users are never suggested to others and get no new suggestions until they come back (lazily). Any write to a `User` row bumps `updatedAt`, so scheduler writes on idle users must preserve "last seen" (see `runReengagement`)
+- **Empty suggestions:** page 1 of `GET /api/suggestions` returns `emptyReason` (`weekly_cap` | `no_candidates` | `pending` | null) + `nextSuggestionsAt` (oldest suggestion of the rolling 7 days + 7 days) from `autoSuggestWithReason()`; `MutualSuggestionsView` shows "اقتراحاتك القادمة يوم …" or a "no one fits" state linking to شروطي الأساسية / preferences
+- **Scheduler:** `GET|POST /api/cron/daily` with `Authorization: Bearer $CRON_SECRET` (401 otherwise; `isCronAuthorized` in `src/lib/cron/auth.ts`) runs `runDailyJobs()` (`src/lib/cron/daily.ts`). Tasks in `src/lib/cron/*`, each isolated and idempotent (claim a marker with a conditional `updateMany` before notifying): intro requests expire + sender notice once (`IntroRequest.expiryNotifiedAt`, only for requests expired in the last 3 days, no refund) and a receiver reminder at ≤2 days (`IntroRequest.reminderSentAt`); MUTUAL suggestions expire + one reminder to the undecided side(s) at ≤3 days (`Suggestion.reminderSentAt`); all due chats go through the same housekeeping as the lazy path (`chatHousekeepingAll`); weekly suggestions via `autoSuggestForUser` for active, eligible users under the cap (per-request mode only, 150 per run); re-engagement push for users idle 7–30 days with something waiting (`User.reengagedAt`, once per 7 days); account deletions (`processAccountDeletions`, also behind the old `/api/cron/process-deletions?token=` route). The summary is stored in `SystemSetting` `cron_daily_last_run` and shown in Admin → Settings → Daily jobs ("Run now" = `POST /api/admin/cron/run`)
+- **Local:** the `scheduler` service in `docker-compose.yml` calls it 60s after start and then every `CRON_INTERVAL_SECONDS` (3600 in compose, default 86400; secret `local-cron-secret`)
+- **Production:** set `CRON_SECRET` in the app's env and add a crontab line on the server (06:00 server time — on a UTC server that is 09:00 in Amman, Asia/Amman is UTC+3; use `CRON_TZ=Asia/Amman` if the cron daemon supports it):
+  `0 6 * * * curl -fsS -H "Authorization: Bearer $CRON_SECRET" https://naseebak.com/api/cron/daily`
 
 ## Notifications
 
@@ -268,7 +277,7 @@ Production (Hostinger) logs: `~/domains/naseebak.com/hbuilds/current/nodejs/cons
 
 - Email is admin-only: `src/lib/email.ts` (Hostinger SMTP, env `SMTP_HOST`/`SMTP_PORT`/`SMTP_USER`/`SMTP_PASS`/`SMTP_FROM`) sends a new-registration notice to `ADMIN_NOTIFY_EMAIL`. No emails to users
 - OneSignal requires domain config in dashboard (Site URL: `https://naseebak.com`)
-- Account deletion cron needs external scheduler
+- The daily scheduler is not self-running in production: it needs `CRON_SECRET` + the crontab line in "Last Activity & Daily Scheduler" (without it everything still works lazily, minus reminders, sender expiry notices, re-engagement and account deletions)
 
 <!-- gitnexus:start -->
 # GitNexus MCP

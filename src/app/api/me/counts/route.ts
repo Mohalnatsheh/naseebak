@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { getCycleFlags } from "@/lib/settings";
 import { chatHousekeepingForUser } from "@/lib/chat/service";
 import { cancelDeadPendingFor, loadMatchStates } from "@/lib/matches/state";
+import { touchLastActive } from "@/lib/activity";
 
 /**
  * Dashboard badges for the new cycle, polled with the unread-notification count:
@@ -16,6 +17,8 @@ export async function GET() {
     const result = await requireUser();
     if ("error" in result) return result.error;
     const userId = result.session.user.id;
+    // Polled by every dashboard page: records "last active" (at most one write per hour)
+    await touchLastActive(userId);
 
     const flags = await getCycleFlags();
     const mine = { match: { OR: [{ femaleId: userId }, { maleId: userId }] } };

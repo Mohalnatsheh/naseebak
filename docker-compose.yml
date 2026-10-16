@@ -34,11 +34,34 @@ services:
       NEXT_PUBLIC_APP_URL: http://localhost:3001
       ENABLE_SWITCHES: intro_requests_enabled,chat_enabled,new_suggestions_flow
       RUN_NEW_CYCLE_MIGRATION: "true"
+      # Local-only secret for the daily scheduler (production sets its own in .env)
+      CRON_SECRET: local-cron-secret
     ports:
       - "3001:3000"
     depends_on:
       db:
         condition: service_healthy
+
+  # Daily jobs (reminders, expiry notices, weekly suggestions, re-engagement, account deletions).
+  # Calls the app after a 60s warm-up, then every CRON_INTERVAL_SECONDS (production: once a day via crontab).
+  scheduler:
+    image: curlimages/curl:8.10.1
+    environment:
+      CRON_SECRET: local-cron-secret
+      CRON_INTERVAL_SECONDS: "3600"
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        sleep 60
+        while true; do
+          echo "[scheduler] $$(date -u +%FT%TZ) calling /api/cron/daily"
+          curl -fsS -m 600 -X POST -H "Authorization: Bearer $$CRON_SECRET" http://app:3000/api/cron/daily || echo "[scheduler] call failed"
+          echo
+          sleep "$${CRON_INTERVAL_SECONDS:-86400}"
+        done
+    depends_on:
+      - app
+    restart: unless-stopped
 
 volumes:
   pgdata:

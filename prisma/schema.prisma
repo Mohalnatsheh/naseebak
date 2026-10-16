@@ -192,6 +192,10 @@ model User {
   referralCode      String?    @unique
   referredBy        String?
   verifiedAt        DateTime?
+  /// Last time the user used the dashboard (updated at most once per hour; null = before this field existed)
+  lastActiveAt      DateTime?
+  /// Last "لديك ما ينتظرك" re-engagement push (daily scheduler, at most once per 7 days)
+  reengagedAt       DateTime?
   createdAt         DateTime   @default(now())
   updatedAt         DateTime   @updatedAt
 
@@ -391,6 +395,8 @@ model Suggestion {
   recipientDecidedAt DateTime?
   candidateDecision  SuggestionDecision?
   candidateDecidedAt DateTime?
+  /// "3 days left" reminder sent to the undecided side(s) (daily scheduler, once)
+  reminderSentAt     DateTime?
 
   createdAt          DateTime         @default(now())
   updatedAt          DateTime         @updatedAt
@@ -701,6 +707,10 @@ model IntroRequest {
   status      IntroRequestStatus @default(PENDING)
   expiresAt   DateTime
   respondedAt DateTime?
+  /// "2 days left" reminder sent to the receiver (daily scheduler, once)
+  reminderSentAt   DateTime?
+  /// "انتهت مدة طلبك دون رد" sent to the sender (daily scheduler, once)
+  expiryNotifiedAt DateTime?
   createdAt   DateTime           @default(now())
   updatedAt   DateTime           @updatedAt
 

@@ -19,6 +19,7 @@ import { trackEvent } from "@/lib/analytics";
 import { useDashboardData } from "@/contexts/dashboard-context";
 import { describeOption, oppositeGender } from "@/lib/profile-options";
 import type { FeedItem, FeedTab } from "@/lib/suggestions/feed";
+import type { SuggestEmptyReason } from "@/lib/matching/auto-suggest";
 
 type Notice = { kind: "match"; matchId?: string } | { kind: "interested" } | { kind: "declined" } | { kind: "error"; message: string };
 
@@ -39,8 +40,23 @@ function decisionRequest(item: FeedItem, interested: boolean): { url: string; bo
  * decide on their own. Two tabs: to decide, and "بانتظار الطرف الآخر". A "لا" from the other side
  * is never shown — the card just waits until it closes.
  */
-export function MutualSuggestionsView() {
-  const partnerGender = oppositeGender(useDashboardData().profile?.gender);
+/** "الأحد 19 أكتوبر" (Western digits). */
+function formatNextDate(iso: string): string {
+  return new Date(iso).toLocaleDateString("ar-JO-u-nu-latn", { weekday: "long", day: "numeric", month: "long" });
+}
+
+export function MutualSuggestionsView({
+  emptyReason = null,
+  nextSuggestionsAt = null,
+}: {
+  /** Why no new suggestion came on the last run (from page 1 of /api/suggestions) */
+  emptyReason?: SuggestEmptyReason | null;
+  /** At the weekly cap: when the oldest suggestion of the 7-day window ages out */
+  nextSuggestionsAt?: string | null;
+} = {}) {
+  const viewerGender = useDashboardData().profile?.gender;
+  const partnerGender = oppositeGender(viewerGender);
+  const g = (masculine: string, feminine: string) => (viewerGender === "FEMALE" ? feminine : masculine);
   const [tab, setTab] = useState<FeedTab>("new");
   const [items, setItems] = useState<FeedItem[]>([]);
   const [totals, setTotals] = useState<Record<FeedTab, number>>({ new: 0, waiting: 0 });
@@ -187,7 +203,9 @@ export function MutualSuggestionsView() {
         </div>
       </div>
 
-      <DealbreakersCard />
+      <div id="dealbreakers" className="scroll-mt-24">
+        <DealbreakersCard />
+      </div>
 
       {/* Two tabs */}
       <div className="flex gap-1 p-1 rounded-xl bg-muted/50 border border-border/50" role="tablist">
@@ -259,13 +277,36 @@ export function MutualSuggestionsView() {
               {tab === "new" ? <Search className="h-9 w-9 text-muted-foreground/40" /> : <Clock className="h-9 w-9 text-muted-foreground/40" />}
             </div>
             <h3 className="font-semibold text-lg text-foreground">
-              {tab === "new" ? "نبحث لك عن اقتراحات مناسبة" : "لا يوجد ما ينتظر الرد"}
+              {tab !== "new"
+                ? "لا يوجد ما ينتظر الرد"
+                : emptyReason === "no_candidates"
+                  ? "لا يوجد حالياً من يطابق شروطك"
+                  : emptyReason === "weekly_cap" && nextSuggestionsAt
+                    ? `اقتراحاتك القادمة يوم ${formatNextDate(nextSuggestionsAt)}`
+                    : "نبحث لك عن اقتراحات مناسبة"}
             </h3>
             <p className="text-sm text-muted-foreground max-w-xs mx-auto leading-relaxed">
-              {tab === "new"
-                ? "تصلك حتى 3 اقتراحات مجانية كل أسبوع، وسنرسل لك إشعاراً فور وصولها. إكمال ملفك واختبار الشخصية يجعلها أدق."
-                : "عندما تختار «مهتم» على اقتراح، يظهر هنا حتى يقرّر الطرف الآخر أو تنتهي مدته."}
+              {tab !== "new"
+                ? g(
+                    "عندما تختار «مهتم» على اقتراح، يظهر هنا حتى يقرّر الطرف الآخر أو تنتهي مدته.",
+                    "عندما تختارين «مهتم» على اقتراح، يظهر هنا حتى يقرّر الطرف الآخر أو تنتهي مدته."
+                  )
+                : emptyReason === "no_candidates"
+                  ? "لم نجد حالياً أحداً تنطبق عليه شروطك الأساسية وتفضيلاتك. مراجعتها قد توسّع فرصك، ونبحث لك من جديد تلقائياً كلما انضم أشخاص جدد."
+                  : emptyReason === "weekly_cap"
+                    ? "تصلك حتى 3 اقتراحات مجانية كل 7 أيام، وسنرسل لك إشعاراً فور وصولها."
+                    : "تصلك حتى 3 اقتراحات مجانية كل أسبوع، وسنرسل لك إشعاراً فور وصولها. إكمال ملفك واختبار الشخصية يجعلها أدق."}
             </p>
+            {tab === "new" && emptyReason === "no_candidates" && (
+              <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+                <Button asChild size="sm" className="rounded-lg">
+                  <a href="#dealbreakers">شروطي الأساسية</a>
+                </Button>
+                <Button asChild size="sm" variant="outline" className="rounded-lg">
+                  <Link href="/dashboard/profile/edit?step=3">تفضيلاتي في الملف الشخصي</Link>
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
       ) : (

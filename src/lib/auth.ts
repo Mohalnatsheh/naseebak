@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { authConfig } from "@/lib/auth.config";
 import { rateLimit } from "@/lib/rate-limit";
 import { normalizePhone } from "@/lib/validations/auth";
+import { touchLastActive } from "@/lib/activity";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
@@ -57,6 +58,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         // 30-day deletion grace period) may sign in: the dashboard sends them to
         // /dashboard/reactivate and every other user API refuses them (requireUser).
         if (user.status === "SUSPENDED") return null;
+        await touchLastActive(user.id);
 
         return {
           id: user.id,

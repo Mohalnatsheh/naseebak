@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { AdminSidebar } from "@/components/shared/admin-sidebar";
+import { getCycleFlags } from "@/lib/settings";
 
 export default async function AdminLayout({
   children,
@@ -13,9 +14,11 @@ export default async function AdminLayout({
     return <>{children}</>;
   }
 
+  const { introRequests } = await getCycleFlags();
+
   return (
     <div className="flex min-h-screen">
-      <AdminSidebar />
+      <AdminSidebar legacyGrouped={introRequests} />
       <main className="flex-1 min-w-0 p-4 pt-20 sm:p-6 sm:pt-20 lg:p-8 lg:pt-6">
         {children}
       </main>

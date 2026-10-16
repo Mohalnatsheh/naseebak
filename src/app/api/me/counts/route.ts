@@ -16,14 +16,17 @@ export async function GET() {
     const userId = result.session.user.id;
 
     const flags = await getCycleFlags();
+    const mine = { match: { OR: [{ femaleId: userId }, { maleId: userId }] } };
     if (!flags.introRequests) {
-      return NextResponse.json({ flags, pendingIntros: 0, unreadChats: 0, guardian: null });
+      // Switch off: existing chats stay readable, so keep the chats link for people who have one
+      const hasChats = (await db.conversation.count({ where: mine })) > 0;
+      return NextResponse.json({ flags, pendingIntros: 0, unreadChats: 0, hasChats, guardian: null });
     }
 
     // Expire overdue chats and send "2 days left" warnings (no scheduler needed)
     await chatHousekeepingForUser(userId).catch((e) => console.error("Chat housekeeping:", e));
 
-    const [pendingIntros, unreadChats, guardian] = await Promise.all([
+    const [pendingIntros, unreadChats, chatCount, guardian] = await Promise.all([
       db.introRequest.count({ where: { receiverId: userId, status: "PENDING", expiresAt: { gt: new Date() } } }),
       db.message.count({
         where: {
@@ -32,6 +35,7 @@ export async function GET() {
           conversation: { match: { OR: [{ femaleId: userId }, { maleId: userId }] } },
         },
       }),
+      db.conversation.count({ where: mine }),
       db.parentInfo.findUnique({ where: { userId }, select: { shareConsentAt: true } }),
     ]);
 
@@ -39,6 +43,7 @@ export async function GET() {
       flags,
       pendingIntros,
       unreadChats,
+      hasChats: chatCount > 0,
       guardian: { exists: !!guardian, consented: !!guardian?.shareConsentAt },
     });
   } catch (error) {

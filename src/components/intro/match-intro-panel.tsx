@@ -74,8 +74,13 @@ export function MatchIntroPanel({ matchId, partnerName }: { matchId: string; par
     load();
   }, [load]);
 
-  if (!state || !state.flags.introRequests) return null;
+  if (!state) return null;
   const { family, chat } = state;
+  // Switch off: no new requests, but answers to waiting requests and accepted results stay
+  const canSend = state.flags.introRequests;
+  const hasHistory =
+    !["none", "legacy_admin"].includes(family.status) || !["none", "disabled"].includes(chat.status);
+  if (!canSend && !hasHistory) return null;
 
   async function confirm(consent: boolean) {
     if (!dialog || busy) return;
@@ -146,7 +151,7 @@ export function MatchIntroPanel({ matchId, partnerName }: { matchId: string; par
   let familyAction: React.ReactNode = null;
   switch (family.status) {
     case "none":
-      familyAction = sendButton("FAMILY", family.free);
+      familyAction = canSend ? sendButton("FAMILY", family.free) : null;
       break;
     case "pending_sent":
       familyChip = <Chip tone="amber" icon={Clock}>بانتظار الرد · {daysLabel(daysLeft(family.expiresAt))}</Chip>;
@@ -171,7 +176,7 @@ export function MatchIntroPanel({ matchId, partnerName }: { matchId: string; par
   let chatAction: React.ReactNode = null;
   switch (chat.status) {
     case "none":
-      chatAction = sendButton("CHAT");
+      chatAction = canSend ? sendButton("CHAT") : null;
       break;
     case "pending_sent":
       chatChip = <Chip tone="amber" icon={Clock}>بانتظار الرد · {daysLabel(daysLeft(chat.expiresAt))}</Chip>;

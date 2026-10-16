@@ -131,7 +131,7 @@ export function DashboardSidebar() {
   };
   const mainLinksWithBadge = mainLinks
     // Chats appear once the chat switch is on (or the user already has chats to read)
-    .filter((link) => link.href !== "/dashboard/chats" || counts.flags.chat || counts.unreadChats > 0)
+    .filter((link) => link.href !== "/dashboard/chats" || counts.flags.chat || counts.hasChats)
     .map((link) => (badges[link.href] ? { ...link, badge: badges[link.href] } : link));
   const filteredMainLinks = filterLinks(mainLinksWithBadge);
   const filteredAccountLinks = filterLinks(accountLinks);

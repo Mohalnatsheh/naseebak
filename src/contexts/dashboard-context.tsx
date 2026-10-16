@@ -7,6 +7,7 @@ export interface CycleCounts {
   flags: { introRequests: boolean; chat: boolean };
   pendingIntros: number;
   unreadChats: number;
+  hasChats: boolean;
   guardian: { exists: boolean; consented: boolean } | null;
 }
 
@@ -14,6 +15,7 @@ const EMPTY_COUNTS: CycleCounts = {
   flags: { introRequests: false, chat: false },
   pendingIntros: 0,
   unreadChats: 0,
+  hasChats: false,
   guardian: null,
 };
 

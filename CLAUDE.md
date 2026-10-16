@@ -24,7 +24,7 @@ After changing `prisma/schema.prisma`, run `pnpm db:push && pnpm db:generate`. S
 
 ## Technology Stack
 
-Next.js 16.1.6 (Turbopack), React 19, Node 22 | Tailwind CSS v4 (oklch) | PostgreSQL (Neon) + Prisma 7.4 (`@prisma/adapter-neon`) | NextAuth.js 5 (beta.30) | Zod v4 (`zod/v4` import) | shadcn/ui + lucide-react | Stripe Checkout (JOD) | OneSignal push | Vitest | pnpm 10.24
+Next.js 16.1.6 (Turbopack), React 19, Node 22 | Tailwind CSS v4 (oklch) | PostgreSQL + Prisma 7.4 (`@prisma/adapter-pg`) | Ably (chat events) | NextAuth.js 5 (beta.30) | Zod v4 (`zod/v4` import) | shadcn/ui + lucide-react | Stripe Checkout (JOD) | OneSignal push | Vitest | pnpm 10.24
 
 ## Architecture
 
@@ -42,13 +42,15 @@ src/
 
 ## Critical Domain Rules
 
-- **No messaging/chat/communication** between users — ever
+- **No messaging/chat/communication** between users — except the in-app chat of the new cycle (below): only after a mutual match **and** an accepted chat request, text only, filtered
+- **New user cycle is behind switches** (`intro_requests_enabled`, `chat_enabled`, default off) — when off, the site behaves exactly as the legacy flow. Live site: every schema change must stay additive
 - **Photos hidden** until mutual like
 - **Gender-neutral access** — same workflow for all users
 - **Identity verification is optional** — not part of sign-up; users may upload a selfie later from `/dashboard/identity` for a verified badge (admin review, no gov ID). Not required for suggestions, matches, or completeness. Stored in `IdentityDoc` with `documentType: "selfie"`, image in `frontImageUrl`
 - **50% profile completeness required** for suggestions (`SUGGESTIONS_MIN_COMPLETENESS` in `src/lib/profile-completeness.ts`, enforced with alert banners)
-- **Parent/guardian data** visible to admin only, never to other users
-- **Suggestion credits:** new users get 2 (`FREE_MATCH_CREDITS` in `src/lib/credits.ts`). Each suggestion received uses 1 credit (`reserveCredits`, atomic) — auto-suggest and admin Generate only create as many as the balance allows; admin hand-picked suggestions are free. At 0 the user gets a PAYMENT notification and a recharge alert (dashboard + suggestions page). Packages (3/5/10 suggestions) in `/dashboard/payments`
+- **Parent/guardian data** visible to admin only — except name/relationship/phone shown to the other family after an **accepted family introduction**, and only if that user consented (`ParentInfo.shareConsentAt`)
+- **Credits, per-request mode (switch on):** suggestions are free (3 per rolling 7 days, `WEEKLY_FREE_SUGGESTIONS`); each family/chat request costs the sender 1 credit, never refunded; new users get 3 (`getRegistrationCredits()`). One-time top-up: `node scripts/new-cycle-migrate.mjs` right after turning the switch on
+- **Suggestion credits (legacy, switch off):** new users get 2 (`FREE_MATCH_CREDITS` in `src/lib/credits.ts`). Each suggestion received uses 1 credit (`reserveCredits`, atomic) — auto-suggest and admin Generate only create as many as the balance allows; admin hand-picked suggestions are free. At 0 the user gets a PAYMENT notification and a recharge alert (dashboard + suggestions page). Packages (3/5/10 suggestions) in `/dashboard/payments`
 - **No credit gate on matches** — mutual match details always fully visible
 - **No pricing on landing page** — packages only in dashboard payments
 - **Suggestion/match cards** show full expandable profile details and a `VerifiedBadge` (موثّق / غير موثّق) from `User.isVerified` (selfie verification is optional)
@@ -170,12 +172,28 @@ Env vars: `BUNNY_STORAGE_API_KEY`, `BUNNY_STORAGE_ZONE` (`naseebak`), `BUNNY_STO
 
 Weighted scoring in `src/lib/matching/score.ts`: Preference match (50%), Personality similarity (30% — cosine on 5D vectors, redistributed if no quiz), Profile quality (20%). Admin generate creates top-3 per user (score >= 30). **Automatic suggestions** (`src/lib/matching/auto-suggest.ts`): once a user is at ≥50% completeness with no pending suggestions, top-3 (score ≥ 30, opposite gender, excluding past suggestions/matches/blocks) are created on profile save and whenever `/api/suggestions` page 1 loads (dashboard + suggestions page). Concurrent calls share one run; an empty run retries after 30 min.
 
+## New User Cycle (switches on)
+
+Spec: `docs/superpowers/specs/2026-10-16-new-cycle-design.md`. After a mutual match (`createMutualMatch` in `src/lib/intro/match.ts` — no admin `VisitRequest` in new mode) the match card shows `MatchIntroPanel` with two requests (rules in `src/lib/intro/requests.ts`, errors as `IntroError` codes):
+
+- **FAMILY** → accepted: both see the other's guardian contact (`GuardianContactCard`). Legacy visits in FAMILIES_CONTACTED/SCHEDULED/COMPLETED hide this option; a REQUESTED legacy visit is closed when a family intro is accepted
+- **CHAT** → accepted: `Conversation` for 14 days (+7 once in the last 3 days). Free chat→family move once
+- Requests expire after 7 days (lazily); a declined request is final for that type on that match
+- Chat: `src/lib/chat/service.ts` + `src/lib/chat/filter.ts` (blocks phones incl. Arabic digits/words, links, handles, social keywords; runs before rate limits: 5/5s, 50/day). Real time via Ably (`src/lib/ably.ts`, env `ABLY_API_KEY`): only the server publishes to `chat:<id>`; browsers get subscribe-only tokens from `/api/chats/ably-token`. Without the key the page polls every 4s. Admins never see message content
+- Expiry + "2 days left" warning run lazily (counts poll `/api/me/counts`, chat reads) — no cron
+- Admin: Settings → "New user cycle" switches; `/admin/introductions` overview
+
+## Notifications
+
+Always use `notify()` / `notifyMany()` from `src/lib/notify.ts`: stores the in-app row with `metadata.url` and sends push only when the user's preference allows (SYSTEM always). Links resolve via `notificationUrl()` in `src/lib/notification-links.ts`. Chat messages are push-only (no in-app row), collapsed per conversation and throttled to 1 per 3 minutes.
+
 ## Notification Routing
 
 | Type | Route |
 |---|---|
 | SUGGESTION, INTEREST | `/dashboard/suggestions` |
-| MATCH, VISIT_UPDATE | `/dashboard/matches` |
+| MATCH, VISIT_UPDATE, INTRO_REQUEST | `/dashboard/matches` (or `metadata.url`, e.g. `?match=<id>`) |
+| CHAT | `/dashboard/chats` (or the chat) |
 | PAYMENT | `/dashboard/payments` |
 | IDENTITY | `/dashboard/identity` |
 | SUPPORT | `/dashboard/support` |

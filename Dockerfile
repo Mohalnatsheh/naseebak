@@ -1,6 +1,7 @@
 # Local/staging image for Naseebak (Next.js 16 + Prisma 7 + PostgreSQL)
 FROM node:22-bookworm-slim AS base
-RUN corepack enable && corepack prepare pnpm@10.24.0 --activate
+RUN apt-get update -y && apt-get install -y --no-install-recommends openssl && rm -rf /var/lib/apt/lists/* \
+ && corepack enable && corepack prepare pnpm@10.24.0 --activate
 WORKDIR /app
 
 FROM base AS deps

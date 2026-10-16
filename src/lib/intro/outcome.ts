@@ -7,6 +7,8 @@
  * - anything else (legacy rows, no preference, chat off with CHAT+CHAT) → "NONE": the match shows
  *   the (free) request buttons.
  * The outcome rows are ordinary accepted IntroRequests so getMatchIntroState stays the one source of truth.
+ * Note: `isOutcomeRow` in requests.ts recognises these rows by `respondedAt === expiresAt` (both set to
+ * the same `now` below) — keep them equal, or the outcome row is no longer detected.
  */
 import type { IntroPreference } from "@prisma/client";
 import { db } from "@/lib/db";

@@ -2,6 +2,14 @@
  * Automatic suggestions: a user starts receiving suggestions as soon as their profile
  * reaches SUGGESTIONS_MIN_COMPLETENESS, without waiting for an admin "Generate" run.
  * Same scoring, minimum score and exclusion rules as /api/admin/suggestions/generate.
+ *
+ * Limits per mode: legacy tops up to 3 only when nothing is pending (score >= 30); per-request mode
+ * adds the weekly cap (WEEKLY_FREE_SUGGESTIONS per rolling 7 days). Credit-on-interest (switch
+ * `credit_on_interest`) has no weekly cap: a person holds at most MAX_OPEN_SUGGESTIONS (5) undecided
+ * suggestions (a MUTUAL row counts for both sides), topped up on page open / profile save, after a
+ * decision and when a suggestion expires; candidates already holding 5 are skipped; minimum score is
+ * `minSuggestionScore()` (50 provisional, 30 otherwise); `emptyReason` is `pending` (5 open) or
+ * `no_candidates`, never `weekly_cap`.
  */
 import { db } from "@/lib/db";
 import { calculateCompatibility, mutuallyAcceptable } from "@/lib/matching/score";

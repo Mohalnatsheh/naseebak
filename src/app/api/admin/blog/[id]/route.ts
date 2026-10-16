@@ -48,6 +48,9 @@ export async function PUT(
 
     return NextResponse.json({ post });
   } catch (error) {
+    if (isUniqueViolation(error)) {
+      return NextResponse.json({ error: "Slug already exists" }, { status: 409 });
+    }
     console.error("Admin blog update error:", error);
     return NextResponse.json({ error: "حدث خطأ في الخادم" }, { status: 500 });
   }
@@ -73,6 +76,9 @@ export async function DELETE(
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    if (isUniqueViolation(error)) {
+      return NextResponse.json({ error: "Slug already exists" }, { status: 409 });
+    }
     console.error("Admin blog delete error:", error);
     return NextResponse.json({ error: "حدث خطأ في الخادم" }, { status: 500 });
   }

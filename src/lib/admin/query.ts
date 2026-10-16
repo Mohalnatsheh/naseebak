@@ -10,3 +10,8 @@ export function safePagination(searchParams: URLSearchParams, pageSize = 20) {
 export function enumParam<T extends string>(value: string | null | undefined, allowed: readonly T[]): T | undefined {
   return value && (allowed as readonly string[]).includes(value) ? (value as T) : undefined;
 }
+
+/** Prisma unique-constraint error (e.g. a duplicate slug saved concurrently) → answer 409, not 500. */
+export function isUniqueViolation(error: unknown): boolean {
+  return typeof error === "object" && error !== null && (error as { code?: string }).code === "P2002";
+}

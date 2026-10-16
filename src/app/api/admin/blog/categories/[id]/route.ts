@@ -26,6 +26,9 @@ export async function PUT(
 
     return NextResponse.json({ category });
   } catch (error) {
+    if (isUniqueViolation(error)) {
+      return NextResponse.json({ error: "Slug already exists" }, { status: 409 });
+    }
     console.error("Admin category update error:", error);
     return NextResponse.json({ error: "حدث خطأ في الخادم" }, { status: 500 });
   }
@@ -62,6 +65,9 @@ export async function DELETE(
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    if (isUniqueViolation(error)) {
+      return NextResponse.json({ error: "Slug already exists" }, { status: 409 });
+    }
     console.error("Admin category delete error:", error);
     return NextResponse.json({ error: "حدث خطأ في الخادم" }, { status: 500 });
   }

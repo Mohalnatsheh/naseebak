@@ -30,6 +30,9 @@ export async function GET(req: NextRequest) {
       total,
     });
   } catch (error) {
+    if (isUniqueViolation(error)) {
+      return NextResponse.json({ error: "Slug already exists" }, { status: 409 });
+    }
     console.error("Admin blog list error:", error);
     return NextResponse.json({ error: "حدث خطأ في الخادم" }, { status: 500 });
   }
@@ -72,6 +75,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ post }, { status: 201 });
   } catch (error) {
+    if (isUniqueViolation(error)) {
+      return NextResponse.json({ error: "Slug already exists" }, { status: 409 });
+    }
     console.error("Admin blog create error:", error);
     return NextResponse.json({ error: "حدث خطأ في الخادم" }, { status: 500 });
   }

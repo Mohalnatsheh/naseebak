@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const db = vi.hoisted(() => ({
   user: { findUnique: vi.fn(), findMany: vi.fn(), updateMany: vi.fn(), update: vi.fn() },
-  suggestion: { count: vi.fn(), findMany: vi.fn(), createMany: vi.fn() },
+  suggestion: { count: vi.fn(), findMany: vi.fn(), createMany: vi.fn(), groupBy: vi.fn() },
   mutualMatch: { findMany: vi.fn() },
   block: { findMany: vi.fn() },
   notification: { create: vi.fn() },
@@ -11,6 +11,9 @@ vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/onesignal", () => ({ sendPushNotification: vi.fn() }));
 const flags = vi.hoisted(() => ({ getCycleFlags: vi.fn() }));
 vi.mock("@/lib/settings", () => flags);
+const notifyMod = vi.hoisted(() => ({ notify: vi.fn(), notifyMany: vi.fn() }));
+vi.mock("@/lib/notify", () => notifyMod);
+vi.mock("@/lib/intro/match", () => ({ createMutualMatch: vi.fn() }));
 
 import { autoSuggestForUser } from "@/lib/matching/auto-suggest";
 
@@ -61,7 +64,8 @@ beforeEach(() => {
   db.notification.create.mockResolvedValue({});
   db.user.updateMany.mockResolvedValue({ count: 1 });
   db.user.update.mockResolvedValue({});
-  flags.getCycleFlags.mockResolvedValue({ introRequests: false, chat: false });
+  flags.getCycleFlags.mockResolvedValue({ introRequests: false, chat: false, mutualSuggestions: false });
+  db.suggestion.groupBy.mockResolvedValue([]);
 });
 
 describe("autoSuggestForUser", () => {
@@ -215,5 +219,70 @@ describe("autoSuggestForUser in per-request credits mode", () => {
 
     expect(await autoSuggestForUser("r3")).toBe(0);
     expect(db.suggestion.createMany).not.toHaveBeenCalled();
+  });
+});
+
+describe("autoSuggestForUser — simultaneous flow", () => {
+  beforeEach(() => {
+    flags.getCycleFlags.mockResolvedValue({ introRequests: true, chat: false, mutualSuggestions: true });
+  });
+
+  it("creates MUTUAL rows that expire, and notifies both sides", async () => {
+    db.user.findUnique.mockResolvedValue(person("m1", "MALE"));
+    db.user.findMany.mockResolvedValue(["h1", "h2"].map((id) => person(id, "FEMALE")));
+    db.suggestion.findMany.mockImplementation(async ({ where }: { where: { flow?: string } }) =>
+      where.flow === "MUTUAL" ? [{ candidateId: "h1" }, { candidateId: "h2" }] : []
+    );
+
+    expect(await autoSuggestForUser("m1")).toBe(2);
+    const { data } = db.suggestion.createMany.mock.calls[0][0];
+    expect(data.every((d: { flow: string; expiresAt: Date }) => d.flow === "MUTUAL" && d.expiresAt.getTime() > Date.now() + 13 * 86400000)).toBe(true);
+    expect(notifyMod.notify).toHaveBeenCalledWith(expect.objectContaining({ userId: "m1", type: "SUGGESTION" }));
+    expect(notifyMod.notifyMany.mock.calls[0][0].sort()).toEqual(["h1", "h2"]);
+    expect(db.notification.create).not.toHaveBeenCalled();
+  });
+
+  it("skips candidates failing either side's dealbreakers", async () => {
+    db.user.findUnique.mockResolvedValue(person("m2", "MALE", { ...fullProfile("MALE"), dealbreakers: ["city"] }));
+    db.user.findMany.mockResolvedValue([
+      person("h3", "FEMALE", { ...fullProfile("FEMALE"), city: "إربد" }),
+      person("h4", "FEMALE", { ...fullProfile("FEMALE"), smokingStatus: null, prefSmokingStatus: ["مدخن"], dealbreakers: ["smokingStatus"] }),
+      person("h5", "FEMALE"),
+    ]);
+
+    expect(await autoSuggestForUser("m2")).toBe(1);
+    expect(db.suggestion.createMany.mock.calls[0][0].data.map((d: { candidateId: string }) => d.candidateId)).toEqual(["h5"]);
+  });
+
+  it("skips candidates who already got their weekly suggestions", async () => {
+    db.user.findUnique.mockResolvedValue(person("m3", "MALE"));
+    db.user.findMany.mockResolvedValue(["h6", "h7"].map((id) => person(id, "FEMALE")));
+    db.suggestion.groupBy
+      .mockResolvedValueOnce([{ recipientId: "h6", _count: 1 }])
+      .mockResolvedValueOnce([{ candidateId: "h6", _count: 2 }]);
+
+    await autoSuggestForUser("m3");
+    expect(db.suggestion.createMany.mock.calls[0][0].data.map((d: { candidateId: string }) => d.candidateId)).toEqual(["h7"]);
+  });
+
+  it("counts the weekly cap on either side and waits while something is undecided", async () => {
+    db.user.findUnique.mockResolvedValue(person("m4", "MALE"));
+    db.suggestion.count.mockResolvedValueOnce(1); // an open MUTUAL row to decide
+    expect(await autoSuggestForUser("m4")).toBe(0);
+    expect(db.suggestion.count.mock.calls[0][0].where).toMatchObject({ flow: "MUTUAL", status: "PENDING" });
+
+    db.user.findUnique.mockResolvedValue(person("m5", "MALE"));
+    db.suggestion.count.mockReset();
+    db.suggestion.count.mockResolvedValueOnce(0).mockResolvedValueOnce(0).mockResolvedValueOnce(3);
+    expect(await autoSuggestForUser("m5")).toBe(0);
+    expect(db.suggestion.count.mock.calls[2][0].where.OR).toEqual([{ recipientId: "m5" }, { candidateId: "m5" }]);
+  });
+
+  it("keeps legacy rows when the switch is off", async () => {
+    flags.getCycleFlags.mockResolvedValue({ introRequests: true, chat: false, mutualSuggestions: false });
+    db.user.findUnique.mockResolvedValue(person("m6", "MALE"));
+    db.user.findMany.mockResolvedValue([person("h8", "FEMALE")]);
+    await autoSuggestForUser("m6");
+    expect(db.suggestion.createMany.mock.calls[0][0].data[0].flow).toBeUndefined();
   });
 });

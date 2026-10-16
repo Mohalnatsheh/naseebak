@@ -4,11 +4,13 @@
  * Same scoring, minimum score and exclusion rules as /api/admin/suggestions/generate.
  */
 import { db } from "@/lib/db";
-import { calculateCompatibility } from "@/lib/matching/score";
+import { calculateCompatibility, mutuallyAcceptable } from "@/lib/matching/score";
 import { calculateCompleteness, SUGGESTIONS_MIN_COMPLETENESS } from "@/lib/profile-completeness";
 import { sendPushNotification } from "@/lib/onesignal";
 import { notifyCreditsExhausted, refundCredits, reserveCredits, WEEKLY_FREE_SUGGESTIONS } from "@/lib/credits";
 import { getCycleFlags } from "@/lib/settings";
+import { notify, notifyMany } from "@/lib/notify";
+import { MUTUAL_SUGGESTION_MS, openMutualWhere } from "@/lib/suggestions/mutual";
 
 const MAX_NEW_SUGGESTIONS = 3;
 const MIN_SCORE = 30;
@@ -51,18 +53,27 @@ async function generate(userId: string): Promise<number> {
   if (!user || user.role !== "USER" || user.isDeactivated || !user.profile?.isComplete) return 0;
   // Per-request mode: suggestions are free (capped weekly); credits are spent on intro requests.
   // Legacy mode: each suggestion uses 1 credit — none left means the user must recharge.
-  const { introRequests: perRequestCredits } = await getCycleFlags();
+  // Simultaneous flow: one row shown to both people, dealbreakers are hard filters
+  const { introRequests: perRequestCredits, mutualSuggestions: mutual } = await getCycleFlags();
   if (!perRequestCredits && user.matchCredits <= 0) return 0;
   if (calculateCompleteness(user).total < SUGGESTIONS_MIN_COMPLETENESS) return 0;
 
   // Only top up when the user has nothing waiting
-  const pending = await db.suggestion.count({ where: { recipientId: userId, status: "PENDING" } });
+  const pending = mutual
+    ? (await db.suggestion.count({ where: openMutualWhere(userId) })) +
+      (await db.suggestion.count({ where: { recipientId: userId, status: "PENDING", flow: "LEGACY" } }))
+    : await db.suggestion.count({ where: { recipientId: userId, status: "PENDING" } });
   if (pending > 0) return 0;
 
   let limit = Math.min(MAX_NEW_SUGGESTIONS, user.matchCredits);
+  const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
   if (perRequestCredits) {
-    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-    const thisWeek = await db.suggestion.count({ where: { recipientId: userId, createdAt: { gte: weekAgo } } });
+    // Both people see a MUTUAL row, so it counts on either side
+    const thisWeek = await db.suggestion.count({
+      where: mutual
+        ? { OR: [{ recipientId: userId }, { candidateId: userId }], createdAt: { gte: weekAgo } }
+        : { recipientId: userId, createdAt: { gte: weekAgo } },
+    });
     limit = Math.min(MAX_NEW_SUGGESTIONS, WEEKLY_FREE_SUGGESTIONS - thisWeek);
     if (limit <= 0) return 0;
   }
@@ -99,12 +110,18 @@ async function generate(userId: string): Promise<number> {
     select: scoringSelect,
   });
 
-  const top = candidates
+  let ranked = candidates
     .filter((c) => calculateCompleteness(c).total >= SUGGESTIONS_MIN_COMPLETENESS)
+    .filter((c) => !mutual || mutuallyAcceptable(user, c))
     .map((c) => ({ candidate: c, score: calculateCompatibility(user, c) }))
     .filter(({ score }) => score >= MIN_SCORE)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, limit);
+    .sort((a, b) => b.score - a.score);
+  if (mutual && ranked.length > 0) {
+    // Skip people who already got their weekly suggestions, so popular profiles aren't flooded
+    const busy = await weeklyCounts(ranked.map((r) => r.candidate.id), weekAgo);
+    ranked = ranked.filter((r) => (busy.get(r.candidate.id) ?? 0) < WEEKLY_FREE_SUGGESTIONS);
+  }
+  const top = ranked.slice(0, limit);
 
   if (top.length === 0) {
     lastEmptyRun.set(userId, Date.now());
@@ -121,6 +138,7 @@ async function generate(userId: string): Promise<number> {
       candidateId: candidate.id,
       compatibilityScore: score,
       source: "AI" as const,
+      ...(mutual && { flow: "MUTUAL" as const, expiresAt: new Date(Date.now() + MUTUAL_SUGGESTION_MS) }),
     })),
     skipDuplicates: true,
   });
@@ -132,10 +150,45 @@ async function generate(userId: string): Promise<number> {
     created.count === 1
       ? "وصلك اقتراح توافق جديد. قم بمراجعته."
       : `وصلك ${created.count} اقتراحات توافق جديدة. قم بمراجعتها.`;
-  await db.notification.create({ data: { userId, type: "SUGGESTION", title, body } });
-  sendPushNotification({ userId, title, body, url: "/dashboard/suggestions" });
+  if (mutual) {
+    await notify({ userId, type: "SUGGESTION", title, body, url: "/dashboard/suggestions" });
+    // The other people see the same suggestion
+    const created = await db.suggestion.findMany({
+      where: { recipientId: userId, flow: "MUTUAL", candidateId: { in: top.map((t) => t.candidate.id) } },
+      select: { candidateId: true },
+    });
+    await notifyMany(created.map((c) => c.candidateId), {
+      type: "SUGGESTION",
+      title: "اقتراح توافق جديد",
+      body: "وصلك اقتراح توافق جديد. قم بمراجعته.",
+      url: "/dashboard/suggestions",
+    });
+  } else {
+    await db.notification.create({ data: { userId, type: "SUGGESTION", title, body } });
+    sendPushNotification({ userId, title, body, url: "/dashboard/suggestions" });
+  }
 
   if (!perRequestCredits && user.matchCredits - created.count <= 0) await notifyCreditsExhausted(userId);
 
   return created.count;
+}
+
+/** Suggestions per user (either side) since `since`, for the given users. */
+export async function weeklyCounts(userIds: string[], since: Date): Promise<Map<string, number>> {
+  const [asRecipient, asCandidate] = await Promise.all([
+    db.suggestion.groupBy({
+      by: ["recipientId"],
+      where: { recipientId: { in: userIds }, createdAt: { gte: since } },
+      _count: true,
+    }),
+    db.suggestion.groupBy({
+      by: ["candidateId"],
+      where: { candidateId: { in: userIds }, createdAt: { gte: since } },
+      _count: true,
+    }),
+  ]);
+  const counts = new Map<string, number>();
+  for (const r of asRecipient) counts.set(r.recipientId, (counts.get(r.recipientId) ?? 0) + r._count);
+  for (const r of asCandidate) counts.set(r.candidateId, (counts.get(r.candidateId) ?? 0) + r._count);
+  return counts;
 }

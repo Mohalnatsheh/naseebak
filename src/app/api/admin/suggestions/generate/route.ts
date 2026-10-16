@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { calculateCompatibility } from "@/lib/matching/score";
+import { calculateCompatibility, mutuallyAcceptable } from "@/lib/matching/score";
+import { weeklyCounts } from "@/lib/matching/auto-suggest";
+import { notify } from "@/lib/notify";
+import { MUTUAL_SUGGESTION_MS } from "@/lib/suggestions/mutual";
 import { sendPushNotification } from "@/lib/onesignal";
 import { notifyCreditsExhausted, reserveCredits, WEEKLY_FREE_SUGGESTIONS } from "@/lib/credits";
 import { getCycleFlags } from "@/lib/settings";
@@ -57,12 +60,15 @@ export async function POST() {
     const MAX_SUGGESTIONS_PER_USER = 3;
 
     // Per-request mode: suggestions are free, capped per rolling 7 days
-    const { introRequests: perRequestCredits } = await getCycleFlags();
+    // Simultaneous flow: MUTUAL rows (both decide), counted on either side, dealbreakers as hard filters
+    const { introRequests: perRequestCredits, mutualSuggestions: mutual } = await getCycleFlags();
     const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-    const thisWeek = perRequestCredits
+    const thisWeek = perRequestCredits && !mutual
       ? await db.suggestion.groupBy({ by: ["recipientId"], where: { createdAt: { gte: weekAgo } }, _count: true })
       : [];
-    const thisWeekByUser = new Map(thisWeek.map((r) => [r.recipientId, r._count]));
+    const thisWeekByUser = mutual
+      ? await weeklyCounts(eligibleUsers.map((u) => u.id), weekAgo)
+      : new Map(thisWeek.map((r) => [r.recipientId, r._count]));
 
     for (const user of eligibleUsers) {
       // Find candidates of opposite gender
@@ -76,6 +82,8 @@ export async function POST() {
         if (matchPairs.has(`${user.id}:${c.id}`)) return false;
         // Skip if blocked
         if (blockPairs.has(`${user.id}:${c.id}`)) return false;
+        if (mutual && (thisWeekByUser.get(c.id) ?? 0) >= WEEKLY_FREE_SUGGESTIONS) return false;
+        if (mutual && !mutuallyAcceptable(user as any, c as any)) return false;
         return true;
       });
 
@@ -103,11 +111,30 @@ export async function POST() {
             candidateId: candidate.id,
             compatibilityScore: score,
             source: "AI",
+            ...(mutual && { flow: "MUTUAL" as const, expiresAt: new Date(Date.now() + MUTUAL_SUGGESTION_MS) }),
           },
         });
 
         // Mark this pair as suggested to avoid duplicates within this run
         existingPairs.add(`${user.id}:${candidate.id}`);
+
+        if (mutual) {
+          existingPairs.add(`${candidate.id}:${user.id}`);
+          thisWeekByUser.set(user.id, (thisWeekByUser.get(user.id) ?? 0) + 1);
+          thisWeekByUser.set(candidate.id, (thisWeekByUser.get(candidate.id) ?? 0) + 1);
+          for (const userId of [user.id, candidate.id]) {
+            await notify({
+              userId,
+              type: "SUGGESTION",
+              title: "اقتراح توافق جديد",
+              body: "لديك اقتراح توافق جديد. قم بمراجعته.",
+              url: "/dashboard/suggestions",
+            });
+          }
+          suggestionsCreated++;
+          createdForUser++;
+          continue;
+        }
 
         // Notify the recipient
         await db.notification.create({

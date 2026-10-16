@@ -4,6 +4,9 @@ import { db } from "@/lib/db";
 import { sendPushNotification } from "@/lib/onesignal";
 import { calculateCompatibility } from "@/lib/matching/score";
 import { parsePagination } from "@/lib/utils";
+import { getCycleFlags } from "@/lib/settings";
+import { notifyMany } from "@/lib/notify";
+import { MUTUAL_SUGGESTION_MS } from "@/lib/suggestions/mutual";
 
 export async function GET(request: Request) {
   try {
@@ -97,14 +100,26 @@ export async function POST(request: Request) {
       }
     }
 
+    // Simultaneous flow: both people see the suggestion and decide
+    const { mutualSuggestions } = await getCycleFlags();
     const suggestion = await db.suggestion.create({
       data: {
         recipientId,
         candidateId,
         compatibilityScore: computedScore || 85,
         source: "ADMIN",
+        ...(mutualSuggestions && { flow: "MUTUAL" as const, expiresAt: new Date(Date.now() + MUTUAL_SUGGESTION_MS) }),
       },
     });
+    if (mutualSuggestions) {
+      await notifyMany([recipientId, candidateId], {
+        type: "SUGGESTION",
+        title: "اقتراح جديد من الإدارة",
+        body: "لديك اقتراح توافق جديد من فريق نصيبك. قم بمراجعته.",
+        url: "/dashboard/suggestions",
+      });
+      return NextResponse.json({ message: "تم إنشاء الاقتراح", suggestion });
+    }
 
     // Notify the recipient
     await db.notification.create({

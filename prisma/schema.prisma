@@ -181,6 +181,8 @@ model User {
   gender            Gender
   role              UserRole   @default(USER)
   status            UserStatus @default(PENDING)
+  /// Status to restore on unsuspend (set while SUSPENDED)
+  statusBeforeSuspension UserStatus?
   isVerified        Boolean    @default(false)
   isDeactivated     Boolean    @default(false)
   matchCredits      Int        @default(1)
@@ -582,6 +584,7 @@ model Report {
   reviewedAt  DateTime?
   // Set when the report was sent while ending a chat (new cycle); no FK so deleting a chat never touches reports
   conversationId String?
+  reviewedById   String?
   createdAt   DateTime     @default(now())
 
   @@unique([reporterId, reportedId])
@@ -715,6 +718,8 @@ model Conversation {
   extended       Boolean            @default(false)
   expiryWarnedAt DateTime?
   endedById      String?
+  /// Set when an admin ended the chat (endedById stays null)
+  endedByAdminId String?
   endedAt        DateTime?
   messages       Message[]
   createdAt      DateTime           @default(now())

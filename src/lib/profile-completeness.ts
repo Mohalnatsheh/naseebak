@@ -231,3 +231,15 @@ function generateTips(sections: CompletenessSection[]): StrengthTip[] {
   tips.sort((a, b) => b.impact - a.impact);
   return tips.slice(0, 3);
 }
+
+/**
+ * Who qualifies for suggestions. New cycle (intro_requests_enabled): a completed short setup
+ * (profile.isComplete). Legacy: SUGGESTIONS_MIN_COMPLETENESS% completeness.
+ */
+export function meetsSuggestionGate(
+  user: { profile?: { isComplete?: boolean } | null } & Parameters<typeof calculateCompleteness>[0],
+  newCycle: boolean
+): boolean {
+  if (newCycle) return !!user.profile?.isComplete;
+  return calculateCompleteness(user).total >= SUGGESTIONS_MIN_COMPLETENESS;
+}

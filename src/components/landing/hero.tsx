@@ -49,7 +49,7 @@ function SuggestionPreview() {
 
         <div className="mt-5 grid grid-cols-2 gap-2">
           <span className="rounded-xl bg-primary py-2.5 text-center text-sm font-bold text-primary-foreground">مهتم</span>
-          <span className="rounded-xl border border-border py-2.5 text-center text-sm font-semibold text-muted-foreground">ليس الآن</span>
+          <span className="rounded-xl border border-border py-2.5 text-center text-sm font-semibold text-muted-foreground">لا</span>
         </div>
       </div>
       <p className="mt-4 text-center text-xs text-muted-foreground">لا يعرف الطرف الآخر قرارك إلا عند التوافق المتبادل</p>

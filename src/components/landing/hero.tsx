@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowLeft, Lock, MapPin, GraduationCap, Moon, BadgeCheck } from "lucide-react";
+import { ArrowLeft, Lock, MapPin, GraduationCap, Moon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { LandingContent } from "./content";
 
@@ -22,9 +22,6 @@ function SuggestionPreview() {
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <p className="text-lg font-bold text-foreground">سارة، ٢٧</p>
-              <span className="inline-flex items-center gap-0.5 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
-                <BadgeCheck className="h-3.5 w-3.5" /> موثّق
-              </span>
             </div>
             <p className="mt-0.5 text-sm text-muted-foreground">صيدلانية</p>
           </div>

@@ -52,7 +52,6 @@ const navLinks = [
 
 const secondaryLinks = [
   { href: "/dashboard/profile", label: "الملف الشخصي", icon: User },
-  { href: "/dashboard/identity", label: "التحقق من الهوية", icon: FileCheck },
   { href: "/dashboard/payments", label: "الباقات والاشتراكات", icon: CreditCard },
   { href: "/dashboard/support", label: "الدعم والملاحظات", icon: LifeBuoy },
 ];
@@ -164,12 +163,6 @@ export function DashboardNavbar() {
                 <Link href="/dashboard/profile">
                   <User className="h-4 w-4 text-muted-foreground" />
                   الملف الشخصي
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild className="rounded-lg cursor-pointer gap-2.5 py-2.5 px-3 my-0.5">
-                <Link href="/dashboard/identity">
-                  <FileCheck className="h-4 w-4 text-muted-foreground" />
-                  التحقق من الهوية
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild className="rounded-lg cursor-pointer gap-2.5 py-2.5 px-3 my-0.5">

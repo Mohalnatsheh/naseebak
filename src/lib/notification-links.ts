@@ -11,7 +11,7 @@ const TYPE_LINKS: Record<string, string> = {
   CHAT: "/dashboard/chats",
   PAYMENT: "/dashboard/payments",
   SUBSCRIPTION: "/dashboard/payments",
-  IDENTITY: "/dashboard/identity",
+  IDENTITY: "/dashboard",
   SUPPORT: "/dashboard/support",
   SYSTEM: "/dashboard",
 };

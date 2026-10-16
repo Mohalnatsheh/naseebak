@@ -14,8 +14,6 @@ describe("Domain Rules — Critical Constraints", () => {
         "/api/auth/logout",
         "/api/auth/forgot-password",
         "/api/auth/reset-password",
-        "/api/identity/upload",
-        "/api/identity/status",
         "/api/profile",
         "/api/profile/photos",
         "/api/profile/photos/:id",

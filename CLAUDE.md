@@ -46,14 +46,14 @@ src/
 - **New user cycle is behind switches** (`intro_requests_enabled`, `chat_enabled`, `new_suggestions_flow`, default off) — when off, the site behaves exactly as the legacy flow. Live site: every schema change must stay additive
 - **Photos hidden** until mutual like
 - **Gender-neutral access** — same workflow for all users
-- **Identity verification is optional** — not part of sign-up; users may upload a selfie later from `/dashboard/identity` for a verified badge (admin review, no gov ID). Not required for suggestions, matches, or completeness. Stored in `IdentityDoc` with `documentType: "selfie"`, image in `frontImageUrl`
+- **Identity verification removed for users** (Oct 2026): no `/dashboard/identity` page or `/api/identity/*` routes (`/dashboard/identity` redirects to `/dashboard`). Existing `IdentityDoc` data is kept; `VerifiedBadge` shows "موثّق" only for already-verified users and renders nothing otherwise. Admin Identity Review page stays for pending docs
 - **50% profile completeness required** for suggestions (`SUGGESTIONS_MIN_COMPLETENESS` in `src/lib/profile-completeness.ts`, enforced with alert banners)
 - **Parent/guardian data** visible to admin only — except name/relationship/phone shown to the other family after an **accepted family introduction**, and only if that user consented (`ParentInfo.shareConsentAt`)
 - **Credits, per-request mode (switch on):** suggestions are free (3 per rolling 7 days, `WEEKLY_FREE_SUGGESTIONS`); each family/chat request costs the sender 1 credit, never refunded; new users get 3 (`getRegistrationCredits()`). One-time top-up: `node scripts/new-cycle-migrate.mjs` right after turning the switch on
 - **Suggestion credits (legacy, switch off):** new users get 2 (`FREE_MATCH_CREDITS` in `src/lib/credits.ts`). Each suggestion received uses 1 credit (`reserveCredits`, atomic) — auto-suggest and admin Generate only create as many as the balance allows; admin hand-picked suggestions are free. At 0 the user gets a PAYMENT notification and a recharge alert (dashboard + suggestions page). Packages (3/5/10 suggestions) in `/dashboard/payments`
 - **No credit gate on matches** — mutual match details always fully visible
 - **No pricing on landing page** — packages only in dashboard payments
-- **Suggestion/match cards** show full expandable profile details and a `VerifiedBadge` (موثّق / غير موثّق) from `User.isVerified` (selfie verification is optional)
+- **Suggestion/match cards** show full expandable profile details and a `VerifiedBadge` (only for already-verified users) from `User.isVerified`
 
 ## Branding & Colors
 
@@ -199,7 +199,7 @@ Always use `notify()` / `notifyMany()` from `src/lib/notify.ts`: stores the in-a
 | MATCH, VISIT_UPDATE, INTRO_REQUEST | `/dashboard/matches` (or `metadata.url`, e.g. `?match=<id>`) |
 | CHAT | `/dashboard/chats` (or the chat) |
 | PAYMENT | `/dashboard/payments` |
-| IDENTITY | `/dashboard/identity` |
+| IDENTITY | `/dashboard` (page removed) |
 | SUPPORT | `/dashboard/support` |
 | SYSTEM | `/dashboard` |
 

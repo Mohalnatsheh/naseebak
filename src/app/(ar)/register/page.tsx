@@ -1000,8 +1000,7 @@ function RegisterPageContent() {
                     تم إنشاء حسابك بنجاح!
                   </h3>
                   <p className="text-muted-foreground leading-relaxed text-sm max-w-xs mx-auto">
-                    ابدأ الآن بإعداد ملفك الشخصي. يمكنك أيضاً توثيق حسابك
-                    بصورة سيلفي لاحقاً من لوحة التحكم (اختياري).
+                    ابدأ الآن بإعداد ملفك الشخصي ومواصفات الشريك الذي تبحث عنه.
                   </p>
                   <p className="text-xs text-muted-foreground/70">
                     إكمال ملفك الشخصي بنسبة 50% يتيح لك البدء بتلقي اقتراحات التوافق، ومعك رصيد مجاني للبدء

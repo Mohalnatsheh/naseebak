@@ -165,7 +165,6 @@ const prefLabels: { key: keyof NotificationPrefs; label: string; icon: typeof Be
   { key: "introRequests", label: "طلبات التعارف", icon: Users },
   { key: "chatMessages", label: "رسائل المحادثات", icon: MessageCircle },
   { key: "payments", label: "المدفوعات", icon: CreditCard },
-  { key: "identity", label: "التحقق من الهوية", icon: Shield },
   { key: "support", label: "الدعم", icon: LifeBuoy },
 ];
 

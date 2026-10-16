@@ -170,7 +170,6 @@ export default function DashboardPage() {
   }
 
   const isVerified = profile?.identityDoc?.status === "APPROVED";
-  const verificationPending = profile?.identityDoc?.status === "PENDING";
   const hasProfile = profile?.profile?.isComplete;
   const hasQuiz = !!profile?.personalityResult;
 
@@ -263,7 +262,7 @@ export default function DashboardPage() {
                 {profile?.firstName} {profile?.lastName}
               </p>
               <p className="text-primary-foreground/60 text-xs">
-                {isVerified ? "حساب موثّق" : verificationPending ? "التوثيق قيد المراجعة" : "حساب غير موثّق"}
+                {isVerified ? "حساب موثّق" : "حسابك في نصيبك"}
               </p>
             </div>
           </div>
@@ -626,25 +625,7 @@ export default function DashboardPage() {
                     ]
                   : []),
                 ...(!isVerified
-                  ? [
-                      verificationPending
-                        ? {
-                            icon: AlertCircle,
-                            iconColor: "text-accent-foreground",
-                            iconBg: "bg-accent/10",
-                            title: "بانتظار التحقق من الهوية",
-                            desc: "فريقنا يراجع صورة السيلفي المرفقة",
-                            time: "قيد المراجعة",
-                          }
-                        : {
-                            icon: Shield,
-                            iconColor: "text-primary",
-                            iconBg: "bg-primary/10",
-                            title: "وثّق حسابك (اختياري)",
-                            desc: "أضف صورة سيلفي من صفحة التحقق من الهوية لتحصل على شارة الحساب الموثّق",
-                            time: "اختياري",
-                          },
-                    ]
+                  ? []
                   : [
                       {
                         icon: Shield,

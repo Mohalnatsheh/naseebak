@@ -39,12 +39,6 @@ const steps: Step[] = [
     link: "/dashboard/personality-quiz",
   },
   {
-    icon: Shield,
-    title: "وثّق حسابك (اختياري)",
-    description: "أضف صورة سيلفي لتحصل على شارة الحساب الموثّق وتزيد من مصداقية ملفك.",
-    link: "/dashboard/identity",
-  },
-  {
     icon: Sparkles,
     title: "أنت جاهز!",
     description: "بعد إكمال جميع الخطوات، ستبدأ بتلقي اقتراحات التوافق. بالتوفيق!",

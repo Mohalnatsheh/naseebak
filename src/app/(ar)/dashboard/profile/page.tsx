@@ -1152,19 +1152,6 @@ export default function ProfilePage() {
               hoverBorder: "hover:border-primary/30",
             },
             {
-              href: "/dashboard/identity",
-              icon: Shield,
-              label: "التحقق من الهوية",
-              desc:
-                user.identityDoc?.status === "APPROVED"
-                  ? "تم التحقق"
-                  : user.identityDoc?.status === "PENDING"
-                    ? "قيد المراجعة"
-                    : "اختياري — غير موثّق",
-              gradient: "from-secondary to-primary",
-              hoverBorder: "hover:border-secondary/30",
-            },
-            {
               href: "/dashboard/photos",
               icon: Camera,
               label: "صوري الشخصية",

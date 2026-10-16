@@ -3,10 +3,20 @@
  * Legacy mode: also opens an admin-handled VisitRequest.
  * New cycle (`intro_requests_enabled`): no admin visit — the match card offers
  * family / chat requests instead.
+ * Credit on interest (`credit_on_interest`): the match is free and opens straight into the
+ * introduction both chose on "مهتم" (see `applyIntroOutcome`); without a choice (legacy rows)
+ * the card shows the (free) request buttons.
  */
 import { db } from "@/lib/db";
-import { notifyMany } from "@/lib/notify";
-import { getCycleFlags } from "@/lib/settings";
+import { notify, notifyMany } from "@/lib/notify";
+import { getCycleFlags, type CycleFlags } from "@/lib/settings";
+import { applyIntroOutcome, readIntroPreferences } from "@/lib/intro/outcome";
+
+const MATCH_TITLE = "توافق متبادل!";
+const REQUESTS_BODY = "تهانينا! لديك توافق متبادل جديد. يمكنك الآن إرسال طلب تعارف عائلي أو طلب محادثة.";
+const CHAT_OPEN_BODY = "توافق متبادل! المحادثة مفتوحة الآن";
+const FAMILY_SHARED_BODY = "توافق متبادل! تم مشاركة بيانات التواصل العائلي";
+const OTHER_PREFERRED_FAMILY = "الطرف الآخر فضّل التعارف العائلي";
 
 export async function createMutualMatch(args: {
   femaleId: string;
@@ -22,24 +32,72 @@ export async function createMutualMatch(args: {
   });
   if (existing) return { matchId: existing.id };
 
+  const flags = await getCycleFlags();
+  if (flags.creditOnInterest) return openMatch({ femaleId, maleId, suggestionId }, flags);
+
   const match = await db.mutualMatch.create({
     data: { femaleId, maleId, suggestionId, revealedByFemale: false },
   });
 
-  const { introRequests } = await getCycleFlags();
+  const { introRequests } = flags;
   if (!introRequests) {
     await db.visitRequest.create({ data: { matchId: match.id } });
   }
 
   await notifyMany([femaleId, maleId], {
     type: "MATCH",
-    title: "توافق متبادل!",
-    body: introRequests
-      ? "تهانينا! لديك توافق متبادل جديد. يمكنك الآن إرسال طلب تعارف عائلي أو طلب محادثة."
-      : "تهانينا! لديك توافق متبادل جديد. يمكنك الآن رؤية التفاصيل.",
+    title: MATCH_TITLE,
+    body: introRequests ? REQUESTS_BODY : "تهانينا! لديك توافق متبادل جديد. يمكنك الآن رؤية التفاصيل.",
     url: `/dashboard/matches?match=${match.id}`,
     metadata: { matchId: match.id },
   });
+
+  return { matchId: match.id };
+}
+
+/** credit_on_interest: free match that opens straight into the chosen introduction; one notification each. */
+async function openMatch(
+  args: { femaleId: string; maleId: string; suggestionId: string | null },
+  flags: CycleFlags,
+): Promise<{ matchId: string }> {
+  const { femaleId, maleId, suggestionId } = args;
+  const match = await db.mutualMatch.create({
+    data: { femaleId, maleId, suggestionId, revealedByFemale: false, openedAt: new Date() },
+  });
+  const ref = { id: match.id, femaleId, maleId, suggestionId };
+  const outcome = await applyIntroOutcome(ref, flags);
+
+  const matchUrl = `/dashboard/matches?match=${match.id}`;
+  const metadata = { matchId: match.id };
+  const base = { type: "MATCH" as const, title: MATCH_TITLE, metadata };
+
+  if (outcome === "CHAT") {
+    const conversation = await db.conversation.findUnique({ where: { matchId: match.id }, select: { id: true } });
+    await notifyMany([femaleId, maleId], {
+      ...base,
+      body: CHAT_OPEN_BODY,
+      url: conversation ? `/dashboard/chats/${conversation.id}` : matchUrl,
+      metadata: { ...metadata, conversationId: conversation?.id },
+    });
+  } else if (outcome === "FAMILY") {
+    // Mixed choice: the side that chose CHAT is told the other preferred a family introduction
+    const prefs = await readIntroPreferences(ref);
+    await Promise.all(
+      [
+        { userId: femaleId, pref: prefs.female },
+        { userId: maleId, pref: prefs.male },
+      ].map(({ userId, pref }) =>
+        notify({
+          ...base,
+          userId,
+          body: pref === "CHAT" ? `${FAMILY_SHARED_BODY}. ${OTHER_PREFERRED_FAMILY}` : FAMILY_SHARED_BODY,
+          url: matchUrl,
+        }),
+      ),
+    );
+  } else {
+    await notifyMany([femaleId, maleId], { ...base, body: REQUESTS_BODY, url: matchUrl });
+  }
 
   return { matchId: match.id };
 }

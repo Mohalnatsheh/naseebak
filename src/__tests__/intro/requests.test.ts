@@ -171,6 +171,27 @@ describe("sendIntroRequest", () => {
     await sendIntroRequest({ matchId: "m1", senderId: "u1", type: "CHAT" });
     expect(credits.notifyRequestCreditsExhausted).toHaveBeenCalledWith("u1");
   });
+
+  it("is free when credit_on_interest is on (no charge, no ledger, no exhausted notice)", async () => {
+    settings.getCycleFlags.mockResolvedValue({ introRequests: true, chat: true, mutualSuggestions: true, creditOnInterest: true });
+    db.user.findUnique.mockResolvedValue({ matchCredits: 0, firstName: "يزن" });
+    for (const type of ["CHAT", "FAMILY"] as const) {
+      const res = await sendIntroRequest({ matchId: "m1", senderId: "u1", type });
+      expect(res.requestId).toBe("new");
+    }
+    expect(db.introRequest.create).toHaveBeenCalledTimes(2);
+    expect(credits.reserveCredits).not.toHaveBeenCalled();
+    expect(credits.recordCredit).not.toHaveBeenCalled();
+    expect(credits.notifyRequestCreditsExhausted).not.toHaveBeenCalled();
+    expect(notifyMod.notify).toHaveBeenCalledTimes(2);
+  });
+
+  it("is paid when credit_on_interest is off", async () => {
+    settings.getCycleFlags.mockResolvedValue({ introRequests: true, chat: true, mutualSuggestions: true, creditOnInterest: false });
+    await sendIntroRequest({ matchId: "m1", senderId: "u1", type: "FAMILY" });
+    expect(credits.reserveCredits).toHaveBeenCalledWith("u1", 1, expect.anything());
+    expect(credits.recordCredit).toHaveBeenCalledWith({ userId: "u1", delta: -1, reason: "REQUEST", refId: "new" });
+  });
 });
 
 describe("respondToIntroRequest", () => {

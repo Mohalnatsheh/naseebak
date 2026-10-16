@@ -292,9 +292,12 @@ export async function sendIntroRequest(args: {
       throw new IntroError("NOT_ALLOWED", "المحادثة مفتوحة أو انتهت لهذا التوافق");
     }
 
+    // credit_on_interest: the credit was spent on "مهتم" — every request is free
+    const charge = !free && !flags.creditOnInterest;
+
     // Charge and create together: a failed create never costs a credit
     const request = await db.$transaction(async (tx) => {
-      if (!free && !(await reserveCredits(senderId, 1, tx))) throw new IntroError("NO_CREDITS");
+      if (charge && !(await reserveCredits(senderId, 1, tx))) throw new IntroError("NO_CREDITS");
       return tx.introRequest.create({
         data: {
           matchId,
@@ -306,7 +309,7 @@ export async function sendIntroRequest(args: {
       });
     });
 
-    if (!free) await recordCredit({ userId: senderId, delta: -1, reason: "REQUEST", refId: request.id });
+    if (charge) await recordCredit({ userId: senderId, delta: -1, reason: "REQUEST", refId: request.id });
 
     const sender = await db.user.findUnique({
       where: { id: senderId },
@@ -326,7 +329,7 @@ export async function sendIntroRequest(args: {
     });
 
     const creditsLeft = sender?.matchCredits ?? 0;
-    if (!free && creditsLeft <= 0) await notifyRequestCreditsExhausted(senderId);
+    if (charge && creditsLeft <= 0) await notifyRequestCreditsExhausted(senderId);
     return { requestId: request.id, creditsLeft };
   } finally {
     sending.delete(lockKey);

@@ -154,6 +154,12 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
     fetchCycle();
   }, [id]);
 
+  // Links like #chats or #chat-<id> (from the reports page) point into sections that load later
+  useEffect(() => {
+    if (!cycle || !window.location.hash) return;
+    document.getElementById(window.location.hash.slice(1))?.scrollIntoView({ block: "center" });
+  }, [cycle]);
+
   async function fetchCycle() {
     try {
       const res = await fetch(`/api/admin/users/${id}/cycle`);

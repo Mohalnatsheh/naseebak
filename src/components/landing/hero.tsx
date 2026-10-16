@@ -80,8 +80,7 @@ export function LandingHero({ content, verseClass }: { content: LandingContent; 
             className="landing-rise mt-5 text-[2.5rem] font-extrabold leading-[1.2] tracking-tight text-primary sm:text-6xl lg:text-[3.4rem] xl:text-[4.1rem]"
             style={{ animationDelay: "80ms" }}
           >
-            نوصّلك بشريك العمر
-            <br />
+            نوصّلك بشريك العمر <br className="hidden sm:block" />
             بالحلال، وبرضا العائلتين
           </h1>
           <p

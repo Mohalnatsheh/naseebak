@@ -50,7 +50,7 @@ export function LandingJourney({ content }: { content: LandingContent }) {
                 {paths.title}
               </p>
               {twoPaths && (
-                <svg className="journey-fork mx-auto hidden h-14 w-full max-w-xl sm:block" viewBox="0 0 400 56" preserveAspectRatio="none" aria-hidden>
+                <svg className="journey-fork hidden h-14 w-full sm:block" viewBox="0 0 400 56" preserveAspectRatio="none" aria-hidden>
                   <path pathLength={1} d="M200 0 C200 30, 100 26, 100 56" />
                   <path pathLength={1} d="M200 0 C200 30, 300 26, 300 56" />
                 </svg>
@@ -60,7 +60,7 @@ export function LandingJourney({ content }: { content: LandingContent }) {
                 {paths.chat && <PathCard icon={MessageCircle} title={paths.chat.title} text={paths.chat.text} />}
               </div>
               {twoPaths && (
-                <svg className="journey-fork mx-auto hidden h-14 w-full max-w-xl sm:block" viewBox="0 0 400 56" preserveAspectRatio="none" aria-hidden>
+                <svg className="journey-fork hidden h-14 w-full sm:block" viewBox="0 0 400 56" preserveAspectRatio="none" aria-hidden>
                   <path pathLength={1} d="M100 0 C100 30, 200 26, 200 56" />
                   <path pathLength={1} d="M300 0 C300 30, 200 26, 200 56" />
                 </svg>

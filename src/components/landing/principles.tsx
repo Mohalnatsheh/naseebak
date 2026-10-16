@@ -40,11 +40,11 @@ export function LandingPrinciples({ content, chat }: { content: LandingContent; 
           </p>
         </div>
 
-        <div className="mx-auto mt-14 grid max-w-5xl gap-10 sm:grid-cols-3 sm:gap-0 sm:divide-x sm:divide-x-reverse sm:divide-primary-foreground/15">
+        <div className="mx-auto mt-14 grid max-w-5xl gap-10 sm:grid-cols-3 sm:gap-0">
           {content.principles.map((p, i) => {
             const Icon = icons[i];
             return (
-              <div key={p.title} className="text-center sm:px-8">
+              <div key={p.title} className={`text-center sm:px-8 ${i > 0 ? "sm:border-s sm:border-primary-foreground/15" : ""}`}>
                 <Icon className="mx-auto h-8 w-8 text-accent" aria-hidden />
                 <h3 className="mt-4 text-xl font-bold">{p.title}</h3>
                 <p className="mt-3 leading-relaxed text-primary-foreground/75">{p.text}</p>

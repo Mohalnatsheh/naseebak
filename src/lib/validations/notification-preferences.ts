@@ -8,4 +8,6 @@ export const updateNotificationPreferencesSchema = z.object({
   payments: z.boolean().optional(),
   identity: z.boolean().optional(),
   support: z.boolean().optional(),
+  introRequests: z.boolean().optional(),
+  chatMessages: z.boolean().optional(),
 });

@@ -20,7 +20,10 @@ import {
   LifeBuoy,
   Settings2,
   Trash2,
+  Users,
+  MessageCircle,
 } from "lucide-react";
+import { notificationUrl } from "@/lib/notification-links";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
@@ -32,6 +35,7 @@ interface Notification {
   title: string;
   body: string;
   isRead: boolean;
+  metadata?: unknown;
   createdAt: string;
 }
 
@@ -102,6 +106,22 @@ const typeConfig: Record<
     iconColor: "text-accent-foreground",
     dotColor: "bg-accent",
   },
+  INTRO_REQUEST: {
+    icon: Users,
+    gradient: "from-accent to-accent/70",
+    borderColor: "border-s-accent",
+    iconBg: "from-accent/10 to-accent/5",
+    iconColor: "text-accent-foreground",
+    dotColor: "bg-accent",
+  },
+  CHAT: {
+    icon: MessageCircle,
+    gradient: "from-primary to-secondary",
+    borderColor: "border-s-primary",
+    iconBg: "from-primary/10 to-secondary/10",
+    iconColor: "text-primary",
+    dotColor: "bg-primary",
+  },
   SUPPORT: {
     icon: LifeBuoy,
     gradient: "from-secondary to-primary",
@@ -125,17 +145,6 @@ function timeAgo(dateStr: string) {
   return new Date(dateStr).toLocaleDateString("ar-JO");
 }
 
-const NOTIFICATION_LINKS: Record<string, string> = {
-  SUGGESTION: "/dashboard/suggestions",
-  INTEREST: "/dashboard/suggestions",
-  MATCH: "/dashboard/matches",
-  VISIT_UPDATE: "/dashboard/matches",
-  PAYMENT: "/dashboard/payments",
-  IDENTITY: "/dashboard/identity",
-  SUPPORT: "/dashboard/support",
-  SYSTEM: "/dashboard",
-};
-
 interface NotificationPrefs {
   suggestions: boolean;
   interests: boolean;
@@ -144,6 +153,8 @@ interface NotificationPrefs {
   payments: boolean;
   identity: boolean;
   support: boolean;
+  introRequests: boolean;
+  chatMessages: boolean;
 }
 
 const prefLabels: { key: keyof NotificationPrefs; label: string; icon: typeof Bell }[] = [
@@ -151,6 +162,8 @@ const prefLabels: { key: keyof NotificationPrefs; label: string; icon: typeof Be
   { key: "interests", label: "طلبات الاهتمام", icon: Heart },
   { key: "matches", label: "التوافقات", icon: Heart },
   { key: "visitUpdates", label: "تحديثات الزيارات", icon: CalendarHeart },
+  { key: "introRequests", label: "طلبات التعارف", icon: Users },
+  { key: "chatMessages", label: "رسائل المحادثات", icon: MessageCircle },
   { key: "payments", label: "المدفوعات", icon: CreditCard },
   { key: "identity", label: "التحقق من الهوية", icon: Shield },
   { key: "support", label: "الدعم", icon: LifeBuoy },
@@ -332,7 +345,7 @@ export default function NotificationsPage() {
                     </SheetTitle>
                   </SheetHeader>
                   <p className="text-xs text-muted-foreground mt-2">
-                    تحكّم بأنواع الإشعارات اللي توصلك
+                    اختر التنبيهات التي تصل إلى جهازك. تبقى كل الإشعارات محفوظة هنا.
                   </p>
                 </div>
 
@@ -449,8 +462,7 @@ export default function NotificationsPage() {
                   }`}
                   onClick={() => {
                     if (!n.isRead) markRead(n.id);
-                    const link = NOTIFICATION_LINKS[n.type];
-                    if (link) router.push(link);
+                    router.push(notificationUrl(n.type, n.metadata));
                   }}
                 >
                   <CardContent className="p-4 md:p-5">
@@ -519,12 +531,10 @@ export default function NotificationsPage() {
                         >
                           {n.body}
                         </p>
-                        {NOTIFICATION_LINKS[n.type] && (
-                          <span className="inline-flex items-center gap-1 mt-2 text-xs font-semibold text-primary/70 hover:text-primary transition-colors">
-                            <ArrowLeft className="h-3 w-3" />
-                            عرض التفاصيل
-                          </span>
-                        )}
+                        <span className="inline-flex items-center gap-1 mt-2 text-xs font-semibold text-primary/70 hover:text-primary transition-colors">
+                          <ArrowLeft className="h-3 w-3" />
+                          عرض التفاصيل
+                        </span>
                       </div>
                     </div>
                   </CardContent>

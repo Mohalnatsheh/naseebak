@@ -21,10 +21,13 @@ export async function PATCH(
       return NextResponse.json({ message: "تم تحديث جميع الإشعارات" });
     }
 
-    await db.notification.update({
-      where: { id },
+    const updated = await db.notification.updateMany({
+      where: { id, userId: session.user.id },
       data: { isRead: true },
     });
+    if (updated.count === 0) {
+      return NextResponse.json({ error: "الإشعار غير موجود" }, { status: 404 });
+    }
 
     return NextResponse.json({ message: "تم تحديث الإشعار" });
   } catch (error) {

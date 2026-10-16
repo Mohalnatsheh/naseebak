@@ -6,6 +6,8 @@ interface PushPayload {
   title: string;
   body: string;
   url?: string;
+  /** Same id replaces the previous push on the device (e.g. one chat) */
+  collapseId?: string;
 }
 
 /**
@@ -13,7 +15,7 @@ interface PushPayload {
  * Targets users by external_id (set via OneSignal.login(userId) on the client).
  * Fails silently — push errors never break the main notification flow.
  */
-export async function sendPushNotification({ userId, title, body, url }: PushPayload) {
+export async function sendPushNotification({ userId, title, body, url, collapseId }: PushPayload) {
   try {
     if (!ONESIGNAL_APP_ID || !ONESIGNAL_REST_API_KEY) {
       console.warn("[OneSignal] Missing env vars, skipping push");
@@ -30,6 +32,10 @@ export async function sendPushNotification({ userId, title, body, url }: PushPay
 
     if (url) {
       payload.url = url;
+    }
+    if (collapseId) {
+      payload.collapse_id = collapseId;
+      payload.web_push_topic = collapseId;
     }
 
     const res = await fetch("https://api.onesignal.com/notifications", {

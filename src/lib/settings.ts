@@ -4,6 +4,8 @@ const DEFAULTS: Record<string, string> = {
   registration_open: "true",
   maintenance_mode: "false",
   maintenance_message: "",
+  intro_requests_enabled: "false",
+  chat_enabled: "false",
 };
 
 const cache = new Map<string, { value: string; expiresAt: number }>();
@@ -47,4 +49,21 @@ export async function getMaintenanceState(): Promise<{ enabled: boolean; message
     getSetting("maintenance_message"),
   ]);
   return { enabled: enabled === "true", message };
+}
+
+export interface CycleFlags {
+  /** Family/chat requests on matches; credits are spent per request instead of per suggestion */
+  introRequests: boolean;
+  /** In-app chat — only on when intro requests are on too */
+  chat: boolean;
+}
+
+/** New user cycle switches (Admin → Settings). Both default to off. */
+export async function getCycleFlags(): Promise<CycleFlags> {
+  const [intro, chat] = await Promise.all([
+    getSetting("intro_requests_enabled"),
+    getSetting("chat_enabled"),
+  ]);
+  const introRequests = intro === "true";
+  return { introRequests, chat: introRequests && chat === "true" };
 }

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { NewCycleSettingsCard } from "@/components/admin/new-cycle-settings-card";
 
 interface AdminAccount {
   id: string;
@@ -224,6 +225,8 @@ export default function AdminSettingsPage() {
         </h1>
         <p className="text-muted-foreground mt-1">Manage admin accounts and platform settings</p>
       </div>
+
+      <NewCycleSettingsCard />
 
       {/* Platform Settings */}
       <Card>

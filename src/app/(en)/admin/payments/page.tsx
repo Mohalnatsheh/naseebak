@@ -26,8 +26,8 @@ interface Summary {
 const statusStyles: Record<string, string> = {
   PENDING: "bg-amber-100 text-amber-800",
   COMPLETED: "bg-green-100 text-green-800",
-  FAILED: "bg-red-100 text-red-800",
-  REFUNDED: "bg-blue-100 text-blue-800",
+  FAILED: "bg-destructive/10 text-destructive",
+  REFUNDED: "bg-primary/10 text-primary",
 };
 
 export default function AdminPaymentsPage() {
@@ -62,8 +62,8 @@ export default function AdminPaymentsPage() {
     try {
       const res = await fetch(`/api/admin/payments/${paymentId}/refund`, { method: "POST" });
       if (!res.ok) {
-        const data = await res.json();
-        alert(data.error || "Refund failed");
+        const data = await res.json().catch(() => ({}));
+        alert(data.error || `Refund failed (${res.status})`);
       }
       await load();
     } catch {
@@ -106,8 +106,8 @@ export default function AdminPaymentsPage() {
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-lg bg-blue-100 flex items-center justify-center">
-                  <TrendingUp className="h-5 w-5 text-blue-600" />
+                <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <TrendingUp className="h-5 w-5 text-primary" />
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">This Month</p>
@@ -119,8 +119,8 @@ export default function AdminPaymentsPage() {
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-lg bg-purple-100 flex items-center justify-center">
-                  <CheckCircle2 className="h-5 w-5 text-purple-600" />
+                <div className="h-10 w-10 rounded-lg bg-accent/15 flex items-center justify-center">
+                  <CheckCircle2 className="h-5 w-5 text-accent" />
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Completed Payments</p>

@@ -1,19 +1,22 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { parsePagination } from "@/lib/utils";
+import { enumParam, safePagination } from "@/lib/admin/query";
+import type { PaymentStatus } from "@prisma/client";
+
+const PAYMENT_STATUSES: PaymentStatus[] = ["PENDING", "COMPLETED", "FAILED", "REFUNDED"];
 
 export async function GET(request: Request) {
   try {
     const result = await requireAdmin();
     if ("error" in result) return result.error;
-    const { session } = result;
 
     const url = new URL(request.url);
-    const { page, pageSize, skip } = parsePagination(url.searchParams, 20);
-    const status = url.searchParams.get("status") || "";
+    const { page, pageSize, skip } = safePagination(url.searchParams, 20);
+    // Unknown status values are ignored (all payments) instead of a Prisma 500
+    const status = enumParam(url.searchParams.get("status"), PAYMENT_STATUSES);
 
-    const where = status ? { status: status as "PENDING" | "COMPLETED" | "FAILED" | "REFUNDED" } : {};
+    const where = status ? { status } : {};
 
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);

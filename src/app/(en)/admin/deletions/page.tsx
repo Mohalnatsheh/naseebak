@@ -24,6 +24,7 @@ export default function AdminDeletionsPage() {
   const [requests, setRequests] = useState<DeletionRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [cancelling, setCancelling] = useState<string | null>(null);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     fetchRequests();
@@ -44,13 +45,18 @@ export default function AdminDeletionsPage() {
   async function handleCancel(requestId: string) {
     if (!confirm("Cancel this deletion request and reactivate the user's account?")) return;
     setCancelling(requestId);
+    setError("");
     try {
       const res = await fetch(`/api/admin/deletions/${requestId}`, { method: "DELETE" });
       if (res.ok) {
         setRequests((prev) => prev.filter((r) => r.id !== requestId));
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error || `Cancel failed (${res.status})`);
       }
     } catch (err) {
       console.error(err);
+      setError("Network error, please try again");
     } finally {
       setCancelling(null);
     }
@@ -74,6 +80,10 @@ export default function AdminDeletionsPage() {
         </p>
       </div>
 
+      {error && (
+        <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{error}</div>
+      )}
+
       {loading ? (
         <div className="flex justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -95,21 +105,21 @@ export default function AdminDeletionsPage() {
                 <CardContent className="pt-6">
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-full bg-red-100 flex items-center justify-center">
-                        <User className="h-5 w-5 text-red-600" />
+                      <div className="h-10 w-10 rounded-full bg-destructive/10 flex items-center justify-center">
+                        <User className="h-5 w-5 text-destructive" />
                       </div>
                       <div>
                         <h3 className="font-semibold">{req.user.firstName} {req.user.lastName}</h3>
                         <p className="text-sm text-muted-foreground">{req.user.phone || "—"}</p>
                         <div className="flex gap-2 mt-1">
                           {req.user.isDeactivated && (
-                            <Badge variant="outline" className="text-xs text-red-600 border-red-300">Deactivated</Badge>
+                            <Badge variant="outline" className="text-xs text-destructive border-destructive/40">Deactivated</Badge>
                           )}
                         </div>
                       </div>
                     </div>
                     <Badge
-                      className={"shrink-0 " + (days <= 3 ? "bg-red-100 text-red-800" : days <= 10 ? "bg-amber-100 text-amber-800" : "bg-blue-100 text-blue-800")}
+                      className={"shrink-0 " + (days <= 3 ? "bg-destructive/10 text-destructive" : days <= 10 ? "bg-amber-100 text-amber-800" : "bg-primary/10 text-primary")}
                     >
                       <Clock className="h-3 w-3 me-1" />
                       {days} days remaining

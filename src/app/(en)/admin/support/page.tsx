@@ -25,15 +25,15 @@ const typeLabels: Record<string, string> = {
 
 const statusStyles: Record<string, string> = {
   OPEN: "bg-amber-100 text-amber-800",
-  IN_PROGRESS: "bg-blue-100 text-blue-800",
+  IN_PROGRESS: "bg-primary/10 text-primary",
   RESOLVED: "bg-green-100 text-green-800",
-  CLOSED: "bg-gray-100 text-gray-800",
+  CLOSED: "bg-muted text-muted-foreground",
 };
 
 const typeStyles: Record<string, string> = {
-  ISSUE: "bg-red-100 text-red-800",
-  SUGGESTION: "bg-purple-100 text-purple-800",
-  CHANGE_REQUEST: "bg-blue-100 text-blue-800",
+  ISSUE: "bg-destructive/10 text-destructive",
+  SUGGESTION: "bg-accent/15 text-accent-foreground",
+  CHANGE_REQUEST: "bg-secondary text-secondary-foreground",
 };
 
 export default function AdminSupportPage() {
@@ -46,6 +46,7 @@ export default function AdminSupportPage() {
   const [reviewingId, setReviewingId] = useState<string | null>(null);
   const [adminNote, setAdminNote] = useState("");
   const [updating, setUpdating] = useState(false);
+  const [updateError, setUpdateError] = useState("");
 
   async function load() {
     setLoading(true);
@@ -70,6 +71,7 @@ export default function AdminSupportPage() {
 
   async function handleUpdate(ticketId: string, status: string) {
     setUpdating(true);
+    setUpdateError("");
     try {
       const res = await fetch("/api/admin/support", {
         method: "PATCH",
@@ -80,9 +82,13 @@ export default function AdminSupportPage() {
         setReviewingId(null);
         setAdminNote("");
         load();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setUpdateError(data.error || `Update failed (${res.status})`);
       }
     } catch (err) {
       console.error(err);
+      setUpdateError("Network error, please try again");
     } finally {
       setUpdating(false);
     }
@@ -167,7 +173,7 @@ export default function AdminSupportPage() {
                   <p className="text-sm text-muted-foreground bg-muted/50 rounded p-2">{ticket.description}</p>
 
                   {ticket.adminNote && (
-                    <p className="text-sm text-blue-700 bg-blue-50 rounded p-2">Admin: {ticket.adminNote}</p>
+                    <p className="text-sm text-primary bg-primary/5 rounded p-2">Admin: {ticket.adminNote}</p>
                   )}
 
                   {ticket.status !== "CLOSED" && (
@@ -181,6 +187,7 @@ export default function AdminSupportPage() {
                             onChange={(e) => setAdminNote(e.target.value)}
                             rows={2}
                           />
+                          {updateError && <p className="text-sm text-destructive">{updateError}</p>}
                           <div className="flex flex-wrap gap-2">
                             {ticket.status === "OPEN" && (
                               <Button
@@ -210,7 +217,7 @@ export default function AdminSupportPage() {
                             <Button
                               size="sm"
                               variant="ghost"
-                              onClick={() => { setReviewingId(null); setAdminNote(""); }}
+                              onClick={() => { setReviewingId(null); setAdminNote(""); setUpdateError(""); }}
                             >
                               Cancel
                             </Button>
@@ -220,7 +227,11 @@ export default function AdminSupportPage() {
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => setReviewingId(ticket.id)}
+                          onClick={() => {
+                            setReviewingId(ticket.id);
+                            setAdminNote(ticket.adminNote || "");
+                            setUpdateError("");
+                          }}
                         >
                           <Eye className="h-3 w-3 me-1" />
                           Review

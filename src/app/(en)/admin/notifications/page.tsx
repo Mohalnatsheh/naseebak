@@ -34,25 +34,49 @@ export default function AdminNotificationsPage() {
   const [body, setBody] = useState("");
   const [url, setUrl] = useState("/dashboard");
   const [sending, setSending] = useState(false);
-  const [result, setResult] = useState("");
+  const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null);
+  const [userSearch, setUserSearch] = useState("");
+  const [searchingUsers, setSearchingUsers] = useState(false);
 
   useEffect(() => {
-    Promise.all([
-      fetch("/api/admin/notifications").then((r) => r.json()),
-      fetch("/api/admin/users?page=1").then((r) => r.json()),
-    ]).then(([notifData, userData]) => {
-      setNotifications(notifData.notifications || []);
-      setUsers(userData.users || []);
-    }).catch(console.error).finally(() => setLoading(false));
+    fetch("/api/admin/notifications")
+      .then((r) => r.json())
+      .then((notifData) => setNotifications(notifData.notifications || []))
+      .catch(console.error)
+      .finally(() => setLoading(false));
   }, []);
+
+  // Server-side user search (debounced) so every user can be reached, not only the first page
+  useEffect(() => {
+    if (sendAll) return;
+    const q = userSearch.trim();
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      setSearchingUsers(true);
+      const params = new URLSearchParams({ page: "1" });
+      if (q) params.set("search", q);
+      fetch(`/api/admin/users?${params}`, { signal: controller.signal })
+        .then((r) => (r.ok ? r.json() : { users: [] }))
+        .then((data) => setUsers(data.users || []))
+        .catch((err) => {
+          if (err?.name !== "AbortError") console.error(err);
+        })
+        .finally(() => setSearchingUsers(false));
+    }, 300);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [userSearch, sendAll]);
 
   async function handleSend(e: React.FormEvent) {
     e.preventDefault();
     if (!title || !body) return;
     if (!sendAll && !selectedUser) return;
+    if (sendAll && !confirm("Send this notification to ALL active users?")) return;
 
     setSending(true);
-    setResult("");
+    setResult(null);
     try {
       const res = await fetch("/api/admin/notifications", {
         method: "POST",
@@ -64,8 +88,12 @@ export default function AdminNotificationsPage() {
           url,
         }),
       });
-      const data = await res.json();
-      setResult(data.message || "Sent!");
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setResult({ ok: false, text: data.error || `Failed to send notification (${res.status})` });
+        return;
+      }
+      setResult({ ok: true, text: data.message || "Sent!" });
       setTitle("");
       setBody("");
       setUrl("/dashboard");
@@ -75,7 +103,7 @@ export default function AdminNotificationsPage() {
       const notifData = await notifRes.json();
       setNotifications(notifData.notifications || []);
     } catch {
-      setResult("Failed to send notification");
+      setResult({ ok: false, text: "Failed to send notification" });
     } finally {
       setSending(false);
     }
@@ -100,9 +128,9 @@ export default function AdminNotificationsPage() {
           <form onSubmit={handleSend} className="space-y-4">
             {result && (
               <div className={`rounded-lg p-3 text-sm ${
-                result.includes("Failed") ? "bg-destructive/10 text-destructive" : "bg-green-50 text-green-800 border border-green-200"
+                result.ok ? "bg-green-50 text-green-800 border border-green-200" : "bg-destructive/10 text-destructive"
               }`}>
-                {result}
+                {result.text}
               </div>
             )}
 
@@ -129,12 +157,22 @@ export default function AdminNotificationsPage() {
             {!sendAll && (
               <div className="space-y-2">
                 <Label>Select User</Label>
+                <div className="relative">
+                  <Input
+                    value={userSearch}
+                    onChange={(e) => { setUserSearch(e.target.value); setSelectedUser(""); }}
+                    placeholder="Search by name or phone..."
+                  />
+                  {searchingUsers && (
+                    <Loader2 className="absolute end-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+                  )}
+                </div>
                 <select
                   value={selectedUser}
                   onChange={(e) => setSelectedUser(e.target.value)}
                   className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
                 >
-                  <option value="">Select user...</option>
+                  <option value="">{users.length ? "Select user..." : "No users found"}</option>
                   {users.map((u) => (
                     <option key={u.id} value={u.id}>
                       {u.firstName} {u.lastName} ({u.phone || u.id.slice(0, 8)})

@@ -34,6 +34,10 @@ const fieldLabels: Record<string, string> = {
   prefCity: "Pref City", prefEducation: "Pref Education", prefMaritalStatus: "Pref Marital Status",
   prefAgeMin: "Pref Age Min", prefAgeMax: "Pref Age Max",
   prefReligiosity: "Pref Religiosity", prefSmokingStatus: "Pref Smoking",
+  willingToRelocate: "Willing to Relocate", skinColor: "Skin Color", incomeRange: "Income",
+  childrenCount: "Children", dateOfBirth: "Date of Birth", fieldOfStudy: "Field of Study",
+  interests: "Interests", lifestyle: "Lifestyle", wantsPhoto: "Wants Photo",
+  prefHijab: "Pref Hijab", prefBeard: "Pref Beard", prefChildrenAcceptance: "Pref Children",
 };
 
 export default function AdminProfileRequestsPage() {
@@ -41,6 +45,8 @@ export default function AdminProfileRequestsPage() {
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState<string | null>(null);
   const [adminNotes, setAdminNotes] = useState<Record<string, string>>({});
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [loadError, setLoadError] = useState("");
 
   useEffect(() => {
     fetchRequests();
@@ -49,10 +55,16 @@ export default function AdminProfileRequestsPage() {
   async function fetchRequests() {
     try {
       const res = await fetch("/api/admin/profile-requests");
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setLoadError(data.error || `Failed to load requests (${res.status})`);
+        return;
+      }
+      setLoadError("");
       setRequests(data.requests || []);
     } catch (err) {
       console.error(err);
+      setLoadError("Network error, please reload");
     } finally {
       setLoading(false);
     }
@@ -60,6 +72,7 @@ export default function AdminProfileRequestsPage() {
 
   async function handleAction(requestId: string, action: "APPROVED" | "REJECTED") {
     setActing(requestId);
+    setErrors((prev) => ({ ...prev, [requestId]: "" }));
     try {
       const res = await fetch("/api/admin/profile-requests", {
         method: "PATCH",
@@ -68,16 +81,20 @@ export default function AdminProfileRequestsPage() {
       });
       if (res.ok) {
         setRequests((prev) => prev.filter((r) => r.id !== requestId));
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setErrors((prev) => ({ ...prev, [requestId]: data.error || `Action failed (${res.status})` }));
       }
     } catch (err) {
       console.error(err);
+      setErrors((prev) => ({ ...prev, [requestId]: "Network error, please try again" }));
     } finally {
       setActing(null);
     }
   }
 
   function formatValue(value: unknown): string {
-    if (value === null || value === undefined) return "—";
+    if (value === null || value === undefined || value === "") return "—";
     if (typeof value === "boolean") return value ? "Yes" : "No";
     if (Array.isArray(value)) return value.join(", ") || "—";
     return String(value);
@@ -95,6 +112,10 @@ export default function AdminProfileRequestsPage() {
           {requests.length > 0 && <Badge className="ms-2">{requests.length} pending</Badge>}
         </p>
       </div>
+
+      {loadError && (
+        <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{loadError}</div>
+      )}
 
       {loading ? (
         <div className="flex justify-center py-12">
@@ -148,7 +169,7 @@ export default function AdminProfileRequestsPage() {
                         return (
                           <tr key={key} className="border-b last:border-0">
                             <td className="p-2 font-medium text-muted-foreground">{fieldLabels[key] || key}</td>
-                            <td className="p-2 text-red-600/80 break-words">{formatValue(currentVal)}</td>
+                            <td className="p-2 text-muted-foreground break-words">{formatValue(currentVal)}</td>
                             <td className="p-2 text-green-600/80 font-medium break-words">{formatValue(newVal)}</td>
                           </tr>
                         );
@@ -173,6 +194,9 @@ export default function AdminProfileRequestsPage() {
                     onChange={(e) => setAdminNotes((prev) => ({ ...prev, [req.id]: e.target.value }))}
                     rows={2}
                   />
+                  {errors[req.id] && (
+                    <p className="text-sm text-destructive">{errors[req.id]}</p>
+                  )}
                   <div className="flex gap-2">
                     <Button
                       onClick={() => handleAction(req.id, "APPROVED")}

@@ -30,12 +30,20 @@ interface Visit {
   };
 }
 
+/** datetime-local value ("YYYY-MM-DDTHH:mm") in the admin's local time */
+function toLocalInputValue(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 const statusOptions = [
   { value: "REQUESTED", label: "Requested", color: "bg-amber-100 text-amber-800" },
-  { value: "FAMILIES_CONTACTED", label: "Families Contacted", color: "bg-blue-100 text-blue-800" },
+  { value: "FAMILIES_CONTACTED", label: "Families Contacted", color: "bg-primary/10 text-primary" },
   { value: "SCHEDULED", label: "Scheduled", color: "bg-green-100 text-green-800" },
   { value: "COMPLETED", label: "Completed", color: "bg-emerald-100 text-emerald-800" },
-  { value: "CANCELLED", label: "Cancelled", color: "bg-red-100 text-red-800" },
+  { value: "CANCELLED", label: "Cancelled", color: "bg-destructive/10 text-destructive" },
 ];
 
 export default function AdminVisitsPage() {
@@ -52,6 +60,7 @@ export default function AdminVisitsPage() {
   const [statusFilter, setStatusFilter] = useState("");
   const [editValues, setEditValues] = useState<Record<string, { date: string; location: string; notes: string }>>({});
   const [saving, setSaving] = useState<string | null>(null);
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [feedbacks, setFeedbacks] = useState<Record<string, Feedback[]>>({});
   const [feedbackLoading, setFeedbackLoading] = useState<string | null>(null);
   const [expandedFeedback, setExpandedFeedback] = useState<Set<string>>(new Set());
@@ -69,7 +78,7 @@ export default function AdminVisitsPage() {
       const initVals: Record<string, { date: string; location: string; notes: string }> = {};
       for (const v of (data.visits || [])) {
         initVals[v.id] = {
-          date: v.scheduledDate ? new Date(v.scheduledDate).toISOString().slice(0, 16) : "",
+          date: v.scheduledDate ? toLocalInputValue(v.scheduledDate) : "",
           location: v.location || "",
           notes: v.adminNotes || "",
         };
@@ -82,17 +91,30 @@ export default function AdminVisitsPage() {
     }
   }
 
-  async function updateVisitStatus(visitId: string, status: string) {
-    setUpdating(visitId);
+  async function patchVisit(visitId: string, payload: Record<string, unknown>) {
+    setErrors((prev) => ({ ...prev, [visitId]: "" }));
     try {
-      await fetch("/api/admin/visits", {
+      const res = await fetch("/api/admin/visits", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ visitId, status }),
+        body: JSON.stringify({ visitId, ...payload }),
       });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setErrors((prev) => ({ ...prev, [visitId]: data.error || `Update failed (${res.status})` }));
+        return;
+      }
       await fetchVisits();
     } catch (err) {
       console.error(err);
+      setErrors((prev) => ({ ...prev, [visitId]: "Network error, please try again" }));
+    }
+  }
+
+  async function updateVisitStatus(visitId: string, status: string) {
+    setUpdating(visitId);
+    try {
+      await patchVisit(visitId, { status });
     } finally {
       setUpdating(null);
     }
@@ -103,20 +125,13 @@ export default function AdminVisitsPage() {
     if (!vals) return;
     setSaving(visitId);
     try {
-      await fetch("/api/admin/visits", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          visitId,
-          status: visits.find((v) => v.id === visitId)?.status,
-          scheduledDate: vals.date || undefined,
-          location: vals.location || undefined,
-          adminNotes: vals.notes || undefined,
-        }),
+      // Empty fields clear the stored value; the date is sent as an ISO instant (local → UTC)
+      await patchVisit(visitId, {
+        status: visits.find((v) => v.id === visitId)?.status,
+        scheduledDate: vals.date ? new Date(vals.date).toISOString() : null,
+        location: vals.location,
+        adminNotes: vals.notes,
       });
-      await fetchVisits();
-    } catch (err) {
-      console.error(err);
     } finally {
       setSaving(null);
     }
@@ -320,6 +335,10 @@ export default function AdminVisitsPage() {
                     ))}
                   </div>
 
+                  {errors[v.id] && (
+                    <p className="text-sm text-destructive">{errors[v.id]}</p>
+                  )}
+
                   {/* Feedback section */}
                   <div className="border-t pt-3">
                     <Button
@@ -365,7 +384,7 @@ export default function AdminVisitsPage() {
                                     fb.outcome === "INTERESTED"
                                       ? "bg-green-100 text-green-800"
                                       : fb.outcome === "NOT_INTERESTED"
-                                        ? "bg-red-100 text-red-800"
+                                        ? "bg-destructive/10 text-destructive"
                                         : "bg-amber-100 text-amber-800"
                                   }
                                 >

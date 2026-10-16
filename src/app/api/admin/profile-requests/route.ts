@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { notify } from "@/lib/notify";
+import { buildProfileUpdate } from "@/lib/admin/profile-changes";
 
 export async function GET() {
   try {
     const result = await requireAdmin();
     if ("error" in result) return result.error;
-    const { session } = result;
 
     const requests = await db.profileUpdateRequest.findMany({
       where: { status: "PENDING" },
@@ -32,12 +33,13 @@ export async function PATCH(request: Request) {
   try {
     const result = await requireAdmin();
     if ("error" in result) return result.error;
-    const { session } = result;
-
-    const body = await request.json();
+    const body = await request.json().catch(() => null);
+    if (!body || typeof body !== "object") {
+      return NextResponse.json({ error: "بيانات غير صالحة" }, { status: 400 });
+    }
     const { requestId, action, adminNote } = body;
 
-    if (!requestId || !["APPROVED", "REJECTED"].includes(action)) {
+    if (!requestId || typeof requestId !== "string" || !["APPROVED", "REJECTED"].includes(action)) {
       return NextResponse.json({ error: "بيانات غير صالحة" }, { status: 400 });
     }
 
@@ -49,55 +51,38 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: "الطلب غير موجود أو تمت مراجعته" }, { status: 404 });
     }
 
-    // If approved, apply the changes to the profile
-    if (action === "APPROVED") {
-      const changes = updateRequest.changes as Record<string, unknown>;
-      const updateData: Record<string, unknown> = {};
+    const note = typeof adminNote === "string" && adminNote.trim() ? adminNote.trim() : null;
+    const updateData =
+      action === "APPROVED" ? buildProfileUpdate((updateRequest.changes ?? {}) as Record<string, unknown>) : {};
 
-      // Map allowed fields
-      const allowedFields = [
-        "city", "area", "nationality", "education", "job", "maritalStatus",
-        "religiosity", "smokingStatus", "aboutMe", "partnerExpectations",
-        "hobbies", "familyValues", "tribe", "familyOriginArea", "housingType",
-        "monthlyExpenses", "healthConditions", "cookingAbility", "skinColor", "incomeRange",
-        "prefCity", "prefEducation", "prefMaritalStatus",
-        "prefHijab", "prefBeard", "prefChildrenAcceptance",
-      ];
-
-      const intFields = ["height", "weight", "numberOfSiblings", "childrenCount", "prefAgeMin", "prefAgeMax"];
-      const boolFields = ["hijab", "beard", "drivingLicense"];
-      const arrayFields = ["prefReligiosity", "prefSmokingStatus"];
-
-      for (const [key, value] of Object.entries(changes)) {
-        if (allowedFields.includes(key)) {
-          updateData[key] = value;
-        } else if (intFields.includes(key)) {
-          updateData[key] = value != null ? parseInt(String(value)) : null;
-        } else if (boolFields.includes(key)) {
-          updateData[key] = value;
-        } else if (arrayFields.includes(key)) {
-          updateData[key] = Array.isArray(value) ? value : [];
-        } else if (key === "dateOfBirth" && value) {
-          updateData[key] = new Date(String(value));
-        }
-      }
-
+    // Apply the changes and close the request together; the PENDING guard stops a double review
+    const updated = await db.$transaction(async (tx) => {
+      const claimed = await tx.profileUpdateRequest.updateMany({
+        where: { id: requestId, status: "PENDING" },
+        data: { status: action, adminNote: note, reviewedAt: new Date() },
+      });
+      if (claimed.count !== 1) return null;
       if (Object.keys(updateData).length > 0) {
-        await db.profile.update({
-          where: { userId: updateRequest.userId },
-          data: updateData,
-        });
+        await tx.profile.update({ where: { userId: updateRequest.userId }, data: updateData });
       }
+      return tx.profileUpdateRequest.findUnique({ where: { id: requestId } });
+    });
+
+    if (!updated) {
+      return NextResponse.json({ error: "الطلب غير موجود أو تمت مراجعته" }, { status: 409 });
     }
 
-    // Update the request status
-    const updated = await db.profileUpdateRequest.update({
-      where: { id: requestId },
-      data: {
-        status: action,
-        adminNote: adminNote || null,
-        reviewedAt: new Date(),
-      },
+    const approved = action === "APPROVED";
+    const title = approved ? "تمت الموافقة على تعديل ملفك" : "تم رفض تعديل ملفك";
+    const baseBody = approved
+      ? "تمت مراجعة طلب تعديل ملفك الشخصي والموافقة عليه."
+      : "تمت مراجعة طلب تعديل ملفك الشخصي ولم تتم الموافقة عليه.";
+    await notify({
+      userId: updateRequest.userId,
+      type: "SYSTEM",
+      title,
+      body: note ? `${baseBody} ملاحظة الإدارة: ${note}` : baseBody,
+      url: "/dashboard/profile",
     });
 
     return NextResponse.json({

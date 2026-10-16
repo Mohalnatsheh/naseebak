@@ -6,7 +6,6 @@ export async function GET() {
   try {
     const result = await requireAdmin();
     if ("error" in result) return result.error;
-    const { session } = result;
 
     const requests = await db.accountDeletionRequest.findMany({
       where: { cancelledAt: null },

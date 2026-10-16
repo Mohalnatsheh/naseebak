@@ -43,7 +43,7 @@ src/
 ## Critical Domain Rules
 
 - **No messaging/chat/communication** between users — except the in-app chat of the new cycle (below): only after a mutual match **and** an accepted chat request, text only, filtered
-- **New user cycle is behind switches** (`intro_requests_enabled`, `chat_enabled`, default off) — when off, the site behaves exactly as the legacy flow. Live site: every schema change must stay additive
+- **New user cycle is behind switches** (`intro_requests_enabled`, `chat_enabled`, `new_suggestions_flow`, default off) — when off, the site behaves exactly as the legacy flow. Live site: every schema change must stay additive
 - **Photos hidden** until mutual like
 - **Gender-neutral access** — same workflow for all users
 - **Identity verification is optional** — not part of sign-up; users may upload a selfie later from `/dashboard/identity` for a verified badge (admin review, no gov ID). Not required for suggestions, matches, or completeness. Stored in `IdentityDoc` with `documentType: "selfie"`, image in `frontImageUrl`
@@ -104,7 +104,11 @@ Suggestion → recipient accepts/rejects (no photos) →
     mutual like: photos + full details revealed → visit request → admin arranges family visit
 ```
 
-### Suggestions Page (3 Tabs)
+### Simultaneous suggestions (switch `new_suggestions_flow`, needs `intro_requests_enabled`)
+
+Spec: `docs/superpowers/specs/2026-10-16-simultaneous-suggestions-design.md`. `CycleFlags.mutualSuggestions`. One `Suggestion` row with `flow: MUTUAL` is shown to both people; each records `recipientDecision`/`candidateDecision` once via `POST /api/suggestions/[id]/decide` (`decideSuggestion` in `src/lib/suggestions/mutual.ts`); both INTERESTED → `createMutualMatch`. Rows expire after 14 days (lazily). **No leak:** no notification on a "لا", and the feed (`src/lib/suggestions/feed.ts`, `GET /api/suggestions/feed?tab=new|waiting`) never returns the other side's decision or the row status — "waiting" shows my INTERESTED rows until expiry whether the other said no or nothing. Two tabs (`MutualSuggestionsView`): اقتراحات جديدة / بانتظار الطرف الآخر; legacy suggestions and interests in flight show in the same tabs and use their old endpoints (which refuse MUTUAL rows). `GET /api/suggestions` returns `mutualView` (flag on, or the user still has an open MUTUAL row after a switch-off). Weekly cap counts either side; busy candidates skipped. Dealbreakers: `Profile.dealbreakers` (`DEALBREAKER_KEYS`, `passesDealbreakers`/`mutuallyAcceptable` in `score.ts`; missing value fails), edited in "شروطي الأساسية" (`PUT /api/profile/dealbreakers`, saved directly). "لماذا هذا الاقتراح": `suggestionReason()` in `src/lib/matching/reasons.ts` (viewer's preferences only).
+
+### Suggestions Page (3 Tabs, legacy — switch off)
 
 1. **اقتراحات جديدة** — new suggestions (user is recipient)
 2. **الطلبات المرسلة** — sent interests with status tracking

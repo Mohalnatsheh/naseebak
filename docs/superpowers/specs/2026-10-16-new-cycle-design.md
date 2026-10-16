@@ -38,7 +38,7 @@ Sign up → 3 free credits
 
 ## Non-goals (for phases 1–3)
 
-- Changing how suggestions are decided (simultaneous decision, two tabs, dealbreakers, "why" reasons) — phase 4.
+- Changing how suggestions are decided (simultaneous decision, two tabs, dealbreakers, "why" reasons) — phase 4, see `2026-10-16-simultaneous-suggestions-design.md` (switch `new_suggestions_flow`).
 - Removing admin review of profile edits / automatic report hiding — phase 5.
 - Post-introduction follow-up — phase 6.
 - Images, voice notes or files in chat.

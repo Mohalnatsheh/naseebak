@@ -74,7 +74,10 @@ export function MatchIntroPanel({ matchId, partnerName }: { matchId: string; par
     load();
   }, [load]);
 
-  if (!state) return null;
+  if (!state) {
+    // Keep the space while loading so the card doesn't jump
+    return <div className="mt-4 h-40 animate-pulse rounded-2xl border border-primary/10 bg-primary/[0.03]" aria-hidden />;
+  }
   const { family, chat } = state;
   // Switch off: no new requests, but answers to waiting requests and accepted results stay
   const canSend = state.flags.introRequests;
@@ -128,12 +131,27 @@ export function MatchIntroPanel({ matchId, partnerName }: { matchId: string; par
     if (conversationId) router.push(`/dashboard/chats/${conversationId}`);
   }
 
-  const sendButton = (type: "FAMILY" | "CHAT", free?: boolean) => (
-    <Button size="sm" onClick={() => setDialog({ mode: "send", type })} className="gap-1.5">
-      {free ? <Gift className="h-4 w-4" /> : <Coins className="h-4 w-4" />}
-      {free ? "إرسال الطلب مجاناً" : "إرسال الطلب"}
-    </Button>
-  );
+  // Family is the main (traditional) path; chat is offered as the secondary option.
+  // With no credits the action becomes "top up" instead of opening a dialog that can't proceed.
+  const sendButton = (type: "FAMILY" | "CHAT", free?: boolean) =>
+    !free && state.credits <= 0 ? (
+      <Button asChild size="sm" variant="outline" className="gap-1.5">
+        <Link href="/dashboard/payments">
+          <Coins className="h-4 w-4" />
+          اشحن رصيدك للإرسال
+        </Link>
+      </Button>
+    ) : (
+      <Button
+        size="sm"
+        variant={type === "FAMILY" ? "default" : "outline"}
+        onClick={() => setDialog({ mode: "send", type })}
+        className="gap-1.5"
+      >
+        {free ? <Gift className="h-4 w-4" /> : <Coins className="h-4 w-4" />}
+        {free ? "إرسال الطلب مجاناً" : "إرسال الطلب"}
+      </Button>
+    );
 
   const answerButtons = (type: "FAMILY" | "CHAT", requestId?: string) => (
     <div className="flex gap-2">
@@ -164,7 +182,7 @@ export function MatchIntroPanel({ matchId, partnerName }: { matchId: string; par
       familyChip = <Chip tone="emerald" icon={CheckCircle2}>تم التعارف العائلي</Chip>;
       break;
     case "declined":
-      familyChip = <Chip tone="muted" icon={Ban}>{family.declinedByMe ? "اعتذرتَ عن الطلب" : "لم يتم قبول الطلب"}</Chip>;
+      familyChip = <Chip tone="muted" icon={Ban}>{family.declinedByMe ? "تم الاعتذار من طرفك" : "لم يتم قبول الطلب"}</Chip>;
       break;
     case "legacy_admin":
       familyChip = <Chip tone="primary" icon={CalendarHeart}>فريق نصيبك يتابع الزيارة</Chip>;
@@ -206,7 +224,7 @@ export function MatchIntroPanel({ matchId, partnerName }: { matchId: string; par
       );
       break;
     case "declined":
-      chatChip = <Chip tone="muted" icon={Ban}>{chat.declinedByMe ? "اعتذرتَ عن الطلب" : "لم يتم قبول الطلب"}</Chip>;
+      chatChip = <Chip tone="muted" icon={Ban}>{chat.declinedByMe ? "تم الاعتذار من طرفك" : "لم يتم قبول الطلب"}</Chip>;
       break;
     case "disabled":
       chatChip = <Chip tone="muted" icon={Clock}>غير متاحة حالياً</Chip>;

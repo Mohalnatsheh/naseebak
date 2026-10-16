@@ -5,7 +5,7 @@
  */
 import { db } from "@/lib/db";
 import { calculateCompatibility, mutuallyAcceptable } from "@/lib/matching/score";
-import { calculateCompleteness, SUGGESTIONS_MIN_COMPLETENESS } from "@/lib/profile-completeness";
+import { meetsSuggestionGate } from "@/lib/profile-completeness";
 import { sendPushNotification } from "@/lib/onesignal";
 import { notifyCreditsExhausted, recordCredit, refundCredits, reserveCredits, WEEKLY_FREE_SUGGESTIONS } from "@/lib/credits";
 import { getCycleFlags } from "@/lib/settings";
@@ -56,7 +56,7 @@ async function generate(userId: string): Promise<number> {
   // Simultaneous flow: one row shown to both people, dealbreakers are hard filters
   const { introRequests: perRequestCredits, mutualSuggestions: mutual } = await getCycleFlags();
   if (!perRequestCredits && user.matchCredits <= 0) return 0;
-  if (calculateCompleteness(user).total < SUGGESTIONS_MIN_COMPLETENESS) return 0;
+  if (!meetsSuggestionGate(user, perRequestCredits)) return 0;
 
   // Only top up when the user has nothing waiting
   const pending = mutual
@@ -111,7 +111,7 @@ async function generate(userId: string): Promise<number> {
   });
 
   let ranked = candidates
-    .filter((c) => calculateCompleteness(c).total >= SUGGESTIONS_MIN_COMPLETENESS)
+    .filter((c) => meetsSuggestionGate(c, perRequestCredits))
     .filter((c) => !mutual || mutuallyAcceptable(user, c))
     .map((c) => ({ candidate: c, score: calculateCompatibility(user, c) }))
     .filter(({ score }) => score >= MIN_SCORE)

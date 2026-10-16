@@ -560,8 +560,8 @@ export default function ProfileEditPage() {
     );
   }
 
-  // If user already has a pending request
-  if (hasPendingRequest) {
+  // A pending review locks steps 1–4 only; guardian info (step 5) saves directly
+  if (hasPendingRequest && step !== 5) {
     return (
       <div className="max-w-2xl mx-auto space-y-6 pb-8">
         <Card className="relative overflow-hidden border-primary/20 bg-gradient-to-l from-primary/8 to-primary/3 shadow-md">
@@ -576,9 +576,12 @@ export default function ProfileEditPage() {
               </h3>
               <p className="text-sm text-primary/80 max-w-sm mx-auto leading-relaxed">
                 يجب انتظار مراجعة الإدارة لطلب التعديل الحالي قبل إرسال طلب
-                جديد. سيتم إعلامك بالنتيجة عبر الإشعارات.
+                جديد. سيتم إعلامك بالنتيجة عبر الإشعارات. يمكنك تعديل بيانات وليّ الأمر في أي وقت.
               </p>
             </div>
+            <Button variant="outline" className="rounded-xl font-semibold" onClick={() => setStep(5)}>
+              تعديل بيانات وليّ الأمر
+            </Button>
             <Button
               asChild
               className="bg-gradient-to-l from-primary to-primary/80 rounded-xl font-semibold"

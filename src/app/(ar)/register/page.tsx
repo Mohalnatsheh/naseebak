@@ -1,5 +1,6 @@
 "use client";
 
+import { compressImage } from "@/lib/image-compress";
 import { useState, useRef, useMemo, useCallback, useEffect, Suspense } from "react";
 import Link from "next/link";
 import Image from "next/image";
@@ -41,14 +42,8 @@ function Sparkles() {
         delay: Math.random() * 1.5,
         duration: 1.8 + Math.random() * 1.5,
         size: 4 + Math.random() * 6,
-        color: [
-          "#d4a853",
-          "#2563eb",
-          "#3b82f6",
-          "#eab308",
-          "#ec4899",
-          "#8b5cf6",
-        ][Math.floor(Math.random() * 6)],
+        // Brand palette: deep blue + warm gold
+        color: ["#22476a", "#c19250", "#3a6a95", "#d9b27a", "#22476a", "#c19250"][Math.floor(Math.random() * 6)],
       })),
     []
   );
@@ -167,15 +162,20 @@ function RegisterPageContent() {
   // Pre-fill phone + OTP from URL params (e.g. redirected from login after OTP verification)
   // Also read invitationCode from URL params for referral
   useEffect(() => {
-    const phoneParam = searchParams.get("phone");
-    const otpParam = searchParams.get("otp");
-    const otpVerified = searchParams.get("otpVerified");
-    if (phoneParam) {
-      setForm((prev) => ({ ...prev, phone: phoneParam, otp: otpParam || "" }));
-      if (otpVerified === "1" && otpParam) {
-        setOtpSent(true);
-        setOtpAlreadyVerified(true);
+    // Verified phone + code handed over by the login page (kept out of the URL; valid 10 minutes)
+    try {
+      const raw = sessionStorage.getItem("naseeb:register-handoff");
+      if (raw) {
+        sessionStorage.removeItem("naseeb:register-handoff");
+        const handoff = JSON.parse(raw) as { phone?: string; otp?: string; at?: number };
+        if (handoff.phone && handoff.otp && Date.now() - (handoff.at ?? 0) < 10 * 60 * 1000) {
+          setForm((prev) => ({ ...prev, phone: handoff.phone!, otp: handoff.otp! }));
+          setOtpSent(true);
+          setOtpAlreadyVerified(true);
+        }
       }
+    } catch {
+      // ignore a malformed handoff
     }
 
     const invitationCode = searchParams.get("invitationCode");
@@ -401,8 +401,16 @@ function RegisterPageContent() {
 
       // Step 4: Upload optional photo if selected
       if (wantsPhoto && photoFile) {
-        // Store photo for now (just log it -- full implementation later)
-        // In production, this would upload to /api/profile/photos
+        try {
+          const photoData = await compressImage(photoFile);
+          await fetch("/api/profile/photos", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ photoData, isPrimary: true }),
+          });
+        } catch {
+          // Non-blocking: the photo can be added later from صوري
+        }
       }
 
       // Move to success step
@@ -681,7 +689,7 @@ function RegisterPageContent() {
                           className="absolute inset-0 rounded-[14px] m-px"
                           style={{
                             background:
-                              "linear-gradient(135deg, #3b82f6, #6366f1)",
+                              "linear-gradient(135deg, var(--primary), var(--secondary))",
                             mask: "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
                             maskComposite: "xor",
                             WebkitMaskComposite: "xor",
@@ -740,7 +748,7 @@ function RegisterPageContent() {
                           className="absolute inset-0 rounded-[14px] m-px"
                           style={{
                             background:
-                              "linear-gradient(135deg, #ec4899, #e11d48)",
+                              "linear-gradient(135deg, var(--accent), var(--primary))",
                             mask: "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
                             maskComposite: "xor",
                             WebkitMaskComposite: "xor",
@@ -1008,12 +1016,12 @@ function RegisterPageContent() {
                 </div>
                 <Button
                   onClick={() => {
-                    router.push("/dashboard");
+                    router.push("/dashboard/profile/setup");
                     router.refresh();
                   }}
                   className="w-full h-12 rounded-xl text-base font-bold bg-gradient-to-l from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 shadow-lg shadow-primary/20 transition-all duration-300 hover:shadow-xl hover:shadow-primary/25 hover:-translate-y-0.5"
                 >
-                  الانتقال للوحة التحكم
+                  ابدأ إعداد ملفك
                   <ArrowLeft className="h-5 w-5 ms-2" />
                 </Button>
               </div>

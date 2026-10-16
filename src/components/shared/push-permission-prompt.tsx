@@ -1,34 +1,51 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { usePathname } from "next/navigation";
 import { Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const DISMISSED_KEY = "naseeb_push_prompt_dismissed";
 
+const ONBOARDING_KEY = "naseeb_onboarding_completed";
+
 export function PushPermissionPrompt() {
   const [visible, setVisible] = useState(false);
+  const pathname = usePathname();
 
   useEffect(() => {
     // Don't show if: no Notification API, already granted/denied, or user dismissed
     if (typeof window === "undefined" || !("Notification" in window)) return;
     if (Notification.permission !== "default") return;
-    if (localStorage.getItem(DISMISSED_KEY)) return;
-
-    const timer = setTimeout(() => setVisible(true), 5000);
-    return () => clearTimeout(timer);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const schedule = () => {
+      try {
+        if (localStorage.getItem(DISMISSED_KEY)) return;
+        // Wait until the welcome guide is finished, so two dialogs never stack
+        if (!localStorage.getItem(ONBOARDING_KEY)) return;
+      } catch {
+        return;
+      }
+      timer = setTimeout(() => setVisible(true), 5000);
+    };
+    schedule();
+    window.addEventListener("naseeb:onboarding-done", schedule);
+    return () => {
+      if (timer) clearTimeout(timer);
+      window.removeEventListener("naseeb:onboarding-done", schedule);
+    };
   }, []);
 
-  if (!visible) return null;
+  if (!visible || pathname.startsWith("/dashboard/profile/setup")) return null;
 
   const handleEnable = async () => {
     try {
-      const permission = await Notification.requestPermission();
-      if (permission === "granted") {
-        setVisible(false);
-      }
+      await Notification.requestPermission();
     } catch {
       // Browser blocked the request
+    } finally {
+      // Close whatever the answer — a denied permission can't be asked again from here
+      setVisible(false);
     }
   };
 
@@ -41,7 +58,7 @@ export function PushPermissionPrompt() {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm animate-in fade-in duration-300">
       <div className="relative w-[90%] max-w-sm rounded-2xl border border-border/50 bg-card p-6 shadow-2xl shadow-primary/10 animate-in zoom-in-95 slide-in-from-bottom-4 duration-300">
         <div className="flex flex-col items-center text-center space-y-4">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-secondary text-white shadow-lg shadow-primary/20">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-secondary text-primary-foreground shadow-lg shadow-primary/20">
             <Bell className="h-7 w-7" />
           </div>
           <div className="space-y-1.5">

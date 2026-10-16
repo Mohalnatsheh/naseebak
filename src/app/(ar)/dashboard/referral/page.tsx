@@ -112,7 +112,7 @@ export default function ReferralPage() {
               <Gift className="h-5 w-5 text-white" />
             </div>
             <h1 className="text-2xl md:text-3xl font-bold bg-gradient-to-l from-primary to-secondary bg-clip-text text-transparent">
-              ادعِ صاحبك
+              ادعُ صديقاً
             </h1>
           </div>
           <p className="text-muted-foreground text-sm md:text-base">

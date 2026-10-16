@@ -51,7 +51,7 @@ const accountLinks: NavLink[] = [
   { href: "/dashboard/personality-quiz", label: "اختبار الشخصية", icon: Brain },
   { href: "/dashboard/payments", label: "الرصيد", icon: CreditCard },
   { href: "/dashboard/support", label: "الدعم والملاحظات", icon: LifeBuoy },
-  { href: "/dashboard/referral", label: "ادعِ صاحبك", icon: Gift },
+  { href: "/dashboard/referral", label: "ادعُ صديقاً", icon: Gift },
 ];
 
 function NavItem({

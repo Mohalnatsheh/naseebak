@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { toast } from "sonner";
 import {
   Loader2, Sparkles, HeartHandshake, X, MapPin, Briefcase, Calendar, Search, Clock, User, GraduationCap,
   Moon, Cigarette, Flag, Quote, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, MoreVertical,
@@ -19,7 +20,7 @@ import { useDashboardData } from "@/contexts/dashboard-context";
 import { describeOption, oppositeGender } from "@/lib/profile-options";
 import type { FeedItem, FeedTab } from "@/lib/suggestions/feed";
 
-type Notice = { kind: "match" } | { kind: "interested" } | { kind: "declined" } | { kind: "error"; message: string };
+type Notice = { kind: "match"; matchId?: string } | { kind: "interested" } | { kind: "declined" } | { kind: "error"; message: string };
 
 function scoreLabel(score: number) {
   if (score >= 85) return "توافق ممتاز";
@@ -112,7 +113,7 @@ export function MutualSuggestionsView() {
       // A legacy interest answered "yes" is always a match; a legacy suggestion "yes" waits like a mutual one
       const waitsNow = interested && !data.match;
       setTotals((t) => ({ new: Math.max(0, t.new - 1), waiting: t.waiting + (waitsNow ? 1 : 0) }));
-      setNotice(data.match ? { kind: "match" } : interested ? { kind: "interested" } : { kind: "declined" });
+      setNotice(data.match ? { kind: "match", matchId: data.matchId } : interested ? { kind: "interested" } : { kind: "declined" });
     } catch {
       setNotice({ kind: "error", message: "تعذّر حفظ قرارك" });
     } finally {
@@ -132,6 +133,7 @@ export function MutualSuggestionsView() {
 
   async function block(item: FeedItem) {
     setMenuOpen(null);
+    if (!window.confirm(`حظر ${item.candidate.firstName}؟ لن يظهر لك ولن تظهر له مرة أخرى.`)) return;
     const res = await fetch("/api/blocks", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -140,18 +142,28 @@ export function MutualSuggestionsView() {
     if (res?.ok) {
       removeAndRefill(item.id);
       setTotals((t) => ({ ...t, [tab]: Math.max(0, t[tab] - 1) }));
+      toast.success("تم الحظر");
+    } else {
+      toast.error("تعذّر الحظر، حاول مرة أخرى");
     }
   }
 
   async function submitReport() {
     if (!report) return;
     setReportSubmitting(true);
-    await fetch("/api/reports", {
+    const res = await fetch("/api/reports", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ reportedId: report.userId, reason: reportReason, details: reportDetails || undefined }),
     }).catch(() => null);
     setReportSubmitting(false);
+    if (res?.ok) {
+      toast.success("تم إرسال البلاغ. سيراجعه فريق نصيبك.");
+    } else {
+      const data = await res?.json().catch(() => ({}));
+      toast.error(data?.error || "تعذّر إرسال البلاغ");
+      return;
+    }
     setReport(null);
     setReportReason("FAKE_PROFILE");
     setReportDetails("");
@@ -231,7 +243,7 @@ export function MutualSuggestionsView() {
                 <Heart className="h-4 w-4" /> تهانينا! الاهتمام متبادل وأصبح لديك توافق جديد.
               </span>
               <Button asChild size="sm" className="rounded-lg">
-                <Link href="/dashboard/matches">
+                <Link href={notice.matchId ? `/dashboard/matches?match=${notice.matchId}` : "/dashboard/matches"}>
                   عرض التوافق <ChevronLeft className="h-4 w-4 ms-1" />
                 </Link>
               </Button>
@@ -291,7 +303,7 @@ export function MutualSuggestionsView() {
                             </Badge>
                           )}
                           {item.kind === "legacy_interest" && (
-                            <Badge className="bg-accent/15 text-accent-foreground border border-accent/25 text-[11px]">أبدى اهتمامه بك</Badge>
+                            <Badge className="bg-accent/15 text-accent-foreground border border-accent/25 text-[11px]">{partnerGender === "FEMALE" ? "أبدت اهتمامها بك" : "أبدى اهتمامه بك"}</Badge>
                           )}
                         </div>
                         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5 text-sm text-muted-foreground">
@@ -320,16 +332,17 @@ export function MutualSuggestionsView() {
 
                     {/* Chips */}
                     <div className="px-5 md:px-6 pb-4 flex flex-wrap gap-2">
+                      {/* Third-person, gender-correct labels about the other person */}
                       {[
-                        { v: c.maritalStatus, icon: User },
+                        { v: c.maritalStatus && describeOption("maritalStatus", c.maritalStatus, partnerGender), icon: User },
                         { v: c.education, icon: GraduationCap },
-                        { v: c.religiosity, icon: Moon },
-                        { v: c.smokingStatus, icon: Cigarette },
+                        { v: c.religiosity && describeOption("religiosity", c.religiosity, partnerGender), icon: Moon },
+                        { v: c.smokingStatus && describeOption("smokingStatus", c.smokingStatus, partnerGender), icon: Cigarette },
                         { v: c.nationality, icon: Flag },
                       ]
                         .filter((x) => x.v)
                         .map((x) => (
-                          <span key={x.v} className="inline-flex items-center gap-1.5 rounded-full bg-muted/60 border border-border/50 px-3 py-1.5 text-xs font-medium text-foreground/80">
+                          <span key={x.v as string} className="inline-flex items-center gap-1.5 rounded-full bg-muted/60 border border-border/50 px-3 py-1.5 text-xs font-medium text-foreground/80">
                             <x.icon className="h-3 w-3 text-primary/50" />{x.v}
                           </span>
                         ))}
@@ -363,7 +376,7 @@ export function MutualSuggestionsView() {
                     <div className="p-5 md:p-6 pt-0">
                       {waiting && (
                         <p className="mb-3 text-xs text-muted-foreground leading-relaxed">
-                          إذا أبدى اهتمامه أيضاً يصبح توافقاً متبادلاً ونخبرك فوراً. يُغلق الاقتراح تلقائياً بعد ١٤ يوماً من وصوله إن لم يكتمل.
+                          {partnerGender === "FEMALE" ? "إذا أبدت اهتمامها أيضاً" : "إذا أبدى اهتمامه أيضاً"} يصبح توافقاً متبادلاً ونخبرك فوراً. يُغلق الاقتراح تلقائياً بعد ١٤ يوماً من وصوله إن لم يكتمل.
                         </p>
                       )}
                       <div className="flex gap-3">

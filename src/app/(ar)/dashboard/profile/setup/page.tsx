@@ -113,6 +113,7 @@ export default function ProfileSetupPage() {
   const [shareConsent, setShareConsent] = useState(false);
   const { counts } = useDashboardData();
   const [autoSaveEnabled, setAutoSaveEnabled] = useState(false);
+  const [ownerId, setOwnerId] = useState("");
   const { savedIndicatorVisible, saveToLocalStorage, restoreDraft, clearDraft, saveToServer } = useAutoSave(autoSaveEnabled);
 
   // Fetch existing profile data on load, then check localStorage draft
@@ -122,10 +123,15 @@ export default function ProfileSetupPage() {
         const res = await fetch("/api/profile");
         let serverUpdatedAt: string | null = null;
         let serverStep = 1;
+        let draftOwner = "";
 
         if (res.ok) {
           const data = await res.json();
           const user = data.user;
+          if (user?.id) {
+            draftOwner = user.id;
+            setOwnerId(user.id);
+          }
 
           // If profile is already complete, redirect to view page
           if (user?.profile?.isComplete) {
@@ -203,7 +209,7 @@ export default function ProfileSetupPage() {
         }
 
         // Check localStorage draft — use it if it's fresher than server data
-        const draft = restoreDraft();
+        const draft = restoreDraft(draftOwner);
         if (draft) {
           const draftTime = new Date(draft.savedAt).getTime();
           const serverTime = serverUpdatedAt ? new Date(serverUpdatedAt).getTime() : 0;
@@ -233,9 +239,9 @@ export default function ProfileSetupPage() {
   // Auto-save to localStorage on form/step changes (debounced)
   useEffect(() => {
     if (autoSaveEnabled) {
-      saveToLocalStorage(form, parentForm, step);
+      saveToLocalStorage(form, parentForm, step, ownerId);
     }
-  }, [form, parentForm, step, autoSaveEnabled, saveToLocalStorage]);
+  }, [form, parentForm, step, autoSaveEnabled, saveToLocalStorage, ownerId]);
 
   function update(field: string, value: string | boolean) {
     setForm((prev) => ({ ...prev, [field]: value }));

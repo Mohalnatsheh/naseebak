@@ -38,6 +38,7 @@ import { StarterQuestions } from "./starter-questions";
 import { EndChatDialog, type ReportReasonValue } from "./end-chat-dialog";
 import { dayLabel, mergeMessages, sameDay, type UiMessage } from "./chat-utils";
 import { useChatChannel } from "./use-chat-channel";
+import { useDashboardData } from "@/contexts/dashboard-context";
 import { checkMessage } from "@/lib/chat/filter";
 
 interface ChatResponse {
@@ -49,6 +50,7 @@ interface ChatResponse {
 
 export function ChatRoom({ conversationId }: { conversationId: string }) {
   const router = useRouter();
+  const myGender = useDashboardData().profile?.gender as string | undefined;
   const [conversation, setConversation] = useState<ChatSummary | null>(null);
   const [messages, setMessages] = useState<UiMessage[]>([]);
   const [hasMore, setHasMore] = useState(false);
@@ -378,7 +380,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
             تمديد ٧ أيام
           </button>
         )}
-        <span className="text-muted-foreground">لا تشارك أرقام الهواتف أو الحسابات.</span>
+        <span className="hidden text-muted-foreground sm:inline">لا تشارك أرقام الهواتف أو الحسابات.</span>
 
         <span className="ms-auto">
           {family?.status === "none" && intro?.flags.introRequests && conversation.status !== "ENDED" && (
@@ -415,7 +417,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
           </div>
         )}
 
-        {messages.length === 0 && canSend && <StarterQuestions onPick={(q) => composer.current?.fill(q)} />}
+        {messages.length === 0 && canSend && <StarterQuestions myGender={myGender} onPick={(q) => composer.current?.fill(q)} />}
         {messages.length === 0 && !canSend && (
           <p className="py-10 text-center text-sm text-muted-foreground">لا توجد رسائل في هذه المحادثة.</p>
         )}
@@ -451,7 +453,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
             ? "لا يمكن إرسال رسائل في هذه المحادثة."
             : conversation.status === "ENDED"
             ? conversation.endedByMe
-              ? "أنهيتَ هذه المحادثة."
+              ? "تم إنهاء هذه المحادثة من طرفك."
               : "أنهى الطرف الآخر هذه المحادثة."
             : conversation.status === "EXPIRED"
               ? "انتهت مدة المحادثة. يمكنكما الانتقال لتعارف عائلي."

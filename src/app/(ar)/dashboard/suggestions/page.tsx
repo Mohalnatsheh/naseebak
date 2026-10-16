@@ -50,7 +50,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { SUGGESTIONS_MIN_COMPLETENESS } from "@/lib/profile-completeness";
+import { SUGGESTIONS_MIN_COMPLETENESS, qualifiesForSuggestions as qualifiesForSuggestionsGate } from "@/lib/profile-completeness";
 import { VerifiedBadge } from "@/components/shared/verified-badge";
 import { trackEvent } from "@/lib/analytics";
 import { useDashboardData } from "@/contexts/dashboard-context";
@@ -287,7 +287,13 @@ export default function SuggestionsPage() {
         }
         setIncompleteSections(missing);
 
-        setAccountComplete(total >= SUGGESTIONS_MIN_COMPLETENESS);
+        setAccountComplete(
+          qualifiesForSuggestionsGate({
+            completenessTotal: total,
+            isComplete: !!data.user?.profile?.isComplete,
+            newCycle: perRequestCredits,
+          })
+        );
 
         await fetchSuggestions();
       } catch {
@@ -296,7 +302,8 @@ export default function SuggestionsPage() {
       }
     }
     init();
-  }, []);
+    // Re-check once the new-cycle switches arrive (the gate differs per mode)
+  }, [perRequestCredits]);
 
   async function fetchSuggestions(p = sugPage) {
     try {
@@ -437,7 +444,13 @@ export default function SuggestionsPage() {
             <div className="space-y-2">
               <h3 className="text-lg font-bold text-foreground">أكمل حسابك لتلقي الاقتراحات</h3>
               <p className="text-sm text-muted-foreground max-w-sm mx-auto leading-relaxed">
-                يجب إكمال ملفك الشخصي بنسبة {SUGGESTIONS_MIN_COMPLETENESS}% على الأقل قبل البدء في تلقي اقتراحات التوافق. نسبة الاكتمال الحالية: <span className="font-bold text-accent-foreground">{completionPercent}%</span>
+                {perRequestCredits ? (
+                  "أكمل خطوات إعداد ملفك القصيرة لتبدأ اقتراحاتك الأسبوعية المجانية."
+                ) : (
+                  <>
+                    يجب إكمال ملفك الشخصي بنسبة {SUGGESTIONS_MIN_COMPLETENESS}% على الأقل قبل البدء في تلقي اقتراحات التوافق. نسبة الاكتمال الحالية: <span className="font-bold text-accent-foreground">{completionPercent}%</span>
+                  </>
+                )}
               </p>
             </div>
             {incompleteSections.length > 0 && (
@@ -452,10 +465,10 @@ export default function SuggestionsPage() {
                 ))}
               </div>
             )}
-            <Button asChild className="bg-gradient-to-l from-primary to-primary/80 rounded-xl font-semibold">
-              <Link href="/dashboard">
-                <ArrowLeft className="h-4 w-4 me-2" />
-                العودة للوحة التحكم
+            <Button asChild className="rounded-xl font-semibold">
+              <Link href="/dashboard/profile/setup">
+                متابعة إعداد الملف
+                <ArrowLeft className="h-4 w-4 ms-2" />
               </Link>
             </Button>
           </CardContent>

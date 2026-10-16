@@ -2,16 +2,25 @@
 
 import { Sparkles } from "lucide-react";
 
-const QUESTIONS = [
-  "السلام عليكم، سعيد/ة بالتوافق. كيف حالك؟",
-  "ما أهم صفة تبحث/ين عنها في شريك الحياة؟",
-  "كيف تتخيل/ين حياتنا اليومية بعد الزواج؟",
-  "ما رأيك في السكن: قريباً من العائلة أم مستقلين؟",
-  "ما الذي يجعلك تشعر/ين بالاحترام والتقدير؟",
-];
+/** Written for the speaker's and the listener's gender (no "/ة" slashes). */
+function questions(myGender: string | null | undefined): string[] {
+  const iAmMale = myGender !== "FEMALE";
+  // The listener is the other gender
+  const you = iAmMale
+    ? { search: "تبحثين", imagine: "تتخيلين", feel: "تشعرين" }
+    : { search: "تبحث", imagine: "تتخيل", feel: "تشعر" };
+  return [
+    `السلام عليكم، ${iAmMale ? "سعيد" : "سعيدة"} بالتوافق. كيف حالك؟`,
+    `ما أهم صفة ${you.search} عنها في شريك الحياة؟`,
+    `كيف ${you.imagine} حياتنا اليومية بعد الزواج؟`,
+    "ما رأيك في السكن: قريباً من العائلة أم مستقلين؟",
+    `ما الذي يجعلك ${you.feel} بالاحترام والتقدير؟`,
+  ];
+}
 
 /** Shown on an empty chat to help start a respectful conversation. */
-export function StarterQuestions({ onPick }: { onPick: (q: string) => void }) {
+export function StarterQuestions({ onPick, myGender }: { onPick: (q: string) => void; myGender?: string | null }) {
+  const QUESTIONS = questions(myGender);
   return (
     <div className="mx-auto max-w-md py-8 text-center">
       <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/15 to-accent/20">

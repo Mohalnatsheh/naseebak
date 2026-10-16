@@ -93,11 +93,11 @@ const typeConfig: Record<
   },
   PAYMENT: {
     icon: CreditCard,
-    gradient: "from-green-500 to-emerald-500",
-    borderColor: "border-s-green-400",
-    iconBg: "from-green-100 to-emerald-100",
-    iconColor: "text-green-600",
-    dotColor: "bg-green-500",
+    gradient: "from-accent to-accent/70",
+    borderColor: "border-s-accent",
+    iconBg: "from-accent/10 to-accent/5",
+    iconColor: "text-accent-foreground",
+    dotColor: "bg-accent",
   },
   SYSTEM: {
     icon: Info,

@@ -74,3 +74,26 @@ export async function DELETE(
     return NextResponse.json({ error: "حدث خطأ في الخادم" }, { status: 500 });
   }
 }
+
+/** Make this photo the main one */
+export async function PATCH(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const result = await requireUser();
+    if ("error" in result) return result.error;
+    const userId = result.session.user.id;
+    const { id } = await params;
+
+    const photo = await db.photo.findUnique({ where: { id }, select: { userId: true } });
+    if (!photo || photo.userId !== userId) {
+      return NextResponse.json({ error: "الصورة غير موجودة" }, { status: 404 });
+    }
+    await db.$transaction([
+      db.photo.updateMany({ where: { userId, isPrimary: true }, data: { isPrimary: false } }),
+      db.photo.update({ where: { id }, data: { isPrimary: true } }),
+    ]);
+    return NextResponse.json({ message: "تم تعيين الصورة الرئيسية" });
+  } catch (error) {
+    console.error("Set primary photo error:", error);
+    return NextResponse.json({ error: "حدث خطأ في الخادم" }, { status: 500 });
+  }
+}

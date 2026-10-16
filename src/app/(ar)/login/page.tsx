@@ -157,7 +157,16 @@ function LoginPageContent() {
       if (result?.error) {
         if (!userExists) {
           // Phone not registered → redirect to register
-          router.push(`/register?phone=${encodeURIComponent(normalizedPhone)}&otp=${encodeURIComponent(otp)}&otpVerified=1`);
+          // Hand the verified phone + code over privately (never in the URL / analytics)
+          try {
+            sessionStorage.setItem(
+              "naseeb:register-handoff",
+              JSON.stringify({ phone: normalizedPhone, otp, at: Date.now() })
+            );
+          } catch {
+            // private mode: the user re-enters the code on the register page
+          }
+          router.push("/register?from=login");
           return;
         }
         // User exists but login failed (suspended, rate limited, etc.)

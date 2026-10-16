@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { maybeAwardReferral } from "@/lib/referral";
 
 export async function GET() {
   try {
@@ -49,6 +50,7 @@ export async function POST(request: Request) {
       update: { parentName, parentPhone, relationship, address, notes, shareConsentAt },
     });
 
+    await maybeAwardReferral(session.user.id);
     return NextResponse.json({ message: "تم حفظ بيانات ولي الأمر", parentInfo });
   } catch (error) {
     console.error("Parent info error:", error);

@@ -8,6 +8,8 @@ const EXPIRY_DAYS = 30;
 const INDICATOR_DURATION_MS = 2000;
 
 interface DraftData {
+  /** Whose draft this is — a shared device must never show one person's draft to another */
+  ownerId?: string;
   form: Record<string, unknown>;
   parentForm: Record<string, unknown>;
   step: number;
@@ -36,14 +38,15 @@ export function useAutoSave(enabled: boolean) {
   }, []);
 
   const saveToLocalStorage = useCallback(
-    (form: Record<string, unknown>, parentForm: Record<string, unknown>, step: number) => {
-      if (!enabled) return;
+    (form: Record<string, unknown>, parentForm: Record<string, unknown>, step: number, ownerId: string) => {
+      if (!enabled || !ownerId) return;
 
       if (debounceTimer.current) clearTimeout(debounceTimer.current);
 
       debounceTimer.current = setTimeout(() => {
         try {
           const draft: DraftData = {
+            ownerId,
             form,
             parentForm,
             step,
@@ -59,12 +62,18 @@ export function useAutoSave(enabled: boolean) {
     [enabled, showIndicator]
   );
 
-  const restoreDraft = useCallback((): DraftData | null => {
+  const restoreDraft = useCallback((ownerId: string): DraftData | null => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (!raw) return null;
 
       const draft: DraftData = JSON.parse(raw);
+
+      // Someone else's draft (or an old draft without an owner): drop it
+      if (!ownerId || draft.ownerId !== ownerId) {
+        localStorage.removeItem(STORAGE_KEY);
+        return null;
+      }
 
       // Check expiry
       const savedAt = new Date(draft.savedAt);

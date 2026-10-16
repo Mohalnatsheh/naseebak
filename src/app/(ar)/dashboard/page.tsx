@@ -22,10 +22,11 @@ import {
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { useDashboardData } from "@/contexts/dashboard-context";
+import { arabicCount } from "@/lib/utils";
 import { GuardianConsentCard } from "@/components/intro/guardian-consent-card";
-import { PendingIntrosCard } from "@/components/intro/pending-intros-card";
+import { NextStepCard } from "@/components/dashboard/next-step-card";
 import { InstallAppCard } from "@/components/shared/install-app-card";
-import { SUGGESTIONS_MIN_COMPLETENESS } from "@/lib/profile-completeness";
+import { SUGGESTIONS_MIN_COMPLETENESS, qualifiesForSuggestions as qualifiesForSuggestionsGate } from "@/lib/profile-completeness";
 
 /* ------------------------------------------------------------------ */
 /*  Arabic date formatter                                              */
@@ -122,7 +123,7 @@ function getGreeting() {
   const hour = new Date().getHours();
   if (hour < 12) return "صباح الخير";
   if (hour < 17) return "مساء الخير";
-  return "مساء النور";
+  return "مساء الخير";
 }
 
 /* ================================================================== */
@@ -135,7 +136,12 @@ export default function DashboardPage() {
   const [mounted, setMounted] = useState(false);
   const [pendingSuggestions, setPendingSuggestions] = useState<number | null>(null);
   const [suggestionCredits, setSuggestionCredits] = useState<number | null>(null);
-  const qualifiesForSuggestions = (completeness?.total ?? 0) >= SUGGESTIONS_MIN_COMPLETENESS;
+  // New cycle: finishing the short setup is enough; legacy: 50% completeness
+  const qualifiesForSuggestions = qualifiesForSuggestionsGate({
+    completenessTotal: completeness?.total ?? 0,
+    isComplete: !!profile?.profile?.isComplete,
+    newCycle: counts.flags.introRequests,
+  });
 
   useEffect(() => {
     setMounted(true);
@@ -198,40 +204,6 @@ export default function DashboardPage() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6 pb-10">
-      <PendingIntrosCard />
-      <GuardianConsentCard />
-      <InstallAppCard />
-
-      {/* Unread notifications banner */}
-      {unreadCount > 0 && (
-        <div className="mb-2">
-        <Link href="/dashboard/notifications">
-          <Card className="group relative overflow-hidden border-primary/30 bg-gradient-to-l from-primary/8 via-primary/5 to-transparent hover:shadow-md transition-all duration-300 cursor-pointer">
-            <div className="absolute top-0 right-0 h-20 w-20 rounded-full bg-primary/5 blur-2xl translate-x-4 -translate-y-4" />
-            <CardContent className="pt-2.5 pb-2 flex items-center justify-between relative">
-              <div className="flex items-center gap-3">
-                <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 border border-primary/20">
-                  <Bell className="h-5 w-5 text-primary" />
-                  <span className="absolute -top-1 -right-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-accent px-1.5 text-[10px] font-bold text-accent-foreground shadow-sm">
-                    {unreadCount > 99 ? "99+" : unreadCount}
-                  </span>
-                </div>
-                <div>
-                  <h3 className="font-bold text-foreground text-sm">
-                    {unreadCount === 1 ? "لديك إشعار جديد" : `لديك ${unreadCount} إشعارات جديدة`}
-                  </h3>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    اضغط هنا لعرض الإشعارات
-                  </p>
-                </div>
-              </div>
-              <ChevronLeft className="h-5 w-5 text-muted-foreground/40 group-hover:text-primary group-hover:-translate-x-1 transition-all duration-300" />
-            </CardContent>
-          </Card>
-        </Link>
-        </div>
-      )}
-
       {/* ============================================ */}
       {/*  Welcome banner                              */}
       {/* ============================================ */}
@@ -271,89 +243,19 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* ============================================ */}
-      {/*  "Account must be completed" banner           */}
-      {/* ============================================ */}
-      {completionPercent < SUGGESTIONS_MIN_COMPLETENESS && (
-        <Card className="relative overflow-hidden border-accent/40 bg-gradient-to-l from-accent/10 via-accent/5 to-transparent shadow-md">
-          <div className="absolute top-0 right-0 h-32 w-32 rounded-full bg-accent/10 blur-2xl translate-x-8 -translate-y-8" />
-          <CardContent className="pt-5 pb-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent/15 border border-accent/20">
-                <AlertCircle className="h-5 w-5 text-accent-foreground" />
-              </div>
-              <div>
-                <h3 className="font-bold text-foreground text-sm">
-                  أكمل حسابك بنسبة {SUGGESTIONS_MIN_COMPLETENESS}% لتلقي اقتراحات التوافق
-                </h3>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  لن تتمكن من تلقي أو عرض الاقتراحات قبل الوصول إلى {SUGGESTIONS_MIN_COMPLETENESS}% ({completionPercent}% مكتمل حالياً)
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* The one thing to do next */}
+      <NextStepCard
+        qualifies={qualifiesForSuggestions}
+        pendingSuggestions={qualifiesForSuggestions ? pendingSuggestions : 0}
+        matchesCount={matchesCount}
+        credits={matchCreditsCount}
+      />
 
-      {/* ============================================ */}
-      {/*  Suggestions status (profile qualifies)       */}
-      {/* ============================================ */}
-      {creditsBlockSuggestions && qualifiesForSuggestions && pendingSuggestions === 0 && suggestionCredits === 0 && (
-        <Link href="/dashboard/payments" className="block">
-          <Card className="group relative overflow-hidden border-amber-300/70 bg-gradient-to-l from-amber-50 via-amber-50/60 to-transparent shadow-md hover:shadow-lg transition-all duration-300">
-            <CardContent className="pt-5 pb-4 flex items-center gap-3 sm:gap-4">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-amber-100 border border-amber-200 text-amber-700">
-                <CreditCard className="h-5 w-5" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <h3 className="font-bold text-amber-900 text-sm sm:text-base">انتهى رصيد اقتراحاتك</h3>
-                <p className="text-xs text-amber-800/80 mt-0.5 leading-relaxed">
-                  اشحن رصيدك لتستمر باستلام اقتراحات جديدة تناسبك.
-                </p>
-              </div>
-              <span className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-primary px-3 py-2 text-xs font-bold text-primary-foreground">
-                اشحن رصيدك
-                <ChevronLeft className="h-4 w-4" />
-              </span>
-            </CardContent>
-          </Card>
-        </Link>
-      )}
-
-      {qualifiesForSuggestions && !(creditsBlockSuggestions && pendingSuggestions === 0 && suggestionCredits === 0) && (
-        <Link href="/dashboard/suggestions" className="block">
-          <Card className="group relative overflow-hidden border-primary/30 bg-gradient-to-l from-primary/10 via-primary/5 to-transparent shadow-md hover:shadow-lg transition-all duration-300">
-            <div className="absolute top-0 right-0 h-24 w-24 rounded-full bg-primary/10 blur-2xl translate-x-6 -translate-y-6" />
-            <CardContent className="pt-5 pb-4 flex items-center gap-3 sm:gap-4 relative">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-secondary text-white shadow-md">
-                {pendingSuggestions === null ? <Loader2 className="h-5 w-5 animate-spin" /> : <Sparkles className="h-5 w-5" />}
-              </div>
-              <div className="flex-1 min-w-0">
-                <h3 className="font-bold text-foreground text-sm sm:text-base">
-                  {pendingSuggestions === null
-                    ? "جارٍ تجهيز اقتراحاتك..."
-                    : pendingSuggestions === 1
-                      ? "لديك اقتراح توافق جديد"
-                      : pendingSuggestions > 1
-                        ? `لديك ${pendingSuggestions} اقتراحات توافق جديدة`
-                        : "ملفك جاهز، ونبحث لك عن اقتراحات مناسبة"}
-                </h3>
-                <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
-                  {pendingSuggestions && pendingSuggestions > 0
-                    ? "اطّلع عليها الآن وقرّر بالقبول أو الرفض"
-                    : completionPercent < 100
-                      ? "سنرسل لك إشعاراً فور وصول اقتراح جديد. إكمال ملفك يجعل الاقتراحات أدق"
-                      : "سنرسل لك إشعاراً فور وصول اقتراح جديد"}
-                </p>
-              </div>
-              <span className="hidden sm:inline-flex shrink-0 items-center gap-1 rounded-lg bg-primary px-3 py-2 text-xs font-bold text-primary-foreground">
-                عرض الاقتراحات
-                <ChevronLeft className="h-4 w-4" />
-              </span>
-              <ChevronLeft className="sm:hidden h-5 w-5 shrink-0 text-muted-foreground/50 group-hover:text-primary transition-colors" />
-            </CardContent>
-          </Card>
-        </Link>
+      {/* One helper card at a time: guardian consent first, then installing the app */}
+      {counts.flags.introRequests && counts.guardian?.exists && !counts.guardian.consented ? (
+        <GuardianConsentCard />
+      ) : (
+        <InstallAppCard />
       )}
 
       {/* ============================================ */}
@@ -367,7 +269,7 @@ export default function DashboardPage() {
               completeness?.level === "excellent" ? "bg-gradient-to-br from-emerald-500 to-emerald-600" :
               completeness?.level === "strong" ? "bg-gradient-to-br from-primary to-secondary" :
               completeness?.level === "good" ? "bg-gradient-to-br from-amber-500 to-amber-600" :
-              "bg-gradient-to-br from-destructive to-destructive/70"
+              "bg-gradient-to-br from-accent to-accent/70"
             } text-white`}>
               <Zap className="h-6 w-6" />
             </div>
@@ -378,11 +280,11 @@ export default function DashboardPage() {
                   completeness?.level === "excellent" ? "bg-emerald-100 text-emerald-700" :
                   completeness?.level === "strong" ? "bg-primary/10 text-primary" :
                   completeness?.level === "good" ? "bg-amber-100 text-amber-700" :
-                  "bg-destructive/10 text-destructive"
+                  "bg-accent/15 text-accent-foreground"
                 }`}>
                   {completeness?.level === "excellent" ? "ممتاز" :
                    completeness?.level === "strong" ? "قوي" :
-                   completeness?.level === "good" ? "جيد" : "ضعيف"}
+                   completeness?.level === "good" ? "جيد" : "في البداية"}
                 </span>
               </div>
               {/* Strength bar */}
@@ -392,7 +294,7 @@ export default function DashboardPage() {
                     completeness?.level === "excellent" ? "bg-gradient-to-l from-emerald-500 to-emerald-400" :
                     completeness?.level === "strong" ? "bg-gradient-to-l from-primary to-secondary" :
                     completeness?.level === "good" ? "bg-gradient-to-l from-amber-500 to-amber-400" :
-                    "bg-gradient-to-l from-destructive to-destructive/70"
+                    "bg-gradient-to-l from-accent to-accent/70"
                   }`}
                   style={{ width: `${completionPercent}%` }}
                 />
@@ -480,8 +382,9 @@ export default function DashboardPage() {
             shadowColor: "shadow-primary/10",
           },
           {
-            value: receivedSuggestions,
-            label: "اقتراحات مستلمة",
+            // Shared suggestions belong to both people, so "received" undercounts — show what's waiting instead
+            value: creditsBlockSuggestions ? receivedSuggestions : pendingSuggestions ?? 0,
+            label: creditsBlockSuggestions ? "اقتراحات مستلمة" : "اقتراحات جديدة",
             icon: Star,
             gradient: "from-accent to-accent/70",
             bgLight: "from-accent/10 to-accent/5",
@@ -520,83 +423,6 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
         ))}
-      </div>
-
-      {/* ============================================ */}
-      {/*  Quick actions                               */}
-      {/* ============================================ */}
-      <div>
-        <h2 className="text-lg font-bold text-foreground mb-3 flex items-center gap-2">
-          <TrendingUp className="h-5 w-5 text-primary" />
-          الإجراءات السريعة
-        </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {[
-            {
-              href: "/dashboard/suggestions",
-              icon: Sparkles,
-              label: "عرض الاقتراحات",
-              desc: "اكتشف اقتراحات التوافق المخصصة لك",
-              gradient: "from-primary to-secondary",
-              hoverBorder: "hover:border-primary/30",
-            },
-            {
-              href: "/dashboard/profile",
-              icon: User,
-              label: "الملف الشخصي",
-              desc: "عرض ملفك الشخصي",
-              gradient: "from-secondary to-primary",
-              hoverBorder: "hover:border-secondary/30",
-            },
-            {
-              href: "/dashboard/personality-quiz",
-              icon: Brain,
-              label: "اختبار الشخصية",
-              desc: "أكمل الاختبار لتحسين جودة التوافق",
-              gradient: "from-primary to-primary/70",
-              hoverBorder: "hover:border-primary/30",
-            },
-            {
-              href: "/dashboard/payments",
-              icon: CreditCard,
-              label: creditsBlockSuggestions ? "رصيد الاقتراحات" : "رصيد التعارف",
-              desc: creditsBlockSuggestions
-                ? "اشتري رصيد لرؤية تفاصيل التوافقات"
-                : "كل طلب تعارف عائلي أو محادثة يستخدم رصيداً واحداً",
-              gradient: "from-accent to-accent/70",
-              hoverBorder: "hover:border-accent/30",
-            },
-          ].map((item) => (
-            <Link key={item.href} href={item.href}>
-              <Card
-                className={`group relative overflow-hidden border-border/40 hover:shadow-lg transition-all duration-300 hover:-translate-y-0.5 cursor-pointer ${item.hoverBorder}`}
-              >
-                {/* Subtle gradient overlay on hover */}
-                <div
-                  className={`absolute inset-0 bg-gradient-to-l ${item.gradient} opacity-0 group-hover:opacity-[0.03] transition-opacity duration-300`}
-                />
-                <CardContent className="pt-5 pb-4 flex items-center justify-between relative">
-                  <div className="flex items-center gap-4">
-                    <div
-                      className={`flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br ${item.gradient} text-white shadow-md transition-all duration-300 group-hover:scale-110 group-hover:shadow-lg`}
-                    >
-                      <item.icon className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <h3 className="font-bold text-sm text-foreground group-hover:text-foreground/90">
-                        {item.label}
-                      </h3>
-                      <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
-                        {item.desc}
-                      </p>
-                    </div>
-                  </div>
-                  <ChevronLeft className="h-5 w-5 text-muted-foreground/40 group-hover:text-muted-foreground group-hover:-translate-x-1 transition-all duration-300" />
-                </CardContent>
-              </Card>
-            </Link>
-          ))}
-        </div>
       </div>
 
       {/* ============================================ */}
@@ -644,7 +470,7 @@ export default function DashboardPage() {
                         icon: Heart,
                         iconColor: "text-primary",
                         iconBg: "bg-primary/10",
-                        title: `لديك ${matchesCount} توافق متبادل`,
+                        title: `لديك ${arabicCount(matchesCount, { one: "توافق متبادل", two: "توافقان متبادلان", few: "توافقات متبادلة", many: "توافقاً متبادلاً" })}`,
                         desc: creditsBlockSuggestions ? "يمكنك الآن عرض الصور وطلب زيارة" : "اختر طريقة التعارف: تعارف عائلي أو محادثة",
                         time: "جديد",
                       },
@@ -656,7 +482,7 @@ export default function DashboardPage() {
                         icon: Sparkles,
                         iconColor: "text-accent-foreground",
                         iconBg: "bg-accent/10",
-                        title: `تلقيت ${receivedSuggestions} اقتراح`,
+                        title: `تلقيت ${arabicCount(receivedSuggestions, { one: "اقتراحاً", two: "اقتراحين", few: "اقتراحات", many: "اقتراحاً" })}`,
                         desc: "راجع الاقتراحات واتخذ قرارك",
                         time: "متاح",
                       },
@@ -707,54 +533,6 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      {/* ============================================ */}
-      {/*  Extra actions footer                        */}
-      {/* ============================================ */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <Link href="/dashboard/matches">
-          <Card className="group border-border/40 hover:border-primary/20 hover:shadow-md transition-all duration-300 cursor-pointer">
-            <CardContent className="pt-5 pb-4 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary group-hover:bg-primary/15 transition-colors">
-                  <Heart className="h-5 w-5" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold">التوافقات المتبادلة</h3>
-                  <p className="text-[11px] text-muted-foreground">
-                    عرض جميع التوافقات
-                  </p>
-                </div>
-              </div>
-              <ChevronLeft className="h-5 w-5 text-muted-foreground/40 group-hover:text-primary group-hover:-translate-x-1 transition-all" />
-            </CardContent>
-          </Card>
-        </Link>
-        <Link href="/dashboard/notifications">
-          <Card className="group border-border/40 hover:border-primary/20 hover:shadow-md transition-all duration-300 cursor-pointer">
-            <CardContent className="pt-5 pb-4 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary group-hover:bg-primary/15 transition-colors">
-                  <Bell className="h-5 w-5" />
-                  {unreadCount > 0 && (
-                    <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[9px] font-bold text-accent-foreground shadow-sm">
-                      {unreadCount > 99 ? "99+" : unreadCount}
-                    </span>
-                  )}
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold">الإشعارات</h3>
-                  <p className="text-[11px] text-muted-foreground">
-                    {unreadCount > 0
-                      ? `${unreadCount} إشعار${unreadCount > 1 ? "ات" : ""} غير مقروء${unreadCount > 1 ? "ة" : ""}`
-                      : "عرض جميع الإشعارات"}
-                  </p>
-                </div>
-              </div>
-              <ChevronLeft className="h-5 w-5 text-muted-foreground/40 group-hover:text-primary group-hover:-translate-x-1 transition-all" />
-            </CardContent>
-          </Card>
-        </Link>
-      </div>
     </div>
   );
 }

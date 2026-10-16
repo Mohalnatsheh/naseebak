@@ -321,7 +321,7 @@ export default function PersonalityQuizPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <h3 className="text-sm font-bold text-foreground">شوف ملفك الشخصي</h3>
-                  <p className="text-xs text-muted-foreground mt-0.5">اطّلع على ملفك الشخصي وكيف يظهر للآخرين</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">راجع ملفك الشخصي وأكمل ما ينقصه</p>
                 </div>
                 <Button asChild size="sm" className="bg-gradient-to-l from-primary to-secondary text-white rounded-xl font-semibold shadow-sm hover:shadow-md transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]">
                   <Link href="/dashboard/profile">

@@ -377,9 +377,8 @@ export default function MatchesPage() {
         const res = await fetch("/api/profile");
         const data = await res.json();
         const user = data.user;
-        const hasProfile = user?.profile?.isComplete;
-        const hasQuiz = !!user?.personalityResult;
-        setAccountComplete(!!hasProfile && hasQuiz);
+        // Matches are never gated: the personality quiz is optional and the server has no gate either
+        setAccountComplete(true);
         setIsFemale(user?.gender === "FEMALE");
       } catch {
         setAccountComplete(false);

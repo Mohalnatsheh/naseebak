@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2, HeartHandshake, MessageCircle, Info, TriangleAlert } from "lucide-react";
+import { Loader2, HeartHandshake, MessageCircle, Info, TriangleAlert, Users } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
@@ -18,14 +18,17 @@ import {
 interface State {
   introRequests: boolean;
   chat: boolean;
+  mutualSuggestions: boolean;
   creditsMigratedAt: string | null;
 }
 
-/** Admin → Settings: the two switches for the new user cycle, in plain words. */
+type Key = "introRequests" | "chat" | "mutualSuggestions";
+
+/** Admin → Settings: the switches for the new user cycle, in plain words. */
 export function NewCycleSettingsCard() {
   const [state, setState] = useState<State | null>(null);
-  const [saving, setSaving] = useState<null | "introRequests" | "chat">(null);
-  const [confirmOff, setConfirmOff] = useState<null | "introRequests" | "chat">(null);
+  const [saving, setSaving] = useState<null | Key>(null);
+  const [confirmOff, setConfirmOff] = useState<null | Key>(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -35,7 +38,7 @@ export function NewCycleSettingsCard() {
       .catch(() => setError("Couldn't load settings"));
   }, []);
 
-  async function save(key: "introRequests" | "chat", value: boolean) {
+  async function save(key: Key, value: boolean) {
     setSaving(key);
     setError("");
     const res = await fetch("/api/admin/settings/new-cycle", {
@@ -48,7 +51,7 @@ export function NewCycleSettingsCard() {
     setSaving(null);
   }
 
-  function toggle(key: "introRequests" | "chat", value: boolean) {
+  function toggle(key: Key, value: boolean) {
     if (!value) setConfirmOff(key);
     else save(key, true);
   }
@@ -68,6 +71,14 @@ export function NewCycleSettingsCard() {
       title: "In-app chat",
       text: "Matched users who accept a chat request can message each other for 14 days. Phone numbers, links and social accounts are blocked automatically.",
       on: state?.chat ?? false,
+      disabled: !state?.introRequests,
+    },
+    {
+      key: "mutualSuggestions" as const,
+      icon: Users,
+      title: "Simultaneous suggestions",
+      text: "Both people see the same suggestion and each taps Interested or No. A match happens only when both say yes; nobody learns the other's answer. Dealbreakers become hard filters and every card says why it was suggested. Suggestions already in progress keep working.",
+      on: state?.mutualSuggestions ?? false,
       disabled: !state?.introRequests,
     },
   ];
@@ -130,11 +141,17 @@ export function NewCycleSettingsCard() {
       <Dialog open={!!confirmOff} onOpenChange={(o) => !o && setConfirmOff(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{confirmOff === "chat" ? "Turn off chat?" : "Turn off family and chat requests?"}</DialogTitle>
+            <DialogTitle>{confirmOff === "chat"
+                ? "Turn off chat?"
+                : confirmOff === "mutualSuggestions"
+                  ? "Turn off simultaneous suggestions?"
+                  : "Turn off family and chat requests?"}</DialogTitle>
             <DialogDescription>
               {confirmOff === "chat"
                 ? "Users won't be able to send new messages or chat requests. Existing chats stay readable."
-                : "Users won't be able to send new requests, and suggestions go back to costing credits. Accepted introductions and existing chats stay visible. Chat pauses too."}
+                : confirmOff === "mutualSuggestions"
+                  ? "New suggestions go back to the old one-by-one flow. Users can still answer the simultaneous suggestions they already have."
+                  : "Users won't be able to send new requests, and suggestions go back to costing credits. Accepted introductions and existing chats stay visible. Chat pauses too."}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

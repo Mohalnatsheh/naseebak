@@ -6,6 +6,7 @@ const DEFAULTS: Record<string, string> = {
   maintenance_message: "",
   intro_requests_enabled: "false",
   chat_enabled: "false",
+  new_suggestions_flow: "false",
 };
 
 const cache = new Map<string, { value: string; expiresAt: number }>();
@@ -56,14 +57,21 @@ export interface CycleFlags {
   introRequests: boolean;
   /** In-app chat — only on when intro requests are on too */
   chat: boolean;
+  /** Simultaneous suggestions (both decide on the same row) — only on when intro requests are on too */
+  mutualSuggestions: boolean;
 }
 
 /** New user cycle switches (Admin → Settings). Both default to off. */
 export async function getCycleFlags(): Promise<CycleFlags> {
-  const [intro, chat] = await Promise.all([
+  const [intro, chat, mutual] = await Promise.all([
     getSetting("intro_requests_enabled"),
     getSetting("chat_enabled"),
+    getSetting("new_suggestions_flow"),
   ]);
   const introRequests = intro === "true";
-  return { introRequests, chat: introRequests && chat === "true" };
+  return {
+    introRequests,
+    chat: introRequests && chat === "true",
+    mutualSuggestions: introRequests && mutual === "true",
+  };
 }

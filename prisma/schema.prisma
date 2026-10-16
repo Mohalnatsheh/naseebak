@@ -44,6 +44,17 @@ enum SuggestionSource {
   ADMIN
 }
 
+/// LEGACY: recipient answers, then the other side gets an interest. MUTUAL: both decide on the same row.
+enum SuggestionFlow {
+  LEGACY
+  MUTUAL
+}
+
+enum SuggestionDecision {
+  INTERESTED
+  DECLINED
+}
+
 enum VisitStatus {
   REQUESTED
   FAMILIES_CONTACTED
@@ -268,6 +279,8 @@ model Profile {
   prefReligiosity         String[]
   prefSmokingStatus       String[]
   prefChildrenAcceptance  String?
+  /// Preference keys the user marked as hard filters (DEALBREAKER_KEYS in src/lib/matching/score.ts)
+  dealbreakers            String[] @default([])
 
   setupStep           Int      @default(1)
   isComplete          Boolean  @default(false)
@@ -357,6 +370,13 @@ model Suggestion {
   status             SuggestionStatus @default(PENDING)
   source             SuggestionSource @default(AI)
   expiresAt          DateTime?
+
+  // Simultaneous suggestions (switch `new_suggestions_flow`); legacy rows keep the defaults
+  flow               SuggestionFlow      @default(LEGACY)
+  recipientDecision  SuggestionDecision?
+  recipientDecidedAt DateTime?
+  candidateDecision  SuggestionDecision?
+  candidateDecidedAt DateTime?
 
   createdAt          DateTime         @default(now())
   updatedAt          DateTime         @updatedAt

@@ -5,14 +5,16 @@ import { getCycleFlags, getSetting, setSetting } from "@/lib/settings";
 import { db } from "@/lib/db";
 
 async function state() {
-  const [flags, chatRaw, migration] = await Promise.all([
+  const [flags, chatRaw, mutualRaw, migration] = await Promise.all([
     getCycleFlags(),
     getSetting("chat_enabled"),
+    getSetting("new_suggestions_flow"),
     db.systemSetting.findUnique({ where: { key: "migration_new_cycle_v1" } }),
   ]);
   return {
     introRequests: flags.introRequests,
     chat: chatRaw === "true",
+    mutualSuggestions: mutualRaw === "true",
     creditsMigratedAt: migration?.value ?? null,
   };
 }
@@ -28,7 +30,11 @@ export async function GET() {
   }
 }
 
-const schema = z.object({ introRequests: z.boolean().optional(), chat: z.boolean().optional() });
+const schema = z.object({
+  introRequests: z.boolean().optional(),
+  chat: z.boolean().optional(),
+  mutualSuggestions: z.boolean().optional(),
+});
 
 export async function PATCH(request: Request) {
   try {
@@ -42,6 +48,9 @@ export async function PATCH(request: Request) {
     }
     if (parsed.data.chat !== undefined) {
       await setSetting("chat_enabled", String(parsed.data.chat));
+    }
+    if (parsed.data.mutualSuggestions !== undefined) {
+      await setSetting("new_suggestions_flow", String(parsed.data.mutualSuggestions));
     }
     return NextResponse.json(await state());
   } catch (error) {

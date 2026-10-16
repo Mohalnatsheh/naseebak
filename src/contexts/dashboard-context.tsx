@@ -4,7 +4,7 @@ import { createContext, useContext, useState, useEffect, useCallback, type React
 
 /** New-cycle badges from /api/me/counts */
 export interface CycleCounts {
-  flags: { introRequests: boolean; chat: boolean };
+  flags: { introRequests: boolean; chat: boolean; mutualSuggestions: boolean };
   pendingIntros: number;
   unreadChats: number;
   hasChats: boolean;
@@ -12,7 +12,7 @@ export interface CycleCounts {
 }
 
 const EMPTY_COUNTS: CycleCounts = {
-  flags: { introRequests: false, chat: false },
+  flags: { introRequests: false, chat: false, mutualSuggestions: false },
   pendingIntros: 0,
   unreadChats: 0,
   hasChats: false,

@@ -5,7 +5,8 @@
  *   (only if that side consented to sharing it).
  * - CHAT: once accepted, a 14-day in-app conversation opens.
  *
- * Sending costs the sender 1 credit (never refunded). A declined request is final for
+ * Sending costs the sender 1 credit (never refunded) — except under credit_on_interest, where the
+ * credit was spent on "مهتم" and every request is free. A declined request is final for
  * that type on that match; an expired (unanswered) one may be sent again.
  * Moving from a chat to a family introduction is free once — unless one of the two ended the
  * chat: then no family request is possible on that match any more (it is "finished").
@@ -14,6 +15,13 @@
  * the match: nothing can be sent or accepted, the guardian contact is withheld, and requests
  * still pending between the two are cancelled lazily (never refunded). The sender may also
  * cancel their own pending request (no refund).
+ *
+ * Matches opened under credit_on_interest (`openedAt` set) start with an auto-accepted outcome
+ * (see outcome.ts) and use per-match guardian consent: a guardian contact is shown only for a side
+ * with its share stamp (`femaleGuardianShareAt` / `maleGuardianShareAt`) AND global consent
+ * (`ParentInfo.shareConsentAt`). FAMILY choosers are stamped at match creation, the other side via
+ * `shareGuardianForMatch`, and both sides on accepting a later family request. Pre-flag matches keep
+ * the global-consent rule.
  */
 import type { IntroRequest, IntroRequestType } from "@prisma/client";
 import { db } from "@/lib/db";
@@ -21,6 +29,7 @@ import { notify } from "@/lib/notify";
 import { reserveCredits, notifyRequestCreditsExhausted, recordCredit } from "@/lib/credits";
 import { getCycleFlags, type CycleFlags } from "@/lib/settings";
 import { IntroError } from "@/lib/intro/errors";
+import { applyIntroOutcome } from "@/lib/intro/outcome";
 import {
   LEGACY_ADMIN_VISIT,
   blockBetween,
@@ -63,6 +72,8 @@ export interface GuardianContact {
 
 export interface IntroState {
   flags: CycleFlags;
+  /** credit_on_interest matches: the introduction the match opened straight into */
+  outcome?: "CHAT" | "FAMILY";
   /** Set when the match is closed: I blocked them, their account is inactive, or nothing is left to do */
   closed: MatchClosure | null;
   credits: number;
@@ -82,7 +93,26 @@ export interface IntroState {
     declinedByMe?: boolean;
     conversationId?: string;
   };
-  myGuardian: { exists: boolean; consented: boolean };
+  myGuardian: {
+    exists: boolean;
+    consented: boolean;
+    /** openedAt matches: my guardian contact is shared on this match (my share stamp is set) */
+    sharedForMatch: boolean;
+    /** openedAt match with an accepted family introduction and my stamp missing: ask me to share */
+    askShare: boolean;
+  };
+}
+
+type ShareStamps = { femaleId: string; femaleGuardianShareAt: Date | null; maleGuardianShareAt: Date | null };
+
+/** Per-match guardian share stamp of one side. */
+function shareStampOf(match: ShareStamps, userId: string): Date | null {
+  return match.femaleId === userId ? match.femaleGuardianShareAt : match.maleGuardianShareAt;
+}
+
+/** The auto-accepted outcome row from applyIntroOutcome: answered at creation (respondedAt === expiresAt). */
+function isOutcomeRow(r: IntroRequest): boolean {
+  return r.status === "ACCEPTED" && !!r.respondedAt && r.respondedAt.getTime() === r.expiresAt.getTime();
 }
 
 async function loadMatchForUser(matchId: string, userId: string) {
@@ -149,7 +179,9 @@ function conversationStatus(c: { status: string; expiresAt: Date }): ChatStatus 
 }
 
 export async function getMatchIntroState(matchId: string, userId: string): Promise<IntroState> {
-  const { match, partnerId } = await loadMatchForUser(matchId, userId);
+  const loaded = await loadMatchForUser(matchId, userId);
+  let { match } = loaded;
+  const { partnerId } = loaded;
   // They blocked me: the match is gone for me
   const block = await blockBetween(userId, partnerId);
   if (block.byThem) throw new IntroError("NOT_FOUND", "التوافق غير موجود");
@@ -161,24 +193,36 @@ export async function getMatchIntroState(matchId: string, userId: string): Promi
     db.parentInfo.findUnique({ where: { userId } }),
     partnerUnavailable(partnerId),
   ]);
-  const base = {
-    flags,
-    credits: me?.matchCredits ?? 0,
-    myGuardian: { exists: !!myGuardian, consented: !!myGuardian?.shareConsentAt },
-  };
+  const guardianBase = { exists: !!myGuardian, consented: !!myGuardian?.shareConsentAt };
+  const base = { flags, credits: me?.matchCredits ?? 0 };
 
   // Closed by a block or an inactive partner: nothing to do, no guardian contact, pending requests cancelled
   if (block.byMe || unavailable) {
     await cancelPendingBetween(userId, partnerId);
     return {
       ...base,
+      myGuardian: { ...guardianBase, sharedForMatch: false, askShare: false },
       closed: block.byMe ? "blocked" : "inactive",
       family: { status: "none" },
       chat: { status: "none" },
     };
   }
 
-  const requests = await db.introRequest.findMany({ where: { matchId }, orderBy: { createdAt: "desc" } });
+  const loadRequests = () => db.introRequest.findMany({ where: { matchId }, orderBy: { createdAt: "desc" } });
+  let requests = await loadRequests();
+
+  // Self-heal: an openedAt match whose outcome step failed gets it on first view (idempotent, no notification)
+  if (match.openedAt && match.suggestionId && !requests.some((r) => r.status === "ACCEPTED")) {
+    const applied = await applyIntroOutcome(match, flags).catch((e: unknown) => {
+      console.error("Lazy intro outcome", e);
+      return "NONE" as const;
+    });
+    if (applied !== "NONE") {
+      match = (await loadMatchForUser(matchId, userId)).match;
+      requests = await loadRequests();
+    }
+  }
+  const openedMatch = !!match.openedAt;
   const endedByUser = chatEndedByUser(match.conversation);
   const { closed } = describeMatch({
     requests,
@@ -199,7 +243,9 @@ export async function getMatchIntroState(matchId: string, userId: string): Promi
     family.status = "accepted";
     family.requestId = acceptedFamily.id;
     const partnerGuardian = await db.parentInfo.findUnique({ where: { userId: partnerId } });
-    if (partnerGuardian?.shareConsentAt) {
+    // openedAt matches also need the partner's per-match share stamp
+    const partnerShares = !openedMatch || !!shareStampOf(match, partnerId);
+    if (partnerGuardian?.shareConsentAt && partnerShares) {
       family.contacts = {
         name: partnerGuardian.parentName,
         relationship: partnerGuardian.relationship,
@@ -241,7 +287,16 @@ export async function getMatchIntroState(matchId: string, userId: string): Promi
     chat.status = "disabled";
   }
 
-  return { ...base, closed, family, chat };
+  const sharedForMatch = openedMatch && !!shareStampOf(match, userId);
+  const outcomeType = openedMatch ? requests.findLast(isOutcomeRow)?.type : undefined;
+  return {
+    ...base,
+    ...(outcomeType && { outcome: outcomeType }),
+    myGuardian: { ...guardianBase, sharedForMatch, askShare: openedMatch && !!acceptedFamily && !sharedForMatch },
+    closed,
+    family,
+    chat,
+  };
 }
 
 // Serialises sends per match within this server process (PM2 fork mode = one process),
@@ -427,6 +482,18 @@ export async function respondToIntroRequest(args: {
 
     if (request.type === "FAMILY") {
       if (recordConsent) await tx.parentInfo.update({ where: { userId }, data: { shareConsentAt: new Date() } });
+      // openedAt match: both sides consented (sender to send, receiver to accept) → share on this match
+      const m = request.match;
+      if (m.openedAt && (!m.femaleGuardianShareAt || !m.maleGuardianShareAt)) {
+        const now = new Date();
+        await tx.mutualMatch.update({
+          where: { id: m.id },
+          data: {
+            ...(!m.femaleGuardianShareAt && { femaleGuardianShareAt: now }),
+            ...(!m.maleGuardianShareAt && { maleGuardianShareAt: now }),
+          },
+        });
+      }
       const visit = request.match.visitRequest;
       if (visit && visit.status === "REQUESTED") {
         await tx.visitRequest.update({
@@ -488,6 +555,36 @@ export async function cancelIntroRequest(args: { requestId: string; userId: stri
     })
     .catch((e: unknown) => console.error("Cancel intro: clear notification", e));
   return { status: "CANCELLED" };
+}
+
+/**
+ * Share my guardian contact on one credit_on_interest match (openedAt set): stamps my side only.
+ * Needs my guardian and global consent — `consent: true` records the global consent here.
+ */
+export async function shareGuardianForMatch(args: {
+  matchId: string;
+  userId: string;
+  consent?: boolean;
+}): Promise<IntroState> {
+  const { matchId, userId, consent } = args;
+  const { match, partnerId } = await loadMatchForUser(matchId, userId);
+  const block = await blockBetween(userId, partnerId);
+  if (block.byThem) throw new IntroError("NOT_FOUND", "التوافق غير موجود");
+  if (block.byMe) throw new IntroError("BLOCKED");
+  if (await partnerUnavailable(partnerId)) throw new IntroError("NOT_ALLOWED", INACTIVE_MESSAGE);
+  if (!match.openedAt) throw new IntroError("NOT_ALLOWED");
+
+  const guardian = await db.parentInfo.findUnique({ where: { userId } });
+  if (!guardian) throw new IntroError("GUARDIAN_REQUIRED");
+  if (!guardian.shareConsentAt) {
+    if (!consent) throw new IntroError("CONSENT_REQUIRED");
+    await db.parentInfo.update({ where: { userId }, data: { shareConsentAt: new Date() } });
+  }
+
+  const field = match.femaleId === userId ? "femaleGuardianShareAt" : "maleGuardianShareAt";
+  // Conditional: a repeat keeps the first stamp
+  await db.mutualMatch.updateMany({ where: { id: matchId, [field]: null }, data: { [field]: new Date() } });
+  return getMatchIntroState(matchId, userId);
 }
 
 /** Consent to share the guardian contact after an accepted family introduction. */

@@ -21,7 +21,7 @@ import { LockedSuggestionCard } from "@/components/suggestions/locked-suggestion
 import { trackEvent } from "@/lib/analytics";
 import { useDashboardData } from "@/contexts/dashboard-context";
 import { describeOption, oppositeGender } from "@/lib/profile-options";
-import { isLockedItem, type FeedItem, type FeedTab, type OpenFeedItem } from "@/lib/suggestions/feed";
+import { isLockedItem, type FeedItem, type FeedTab, type OpenFeedItem } from "@/lib/suggestions/feed-types";
 import type { SuggestEmptyReason } from "@/lib/matching/auto-suggest";
 
 type Notice =

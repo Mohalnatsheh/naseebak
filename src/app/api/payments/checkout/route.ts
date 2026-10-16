@@ -6,9 +6,9 @@ import { getStripe } from "@/lib/stripe";
 // priceJod = display price in JOD, priceUsdCents = Stripe charge in USD cents
 // JOD→USD ~1.41 rate: 3 JOD≈$4.23, 4 JOD≈$5.64, 7 JOD≈$9.87
 const creditPackages: Record<string, { credits: number; priceJod: number; priceUsdCents: number; name: string }> = {
-  credits_3: { credits: 3, priceJod: 3, priceUsdCents: 423, name: "3 اقتراحات" },
-  credits_5: { credits: 5, priceJod: 4, priceUsdCents: 564, name: "5 اقتراحات" },
-  credits_10: { credits: 10, priceJod: 7, priceUsdCents: 987, name: "10 اقتراحات" },
+  credits_3: { credits: 3, priceJod: 3, priceUsdCents: 423, name: "3 أرصدة" },
+  credits_5: { credits: 5, priceJod: 4, priceUsdCents: 564, name: "5 أرصدة" },
+  credits_10: { credits: 10, priceJod: 7, priceUsdCents: 987, name: "10 أرصدة" },
 };
 
 export async function POST(request: Request) {
@@ -34,7 +34,7 @@ export async function POST(request: Request) {
         amount: pkg.priceJod,
         provider: "STRIPE",
         status: "PENDING",
-        description: `شراء ${pkg.credits} اقتراحات`,
+        description: `شراء ${pkg.credits} أرصدة في نصيبك`,
       },
     });
 

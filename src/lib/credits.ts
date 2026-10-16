@@ -1,13 +1,25 @@
 /**
- * Suggestion credits (User.matchCredits).
- * Every suggestion a user receives uses 1 credit. New users start with FREE_MATCH_CREDITS;
- * more are bought in /dashboard/payments (Stripe webhook adds them).
+ * Credits (User.matchCredits). Bought in /dashboard/payments (Stripe webhook adds them).
+ * Legacy mode: every suggestion a user receives uses 1 credit.
+ * Per-request mode (switch `intro_requests_enabled`): suggestions are free (WEEKLY_FREE_SUGGESTIONS
+ * per rolling 7 days) and each family/chat request costs the sender 1 credit, never refunded.
  */
 import { db } from "@/lib/db";
 import { sendPushNotification } from "@/lib/onesignal";
+import { notify } from "@/lib/notify";
+import { getCycleFlags } from "@/lib/settings";
 
-/** Free suggestion credits granted to every new user at registration. */
+/** Free credits granted at registration in legacy mode. */
 export const FREE_MATCH_CREDITS = 2;
+/** Free credits granted at registration in per-request mode. */
+export const NEW_CYCLE_FREE_CREDITS = 3;
+/** Free suggestions per user per rolling 7 days in per-request mode. */
+export const WEEKLY_FREE_SUGGESTIONS = 3;
+
+export async function getRegistrationCredits(): Promise<number> {
+  const { introRequests } = await getCycleFlags();
+  return introRequests ? NEW_CYCLE_FREE_CREDITS : FREE_MATCH_CREDITS;
+}
 
 /**
  * Atomically take `count` credits from the user. Returns false (and takes nothing)
@@ -34,4 +46,15 @@ export async function notifyCreditsExhausted(userId: string): Promise<void> {
   const body = "استخدمت كل رصيد اقتراحاتك. اشحن رصيدك لتستمر باستلام اقتراحات جديدة.";
   await db.notification.create({ data: { userId, type: "PAYMENT", title, body } });
   sendPushNotification({ userId, title, body, url: "/dashboard/payments" });
+}
+
+/** Per-request mode: the user spent their last credit on a request. */
+export async function notifyRequestCreditsExhausted(userId: string): Promise<void> {
+  await notify({
+    userId,
+    type: "PAYMENT",
+    title: "انتهى رصيدك",
+    body: "استخدمت كل رصيدك. اشحن رصيدك لإرسال طلبات تعارف أو محادثة جديدة.",
+    url: "/dashboard/payments",
+  });
 }

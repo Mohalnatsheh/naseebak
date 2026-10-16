@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { registerSchema, normalizePhone } from "@/lib/validations/auth";
 import { getMaintenanceState, isRegistrationOpen } from "@/lib/settings";
-import { FREE_MATCH_CREDITS } from "@/lib/credits";
+import { getRegistrationCredits } from "@/lib/credits";
 import { sendNewUserNotification } from "@/lib/email";
 
 export async function POST(request: Request) {
@@ -71,7 +71,7 @@ export async function POST(request: Request) {
         phone,
         passwordHash: null,
         gender,
-        matchCredits: FREE_MATCH_CREDITS,
+        matchCredits: await getRegistrationCredits(),
       },
       select: {
         id: true,

@@ -49,7 +49,7 @@ const accountLinks: NavLink[] = [
   { href: "/dashboard/photos", label: "صوري", icon: Camera },
   { href: "/dashboard/personality-quiz", label: "اختبار الشخصية", icon: Brain },
   { href: "/dashboard/identity", label: "التحقق من الهوية", icon: FileCheck },
-  { href: "/dashboard/payments", label: "رصيد الاقتراحات", icon: CreditCard },
+  { href: "/dashboard/payments", label: "الرصيد", icon: CreditCard },
   { href: "/dashboard/support", label: "الدعم والملاحظات", icon: LifeBuoy },
   { href: "/dashboard/referral", label: "ادعِ صاحبك", icon: Gift },
 ];

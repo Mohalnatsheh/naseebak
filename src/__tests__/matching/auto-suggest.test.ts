@@ -9,6 +9,8 @@ const db = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/onesignal", () => ({ sendPushNotification: vi.fn() }));
+const flags = vi.hoisted(() => ({ getCycleFlags: vi.fn() }));
+vi.mock("@/lib/settings", () => flags);
 
 import { autoSuggestForUser } from "@/lib/matching/auto-suggest";
 
@@ -59,6 +61,7 @@ beforeEach(() => {
   db.notification.create.mockResolvedValue({});
   db.user.updateMany.mockResolvedValue({ count: 1 });
   db.user.update.mockResolvedValue({});
+  flags.getCycleFlags.mockResolvedValue({ introRequests: false, chat: false });
 });
 
 describe("autoSuggestForUser", () => {
@@ -174,5 +177,43 @@ describe("autoSuggestForUser", () => {
 
     expect(await autoSuggestForUser("c5")).toBe(1);
     expect(db.user.update).toHaveBeenCalledWith({ where: { id: "c5" }, data: { matchCredits: { increment: 1 } } });
+  });
+});
+
+describe("autoSuggestForUser in per-request credits mode", () => {
+  beforeEach(() => {
+    flags.getCycleFlags.mockResolvedValue({ introRequests: true, chat: false });
+  });
+
+  it("suggests for free, even with 0 credits", async () => {
+    db.user.findUnique.mockResolvedValue(person("r1", "MALE", fullProfile("MALE"), 0));
+    db.user.findMany.mockResolvedValue(["a", "b", "c", "d"].map((id) => person(id, "FEMALE")));
+
+    expect(await autoSuggestForUser("r1")).toBe(3);
+    expect(db.user.updateMany).not.toHaveBeenCalled(); // no reserveCredits
+    const types = db.notification.create.mock.calls.map((c) => c[0].data.type);
+    expect(types).toEqual(["SUGGESTION"]); // no "credits exhausted" notice
+  });
+
+  it("caps suggestions at 3 per rolling 7 days", async () => {
+    db.user.findUnique.mockResolvedValue(person("r2", "MALE"));
+    db.user.findMany.mockResolvedValue(["a", "b", "c", "d"].map((id) => person(id, "FEMALE")));
+    db.suggestion.count.mockImplementation(async ({ where }: { where: { createdAt?: unknown } }) =>
+      where.createdAt ? 2 : 0
+    );
+
+    expect(await autoSuggestForUser("r2")).toBe(1);
+    expect(db.suggestion.createMany.mock.calls[0][0].data).toHaveLength(1);
+  });
+
+  it("creates nothing once the weekly cap is reached", async () => {
+    db.user.findUnique.mockResolvedValue(person("r3", "MALE"));
+    db.user.findMany.mockResolvedValue([person("a", "FEMALE")]);
+    db.suggestion.count.mockImplementation(async ({ where }: { where: { createdAt?: unknown } }) =>
+      where.createdAt ? 3 : 0
+    );
+
+    expect(await autoSuggestForUser("r3")).toBe(0);
+    expect(db.suggestion.createMany).not.toHaveBeenCalled();
   });
 });

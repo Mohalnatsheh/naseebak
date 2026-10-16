@@ -39,14 +39,15 @@ export async function POST(request: Request) {
 
         const creditsNum = parseInt(credits, 10);
 
-        // Update payment to COMPLETED with the payment intent ID
-        await db.payment.update({
-          where: { id: paymentId },
+        // Mark COMPLETED once — Stripe may deliver the same event more than once
+        const marked = await db.payment.updateMany({
+          where: { id: paymentId, status: { not: "COMPLETED" } },
           data: {
             status: "COMPLETED",
             providerTxId: (session.payment_intent as string) || session.id,
           },
         });
+        if (marked.count === 0) break;
 
         // Add credits to user
         await db.user.update({
@@ -60,7 +61,7 @@ export async function POST(request: Request) {
             userId,
             type: "PAYMENT",
             title: "تم شراء الرصيد بنجاح",
-            body: `تمت إضافة ${creditsNum} اقتراحات إلى رصيدك.`,
+            body: `تمت إضافة ${creditsNum} رصيد إلى حسابك.`,
           },
         });
 
@@ -68,7 +69,7 @@ export async function POST(request: Request) {
         sendPushNotification({
           userId,
           title: "تم شراء الرصيد بنجاح",
-          body: `تمت إضافة ${creditsNum} اقتراحات إلى رصيدك.`,
+          body: `تمت إضافة ${creditsNum} رصيد إلى حسابك.`,
           url: "/dashboard/payments",
         });
 

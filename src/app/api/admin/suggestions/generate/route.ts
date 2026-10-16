@@ -3,7 +3,8 @@ import { requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { calculateCompatibility } from "@/lib/matching/score";
 import { sendPushNotification } from "@/lib/onesignal";
-import { notifyCreditsExhausted, reserveCredits } from "@/lib/credits";
+import { notifyCreditsExhausted, reserveCredits, WEEKLY_FREE_SUGGESTIONS } from "@/lib/credits";
+import { getCycleFlags } from "@/lib/settings";
 
 export async function POST() {
   try {
@@ -55,6 +56,14 @@ export async function POST() {
     let suggestionsCreated = 0;
     const MAX_SUGGESTIONS_PER_USER = 3;
 
+    // Per-request mode: suggestions are free, capped per rolling 7 days
+    const { introRequests: perRequestCredits } = await getCycleFlags();
+    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const thisWeek = perRequestCredits
+      ? await db.suggestion.groupBy({ by: ["recipientId"], where: { createdAt: { gte: weekAgo } }, _count: true })
+      : [];
+    const thisWeekByUser = new Map(thisWeek.map((r) => [r.recipientId, r._count]));
+
     for (const user of eligibleUsers) {
       // Find candidates of opposite gender
       const candidates = eligibleUsers.filter((c) => {
@@ -77,13 +86,16 @@ export async function POST() {
       }));
       scored.sort((a, b) => b.score - a.score);
 
-      // Take top N, limited by the recipient suggestion credits (1 credit per suggestion)
-      const topCandidates = scored.slice(0, Math.min(MAX_SUGGESTIONS_PER_USER, Math.max(0, user.matchCredits)));
+      // Take top N — limited by credits (legacy: 1 credit per suggestion) or by the weekly cap
+      const limit = perRequestCredits
+        ? WEEKLY_FREE_SUGGESTIONS - (thisWeekByUser.get(user.id) ?? 0)
+        : user.matchCredits;
+      const topCandidates = scored.slice(0, Math.min(MAX_SUGGESTIONS_PER_USER, Math.max(0, limit)));
       let createdForUser = 0;
 
       for (const { candidate, score } of topCandidates) {
         if (score < 30) continue; // Skip very low scores
-        if (!(await reserveCredits(user.id, 1))) break;
+        if (!perRequestCredits && !(await reserveCredits(user.id, 1))) break;
 
         await db.suggestion.create({
           data: {
@@ -118,7 +130,7 @@ export async function POST() {
         createdForUser++;
       }
 
-      if (createdForUser > 0 && user.matchCredits - createdForUser <= 0) {
+      if (!perRequestCredits && createdForUser > 0 && user.matchCredits - createdForUser <= 0) {
         await notifyCreditsExhausted(user.id);
       }
     }

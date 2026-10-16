@@ -7,7 +7,8 @@ import { db } from "@/lib/db";
 import { calculateCompatibility } from "@/lib/matching/score";
 import { calculateCompleteness, SUGGESTIONS_MIN_COMPLETENESS } from "@/lib/profile-completeness";
 import { sendPushNotification } from "@/lib/onesignal";
-import { notifyCreditsExhausted, refundCredits, reserveCredits } from "@/lib/credits";
+import { notifyCreditsExhausted, refundCredits, reserveCredits, WEEKLY_FREE_SUGGESTIONS } from "@/lib/credits";
+import { getCycleFlags } from "@/lib/settings";
 
 const MAX_NEW_SUGGESTIONS = 3;
 const MIN_SCORE = 30;
@@ -48,13 +49,23 @@ async function generate(userId: string): Promise<number> {
     select: { ...scoringSelect, role: true, isDeactivated: true, matchCredits: true },
   });
   if (!user || user.role !== "USER" || user.isDeactivated || !user.profile?.isComplete) return 0;
-  // Each suggestion uses 1 credit — none left means the user must recharge
-  if (user.matchCredits <= 0) return 0;
+  // Per-request mode: suggestions are free (capped weekly); credits are spent on intro requests.
+  // Legacy mode: each suggestion uses 1 credit — none left means the user must recharge.
+  const { introRequests: perRequestCredits } = await getCycleFlags();
+  if (!perRequestCredits && user.matchCredits <= 0) return 0;
   if (calculateCompleteness(user).total < SUGGESTIONS_MIN_COMPLETENESS) return 0;
 
   // Only top up when the user has nothing waiting
   const pending = await db.suggestion.count({ where: { recipientId: userId, status: "PENDING" } });
   if (pending > 0) return 0;
+
+  let limit = Math.min(MAX_NEW_SUGGESTIONS, user.matchCredits);
+  if (perRequestCredits) {
+    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const thisWeek = await db.suggestion.count({ where: { recipientId: userId, createdAt: { gte: weekAgo } } });
+    limit = Math.min(MAX_NEW_SUGGESTIONS, WEEKLY_FREE_SUGGESTIONS - thisWeek);
+    if (limit <= 0) return 0;
+  }
 
   const [suggested, matches, blocks] = await Promise.all([
     db.suggestion.findMany({
@@ -93,7 +104,7 @@ async function generate(userId: string): Promise<number> {
     .map((c) => ({ candidate: c, score: calculateCompatibility(user, c) }))
     .filter(({ score }) => score >= MIN_SCORE)
     .sort((a, b) => b.score - a.score)
-    .slice(0, Math.min(MAX_NEW_SUGGESTIONS, user.matchCredits));
+    .slice(0, limit);
 
   if (top.length === 0) {
     lastEmptyRun.set(userId, Date.now());
@@ -102,7 +113,7 @@ async function generate(userId: string): Promise<number> {
   lastEmptyRun.delete(userId);
 
   // Take the credits first (atomic), then create; unused credits are given back
-  if (!(await reserveCredits(userId, top.length))) return 0;
+  if (!perRequestCredits && !(await reserveCredits(userId, top.length))) return 0;
 
   const created = await db.suggestion.createMany({
     data: top.map(({ candidate, score }) => ({
@@ -113,7 +124,7 @@ async function generate(userId: string): Promise<number> {
     })),
     skipDuplicates: true,
   });
-  await refundCredits(userId, top.length - created.count);
+  if (!perRequestCredits) await refundCredits(userId, top.length - created.count);
   if (created.count === 0) return 0;
 
   const title = "اقتراحات توافق جديدة";
@@ -124,7 +135,7 @@ async function generate(userId: string): Promise<number> {
   await db.notification.create({ data: { userId, type: "SUGGESTION", title, body } });
   sendPushNotification({ userId, title, body, url: "/dashboard/suggestions" });
 
-  if (user.matchCredits - created.count <= 0) await notifyCreditsExhausted(userId);
+  if (!perRequestCredits && user.matchCredits - created.count <= 0) await notifyCreditsExhausted(userId);
 
   return created.count;
 }

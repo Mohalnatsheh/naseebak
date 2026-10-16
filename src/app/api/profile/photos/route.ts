@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { maybeAwardReferral } from "@/lib/referral";
 import { uploadBase64ToBunny } from "@/lib/bunny";
 import { randomUUID } from "crypto";
 
@@ -106,6 +107,7 @@ export async function POST(request: Request) {
       },
     });
 
+    await maybeAwardReferral(session.user.id);
     return NextResponse.json({ message: "تم رفع الصورة", photo });
   } catch (error) {
     console.error("Photo upload error:", error);

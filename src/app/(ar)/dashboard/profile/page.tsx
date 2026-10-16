@@ -407,6 +407,16 @@ export default function ProfilePage() {
                   <Camera className="h-5 w-5 text-white" />
                 )}
               </button>
+              {/* Touch screens have no hover: always-visible camera badge */}
+              <button
+                type="button"
+                onClick={() => avatarInputRef.current?.click()}
+                disabled={avatarUploading}
+                aria-label="تغيير الصورة"
+                className="absolute -bottom-1.5 -start-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-card text-primary shadow-md ring-2 ring-primary md:hidden"
+              >
+                <Camera className="h-3.5 w-3.5" />
+              </button>
               {user.identityDoc?.status === "APPROVED" && (
                 <div className="absolute -bottom-1.5 -end-1.5 h-7 w-7 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-500 flex items-center justify-center shadow-md ring-2 ring-primary">
                   <Shield className="h-3.5 w-3.5 text-white" />

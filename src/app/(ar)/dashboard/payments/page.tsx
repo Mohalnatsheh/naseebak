@@ -456,7 +456,7 @@ function PaymentsContent() {
                       }`}
                     >
                       <Gem className="h-3.5 w-3.5" />
-                      {pkg.credits} {perRequest ? "طلبات" : "اقتراحات"}
+                      {pkg.credits} {perRequest ? "أرصدة" : "اقتراحات"}
                     </span>
                   </div>
 

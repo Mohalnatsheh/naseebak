@@ -5,6 +5,7 @@ import { PushPermissionPrompt } from "@/components/shared/push-permission-prompt
 import { OnboardingGuide } from "@/components/shared/onboarding-guide";
 import { DashboardDataProvider } from "@/contexts/dashboard-context";
 import { Toaster } from "@/components/ui/sonner";
+import { DashboardFooter } from "@/components/shared/dashboard-footer";
 
 export default function DashboardLayout({
   children,
@@ -23,9 +24,7 @@ export default function DashboardLayout({
               <OnboardingGuide />
               {children}
             </div>
-            <footer className="border-t py-4 text-center text-sm text-muted-foreground">
-              © {new Date().getFullYear()} نصيبك - جميع الحقوق محفوظة
-            </footer>
+            <DashboardFooter />
           </main>
         </div>
         <Toaster position="top-center" dir="rtl" richColors closeButton />

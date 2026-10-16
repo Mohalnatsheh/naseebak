@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { maybeAwardReferral } from "@/lib/referral";
 
 const quizQuestions = [
   // --- الاجتماعية (Extraversion) - 4 questions ---
@@ -172,6 +173,7 @@ export async function POST(request: Request) {
       },
     });
 
+    await maybeAwardReferral(session.user.id);
     return NextResponse.json({
       message: "تم حفظ نتيجة اختبار الشخصية بنجاح",
       result: {

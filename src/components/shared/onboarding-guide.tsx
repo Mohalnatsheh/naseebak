@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useDashboardData } from "@/contexts/dashboard-context";
 import { Heart, User, Camera, Brain, Shield, Sparkles, ChevronLeft, ChevronRight, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -14,7 +15,7 @@ interface Step {
   link?: string;
 }
 
-const steps: Step[] = [
+const legacySteps: Step[] = [
   {
     icon: Heart,
     title: "مرحباً بك في نصيبك",
@@ -41,13 +42,43 @@ const steps: Step[] = [
   {
     icon: Sparkles,
     title: "أنت جاهز!",
-    description: "بعد إكمال جميع الخطوات، ستبدأ بتلقي اقتراحات التوافق. بالتوفيق!",
-    link: "/dashboard/suggestions",
+    description: "بعد إكمال ملفك ستبدأ بتلقي اقتراحات التوافق. بالتوفيق!",
   },
 ];
 
+const newCycleSteps: Step[] = [
+  {
+    icon: Heart,
+    title: "مرحباً بك في نصيبك",
+    description: "طريقة محترمة وآمنة للوصول إلى شريك الحياة، بستر وبرضا العائلتين.",
+  },
+  {
+    icon: User,
+    title: "إعداد قصير لملفك",
+    description: "بضع خطوات أساسية فقط، والباقي اختياري يمكنك إكماله لاحقاً.",
+    link: "/dashboard/profile/setup",
+  },
+  {
+    icon: Sparkles,
+    title: "اقتراحات أسبوعية مجانية",
+    description: "تصلك اقتراحات تناسبك كل أسبوع. اضغط «مهتم» أو «ليس الآن»، ولا يعرف أحد قرارك إلا عند التوافق.",
+    link: "/dashboard/suggestions",
+  },
+  {
+    icon: Shield,
+    title: "بعد التوافق تختار طريقة التعارف",
+    description: "تعارف عائلي تتبادل فيه العائلتان بيانات وليّ الأمر، أو محادثة قصيرة داخل نصيبك قبل الزيارة.",
+    link: "/dashboard/matches",
+  },
+];
+
+export const ONBOARDING_DONE_EVENT = "naseeb:onboarding-done";
+
 export function OnboardingGuide() {
   const router = useRouter();
+  const pathname = usePathname();
+  const { counts } = useDashboardData();
+  const steps = counts.flags.introRequests ? newCycleSteps : legacySteps;
   const [show, setShow] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
 
@@ -59,17 +90,22 @@ export function OnboardingGuide() {
   }, []);
 
   function dismiss() {
-    localStorage.setItem(STORAGE_KEY, "true");
+    try {
+      localStorage.setItem(STORAGE_KEY, "true");
+    } catch {
+      // ignore
+    }
     setShow(false);
+    window.dispatchEvent(new CustomEvent(ONBOARDING_DONE_EVENT));
   }
 
-  function handleFinish() {
+  function go(link: string) {
     dismiss();
-    const lastStep = steps[steps.length - 1];
-    if (lastStep.link) router.push(lastStep.link);
+    router.push(link);
   }
 
-  if (!show) return null;
+  // Never cover the setup wizard itself
+  if (!show || pathname.startsWith("/dashboard/profile/setup")) return null;
 
   const step = steps[currentStep];
   const Icon = step.icon;
@@ -91,7 +127,7 @@ export function OnboardingGuide() {
         <div className="p-8 pt-12 text-center">
           {/* Icon */}
           <div className={`mx-auto mb-6 h-20 w-20 rounded-3xl flex items-center justify-center shadow-lg ${
-            isLast ? "bg-gradient-to-br from-emerald-500 to-emerald-600" : "bg-gradient-to-br from-primary to-secondary"
+            "bg-gradient-to-br from-primary to-secondary"
           }`}>
             <Icon className="h-10 w-10 text-white" />
           </div>
@@ -101,6 +137,15 @@ export function OnboardingGuide() {
           <p className="text-sm text-muted-foreground leading-relaxed max-w-xs mx-auto">
             {step.description}
           </p>
+          {step.link && !isLast && (
+            <button
+              type="button"
+              onClick={() => go(step.link!)}
+              className="mt-4 text-sm font-semibold text-primary underline-offset-4 hover:underline"
+            >
+              اذهب إليها الآن
+            </button>
+          )}
         </div>
 
         {/* Progress dots */}
@@ -133,17 +178,14 @@ export function OnboardingGuide() {
           </Button>
 
           {isLast ? (
-            <Button
-              onClick={handleFinish}
-              className="rounded-xl bg-gradient-to-l from-primary to-secondary text-white font-semibold px-6"
-            >
-              ابدأ الآن
+            <Button onClick={() => go("/dashboard/profile/setup")} className="rounded-xl font-semibold px-6">
+              ابدأ بإعداد ملفك
               <Sparkles className="h-4 w-4 mr-1" />
             </Button>
           ) : (
             <Button
               onClick={() => setCurrentStep(currentStep + 1)}
-              className="rounded-xl bg-gradient-to-l from-primary to-secondary text-white font-semibold px-6"
+              className="rounded-xl font-semibold px-6"
             >
               التالي
               <ChevronLeft className="h-4 w-4 mr-1" />

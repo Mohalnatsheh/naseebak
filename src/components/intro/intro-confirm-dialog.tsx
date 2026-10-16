@@ -92,7 +92,7 @@ export function IntroConfirmDialog({
           <DialogTitle className="text-lg">{title}</DialogTitle>
           <DialogDescription className="text-right leading-relaxed">
             {mode === "decline"
-              ? `سيتم إبلاغ ${partnerName} بلطف أن الطلب لم يُقبل حالياً، ولن يتمكن من إرسال هذا النوع من الطلبات مرة أخرى لهذا التوافق.`
+              ? `سيتم إبلاغ ${partnerName} بلطف أن الطلب لم يُقبل حالياً، ولن يكون بالإمكان إرسال هذا النوع من الطلبات مرة أخرى لهذا التوافق.`
               : mode === "accept"
                 ? isFamily
                   ? `بعد القبول ستظهر بيانات وليّ أمرك لعائلة ${partnerName}، وتظهر لك بيانات وليّ أمره/أمرها.`

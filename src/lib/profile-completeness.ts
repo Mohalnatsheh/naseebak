@@ -233,8 +233,9 @@ function generateTips(sections: CompletenessSection[]): StrengthTip[] {
 }
 
 /**
- * Who qualifies for suggestions. New cycle (intro_requests_enabled): a completed short setup
- * (profile.isComplete). Legacy: SUGGESTIONS_MIN_COMPLETENESS% completeness.
+ * Who can receive suggestions.
+ * New cycle (`intro_requests_enabled`): finishing the short setup (`profile.isComplete`) is enough,
+ * since the short onboarding ends well below 50%. Legacy: at least SUGGESTIONS_MIN_COMPLETENESS %.
  */
 export function meetsSuggestionGate(
   user: { profile?: { isComplete?: boolean } | null } & Parameters<typeof calculateCompleteness>[0],
@@ -242,4 +243,9 @@ export function meetsSuggestionGate(
 ): boolean {
   if (newCycle) return !!user.profile?.isComplete;
   return calculateCompleteness(user).total >= SUGGESTIONS_MIN_COMPLETENESS;
+}
+
+/** Client-side version from the values the dashboard already has. */
+export function qualifiesForSuggestions(args: { completenessTotal: number; isComplete: boolean; newCycle: boolean }): boolean {
+  return args.newCycle ? args.isComplete : args.completenessTotal >= SUGGESTIONS_MIN_COMPLETENESS;
 }

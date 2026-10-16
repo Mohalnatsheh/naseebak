@@ -32,8 +32,8 @@ interface UserRow {
 const statusStyles: Record<string, string> = {
   PENDING: "text-amber-600 border-amber-300",
   VERIFIED: "text-green-600 border-green-300",
-  REJECTED: "text-red-600 border-red-300",
-  SUSPENDED: "text-red-600 border-red-300",
+  REJECTED: "text-destructive border-destructive/30",
+  SUSPENDED: "text-destructive border-destructive/30",
 };
 
 export default function AdminUsersPage() {
@@ -49,26 +49,38 @@ export default function AdminUsersPage() {
   const [suspendingId, setSuspendingId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkSuspending, setBulkSuspending] = useState(false);
+  const [notice, setNotice] = useState<{ kind: "success" | "error"; text: string } | null>(null);
 
   useEffect(() => {
+    // A selection only applies to the rows on screen
+    setSelectedIds(new Set());
     fetchUsers();
   }, [page]);
 
   async function fetchUsers(resetPage = false) {
     setLoading(true);
     const p = resetPage ? 1 : page;
-    if (resetPage) setPage(1);
+    if (resetPage) {
+      setPage(1);
+      setSelectedIds(new Set());
+    }
     try {
       const params = new URLSearchParams({ page: String(p) });
       if (search) params.set("search", search);
       if (gender) params.set("gender", gender);
       if (status) params.set("status", status);
       const res = await fetch(`/api/admin/users?${params}`);
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setNotice({ kind: "error", text: data.error || "Could not load users" });
+        setUsers([]);
+        return;
+      }
       setUsers(data.users || []);
       setTotalPages(data.totalPages || 1);
     } catch (err) {
       console.error(err);
+      setNotice({ kind: "error", text: "Could not load users. Check your connection and try again." });
     } finally {
       setLoading(false);
     }
@@ -97,19 +109,33 @@ export default function AdminUsersPage() {
     }
   }
 
-  async function handleBulkSuspend() {
+  async function handleBulkSuspend(action: "suspend" | "unsuspend") {
     if (selectedIds.size === 0) return;
-    const action = users.find((u) => selectedIds.has(u.id))?.status === "SUSPENDED" ? "unsuspend" : "suspend";
-    if (!confirm(`Are you sure you want to ${action} ${selectedIds.size} user(s)?`)) return;
+    const count = selectedIds.size;
+    if (!confirm(`Are you sure you want to ${action} ${count} user(s)?`)) return;
     setBulkSuspending(true);
+    setNotice(null);
     try {
-      for (const userId of selectedIds) {
-        await fetch(`/api/admin/users/${userId}/suspend`, { method: "PUT" });
+      const res = await fetch("/api/admin/users/bulk-suspend", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, userIds: [...selectedIds] }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setNotice({ kind: "error", text: data.error || `Could not ${action} the selected users` });
+        return;
       }
+      const verb = action === "suspend" ? "Suspended" : "Unsuspended";
+      const parts = [`${verb} ${data.changed} user(s)`];
+      if (data.unchanged) parts.push(`${data.unchanged} already ${action === "suspend" ? "suspended" : "active"}`);
+      if (data.failed?.length) parts.push(`${data.failed.length} failed (${data.failed[0].error})`);
+      setNotice({ kind: data.failed?.length ? "error" : "success", text: parts.join(" · ") });
       setSelectedIds(new Set());
       await fetchUsers();
     } catch (err) {
       console.error(err);
+      setNotice({ kind: "error", text: "Network error — please try again" });
     } finally {
       setBulkSuspending(false);
     }
@@ -118,11 +144,18 @@ export default function AdminUsersPage() {
   async function handleSuspend(e: React.MouseEvent, userId: string) {
     e.stopPropagation();
     setSuspendingId(userId);
+    setNotice(null);
     try {
-      await fetch(`/api/admin/users/${userId}/suspend`, { method: "PUT" });
+      const res = await fetch(`/api/admin/users/${userId}/suspend`, { method: "PUT" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setNotice({ kind: "error", text: data.error || "Could not change the suspension" });
+        return;
+      }
       await fetchUsers();
     } catch (err) {
       console.error(err);
+      setNotice({ kind: "error", text: "Network error — please try again" });
     } finally {
       setSuspendingId(null);
     }
@@ -173,6 +206,19 @@ export default function AdminUsersPage() {
         </Button>
       </form>
 
+      {notice && (
+        <div
+          className={`flex items-start justify-between gap-3 rounded-lg border px-3 py-2 text-sm ${
+            notice.kind === "success"
+              ? "border-green-300 bg-green-50 text-green-800"
+              : "border-destructive/30 bg-destructive/10 text-destructive"
+          }`}
+        >
+          <span>{notice.text}</span>
+          <button onClick={() => setNotice(null)} className="text-xs underline shrink-0">Dismiss</button>
+        </div>
+      )}
+
       {/* Bulk actions bar */}
       {selectedIds.size > 0 && (
         <div className="flex flex-wrap items-center gap-3 p-3 bg-primary/5 border rounded-lg">
@@ -180,11 +226,20 @@ export default function AdminUsersPage() {
           <Button
             variant="destructive"
             size="sm"
-            onClick={handleBulkSuspend}
+            onClick={() => handleBulkSuspend("suspend")}
             disabled={bulkSuspending}
           >
             {bulkSuspending ? <Loader2 className="h-3 w-3 animate-spin me-1" /> : <Ban className="h-3 w-3 me-1" />}
-            Suspend / Unsuspend
+            Suspend
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handleBulkSuspend("unsuspend")}
+            disabled={bulkSuspending}
+          >
+            <ShieldCheck className="h-3 w-3 me-1" />
+            Unsuspend
           </Button>
           <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())}>
             Clear
@@ -287,7 +342,7 @@ export default function AdminUsersPage() {
                           {u.status}
                         </Badge>
                         {u.isDeactivated && (
-                          <Badge variant="outline" className="text-xs text-red-600 ms-1">Deactivated</Badge>
+                          <Badge variant="outline" className="text-xs text-destructive ms-1">Deactivated</Badge>
                         )}
                         {u.isFlagged && (
                           <Badge variant="outline" className="text-xs text-destructive border-destructive/30 ms-1">

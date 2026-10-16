@@ -33,14 +33,16 @@ interface UserDetail {
   updatedAt: string;
   profile: Record<string, unknown> | null;
   personalityResult: { personalityType: string | null; vector: number[]; createdAt: string } | null;
-  parentInfo: { parentName: string; parentPhone: string; relationship: string; address: string | null; notes: string | null } | null;
+  parentInfo: {
+    parentName: string; parentPhone: string; relationship: string; address: string | null; notes: string | null;
+    shareConsentAt: string | null;
+  } | null;
   identityDoc: {
     id: string; documentType: string; frontImageUrl: string; backImageUrl: string | null;
     status: string; rejectionReason: string | null; reviewNotes: string | null;
     reviewedAt: string | null; createdAt: string;
   } | null;
   photos: { id: string; url: string; isPrimary: boolean; order: number; createdAt: string }[];
-  subscriptions: { id: string; plan: string; suggestionsLeft: number; status: string; startsAt: string; expiresAt: string }[];
   _count: {
     receivedSuggestions: number; givenSuggestions: number;
     matchesAsFemale: number; matchesAsMale: number;
@@ -71,7 +73,7 @@ interface CycleData {
   }[];
   chats: {
     id: string; other: PersonRef; status: string; createdAt: string; expiresAt: string; extended: boolean;
-    endedBy: "user" | "other" | null; endedAt: string | null;
+    endedBy: "user" | "other" | "admin" | null; endedByAdmin: boolean; endedAt: string | null;
     messages: { total: number; byUser: number; byOther: number };
   }[];
   ledger: {
@@ -138,9 +140,13 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
   const [loading, setLoading] = useState(true);
   const [suspending, setSuspending] = useState(false);
   const [creditsDialogOpen, setCreditsDialogOpen] = useState(false);
-  const [newCredits, setNewCredits] = useState("");
+  const [creditsDelta, setCreditsDelta] = useState("");
+  const [creditsNote, setCreditsNote] = useState("");
+  const [creditsError, setCreditsError] = useState("");
   const [savingCredits, setSavingCredits] = useState(false);
   const [flagging, setFlagging] = useState(false);
+  const [actionError, setActionError] = useState("");
+  const [endingChatId, setEndingChatId] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<{
     asRecipient: SuggestionRow[];
     asCandidate: SuggestionRow[];
@@ -183,37 +189,87 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
 
   async function handleSuspend() {
     if (!user) return;
+    const suspend = user.status !== "SUSPENDED";
+    if (suspend && !confirm("Suspend this user? Their active chats will be ended and they will be signed out of the app.")) return;
     setSuspending(true);
+    setActionError("");
     try {
       const res = await fetch(`/api/admin/users/${id}/suspend`, { method: "PUT" });
       if (res.ok) {
-        await fetchUser();
+        await Promise.all([fetchUser(), fetchCycle()]);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setActionError(data.error || `Could not ${suspend ? "suspend" : "unsuspend"} this user`);
       }
     } catch (err) {
       console.error(err);
+      setActionError("Network error — please try again");
     } finally {
       setSuspending(false);
     }
   }
 
+  function openCreditsEditor() {
+    setCreditsDelta("");
+    setCreditsNote("");
+    setCreditsError("");
+    setCreditsDialogOpen(!creditsDialogOpen);
+  }
+
   async function handleSaveCredits() {
-    const credits = parseInt(newCredits);
-    if (isNaN(credits) || credits < 0) return;
+    const trimmed = creditsDelta.trim();
+    const delta = Number(trimmed);
+    if (!/^[+-]?\d+$/.test(trimmed) || delta === 0) {
+      setCreditsError("Enter a non-zero whole number, e.g. +3 or -1");
+      return;
+    }
+    if (user && user.matchCredits + delta < 0) {
+      setCreditsError(`The balance can't go below 0 (current: ${user.matchCredits})`);
+      return;
+    }
+    if (!creditsNote.trim()) {
+      setCreditsError("Add a short reason for the change");
+      return;
+    }
     setSavingCredits(true);
+    setCreditsError("");
     try {
       const res = await fetch(`/api/admin/users/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ matchCredits: credits }),
+        body: JSON.stringify({ creditsDelta: delta, note: creditsNote.trim() }),
       });
       if (res.ok) {
         setCreditsDialogOpen(false);
         await Promise.all([fetchUser(), fetchCycle()]);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setCreditsError(data.error || "Could not save the credits change");
       }
     } catch (err) {
       console.error(err);
+      setCreditsError("Network error — please try again");
     } finally {
       setSavingCredits(false);
+    }
+  }
+
+  async function handleEndChat(chatId: string) {
+    if (!confirm("End this chat for both people? They will be notified. This can't be undone.")) return;
+    setEndingChatId(chatId);
+    setActionError("");
+    try {
+      const res = await fetch(`/api/admin/chats/${chatId}/end`, { method: "POST" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setActionError(data.error || "Could not end this chat");
+      }
+      await fetchCycle();
+    } catch (err) {
+      console.error(err);
+      setActionError("Network error — please try again");
+    } finally {
+      setEndingChatId(null);
     }
   }
 
@@ -238,6 +294,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
   async function handleToggleFlag() {
     if (!user) return;
     setFlagging(true);
+    setActionError("");
     try {
       const res = await fetch(`/api/admin/users/${id}`, {
         method: "PATCH",
@@ -247,9 +304,15 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
           flagReason: !user.isFlagged ? "Manually flagged by admin" : null,
         }),
       });
-      if (res.ok) await fetchUser();
+      if (res.ok) {
+        await fetchUser();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setActionError(data.error || `Could not ${user.isFlagged ? "unflag" : "flag"} this user`);
+      }
     } catch (err) {
       console.error(err);
+      setActionError("Network error — please try again");
     } finally {
       setFlagging(false);
     }
@@ -339,31 +402,53 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
           <Button
             variant="outline"
             size="sm"
-            onClick={() => { setNewCredits(String(user.matchCredits)); setCreditsDialogOpen(!creditsDialogOpen); }}
+            onClick={openCreditsEditor}
           >
             <CreditCard className="h-4 w-4 me-2" /> Credits: {user.matchCredits}
           </Button>
         </div>
       </div>
 
-      {/* Credits inline editor */}
+      {actionError && (
+        <div className="flex items-start justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          <span>{actionError}</span>
+          <button onClick={() => setActionError("")} className="text-xs underline shrink-0">Dismiss</button>
+        </div>
+      )}
+
+      {/* Credits inline editor: add or remove, with a reason (kept in the credit history) */}
       {creditsDialogOpen && (
         <Card>
-          <CardContent className="pt-6">
+          <CardContent className="pt-6 space-y-3">
             <div className="flex flex-wrap items-center gap-3">
-              <label className="text-sm font-medium">Adjust Credits:</label>
+              <label htmlFor="credits-delta" className="text-sm font-medium">Change credits by:</label>
               <Input
-                type="number"
-                min="0"
-                value={newCredits}
-                onChange={(e) => setNewCredits(e.target.value)}
-                className="w-32"
+                id="credits-delta"
+                inputMode="numeric"
+                placeholder="+3 or -1"
+                value={creditsDelta}
+                onChange={(e) => setCreditsDelta(e.target.value)}
+                className="w-28"
+              />
+              <Input
+                aria-label="Reason"
+                placeholder="Reason (required), e.g. compensation for a bug"
+                maxLength={200}
+                value={creditsNote}
+                onChange={(e) => setCreditsNote(e.target.value)}
+                className="flex-1 min-w-[220px]"
               />
               <Button size="sm" onClick={handleSaveCredits} disabled={savingCredits}>
                 {savingCredits ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
               </Button>
               <Button size="sm" variant="ghost" onClick={() => setCreditsDialogOpen(false)}>Cancel</Button>
             </div>
+            <p className="text-xs text-muted-foreground">
+              Current balance: {user.matchCredits}
+              {/^[+-]?\d+$/.test(creditsDelta.trim()) && Number(creditsDelta) !== 0 &&
+                ` → ${user.matchCredits + Number(creditsDelta)}`}
+            </p>
+            {creditsError && <p className="text-sm text-destructive">{creditsError}</p>}
           </CardContent>
         </Card>
       )}
@@ -504,33 +589,13 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
                 <InfoRow label="Relationship" value={user.parentInfo.relationship} />
                 <InfoRow label="Address" value={user.parentInfo.address || "—"} />
                 {user.parentInfo.notes && <InfoRow label="Notes" value={user.parentInfo.notes} />}
+                <InfoRow
+                  label="Share consent"
+                  value={user.parentInfo.shareConsentAt ? `Consented on ${formatDate(user.parentInfo.shareConsentAt)}` : "Not consented"}
+                />
               </div>
             ) : (
               <p className="text-muted-foreground">No parent info</p>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Subscriptions */}
-        <Card>
-          <CardHeader><CardTitle className="flex items-center gap-2"><CreditCard className="h-5 w-5" /> Subscriptions</CardTitle></CardHeader>
-          <CardContent>
-            {user.subscriptions.length > 0 ? (
-              <div className="space-y-2">
-                {user.subscriptions.map((sub) => (
-                  <div key={sub.id} className="flex items-center justify-between text-sm border rounded p-2">
-                    <div>
-                      <span className="font-medium">{sub.plan}</span>
-                      <span className="text-muted-foreground ml-2">({sub.suggestionsLeft} left)</span>
-                    </div>
-                    <Badge className={sub.status === "ACTIVE" ? "bg-green-100 text-green-800" : "bg-muted text-muted-foreground"}>
-                      {sub.status}
-                    </Badge>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">No subscriptions</p>
             )}
           </CardContent>
         </Card>
@@ -540,17 +605,20 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
           <CardHeader><CardTitle>Account Stats</CardTitle></CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 gap-3 text-sm">
-              <StatItem label="Received Suggestions" value={user._count.receivedSuggestions} />
-              <StatItem label="Given Suggestions" value={user._count.givenSuggestions} />
+              <StatItem label="Suggestions received" value={user._count.receivedSuggestions} />
+              <StatItem label="Suggested to others" value={user._count.givenSuggestions} />
               <StatItem label="Matches" value={totalMatches} />
               <StatItem label="Payments" value={user._count.payments} />
               <StatItem label="Notifications" value={user._count.notifications} />
             </div>
+            <p className="text-xs text-muted-foreground mt-3">
+              Legacy: "received" = suggested to this user, "suggested to others" = this user was shown to someone. Shared suggestions are seen by both people but counted once, under whichever side this user was stored on.
+            </p>
           </CardContent>
         </Card>
       </div>
 
-      {cycle && <CycleSections cycle={cycle} />}
+      {cycle && <CycleSections cycle={cycle} onEndChat={handleEndChat} endingChatId={endingChatId} />}
 
       {/* Suggestions Section (full width) */}
       <Card>
@@ -688,7 +756,21 @@ function SuggestionStatus({ s }: { s: SuggestionRow }) {
   return <Badge className={`text-xs ${suggestionStatusColors[status] || ""}`}>{status}</Badge>;
 }
 
-function CycleSections({ cycle }: { cycle: CycleData }) {
+function chatEndedLabel(c: CycleData["chats"][number]) {
+  if (c.endedByAdmin || c.endedBy === "admin") return `${formatDate(c.endedAt)} · Ended by admin`;
+  if (!c.endedAt) return "—";
+  return `${formatDate(c.endedAt)} · by ${c.endedBy === "user" ? "this user" : "the other"}`;
+}
+
+function CycleSections({
+  cycle,
+  onEndChat,
+  endingChatId,
+}: {
+  cycle: CycleData;
+  onEndChat: (chatId: string) => void;
+  endingChatId: string | null;
+}) {
   return (
     <>
       <Card>
@@ -758,6 +840,7 @@ function CycleSections({ cycle }: { cycle: CycleData }) {
                     <th className="text-left p-2 font-medium">Expires</th>
                     <th className="text-left p-2 font-medium">Ended</th>
                     <th className="text-right p-2 font-medium">Messages</th>
+                    <th className="p-2"><span className="sr-only">Actions</span></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -775,11 +858,24 @@ function CycleSections({ cycle }: { cycle: CycleData }) {
                         {c.extended && <span className="ms-1 text-xs">(extended)</span>}
                       </td>
                       <td className="p-2 text-muted-foreground">
-                        {c.endedAt ? `${formatDate(c.endedAt)} · by ${c.endedBy === "user" ? "this user" : "the other"}` : "—"}
+                        {chatEndedLabel(c)}
                       </td>
                       <td className="p-2 text-right tabular-nums">
                         <span className="font-medium">{c.messages.total}</span>
                         <span className="text-muted-foreground text-xs ms-1">({c.messages.byUser} / {c.messages.byOther})</span>
+                      </td>
+                      <td className="p-2 text-right">
+                        {c.status === "ACTIVE" && (
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            className="h-7 text-xs"
+                            onClick={() => onEndChat(c.id)}
+                            disabled={endingChatId === c.id}
+                          >
+                            {endingChatId === c.id ? <Loader2 className="h-3 w-3 animate-spin" /> : "End chat"}
+                          </Button>
+                        )}
                       </td>
                     </tr>
                   ))}

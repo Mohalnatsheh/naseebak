@@ -45,7 +45,7 @@ export interface ChatMessage {
   readAt: string | null;
 }
 
-const partyUser = { select: { id: true, firstName: true, isVerified: true } } as const;
+const partyUser = { select: { id: true, firstName: true, isVerified: true, status: true } } as const;
 const conversationInclude = {
   match: { select: { id: true, femaleId: true, maleId: true, female: partyUser, male: partyUser } },
 } as const;
@@ -225,6 +225,10 @@ export async function sendMessage(args: {
   if (c.status === "ENDED") throw new IntroError("NOT_ALLOWED", "تم إنهاء هذه المحادثة");
 
   const partner = partnerOf(c, senderId);
+  const me = senderId === c.match.femaleId ? c.match.female : c.match.male;
+  if (me.status === "SUSPENDED" || partner.status === "SUSPENDED") {
+    throw new IntroError("NOT_ALLOWED", "هذا الحساب غير نشط حالياً");
+  }
   if (await isBlocked(senderId, partner.id)) throw new IntroError("BLOCKED");
 
   // Filter first: a blocked attempt is never saved and doesn't use up the sending allowance

@@ -63,6 +63,19 @@ describe("sendMessage", () => {
     await expectCode(sendMessage({ conversationId: "c", senderId: "stranger", body: "مرحبا" }), "NOT_FOUND");
   });
 
+  it("refuses when the partner or the sender is suspended", async () => {
+    const base = conv();
+    db.conversation.findUnique.mockResolvedValue({
+      ...base, match: { ...base.match, female: { ...base.match.female, status: "SUSPENDED" } },
+    });
+    await expectCode(sendMessage({ conversationId: base.id, senderId: "u1", body: "مرحبا" }), "NOT_ALLOWED");
+    db.conversation.findUnique.mockResolvedValue({
+      ...base, match: { ...base.match, male: { ...base.match.male, status: "SUSPENDED" } },
+    });
+    await expectCode(sendMessage({ conversationId: base.id, senderId: "u1", body: "مرحبا" }), "NOT_ALLOWED");
+    expect(db.message.create).not.toHaveBeenCalled();
+  });
+
   it("saves, publishes and pushes a clean message", async () => {
     const c = conv();
     db.conversation.findUnique.mockResolvedValue(c);

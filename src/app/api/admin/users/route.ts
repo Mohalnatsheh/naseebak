@@ -8,10 +8,12 @@ export async function GET(request: Request) {
   try {
     const result = await requireAdmin();
     if ("error" in result) return result.error;
-    const { session } = result;
 
     const url = new URL(request.url);
-    const { page, pageSize, skip } = parsePagination(url.searchParams, 20);
+    // Bad ?page values ("abc", "-3", "1e9x") fall back to page 1 instead of a 500
+    const rawPage = url.searchParams.get("page");
+    const pageNum = rawPage && /^\d{1,6}$/.test(rawPage) ? rawPage : "1";
+    const { page, pageSize, skip } = parsePagination(new URLSearchParams({ page: pageNum }), 20);
     const search = url.searchParams.get("search") || "";
     const gender = url.searchParams.get("gender") || "";
     const status = url.searchParams.get("status") || "";

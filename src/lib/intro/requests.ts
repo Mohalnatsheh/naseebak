@@ -92,6 +92,14 @@ async function isBlocked(a: string, b: string): Promise<boolean> {
   return !!block;
 }
 
+const INACTIVE_MESSAGE = "هذا الحساب غير نشط حالياً";
+
+/** True when either user is suspended by an admin (one count query). */
+async function eitherSuspended(a: string, b: string): Promise<boolean> {
+  const n = await db.user.count({ where: { id: { in: [a, b] }, status: "SUSPENDED" } });
+  return n > 0;
+}
+
 async function expireStale(matchId: string): Promise<void> {
   await db.introRequest.updateMany({
     where: { matchId, status: "PENDING", expiresAt: { lt: new Date() } },
@@ -206,7 +214,8 @@ export async function sendIntroRequest(args: {
     const { match, partnerId } = await loadMatchForUser(matchId, senderId);
     if (await isBlocked(senderId, partnerId)) throw new IntroError("BLOCKED");
     const partner = await db.user.findUnique({ where: { id: partnerId }, select: { isDeactivated: true } });
-    if (partner?.isDeactivated) throw new IntroError("NOT_ALLOWED", "هذا الحساب غير نشط حالياً");
+    if (partner?.isDeactivated) throw new IntroError("NOT_ALLOWED", INACTIVE_MESSAGE);
+    if (await eitherSuspended(senderId, partnerId)) throw new IntroError("NOT_ALLOWED", INACTIVE_MESSAGE);
     await expireStale(matchId);
 
     const requests = await db.introRequest.findMany({ where: { matchId }, orderBy: { createdAt: "desc" } });
@@ -293,6 +302,9 @@ export async function respondToIntroRequest(args: {
     throw new IntroError("EXPIRED");
   }
   if (accept && (await isBlocked(request.senderId, userId))) throw new IntroError("BLOCKED");
+  if (accept && (await eitherSuspended(request.senderId, userId))) {
+    throw new IntroError("NOT_ALLOWED", INACTIVE_MESSAGE);
+  }
 
   const matchUrl = `/dashboard/matches?match=${request.matchId}`;
 

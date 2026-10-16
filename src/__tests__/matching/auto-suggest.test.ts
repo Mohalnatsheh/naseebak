@@ -86,6 +86,18 @@ describe("autoSuggestForUser", () => {
     expect(db.notification.create.mock.calls[0][0].data.type).toBe("SUGGESTION");
   });
 
+  it("never suggests suspended people and does not run for a suspended user", async () => {
+    db.user.findUnique.mockResolvedValue(person("s1", "MALE"));
+    db.user.findMany.mockResolvedValue([person("sf1", "FEMALE")]);
+    await autoSuggestForUser("s1");
+    expect(db.user.findMany.mock.calls[0][0].where.status).toEqual({ not: "SUSPENDED" });
+
+    vi.clearAllMocks();
+    db.user.findUnique.mockResolvedValue({ ...person("s2", "MALE"), status: "SUSPENDED" });
+    expect(await autoSuggestForUser("s2")).toBe(0);
+    expect(db.user.findMany).not.toHaveBeenCalled();
+  });
+
   it("does nothing while the user still has pending suggestions", async () => {
     db.user.findUnique.mockResolvedValue(person("u2", "MALE"));
     db.suggestion.count.mockResolvedValue(2);

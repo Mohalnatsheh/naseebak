@@ -5,7 +5,7 @@ const db = vi.hoisted(() => ({
   block: { findFirst: vi.fn() },
   introRequest: { findMany: vi.fn(), findUnique: vi.fn(), create: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
   parentInfo: { findUnique: vi.fn(), update: vi.fn() },
-  user: { findUnique: vi.fn() },
+  user: { findUnique: vi.fn(), count: vi.fn() },
   conversation: { create: vi.fn() },
   visitRequest: { update: vi.fn() },
   $transaction: vi.fn(),
@@ -59,6 +59,7 @@ beforeEach(() => {
   db.user.findUnique.mockResolvedValue({ matchCredits: 2, firstName: "يزن" });
   db.conversation.create.mockResolvedValue({ id: "c1" });
   credits.reserveCredits.mockResolvedValue(true);
+  db.user.count.mockResolvedValue(0);
 });
 
 describe("sendIntroRequest", () => {
@@ -80,6 +81,13 @@ describe("sendIntroRequest", () => {
   it("refuses when either side blocked the other", async () => {
     db.block.findFirst.mockResolvedValue({ id: "b1" });
     await expectCode(sendIntroRequest({ matchId: "m1", senderId: "u1", type: "CHAT" }), "BLOCKED");
+  });
+
+  it("refuses when the sender or partner is suspended", async () => {
+    db.user.count.mockResolvedValue(1);
+    await expectCode(sendIntroRequest({ matchId: "m1", senderId: "u1", type: "CHAT" }), "NOT_ALLOWED");
+    expect(db.user.count).toHaveBeenCalledWith({ where: { id: { in: ["u1", "f1"] }, status: "SUSPENDED" } });
+    expect(credits.reserveCredits).not.toHaveBeenCalled();
   });
 
   it("charges 1 credit, creates a 7-day request and notifies the receiver", async () => {
@@ -219,6 +227,13 @@ describe("respondToIntroRequest edge cases", () => {
     db.introRequest.updateMany.mockResolvedValue({ count: 0 });
     await expectCode(respondToIntroRequest({ requestId: "r1", userId: "f1", accept: true }), "NOT_ALLOWED");
     expect(notifyMod.notify).not.toHaveBeenCalled();
+  });
+
+  it("a request can't be accepted when either side is suspended", async () => {
+    db.introRequest.findUnique.mockResolvedValue(pending());
+    db.user.count.mockResolvedValue(1);
+    await expectCode(respondToIntroRequest({ requestId: "r1", userId: "f1", accept: true }), "NOT_ALLOWED");
+    expect(db.conversation.create).not.toHaveBeenCalled();
   });
 
   it("chat requests can't be accepted while chat is off", async () => {

@@ -48,9 +48,10 @@ async function generate(userId: string): Promise<number> {
 
   const user = await db.user.findUnique({
     where: { id: userId },
-    select: { ...scoringSelect, role: true, isDeactivated: true, matchCredits: true },
+    select: { ...scoringSelect, role: true, isDeactivated: true, status: true, matchCredits: true },
   });
   if (!user || user.role !== "USER" || user.isDeactivated || !user.profile?.isComplete) return 0;
+  if (user.status === "SUSPENDED") return 0;
   // Per-request mode: suggestions are free (capped weekly); credits are spent on intro requests.
   // Legacy mode: each suggestion uses 1 credit — none left means the user must recharge.
   // Simultaneous flow: one row shown to both people, dealbreakers are hard filters
@@ -103,6 +104,7 @@ async function generate(userId: string): Promise<number> {
     where: {
       role: "USER",
       isDeactivated: false,
+      status: { not: "SUSPENDED" },
       gender: user.gender === "MALE" ? "FEMALE" : "MALE",
       profile: { isComplete: true },
       ...(excluded.size > 0 && { id: { notIn: [...excluded] } }),

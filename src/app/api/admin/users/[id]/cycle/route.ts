@@ -36,7 +36,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
           conversation: {
             select: {
               id: true, status: true, createdAt: true, expiresAt: true,
-              extended: true, endedById: true, endedAt: true,
+              extended: true, endedById: true, endedByAdminId: true, endedAt: true,
             },
           },
         },
@@ -73,7 +73,10 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
           createdAt: c.createdAt,
           expiresAt: c.expiresAt,
           extended: c.extended,
-          endedBy: c.endedById == null ? null : c.endedById === id ? "user" : "other",
+          endedBy: c.endedByAdminId
+            ? "admin"
+            : c.endedById == null ? null : c.endedById === id ? "user" : "other",
+          endedByAdmin: !!c.endedByAdminId,
           endedAt: c.endedAt,
           messages: { total, byUser, byOther: total - byUser },
         }];

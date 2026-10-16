@@ -44,7 +44,7 @@ const rejectionReasons = [
 
 const statusBadgeStyles: Record<string, string> = {
   APPROVED: "bg-green-100 text-green-800",
-  REJECTED: "bg-red-100 text-red-800",
+  REJECTED: "bg-destructive/10 text-destructive",
   PENDING: "bg-amber-100 text-amber-800",
 };
 
@@ -55,6 +55,8 @@ export default function AdminIdentityPage() {
   const [acting, setActing] = useState<string | null>(null);
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [reasons, setReasons] = useState<Record<string, string>>({});
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [loadError, setLoadError] = useState("");
   // History pagination
   const [histPage, setHistPage] = useState(1);
   const [histTotalPages, setHistTotalPages] = useState(1);
@@ -65,17 +67,24 @@ export default function AdminIdentityPage() {
 
   async function fetchDocs() {
     setLoading(true);
+    setLoadError("");
     try {
       const params = new URLSearchParams({ tab });
       if (tab === "history") params.set("page", String(histPage));
       const res = await fetch(`/api/admin/identity?${params}`);
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setLoadError(data.error || "Could not load documents");
+        setDocs([]);
+        return;
+      }
       setDocs(data.docs || []);
       if (tab === "history") {
         setHistTotalPages(data.totalPages || 1);
       }
     } catch (err) {
       console.error(err);
+      setLoadError("Could not load documents. Check your connection and try again.");
     } finally {
       setLoading(false);
     }
@@ -83,6 +92,7 @@ export default function AdminIdentityPage() {
 
   async function handleAction(docId: string, action: "approve" | "reject") {
     setActing(docId);
+    setErrors((prev) => ({ ...prev, [docId]: "" }));
     try {
       const res = await fetch("/api/admin/identity", {
         method: "PATCH",
@@ -96,9 +106,13 @@ export default function AdminIdentityPage() {
       });
       if (res.ok) {
         setDocs((prev) => prev.filter((d) => d.id !== docId));
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setErrors((prev) => ({ ...prev, [docId]: data.error || `Could not ${action} this document` }));
       }
     } catch (err) {
       console.error(err);
+      setErrors((prev) => ({ ...prev, [docId]: "Network error — please try again" }));
     } finally {
       setActing(null);
     }
@@ -134,6 +148,12 @@ export default function AdminIdentityPage() {
           History
         </Button>
       </div>
+
+      {loadError && (
+        <p className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          {loadError}
+        </p>
+      )}
 
       {loading ? (
         <div className="flex justify-center py-12">
@@ -256,6 +276,9 @@ export default function AdminIdentityPage() {
                       onChange={(e) => setNotes((prev) => ({ ...prev, [doc.id]: e.target.value }))}
                     />
                   </div>
+                  {errors[doc.id] && (
+                    <p className="text-sm text-destructive">{errors[doc.id]}</p>
+                  )}
                   <div className="flex gap-2">
                     <Button
                       onClick={() => handleAction(doc.id, "approve")}

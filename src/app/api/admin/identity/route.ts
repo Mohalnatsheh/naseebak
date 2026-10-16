@@ -1,14 +1,13 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { sendPushNotification } from "@/lib/onesignal";
+import { notify } from "@/lib/notify";
 import { parsePagination } from "@/lib/utils";
 
 export async function GET(request: Request) {
   try {
     const result = await requireAdmin();
     if ("error" in result) return result.error;
-    const { session } = result;
 
     const url = new URL(request.url);
     const tab = url.searchParams.get("tab") || "pending";
@@ -72,12 +71,15 @@ export async function PATCH(request: Request) {
     if ("error" in result) return result.error;
     const { session } = result;
 
-    const body = await request.json();
-    const { docId, action, reviewNotes, rejectionReason } = body;
+    const body = await request.json().catch(() => null);
+    const { docId, action, reviewNotes, rejectionReason } = body ?? {};
 
-    if (!docId || !["approve", "reject"].includes(action)) {
-      return NextResponse.json({ error: "طلب غير صالح" }, { status: 400 });
+    if (typeof docId !== "string" || !docId || !["approve", "reject"].includes(action)) {
+      return NextResponse.json({ error: "Invalid request" }, { status: 400 });
     }
+
+    const existing = await db.identityDoc.findUnique({ where: { id: docId }, select: { id: true } });
+    if (!existing) return NextResponse.json({ error: "Document not found" }, { status: 404 });
 
     const doc = await db.identityDoc.update({
       where: { id: docId },
@@ -91,12 +93,15 @@ export async function PATCH(request: Request) {
     });
 
     if (action === "approve") {
+      // Approving never lifts a suspension: a suspended user goes back to VERIFIED when unsuspended
+      const user = await db.user.findUnique({ where: { id: doc.userId }, select: { status: true } });
+      const suspended = user?.status === "SUSPENDED";
       await db.user.update({
         where: { id: doc.userId },
         data: {
           isVerified: true,
-          status: "VERIFIED",
           verifiedAt: new Date(),
+          ...(suspended ? { statusBeforeSuspension: "VERIFIED" } : { status: "VERIFIED" }),
         },
       });
     } else {
@@ -116,25 +121,17 @@ export async function PATCH(request: Request) {
       ? "تهانينا! تم التحقق من هويتك بنجاح وأصبح حسابك يحمل شارة الحساب الموثّق."
       : `لم يتم منح شارة الحساب الموثّق.${rejectionReason || reviewNotes ? ` ${rejectionReason || reviewNotes}` : ""}`;
 
-    await db.notification.create({
-      data: {
-        userId: doc.userId,
-        type: "IDENTITY",
-        title: identityTitle,
-        body: identityBody,
-      },
-    });
-
-    sendPushNotification({
+    await notify({
       userId: doc.userId,
+      type: "IDENTITY",
       title: identityTitle,
       body: identityBody,
       url: "/dashboard",
     });
 
-    return NextResponse.json({ message: `تم ${action === "approve" ? "قبول" : "رفض"} الهوية بنجاح`, doc });
+    return NextResponse.json({ message: action === "approve" ? "Identity approved" : "Identity rejected", doc });
   } catch (error) {
     console.error("Admin identity review error:", error);
-    return NextResponse.json({ error: "حدث خطأ في الخادم" }, { status: 500 });
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }

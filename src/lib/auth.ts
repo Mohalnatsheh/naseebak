@@ -122,5 +122,10 @@ export async function requireUser() {
   if (!session?.user?.id) {
     return { error: NextResponse.json({ error: "غير مصرح" }, { status: 401 }) };
   }
+  // A suspension takes effect immediately, even for sessions issued before it
+  const user = await db.user.findUnique({ where: { id: session.user.id }, select: { status: true } });
+  if (user?.status === "SUSPENDED") {
+    return { error: NextResponse.json({ error: "تم إيقاف حسابك" }, { status: 403 }) };
+  }
   return { session };
 }

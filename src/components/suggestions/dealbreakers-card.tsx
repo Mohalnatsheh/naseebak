@@ -6,7 +6,9 @@ import { ShieldCheck, ChevronDown, ChevronUp, Loader2, Check } from "lucide-reac
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { DEALBREAKER_KEYS, DEALBREAKER_LABELS, type DealbreakerKey } from "@/lib/matching/score";
+import { DEALBREAKER_KEYS, DEALBREAKER_LABELS } from "@/lib/matching/score";
+import { dealbreakerSummary } from "@/lib/matching/dealbreaker-summary";
+import { useDashboardData } from "@/contexts/dashboard-context";
 
 interface Prefs {
   dealbreakers: string[];
@@ -22,25 +24,9 @@ interface Prefs {
   prefChildrenAcceptance: string | null;
 }
 
-/** What the user asked for, in words; null when that preference isn't filled in (so it can't be a dealbreaker). */
-function prefSummary(key: DealbreakerKey, p: Prefs): string | null {
-  const list = (v: string[]) => (v && v.length > 0 ? v.join("، ") : null);
-  switch (key) {
-    case "age":
-      return p.prefAgeMin || p.prefAgeMax ? `${p.prefAgeMin ?? "—"} – ${p.prefAgeMax ?? "—"} سنة` : null;
-    case "city": return list(p.prefCity);
-    case "education": return list(p.prefEducation);
-    case "maritalStatus": return list(p.prefMaritalStatus);
-    case "religiosity": return list(p.prefReligiosity);
-    case "smokingStatus": return list(p.prefSmokingStatus);
-    case "hijab": return p.prefHijab ? (p.prefHijab === "yes" ? "محجبة" : "غير محجبة") : null;
-    case "beard": return p.prefBeard ? (p.prefBeard === "yes" ? "ملتحٍ" : "بدون لحية") : null;
-    case "children": return p.prefChildrenAcceptance === "no_children" ? "بدون أبناء" : null;
-  }
-}
-
 /** "شروطي الأساسية": the preferences that must be met before anyone is suggested to me. */
 export function DealbreakersCard() {
+  const gender: string | undefined = useDashboardData().profile?.gender;
   const [open, setOpen] = useState(false);
   const [prefs, setPrefs] = useState<Prefs | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -60,7 +46,7 @@ export function DealbreakersCard() {
   }, []);
 
   const available = prefs
-    ? DEALBREAKER_KEYS.map((k) => ({ key: k, summary: prefSummary(k, prefs) })).filter((x) => x.summary)
+    ? DEALBREAKER_KEYS.map((k) => ({ key: k, summary: dealbreakerSummary(k, prefs, gender) })).filter((x) => x.summary)
     : [];
   const activeCount = available.filter((a) => selected.has(a.key)).length;
 

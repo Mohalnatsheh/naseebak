@@ -25,6 +25,10 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import { jordanAreas, jordanCities } from "@/lib/data/jordan-areas";
+import { OptionalTag, DealbreakerToggle } from "@/components/profile/form-fields";
+import { OPTION_VALUES, selfLabel, describeOption, oppositeGender } from "@/lib/profile-options";
+import { activeDealbreakers } from "@/lib/matching/dealbreaker-summary";
+import type { DealbreakerKey } from "@/lib/matching/score";
 
 const educationLevels = [
   "ثانوية عامة",
@@ -62,13 +66,7 @@ const incomeRanges = [
   "1000-2000 د.أ",
   "أكثر من 2000 د.أ",
 ];
-const jobOptions = [
-  "مهندس", "طبيب", "صيدلي", "محامي", "معلم/أستاذ", "محاسب", "ممرض",
-  "ضابط/عسكري", "موظف حكومي", "موظف قطاع خاص", "رجل أعمال",
-  "تاجر", "مبرمج/مطور", "مصمم", "صحفي/إعلامي", "مقاول",
-  "سائق", "حرفي/فني", "طالب/طالبة", "أعمال حرة", "ربة منزل",
-  "متقاعد", "لا يعمل حالياً", "أخرى",
-];
+const jobOptions: readonly string[] = OPTION_VALUES.job;
 const preferenceOptions = ["نعم", "لا", "لا يهم"];
 const guardianRelationships = [
   { value: "father", label: "الأب" },
@@ -195,6 +193,7 @@ export default function ProfileEditPage() {
   const router = useRouter();
   const [step, setStep] = useState(1);
   const introMode = useDashboardData().counts.flags.introRequests;
+  const [reviewSent, setReviewSent] = useState(false);
   // Start each step at the top of the page
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -213,6 +212,11 @@ export default function ProfileEditPage() {
   // Consent to share the guardian contact after an accepted family introduction
   const [shareConsent, setShareConsent] = useState(false);
   const [originalShareConsent, setOriginalShareConsent] = useState(false);
+  // "شرط أساسي" marks: saved directly (a private filter), not part of the review request
+  const [dealbreakers, setDealbreakers] = useState<string[]>([]);
+  const [originalDealbreakers, setOriginalDealbreakers] = useState<string[]>([]);
+  const { counts } = useDashboardData();
+  const showDealbreakers = counts.flags.mutualSuggestions;
 
   // Deep link: /dashboard/profile/edit?step=5 opens the guardian step
   useEffect(() => {
@@ -299,6 +303,9 @@ export default function ProfileEditPage() {
           setForm(loaded);
           setShareConsent(!!pi?.shareConsentAt);
           setOriginalShareConsent(!!pi?.shareConsentAt);
+          const db = Array.isArray(p.dealbreakers) ? p.dealbreakers : [];
+          setDealbreakers(db);
+          setOriginalDealbreakers(db);
         }
       } catch {
         // Silently fail
@@ -332,42 +339,29 @@ export default function ProfileEditPage() {
     }
   }
 
+  // Short start: only the basics are required, the rest is optional
   function validateStep(s: number): string | null {
     if (s === 1) {
       if (!form.dateOfBirth) return "يرجى إدخال تاريخ الميلاد";
       if (!form.nationality) return "يرجى إدخال الجنسية";
       if (!form.city) return "يرجى اختيار المدينة";
-      if (!form.area) return "يرجى اختيار المنطقة";
-      if (!form.height) return "يرجى إدخال الطول";
-      if (!form.weight) return "يرجى إدخال الوزن";
-      if (!form.skinColor) return "يرجى اختيار لون البشرة";
+      if (form.height && (parseInt(form.height) < 100 || parseInt(form.height) > 250)) return "الطول يجب أن يكون بين 100 و 250 سم";
+      if (form.weight && (parseInt(form.weight) < 30 || parseInt(form.weight) > 300)) return "الوزن يجب أن يكون بين 30 و 300 كغ";
       if (!form.education) return "يرجى اختيار المستوى التعليمي";
-      if (!form.job) return "يرجى اختيار الوظيفة";
       if (form.job === "أخرى" && !form.jobCustom) return "يرجى تحديد الوظيفة";
-      if (!form.incomeRange) return "يرجى اختيار مستوى الدخل";
     }
     if (s === 2) {
       if (!form.maritalStatus) return "يرجى اختيار الحالة الاجتماعية";
       if (form.maritalStatus !== "أعزب/عزباء" && !form.childrenCount) return "يرجى إدخال عدد الأبناء";
       if (!form.religiosity) return "يرجى اختيار مستوى التدين";
-      if (!form.smokingStatus) return "يرجى اختيار حالة التدخين";
-      if (!form.cookingAbility) return "يرجى اختيار مهارة الطبخ";
     }
     if (s === 3) {
-      if (!form.aboutMe || form.aboutMe.length < 10) return "يرجى كتابة نبذة عنك (10 أحرف على الأقل)";
-      if (!form.partnerExpectations || form.partnerExpectations.length < 10) return "يرجى كتابة مواصفات الشريك المطلوبة (10 أحرف على الأقل)";
-      if (!form.hobbies) return "يرجى إدخال الهوايات والاهتمامات";
       if (!form.prefAgeMin) return "يرجى إدخال العمر الأدنى المفضل";
       if (!form.prefAgeMax) return "يرجى إدخال العمر الأقصى المفضل";
       if (parseInt(form.prefAgeMin) > parseInt(form.prefAgeMax)) return "العمر الأدنى يجب أن يكون أقل من العمر الأقصى";
-      if (!form.prefChildrenAcceptance) return "يرجى اختيار تفضيل قبول الأبناء";
     }
     if (s === 4) {
-      if (!form.tribe) return "يرجى إدخال اسم العشيرة";
-      if (!form.familyOriginArea) return "يرجى إدخال منطقة أصل العائلة";
-      if (!form.numberOfSiblings && form.numberOfSiblings !== "0") return "يرجى إدخال عدد الإخوة والأخوات";
-      if (!form.housingType) return "يرجى اختيار نوع السكن";
-      if (!form.monthlyExpenses) return "يرجى اختيار المصاريف الشهرية";
+      if (form.numberOfSiblings && (parseInt(form.numberOfSiblings) < 0 || parseInt(form.numberOfSiblings) > 20)) return "عدد الإخوة يجب أن يكون بين 0 و 20";
     }
     if (s === 5) {
       if (!form.parentName) return "يرجى إدخال اسم ولي الأمر";
@@ -458,8 +452,9 @@ export default function ProfileEditPage() {
 
     const changes = getChangedFields();
     const guardianChanged = hasGuardianChanges();
+    const dealbreakersChanged = showDealbreakers && !arraysEqual(dealbreakers, originalDealbreakers);
 
-    if (Object.keys(changes).length === 0 && !guardianChanged) {
+    if (Object.keys(changes).length === 0 && !guardianChanged && !dealbreakersChanged) {
       setError("لم تقم بإجراء أي تعديلات");
       scrollToError();
       return;
@@ -499,10 +494,22 @@ export default function ProfileEditPage() {
         );
       }
 
+      // "شرط أساسي" marks: only for preferences that are filled in
+      if (dealbreakersChanged) {
+        promises.push(
+          fetch("/api/profile/dealbreakers", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ keys: activeDealbreakers(dealbreakers, form, gender) }),
+          })
+        );
+      }
+
       const results = await Promise.all(promises);
       const allOk = results.every((r) => r.ok);
 
       if (allOk) {
+        setReviewSent(Object.keys(changes).length > 0);
         setSuccess(true);
       } else {
         const failedRes = results.find((r) => !r.ok);
@@ -522,7 +529,21 @@ export default function ProfileEditPage() {
 
   const totalSteps = 5;
   const availableAreas = form.city ? jordanAreas[form.city] || [] : [];
-  const changedCount = Object.keys(getChangedFields()).length + (hasGuardianChanges() ? 1 : 0);
+  const changedCount =
+    Object.keys(getChangedFields()).length +
+    (hasGuardianChanges() ? 1 : 0) +
+    (showDealbreakers && !arraysEqual(dealbreakers, originalDealbreakers) ? 1 : 0);
+  const partnerGender = oppositeGender(gender);
+  /** "شرط أساسي" chip for one preference; disabled until that preference is filled in. */
+  const dealbreaker = (key: DealbreakerKey, fieldId: string) =>
+    showDealbreakers ? (
+      <DealbreakerToggle
+        id={fieldId}
+        checked={dealbreakers.includes(key)}
+        disabled={activeDealbreakers([key], form, gender).length === 0}
+        onChange={(v) => setDealbreakers((prev) => (v ? [...new Set([...prev, key])] : prev.filter((k) => k !== key)))}
+      />
+    ) : null;
 
   if (loading) {
     return (
@@ -585,11 +606,12 @@ export default function ProfileEditPage() {
             </div>
             <div className="space-y-2">
               <h3 className="text-lg font-bold text-emerald-900">
-                تم إرسال طلب التعديل بنجاح
+                {reviewSent ? "تم إرسال طلب التعديل بنجاح" : "تم حفظ التعديلات"}
               </h3>
               <p className="text-sm text-emerald-700/80 max-w-sm mx-auto leading-relaxed">
-                سيقوم فريق الإدارة بمراجعة التعديلات المطلوبة وسيتم إعلامك
-                بالنتيجة عبر الإشعارات.
+                {reviewSent
+                  ? "سيقوم فريق الإدارة بمراجعة التعديلات المطلوبة وسيتم إعلامك بالنتيجة عبر الإشعارات."
+                  : "حُفظت تعديلاتك مباشرة."}
               </p>
             </div>
             <Button
@@ -693,7 +715,7 @@ export default function ProfileEditPage() {
 
             {form.city && availableAreas.length > 0 && (
               <div className="space-y-2">
-                <RequiredLabel>المنطقة</RequiredLabel>
+                <Label>المنطقة <OptionalTag /></Label>
                 <select
                   value={form.area}
                   onChange={(e) => update("area", e.target.value)}
@@ -711,7 +733,7 @@ export default function ProfileEditPage() {
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <RequiredLabel>الطول (سم)</RequiredLabel>
+                <Label>الطول (سم) <OptionalTag /></Label>
                 <Input
                   type="number"
                   value={form.height}
@@ -721,7 +743,7 @@ export default function ProfileEditPage() {
                 />
               </div>
               <div className="space-y-2">
-                <RequiredLabel>الوزن (كغ)</RequiredLabel>
+                <Label>الوزن (كغ) <OptionalTag /></Label>
                 <Input
                   type="number"
                   value={form.weight}
@@ -733,7 +755,7 @@ export default function ProfileEditPage() {
             </div>
 
             <div className="space-y-2">
-              <RequiredLabel>لون البشرة</RequiredLabel>
+              <Label>لون البشرة <OptionalTag /></Label>
               <div className="grid grid-cols-4 gap-2">
                 {skinColors.map((c) => (
                   <button
@@ -765,7 +787,7 @@ export default function ProfileEditPage() {
             </div>
 
             <div className="space-y-2">
-              <RequiredLabel>الوظيفة</RequiredLabel>
+              <Label>الوظيفة <OptionalTag /></Label>
               <select
                 value={form.job}
                 onChange={(e) => {
@@ -776,7 +798,7 @@ export default function ProfileEditPage() {
               >
                 <option value="">اختر الوظيفة...</option>
                 {jobOptions.map((j) => (
-                  <option key={j} value={j}>{j}</option>
+                  <option key={j} value={j}>{selfLabel("job", j, gender)}</option>
                 ))}
               </select>
               {form.job === "أخرى" && (
@@ -790,7 +812,7 @@ export default function ProfileEditPage() {
             </div>
 
             <div className="space-y-2">
-              <RequiredLabel>مستوى الدخل</RequiredLabel>
+              <Label>مستوى الدخل <OptionalTag /></Label>
               <div className="grid grid-cols-3 gap-2">
                 {incomeRanges.map((r) => (
                   <button
@@ -822,7 +844,7 @@ export default function ProfileEditPage() {
               <div className="grid grid-cols-3 gap-2">
                 {maritalStatuses.map((s) => (
                   <button
-                    key={s}
+                    key={selfLabel("maritalStatus", s, gender)}
                     type="button"
                     onClick={() => {
                       update("maritalStatus", s);
@@ -856,7 +878,7 @@ export default function ProfileEditPage() {
               <div className="grid grid-cols-2 gap-2">
                 {religiosityLevels.map((r) => (
                   <button
-                    key={r}
+                    key={selfLabel("religiosity", r, gender)}
                     type="button"
                     onClick={() => update("religiosity", r)}
                     className={`rounded-xl border px-3 py-2 text-sm transition-all ${form.religiosity === r ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
@@ -868,11 +890,11 @@ export default function ProfileEditPage() {
             </div>
 
             <div className="space-y-2">
-              <RequiredLabel>التدخين</RequiredLabel>
+              <Label>التدخين <OptionalTag /></Label>
               <div className="grid grid-cols-2 gap-2">
                 {smokingStatuses.map((s) => (
                   <button
-                    key={s}
+                    key={selfLabel("smokingStatus", s, gender)}
                     type="button"
                     onClick={() => update("smokingStatus", s)}
                     className={`rounded-xl border px-3 py-2 text-sm transition-all ${form.smokingStatus === s ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
@@ -924,11 +946,11 @@ export default function ProfileEditPage() {
             )}
 
             <div className="space-y-2">
-              <RequiredLabel>مهارة الطبخ</RequiredLabel>
+              <Label>مهارة الطبخ <OptionalTag /></Label>
               <div className="grid grid-cols-2 gap-2">
                 {cookingLevels.map((c) => (
                   <button
-                    key={c}
+                    key={selfLabel("cookingAbility", c, gender)}
                     type="button"
                     onClick={() => update("cookingAbility", c)}
                     className={`rounded-xl border px-3 py-2 text-sm transition-all ${form.cookingAbility === c ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
@@ -940,7 +962,7 @@ export default function ProfileEditPage() {
             </div>
 
             <div className="space-y-2">
-              <Label>رخصة قيادة</Label>
+              <Label>رخصة قيادة <OptionalTag /></Label>
               <button
                 type="button"
                 onClick={() => update("drivingLicense", !form.drivingLicense)}
@@ -972,7 +994,7 @@ export default function ProfileEditPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <RequiredLabel>نبذة عني</RequiredLabel>
+              <Label>نبذة عني <OptionalTag /></Label>
               <textarea
                 value={form.aboutMe}
                 onChange={(e) => update("aboutMe", e.target.value)}
@@ -986,7 +1008,7 @@ export default function ProfileEditPage() {
             </div>
 
             <div className="space-y-2">
-              <RequiredLabel>مواصفات الشريك المطلوبة</RequiredLabel>
+              <Label>مواصفات الشريك المطلوبة <OptionalTag /></Label>
               <textarea
                 value={form.partnerExpectations}
                 onChange={(e) =>
@@ -1002,7 +1024,7 @@ export default function ProfileEditPage() {
             </div>
 
             <div className="space-y-2">
-              <RequiredLabel>الهوايات والاهتمامات</RequiredLabel>
+              <Label>الهوايات والاهتمامات <OptionalTag /></Label>
               <Input
                 value={form.hobbies}
                 onChange={(e) => update("hobbies", e.target.value)}
@@ -1011,7 +1033,7 @@ export default function ProfileEditPage() {
             </div>
 
             <div className="space-y-2">
-              <Label>القيم العائلية</Label>
+              <Label>القيم العائلية <OptionalTag /></Label>
               <textarea
                 value={form.familyValues}
                 onChange={(e) => update("familyValues", e.target.value)}
@@ -1029,6 +1051,16 @@ export default function ProfileEditPage() {
               <h3 className="text-base font-semibold mb-3">
                 تفضيلات الشريك
               </h3>
+              {showDealbreakers && (
+                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                  ضع علامة «شرط أساسي» على ما لا تقبل التنازل عنه: لن نقترح عليك من لا يحققه. الشروط تُحفظ مباشرة دون مراجعة، ولا يراها أحد.
+                </p>
+              )}
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-sm font-medium">العمر المفضل</span>
+              {dealbreaker("age", "prefAge")}
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -1059,7 +1091,10 @@ export default function ProfileEditPage() {
             </div>
 
             <div className="space-y-2">
-              <Label>المدن المفضلة <span className="text-xs text-muted-foreground">(يمكن اختيار أكثر من مدينة)</span></Label>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <Label>المدن المفضلة <span className="text-xs text-muted-foreground">(يمكن اختيار أكثر من مدينة)</span> <OptionalTag /></Label>
+                {dealbreaker("city", "prefCity")}
+              </div>
               <div className="grid grid-cols-3 gap-2">
                 {jordanCities.map((c) => (
                   <button
@@ -1075,7 +1110,10 @@ export default function ProfileEditPage() {
             </div>
 
             <div className="space-y-2">
-              <Label>المستوى التعليمي المفضل <span className="text-xs text-muted-foreground">(يمكن اختيار أكثر من مستوى)</span></Label>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <Label>المستوى التعليمي المفضل <span className="text-xs text-muted-foreground">(يمكن اختيار أكثر من مستوى)</span> <OptionalTag /></Label>
+                {dealbreaker("education", "prefEducation")}
+              </div>
               <div className="grid grid-cols-3 gap-2">
                 {educationLevels.map((e) => (
                   <button
@@ -1091,7 +1129,10 @@ export default function ProfileEditPage() {
             </div>
 
             <div className="space-y-2">
-              <Label>الحالة الاجتماعية المفضلة <span className="text-xs text-muted-foreground">(يمكن اختيار أكثر من حالة)</span></Label>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <Label>الحالة الاجتماعية المفضلة <span className="text-xs text-muted-foreground">(يمكن اختيار أكثر من حالة)</span> <OptionalTag /></Label>
+                {dealbreaker("maritalStatus", "prefMaritalStatus")}
+              </div>
               <div className="grid grid-cols-3 gap-2">
                 {maritalStatuses.map((s) => (
                   <button
@@ -1100,7 +1141,7 @@ export default function ProfileEditPage() {
                     onClick={() => toggleArray("prefMaritalStatus", s)}
                     className={`rounded-xl border px-3 py-2 text-sm transition-all ${form.prefMaritalStatus.includes(s) ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
                   >
-                    {s}
+                    {describeOption("maritalStatus", s, partnerGender)}
                   </button>
                 ))}
               </div>
@@ -1108,7 +1149,10 @@ export default function ProfileEditPage() {
 
             {gender === "MALE" && (
               <div className="space-y-2">
-                <Label>هل تفضل محجبة؟</Label>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                <Label>هل تفضل محجبة؟ <OptionalTag /></Label>
+                {dealbreaker("hijab", "prefHijab")}
+              </div>
                 <div className="grid grid-cols-3 gap-2">
                   {preferenceOptions.map((o) => (
                     <button key={o} type="button" onClick={() => update("prefHijab", o)}
@@ -1121,7 +1165,10 @@ export default function ProfileEditPage() {
 
             {gender === "FEMALE" && (
               <div className="space-y-2">
-                <Label>هل تفضلين ملتحي؟</Label>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                <Label>هل تفضلين ملتحياً؟ <OptionalTag /></Label>
+                {dealbreaker("beard", "prefBeard")}
+              </div>
                 <div className="grid grid-cols-3 gap-2">
                   {preferenceOptions.map((o) => (
                     <button key={o} type="button" onClick={() => update("prefBeard", o)}
@@ -1133,29 +1180,38 @@ export default function ProfileEditPage() {
             )}
 
             <div className="space-y-2">
-              <Label>مستوى التدين المفضل <span className="text-xs text-muted-foreground">(يمكن اختيار أكثر من مستوى)</span></Label>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <Label>مستوى التدين المفضل <span className="text-xs text-muted-foreground">(يمكن اختيار أكثر من مستوى)</span> <OptionalTag /></Label>
+                {dealbreaker("religiosity", "prefReligiosity")}
+              </div>
               <div className="grid grid-cols-2 gap-2">
                 {religiosityLevels.map((r) => (
                   <button key={r} type="button" onClick={() => toggleArray("prefReligiosity", r)}
                     className={`rounded-xl border px-3 py-2 text-sm transition-all ${form.prefReligiosity.includes(r) ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
-                  >{r}</button>
+                  >{describeOption("religiosity", r, partnerGender)}</button>
                 ))}
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label>حالة التدخين المفضلة <span className="text-xs text-muted-foreground">(يمكن اختيار أكثر من حالة)</span></Label>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <Label>حالة التدخين المفضلة <span className="text-xs text-muted-foreground">(يمكن اختيار أكثر من حالة)</span> <OptionalTag /></Label>
+                {dealbreaker("smokingStatus", "prefSmokingStatus")}
+              </div>
               <div className="grid grid-cols-2 gap-2">
                 {smokingStatuses.map((s) => (
                   <button key={s} type="button" onClick={() => toggleArray("prefSmokingStatus", s)}
                     className={`rounded-xl border px-3 py-2 text-sm transition-all ${form.prefSmokingStatus.includes(s) ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
-                  >{s}</button>
+                  >{describeOption("smokingStatus", s, partnerGender)}</button>
                 ))}
               </div>
             </div>
 
             <div className="space-y-2">
-              <RequiredLabel>قبول وجود أبناء من زواج سابق</RequiredLabel>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <Label>قبول وجود أبناء من زواج سابق <OptionalTag /></Label>
+                {dealbreaker("children", "prefChildrenAcceptance")}
+              </div>
               <div className="grid grid-cols-3 gap-2">
                 {preferenceOptions.map((o) => (
                   <button key={o} type="button" onClick={() => update("prefChildrenAcceptance", o)}
@@ -1166,7 +1222,7 @@ export default function ProfileEditPage() {
             </div>
 
             <div className="space-y-2">
-              <Label>الاستعداد للانتقال</Label>
+              <Label>الاستعداد للانتقال <OptionalTag /></Label>
               <div className="grid grid-cols-3 gap-2">
                 {relocateOptions.map((r) => (
                   <button
@@ -1196,7 +1252,7 @@ export default function ProfileEditPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <RequiredLabel>العشيرة</RequiredLabel>
+              <Label>العشيرة <OptionalTag /></Label>
               <Input
                 value={form.tribe}
                 onChange={(e) => update("tribe", e.target.value)}
@@ -1205,7 +1261,7 @@ export default function ProfileEditPage() {
             </div>
 
             <div className="space-y-2">
-              <RequiredLabel>منطقة أصل العائلة</RequiredLabel>
+              <Label>منطقة أصل العائلة <OptionalTag /></Label>
               <Input
                 value={form.familyOriginArea}
                 onChange={(e) =>
@@ -1216,7 +1272,7 @@ export default function ProfileEditPage() {
             </div>
 
             <div className="space-y-2">
-              <RequiredLabel>عدد الإخوة والأخوات</RequiredLabel>
+              <Label>عدد الإخوة والأخوات <OptionalTag /></Label>
               <Input
                 type="number"
                 value={form.numberOfSiblings}
@@ -1231,7 +1287,7 @@ export default function ProfileEditPage() {
             </div>
 
             <div className="space-y-2">
-              <RequiredLabel>نوع السكن</RequiredLabel>
+              <Label>نوع السكن <OptionalTag /></Label>
               <div className="grid grid-cols-3 gap-2">
                 {housingTypes.map((h) => (
                   <button
@@ -1247,7 +1303,7 @@ export default function ProfileEditPage() {
             </div>
 
             <div className="space-y-2">
-              <RequiredLabel>المصاريف الشهرية</RequiredLabel>
+              <Label>المصاريف الشهرية <OptionalTag /></Label>
               <div className="grid grid-cols-2 gap-2">
                 {expenseRanges.map((e) => (
                   <button
@@ -1263,7 +1319,7 @@ export default function ProfileEditPage() {
             </div>
 
             <div className="space-y-2">
-              <Label>حالات صحية</Label>
+              <Label>حالات صحية <OptionalTag /></Label>
               <textarea
                 value={form.healthConditions}
                 onChange={(e) =>
@@ -1405,7 +1461,7 @@ export default function ProfileEditPage() {
             ) : (
               <>
                 <Send className="h-4 w-4 me-2" />
-                إرسال طلب التعديل ({changedCount})
+                {Object.keys(getChangedFields()).length > 0 ? "إرسال طلب التعديل" : "حفظ التعديلات"} ({changedCount})
               </>
             )}
           </Button>

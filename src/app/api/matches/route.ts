@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { parsePagination } from "@/lib/utils";
+import { MATCHES_ORDER, myMatchesWhere, pageForMatch } from "@/lib/matches/focus";
 
 export async function GET(request: Request) {
   try {
@@ -10,7 +11,18 @@ export async function GET(request: Request) {
     const { session } = result;
 
     const { searchParams } = new URL(request.url);
-    const { page, pageSize, skip } = parsePagination(searchParams, 10);
+    const pagination = parsePagination(searchParams, 10);
+    const { pageSize } = pagination;
+    let { page, skip } = pagination;
+    // ?focus=<matchId>: return the page that holds that match (links from notifications / dashboard)
+    const focus = searchParams.get("focus");
+    if (focus) {
+      const focusPage = await pageForMatch(session.user.id, focus, pageSize);
+      if (focusPage) {
+        page = focusPage;
+        skip = (focusPage - 1) * pageSize;
+      }
+    }
 
     const profileSelect = {
       dateOfBirth: true,
@@ -44,12 +56,7 @@ export async function GET(request: Request) {
       familyValues: true,
     } as const;
 
-    const where = {
-      OR: [
-        { femaleId: session.user.id },
-        { maleId: session.user.id },
-      ],
-    };
+    const where = myMatchesWhere(session.user.id);
 
     const [matches, total] = await Promise.all([
       db.mutualMatch.findMany({
@@ -65,7 +72,7 @@ export async function GET(request: Request) {
             select: { id: true, status: true, scheduledDate: true },
           },
         },
-        orderBy: { createdAt: "desc" },
+        orderBy: MATCHES_ORDER,
         skip,
         take: pageSize,
       }),

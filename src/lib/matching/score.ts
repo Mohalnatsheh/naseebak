@@ -103,6 +103,21 @@ export function cosineSimilarity(vecA: number[], vecB: number[]): number {
 /**
  * Calculate age from date of birth.
  */
+/**
+ * Yes/no preferences (prefHijab, prefBeard): the profile wizards store "نعم" / "لا" / "لا يهم",
+ * older rows and tests use "yes" / "no". null = no preference.
+ */
+export function prefYesNo(v: string | null | undefined): "yes" | "no" | null {
+  if (v === "yes" || v === "نعم") return "yes";
+  if (v === "no" || v === "لا") return "no";
+  return null;
+}
+
+/** prefChildrenAcceptance: "no_children" (older rows) or "لا" from the wizards. */
+export function wantsNoChildren(v: string | null | undefined): boolean {
+  return v === "no_children" || v === "لا";
+}
+
 function getAge(dob: Date | string | null | undefined): number | null {
   if (!dob) return null;
   const birthDate = typeof dob === "string" ? new Date(dob) : dob;
@@ -203,21 +218,23 @@ export function checkPreferenceMatchDetailed(
   }
 
   // Hijab preference
-  if (profile.prefHijab && otherGender === "FEMALE" && otherProfile.hijab !== null && otherProfile.hijab !== undefined) {
-    const prefBool = profile.prefHijab === "yes";
-    details.push({ field: "hijab", label: "Hijab", matched: otherProfile.hijab === prefBool, weight: 1, userPref: profile.prefHijab, candidateValue: otherProfile.hijab ? "yes" : "no" });
+  const hijabPref = prefYesNo(profile.prefHijab);
+  if (hijabPref && otherGender === "FEMALE" && otherProfile.hijab !== null && otherProfile.hijab !== undefined) {
+    const prefBool = hijabPref === "yes";
+    details.push({ field: "hijab", label: "Hijab", matched: otherProfile.hijab === prefBool, weight: 1, userPref: profile.prefHijab ?? null, candidateValue: otherProfile.hijab ? "yes" : "no" });
   }
 
   // Beard preference
-  if (profile.prefBeard && otherGender === "MALE" && otherProfile.beard !== null && otherProfile.beard !== undefined) {
-    const prefBool = profile.prefBeard === "yes";
-    details.push({ field: "beard", label: "Beard", matched: otherProfile.beard === prefBool, weight: 1, userPref: profile.prefBeard, candidateValue: otherProfile.beard ? "yes" : "no" });
+  const beardPref = prefYesNo(profile.prefBeard);
+  if (beardPref && otherGender === "MALE" && otherProfile.beard !== null && otherProfile.beard !== undefined) {
+    const prefBool = beardPref === "yes";
+    details.push({ field: "beard", label: "Beard", matched: otherProfile.beard === prefBool, weight: 1, userPref: profile.prefBeard ?? null, candidateValue: otherProfile.beard ? "yes" : "no" });
   }
 
   // Children acceptance
   if (profile.prefChildrenAcceptance && otherProfile.childrenCount !== undefined) {
     let matched: boolean;
-    if (profile.prefChildrenAcceptance === "no_children") {
+    if (wantsNoChildren(profile.prefChildrenAcceptance)) {
       matched = (otherProfile.childrenCount ?? 0) === 0;
     } else {
       matched = true; // accept_children
@@ -366,13 +383,13 @@ function dealbreakerHolds(key: DealbreakerKey, owner: ProfileForScoring, other: 
     case "religiosity": return inList(owner.prefReligiosity, other.religiosity);
     case "smokingStatus": return inList(owner.prefSmokingStatus, other.smokingStatus);
     case "hijab":
-      if (!owner.prefHijab || otherGender !== "FEMALE") return null;
-      return other.hijab === null || other.hijab === undefined ? false : other.hijab === (owner.prefHijab === "yes");
+      if (!prefYesNo(owner.prefHijab) || otherGender !== "FEMALE") return null;
+      return other.hijab === null || other.hijab === undefined ? false : other.hijab === (prefYesNo(owner.prefHijab) === "yes");
     case "beard":
-      if (!owner.prefBeard || otherGender !== "MALE") return null;
-      return other.beard === null || other.beard === undefined ? false : other.beard === (owner.prefBeard === "yes");
+      if (!prefYesNo(owner.prefBeard) || otherGender !== "MALE") return null;
+      return other.beard === null || other.beard === undefined ? false : other.beard === (prefYesNo(owner.prefBeard) === "yes");
     case "children":
-      if (owner.prefChildrenAcceptance !== "no_children") return null;
+      if (!wantsNoChildren(owner.prefChildrenAcceptance)) return null;
       return (other.childrenCount ?? 0) === 0;
   }
 }

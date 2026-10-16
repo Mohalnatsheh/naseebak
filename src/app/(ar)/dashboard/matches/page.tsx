@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import {
   Loader2,
@@ -56,6 +56,7 @@ import { Badge } from "@/components/ui/badge";
 import { ImageLightbox } from "@/components/shared/image-lightbox";
 import { VerifiedBadge } from "@/components/shared/verified-badge";
 import { MatchIntroPanel } from "@/components/intro/match-intro-panel";
+import { describeOption, oppositeGender } from "@/lib/profile-options";
 import { useDashboardData } from "@/contexts/dashboard-context";
 
 interface Match {
@@ -252,6 +253,9 @@ export default function MatchesPage() {
   const introMode = counts.flags.introRequests;
   // Opened from a notification link (?match=<id>): scroll to and highlight that card
   const [focusMatchId, setFocusMatchId] = useState<string | null>(null);
+  const focusLoaded = useRef(false);
+  const skipNextFetch = useRef(false);
+  const focusShown = useRef(false);
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
   const [menuOpen, setMenuOpen] = useState<string | null>(null);
   const [reportDialog, setReportDialog] = useState<{ userId: string; name: string } | null>(null);
@@ -381,10 +385,19 @@ export default function MatchesPage() {
         setAccountComplete(false);
       }
     }
+    let cancelled = false;
     async function fetchMatches() {
       try {
-        const res = await fetch(`/api/matches?page=${page}`);
+        // First load from a link (?match=<id>): ask for the page that holds that match
+        const focus = !focusLoaded.current ? new URLSearchParams(window.location.search).get("match") : null;
+        const res = await fetch(`/api/matches?page=${page}${focus ? `&focus=${encodeURIComponent(focus)}` : ""}`);
         const data = await res.json();
+        if (cancelled) return;
+        focusLoaded.current = true;
+        if (focus && data.page && data.page !== page) {
+          skipNextFetch.current = true;
+          setPage(data.page);
+        }
         setMatches(data.matches || []);
         setTotalPages(data.totalPages || 1);
       } catch (err) {
@@ -393,16 +406,26 @@ export default function MatchesPage() {
         setLoading(false);
       }
     }
+    if (skipNextFetch.current) {
+      // The page changed only to show the focused match, which is already loaded
+      skipNextFetch.current = false;
+      return;
+    }
     checkCompletion();
     fetchMatches();
+    return () => {
+      cancelled = true;
+    };
   }, [page]);
 
   useEffect(() => {
     const id = new URLSearchParams(window.location.search).get("match");
-    if (!id || loading) return;
-    setFocusMatchId(id);
+    if (!id || loading || focusShown.current) return;
     const el = document.getElementById(`match-${id}`);
-    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (!el) return;
+    focusShown.current = true;
+    setFocusMatchId(id);
+    el.scrollIntoView({ behavior: "smooth", block: "start" });
     const t = setTimeout(() => setFocusMatchId(null), 4000);
     return () => clearTimeout(t);
   }, [loading, matches]);
@@ -569,7 +592,7 @@ export default function MatchesPage() {
                             )}
                             {c.job && (
                               <span className="inline-flex items-center gap-1 text-sm text-muted-foreground">
-                                <Briefcase className="h-3.5 w-3.5" />{c.job}
+                                <Briefcase className="h-3.5 w-3.5" />{describeOption("job", c.job, isFemale ? "MALE" : "FEMALE")}
                               </span>
                             )}
                           </div>
@@ -632,7 +655,7 @@ export default function MatchesPage() {
                       <div className="flex flex-wrap gap-2">
                         {c.maritalStatus && (
                           <div className="inline-flex items-center gap-1.5 rounded-full bg-muted/60 border border-border/50 px-3 py-1.5 text-xs font-medium text-foreground/80">
-                            <User className="h-3 w-3 text-primary/50" />{c.maritalStatus}
+                            <User className="h-3 w-3 text-primary/50" />{describeOption("maritalStatus", c.maritalStatus, isFemale ? "MALE" : "FEMALE")}
                           </div>
                         )}
                         {c.education && (
@@ -642,7 +665,7 @@ export default function MatchesPage() {
                         )}
                         {c.religiosity && (
                           <div className="inline-flex items-center gap-1.5 rounded-full bg-muted/60 border border-border/50 px-3 py-1.5 text-xs font-medium text-foreground/80">
-                            <Moon className="h-3 w-3 text-primary/50" />{c.religiosity}
+                            <Moon className="h-3 w-3 text-primary/50" />{describeOption("religiosity", c.religiosity, isFemale ? "MALE" : "FEMALE")}
                           </div>
                         )}
                         {c.nationality && (
@@ -685,7 +708,7 @@ export default function MatchesPage() {
                           <InfoRow icon={MapPin} label="المدينة" value={c.city} />
                           <InfoRow icon={MapPinned} label="المنطقة" value={c.area} />
                           <InfoRow icon={Flag} label="الجنسية" value={c.nationality} />
-                          <InfoRow icon={User} label="الحالة الاجتماعية" value={c.maritalStatus} />
+                          <InfoRow icon={User} label="الحالة الاجتماعية" value={c.maritalStatus && describeOption("maritalStatus", c.maritalStatus, isFemale ? "MALE" : "FEMALE")} />
                           <InfoRow icon={Baby} label="عدد الأبناء" value={c.childrenCount > 0 ? `${c.childrenCount}` : "لا يوجد"} />
                           <InfoRow icon={Ruler} label="الطول" value={c.height ? `${c.height} سم` : null} />
                           <InfoRow icon={Weight} label="الوزن" value={c.weight ? `${c.weight} كغ` : null} />
@@ -703,15 +726,15 @@ export default function MatchesPage() {
                         <Section title="التعليم والعمل" icon={GraduationCap} defaultOpen={true}>
                           <InfoRow icon={GraduationCap} label="المستوى التعليمي" value={c.education} />
                           <InfoRow icon={BookOpen} label="التخصص" value={c.fieldOfStudy} />
-                          <InfoRow icon={Briefcase} label="الوظيفة" value={c.job} />
+                          <InfoRow icon={Briefcase} label="الوظيفة" value={c.job && describeOption("job", c.job, isFemale ? "MALE" : "FEMALE")} />
                           <InfoRow icon={Wallet} label="مستوى الدخل" value={c.incomeRange} />
                         </Section>
 
                         <Section title="الدين ونمط الحياة" icon={Moon} defaultOpen={true}>
-                          <InfoRow icon={Moon} label="مستوى التدين" value={c.religiosity} />
-                          <InfoRow icon={Cigarette} label="التدخين" value={c.smokingStatus} />
-                          <InfoRow icon={Activity} label="نمط الحياة" value={c.lifestyle} />
-                          <InfoRow icon={UtensilsCrossed} label="القدرة على الطبخ" value={c.cookingAbility} />
+                          <InfoRow icon={Moon} label="مستوى التدين" value={c.religiosity && describeOption("religiosity", c.religiosity, isFemale ? "MALE" : "FEMALE")} />
+                          <InfoRow icon={Cigarette} label="التدخين" value={c.smokingStatus && describeOption("smokingStatus", c.smokingStatus, isFemale ? "MALE" : "FEMALE")} />
+                          <InfoRow icon={Activity} label="نمط الحياة" value={c.lifestyle && describeOption("lifestyle", c.lifestyle, isFemale ? "MALE" : "FEMALE")} />
+                          <InfoRow icon={UtensilsCrossed} label="القدرة على الطبخ" value={c.cookingAbility && describeOption("cookingAbility", c.cookingAbility, isFemale ? "MALE" : "FEMALE")} />
                           <InfoRow icon={Car} label="رخصة قيادة" value={c.drivingLicense !== null && c.drivingLicense !== undefined ? (c.drivingLicense ? "نعم" : "لا") : null} />
                         </Section>
 

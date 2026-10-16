@@ -6,6 +6,8 @@ import { createContext, useContext, useState, useEffect, useCallback, type React
 export interface CycleCounts {
   flags: { introRequests: boolean; chat: boolean; mutualSuggestions: boolean };
   pendingIntros: number;
+  /** Match of the pending request that expires first, for the dashboard card link */
+  pendingIntroMatchId?: string | null;
   unreadChats: number;
   hasChats: boolean;
   guardian: { exists: boolean; consented: boolean } | null;

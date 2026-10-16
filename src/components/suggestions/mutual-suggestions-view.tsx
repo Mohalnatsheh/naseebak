@@ -15,6 +15,8 @@ import { VerifiedBadge } from "@/components/shared/verified-badge";
 import { CandidateDetails } from "@/components/suggestions/candidate-details";
 import { DealbreakersCard } from "@/components/suggestions/dealbreakers-card";
 import { trackEvent } from "@/lib/analytics";
+import { useDashboardData } from "@/contexts/dashboard-context";
+import { describeOption, oppositeGender } from "@/lib/profile-options";
 import type { FeedItem, FeedTab } from "@/lib/suggestions/feed";
 
 type Notice = { kind: "match" } | { kind: "interested" } | { kind: "declined" } | { kind: "error"; message: string };
@@ -45,6 +47,7 @@ function decisionRequest(item: FeedItem, interested: boolean): { url: string; bo
  * is never shown — the card just waits until it closes.
  */
 export function MutualSuggestionsView() {
+  const partnerGender = oppositeGender(useDashboardData().profile?.gender);
   const [tab, setTab] = useState<FeedTab>("new");
   const [items, setItems] = useState<FeedItem[]>([]);
   const [totals, setTotals] = useState<Record<FeedTab, number>>({ new: 0, waiting: 0 });
@@ -294,7 +297,7 @@ export function MutualSuggestionsView() {
                         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5 text-sm text-muted-foreground">
                           {c.age && <span className="inline-flex items-center gap-1"><Calendar className="h-3.5 w-3.5" />{c.age} سنة</span>}
                           {c.city && <span className="inline-flex items-center gap-1"><MapPin className="h-3.5 w-3.5" />{c.city}{c.area ? ` - ${c.area}` : ""}</span>}
-                          {c.job && <span className="inline-flex items-center gap-1"><Briefcase className="h-3.5 w-3.5" />{c.job}</span>}
+                          {c.job && <span className="inline-flex items-center gap-1"><Briefcase className="h-3.5 w-3.5" />{describeOption("job", c.job, partnerGender)}</span>}
                         </div>
                       </div>
                       <div className="shrink-0 h-[68px] w-[68px] rounded-full bg-gradient-to-br from-primary to-secondary p-[6px] ring-4 ring-primary/15">

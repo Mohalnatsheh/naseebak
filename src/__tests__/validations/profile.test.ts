@@ -41,6 +41,38 @@ const validProfile = {
 };
 
 describe("profileSchema", () => {
+  // Short start: the basics only
+  const minimalProfile = {
+    dateOfBirth: "1998-03-02",
+    city: "عمّان",
+    nationality: "أردني",
+    education: "بكالوريوس",
+    maritalStatus: "أعزب/عزباء",
+    religiosity: "ملتزم",
+    prefAgeMin: 25,
+    prefAgeMax: 35,
+    hijab: false,
+    beard: false,
+    drivingLicense: false,
+  };
+
+  it("accepts the short-start basics without the optional fields", () => {
+    expect(profileSchema.safeParse(minimalProfile).success).toBe(true);
+  });
+
+  it("still requires each basic field", () => {
+    for (const key of ["dateOfBirth", "city", "education", "maritalStatus", "religiosity", "prefAgeMin"] as const) {
+      const rest: Record<string, unknown> = { ...minimalProfile };
+      delete rest[key];
+      expect(profileSchema.safeParse(rest).success, key).toBe(false);
+    }
+  });
+
+  it("keeps limits on optional fields when they are given", () => {
+    expect(profileSchema.safeParse({ ...minimalProfile, numberOfSiblings: 25 }).success).toBe(false);
+    expect(profileSchema.safeParse({ ...minimalProfile, healthConditions: "a".repeat(501) }).success).toBe(false);
+  });
+
   it("should accept valid profile data", () => {
     const result = profileSchema.safeParse(validProfile);
     expect(result.success).toBe(true);

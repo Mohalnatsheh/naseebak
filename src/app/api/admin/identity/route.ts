@@ -111,10 +111,10 @@ export async function PATCH(request: Request) {
       });
     }
 
-    const identityTitle = action === "approve" ? "تم التحقق من هويتك" : "تم رفض صورة التحقق";
+    const identityTitle = action === "approve" ? "تم التحقق من هويتك" : "لم يتم التحقق من الحساب";
     const identityBody = action === "approve"
       ? "تهانينا! تم التحقق من هويتك بنجاح وأصبح حسابك يحمل شارة الحساب الموثّق."
-      : `تم رفض صورة التحقق. ${rejectionReason || reviewNotes || "يرجى التقاط صورة سيلفي جديدة وواضحة."}`;
+      : `لم يتم منح شارة الحساب الموثّق.${rejectionReason || reviewNotes ? ` ${rejectionReason || reviewNotes}` : ""}`;
 
     await db.notification.create({
       data: {
@@ -129,7 +129,7 @@ export async function PATCH(request: Request) {
       userId: doc.userId,
       title: identityTitle,
       body: identityBody,
-      url: "/dashboard/identity",
+      url: "/dashboard",
     });
 
     return NextResponse.json({ message: `تم ${action === "approve" ? "قبول" : "رفض"} الهوية بنجاح`, doc });

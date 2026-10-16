@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { useDashboardData } from "@/contexts/dashboard-context";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -193,6 +194,11 @@ function arraysEqual(a: string[], b: string[]): boolean {
 export default function ProfileEditPage() {
   const router = useRouter();
   const [step, setStep] = useState(1);
+  const introMode = useDashboardData().counts.flags.introRequests;
+  // Start each step at the top of the page
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [step]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -1279,14 +1285,16 @@ export default function ProfileEditPage() {
           <CardHeader>
             <CardTitle>معلومات ولي الأمر</CardTitle>
             <CardDescription>
-              بيانات ولي الأمر لتنسيق الزيارات العائلية
+              {introMode ? "بيانات وليّ الأمر للتعارف العائلي" : "بيانات ولي الأمر لتنسيق الزيارات العائلية"}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-start gap-3 rounded-xl bg-primary/5 border border-primary/15 p-4">
               <Shield className="h-5 w-5 text-primary shrink-0 mt-0.5" />
               <p className="text-sm text-primary leading-relaxed">
-                هذه البيانات سرية وتستخدم فقط من قبل الإدارة لتنسيق الزيارات العائلية ولن تظهر للمستخدمين الآخرين. يتم حفظها مباشرة دون الحاجة لمراجعة الإدارة.
+                {introMode
+                  ? "بيانات وليّ الأمر سرية، ولا تظهر لأي مستخدم إلا لعائلة الطرف الآخر بعد قبول طلب التعارف العائلي وبموافقتك. يتم حفظها مباشرة دون الحاجة لمراجعة الإدارة."
+                  : "هذه البيانات سرية وتستخدم فقط من قبل الإدارة لتنسيق الزيارات العائلية ولن تظهر للمستخدمين الآخرين. يتم حفظها مباشرة دون الحاجة لمراجعة الإدارة."}
               </p>
             </div>
 

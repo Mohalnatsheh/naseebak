@@ -643,7 +643,7 @@ export default function DashboardPage() {
                         iconColor: "text-primary",
                         iconBg: "bg-primary/10",
                         title: `لديك ${matchesCount} توافق متبادل`,
-                        desc: "يمكنك الآن عرض الصور وطلب زيارة",
+                        desc: creditsBlockSuggestions ? "يمكنك الآن عرض الصور وطلب زيارة" : "اختر طريقة التعارف: تعارف عائلي أو محادثة",
                         time: "جديد",
                       },
                     ]

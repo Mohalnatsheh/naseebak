@@ -669,12 +669,12 @@ function RegisterPageContent() {
                       onClick={() => updateField("gender", "MALE")}
                       className={`group relative rounded-2xl border-2 p-4 text-center transition-all duration-300 overflow-hidden ${
                         form.gender === "MALE"
-                          ? "border-transparent bg-gradient-to-br from-blue-50 to-blue-100 shadow-lg shadow-blue-500/10"
-                          : "border-border/60 hover:border-blue-300 hover:shadow-md bg-muted/20"
+                          ? "border-transparent bg-gradient-to-br from-primary/5 to-primary/10 shadow-lg shadow-primary/10"
+                          : "border-border/60 hover:border-primary/40 hover:shadow-md bg-muted/20"
                       }`}
                     >
                       {form.gender === "MALE" && (
-                        <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 opacity-10" />
+                        <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-primary to-secondary opacity-10" />
                       )}
                       {form.gender === "MALE" && (
                         <div
@@ -693,8 +693,8 @@ function RegisterPageContent() {
                         <div
                           className={`mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full transition-all duration-300 ${
                             form.gender === "MALE"
-                              ? "bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-md"
-                              : "bg-muted text-muted-foreground group-hover:bg-blue-100 group-hover:text-blue-600"
+                              ? "bg-gradient-to-br from-primary to-secondary text-white shadow-md"
+                              : "bg-muted text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary"
                           }`}
                         >
                           <svg
@@ -714,7 +714,7 @@ function RegisterPageContent() {
                         <span
                           className={`text-sm font-bold transition-colors ${
                             form.gender === "MALE"
-                              ? "text-blue-700"
+                              ? "text-primary"
                               : "text-foreground"
                           }`}
                         >
@@ -728,12 +728,12 @@ function RegisterPageContent() {
                       onClick={() => updateField("gender", "FEMALE")}
                       className={`group relative rounded-2xl border-2 p-4 text-center transition-all duration-300 overflow-hidden ${
                         form.gender === "FEMALE"
-                          ? "border-transparent bg-gradient-to-br from-pink-50 to-rose-100 shadow-lg shadow-pink-500/10"
-                          : "border-border/60 hover:border-pink-300 hover:shadow-md bg-muted/20"
+                          ? "border-transparent bg-gradient-to-br from-accent/10 to-accent/20 shadow-lg shadow-accent/10"
+                          : "border-border/60 hover:border-accent/50 hover:shadow-md bg-muted/20"
                       }`}
                     >
                       {form.gender === "FEMALE" && (
-                        <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-pink-500 to-rose-600 opacity-10" />
+                        <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-accent to-accent/70 opacity-10" />
                       )}
                       {form.gender === "FEMALE" && (
                         <div
@@ -752,8 +752,8 @@ function RegisterPageContent() {
                         <div
                           className={`mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full transition-all duration-300 ${
                             form.gender === "FEMALE"
-                              ? "bg-gradient-to-br from-pink-500 to-rose-600 text-white shadow-md"
-                              : "bg-muted text-muted-foreground group-hover:bg-pink-100 group-hover:text-pink-600"
+                              ? "bg-gradient-to-br from-accent to-accent/70 text-white shadow-md"
+                              : "bg-muted text-muted-foreground group-hover:bg-accent/15 group-hover:text-accent-foreground"
                           }`}
                         >
                           <svg
@@ -773,7 +773,7 @@ function RegisterPageContent() {
                         <span
                           className={`text-sm font-bold transition-colors ${
                             form.gender === "FEMALE"
-                              ? "text-pink-700"
+                              ? "text-accent-foreground"
                               : "text-foreground"
                           }`}
                         >
@@ -882,7 +882,7 @@ function RegisterPageContent() {
                 `}</style>
 
                 {/* ---- Privacy note ---- */}
-                <div className="flex items-center gap-3 p-3 bg-gradient-to-l from-primary/5 to-blue-50/50 rounded-xl border border-primary/10 text-sm text-muted-foreground">
+                <div className="flex items-center gap-3 p-3 bg-gradient-to-l from-primary/5 to-primary/[0.03] rounded-xl border border-primary/10 text-sm text-muted-foreground">
                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10">
                     <Shield className="h-4 w-4 text-primary" />
                   </div>

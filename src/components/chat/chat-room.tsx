@@ -54,6 +54,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
   const [hasMore, setHasMore] = useState(false);
   const [chatEnabled, setChatEnabled] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [composerError, setComposerError] = useState<string | null>(null);
   const [intro, setIntro] = useState<IntroState | null>(null);
@@ -76,9 +77,13 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
   const fetchLatest = useCallback(
     async (mode: "replace" | "merge") => {
       const res = await fetch(`/api/chats/${conversationId}`).catch(() => null);
-      if (!res) return;
-      if (res.status === 404) return setNotFound(true);
-      if (res.ok) applyResponse(await res.json(), mode);
+      if (res?.status === 404) return setNotFound(true);
+      if (res?.ok) {
+        setLoadError(false);
+        applyResponse(await res.json(), mode);
+      } else if (mode === "replace") {
+        setLoadError(true);
+      }
     },
     [conversationId, applyResponse]
   );
@@ -230,7 +235,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
     } else toast.error(res.data.error ?? "تعذّر التمديد");
   }
 
-  async function end(report?: { reason: ReportReasonValue; details?: string }) {
+  async function end(report?: { reason: ReportReasonValue; details?: string }): Promise<boolean> {
     setBusy(true);
     const res = await postJson(`/api/chats/${conversationId}/end`, report ? { report } : {});
     setBusy(false);
@@ -239,12 +244,20 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
       toast.success(report ? "تم إنهاء المحادثة وإرسال البلاغ" : "تم إنهاء المحادثة");
       fetchLatest("merge");
     } else toast.error(res.data.error ?? "حدث خطأ");
+    return res.ok;
   }
 
   async function requestFamily(consent: boolean) {
     if (!conversation) return;
     setBusy(true);
-    if (consent) await postJson("/api/profile/guardian-consent");
+    if (consent) {
+      const saved = await postJson("/api/profile/guardian-consent");
+      if (!saved.ok) {
+        setBusy(false);
+        toast.error(saved.data.error ?? "تعذّر حفظ الموافقة");
+        return;
+      }
+    }
     const res = await postJson(`/api/matches/${conversation.matchId}/intro`, { type: "FAMILY" });
     setBusy(false);
     setFamilyDialog(false);
@@ -259,6 +272,18 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
         <p className="font-semibold">المحادثة غير موجودة</p>
         <Button asChild variant="outline" className="mt-4">
           <Link href="/dashboard/chats">العودة للمحادثات</Link>
+        </Button>
+      </div>
+    );
+  }
+
+  if (!conversation && loadError) {
+    return (
+      <div className="mx-auto max-w-md py-20 text-center">
+        <p className="font-semibold">تعذّر تحميل المحادثة</p>
+        <p className="mt-1 text-sm text-muted-foreground">تحقق من اتصالك وحاول مرة أخرى.</p>
+        <Button variant="outline" className="mt-4" onClick={() => fetchLatest("replace")}>
+          إعادة المحاولة
         </Button>
       </div>
     );
@@ -308,7 +333,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
             {conversation.canExtend && (
-              <DropdownMenuItem onClick={extend}>
+              <DropdownMenuItem onClick={extend} disabled={busy}>
                 <CalendarPlus className="h-4 w-4" /> تمديد ٧ أيام
               </DropdownMenuItem>
             )}
@@ -356,7 +381,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
         <span className="text-muted-foreground">لا تشارك أرقام الهواتف أو الحسابات.</span>
 
         <span className="ms-auto">
-          {family?.status === "none" && conversation.status !== "ENDED" && (
+          {family?.status === "none" && intro?.flags.introRequests && conversation.status !== "ENDED" && (
             <Button size="xs" onClick={() => setFamilyDialog(true)} className="gap-1">
               <Users className="h-3.5 w-3.5" /> ننتقل لتعارف عائلي
             </Button>
@@ -453,7 +478,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
         partnerName={conversation.partner.firstName}
         busy={busy}
         onConfirm={(report) => {
-          end(report).then(() => report && router.push("/dashboard/chats"));
+          end(report).then((ok) => ok && report && router.push("/dashboard/chats"));
         }}
       />
     </div>

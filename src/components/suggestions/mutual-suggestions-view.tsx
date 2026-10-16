@@ -105,7 +105,7 @@ export function MutualSuggestionsView() {
         return;
       }
       trackEvent("suggestion_response", { response: interested ? "accept" : "reject", mutual_match: !!data.match });
-      setItems((prev) => prev.filter((i) => i.id !== item.id));
+      removeAndRefill(item.id);
       // A legacy interest answered "yes" is always a match; a legacy suggestion "yes" waits like a mutual one
       const waitsNow = interested && !data.match;
       setTotals((t) => ({ new: Math.max(0, t.new - 1), waiting: t.waiting + (waitsNow ? 1 : 0) }));
@@ -117,6 +117,16 @@ export function MutualSuggestionsView() {
     }
   }
 
+  /** Drop a decided card; when the page empties, load the next items so the empty state isn't shown by mistake */
+  function removeAndRefill(id: string) {
+    setItems((prev) => prev.filter((i) => i.id !== id));
+    if (items.length <= 1) {
+      const p = page > 1 ? page - 1 : 1;
+      if (p !== page) setPage(p);
+      else load(tab, p);
+    }
+  }
+
   async function block(item: FeedItem) {
     setMenuOpen(null);
     const res = await fetch("/api/blocks", {
@@ -125,7 +135,7 @@ export function MutualSuggestionsView() {
       body: JSON.stringify({ blockedId: item.candidate.id }),
     }).catch(() => null);
     if (res?.ok) {
-      setItems((prev) => prev.filter((i) => i.id !== item.id));
+      removeAndRefill(item.id);
       setTotals((t) => ({ ...t, [tab]: Math.max(0, t[tab] - 1) }));
     }
   }

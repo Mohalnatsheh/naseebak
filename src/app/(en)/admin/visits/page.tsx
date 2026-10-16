@@ -40,6 +40,13 @@ const statusOptions = [
 
 export default function AdminVisitsPage() {
   const [visits, setVisits] = useState<Visit[]>([]);
+  const [introMode, setIntroMode] = useState(false);
+  useEffect(() => {
+    fetch("/api/admin/settings/new-cycle")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => d && setIntroMode(!!d.introRequests))
+      .catch(() => {});
+  }, []);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState("");
@@ -156,6 +163,17 @@ export default function AdminVisitsPage() {
         </h1>
         <p className="text-muted-foreground mt-1">Coordinate family visits for mutual matches</p>
       </div>
+
+      {introMode && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          <p className="font-semibold">New user cycle is on: families now connect themselves.</p>
+          <p className="mt-1">
+            New matches don&apos;t create visit requests anymore. This list only holds older requests. Moving a
+            &quot;Requested&quot; visit forward hides the family-introduction option for that couple, so only do it if you
+            are really arranging the visit.
+          </p>
+        </div>
+      )}
 
       {/* Status filter */}
       <div className="flex gap-2 flex-wrap">

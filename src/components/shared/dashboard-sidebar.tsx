@@ -93,7 +93,7 @@ function NavItem({
           <link.icon className={cn("h-4 w-4", isActive && "text-primary")} />
         </div>
         {link.badge && link.badge > 0 ? (
-          <span className="absolute -top-1.5 -right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-gradient-to-r from-red-500 to-rose-500 px-1 text-[10px] font-bold text-white shadow-sm">
+          <span className="absolute -top-1.5 -right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-white shadow-sm">
             {link.badge > 99 ? "99+" : link.badge}
           </span>
         ) : null}
@@ -290,7 +290,7 @@ export function DashboardSidebar() {
             <Link href="/dashboard/notifications" className="relative h-10 w-10 rounded-xl flex items-center justify-center hover:bg-muted/60 transition-colors">
               <Bell className="h-5 w-5 text-muted-foreground" />
               {unreadCount > 0 && (
-                <span className="absolute top-1 right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-gradient-to-r from-red-500 to-rose-500 px-1 text-[9px] font-bold text-white shadow-sm animate-in zoom-in duration-300">
+                <span className="absolute top-1 right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-bold text-white shadow-sm animate-in zoom-in duration-300">
                   {unreadCount > 99 ? "99+" : unreadCount}
                 </span>
               )}

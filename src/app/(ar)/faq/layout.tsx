@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { getCycleFlags } from "@/lib/settings";
+import { faqsFor } from "./faq-data";
 
 export const metadata: Metadata = {
   title: "الأسئلة الشائعة",
@@ -13,138 +15,22 @@ export const metadata: Metadata = {
   },
 };
 
-const faqJsonLd = {
-  "@context": "https://schema.org",
-  "@type": "FAQPage",
-  mainEntity: [
-    {
-      "@type": "Question",
-      name: "ما هي منصة نصيبك؟",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "نصيبك منصة أردنية مبنية على مبدأ الزواج بالحلال. نستخدم تقنيات توافق ذكية لنقترح عليك الشريك الأنسب — بدون تواصل مباشر، وبزيارات عائلية تقليدية على أصولها.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "كيف تعمل المنصة؟",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "تبدأ بالتسجيل برقم هاتفك، ثم تكمل ملفك الشخصي واختبار الشخصية. تحصل على اقتراحات شريك مع تفاصيل كاملة ونسبة التوافق. لمّا الطرفين يقبلوا بعض، تنكشف الصور وفريقنا ينسّق زيارة عائلية على أصولها.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "هل المنصة متاحة خارج الأردن؟",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "حالياً المنصة متاحة للمستخدمين في الأردن فقط. نخطط للتوسع لخدمة دول عربية أخرى في المستقبل القريب.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "هل التسجيل مجاني؟",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "نعم، التسجيل مجاني وتحصل على اقتراحين مجاناً. كل اقتراح يستخدم رصيداً واحداً، ولما يخلص رصيدك بتقدر تشحنه بباقات بأسعار مناسبة.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "كيف تحافظون على خصوصيتي؟",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "صورك تبقى مخفية حتى يتم التوافق المتبادل. اسمك الكامل ورقمك ما يظهروا لأي مستخدم. بيانات ولي الأمر لا تظهر للطرف الآخر أبداً. جميع البيانات مشفرة بمعيار AES-256.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "من يمكنه رؤية صوري؟",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "صورك مخفية تماماً حتى يتم التوافق المتبادل بينك وبين الطرف الآخر. فقط عندها تُكشف الصور لكلا الطرفين.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "هل يوجد تواصل مباشر بين المستخدمين؟",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "لا، ما في أي شكل من أشكال التواصل المباشر — لا شات ولا رسائل ولا مكالمات. المنصة مبنية على أساس الزواج بالحلال، والخطوة اللي بعد التوافق هي زيارة عائلية منظمة.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "هل الحسابات حقيقية؟",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "كل حساب مربوط برقم هاتف أردني مؤكَّد برمز تحقق، وبتقدر تبلّغ عن أي حساب مشبوه بأي وقت وفريقنا يراجعه.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "ما هي الباقات المتاحة؟",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "التسجيل مجاني ومعه اقتراحين مجاناً. بعدها بتقدر تشحن رصيد الاقتراحات من لوحة التحكم: ٣ اقتراحات بـ ٣ د.أ، أو ٥ اقتراحات بـ ٤ د.أ، أو ١٠ اقتراحات بـ ٧ د.أ.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "ما هي طرق الدفع المتاحة؟",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "نقبل الدفع عبر eFAWATEERcom، PayPal، وبطاقات Visa/Mastercard عبر Stripe. جميع المعاملات آمنة ومشفرة.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "كيف يتم حساب نسبة التوافق؟",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "نستخدم خوارزميات ذكاء اصطناعي تحلل عدة عوامل: المعايير الأساسية، القيم والدين، نتائج اختبار الشخصية، والتعلم السلوكي.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "من يحصل على الاقتراحات؟",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "كل المستخدمين — شباب وبنات — يحصلوا على اقتراحات. لمّا تقبل اقتراح، الطرف الثاني يوصله إشعار ويقدر يقبل أو يرفض.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "ماذا يحدث بعد التوافق المتبادل؟",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "لمّا الطرفين يقبلوا بعض، تنكشف الصور ويتواصل فريقنا مع ولي أمر كل طرف لتنسيق زيارة عائلية تقليدية محترمة — على عاداتنا وتقاليدنا الأردنية.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "هل يمكنني إلغاء اشتراكي؟",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "نعم، يمكنك إلغاء اشتراكك في أي وقت من صفحة إدارة الاشتراك. ستستمر في الاستفادة من الباقة حتى نهاية الفترة المدفوعة.",
-      },
-    },
-    {
-      "@type": "Question",
-      name: "هل يمكنني التراجع عن قبول اقتراح؟",
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: "لا يمكن التراجع بعد القبول. لذلك ننصح بالتأني في مراجعة بيانات المرشح قبل اتخاذ القرار.",
-      },
-    },
-  ],
-};
-
-export default function FaqLayout({
+export default async function FaqLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  // Same answers as the page, so search engines never index outdated rules
+  const flags = await getCycleFlags();
+  const faqJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: faqsFor(flags.introRequests, flags.chat).map((f) => ({
+      "@type": "Question",
+      name: f.q,
+      acceptedAnswer: { "@type": "Answer", text: f.a },
+    })),
+  };
   return (
     <>
       <script

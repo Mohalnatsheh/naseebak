@@ -23,6 +23,12 @@ export async function GET(request: Request) {
       ...(status && STATUSES.includes(status) && { status: status as IntroRequestStatus }),
     };
 
+    // Expiry is applied lazily when users read; settle overdue requests first so the numbers are right
+    await db.introRequest.updateMany({
+      where: { status: "PENDING", expiresAt: { lt: new Date() } },
+      data: { status: "EXPIRED" },
+    });
+
     const [grouped, activeChats, total, requests] = await Promise.all([
       db.introRequest.groupBy({ by: ["status"], _count: true }),
       db.conversation.count({ where: { status: "ACTIVE", expiresAt: { gt: new Date() } } }),

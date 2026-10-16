@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { useDashboardData } from "@/contexts/dashboard-context";
 import Link from "next/link";
 import {
   Loader2,
@@ -195,6 +196,7 @@ function SectionCard({
 }
 
 export default function ProfilePage() {
+  const introMode = useDashboardData().counts.flags.introRequests;
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [completeness, setCompleteness] = useState<any>(null);
@@ -1041,8 +1043,9 @@ export default function ProfilePage() {
           <div className="flex items-start gap-3 rounded-xl bg-primary/5 border border-primary/15 p-3 mb-4">
             <Lock className="h-4 w-4 text-primary/70 shrink-0 mt-0.5" />
             <p className="text-xs text-primary leading-relaxed">
-              هذه البيانات سرية ولن تظهر لأي مستخدم آخر. تُستخدم فقط لتنسيق
-              الزيارات العائلية.
+              {introMode
+                ? "بيانات وليّ الأمر سرية، ولا تظهر لأي مستخدم إلا لعائلة الطرف الآخر بعد قبول طلب التعارف العائلي وبموافقتك."
+                : "هذه البيانات سرية ولن تظهر لأي مستخدم آخر. تُستخدم فقط لتنسيق الزيارات العائلية."}
             </p>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1085,7 +1088,7 @@ export default function ProfilePage() {
         {[
           {
             value: user.matchCredits,
-            label: "رصيد الاقتراحات",
+            label: introMode ? "رصيد التعارف" : "رصيد الاقتراحات",
             icon: Sparkles,
             gradient: "from-primary to-secondary",
             bgLight: "from-primary/10 to-secondary/10",

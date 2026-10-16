@@ -24,6 +24,7 @@ import {
   MessageCircle,
 } from "lucide-react";
 import { notificationUrl } from "@/lib/notification-links";
+import { useDashboardData } from "@/contexts/dashboard-context";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
@@ -168,8 +169,18 @@ const prefLabels: { key: keyof NotificationPrefs; label: string; icon: typeof Be
   { key: "support", label: "الدعم", icon: LifeBuoy },
 ];
 
+// Legacy-only and new-cycle-only notification kinds
+const LEGACY_PREFS: (keyof NotificationPrefs)[] = ["interests", "visitUpdates"];
+const NEW_CYCLE_PREFS: (keyof NotificationPrefs)[] = ["introRequests", "chatMessages"];
+
 export default function NotificationsPage() {
   const router = useRouter();
+  const { counts } = useDashboardData();
+  const visiblePrefs = prefLabels.filter(({ key }) =>
+    counts.flags.introRequests
+      ? !LEGACY_PREFS.includes(key) && (key !== "chatMessages" || counts.flags.chat)
+      : !NEW_CYCLE_PREFS.includes(key)
+  );
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -349,7 +360,7 @@ export default function NotificationsPage() {
                 </div>
 
                 <div className="p-5 space-y-1 overflow-y-auto">
-                  {prefs ? prefLabels.map(({ key, label, icon: PrefIcon }) => (
+                  {prefs ? visiblePrefs.map(({ key, label, icon: PrefIcon }) => (
                     <button
                       key={key}
                       type="button"
@@ -431,7 +442,7 @@ export default function NotificationsPage() {
             <div className="space-y-2">
               <h3 className="font-semibold text-lg text-foreground">لا توجد إشعارات</h3>
               <p className="text-sm text-muted-foreground max-w-xs mx-auto leading-relaxed">
-                ستظهر الإشعارات هنا عند وجود تحديثات جديدة على حسابك مثل الاقتراحات والتوافقات والزيارات.
+                ستظهر الإشعارات هنا عند وجود تحديثات جديدة على حسابك مثل الاقتراحات والتوافقات وطلبات التعارف.
               </p>
             </div>
             <div className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground/60 pt-2">

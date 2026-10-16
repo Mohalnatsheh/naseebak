@@ -511,7 +511,9 @@ export default function MatchesPage() {
             const c = m.partner;
 
             // New cycle: a visit the admin never picked up is replaced by the intro panel
-            const showVisitBanner = !!m.visitStatus && !(introMode && m.visitStatus === "REQUESTED");
+            // New cycle: an untouched or closed (superseded by a family intro) admin visit isn't shown
+            const showVisitBanner =
+              !!m.visitStatus && !(introMode && (m.visitStatus === "REQUESTED" || m.visitStatus === "CANCELLED"));
 
             return (
               <div

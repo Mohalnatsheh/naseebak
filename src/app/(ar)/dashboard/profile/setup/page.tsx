@@ -45,6 +45,10 @@ const guardianRelationships = [
 export default function ProfileSetupPage() {
   const router = useRouter();
   const [step, setStep] = useState(1);
+  // Start each step at the top of the page
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [step]);
   const [loading, setLoading] = useState(false);
   const [fetchingProfile, setFetchingProfile] = useState(true);
   const [error, setError] = useState("");
@@ -1024,7 +1028,11 @@ export default function ProfileSetupPage() {
           <div className="h-1.5 bg-gradient-to-l from-primary via-primary/50 to-accent" />
           <CardHeader>
             <CardTitle>بيانات ولي الأمر</CardTitle>
-            <CardDescription>هذه البيانات مطلوبة لتنسيق الزيارات العائلية ولن تظهر للمستخدمين الآخرين</CardDescription>
+            <CardDescription>
+              {counts.flags.introRequests
+                ? "بيانات وليّ الأمر سرية، ولا تظهر لأي مستخدم إلا لعائلة الطرف الآخر بعد قبول طلب التعارف العائلي وبموافقتك."
+                : "هذه البيانات مطلوبة لتنسيق الزيارات العائلية ولن تظهر للمستخدمين الآخرين"}
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2" data-field="parentName">

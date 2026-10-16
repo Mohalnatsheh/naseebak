@@ -24,7 +24,7 @@ Today a match is free and each family/chat **request** costs the sender 1 credit
 
 ## Anti-goals
 
-- A one-sided decision is ever revealed (no notification, no feed hint, no credit refund that would hint at it).
+- A one-sided decision is ever revealed (no notification, no feed hint, no credit refund that would hint at it) — single owner exception: a 0-credit user's locked card may say the other side is interested; a "لا" is never revealed.
 - Anyone charged twice for one "مهتم" (double tap, retries, concurrent requests).
 - Turning the flag off breaks in-flight suggestions, matches, requests or chats, or changes today's behaviour.
 - A guardian's contact is shown without that side's per-match consent (for matches opened under the flag).
@@ -44,7 +44,7 @@ Today a match is free and each family/chat **request** costs the sender 1 credit
 4. **Credit on "مهتم".**
    - "مهتم" costs 1 credit, taken in the **same transaction** that records the decision; if recording fails (already decided, expired, blocked) nothing is charged. A double tap or concurrent retry charges once (the conditional claim on the decision column wins once). Ledger reason `INTEREST` (new `CreditReason` value).
    - 0 credits ⇒ "مهتم" refused in the API (`NO_CREDITS`). "لا" costs nothing.
-   - **0 credits ⇒ new suggestions are locked (owner, added during implementation):** in the "new" tab the feed returns each undecided suggestion as a locked item (compatibility score only, no profile fields), shown as a blurred card with "اشحن رصيدك لعرض الاقتراح والرد" → `/dashboard/payments` and no "مهتم"/"لا" buttons, until the balance is ≥ 1. The decide API also refuses (`NO_CREDITS`) while locked.
+   - **0 credits ⇒ new suggestions are locked (owner, added during implementation):** in the "new" tab the feed returns each undecided suggestion as a locked item (compatibility score only, no profile fields), shown as a blurred card with "اشحن رصيدك لعرض الاقتراح والرد" → `/dashboard/payments` and no "مهتم"/"لا" buttons, until the balance is ≥ 1. The decide API also refuses (`NO_CREDITS`) while locked. If the other side already said "مهتم", the locked card carries "أبدى اهتمامه بك — اشحن رصيدك لترد" (owner decision: a positive interest may be shown to 0-credit users; a "لا" is never distinguishable from no decision).
    - No refund when the other side says "لا" or never answers (owner's rule; also keeps decisions secret).
    - When the balance reaches 0 after a "مهتم", one PAYMENT notification "انتهى رصيدك — اشحن لتتابع" (existing exhausted-notice pattern).
    - The match is free; intro requests are free when the flag is on (also on matches created before the switch); credits already spent on requests are not refunded.

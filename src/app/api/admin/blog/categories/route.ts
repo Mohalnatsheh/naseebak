@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { isUniqueViolation } from "@/lib/admin/query";
 import { createCategorySchema } from "@/lib/validations/blog";
 
 export async function GET() {

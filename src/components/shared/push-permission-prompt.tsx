@@ -49,7 +49,7 @@ export function PushPermissionPrompt() {
               فعّل الإشعارات الفورية
             </h3>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              احصل على تنبيه فوري عند وصول اقتراح جديد أو توافق متبادل
+              احصل على تنبيه فوري عند وصول اقتراح جديد أو توافق متبادل أو رسالة جديدة
             </p>
           </div>
           <div className="flex items-center gap-3 w-full pt-1">

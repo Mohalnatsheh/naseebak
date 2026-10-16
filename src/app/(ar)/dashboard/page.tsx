@@ -24,6 +24,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { useDashboardData } from "@/contexts/dashboard-context";
 import { GuardianConsentCard } from "@/components/intro/guardian-consent-card";
 import { PendingIntrosCard } from "@/components/intro/pending-intros-card";
+import { InstallAppCard } from "@/components/shared/install-app-card";
 import { SUGGESTIONS_MIN_COMPLETENESS } from "@/lib/profile-completeness";
 
 /* ------------------------------------------------------------------ */
@@ -199,6 +200,7 @@ export default function DashboardPage() {
     <div className="max-w-4xl mx-auto space-y-6 pb-10">
       <PendingIntrosCard />
       <GuardianConsentCard />
+      <InstallAppCard />
 
       {/* Unread notifications banner */}
       {unreadCount > 0 && (

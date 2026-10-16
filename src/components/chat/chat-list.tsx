@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import type { ChatSummary } from "@/lib/chat/service";
 import { daysLabel, daysLeft } from "@/components/intro/intro-utils";
 import { listTimeLabel } from "./chat-utils";
+import { InstallAppCard } from "@/components/shared/install-app-card";
 
 export function ChatList() {
   const [chats, setChats] = useState<ChatSummary[] | null>(null);
@@ -42,6 +43,8 @@ export function ChatList() {
           </div>
         </div>
       </div>
+
+      {chats !== null && chats.length > 0 && <InstallAppCard context="chats" />}
 
       {chats === null ? (
         <div className="flex justify-center py-16">

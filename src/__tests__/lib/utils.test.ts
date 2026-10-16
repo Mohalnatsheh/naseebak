@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { cn } from "@/lib/utils";
+import { cn, arabicCount } from "@/lib/utils";
 
 describe("cn utility", () => {
   it("should merge class names", () => {
@@ -31,5 +31,16 @@ describe("cn utility", () => {
   it("should handle array of classes", () => {
     const result = cn(["text-sm", "font-bold"]);
     expect(result).toBe("text-sm font-bold");
+  });
+});
+
+describe("arabicCount", () => {
+  const fields = { one: "حقل واحد", two: "حقلان", few: "حقول", many: "حقلاً" };
+  it("uses the right form for each count", () => {
+    expect(arabicCount(1, fields)).toBe("حقل واحد");
+    expect(arabicCount(2, fields)).toBe("حقلان");
+    expect(arabicCount(8, fields)).toBe("8 حقول");
+    expect(arabicCount(11, fields)).toBe("11 حقلاً");
+    expect(arabicCount(103, fields)).toBe("103 حقول");
   });
 });

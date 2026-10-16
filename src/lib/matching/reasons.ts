@@ -9,6 +9,7 @@ import {
   DEALBREAKER_LABELS,
   type DealbreakerKey,
   type UserForScoring,
+  wantsNoChildren,
 } from "@/lib/matching/score";
 
 const MAX_LABELS = 3;
@@ -21,7 +22,7 @@ export function suggestionReason(viewer: UserForScoring, other: UserForScoring):
   const labels = checkPreferenceMatchDetailed(viewer.profile, other.profile, other.gender)
     .details.filter((d) => d.matched)
     // "accept_children" always matches, so it says nothing about this person
-    .filter((d) => d.field !== "children" || viewer.profile?.prefChildrenAcceptance === "no_children")
+    .filter((d) => d.field !== "children" || wantsNoChildren(viewer.profile?.prefChildrenAcceptance))
     .sort((a, b) => b.weight - a.weight)
     .slice(0, MAX_LABELS)
     .map((d) => DEALBREAKER_LABELS[d.field as DealbreakerKey])

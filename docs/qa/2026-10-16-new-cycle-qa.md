@@ -44,6 +44,8 @@ Branch `feature/new-cycle`, local database, all three switches on (`intro_reques
 
 ## To do — UX improvements (recommended next)
 
+Items 6–10 done on branch `feature/new-cycle-ux` (plan: `docs/superpowers/plans/2026-10-16-new-cycle-ux-todos.md`).
+
 6. **Onboarding is long**: the setup wizard requires every field, including tribe, family expenses and health conditions, before saving. We agreed on a short start (basics + dealbreakers, rest optional).
 7. **Dealbreakers** ("شرط أساسي") can only be set from the suggestions page panel, not in the setup wizard or profile edit.
 8. **Feminine forms**: job and lifestyle options are masculine for women (e.g. "صيدلي", "ملتزم", "لا أدخن"); partner-preference options are written in first person ("لا أدخن").

@@ -20,14 +20,17 @@ export async function GET() {
     if (!flags.introRequests) {
       // Switch off: existing chats stay readable, so keep the chats link for people who have one
       const hasChats = (await db.conversation.count({ where: mine })) > 0;
-      return NextResponse.json({ flags, pendingIntros: 0, unreadChats: 0, hasChats, guardian: null });
+      return NextResponse.json({ flags, pendingIntros: 0, pendingIntroMatchId: null, unreadChats: 0, hasChats, guardian: null });
     }
 
     // Expire overdue chats and send "2 days left" warnings (no scheduler needed)
     await chatHousekeepingForUser(userId).catch((e) => console.error("Chat housekeeping:", e));
 
-    const [pendingIntros, unreadChats, chatCount, guardian] = await Promise.all([
-      db.introRequest.count({ where: { receiverId: userId, status: "PENDING", expiresAt: { gt: new Date() } } }),
+    const pendingWhere = { receiverId: userId, status: "PENDING" as const, expiresAt: { gt: new Date() } };
+    const [pendingIntros, firstPending, unreadChats, chatCount, guardian] = await Promise.all([
+      db.introRequest.count({ where: pendingWhere }),
+      // The one that expires first, so the dashboard card can open that match
+      db.introRequest.findFirst({ where: pendingWhere, orderBy: { expiresAt: "asc" }, select: { matchId: true } }),
       db.message.count({
         where: {
           readAt: null,
@@ -42,6 +45,7 @@ export async function GET() {
     return NextResponse.json({
       flags,
       pendingIntros,
+      pendingIntroMatchId: firstPending?.matchId ?? null,
       unreadChats,
       hasChats: chatCount > 0,
       guardian: { exists: !!guardian, consented: !!guardian?.shareConsentAt },

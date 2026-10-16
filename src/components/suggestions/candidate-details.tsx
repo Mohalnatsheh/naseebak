@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { useDashboardData } from "@/contexts/dashboard-context";
+import { describeOption, oppositeGender } from "@/lib/profile-options";
 import {
   User, Calendar, MapPin, MapPinned, Flag, Baby, Ruler, Weight, Palette, GraduationCap, BookOpen,
   Briefcase, Wallet, Moon, Cigarette, Activity, UtensilsCrossed, Car, Users, Gem, Home, Heart,
@@ -104,6 +106,8 @@ function Section({
 
 /* ── Candidate expanded details shared component ── */
 export function CandidateDetails({ c }: { c: CandidateDetailsData }) {
+  // Candidates are the other gender: describe their options in third person
+  const partnerGender = oppositeGender(useDashboardData().profile?.gender);
   return (
     <div className="px-5 md:px-6 pb-4 space-y-3" style={{ animation: "fadeSlideIn 0.3s ease-out" }}>
       <Section title="المعلومات الشخصية" icon={User} defaultOpen={true}>
@@ -111,7 +115,7 @@ export function CandidateDetails({ c }: { c: CandidateDetailsData }) {
         <InfoRow icon={MapPin} label="المدينة" value={c.city} />
         <InfoRow icon={MapPinned} label="المنطقة" value={c.area} />
         <InfoRow icon={Flag} label="الجنسية" value={c.nationality} />
-        <InfoRow icon={User} label="الحالة الاجتماعية" value={c.maritalStatus} />
+        <InfoRow icon={User} label="الحالة الاجتماعية" value={c.maritalStatus && describeOption("maritalStatus", c.maritalStatus, partnerGender)} />
         <InfoRow icon={Baby} label="عدد الأبناء" value={c.childrenCount > 0 ? `${c.childrenCount}` : "لا يوجد"} />
         <InfoRow icon={Ruler} label="الطول" value={c.height ? `${c.height} سم` : null} />
         <InfoRow icon={Weight} label="الوزن" value={c.weight ? `${c.weight} كغ` : null} />
@@ -126,14 +130,14 @@ export function CandidateDetails({ c }: { c: CandidateDetailsData }) {
       <Section title="التعليم والعمل" icon={GraduationCap} defaultOpen={true}>
         <InfoRow icon={GraduationCap} label="المستوى التعليمي" value={c.education} />
         <InfoRow icon={BookOpen} label="التخصص" value={c.fieldOfStudy} />
-        <InfoRow icon={Briefcase} label="الوظيفة" value={c.job} />
+        <InfoRow icon={Briefcase} label="الوظيفة" value={c.job && describeOption("job", c.job, partnerGender)} />
         <InfoRow icon={Wallet} label="مستوى الدخل" value={c.incomeRange} />
       </Section>
       <Section title="الدين ونمط الحياة" icon={Moon} defaultOpen={true}>
-        <InfoRow icon={Moon} label="مستوى التدين" value={c.religiosity} />
-        <InfoRow icon={Cigarette} label="التدخين" value={c.smokingStatus} />
-        <InfoRow icon={Activity} label="نمط الحياة" value={c.lifestyle} />
-        <InfoRow icon={UtensilsCrossed} label="القدرة على الطبخ" value={c.cookingAbility} />
+        <InfoRow icon={Moon} label="مستوى التدين" value={c.religiosity && describeOption("religiosity", c.religiosity, partnerGender)} />
+        <InfoRow icon={Cigarette} label="التدخين" value={c.smokingStatus && describeOption("smokingStatus", c.smokingStatus, partnerGender)} />
+        <InfoRow icon={Activity} label="نمط الحياة" value={c.lifestyle && describeOption("lifestyle", c.lifestyle, partnerGender)} />
+        <InfoRow icon={UtensilsCrossed} label="القدرة على الطبخ" value={c.cookingAbility && describeOption("cookingAbility", c.cookingAbility, partnerGender)} />
         <InfoRow icon={Car} label="رخصة قيادة" value={c.drivingLicense !== null && c.drivingLicense !== undefined ? (c.drivingLicense ? "نعم" : "لا") : null} />
       </Section>
       <Section title="العائلة" icon={Users} defaultOpen={true}>

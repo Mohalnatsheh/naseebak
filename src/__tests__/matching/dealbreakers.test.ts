@@ -60,3 +60,19 @@ describe("mutuallyAcceptable", () => {
     expect(mutuallyAcceptable(a, { id: "b", gender: "FEMALE", profile: null })).toBe(false);
   });
 });
+
+describe("wizard spellings of yes/no preferences", () => {
+  it("treats \"نعم\" as wanting a hijab and \"لا يهم\" as no preference", () => {
+    const owner = { prefHijab: "نعم", dealbreakers: ["hijab"] };
+    expect(passesDealbreakers(owner, { hijab: true }, "FEMALE")).toBe(true);
+    expect(passesDealbreakers(owner, { hijab: false }, "FEMALE")).toBe(false);
+    expect(passesDealbreakers({ prefHijab: "لا يهم", dealbreakers: ["hijab"] }, { hijab: false }, "FEMALE")).toBe(true);
+  });
+
+  it("treats \"لا\" for children as no children", () => {
+    const owner = { prefChildrenAcceptance: "لا", dealbreakers: ["children"] };
+    expect(passesDealbreakers(owner, { childrenCount: 1 }, "MALE")).toBe(false);
+    expect(passesDealbreakers(owner, { childrenCount: 0 }, "MALE")).toBe(true);
+    expect(passesDealbreakers({ prefChildrenAcceptance: "نعم", dealbreakers: ["children"] }, { childrenCount: 2 }, "MALE")).toBe(true);
+  });
+});

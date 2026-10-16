@@ -12,7 +12,10 @@ export function PendingIntrosCard() {
   if (!counts.flags.introRequests || n <= 0) return null;
 
   return (
-    <Link href="/dashboard/matches" className="block">
+    <Link
+      href={counts.pendingIntroMatchId ? `/dashboard/matches?match=${counts.pendingIntroMatchId}` : "/dashboard/matches"}
+      className="block"
+    >
       <Card className="group overflow-hidden border-accent/40 bg-gradient-to-l from-accent/15 via-accent/5 to-transparent shadow-md transition-all duration-300 hover:shadow-lg">
         <CardContent className="flex items-center gap-3 pt-5 pb-4 sm:gap-4">
           <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-accent text-accent-foreground shadow-md">
@@ -31,7 +34,7 @@ export function PendingIntrosCard() {
             </p>
           </div>
           <span className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-primary px-3 py-2 text-xs font-bold text-primary-foreground">
-            عرض الطلبات
+            {n === 1 ? "عرض الطلب" : "عرض الطلبات"}
             <ChevronLeft className="h-4 w-4" />
           </span>
         </CardContent>

@@ -54,6 +54,7 @@ import { SUGGESTIONS_MIN_COMPLETENESS } from "@/lib/profile-completeness";
 import { VerifiedBadge } from "@/components/shared/verified-badge";
 import { trackEvent } from "@/lib/analytics";
 import { useDashboardData } from "@/contexts/dashboard-context";
+import { describeOption, oppositeGender } from "@/lib/profile-options";
 import { CandidateDetails } from "@/components/suggestions/candidate-details";
 import { MutualSuggestionsView } from "@/components/suggestions/mutual-suggestions-view";
 
@@ -194,7 +195,10 @@ const STATUS_CONFIG = {
 
 export default function SuggestionsPage() {
   // New cycle: suggestions are free, so no "out of credits" banner here
-  const perRequestCredits = useDashboardData().counts.flags.introRequests;
+  const { counts: cycleCounts, profile: me } = useDashboardData();
+  const perRequestCredits = cycleCounts.flags.introRequests;
+  // Candidates are the other gender: describe their options in third person
+  const partnerGender = oppositeGender(me?.gender);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [credits, setCredits] = useState<number | null>(null);
   // Simultaneous suggestions flow: the API says so, and the page shows the two-tab view instead
@@ -674,7 +678,7 @@ export default function SuggestionsPage() {
                                 )}
                                 {c.job && (
                                   <span className="inline-flex items-center gap-1 text-sm text-muted-foreground">
-                                    <Briefcase className="h-3.5 w-3.5" />{c.job}
+                                    <Briefcase className="h-3.5 w-3.5" />{describeOption("job", c.job, partnerGender)}
                                   </span>
                                 )}
                               </div>
@@ -699,7 +703,7 @@ export default function SuggestionsPage() {
                           <div className="flex flex-wrap gap-2">
                             {c.maritalStatus && (
                               <div className="inline-flex items-center gap-1.5 rounded-full bg-muted/60 border border-border/50 px-3 py-1.5 text-xs font-medium text-foreground/80">
-                                <User className="h-3 w-3 text-primary/50" />{c.maritalStatus}
+                                <User className="h-3 w-3 text-primary/50" />{describeOption("maritalStatus", c.maritalStatus, partnerGender)}
                               </div>
                             )}
                             {c.education && (
@@ -709,12 +713,12 @@ export default function SuggestionsPage() {
                             )}
                             {c.religiosity && (
                               <div className="inline-flex items-center gap-1.5 rounded-full bg-muted/60 border border-border/50 px-3 py-1.5 text-xs font-medium text-foreground/80">
-                                <Moon className="h-3 w-3 text-primary/50" />{c.religiosity}
+                                <Moon className="h-3 w-3 text-primary/50" />{describeOption("religiosity", c.religiosity, partnerGender)}
                               </div>
                             )}
                             {c.smokingStatus && (
                               <div className="inline-flex items-center gap-1.5 rounded-full bg-muted/60 border border-border/50 px-3 py-1.5 text-xs font-medium text-foreground/80">
-                                <Cigarette className="h-3 w-3 text-primary/50" />{c.smokingStatus}
+                                <Cigarette className="h-3 w-3 text-primary/50" />{describeOption("smokingStatus", c.smokingStatus, partnerGender)}
                               </div>
                             )}
                             {c.nationality && (
@@ -923,7 +927,7 @@ export default function SuggestionsPage() {
                               {req.candidate.job && (
                                 <div className="inline-flex items-center gap-1 text-xs text-muted-foreground">
                                   <Briefcase className="h-3 w-3" />
-                                  {req.candidate.job}
+                                  {req.candidate.job && describeOption("job", req.candidate.job, partnerGender)}
                                 </div>
                               )}
                             </div>
@@ -1045,7 +1049,7 @@ export default function SuggestionsPage() {
                                 )}
                                 {c.job && (
                                   <span className="inline-flex items-center gap-1 text-sm text-muted-foreground">
-                                    <Briefcase className="h-3.5 w-3.5" />{c.job}
+                                    <Briefcase className="h-3.5 w-3.5" />{describeOption("job", c.job, partnerGender)}
                                   </span>
                                 )}
                               </div>
@@ -1070,7 +1074,7 @@ export default function SuggestionsPage() {
                           <div className="flex flex-wrap gap-2">
                             {c.maritalStatus && (
                               <div className="inline-flex items-center gap-1.5 rounded-full bg-muted/60 border border-border/50 px-3 py-1.5 text-xs font-medium text-foreground/80">
-                                <User className="h-3 w-3 text-primary/50" />{c.maritalStatus}
+                                <User className="h-3 w-3 text-primary/50" />{describeOption("maritalStatus", c.maritalStatus, partnerGender)}
                               </div>
                             )}
                             {c.education && (
@@ -1080,7 +1084,7 @@ export default function SuggestionsPage() {
                             )}
                             {c.religiosity && (
                               <div className="inline-flex items-center gap-1.5 rounded-full bg-muted/60 border border-border/50 px-3 py-1.5 text-xs font-medium text-foreground/80">
-                                <Moon className="h-3 w-3 text-primary/50" />{c.religiosity}
+                                <Moon className="h-3 w-3 text-primary/50" />{describeOption("religiosity", c.religiosity, partnerGender)}
                               </div>
                             )}
                             {c.nationality && (

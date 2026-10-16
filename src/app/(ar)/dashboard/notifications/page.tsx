@@ -361,11 +361,10 @@ export default function NotificationsPage() {
 
                 <div className="p-5 space-y-1 overflow-y-auto">
                   {prefs ? visiblePrefs.map(({ key, label, icon: PrefIcon }) => (
-                    <button
+                    // A label, not a button: the Switch inside is already a button (no nested buttons)
+                    <label
                       key={key}
-                      type="button"
-                      onClick={() => togglePref(key)}
-                      className="flex items-center justify-between gap-3 w-full rounded-xl px-3 py-3.5 hover:bg-muted/50 transition-colors duration-200"
+                      className="flex cursor-pointer items-center justify-between gap-3 w-full rounded-xl px-3 py-3.5 hover:bg-muted/50 transition-colors duration-200"
                     >
                       <div className="flex items-center gap-3">
                         <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
@@ -374,7 +373,7 @@ export default function NotificationsPage() {
                         <span className="text-sm font-medium text-foreground">{label}</span>
                       </div>
                       <Switch checked={prefs[key]} onCheckedChange={() => togglePref(key)} />
-                    </button>
+                    </label>
                   )) : (
                     <div className="flex justify-center py-12">
                       <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -382,14 +381,17 @@ export default function NotificationsPage() {
                   )}
 
                   {/* System notifications - always on */}
-                  <div className="flex items-center justify-between gap-3 w-full rounded-xl px-3 py-3.5 opacity-50">
+                  <div className="flex items-center justify-between gap-3 w-full rounded-xl px-3 py-3.5">
                     <div className="flex items-center gap-3">
-                      <div className="h-8 w-8 rounded-lg bg-muted/80 flex items-center justify-center flex-shrink-0">
-                        <Info className="h-4 w-4 text-muted-foreground" />
+                      <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                        <Info className="h-4 w-4 text-primary" />
                       </div>
-                      <span className="text-sm font-medium text-foreground">إشعارات النظام</span>
+                      <span className="text-sm font-medium text-foreground">
+                        إشعارات النظام <span className="text-xs font-normal text-muted-foreground">(دائماً مفعّلة)</span>
+                      </span>
                     </div>
-                    <Switch checked disabled />
+                    {/* Always on: drawn as "on", not greyed out, but can't be changed */}
+                    <Switch checked disabled aria-label="إشعارات النظام مفعّلة دائماً" className="disabled:opacity-100 disabled:cursor-default" />
                   </div>
                 </div>
 

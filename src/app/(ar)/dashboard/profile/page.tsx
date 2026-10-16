@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useDashboardData } from "@/contexts/dashboard-context";
+import { selfLabel } from "@/lib/profile-options";
 import Link from "next/link";
 import {
   Loader2,
@@ -667,7 +668,7 @@ export default function ProfilePage() {
               <InfoField
                 icon={Briefcase}
                 label="الوظيفة"
-                value={p.job}
+                value={selfLabel("job", p.job, user.gender)}
               />
             )}
             {p.incomeRange && (
@@ -700,7 +701,7 @@ export default function ProfilePage() {
               <InfoField
                 icon={Heart}
                 label="الحالة الاجتماعية"
-                value={p.maritalStatus}
+                value={selfLabel("maritalStatus", p.maritalStatus, user.gender)}
                 gradient="from-primary/10 to-secondary/5"
               />
             )}
@@ -717,7 +718,7 @@ export default function ProfilePage() {
               <InfoField
                 icon={Moon}
                 label="الالتزام الديني"
-                value={p.religiosity}
+                value={selfLabel("religiosity", p.religiosity, user.gender)}
                 gradient="from-accent/10 to-accent/5"
                 iconColor="text-accent-foreground"
               />
@@ -726,7 +727,7 @@ export default function ProfilePage() {
               <InfoField
                 icon={Cigarette}
                 label="التدخين"
-                value={p.smokingStatus}
+                value={selfLabel("smokingStatus", p.smokingStatus, user.gender)}
               />
             )}
             {!isMale && p.hijab !== null && p.hijab !== undefined && (
@@ -749,7 +750,7 @@ export default function ProfilePage() {
               <InfoField
                 icon={ChefHat}
                 label="الطبخ"
-                value={p.cookingAbility}
+                value={selfLabel("cookingAbility", p.cookingAbility, user.gender)}
                 gradient="from-secondary/10 to-primary/5"
                 iconColor="text-secondary"
               />
@@ -855,7 +856,7 @@ export default function ProfilePage() {
                 </p>
                 <div className="bg-muted/30 rounded-xl p-4 border border-border/30">
                   <p className="text-sm text-foreground/80 leading-relaxed">
-                    {p.lifestyle}
+                    {selfLabel("lifestyle", p.lifestyle, user.gender)}
                   </p>
                 </div>
               </div>

@@ -15,6 +15,7 @@ export async function GET(request: Request) {
     const where = {
       recipientId: session.user.id,
       status: "ACCEPTED" as const,
+      flow: "LEGACY" as const,
     };
 
     const [suggestions, total] = await Promise.all([

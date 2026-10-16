@@ -15,7 +15,7 @@ export async function POST(
 
     // Only the recipient can answer, and only once
     const updated = await db.suggestion.updateMany({
-      where: { id, recipientId: session.user.id, status: "PENDING" },
+      where: { id, recipientId: session.user.id, status: "PENDING", flow: "LEGACY" },
       data: { status: "REJECTED" },
     });
     if (updated.count === 0) {

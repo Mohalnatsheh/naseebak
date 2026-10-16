@@ -17,15 +17,19 @@ export async function POST(
 
     const suggestion = await db.suggestion.findUnique({ where: { id } });
     // Only the recipient can answer, and only once
-    if (!suggestion || suggestion.recipientId !== session.user.id || suggestion.status !== "PENDING") {
+    // Simultaneous (MUTUAL) suggestions are answered through /decide
+    if (!suggestion || suggestion.flow !== "LEGACY" || suggestion.recipientId !== session.user.id || suggestion.status !== "PENDING") {
       return NextResponse.json({ error: "الاقتراح غير موجود" }, { status: 404 });
     }
 
-    // Update suggestion status
-    await db.suggestion.update({
-      where: { id },
+    // Update suggestion status (only once, even with a double tap)
+    const accepted = await db.suggestion.updateMany({
+      where: { id, status: "PENDING", flow: "LEGACY" },
       data: { status: "ACCEPTED" },
     });
+    if (accepted.count === 0) {
+      return NextResponse.json({ error: "الاقتراح غير موجود" }, { status: 404 });
+    }
 
     // The recipient is the one liking; the candidate is the other user
     const otherUserId = suggestion.candidateId;

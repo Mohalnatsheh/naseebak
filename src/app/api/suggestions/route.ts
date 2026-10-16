@@ -3,6 +3,8 @@ import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { parsePagination } from "@/lib/utils";
 import { autoSuggestForUser } from "@/lib/matching/auto-suggest";
+import { getCycleFlags } from "@/lib/settings";
+import { countNewItems, hasOpenMutual } from "@/lib/suggestions/feed";
 
 export async function GET(request: Request) {
   try {
@@ -22,6 +24,24 @@ export async function GET(request: Request) {
       }
     }
 
+    // Simultaneous flow (or open simultaneous suggestions left after a switch-off): the page
+    // renders the two-tab view from /api/suggestions/feed; `total` = items still to decide
+    const { mutualSuggestions } = await getCycleFlags();
+    if (mutualSuggestions || (await hasOpenMutual(session.user.id))) {
+      const [total, me] = await Promise.all([
+        countNewItems(session.user.id),
+        db.user.findUnique({ where: { id: session.user.id }, select: { matchCredits: true } }),
+      ]);
+      return NextResponse.json({
+        mutualView: true,
+        credits: me?.matchCredits ?? 0,
+        suggestions: [],
+        page,
+        totalPages: Math.ceil(total / pageSize),
+        total,
+      });
+    }
+
     // Get blocked user IDs (both directions)
     const blocks = await db.block.findMany({
       where: {
@@ -39,6 +59,7 @@ export async function GET(request: Request) {
     const where = {
       recipientId: session.user.id,
       status: "PENDING" as const,
+      flow: "LEGACY" as const,
       ...(blockedIds.size > 0 && {
         candidateId: { notIn: [...blockedIds] },
       }),
@@ -147,6 +168,7 @@ export async function GET(request: Request) {
     const me = await db.user.findUnique({ where: { id: session.user.id }, select: { matchCredits: true } });
 
     return NextResponse.json({
+      mutualView: false,
       credits: me?.matchCredits ?? 0,
       suggestions: formattedSuggestions,
       page,

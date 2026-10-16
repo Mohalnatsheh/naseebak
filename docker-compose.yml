@@ -1,0 +1,44 @@
+# Local full-stack run: docker compose up --build  →  http://localhost:3001
+# Secrets/keys come from .env (gitignored); the values below override what must differ inside Docker.
+name: naseebak
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: naseeb
+      POSTGRES_PASSWORD: naseeb
+      POSTGRES_DB: naseeb
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U naseeb -d naseeb"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  app:
+    build:
+      context: .
+      args:
+        NEXT_PUBLIC_APP_URL: http://localhost:3001
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: postgresql://naseeb:naseeb@db:5432/naseeb
+      DIRECT_URL: postgresql://naseeb:naseeb@db:5432/naseeb
+      AUTH_URL: http://localhost:3001
+      AUTH_TRUST_HOST: "true"
+      NEXT_PUBLIC_APP_URL: http://localhost:3001
+      ENABLE_SWITCHES: intro_requests_enabled,chat_enabled,new_suggestions_flow
+      RUN_NEW_CYCLE_MIGRATION: "true"
+    ports:
+      - "3001:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:

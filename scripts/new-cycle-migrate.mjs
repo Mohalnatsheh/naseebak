@@ -1,5 +1,6 @@
 /**
- * One-time step for the new user cycle. Run it by hand right AFTER turning on
+ * One-time step for the new user cycle (also available as Admin → Settings → "Run credit top-up",
+ * src/lib/admin/credit-migration.ts — same marker, so only one of them ever runs). Run it right AFTER turning on
  * Admin → Settings → "Family and chat requests" (its notice describes the new rules).
  *
  *   node scripts/new-cycle-migrate.mjs --dry-run   # show what would change

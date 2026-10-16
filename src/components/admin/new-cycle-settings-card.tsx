@@ -29,6 +29,9 @@ export function NewCycleSettingsCard() {
   const [state, setState] = useState<State | null>(null);
   const [saving, setSaving] = useState<null | Key>(null);
   const [confirmOff, setConfirmOff] = useState<null | Key>(null);
+  const [confirmIntroOn, setConfirmIntroOn] = useState(false);
+  const [migration, setMigration] = useState<null | { users: number; toppedUp: number }>(null);
+  const [migrating, setMigrating] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -53,7 +56,29 @@ export function NewCycleSettingsCard() {
 
   function toggle(key: Key, value: boolean) {
     if (!value) setConfirmOff(key);
+    else if (key === "introRequests") setConfirmIntroOn(true);
     else save(key, true);
+  }
+
+  async function openMigration() {
+    setError("");
+    const res = await fetch("/api/admin/settings/new-cycle/migrate").catch(() => null);
+    if (res?.ok) setMigration(await res.json());
+    else setError("Couldn't count the users to top up.");
+  }
+
+  async function runMigration() {
+    setMigrating(true);
+    setError("");
+    const res = await fetch("/api/admin/settings/new-cycle/migrate", { method: "POST" }).catch(() => null);
+    const data = res ? await res.json().catch(() => ({})) : {};
+    if (res?.ok || data.reason === "ALREADY_DONE") {
+      setState((s) => (s ? { ...s, creditsMigratedAt: data.at ?? new Date().toISOString() } : s));
+    } else {
+      setError(data.error || "Couldn't run the top-up. Try again.");
+    }
+    setMigration(null);
+    setMigrating(false);
   }
 
   const rows = [
@@ -70,7 +95,7 @@ export function NewCycleSettingsCard() {
       icon: MessageCircle,
       title: "In-app chat",
       text: "Matched users who accept a chat request can message each other for 14 days. Phone numbers, links and social accounts are blocked automatically.",
-      on: state?.chat ?? false,
+      on: !!state?.introRequests && !!state?.chat,
       disabled: !state?.introRequests,
     },
     {
@@ -78,7 +103,7 @@ export function NewCycleSettingsCard() {
       icon: Users,
       title: "Simultaneous suggestions",
       text: "Both people see the same suggestion and each taps Interested or No. A match happens only when both say yes; nobody learns the other's answer. Dealbreakers become hard filters and every card says why it was suggested. Suggestions already in progress keep working.",
-      on: state?.mutualSuggestions ?? false,
+      on: !!state?.introRequests && !!state?.mutualSuggestions,
       disabled: !state?.introRequests,
     },
   ];
@@ -124,10 +149,15 @@ export function NewCycleSettingsCard() {
         {state?.introRequests && !state.creditsMigratedAt && (
           <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
             <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
-            <p>
-              One step left: run <code className="rounded bg-amber-100 px-1">node scripts/new-cycle-migrate.mjs</code> on the
-              server once. It tops every user up to 3 credits and tells them about the new rules.
-            </p>
+            <div className="space-y-2">
+              <p>
+                One step left: top every user up to 3 credits and tell them about the new rules. Runs once — a second
+                click changes nothing.
+              </p>
+              <Button size="sm" variant="outline" onClick={openMigration} disabled={migrating}>
+                Run credit top-up…
+              </Button>
+            </div>
           </div>
         )}
         {state?.creditsMigratedAt && (
@@ -137,6 +167,49 @@ export function NewCycleSettingsCard() {
         )}
         {error && <p className="text-sm text-destructive">{error}</p>}
       </CardContent>
+
+      <Dialog open={confirmIntroOn} onOpenChange={setConfirmIntroOn}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Turn on family and chat requests?</DialogTitle>
+            <DialogDescription>
+              Suggestions become free (3 per week) and each family or chat request costs the sender 1 credit, never
+              refunded. New matches stop creating visit requests for admins. Afterwards, run the one-time credit top-up
+              from this card.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmIntroOn(false)}>Cancel</Button>
+            <Button
+              onClick={() => {
+                setConfirmIntroOn(false);
+                save("introRequests", true);
+              }}
+            >
+              Turn on
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!migration} onOpenChange={(o) => !o && setMigration(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Run the credit top-up?</DialogTitle>
+            <DialogDescription>
+              {migration
+                ? `${migration.toppedUp} of ${migration.users} users have fewer than 3 credits and will be topped up to 3. Every user gets a notification about the new credit rules. This runs only once.`
+                : ""}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setMigration(null)}>Cancel</Button>
+            <Button onClick={runMigration} disabled={migrating}>
+              {migrating && <Loader2 className="h-4 w-4 animate-spin me-2" />}Top up and notify
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!confirmOff} onOpenChange={(o) => !o && setConfirmOff(null)}>
         <DialogContent>

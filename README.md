@@ -44,6 +44,8 @@ pnpm build         # production build — run it before shipping UI work
 
 All default to off; off = previous behaviour. Deploy order: back up DB → `pnpm db:push` → deploy → switches one at a time (see `CLAUDE.md`).
 
+**Production** (https://naseebak.com) runs on a VPS with local PostgreSQL since 2026-10-17, with all four switches on. Server, deploy steps, cron and backups: `CLAUDE.md` → "Production Deployment".
+
 ## Daily scheduler
 
 `GET|POST /api/cron/daily` with `Authorization: Bearer $CRON_SECRET` — reminders, expiries, suggestions, re-engagement, account deletions. In production add a crontab line (see `CLAUDE.md` → "Last Activity & Daily Scheduler").

@@ -1,4 +1,7 @@
 # Naseeb — نصيب
+
+> **Update (October 2026):** parts of this original specification are superseded by the new user cycle, which is live on production. The main changes: a short filtered in-app chat after a mutual match, family introductions arranged by the families themselves, credits spent on «مهتم», and a follow-up after the family introduction. The current rules are in `CLAUDE.md` and `docs/superpowers/specs/`. Where they differ from this document, they win.
+
 ## Smart Traditional Marriage Platform
 ### Software Requirements Specification (SRS)
 **Version:** 1.0 | **Date:** February 16, 2026 | **Technology:** Next.js + React

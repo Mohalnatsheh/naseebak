@@ -1,5 +1,8 @@
 # Naseebak (نصيبك) — Go-Live Readiness Report
 
+> **Status 2026-10-17:** production moved from Hostinger/Neon to a VPS with local PostgreSQL, with nightly `pg_dump` backups (14 days) and the daily cron job set up. The new cycle is live. This assessment predates that, so check each item against `CLAUDE.md` before acting on it.
+
+
 > **Historical snapshot (2026-10-06).** Written before the new user cycle, the safety fixes (batch 1), the scheduler (batch 2) and credit on interest. Many items may since be fixed; re-run a fresh go-live review before launching instead of relying on this list.
 
 **Date:** 2026-10-06

@@ -236,7 +236,7 @@ export default function AdminReportsPage() {
                             {report.chat?.status === "ACTIVE" && (
                               <label className="flex items-center gap-2">
                                 <input type="checkbox" checked={endChat} onChange={(e) => setEndChat(e.target.checked)} />
-                                End their chat (both are told; messages are not read)
+                                End their chat (both are told)
                               </label>
                             )}
                           </div>

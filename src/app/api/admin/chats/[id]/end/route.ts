@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { adminEndConversation, ModerationError } from "@/lib/admin/moderation";
 
-/** End (freeze) a chat as an admin. Both people are told; message content is never read. */
+/** End (freeze) a chat as an admin. Both people are told. */
 export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const result = await requireAdmin();

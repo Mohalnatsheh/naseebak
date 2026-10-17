@@ -834,7 +834,7 @@ function CycleSections({
           <CardTitle className="flex items-center gap-2">
             <MessagesSquare className="h-5 w-5" /> Chats ({cycle.chats.length})
           </CardTitle>
-          <p className="text-xs text-muted-foreground">Dates, status and message counts only — message content is never shown to admins.</p>
+          <p className="text-xs text-muted-foreground">«View» opens a chat's full message history.</p>
         </CardHeader>
         <CardContent>
           {cycle.chats.length === 0 ? (
@@ -874,7 +874,10 @@ function CycleSections({
                         <span className="font-medium">{c.messages.total}</span>
                         <span className="text-muted-foreground text-xs ms-1">({c.messages.byUser} / {c.messages.byOther})</span>
                       </td>
-                      <td className="p-2 text-right">
+                      <td className="space-x-2 whitespace-nowrap p-2 text-right">
+                        <Button size="sm" variant="outline" asChild>
+                          <Link href={`/admin/chats/${c.id}`}>View</Link>
+                        </Button>
                         {c.status === "ACTIVE" && (
                           <Button
                             variant="destructive"

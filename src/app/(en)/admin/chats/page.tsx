@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Loader2, Lock, MessagesSquare } from "lucide-react";
+import Link from "next/link";
+import { Eye, Loader2, MessagesSquare } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -22,7 +23,7 @@ interface ChatRow {
 
 const FILTERS: [string, string][] = [["", "All"], ...(["ACTIVE", "ENDED", "EXPIRED"] as const).map((s): [string, string] => [s, enumLabel("chatStatus", s)])];
 
-/** Every in-app chat — dates, status and message counts only. Admins never see message content. */
+/** Every in-app chat; «View» opens its full message history. */
 export default function AdminChatsPage() {
   const [rows, setRows] = useState<ChatRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -59,7 +60,7 @@ export default function AdminChatsPage() {
 
   async function endChat(c: ChatRow) {
     const names = c.people.map((p) => p.firstName).join(" & ");
-    if (!confirm(`End the chat between ${names}? Both are told; messages are not read.`)) return;
+    if (!confirm(`End the chat between ${names}? Both are told.`)) return;
     setEnding(c.id);
     setError("");
     const res = await fetch(`/api/admin/chats/${c.id}/end`, { method: "POST" }).catch(() => null);
@@ -78,9 +79,7 @@ export default function AdminChatsPage() {
           <MessagesSquare className="h-7 w-7 text-primary" />
           Chats
         </h1>
-        <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
-          <Lock className="h-3.5 w-3.5" /> Dates, status and message counts only — message content is private.
-        </p>
+        <p className="mt-1 text-xs text-muted-foreground">Open a chat to read its full message history.</p>
       </div>
 
       <Card>
@@ -142,7 +141,10 @@ export default function AdminChatsPage() {
                         {c.endedAt ? `${fmtDate(c.endedAt)} · ${c.endedBy === "admin" ? "by admin" : `by ${c.endedBy}`}` : "—"}
                       </td>
                       <td className="py-3 pe-4 text-right tabular-nums">{c.messages}</td>
-                      <td className="py-3 text-right">
+                      <td className="space-x-2 whitespace-nowrap py-3 text-right">
+                        <Button size="sm" variant="outline" asChild>
+                          <Link href={`/admin/chats/${c.id}`}><Eye className="me-1 h-3 w-3" />View</Link>
+                        </Button>
                         {c.status === "ACTIVE" && (
                           <Button size="sm" variant="outline" disabled={ending === c.id} onClick={() => endChat(c)}>
                             {ending === c.id ? <Loader2 className="h-3 w-3 animate-spin" /> : "End chat"}

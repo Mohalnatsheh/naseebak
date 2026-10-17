@@ -1,7 +1,7 @@
 /**
  * Admin moderation actions shared by the users, reports and chats pages:
  * suspend / unsuspend (restoring the previous status) and ending a chat.
- * Chats are ended by status only — admins never read message content.
+ * Chats are ended by status only.
  */
 import type { UserStatus } from "@prisma/client";
 import { db } from "@/lib/db";

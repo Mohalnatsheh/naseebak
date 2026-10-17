@@ -8,7 +8,7 @@ import { effectiveConversationStatus } from "@/lib/admin/cycle-stats";
 
 const person = { select: { id: true, firstName: true, lastName: true, status: true } } as const;
 
-/** All chats, metadata only: who, dates, status, who ended it, message count. Never content. */
+/** All chats: who, dates, status, who ended it, message count. Content is in [id]/messages. */
 export async function GET(request: Request) {
   try {
     const result = await requireAdmin();

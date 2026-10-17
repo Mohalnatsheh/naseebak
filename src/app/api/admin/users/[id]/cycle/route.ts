@@ -7,7 +7,7 @@ const person = { id: true, firstName: true, lastName: true } as const;
 
 /**
  * One user's new-cycle activity for the admin user page: introduction requests, chats and credit
- * history. Chats carry dates, status and message counts only — never message content.
+ * history. Chats carry dates, status and message counts; content is in /api/admin/chats/[id]/messages.
  */
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {

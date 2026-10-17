@@ -1,54 +1,24 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Smartphone, Share, SquarePlus, BellRing, X, Download } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import Link from "next/link";
+import { BellOff, ChevronLeft, Smartphone, X } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import { requestPushPermission } from "@/lib/push-client";
+import { currentDevice, pushPermission, type Device } from "@/lib/install-env";
+import { canPromptInstall, onInstallPromptChange } from "@/lib/install-prompt";
+import { InstallSteps } from "@/components/shared/install-guide";
 
 /**
  * "Install Naseebak" card. Installing gives an app icon and, on iPhone, is the only way to get
  * notifications (Apple allows web push only for sites added to the Home Screen).
- * - Android / desktop Chromium: one-tap install via the browser's own dialog, then notification permission
- * - iPhone / iPad: a short Share → "Add to Home Screen" guide
- * Hidden when already installed, when the browser can't install, or for 14 days after "لاحقاً".
+ * - Inside Instagram / Facebook / TikTok browsers: how to reopen the site in Safari / Chrome
+ * - One-tap install where the browser offers it; otherwise the steps for this phone and browser
+ * - Already installed but notifications blocked: a pointer to the unblock steps
+ * Full guide: /dashboard/install. Hidden on desktop without one-tap install, and for 14 days after closing.
  */
-
-interface BeforeInstallPromptEvent extends Event {
-  prompt: () => Promise<void>;
-  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
-}
 
 const DISMISS_KEY = "naseeb:install-card-dismissed-at";
 const DISMISS_DAYS = 14;
-
-// The browser may fire this before the card mounts, so catch it as soon as the module loads
-let deferredPrompt: BeforeInstallPromptEvent | null = null;
-const listeners = new Set<() => void>();
-if (typeof window !== "undefined") {
-  window.addEventListener("beforeinstallprompt", (e) => {
-    e.preventDefault();
-    deferredPrompt = e as BeforeInstallPromptEvent;
-    listeners.forEach((l) => l());
-  });
-  window.addEventListener("appinstalled", () => {
-    deferredPrompt = null;
-    listeners.forEach((l) => l());
-  });
-}
-
-function isStandalone(): boolean {
-  return (
-    window.matchMedia("(display-mode: standalone)").matches ||
-    (navigator as Navigator & { standalone?: boolean }).standalone === true
-  );
-}
-
-function isIos(): boolean {
-  const ua = navigator.userAgent;
-  // iPadOS reports itself as a Mac with touch
-  return /iphone|ipad|ipod/i.test(ua) || (/macintosh/i.test(ua) && navigator.maxTouchPoints > 1);
-}
 
 function recentlyDismissed(): boolean {
   try {
@@ -59,26 +29,26 @@ function recentlyDismissed(): boolean {
   }
 }
 
-type Mode = "hidden" | "install" | "ios";
+type Mode = "hidden" | "install" | "blocked";
 
 export function InstallAppCard({ context = "dashboard" }: { context?: "dashboard" | "chats" }) {
   const [mode, setMode] = useState<Mode>("hidden");
-  const [installing, setInstalling] = useState(false);
+  const [device, setDevice] = useState<Device | null>(null);
 
   useEffect(() => {
     const update = () => {
-      if (isStandalone() || recentlyDismissed()) return setMode("hidden");
-      if (isIos()) return setMode("ios");
-      setMode(deferredPrompt ? "install" : "hidden");
+      const d = currentDevice();
+      setDevice(d);
+      if (recentlyDismissed()) return setMode("hidden");
+      if (d.standalone) return setMode(pushPermission() === "denied" ? "blocked" : "hidden");
+      const mobile = d.os === "ios" || d.os === "android";
+      setMode(mobile || d.inApp || canPromptInstall() ? "install" : "hidden");
     };
     update();
-    listeners.add(update);
-    return () => {
-      listeners.delete(update);
-    };
+    return onInstallPromptChange(update);
   }, []);
 
-  if (mode === "hidden") return null;
+  if (mode === "hidden" || !device) return null;
 
   function dismiss() {
     try {
@@ -89,26 +59,10 @@ export function InstallAppCard({ context = "dashboard" }: { context?: "dashboard
     setMode("hidden");
   }
 
-  async function install() {
-    if (!deferredPrompt) return;
-    setInstalling(true);
-    try {
-      await deferredPrompt.prompt();
-      const { outcome } = await deferredPrompt.userChoice;
-      deferredPrompt = null;
-      if (outcome === "accepted") {
-        setMode("hidden");
-        if ("Notification" in window && Notification.permission === "default") {
-          await requestPushPermission().catch(() => {});
-        }
-      }
-    } finally {
-      setInstalling(false);
-    }
-  }
-
-  const lead =
-    context === "chats"
+  const blocked = mode === "blocked";
+  const lead = blocked
+    ? "الإشعارات محظورة على هذا الجهاز، فلن تصلك الاقتراحات والرسائل. يمكنك تفعيلها من إعدادات الهاتف."
+    : context === "chats"
       ? "حتى تصلك رسائل المحادثات فور وصولها، حتى لو كان الموقع مغلقاً."
       : "حتى تصلك الاقتراحات وطلبات التعارف والرسائل فور وصولها.";
 
@@ -125,50 +79,27 @@ export function InstallAppCard({ context = "dashboard" }: { context?: "dashboard
       <CardContent className="pt-5 pb-5">
         <div className="flex items-start gap-4">
           <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-secondary text-primary-foreground shadow-md">
-            <Smartphone className="h-6 w-6" />
+            {blocked ? <BellOff className="h-6 w-6" /> : <Smartphone className="h-6 w-6" />}
           </div>
           <div className="min-w-0 flex-1 pe-6">
-            <h3 className="font-bold text-foreground">ثبّت نصيبك على جهازك</h3>
+            <h3 className="font-bold text-foreground">{blocked ? "فعّل إشعارات نصيبك" : "ثبّت نصيبك على جهازك"}</h3>
             <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{lead}</p>
           </div>
         </div>
 
-        {mode === "install" ? (
-          <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-            <Button onClick={install} disabled={installing} className="gap-1.5 sm:w-auto">
-              <Download className="h-4 w-4" />
-              تثبيت التطبيق
-            </Button>
-            <Button variant="ghost" onClick={dismiss} className="sm:w-auto">
-              لاحقاً
-            </Button>
+        {!blocked && (
+          <div className="mt-4">
+            <InstallSteps device={device} onInstalled={() => setMode("hidden")} />
           </div>
-        ) : (
-          <ol className="mt-4 space-y-2.5 text-sm">
-            <li className="flex items-center gap-3">
-              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-card ring-1 ring-border">
-                <Share className="h-4 w-4 text-primary" />
-              </span>
-              <span>
-                اضغط زر <span className="font-semibold">المشاركة</span> في أسفل المتصفح
-              </span>
-            </li>
-            <li className="flex items-center gap-3">
-              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-card ring-1 ring-border">
-                <SquarePlus className="h-4 w-4 text-primary" />
-              </span>
-              <span>
-                اختر <span className="font-semibold">«إضافة إلى الشاشة الرئيسية»</span>
-              </span>
-            </li>
-            <li className="flex items-center gap-3">
-              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-card ring-1 ring-border">
-                <BellRing className="h-4 w-4 text-primary" />
-              </span>
-              <span>افتح نصيبك من الأيقونة الجديدة ووافق على الإشعارات</span>
-            </li>
-          </ol>
         )}
+
+        <Link
+          href="/dashboard/install"
+          className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-primary hover:underline"
+        >
+          {blocked ? "خطوات تفعيل الإشعارات" : "كل الخطوات وتفعيل الإشعارات"}
+          <ChevronLeft className="h-4 w-4" />
+        </Link>
       </CardContent>
     </Card>
   );

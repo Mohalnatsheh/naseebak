@@ -23,6 +23,7 @@ import {
   Trash2,
   Users,
   MessageCircle,
+  Smartphone,
 } from "lucide-react";
 import { notificationUrl } from "@/lib/notification-links";
 import { useDashboardData } from "@/contexts/dashboard-context";
@@ -396,13 +397,24 @@ export default function NotificationsPage() {
                   </div>
                 </div>
 
-                <div className="p-5 pt-0">
+                <div className="p-5 pt-0 space-y-3">
                   <div className="flex items-center gap-2 p-3 rounded-xl bg-muted/40 border border-border/30">
                     <Info className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
                     <p className="text-[11px] text-muted-foreground leading-relaxed">
                       إشعارات النظام مفعّلة دائماً ولا يمكن إيقافها
                     </p>
                   </div>
+                  <Link
+                    href="/dashboard/install"
+                    onClick={() => setPrefsOpen(false)}
+                    className="flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/5 p-3 text-sm transition-colors hover:bg-primary/10"
+                  >
+                    <Smartphone className="h-4 w-4 shrink-0 text-primary" />
+                    <span className="flex-1">
+                      <span className="block font-semibold text-foreground">تثبيت التطبيق والإشعارات</span>
+                      <span className="block text-xs text-muted-foreground">لا تصلك الإشعارات؟ اتبع الخطوات لجهازك</span>
+                    </span>
+                  </Link>
                 </div>
               </SheetContent>
             </Sheet>

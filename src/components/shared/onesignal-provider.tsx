@@ -21,8 +21,12 @@ export function OneSignalProvider() {
         const OneSignalModule = await import("react-onesignal");
         const OneSignal = OneSignalModule.default;
 
+        // Safari needs its web id (OneSignal dashboard → Settings → Web); the bell widget stays off,
+        // the dashboard has its own Arabic prompt (PushPermissionPrompt)
+        const safariWebId = process.env.NEXT_PUBLIC_ONESIGNAL_SAFARI_WEB_ID;
         await OneSignal.init({
           appId: appId!,
+          ...(safariWebId && { safari_web_id: safariWebId }),
           allowLocalhostAsSecureOrigin: process.env.NODE_ENV === "development",
         });
 

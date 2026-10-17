@@ -14,6 +14,7 @@ import { expireIntroRequests, remindIntroRequests } from "@/lib/cron/intro-reque
 import { expireMutualSuggestionsAll, remindMutualSuggestions, runWeeklySuggestions } from "@/lib/cron/suggestions";
 import { runReengagement } from "@/lib/cron/reengagement";
 import { processAccountDeletions } from "@/lib/cron/deletions";
+import { remindGuardianShare, runFamilyFollowUps } from "@/lib/intro/followup";
 
 export const LAST_RUN_KEY = "cron_daily_last_run";
 
@@ -38,7 +39,10 @@ const num = (r: TaskResult | undefined, key: string): number => {
 export function summarise(tasks: Record<string, TaskResult>) {
   return {
     reminders:
-      num(tasks.introReminders, "reminded") + num(tasks.suggestionReminders, "reminded") + num(tasks.chats, "warned"),
+      num(tasks.introReminders, "reminded") +
+      num(tasks.suggestionReminders, "reminded") +
+      num(tasks.chats, "warned") +
+      num(tasks.guardianShareReminders, "reminded"),
     suggestions: num(tasks.weeklySuggestions, "created"),
     expired:
       num(tasks.introExpiry, "expired") + num(tasks.suggestionExpiry, "expired") + num(tasks.chats, "expired"),
@@ -46,6 +50,7 @@ export function summarise(tasks: Record<string, TaskResult>) {
     deletions: num(tasks.deletions, "deleted"),
     refunds: num(tasks.suggestionExpiry, "refunded"),
     nudges: num(tasks.chats, "nudged"),
+    followUps: num(tasks.familyFollowUps, "notified"),
     errors: Object.values(tasks).filter((t) => "error" in t).length,
   };
 }
@@ -81,6 +86,8 @@ async function execute(trigger: DailyRunSummary["trigger"]): Promise<DailyRunSum
   tasks.suggestionExpiry = await runTask("suggestionExpiry", () => expireMutualSuggestionsAll(now()));
   tasks.suggestionReminders = await runTask("suggestionReminders", () => remindMutualSuggestions(now()));
   tasks.chats = await runTask("chats", () => chatHousekeepingAll(now()));
+  tasks.guardianShareReminders = await runTask("guardianShareReminders", () => remindGuardianShare(now()));
+  tasks.familyFollowUps = await runTask("familyFollowUps", () => runFamilyFollowUps(now()));
   tasks.weeklySuggestions = await runTask("weeklySuggestions", () => runWeeklySuggestions(now()));
   tasks.reengagement = await runTask("reengagement", () => runReengagement(now()));
   tasks.deletions = await runTask("deletions", async () => ({ deleted: await processAccountDeletions() }));

@@ -414,7 +414,12 @@ export default function ProfileSetupPage() {
       const profileRes = await fetch("/api/profile", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(buildServerPayload()),
+        // "شرط أساسي" marks go in the same save (only for preferences that are filled in), so the
+        // suggestions that start right after already respect them
+        body: JSON.stringify({
+          ...buildServerPayload(),
+          ...(counts.flags.mutualSuggestions && { dealbreakers: activeDealbreakers(form.dealbreakers, dealbreakerPrefs, gender) }),
+        }),
       });
 
       if (!profileRes.ok) {
@@ -423,15 +428,6 @@ export default function ProfileSetupPage() {
         return;
       }
       trackEvent("profile_completed");
-
-      // "شرط أساسي" marks: saved directly, only for preferences that are filled in
-      if (counts.flags.mutualSuggestions) {
-        await fetch("/api/profile/dealbreakers", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ keys: activeDealbreakers(form.dealbreakers, dealbreakerPrefs, gender) }),
-        }).catch(() => null);
-      }
 
       // Save parent/guardian info
       const parentRes = await fetch("/api/profile/parent-info", {

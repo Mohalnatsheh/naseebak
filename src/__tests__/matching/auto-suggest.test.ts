@@ -15,6 +15,7 @@ vi.mock("@/lib/settings", () => flags);
 const notifyMod = vi.hoisted(() => ({ notify: vi.fn(), notifyMany: vi.fn() }));
 vi.mock("@/lib/notify", () => notifyMod);
 vi.mock("@/lib/intro/match", () => ({ createMutualMatch: vi.fn() }));
+vi.mock("@/lib/intro/followup", () => ({ isEngaged: vi.fn(async () => false), NOT_ENGAGED: {} }));
 // Real scoring, but a test can pin a candidate's score through `scoreFor`
 const scoring = vi.hoisted(() => ({ scoreFor: new Map<string, number>() }));
 vi.mock("@/lib/matching/score", async (importOriginal) => {

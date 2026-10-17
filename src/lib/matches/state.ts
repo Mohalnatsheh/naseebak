@@ -13,7 +13,11 @@
 import type { IntroRequestType, Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 
-export type MatchClosure = "blocked" | "inactive" | "finished";
+/**
+ * ended: someone said «لم يحصل نصيب» after the introduction · engaged: I told us it ended in an engagement
+ * (see src/lib/intro/followup.ts)
+ */
+export type MatchClosure = "blocked" | "inactive" | "finished" | "ended" | "engaged";
 
 /** Admin is already arranging (or arranged) the visit the old way */
 export const LEGACY_ADMIN_VISIT = ["FAMILIES_CONTACTED", "SCHEDULED", "COMPLETED"];
@@ -35,6 +39,8 @@ export interface MatchFacts {
   blockedByMe: boolean;
   chatEnabled: boolean;
   introEnabled: boolean;
+  /** Follow-up answers, mine and the partner's */
+  outcomes?: { mine: string | null; partner: string | null };
 }
 
 export interface MatchDescription {
@@ -57,6 +63,10 @@ export function describeMatch(f: MatchFacts, now = new Date()): MatchDescription
   const endedByUser = chatEndedByUser(f.conversation);
   if (f.blockedByMe) return { closed: "blocked", actionable: false, chatEndedByUser: endedByUser };
   if (f.partnerUnavailable) return { closed: "inactive", actionable: false, chatEndedByUser: endedByUser };
+  if (f.outcomes?.mine === "NOT_A_MATCH" || f.outcomes?.partner === "NOT_A_MATCH") {
+    return { closed: "ended", actionable: false, chatEndedByUser: endedByUser };
+  }
+  if (f.outcomes?.mine === "ENGAGED") return { closed: "engaged", actionable: false, chatEndedByUser: endedByUser };
 
   const of = (type: string, status: string) =>
     f.requests.some((r) => r.type === type && r.status === status && (status !== "PENDING" || r.expiresAt > now));
@@ -192,6 +202,8 @@ export async function loadMatchStates(
         visitRequest: { select: { status: true } },
         conversation: { select: { status: true, expiresAt: true, endedById: true } },
         introRequests: { select: { type: true, status: true, expiresAt: true } },
+        femaleOutcome: true,
+        maleOutcome: true,
       },
     }),
   ]);
@@ -212,6 +224,7 @@ export async function loadMatchStates(
       blockedByMe: !!blockId,
       chatEnabled: flags.chat,
       introEnabled: flags.introRequests,
+      outcomes: iAmFemale ? { mine: m.femaleOutcome, partner: m.maleOutcome } : { mine: m.maleOutcome, partner: m.femaleOutcome },
     });
     out.set(m.id, { ...d, partnerId, blockId });
   }

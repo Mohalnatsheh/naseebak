@@ -5,7 +5,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { authConfig } from "@/lib/auth.config";
 import { rateLimit } from "@/lib/rate-limit";
-import { normalizePhone } from "@/lib/validations/auth";
+import { normalizePhone, VERIFIED_OTP_WINDOW_MS } from "@/lib/validations/auth";
 import { toLatinDigits } from "@/lib/digits";
 import { touchLastActive } from "@/lib/activity";
 
@@ -35,15 +35,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         if (!success) return null;
 
-        // Verify OTP in DB: find verified OTP for phone
-        // Note: expiresAt is enforced at verification time (verify-otp endpoint),
-        // not at sign-in time, to support login→register redirect flow where
-        // OTP may have been verified earlier but sign-in happens later.
+        // A code verified by /api/auth/verify-otp, sent within the last 30 minutes (the login →
+        // register hand-off needs more than the 5-minute entry window). Used up on success below.
         const verifiedOtp = await db.otp.findFirst({
           where: {
             phone,
             code: otp,
             verified: true,
+            createdAt: { gt: new Date(Date.now() - VERIFIED_OTP_WINDOW_MS) },
           },
           orderBy: { createdAt: "desc" },
         });
@@ -61,6 +60,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         // 30-day deletion grace period) may sign in: the dashboard sends them to
         // /dashboard/reactivate and every other user API refuses them (requireUser).
         if (user.status === "SUSPENDED") return null;
+        // Single use: the code can't sign anyone in again
+        await db.otp.deleteMany({ where: { phone, verified: true } });
         await touchLastActive(user.id);
 
         return {

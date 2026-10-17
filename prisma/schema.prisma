@@ -55,6 +55,13 @@ enum SuggestionDecision {
   DECLINED
 }
 
+/// What a person told us about a match after the family introduction
+enum MatchOutcome {
+  CONTINUING
+  NOT_A_MATCH
+  ENGAGED
+}
+
 enum VisitStatus {
   REQUESTED
   FAMILIES_CONTACTED
@@ -452,6 +459,16 @@ model MutualMatch {
   /// Per-match consent to share each side's guardian contact (credit_on_interest)
   femaleGuardianShareAt DateTime?
   maleGuardianShareAt   DateTime?
+  /// Mixed choice: the side that chose chat was reminded once to share its guardian contact
+  guardianShareRemindedAt DateTime?
+  /// How the introduction went, per side (null = not told us yet); see src/lib/intro/followup.ts
+  femaleOutcome         MatchOutcome?
+  maleOutcome           MatchOutcome?
+  femaleOutcomeAt       DateTime?
+  maleOutcomeAt         DateTime?
+  /// "How is the family introduction going?" follow-ups sent (at most 3, 7 / 21 / 35 days)
+  followUpCount         Int          @default(0)
+  followUpSentAt        DateTime?
 
   createdAt       DateTime     @default(now())
 

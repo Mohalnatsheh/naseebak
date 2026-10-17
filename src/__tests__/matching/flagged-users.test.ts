@@ -14,6 +14,7 @@ const flags = vi.hoisted(() => ({ getCycleFlags: vi.fn() }));
 vi.mock("@/lib/settings", () => flags);
 vi.mock("@/lib/notify", () => ({ notify: vi.fn(), notifyMany: vi.fn() }));
 vi.mock("@/lib/intro/match", () => ({ createMutualMatch: vi.fn() }));
+vi.mock("@/lib/intro/followup", () => ({ isEngaged: vi.fn(async () => false), NOT_ENGAGED: {} }));
 vi.mock("@/lib/auth", () => ({
   requireAdmin: vi.fn(async () => ({ session: { user: { id: "admin1", role: "ADMIN" } } })),
 }));

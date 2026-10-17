@@ -45,7 +45,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, {
   }
 
   return (
-    <div className="border-t border-border/60 bg-card/95 px-3 pb-3 pt-2 backdrop-blur supports-[backdrop-filter]:bg-card/80">
+    <div className="border-t border-border/60 bg-card/95 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur supports-[backdrop-filter]:bg-card/80">
       {error && <p className="mb-2 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
       <div className="flex items-end gap-2">
         <textarea
@@ -65,7 +65,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, {
               submit();
             }
           }}
-          className="max-h-36 min-h-11 flex-1 resize-none rounded-2xl border border-input bg-background px-4 py-2.5 text-[15px] leading-relaxed outline-none transition-shadow focus:border-primary/40 focus:ring-2 focus:ring-primary/15"
+          className="max-h-36 min-h-11 flex-1 resize-none rounded-2xl border border-input bg-background px-4 py-2.5 text-base leading-relaxed outline-none transition-shadow focus:border-primary/40 focus:ring-2 focus:ring-primary/15"
         />
         <button
           type="button"

@@ -25,7 +25,7 @@ import {
   Ban,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { useDashboardData } from "@/contexts/dashboard-context";
@@ -56,6 +56,10 @@ const accountLinks: NavLink[] = [
   { href: "/dashboard/referral", label: "ادعُ صديقاً", icon: Gift },
 ];
 
+function isActiveLink(href: string, pathname: string): boolean {
+  return href === "/dashboard" ? pathname === "/dashboard" : pathname.startsWith(href);
+}
+
 function NavItem({
   link,
   pathname,
@@ -67,10 +71,7 @@ function NavItem({
   collapsed: boolean;
   onClick?: () => void;
 }) {
-  const isActive =
-    link.href === "/dashboard"
-      ? pathname === "/dashboard"
-      : pathname.startsWith(link.href);
+  const isActive = isActiveLink(link.href, pathname);
 
   return (
     <Link
@@ -139,6 +140,14 @@ export function DashboardSidebar() {
   const filteredAccountLinks = filterLinks(
     accountLinks.map((link) => (link.href === "/dashboard/payments" ? { ...link, label: creditsLabel } : link))
   );
+
+  // Bottom bar: home, suggestions, matches, chats (when on); everything else is under «المزيد»
+  const bottomLinks: (NavLink & { short?: string })[] = filteredMainLinks
+    .filter((l) => l.href !== "/dashboard/notifications")
+    .map((l) => (l.href === "/dashboard/suggestions" ? { ...l, short: "اقتراحات" } : l.href === "/dashboard/matches" ? { ...l, short: "توافقات" } : l.href === "/dashboard/chats" ? { ...l, short: "محادثات" } : l));
+  const moreActive = !bottomLinks.some((l) => isActiveLink(l.href, pathname)) && pathname !== "/dashboard/notifications";
+  // A chat room is full screen on phones
+  const hideBottomBar = /^\/dashboard\/chats\/[^/]+/.test(pathname);
 
   const handleSignOut = () => {
     void signOutAndUnlinkPush("/login");
@@ -302,11 +311,6 @@ export function DashboardSidebar() {
               )}
             </Link>
             <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-              <SheetTrigger asChild>
-                <Button variant="ghost" size="icon" aria-label="فتح القائمة" className="h-10 w-10 rounded-xl">
-                  <Menu className="h-5 w-5" />
-                </Button>
-              </SheetTrigger>
             <SheetContent side="right" className="w-80 p-0 border-r-0 flex flex-col" showCloseButton={false}>
               <SheetTitle className="sr-only">القائمة</SheetTitle>
               <SheetDescription className="sr-only">صفحات لوحة التحكم وحسابك</SheetDescription>
@@ -316,6 +320,58 @@ export function DashboardSidebar() {
           </div>
         </div>
       </div>
+
+      {/* Mobile bottom tab bar: the main pages one tap away; «المزيد» opens the full menu */}
+      {!hideBottomBar && (
+        <nav
+          aria-label="التنقل الرئيسي"
+          className="md:hidden fixed bottom-0 inset-x-0 z-40 border-t border-border/50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/85 pb-[env(safe-area-inset-bottom)]"
+        >
+          <ul className="flex h-16 items-stretch">
+            {bottomLinks.map((link) => {
+              const active = isActiveLink(link.href, pathname);
+              return (
+                <li key={link.href} className="flex-1">
+                  <Link
+                    href={link.href}
+                    aria-current={active ? "page" : undefined}
+                    className={cn(
+                      "flex h-full flex-col items-center justify-center gap-1 text-[11px] font-medium transition-colors",
+                      active ? "text-primary" : "text-muted-foreground"
+                    )}
+                  >
+                    <span className={cn("relative flex h-7 w-12 items-center justify-center rounded-full transition-colors", active && "bg-primary/10")}>
+                      <link.icon className="h-5 w-5" />
+                      {link.badge && link.badge > 0 ? (
+                        <span className="absolute -top-1 end-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-bold text-white">
+                          {link.badge > 99 ? "99+" : link.badge}
+                        </span>
+                      ) : null}
+                    </span>
+                    {link.short ?? link.label}
+                  </Link>
+                </li>
+              );
+            })}
+            <li className="flex-1">
+              <button
+                type="button"
+                onClick={() => setMobileOpen(true)}
+                aria-label="المزيد من الصفحات"
+                className={cn(
+                  "flex h-full w-full flex-col items-center justify-center gap-1 text-[11px] font-medium transition-colors",
+                  moreActive ? "text-primary" : "text-muted-foreground"
+                )}
+              >
+                <span className={cn("flex h-7 w-12 items-center justify-center rounded-full", moreActive && "bg-primary/10")}>
+                  <Menu className="h-5 w-5" />
+                </span>
+                المزيد
+              </button>
+            </li>
+          </ul>
+        </nav>
+      )}
     </>
   );
 }

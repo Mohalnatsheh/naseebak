@@ -27,6 +27,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useDashboardData } from "@/contexts/dashboard-context";
 import type { IntroState } from "@/lib/intro/requests";
+import type { MatchClosure } from "@/lib/matches/state";
 import { IntroConfirmDialog, type IntroDialogMode } from "./intro-confirm-dialog";
 import { GuardianContactCard } from "./guardian-contact-card";
 import { ConfirmActionDialog } from "./confirm-action-dialog";
@@ -62,22 +63,37 @@ export function MatchClosedNote({
   reason,
   children,
 }: {
-  reason: "blocked" | "inactive" | "finished";
+  reason: MatchClosure;
   children?: React.ReactNode;
 }) {
-  const Icon = reason === "inactive" ? UserX : reason === "blocked" ? Ban : HeartOff;
-  const title = reason === "inactive" ? "هذا الحساب غير نشط حالياً" : "انتهى هذا التوافق";
-  const text =
-    reason === "inactive"
+  const engaged = reason === "engaged";
+  const Icon = engaged ? PartyPopper : reason === "inactive" ? UserX : reason === "blocked" ? Ban : HeartOff;
+  const title = engaged
+    ? "مبارك الخطبة!"
+    : reason === "inactive"
+      ? "هذا الحساب غير نشط حالياً"
+      : reason === "ended"
+        ? "انتهى هذا التعارف"
+        : "انتهى هذا التوافق";
+  const text = engaged
+    ? "أوقفنا إرسال اقتراحات جديدة لك. نسأل الله أن يتمّم لكما على خير."
+    : reason === "inactive"
       ? "لا يمكن إرسال طلبات أو الرد عليها لهذا التوافق الآن."
       : reason === "blocked"
         ? "قمت بحظر هذا الشخص، لذلك لا تظهر صوره ولا تتوفر أي خطوات تعارف."
-        : "لم تعد هناك خطوات تعارف متاحة لهذا التوافق. نتمنى لك التوفيق في اقتراحاتك القادمة.";
+        : reason === "ended"
+          ? "لم يُكتب نصيب في هذا التعارف. نتمنى لك التوفيق في اقتراحاتك القادمة."
+          : "لم تعد هناك خطوات تعارف متاحة لهذا التوافق. نتمنى لك التوفيق في اقتراحاتك القادمة.";
   return (
-    <section className="mt-4 rounded-2xl border border-border/60 bg-muted/30 p-4 md:p-5">
+    <section
+      className={cn(
+        "mt-4 rounded-2xl border p-4 md:p-5",
+        engaged ? "border-emerald-200/70 bg-emerald-50/60 dark:bg-emerald-950/20" : "border-border/60 bg-muted/30"
+      )}
+    >
       <div className="flex items-start gap-3">
-        <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-muted">
-          <Icon className="h-5 w-5 text-muted-foreground" />
+        <div className={cn("flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl", engaged ? "bg-emerald-100" : "bg-muted")}>
+          <Icon className={cn("h-5 w-5", engaged ? "text-emerald-700" : "text-muted-foreground")} />
         </div>
         <div className="min-w-0 flex-1">
           <p className="font-semibold text-foreground">{title}</p>
@@ -111,6 +127,7 @@ export function MatchIntroPanel({ matchId, partnerName }: { matchId: string; par
   const [busy, setBusy] = useState(false);
   const [cancelId, setCancelId] = useState<string | null>(null);
   const [shareConsent, setShareConsent] = useState(false);
+  const [outcomeDialog, setOutcomeDialog] = useState<null | "NOT_A_MATCH" | "ENGAGED">(null);
 
   const load = useCallback(async () => {
     try {
@@ -156,9 +173,14 @@ export function MatchIntroPanel({ matchId, partnerName }: { matchId: string; par
   if (state.closed) {
     return (
       <MatchClosedNote reason={state.closed}>
-        {state.closed === "finished" && chat.conversationId && (
+        {["finished", "ended"].includes(state.closed) && chat.conversationId && (
           <Button asChild size="sm" variant="outline">
             <Link href={`/dashboard/chats/${chat.conversationId}`}>عرض المحادثة</Link>
+          </Button>
+        )}
+        {state.closed === "engaged" && (
+          <Button size="sm" variant="ghost" disabled={busy} onClick={() => saveOutcome("CONTINUING")}>
+            تراجع: ما زلنا نتعارف
           </Button>
         )}
       </MatchClosedNote>
@@ -231,6 +253,24 @@ export function MatchIntroPanel({ matchId, partnerName }: { matchId: string; par
     toast.success("تمت مشاركة بيانات وليّ أمرك مع عائلة الطرف الآخر");
     setState(res.data);
     refreshProfile();
+    refreshUnread();
+  }
+
+  /** «ما زلنا نتعارف» / «تمت الخطبة» / «لم يحصل نصيب» */
+  async function saveOutcome(outcome: "CONTINUING" | "NOT_A_MATCH" | "ENGAGED") {
+    if (busy) return;
+    setBusy(true);
+    const res = await postJson<IntroState>(`/api/matches/${matchId}/outcome`, { outcome });
+    setBusy(false);
+    setOutcomeDialog(null);
+    if (!res.ok) {
+      toast.error(res.data.error ?? "تعذّر الحفظ، حاول مرة أخرى");
+      return;
+    }
+    toast.success(
+      outcome === "ENGAGED" ? "مبارك! أوقفنا الاقتراحات الجديدة لك" : outcome === "NOT_A_MATCH" ? "تم إنهاء التعارف" : "شكراً، سنسألك لاحقاً"
+    );
+    setState(res.data);
     refreshUnread();
   }
 
@@ -403,7 +443,20 @@ export function MatchIntroPanel({ matchId, partnerName }: { matchId: string; par
       </div>
 
       {/* Credit on interest: the match opened straight into the introduction both chose */}
-      {((outcome === "CHAT" && chat.status === "open") || (outcome === "FAMILY" && family.status === "accepted")) && (
+      {/* Mixed choice: I chose family, the other side chose chat and hasn't shared yet */}
+      {outcome === "FAMILY" && family.status === "accepted" && !family.contacts && !myGuardian.askShare && (
+        <div
+          role="status"
+          className="mt-3 flex items-start gap-3 rounded-xl border border-amber-200/70 bg-amber-50/70 p-3 text-sm text-amber-800 dark:bg-amber-950/20 dark:text-amber-300"
+        >
+          <Clock className="mt-0.5 h-4 w-4 flex-shrink-0" aria-hidden="true" />
+          <p className="leading-relaxed">
+            <span className="font-semibold">توافق متبادل!</span> الطرف الآخر فضّل المحادثة أولاً، وطلبنا منه مشاركة بيانات وليّ أمره. سنُعلمك فور مشاركتها.
+          </p>
+        </div>
+      )}
+
+      {((outcome === "CHAT" && chat.status === "open") || (outcome === "FAMILY" && family.status === "accepted" && !!family.contacts)) && (
         <div
           role="status"
           className="mt-3 flex items-start gap-3 rounded-xl border border-emerald-200/60 bg-emerald-50/60 p-3 text-sm text-emerald-800 dark:bg-emerald-950/20 dark:text-emerald-300"
@@ -444,10 +497,15 @@ export function MatchIntroPanel({ matchId, partnerName }: { matchId: string; par
                       <span className="leading-relaxed text-foreground/80">أوافق على مشاركة اسم ورقم ولي الأمر</span>
                     </label>
                   )}
-                  <Button size="sm" onClick={shareGuardian} disabled={busy || (!myGuardian.consented && !shareConsent)} className="gap-1.5">
-                    {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-                    مشاركة بيانات وليّ أمري
-                  </Button>
+                  <div className="flex flex-wrap gap-2">
+                    <Button size="sm" onClick={shareGuardian} disabled={busy || (!myGuardian.consented && !shareConsent)} className="gap-1.5">
+                      {busy && <Loader2 className="h-4 w-4 animate-spin" />}
+                      مشاركة بيانات وليّ أمري
+                    </Button>
+                    <Button size="sm" variant="ghost" disabled={busy} onClick={() => setOutcomeDialog("NOT_A_MATCH")}>
+                      لا أرغب بالمتابعة
+                    </Button>
+                  </div>
                 </>
               )}
             </div>
@@ -488,6 +546,49 @@ export function MatchIntroPanel({ matchId, partnerName }: { matchId: string; par
           <GuardianContactCard contact={family.contacts} partnerName={partnerName} />
         </div>
       )}
+
+      {/* After the family introduction: how is it going? */}
+      {state.followUp.ask && (
+        <div className="mt-3 rounded-xl border border-primary/15 bg-card p-4 text-sm">
+          <p className="font-semibold text-foreground">كيف يسير التعارف العائلي؟</p>
+          <p className="mt-1 leading-relaxed text-muted-foreground">
+            {state.followUp.partner === "ENGAGED" && state.followUp.mine !== "ENGAGED"
+              ? "أخبرنا الطرف الآخر أن التعارف انتهى بالخطبة. هل تؤكد ذلك؟"
+              : state.followUp.mine === "CONTINUING"
+                ? "أخبرتنا أنكما ما زلتما تتعارفان. حدّثنا عندما يتغيّر شيء."
+                : "أخبرنا بما وصلتم إليه، فهذا يساعدنا على متابعتك وإيقاف الاقتراحات عند الخطبة."}
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {state.followUp.mine !== "CONTINUING" && (
+              <Button size="sm" variant="outline" disabled={busy} onClick={() => saveOutcome("CONTINUING")}>
+                ما زلنا نتعارف
+              </Button>
+            )}
+            <Button size="sm" disabled={busy} onClick={() => setOutcomeDialog("ENGAGED")} className="gap-1.5">
+              <PartyPopper className="h-4 w-4" aria-hidden="true" />
+              تمت الخطبة
+            </Button>
+            <Button size="sm" variant="ghost" disabled={busy} onClick={() => setOutcomeDialog("NOT_A_MATCH")}>
+              لم يحصل نصيب
+            </Button>
+          </div>
+        </div>
+      )}
+
+      <ConfirmActionDialog
+        open={!!outcomeDialog}
+        onOpenChange={(o) => !o && setOutcomeDialog(null)}
+        title={outcomeDialog === "ENGAGED" ? "تأكيد الخطبة" : "إنهاء التعارف"}
+        description={
+          outcomeDialog === "ENGAGED"
+            ? "مبارك! سنوقف إرسال اقتراحات جديدة لك، وتُغلق اقتراحاتك المفتوحة. يمكنك التراجع لاحقاً من هذه الصفحة."
+            : `سينتهي التعارف مع ${partnerName}${chat.status === "open" ? " وتُغلق المحادثة" : ""}، وسنُعلم الطرف الآخر بلطف. لا يمكن التراجع عن ذلك.`
+        }
+        confirmLabel={outcomeDialog === "ENGAGED" ? "نعم، تمت الخطبة" : "إنهاء التعارف"}
+        destructive={outcomeDialog === "NOT_A_MATCH"}
+        busy={busy}
+        onConfirm={() => outcomeDialog && saveOutcome(outcomeDialog)}
+      />
 
       {busy && !dialog && <Loader2 className="mt-3 h-4 w-4 animate-spin text-muted-foreground" />}
 

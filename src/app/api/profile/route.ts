@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { profileSchema } from "@/lib/validations/profile";
 import { calculateCompleteness } from "@/lib/profile-completeness";
 import { autoSuggestForUser } from "@/lib/matching/auto-suggest";
+import { DEALBREAKER_KEYS, type DealbreakerKey } from "@/lib/matching/score";
 import { maybeAwardReferral } from "@/lib/referral";
 import { needsReviewBody, reviewedChanges } from "@/lib/profile-review";
 
@@ -89,8 +90,14 @@ export async function PUT(request: Request) {
       prefHijab, prefBeard, prefReligiosity, prefSmokingStatus, prefChildrenAcceptance,
     } = body;
 
+    // «شروط أساسية» sent with the setup, so the very first suggestions already respect them
+    const dealbreakers = Array.isArray(body.dealbreakers)
+      ? [...new Set((body.dealbreakers as unknown[]).filter((k): k is DealbreakerKey => (DEALBREAKER_KEYS as readonly unknown[]).includes(k)))]
+      : undefined;
+
     // Same values the update below writes; `undefined` = left unchanged
     const updateData = {
+      dealbreakers,
       dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : undefined,
       city, nationality, education, fieldOfStudy, job, incomeRange,
       height: height ? parseInt(height) : undefined,
@@ -162,6 +169,7 @@ export async function PUT(request: Request) {
         prefReligiosity: Array.isArray(prefReligiosity) ? prefReligiosity : [],
         prefSmokingStatus: Array.isArray(prefSmokingStatus) ? prefSmokingStatus : [],
         prefChildrenAcceptance: prefChildrenAcceptance ?? null,
+        ...(dealbreakers && { dealbreakers }),
         isComplete: true,
       },
       update: { ...updateData, isComplete: true },

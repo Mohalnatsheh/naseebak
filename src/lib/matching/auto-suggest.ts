@@ -19,6 +19,7 @@ import { getCycleFlags, type CycleFlags } from "@/lib/settings";
 import { notify, notifyMany } from "@/lib/notify";
 import { isTestPhone, testPhones } from "@/lib/test-accounts";
 import { MUTUAL_SUGGESTION_MS, openMutualWhere } from "@/lib/suggestions/mutual";
+import { NOT_ENGAGED, isEngaged } from "@/lib/intro/followup";
 import { activeWhere, isActive } from "@/lib/activity";
 
 const MAX_NEW_SUGGESTIONS = 3;
@@ -160,6 +161,8 @@ async function generate(userId: string): Promise<SuggestOutcome> {
   // Flagged (3+ reports, or by an admin): no new automatic suggestions until an admin clears the flag.
   // Existing suggestions and matches are left as they are.
   if (user.isFlagged) return outcome(0);
+  // Told us an introduction ended in an engagement: no new suggestions (undo on the match card)
+  if (await isEngaged(userId)) return outcome(0);
   // Idle 30+ days: nothing new is generated; they get suggestions lazily when they come back
   if (!isActive(user)) return outcome(0);
   // Per-request mode: suggestions are free (capped weekly); credits are spent on intro requests.
@@ -226,6 +229,7 @@ async function generate(userId: string): Promise<SuggestOutcome> {
       ...activeWhere(),
       gender: user.gender === "MALE" ? "FEMALE" : "MALE",
       profile: { isComplete: true },
+      ...NOT_ENGAGED,
       // Test accounts only meet each other; real users never meet them
       phone: isTestPhone(user.phone) ? { in: testPhones() } : { notIn: testPhones() },
       ...(excluded.size > 0 && { id: { notIn: [...excluded] } }),

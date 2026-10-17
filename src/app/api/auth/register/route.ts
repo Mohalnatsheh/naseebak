@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { registerSchema, normalizePhone } from "@/lib/validations/auth";
+import { registerSchema, normalizePhone, VERIFIED_OTP_WINDOW_MS } from "@/lib/validations/auth";
 import { getMaintenanceState, isRegistrationOpen } from "@/lib/settings";
 import { getRegistrationCredits, recordCredit } from "@/lib/credits";
 import { sendNewUserNotification } from "@/lib/email";
@@ -33,15 +33,14 @@ export async function POST(request: Request) {
     const { firstName, lastName, gender, otp } = result.data;
     const phone = normalizePhone(result.data.phone);
 
-    // Verify the OTP was verified for this phone
-    // Note: We don't check expiresAt here because the OTP was already verified
-    // (either during registration flow or during login redirect).
-    // The expiry is enforced at verification time, not at registration time.
+    // A code verified by /api/auth/verify-otp within the last 30 minutes (login → register
+    // hand-off included). Sign-in right after registering uses it up.
     const verifiedOtp = await db.otp.findFirst({
       where: {
         phone,
         code: otp,
         verified: true,
+        createdAt: { gt: new Date(Date.now() - VERIFIED_OTP_WINDOW_MS) },
       },
       orderBy: { createdAt: "desc" },
     });

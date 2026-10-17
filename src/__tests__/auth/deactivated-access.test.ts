@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const db = vi.hoisted(() => ({
-  otp: { findFirst: vi.fn() },
+  otp: { findFirst: vi.fn(), deleteMany: vi.fn() },
   user: { findUnique: vi.fn(), updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
 }));
 const authMock = vi.hoisted(() => vi.fn());

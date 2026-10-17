@@ -23,13 +23,14 @@
  * `shareGuardianForMatch`, and both sides on accepting a later family request. Pre-flag matches keep
  * the global-consent rule.
  */
-import type { IntroRequest, IntroRequestType } from "@prisma/client";
+import type { IntroRequest, IntroRequestType, MatchOutcome } from "@prisma/client";
 import { db } from "@/lib/db";
 import { notify } from "@/lib/notify";
 import { reserveCredits, notifyRequestCreditsExhausted, recordCredit } from "@/lib/credits";
 import { getCycleFlags, type CycleFlags } from "@/lib/settings";
 import { IntroError } from "@/lib/intro/errors";
 import { applyIntroOutcome } from "@/lib/intro/outcome";
+import { outcomesFor } from "@/lib/intro/followup";
 import {
   LEGACY_ADMIN_VISIT,
   blockBetween,
@@ -92,6 +93,13 @@ export interface IntroState {
     expiresAt?: string;
     declinedByMe?: boolean;
     conversationId?: string;
+  };
+  /** After the family introduction: what each side told us (see intro/followup.ts) */
+  followUp: {
+    mine: MatchOutcome | null;
+    partner: MatchOutcome | null;
+    /** Show «كيف يسير التعارف؟» on the card: the families have each other's contact */
+    ask: boolean;
   };
   myGuardian: {
     exists: boolean;
@@ -202,6 +210,7 @@ export async function getMatchIntroState(matchId: string, userId: string): Promi
     return {
       ...base,
       myGuardian: { ...guardianBase, sharedForMatch: false, askShare: false },
+      followUp: { ...outcomesFor(match, userId), ask: false },
       closed: block.byMe ? "blocked" : "inactive",
       family: { status: "none" },
       chat: { status: "none" },
@@ -233,6 +242,7 @@ export async function getMatchIntroState(matchId: string, userId: string): Promi
     blockedByMe: false,
     chatEnabled: flags.chat,
     introEnabled: flags.introRequests,
+    outcomes: outcomesFor(match, userId),
   });
 
   // Family
@@ -290,10 +300,16 @@ export async function getMatchIntroState(matchId: string, userId: string): Promi
 
   const sharedForMatch = openedMatch && !!shareStampOf(match, userId);
   const outcomeType = openedMatch ? requests.findLast(isOutcomeRow)?.type : undefined;
+  const outcomes = outcomesFor(match, userId);
   return {
     ...base,
     ...(outcomeType && { outcome: outcomeType }),
-    myGuardian: { ...guardianBase, sharedForMatch, askShare: openedMatch && !!acceptedFamily && !sharedForMatch },
+    // The families can talk once both contacts are out (older matches: the accepted family intro is enough)
+    followUp: {
+      ...outcomes,
+      ask: !closed && !!acceptedFamily && (!openedMatch || (!!match.femaleGuardianShareAt && !!match.maleGuardianShareAt)),
+    },
+    myGuardian: { ...guardianBase, sharedForMatch, askShare: !closed && openedMatch && !!acceptedFamily && !sharedForMatch },
     closed,
     family,
     chat,
@@ -584,7 +600,17 @@ export async function shareGuardianForMatch(args: {
 
   const field = match.femaleId === userId ? "femaleGuardianShareAt" : "maleGuardianShareAt";
   // Conditional: a repeat keeps the first stamp
-  await db.mutualMatch.updateMany({ where: { id: matchId, [field]: null }, data: { [field]: new Date() } });
+  const stamped = await db.mutualMatch.updateMany({ where: { id: matchId, [field]: null }, data: { [field]: new Date() } });
+  if (stamped.count === 1) {
+    // The side that chose family has been waiting for this
+    await notify({
+      userId: partnerId,
+      type: "MATCH",
+      title: "تمت مشاركة بيانات وليّ الأمر",
+      body: "شارك الطرف الآخر بيانات وليّ أمره. يمكنكما الآن ترتيب الزيارة العائلية.",
+      url: `/dashboard/matches?match=${matchId}`,
+    });
+  }
   return getMatchIntroState(matchId, userId);
 }
 

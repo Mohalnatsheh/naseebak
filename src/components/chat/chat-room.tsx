@@ -65,6 +65,12 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
   const [busy, setBusy] = useState(false);
 
   const scroller = useRef<HTMLDivElement>(null);
+  const viewport = useMobileViewport();
+  // Keyboard opened / closed: keep the newest message in view if the reader was at the bottom
+  useEffect(() => {
+    const el = scroller.current;
+    if (el && el.scrollHeight - el.scrollTop - el.clientHeight < 160) el.scrollTop = el.scrollHeight;
+  }, [viewport?.height]);
   const composer = useRef<ChatComposerHandle>(null);
   const stickToBottom = useRef(true);
   const markingRead = useRef(false);
@@ -305,7 +311,11 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
   const family = intro?.family;
 
   return (
-    <div className="mx-auto flex h-[calc(100dvh-106px)] max-w-3xl flex-col overflow-hidden rounded-2xl border border-border/60 bg-card shadow-sm md:h-[calc(100dvh-4rem)]">
+    <div
+      // Phones: full screen over the dashboard bar, sized to the visible area so the keyboard never covers the box
+      style={viewport ? { height: viewport.height, top: viewport.top } : undefined}
+      className="mx-auto flex max-w-3xl flex-col overflow-hidden bg-card max-md:fixed max-md:inset-x-0 max-md:top-0 max-md:z-50 max-md:h-[100dvh] md:h-[calc(100dvh-4rem)] md:rounded-2xl md:border md:border-border/60 md:shadow-sm"
+    >
       {/* Header */}
       <header className="flex items-center gap-3 border-b border-border/60 px-3 py-3 sm:px-4">
         <Button asChild variant="ghost" size="icon-sm" aria-label="رجوع">
@@ -496,4 +506,37 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
       />
     </div>
   );
+}
+
+/**
+ * Phones only: the visible area (shrinks when the keyboard opens, unlike 100dvh on iPhone).
+ * Also stops the page behind the full-screen chat from scrolling. null on tablets / desktop.
+ */
+function useMobileViewport(): { height: number; top: number } | null {
+  const [vp, setVp] = useState<{ height: number; top: number } | null>(null);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 767px)");
+    const vv = window.visualViewport;
+    const update = () =>
+      setVp(mq.matches ? { height: Math.round(vv?.height ?? window.innerHeight), top: Math.round(vv?.offsetTop ?? 0) } : null);
+    update();
+    vv?.addEventListener("resize", update);
+    vv?.addEventListener("scroll", update);
+    mq.addEventListener("change", update);
+    return () => {
+      vv?.removeEventListener("resize", update);
+      vv?.removeEventListener("scroll", update);
+      mq.removeEventListener("change", update);
+    };
+  }, []);
+  const mobile = vp !== null;
+  useEffect(() => {
+    if (!mobile) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [mobile]);
+  return vp;
 }

@@ -247,10 +247,12 @@ describe("createMutualMatch with credit_on_interest", () => {
     const him = notificationsFor("u1");
     expect(her).toHaveLength(1);
     expect(him).toHaveLength(1);
-    expect(her[0].body).toBe("توافق متبادل! تم مشاركة بيانات التواصل العائلي");
-    expect(him[0].body).toContain("توافق متبادل! تم مشاركة بيانات التواصل العائلي");
+    // She chose family: told she waits for his guardian contact (not that it was shared)
+    expect(her[0].body).toContain("فضّل الطرف الآخر المحادثة أولاً");
+    expect(her[0].body).not.toContain("تم مشاركة");
+    // He chose chat: her contact is visible, and he is asked to share his
     expect(him[0].body).toContain("الطرف الآخر فضّل التعارف العائلي");
-    expect(her[0].body).not.toContain("الطرف الآخر");
+    expect(him[0].body).toContain("شارك بيانات وليّ أمرك");
     expect(him[0].url).toBe("/dashboard/matches?match=m1");
   });
 

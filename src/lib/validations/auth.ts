@@ -56,3 +56,9 @@ export type SendOtpInput = z.infer<typeof sendOtpSchema>;
 export type VerifyOtpInput = z.infer<typeof verifyOtpSchema>;
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
+
+/**
+ * A verified code may finish sign-in / registration for this long after it was sent
+ * (covers the login → register hand-off and filling in the form). Sign-in then uses it up.
+ */
+export const VERIFIED_OTP_WINDOW_MS = 30 * 60 * 1000;

@@ -62,7 +62,7 @@ import { useDashboardData } from "@/contexts/dashboard-context";
 interface Match {
   id: string;
   /** blocked: I blocked them · inactive: their account is off · finished: nothing left to do */
-  closed: "blocked" | "inactive" | "finished" | null;
+  closed: "blocked" | "inactive" | "finished" | "ended" | "engaged" | null;
   /** My block, when closed === "blocked" (for unblocking) */
   blockId: string | null;
   photosRevealed: boolean;

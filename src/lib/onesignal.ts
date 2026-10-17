@@ -31,7 +31,8 @@ export async function sendPushNotification({ userId, title, body, url, collapseI
     };
 
     if (url) {
-      payload.url = url;
+      // OneSignal needs a full address: same-site paths get the site origin
+      payload.url = url.startsWith("/") ? `${(process.env.NEXT_PUBLIC_APP_URL || "https://naseebak.com").replace(/\/$/, "")}${url}` : url;
     }
     if (collapseId) {
       payload.collapse_id = collapseId;

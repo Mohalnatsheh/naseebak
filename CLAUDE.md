@@ -250,7 +250,7 @@ Spec: `docs/superpowers/specs/2026-10-16-credit-on-interest-design.md`. `CycleFl
 
 ## Notifications
 
-Always use `notify()` / `notifyMany()` from `src/lib/notify.ts`: stores the in-app row with `metadata.url` and sends push only when the user's preference allows (SYSTEM always). Links resolve via `notificationUrl()` in `src/lib/notification-links.ts`. Chat messages are push-only (no in-app row), collapsed per conversation and throttled to 1 per 3 minutes.
+Push (OneSignal): `OneSignalProvider` logs the device in as the user (`external_id`) and calls `markOneSignalReady()`; ask permission with `requestPushPermission()` and sign users out with `signOutAndUnlinkPush()` (`src/lib/push-client.ts`) — never the bare browser prompt or `signOut()`, or the device isn't registered / a shared phone keeps the previous person's pushes. Always use `notify()` / `notifyMany()` from `src/lib/notify.ts`: stores the in-app row with `metadata.url` and sends push only when the user's preference allows (SYSTEM always). Links resolve via `notificationUrl()` in `src/lib/notification-links.ts`. Chat messages are push-only (no in-app row), collapsed per conversation and throttled to 1 per 3 minutes.
 
 ## Notification Routing
 

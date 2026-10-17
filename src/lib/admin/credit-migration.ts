@@ -20,7 +20,7 @@ export async function previewCreditMigration() {
 }
 
 export async function runCreditMigration(adminId: string): Promise<MigrationResult> {
-  const { introRequests } = await getCycleFlags();
+  const { introRequests, creditOnInterest } = await getCycleFlags();
   if (!introRequests) return { ok: false, reason: "SWITCH_OFF" };
 
   const at = new Date().toISOString();
@@ -38,7 +38,10 @@ export async function runCreditMigration(adminId: string): Promise<MigrationResu
           userId: u.id,
           type: "SYSTEM" as const,
           title: "نظام رصيد جديد",
-          body: "أصبح الرصيد يُستخدم فقط عند إرسال طلب تعارف عائلي أو طلب محادثة، والاقتراحات أصبحت مجانية. أهديناك رصيداً ليصبح 3 على الأقل.",
+          // Says what the credit is spent on in the mode that is live when the top-up runs
+          body: creditOnInterest
+            ? "أصبحت الاقتراحات مجانية، ويُستخدم رصيد واحد فقط عند اختيار «مهتم»، والتوافق والطلبات والمحادثة مجانية. أهديناك رصيداً ليصبح 3 على الأقل."
+            : "أصبح الرصيد يُستخدم فقط عند إرسال طلب تعارف عائلي أو طلب محادثة، والاقتراحات أصبحت مجانية. أهديناك رصيداً ليصبح 3 على الأقل.",
           metadata: { url: "/dashboard/payments" },
         })),
       });

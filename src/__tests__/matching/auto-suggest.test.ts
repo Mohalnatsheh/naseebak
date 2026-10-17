@@ -92,8 +92,8 @@ describe("autoSuggestForUser", () => {
     expect(data.every((s: { recipientId: string; compatibilityScore: number }) => s.recipientId === "u1" && s.compatibilityScore >= 30)).toBe(true);
     // Opposite gender only
     expect(db.user.findMany.mock.calls[0][0].where.gender).toBe("FEMALE");
-    expect(db.notification.create).toHaveBeenCalledTimes(1);
-    expect(db.notification.create.mock.calls[0][0].data.type).toBe("SUGGESTION");
+    // Through notify(): in-app row + push that respects the user's settings
+    expect(notifyMod.notify.mock.calls.filter((c) => c[0].type === "SUGGESTION")).toHaveLength(1);
   });
 
   it("never suggests suspended people and does not run for a suspended user", async () => {
@@ -146,7 +146,7 @@ describe("autoSuggestForUser", () => {
     expect(a).toBe(1);
     expect(b).toBe(1);
     expect(db.suggestion.createMany).toHaveBeenCalledTimes(1);
-    expect(db.notification.create).toHaveBeenCalledTimes(1);
+    expect(notifyMod.notify.mock.calls.filter((c) => c[0].type === "SUGGESTION")).toHaveLength(1);
   });
 
   it("waits before scanning again after a run that found no candidates", async () => {
@@ -176,8 +176,8 @@ describe("autoSuggestForUser", () => {
     db.user.findMany.mockResolvedValue([person("h1", "FEMALE"), person("h2", "FEMALE")]);
 
     expect(await autoSuggestForUser("c2")).toBe(1);
-    const types = db.notification.create.mock.calls.map((c) => c[0].data.type);
-    expect(types).toEqual(["SUGGESTION"]);
+    const types = notifyMod.notify.mock.calls.map((c) => c[0].type);
+    expect(types).toEqual(["SUGGESTION", "PAYMENT"]);
     expect(notifyMod.notify).toHaveBeenCalledWith(expect.objectContaining({ userId: "c2", type: "PAYMENT" }));
   });
 
@@ -219,7 +219,7 @@ describe("autoSuggestForUser in per-request credits mode", () => {
 
     expect(await autoSuggestForUser("r1")).toBe(3);
     expect(db.user.updateMany).not.toHaveBeenCalled(); // no reserveCredits
-    const types = db.notification.create.mock.calls.map((c) => c[0].data.type);
+    const types = notifyMod.notify.mock.calls.map((c) => c[0].type);
     expect(types).toEqual(["SUGGESTION"]); // no "credits exhausted" notice
   });
 

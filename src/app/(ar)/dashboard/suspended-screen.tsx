@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { signOut } from "next-auth/react";
+import { signOutAndUnlinkPush } from "@/lib/push-client";
 import { Ban, Loader2, LogOut, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -57,7 +57,7 @@ export function SuspendedScreen() {
               disabled={signingOut}
               onClick={() => {
                 setSigningOut(true);
-                signOut({ callbackUrl: "/login" });
+                void signOutAndUnlinkPush("/login");
               }}
               className="h-12 rounded-xl font-semibold"
             >

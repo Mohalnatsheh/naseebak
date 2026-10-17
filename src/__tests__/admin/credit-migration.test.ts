@@ -47,6 +47,20 @@ describe("runCreditMigration", () => {
     ]);
   });
 
+  it("the message names what the credit pays for in the live mode", async () => {
+    await runCreditMigration("admin1");
+    expect(tx.notification.createMany.mock.calls[0][0].data[0].body).toContain("طلب تعارف عائلي");
+
+    vi.clearAllMocks();
+    db.$transaction.mockImplementation(async (fn: (t: typeof tx) => unknown) => fn(tx));
+    db.user.findMany.mockResolvedValue([]);
+    settings.getCycleFlags.mockResolvedValue({ introRequests: true, creditOnInterest: true });
+    tx.user.findMany.mockResolvedValue([{ id: "u1", matchCredits: 0 }]);
+    tx.systemSetting.create.mockResolvedValue({});
+    await runCreditMigration("admin1");
+    expect(tx.notification.createMany.mock.calls[0][0].data[0].body).toContain("«مهتم»");
+  });
+
   it("changes nothing the second time", async () => {
     db.$transaction.mockRejectedValue(
       new Prisma.PrismaClientKnownRequestError("Unique constraint", { code: "P2002", clientVersion: "7" })

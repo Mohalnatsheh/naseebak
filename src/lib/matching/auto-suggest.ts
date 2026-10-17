@@ -14,7 +14,6 @@
 import { db } from "@/lib/db";
 import { calculateCompatibility, mutuallyAcceptable } from "@/lib/matching/score";
 import { meetsSuggestionGate } from "@/lib/profile-completeness";
-import { sendPushNotification } from "@/lib/onesignal";
 import { notifyCreditsExhausted, recordCredit, refundCredits, reserveCredits, WEEKLY_FREE_SUGGESTIONS } from "@/lib/credits";
 import { getCycleFlags, type CycleFlags } from "@/lib/settings";
 import { notify, notifyMany } from "@/lib/notify";
@@ -293,8 +292,7 @@ async function generate(userId: string): Promise<SuggestOutcome> {
       url: "/dashboard/suggestions",
     });
   } else {
-    await db.notification.create({ data: { userId, type: "SUGGESTION", title, body } });
-    sendPushNotification({ userId, title, body, url: "/dashboard/suggestions" });
+    await notify({ userId, type: "SUGGESTION", title, body, url: "/dashboard/suggestions" });
   }
 
   if (!perRequestCredits && user.matchCredits - created.count <= 0) await notifyCreditsExhausted(userId);

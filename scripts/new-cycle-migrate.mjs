@@ -51,6 +51,12 @@ async function main() {
     return;
   }
 
+  // Credit on interest is live only with shared suggestions on as well (same rule as getCycleFlags)
+  const [coiSetting, mutualSetting] = await Promise.all([
+    db.systemSetting.findUnique({ where: { key: "credit_on_interest" } }),
+    db.systemSetting.findUnique({ where: { key: "new_suggestions_flow" } }),
+  ]);
+  const creditOnInterest = coiSetting?.value === "true" && mutualSetting?.value === "true";
   const users = await db.user.findMany({ where: { role: "USER" }, select: { id: true, matchCredits: true } });
   const toTopUp = users.filter((u) => u.matchCredits < MIN_CREDITS);
   console.log(`Users: ${users.length} · topped up to ${MIN_CREDITS}: ${toTopUp.length} · notified: ${users.length}`);
@@ -66,7 +72,10 @@ async function main() {
         userId: u.id,
         type: "SYSTEM",
         title: "نظام رصيد جديد",
-        body: "أصبح الرصيد يُستخدم فقط عند إرسال طلب تعارف عائلي أو طلب محادثة، والاقتراحات أصبحت مجانية. أهديناك رصيداً ليصبح ٣ على الأقل.",
+        // Same wording as src/lib/admin/credit-migration.ts, for the mode that is live now
+        body: creditOnInterest
+          ? "أصبحت الاقتراحات مجانية، ويُستخدم رصيد واحد فقط عند اختيار «مهتم»، والتوافق والطلبات والمحادثة مجانية. أهديناك رصيداً ليصبح 3 على الأقل."
+          : "أصبح الرصيد يُستخدم فقط عند إرسال طلب تعارف عائلي أو طلب محادثة، والاقتراحات أصبحت مجانية. أهديناك رصيداً ليصبح 3 على الأقل.",
         metadata: { url: "/dashboard/payments" },
       })),
     }),

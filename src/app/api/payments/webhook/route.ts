@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getStripe } from "@/lib/stripe";
 import { db } from "@/lib/db";
-import { sendPushNotification } from "@/lib/onesignal";
+import { notify } from "@/lib/notify";
 import { recordCredit } from "@/lib/credits";
 import type Stripe from "stripe";
 
@@ -61,19 +61,10 @@ export async function POST(request: Request) {
         // Outside the transaction: a missing history row must never block a purchase
         await recordCredit({ userId, delta: creditsNum, reason: "PURCHASE", refId: paymentId });
 
-        // Create notification
-        await db.notification.create({
-          data: {
-            userId,
-            type: "PAYMENT",
-            title: "تم شراء الرصيد بنجاح",
-            body: `تمت إضافة ${creditsNum} رصيد إلى حسابك.`,
-          },
-        });
-
-        // Push notification (fire and forget)
-        sendPushNotification({
+        // In-app row + push (respecting the user's payment notification setting)
+        await notify({
           userId,
+          type: "PAYMENT",
           title: "تم شراء الرصيد بنجاح",
           body: `تمت إضافة ${creditsNum} رصيد إلى حسابك.`,
           url: "/dashboard/payments",

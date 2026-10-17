@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { signOut } from "next-auth/react";
+import { signOutAndUnlinkPush } from "@/lib/push-client";
 import Image from "next/image";
 import {
   Menu,
@@ -141,7 +141,7 @@ export function DashboardSidebar() {
   );
 
   const handleSignOut = () => {
-    signOut({ callbackUrl: "/login" });
+    void signOutAndUnlinkPush("/login");
   };
 
   const sidebarContent = (mobile: boolean) => (

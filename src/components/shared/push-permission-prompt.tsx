@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { requestPushPermission } from "@/lib/push-client";
 
 const DISMISSED_KEY = "naseeb_push_prompt_dismissed";
 
@@ -50,7 +51,8 @@ export function PushPermissionPrompt() {
 
   const handleEnable = async () => {
     try {
-      await Notification.requestPermission();
+      // Through OneSignal so the device is actually registered for this user's pushes
+      await requestPushPermission();
     } catch {
       // Browser blocked the request
     } finally {

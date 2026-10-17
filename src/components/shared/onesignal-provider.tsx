@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { useSession } from "next-auth/react";
+import { markOneSignalReady } from "@/lib/push-client";
 
 export function OneSignalProvider() {
   const { data: session } = useSession();
@@ -26,6 +27,8 @@ export function OneSignalProvider() {
         });
 
         await OneSignal.login(session!.user!.id!);
+        // Sign-out now unlinks this device, and permission requests go through OneSignal
+        markOneSignalReady();
 
         // Save player ID to backend
         const playerId = await OneSignal.User.PushSubscription.id;

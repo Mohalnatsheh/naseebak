@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Smartphone, Share, SquarePlus, BellRing, X, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { requestPushPermission } from "@/lib/push-client";
 
 /**
  * "Install Naseebak" card. Installing gives an app icon and, on iPhone, is the only way to get
@@ -98,7 +99,7 @@ export function InstallAppCard({ context = "dashboard" }: { context?: "dashboard
       if (outcome === "accepted") {
         setMode("hidden");
         if ("Notification" in window && Notification.permission === "default") {
-          await Notification.requestPermission().catch(() => {});
+          await requestPushPermission().catch(() => {});
         }
       }
     } finally {

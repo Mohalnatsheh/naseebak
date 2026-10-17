@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import { signOut } from "next-auth/react";
+import { signOutAndUnlinkPush } from "@/lib/push-client";
 import { toast } from "sonner";
 import { CalendarClock, Loader2, LogOut, PauseCircle, RotateCcw, ShieldCheck, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -149,7 +149,7 @@ export function ReactivatePanel({ firstName, isFemale, deletionScheduledAt }: Pr
               disabled={loading || signingOut}
               onClick={() => {
                 setSigningOut(true);
-                signOut({ callbackUrl: "/login" });
+                void signOutAndUnlinkPush("/login");
               }}
               className="h-12 rounded-xl font-semibold"
             >

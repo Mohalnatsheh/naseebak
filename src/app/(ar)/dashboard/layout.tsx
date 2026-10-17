@@ -6,16 +6,30 @@ import { OnboardingGuide } from "@/components/shared/onboarding-guide";
 import { DashboardDataProvider } from "@/contexts/dashboard-context";
 import { Toaster } from "@/components/ui/sonner";
 import { DashboardFooter } from "@/components/shared/dashboard-footer";
-import { isSessionUserDeactivated } from "@/lib/auth";
+import { sessionAccountGate } from "@/lib/auth";
 import { DeactivatedGate } from "./reactivate/deactivated-gate";
+import { SuspendedScreen } from "./suspended-screen";
 
 export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const gate = await sessionAccountGate();
+
+  // Suspended accounts: every user API refuses them, so show one explanation instead of empty pages
+  if (gate === "suspended") {
+    return (
+      <Providers>
+        <main className="min-h-screen bg-gradient-to-b from-primary/5 via-background to-background">
+          <SuspendedScreen />
+        </main>
+      </Providers>
+    );
+  }
+
   // Deactivated accounts (paused or pending deletion) only see /dashboard/reactivate
-  if (await isSessionUserDeactivated()) {
+  if (gate === "deactivated") {
     return (
       <Providers>
         <main className="min-h-screen bg-gradient-to-b from-primary/5 via-background to-background">

@@ -5,6 +5,7 @@ import { Trash2, Loader2, Undo2, Clock, User } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Pager } from "@/components/admin/admin-list-bits";
 
 interface DeletionRequest {
   id: string;
@@ -25,16 +26,28 @@ export default function AdminDeletionsPage() {
   const [loading, setLoading] = useState(true);
   const [cancelling, setCancelling] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
 
   useEffect(() => {
-    fetchRequests();
-  }, []);
+    fetchRequests(page);
+  }, [page]);
 
-  async function fetchRequests() {
+  async function fetchRequests(p: number) {
+    setLoading(true);
     try {
-      const res = await fetch("/api/admin/deletions");
+      const res = await fetch(`/api/admin/deletions?page=${p}`);
       const data = await res.json();
-      setRequests(data.requests || []);
+      const items: DeletionRequest[] = data.requests || [];
+      // The last item of a page was removed elsewhere: step back instead of showing an empty page
+      if (items.length === 0 && p > 1) {
+        setPage(p - 1);
+        return;
+      }
+      setRequests(items);
+      setTotal(data.total ?? items.length);
+      setTotalPages(data.totalPages || 1);
     } catch (err) {
       console.error(err);
     } finally {
@@ -49,7 +62,8 @@ export default function AdminDeletionsPage() {
     try {
       const res = await fetch(`/api/admin/deletions/${requestId}`, { method: "DELETE" });
       if (res.ok) {
-        setRequests((prev) => prev.filter((r) => r.id !== requestId));
+        // Refetch so the next request moves up onto this page
+        await fetchRequests(page);
       } else {
         const data = await res.json().catch(() => ({}));
         setError(data.error || `Cancel failed (${res.status})`);
@@ -76,7 +90,7 @@ export default function AdminDeletionsPage() {
         </h1>
         <p className="text-muted-foreground mt-1">
           Manage pending account deletions (30-day grace period)
-          {requests.length > 0 && <Badge className="ms-2">{requests.length} active</Badge>}
+          {total > 0 && <Badge className="ms-2">{total} active</Badge>}
         </p>
       </div>
 
@@ -154,6 +168,7 @@ export default function AdminDeletionsPage() {
               </Card>
             );
           })}
+          <Pager page={page} pages={totalPages} onPage={setPage} />
         </div>
       )}
     </div>

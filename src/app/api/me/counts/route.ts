@@ -10,7 +10,7 @@ import { touchLastActive } from "@/lib/activity";
  * Dashboard badges for the new cycle, polled with the unread-notification count:
  * switches, pending requests waiting for my answer, unread chat messages,
  * whether I still need to give guardian consent, and how many matches still have something
- * to do (`actionableMatches`: not blocked, partner active, a family or chat request can still be sent).
+ * to do (`actionableMatches`: not blocked, partner active, no introduction under way yet and a family or chat request can be sent).
  * With credit_on_interest on, also my balance (`credits`).
  */
 export async function GET() {

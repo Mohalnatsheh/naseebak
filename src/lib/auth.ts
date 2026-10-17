@@ -153,13 +153,17 @@ export async function requireUser(
   return { session };
 }
 
-/** Whether the signed-in user's account is deactivated (dashboard guard). */
-export async function isSessionUserDeactivated(): Promise<boolean> {
+/**
+ * Dashboard guard: whether the signed-in account is suspended (wins over deactivated) or
+ * deactivated, read fresh so a change applies to sessions issued before it.
+ */
+export async function sessionAccountGate(): Promise<"suspended" | "deactivated" | null> {
   const session = await auth();
-  if (!session?.user?.id) return false;
+  if (!session?.user?.id) return null;
   const user = await db.user.findUnique({
     where: { id: session.user.id },
-    select: { isDeactivated: true },
+    select: { status: true, isDeactivated: true },
   });
-  return !!user?.isDeactivated;
+  if (user?.status === "SUSPENDED") return "suspended";
+  return user?.isDeactivated ? "deactivated" : null;
 }

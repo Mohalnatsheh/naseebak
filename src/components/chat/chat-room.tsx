@@ -478,6 +478,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
         onOpenChange={(o) => !o && setEndDialog(null)}
         report={endDialog === "report"}
         partnerName={conversation.partner.firstName}
+        familyStatus={intro?.flags.introRequests && !intro.closed ? family?.status : undefined}
         busy={busy}
         onConfirm={(report) => {
           end(report).then((ok) => ok && report && router.push("/dashboard/chats"));

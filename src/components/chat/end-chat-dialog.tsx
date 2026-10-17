@@ -12,6 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import type { FamilyStatus } from "@/lib/intro/requests";
 
 const REASONS = [
   { value: "HARASSMENT", label: "إزعاج أو أسلوب غير لائق" },
@@ -23,12 +24,27 @@ const REASONS = [
 
 export type ReportReasonValue = (typeof REASONS)[number]["value"];
 
+/**
+ * Ending the chat also closes the family path on this match (`endConversation` cancels a pending
+ * family request), so say so while that path is still open.
+ */
+function familyPathWarning(familyStatus: FamilyStatus | undefined): string | null {
+  if (familyStatus === "pending_sent" || familyStatus === "pending_received") {
+    return "سيُلغى أيضاً طلب التعارف العائلي المعلّق، ولن يمكن طلب تعارف عائلي لهذا التوافق بعد ذلك.";
+  }
+  if (familyStatus === "none") {
+    return "لن يمكن طلب تعارف عائلي لهذا التوافق بعد إنهاء المحادثة. إن كنتما تريدان التعارف العائلي فاطلباه قبل الإنهاء.";
+  }
+  return null;
+}
+
 /** End the chat; in report mode it also reports and blocks the other person. */
 export function EndChatDialog({
   open,
   onOpenChange,
   report,
   partnerName,
+  familyStatus,
   busy,
   onConfirm,
 }: {
@@ -36,6 +52,8 @@ export function EndChatDialog({
   onOpenChange: (o: boolean) => void;
   report: boolean;
   partnerName: string;
+  /** The match's family introduction status, when the intro requests switch is on */
+  familyStatus?: FamilyStatus;
   busy: boolean;
   onConfirm: (report?: { reason: ReportReasonValue; details?: string }) => void;
 }) {
@@ -47,6 +65,7 @@ export function EndChatDialog({
       setDetails("");
     }
   }, [open]);
+  const familyWarning = report ? null : familyPathWarning(familyStatus);
 
   return (
     <Dialog open={open} onOpenChange={(o) => !busy && onOpenChange(o)}>
@@ -64,6 +83,12 @@ export function EndChatDialog({
               : `ستُغلق المحادثة نهائياً للطرفين ولا يمكن فتحها مرة أخرى. سيبقى التوافق مع ${partnerName} ظاهراً.`}
           </DialogDescription>
         </DialogHeader>
+
+        {familyWarning && (
+          <p className="rounded-xl border border-amber-200/60 bg-amber-50/70 p-3 text-sm leading-relaxed text-amber-800">
+            {familyWarning}
+          </p>
+        )}
 
         {report && (
           <div className="space-y-3">

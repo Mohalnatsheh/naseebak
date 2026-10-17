@@ -5,6 +5,7 @@ import { ClipboardEdit, Loader2, CheckCircle2, XCircle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Pager } from "@/components/admin/admin-list-bits";
 
 interface ProfileRequest {
   id: string;
@@ -47,21 +48,32 @@ export default function AdminProfileRequestsPage() {
   const [adminNotes, setAdminNotes] = useState<Record<string, string>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loadError, setLoadError] = useState("");
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
 
   useEffect(() => {
-    fetchRequests();
-  }, []);
+    fetchRequests(page);
+  }, [page]);
 
-  async function fetchRequests() {
+  async function fetchRequests(p: number) {
     try {
-      const res = await fetch("/api/admin/profile-requests");
+      const res = await fetch(`/api/admin/profile-requests?page=${p}`);
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setLoadError(data.error || `Failed to load requests (${res.status})`);
         return;
       }
       setLoadError("");
-      setRequests(data.requests || []);
+      const items: ProfileRequest[] = data.requests || [];
+      // The last request of a page was reviewed: step back instead of showing an empty page
+      if (items.length === 0 && p > 1) {
+        setPage(p - 1);
+        return;
+      }
+      setRequests(items);
+      setTotal(data.total ?? items.length);
+      setTotalPages(data.totalPages || 1);
     } catch (err) {
       console.error(err);
       setLoadError("Network error, please reload");
@@ -80,7 +92,8 @@ export default function AdminProfileRequestsPage() {
         body: JSON.stringify({ requestId, action, adminNote: adminNotes[requestId] || "" }),
       });
       if (res.ok) {
-        setRequests((prev) => prev.filter((r) => r.id !== requestId));
+        // Refetch so the next pending request moves up onto this page
+        await fetchRequests(page);
       } else {
         const data = await res.json().catch(() => ({}));
         setErrors((prev) => ({ ...prev, [requestId]: data.error || `Action failed (${res.status})` }));
@@ -109,7 +122,7 @@ export default function AdminProfileRequestsPage() {
         </h1>
         <p className="text-muted-foreground mt-1">
           Review user-submitted profile changes
-          {requests.length > 0 && <Badge className="ms-2">{requests.length} pending</Badge>}
+          {total > 0 && <Badge className="ms-2">{total} pending</Badge>}
         </p>
       </div>
 
@@ -223,6 +236,7 @@ export default function AdminProfileRequestsPage() {
               </CardContent>
             </Card>
           ))}
+          <Pager page={page} pages={totalPages} onPage={setPage} />
         </div>
       )}
     </div>

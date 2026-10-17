@@ -17,7 +17,7 @@ vi.mock("next-auth", () => ({
   },
 }));
 
-import { requireUser, isSessionUserDeactivated } from "@/lib/auth";
+import { requireUser, sessionAccountGate } from "@/lib/auth";
 
 const phoneLogin = () => captured.config!.providers.find((p) => p.id === "credentials")!;
 const baseUser = { id: "u1", email: "phone_962790000000@naseeb.local", firstName: "يزن", role: "USER", gender: "MALE", isVerified: false };
@@ -91,16 +91,21 @@ describe("requireUser", () => {
   });
 });
 
-describe("isSessionUserDeactivated (dashboard guard)", () => {
-  it("is true for a deactivated account", async () => {
-    db.user.findUnique.mockResolvedValue({ isDeactivated: true });
-    expect(await isSessionUserDeactivated()).toBe(true);
+describe("sessionAccountGate (dashboard guard)", () => {
+  it("is deactivated for a deactivated account", async () => {
+    db.user.findUnique.mockResolvedValue({ status: "VERIFIED", isDeactivated: true });
+    expect(await sessionAccountGate()).toBe("deactivated");
   });
 
-  it("is false for active accounts and anonymous visitors", async () => {
-    db.user.findUnique.mockResolvedValue({ isDeactivated: false });
-    expect(await isSessionUserDeactivated()).toBe(false);
+  it("is suspended for a suspended account, even when also deactivated", async () => {
+    db.user.findUnique.mockResolvedValue({ status: "SUSPENDED", isDeactivated: true });
+    expect(await sessionAccountGate()).toBe("suspended");
+  });
+
+  it("is null for active accounts and anonymous visitors", async () => {
+    db.user.findUnique.mockResolvedValue({ status: "VERIFIED", isDeactivated: false });
+    expect(await sessionAccountGate()).toBeNull();
     authMock.mockResolvedValue(null);
-    expect(await isSessionUserDeactivated()).toBe(false);
+    expect(await sessionAccountGate()).toBeNull();
   });
 });

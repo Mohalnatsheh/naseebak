@@ -33,14 +33,19 @@ interface Props {
   credits: number;
   chatEnabled: boolean;
   guardian: { exists: boolean; consented: boolean };
-  onConfirm: (p: { introPreference: IntroPreferenceChoice; guardianConsent?: boolean }) => Promise<void>;
+  /**
+   * Older suggestions / interests still in flight have no introduction choice: only confirm the
+   * credit, and `onConfirm` gets no preference.
+   */
+  costOnly?: boolean;
+  onConfirm: (p?: { introPreference: IntroPreferenceChoice; guardianConsent?: boolean }) => Promise<void>;
 }
 
 /**
  * Credit on interest: "مهتم" on a shared suggestion asks how the introduction should start if the
  * interest is mutual — chat here first, or a family introduction straight away (needs guardian consent).
  */
-export function InterestDialog({ open, onOpenChange, partnerGender, credits, chatEnabled, guardian, onConfirm }: Props) {
+export function InterestDialog({ open, onOpenChange, partnerGender, credits, chatEnabled, guardian, costOnly = false, onConfirm }: Props) {
   const [choice, setChoice] = useState<IntroPreferenceChoice | null>(null);
   const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -59,13 +64,14 @@ export function InterestDialog({ open, onOpenChange, partnerGender, credits, cha
   const missingGuardian = family && !guardian.exists;
   const needsConsent = family && guardian.exists && !guardian.consented;
   const noCredits = credits <= 0;
-  const canConfirm = !busy && !!choice && !missingGuardian && (!needsConsent || consent);
+  const canConfirm = costOnly ? !busy : !busy && !!choice && !missingGuardian && (!needsConsent || consent);
 
   async function confirm() {
-    if (!choice || !canConfirm) return;
+    if (!canConfirm) return;
     setBusy(true);
     try {
-      await onConfirm({ introPreference: choice, ...(needsConsent && { guardianConsent: true }) });
+      if (costOnly) await onConfirm();
+      else if (choice) await onConfirm({ introPreference: choice, ...(needsConsent && { guardianConsent: true }) });
     } finally {
       setBusy(false);
     }
@@ -95,52 +101,66 @@ export function InterestDialog({ open, onOpenChange, partnerGender, credits, cha
           <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/15 to-accent/15">
             <HeartHandshake className="h-6 w-6 text-primary" aria-hidden="true" />
           </div>
-          <DialogTitle className="text-lg">{g("كيف تحب أن يبدأ التعارف؟", "كيف تحبين أن يبدأ التعارف؟")}</DialogTitle>
-          <DialogDescription className="text-right leading-relaxed">
-            {partnerFemale ? "إذا أبدت اهتمامها أيضاً" : "إذا أبدى اهتمامه أيضاً"} يصبح توافقاً متبادلاً
-            {g(" ويبدأ التعارف الذي تختاره مباشرة.", " ويبدأ التعارف الذي تختارينه مباشرة.")}
-          </DialogDescription>
+          {costOnly ? (
+            <>
+              <DialogTitle className="text-lg">تأكيد «مهتم»</DialogTitle>
+              <DialogDescription className="text-right leading-relaxed">
+                عندما يكون الاهتمام متبادلاً يصبح توافقاً،
+                {g(" وتختار طريقة التعارف من صفحة التوافقات.", " وتختارين طريقة التعارف من صفحة التوافقات.")}
+              </DialogDescription>
+            </>
+          ) : (
+            <>
+              <DialogTitle className="text-lg">{g("كيف تحب أن يبدأ التعارف؟", "كيف تحبين أن يبدأ التعارف؟")}</DialogTitle>
+              <DialogDescription className="text-right leading-relaxed">
+                {partnerFemale ? "إذا أبدت اهتمامها أيضاً" : "إذا أبدى اهتمامه أيضاً"} يصبح توافقاً متبادلاً
+                {g(" ويبدأ التعارف الذي تختاره مباشرة.", " ويبدأ التعارف الذي تختارينه مباشرة.")}
+              </DialogDescription>
+            </>
+          )}
         </DialogHeader>
 
-        <div role="radiogroup" aria-label="طريقة التعارف" className="space-y-2">
-          {options.map((o) => {
-            const selected = choice === o.value;
-            return (
-              <label
-                key={o.value}
-                className={cn(
-                  "flex cursor-pointer items-start gap-3 rounded-xl border p-3.5 transition-colors focus-within:ring-2 focus-within:ring-ring",
-                  selected ? "border-primary/50 bg-primary/5 ring-1 ring-primary/30" : "border-border/60 hover:bg-muted/40"
-                )}
-              >
-                <input
-                  type="radio"
-                  name="intro-preference"
-                  value={o.value}
-                  checked={selected}
-                  onChange={() => setChoice(o.value)}
-                  aria-describedby={`intro-pref-${o.value}`}
-                  className="sr-only"
-                />
-                <span
+        {!costOnly && (
+          <div role="radiogroup" aria-label="طريقة التعارف" className="space-y-2">
+            {options.map((o) => {
+              const selected = choice === o.value;
+              return (
+                <label
+                  key={o.value}
                   className={cn(
-                    "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl",
-                    selected ? "bg-gradient-to-br from-primary to-secondary text-primary-foreground" : "bg-gradient-to-br from-primary/15 to-accent/15 text-primary"
+                    "flex cursor-pointer items-start gap-3 rounded-xl border p-3.5 transition-colors focus-within:ring-2 focus-within:ring-ring",
+                    selected ? "border-primary/50 bg-primary/5 ring-1 ring-primary/30" : "border-border/60 hover:bg-muted/40"
                   )}
-                  aria-hidden="true"
                 >
-                  <o.icon className="h-5 w-5" />
-                </span>
-                <span className="min-w-0">
-                  <span className="block font-semibold text-foreground">{o.title}</span>
-                  <span id={`intro-pref-${o.value}`} className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">
-                    {o.text}
+                  <input
+                    type="radio"
+                    name="intro-preference"
+                    value={o.value}
+                    checked={selected}
+                    onChange={() => setChoice(o.value)}
+                    aria-describedby={`intro-pref-${o.value}`}
+                    className="sr-only"
+                  />
+                  <span
+                    className={cn(
+                      "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl",
+                      selected ? "bg-gradient-to-br from-primary to-secondary text-primary-foreground" : "bg-gradient-to-br from-primary/15 to-accent/15 text-primary"
+                    )}
+                    aria-hidden="true"
+                  >
+                    <o.icon className="h-5 w-5" />
                   </span>
-                </span>
-              </label>
-            );
-          })}
-        </div>
+                  <span className="min-w-0">
+                    <span className="block font-semibold text-foreground">{o.title}</span>
+                    <span id={`intro-pref-${o.value}`} className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">
+                      {o.text}
+                    </span>
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+        )}
 
         {missingGuardian && (
           <div className="flex items-start gap-3 rounded-xl border border-amber-200/60 bg-amber-50/70 p-3 text-sm text-amber-800">

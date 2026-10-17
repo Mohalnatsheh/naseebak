@@ -39,7 +39,11 @@ export interface MatchFacts {
 
 export interface MatchDescription {
   closed: MatchClosure | null;
-  /** The viewer can still send a family or chat request on this match */
+  /**
+   * The viewer still has to choose how to start on this match: a family or chat request can be sent
+   * and nothing is under way yet (no accepted family introduction, open chat or pending request).
+   * A later move (e.g. a chat request after a family introduction) stays possible, it just isn't nagged.
+   */
   actionable: boolean;
   /** The chat was ended by one of the two users (not expired, not ended by an admin) */
   chatEndedByUser: boolean;
@@ -79,7 +83,14 @@ export function describeMatch(f: MatchFacts, now = new Date()): MatchDescription
 
   return {
     closed: finished ? "finished" : null,
-    actionable: f.introEnabled && !finished && (canSendFamily || canSendChat),
+    actionable:
+      f.introEnabled &&
+      !finished &&
+      (canSendFamily || canSendChat) &&
+      !acceptedFamily &&
+      !chatOpen &&
+      !pendingFamily &&
+      !pendingChat,
     chatEndedByUser: endedByUser,
   };
 }

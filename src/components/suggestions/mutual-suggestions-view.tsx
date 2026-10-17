@@ -132,9 +132,12 @@ export function MutualSuggestionsView({
     setNotice(null);
   }
 
-  /** "مهتم": with credit on interest a shared suggestion first asks chat or family */
+  /**
+   * "مهتم" costs a credit with credit on interest, so it always confirms first: a shared suggestion
+   * also asks chat or family, older items (no choice to make) confirm the credit only.
+   */
   function onInterested(item: OpenFeedItem) {
-    if (creditOnInterest && item.kind === "mutual") setInterestFor(item);
+    if (creditOnInterest) setInterestFor(item);
     else void decide(item, true);
   }
 
@@ -556,6 +559,7 @@ export function MutualSuggestionsView({
           credits={balance}
           chatEnabled={chatEnabled}
           guardian={guardian}
+          costOnly={!!interestFor && interestFor.kind !== "mutual"}
           onConfirm={async (choice) => {
             const item = interestFor;
             if (!item) return;

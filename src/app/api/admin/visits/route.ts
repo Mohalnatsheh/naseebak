@@ -2,58 +2,75 @@ import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { notifyMany } from "@/lib/notify";
+import { safePagination, enumParam } from "@/lib/admin/query";
 import type { VisitStatus } from "@prisma/client";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const result = await requireAdmin();
     if ("error" in result) return result.error;
 
-    const visits = await db.visitRequest.findMany({
-      include: {
-        match: {
-          include: {
-            female: {
-              select: {
-                id: true,
-                firstName: true,
-                lastName: true,
-                phone: true,
-                parentInfo: {
-                  select: {
-                    parentName: true,
-                    parentPhone: true,
-                    relationship: true,
-                    address: true,
-                    notes: true,
+    const { searchParams } = new URL(request.url);
+    const { page, pageSize, skip } = safePagination(searchParams, 20);
+    const status = enumParam(searchParams.get("status"), VISIT_STATUSES);
+    const where = status ? { status } : {};
+
+    const [visits, total, byStatus] = await Promise.all([
+      db.visitRequest.findMany({
+        where,
+        skip,
+        take: pageSize,
+        include: {
+          match: {
+            include: {
+              female: {
+                select: {
+                  id: true,
+                  firstName: true,
+                  lastName: true,
+                  phone: true,
+                  parentInfo: {
+                    select: {
+                      parentName: true,
+                      parentPhone: true,
+                      relationship: true,
+                      address: true,
+                      notes: true,
+                    },
                   },
                 },
               },
-            },
-            male: {
-              select: {
-                id: true,
-                firstName: true,
-                lastName: true,
-                phone: true,
-                parentInfo: {
-                  select: {
-                    parentName: true,
-                    parentPhone: true,
-                    relationship: true,
-                    address: true,
-                    notes: true,
+              male: {
+                select: {
+                  id: true,
+                  firstName: true,
+                  lastName: true,
+                  phone: true,
+                  parentInfo: {
+                    select: {
+                      parentName: true,
+                      parentPhone: true,
+                      relationship: true,
+                      address: true,
+                      notes: true,
+                    },
                   },
                 },
               },
             },
           },
         },
-      },
-      orderBy: { createdAt: "desc" },
-    });
+        orderBy: { createdAt: "desc" },
+      }),
+      db.visitRequest.count({ where }),
+      db.visitRequest.groupBy({ by: ["status"], _count: { _all: true } }),
+    ]);
 
-    return NextResponse.json({ visits });
+    // Counts for the filter chips, across all pages and statuses
+    const counts: Record<string, number> = {};
+    for (const row of byStatus) counts[row.status] = row._count._all;
+
+    return NextResponse.json({ visits, total, page, totalPages: Math.ceil(total / pageSize), counts });
   } catch (error) {
     console.error("Admin visits error:", error);
     return NextResponse.json({ error: "حدث خطأ في الخادم" }, { status: 500 });

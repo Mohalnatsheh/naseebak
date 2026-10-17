@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { enumLabel } from "@/lib/admin/enum-labels";
+import { Pager } from "@/components/admin/admin-list-bits";
 
 interface Feedback {
   id: string;
@@ -65,16 +66,33 @@ export default function AdminVisitsPage() {
   const [feedbacks, setFeedbacks] = useState<Record<string, Feedback[]>>({});
   const [feedbackLoading, setFeedbackLoading] = useState<string | null>(null);
   const [expandedFeedback, setExpandedFeedback] = useState<Set<string>>(new Set());
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [counts, setCounts] = useState<Record<string, number>>({});
 
   useEffect(() => {
-    fetchVisits();
-  }, []);
+    fetchVisits(page, statusFilter);
+  }, [page, statusFilter]);
 
-  async function fetchVisits() {
+  function changeFilter(value: string) {
+    setStatusFilter(value);
+    setPage(1);
+  }
+
+  async function fetchVisits(p: number, status: string) {
     try {
-      const res = await fetch("/api/admin/visits");
+      const params = new URLSearchParams({ page: String(p) });
+      if (status) params.set("status", status);
+      const res = await fetch(`/api/admin/visits?${params}`);
       const data = await res.json();
+      // A status change can move the last visit of a page out of the filter: step back
+      if ((data.visits || []).length === 0 && p > 1) {
+        setPage(p - 1);
+        return;
+      }
       setVisits(data.visits || []);
+      setTotalPages(data.totalPages || 1);
+      setCounts(data.counts || {});
       // Initialize edit values
       const initVals: Record<string, { date: string; location: string; notes: string }> = {};
       for (const v of (data.visits || [])) {
@@ -105,7 +123,7 @@ export default function AdminVisitsPage() {
         setErrors((prev) => ({ ...prev, [visitId]: data.error || `Update failed (${res.status})` }));
         return;
       }
-      await fetchVisits();
+      await fetchVisits(page, statusFilter);
     } catch (err) {
       console.error(err);
       setErrors((prev) => ({ ...prev, [visitId]: "Network error, please try again" }));
@@ -166,9 +184,7 @@ export default function AdminVisitsPage() {
     NEEDS_ANOTHER_VISIT: "Needs Another Visit",
   };
 
-  const filtered = statusFilter
-    ? visits.filter((v) => v.status === statusFilter)
-    : visits;
+  const allCount = Object.values(counts).reduce((a, b) => a + b, 0);
 
   return (
     <div className="space-y-6">
@@ -196,18 +212,18 @@ export default function AdminVisitsPage() {
         <Button
           variant={statusFilter === "" ? "default" : "outline"}
           size="sm"
-          onClick={() => setStatusFilter("")}
+          onClick={() => changeFilter("")}
         >
-          All ({visits.length})
+          All ({allCount})
         </Button>
         {statusOptions.map((opt) => {
-          const count = visits.filter((v) => v.status === opt.value).length;
+          const count = counts[opt.value] ?? 0;
           return (
             <Button
               key={opt.value}
               variant={statusFilter === opt.value ? "default" : "outline"}
               size="sm"
-              onClick={() => setStatusFilter(opt.value)}
+              onClick={() => changeFilter(opt.value)}
             >
               {opt.label} ({count})
             </Button>
@@ -219,7 +235,7 @@ export default function AdminVisitsPage() {
         <div className="flex justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
-      ) : filtered.length === 0 ? (
+      ) : visits.length === 0 ? (
         <Card>
           <CardContent className="text-center py-12">
             <CalendarHeart className="h-12 w-12 mx-auto text-muted-foreground/30 mb-3" />
@@ -231,7 +247,7 @@ export default function AdminVisitsPage() {
         </Card>
       ) : (
         <div className="space-y-4">
-          {filtered.map((v) => {
+          {visits.map((v) => {
             const currentStatus = statusOptions.find((s) => s.value === v.status);
             const vals = editValues[v.id] || { date: "", location: "", notes: "" };
             return (
@@ -413,6 +429,7 @@ export default function AdminVisitsPage() {
               </Card>
             );
           })}
+          <Pager page={page} pages={totalPages} onPage={setPage} />
         </div>
       )}
     </div>

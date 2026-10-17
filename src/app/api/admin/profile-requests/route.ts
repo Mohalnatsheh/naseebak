@@ -3,26 +3,35 @@ import { requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { notify } from "@/lib/notify";
 import { buildProfileUpdate } from "@/lib/admin/profile-changes";
+import { safePagination } from "@/lib/admin/query";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const result = await requireAdmin();
     if ("error" in result) return result.error;
 
-    const requests = await db.profileUpdateRequest.findMany({
-      where: { status: "PENDING" },
-      include: {
-        user: {
-          select: {
-            id: true, firstName: true, lastName: true, gender: true,
-            profile: true,
+    const { page, pageSize, skip } = safePagination(new URL(request.url).searchParams, 20);
+    const where = { status: "PENDING" as const };
+
+    const [requests, total] = await Promise.all([
+      db.profileUpdateRequest.findMany({
+        where,
+        skip,
+        take: pageSize,
+        include: {
+          user: {
+            select: {
+              id: true, firstName: true, lastName: true, gender: true,
+              profile: true,
+            },
           },
         },
-      },
-      orderBy: { createdAt: "asc" },
-    });
+        orderBy: { createdAt: "asc" },
+      }),
+      db.profileUpdateRequest.count({ where }),
+    ]);
 
-    return NextResponse.json({ requests });
+    return NextResponse.json({ requests, total, page, totalPages: Math.ceil(total / pageSize) });
   } catch (error) {
     console.error("Admin profile requests error:", error);
     return NextResponse.json({ error: "حدث خطأ في الخادم" }, { status: 500 });

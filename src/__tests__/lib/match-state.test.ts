@@ -67,12 +67,27 @@ describe("describeMatch", () => {
     expect(d.closed).toBeNull();
   });
 
-  it("an open chat keeps it open (and the family move is still sendable)", () => {
+  it("an open chat keeps it open, but nothing is left to choose (the family move isn't nagged)", () => {
     const d = describeMatch(facts({
       requests: [req("CHAT", "ACCEPTED")],
       conversation: { status: "ACTIVE", expiresAt: later(), endedById: null },
     }));
-    expect(d).toMatchObject({ closed: null, actionable: true });
+    expect(d).toMatchObject({ closed: null, actionable: false });
+  });
+
+  it("an accepted family introduction isn't actionable even though a chat request could still be sent", () => {
+    const d = describeMatch(facts({ requests: [req("FAMILY", "ACCEPTED")] }));
+    expect(d).toMatchObject({ closed: null, actionable: false });
+  });
+
+  it("a pending request means the choice is made: not actionable", () => {
+    expect(describeMatch(facts({ requests: [req("FAMILY", "PENDING")] })).actionable).toBe(false);
+    expect(describeMatch(facts({ requests: [req("CHAT", "PENDING")] })).actionable).toBe(false);
+  });
+
+  it("an expired pending request counts as nothing under way", () => {
+    const d = describeMatch(facts({ requests: [req("FAMILY", "PENDING", new Date(Date.now() - DAY))] }));
+    expect(d.actionable).toBe(true);
   });
 
   it("switch off: nothing is actionable", () => {

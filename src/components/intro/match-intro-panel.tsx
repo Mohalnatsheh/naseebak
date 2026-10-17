@@ -21,6 +21,7 @@ import {
   UserX,
   PartyPopper,
   ShieldCheck,
+  RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -103,6 +104,9 @@ export function MatchIntroPanel({ matchId, partnerName }: { matchId: string; par
   const viewerFemale = profile?.gender === "FEMALE";
   const g = (masculine: string, feminine: string) => (viewerFemale ? feminine : masculine);
   const [state, setState] = useState<IntroState | null>(null);
+  /** "error": show a retry instead of the endless placeholder; "gone": the match is no longer mine to see */
+  const [loadFailed, setLoadFailed] = useState<"error" | "gone" | null>(null);
+  const [retrying, setRetrying] = useState(false);
   const [dialog, setDialog] = useState<DialogState | null>(null);
   const [busy, setBusy] = useState(false);
   const [cancelId, setCancelId] = useState<string | null>(null);
@@ -111,16 +115,39 @@ export function MatchIntroPanel({ matchId, partnerName }: { matchId: string; par
   const load = useCallback(async () => {
     try {
       const res = await fetch(`/api/matches/${matchId}/intro`);
-      if (res.ok) setState(await res.json());
+      if (res.ok) {
+        setState(await res.json());
+        setLoadFailed(null);
+      } else {
+        setLoadFailed(res.status === 404 ? "gone" : "error");
+      }
     } catch {
-      // Panel stays hidden on network errors
+      setLoadFailed("error");
     }
   }, [matchId]);
+
+  async function retry() {
+    setRetrying(true);
+    await load();
+    setRetrying(false);
+  }
 
   useEffect(() => {
     load();
   }, [load]);
 
+  if (!state && loadFailed === "gone") return null;
+  if (!state && loadFailed === "error") {
+    return (
+      <div role="alert" className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-destructive/20 bg-destructive/5 p-4 text-sm">
+        <span className="text-destructive">تعذّر تحميل خيارات التعارف لهذا التوافق.</span>
+        <Button size="sm" variant="outline" onClick={retry} disabled={retrying}>
+          {retrying ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-4 w-4" aria-hidden="true" />}
+          إعادة المحاولة
+        </Button>
+      </div>
+    );
+  }
   if (!state) {
     // Keep the space while loading so the card doesn't jump
     return <div className="mt-4 h-40 animate-pulse rounded-2xl border border-primary/10 bg-primary/[0.03]" aria-hidden />;

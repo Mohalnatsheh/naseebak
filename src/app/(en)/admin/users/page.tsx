@@ -31,7 +31,7 @@ interface UserRow {
 }
 
 const statusStyles: Record<string, string> = {
-  PENDING: "text-amber-600 border-amber-300",
+  PENDING: "text-muted-foreground border-border",
   VERIFIED: "text-green-600 border-green-300",
   REJECTED: "text-destructive border-destructive/30",
   SUSPENDED: "text-destructive border-destructive/30",

@@ -90,6 +90,14 @@ const suggestionStatusColors: Record<string, string> = {
   EXPIRED: "bg-muted text-muted-foreground",
 };
 
+/** Account status: PENDING is a normal active account without an approved ID, so it is neutral, not amber. */
+const userStatusColors: Record<string, string> = {
+  PENDING: "bg-muted text-muted-foreground",
+  VERIFIED: "bg-green-100 text-green-800",
+  REJECTED: "bg-destructive/10 text-destructive",
+  SUSPENDED: "bg-destructive/10 text-destructive",
+};
+
 const statusColors: Record<string, string> = {
   PENDING: "bg-amber-100 text-amber-800",
   VERIFIED: "bg-green-100 text-green-800",
@@ -358,7 +366,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
           <div>
             <h1 className="text-2xl font-bold">{user.firstName} {user.lastName}</h1>
             <div className="flex flex-wrap items-center gap-2 mt-1">
-              <Badge className={statusColors[user.status] || ""}>{enumLabel("userStatus", user.status)}</Badge>
+              <Badge className={userStatusColors[user.status] || ""}>{enumLabel("userStatus", user.status)}</Badge>
               <Badge variant={user.gender === "MALE" ? "default" : "secondary"}>
                 {user.gender === "MALE" ? "Male" : "Female"}
               </Badge>

@@ -10,7 +10,8 @@
 
 export const ENUM_LABELS = {
   userStatus: {
-    PENDING: "Under review",
+    // PENDING = active account without an approved ID (nothing awaits review); VERIFIED = ID approved
+    PENDING: "Unverified",
     VERIFIED: "Verified",
     REJECTED: "Rejected",
     SUSPENDED: "Suspended",

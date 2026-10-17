@@ -8,7 +8,7 @@ vi.mock("@/lib/auth", () => auth);
 
 import { GET } from "@/app/api/admin/chats/[id]/messages/route";
 
-const call = (id = "c1") => GET(new Request("http://x"), { params: Promise.resolve({ id }) });
+const call = (id = "c1") => GET(new Request("http://x"), { params: Promise.resolve({ id }) }) as Promise<Response>;
 const sara = { id: "f1", firstName: "سارة", lastName: "أ", status: "VERIFIED" };
 const yazan = { id: "m1", firstName: "يزن", lastName: "ب", status: "PENDING" };
 

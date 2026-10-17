@@ -9,7 +9,12 @@ vi.mock("@/lib/settings", () => ({
   getCycleFlags: vi.fn(async () => ({ introRequests: false, chat: false, mutualSuggestions: false })),
 }));
 vi.mock("@/lib/chat/service", () => ({ chatHousekeepingForUser: vi.fn() }));
-vi.mock("@/lib/matches/state", () => ({ cancelDeadPendingFor: vi.fn(), loadMatchStates: vi.fn() }));
+vi.mock("@/lib/matches/state", () => ({
+  cancelDeadPendingFor: vi.fn(),
+  loadMatchStates: vi.fn(),
+  hiddenPartnerIds: vi.fn(async () => []),
+  visibleConversationsWhere: vi.fn(() => ({})),
+}));
 
 import { GET } from "@/app/api/me/counts/route";
 

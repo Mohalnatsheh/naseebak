@@ -49,8 +49,9 @@ describe("getSuggestionFeed — new", () => {
     const where = db.suggestion.findMany.mock.calls[0][0].where;
     expect(where).toMatchObject({ flow: "MUTUAL", status: "PENDING" });
     expect(where.OR).toEqual([
-      { recipientId: "me", recipientDecision: null },
-      { candidateId: "me", candidateDecision: null },
+      // A partner who left doesn't fill a slot (hidden in the feed anyway)
+      { recipientId: "me", recipientDecision: null, candidate: { isDeactivated: false, status: { not: "SUSPENDED" } } },
+      { candidateId: "me", candidateDecision: null, recipient: { isDeactivated: false, status: { not: "SUSPENDED" } } },
     ]);
   });
 

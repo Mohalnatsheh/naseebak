@@ -9,6 +9,7 @@ import { db } from "@/lib/db";
 import { notify } from "@/lib/notify";
 import { idleBetweenWhere } from "@/lib/activity";
 import { openMutualWhere } from "@/lib/suggestions/mutual";
+import { hiddenPartnerIds, visibleConversationsWhere } from "@/lib/matches/state";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 export const REENGAGE_MIN_IDLE_DAYS = 7;
@@ -25,6 +26,7 @@ export interface Waiting {
 }
 
 export async function waitingFor(userId: string, now = new Date()): Promise<Waiting> {
+  const hidden = await hiddenPartnerIds(userId);
   const [mutual, legacy, firstRequest, requests, unreadMessages] = await Promise.all([
     db.suggestion.count({ where: openMutualWhere(userId, now) }),
     db.suggestion.count({ where: { recipientId: userId, status: "PENDING", flow: "LEGACY" } }),
@@ -38,7 +40,8 @@ export async function waitingFor(userId: string, now = new Date()): Promise<Wait
       where: {
         readAt: null,
         senderId: { not: userId },
-        conversation: { match: { OR: [{ femaleId: userId }, { maleId: userId }] } },
+        // Not a chat with someone who blocked me: it's hidden from me
+        conversation: visibleConversationsWhere(userId, hidden),
       },
     }),
   ]);

@@ -45,6 +45,8 @@ export interface OpenFeedItem {
   compatibilityScore: number;
   reason: string;
   createdAt: string;
+  /** Shared suggestions only: when the card closes if it isn't a match by then */
+  expiresAt?: string;
   candidate: FeedCandidate;
   /**
    * Credit on interest at 0 credits only: the other side already said "مهتم" (owner exception, the

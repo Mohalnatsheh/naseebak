@@ -3,6 +3,7 @@ import { z } from "zod/v4";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { cancelPendingBetween } from "@/lib/matches/state";
+import { closeSuggestionsBetween } from "@/lib/suggestions/mutual";
 
 export async function GET() {
   try {
@@ -75,6 +76,7 @@ export async function POST(request: Request) {
       },
     });
     await cancelPendingBetween(session.user.id, blockedId);
+    await closeSuggestionsBetween(session.user.id, blockedId).catch((e) => console.error("Close suggestions on block:", e));
 
     return NextResponse.json({ message: "تم حظر المستخدم بنجاح", block });
   } catch (error) {

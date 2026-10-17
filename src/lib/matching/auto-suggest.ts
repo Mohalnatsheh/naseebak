@@ -61,12 +61,13 @@ export async function openCounts(userIds: string[]): Promise<Map<string, number>
   const [asRecipient, asCandidate, legacy] = await Promise.all([
     db.suggestion.groupBy({
       by: ["recipientId"],
-      where: { ...open, recipientId: { in: userIds }, recipientDecision: null },
+      // Same as openMutualWhere: a partner who left doesn't fill a slot
+      where: { ...open, recipientId: { in: userIds }, recipientDecision: null, candidate: { isDeactivated: false, status: { not: "SUSPENDED" } } },
       _count: true,
     }),
     db.suggestion.groupBy({
       by: ["candidateId"],
-      where: { ...open, candidateId: { in: userIds }, candidateDecision: null },
+      where: { ...open, candidateId: { in: userIds }, candidateDecision: null, recipient: { isDeactivated: false, status: { not: "SUSPENDED" } } },
       _count: true,
     }),
     db.suggestion.groupBy({

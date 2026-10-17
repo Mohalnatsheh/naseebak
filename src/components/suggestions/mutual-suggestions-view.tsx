@@ -217,7 +217,7 @@ export function MutualSuggestionsView({
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         if (data.code === "NO_CREDITS") {
-          // Same message as the disabled "مهتم"; reloading locks the remaining suggestions
+          // Same message as the disabled "مهتم"; reloading shows the 0-credit banner and "liked you" tags
           setBalance(0);
           setNotice({ kind: "no_credits" });
         } else {
@@ -232,7 +232,7 @@ export function MutualSuggestionsView({
         setBalance(left);
         refreshUnread();
         if (choice?.guardianConsent) refreshProfile();
-        // Nothing left: the other new suggestions lock (the feed says so)
+        // Nothing left: reload so the 0-credit banner and "liked you" tags show (the feed says so)
         if (left <= 0) load(tab, page);
       }
       trackEvent("suggestion_response", { response: interested ? "accept" : "reject", mutual_match: !!data.match });
@@ -540,7 +540,8 @@ export function MutualSuggestionsView({
                     <>
                       {waiting && (
                         <p className="mb-3 text-xs text-muted-foreground leading-relaxed">
-                          {partnerGender === "FEMALE" ? "إذا أبدت اهتمامها أيضاً" : "إذا أبدى اهتمامه أيضاً"} يصبح توافقاً متبادلاً ونخبرك فوراً. يُغلق الاقتراح تلقائياً بعد 7 أيام من وصوله إن لم يكتمل.
+                          {partnerGender === "FEMALE" ? "إذا أبدت اهتمامها أيضاً" : "إذا أبدى اهتمامه أيضاً"} يصبح توافقاً متبادلاً ونخبرك فوراً.
+                          {item.expiresAt && ` يُغلق الاقتراح تلقائياً يوم ${formatNextDate(item.expiresAt)} إن لم يكتمل.`}
                         </p>
                       )}
                       {!waiting && creditOnInterest && (

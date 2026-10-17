@@ -26,7 +26,7 @@ export interface DailyRunSummary {
   durationMs: number;
   trigger: "cron" | "admin";
   tasks: Record<string, TaskResult>;
-  totals: { reminders: number; suggestions: number; expired: number; reengaged: number; deletions: number; errors: number };
+  totals: { reminders: number; suggestions: number; expired: number; reengaged: number; deletions: number; errors: number; refunds?: number; nudges?: number };
 }
 
 const num = (r: TaskResult | undefined, key: string): number => {
@@ -44,6 +44,8 @@ export function summarise(tasks: Record<string, TaskResult>) {
       num(tasks.introExpiry, "expired") + num(tasks.suggestionExpiry, "expired") + num(tasks.chats, "expired"),
     reengaged: num(tasks.reengagement, "sent"),
     deletions: num(tasks.deletions, "deleted"),
+    refunds: num(tasks.suggestionExpiry, "refunded"),
+    nudges: num(tasks.chats, "nudged"),
     errors: Object.values(tasks).filter((t) => "error" in t).length,
   };
 }

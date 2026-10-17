@@ -114,6 +114,7 @@ export async function getSuggestionFeed(
   type Row = {
     kind: FeedKind; id: string; score: number | null; createdAt: Date; other: Person;
     likedYou?: boolean;
+    expiresAt?: Date | null;
   };
   const rows: Row[] = [];
   const mutualSelect = {
@@ -152,6 +153,7 @@ export async function getSuggestionFeed(
       const theirDecision = s.recipientId === userId ? s.candidateDecision : s.recipientDecision;
       rows.push({
         kind: "mutual", id: s.id, score: s.compatibilityScore, createdAt: s.createdAt, other: otherOf(s as never),
+        expiresAt: s.expiresAt,
         ...(atZero && theirDecision === "INTERESTED" && { likedYou: true }),
       });
     }
@@ -191,7 +193,7 @@ export async function getSuggestionFeed(
       }),
     ]);
     const matched = new Set(matches.flatMap((m) => [m.femaleId, m.maleId]));
-    for (const s of mutual) rows.push({ kind: "mutual", id: s.id, score: s.compatibilityScore, createdAt: s.createdAt, other: otherOf(s as never) });
+    for (const s of mutual) rows.push({ kind: "mutual", id: s.id, score: s.compatibilityScore, createdAt: s.createdAt, other: otherOf(s as never), expiresAt: s.expiresAt });
     for (const s of legacySent) {
       if (matched.has(s.candidate.id)) continue;
       rows.push({ kind: "legacy_sent", id: s.id, score: s.compatibilityScore, createdAt: s.updatedAt, other: s.candidate as Person });
@@ -217,6 +219,7 @@ export async function getSuggestionFeed(
       reason: suggestionReason(v, o),
       createdAt: r.createdAt.toISOString(),
       candidate: toFeedCandidate(r.other),
+      ...(r.expiresAt && { expiresAt: r.expiresAt.toISOString() }),
       ...(r.likedYou && { likedYou: true as const }),
     };
   });

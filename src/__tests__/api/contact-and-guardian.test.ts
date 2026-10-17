@@ -86,3 +86,22 @@ describe("PUT /api/profile/parent-info", () => {
     expect((await res.json()).error).toMatch(/يختلف عن رقم هاتفك/);
   });
 });
+
+describe("PUT /api/profile/parent-info — unchanged older entry", () => {
+  const req = (body: unknown) => new Request("http://x", { method: "PUT", body: JSON.stringify(body) });
+  const old = { parentName: "Ahmad", parentPhone: "0791234567", relationship: "father", address: "Amman", notes: null, shareConsentAt: null };
+
+  it("a consent-only change keeps an older contact that predates the stricter rules", async () => {
+    db.parentInfo.findUnique.mockResolvedValue(old);
+    (db.parentInfo as unknown as { update: ReturnType<typeof vi.fn> }).update = vi.fn(async () => old);
+    const res = await putGuardian(req({ parentName: "Ahmad", parentPhone: "0791234567", relationship: "father", address: "Amman", shareConsent: true }));
+    expect(res.status).toBe(200);
+    expect(db.parentInfo.upsert).not.toHaveBeenCalled();
+  });
+
+  it("changing the contact validates it", async () => {
+    db.parentInfo.findUnique.mockResolvedValue(old);
+    const res = await putGuardian(req({ parentName: "Bob", parentPhone: "0791234567", relationship: "father", address: "Amman" }));
+    expect(res.status).toBe(400);
+  });
+});

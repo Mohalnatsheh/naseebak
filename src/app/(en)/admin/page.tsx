@@ -398,7 +398,7 @@ function NewCycleSection({ cycle }: { cycle: CycleStats }) {
           <MiniStat icon={MessagesSquare} label="Active chats" value={cycle.activeChats} />
           <MiniStat
             icon={Coins}
-            label="Credits spent on requests (7 days)"
+            label="Credits spent in the cycle (7 days, net of refunds)"
             value={cycle.creditsSpentThisWeek}
             hint="From the credit history"
           />

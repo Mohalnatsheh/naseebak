@@ -5,6 +5,7 @@ const db = vi.hoisted(() => ({
   suggestion: { count: vi.fn() },
   introRequest: { findFirst: vi.fn(), count: vi.fn() },
   message: { count: vi.fn() },
+  block: { findMany: vi.fn(async () => []) },
 }));
 const notifyMod = vi.hoisted(() => ({ notify: vi.fn(), notifyMany: vi.fn() }));
 vi.mock("@/lib/db", () => ({ db }));

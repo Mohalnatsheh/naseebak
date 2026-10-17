@@ -369,8 +369,14 @@ export default function ProfileEditPage() {
       if (!form.parentPhone) return "يرجى إدخال رقم هاتف ولي الأمر";
       if (!form.relationship) return "يرجى اختيار صلة القرابة";
       if (!form.parentAddress) return "يرجى إدخال العنوان";
-      // Same rules as the API (the other family sees this contact)
-      const guardian = parentInfoSchema.safeParse({
+      // Same rules as the API (the other family sees this contact) — only when it is being changed,
+      // so an older entry never blocks an unrelated edit
+      const guardianEdited =
+        form.parentName !== originalForm.parentName ||
+        form.parentPhone !== originalForm.parentPhone ||
+        form.relationship !== originalForm.relationship ||
+        form.parentAddress !== originalForm.parentAddress;
+      const guardian = !guardianEdited ? { success: true as const } : parentInfoSchema.safeParse({
         parentName: form.parentName,
         parentPhone: form.parentPhone,
         relationship: form.relationship,

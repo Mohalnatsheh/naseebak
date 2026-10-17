@@ -4,8 +4,8 @@ const db = vi.hoisted(() => {
   const d = {
     suggestion: { findUnique: vi.fn(), updateMany: vi.fn() },
     block: { findFirst: vi.fn() },
-    user: { findUnique: vi.fn(), findUniqueOrThrow: vi.fn(), updateMany: vi.fn() },
-    creditLedger: { create: vi.fn() },
+    user: { findUnique: vi.fn(), findUniqueOrThrow: vi.fn(), updateMany: vi.fn(), update: vi.fn() },
+    creditLedger: { create: vi.fn(), findFirst: vi.fn(async (): Promise<{ id: string } | null> => null) },
     parentInfo: { findUnique: vi.fn() },
     $transaction: vi.fn(),
   };
@@ -122,6 +122,19 @@ describe("decideSuggestion", () => {
     const res = await decideSuggestion({ suggestionId: "s1", userId: "u1", interested: true });
     expect(res).toEqual({ match: false });
     expect(matchMod.createMutualMatch).not.toHaveBeenCalled();
+  });
+
+  it("gives both «مهتم» charges back when the match is lost that way", async () => {
+    db.suggestion.findUnique
+      .mockResolvedValueOnce(row({ candidateDecision: "INTERESTED" }))
+      .mockResolvedValueOnce(row({ candidateDecision: "INTERESTED", recipientDecision: "INTERESTED" }));
+    db.user.findUnique
+      .mockResolvedValueOnce({ isDeactivated: false, status: "VERIFIED" })
+      .mockResolvedValueOnce({ isDeactivated: true, status: "VERIFIED" });
+    db.creditLedger.findFirst.mockResolvedValue({ id: "charge" });
+    await decideSuggestion({ suggestionId: "s1", userId: "u1", interested: true });
+    const entries = (db.creditLedger.create.mock.calls as unknown as [{ data: { reason: string; userId: string } }][]).map((c) => c[0].data);
+    expect(entries.filter((e) => e.reason === "REFUND").map((e) => e.userId).sort()).toEqual(["f1", "u1"]);
   });
 
   it("refuses a second decision by the same person", async () => {

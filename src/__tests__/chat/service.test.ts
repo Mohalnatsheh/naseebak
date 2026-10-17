@@ -6,6 +6,7 @@ const db = vi.hoisted(() => ({
   block: { findFirst: vi.fn(), findMany: vi.fn(), create: vi.fn() },
   report: { upsert: vi.fn() },
   introRequest: { updateMany: vi.fn(), findFirst: vi.fn() },
+  visitRequest: { findUnique: vi.fn() },
 }));
 const ably = vi.hoisted(() => ({ publishChatEvent: vi.fn() }));
 const notifyMod = vi.hoisted(() => ({ notify: vi.fn(), notifyMany: vi.fn() }));
@@ -206,6 +207,13 @@ describe("expiry warning", () => {
 });
 
 describe("extendConversation", () => {
+  it("the blocker can't extend a blocked (read-only) chat", async () => {
+    db.conversation.findUnique.mockResolvedValue(conv({ expiresAt: new Date(Date.now() + 2 * DAY) }));
+    db.block.findFirst.mockImplementation(blockedByMe);
+    await expectCode(extendConversation("c", "u1"), "BLOCKED");
+    expect(db.conversation.update).not.toHaveBeenCalled();
+  });
+
   it("only within the last 3 days", async () => {
     db.conversation.findUnique.mockResolvedValue(conv());
     await expectCode(extendConversation("c", "u1"), "NOT_ALLOWED");

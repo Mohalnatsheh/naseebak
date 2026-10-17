@@ -17,6 +17,9 @@ function line(run: DailyRunSummary): string {
     `${t.expired} expired`,
     plural(t.reengaged, "re-engagement push"),
     plural(t.deletions, "deletion"),
+    // Older runs stored before these were added have no field
+    plural(t.refunds ?? 0, "«مهتم» refund"),
+    plural(t.nudges ?? 0, "family nudge"),
   ].join(", ");
 }
 
@@ -59,7 +62,7 @@ export function DailyJobsCard() {
             <CalendarClock className="h-5 w-5" /> Daily jobs
           </CardTitle>
           <CardDescription>
-            Reminders, expiry notices, weekly suggestions, re-engagement and account deletions. Every task is safe to run
+            Reminders, expiry notices (with «مهتم» refunds), suggestion top-ups, chat family nudges, re-engagement and account deletions. Every task is safe to run
             twice.
           </CardDescription>
         </div>

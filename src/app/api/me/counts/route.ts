@@ -3,7 +3,7 @@ import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getCycleFlags } from "@/lib/settings";
 import { chatHousekeepingForUser } from "@/lib/chat/service";
-import { cancelDeadPendingFor, loadMatchStates } from "@/lib/matches/state";
+import { cancelDeadPendingFor, hiddenPartnerIds, loadMatchStates, visibleConversationsWhere } from "@/lib/matches/state";
 import { touchLastActive } from "@/lib/activity";
 
 /**
@@ -22,7 +22,8 @@ export async function GET() {
     await touchLastActive(userId);
 
     const flags = await getCycleFlags();
-    const mine = { match: { OR: [{ femaleId: userId }, { maleId: userId }] } };
+    // Chats with someone who blocked me are hidden from me, so they never count (badge, "has chats")
+    const mine = visibleConversationsWhere(userId, await hiddenPartnerIds(userId));
     if (!flags.introRequests) {
       // Switch off: existing chats stay readable, so keep the chats link for people who have one
       const hasChats = (await db.conversation.count({ where: mine })) > 0;
@@ -43,7 +44,7 @@ export async function GET() {
         where: {
           readAt: null,
           senderId: { not: userId },
-          conversation: { match: { OR: [{ femaleId: userId }, { maleId: userId }] } },
+          conversation: mine,
         },
       }),
       db.conversation.count({ where: mine }),

@@ -52,7 +52,7 @@ beforeEach(() => {
 describe("runDailyJobs", () => {
   it("runs every task, totals the counts and stores the summary", async () => {
     const run = await runDailyJobs("cron");
-    expect(run.totals).toEqual({ reminders: 4, suggestions: 6, expired: 6, reengaged: 2, deletions: 1, errors: 0 });
+    expect(run.totals).toEqual({ reminders: 4, suggestions: 6, expired: 6, reengaged: 2, deletions: 1, errors: 0, refunds: 0, nudges: 0 });
     expect(run.tasks.introExpiry).toEqual({ expired: 2, notified: 2 });
     expect(settings.setSetting).toHaveBeenCalledWith(LAST_RUN_KEY, expect.any(String));
     const stored = JSON.parse(settings.setSetting.mock.calls[0][1]);

@@ -12,7 +12,7 @@ import { getCycleFlags } from "@/lib/settings";
 import { publishChatEvent } from "@/lib/ably";
 import { checkMessage, completesSplitNumber, numberShape, SPLIT_NUMBER_WINDOW_MS } from "@/lib/chat/filter";
 import { IntroError } from "@/lib/intro/errors";
-import { cancelPendingBetween, isUnavailable } from "@/lib/matches/state";
+import { LEGACY_ADMIN_VISIT, cancelPendingBetween, isUnavailable } from "@/lib/matches/state";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 export const EXTENSION_DAYS = 7;
@@ -20,6 +20,8 @@ export const EXTEND_WINDOW_DAYS = 3;
 export const WARN_BEFORE_DAYS = 2;
 /** Days after opening when both get one "ready for a family introduction?" nudge */
 export const FAMILY_NUDGE_AFTER_DAYS = 7;
+/** ...only within this window, so chats that were already older on release day aren't all nudged at once */
+const FAMILY_NUDGE_WINDOW_DAYS = 2;
 export const MESSAGES_PER_DAY = 50;
 const PUSH_THROTTLE_MS = 3 * 60 * 1000;
 
@@ -81,14 +83,31 @@ async function housekeeping(c: LoadedConversation): Promise<LoadedConversation> 
 }
 
 /** housekeeping() that also says what this call did (for the daily scheduler's counts). */
-/** The family path is still open on this match: no family introduction pending or accepted, and no user ended the chat */
+/**
+ * Worth nudging toward a family introduction: both people still active, no block either way, no user
+ * ended the chat, and no family request pending, accepted or declined (a decline is final) and no
+ * legacy admin visit under way — the same cases where the chat page offers the button.
+ */
 async function familyPathOpen(c: LoadedConversation): Promise<boolean> {
   if (c.endedById) return false;
-  const family = await db.introRequest.findFirst({
-    where: { matchId: c.matchId, type: "FAMILY", status: { in: ["PENDING", "ACCEPTED"] } },
-    select: { id: true },
-  });
-  return !family;
+  if (isUnavailable(c.match.female) || isUnavailable(c.match.male)) return false;
+  const [family, block, visit] = await Promise.all([
+    db.introRequest.findFirst({
+      where: { matchId: c.matchId, type: "FAMILY", status: { in: ["PENDING", "ACCEPTED", "DECLINED"] } },
+      select: { id: true },
+    }),
+    db.block.findFirst({
+      where: {
+        OR: [
+          { blockerId: c.match.femaleId, blockedId: c.match.maleId },
+          { blockerId: c.match.maleId, blockedId: c.match.femaleId },
+        ],
+      },
+      select: { id: true },
+    }),
+    db.visitRequest.findUnique({ where: { matchId: c.matchId }, select: { status: true } }),
+  ]);
+  return !family && !block && !(visit && LEGACY_ADMIN_VISIT.includes(visit.status));
 }
 
 async function housekeep(c: LoadedConversation): Promise<{ c: LoadedConversation; did: "expired" | "warned" | "nudged" | null }> {
@@ -113,7 +132,12 @@ async function housekeep(c: LoadedConversation): Promise<{ c: LoadedConversation
     }
     return { c: { ...c, status: "EXPIRED" }, did: count === 1 ? "expired" : null };
   }
-  if (!c.familyNudgeAt && now - c.createdAt.getTime() >= FAMILY_NUDGE_AFTER_DAYS * DAY_MS) {
+  const age = now - c.createdAt.getTime();
+  if (
+    !c.familyNudgeAt &&
+    age >= FAMILY_NUDGE_AFTER_DAYS * DAY_MS &&
+    age < (FAMILY_NUDGE_AFTER_DAYS + FAMILY_NUDGE_WINDOW_DAYS) * DAY_MS
+  ) {
     const nudgedAt = new Date();
     const { count } = await db.conversation.updateMany({
       where: { id: c.id, familyNudgeAt: null },
@@ -141,7 +165,10 @@ async function housekeep(c: LoadedConversation): Promise<{ c: LoadedConversation
     await notifyMany([c.match.femaleId, c.match.maleId], {
       type: "CHAT",
       title: "تنتهي المحادثة قريباً",
-      body: "بقي يومان على انتهاء المحادثة. يمكنكما التمديد مرة واحدة أو الانتقال لتعارف عائلي.",
+      // After the one extension, only the family move is left to offer
+      body: c.extended
+        ? "بقي يومان على انتهاء المحادثة. يمكنكما الانتقال لتعارف عائلي."
+        : "بقي يومان على انتهاء المحادثة. يمكنكما التمديد مرة واحدة أو الانتقال لتعارف عائلي.",
       url: `/dashboard/chats/${c.id}`,
       metadata: { conversationId: c.id },
     });
@@ -244,7 +271,13 @@ export async function chatHousekeepingAll(now = new Date()): Promise<{ expired: 
       OR: [
         { expiresAt: { lte: now } },
         { expiryWarnedAt: null, expiresAt: { lt: new Date(now.getTime() + WARN_BEFORE_DAYS * DAY_MS) } },
-        { familyNudgeAt: null, createdAt: { lte: new Date(now.getTime() - FAMILY_NUDGE_AFTER_DAYS * DAY_MS) } },
+        {
+          familyNudgeAt: null,
+          createdAt: {
+            lte: new Date(now.getTime() - FAMILY_NUDGE_AFTER_DAYS * DAY_MS),
+            gt: new Date(now.getTime() - (FAMILY_NUDGE_AFTER_DAYS + FAMILY_NUDGE_WINDOW_DAYS) * DAY_MS),
+          },
+        },
       ],
     },
     include: conversationInclude,
@@ -414,6 +447,8 @@ export async function extendConversation(conversationId: string, userId: string)
   if (c.status !== "ACTIVE" || c.extended || left > EXTEND_WINDOW_DAYS * DAY_MS) {
     throw new IntroError("NOT_ALLOWED", "يمكن تمديد المحادثة مرة واحدة خلال آخر 3 أيام فقط");
   }
+  // A blocked chat is read-only for the blocker too: nothing to extend
+  if (await isBlocked(userId, partnerOf(c, userId).id)) throw new IntroError("BLOCKED");
   const expiresAt = new Date(c.expiresAt.getTime() + EXTENSION_DAYS * DAY_MS);
   await db.conversation.update({
     where: { id: conversationId },

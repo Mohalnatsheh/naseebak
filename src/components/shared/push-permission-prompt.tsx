@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 const DISMISSED_KEY = "naseeb_push_prompt_dismissed";
 
 const ONBOARDING_KEY = "naseeb_onboarding_completed";
+/** Shown once per browser session at most, whatever the answer (closing the browser's own popup leaves it undecided) */
+const SHOWN_THIS_SESSION_KEY = "naseeb_push_prompt_shown";
 
 export function PushPermissionPrompt() {
   const [visible, setVisible] = useState(false);
@@ -21,12 +23,20 @@ export function PushPermissionPrompt() {
     const schedule = () => {
       try {
         if (localStorage.getItem(DISMISSED_KEY)) return;
+        if (sessionStorage.getItem(SHOWN_THIS_SESSION_KEY)) return;
         // Wait until the welcome guide is finished, so two dialogs never stack
         if (!localStorage.getItem(ONBOARDING_KEY)) return;
       } catch {
         return;
       }
-      timer = setTimeout(() => setVisible(true), 5000);
+      timer = setTimeout(() => {
+        try {
+          sessionStorage.setItem(SHOWN_THIS_SESSION_KEY, "1");
+        } catch {
+          // Private mode: it may show again next page, never worse than before
+        }
+        setVisible(true);
+      }, 5000);
     };
     // Checked again on every page change: right after the welcome guide closes nothing opens,
     // the prompt waits for the next page so the two never come back to back

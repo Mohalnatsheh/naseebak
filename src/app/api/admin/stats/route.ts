@@ -13,8 +13,13 @@ async function cycleStats(now: Date, oneWeekAgo: Date) {
   const [intro, activeChats, spent, users, suggestionUsers, matches, acceptedIntros] = await Promise.all([
     db.introRequest.findMany({ select: { type: true, status: true, expiresAt: true } }),
     db.conversation.count({ where: { status: "ACTIVE", expiresAt: { gt: now } } }),
+    // Credits spent in the cycle: requests (per-request mode) or «مهتم» (credit on interest), minus the
+    // «مهتم» refunds (positive REFUND rows; a payment refund is negative and isn't spending)
     db.creditLedger.aggregate({
-      where: { reason: "REQUEST", createdAt: { gte: oneWeekAgo } },
+      where: {
+        createdAt: { gte: oneWeekAgo },
+        OR: [{ reason: { in: ["REQUEST", "INTEREST"] } }, { reason: "REFUND", delta: { gt: 0 } }],
+      },
       _sum: { delta: true },
     }),
     db.user.findMany({

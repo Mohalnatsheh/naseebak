@@ -27,20 +27,49 @@ export const MUTUAL_SUGGESTION_MS = MUTUAL_SUGGESTION_DAYS * 24 * 60 * 60 * 1000
 
 const notFound = () => new IntroError("NOT_FOUND", "الاقتراح غير موجود");
 
-/** MUTUAL rows where `userId` still has to decide (either side, not expired). */
+/** The other person can still take part (not deactivated or suspended) */
+const activePerson: Prisma.UserWhereInput = { isDeactivated: false, status: { not: "SUSPENDED" } };
+
+/**
+ * MUTUAL rows where `userId` still has to decide (either side, not expired). Rows with a partner who
+ * deactivated or was suspended are left out: the feed hides them, so they must not fill a slot.
+ */
 export function openMutualWhere(userId: string, now = new Date()): Prisma.SuggestionWhereInput {
   return {
     flow: "MUTUAL",
     status: "PENDING",
     expiresAt: { gt: now },
     OR: [
-      { recipientId: userId, recipientDecision: null },
-      { candidateId: userId, candidateDecision: null },
+      { recipientId: userId, recipientDecision: null, candidate: activePerson },
+      { candidateId: userId, candidateDecision: null, recipient: activePerson },
     ],
   };
 }
 
-/** Only suggestions that closed this recently are looked at for a refund (no surprise backlog) */
+/**
+ * A block closes the open shared suggestions between the two right away (they're hidden from both
+ * anyway), so the slots free up; an unanswered «مهتم» on them is refunded like any other closing.
+ */
+export async function closeSuggestionsBetween(a: string, b: string): Promise<void> {
+  const now = new Date();
+  const { count } = await db.suggestion.updateMany({
+    where: {
+      flow: "MUTUAL",
+      status: "PENDING",
+      OR: [
+        { recipientId: a, candidateId: b },
+        { recipientId: b, candidateId: a },
+      ],
+    },
+    data: { status: "EXPIRED", expiresAt: now },
+  });
+  if (count > 0) await refundUnansweredInterests({ userId: a, now });
+}
+
+/**
+ * The daily job only looks this far back (its first run must not dig up old rows); a person's own
+ * visit closes their rows and checks them with no limit, however late they come back.
+ */
 const REFUND_LOOKBACK_MS = MUTUAL_SUGGESTION_MS;
 
 /**
@@ -56,7 +85,7 @@ export async function refundUnansweredInterests(opts: { userId?: string; now?: D
       flow: "MUTUAL",
       status: "EXPIRED",
       interestRefundedAt: null,
-      expiresAt: { lte: now, gt: new Date(now.getTime() - REFUND_LOOKBACK_MS) },
+      expiresAt: opts.userId ? { lte: now } : { lte: now, gt: new Date(now.getTime() - REFUND_LOOKBACK_MS) },
       AND: [
         {
           OR: [
@@ -273,8 +302,18 @@ export async function decideSuggestion(args: {
     // Re-check at the last moment: never create a match with someone who just left
     const partner = await db.user.findUnique({ where: { id: otherId }, select: { isDeactivated: true, status: true } });
     if (isUnavailable(partner)) {
-      await db.suggestion.updateMany({ where: { id: s.id }, data: { status: "EXPIRED" } });
-      return { match: false, ...extra };
+      // Both said «مهتم» but the partner left a moment ago: no match, so give both charges back
+      await db.suggestion.updateMany({ where: { id: s.id }, data: { status: "EXPIRED", interestRefundedAt: new Date() } });
+      for (const id of [userId, otherId]) {
+        const charged = await db.creditLedger.findFirst({ where: { userId: id, reason: "INTEREST", refId: s.id }, select: { id: true } });
+        if (!charged) continue;
+        await db.$transaction(async (tx) => {
+          await tx.user.update({ where: { id }, data: { matchCredits: { increment: 1 } } });
+          await recordCredit({ userId: id, delta: 1, reason: "REFUND", refId: s.id }, tx);
+        }).catch((e) => console.error("[suggestions] refund after a lost match:", s.id, id, e));
+      }
+      const refundedMe = extra.creditsLeft !== undefined ? { creditsLeft: extra.creditsLeft + 1 } : {};
+      return { match: false, ...extra, ...refundedMe };
     }
     const me = await db.user.findUnique({ where: { id: userId }, select: { gender: true } });
     const femaleId = me?.gender === "FEMALE" ? userId : otherId;

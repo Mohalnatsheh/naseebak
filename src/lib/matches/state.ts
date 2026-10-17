@@ -101,6 +101,21 @@ export async function hiddenPartnerIds(userId: string): Promise<string[]> {
   return rows.map((r) => r.blockerId);
 }
 
+/**
+ * My conversations, minus those with a partner who blocked me (hidden from me like the match):
+ * use it for anything that counts or lists chats (badges, re-engagement, realtime tokens).
+ */
+export function visibleConversationsWhere(userId: string, hidden: string[]): Prisma.ConversationWhereInput {
+  return {
+    match: {
+      OR: [
+        { femaleId: userId, maleId: { notIn: hidden } },
+        { maleId: userId, femaleId: { notIn: hidden } },
+      ],
+    },
+  };
+}
+
 /** Is there a block between the two, and who made it? */
 export async function blockBetween(
   me: string,

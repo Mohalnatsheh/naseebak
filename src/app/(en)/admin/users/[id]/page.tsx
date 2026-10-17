@@ -916,7 +916,12 @@ function CycleSections({
                       <td className="p-2 text-muted-foreground">
                         {formatDate(l.createdAt)} {new Date(l.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                       </td>
-                      <td className="p-2">{creditReasonLabel[l.reason] ?? l.reason}</td>
+                      <td className="p-2">
+                        {/* REFUND covers two things: a payment refund takes credits away, an unanswered «مهتم» gives one back */}
+                        {l.reason === "REFUND"
+                          ? l.delta > 0 ? "Refund: «مهتم» with no answer" : "Payment refund"
+                          : creditReasonLabel[l.reason] ?? l.reason}
+                      </td>
                       <td className={`p-2 text-right tabular-nums font-semibold ${l.delta > 0 ? "text-emerald-600" : "text-destructive"}`}>
                         {l.delta > 0 ? `+${l.delta}` : l.delta}
                       </td>

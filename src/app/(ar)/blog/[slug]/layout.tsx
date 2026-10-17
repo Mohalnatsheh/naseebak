@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 
 interface Props {
@@ -55,7 +56,8 @@ export default async function BlogSlugLayout({ params, children }: Props) {
     include: { category: true },
   });
 
-  if (!post) return children;
+  // A real 404 (not a 200 "not found" page) so search engines drop dead links
+  if (!post) notFound();
 
   const url = `https://naseebak.com/blog/${post.slug}`;
 

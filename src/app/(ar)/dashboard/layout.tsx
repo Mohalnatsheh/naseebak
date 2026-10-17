@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { DashboardSidebar } from "@/components/shared/dashboard-sidebar";
 import { Providers } from "@/components/shared/providers";
 import { OneSignalProvider } from "@/components/shared/onesignal-provider";
@@ -9,6 +10,9 @@ import { DashboardFooter } from "@/components/shared/dashboard-footer";
 import { sessionAccountGate } from "@/lib/auth";
 import { DeactivatedGate } from "./reactivate/deactivated-gate";
 import { SuspendedScreen } from "./suspended-screen";
+
+// Each dashboard section sets its own title in its layout.tsx (pages here are client components)
+export const metadata: Metadata = { title: { default: "لوحة التحكم", template: "%s | نصيبك" } };
 
 export default async function DashboardLayout({
   children,
@@ -33,7 +37,7 @@ export default async function DashboardLayout({
     return (
       <Providers>
         <main className="min-h-screen bg-gradient-to-b from-primary/5 via-background to-background">
-          <DeactivatedGate>{children}</DeactivatedGate>
+              <DeactivatedGate>{children}</DeactivatedGate>
         </main>
         <Toaster position="top-center" dir="rtl" richColors closeButton />
       </Providers>

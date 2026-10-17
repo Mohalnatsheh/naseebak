@@ -2,6 +2,16 @@ import Link from "next/link";
 import Image from "next/image";
 import { Heart, Facebook, Twitter, Instagram, Youtube } from "lucide-react";
 
+// Inlined at build time (NEXT_PUBLIC_*); an empty value hides that icon
+const SOCIAL_LINKS = (
+  [
+    { Icon: Facebook, label: "فيسبوك", href: process.env.NEXT_PUBLIC_SOCIAL_FACEBOOK },
+    { Icon: Twitter, label: "إكس (تويتر)", href: process.env.NEXT_PUBLIC_SOCIAL_X },
+    { Icon: Instagram, label: "انستغرام", href: process.env.NEXT_PUBLIC_SOCIAL_INSTAGRAM },
+    { Icon: Youtube, label: "يوتيوب", href: process.env.NEXT_PUBLIC_SOCIAL_YOUTUBE },
+  ] as const
+).filter((l): l is typeof l & { href: string } => !!l.href);
+
 export function Footer() {
   return (
     <footer className="relative overflow-hidden bg-gradient-to-b from-card to-muted/40 border-t">
@@ -66,19 +76,23 @@ export function Footer() {
               </li>
               <li>عمّان، الأردن</li>
             </ul>
-            {/* Social Icons */}
-            <div className="flex gap-2 pt-2">
-              {([
-                { Icon: Facebook, label: "فيسبوك" },
-                { Icon: Twitter, label: "تويتر" },
-                { Icon: Instagram, label: "انستغرام" },
-                { Icon: Youtube, label: "يوتيوب" },
-              ] as const).map(({ Icon, label }) => (
-                <button key={label} aria-label={label} className="h-9 w-9 rounded-xl bg-muted/60 hover:bg-primary/10 hover:text-primary flex items-center justify-center text-muted-foreground transition-all duration-200">
-                  <Icon className="h-4 w-4" />
-                </button>
-              ))}
-            </div>
+            {/* Social icons: only the accounts that exist (set in NEXT_PUBLIC_SOCIAL_*) */}
+            {SOCIAL_LINKS.length > 0 && (
+              <div className="flex gap-2 pt-2">
+                {SOCIAL_LINKS.map(({ Icon, label, href }) => (
+                  <a
+                    key={label}
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={label}
+                    className="h-9 w-9 rounded-xl bg-muted/60 hover:bg-primary/10 hover:text-primary flex items-center justify-center text-muted-foreground transition-all duration-200"
+                  >
+                    <Icon className="h-4 w-4" aria-hidden="true" />
+                  </a>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 

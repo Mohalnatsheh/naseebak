@@ -8,6 +8,8 @@ import {
   Send,
   Sparkles,
   MessageSquare,
+  Loader2,
+  CheckCircle2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,6 +24,7 @@ import { Navbar } from "@/components/shared/navbar";
 import { Footer } from "@/components/shared/footer";
 import { useInView } from "@/hooks/use-in-view";
 import { IslamicPatternBg } from "@/components/shared/islamic-pattern";
+import { contactSchema } from "@/lib/validations/contact";
 
 /* ──────────────────── DATA ──────────────────── */
 
@@ -59,10 +62,44 @@ export default function ContactPage() {
     setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  const [website, setWebsite] = useState("");
+  const [status, setStatus] = useState<"idle" | "sending" | "sent">("idle");
+  const [error, setError] = useState<{ message: string; field: string | null } | null>(null);
+
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    // UI-only — no actual submission
+    if (status === "sending") return;
+    // Same rules as the API, checked here first so the message points at the field
+    const check = contactSchema.safeParse({ ...formData, website });
+    if (!check.success) {
+      const issue = check.error.issues[0];
+      setError({ message: issue?.message ?? "بيانات غير صالحة", field: issue ? String(issue.path[0]) : null });
+      if (issue) document.getElementById(String(issue.path[0]))?.focus();
+      return;
+    }
+    setStatus("sending");
+    setError(null);
+    try {
+      const res = await fetch("/api/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...formData, website }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setError({ message: data.error || "تعذّر إرسال رسالتك. حاول مرة أخرى.", field: data.field ?? null });
+        setStatus("idle");
+        return;
+      }
+      setStatus("sent");
+      setFormData({ name: "", email: "", subject: "", message: "" });
+    } catch {
+      setError({ message: "تعذّر الاتصال. تحقق من الإنترنت وحاول مرة أخرى.", field: null });
+      setStatus("idle");
+    }
   }
+
+  const invalid = (field: string) => (error?.field === field ? true : undefined);
 
   return (
     <>
@@ -151,13 +188,37 @@ export default function ContactPage() {
                 </CardHeader>
 
                 <CardContent className="-mt-2">
-                  <form onSubmit={handleSubmit} className="space-y-6">
+                  {status === "sent" ? (
+                    <div role="status" className="flex flex-col items-center gap-3 py-10 text-center">
+                      <CheckCircle2 className="size-12 text-emerald-600" aria-hidden="true" />
+                      <h3 className="text-lg font-bold">وصلتنا رسالتك</h3>
+                      <p className="max-w-sm text-sm leading-relaxed text-muted-foreground">
+                        شكراً لتواصلك مع نصيبك. سنرد عليك على بريدك الإلكتروني في أقرب وقت ممكن.
+                      </p>
+                      <Button variant="outline" className="mt-2 rounded-xl" onClick={() => setStatus("idle")}>
+                        إرسال رسالة أخرى
+                      </Button>
+                    </div>
+                  ) : (
+                  <form onSubmit={handleSubmit} className="space-y-6" noValidate>
+                    {error && (
+                      <div role="alert" className="rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+                        {error.message}
+                      </div>
+                    )}
+                    {/* Honeypot: hidden from people and screen readers */}
+                    <div className="hidden" aria-hidden="true">
+                      <label htmlFor="website">Website</label>
+                      <input id="website" name="website" tabIndex={-1} autoComplete="off" value={website} onChange={(e) => setWebsite(e.target.value)} />
+                    </div>
                     {/* Name */}
                     <div className="space-y-2">
                       <Label htmlFor="name">الاسم الكامل</Label>
                       <Input
                         id="name"
                         name="name"
+                        aria-invalid={invalid("name")}
+                        required
                         type="text"
                         placeholder="أدخل اسمك الكامل"
                         value={formData.name}
@@ -172,6 +233,8 @@ export default function ContactPage() {
                       <Input
                         id="email"
                         name="email"
+                        aria-invalid={invalid("email")}
+                        required
                         type="email"
                         dir="ltr"
                         placeholder="example@email.com"
@@ -187,6 +250,8 @@ export default function ContactPage() {
                       <Input
                         id="subject"
                         name="subject"
+                        aria-invalid={invalid("subject")}
+                        required
                         type="text"
                         placeholder="موضوع رسالتك"
                         value={formData.subject}
@@ -201,6 +266,9 @@ export default function ContactPage() {
                       <textarea
                         id="message"
                         name="message"
+                        aria-invalid={invalid("message")}
+                        required
+                        maxLength={2000}
                         rows={6}
                         placeholder="اكتب رسالتك هنا..."
                         value={formData.message}
@@ -213,14 +281,17 @@ export default function ContactPage() {
                     <Button
                       type="submit"
                       size="lg"
+                      disabled={status === "sending"}
                       className="group w-full h-12 text-base font-semibold shadow-lg shadow-primary/20 bg-gradient-to-l from-primary to-primary/90 hover:shadow-xl hover:shadow-primary/30 transition-all duration-500 hover:scale-[1.01]"
                     >
                       <span className="flex items-center justify-center gap-2">
+                        {status === "sending" ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : null}
                         إرسال الرسالة
-                        <Send className="size-4 transition-transform duration-300 group-hover:-translate-x-1 group-hover:-translate-y-0.5" />
+                        <Send className="size-4 transition-transform duration-300 group-hover:-translate-x-1 group-hover:-translate-y-0.5" aria-hidden="true" />
                       </span>
                     </Button>
                   </form>
+                  )}
                 </CardContent>
               </Card>
 
@@ -276,23 +347,6 @@ export default function ContactPage() {
                     </CardContent>
                   </Card>
                 ))}
-
-                {/* Map placeholder */}
-                <div
-                  className={`rounded-2xl bg-muted/40 border border-dashed border-border/60 h-48 flex flex-col items-center justify-center gap-3 text-muted-foreground transition-all duration-700 ${
-                    formView.inView
-                      ? "opacity-100 translate-y-0"
-                      : "opacity-0 translate-y-8"
-                  }`}
-                  style={{
-                    transitionDelay: formView.inView ? "550ms" : "0ms",
-                  }}
-                >
-                  <MapPin className="size-8 opacity-40" />
-                  <p className="text-sm font-medium opacity-60">
-                    خريطة الموقع
-                  </p>
-                </div>
               </div>
             </div>
           </div>

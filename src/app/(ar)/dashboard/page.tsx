@@ -94,7 +94,9 @@ export default function DashboardPage() {
     );
   }
 
-  const isVerified = profile?.identityDoc?.status === "APPROVED";
+  // The verified badge is hidden everywhere user-facing in the new cycle (identity checks were removed)
+  const isVerified = !counts.flags.introRequests && profile?.identityDoc?.status === "APPROVED";
+  const actionableMatches = counts.actionableMatches ?? 0;
   const hasProfile = profile?.profile?.isComplete;
   const hasQuiz = !!profile?.personalityResult;
 
@@ -202,7 +204,9 @@ export default function DashboardPage() {
                 }`}>
                   {completeness?.level === "excellent" ? "ممتاز" :
                    completeness?.level === "strong" ? "قوي" :
-                   completeness?.level === "good" ? "جيد" : "في البداية"}
+                   completeness?.level === "good" ? "جيد" :
+                   // New cycle: a finished short setup already gets suggestions, so don't call it a beginning
+                   counts.flags.introRequests && hasProfile ? "جاهز للاقتراحات" : "في البداية"}
                 </span>
               </div>
               {/* Strength bar */}
@@ -389,8 +393,13 @@ export default function DashboardPage() {
                         iconColor: "text-primary",
                         iconBg: "bg-primary/10",
                         title: `لديك ${arabicCount(matchesCount, { one: "توافق متبادل", two: "توافقان متبادلان", few: "توافقات متبادلة", many: "توافقاً متبادلاً" })}`,
-                        desc: creditsBlockSuggestions ? "يمكنك الآن عرض الصور وطلب زيارة" : "اختر طريقة التعارف: تعارف عائلي أو محادثة",
-                        time: "جديد",
+                        // New cycle: only nudge while a match still waits for its introduction choice
+                        desc: creditsBlockSuggestions
+                          ? "يمكنك الآن عرض الصور وطلب زيارة"
+                          : actionableMatches > 0
+                            ? "اختر طريقة التعارف: تعارف عائلي أو محادثة"
+                            : "تابع التعارف من صفحة التوافقات",
+                        time: !creditsBlockSuggestions && actionableMatches === 0 ? "قيد التعارف" : "جديد",
                       },
                     ]
                   : []),

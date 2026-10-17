@@ -14,7 +14,8 @@ const DISMISS_KEY = "naseeb:guardian-consent-dismissed";
  * so it is never shared with another family until they agree here (or in a request dialog).
  */
 export function GuardianConsentCard() {
-  const { counts, refreshUnread } = useDashboardData();
+  const { counts, refreshUnread, profile } = useDashboardData();
+  const female = profile?.gender === "FEMALE";
   const [busy, setBusy] = useState(false);
   const [dismissed, setDismissed] = useState(() => {
     try {
@@ -65,7 +66,9 @@ export function GuardianConsentCard() {
         <div className="flex-1 min-w-0 space-y-1">
           <h3 className="font-bold text-foreground">التعارف العائلي أصبح أسهل</h3>
           <p className="text-sm leading-relaxed text-muted-foreground">
-            عند قبول طلب تعارف عائلي تتبادل العائلتان بيانات وليّ الأمر مباشرة. هل توافق على مشاركة اسم ورقم وليّ أمرك مع العائلة الأخرى في هذه الحالة فقط؟
+            {female
+              ? "عند بدء تعارف عائلي تتبادل العائلتان بيانات وليّ الأمر مباشرة. هل توافقين على مشاركة اسم ورقم وليّ أمركِ مع العائلة الأخرى في هذه الحالة فقط؟"
+              : "عند بدء تعارف عائلي تتبادل العائلتان بيانات وليّ الأمر مباشرة. هل توافق على مشاركة اسم ورقم وليّ أمرك مع العائلة الأخرى في هذه الحالة فقط؟"}
           </p>
         </div>
         <div className="flex gap-2 sm:flex-col">

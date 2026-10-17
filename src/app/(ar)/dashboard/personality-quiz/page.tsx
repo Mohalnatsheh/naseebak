@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { FirstVisitTip } from "@/components/shared/first-visit-tip";
 import { trackEvent } from "@/lib/analytics";
+import { arabicCount } from "@/lib/utils";
 
 interface Question {
   id: string;
@@ -357,7 +358,7 @@ export default function PersonalityQuizPage() {
                       يمكنك إعادة الاختبار بعد
                     </p>
                     <p className="text-2xl font-bold bg-gradient-to-l from-accent to-accent/80 bg-clip-text text-transparent">
-                      {existingResult.daysRemaining} يوم
+                      {arabicCount(existingResult.daysRemaining, { one: "يوم واحد", two: "يومين", few: "أيام", many: "يوماً" })}
                     </p>
                     <p className="text-xs text-muted-foreground">
                       التاريخ المتاح:{" "}
@@ -455,6 +456,10 @@ export default function PersonalityQuizPage() {
           {Array.from({ length: totalPages }).map((_, i) => (
             <button
               key={i}
+              type="button"
+              aria-label={`صفحة الأسئلة ${i + 1} من ${totalPages}`}
+              aria-current={i === currentPage ? "step" : undefined}
+              disabled={i > currentPage}
               onClick={() => {
                 // Only allow going to pages that are <= current page or completed
                 if (i <= currentPage) {
@@ -569,6 +574,11 @@ export default function PersonalityQuizPage() {
               <ArrowLeft className="h-4 w-4" />
             </button>
           ) : (
+            <div className="flex flex-col items-end gap-2">
+            {/* The answers lock the result for months: say so before sending */}
+            <p className="text-xs text-muted-foreground max-w-xs text-start">
+              راجع إجاباتك قبل الإرسال: يمكن إعادة الاختبار بعد نحو 3 أشهر فقط.
+            </p>
             <button
               onClick={handleSubmit}
               disabled={submitting || answeredCount < questions.length}
@@ -587,6 +597,7 @@ export default function PersonalityQuizPage() {
                 </>
               )}
             </button>
+            </div>
           )}
         </div>
       </div>

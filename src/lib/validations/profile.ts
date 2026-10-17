@@ -1,4 +1,40 @@
 import { z } from "zod/v4";
+import { jordanPhoneRegex } from "./auth";
+
+/** Marriage platform: members must be adults */
+export const MIN_MEMBER_AGE = 18;
+export const MAX_MEMBER_AGE = 80;
+
+/** Full years between a YYYY-MM-DD (or ISO) birth date and `now`; null when the date is unreadable. */
+export function ageFromDob(dob: string, now = new Date()): number | null {
+  const d = new Date(dob);
+  if (Number.isNaN(d.getTime())) return null;
+  let age = now.getUTCFullYear() - d.getUTCFullYear();
+  const beforeBirthday =
+    now.getUTCMonth() < d.getUTCMonth() || (now.getUTCMonth() === d.getUTCMonth() && now.getUTCDate() < d.getUTCDate());
+  if (beforeBirthday) age -= 1;
+  return age;
+}
+
+/** Shared birth-date rule for the wizards and the API: null when fine, else the message to show. */
+export function dateOfBirthError(dob: string, now = new Date()): string | null {
+  const age = ageFromDob(dob, now);
+  if (age === null) return "تاريخ الميلاد غير صالح";
+  if (age < MIN_MEMBER_AGE) return `يجب أن يكون عمرك ${MIN_MEMBER_AGE} سنة على الأقل للتسجيل في نصيبك`;
+  if (age > MAX_MEMBER_AGE) return "تاريخ الميلاد غير صالح";
+  return null;
+}
+
+/** Latest birth date an adult can have today, for `<input type="date" max>` */
+export function maxDateOfBirth(now = new Date()): string {
+  const d = new Date(Date.UTC(now.getUTCFullYear() - MIN_MEMBER_AGE, now.getUTCMonth(), now.getUTCDate()));
+  return d.toISOString().slice(0, 10);
+}
+
+const dateOfBirthField = z.string().min(1, "تاريخ الميلاد مطلوب").superRefine((v, ctx) => {
+  const err = dateOfBirthError(v);
+  if (err) ctx.addIssue({ code: "custom", message: err });
+});
 
 /**
  * Profile save from the setup wizard. Short start: only the basics are required
@@ -6,7 +42,7 @@ import { z } from "zod/v4";
  * everything else is optional and keeps its limits when given.
  */
 export const profileSchema = z.object({
-  dateOfBirth: z.string().min(1, "تاريخ الميلاد مطلوب"),
+  dateOfBirth: dateOfBirthField,
   city: z.string().min(1, "المدينة مطلوبة"),
   nationality: z.string().min(1, "الجنسية مطلوبة"),
   education: z.string().min(1, "المستوى التعليمي مطلوب"),
@@ -54,17 +90,35 @@ export const profileSchema = z.object({
   prefChildrenAcceptance: z.string().optional(),
 });
 
+/**
+ * Guardian contact: shown to the other family after a family introduction, so it must be a real
+ * Arabic name and a reachable Jordanian mobile (any accepted format; normalise before storing).
+ */
 export const parentInfoSchema = z.object({
-  parentName: z.string().min(2, "اسم ولي الأمر مطلوب"),
-  parentPhone: z.string().min(10, "رقم الهاتف غير صالح"),
-  relationship: z.enum(["father", "mother", "brother", "guardian"]),
-  address: z.string().min(5, "العنوان مطلوب"),
-  notes: z.string().optional(),
+  parentName: z
+    .string()
+    .trim()
+    .min(2, "اسم ولي الأمر مطلوب")
+    .max(80, "اسم ولي الأمر طويل جداً")
+    .regex(/^[\u0600-\u06FF\s]+$/, "يرجى كتابة اسم ولي الأمر باللغة العربية"),
+  parentPhone: z
+    .string()
+    .transform((v) => v.replace(/[\s\-()]/g, ""))
+    .pipe(z.string().regex(jordanPhoneRegex, "رقم هاتف ولي الأمر غير صالح. مثال: 0791234567")),
+  relationship: z.enum(["father", "mother", "brother", "guardian"], { message: "صلة القرابة مطلوبة" }),
+  address: z.string().trim().min(3, "العنوان مطلوب").max(300, "العنوان طويل جداً"),
+  notes: z.string().max(500, "الحد الأقصى 500 حرف").optional().nullable(),
 });
 
 export const profileDraftSchema = z.object({
   setupStep: z.number().min(1).max(5).optional(),
-  dateOfBirth: z.string().optional(),
+  dateOfBirth: z
+    .string()
+    .optional()
+    .superRefine((v, ctx) => {
+      const err = v ? dateOfBirthError(v) : null;
+      if (err) ctx.addIssue({ code: "custom", message: err });
+    }),
   city: z.string().optional(),
   nationality: z.string().optional(),
   education: z.string().optional(),

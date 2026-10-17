@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { maybeAwardReferral } from "@/lib/referral";
+import { parentInfoSchema } from "@/lib/validations/profile";
+import { normalizePhone } from "@/lib/validations/auth";
 
 export async function GET() {
   try {
@@ -26,11 +28,22 @@ export async function POST(request: Request) {
     if ("error" in result) return result.error;
     const { session } = result;
 
-    const body = await request.json();
-    const { parentName, parentPhone, relationship, address, notes, shareConsent } = body;
+    const body = await request.json().catch(() => null);
+    if (!body || typeof body !== "object") {
+      return NextResponse.json({ error: "بيانات غير صالحة" }, { status: 400 });
+    }
+    // This contact is handed to the other family: validate it like any other user input
+    const parsed = parentInfoSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "بيانات غير صالحة" }, { status: 400 });
+    }
+    const { parentName, relationship, address, notes } = parsed.data;
+    const parentPhone = normalizePhone(parsed.data.parentPhone);
+    const shareConsent = (body as { shareConsent?: unknown }).shareConsent;
 
-    if (!parentName || !parentPhone || !relationship) {
-      return NextResponse.json({ error: "جميع الحقول المطلوبة يجب ملؤها" }, { status: 400 });
+    const me = await db.user.findUnique({ where: { id: session.user.id }, select: { phone: true } });
+    if (me?.phone && me.phone === parentPhone) {
+      return NextResponse.json({ error: "رقم وليّ الأمر يجب أن يختلف عن رقم هاتفك" }, { status: 400 });
     }
 
     // shareConsent: true = agree to share with the other family after an accepted family

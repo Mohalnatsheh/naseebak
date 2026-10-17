@@ -76,6 +76,18 @@ export function describeOption(field: OptionField, value: string, gender: string
   return OTHER[norm(gender)][field]?.[value] ?? selfLabel(field, value, gender);
 }
 
+/**
+ * Nationality is free text ("أردني", "أردنية", "مصري"…): show it in the person's gender.
+ * "أردني" → "أردنية" for a woman, "أردنية" → "أردني" for a man; anything else unchanged.
+ */
+export function nationalityLabel(value: string | null | undefined, gender: string | null | undefined): string | null {
+  if (!value) return null;
+  const v = value.trim();
+  if (gender === "FEMALE" && /ي$/.test(v)) return `${v}ة`;
+  if (gender === "MALE" && /ية$/.test(v)) return v.slice(0, -1);
+  return v;
+}
+
 /** Options for my own profile. */
 export function ownOptions(field: OptionField, gender: string | null | undefined): Opt[] {
   return OPTION_VALUES[field].map((value) => ({ value, label: selfLabel(field, value, gender) }));

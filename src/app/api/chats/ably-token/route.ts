@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { hiddenPartnerIds } from "@/lib/matches/state";
 import { createChatTokenRequest, isAblyConfigured } from "@/lib/ably";
 
 /**
@@ -14,8 +15,17 @@ export async function GET() {
     if (!isAblyConfigured()) return NextResponse.json({ error: "غير متاح" }, { status: 404 });
     const userId = result.session.user.id;
 
+    // Not the chats of a partner who blocked me (they are hidden from me, like the match)
+    const hidden = await hiddenPartnerIds(userId);
     const conversations = await db.conversation.findMany({
-      where: { match: { OR: [{ femaleId: userId }, { maleId: userId }] } },
+      where: {
+        match: {
+          OR: [
+            { femaleId: userId, maleId: { notIn: hidden } },
+            { maleId: userId, femaleId: { notIn: hidden } },
+          ],
+        },
+      },
       select: { id: true },
     });
     const token = await createChatTokenRequest(userId, conversations.map((c) => c.id));

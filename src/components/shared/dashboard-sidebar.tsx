@@ -25,7 +25,7 @@ import {
   Ban,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { useDashboardData } from "@/contexts/dashboard-context";
@@ -309,6 +309,7 @@ export function DashboardSidebar() {
               </SheetTrigger>
             <SheetContent side="right" className="w-80 p-0 border-r-0 flex flex-col" showCloseButton={false}>
               <SheetTitle className="sr-only">القائمة</SheetTitle>
+              <SheetDescription className="sr-only">صفحات لوحة التحكم وحسابك</SheetDescription>
               {sidebarContent(true)}
             </SheetContent>
           </Sheet>

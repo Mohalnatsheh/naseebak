@@ -25,6 +25,13 @@ function LoginPageContent() {
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
   const [otpSent, setOtpSent] = useState(false);
+  /** Wait before another code may be requested (the server also limits 3 per 5 minutes) */
+  const [resendIn, setResendIn] = useState(0);
+  useEffect(() => {
+    if (resendIn <= 0) return;
+    const t = setTimeout(() => setResendIn((n) => n - 1), 1000);
+    return () => clearTimeout(t);
+  }, [resendIn]);
 
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -65,6 +72,7 @@ function LoginPageContent() {
 
   async function handleSendOtp() {
     setError("");
+    if (resendIn > 0) return;
     if (!validatePhone()) {
       setSendingOtp(false);
       return;
@@ -98,6 +106,7 @@ function LoginPageContent() {
       }
 
       setOtpSent(true);
+      setResendIn(60);
       setUserExists(!!data.userExists);
       trackEvent("otp_requested", { context: "login" });
     } catch {
@@ -390,7 +399,9 @@ function LoginPageContent() {
                   className="h-14 w-auto mx-auto"
                 />
               </Link>
-              <CardTitle className="text-2xl font-bold">تسجيل الدخول</CardTitle>
+              <CardTitle className="text-2xl font-bold">
+                <h1>تسجيل الدخول</h1>
+              </CardTitle>
               <CardDescription className="text-base text-muted-foreground">
                 أدخل رقم هاتفك للدخول إلى حسابك
               </CardDescription>
@@ -522,9 +533,10 @@ function LoginPageContent() {
                       <button
                         type="button"
                         onClick={handleSendOtp}
-                        className="text-xs text-primary hover:text-primary/80 hover:underline transition-colors duration-300 font-medium"
+                        disabled={resendIn > 0 || sendingOtp}
+                        className="text-xs text-primary hover:text-primary/80 hover:underline transition-colors duration-300 font-medium disabled:cursor-not-allowed disabled:text-muted-foreground disabled:no-underline"
                       >
-                        إعادة إرسال رمز التحقق
+                        {resendIn > 0 ? `إعادة الإرسال بعد ${resendIn} ثانية` : "إعادة إرسال رمز التحقق"}
                       </button>
                     </div>
 

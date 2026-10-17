@@ -35,7 +35,7 @@ import { SUGGESTIONS_MIN_COMPLETENESS, qualifiesForSuggestions as qualifiesForSu
 import { PersonCard } from "@/components/shared/person-card";
 import { trackEvent } from "@/lib/analytics";
 import { useDashboardData } from "@/contexts/dashboard-context";
-import { describeOption, oppositeGender } from "@/lib/profile-options";
+import { describeOption, nationalityLabel, oppositeGender } from "@/lib/profile-options";
 import { CandidateDetails } from "@/components/suggestions/candidate-details";
 import { MutualSuggestionsView } from "@/components/suggestions/mutual-suggestions-view";
 import { rechargeToContinue } from "@/components/suggestions/interest-dialog";
@@ -695,7 +695,7 @@ toast.success("تهانينا! لديك توافق متبادل!", {
                         { icon: GraduationCap, label: c.education },
                         { icon: Moon, label: c.religiosity && describeOption("religiosity", c.religiosity, partnerGender) },
                         { icon: Cigarette, label: c.smokingStatus && describeOption("smokingStatus", c.smokingStatus, partnerGender) },
-                        { icon: Flag, label: c.nationality },
+                        { icon: Flag, label: nationalityLabel(c.nationality, partnerGender) },
                       ]}
                       aboutMe={c.aboutMe}
                       expanded={isExpanded}
@@ -942,7 +942,7 @@ toast.success("تهانينا! لديك توافق متبادل!", {
                         { icon: User, label: c.maritalStatus && describeOption("maritalStatus", c.maritalStatus, partnerGender) },
                         { icon: GraduationCap, label: c.education },
                         { icon: Moon, label: c.religiosity && describeOption("religiosity", c.religiosity, partnerGender) },
-                        { icon: Flag, label: c.nationality },
+                        { icon: Flag, label: nationalityLabel(c.nationality, partnerGender) },
                       ]}
                       aboutMe={c.aboutMe}
                       expanded={isExpanded}

@@ -60,6 +60,10 @@ beforeEach(() => {
   db.block.findMany.mockResolvedValue([]);
 });
 
+/** u1 blocked f1: the blocker keeps a read-only chat (a block the other way hides it, see listConversations) */
+const blockedByMe = async ({ where }: { where: { blockerId?: string; OR?: unknown } }) =>
+  where.OR || where.blockerId === "u1" ? { id: "b" } : null;
+
 describe("sendMessage", () => {
   it("rejects users outside the conversation", async () => {
     db.conversation.findUnique.mockResolvedValue(conv());
@@ -135,8 +139,28 @@ describe("sendMessage", () => {
     db.conversation.findUnique.mockResolvedValue(conv({ status: "ENDED" }));
     await expectCode(sendMessage({ conversationId: "c", senderId: "u1", body: "مرحبا" }), "NOT_ALLOWED");
     db.conversation.findUnique.mockResolvedValue(conv());
-    db.block.findFirst.mockResolvedValue({ id: "b" });
+    db.block.findFirst.mockImplementation(blockedByMe);
     await expectCode(sendMessage({ conversationId: "c", senderId: "u1", body: "مرحبا" }), "BLOCKED");
+  });
+
+  it("refuses the last piece of a phone number sent in parts", async () => {
+    db.conversation.findUnique.mockResolvedValue(conv());
+    db.message.findMany.mockResolvedValueOnce([
+      { senderId: "u1", body: "صفر سبعة تسعة" },
+      { senderId: "u1", body: "صفر صفر" },
+    ]);
+    await expectCode(sendMessage({ conversationId: "c", senderId: "u1", body: "تسعة تسعة" }), "FILTERED");
+    expect(db.message.create).not.toHaveBeenCalled();
+  });
+
+  it("a partner's reply in between resets the pieces", async () => {
+    db.conversation.findUnique.mockResolvedValue(conv());
+    db.message.findMany.mockResolvedValueOnce([
+      { senderId: "f1", body: "ماذا تقصد؟" },
+      { senderId: "u1", body: "صفر سبعة تسعة صفر صفر" },
+    ]);
+    await sendMessage({ conversationId: "c", senderId: "u1", body: "تسعة تسعة" });
+    expect(db.message.create).toHaveBeenCalled();
   });
 
   it("chat switch off: sending is disabled but reading still works", async () => {
@@ -173,7 +197,7 @@ describe("expiry warning", () => {
 
   it("a blocked chat is reported as read-only", async () => {
     db.conversation.findUnique.mockResolvedValue(conv());
-    db.block.findFirst.mockResolvedValue({ id: "b" });
+    db.block.findFirst.mockImplementation(blockedByMe);
     const res = await getConversation("c", "u1");
     expect(res.conversation.blocked).toBe(true);
   });
@@ -239,11 +263,23 @@ describe("endConversation closes the family path", () => {
 });
 
 describe("listConversations", () => {
-  it("marks chats with a blocked partner as read-only, like the chat page", async () => {
+  it("marks chats with a partner I blocked as read-only, like the chat page", async () => {
+    const c = { ...conv(), messages: [], _count: { messages: 0 } };
+    db.conversation.findMany.mockResolvedValue([c]);
+    db.block.findMany.mockResolvedValue([{ blockerId: "u1", blockedId: "f1" }]);
+    const [summary] = await listConversations("u1");
+    expect(summary.blocked).toBe(true);
+  });
+
+  it("hides the chat from the person who was blocked, as the match is", async () => {
     const c = { ...conv(), messages: [], _count: { messages: 0 } };
     db.conversation.findMany.mockResolvedValue([c]);
     db.block.findMany.mockResolvedValue([{ blockerId: "f1", blockedId: "u1" }]);
-    const [summary] = await listConversations("u1");
-    expect(summary.blocked).toBe(true);
+    expect(await listConversations("u1")).toEqual([]);
+  });
+
+  it("getConversation is not found for the blocked person", async () => {
+    db.block.findFirst.mockResolvedValueOnce({ id: "blk" });
+    await expect(getConversation("c", "u1")).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
 });

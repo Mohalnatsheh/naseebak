@@ -29,6 +29,9 @@ import {
 } from "@/components/ui/card";
 import { trackEvent } from "@/lib/analytics";
 
+/** Seconds before another verification code may be requested (the server also limits 3 per 5 minutes) */
+const RESEND_SECONDS = 60;
+
 /* ------------------------------------------------------------------ */
 /*  Sparkle / confetti CSS-only particles                             */
 /* ------------------------------------------------------------------ */
@@ -124,6 +127,15 @@ function RegisterPageContent() {
   /* Registration open/closed status */
   const [registrationClosed, setRegistrationClosed] = useState(false);
   const [statusChecking, setStatusChecking] = useState(true);
+  const [newCycle, setNewCycle] = useState(false);
+  /** Confirmation after a code is sent, and the wait before another one may be requested */
+  const [otpNotice, setOtpNotice] = useState("");
+  const [resendIn, setResendIn] = useState(0);
+  useEffect(() => {
+    if (resendIn <= 0) return;
+    const t = setTimeout(() => setResendIn((n) => n - 1), 1000);
+    return () => clearTimeout(t);
+  }, [resendIn]);
 
   useEffect(() => {
     fetch("/api/settings/registration-status")
@@ -132,6 +144,7 @@ function RegisterPageContent() {
         if (data.registrationOpen === false) {
           setRegistrationClosed(true);
         }
+        setNewCycle(data.newCycle === true);
       })
       .catch(() => {
         // Fail-open: if status check fails, allow registration
@@ -221,6 +234,14 @@ function RegisterPageContent() {
 
   async function handleSendOtp() {
     setError("");
+    setOtpNotice("");
+    if (resendIn > 0) return;
+    // Say what is wrong with the number here, instead of the server's generic "invalid data"
+    const cleaned = form.phone.replace(/[\s\-()]/g, "");
+    if (!/^(?:00962|0?0?\+?962|0)?7[789]\d{7}$/.test(cleaned)) {
+      setError("رقم الهاتف غير صالح. أدخل رقماً أردنياً مثل 0791234567");
+      return;
+    }
     setSendingOtp(true);
     const normalizedPhone = normalizePhone(form.phone);
 
@@ -252,6 +273,8 @@ function RegisterPageContent() {
       trackEvent("otp_requested", { context: "register" });
 
       setOtpSent(true);
+      setOtpNotice(`أرسلنا رمز التحقق برسالة نصية إلى ${form.phone}`);
+      setResendIn(RESEND_SECONDS);
     } catch {
       setError("حدث خطأ غير متوقع. حاول مرة أخرى.");
     } finally {
@@ -505,7 +528,7 @@ function RegisterPageContent() {
             />
           </Link>
           <CardTitle className="text-xl font-bold">
-            إنشاء حساب جديد
+            <h1>إنشاء حساب جديد</h1>
           </CardTitle>
           <CardDescription className="text-sm">
             أنشئ حسابك للبدء في رحلة البحث عن شريك الحياة
@@ -587,7 +610,7 @@ function RegisterPageContent() {
           {/*  Error display                               */}
           {/* ============================================ */}
           {error && (
-            <div className="rounded-xl bg-destructive/10 border border-destructive/20 p-3.5 text-sm text-destructive mb-5 flex items-center gap-2 animate-[shake_0.4s_ease-in-out]">
+            <div role="alert" className="rounded-xl bg-destructive/10 border border-destructive/20 p-3.5 text-sm text-destructive mb-5 flex items-center gap-2 animate-[shake_0.4s_ease-in-out]">
               <div className="h-2 w-2 rounded-full bg-destructive shrink-0" />
               {error}
             </div>
@@ -872,12 +895,16 @@ function RegisterPageContent() {
                       className="h-11 rounded-xl border-border/60 bg-muted/30 text-center text-lg tracking-[0.3em] font-mono focus:bg-background transition-colors"
                       required
                     />
+                    {otpNotice && (
+                      <p role="status" className="text-xs text-emerald-700">{otpNotice}</p>
+                    )}
                     <button
                       type="button"
                       onClick={handleSendOtp}
-                      className="text-xs text-primary hover:text-primary/80 hover:underline transition-colors duration-300 font-medium"
+                      disabled={resendIn > 0 || sendingOtp}
+                      className="text-xs text-primary hover:text-primary/80 hover:underline transition-colors duration-300 font-medium disabled:cursor-not-allowed disabled:text-muted-foreground disabled:no-underline"
                     >
-                      إعادة إرسال رمز التحقق
+                      {resendIn > 0 ? `إعادة الإرسال بعد ${resendIn} ثانية` : "إعادة إرسال رمز التحقق"}
                     </button>
                   </div>
                 )}
@@ -1007,10 +1034,14 @@ function RegisterPageContent() {
                     تم إنشاء حسابك بنجاح!
                   </h3>
                   <p className="text-muted-foreground leading-relaxed text-sm max-w-xs mx-auto">
-                    ابدأ الآن بإعداد ملفك الشخصي ومواصفات الشريك الذي تبحث عنه.
+                    {form.gender === "FEMALE"
+                      ? "ابدئي الآن بإعداد ملفكِ الشخصي ومواصفات الشريك الذي تبحثين عنه."
+                      : "ابدأ الآن بإعداد ملفك الشخصي ومواصفات الشريك الذي تبحث عنه."}
                   </p>
                   <p className="text-xs text-muted-foreground/70">
-                    إكمال ملفك الشخصي بنسبة 50% يتيح لك البدء بتلقي اقتراحات التوافق، ومعك رصيد مجاني للبدء
+                    {newCycle
+                      ? "إعداد قصير من 5 خطوات، وبعده تبدأ اقتراحاتك المجانية مباشرة، ومعك رصيد مجاني للتعارف."
+                      : "إكمال ملفك الشخصي بنسبة 50% يتيح لك البدء بتلقي اقتراحات التوافق، ومعك رصيد مجاني للبدء"}
                   </p>
                 </div>
                 <Button

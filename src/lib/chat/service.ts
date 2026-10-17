@@ -10,7 +10,7 @@ import { notify, notifyMany } from "@/lib/notify";
 import { rateLimit } from "@/lib/rate-limit";
 import { getCycleFlags } from "@/lib/settings";
 import { publishChatEvent } from "@/lib/ably";
-import { checkMessage } from "@/lib/chat/filter";
+import { checkMessage, completesSplitNumber, numberShape, SPLIT_NUMBER_WINDOW_MS } from "@/lib/chat/filter";
 import { IntroError } from "@/lib/intro/errors";
 import { cancelPendingBetween, isUnavailable } from "@/lib/matches/state";
 
@@ -62,6 +62,10 @@ async function loadForUser(id: string, userId: string): Promise<LoadedConversati
   if (!c || (c.match.femaleId !== userId && c.match.maleId !== userId)) {
     throw new IntroError("NOT_FOUND", "المحادثة غير موجودة");
   }
+  // Like the match: a partner who blocked me makes the chat disappear for me (the blocker keeps it read-only)
+  const partnerId = c.match.femaleId === userId ? c.match.maleId : c.match.femaleId;
+  const blockedMe = await db.block.findFirst({ where: { blockerId: partnerId, blockedId: userId }, select: { id: true } });
+  if (blockedMe) throw new IntroError("NOT_FOUND", "المحادثة غير موجودة");
   return housekeeping(c);
 }
 
@@ -164,8 +168,12 @@ export async function listConversations(userId: string): Promise<ChatSummary[]> 
       })
     : [];
   const blockedWith = new Set(blocks.map((b) => (b.blockerId === userId ? b.blockedId : b.blockerId)));
+  // A partner who blocked me: the chat is gone for me, as the match is
+  const blockedMeBy = new Set(blocks.filter((b) => b.blockedId === userId).map((b) => b.blockerId));
   const summaries: ChatSummary[] = [];
   for (const row of rows) {
+    const rowPartnerId = row.match.femaleId === userId ? row.match.maleId : row.match.femaleId;
+    if (blockedMeBy.has(rowPartnerId)) continue;
     const c = await housekeeping(row);
     const partnerId = partnerOf(c, userId).id;
     summaries.push(summarise(c, userId, row.messages[0] ?? null, row._count.messages, blockedWith.has(partnerId)));
@@ -279,6 +287,24 @@ export async function sendMessage(args: {
   // Filter first: a blocked attempt is never saved and doesn't use up the sending allowance
   const check = checkMessage(body);
   if (!check.ok) throw new IntroError("FILTERED", check.message);
+  // A number sent in pieces ("صفر سبعة تسعة", then "واحد اثنان …"): read my recent messages together
+  if (numberShape(check.text).numberish) {
+    const recent = await db.message.findMany({
+      where: { conversationId, createdAt: { gt: new Date(Date.now() - SPLIT_NUMBER_WINDOW_MS) } },
+      orderBy: { createdAt: "desc" },
+      take: 6,
+      select: { senderId: true, body: true },
+    });
+    // Only my own run of messages since the partner last wrote
+    const mine: string[] = [];
+    for (const m of recent) {
+      if (m.senderId !== senderId) break;
+      mine.push(m.body);
+    }
+    if (completesSplitNumber(check.text, mine)) {
+      throw new IntroError("FILTERED", "لا يمكن مشاركة أرقام الهواتف أو الروابط أو حسابات التواصل. مشاركة التواصل تتم عبر التعارف العائلي.");
+    }
+  }
 
   // ~1 message per second on average, short bursts allowed
   if (!rateLimit(`chat-burst:${senderId}`, { maxAttempts: 5, windowMs: 5000 }).success) {

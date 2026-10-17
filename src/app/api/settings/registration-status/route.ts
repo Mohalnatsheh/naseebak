@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
-import { isRegistrationOpen } from "@/lib/settings";
+import { getCycleFlags, isRegistrationOpen } from "@/lib/settings";
 
 export async function GET() {
   try {
-    const registrationOpen = await isRegistrationOpen();
+    const [registrationOpen, flags] = await Promise.all([isRegistrationOpen(), getCycleFlags()]);
     return NextResponse.json(
-      { registrationOpen },
+      // newCycle: the register page's "what's next" copy (a finished short setup is enough for suggestions)
+      { registrationOpen, newCycle: flags.introRequests },
       {
         headers: {
           "Cache-Control": "public, max-age=30, s-maxage=30",

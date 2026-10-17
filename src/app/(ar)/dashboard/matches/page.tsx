@@ -55,7 +55,7 @@ import { ImageLightbox } from "@/components/shared/image-lightbox";
 import { MatchClosedNote, MatchIntroPanel } from "@/components/intro/match-intro-panel";
 import { ConfirmActionDialog } from "@/components/intro/confirm-action-dialog";
 import { PersonCard, type PersonCardTone } from "@/components/shared/person-card";
-import { describeOption } from "@/lib/profile-options";
+import { describeOption, nationalityLabel } from "@/lib/profile-options";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useDashboardData } from "@/contexts/dashboard-context";
 
@@ -623,7 +623,7 @@ export default function MatchesPage() {
                     { icon: User, label: c.maritalStatus && describeOption("maritalStatus", c.maritalStatus, isFemale ? "MALE" : "FEMALE") },
                     { icon: GraduationCap, label: c.education },
                     { icon: Moon, label: c.religiosity && describeOption("religiosity", c.religiosity, isFemale ? "MALE" : "FEMALE") },
-                    { icon: Flag, label: c.nationality },
+                    { icon: Flag, label: nationalityLabel(c.nationality, isFemale ? "MALE" : "FEMALE") },
                   ]}
                   aboutMe={c.aboutMe}
                   expanded={!locked && isExpanded}
@@ -634,7 +634,7 @@ export default function MatchesPage() {
                           <InfoRow icon={Calendar} label="العمر" value={c.age ? `${c.age} سنة` : null} />
                           <InfoRow icon={MapPin} label="المدينة" value={c.city} />
                           <InfoRow icon={MapPinned} label="المنطقة" value={c.area} />
-                          <InfoRow icon={Flag} label="الجنسية" value={c.nationality} />
+                          <InfoRow icon={Flag} label="الجنسية" value={nationalityLabel(c.nationality, isFemale ? "MALE" : "FEMALE")} />
                           <InfoRow icon={User} label="الحالة الاجتماعية" value={c.maritalStatus && describeOption("maritalStatus", c.maritalStatus, isFemale ? "MALE" : "FEMALE")} />
                           <InfoRow icon={Baby} label="عدد الأبناء" value={c.childrenCount > 0 ? `${c.childrenCount}` : "لا يوجد"} />
                           <InfoRow icon={Ruler} label="الطول" value={c.height ? `${c.height} سم` : null} />

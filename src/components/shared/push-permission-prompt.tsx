@@ -28,13 +28,13 @@ export function PushPermissionPrompt() {
       }
       timer = setTimeout(() => setVisible(true), 5000);
     };
+    // Checked again on every page change: right after the welcome guide closes nothing opens,
+    // the prompt waits for the next page so the two never come back to back
     schedule();
-    window.addEventListener("naseeb:onboarding-done", schedule);
     return () => {
       if (timer) clearTimeout(timer);
-      window.removeEventListener("naseeb:onboarding-done", schedule);
     };
-  }, []);
+  }, [pathname]);
 
   if (!visible || pathname.startsWith("/dashboard/profile/setup")) return null;
 

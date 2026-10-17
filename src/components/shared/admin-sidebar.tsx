@@ -5,7 +5,7 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { signOut } from "next-auth/react";
-import { LayoutDashboard, Users, ShieldCheck, Sparkles, CalendarHeart, FileText, Menu, LogOut, Flag, ClipboardEdit, CreditCard, Bell, Ban, Trash2, Settings, LifeBuoy, HeartHandshake, Archive, ChevronDown, Heart, MessagesSquare } from "lucide-react";
+import { LayoutDashboard, Users, ShieldCheck, Sparkles, CalendarHeart, FileText, Menu, LogOut, Flag, ClipboardEdit, CreditCard, Bell, Ban, Trash2, Settings, LifeBuoy, HeartHandshake, Archive, ChevronDown, Heart, MessagesSquare, Inbox } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
@@ -34,6 +34,7 @@ const sidebarLinks: SidebarLink[] = [
   { href: "/admin/blocks", label: "Blocks", icon: Ban },
   { href: "/admin/deletions", label: "Deletions", icon: Trash2 },
   { href: "/admin/support", label: "Support Tickets", icon: LifeBuoy },
+  { href: "/admin/messages", label: "Contact Messages", icon: Inbox },
   { href: "/admin/blog", label: "Blog", icon: FileText },
   { href: "/admin/settings", label: "Settings", icon: Settings },
 ];
@@ -143,7 +144,7 @@ export function AdminSidebar({ legacyGrouped = false }: { legacyGrouped?: boolea
               <Menu className="h-5 w-5" />
             </Button>
           </SheetTrigger>
-          <SheetContent side="left" className="w-64 p-0">
+          <SheetContent side="left" className="w-64 p-0" closeLabel="Close" aria-describedby={undefined}>
             <div className="p-6">
               <SheetTitle className="sr-only">Naseeb Admin</SheetTitle>
               <div className="flex items-center gap-2">

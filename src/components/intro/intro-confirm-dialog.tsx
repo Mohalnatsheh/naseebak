@@ -13,6 +13,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { useDashboardData } from "@/contexts/dashboard-context";
 
 export type IntroDialogMode = "send" | "accept" | "decline";
 
@@ -61,6 +62,8 @@ export function IntroConfirmDialog({
   onConfirm,
 }: Props) {
   const [consent, setConsent] = useState(false);
+  // The partner is the opposite gender of the viewer
+  const partnerFemale = useDashboardData().profile?.gender === "MALE";
   useEffect(() => {
     if (open) setConsent(false);
   }, [open]);
@@ -98,7 +101,7 @@ export function IntroConfirmDialog({
               ? `سيتم إبلاغ ${partnerName} بلطف أن الطلب لم يُقبل حالياً، ولن يكون بالإمكان إرسال هذا النوع من الطلبات مرة أخرى لهذا التوافق.`
               : mode === "accept"
                 ? isFamily
-                  ? `بعد القبول ستظهر بيانات وليّ أمرك لعائلة ${partnerName}، وتظهر لك بيانات وليّ أمره/أمرها.`
+                  ? `بعد القبول ستظهر بيانات وليّ أمرك لعائلة ${partnerName}، وتظهر لك بيانات ${partnerFemale ? "وليّ أمرها" : "وليّ أمره"}.`
                   : `بعد القبول تُفتح محادثة نصية بينك وبين ${partnerName} لمدة 14 يوماً.`
                 : "راجع التفاصيل قبل الإرسال."}
           </DialogDescription>

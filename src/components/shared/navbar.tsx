@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import Image from "next/image";
 import { Menu, ArrowLeft, X, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 
 function JordanFlag({ className }: { className?: string }) {
@@ -100,6 +100,7 @@ export function Navbar() {
             height={52}
             className="h-12 w-auto transition-transform duration-300 group-hover:scale-105"
             priority
+            loading="eager"
           />
           <JordanFlag className="h-4 w-6 rounded-[2px] shadow-sm" />
         </Link>
@@ -178,6 +179,7 @@ export function Navbar() {
             <div className="flex items-center justify-between mb-8">
               <div className="flex items-center gap-2">
                 <SheetTitle className="sr-only">القائمة</SheetTitle>
+                <SheetDescription className="sr-only">روابط صفحات نصيبك وتسجيل الدخول</SheetDescription>
                 <Image
                   src="/images/logo.svg"
                   alt="نصيبك"

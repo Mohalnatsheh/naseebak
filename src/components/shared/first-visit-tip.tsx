@@ -31,7 +31,9 @@ export function FirstVisitTip({ storageKey, icon, title, body }: FirstVisitTipPr
     <div className="relative rounded-xl border border-primary/20 bg-gradient-to-l from-primary/5 to-primary/[0.02] p-4 mb-6">
       <button
         onClick={dismiss}
-        className="absolute top-3 left-3 h-6 w-6 rounded-full bg-muted/80 flex items-center justify-center hover:bg-muted transition-colors"
+        type="button"
+        aria-label="إخفاء النصيحة"
+        className="absolute top-3 end-3 h-6 w-6 rounded-full bg-muted/80 flex items-center justify-center hover:bg-muted transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <X className="h-3 w-3 text-muted-foreground" />
       </button>

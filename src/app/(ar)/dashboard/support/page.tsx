@@ -191,12 +191,14 @@ export default function SupportPage() {
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Type selector */}
           <div className="space-y-3">
-            <label className="text-sm font-semibold text-foreground">نوع التذكرة</label>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <p id="ticket-type-label" className="text-sm font-semibold text-foreground">نوع التذكرة</p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3" role="radiogroup" aria-labelledby="ticket-type-label">
               {typeOptions.map((opt) => (
                 <button
                   key={opt.value}
                   type="button"
+                  role="radio"
+                  aria-checked={type === opt.value}
                   onClick={() => setType(opt.value)}
                   className={cn(
                     "relative flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all duration-200 text-center",
@@ -230,8 +232,9 @@ export default function SupportPage() {
 
           {/* Subject */}
           <div className="space-y-2">
-            <label className="text-sm font-semibold text-foreground">الموضوع</label>
+            <label htmlFor="ticket-subject" className="text-sm font-semibold text-foreground">الموضوع</label>
             <input
+              id="ticket-subject"
               type="text"
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
@@ -244,8 +247,9 @@ export default function SupportPage() {
 
           {/* Description */}
           <div className="space-y-2">
-            <label className="text-sm font-semibold text-foreground">الوصف</label>
+            <label htmlFor="ticket-description" className="text-sm font-semibold text-foreground">الوصف</label>
             <textarea
+              id="ticket-description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="اشرح بالتفصيل..."
@@ -257,7 +261,7 @@ export default function SupportPage() {
           </div>
 
           {error && (
-            <div className="flex items-center gap-2 p-3 rounded-xl bg-destructive/5 border border-destructive/20 text-destructive text-sm">
+            <div role="alert" className="flex items-center gap-2 p-3 rounded-xl bg-destructive/5 border border-destructive/20 text-destructive text-sm">
               <AlertCircle className="h-4 w-4 shrink-0" />
               {error}
             </div>

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useDashboardData } from "@/contexts/dashboard-context";
-import { describeOption, oppositeGender } from "@/lib/profile-options";
+import { describeOption, nationalityLabel, oppositeGender } from "@/lib/profile-options";
 import {
   User, Calendar, MapPin, MapPinned, Flag, Baby, Ruler, Weight, Palette, GraduationCap, BookOpen,
   Briefcase, Wallet, Moon, Cigarette, Activity, UtensilsCrossed, Car, Users, Gem, Home, Heart,
@@ -114,7 +114,7 @@ export function CandidateDetails({ c }: { c: CandidateDetailsData }) {
         <InfoRow icon={Calendar} label="العمر" value={c.age ? `${c.age} سنة` : null} />
         <InfoRow icon={MapPin} label="المدينة" value={c.city} />
         <InfoRow icon={MapPinned} label="المنطقة" value={c.area} />
-        <InfoRow icon={Flag} label="الجنسية" value={c.nationality} />
+        <InfoRow icon={Flag} label="الجنسية" value={nationalityLabel(c.nationality, partnerGender)} />
         <InfoRow icon={User} label="الحالة الاجتماعية" value={c.maritalStatus && describeOption("maritalStatus", c.maritalStatus, partnerGender)} />
         <InfoRow icon={Baby} label="عدد الأبناء" value={c.childrenCount > 0 ? `${c.childrenCount}` : "لا يوجد"} />
         <InfoRow icon={Ruler} label="الطول" value={c.height ? `${c.height} سم` : null} />

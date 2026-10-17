@@ -69,3 +69,34 @@ export async function sendNewUserNotification(user: NewUserInfo): Promise<void> 
 </div>`,
   });
 }
+
+interface ContactMessageInfo {
+  name: string;
+  email: string;
+  subject: string;
+  message: string;
+}
+
+/** Tell the admin inbox about a contact-page message (best effort: the message is already saved). */
+export async function sendContactNotification(msg: ContactMessageInfo): Promise<void> {
+  const to = process.env.ADMIN_NOTIFY_EMAIL;
+  const smtp = getTransporter();
+  if (!to || !smtp) {
+    console.warn("[Email] SMTP or ADMIN_NOTIFY_EMAIL not configured — skipping contact notification");
+    return;
+  }
+
+  await smtp.sendMail({
+    from: process.env.SMTP_FROM || `"نصيبك Naseebak" <${process.env.SMTP_USER}>`,
+    to,
+    replyTo: msg.email,
+    subject: `رسالة تواصل: ${msg.subject}`,
+    text: `رسالة جديدة من صفحة تواصل معنا\n\nالاسم: ${msg.name}\nالبريد: ${msg.email}\nالموضوع: ${msg.subject}\n\n${msg.message}`,
+    html: `<div dir="rtl" style="font-family:Arial,sans-serif;color:#1f2937">
+  <h2 style="color:#22476a;margin:0 0 12px">رسالة جديدة من صفحة تواصل معنا</h2>
+  <p style="margin:0 0 4px"><b>${escapeHtml(msg.name)}</b> — <span dir="ltr">${escapeHtml(msg.email)}</span></p>
+  <p style="margin:0 0 12px;color:#6b7280">${escapeHtml(msg.subject)}</p>
+  <p style="white-space:pre-wrap;margin:0">${escapeHtml(msg.message)}</p>
+</div>`,
+  });
+}

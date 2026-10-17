@@ -72,6 +72,47 @@ function hasSpelledNumber(s: string): boolean {
   return false;
 }
 
+/**
+ * How many digits a message carries (written or spelled out), and whether it is "mostly a number":
+ * at least half of its words are digit words or digit groups, e.g. "079" or "صفر سبعة تسعة".
+ */
+export function numberShape(body: string): { digits: number; numberish: boolean } {
+  const tokens = normaliseArabic(normaliseDigits(body ?? "")).split(/[\s،,.\-()+]+/).filter(Boolean);
+  let digits = 0;
+  let numericTokens = 0;
+  for (const raw of tokens) {
+    const word = raw.startsWith("و") && DIGIT_WORDS.has(raw.slice(1)) ? raw.slice(1) : raw;
+    if (DIGIT_WORDS.has(word)) {
+      digits += 1;
+      numericTokens += 1;
+    } else if (/^\d+$/.test(word)) {
+      digits += word.length;
+      numericTokens += 1;
+    }
+  }
+  return { digits, numberish: tokens.length > 0 && numericTokens * 2 >= tokens.length };
+}
+
+/** Minutes within which consecutive number-only messages are read together */
+export const SPLIT_NUMBER_WINDOW_MS = 10 * 60 * 1000;
+
+/**
+ * A phone number sent in pieces: this message and the sender's previous messages (newest first,
+ * already limited to the recent window) that are all "mostly a number" add up to 7+ digits.
+ */
+export function completesSplitNumber(current: string, previousNewestFirst: string[]): boolean {
+  const now = numberShape(current);
+  if (!now.numberish || now.digits === 0) return false;
+  let total = now.digits;
+  for (const prev of previousNewestFirst) {
+    const shape = numberShape(prev);
+    if (!shape.numberish || shape.digits === 0) break;
+    total += shape.digits;
+    if (total >= 7) return true;
+  }
+  return total >= 7;
+}
+
 function fail(reason: FilterReason): FilterResult {
   return { ok: false, reason, message: MESSAGES[reason] };
 }

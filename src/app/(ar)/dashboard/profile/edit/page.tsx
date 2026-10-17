@@ -28,6 +28,7 @@ import { OptionalTag, DealbreakerToggle } from "@/components/profile/form-fields
 import { OPTION_VALUES, selfLabel, describeOption, oppositeGender } from "@/lib/profile-options";
 import { activeDealbreakers } from "@/lib/matching/dealbreaker-summary";
 import type { DealbreakerKey } from "@/lib/matching/score";
+import { dateOfBirthError, maxDateOfBirth, parentInfoSchema } from "@/lib/validations/profile";
 
 const educationLevels = [
   "ثانوية عامة",
@@ -73,9 +74,9 @@ const guardianRelationships = [
   { value: "brother", label: "الأخ" },
   { value: "guardian", label: "ولي الأمر" },
 ];
-function RequiredLabel({ children }: { children: React.ReactNode }) {
+function RequiredLabel({ children, htmlFor }: { children: React.ReactNode; htmlFor?: string }) {
   return (
-    <Label>
+    <Label htmlFor={htmlFor}>
       {children} <span className="text-destructive">*</span>
     </Label>
   );
@@ -341,6 +342,8 @@ export default function ProfileEditPage() {
   function validateStep(s: number): string | null {
     if (s === 1) {
       if (!form.dateOfBirth) return "يرجى إدخال تاريخ الميلاد";
+      const dobErr = dateOfBirthError(form.dateOfBirth);
+      if (dobErr) return dobErr;
       if (!form.nationality) return "يرجى إدخال الجنسية";
       if (!form.city) return "يرجى اختيار المدينة";
       if (form.height && (parseInt(form.height) < 100 || parseInt(form.height) > 250)) return "الطول يجب أن يكون بين 100 و 250 سم";
@@ -366,6 +369,14 @@ export default function ProfileEditPage() {
       if (!form.parentPhone) return "يرجى إدخال رقم هاتف ولي الأمر";
       if (!form.relationship) return "يرجى اختيار صلة القرابة";
       if (!form.parentAddress) return "يرجى إدخال العنوان";
+      // Same rules as the API (the other family sees this contact)
+      const guardian = parentInfoSchema.safeParse({
+        parentName: form.parentName,
+        parentPhone: form.parentPhone,
+        relationship: form.relationship,
+        address: form.parentAddress,
+      });
+      if (!guardian.success) return guardian.error.issues[0]?.message ?? "بيانات وليّ الأمر غير صالحة";
     }
     return null;
   }
@@ -681,17 +692,20 @@ export default function ProfileEditPage() {
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <RequiredLabel>تاريخ الميلاد</RequiredLabel>
+                <RequiredLabel htmlFor="edit-field-1">تاريخ الميلاد</RequiredLabel>
                 <Input
+                  id="edit-field-1"
                   type="date"
+                  max={maxDateOfBirth()}
                   value={form.dateOfBirth}
                   onChange={(e) => update("dateOfBirth", e.target.value)}
                   dir="ltr"
                 />
               </div>
               <div className="space-y-2">
-                <RequiredLabel>الجنسية</RequiredLabel>
+                <RequiredLabel htmlFor="edit-field-2">الجنسية</RequiredLabel>
                 <Input
+                  id="edit-field-2"
                   value={form.nationality}
                   onChange={(e) => update("nationality", e.target.value)}
                 />
@@ -716,8 +730,9 @@ export default function ProfileEditPage() {
 
             {form.city && availableAreas.length > 0 && (
               <div className="space-y-2">
-                <Label>المنطقة <OptionalTag /></Label>
+                <Label htmlFor="edit-field-3">المنطقة <OptionalTag /></Label>
                 <select
+                  id="edit-field-3"
                   value={form.area}
                   onChange={(e) => update("area", e.target.value)}
                   className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
@@ -734,8 +749,9 @@ export default function ProfileEditPage() {
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>الطول (سم) <OptionalTag /></Label>
+                <Label htmlFor="edit-field-4">الطول (سم) <OptionalTag /></Label>
                 <Input
+                  id="edit-field-4"
                   type="number"
                   value={form.height}
                   onChange={(e) => update("height", e.target.value)}
@@ -744,8 +760,9 @@ export default function ProfileEditPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label>الوزن (كغ) <OptionalTag /></Label>
+                <Label htmlFor="edit-field-5">الوزن (كغ) <OptionalTag /></Label>
                 <Input
+                  id="edit-field-5"
                   type="number"
                   value={form.weight}
                   onChange={(e) => update("weight", e.target.value)}
@@ -788,8 +805,9 @@ export default function ProfileEditPage() {
             </div>
 
             <div className="space-y-2">
-              <Label>الوظيفة <OptionalTag /></Label>
+              <Label htmlFor="edit-field-6">الوظيفة <OptionalTag /></Label>
               <select
+                id="edit-field-6"
                 value={form.job}
                 onChange={(e) => {
                   update("job", e.target.value);
@@ -861,8 +879,9 @@ export default function ProfileEditPage() {
 
             {form.maritalStatus !== "أعزب/عزباء" && (
               <div className="space-y-2">
-                <RequiredLabel>عدد الأبناء</RequiredLabel>
+                <RequiredLabel htmlFor="edit-field-7">عدد الأبناء</RequiredLabel>
                 <Input
+                  id="edit-field-7"
                   type="number"
                   value={form.childrenCount}
                   onChange={(e) => update("childrenCount", e.target.value)}
@@ -995,8 +1014,9 @@ export default function ProfileEditPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label>نبذة عني <OptionalTag /></Label>
+              <Label htmlFor="edit-field-8">نبذة عني <OptionalTag /></Label>
               <textarea
+                id="edit-field-8"
                 value={form.aboutMe}
                 onChange={(e) => update("aboutMe", e.target.value)}
                 className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm min-h-[100px] resize-none focus:outline-none focus:ring-2 focus:ring-ring"
@@ -1009,8 +1029,9 @@ export default function ProfileEditPage() {
             </div>
 
             <div className="space-y-2">
-              <Label>مواصفات الشريك المطلوبة <OptionalTag /></Label>
+              <Label htmlFor="edit-field-9">مواصفات الشريك المطلوبة <OptionalTag /></Label>
               <textarea
+                id="edit-field-9"
                 value={form.partnerExpectations}
                 onChange={(e) =>
                   update("partnerExpectations", e.target.value)
@@ -1025,8 +1046,9 @@ export default function ProfileEditPage() {
             </div>
 
             <div className="space-y-2">
-              <Label>الهوايات والاهتمامات <OptionalTag /></Label>
+              <Label htmlFor="edit-field-10">الهوايات والاهتمامات <OptionalTag /></Label>
               <Input
+                id="edit-field-10"
                 value={form.hobbies}
                 onChange={(e) => update("hobbies", e.target.value)}
                 placeholder="مثال: القراءة، الرياضة، السفر..."
@@ -1034,8 +1056,9 @@ export default function ProfileEditPage() {
             </div>
 
             <div className="space-y-2">
-              <Label>القيم العائلية <OptionalTag /></Label>
+              <Label htmlFor="edit-field-11">القيم العائلية <OptionalTag /></Label>
               <textarea
+                id="edit-field-11"
                 value={form.familyValues}
                 onChange={(e) => update("familyValues", e.target.value)}
                 className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm min-h-[80px] resize-none focus:outline-none focus:ring-2 focus:ring-ring"
@@ -1054,7 +1077,9 @@ export default function ProfileEditPage() {
               </h3>
               {showDealbreakers && (
                 <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                  ضع علامة «شرط أساسي» على ما لا تقبل التنازل عنه: لن نقترح عليك من لا يحققه. الشروط تُحفظ مباشرة دون مراجعة، ولا يراها أحد.
+                  {gender === "FEMALE"
+                    ? "ضعي علامة «شرط أساسي» على ما لا تقبلين التنازل عنه: لن نقترح عليكِ من لا يحققه. الشروط تُحفظ مباشرة دون مراجعة، ولا يراها أحد."
+                    : "ضع علامة «شرط أساسي» على ما لا تقبل التنازل عنه: لن نقترح عليك من لا يحققه. الشروط تُحفظ مباشرة دون مراجعة، ولا يراها أحد."}
                 </p>
               )}
             </div>
@@ -1066,8 +1091,9 @@ export default function ProfileEditPage() {
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <RequiredLabel>العمر الأدنى</RequiredLabel>
+                <RequiredLabel htmlFor="edit-field-12">العمر الأدنى</RequiredLabel>
                 <Input
+                  id="edit-field-12"
                   type="number"
                   value={form.prefAgeMin}
                   onChange={(e) => update("prefAgeMin", e.target.value)}
@@ -1078,8 +1104,9 @@ export default function ProfileEditPage() {
                 />
               </div>
               <div className="space-y-2">
-                <RequiredLabel>العمر الأقصى</RequiredLabel>
+                <RequiredLabel htmlFor="edit-field-13">العمر الأقصى</RequiredLabel>
                 <Input
+                  id="edit-field-13"
                   type="number"
                   value={form.prefAgeMax}
                   onChange={(e) => update("prefAgeMax", e.target.value)}
@@ -1253,8 +1280,9 @@ export default function ProfileEditPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label>العشيرة <OptionalTag /></Label>
+              <Label htmlFor="edit-field-14">العشيرة <OptionalTag /></Label>
               <Input
+                id="edit-field-14"
                 value={form.tribe}
                 onChange={(e) => update("tribe", e.target.value)}
                 placeholder="اسم العشيرة"
@@ -1262,8 +1290,9 @@ export default function ProfileEditPage() {
             </div>
 
             <div className="space-y-2">
-              <Label>منطقة أصل العائلة <OptionalTag /></Label>
+              <Label htmlFor="edit-field-15">منطقة أصل العائلة <OptionalTag /></Label>
               <Input
+                id="edit-field-15"
                 value={form.familyOriginArea}
                 onChange={(e) =>
                   update("familyOriginArea", e.target.value)
@@ -1273,8 +1302,9 @@ export default function ProfileEditPage() {
             </div>
 
             <div className="space-y-2">
-              <Label>عدد الإخوة والأخوات <OptionalTag /></Label>
+              <Label htmlFor="edit-field-16">عدد الإخوة والأخوات <OptionalTag /></Label>
               <Input
+                id="edit-field-16"
                 type="number"
                 value={form.numberOfSiblings}
                 onChange={(e) =>
@@ -1320,8 +1350,9 @@ export default function ProfileEditPage() {
             </div>
 
             <div className="space-y-2">
-              <Label>حالات صحية <OptionalTag /></Label>
+              <Label htmlFor="edit-field-17">حالات صحية <OptionalTag /></Label>
               <textarea
+                id="edit-field-17"
                 value={form.healthConditions}
                 onChange={(e) =>
                   update("healthConditions", e.target.value)
@@ -1356,8 +1387,9 @@ export default function ProfileEditPage() {
             </div>
 
             <div className="space-y-2">
-              <RequiredLabel>اسم ولي الأمر</RequiredLabel>
+              <RequiredLabel htmlFor="edit-field-18">اسم ولي الأمر</RequiredLabel>
               <Input
+                id="edit-field-18"
                 value={form.parentName}
                 onChange={(e) => update("parentName", e.target.value)}
                 placeholder="الاسم الكامل لولي الأمر"
@@ -1365,8 +1397,9 @@ export default function ProfileEditPage() {
             </div>
 
             <div className="space-y-2">
-              <RequiredLabel>رقم هاتف ولي الأمر</RequiredLabel>
+              <RequiredLabel htmlFor="edit-field-19">رقم هاتف ولي الأمر</RequiredLabel>
               <Input
+                id="edit-field-19"
                 type="tel"
                 value={form.parentPhone}
                 onChange={(e) => update("parentPhone", e.target.value)}
@@ -1393,8 +1426,9 @@ export default function ProfileEditPage() {
             </div>
 
             <div className="space-y-2">
-              <RequiredLabel>العنوان</RequiredLabel>
+              <RequiredLabel htmlFor="edit-field-20">العنوان</RequiredLabel>
               <textarea
+                id="edit-field-20"
                 value={form.parentAddress}
                 onChange={(e) => update("parentAddress", e.target.value)}
                 className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm min-h-[80px] resize-none focus:outline-none focus:ring-2 focus:ring-ring"
@@ -1444,13 +1478,22 @@ export default function ProfileEditPage() {
         )}
 
         {step < totalSteps ? (
-          <Button
-            onClick={handleNextStep}
-            className="bg-gradient-to-l from-primary to-primary/80"
-          >
-            التالي
-            <ArrowLeft className="h-4 w-4 ms-2" />
-          </Button>
+          <div className="flex flex-wrap justify-end gap-2">
+            {/* One small change shouldn't need four "next" clicks: send from any step */}
+            {changedCount > 0 && (
+              <Button variant="outline" onClick={handleSubmit} disabled={submitting}>
+                {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4 me-2" />}
+                إرسال الآن ({changedCount})
+              </Button>
+            )}
+            <Button
+              onClick={handleNextStep}
+              className="bg-gradient-to-l from-primary to-primary/80"
+            >
+              التالي
+              <ArrowLeft className="h-4 w-4 ms-2" />
+            </Button>
+          </div>
         ) : (
           <Button
             onClick={handleSubmit}

@@ -652,6 +652,22 @@ model SupportTicket {
   @@map("support_tickets")
 }
 
+/// Public contact-page message (visitor or signed-in user); read in Admin → Messages
+model ContactMessage {
+  id        String    @id @default(cuid())
+  name      String
+  email     String
+  subject   String
+  message   String    @db.Text
+  /// Set when the sender was signed in
+  userId    String?
+  handledAt DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([createdAt])
+  @@map("contact_messages")
+}
+
 model SystemSetting {
   key       String   @id
   value     String

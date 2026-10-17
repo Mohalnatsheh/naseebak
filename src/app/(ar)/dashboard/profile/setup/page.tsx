@@ -15,6 +15,7 @@ import { OPTION_VALUES, ownOptions, partnerOptions, type Opt } from "@/lib/profi
 import { activeDealbreakers } from "@/lib/matching/dealbreaker-summary";
 import type { DealbreakerKey } from "@/lib/matching/score";
 import { arabicCount } from "@/lib/utils";
+import { dateOfBirthError, maxDateOfBirth, parentInfoSchema } from "@/lib/validations/profile";
 
 const asOpts = (values: readonly string[]): Opt[] => values.map((v) => ({ value: v, label: v }));
 const educationLevels = asOpts(["ثانوية عامة", "دبلوم", "بكالوريوس", "ماجستير", "دكتوراه"]);
@@ -111,7 +112,7 @@ export default function ProfileSetupPage() {
 
   // Consent to share the guardian contact after an accepted family introduction (new cycle)
   const [shareConsent, setShareConsent] = useState(false);
-  const { counts } = useDashboardData();
+  const { counts, refreshProfile } = useDashboardData();
   const [autoSaveEnabled, setAutoSaveEnabled] = useState(false);
   const [ownerId, setOwnerId] = useState("");
   const { savedIndicatorVisible, saveToLocalStorage, restoreDraft, clearDraft, saveToServer } = useAutoSave(autoSaveEnabled);
@@ -141,6 +142,8 @@ export default function ProfileSetupPage() {
 
           if (user?.gender) {
             setGender(user.gender);
+            // Default nationality in the user's own gender ("أردنية" for women)
+            if (user.gender === "FEMALE") setForm((prev) => (prev.nationality === "أردني" ? { ...prev, nationality: "أردنية" } : prev));
           }
           if (user?.profile) {
             const p = user.profile;
@@ -151,7 +154,7 @@ export default function ProfileSetupPage() {
               dateOfBirth: p.dateOfBirth ? new Date(p.dateOfBirth).toISOString().split("T")[0] : "",
               city: p.city || "",
               area: p.area || "",
-              nationality: p.nationality || "أردني",
+              nationality: p.nationality || (user.gender === "FEMALE" ? "أردنية" : "أردني"),
               education: p.education || "",
               fieldOfStudy: p.fieldOfStudy || "",
               job: p.job && jobValues.includes(p.job) ? p.job : p.job ? "أخرى" : "",
@@ -293,6 +296,7 @@ export default function ProfileSetupPage() {
     switch (s) {
       case 1: {
         if (!form.dateOfBirth) errors.dateOfBirth = "تاريخ الميلاد مطلوب";
+        else { const dobErr = dateOfBirthError(form.dateOfBirth); if (dobErr) errors.dateOfBirth = dobErr; }
         if (!form.nationality) errors.nationality = "الجنسية مطلوبة";
         if (!form.city) errors.city = "المدينة مطلوبة";
         if (form.height) { const h = parseInt(form.height); if (h < 100 || h > 250) errors.height = "الطول يجب أن يكون بين 100 و 250 سم"; }
@@ -328,6 +332,14 @@ export default function ProfileSetupPage() {
         if (!parentForm.parentPhone) errors.parentPhone = "رقم هاتف ولي الأمر مطلوب";
         if (!parentForm.relationship) errors.relationship = "صلة القرابة مطلوبة";
         if (!parentForm.address) errors.address = "العنوان مطلوب";
+        // Same rules as the API (the other family sees this contact)
+        const guardian = parentInfoSchema.safeParse({ ...parentForm, notes: undefined });
+        if (!guardian.success) {
+          for (const issue of guardian.error.issues) {
+            const key = String(issue.path[0]);
+            if (!errors[key]) errors[key] = issue.message;
+          }
+        }
         break;
       }
     }
@@ -435,6 +447,8 @@ export default function ProfileSetupPage() {
       }
 
       clearDraft();
+      // The dashboard's shared profile still holds the pre-setup copy (the welcome guide reads it)
+      await refreshProfile();
       // New cycle: a finished setup is all suggestions need, so go straight to them
       // (legacy still needs 50% completeness: the profile page shows what's missing)
       router.push(counts.flags.introRequests ? "/dashboard/suggestions" : "/dashboard/profile");
@@ -520,7 +534,7 @@ export default function ProfileSetupPage() {
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Field id="dateOfBirth" label="تاريخ الميلاد" error={fieldErrors.dateOfBirth}>
-                <Input id="dateOfBirth" type="date" value={form.dateOfBirth} onChange={(e) => update("dateOfBirth", e.target.value)} dir="ltr" aria-invalid={!!fieldErrors.dateOfBirth} className={inputError(!!fieldErrors.dateOfBirth)} />
+                <Input id="dateOfBirth" type="date" max={maxDateOfBirth()} value={form.dateOfBirth} onChange={(e) => update("dateOfBirth", e.target.value)} dir="ltr" aria-invalid={!!fieldErrors.dateOfBirth} className={inputError(!!fieldErrors.dateOfBirth)} />
               </Field>
               <Field id="nationality" label="الجنسية" error={fieldErrors.nationality}>
                 <Input id="nationality" value={form.nationality} onChange={(e) => update("nationality", e.target.value)} aria-invalid={!!fieldErrors.nationality} className={inputError(!!fieldErrors.nationality)} />
@@ -732,7 +746,9 @@ export default function ProfileSetupPage() {
               <h3 className="text-base font-semibold">تفضيلات الشريك</h3>
               {showDealbreakers && (
                 <p className="text-xs leading-relaxed text-muted-foreground">
-                  ضع علامة «شرط أساسي» على ما لا تقبل التنازل عنه: لن نقترح عليك من لا يحققه. كثرة الشروط تقلّل الاقتراحات، وشروطك لا يراها أحد.
+                  {gender === "FEMALE"
+                    ? "ضعي علامة «شرط أساسي» على ما لا تقبلين التنازل عنه: لن نقترح عليكِ من لا يحققه. كثرة الشروط تقلّل الاقتراحات، وشروطكِ لا يراها أحد."
+                    : "ضع علامة «شرط أساسي» على ما لا تقبل التنازل عنه: لن نقترح عليك من لا يحققه. كثرة الشروط تقلّل الاقتراحات، وشروطك لا يراها أحد."}
                 </p>
               )}
             </div>

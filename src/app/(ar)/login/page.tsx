@@ -202,8 +202,9 @@ function LoginPageContent() {
     <main className="flex min-h-screen flex-row-reverse">
       {/* DECORATIVE PANEL (Right side in RTL) */}
       <div className="relative hidden lg:flex lg:w-1/2 xl:w-[55%] items-center justify-center overflow-hidden">
-        {/* Gradient background */}
-        <div className="absolute inset-0 bg-gradient-to-bl from-primary via-primary/95 to-primary/85" />
+        {/* Amman at blue hour under the brand blue */}
+        <Image src="/images/pages/auth.webp" alt="" fill priority sizes="55vw" className="object-cover" aria-hidden />
+        <div className="absolute inset-0 bg-gradient-to-bl from-primary/90 via-primary/80 to-primary/65" />
 
         {/* Animated orbs */}
         <div

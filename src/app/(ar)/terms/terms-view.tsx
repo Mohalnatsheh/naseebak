@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Navbar } from "@/components/shared/navbar";
 import { Footer } from "@/components/shared/footer";
 import { useInView } from "@/hooks/use-in-view";
+import { PageHeroPhoto } from "@/components/shared/page-hero-photo";
 import { IslamicPatternBg } from "@/components/shared/islamic-pattern";
 
 /* ──────────────────── DATA ──────────────────── */
@@ -176,6 +177,7 @@ export function TermsView({ creditOnInterest }: { creditOnInterest: boolean }) {
       <main className="overflow-hidden">
         {/* ═══════════════ HERO SECTION ═══════════════ */}
         <section className="relative min-h-[50vh] flex items-center justify-center pt-24">
+          <PageHeroPhoto src="/images/pages/terms.webp" />
           <div className="absolute inset-0 bg-gradient-to-bl from-primary/[0.06] via-background to-secondary/[0.04]" />
 
           <div

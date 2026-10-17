@@ -7,6 +7,7 @@ import { Footer } from "@/components/shared/footer";
 import { useInView } from "@/hooks/use-in-view";
 import { Button } from "@/components/ui/button";
 import { ChevronDown, MessageCircle, Shield, CreditCard, Users, HelpCircle } from "lucide-react";
+import { PageHeroPhoto } from "@/components/shared/page-hero-photo";
 import { faqsFor } from "./faq-data";
 
 /* ──────────────────── DATA ──────────────────── */
@@ -46,6 +47,7 @@ export function FaqContent({
       <main className="overflow-hidden">
         {/* ═══════════════ HERO BANNER ═══════════════ */}
         <section className="relative min-h-[40vh] flex items-center justify-center pt-20">
+          <PageHeroPhoto src="/images/pages/faq.webp" />
           {/* Gradient background */}
           <div className="absolute inset-0 bg-gradient-to-bl from-primary/[0.08] via-background to-secondary/[0.06]" />
           <div

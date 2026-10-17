@@ -518,8 +518,11 @@ function RegisterPageContent() {
 
   return (
     <main className="relative flex min-h-screen items-center justify-center p-4 overflow-hidden">
-      {/* ---- Gradient background ---- */}
-      <div className="fixed inset-0 -z-10 bg-gradient-to-br from-primary/10 via-background to-accent/10" />
+      {/* ---- Background: Amman at blue hour, faint, under the brand gradient ---- */}
+      <div className="fixed inset-0 -z-20" aria-hidden>
+        <Image src="/images/pages/auth.webp" alt="" fill priority sizes="100vw" className="object-cover opacity-25" />
+      </div>
+      <div className="fixed inset-0 -z-10 bg-gradient-to-br from-primary/10 via-background/80 to-accent/10" />
       <div className="fixed inset-0 -z-10 opacity-40">
         <div className="absolute -top-24 -right-24 h-96 w-96 rounded-full bg-primary/10 blur-3xl" />
         <div className="absolute -bottom-24 -left-24 h-96 w-96 rounded-full bg-accent/10 blur-3xl" />

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Navbar } from "@/components/shared/navbar";
 import { Footer } from "@/components/shared/footer";
 import { Badge } from "@/components/ui/badge";
+import { PageHeroPhoto } from "@/components/shared/page-hero-photo";
 import { ArrowRight, Calendar, Clock, BookOpen } from "lucide-react";
 
 /* ──────────────────── Types ──────────────────── */
@@ -107,8 +108,9 @@ export default function BlogDetailPage({ params }: { params: Promise<{ slug: str
         ) : post && (
           <>
             {/* ═══════════════ MINI HERO ═══════════════ */}
-            <section className={`relative pt-20 bg-gradient-to-bl ${categoryGradients[post.category.slug] || defaultGradient}`}>
-              <div className="container mx-auto max-w-3xl px-4 py-16">
+            <section className={`relative overflow-hidden pt-20 bg-gradient-to-bl ${categoryGradients[post.category.slug] || defaultGradient}`}>
+              <PageHeroPhoto src="/images/pages/post.webp" strength="opacity-60" />
+              <div className="container relative mx-auto max-w-3xl px-4 py-16">
                 {/* Back link */}
                 <Link
                   href="/blog"

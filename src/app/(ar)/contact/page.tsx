@@ -24,6 +24,7 @@ import { Navbar } from "@/components/shared/navbar";
 import { Footer } from "@/components/shared/footer";
 import { useInView } from "@/hooks/use-in-view";
 import { IslamicPatternBg } from "@/components/shared/islamic-pattern";
+import { PageHeroPhoto } from "@/components/shared/page-hero-photo";
 import { contactSchema } from "@/lib/validations/contact";
 
 /* ──────────────────── DATA ──────────────────── */
@@ -108,6 +109,7 @@ export default function ContactPage() {
       <main className="overflow-hidden">
         {/* ═══════════════ HERO SECTION ═══════════════ */}
         <section className="relative min-h-[40vh] flex items-center justify-center pt-24">
+          <PageHeroPhoto src="/images/pages/contact.webp" />
           {/* Gradient background */}
           <div className="absolute inset-0 bg-gradient-to-bl from-primary/[0.06] via-background to-secondary/[0.04]" />
 

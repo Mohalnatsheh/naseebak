@@ -8,6 +8,8 @@ import { useInView } from "@/hooks/use-in-view";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { PageHeroPhoto } from "@/components/shared/page-hero-photo";
+import Image from "next/image";
 import { Sparkles, Calendar, Clock, ArrowLeft, Heart, BookOpen, Users, Lightbulb, Home, ChevronLeft, ChevronRight } from "lucide-react";
 
 /* ──────────────────── Types ──────────────────── */
@@ -114,6 +116,7 @@ export default function BlogPage() {
       <main className="overflow-hidden">
         {/* ═══════════════ HERO BANNER ═══════════════ */}
         <section className="relative min-h-[40vh] flex items-center justify-center pt-20">
+          <PageHeroPhoto src="/images/pages/blog.webp" />
           {/* Gradient background */}
           <div className="absolute inset-0 bg-gradient-to-bl from-primary/[0.08] via-background to-secondary/[0.06]" />
           <div
@@ -248,9 +251,11 @@ export default function BlogPage() {
                         transitionProperty: "all",
                       }}
                     >
-                      {/* Image placeholder */}
-                      <div className={`relative h-48 bg-gradient-to-bl ${gradient} flex items-center justify-center`}>
-                        <Icon className="size-12 opacity-20 text-foreground" />
+                      {/* Cover: the shared post photo under the category tint */}
+                      <div className={`relative h-48 overflow-hidden bg-gradient-to-bl ${gradient} flex items-center justify-center`}>
+                        <Image src="/images/pages/post.webp" alt="" fill sizes="(min-width: 1024px) 400px, (min-width: 640px) 50vw, 100vw" className="object-cover transition-transform duration-700 group-hover:scale-105" aria-hidden />
+                        <div className={`absolute inset-0 bg-gradient-to-bl ${gradient} opacity-60`} aria-hidden />
+                        <Icon className="relative size-12 opacity-30 text-white" />
                         <Badge className="absolute top-3 start-3 bg-background/90 backdrop-blur-sm text-foreground border-border/50 text-xs">
                           {post.category.nameAr}
                         </Badge>

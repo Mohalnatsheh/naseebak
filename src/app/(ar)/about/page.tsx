@@ -23,6 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { Navbar } from "@/components/shared/navbar";
 import { Footer } from "@/components/shared/footer";
 import { useInView } from "@/hooks/use-in-view";
+import { PageHeroPhoto } from "@/components/shared/page-hero-photo";
 import { IslamicPatternBg } from "@/components/shared/islamic-pattern";
 
 /* ──────────────────── DATA ──────────────────── */
@@ -97,6 +98,7 @@ export default function AboutPage() {
       <main className="overflow-hidden">
         {/* ═══════════════ HERO SECTION ═══════════════ */}
         <section className="relative min-h-[50vh] flex items-center justify-center pt-24">
+          <PageHeroPhoto src="/images/pages/about.webp" />
           {/* Gradient background */}
           <div className="absolute inset-0 bg-gradient-to-bl from-primary/[0.06] via-background to-secondary/[0.04]" />
 

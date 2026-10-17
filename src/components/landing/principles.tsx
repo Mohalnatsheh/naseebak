@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { EyeOff, ShieldCheck, MessageCircle, Users, BadgeCheck } from "lucide-react";
 import type { LandingContent } from "./content";
 
@@ -35,8 +36,11 @@ export function LandingPrinciples({ content, chat }: { content: LandingContent; 
     : [];
 
   return (
-    <section id="features" className="scroll-mt-20 bg-primary py-24 text-primary-foreground sm:py-28">
-      <div className="container mx-auto px-4">
+    <section id="features" className="relative scroll-mt-20 overflow-hidden bg-primary py-24 text-primary-foreground sm:py-28">
+      {/* A sealed envelope on navy velvet, kept faint behind the text */}
+      <Image src="/images/landing/privacy.webp" alt="" fill sizes="100vw" className="object-cover opacity-40" aria-hidden />
+      <div className="absolute inset-0 bg-gradient-to-b from-primary/75 via-primary/45 to-primary/85" aria-hidden />
+      <div className="container relative mx-auto px-4">
         <div className="mx-auto max-w-2xl text-center">
           <h2 className="text-3xl font-extrabold sm:text-4xl">مبنية على الستر والاحترام</h2>
           <p className="mt-4 text-lg leading-relaxed text-primary-foreground/75">

@@ -1,11 +1,27 @@
 "use client";
 
 import { Users, MessageCircle, Home } from "lucide-react";
+import Image from "next/image";
 import { useInView } from "@/hooks/use-in-view";
 import { cn } from "@/lib/utils";
 import type { LandingContent } from "./content";
 
 const NUMERALS = ["1", "2", "3", "4", "5", "6"];
+
+/** A photo under some steps (by position): sign-up, profile, mutual match */
+const STEP_IMAGES: Record<number, string> = {
+  0: "/images/landing/signup.webp",
+  1: "/images/landing/profile.webp",
+  3: "/images/landing/match.webp",
+};
+
+function StepPhoto({ src }: { src: string }) {
+  return (
+    <div className="relative mt-4 aspect-[4/3] w-full max-w-sm overflow-hidden rounded-2xl border border-border/60 shadow-sm sm:mx-auto">
+      <Image src={src} alt="" fill sizes="(min-width: 640px) 384px, 80vw" className="object-cover" />
+    </div>
+  );
+}
 
 /**
  * The cycle as one gold thread: steps in sequence, a fork into the two ways to get
@@ -38,6 +54,7 @@ export function LandingJourney({ content }: { content: LandingContent }) {
                 <div className="relative z-10 pt-1.5 sm:max-w-md sm:bg-background sm:px-4 sm:pt-0">
                   <h3 className="text-xl font-bold text-foreground">{s.title}</h3>
                   <p className="mt-2 leading-relaxed text-muted-foreground">{s.text}</p>
+                  {STEP_IMAGES[i] && <StepPhoto src={STEP_IMAGES[i]} />}
                 </div>
               </li>
             ))}
@@ -77,6 +94,7 @@ export function LandingJourney({ content }: { content: LandingContent }) {
             <div className="pt-1.5 sm:max-w-md sm:pt-0">
               <h3 className="text-xl font-bold text-foreground">{finish.title}</h3>
               <p className="mt-2 leading-relaxed text-muted-foreground">{finish.text}</p>
+              <StepPhoto src="/images/landing/family.webp" />
             </div>
           </div>
         </div>

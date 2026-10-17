@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { ArrowLeft, Lock, MapPin, GraduationCap, Moon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { LandingContent } from "./content";
@@ -13,7 +14,19 @@ function SuggestionPreview() {
       style={{ animationDelay: "250ms" }}
     >
       <div className="absolute -inset-6 -z-10 rounded-[2.5rem] bg-primary/[0.06]" aria-hidden />
-      <div className="rounded-[1.75rem] border border-border/70 bg-card p-5 shadow-[0_24px_60px_-28px_oklch(0.39_0.07_249/0.45)]">
+      {/* A Jordanian sitting room at golden hour; the example card rests over its lower part */}
+      <div className="relative aspect-[4/5] overflow-hidden rounded-[2rem] shadow-[0_24px_60px_-28px_oklch(0.39_0.07_249/0.55)]">
+        <Image
+          src="/images/landing/hero.webp"
+          alt=""
+          fill
+          priority
+          sizes="(min-width: 1024px) 384px, (min-width: 640px) 384px, 90vw"
+          className="object-cover"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-primary/40 via-transparent to-transparent" aria-hidden />
+      </div>
+      <div className="relative mx-3 -mt-44 rounded-[1.75rem] border border-border/70 bg-card/95 p-5 shadow-[0_24px_60px_-28px_oklch(0.39_0.07_249/0.45)] backdrop-blur sm:mx-4">
         <div className="flex items-center gap-4">
           <div className="flex h-16 w-16 shrink-0 flex-col items-center justify-center rounded-2xl bg-muted text-muted-foreground">
             <Lock className="h-5 w-5" />
@@ -52,7 +65,7 @@ function SuggestionPreview() {
           <span className="rounded-xl border border-border py-2.5 text-center text-sm font-semibold text-muted-foreground">لا</span>
         </div>
       </div>
-      <p className="mt-4 text-center text-xs text-muted-foreground">لا يعرف الطرف الآخر قرارك إلا عند التوافق المتبادل</p>
+      <p className="mt-4 text-center text-xs text-muted-foreground">الصور تظهر بعد التوافق المتبادل، ولا نُطلع أحداً على قرار «لا»</p>
     </div>
   );
 }

@@ -9,7 +9,11 @@ import { enumLabel } from "@/lib/admin/enum-labels";
 interface RequestState {
   status: string;
   senderId: string;
+  /** Opened automatically because both chose this path on «مهتم» */
+  auto?: boolean;
 }
+
+const OUTCOME_LABEL: Record<string, string> = { CONTINUING: "Continuing", NOT_A_MATCH: "Not a match", ENGAGED: "Engaged" };
 
 interface MatchRow {
   id: string;
@@ -19,6 +23,8 @@ interface MatchRow {
   chatRequest: RequestState | null;
   chat: { id: string; status: string } | null;
   visit: string | null;
+  guardianShared: { female: boolean; male: boolean } | null;
+  outcome: { female: string | null; male: string | null; followUps: number };
 }
 
 /** Mutual matches and where each one stands (family / chat requests, chat, legacy visit). */
@@ -91,7 +97,8 @@ export default function AdminMatchesPage() {
                     <th className="py-2 pe-4 font-medium">Family introduction</th>
                     <th className="py-2 pe-4 font-medium">Chat request</th>
                     <th className="py-2 pe-4 font-medium">Chat</th>
-                    <th className="hidden py-2 font-medium md:table-cell">Visit (legacy)</th>
+                    <th className="hidden py-2 pe-4 font-medium md:table-cell">Visit (legacy)</th>
+                    <th className="py-2 font-medium">Outcome</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -105,7 +112,12 @@ export default function AdminMatchesPage() {
                         {m.family ? (
                           <span className="inline-flex flex-col gap-0.5">
                             <StateBadge value={m.family.status} />
-                            <span className="text-xs text-muted-foreground">from {sender(m, m.family)}</span>
+                            <span className="text-xs text-muted-foreground">{m.family.auto ? "automatic (both chose)" : `from ${sender(m, m.family)}`}</span>
+                            {m.guardianShared && (
+                              <span className="text-xs text-muted-foreground">
+                                Guardian shared: {m.people[0].firstName} {m.guardianShared.female ? "✓" : "✗"} · {m.people[1].firstName} {m.guardianShared.male ? "✓" : "✗"}
+                              </span>
+                            )}
                           </span>
                         ) : (
                           <span className="text-muted-foreground">—</span>
@@ -115,7 +127,7 @@ export default function AdminMatchesPage() {
                         {m.chatRequest ? (
                           <span className="inline-flex flex-col gap-0.5">
                             <StateBadge value={m.chatRequest.status} />
-                            <span className="text-xs text-muted-foreground">from {sender(m, m.chatRequest)}</span>
+                            <span className="text-xs text-muted-foreground">{m.chatRequest.auto ? "automatic (both chose)" : `from ${sender(m, m.chatRequest)}`}</span>
                           </span>
                         ) : (
                           <span className="text-muted-foreground">—</span>
@@ -124,8 +136,18 @@ export default function AdminMatchesPage() {
                       <td className="py-3 pe-4">
                         {m.chat ? <StateBadge value={m.chat.status} group="chatStatus" /> : <span className="text-muted-foreground">—</span>}
                       </td>
-                      <td className="hidden py-3 text-muted-foreground md:table-cell">
+                      <td className="hidden py-3 pe-4 text-muted-foreground md:table-cell">
                         {m.visit ? enumLabel("visitStatus", m.visit) : "—"}
+                      </td>
+                      <td className="py-3 text-xs">
+                        {m.outcome.female || m.outcome.male ? (
+                          <span className="inline-flex flex-col gap-0.5">
+                            <span>{m.people[0].firstName}: {m.outcome.female ? OUTCOME_LABEL[m.outcome.female] : "—"}</span>
+                            <span>{m.people[1].firstName}: {m.outcome.male ? OUTCOME_LABEL[m.outcome.male] : "—"}</span>
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">{m.outcome.followUps > 0 ? `Asked ${m.outcome.followUps}×` : "—"}</span>
+                        )}
                       </td>
                     </tr>
                   ))}

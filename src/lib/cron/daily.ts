@@ -11,10 +11,10 @@ import { db } from "@/lib/db";
 import { setSetting } from "@/lib/settings";
 import { chatHousekeepingAll } from "@/lib/chat/service";
 import { expireIntroRequests, remindIntroRequests } from "@/lib/cron/intro-requests";
-import { expireMutualSuggestionsAll, remindMutualSuggestions, runWeeklySuggestions } from "@/lib/cron/suggestions";
+import { expireMutualSuggestionsAll, healMissingMatches, remindMutualSuggestions, runWeeklySuggestions } from "@/lib/cron/suggestions";
 import { runReengagement } from "@/lib/cron/reengagement";
 import { processAccountDeletions } from "@/lib/cron/deletions";
-import { remindGuardianShare, runFamilyFollowUps } from "@/lib/intro/followup";
+import { cancelClosedLegacyVisits, remindGuardianShare, runFamilyFollowUps } from "@/lib/intro/followup";
 
 export const LAST_RUN_KEY = "cron_daily_last_run";
 
@@ -86,8 +86,10 @@ async function execute(trigger: DailyRunSummary["trigger"]): Promise<DailyRunSum
   tasks.suggestionExpiry = await runTask("suggestionExpiry", () => expireMutualSuggestionsAll(now()));
   tasks.suggestionReminders = await runTask("suggestionReminders", () => remindMutualSuggestions(now()));
   tasks.chats = await runTask("chats", () => chatHousekeepingAll(now()));
+  tasks.matchHeal = await runTask("matchHeal", () => healMissingMatches(now()));
   tasks.guardianShareReminders = await runTask("guardianShareReminders", () => remindGuardianShare(now()));
   tasks.familyFollowUps = await runTask("familyFollowUps", () => runFamilyFollowUps(now()));
+  tasks.legacyVisits = await runTask("legacyVisits", () => cancelClosedLegacyVisits());
   tasks.weeklySuggestions = await runTask("weeklySuggestions", () => runWeeklySuggestions(now()));
   tasks.reengagement = await runTask("reengagement", () => runReengagement(now()));
   tasks.deletions = await runTask("deletions", async () => ({ deleted: await processAccountDeletions() }));

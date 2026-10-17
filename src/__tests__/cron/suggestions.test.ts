@@ -62,12 +62,19 @@ describe("remindMutualSuggestions", () => {
   });
 
   it("only reminds the undecided side (and says nothing about the other's answer)", async () => {
-    db.suggestion.findMany.mockResolvedValue([row({ recipientDecision: "DECLINED" })]);
+    db.suggestion.findMany.mockResolvedValue([row({ recipientDecision: "INTERESTED" })]);
     await remindMutualSuggestions(now);
     expect(notifyMod.notify).toHaveBeenCalledTimes(1);
     const call = notifyMod.notify.mock.calls[0][0];
     expect(call.userId).toBe("f1");
-    expect(call.body).not.toMatch(/رفض|لا/);
+    expect(call.body).not.toMatch(/رفض|مهتم/);
+  });
+
+  it("sends no reminder when the other side already said «لا» (it can't become a match)", async () => {
+    db.suggestion.findMany.mockResolvedValue([row({ recipientDecision: "DECLINED" })]);
+    const res = await remindMutualSuggestions(now);
+    expect(notifyMod.notify).not.toHaveBeenCalled();
+    expect(res).toEqual({ suggestions: 0, reminded: 0 });
   });
 
   it("skips claimed rows, blocks and inactive people", async () => {

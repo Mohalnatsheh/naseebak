@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
+import { closeActivityForLeaving } from "@/lib/matches/leave";
 import { db } from "@/lib/db";
 
 /**
@@ -52,6 +53,7 @@ export async function POST(request: Request) {
       where: { id: session.user.id },
       data: { isDeactivated: true },
     });
+    await closeActivityForLeaving(session.user.id, "deleting").catch((e) => console.error("Leave cleanup error:", e));
 
     return NextResponse.json({
       message: "تم تقديم طلب حذف الحساب. سيتم حذف الحساب نهائياً بعد 30 يوماً.",

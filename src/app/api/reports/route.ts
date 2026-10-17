@@ -11,8 +11,11 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { reportedId, reason, details } = body;
 
-    if (!reportedId || !reason) {
+    if (typeof reportedId !== "string" || !reportedId || !reason) {
       return NextResponse.json({ error: "البيانات غير مكتملة" }, { status: 400 });
+    }
+    if (details != null && (typeof details !== "string" || details.length > 1000)) {
+      return NextResponse.json({ error: "تفاصيل البلاغ يجب ألا تتجاوز 1000 حرف" }, { status: 400 });
     }
 
     const validReasons = ["FAKE_PROFILE", "INAPPROPRIATE_CONTENT", "HARASSMENT", "SPAM", "OTHER"];
@@ -22,6 +25,21 @@ export async function POST(request: Request) {
 
     if (reportedId === session.user.id) {
       return NextResponse.json({ error: "لا يمكنك الإبلاغ عن نفسك" }, { status: 400 });
+    }
+
+    // Only someone you were shown (a suggestion) or matched with can be reported: three strangers
+    // can't flag an account they never saw
+    const me = session.user.id;
+    const [sawSuggestion, matched] = await Promise.all([
+      db.suggestion.count({
+        where: { OR: [{ recipientId: me, candidateId: reportedId }, { recipientId: reportedId, candidateId: me }] },
+      }),
+      db.mutualMatch.count({
+        where: { OR: [{ femaleId: me, maleId: reportedId }, { femaleId: reportedId, maleId: me }] },
+      }),
+    ]);
+    if (sawSuggestion + matched === 0) {
+      return NextResponse.json({ error: "لا يمكنك الإبلاغ عن هذا المستخدم" }, { status: 403 });
     }
 
     // Check for existing report

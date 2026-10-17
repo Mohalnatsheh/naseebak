@@ -7,7 +7,7 @@ const db = vi.hoisted(() => ({
   introRequest: { updateMany: vi.fn(), count: vi.fn(), findFirst: vi.fn() },
   suggestion: { findMany: vi.fn() },
   message: { count: vi.fn() },
-  conversation: { count: vi.fn() },
+  conversation: { count: vi.fn(), findMany: vi.fn(async () => []), update: vi.fn() },
   parentInfo: { findUnique: vi.fn() },
 }));
 vi.mock("@/lib/db", () => ({ db }));

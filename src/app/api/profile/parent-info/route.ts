@@ -3,6 +3,29 @@ import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { maybeAwardReferral } from "@/lib/referral";
 import { parentInfoSchema } from "@/lib/validations/profile";
+import { notifyMany } from "@/lib/notify";
+
+/**
+ * Consent withdrawn: the guardian contact disappears from every accepted family introduction, so tell
+ * those partners instead of letting it vanish silently.
+ */
+async function tellPartnersConsentWithdrawn(userId: string): Promise<void> {
+  const matches = await db.mutualMatch.findMany({
+    where: {
+      OR: [{ femaleId: userId }, { maleId: userId }],
+      introRequests: { some: { type: "FAMILY", status: "ACCEPTED" } },
+    },
+    select: { femaleId: true, maleId: true },
+  });
+  const partners = [...new Set(matches.map((m) => (m.femaleId === userId ? m.maleId : m.femaleId)))];
+  if (partners.length === 0) return;
+  await notifyMany(partners, {
+    type: "MATCH",
+    title: "تغيّرت بيانات التواصل العائلي",
+    body: "أوقف الطرف الآخر مشاركة بيانات وليّ أمره، فلم تعد ظاهرة في صفحة التوافق.",
+    url: "/dashboard/matches",
+  });
+}
 import { normalizePhone } from "@/lib/validations/auth";
 
 export async function GET() {
@@ -55,6 +78,7 @@ export async function POST(request: Request) {
       (b.address ?? null) === existing.address
     ) {
       const parentInfo = await db.parentInfo.update({ where: { userId: session.user.id }, data: { shareConsentAt } });
+      if (existing.shareConsentAt && !shareConsentAt) await tellPartnersConsentWithdrawn(session.user.id).catch(() => {});
       return NextResponse.json({ message: "تم حفظ بيانات ولي الأمر", parentInfo });
     }
 
@@ -77,6 +101,7 @@ export async function POST(request: Request) {
       update: { parentName, parentPhone, relationship, address, notes, shareConsentAt },
     });
 
+    if (existing?.shareConsentAt && !shareConsentAt) await tellPartnersConsentWithdrawn(session.user.id).catch(() => {});
     await maybeAwardReferral(session.user.id);
     return NextResponse.json({ message: "تم حفظ بيانات ولي الأمر", parentInfo });
   } catch (error) {

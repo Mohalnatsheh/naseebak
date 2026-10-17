@@ -410,6 +410,19 @@ export default function ProfileSetupPage() {
     setError("");
 
     try {
+      // Guardian first: the profile only counts as complete once it has one (the server checks)
+      const parentRes = await fetch("/api/profile/parent-info", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...parentForm, shareConsent }),
+      });
+
+      if (!parentRes.ok) {
+        const data = await parentRes.json();
+        setError(data.error || "حدث خطأ أثناء حفظ بيانات ولي الأمر");
+        return;
+      }
+
       // Save profile data (empty optional fields are left out)
       const profileRes = await fetch("/api/profile", {
         method: "PUT",
@@ -428,19 +441,6 @@ export default function ProfileSetupPage() {
         return;
       }
       trackEvent("profile_completed");
-
-      // Save parent/guardian info
-      const parentRes = await fetch("/api/profile/parent-info", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...parentForm, shareConsent }),
-      });
-
-      if (!parentRes.ok) {
-        const data = await parentRes.json();
-        setError(data.error || "حدث خطأ أثناء حفظ بيانات ولي الأمر");
-        return;
-      }
 
       clearDraft();
       // The dashboard's shared profile still holds the pre-setup copy (the welcome guide reads it)

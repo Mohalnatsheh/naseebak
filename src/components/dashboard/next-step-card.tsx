@@ -96,8 +96,8 @@ export function NextStepCard({ qualifies, pendingSuggestions, credits }: Props) 
       icon: Sparkles,
       title: pendingSuggestions === 1 ? "لديك اقتراح جديد" : "لديك اقتراحات جديدة",
       text: g(
-        "اطّلع عليها وقرّر. لا يعرف أحد قرارك إلا عند التوافق المتبادل.",
-        "اطّلعي عليها وقرّري. لا يعرف أحد قرارك إلا عند التوافق المتبادل."
+        "اطّلع عليها وقرّر. لا نُطلع أحداً على قرار «لا».",
+        "اطّلعي عليها وقرّري. لا نُطلع أحداً على قرار «لا»."
       ),
       href: "/dashboard/suggestions",
       cta: "عرض الاقتراحات",

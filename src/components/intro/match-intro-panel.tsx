@@ -575,6 +575,20 @@ export function MatchIntroPanel({ matchId, partnerName }: { matchId: string; par
         </div>
       )}
 
+      {/* A polite way out of any open match (no block needed) */}
+      {!state.followUp.ask && !myGuardian.askShare && (
+        <div className="mt-3 text-end">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => setOutcomeDialog("NOT_A_MATCH")}
+            className="text-xs font-medium text-muted-foreground underline-offset-4 hover:text-destructive hover:underline"
+          >
+            إنهاء التوافق
+          </button>
+        </div>
+      )}
+
       <ConfirmActionDialog
         open={!!outcomeDialog}
         onOpenChange={(o) => !o && setOutcomeDialog(null)}

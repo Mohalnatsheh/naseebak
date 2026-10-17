@@ -571,6 +571,19 @@ export async function cancelIntroRequest(args: { requestId: string; userId: stri
       data: { isRead: true },
     })
     .catch((e: unknown) => console.error("Cancel intro: clear notification", e));
+  // The receiver may have seen it already: say it was withdrawn instead of letting it vanish
+  try {
+    await notify({
+      userId: request.receiverId,
+      type: "INTRO_REQUEST",
+      title: request.type === "FAMILY" ? "أُلغي طلب التعارف العائلي" : "أُلغي طلب المحادثة",
+      body: "سحب الطرف الآخر طلبه قبل الرد عليه. ما زال التوافق قائماً ويمكنكما إرسال طلب جديد لاحقاً.",
+      url: `/dashboard/matches?match=${request.matchId}`,
+      metadata: { matchId: request.matchId },
+    });
+  } catch (e) {
+    console.error("Cancel intro: notify receiver", e);
+  }
   return { status: "CANCELLED" };
 }
 

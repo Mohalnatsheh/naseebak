@@ -259,10 +259,10 @@ export async function decideSuggestion(args: {
     const me = await db.user.findUnique({ where: { id: userId }, select: { matchCredits: true } });
     if ((me?.matchCredits ?? 0) < 1) throw new IntroError("NO_CREDITS");
   }
-  if (charge) {
-    const { needsConsent } = await checkIntroPreference(userId, preference, flags.chat, args.guardianConsent);
-    if (needsConsent) await setGuardianConsent(userId);
-  }
+  // Validated now, stored only once the «مهتم» is really recorded and charged (below)
+  const { needsConsent } = charge
+    ? await checkIntroPreference(userId, preference, flags.chat, args.guardianConsent)
+    : { needsConsent: false };
 
   // Record my decision once (a concurrent second tap loses here)
   const decision = interested ? "INTERESTED" : "DECLINED";
@@ -291,6 +291,7 @@ export async function decideSuggestion(args: {
       const left = await tx.user.findUniqueOrThrow({ where: { id: userId }, select: { matchCredits: true } });
       return left.matchCredits;
     });
+    if (needsConsent) await setGuardianConsent(userId);
     if (creditsLeft <= 0) {
       await notifyInterestCreditsExhausted(userId).catch((e) => console.error("[suggestions] exhausted notice:", e));
     }
@@ -333,7 +334,7 @@ export async function decideSuggestion(args: {
     const maleId = femaleId === userId ? otherId : userId;
     // The row is already ACCEPTED and both "مهتم" were charged. On a failure here we do NOT
     // reopen the row: both decisions and charges are valid, and reopening would let the pair be
-    // charged again. Log loudly so the match can be created by hand, then surface the error.
+    // charged again. Logged; the daily job (healMissingMatches) creates it on its next run.
     let matchId: string;
     try {
       ({ matchId } = await createMutualMatch({ femaleId, maleId, suggestionId: s.id }));

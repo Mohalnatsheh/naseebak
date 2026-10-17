@@ -242,3 +242,50 @@ export async function runFamilyFollowUps(now = new Date()): Promise<{ matches: n
   }
   return { matches, notified };
 }
+
+/**
+ * Old-flow visit requests still at REQUESTED whose match has since closed (a block, an inactive account,
+ * «لم يحصل نصيب», a declined family request or a chat a user ended): cancel them so they leave the admin
+ * queue, and so an admin acting on one can't flip a closed match back to "arranging a visit".
+ */
+export async function cancelClosedLegacyVisits(): Promise<{ cancelled: number }> {
+  const visits = await db.visitRequest.findMany({
+    where: { status: "REQUESTED" },
+    select: {
+      id: true,
+      match: {
+        select: {
+          femaleId: true, maleId: true, femaleOutcome: true, maleOutcome: true,
+          female: { select: { isDeactivated: true, status: true } },
+          male: { select: { isDeactivated: true, status: true } },
+          conversation: { select: { status: true, endedById: true } },
+          introRequests: { where: { type: "FAMILY", status: "DECLINED" }, select: { id: true } },
+        },
+      },
+    },
+    take: BATCH,
+  });
+  let cancelled = 0;
+  for (const v of visits) {
+    const m = v.match;
+    let reason: string | null = null;
+    if (m.femaleOutcome === "NOT_A_MATCH" || m.maleOutcome === "NOT_A_MATCH") reason = "one side said it is not a match";
+    else if (isUnavailable(m.female) || isUnavailable(m.male)) reason = "an account is no longer active";
+    else if (m.introRequests.length > 0) reason = "the family introduction was declined";
+    else if (m.conversation?.status === "ENDED" && m.conversation.endedById) reason = "a user ended their chat";
+    else {
+      const block = await db.block.findFirst({
+        where: { OR: [{ blockerId: m.femaleId, blockedId: m.maleId }, { blockerId: m.maleId, blockedId: m.femaleId }] },
+        select: { id: true },
+      });
+      if (block) reason = "one side blocked the other";
+    }
+    if (!reason) continue;
+    const { count } = await db.visitRequest.updateMany({
+      where: { id: v.id, status: "REQUESTED" },
+      data: { status: "CANCELLED", adminNotes: `Closed automatically: ${reason}` },
+    });
+    cancelled += count;
+  }
+  return { cancelled };
+}

@@ -39,6 +39,8 @@ export interface SuggestOutcome {
   created: number;
   reason: SuggestEmptyReason | null;
 }
+/** Pairs being created right now (see the pair check before createMany) */
+const pairsInFlight = new Set<string>();
 const outcome = (created: number, reason: SuggestEmptyReason | null = null): SuggestOutcome => ({ created, reason });
 
 /** Lowest compatibility score that may be suggested (credit-on-interest raises it, since an "interested" costs a credit). */
@@ -254,58 +256,77 @@ async function generate(userId: string): Promise<SuggestOutcome> {
       ranked = ranked.filter((r) => (busy.get(r.candidate.id) ?? 0) < WEEKLY_FREE_SUGGESTIONS);
     }
   }
-  const top = ranked.slice(0, limit);
+  // Two people topped up at once could each pick the other: a shared row (A,B) and (B,A) would be two
+  // cards for the same pair. Reserve the pair in this process (PM2 fork = one process) and re-check the
+  // database for a row in either direction just before creating.
+  const pairKey = (id: string) => [userId, id].sort().join("|");
+  let top = ranked.filter((r) => !pairsInFlight.has(pairKey(r.candidate.id))).slice(0, limit);
+  top.forEach((r) => pairsInFlight.add(pairKey(r.candidate.id)));
+  const reserved = top.map((r) => pairKey(r.candidate.id));
+  try {
+    if (top.length > 0) {
+      const ids = top.map((r) => r.candidate.id);
+      const taken = await db.suggestion.findMany({
+        where: { OR: [{ recipientId: userId, candidateId: { in: ids } }, { candidateId: userId, recipientId: { in: ids } }] },
+        select: { recipientId: true, candidateId: true },
+      });
+      const takenIds = new Set(taken.map((t) => (t.recipientId === userId ? t.candidateId : t.recipientId)));
+      top = top.filter((r) => !takenIds.has(r.candidate.id));
+    }
 
-  if (top.length === 0) {
-    lastEmptyRun.set(userId, Date.now());
-    return outcome(0, "no_candidates");
-  }
-  lastEmptyRun.delete(userId);
+    if (top.length === 0) {
+      lastEmptyRun.set(userId, Date.now());
+      return outcome(0, "no_candidates");
+    }
+    lastEmptyRun.delete(userId);
 
-  // Take the credits first (atomic), then create; unused credits are given back
-  if (!perRequestCredits && !(await reserveCredits(userId, top.length))) return outcome(0);
+    // Take the credits first (atomic), then create; unused credits are given back
+    if (!perRequestCredits && !(await reserveCredits(userId, top.length))) return outcome(0);
 
-  const created = await db.suggestion.createMany({
-    data: top.map(({ candidate, score }) => ({
-      recipientId: userId,
-      candidateId: candidate.id,
-      compatibilityScore: score,
-      source: "AI" as const,
-      ...(mutual && { flow: "MUTUAL" as const, expiresAt: new Date(Date.now() + MUTUAL_SUGGESTION_MS) }),
-    })),
-    skipDuplicates: true,
-  });
-  if (!perRequestCredits) {
-    await refundCredits(userId, top.length - created.count);
-    await recordCredit({ userId, delta: -created.count, reason: "SUGGESTION", note: "Automatic suggestions" });
-  }
-  if (created.count === 0) return outcome(0);
-
-  const title = "اقتراحات توافق جديدة";
-  const body =
-    created.count === 1
-      ? "وصلك اقتراح توافق جديد. قم بمراجعته."
-      : `وصلك ${created.count} اقتراحات توافق جديدة. قم بمراجعتها.`;
-  if (mutual) {
-    await notify({ userId, type: "SUGGESTION", title, body, url: "/dashboard/suggestions" });
-    // The other people see the same suggestion
-    const created = await db.suggestion.findMany({
-      where: { recipientId: userId, flow: "MUTUAL", candidateId: { in: top.map((t) => t.candidate.id) } },
-      select: { candidateId: true },
+    const created = await db.suggestion.createMany({
+      data: top.map(({ candidate, score }) => ({
+        recipientId: userId,
+        candidateId: candidate.id,
+        compatibilityScore: score,
+        source: "AI" as const,
+        ...(mutual && { flow: "MUTUAL" as const, expiresAt: new Date(Date.now() + MUTUAL_SUGGESTION_MS) }),
+      })),
+      skipDuplicates: true,
     });
-    await notifyMany(created.map((c) => c.candidateId), {
-      type: "SUGGESTION",
-      title: "اقتراح توافق جديد",
-      body: "وصلك اقتراح توافق جديد. قم بمراجعته.",
-      url: "/dashboard/suggestions",
-    });
-  } else {
-    await notify({ userId, type: "SUGGESTION", title, body, url: "/dashboard/suggestions" });
+    if (!perRequestCredits) {
+      await refundCredits(userId, top.length - created.count);
+      await recordCredit({ userId, delta: -created.count, reason: "SUGGESTION", note: "Automatic suggestions" });
+    }
+    if (created.count === 0) return outcome(0);
+
+    const title = "اقتراحات توافق جديدة";
+    const body =
+      created.count === 1
+        ? "وصلك اقتراح توافق جديد. قم بمراجعته."
+        : `وصلك ${created.count} اقتراحات توافق جديدة. قم بمراجعتها.`;
+    if (mutual) {
+      await notify({ userId, type: "SUGGESTION", title, body, url: "/dashboard/suggestions" });
+      // The other people see the same suggestion
+      const created = await db.suggestion.findMany({
+        where: { recipientId: userId, flow: "MUTUAL", candidateId: { in: top.map((t) => t.candidate.id) } },
+        select: { candidateId: true },
+      });
+      await notifyMany(created.map((c) => c.candidateId), {
+        type: "SUGGESTION",
+        title: "اقتراح توافق جديد",
+        body: "وصلك اقتراح توافق جديد. قم بمراجعته.",
+        url: "/dashboard/suggestions",
+      });
+    } else {
+      await notify({ userId, type: "SUGGESTION", title, body, url: "/dashboard/suggestions" });
+    }
+
+    if (!perRequestCredits && user.matchCredits - created.count <= 0) await notifyCreditsExhausted(userId);
+
+    return outcome(created.count);
+  } finally {
+    reserved.forEach((k) => pairsInFlight.delete(k));
   }
-
-  if (!perRequestCredits && user.matchCredits - created.count <= 0) await notifyCreditsExhausted(userId);
-
-  return outcome(created.count);
 }
 
 /** Suggestions per user (either side) since `since`, for the given users. */

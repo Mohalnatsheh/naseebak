@@ -135,6 +135,13 @@ export async function PUT(request: Request) {
     if (existing?.isComplete) {
       const changed = reviewedChanges(existing as unknown as Record<string, unknown>, updateData);
       if (changed.length > 0) return NextResponse.json(needsReviewBody(changed), { status: 409 });
+    } else {
+      // Finishing the setup: the guardian (step 5) must be saved first, so a "complete" profile always
+      // has one (a family introduction needs it)
+      const guardian = await db.parentInfo.findUnique({ where: { userId: session.user.id }, select: { id: true } });
+      if (!guardian) {
+        return NextResponse.json({ error: "أكمل بيانات وليّ الأمر أولاً", code: "GUARDIAN_REQUIRED" }, { status: 400 });
+      }
     }
 
     const profile = await db.profile.upsert({

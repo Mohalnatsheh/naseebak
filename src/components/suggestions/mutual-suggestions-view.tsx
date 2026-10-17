@@ -174,7 +174,7 @@ export function MutualSuggestionsView({
       }
     }, DECLINE_UNDO_MS);
     pendingDeclines.current.set(item.id, { item, timer });
-    toast("تم. لن يظهر لك هذا الاقتراح مجدداً، ولن يعرف الطرف الآخر بقرارك.", {
+    toast("تم. لن يظهر لك هذا الاقتراح مجدداً، ولا نُطلع الطرف الآخر على قرار «لا».", {
       duration: DECLINE_UNDO_MS,
       action: {
         label: "تراجع",
@@ -332,7 +332,7 @@ export function MutualSuggestionsView({
           <p className="text-muted-foreground text-sm md:text-base leading-relaxed">
             {creditOnInterest
               ? "يرى الطرفان الاقتراح نفسه ويقرّر كلٌّ منكما وحده. إذا كان الاهتمام متبادلاً يصبح توافقاً، ولا نُطلع أحداً على قرار «لا». عندما يكون الرصيد صفراً قد يظهر أن الطرف الآخر أبدى اهتمامه."
-              : "يرى الطرفان الاقتراح نفسه ويقرّر كلٌّ منكما وحده. إذا كان الاهتمام متبادلاً يصبح توافقاً، ولا يعرف أحد بقرار الآخر غير ذلك."}
+              : "يرى الطرفان الاقتراح نفسه ويقرّر كلٌّ منكما وحده. إذا كان الاهتمام متبادلاً يصبح توافقاً، ولا نُطلع أحداً على قرار «لا»."}
           </p>
           {creditOnInterest && (
             <p className="flex items-center gap-1.5 text-xs md:text-sm font-medium text-foreground/80">
@@ -404,7 +404,7 @@ export function MutualSuggestionsView({
             </div>
           )}
           {notice.kind === "interested" && "تم تسجيل اهتمامك. إذا أبدى الطرف الآخر اهتمامه أيضاً يصبح توافقاً متبادلاً ونخبرك فوراً."}
-          {notice.kind === "declined" && "تم. لن يظهر لك هذا الاقتراح مجدداً، ولن يعرف الطرف الآخر بقرارك."}
+          {notice.kind === "declined" && "تم. لن يظهر لك هذا الاقتراح مجدداً، ولا نُطلع الطرف الآخر على قرار «لا»."}
           {notice.kind === "no_credits" && (
             <div className="flex flex-wrap items-center justify-between gap-3">
               <span>{rechargeToContinue(viewerFemale)}</span>

@@ -24,6 +24,7 @@ vi.mock("@/lib/cron/suggestions", () => ({
   expireMutualSuggestionsAll: tasks.expireMutualSuggestionsAll,
   remindMutualSuggestions: tasks.remindMutualSuggestions,
   runWeeklySuggestions: tasks.runWeeklySuggestions,
+  healMissingMatches: vi.fn(async () => ({ healed: 0 })),
 }));
 vi.mock("@/lib/cron/reengagement", () => ({ runReengagement: tasks.runReengagement }));
 vi.mock("@/lib/cron/deletions", () => ({ processAccountDeletions: tasks.processAccountDeletions }));
@@ -31,6 +32,7 @@ vi.mock("@/lib/auth", () => authMod);
 vi.mock("@/lib/intro/followup", () => ({
   remindGuardianShare: vi.fn(async () => ({ reminded: 0 })),
   runFamilyFollowUps: vi.fn(async () => ({ matches: 0, notified: 0 })),
+  cancelClosedLegacyVisits: vi.fn(async () => ({ cancelled: 0 })),
 }));
 
 import { LAST_RUN_KEY, getLastDailyRun, runDailyJobs } from "@/lib/cron/daily";

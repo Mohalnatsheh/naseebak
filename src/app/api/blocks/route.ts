@@ -3,6 +3,7 @@ import { z } from "zod/v4";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { cancelPendingBetween } from "@/lib/matches/state";
+import { publishChatEvent } from "@/lib/ably";
 import { closeSuggestionsBetween } from "@/lib/suggestions/mutual";
 
 export async function GET() {
@@ -76,6 +77,23 @@ export async function POST(request: Request) {
       },
     });
     await cancelPendingBetween(session.user.id, blockedId);
+    // A block ends their open chat for good (unblocking later doesn't silently reopen it)
+    const open = await db.conversation.findMany({
+      where: {
+        status: "ACTIVE",
+        match: {
+          OR: [
+            { femaleId: session.user.id, maleId: blockedId },
+            { femaleId: blockedId, maleId: session.user.id },
+          ],
+        },
+      },
+      select: { id: true },
+    });
+    for (const c of open) {
+      await db.conversation.update({ where: { id: c.id }, data: { status: "ENDED", endedById: session.user.id, endedAt: new Date() } });
+      await publishChatEvent(c.id, "status", { status: "ENDED" }).catch(() => {});
+    }
     await closeSuggestionsBetween(session.user.id, blockedId).catch((e) => console.error("Close suggestions on block:", e));
 
     return NextResponse.json({ message: "تم حظر المستخدم بنجاح", block });

@@ -22,7 +22,7 @@ export function OneSignalProvider() {
         const OneSignal = OneSignalModule.default;
 
         // Safari needs its web id (OneSignal dashboard → Settings → Web); the bell widget stays off,
-        // the dashboard has its own Arabic prompt (PushPermissionPrompt)
+        // the dashboard has its own Arabic bar (NotificationBar)
         const safariWebId = process.env.NEXT_PUBLIC_ONESIGNAL_SAFARI_WEB_ID;
         await OneSignal.init({
           appId: appId!,

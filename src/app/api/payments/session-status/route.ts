@@ -15,6 +15,10 @@ export async function GET(request: Request) {
     }
 
     const checkoutSession = await getStripe().checkout.sessions.retrieve(sessionId);
+    // Only the person who started this checkout may look at it
+    if (checkoutSession.metadata?.userId !== result.session.user.id) {
+      return NextResponse.json({ error: "الجلسة غير موجودة" }, { status: 404 });
+    }
 
     return NextResponse.json({
       status: checkoutSession.status,

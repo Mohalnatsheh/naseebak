@@ -1,7 +1,7 @@
 /**
  * Daily scheduler — simultaneous suggestions and the weekly free suggestions.
  * Expiry matches the lazy path (`expireMutualSuggestions`), reminders never reveal the other side's
- * decision (whoever hasn't decided gets the same message, whatever the other did), and new weekly
+ * decision (a row the other side declined gets no reminder: it can't become a match), and new weekly
  * suggestions go through `autoSuggestForUser`, which applies every rule and sends the notifications.
  */
 import { db } from "@/lib/db";
@@ -70,6 +70,8 @@ export async function remindMutualSuggestions(now = new Date()): Promise<{ sugge
       select: { id: true },
     });
     if (block) continue;
+    // One side already said «لا»: it can't become a match, so don't push the other to spend a credit on it
+    if (s.recipientDecision === "DECLINED" || s.candidateDecision === "DECLINED") continue;
 
     suggestions++;
     const undecided = [
@@ -141,4 +143,42 @@ export async function runWeeklySuggestions(
     }
   }
   return { eligible: underCap.length, processed, created, failed };
+}
+
+/**
+ * Both said «مهتم» (row ACCEPTED) but creating the match failed: create it now. Without this the pair
+ * is charged and stuck with no match. Skips people who left or blocked each other since.
+ */
+export async function healMissingMatches(now = new Date()): Promise<{ healed: number }> {
+  const rows = await db.suggestion.findMany({
+    where: {
+      flow: "MUTUAL",
+      status: "ACCEPTED",
+      recipientDecision: "INTERESTED",
+      candidateDecision: "INTERESTED",
+      updatedAt: { gte: new Date(now.getTime() - 30 * DAY_MS) },
+    },
+    select: { id: true, recipientId: true, candidateId: true, recipient: partySelect, candidate: partySelect },
+    take: BATCH,
+  });
+  let healed = 0;
+  for (const s of rows) {
+    const female = s.recipient.gender === "FEMALE" ? s.recipient : s.candidate;
+    const male = female.id === s.recipientId ? s.candidate : s.recipient;
+    const exists = await db.mutualMatch.findFirst({ where: { femaleId: female.id, maleId: male.id }, select: { id: true } });
+    if (exists || isUnavailable(female) || isUnavailable(male)) continue;
+    const block = await db.block.findFirst({
+      where: { OR: [{ blockerId: female.id, blockedId: male.id }, { blockerId: male.id, blockedId: female.id }] },
+      select: { id: true },
+    });
+    if (block) continue;
+    try {
+      const { createMutualMatch } = await import("@/lib/intro/match");
+      await createMutualMatch({ femaleId: female.id, maleId: male.id, suggestionId: s.id });
+      healed++;
+    } catch (e) {
+      console.error("[cron] heal match", s.id, e);
+    }
+  }
+  return { healed };
 }

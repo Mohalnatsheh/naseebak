@@ -33,13 +33,19 @@ export async function GET(request: Request) {
         select: {
           id: true,
           createdAt: true,
+          openedAt: true,
+          femaleGuardianShareAt: true,
+          maleGuardianShareAt: true,
+          femaleOutcome: true,
+          maleOutcome: true,
+          followUpCount: true,
           female: person,
           male: person,
           visitRequest: { select: { status: true } },
           conversation: { select: { id: true, status: true, expiresAt: true } },
           introRequests: {
             orderBy: { createdAt: "desc" },
-            select: { type: true, status: true, expiresAt: true, senderId: true },
+            select: { type: true, status: true, expiresAt: true, senderId: true, respondedAt: true },
           },
         },
       }),
@@ -47,7 +53,9 @@ export async function GET(request: Request) {
 
     const latest = (rs: (typeof rows)[number]["introRequests"], type: "FAMILY" | "CHAT") => {
       const r = rs.find((x) => x.type === type);
-      return r ? { status: effectiveRequestStatus(r, now), senderId: r.senderId } : null;
+      // Rows created automatically when both chose the same path on «مهتم» (answered at creation)
+      const auto = !!r?.respondedAt && r.respondedAt.getTime() === r.expiresAt.getTime();
+      return r ? { status: effectiveRequestStatus(r, now), senderId: r.senderId, auto } : null;
     };
 
     return NextResponse.json({
@@ -59,6 +67,9 @@ export async function GET(request: Request) {
         chatRequest: latest(m.introRequests, "CHAT"),
         chat: m.conversation ? { id: m.conversation.id, status: effectiveConversationStatus(m.conversation, now) } : null,
         visit: m.visitRequest?.status ?? null,
+        // Opened straight from «مهتم»: whose guardian contact is shared on this match
+        guardianShared: m.openedAt ? { female: !!m.femaleGuardianShareAt, male: !!m.maleGuardianShareAt } : null,
+        outcome: { female: m.femaleOutcome, male: m.maleOutcome, followUps: m.followUpCount },
       })),
       page,
       total,

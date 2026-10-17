@@ -524,7 +524,8 @@ export default function ProfileEditPage() {
       const allOk = results.every((r) => r.ok);
 
       if (allOk) {
-        setReviewSent(Object.keys(changes).length > 0);
+        // Partner preferences save directly; only the other fields wait for review
+        setReviewSent(Object.keys(changes).some((k) => !k.startsWith("pref")));
         setSuccess(true);
       } else {
         const failedRes = results.find((r) => !r.ok);

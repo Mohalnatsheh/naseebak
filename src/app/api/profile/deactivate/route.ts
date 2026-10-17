@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { closeActivityForLeaving } from "@/lib/matches/leave";
 
 export async function POST() {
   try {
@@ -24,6 +25,8 @@ export async function POST() {
       where: { id: session.user.id },
       data: { isDeactivated: newStatus },
     });
+    // Pausing: end open chats and pending requests, so partners aren't left waiting
+    if (newStatus) await closeActivityForLeaving(session.user.id, "paused").catch((e) => console.error("Leave cleanup error:", e));
 
     return NextResponse.json({
       message: newStatus ? "تم تعطيل الحساب بنجاح" : "تم تفعيل الحساب بنجاح",

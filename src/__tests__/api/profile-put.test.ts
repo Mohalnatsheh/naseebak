@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const db = vi.hoisted(() => ({
   profile: { findUnique: vi.fn(), upsert: vi.fn() },
+  parentInfo: { findUnique: vi.fn() },
 }));
 vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/auth", () => ({
@@ -56,10 +57,20 @@ const put = async (body: unknown): Promise<Response> =>
 
 beforeEach(() => {
   vi.clearAllMocks();
+  db.parentInfo.findUnique.mockResolvedValue({ id: "g1" });
   db.profile.upsert.mockResolvedValue({ id: "p1" });
 });
 
 describe("PUT /api/profile", () => {
+  it("refuses to finish the setup before the guardian is saved", async () => {
+    db.profile.findUnique.mockResolvedValue(null);
+    db.parentInfo.findUnique.mockResolvedValue(null);
+    const res = await put(payload);
+    expect(res.status).toBe(400);
+    expect((await res.json()).code).toBe("GUARDIAN_REQUIRED");
+    expect(db.profile.upsert).not.toHaveBeenCalled();
+  });
+
   it("saves the first setup submit (no profile yet)", async () => {
     db.profile.findUnique.mockResolvedValue(null);
     const res = await put(payload);

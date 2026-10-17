@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { calculateCompleteness } from "@/lib/profile-completeness";
 import { recordCredit } from "@/lib/credits";
 import { notify } from "@/lib/notify";
+import { getCycleFlags } from "@/lib/settings";
 const CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"; // excludes 0/O/1/I/L
 
 export function generateReferralCode(): string {
@@ -13,8 +14,9 @@ export function generateReferralCode(): string {
 }
 
 /**
- * Referral reward: when a referred user's profile reaches 100%, the referee gets +1 credit
- * and the referrer +2. Called after every save that can raise completeness (profile, guardian
+ * Referral reward: when a referred user finishes their profile, the referee gets +1 credit and the
+ * referrer +2. New cycle: the finished setup (the same gate as suggestions, guardian included);
+ * legacy: 100% completeness. Called after every save that can raise completeness (profile, guardian
  * info, photos, personality quiz). Claimed atomically, so it is paid at most once.
  */
 export async function maybeAwardReferral(userId: string): Promise<void> {
@@ -35,7 +37,12 @@ export async function maybeAwardReferral(userId: string): Promise<void> {
         parentInfo: { select: { id: true, parentName: true } },
       },
     });
-    if (!user || calculateCompleteness(user).total < 100) return;
+    if (!user) return;
+    const { introRequests: newCycle } = await getCycleFlags();
+    const finished = newCycle
+      ? !!user.profile?.isComplete && !!user.parentInfo
+      : calculateCompleteness(user).total >= 100;
+    if (!finished) return;
 
     const awarded = await db.$transaction(async (tx) => {
       const claim = await tx.referral.updateMany({

@@ -17,6 +17,9 @@ import { db } from "@/lib/db";
  * ended: someone said «لم يحصل نصيب» after the introduction · engaged: I told us it ended in an engagement
  * (see src/lib/intro/followup.ts)
  */
+/** Days after a chat ran out (no family request since) before the match counts as finished */
+export const CHAT_STALE_DAYS = 14;
+
 export type MatchClosure = "blocked" | "inactive" | "finished" | "ended" | "engaged";
 
 /** Admin is already arranging (or arranged) the visit the old way */
@@ -80,6 +83,12 @@ export function describeMatch(f: MatchFacts, now = new Date()): MatchDescription
     !!f.conversation && f.conversation.status === "ACTIVE" && f.conversation.expiresAt > now;
 
   const canSendFamily = !acceptedFamily && !pendingFamily && !declinedFamily && !legacyAdmin && !endedByUser;
+  // A chat that ran out more than CHAT_STALE_DAYS ago with no family request after it: the match
+  // has faded, close it instead of keeping it "to do" forever
+  const chatFaded =
+    !!f.conversation &&
+    f.conversation.status !== "ENDED" &&
+    f.conversation.expiresAt.getTime() < now.getTime() - CHAT_STALE_DAYS * 24 * 60 * 60 * 1000;
   const canSendChat = f.chatEnabled && !f.conversation && !pendingChat && !declinedChat;
 
   const finished =
@@ -88,8 +97,7 @@ export function describeMatch(f: MatchFacts, now = new Date()): MatchDescription
     !pendingChat &&
     !legacyAdmin &&
     !chatOpen &&
-    (declinedFamily || endedByUser) &&
-    (declinedChat || !!f.conversation);
+    (((declinedFamily || endedByUser) && (declinedChat || !!f.conversation)) || chatFaded);
 
   return {
     closed: finished ? "finished" : null,

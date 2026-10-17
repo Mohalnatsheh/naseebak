@@ -4,6 +4,7 @@
  */
 import { db } from "@/lib/db";
 import { deleteFromBunny, getBunnyPathFromUrl } from "@/lib/bunny";
+import { closeActivityForLeaving } from "@/lib/matches/leave";
 
 export async function processAccountDeletions(): Promise<number> {
   // Find all requests that are past the scheduled date and not cancelled
@@ -65,6 +66,9 @@ export async function processAccountDeletions(): Promise<number> {
         // Bunny cleanup failures must not block DB deletion
         console.warn(`Bunny cleanup warning for user ${req.userId}:`, bunnyErr);
       }
+
+      // Partners are told before the matches disappear with the account
+      await closeActivityForLeaving(req.userId, "deleted").catch((e) => console.warn(`Leave notice warning for ${req.userId}:`, e));
 
       // Delete all user data (cascade will handle most relations)
       // But we need to clean up manual relations first

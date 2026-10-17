@@ -149,7 +149,7 @@ export async function POST(request: Request) {
       : Math.floor(100000 + Math.random() * 900000).toString();
 
     // Store OTP with 5-minute expiry
-    await db.otp.create({
+    const stored = await db.otp.create({
       data: {
         phone,
         code: generatedCode,
@@ -164,7 +164,13 @@ export async function POST(request: Request) {
         `رمز التحقق الخاص بك في نصيبك: ${generatedCode}`
       );
       if (!sent) {
-        console.warn(`[SMS] Failed to send OTP to ${phone}, code stored in DB`);
+        // Don't tell the person a code is on its way when it isn't: they would wait for nothing
+        console.warn(`[SMS] Failed to send OTP to ${phone}`);
+        await db.otp.delete({ where: { id: stored.id } }).catch(() => {});
+        return NextResponse.json(
+          { error: "تعذّر إرسال رمز التحقق الآن. حاول مرة أخرى بعد دقيقة." },
+          { status: 502 }
+        );
       }
     }
 

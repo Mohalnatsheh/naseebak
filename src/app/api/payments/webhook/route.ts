@@ -29,9 +29,15 @@ export async function POST(request: Request) {
 
   try {
     switch (event.type) {
-      case "checkout.session.completed": {
+      case "checkout.session.completed":
+      case "checkout.session.async_payment_succeeded": {
         const session = event.data.object as Stripe.Checkout.Session;
         const { paymentId, userId, credits } = session.metadata || {};
+        // "completed" also fires for payments still being processed: credits only once the money is in
+        if (session.payment_status !== "paid") {
+          console.warn("Webhook: checkout not paid yet", session.id, session.payment_status);
+          break;
+        }
 
         if (!paymentId || !userId || !credits) {
           console.error("Webhook missing metadata:", session.metadata);

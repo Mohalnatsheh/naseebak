@@ -466,7 +466,7 @@ describe("cancelIntroRequest", () => {
     await expectCode(cancelIntroRequest({ requestId: "r1", userId: "f1" }), "NOT_FOUND");
   });
 
-  it("cancels a pending request without refund or notification, and clears the receiver's badge", async () => {
+  it("cancels a pending request without refund, clears the receiver's badge and tells them it was withdrawn", async () => {
     db.introRequest.findUnique.mockResolvedValue(pending());
     const res = await cancelIntroRequest({ requestId: "r1", userId: "u1" });
     expect(res).toEqual({ status: "CANCELLED" });
@@ -475,7 +475,8 @@ describe("cancelIntroRequest", () => {
     });
     expect(credits.refundCredits).not.toHaveBeenCalled();
     expect(credits.recordCredit).not.toHaveBeenCalled();
-    expect(notifyMod.notify).not.toHaveBeenCalled();
+    expect(notifyMod.notify).toHaveBeenCalledTimes(1);
+    expect(notifyMod.notify).toHaveBeenCalledWith(expect.objectContaining({ userId: "f1", type: "INTRO_REQUEST" }));
     expect(db.notification.updateMany).toHaveBeenCalledWith(expect.objectContaining({
       where: expect.objectContaining({ userId: "f1", type: "INTRO_REQUEST", isRead: false }),
       data: { isRead: true },

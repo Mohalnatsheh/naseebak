@@ -1,8 +1,8 @@
 /**
  * In-app chat between two matched users after an accepted chat request.
  * Text only, 14 days (+7 once in the last 3 days), filtered, rate-limited.
- * Expiry and the "2 days left" warning are applied lazily whenever a conversation is read,
- * so no scheduler is needed.
+ * Expiry, the day-7 family nudge and the "2 days left" warning are applied lazily whenever a
+ * conversation is read, and by the daily job (chatHousekeepingAll) for chats nobody opens.
  */
 import type { ReportReason } from "@prisma/client";
 import { db } from "@/lib/db";
@@ -88,6 +88,12 @@ async function housekeeping(c: LoadedConversation): Promise<LoadedConversation> 
  * ended the chat, and no family request pending, accepted or declined (a decline is final) and no
  * legacy admin visit under way — the same cases where the chat page offers the button.
  */
+/** Both accounts active and no block between them. */
+async function bothCanTalk(c: LoadedConversation): Promise<boolean> {
+  if (isUnavailable(c.match.female) || isUnavailable(c.match.male)) return false;
+  return !(await isBlocked(c.match.femaleId, c.match.maleId));
+}
+
 async function familyPathOpen(c: LoadedConversation): Promise<boolean> {
   if (c.endedById) return false;
   if (isUnavailable(c.match.female) || isUnavailable(c.match.male)) return false;
@@ -162,6 +168,8 @@ async function housekeep(c: LoadedConversation): Promise<{ c: LoadedConversation
       data: { expiryWarnedAt: warnedAt },
     });
     if (count !== 1) return { c: { ...c, expiryWarnedAt: warnedAt }, did: null };
+    // Nobody to talk to (a block, or an account that isn't active): no "ends soon" push
+    if (!(await bothCanTalk(c))) return { c: { ...c, expiryWarnedAt: warnedAt }, did: null };
     await notifyMany([c.match.femaleId, c.match.maleId], {
       type: "CHAT",
       title: "تنتهي المحادثة قريباً",
@@ -449,6 +457,9 @@ export async function extendConversation(conversationId: string, userId: string)
   }
   // A blocked chat is read-only for the blocker too: nothing to extend
   if (await isBlocked(userId, partnerOf(c, userId).id)) throw new IntroError("BLOCKED");
+  if (isUnavailable(c.match.female) || isUnavailable(c.match.male)) {
+    throw new IntroError("NOT_ALLOWED", "هذا الحساب غير نشط حالياً");
+  }
   const expiresAt = new Date(c.expiresAt.getTime() + EXTENSION_DAYS * DAY_MS);
   await db.conversation.update({
     where: { id: conversationId },

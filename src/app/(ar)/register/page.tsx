@@ -206,6 +206,8 @@ function RegisterPageContent() {
 
   // Optional photo
   const [wantsPhoto, setWantsPhoto] = useState(false);
+  /** Optional extras that didn't go through (shown on the success screen; the account is fine) */
+  const [extraWarnings, setExtraWarnings] = useState<string[]>([]);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
@@ -411,15 +413,20 @@ function RegisterPageContent() {
       trackEvent("sign_up", { method: "phone" });
 
       // Step 3.5: Apply referral code if provided
+      const warnings: string[] = [];
       if (form.referralCode && form.referralCode.length === 8) {
         try {
-          await fetch("/api/referral/apply", {
+          const res = await fetch("/api/referral/apply", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ code: form.referralCode }),
           });
+          if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            warnings.push(`لم يُطبَّق رمز الدعوة: ${data.error ?? "تعذّر التحقق منه"}`);
+          }
         } catch {
-          // Referral apply failure is non-blocking
+          warnings.push("لم يُطبَّق رمز الدعوة بسبب مشكلة في الاتصال.");
         }
       }
 
@@ -427,15 +434,17 @@ function RegisterPageContent() {
       if (wantsPhoto && photoFile) {
         try {
           const photoData = await compressImage(photoFile);
-          await fetch("/api/profile/photos", {
+          const res = await fetch("/api/profile/photos", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ photoData, isPrimary: true }),
           });
+          if (!res.ok) warnings.push("لم نتمكن من رفع صورتك الآن. يمكنك إضافتها لاحقاً من صفحة «صوري».");
         } catch {
-          // Non-blocking: the photo can be added later from صوري
+          warnings.push("لم نتمكن من رفع صورتك الآن. يمكنك إضافتها لاحقاً من صفحة «صوري».");
         }
       }
+      setExtraWarnings(warnings);
 
       // Move to success step
       goToStep(2);
@@ -1039,6 +1048,13 @@ function RegisterPageContent() {
                       : "إكمال ملفك الشخصي بنسبة 50% يتيح لك البدء بتلقي اقتراحات التوافق، ومعك رصيد مجاني للبدء"}
                   </p>
                 </div>
+                {extraWarnings.length > 0 && (
+                  <div role="status" className="space-y-1 rounded-xl border border-amber-200 bg-amber-50 p-3 text-start text-xs leading-relaxed text-amber-800">
+                    {extraWarnings.map((w) => (
+                      <p key={w}>{w}</p>
+                    ))}
+                  </div>
+                )}
                 <Button
                   onClick={() => {
                     router.push("/dashboard/profile/setup");

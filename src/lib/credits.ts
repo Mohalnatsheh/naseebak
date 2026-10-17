@@ -4,7 +4,8 @@
  * Per-request mode (switch `intro_requests_enabled`): suggestions are free (WEEKLY_FREE_SUGGESTIONS
  * per rolling 7 days) and each family/chat request costs the sender 1 credit, never refunded.
  * Credit-on-interest mode (switch `credit_on_interest`): "مهتم" on a suggestion costs 1 credit
- * (reason INTEREST, never refunded); "لا" is free.
+ * (reason INTEREST); "لا" is free. Refunded (REFUND) only when the suggestion closes with the other
+ * side never answering (`refundUnansweredInterests` in suggestions/mutual.ts), never after a "لا".
  */
 import { db } from "@/lib/db";
 import { notify } from "@/lib/notify";

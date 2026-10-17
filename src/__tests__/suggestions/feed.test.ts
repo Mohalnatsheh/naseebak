@@ -152,7 +152,7 @@ describe("getSuggestionFeed — ordering", () => {
   });
 });
 
-describe("getSuggestionFeed — locked at 0 credits", () => {
+describe("getSuggestionFeed — at 0 credits", () => {
   const on = { introRequests: true, chat: true, mutualSuggestions: true, creditOnInterest: true };
   const broke = { ...me, matchCredits: 0 };
   const withDecision = (id: string, otherDecision: "INTERESTED" | "DECLINED" | null) => ({
@@ -162,17 +162,15 @@ describe("getSuggestionFeed — locked at 0 credits", () => {
     candidateDecision: null,
   });
 
-  it("feed returns locked items at 0 credits (flag on)", async () => {
+  it("keeps the full card at 0 credits (only «مهتم» waits for a recharge)", async () => {
     settings.getCycleFlags.mockResolvedValue(on);
     db.user.findUnique.mockResolvedValue(broke);
     db.suggestion.findMany.mockResolvedValueOnce([withDecision("s1", null)]).mockResolvedValueOnce([]);
     const { items, total } = await getSuggestionFeed("me", "new", 1);
     expect(total).toBe(1);
-    expect(items[0]).toEqual({
-      kind: "mutual", id: "s1", compatibilityScore: 70, expiresAt: expect.any(String), locked: true,
-    });
-    const json = JSON.stringify(items);
-    for (const key of ["candidate", "firstName", "f-s1", "reason", "city", "Decision"]) expect(json).not.toContain(key);
+    expect(items[0]).toMatchObject({ kind: "mutual", id: "s1", candidate: expect.objectContaining({ firstName: expect.any(String) }) });
+    expect(items[0]).not.toHaveProperty("locked");
+    expect(JSON.stringify(items)).not.toContain("Decision");
   });
 
   it("likedYou only when the other said INTERESTED (not on DECLINED or undecided)", async () => {
@@ -183,13 +181,14 @@ describe("getSuggestionFeed — locked at 0 credits", () => {
       .mockResolvedValueOnce([]);
     const { items } = await getSuggestionFeed("me", "new", 1);
     const byId = Object.fromEntries(items.map((i) => [i.id, i]));
-    expect(byId.yes).toMatchObject({ locked: true, likedYou: true });
+    expect(byId.yes).toMatchObject({ likedYou: true });
     expect(byId.no).not.toHaveProperty("likedYou");
     expect(byId.none).not.toHaveProperty("likedYou");
-    expect(JSON.stringify(byId.no)).toEqual(JSON.stringify({ ...byId.none, id: "no" }));
+    // A "لا" looks exactly like no decision
+    expect(Object.keys(byId.no).sort()).toEqual(Object.keys(byId.none).sort());
   });
 
-  it("likedYou never present when unlocked", async () => {
+  it("likedYou never present with credits left", async () => {
     settings.getCycleFlags.mockResolvedValue(on);
     db.suggestion.findMany.mockResolvedValueOnce([withDecision("s1", "INTERESTED")]).mockResolvedValueOnce([]);
     const { items } = await getSuggestionFeed("me", "new", 1);

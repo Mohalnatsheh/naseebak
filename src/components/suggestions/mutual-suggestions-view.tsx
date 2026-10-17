@@ -17,11 +17,10 @@ import { CandidateDetails } from "@/components/suggestions/candidate-details";
 import { DealbreakersCard } from "@/components/suggestions/dealbreakers-card";
 import { InterestDialog, rechargeToContinue, type IntroPreferenceChoice } from "@/components/suggestions/interest-dialog";
 import { CREDIT_ON_INTEREST_LINE } from "@/lib/suggestions/copy";
-import { LockedSuggestionCard } from "@/components/suggestions/locked-suggestion-card";
 import { trackEvent } from "@/lib/analytics";
 import { useDashboardData } from "@/contexts/dashboard-context";
 import { describeOption, nationalityLabel, oppositeGender } from "@/lib/profile-options";
-import { isLockedItem, type FeedItem, type FeedTab, type OpenFeedItem } from "@/lib/suggestions/feed-types";
+import type { FeedItem, FeedTab, OpenFeedItem } from "@/lib/suggestions/feed-types";
 import type { SuggestEmptyReason } from "@/lib/matching/auto-suggest";
 
 type Notice =
@@ -297,7 +296,7 @@ export function MutualSuggestionsView({
       body: JSON.stringify({ blockedId: report.userId }),
     }).catch(() => null);
     setReportSubmitting(false);
-    const item = items.find((i) => !isLockedItem(i) && i.candidate.id === report.userId);
+    const item = items.find((i) => i.candidate.id === report.userId);
     if (item && blocked?.ok) {
       removeAndRefill(item.id);
       setTotals((t) => ({ ...t, [tab]: Math.max(0, t[tab] - 1) }));
@@ -473,27 +472,23 @@ export function MutualSuggestionsView({
         </Card>
       ) : (
         <div className="space-y-6">
-          {/* 0 credits: locked cards keep their 5 slots until they expire, so say why nothing new arrives */}
-          {tab === "new" && items.some(isLockedItem) && (
-            <div role="note" className="flex items-start gap-3 rounded-xl border border-amber-200/60 bg-amber-50/70 p-4 text-sm leading-relaxed text-amber-900">
+          {/* 0 credits: everything stays visible and «لا» is free; only «مهتم» waits for a recharge */}
+          {tab === "new" && outOfCredits && (
+            <div role="note" className="flex flex-wrap items-start gap-3 rounded-xl border border-amber-200/60 bg-amber-50/70 p-4 text-sm leading-relaxed text-amber-900">
               <Coins className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-              <p>
-                <span className="font-semibold">رصيدك صفر، لذلك اقتراحاتك الجديدة مقفلة.</span>{" "}
+              <p className="min-w-0 flex-1">
+                <span className="font-semibold">رصيدك صفر.</span>{" "}
                 {g(
-                  "تبقى محفوظة لك حتى 14 يوماً من وصولها، ولا تصلك اقتراحات جديدة بدلها قبل ذلك. اشحن رصيدك لتراها وتقرّر فيها.",
-                  "تبقى محفوظة لكِ حتى 14 يوماً من وصولها، ولا تصلكِ اقتراحات جديدة بدلها قبل ذلك. اشحني رصيدكِ لتريها وتقرّري فيها."
+                  "يمكنك تصفّح اقتراحاتك والرد بـ«لا» مجاناً، واشحن رصيدك لتختار «مهتم».",
+                  "يمكنكِ تصفّح اقتراحاتكِ والرد بـ«لا» مجاناً، واشحني رصيدكِ لتختاري «مهتم»."
                 )}
               </p>
+              <Link href="/dashboard/payments" className="font-semibold underline underline-offset-4">
+                {g("اشحن رصيدك", "اشحني رصيدك")}
+              </Link>
             </div>
           )}
           {items.map((item, index) => {
-            if (isLockedItem(item)) {
-              return (
-                <div key={item.id} style={{ animation: `fadeSlideIn 0.4s ease-out ${index * 0.08}s both` }}>
-                  <LockedSuggestionCard score={item.compatibilityScore} likedYou={item.likedYou} partnerGender={partnerGender} />
-                </div>
-              );
-            }
             const c = item.candidate;
             const score = Math.round(item.compatibilityScore);
             const isOpen = expanded.has(item.id);
@@ -516,7 +511,7 @@ export function MutualSuggestionsView({
                           <Hourglass className="h-3 w-3" /> بانتظار الطرف الآخر
                         </Badge>
                       )}
-                      {item.kind === "legacy_interest" && (
+                      {(item.kind === "legacy_interest" || item.likedYou) && (
                         <Badge className="bg-accent/15 text-accent-foreground border border-accent/25 text-[11px]">{partnerGender === "FEMALE" ? "أبدت اهتمامها بك" : "أبدى اهتمامه بك"}</Badge>
                       )}
                     </>
@@ -545,7 +540,7 @@ export function MutualSuggestionsView({
                     <>
                       {waiting && (
                         <p className="mb-3 text-xs text-muted-foreground leading-relaxed">
-                          {partnerGender === "FEMALE" ? "إذا أبدت اهتمامها أيضاً" : "إذا أبدى اهتمامه أيضاً"} يصبح توافقاً متبادلاً ونخبرك فوراً. يُغلق الاقتراح تلقائياً بعد 14 يوماً من وصوله إن لم يكتمل.
+                          {partnerGender === "FEMALE" ? "إذا أبدت اهتمامها أيضاً" : "إذا أبدى اهتمامه أيضاً"} يصبح توافقاً متبادلاً ونخبرك فوراً. يُغلق الاقتراح تلقائياً بعد 7 أيام من وصوله إن لم يكتمل.
                         </p>
                       )}
                       {!waiting && creditOnInterest && (
@@ -576,8 +571,8 @@ export function MutualSuggestionsView({
                             <Button
                               variant="outline"
                               onClick={() => declineWithUndo(item)}
-                              // A shared suggestion is locked at 0 credits (the API refuses "لا" too)
-                              disabled={acting === item.id || (outOfCredits && item.kind === "mutual")}
+                              // «لا» is always free, also at 0 credits
+                              disabled={acting === item.id}
                               className="h-12 px-6 border-destructive/30 text-destructive/80 hover:bg-destructive/5 hover:text-destructive rounded-xl font-bold"
                             >
                               <X className="h-5 w-5 me-1" />لا

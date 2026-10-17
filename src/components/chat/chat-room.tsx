@@ -456,8 +456,18 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
               ? "تم إنهاء هذه المحادثة من طرفك."
               : "أنهى الطرف الآخر هذه المحادثة."
             : conversation.status === "EXPIRED"
-              ? "انتهت مدة المحادثة. يمكنكما الانتقال لتعارف عائلي."
+              ? family?.status === "none" && intro?.flags.introRequests && !intro.closed
+                ? "انتهت مدة المحادثة. هل تنتقلان لتعارف عائلي؟ الانتقال مجاني."
+                : "انتهت مدة المحادثة."
               : "المحادثات متوقفة مؤقتاً. يمكنك قراءة الرسائل السابقة."}
+          {/* An expired chat keeps the free move to family: offer it right here */}
+          {conversation.status === "EXPIRED" && !conversation.blocked && family?.status === "none" && intro?.flags.introRequests && !intro.closed && (
+            <div className="mt-2">
+              <Button size="sm" onClick={() => setFamilyDialog(true)} className="gap-1.5">
+                <Users className="h-4 w-4" aria-hidden="true" /> ننتقل لتعارف عائلي
+              </Button>
+            </div>
+          )}
         </div>
       )}
 

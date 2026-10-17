@@ -202,7 +202,7 @@ export function InterestDialog({ open, onOpenChange, partnerGender, credits, cha
             <Coins className="mt-0.5 h-4 w-4 flex-shrink-0 text-accent-foreground" aria-hidden="true" />
             <div className="space-y-1">
               <p className="font-semibold text-foreground">مهتم يستخدم رصيداً واحداً — رصيدك {credits}</p>
-              <p className="text-muted-foreground">لا يُسترجع الرصيد إن لم يكتمل التوافق. التوافق والطلبات والمحادثة بعده مجانية.</p>
+              <p className="text-muted-foreground">يعود الرصيد إذا انتهت مدة الاقتراح (7 أيام) دون ردّ من الطرف الآخر. التوافق والطلبات والمحادثة بعده مجانية.</p>
             </div>
           </div>
         )}

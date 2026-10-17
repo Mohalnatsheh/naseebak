@@ -13,10 +13,15 @@ import { expireMutualSuggestions } from "@/lib/suggestions/mutual";
 beforeEach(() => {
   vi.clearAllMocks();
   db.suggestion.updateMany.mockResolvedValue({ count: 2 });
-  db.suggestion.findMany.mockResolvedValue([
-    { recipientId: "u1", candidateId: "f1" },
-    { recipientId: "u1", candidateId: "f2" },
-  ]);
+  // The refund pass (interestRefundedAt filter) finds nothing here; it has its own tests
+  db.suggestion.findMany.mockImplementation(async ({ where }: { where: { interestRefundedAt?: unknown } }) =>
+    "interestRefundedAt" in where
+      ? []
+      : [
+          { recipientId: "u1", candidateId: "f1" },
+          { recipientId: "u1", candidateId: "f2" },
+        ]
+  );
   auto.autoSuggestForUser.mockResolvedValue(0);
 });
 
@@ -31,7 +36,9 @@ describe("expireMutualSuggestions", () => {
   it("does nothing extra when the flag is off or nothing expired", async () => {
     settings.getCycleFlags.mockResolvedValue({ introRequests: true, chat: true, mutualSuggestions: true, creditOnInterest: false });
     await expireMutualSuggestions("u1");
-    expect(db.suggestion.findMany).not.toHaveBeenCalled();
+    await new Promise((r) => setTimeout(r, 10));
+    // Flag off: no top-up (a real charge is still refunded, see refund.test.ts)
+    expect(auto.autoSuggestForUser).not.toHaveBeenCalled();
 
     settings.getCycleFlags.mockResolvedValue({ introRequests: true, chat: true, mutualSuggestions: true, creditOnInterest: true });
     db.suggestion.updateMany.mockResolvedValue({ count: 0 });

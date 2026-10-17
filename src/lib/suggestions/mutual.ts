@@ -6,12 +6,15 @@
  *
  * Credit on interest (switch `credit_on_interest`): "مهتم" costs 1 credit, taken in the same
  * transaction that records the decision, and carries the chat/family preference; "لا" is free.
- * At 0 credits the suggestion is locked: both "مهتم" and "لا" are refused (NO_CREDITS) until a recharge.
- * No refund when the other side declines or never answers (that would reveal their decision).
+ * At 0 credits "مهتم" is refused (NO_CREDITS) until a recharge; "لا" stays free and the profile stays visible.
+ * Refund: when the suggestion closes and the other side NEVER answered, the "مهتم" credit comes back
+ * (`refundUnansweredInterests`). A "لا" closes the row as REJECTED and is never refunded. The owner
+ * accepted that this lets people infer a "لا" (no refund) from silence (refund).
  */
 import type { IntroPreference, Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { notifyInterestCreditsExhausted, recordCredit, reserveCredits } from "@/lib/credits";
+import { notify } from "@/lib/notify";
 import { IntroError } from "@/lib/intro/errors";
 import { createMutualMatch } from "@/lib/intro/match";
 import { setGuardianConsent } from "@/lib/intro/requests";
@@ -19,7 +22,7 @@ import { isUnavailable } from "@/lib/matches/state";
 import { getCycleFlags } from "@/lib/settings";
 
 /** A MUTUAL suggestion stays open this long; after that "waiting" ends without a word. */
-export const MUTUAL_SUGGESTION_DAYS = 14;
+export const MUTUAL_SUGGESTION_DAYS = 7;
 export const MUTUAL_SUGGESTION_MS = MUTUAL_SUGGESTION_DAYS * 24 * 60 * 60 * 1000;
 
 const notFound = () => new IntroError("NOT_FOUND", "الاقتراح غير موجود");
@@ -37,6 +40,81 @@ export function openMutualWhere(userId: string, now = new Date()): Prisma.Sugges
   };
 }
 
+/** Only suggestions that closed this recently are looked at for a refund (no surprise backlog) */
+const REFUND_LOOKBACK_MS = MUTUAL_SUGGESTION_MS;
+
+/**
+ * Give the "مهتم" credit back on suggestions that closed with the other side never answering.
+ * Only a real charge is refunded (INTEREST ledger row for that suggestion); the claim on
+ * `interestRefundedAt` and the credit run in one transaction, so it happens once even when the
+ * lazy path and the daily job meet. `userId` limits it to that person's suggestions (either side).
+ */
+export async function refundUnansweredInterests(opts: { userId?: string; now?: Date } = {}): Promise<{ refunded: number }> {
+  const now = opts.now ?? new Date();
+  const rows = await db.suggestion.findMany({
+    where: {
+      flow: "MUTUAL",
+      status: "EXPIRED",
+      interestRefundedAt: null,
+      expiresAt: { lte: now, gt: new Date(now.getTime() - REFUND_LOOKBACK_MS) },
+      AND: [
+        {
+          OR: [
+            { recipientDecision: "INTERESTED", candidateDecision: null },
+            { candidateDecision: "INTERESTED", recipientDecision: null },
+          ],
+        },
+        ...(opts.userId ? [{ OR: [{ recipientId: opts.userId }, { candidateId: opts.userId }] }] : []),
+      ],
+    },
+    select: {
+      id: true, recipientId: true, candidateId: true, recipientDecision: true,
+      recipient: { select: { gender: true } }, candidate: { select: { gender: true } },
+    },
+    take: 500,
+  });
+
+  let refunded = 0;
+  for (const row of rows) {
+    const recipientWaited = row.recipientDecision === "INTERESTED";
+    const userId = recipientWaited ? row.recipientId : row.candidateId;
+    const gender = (recipientWaited ? row.recipient : row.candidate).gender;
+    try {
+      const charged = await db.creditLedger.findFirst({
+        where: { userId, reason: "INTEREST", refId: row.id },
+        select: { id: true },
+      });
+      if (!charged) continue;
+      const done = await db.$transaction(async (tx) => {
+        const claim = await tx.suggestion.updateMany({
+          where: { id: row.id, interestRefundedAt: null },
+          data: { interestRefundedAt: now },
+        });
+        if (claim.count !== 1) return false;
+        await tx.user.update({ where: { id: userId }, data: { matchCredits: { increment: 1 } } });
+        await recordCredit({ userId, delta: 1, reason: "REFUND", refId: row.id }, tx);
+        return true;
+      });
+      if (!done) continue;
+      refunded++;
+      await notify({
+        userId,
+        type: "PAYMENT",
+        title: "أعدنا لك رصيداً",
+        body:
+          gender === "FEMALE"
+            ? "انتهت مدة اقتراح أبديتِ اهتمامكِ به دون ردّ من الطرف الآخر، فأعدنا لكِ الرصيد."
+            : "انتهت مدة اقتراح أبديت اهتمامك به دون ردّ من الطرف الآخر، فأعدنا لك الرصيد.",
+        url: "/dashboard/suggestions",
+        metadata: { suggestionId: row.id },
+      }).catch((e) => console.error("[suggestions] refund notice:", e));
+    } catch (error) {
+      console.error("[suggestions] refund failed:", row.id, error);
+    }
+  }
+  return { refunded };
+}
+
 /** Lazily close MUTUAL rows of this user whose time ran out. */
 export async function expireMutualSuggestions(userId: string): Promise<void> {
   const startedAt = new Date();
@@ -50,6 +128,8 @@ export async function expireMutualSuggestions(userId: string): Promise<void> {
     data: { status: "EXPIRED" },
   });
   if (count === 0) return;
+  // Unanswered "مهتم" on the rows that just closed: credit back (only real charges)
+  await refundUnansweredInterests({ userId, now: startedAt }).catch((e) => console.error("[suggestions] refunds:", e));
   // Credit-on-interest: expiry frees slots, so both sides of the expired rows get topped up
   if (!(await getCycleFlags()).creditOnInterest) return;
   const rows = await db.suggestion.findMany({
@@ -132,8 +212,8 @@ export async function decideSuggestion(args: {
 
   const charge = flags.creditOnInterest && interested;
   const preference = charge ? args.introPreference : undefined;
-  if (flags.creditOnInterest) {
-    // At 0 the suggestion is locked (feed.ts): neither "مهتم" nor "لا" until a recharge
+  if (charge) {
+    // At 0 only "مهتم" waits for a recharge ("لا" is free); checked before any consent is stored
     const me = await db.user.findUnique({ where: { id: userId }, select: { matchCredits: true } });
     if ((me?.matchCredits ?? 0) < 1) throw new IntroError("NO_CREDITS");
   }

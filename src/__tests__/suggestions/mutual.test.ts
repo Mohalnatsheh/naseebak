@@ -230,11 +230,12 @@ describe("decideSuggestion with credit on interest", () => {
     expect(matchMod.createMutualMatch).not.toHaveBeenCalled();
   });
 
-  it("decide refuses لا while locked", async () => {
+  it("«لا» stays free and allowed at 0 credits", async () => {
     balance.u1 = 0;
     db.suggestion.findUnique.mockResolvedValue(row());
-    await expectCode(decideSuggestion({ suggestionId: "s1", userId: "u1", interested: false }), "NO_CREDITS");
-    expect(db.suggestion.updateMany).not.toHaveBeenCalled();
+    await decideSuggestion({ suggestionId: "s1", userId: "u1", interested: false });
+    expect(db.suggestion.updateMany).toHaveBeenCalled();
+    expect(balance.u1).toBe(0);
     expect(matchMod.createMutualMatch).not.toHaveBeenCalled();
   });
 

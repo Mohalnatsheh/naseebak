@@ -18,6 +18,8 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 export const EXTENSION_DAYS = 7;
 export const EXTEND_WINDOW_DAYS = 3;
 export const WARN_BEFORE_DAYS = 2;
+/** Days after opening when both get one "ready for a family introduction?" nudge */
+export const FAMILY_NUDGE_AFTER_DAYS = 7;
 export const MESSAGES_PER_DAY = 50;
 const PUSH_THROTTLE_MS = 3 * 60 * 1000;
 
@@ -79,15 +81,55 @@ async function housekeeping(c: LoadedConversation): Promise<LoadedConversation> 
 }
 
 /** housekeeping() that also says what this call did (for the daily scheduler's counts). */
-async function housekeep(c: LoadedConversation): Promise<{ c: LoadedConversation; did: "expired" | "warned" | null }> {
+/** The family path is still open on this match: no family introduction pending or accepted, and no user ended the chat */
+async function familyPathOpen(c: LoadedConversation): Promise<boolean> {
+  if (c.endedById) return false;
+  const family = await db.introRequest.findFirst({
+    where: { matchId: c.matchId, type: "FAMILY", status: { in: ["PENDING", "ACCEPTED"] } },
+    select: { id: true },
+  });
+  return !family;
+}
+
+async function housekeep(c: LoadedConversation): Promise<{ c: LoadedConversation; did: "expired" | "warned" | "nudged" | null }> {
   if (c.status !== "ACTIVE") return { c, did: null };
   const now = Date.now();
   const left = c.expiresAt.getTime() - now;
   // Conditional updates: parallel requests (counts poll + chat page, two tabs) act only once
   if (left <= 0) {
     const { count } = await db.conversation.updateMany({ where: { id: c.id, status: "ACTIVE" }, data: { status: "EXPIRED" } });
-    if (count === 1) await publishChatEvent(c.id, "status", { status: "EXPIRED" });
+    if (count === 1) {
+      await publishChatEvent(c.id, "status", { status: "EXPIRED" });
+      // An expired chat keeps the free move to family: ask once instead of letting the match fade
+      if (await familyPathOpen(c)) {
+        await notifyMany([c.match.femaleId, c.match.maleId], {
+          type: "CHAT",
+          title: "انتهت مدة المحادثة",
+          body: "هل تنتقلان لتعارف عائلي؟ الانتقال مجاني، وتتبادل العائلتان بيانات وليّ الأمر لترتيب الزيارة.",
+          url: `/dashboard/chats/${c.id}`,
+          metadata: { conversationId: c.id },
+        });
+      }
+    }
     return { c: { ...c, status: "EXPIRED" }, did: count === 1 ? "expired" : null };
+  }
+  if (!c.familyNudgeAt && now - c.createdAt.getTime() >= FAMILY_NUDGE_AFTER_DAYS * DAY_MS) {
+    const nudgedAt = new Date();
+    const { count } = await db.conversation.updateMany({
+      where: { id: c.id, familyNudgeAt: null },
+      data: { familyNudgeAt: nudgedAt },
+    });
+    if (count === 1 && (await familyPathOpen(c))) {
+      await notifyMany([c.match.femaleId, c.match.maleId], {
+        type: "CHAT",
+        title: "أسبوع على محادثتكما",
+        body: "إن شعرتما بالارتياح يمكنكما الانتقال لتعارف عائلي الآن، والانتقال مجاني.",
+        url: `/dashboard/chats/${c.id}`,
+        metadata: { conversationId: c.id },
+      });
+      return { c: { ...c, familyNudgeAt: nudgedAt }, did: "nudged" };
+    }
+    c = { ...c, familyNudgeAt: nudgedAt };
   }
   if (left < WARN_BEFORE_DAYS * DAY_MS && !c.expiryWarnedAt) {
     const warnedAt = new Date();
@@ -195,29 +237,36 @@ export async function chatHousekeepingForUser(userId: string): Promise<void> {
  * Daily scheduler: the same expiry + "2 days left" checks for every active chat (only those that
  * are due are loaded). The conditional updates make it safe alongside the lazy paths: one warning each.
  */
-export async function chatHousekeepingAll(now = new Date()): Promise<{ expired: number; warned: number }> {
+export async function chatHousekeepingAll(now = new Date()): Promise<{ expired: number; warned: number; nudged: number }> {
   const rows = await db.conversation.findMany({
     where: {
       status: "ACTIVE",
       OR: [
         { expiresAt: { lte: now } },
         { expiryWarnedAt: null, expiresAt: { lt: new Date(now.getTime() + WARN_BEFORE_DAYS * DAY_MS) } },
+        { familyNudgeAt: null, createdAt: { lte: new Date(now.getTime() - FAMILY_NUDGE_AFTER_DAYS * DAY_MS) } },
       ],
     },
     include: conversationInclude,
   });
   let expired = 0;
   let warned = 0;
+  let nudged = 0;
   for (const row of rows) {
     try {
-      const { did } = await housekeep(row);
+      // The nudge and the warning are separate steps: run until nothing more is due
+      let { c, did } = await housekeep(row);
+      if (did === "nudged") {
+        nudged++;
+        ({ c, did } = await housekeep(c));
+      }
       if (did === "expired") expired++;
       if (did === "warned") warned++;
     } catch (error) {
       console.error(`[cron] chat housekeeping ${row.id}:`, error);
     }
   }
-  return { expired, warned };
+  return { expired, warned, nudged };
 }
 
 export async function getConversation(

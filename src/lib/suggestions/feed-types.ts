@@ -40,28 +40,18 @@ export interface FeedCandidate {
 
 export interface OpenFeedItem {
   kind: FeedKind;
-  locked?: never;
   /** Suggestion id, or the Like id for legacy_interest */
   id: string;
   compatibilityScore: number;
   reason: string;
   createdAt: string;
   candidate: FeedCandidate;
-}
-
-/** Credit on interest at 0 credits: a MUTUAL suggestion shown blurred until a recharge (no profile fields). */
-export interface LockedFeedItem {
-  kind: "mutual";
-  id: string;
-  compatibilityScore: number;
-  expiresAt: string;
-  locked: true;
-  /** The other side already said "مهتم" (owner exception; a "لا" is never distinguishable) */
+  /**
+   * Credit on interest at 0 credits only: the other side already said "مهتم" (owner exception, the
+   * recharge incentive; a "لا" is never distinguishable from no decision)
+   */
   likedYou?: true;
 }
 
-export type FeedItem = OpenFeedItem | LockedFeedItem;
-
-export function isLockedItem(item: FeedItem): item is LockedFeedItem {
-  return item.locked === true;
-}
+/** Every card is open: at 0 credits the profile stays visible and only "مهتم" waits for a recharge */
+export type FeedItem = OpenFeedItem;

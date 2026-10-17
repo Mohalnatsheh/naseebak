@@ -402,6 +402,8 @@ model Suggestion {
   candidateDecision  SuggestionDecision?
   candidateDecidedAt DateTime?
   /// "3 days left" reminder sent to the undecided side(s) (daily scheduler, once)
+  /// Credit on interest: the «مهتم» credit given back because the other side never answered (set once)
+  interestRefundedAt DateTime?
   reminderSentAt     DateTime?
   /// Chosen with "interested" when credit_on_interest is on (null otherwise)
   recipientIntroPreference IntroPreference?
@@ -758,6 +760,8 @@ model Conversation {
   expiresAt      DateTime
   extended       Boolean            @default(false)
   expiryWarnedAt DateTime?
+  /// Day-7 "ready for a family introduction?" nudge sent (once)
+  familyNudgeAt  DateTime?
   endedById      String?
   /// Set when an admin ended the chat (endedById stays null)
   endedByAdminId String?

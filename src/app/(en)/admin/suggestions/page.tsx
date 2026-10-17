@@ -997,7 +997,7 @@ function GenerateRules({ flags }: { flags: CycleFlags }) {
           ? [
               "Shared suggestions: one row shown to both people; each answers once. Both interested → mutual match. No one is told about a “no”.",
               "Dealbreakers (شروطي الأساسية) are hard filters both ways — a missing value fails the dealbreaker.",
-              "Shared suggestions expire after 14 days if not both answered.",
+              "Shared suggestions expire after 7 days if not both answered (with credit on interest, a «مهتم» is refunded when the other side never answered).",
             ]
           : []),
       ]

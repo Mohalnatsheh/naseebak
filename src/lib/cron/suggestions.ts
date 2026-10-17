@@ -11,25 +11,28 @@ import { isUnavailable } from "@/lib/matches/state";
 import { activeWhere } from "@/lib/activity";
 import { MAX_OPEN_SUGGESTIONS, autoSuggestForUser, openCounts, weeklyCounts } from "@/lib/matching/auto-suggest";
 import { WEEKLY_FREE_SUGGESTIONS } from "@/lib/credits";
+import { refundUnansweredInterests } from "@/lib/suggestions/mutual";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-export const SUGGESTION_REMIND_BEFORE_DAYS = 3;
+export const SUGGESTION_REMIND_BEFORE_DAYS = 2;
 /** Users handed to autoSuggestForUser per run (sequential; the rest are picked up the next day or lazily) */
 export const WEEKLY_SUGGEST_LIMIT = 150;
 const BATCH = 500;
 
 const partySelect = { select: { id: true, gender: true, isDeactivated: true, status: true } } as const;
 
-/** Close every MUTUAL row past its 14 days (same as the lazy per-user path). */
-export async function expireMutualSuggestionsAll(now = new Date()): Promise<{ expired: number }> {
+/** Close every MUTUAL row past its 7 days (same as the lazy per-user path). */
+export async function expireMutualSuggestionsAll(now = new Date()): Promise<{ expired: number; refunded: number }> {
   const { count } = await db.suggestion.updateMany({
     where: { flow: "MUTUAL", status: "PENDING", expiresAt: { lte: now } },
     data: { status: "EXPIRED" },
   });
-  return { expired: count };
+  // Also catches rows closed lazily whose refund didn't run (each refund happens once)
+  const { refunded } = await refundUnansweredInterests({ now });
+  return { expired: count, refunded };
 }
 
-/** One reminder per suggestion, to each side that hasn't decided, when ≤3 days are left. */
+/** One reminder per suggestion, to each side that hasn't decided, when ≤2 days are left. */
 export async function remindMutualSuggestions(now = new Date()): Promise<{ suggestions: number; reminded: number }> {
   const due = await db.suggestion.findMany({
     where: {
@@ -80,8 +83,8 @@ export async function remindMutualSuggestions(now = new Date()): Promise<{ sugge
         type: "SUGGESTION",
         title: "اقتراح بانتظار قرارك",
         body: female
-          ? "بقيت 3 أيام أو أقل على انتهاء اقتراح توافق لم تقرّري فيه بعد. اطّلعي عليه الآن."
-          : "بقيت 3 أيام أو أقل على انتهاء اقتراح توافق لم تقرّر فيه بعد. اطّلع عليه الآن.",
+          ? "بقي يومان أو أقل على انتهاء اقتراح توافق لم تقرّري فيه بعد. اطّلعي عليه الآن."
+          : "بقي يومان أو أقل على انتهاء اقتراح توافق لم تقرّر فيه بعد. اطّلع عليه الآن.",
         url: "/dashboard/suggestions",
         metadata: { suggestionId: s.id },
       });

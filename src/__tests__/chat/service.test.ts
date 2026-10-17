@@ -5,7 +5,7 @@ const db = vi.hoisted(() => ({
   message: { create: vi.fn(), findMany: vi.fn(), updateMany: vi.fn(), count: vi.fn() },
   block: { findFirst: vi.fn(), findMany: vi.fn(), create: vi.fn() },
   report: { upsert: vi.fn() },
-  introRequest: { updateMany: vi.fn() },
+  introRequest: { updateMany: vi.fn(), findFirst: vi.fn() },
 }));
 const ably = vi.hoisted(() => ({ publishChatEvent: vi.fn() }));
 const notifyMod = vi.hoisted(() => ({ notify: vi.fn(), notifyMany: vi.fn() }));
@@ -27,8 +27,10 @@ const conv = (over: object = {}) => ({
   matchId: "m1",
   status: "ACTIVE",
   expiresAt: new Date(Date.now() + 10 * DAY),
+  createdAt: new Date(Date.now() - 4 * DAY),
   extended: false,
   expiryWarnedAt: null,
+  familyNudgeAt: null,
   endedById: null,
   match: {
     id: "m1", femaleId: "f1", maleId: "u1",

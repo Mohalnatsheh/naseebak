@@ -37,9 +37,9 @@ beforeEach(() => {
 });
 
 describe("expireMutualSuggestionsAll", () => {
-  it("closes every MUTUAL row past its 14 days, like the lazy path", async () => {
+  it("closes every MUTUAL row past its 7 days, like the lazy path", async () => {
     db.suggestion.updateMany.mockResolvedValue({ count: 3 });
-    expect(await expireMutualSuggestionsAll(now)).toEqual({ expired: 3 });
+    expect(await expireMutualSuggestionsAll(now)).toEqual({ expired: 3, refunded: 0 });
     expect(db.suggestion.updateMany).toHaveBeenCalledWith({
       where: { flow: "MUTUAL", status: "PENDING", expiresAt: { lte: now } },
       data: { status: "EXPIRED" },
@@ -48,12 +48,12 @@ describe("expireMutualSuggestionsAll", () => {
 });
 
 describe("remindMutualSuggestions", () => {
-  it("reminds both sides once when neither decided and ≤3 days are left", async () => {
+  it("reminds both sides once when neither decided and ≤2 days are left", async () => {
     db.suggestion.findMany.mockResolvedValue([row()]);
     const res = await remindMutualSuggestions(now);
     const where = db.suggestion.findMany.mock.calls[0][0].where;
     expect(where).toMatchObject({ flow: "MUTUAL", status: "PENDING", reminderSentAt: null });
-    expect(where.expiresAt).toEqual({ gt: now, lte: new Date(now.getTime() + 3 * DAY) });
+    expect(where.expiresAt).toEqual({ gt: now, lte: new Date(now.getTime() + 2 * DAY) });
     expect(notifyMod.notify).toHaveBeenCalledTimes(2);
     const female = notifyMod.notify.mock.calls.find((c) => c[0].userId === "f1")![0];
     expect(female.body).toContain("تقرّري");

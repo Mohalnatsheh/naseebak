@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const db = vi.hoisted(() => ({
   conversation: { findMany: vi.fn(), updateMany: vi.fn() },
+  introRequest: { findFirst: vi.fn() },
 }));
 const ably = vi.hoisted(() => ({ publishChatEvent: vi.fn() }));
 const notifyMod = vi.hoisted(() => ({ notify: vi.fn(), notifyMany: vi.fn() }));
@@ -19,8 +20,10 @@ const conv = (id: string, expiresIn: number, over: object = {}) => ({
   matchId: "m1",
   status: "ACTIVE",
   expiresAt: new Date(Date.now() + expiresIn),
+  createdAt: new Date(Date.now() - 12 * DAY),
   extended: false,
   expiryWarnedAt: null,
+  familyNudgeAt: new Date(Date.now() - 5 * DAY),
   endedById: null,
   match: { id: "m1", femaleId: "f1", maleId: "u1", female: { id: "f1" }, male: { id: "u1" } },
   ...over,
@@ -29,6 +32,7 @@ const conv = (id: string, expiresIn: number, over: object = {}) => ({
 beforeEach(() => {
   vi.clearAllMocks();
   db.conversation.updateMany.mockResolvedValue({ count: 1 });
+  db.introRequest.findFirst.mockResolvedValue(null);
 });
 
 describe("chatHousekeepingAll", () => {
@@ -37,10 +41,12 @@ describe("chatHousekeepingAll", () => {
     const res = await chatHousekeepingAll();
     const { where } = db.conversation.findMany.mock.calls[0][0];
     expect(where.status).toBe("ACTIVE");
-    expect(res).toEqual({ expired: 1, warned: 1 });
+    expect(res).toEqual({ expired: 1, warned: 1, nudged: 0 });
     expect(ably.publishChatEvent).toHaveBeenCalledWith("old", "status", { status: "EXPIRED" });
-    expect(notifyMod.notifyMany).toHaveBeenCalledTimes(1);
+    // The expired chat asks about a family introduction, the other one gets the 2-days warning
+    expect(notifyMod.notifyMany).toHaveBeenCalledTimes(2);
     expect(notifyMod.notifyMany.mock.calls[0][0]).toEqual(["f1", "u1"]);
+    expect(notifyMod.notifyMany.mock.calls[0][1].title).toBe("انتهت مدة المحادثة");
   });
 
   it("does not warn twice (conditional update lost to the lazy path)", async () => {
@@ -48,6 +54,32 @@ describe("chatHousekeepingAll", () => {
     db.conversation.updateMany.mockResolvedValue({ count: 0 });
     const res = await chatHousekeepingAll();
     expect(notifyMod.notifyMany).not.toHaveBeenCalled();
-    expect(res).toEqual({ expired: 0, warned: 0 });
+    expect(res).toEqual({ expired: 0, warned: 0, nudged: 0 });
+  });
+
+  it("looks for chats due a day-7 family nudge too", async () => {
+    db.conversation.findMany.mockResolvedValue([]);
+    await chatHousekeepingAll();
+    const { where } = db.conversation.findMany.mock.calls[0][0];
+    expect(where.OR).toContainEqual({ familyNudgeAt: null, createdAt: { lte: expect.any(Date) } });
+  });
+
+  it("nudges both once after 7 days while the family path is open", async () => {
+    db.conversation.findMany.mockResolvedValue([conv("week", 7 * DAY, { createdAt: new Date(Date.now() - 7 * DAY - 1000), familyNudgeAt: null })]);
+    const res = await chatHousekeepingAll();
+    expect(res).toEqual({ expired: 0, warned: 0, nudged: 1 });
+    expect(notifyMod.notifyMany).toHaveBeenCalledTimes(1);
+    expect(notifyMod.notifyMany.mock.calls[0][1].title).toBe("أسبوع على محادثتكما");
+  });
+
+  it("no nudge or expiry ask when a family introduction is already pending or accepted", async () => {
+    db.introRequest.findFirst.mockResolvedValue({ id: "fam" });
+    db.conversation.findMany.mockResolvedValue([
+      conv("week", 7 * DAY, { createdAt: new Date(Date.now() - 8 * DAY), familyNudgeAt: null }),
+      conv("old", -DAY),
+    ]);
+    const res = await chatHousekeepingAll();
+    expect(res).toMatchObject({ expired: 1, nudged: 0 });
+    expect(notifyMod.notifyMany).not.toHaveBeenCalled();
   });
 });

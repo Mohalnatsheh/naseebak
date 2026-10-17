@@ -260,7 +260,7 @@ describe("autoSuggestForUser — simultaneous flow", () => {
 
     expect(await autoSuggestForUser("m1")).toBe(2);
     const { data } = db.suggestion.createMany.mock.calls[0][0];
-    expect(data.every((d: { flow: string; expiresAt: Date }) => d.flow === "MUTUAL" && d.expiresAt.getTime() > Date.now() + 13 * 86400000)).toBe(true);
+    expect(data.every((d: { flow: string; expiresAt: Date }) => d.flow === "MUTUAL" && d.expiresAt.getTime() > Date.now() + 6 * 86400000 && d.expiresAt.getTime() <= Date.now() + 7 * 86400000)).toBe(true);
     expect(notifyMod.notify).toHaveBeenCalledWith(expect.objectContaining({ userId: "m1", type: "SUGGESTION" }));
     expect(notifyMod.notifyMany.mock.calls[0][0].sort()).toEqual(["h1", "h2"]);
     expect(db.notification.create).not.toHaveBeenCalled();

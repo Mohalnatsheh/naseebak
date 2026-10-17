@@ -1,7 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { InterestDialog } from "@/components/suggestions/interest-dialog";
-import { LockedSuggestionCard } from "@/components/suggestions/locked-suggestion-card";
 
 type Props = Parameters<typeof InterestDialog>[0];
 
@@ -78,25 +77,6 @@ describe("InterestDialog", () => {
   it("feminine imperatives for a woman (partner is a man)", () => {
     setup({ partnerGender: "MALE", credits: 0 });
     expect(screen.getByRole("link", { name: "اشحني رصيدك للمتابعة" })).toBeInTheDocument();
-  });
-});
-
-describe("LockedSuggestionCard", () => {
-  it("locked card shows recharge CTA and no buttons", () => {
-    render(<LockedSuggestionCard score={78} partnerGender="FEMALE" />);
-    const cta = screen.getByRole("link", { name: /اشحن رصيدك لعرض الاقتراح والرد/ });
-    expect(cta).toHaveAttribute("href", "/dashboard/payments");
-    expect(screen.queryByRole("button")).not.toBeInTheDocument();
-    expect(screen.getByRole("img", { name: "نسبة التوافق 78%" })).toBeInTheDocument();
-    expect(screen.queryByText(/اهتمام/)).not.toBeInTheDocument();
-  });
-
-  it("liked-you tag by genders", () => {
-    const { rerender } = render(<LockedSuggestionCard score={70} likedYou partnerGender="FEMALE" />);
-    expect(screen.getByText("أبدت اهتمامها بك — اشحن رصيدك لترد")).toBeInTheDocument();
-    rerender(<LockedSuggestionCard score={70} likedYou partnerGender="MALE" />);
-    expect(screen.getByText("أبدى اهتمامه بك — اشحني رصيدك لتردّي")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /اشحني رصيدك/ })).toHaveAttribute("href", "/dashboard/payments");
   });
 });
 

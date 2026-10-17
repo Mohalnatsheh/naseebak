@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import {
@@ -11,7 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { PersonCard } from "@/components/shared/person-card";
 import { CandidateDetails } from "@/components/suggestions/candidate-details";
 import { DealbreakersCard } from "@/components/suggestions/dealbreakers-card";
@@ -32,6 +32,9 @@ type Notice =
   | { kind: "error"; message: string };
 
 type IntroChoice = { introPreference: IntroPreferenceChoice; guardianConsent?: boolean };
+
+/** How long «لا» can be undone before it is sent */
+const DECLINE_UNDO_MS = 5000;
 
 /** Which endpoint answers a card: simultaneous rows, or legacy items still in flight. */
 function decisionRequest(item: OpenFeedItem, interested: boolean, choice?: IntroChoice): { url: string; body?: string } {
@@ -103,6 +106,8 @@ export function MutualSuggestionsView({
   const [reportReason, setReportReason] = useState("FAKE_PROFILE");
   const [reportDetails, setReportDetails] = useState("");
   const [reportSubmitting, setReportSubmitting] = useState(false);
+  /** «لا» waiting out its undo window: hidden from the list, sent when the timer ends (or the page closes) */
+  const pendingDeclines = useRef(new Map<string, { item: OpenFeedItem; timer: ReturnType<typeof setTimeout> }>());
 
   const load = useCallback(async (t: FeedTab, p: number) => {
     setLoading(true);
@@ -111,7 +116,7 @@ export function MutualSuggestionsView({
         fetch(`/api/suggestions/feed?tab=${t}&page=${p}`).then((r) => r.json()),
         fetch(`/api/suggestions/feed?tab=${t === "new" ? "waiting" : "new"}&page=1`).then((r) => r.json()),
       ]);
-      setItems(cur.items ?? []);
+      setItems(((cur.items ?? []) as FeedItem[]).filter((i) => !pendingDeclines.current.has(i.id)));
       setTotalPages(Math.max(1, cur.totalPages ?? 1));
       setTotals(t === "new" ? { new: cur.total ?? 0, waiting: other.total ?? 0 } : { new: other.total ?? 0, waiting: cur.total ?? 0 });
     } catch {
@@ -124,6 +129,66 @@ export function MutualSuggestionsView({
   useEffect(() => {
     load(tab, page);
   }, [load, tab, page]);
+
+  // Leaving the page inside the undo window still sends the «لا» (keepalive survives the navigation)
+  useEffect(() => {
+    const pending = pendingDeclines.current;
+    const flush = () => {
+      for (const [id, { item, timer }] of pending) {
+        clearTimeout(timer);
+        pending.delete(id);
+        void sendDecline(item);
+      }
+    };
+    window.addEventListener("pagehide", flush);
+    return () => {
+      window.removeEventListener("pagehide", flush);
+      flush();
+    };
+  }, []);
+
+  /** Send a «لا» (free, never charged). Errors only matter when the card is still on screen elsewhere. */
+  async function sendDecline(item: OpenFeedItem): Promise<boolean> {
+    const { url } = decisionRequest(item, false);
+    const body = item.kind === "mutual" ? JSON.stringify({ interested: false }) : undefined;
+    const res = await fetch(url, {
+      method: "POST",
+      keepalive: true,
+      ...(body && { headers: { "Content-Type": "application/json" }, body }),
+    }).catch(() => null);
+    return !!res?.ok;
+  }
+
+  /** «لا»: hide the card now, offer «تراجع» for a few seconds, then send it */
+  function declineWithUndo(item: OpenFeedItem) {
+    setNotice(null);
+    removeAndRefill(item.id);
+    setTotals((t) => ({ ...t, new: Math.max(0, t.new - 1) }));
+    const timer = setTimeout(async () => {
+      pendingDeclines.current.delete(item.id);
+      const ok = await sendDecline(item);
+      if (ok) {
+        trackEvent("suggestion_response", { response: "reject", mutual_match: false });
+      } else {
+        toast.error("تعذّر حفظ قرارك، حاول مرة أخرى");
+        load(tab, page);
+      }
+    }, DECLINE_UNDO_MS);
+    pendingDeclines.current.set(item.id, { item, timer });
+    toast("تم. لن يظهر لك هذا الاقتراح مجدداً، ولن يعرف الطرف الآخر بقرارك.", {
+      duration: DECLINE_UNDO_MS,
+      action: {
+        label: "تراجع",
+        onClick: () => {
+          const pending = pendingDeclines.current.get(item.id);
+          if (!pending) return;
+          clearTimeout(pending.timer);
+          pendingDeclines.current.delete(item.id);
+          load(tab, page);
+        },
+      },
+    });
+  }
 
   function switchTab(t: FeedTab) {
     if (t === tab) return;
@@ -211,6 +276,7 @@ export function MutualSuggestionsView({
     }
   }
 
+  /** Report always comes with a block, as on the matches page: the card leaves the list */
   async function submitReport() {
     if (!report) return;
     setReportSubmitting(true);
@@ -219,14 +285,26 @@ export function MutualSuggestionsView({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ reportedId: report.userId, reason: reportReason, details: reportDetails || undefined }),
     }).catch(() => null);
-    setReportSubmitting(false);
-    if (res?.ok) {
-      toast.success("تم إرسال البلاغ. سيراجعه فريق نصيبك.");
-    } else {
+    if (!res?.ok) {
+      setReportSubmitting(false);
       const data = await res?.json().catch(() => ({}));
       toast.error(data?.error || "تعذّر إرسال البلاغ");
       return;
     }
+    const blocked = await fetch("/api/blocks", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ blockedId: report.userId }),
+    }).catch(() => null);
+    setReportSubmitting(false);
+    const item = items.find((i) => !isLockedItem(i) && i.candidate.id === report.userId);
+    if (item && blocked?.ok) {
+      removeAndRefill(item.id);
+      setTotals((t) => ({ ...t, [tab]: Math.max(0, t[tab] - 1) }));
+    }
+    toast.success(
+      blocked?.ok ? "تم الإبلاغ والحظر. سيراجع فريق نصيبك البلاغ." : "تم إرسال البلاغ. سيراجعه فريق نصيبك.",
+    );
     setReport(null);
     setReportReason("FAKE_PROFILE");
     setReportDetails("");
@@ -395,6 +473,19 @@ export function MutualSuggestionsView({
         </Card>
       ) : (
         <div className="space-y-6">
+          {/* 0 credits: locked cards keep their 5 slots until they expire, so say why nothing new arrives */}
+          {tab === "new" && items.some(isLockedItem) && (
+            <div role="note" className="flex items-start gap-3 rounded-xl border border-amber-200/60 bg-amber-50/70 p-4 text-sm leading-relaxed text-amber-900">
+              <Coins className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+              <p>
+                <span className="font-semibold">رصيدك صفر، لذلك اقتراحاتك الجديدة مقفلة.</span>{" "}
+                {g(
+                  "تبقى محفوظة لك حتى 14 يوماً من وصولها، ولا تصلك اقتراحات جديدة بدلها قبل ذلك. اشحن رصيدك لتراها وتقرّر فيها.",
+                  "تبقى محفوظة لكِ حتى 14 يوماً من وصولها، ولا تصلكِ اقتراحات جديدة بدلها قبل ذلك. اشحني رصيدكِ لتريها وتقرّري فيها."
+                )}
+              </p>
+            </div>
+          )}
           {items.map((item, index) => {
             if (isLockedItem(item)) {
               return (
@@ -484,7 +575,7 @@ export function MutualSuggestionsView({
                             </Button>
                             <Button
                               variant="outline"
-                              onClick={() => decide(item, false)}
+                              onClick={() => declineWithUndo(item)}
                               // A shared suggestion is locked at 0 credits (the API refuses "لا" too)
                               disabled={acting === item.id || (outOfCredits && item.kind === "mutual")}
                               className="h-12 px-6 border-destructive/30 text-destructive/80 hover:bg-destructive/5 hover:text-destructive rounded-xl font-bold"
@@ -504,12 +595,12 @@ export function MutualSuggestionsView({
                             <MoreVertical className="h-5 w-5" />
                           </Button>
                           {menuOpen === item.id && (
-                            <div className="absolute bottom-full mb-1 left-0 bg-card border rounded-xl shadow-lg py-1 z-50 w-40">
+                            <div className="absolute bottom-full mb-1 end-0 bg-card border rounded-xl shadow-lg py-1 z-50 w-40">
                               <button
                                 className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted/50 text-amber-700"
                                 onClick={() => { setReport({ userId: c.id, name: c.firstName }); setMenuOpen(null); }}
                               >
-                                <ShieldAlert className="h-4 w-4" /> إبلاغ
+                                <ShieldAlert className="h-4 w-4" /> إبلاغ وحظر
                               </button>
                               <button
                                 className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted/50 text-destructive"
@@ -540,11 +631,11 @@ export function MutualSuggestionsView({
           {totalPages > 1 && (
             <div className="flex items-center justify-center gap-4 mt-8">
               <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>
-                <ChevronRight className="h-4 w-4 ml-1" /> السابق
+                <ChevronRight className="h-4 w-4 me-1" /> السابق
               </Button>
               <span className="text-sm text-muted-foreground">صفحة {page} من {totalPages}</span>
               <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>
-                التالي <ChevronLeft className="h-4 w-4 mr-1" />
+                التالي <ChevronLeft className="h-4 w-4 ms-1" />
               </Button>
             </div>
           )}
@@ -572,11 +663,15 @@ export function MutualSuggestionsView({
       <Dialog open={!!report} onOpenChange={(o) => !o && setReport(null)}>
         <DialogContent dir="rtl">
           <DialogHeader>
-            <DialogTitle>إبلاغ عن {report?.name}</DialogTitle>
+            <DialogTitle>إبلاغ وحظر {report?.name}</DialogTitle>
+            <DialogDescription className="text-start">
+              يراجع فريق نصيبك البلاغ، ويُحظر الطرف الآخر فلا يظهر لك ولا تظهر له مرة أخرى.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
-            <label className="text-sm font-medium text-foreground block">سبب الإبلاغ</label>
+            <label htmlFor="suggestion-report-reason" className="text-sm font-medium text-foreground block">سبب الإبلاغ</label>
             <select
+              id="suggestion-report-reason"
               value={reportReason}
               onChange={(e) => setReportReason(e.target.value)}
               className="w-full rounded-xl border border-input bg-background px-3 py-2.5 text-sm"
@@ -592,11 +687,12 @@ export function MutualSuggestionsView({
               onChange={(e) => setReportDetails(e.target.value)}
               className="w-full rounded-xl border border-input bg-background px-3 py-2.5 text-sm min-h-[80px] resize-none"
               placeholder="تفاصيل إضافية (اختياري)"
+              aria-label="تفاصيل إضافية (اختياري)"
             />
           </div>
           <DialogFooter className="gap-2">
             <Button onClick={submitReport} disabled={reportSubmitting} className="rounded-xl">
-              {reportSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "إرسال البلاغ"}
+              {reportSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "إبلاغ وحظر"}
             </Button>
             <Button variant="outline" onClick={() => setReport(null)} className="rounded-xl">إلغاء</Button>
           </DialogFooter>

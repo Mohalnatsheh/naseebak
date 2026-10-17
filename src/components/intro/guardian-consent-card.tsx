@@ -54,7 +54,7 @@ export function GuardianConsentCard() {
         type="button"
         onClick={later}
         aria-label="لاحقاً"
-        className="absolute top-3 left-3 rounded-lg p-1 text-muted-foreground hover:bg-muted"
+        className="absolute top-3 end-3 rounded-lg p-1 text-muted-foreground hover:bg-muted"
       >
         <X className="h-4 w-4" />
       </button>

@@ -325,7 +325,7 @@ export default function DashboardPage() {
           >
             <CardContent className="pt-4 pb-3 px-2 sm:pt-5 sm:pb-4 sm:px-4 text-center relative">
               {/* Decorative circle */}
-              <div className="absolute -top-6 -left-6 h-16 w-16 rounded-full bg-gradient-to-br opacity-5 group-hover:opacity-10 transition-opacity" />
+              <div className="absolute -top-6 -end-6 h-16 w-16 rounded-full bg-gradient-to-br opacity-5 group-hover:opacity-10 transition-opacity" />
 
               <div
                 className={`mx-auto mb-2 sm:mb-3 flex h-9 w-9 sm:h-11 sm:w-11 items-center justify-center rounded-xl bg-gradient-to-br ${stat.gradient} text-white shadow-md transition-transform duration-300 group-hover:scale-110`}
@@ -394,7 +394,9 @@ export default function DashboardPage() {
                       },
                     ]
                   : []),
-                ...(receivedSuggestions > 0
+                // Legacy: everything received. New cycle: the shared suggestions waiting for my decision
+                // (`_count.receivedSuggestions` misses the ones where I'm the other side)
+                ...(creditsBlockSuggestions && receivedSuggestions > 0
                   ? [
                       {
                         icon: Sparkles,
@@ -405,7 +407,18 @@ export default function DashboardPage() {
                         time: "متاح",
                       },
                     ]
-                  : []),
+                  : !creditsBlockSuggestions && (pendingSuggestions ?? 0) > 0
+                    ? [
+                        {
+                          icon: Sparkles,
+                          iconColor: "text-accent-foreground",
+                          iconBg: "bg-accent/10",
+                          title: `${arabicCount(pendingSuggestions ?? 0, { one: "اقتراح واحد", two: "اقتراحان", few: "اقتراحات", many: "اقتراحاً" })} بانتظار قرارك`,
+                          desc: "راجع الاقتراحات واختر «مهتم» أو «لا»",
+                          time: "بانتظارك",
+                        },
+                      ]
+                    : []),
               ].map((item, i, arr) => (
                 <div key={i} className="flex gap-4">
                   {/* Timeline line + dot */}

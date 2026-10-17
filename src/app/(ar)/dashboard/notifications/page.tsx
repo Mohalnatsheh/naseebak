@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -523,7 +524,7 @@ export default function NotificationsPage() {
                             <button
                               onClick={(e) => { e.stopPropagation(); deleteNotification(n.id); }}
                               disabled={deletingId === n.id}
-                              className="h-6 w-6 rounded-md flex items-center justify-center text-muted-foreground/50 hover:text-destructive hover:bg-destructive/10 transition-colors opacity-100 md:opacity-0 md:group-hover:opacity-100"
+                              className="h-6 w-6 rounded-md flex items-center justify-center text-muted-foreground/50 hover:text-destructive hover:bg-destructive/10 transition-colors opacity-100 md:opacity-0 md:group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                               aria-label="حذف الإشعار"
                             >
                               {deletingId === n.id ? (
@@ -543,10 +544,19 @@ export default function NotificationsPage() {
                         >
                           {n.body}
                         </p>
-                        <span className="inline-flex items-center gap-1 mt-2 text-xs font-semibold text-primary/70 hover:text-primary transition-colors">
-                          <ArrowLeft className="h-3 w-3" />
+                        {/* The whole card is clickable with a mouse; this real link is the keyboard / screen-reader path */}
+                        <Link
+                          href={notificationUrl(n.type, n.metadata)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (!n.isRead) markRead(n.id);
+                          }}
+                          className="inline-flex items-center gap-1 mt-2 rounded text-xs font-semibold text-primary/70 hover:text-primary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        >
+                          <ArrowLeft className="h-3 w-3" aria-hidden="true" />
                           عرض التفاصيل
-                        </span>
+                          <span className="sr-only">: {n.title}</span>
+                        </Link>
                       </div>
                     </div>
                   </CardContent>
@@ -557,7 +567,7 @@ export default function NotificationsPage() {
           {totalPages > 1 && (
             <div className="flex items-center justify-center gap-4 mt-8">
               <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>
-                <ChevronRight className="h-4 w-4 ml-1" />
+                <ChevronRight className="h-4 w-4 me-1" />
                 السابق
               </Button>
               <span className="text-sm text-muted-foreground">
@@ -565,7 +575,7 @@ export default function NotificationsPage() {
               </span>
               <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>
                 التالي
-                <ChevronLeft className="h-4 w-4 mr-1" />
+                <ChevronLeft className="h-4 w-4 ms-1" />
               </Button>
             </div>
           )}

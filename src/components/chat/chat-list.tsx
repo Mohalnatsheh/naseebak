@@ -11,9 +11,11 @@ import type { ChatSummary } from "@/lib/chat/service";
 import { daysLabel, daysLeft } from "@/components/intro/intro-utils";
 import { listTimeLabel } from "./chat-utils";
 import { InstallAppCard } from "@/components/shared/install-app-card";
+import { useDashboardData } from "@/contexts/dashboard-context";
 
 export function ChatList() {
   const [chats, setChats] = useState<ChatSummary[] | null>(null);
+  const { counts } = useDashboardData();
 
   useEffect(() => {
     let alive = true;
@@ -59,7 +61,9 @@ export function ChatList() {
             <div>
               <h3 className="text-lg font-semibold">لا توجد محادثات بعد</h3>
               <p className="mx-auto mt-1 max-w-xs text-sm text-muted-foreground">
-                أرسل طلب محادثة من صفحة التوافقات. تُفتح المحادثة عند قبول الطرف الآخر.
+                {counts.flags.creditOnInterest
+                  ? "تُفتح المحادثة تلقائياً عندما يختار كلاكما «محادثة هنا أولاً» عند «مهتم»، أو بطلب محادثة من صفحة التوافقات."
+                  : "أرسل طلب محادثة من صفحة التوافقات. تُفتح المحادثة عند قبول الطرف الآخر."}
               </p>
             </div>
             <Button asChild variant="outline" className="gap-1.5">
@@ -85,7 +89,7 @@ export function ChatList() {
                     <div className="relative flex h-13 w-13 flex-shrink-0 items-center justify-center rounded-2xl border border-primary/15 bg-gradient-to-br from-primary/15 to-accent/15">
                       <span className="text-xl font-bold text-primary">{c.partner.firstName.charAt(0)}</span>
                       {c.unread > 0 && (
-                        <span className="absolute -top-1.5 -left-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-bold text-accent-foreground ring-2 ring-card">
+                        <span className="absolute -top-1.5 -end-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-bold text-accent-foreground ring-2 ring-card">
                           {c.unread > 99 ? "99+" : c.unread}
                         </span>
                       )}

@@ -1,5 +1,6 @@
 "use client";
 
+import { toast } from "sonner";
 import { useState, useEffect, useRef } from "react";
 import { useDashboardData } from "@/contexts/dashboard-context";
 import { selfLabel } from "@/lib/profile-options";
@@ -1055,7 +1056,7 @@ export default function ProfilePage() {
             <Lock className="h-4 w-4 text-primary/70 shrink-0 mt-0.5" />
             <p className="text-xs text-primary leading-relaxed">
               {introMode
-                ? "بيانات وليّ الأمر سرية، ولا تظهر لأي مستخدم إلا لعائلة الطرف الآخر بعد قبول طلب التعارف العائلي وبموافقتك."
+                ? "بيانات وليّ الأمر سرية، ولا تظهر لأي مستخدم إلا لعائلة الطرف الآخر عند بدء تعارف عائلي على توافق متبادل وبموافقتك."
                 : "هذه البيانات سرية ولن تظهر لأي مستخدم آخر. تُستخدم فقط لتنسيق الزيارات العائلية."}
             </p>
           </div>
@@ -1130,7 +1131,7 @@ export default function ProfilePage() {
             className={`group relative overflow-hidden border-0 bg-gradient-to-br ${stat.bgLight} hover:shadow-lg ${stat.shadowColor} transition-all duration-300 hover:-translate-y-1`}
           >
             <CardContent className="pt-5 pb-4 px-4 text-center relative">
-              <div className="absolute -top-6 -left-6 h-16 w-16 rounded-full bg-gradient-to-br opacity-5 group-hover:opacity-10 transition-opacity" />
+              <div className="absolute -top-6 -end-6 h-16 w-16 rounded-full bg-gradient-to-br opacity-5 group-hover:opacity-10 transition-opacity" />
               <div
                 className={`mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br ${stat.gradient} text-white shadow-md transition-transform duration-300 group-hover:scale-110`}
               >
@@ -1275,8 +1276,10 @@ export default function ProfilePage() {
                   </p>
                 </div>
                 <p className="text-xs text-muted-foreground leading-relaxed">
-                  سيتم إخفاء ملفك الشخصي من جميع الاقتراحات والبحث. يمكنك إعادة
-                  تفعيل حسابك في أي وقت عبر تسجيل الدخول مجددًا.
+                  سيتم إخفاء ملفك الشخصي من جميع الاقتراحات، وتظهر توافقاتك
+                  للطرف الآخر مغلقة فلا مراسلة ولا طلبات تعارف حتى تعيد التفعيل.
+                  يبقى رصيدك كما هو، ويمكنك إعادة تفعيل حسابك في أي وقت عبر
+                  تسجيل الدخول مجددًا.
                 </p>
                 <div className="flex gap-3">
                   <Button
@@ -1292,9 +1295,12 @@ export default function ProfilePage() {
                         if (res.ok) {
                           // Full reload: the dashboard now shows the reactivation page only
                           window.location.href = "/dashboard/reactivate";
+                          return;
                         }
+                        const data = await res.json().catch(() => ({}));
+                        toast.error(data.error || "تعذّر تعطيل الحساب. حاول مرة أخرى.");
                       } catch {
-                        // Error handling
+                        toast.error("حدث خطأ في الاتصال. حاول مرة أخرى.");
                       } finally {
                         setDeactivating(false);
                       }
@@ -1418,14 +1424,16 @@ export default function ProfilePage() {
                   </p>
                 </div>
                 <p className="text-xs text-muted-foreground leading-relaxed">
-                  سيتم تعطيل حسابك فوراً وحذفه نهائياً بعد 30 يوماً. يمكنك
-                  إلغاء الطلب خلال هذه الفترة بتسجيل الدخول مجدداً.
+                  سيتم تعطيل حسابك فوراً وحذفه نهائياً بعد 30 يوماً، ومعه
+                  توافقاتك ومحادثاتك ورصيدك المتبقي (لا يُسترجع). يمكنك إلغاء
+                  الطلب خلال هذه الفترة بتسجيل الدخول مجدداً.
                 </p>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">
+                  <label htmlFor="delete-reason" className="text-sm font-medium text-foreground">
                     سبب الحذف (اختياري)
                   </label>
                   <textarea
+                    id="delete-reason"
                     value={deleteReason}
                     onChange={(e) => setDeleteReason(e.target.value)}
                     className="w-full rounded-xl border border-input bg-background px-3 py-2.5 text-sm min-h-[60px] resize-none"
@@ -1453,8 +1461,10 @@ export default function ProfilePage() {
                           window.location.href = "/dashboard/reactivate";
                           return;
                         }
+                        const data = await res.json().catch(() => ({}));
+                        toast.error(data.error || "تعذّر إرسال طلب الحذف. حاول مرة أخرى.");
                       } catch {
-                        // Error handling
+                        toast.error("حدث خطأ في الاتصال. حاول مرة أخرى.");
                       } finally {
                         setDeletionLoading(false);
                       }

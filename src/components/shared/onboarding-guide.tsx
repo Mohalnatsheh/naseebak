@@ -62,7 +62,7 @@ const newCycleSteps: Step[] = [
   {
     icon: Sparkles,
     title: "اقتراحات أسبوعية مجانية",
-    description: "تصلك اقتراحات تناسبك كل أسبوع. اضغط «مهتم» أو «ليس الآن»، ولا يعرف أحد قرارك إلا عند التوافق.",
+    description: "تصلك اقتراحات تناسبك كل أسبوع. اضغط «مهتم» أو «لا»، ولا يعرف أحد قرارك إلا عند التوافق.",
     link: "/dashboard/suggestions",
   },
   {
@@ -199,14 +199,14 @@ export function OnboardingGuide() {
             disabled={isFirst}
             className="rounded-xl"
           >
-            <ChevronRight className="h-4 w-4 ml-1" />
+            <ChevronRight className="h-4 w-4 me-1" />
             السابق
           </Button>
 
           {isLast ? (
             <Button onClick={() => go("/dashboard/profile/setup")} className="rounded-xl font-semibold px-6">
               ابدأ بإعداد ملفك
-              <Sparkles className="h-4 w-4 mr-1" />
+              <Sparkles className="h-4 w-4 ms-1" />
             </Button>
           ) : (
             <Button
@@ -214,7 +214,7 @@ export function OnboardingGuide() {
               className="rounded-xl font-semibold px-6"
             >
               التالي
-              <ChevronLeft className="h-4 w-4 mr-1" />
+              <ChevronLeft className="h-4 w-4 ms-1" />
             </Button>
           )}
         </div>

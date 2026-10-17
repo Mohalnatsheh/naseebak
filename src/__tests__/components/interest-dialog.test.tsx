@@ -99,3 +99,14 @@ describe("LockedSuggestionCard", () => {
     expect(screen.getByRole("link", { name: /اشحني رصيدك/ })).toHaveAttribute("href", "/dashboard/payments");
   });
 });
+
+describe("InterestDialog cost only (older suggestions / received interests)", () => {
+  it("skips the introduction choice and confirms the credit with no preference", async () => {
+    const { onConfirm, confirm } = setup({ costOnly: true });
+    expect(screen.queryByRole("radio")).not.toBeInTheDocument();
+    expect(screen.getByText(/مهتم يستخدم رصيداً واحداً/)).toBeInTheDocument();
+    expect(confirm()).toBeEnabled();
+    fireEvent.click(confirm());
+    await waitFor(() => expect(onConfirm).toHaveBeenCalledWith());
+  });
+});

@@ -79,7 +79,7 @@ export default function PaymentsPage() {
 function PaymentsContent() {
   // New cycle: a credit is spent per family/chat request, suggestions are free;
   // credit on interest: a credit is spent on "مهتم" instead, requests are free
-  const { flags } = useDashboardData().counts;
+  const { counts: { flags }, refreshUnread, refreshProfile } = useDashboardData();
   const perRequest = flags.introRequests;
   const creditOnInterest = !!flags.creditOnInterest;
   const router = useRouter();
@@ -140,6 +140,9 @@ function PaymentsContent() {
               message: "تم الدفع بنجاح! تمت إضافة الرصيد",
             });
             loadData();
+            // The balance shown elsewhere (next-step card, sidebar) comes from the shared counts/profile
+            refreshUnread();
+            refreshProfile();
           } else {
             setToast({ type: "info", message: "لم تكتمل عملية الدفع" });
           }
@@ -149,7 +152,7 @@ function PaymentsContent() {
           router.replace("/dashboard/payments");
         });
     }
-  }, [searchParams, loadData, router]);
+  }, [searchParams, loadData, router, refreshUnread, refreshProfile]);
 
   // Auto-dismiss toast
   useEffect(() => {
@@ -365,7 +368,7 @@ function PaymentsContent() {
                     ? `الاقتراحات مجانية. ${CREDIT_ON_INTEREST_LINE}`
                     : perRequest
                     ? "الاقتراحات مجانية. كل طلب تعارف عائلي أو محادثة يستخدم رصيداً واحداً."
-                    : "اشتري رصيد عشان تشوف اقتراحات أكثر"}
+                    : "يمكنك شحن رصيدك لتصلك اقتراحات أكثر"}
                 </p>
               </div>
             </div>
@@ -683,7 +686,7 @@ function PaymentsContent() {
           {histTotalPages > 1 && (
             <div className="flex items-center justify-center gap-4 mt-8">
               <Button variant="outline" size="sm" disabled={histPage <= 1} onClick={() => { const p = histPage - 1; setHistPage(p); loadData(p); }}>
-                <ChevronRight className="h-4 w-4 ml-1" />
+                <ChevronRight className="h-4 w-4 me-1" />
                 السابق
               </Button>
               <span className="text-sm text-muted-foreground">
@@ -691,7 +694,7 @@ function PaymentsContent() {
               </span>
               <Button variant="outline" size="sm" disabled={histPage >= histTotalPages} onClick={() => { const p = histPage + 1; setHistPage(p); loadData(p); }}>
                 التالي
-                <ChevronLeft className="h-4 w-4 mr-1" />
+                <ChevronLeft className="h-4 w-4 ms-1" />
               </Button>
             </div>
           )}

@@ -364,7 +364,7 @@ export default function SupportPage() {
           {ticketTotalPages > 1 && (
             <div className="flex items-center justify-center gap-4 mt-8">
               <Button variant="outline" size="sm" disabled={ticketPage <= 1} onClick={() => setTicketPage(ticketPage - 1)}>
-                <ChevronRight className="h-4 w-4 ml-1" />
+                <ChevronRight className="h-4 w-4 me-1" />
                 السابق
               </Button>
               <span className="text-sm text-muted-foreground">
@@ -372,7 +372,7 @@ export default function SupportPage() {
               </span>
               <Button variant="outline" size="sm" disabled={ticketPage >= ticketTotalPages} onClick={() => setTicketPage(ticketPage + 1)}>
                 التالي
-                <ChevronLeft className="h-4 w-4 mr-1" />
+                <ChevronLeft className="h-4 w-4 ms-1" />
               </Button>
             </div>
           )}

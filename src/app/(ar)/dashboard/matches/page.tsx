@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import Link from "next/link";
 import {
   Loader2,
   Heart,
@@ -20,7 +19,7 @@ import {
   Users,
   Sparkles,
   AlertCircle,
-  ArrowLeft,
+  RefreshCw,
   Calendar,
   User,
   Moon,
@@ -57,6 +56,7 @@ import { MatchClosedNote, MatchIntroPanel } from "@/components/intro/match-intro
 import { ConfirmActionDialog } from "@/components/intro/confirm-action-dialog";
 import { PersonCard, type PersonCardTone } from "@/components/shared/person-card";
 import { describeOption } from "@/lib/profile-options";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useDashboardData } from "@/contexts/dashboard-context";
 
 interface Match {
@@ -238,9 +238,11 @@ export default function MatchesPage() {
   const [showPhotos, setShowPhotos] = useState<Record<string, boolean>>({});
   const [matchPhotos, setMatchPhotos] = useState<Record<string, { id: string; url: string }[]>>({});
   const [loadingPhotos, setLoadingPhotos] = useState<Record<string, boolean>>({});
-  const [accountComplete, setAccountComplete] = useState<boolean | null>(null);
-  const [isFemale, setIsFemale] = useState(false);
-  const { counts } = useDashboardData();
+  /** The match list failed to load: show a retry instead of an empty list */
+  const [loadError, setLoadError] = useState(false);
+  // Matches are never gated (no profile/quiz check): the viewer's gender only picks the wording
+  const { counts, profile } = useDashboardData();
+  const isFemale = profile?.gender === "FEMALE";
   const introMode = counts.flags.introRequests;
   // Opened from a notification link (?match=<id>): scroll to and highlight that card
   const [focusMatchId, setFocusMatchId] = useState<string | null>(null);
@@ -420,18 +422,6 @@ export default function MatchesPage() {
   }
 
   useEffect(() => {
-    async function checkCompletion() {
-      try {
-        const res = await fetch("/api/profile");
-        const data = await res.json();
-        const user = data.user;
-        // Matches are never gated: the personality quiz is optional and the server has no gate either
-        setAccountComplete(true);
-        setIsFemale(user?.gender === "FEMALE");
-      } catch {
-        setAccountComplete(false);
-      }
-    }
     let cancelled = false;
     async function fetchMatches() {
       try {
@@ -440,7 +430,11 @@ export default function MatchesPage() {
         const res = await fetch(`/api/matches?page=${page}${focus ? `&focus=${encodeURIComponent(focus)}` : ""}`);
         const data = await res.json();
         if (cancelled) return;
-        if (!res.ok) toast.error(data.error ?? "تعذّر تحميل التوافقات");
+        if (!res.ok) {
+          setLoadError(true);
+          return;
+        }
+        setLoadError(false);
         focusLoaded.current = true;
         if (focus && data.page && data.page !== page) {
           skipNextFetch.current = true;
@@ -450,6 +444,7 @@ export default function MatchesPage() {
         setTotalPages(data.totalPages || 1);
       } catch (err) {
         console.error(err);
+        if (!cancelled) setLoadError(true);
       } finally {
         setLoading(false);
       }
@@ -459,7 +454,6 @@ export default function MatchesPage() {
       skipNextFetch.current = false;
       return;
     }
-    checkCompletion();
     fetchMatches();
     return () => {
       cancelled = true;
@@ -492,26 +486,27 @@ export default function MatchesPage() {
     );
   }
 
-  if (accountComplete === false) {
+  if (loadError && matches.length === 0) {
     return (
-      <div className="max-w-2xl mx-auto space-y-6 pb-8">
-        <Card className="relative overflow-hidden border-amber-300/50 bg-gradient-to-l from-amber-50/80 to-accent/5 shadow-md">
-          <div className="absolute top-0 right-0 h-32 w-32 rounded-full bg-amber-200/20 blur-2xl translate-x-8 -translate-y-8" />
-          <CardContent className="pt-8 pb-8 text-center space-y-4">
-            <div className="flex h-16 w-16 mx-auto items-center justify-center rounded-2xl bg-amber-100 border border-amber-200/60">
-              <AlertCircle className="h-8 w-8 text-amber-600" />
+      <div className="max-w-2xl mx-auto pb-8">
+        <Card className="border-destructive/20 bg-destructive/5">
+          <CardContent className="pt-8 pb-8 text-center space-y-4" role="alert">
+            <div className="flex h-14 w-14 mx-auto items-center justify-center rounded-2xl bg-destructive/10">
+              <AlertCircle className="h-7 w-7 text-destructive" aria-hidden="true" />
             </div>
-            <div className="space-y-2">
-              <h3 className="text-lg font-bold text-amber-900">أكمل حسابك أولاً</h3>
-              <p className="text-sm text-amber-700/80 max-w-sm mx-auto leading-relaxed">
-                يجب إكمال الملف الشخصي واختبار الشخصية قبل الوصول إلى التوافقات.
-              </p>
+            <div className="space-y-1">
+              <h3 className="text-lg font-bold text-foreground">تعذّر تحميل التوافقات</h3>
+              <p className="text-sm text-muted-foreground">تحقق من اتصالك ثم حاول مرة أخرى.</p>
             </div>
-            <Button asChild className="bg-gradient-to-l from-primary to-primary/80 rounded-xl font-semibold">
-              <Link href="/dashboard">
-                <ArrowLeft className="h-4 w-4 me-2" />
-                العودة للوحة التحكم
-              </Link>
+            <Button
+              onClick={() => {
+                setLoading(true);
+                setReloadKey((k) => k + 1);
+              }}
+              className="rounded-xl font-semibold"
+            >
+              <RefreshCw className="h-4 w-4 me-2" aria-hidden="true" />
+              إعادة المحاولة
             </Button>
           </CardContent>
         </Card>
@@ -544,7 +539,11 @@ export default function MatchesPage() {
           </div>
           <p className="text-muted-foreground text-sm md:text-base">
             {introMode
-              ? "الأشخاص الذين تبادلتم الإعجاب. اختر طريقة التعارف: تعارف عائلي أو محادثة قبل الزيارة."
+              ? counts.flags.creditOnInterest
+                ? "الأشخاص الذين كان الاهتمام بينك وبينهم متبادلاً. يبدأ التعارف بالطريقة التي اخترتماها عند «مهتم»، وتتابعه من هنا."
+                : isFemale
+                  ? "الأشخاص الذين كان الاهتمام بينكِ وبينهم متبادلاً. اختاري طريقة التعارف: تعارف عائلي أو محادثة قبل الزيارة."
+                  : "الأشخاص الذين كان الاهتمام بينك وبينهم متبادلاً. اختر طريقة التعارف: تعارف عائلي أو محادثة قبل الزيارة."
               : "الأشخاص الذين تبادلتم الإعجاب. يمكنك رؤية تفاصيلهم وطلب زيارة عائلية."}
           </p>
         </div>
@@ -563,7 +562,9 @@ export default function MatchesPage() {
             <div className="space-y-2">
               <h3 className="font-semibold text-lg text-foreground">لا توجد توافقات بعد</h3>
               <p className="text-sm text-muted-foreground max-w-xs mx-auto leading-relaxed">
-                عندما يتبادل شخصان الإعجاب، ستظهر هنا تفاصيل التوافق.
+                {introMode
+                  ? "عندما يكون الاهتمام متبادلاً بينك وبين أحد اقتراحاتك، يظهر التوافق هنا."
+                  : "عندما يتبادل شخصان الإعجاب، ستظهر هنا تفاصيل التوافق."}
               </p>
             </div>
             <div className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground/60 pt-2">
@@ -824,7 +825,7 @@ export default function MatchesPage() {
                             <MoreVertical className="h-5 w-5" />
                           </Button>
                           {menuOpen === m.id && (
-                            <div className="absolute bottom-full mb-1 left-0 bg-card border rounded-xl shadow-lg py-1 z-50 w-44">
+                            <div className="absolute bottom-full mb-1 end-0 bg-card border rounded-xl shadow-lg py-1 z-50 w-44">
                               <button
                                 className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted/50 text-foreground"
                                 onClick={() => { setBlockDialog({ userId: m.partner.id, name: m.partner.firstName }); setMenuOpen(null); }}
@@ -886,7 +887,7 @@ export default function MatchesPage() {
           {totalPages > 1 && (
             <div className="flex items-center justify-center gap-4 mt-8">
               <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>
-                <ChevronRight className="h-4 w-4 ml-1" />
+                <ChevronRight className="h-4 w-4 me-1" />
                 السابق
               </Button>
               <span className="text-sm text-muted-foreground">
@@ -894,7 +895,7 @@ export default function MatchesPage() {
               </span>
               <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>
                 التالي
-                <ChevronLeft className="h-4 w-4 mr-1" />
+                <ChevronLeft className="h-4 w-4 ms-1" />
               </Button>
             </div>
           )}
@@ -902,51 +903,53 @@ export default function MatchesPage() {
       )}
 
       {/* Report Dialog */}
-      {reportDialog && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setReportDialog(null)}>
-          <div className="bg-card rounded-2xl border shadow-2xl p-6 w-full max-w-sm space-y-4" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-bold text-foreground">إبلاغ وحظر {reportDialog.name}</h3>
-            <p className="text-sm leading-relaxed text-muted-foreground">
-              سيصل البلاغ لفريق نصيبك، ويُحظر {reportDialog.name} فينتهي هذا التوافق ولا {isFemale ? "يرى" : "ترى"} ملفك بعد الآن. تُلغى الطلبات المعلقة بينكما دون استرجاع الرصيد.
-            </p>
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">سبب الإبلاغ</label>
-              <select
-                value={reportReason}
-                onChange={(e) => setReportReason(e.target.value)}
-                className="w-full rounded-xl border border-input bg-background px-3 py-2.5 text-sm"
-              >
-                <option value="FAKE_PROFILE">ملف شخصي مزيف</option>
-                <option value="INAPPROPRIATE_CONTENT">محتوى غير لائق</option>
-                <option value="HARASSMENT">تحرّش</option>
-                <option value="SPAM">رسائل مزعجة</option>
-                <option value="OTHER">أخرى</option>
-              </select>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">تفاصيل إضافية (اختياري)</label>
-              <textarea
-                value={reportDetails}
-                onChange={(e) => setReportDetails(e.target.value)}
-                className="w-full rounded-xl border border-input bg-background px-3 py-2.5 text-sm min-h-[80px] resize-none"
-                placeholder="أضف تفاصيل إن وجدت..."
-              />
-            </div>
-            <div className="flex gap-2 pt-2">
-              <Button
-                onClick={handleReportSubmit}
-                disabled={reportSubmitting}
-                className="flex-1 bg-destructive hover:bg-destructive/90 text-white rounded-xl"
-              >
-                {reportSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "إبلاغ وحظر"}
-              </Button>
-              <Button variant="outline" onClick={() => setReportDialog(null)} className="rounded-xl">
-                إلغاء
-              </Button>
-            </div>
+      <Dialog open={!!reportDialog} onOpenChange={(o) => !o && !reportSubmitting && setReportDialog(null)}>
+        <DialogContent dir="rtl" className="sm:max-w-sm text-start space-y-2">
+          <DialogHeader className="text-start sm:text-start">
+            <DialogTitle>إبلاغ وحظر {reportDialog?.name}</DialogTitle>
+            <DialogDescription className="text-start leading-relaxed">
+              سيصل البلاغ لفريق نصيبك، ويُحظر {reportDialog?.name} فينتهي هذا التوافق ولا {isFemale ? "يرى" : "ترى"} ملفك بعد الآن. تُلغى الطلبات المعلقة بينكما دون استرجاع الرصيد.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <label htmlFor="match-report-reason" className="text-sm font-medium text-foreground">سبب الإبلاغ</label>
+            <select
+              id="match-report-reason"
+              value={reportReason}
+              onChange={(e) => setReportReason(e.target.value)}
+              className="w-full rounded-xl border border-input bg-background px-3 py-2.5 text-sm"
+            >
+              <option value="FAKE_PROFILE">ملف شخصي مزيف</option>
+              <option value="INAPPROPRIATE_CONTENT">محتوى غير لائق</option>
+              <option value="HARASSMENT">تحرّش</option>
+              <option value="SPAM">رسائل مزعجة</option>
+              <option value="OTHER">أخرى</option>
+            </select>
           </div>
-        </div>
-      )}
+          <div className="space-y-2">
+            <label htmlFor="match-report-details" className="text-sm font-medium text-foreground">تفاصيل إضافية (اختياري)</label>
+            <textarea
+              id="match-report-details"
+              value={reportDetails}
+              onChange={(e) => setReportDetails(e.target.value)}
+              className="w-full rounded-xl border border-input bg-background px-3 py-2.5 text-sm min-h-[80px] resize-none"
+              placeholder="أضف تفاصيل إن وجدت..."
+            />
+          </div>
+          <div className="flex gap-2 pt-2">
+            <Button
+              onClick={handleReportSubmit}
+              disabled={reportSubmitting}
+              className="flex-1 bg-destructive hover:bg-destructive/90 text-white rounded-xl"
+            >
+              {reportSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "إبلاغ وحظر"}
+            </Button>
+            <Button variant="outline" onClick={() => setReportDialog(null)} disabled={reportSubmitting} className="rounded-xl">
+              إلغاء
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <ConfirmActionDialog
         open={!!blockDialog}
@@ -970,64 +973,80 @@ export default function MatchesPage() {
       />
 
       {/* Feedback Dialog */}
-      {feedbackDialog && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setFeedbackDialog(null)}>
-          <div className="bg-card rounded-2xl border shadow-2xl p-6 w-full max-w-sm space-y-4" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-bold text-foreground">تقييم الزيارة</h3>
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">النتيجة</label>
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setFeedbackOutcome("PROCEEDED")}
-                  className={`flex-1 p-3 rounded-xl border text-sm font-medium transition-colors ${feedbackOutcome === "PROCEEDED" ? "bg-emerald-50 border-emerald-300 text-emerald-700" : "border-border hover:bg-muted/30"}`}
-                >
-                  <CheckCircle2 className="h-5 w-5 mx-auto mb-1" />
-                  نرغب بالإكمال
-                </button>
-                <button
-                  onClick={() => setFeedbackOutcome("DECLINED")}
-                  className={`flex-1 p-3 rounded-xl border text-sm font-medium transition-colors ${feedbackOutcome === "DECLINED" ? "bg-destructive/10 border-destructive/30 text-destructive" : "border-border hover:bg-muted/30"}`}
-                >
-                  <XCircle className="h-5 w-5 mx-auto mb-1" />
-                  لا نرغب بالإكمال
-                </button>
-              </div>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">تقييم التجربة</label>
-              <div className="flex justify-center gap-1">
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <button key={star} onClick={() => setFeedbackRating(star)} className="p-1">
-                    <Star className={`h-8 w-8 transition-colors ${star <= feedbackRating ? "text-accent fill-accent" : "text-muted-foreground/30"}`} />
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">ملاحظات (اختياري)</label>
-              <textarea
-                value={feedbackReason}
-                onChange={(e) => setFeedbackReason(e.target.value)}
-                className="w-full rounded-xl border border-input bg-background px-3 py-2.5 text-sm min-h-[80px] resize-none"
-                placeholder="أضف ملاحظاتك حول الزيارة..."
-                maxLength={500}
-              />
-            </div>
-            <div className="flex gap-2 pt-2">
-              <Button
-                onClick={handleFeedbackSubmit}
-                disabled={feedbackSubmitting}
-                className="flex-1 bg-gradient-to-l from-primary to-secondary text-white rounded-xl"
+      <Dialog open={!!feedbackDialog} onOpenChange={(o) => !o && !feedbackSubmitting && setFeedbackDialog(null)}>
+        <DialogContent dir="rtl" className="sm:max-w-sm text-start space-y-2">
+          <DialogHeader className="text-start sm:text-start">
+            <DialogTitle>تقييم الزيارة</DialogTitle>
+            <DialogDescription className="sr-only">نتيجة الزيارة العائلية وتقييمك للتجربة</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <p id="feedback-outcome-label" className="text-sm font-medium text-foreground">النتيجة</p>
+            <div className="flex gap-3" role="radiogroup" aria-labelledby="feedback-outcome-label">
+              <button
+                type="button"
+                role="radio"
+                aria-checked={feedbackOutcome === "PROCEEDED"}
+                onClick={() => setFeedbackOutcome("PROCEEDED")}
+                className={`flex-1 p-3 rounded-xl border text-sm font-medium transition-colors ${feedbackOutcome === "PROCEEDED" ? "bg-emerald-50 border-emerald-300 text-emerald-700" : "border-border hover:bg-muted/30"}`}
               >
-                {feedbackSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "إرسال التقييم"}
-              </Button>
-              <Button variant="outline" onClick={() => setFeedbackDialog(null)} className="rounded-xl">
-                إلغاء
-              </Button>
+                <CheckCircle2 className="h-5 w-5 mx-auto mb-1" />
+                نرغب بالإكمال
+              </button>
+              <button
+                type="button"
+                role="radio"
+                aria-checked={feedbackOutcome === "DECLINED"}
+                onClick={() => setFeedbackOutcome("DECLINED")}
+                className={`flex-1 p-3 rounded-xl border text-sm font-medium transition-colors ${feedbackOutcome === "DECLINED" ? "bg-destructive/10 border-destructive/30 text-destructive" : "border-border hover:bg-muted/30"}`}
+              >
+                <XCircle className="h-5 w-5 mx-auto mb-1" />
+                لا نرغب بالإكمال
+              </button>
             </div>
           </div>
-        </div>
-      )}
+          <div className="space-y-2">
+            <p id="feedback-rating-label" className="text-sm font-medium text-foreground">تقييم التجربة</p>
+            <div className="flex justify-center gap-1" role="radiogroup" aria-labelledby="feedback-rating-label">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <button
+                  key={star}
+                  type="button"
+                  role="radio"
+                  aria-checked={feedbackRating === star}
+                  aria-label={`تقييم ${star} من 5`}
+                  onClick={() => setFeedbackRating(star)}
+                  className="p-1 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <Star aria-hidden="true" className={`h-8 w-8 transition-colors ${star <= feedbackRating ? "text-accent fill-accent" : "text-muted-foreground/30"}`} />
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="space-y-2">
+            <label htmlFor="feedback-notes" className="text-sm font-medium text-foreground">ملاحظات (اختياري)</label>
+            <textarea
+              id="feedback-notes"
+              value={feedbackReason}
+              onChange={(e) => setFeedbackReason(e.target.value)}
+              className="w-full rounded-xl border border-input bg-background px-3 py-2.5 text-sm min-h-[80px] resize-none"
+              placeholder="أضف ملاحظاتك حول الزيارة..."
+              maxLength={500}
+            />
+          </div>
+          <div className="flex gap-2 pt-2">
+            <Button
+              onClick={handleFeedbackSubmit}
+              disabled={feedbackSubmitting}
+              className="flex-1 bg-gradient-to-l from-primary to-secondary text-white rounded-xl"
+            >
+              {feedbackSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "إرسال التقييم"}
+            </Button>
+            <Button variant="outline" onClick={() => setFeedbackDialog(null)} disabled={feedbackSubmitting} className="rounded-xl">
+              إلغاء
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <ImageLightbox
         images={lightboxImages}

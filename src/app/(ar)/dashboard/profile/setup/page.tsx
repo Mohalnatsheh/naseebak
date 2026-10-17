@@ -435,7 +435,9 @@ export default function ProfileSetupPage() {
       }
 
       clearDraft();
-      router.push("/dashboard/profile");
+      // New cycle: a finished setup is all suggestions need, so go straight to them
+      // (legacy still needs 50% completeness: the profile page shows what's missing)
+      router.push(counts.flags.introRequests ? "/dashboard/suggestions" : "/dashboard/profile");
     } catch {
       setError("حدث خطأ غير متوقع");
     } finally {
@@ -837,7 +839,7 @@ export default function ProfileSetupPage() {
             <CardTitle>بيانات ولي الأمر</CardTitle>
             <CardDescription>
               {counts.flags.introRequests
-                ? "بيانات وليّ الأمر سرية، ولا تظهر لأي مستخدم إلا لعائلة الطرف الآخر بعد قبول طلب التعارف العائلي وبموافقتك."
+                ? "بيانات وليّ الأمر سرية، ولا تظهر لأي مستخدم إلا لعائلة الطرف الآخر عند بدء تعارف عائلي على توافق متبادل وبموافقتك."
                 : "هذه البيانات مطلوبة لتنسيق الزيارات العائلية ولن تظهر للمستخدمين الآخرين"}
             </CardDescription>
           </CardHeader>
@@ -867,7 +869,7 @@ export default function ProfileSetupPage() {
                   className="mt-0.5 h-4 w-4 flex-shrink-0 accent-[var(--primary)]"
                 />
                 <span className="leading-relaxed text-foreground/80">
-                  أوافق على مشاركة اسم ورقم وليّ الأمر مع عائلة الطرف الآخر فقط بعد قبول طلب التعارف العائلي. لا تظهر هذه البيانات لأي شخص قبل ذلك.
+                  أوافق على مشاركة اسم ورقم وليّ الأمر مع عائلة الطرف الآخر فقط عند بدء تعارف عائلي على توافق متبادل. لا تظهر هذه البيانات لأي شخص قبل ذلك.
                 </span>
               </label>
             ) : (

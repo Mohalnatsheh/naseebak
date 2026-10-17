@@ -65,6 +65,14 @@ describe("legacy like / accept with credit on interest", () => {
     expect(db.like.create).toHaveBeenCalledTimes(1);
   });
 
+  it("like tells the other person through notify() (so their push settings apply)", async () => {
+    await like(req(), params("s1"));
+    expect(notifyMod.notify).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: "f1", type: "INTEREST", url: "/dashboard/suggestions" }),
+    );
+    expect(db.notification.create).not.toHaveBeenCalled();
+  });
+
   it("like at 0 credits is refused with NO_CREDITS and records nothing", async () => {
     balance = 0;
     const res = await like(req(), params("s1"));

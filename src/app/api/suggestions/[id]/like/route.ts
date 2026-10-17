@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { sendPushNotification } from "@/lib/onesignal";
+import { notify } from "@/lib/notify";
 import { createMutualMatch } from "@/lib/intro/match";
 import { notifyInterestCreditsExhausted, recordCredit, reserveCredits } from "@/lib/credits";
 import { IntroError } from "@/lib/intro/errors";
@@ -92,23 +92,14 @@ export async function POST(
       });
     }
 
-    // Notify the other user about the interest
-    await db.notification.create({
-      data: {
-        userId: otherUserId,
-        type: "INTEREST",
-        title: "شخص مهتم بك!",
-        body: "هناك شخص أبدى اهتمامه بملفك. راجع طلبات الاهتمام وقرر.",
-        metadata: { suggestionId: suggestion.id },
-      },
-    });
-
-    // Push notification
-    sendPushNotification({
+    // Notify the other user about the interest (in-app row + push, respecting their push settings)
+    await notify({
       userId: otherUserId,
+      type: "INTEREST",
       title: "شخص مهتم بك!",
-      body: "هناك شخص أبدى اهتمامه بملفك.",
+      body: "هناك شخص أبدى اهتمامه بملفك. راجع طلبات الاهتمام وقرر.",
       url: "/dashboard/suggestions",
+      metadata: { suggestionId: suggestion.id },
     });
 
     return NextResponse.json({ message: "تم قبول الاقتراح", match: false });

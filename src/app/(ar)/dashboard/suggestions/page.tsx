@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { toast } from "sonner";
 import {
   Loader2,
   Sparkles,
@@ -194,7 +195,9 @@ export default function SuggestionsPage() {
   const [reportDetails, setReportDetails] = useState("");
   const [reportSubmitting, setReportSubmitting] = useState(false);
 
-  async function handleBlock(userId: string, cardId: string, tab: "suggestion" | "interest") {
+  async function handleBlock(userId: string, name: string, cardId: string, tab: "suggestion" | "interest") {
+    setMenuOpen(null);
+    if (!window.confirm(`حظر ${name}؟ لن يظهر لك ولن تظهر له مرة أخرى.`)) return;
     try {
       const res = await fetch("/api/blocks", {
         method: "POST",
@@ -207,18 +210,21 @@ export default function SuggestionsPage() {
         } else {
           setInterests((prev) => prev.filter((i) => i.id !== cardId));
         }
+        toast.success("تم الحظر");
+      } else {
+        toast.error("تعذّر الحظر، حاول مرة أخرى");
       }
     } catch (err) {
       console.error(err);
+      toast.error("تعذّر الحظر، حاول مرة أخرى");
     }
-    setMenuOpen(null);
   }
 
   async function handleReportSubmit() {
     if (!reportDialog) return;
     setReportSubmitting(true);
     try {
-      await fetch("/api/reports", {
+      const res = await fetch("/api/reports", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -227,11 +233,18 @@ export default function SuggestionsPage() {
           details: reportDetails || undefined,
         }),
       });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error || "تعذّر إرسال البلاغ");
+        return;
+      }
+      toast.success("تم إرسال البلاغ. سيراجعه فريق نصيبك.");
       setReportDialog(null);
       setReportReason("FAKE_PROFILE");
       setReportDetails("");
     } catch (err) {
       console.error(err);
+      toast.error("تعذّر إرسال البلاغ");
     } finally {
       setReportSubmitting(false);
     }
@@ -344,6 +357,7 @@ export default function SuggestionsPage() {
       const res = await fetch(`/api/interests/${id}/${action}`, { method: "POST" });
       const data = await res.json();
       if (data.code === "NO_CREDITS") setCredits(0);
+      else if (!res.ok) toast.error(data.error || "تعذّر حفظ قرارك");
 
       if (res.ok) {
         if (creditGate && action === "accept") setCredits((c) => Math.max(0, (c ?? 1) - 1));
@@ -354,7 +368,9 @@ export default function SuggestionsPage() {
           setRemovingId(null);
         }, 400);
         if (data.match) {
-          alert("تهانينا! لديك توافق متبادل!");
+toast.success("تهانينا! لديك توافق متبادل!", {
+            action: { label: "عرض التوافق", onClick: () => window.location.assign("/dashboard/matches") },
+          });
         }
       }
     } catch (err) {
@@ -370,6 +386,7 @@ export default function SuggestionsPage() {
       const res = await fetch(`/api/suggestions/${id}/${action}`, { method: "POST" });
       const data = await res.json();
       if (data.code === "NO_CREDITS") setCredits(0);
+      else if (!res.ok) toast.error(data.error || "تعذّر حفظ قرارك");
 
       if (res.ok) {
         if (creditGate && action === "like") setCredits((c) => Math.max(0, (c ?? 1) - 1));
@@ -383,7 +400,9 @@ export default function SuggestionsPage() {
           fetchSentRequests();
         }
         if (data.match) {
-          alert("تهانينا! لديك توافق متبادل!");
+toast.success("تهانينا! لديك توافق متبادل!", {
+            action: { label: "عرض التوافق", onClick: () => window.location.assign("/dashboard/matches") },
+          });
         }
       }
     } catch (err) {
@@ -701,6 +720,7 @@ export default function SuggestionsPage() {
                               variant="outline"
                               onClick={() => handleAction(s.id, "reject")}
                               disabled={acting === s.id}
+                              aria-label="لا"
                               className="h-12 px-5 border-destructive/30 text-destructive/80 hover:bg-destructive/5 hover:text-destructive hover:border-destructive/50 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 rounded-xl font-bold"
                             >
                               <X className="h-5 w-5" />
@@ -717,7 +737,7 @@ export default function SuggestionsPage() {
                                 <MoreVertical className="h-5 w-5" />
                               </Button>
                               {menuOpen === s.id && (
-                                <div className="absolute bottom-full mb-1 left-0 bg-card border rounded-xl shadow-lg py-1 z-50 w-40">
+                                <div className="absolute bottom-full mb-1 end-0 bg-card border rounded-xl shadow-lg py-1 z-50 w-40">
                                   <button
                                     className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted/50 text-amber-600"
                                     onClick={() => { setReportDialog({ userId: c.id, name: c.firstName }); setMenuOpen(null); }}
@@ -727,7 +747,7 @@ export default function SuggestionsPage() {
                                   </button>
                                   <button
                                     className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted/50 text-destructive"
-                                    onClick={() => handleBlock(c.id, s.id, "suggestion")}
+                                    onClick={() => handleBlock(c.id, c.firstName, s.id, "suggestion")}
                                   >
                                     <Ban className="h-4 w-4" />
                                     حظر
@@ -745,7 +765,7 @@ export default function SuggestionsPage() {
               {sugTotalPages > 1 && (
                 <div className="flex items-center justify-center gap-4 mt-8">
                   <Button variant="outline" size="sm" disabled={sugPage <= 1} onClick={() => { const p = sugPage - 1; setSugPage(p); fetchSuggestions(p); }}>
-                    <ChevronRight className="h-4 w-4 ml-1" />
+                    <ChevronRight className="h-4 w-4 me-1" />
                     السابق
                   </Button>
                   <span className="text-sm text-muted-foreground">
@@ -753,7 +773,7 @@ export default function SuggestionsPage() {
                   </span>
                   <Button variant="outline" size="sm" disabled={sugPage >= sugTotalPages} onClick={() => { const p = sugPage + 1; setSugPage(p); fetchSuggestions(p); }}>
                     التالي
-                    <ChevronLeft className="h-4 w-4 mr-1" />
+                    <ChevronLeft className="h-4 w-4 ms-1" />
                   </Button>
                 </div>
               )}
@@ -845,7 +865,7 @@ export default function SuggestionsPage() {
               {sentTotalPages > 1 && (
                 <div className="flex items-center justify-center gap-4 mt-8">
                   <Button variant="outline" size="sm" disabled={sentPage <= 1} onClick={() => { const p = sentPage - 1; setSentPage(p); fetchSentRequests(p); }}>
-                    <ChevronRight className="h-4 w-4 ml-1" />
+                    <ChevronRight className="h-4 w-4 me-1" />
                     السابق
                   </Button>
                   <span className="text-sm text-muted-foreground">
@@ -853,7 +873,7 @@ export default function SuggestionsPage() {
                   </span>
                   <Button variant="outline" size="sm" disabled={sentPage >= sentTotalPages} onClick={() => { const p = sentPage + 1; setSentPage(p); fetchSentRequests(p); }}>
                     التالي
-                    <ChevronLeft className="h-4 w-4 mr-1" />
+                    <ChevronLeft className="h-4 w-4 ms-1" />
                   </Button>
                 </div>
               )}
@@ -947,6 +967,7 @@ export default function SuggestionsPage() {
                               variant="outline"
                               onClick={() => handleInterestAction(interest.id, "reject")}
                               disabled={acting === interest.id}
+                              aria-label="رفض"
                               className="h-12 px-5 border-destructive/30 text-destructive/80 hover:bg-destructive/5 hover:text-destructive hover:border-destructive/50 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 rounded-xl font-bold"
                             >
                               <X className="h-5 w-5" />
@@ -963,7 +984,7 @@ export default function SuggestionsPage() {
                                 <MoreVertical className="h-5 w-5" />
                               </Button>
                               {menuOpen === interest.id && (
-                                <div className="absolute bottom-full mb-1 left-0 bg-card border rounded-xl shadow-lg py-1 z-50 w-40">
+                                <div className="absolute bottom-full mb-1 end-0 bg-card border rounded-xl shadow-lg py-1 z-50 w-40">
                                   <button
                                     className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted/50 text-amber-600"
                                     onClick={() => { setReportDialog({ userId: c.id, name: c.firstName }); setMenuOpen(null); }}
@@ -973,7 +994,7 @@ export default function SuggestionsPage() {
                                   </button>
                                   <button
                                     className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted/50 text-destructive"
-                                    onClick={() => handleBlock(c.id, interest.id, "interest")}
+                                    onClick={() => handleBlock(c.id, c.firstName, interest.id, "interest")}
                                   >
                                     <Ban className="h-4 w-4" />
                                     حظر
@@ -991,7 +1012,7 @@ export default function SuggestionsPage() {
               {intTotalPages > 1 && (
                 <div className="flex items-center justify-center gap-4 mt-8">
                   <Button variant="outline" size="sm" disabled={intPage <= 1} onClick={() => { const p = intPage - 1; setIntPage(p); fetchInterests(p); }}>
-                    <ChevronRight className="h-4 w-4 ml-1" />
+                    <ChevronRight className="h-4 w-4 me-1" />
                     السابق
                   </Button>
                   <span className="text-sm text-muted-foreground">
@@ -999,7 +1020,7 @@ export default function SuggestionsPage() {
                   </span>
                   <Button variant="outline" size="sm" disabled={intPage >= intTotalPages} onClick={() => { const p = intPage + 1; setIntPage(p); fetchInterests(p); }}>
                     التالي
-                    <ChevronLeft className="h-4 w-4 mr-1" />
+                    <ChevronLeft className="h-4 w-4 ms-1" />
                   </Button>
                 </div>
               )}

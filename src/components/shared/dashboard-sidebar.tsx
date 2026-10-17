@@ -95,14 +95,14 @@ function NavItem({
           <link.icon className={cn("h-4 w-4", isActive && "text-primary")} />
         </div>
         {link.badge && link.badge > 0 ? (
-          <span className="absolute -top-1.5 -right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-white shadow-sm">
+          <span className="absolute -top-1.5 -start-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-white shadow-sm">
             {link.badge > 99 ? "99+" : link.badge}
           </span>
         ) : null}
       </div>
       {!collapsed && <span>{link.label}</span>}
       {isActive && !collapsed && (
-        <div className="absolute left-0 top-1/2 -translate-y-1/2 h-6 w-1 bg-primary rounded-e-full" />
+        <div className="absolute end-0 top-1/2 -translate-y-1/2 h-6 w-1 bg-primary rounded-e-full" />
       )}
     </Link>
   );
@@ -134,7 +134,11 @@ export function DashboardSidebar() {
     .filter((link) => link.href !== "/dashboard/chats" || counts.flags.chat || counts.hasChats)
     .map((link) => (badges[link.href] ? { ...link, badge: badges[link.href] } : link));
   const filteredMainLinks = filterLinks(mainLinksWithBadge);
-  const filteredAccountLinks = filterLinks(accountLinks);
+  // Same name for the balance as the home and payments pages
+  const creditsLabel = counts.flags.introRequests ? "رصيد التعارف" : "رصيد الاقتراحات";
+  const filteredAccountLinks = filterLinks(
+    accountLinks.map((link) => (link.href === "/dashboard/payments" ? { ...link, label: creditsLabel } : link))
+  );
 
   const handleSignOut = () => {
     signOut({ callbackUrl: "/login" });
@@ -292,7 +296,7 @@ export function DashboardSidebar() {
             <Link href="/dashboard/notifications" className="relative h-10 w-10 rounded-xl flex items-center justify-center hover:bg-muted/60 transition-colors">
               <Bell className="h-5 w-5 text-muted-foreground" />
               {unreadCount > 0 && (
-                <span className="absolute top-1 right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-bold text-white shadow-sm animate-in zoom-in duration-300">
+                <span className="absolute top-1 start-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-bold text-white shadow-sm animate-in zoom-in duration-300">
                   {unreadCount > 99 ? "99+" : unreadCount}
                 </span>
               )}

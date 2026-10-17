@@ -8,6 +8,7 @@ import type { Prisma } from "@prisma/client";
 import { notifyMany } from "@/lib/notify";
 import { MUTUAL_SUGGESTION_MS } from "@/lib/suggestions/mutual";
 import { checkSuggestionPair } from "@/lib/admin/suggestion-pair";
+import { MAX_OPEN_SUGGESTIONS, openSuggestionCount } from "@/lib/matching/auto-suggest";
 
 export async function GET(request: Request) {
   try {
@@ -103,6 +104,20 @@ export async function POST(request: Request) {
     const refused = await checkSuggestionPair(recipientId, candidateId);
     if (refused) return NextResponse.json({ error: refused.error }, { status: refused.status });
 
+    // Credit on interest: hand-picks respect the 5-open cap (owner decision), but not the minimum
+    // score — an admin may pick a lower-scoring pair on purpose. A shared row fills a slot for both.
+    const cycleFlags = await getCycleFlags();
+    if (cycleFlags.creditOnInterest) {
+      const [mine, theirs] = await Promise.all([openSuggestionCount(recipientId), openSuggestionCount(candidateId)]);
+      if (mine >= MAX_OPEN_SUGGESTIONS || theirs >= MAX_OPEN_SUGGESTIONS) {
+        const who = mine >= MAX_OPEN_SUGGESTIONS ? "The user" : "The candidate";
+        return NextResponse.json(
+          { error: `${who} already has ${MAX_OPEN_SUGGESTIONS} open suggestions. Wait until they decide or one closes.` },
+          { status: 409 }
+        );
+      }
+    }
+
     let score = manualScore;
     if (score == null) {
       const [userA, userB] = await Promise.all([
@@ -123,7 +138,7 @@ export async function POST(request: Request) {
     }
 
     // Simultaneous flow: both people see the suggestion and decide
-    const { mutualSuggestions } = await getCycleFlags();
+    const { mutualSuggestions } = cycleFlags;
     const suggestion = await db.suggestion.create({
       data: {
         recipientId,

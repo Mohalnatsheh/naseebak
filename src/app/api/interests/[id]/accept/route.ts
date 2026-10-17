@@ -18,6 +18,11 @@ export async function POST(
 
     const { id } = await params;
 
+    // Credit on interest: older-style interests are closed (shared flow only), never charged
+    if ((await getCycleFlags()).creditOnInterest) {
+      return NextResponse.json({ error: "انتهت صلاحية هذا الطلب" }, { status: 404 });
+    }
+
     // Find the incoming like
     const incomingLike = await db.like.findUnique({
       where: { id },

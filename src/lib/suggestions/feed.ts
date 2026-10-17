@@ -157,8 +157,10 @@ export async function getSuggestionFeed(
         ...(atZero && theirDecision === "INTERESTED" && { likedYou: true }),
       });
     }
-    for (const s of legacy) rows.push({ kind: "legacy_suggestion", id: s.id, score: s.compatibilityScore, createdAt: s.createdAt, other: s.candidate as Person });
-    for (const l of likes) {
+    // Credit on interest: older-style cards are closed (closeLegacyInFlight), shared flow only
+    const legacyOpen = !flags.creditOnInterest;
+    if (legacyOpen) for (const s of legacy) rows.push({ kind: "legacy_suggestion", id: s.id, score: s.compatibilityScore, createdAt: s.createdAt, other: s.candidate as Person });
+    if (legacyOpen) for (const l of likes) {
       if (answered.has(l.fromUser.id)) continue;
       rows.push({ kind: "legacy_interest", id: l.id, score: null, createdAt: l.createdAt, other: l.fromUser as Person });
     }
@@ -194,7 +196,7 @@ export async function getSuggestionFeed(
     ]);
     const matched = new Set(matches.flatMap((m) => [m.femaleId, m.maleId]));
     for (const s of mutual) rows.push({ kind: "mutual", id: s.id, score: s.compatibilityScore, createdAt: s.createdAt, other: otherOf(s as never), expiresAt: s.expiresAt });
-    for (const s of legacySent) {
+    if (!flags.creditOnInterest) for (const s of legacySent) {
       if (matched.has(s.candidate.id)) continue;
       rows.push({ kind: "legacy_sent", id: s.id, score: s.compatibilityScore, createdAt: s.updatedAt, other: s.candidate as Person });
     }

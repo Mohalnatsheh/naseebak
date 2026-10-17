@@ -179,6 +179,19 @@ export async function expireMutualSuggestions(userId: string): Promise<void> {
     .catch((e) => console.error("[suggestions] expiry top-up:", e));
 }
 
+/**
+ * Credit on interest going live: older-style (LEGACY) suggestions still waiting for a decision are
+ * closed, so everyone is on the shared flow only. Their received interests (Like rows) have no
+ * status: the feed hides them and /api/interests/[id]/accept refuses them while the flag is on.
+ */
+export async function closeLegacyInFlight(): Promise<{ closed: number }> {
+  const { count } = await db.suggestion.updateMany({
+    where: { flow: "LEGACY", status: "PENDING" },
+    data: { status: "EXPIRED" },
+  });
+  return { closed: count };
+}
+
 /** Fire-and-forget top-up after a decision freed a slot; lazy import avoids the auto-suggest <-> mutual cycle. */
 function topUpAfterDecision(userId: string): void {
   void import("@/lib/matching/auto-suggest")

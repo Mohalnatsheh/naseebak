@@ -3,6 +3,7 @@ import { z } from "zod/v4";
 import { requireAdmin } from "@/lib/auth";
 import { getCycleFlags, getSetting, setSetting } from "@/lib/settings";
 import { db } from "@/lib/db";
+import { closeLegacyInFlight } from "@/lib/suggestions/mutual";
 
 async function state() {
   const [flags, chatRaw, mutualRaw, creditRaw, migration] = await Promise.all([
@@ -57,6 +58,8 @@ export async function PATCH(request: Request) {
     }
     if (parsed.data.creditOnInterest !== undefined) {
       await setSetting("credit_on_interest", String(parsed.data.creditOnInterest));
+      // Going live: older-style suggestions in flight are closed (owner decision), shared flow only
+      if (parsed.data.creditOnInterest) await closeLegacyInFlight();
     }
     // Credit on interest depends on both: turning either off turns it off too, so switching
     // them back on later never silently re-enables it

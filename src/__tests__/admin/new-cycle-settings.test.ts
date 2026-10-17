@@ -15,6 +15,8 @@ const settings = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/settings", () => settings);
 vi.mock("@/lib/db", () => ({ db: { systemSetting: { findUnique: vi.fn(async () => null) } } }));
+const mutualMod = vi.hoisted(() => ({ closeLegacyInFlight: vi.fn(async () => ({ closed: 0 })) }));
+vi.mock("@/lib/suggestions/mutual", () => mutualMod);
 vi.mock("@/lib/auth", () => ({
   requireAdmin: vi.fn(async () => ({ session: { user: { id: "admin1", role: "ADMIN" } } })),
 }));
@@ -32,6 +34,14 @@ beforeEach(() => {
 });
 
 describe("new-cycle settings PATCH", () => {
+  it("switching credit on interest on closes older-style suggestions in flight (and only then)", async () => {
+    await patch({ creditOnInterest: true });
+    expect(mutualMod.closeLegacyInFlight).toHaveBeenCalledTimes(1);
+    await patch({ creditOnInterest: false });
+    await patch({ chat: true });
+    expect(mutualMod.closeLegacyInFlight).toHaveBeenCalledTimes(1);
+  });
+
   it("turning shared suggestions off also turns credit on interest off", async () => {
     const res = await patch({ mutualSuggestions: false });
     expect(res.status).toBe(200);

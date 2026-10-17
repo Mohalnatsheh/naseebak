@@ -216,14 +216,14 @@ describe("getSuggestionFeed — at 0 credits", () => {
     expect(items[0]).not.toHaveProperty("likedYou");
   });
 
-  it("legacy items and the waiting tab are never locked", async () => {
+  it("older-style items are hidden while credit on interest is on; the waiting tab shows full cards", async () => {
     settings.getCycleFlags.mockResolvedValue(on);
     db.user.findUnique.mockResolvedValue(broke);
     db.suggestion.findMany
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{ id: "L1", compatibilityScore: 60, createdAt: new Date(), candidate: person("f2", "FEMALE") }]);
     const fresh = await getSuggestionFeed("me", "new", 1);
-    expect(fresh.items[0]).toMatchObject({ kind: "legacy_suggestion", candidate: { id: "f2" } });
+    expect(fresh.items).toEqual([]);
     db.suggestion.findMany.mockReset().mockResolvedValue([]);
     db.suggestion.findMany.mockResolvedValueOnce([withDecision("w1", null)]).mockResolvedValueOnce([]);
     const waiting = await getSuggestionFeed("me", "waiting", 1);

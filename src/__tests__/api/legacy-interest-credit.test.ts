@@ -106,27 +106,10 @@ describe("legacy like / accept with credit on interest", () => {
     expect(notifyMod.notify.mock.calls.filter((c) => c[0].type === "PAYMENT")).toHaveLength(1);
   });
 
-  it("accept sends the exhausted notice once for two concurrent accepts from 2", async () => {
-    balance = 2;
-    db.user.findUniqueOrThrow.mockResolvedValueOnce({ matchCredits: 1 }).mockResolvedValueOnce({ matchCredits: 0 });
-    await Promise.all([accept(req(), params("l1")), accept(req(), params("l2"))]);
-    expect(notifyMod.notify.mock.calls.filter((c) => c[0].type === "PAYMENT")).toHaveLength(1);
-  });
-
-  it("accept charges 1 when flag on", async () => {
+  it("accept is refused while credit on interest is on (older interests are closed), nothing charged", async () => {
     const res = await accept(req(), params("l1"));
-    expect(res.status).toBe(200);
-    expect(balance).toBe(2);
-    expect(db.$transaction).toHaveBeenCalledTimes(1);
-    expect(db.creditLedger.create).toHaveBeenCalledWith({
-      data: { userId: "u1", delta: -1, reason: "INTEREST", refId: "s1" },
-    });
-  });
-
-  it("accept at 0 credits is refused with NO_CREDITS", async () => {
-    balance = 0;
-    const res = await accept(req(), params("l1"));
-    expect(res.status).toBe(402);
+    expect(res.status).toBe(404);
+    expect(balance).toBe(3);
     expect(db.creditLedger.create).not.toHaveBeenCalled();
   });
 

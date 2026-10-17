@@ -330,7 +330,9 @@ export function MutualSuggestionsView({
             </h1>
           </div>
           <p className="text-muted-foreground text-sm md:text-base leading-relaxed">
-            يرى الطرفان الاقتراح نفسه ويقرّر كلٌّ منكما وحده. إذا كان الاهتمام متبادلاً يصبح توافقاً، ولا يعرف أحد بقرار الآخر غير ذلك.
+            {creditOnInterest
+              ? "يرى الطرفان الاقتراح نفسه ويقرّر كلٌّ منكما وحده. إذا كان الاهتمام متبادلاً يصبح توافقاً، ولا نُطلع أحداً على قرار «لا». عندما يكون الرصيد صفراً قد يظهر أن الطرف الآخر أبدى اهتمامه."
+              : "يرى الطرفان الاقتراح نفسه ويقرّر كلٌّ منكما وحده. إذا كان الاهتمام متبادلاً يصبح توافقاً، ولا يعرف أحد بقرار الآخر غير ذلك."}
           </p>
           {creditOnInterest && (
             <p className="flex items-center gap-1.5 text-xs md:text-sm font-medium text-foreground/80">

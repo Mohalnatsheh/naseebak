@@ -1,5 +1,7 @@
 # Credit on Interest Implementation Plan
 
+> **Historical document.** It records a decision or plan at the time it was written. The live behaviour has changed since. The current rules (as of 2026-10-17) are in `CLAUDE.md`.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Behind one new switch `credit_on_interest`, make "مهتم" the only paid action (1 credit, taken when tapped), let it carry a chat/family preference that a mutual match opens straight into, and replace the weekly suggestion cap with 5 open suggestions at a ≥ 50 score, best first. Matches, requests and chat become free.

@@ -1,5 +1,7 @@
 # Simultaneous suggestions (new cycle, phase 4) — design
 
+> **Historical document.** It records a decision or plan at the time it was written. The live behaviour has changed since. The current rules (as of 2026-10-17) are in `CLAUDE.md`.
+
 Date: 2026-10-16 · Status: scope agreed with the product owner (see `2026-10-16-new-cycle-design.md`); details below marked **builder's call** were decided while building.
 
 ## Why

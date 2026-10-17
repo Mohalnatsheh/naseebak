@@ -1,5 +1,7 @@
 # New cycle UX to-dos 6–10 Implementation Plan
 
+> **Historical document.** It records a decision or plan at the time it was written. The live behaviour has changed since. The current rules (as of 2026-10-17) are in `CLAUDE.md`.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Close QA items 6–10 of `docs/qa/2026-10-16-new-cycle-qa.md`: short onboarding, dealbreakers in the wizards, gendered option labels, match deep links, small copy/UI fixes.

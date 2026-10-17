@@ -1,5 +1,7 @@
 # New user cycle — design
 
+> **Historical document.** It records a decision or plan at the time it was written. The live behaviour has changed since. The current rules (as of 2026-10-17) are in `CLAUDE.md`.
+
 Date: 2026-10-16 · Status: agreed in chat with the product owner, building phases 1–3 first.
 
 ## Why

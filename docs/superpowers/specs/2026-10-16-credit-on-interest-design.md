@@ -1,5 +1,7 @@
 # Credit on interest — design
 
+> **Historical document.** It records a decision or plan at the time it was written. The live behaviour has changed since. The current rules (as of 2026-10-17) are in `CLAUDE.md`.
+
 Date: 2026-10-16 · Status: approved by the owner (revised the same day: the credit is spent on "مهتم", not at the match) · Owner request: `docs/cycle-v2-prompt.md`
 
 ## Why

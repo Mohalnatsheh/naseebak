@@ -1,5 +1,7 @@
 # Zero Side-Effect Refactors Implementation Plan
 
+> **Historical document.** It records a decision or plan at the time it was written. The live behaviour has changed since. The current rules (as of 2026-10-17) are in `CLAUDE.md`.
+
 > **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Eliminate dead code, deduplicate heavily repeated logic, and fix a pagination edge-case bug — all with zero behavioral side effects.

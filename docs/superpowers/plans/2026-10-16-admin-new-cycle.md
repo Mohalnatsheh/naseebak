@@ -1,5 +1,7 @@
 # Admin panel for the new user cycle — Implementation Plan
 
+> **Historical document.** It records a decision or plan at the time it was written. The live behaviour has changed since. The current rules (as of 2026-10-17) are in `CLAUDE.md`.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Admins can see the new user cycle working (dashboard numbers + funnel, per-user requests/chats/decisions/credit history, chat-origin reports, shared suggestions) without breaking the legacy flow.

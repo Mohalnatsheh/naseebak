@@ -1,5 +1,7 @@
 # New cycle QA — 2026-10-16
 
+> **Historical document.** It records a decision or plan at the time it was written. The live behaviour has changed since. The current rules (as of 2026-10-17) are in `CLAUDE.md`.
+
 Branch `feature/new-cycle`, local database, all three switches on (`intro_requests_enabled`, `chat_enabled`, `new_suggestions_flow`). Browser walkthrough plus a code audit of every dashboard, admin and public page.
 
 ## What was tested end to end

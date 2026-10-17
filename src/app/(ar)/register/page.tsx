@@ -19,6 +19,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { normalizePhone } from "@/lib/validations/auth";
 import {
   Card,
@@ -28,6 +29,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { trackEvent } from "@/lib/analytics";
+import { toLatinDigits } from "@/lib/digits";
 
 /** Seconds before another verification code may be requested (the server also limits 3 per 5 minutes) */
 const RESEND_SECONDS = 60;
@@ -842,7 +844,7 @@ function RegisterPageContent() {
                       placeholder="7XXXXXXXX"
                       value={form.phone}
                       onChange={(e) => {
-                        updateField("phone", e.target.value);
+                        updateField("phone", toLatinDigits(e.target.value));
                         if (otpSent) {
                           setOtpSent(false);
                           updateField("otp", "");
@@ -890,7 +892,7 @@ function RegisterPageContent() {
                       placeholder="000000"
                       maxLength={6}
                       value={form.otp}
-                      onChange={(e) => updateField("otp", e.target.value.replace(/\D/g, "").slice(0, 6))}
+                      onChange={(e) => updateField("otp", toLatinDigits(e.target.value).replace(/\D/g, "").slice(0, 6))}
                       dir="ltr"
                       className="h-11 rounded-xl border-border/60 bg-muted/30 text-center text-lg tracking-[0.3em] font-mono focus:bg-background transition-colors"
                       required
@@ -962,23 +964,16 @@ function RegisterPageContent() {
 
                 {/* ---- Optional photo upload ---- */}
                 <div className="space-y-3">
-                  <label className="flex items-center gap-3 cursor-pointer">
-                    <div
-                      className={`relative h-5 w-9 rounded-full transition-colors duration-300 ${
-                        wantsPhoto ? "bg-primary" : "bg-muted"
-                      }`}
-                      onClick={() => setWantsPhoto(!wantsPhoto)}
-                    >
-                      <div
-                        className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-all duration-300 ${
-                          wantsPhoto ? "start-[calc(100%-1.125rem)]" : "start-0.5"
-                        }`}
-                      />
-                    </div>
-                    <span className="text-sm font-medium text-foreground/80">
+                  <div className="flex items-center gap-3">
+                    <Switch
+                      id="wants-photo"
+                      checked={wantsPhoto}
+                      onCheckedChange={setWantsPhoto}
+                    />
+                    <Label htmlFor="wants-photo" className="cursor-pointer text-sm font-medium text-foreground/80">
                       أرغب بإضافة صورة شخصية
-                    </span>
-                  </label>
+                    </Label>
+                  </div>
 
                   {wantsPhoto && (
                     <div className="animate-[fadeSlideIn_0.3s_ease-out]">

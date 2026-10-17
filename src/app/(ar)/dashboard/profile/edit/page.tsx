@@ -1090,8 +1090,8 @@ export default function ProfileEditPage() {
               )}
             </div>
 
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="text-sm font-medium">العمر المفضل</span>
+            <div className="flex items-start justify-between gap-3">
+              <span className="min-w-0 flex-1 text-sm font-medium leading-relaxed">العمر المفضل</span>
               {dealbreaker("age", "prefAge")}
             </div>
 
@@ -1125,8 +1125,8 @@ export default function ProfileEditPage() {
             </div>
 
             <div className="space-y-2">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <Label>المدن المفضلة <span className="text-xs text-muted-foreground">(يمكن اختيار أكثر من مدينة)</span> <OptionalTag /></Label>
+              <div className="flex items-start justify-between gap-3">
+                <Label className="block min-w-0 flex-1 leading-relaxed">المدن المفضلة <span className="text-xs text-muted-foreground">(يمكن اختيار أكثر من مدينة)</span> <OptionalTag /></Label>
                 {dealbreaker("city", "prefCity")}
               </div>
               <div className="grid grid-cols-3 gap-2">
@@ -1144,8 +1144,8 @@ export default function ProfileEditPage() {
             </div>
 
             <div className="space-y-2">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <Label>المستوى التعليمي المفضل <span className="text-xs text-muted-foreground">(يمكن اختيار أكثر من مستوى)</span> <OptionalTag /></Label>
+              <div className="flex items-start justify-between gap-3">
+                <Label className="block min-w-0 flex-1 leading-relaxed">المستوى التعليمي المفضل <span className="text-xs text-muted-foreground">(يمكن اختيار أكثر من مستوى)</span> <OptionalTag /></Label>
                 {dealbreaker("education", "prefEducation")}
               </div>
               <div className="grid grid-cols-3 gap-2">
@@ -1163,8 +1163,8 @@ export default function ProfileEditPage() {
             </div>
 
             <div className="space-y-2">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <Label>الحالة الاجتماعية المفضلة <span className="text-xs text-muted-foreground">(يمكن اختيار أكثر من حالة)</span> <OptionalTag /></Label>
+              <div className="flex items-start justify-between gap-3">
+                <Label className="block min-w-0 flex-1 leading-relaxed">الحالة الاجتماعية المفضلة <span className="text-xs text-muted-foreground">(يمكن اختيار أكثر من حالة)</span> <OptionalTag /></Label>
                 {dealbreaker("maritalStatus", "prefMaritalStatus")}
               </div>
               <div className="grid grid-cols-3 gap-2">
@@ -1183,8 +1183,8 @@ export default function ProfileEditPage() {
 
             {gender === "MALE" && (
               <div className="space-y-2">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                <Label>هل تفضل محجبة؟ <OptionalTag /></Label>
+                <div className="flex items-start justify-between gap-3">
+                <Label className="block min-w-0 flex-1 leading-relaxed">هل تفضل محجبة؟ <OptionalTag /></Label>
                 {dealbreaker("hijab", "prefHijab")}
               </div>
                 <div className="grid grid-cols-3 gap-2">
@@ -1199,8 +1199,8 @@ export default function ProfileEditPage() {
 
             {gender === "FEMALE" && (
               <div className="space-y-2">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                <Label>هل تفضلين ملتحياً؟ <OptionalTag /></Label>
+                <div className="flex items-start justify-between gap-3">
+                <Label className="block min-w-0 flex-1 leading-relaxed">هل تفضلين ملتحياً؟ <OptionalTag /></Label>
                 {dealbreaker("beard", "prefBeard")}
               </div>
                 <div className="grid grid-cols-3 gap-2">
@@ -1214,8 +1214,8 @@ export default function ProfileEditPage() {
             )}
 
             <div className="space-y-2">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <Label>مستوى التدين المفضل <span className="text-xs text-muted-foreground">(يمكن اختيار أكثر من مستوى)</span> <OptionalTag /></Label>
+              <div className="flex items-start justify-between gap-3">
+                <Label className="block min-w-0 flex-1 leading-relaxed">مستوى التدين المفضل <span className="text-xs text-muted-foreground">(يمكن اختيار أكثر من مستوى)</span> <OptionalTag /></Label>
                 {dealbreaker("religiosity", "prefReligiosity")}
               </div>
               <div className="grid grid-cols-2 gap-2">
@@ -1228,8 +1228,8 @@ export default function ProfileEditPage() {
             </div>
 
             <div className="space-y-2">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <Label>حالة التدخين المفضلة <span className="text-xs text-muted-foreground">(يمكن اختيار أكثر من حالة)</span> <OptionalTag /></Label>
+              <div className="flex items-start justify-between gap-3">
+                <Label className="block min-w-0 flex-1 leading-relaxed">حالة التدخين المفضلة <span className="text-xs text-muted-foreground">(يمكن اختيار أكثر من حالة)</span> <OptionalTag /></Label>
                 {dealbreaker("smokingStatus", "prefSmokingStatus")}
               </div>
               <div className="grid grid-cols-2 gap-2">
@@ -1242,8 +1242,8 @@ export default function ProfileEditPage() {
             </div>
 
             <div className="space-y-2">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <Label>قبول وجود أبناء من زواج سابق <OptionalTag /></Label>
+              <div className="flex items-start justify-between gap-3">
+                <Label className="block min-w-0 flex-1 leading-relaxed">قبول وجود أبناء من زواج سابق <OptionalTag /></Label>
                 {dealbreaker("children", "prefChildrenAcceptance")}
               </div>
               <div className="grid grid-cols-3 gap-2">

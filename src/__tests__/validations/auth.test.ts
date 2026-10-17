@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { sendOtpSchema, verifyOtpSchema, loginSchema, registerSchema, normalizePhone } from "@/lib/validations/auth";
+import { toLatinDigits } from "@/lib/digits";
 
 describe("sendOtpSchema", () => {
   it("should accept valid Jordanian phone (07x)", () => {
@@ -229,5 +230,24 @@ describe("registerSchema", () => {
       otp: "12345",
     });
     expect(result.success).toBe(false);
+  });
+});
+
+describe("Arabic-Indic / Persian digits", () => {
+  it("toLatinDigits converts both digit sets and leaves others", () => {
+    expect(toLatinDigits("٠١٢٣٤٥٦٧٨٩")).toBe("0123456789");
+    expect(toLatinDigits("۰۱۲۳۴۵۶۷۸۹")).toBe("0123456789");
+    expect(toLatinDigits("07a٩")).toBe("07a9");
+  });
+
+  it("phone and OTP schemas accept Arabic digits and output ASCII", () => {
+    const login = loginSchema.parse({ phone: "٠٧٩٦٩٢٢٢٩٢", otp: "١١١١١١" });
+    expect(login).toEqual({ phone: "0796922292", otp: "111111" });
+    expect(verifyOtpSchema.parse({ phone: "۰۷۹۶۹۲۲۲۹۲", code: "۱۲۳۴۵۶" }).code).toBe("123456");
+    expect(verifyOtpSchema.safeParse({ phone: "0796922292", code: "١٢٣" }).success).toBe(false);
+  });
+
+  it("normalizePhone handles Arabic digits", () => {
+    expect(normalizePhone("٠٧٩٦٩٢٢٢٩٢")).toBe("962796922292");
   });
 });

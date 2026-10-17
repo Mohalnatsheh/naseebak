@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { authConfig } from "@/lib/auth.config";
 import { rateLimit } from "@/lib/rate-limit";
 import { normalizePhone } from "@/lib/validations/auth";
+import { toLatinDigits } from "@/lib/digits";
 import { touchLastActive } from "@/lib/activity";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
@@ -19,9 +20,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       },
       async authorize(credentials) {
         const rawPhone = credentials?.phone as string | undefined;
-        const otp = credentials?.otp as string | undefined;
+        const rawOtp = credentials?.otp as string | undefined;
 
-        if (!rawPhone || !otp) return null;
+        if (!rawPhone || !rawOtp) return null;
+        // Arabic-keyboard digits (٠-٩) are the same code
+        const otp = toLatinDigits(rawOtp).trim();
         const phone = normalizePhone(rawPhone);
 
         // Rate limit login attempts by phone

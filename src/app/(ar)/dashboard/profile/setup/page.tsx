@@ -754,8 +754,8 @@ export default function ProfileSetupPage() {
             </div>
 
             <div className="space-y-2">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="text-sm font-medium">العمر المفضل</span>
+              <div className="flex items-start justify-between gap-3">
+                <span className="min-w-0 flex-1 text-sm font-medium leading-relaxed">العمر المفضل</span>
                 {dealbreaker("age", "prefAge")}
               </div>
               <div className="grid grid-cols-2 gap-4">

@@ -33,8 +33,9 @@ export function Field({
 }) {
   return (
     <div className="space-y-2" data-field={id}>
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <Label htmlFor={id} id={`${id}-label`} className="flex-wrap">
+      <div className="flex items-start justify-between gap-3">
+        {/* block, not flex: label + hint + (اختياري) wrap as one RTL line instead of scattered pieces */}
+        <Label htmlFor={id} id={`${id}-label`} className="block min-w-0 flex-1 leading-relaxed">
           {label} {hint && <span className="text-xs font-normal text-muted-foreground">{hint}</span>} {optional && <OptionalTag />}
         </Label>
         {aside}
@@ -106,7 +107,7 @@ export function DealbreakerToggle({
   return (
     <label
       htmlFor={`${id}-dealbreaker`}
-      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors ${
+      className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-1 text-xs transition-colors ${
         disabled
           ? "cursor-not-allowed border-border/50 text-muted-foreground/60"
           : checked

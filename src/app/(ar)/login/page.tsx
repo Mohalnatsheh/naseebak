@@ -18,6 +18,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { trackEvent } from "@/lib/analytics";
+import { toLatinDigits } from "@/lib/digits";
 
 function LoginPageContent() {
   const router = useRouter();
@@ -463,7 +464,7 @@ function LoginPageContent() {
                       placeholder="7XXXXXXXX"
                       value={phone}
                       onChange={(e) => {
-                        setPhone(e.target.value);
+                        setPhone(toLatinDigits(e.target.value));
                         if (otpSent) {
                           setOtpSent(false);
                           setOtp("");
@@ -523,7 +524,7 @@ function LoginPageContent() {
                           placeholder="000000"
                           maxLength={6}
                           value={otp}
-                          onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                          onChange={(e) => setOtp(toLatinDigits(e.target.value).replace(/\D/g, "").slice(0, 6))}
                           required
                           dir="ltr"
                           className="text-center text-lg tracking-[0.3em] font-mono h-12 border-border/60 bg-background/50 backdrop-blur-sm rounded-xl transition-all duration-300 focus:border-primary/50 focus:ring-2 focus:ring-primary/20 focus:shadow-lg focus:shadow-primary/[0.04] hover:border-border"

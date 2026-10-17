@@ -2,6 +2,7 @@
  * Server-side checks for an admin hand-picked suggestion (POST /api/admin/suggestions).
  * Returns null when the pair is allowed, otherwise an error for the admin and an HTTP status.
  */
+import { isTestPhone } from "@/lib/test-accounts";
 import { db } from "@/lib/db";
 
 export interface PairError {
@@ -14,13 +15,16 @@ export async function checkSuggestionPair(recipientId: string, candidateId: stri
 
   const users = await db.user.findMany({
     where: { id: { in: [recipientId, candidateId] } },
-    select: { id: true, gender: true, role: true, status: true, isDeactivated: true },
+    select: { id: true, gender: true, role: true, status: true, isDeactivated: true, phone: true },
   });
   const recipient = users.find((u) => u.id === recipientId);
   const candidate = users.find((u) => u.id === candidateId);
   if (!recipient || !candidate) return { error: "User not found", status: 404 };
   if (recipient.role !== "USER" || candidate.role !== "USER") return { error: "Only users can be suggested", status: 400 };
   if (recipient.gender === candidate.gender) return { error: "Both people have the same gender", status: 400 };
+  if (isTestPhone(recipient.phone) !== isTestPhone(candidate.phone)) {
+    return { error: "Test accounts can only be paired with other test accounts", status: 400 };
+  }
   for (const u of [recipient, candidate]) {
     if (u.status === "SUSPENDED") return { error: "One of them is suspended", status: 400 };
     if (u.isDeactivated) return { error: "One of them has deactivated their account", status: 400 };

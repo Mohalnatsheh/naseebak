@@ -3,14 +3,9 @@ import { db } from "@/lib/db";
 import { rateLimit } from "@/lib/rate-limit";
 import { sendOtpSchema, normalizePhone } from "@/lib/validations/auth";
 import { getMaintenanceState, isRegistrationOpen } from "@/lib/settings";
+import { TEST_OTP, hasFixedOtp } from "@/lib/test-accounts";
 
-// Fixed OTP for test numbers — bypass SMS
-const TEST_PHONES = new Set([
-  "962796922292",
-  "962777000001", // Test female
-  "962777000002", // Test male
-]);
-const TEST_OTP = "111111";
+// Fixed OTP for test numbers — bypass SMS (list and EXTRA_TEST_PHONES in lib/test-accounts)
 
 // Encode text as UTF-16BE hex for Broadnet Unicode SMS (type=2)
 function toUnicodeHex(text: string): string {
@@ -148,7 +143,7 @@ export async function POST(request: Request) {
     });
 
     // Use fixed OTP for test number, random for everyone else
-    const isTestPhone = TEST_PHONES.has(phone);
+    const isTestPhone = hasFixedOtp(phone);
     const generatedCode = isTestPhone
       ? TEST_OTP
       : Math.floor(100000 + Math.random() * 900000).toString();

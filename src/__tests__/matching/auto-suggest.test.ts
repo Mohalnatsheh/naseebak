@@ -96,6 +96,19 @@ describe("autoSuggestForUser", () => {
     expect(notifyMod.notify.mock.calls.filter((c) => c[0].type === "SUGGESTION")).toHaveLength(1);
   });
 
+  it("test accounts only meet test accounts; real users never meet them", async () => {
+    db.user.findUnique.mockResolvedValue({ ...person("tg-real", "MALE"), phone: "962791234567" });
+    db.user.findMany.mockResolvedValue([]);
+    await autoSuggestForUser("tg-real");
+    expect(db.user.findMany.mock.calls[0][0].where.phone.notIn).toContain("962796922292");
+
+    vi.clearAllMocks();
+    db.user.findUnique.mockResolvedValue({ ...person("tg-test", "MALE"), phone: "962777000002" });
+    db.user.findMany.mockResolvedValue([]);
+    await autoSuggestForUser("tg-test");
+    expect(db.user.findMany.mock.calls[0][0].where.phone.in).toContain("962796922292");
+  });
+
   it("never suggests suspended people and does not run for a suspended user", async () => {
     db.user.findUnique.mockResolvedValue(person("s1", "MALE"));
     db.user.findMany.mockResolvedValue([person("sf1", "FEMALE")]);

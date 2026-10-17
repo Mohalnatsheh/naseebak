@@ -17,6 +17,7 @@ import { meetsSuggestionGate } from "@/lib/profile-completeness";
 import { notifyCreditsExhausted, recordCredit, refundCredits, reserveCredits, WEEKLY_FREE_SUGGESTIONS } from "@/lib/credits";
 import { getCycleFlags, type CycleFlags } from "@/lib/settings";
 import { notify, notifyMany } from "@/lib/notify";
+import { isTestPhone, testPhones } from "@/lib/test-accounts";
 import { MUTUAL_SUGGESTION_MS, openMutualWhere } from "@/lib/suggestions/mutual";
 import { activeWhere, isActive } from "@/lib/activity";
 
@@ -151,6 +152,7 @@ async function generate(userId: string): Promise<SuggestOutcome> {
       isFlagged: true,
       lastActiveAt: true,
       updatedAt: true,
+      phone: true,
     },
   });
   if (!user || user.role !== "USER" || user.isDeactivated || !user.profile?.isComplete) return outcome(0);
@@ -224,6 +226,8 @@ async function generate(userId: string): Promise<SuggestOutcome> {
       ...activeWhere(),
       gender: user.gender === "MALE" ? "FEMALE" : "MALE",
       profile: { isComplete: true },
+      // Test accounts only meet each other; real users never meet them
+      phone: isTestPhone(user.phone) ? { in: testPhones() } : { notIn: testPhones() },
       ...(excluded.size > 0 && { id: { notIn: [...excluded] } }),
     },
     select: scoringSelect,

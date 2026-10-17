@@ -7,6 +7,7 @@ import { notify } from "@/lib/notify";
 import { MUTUAL_SUGGESTION_MS } from "@/lib/suggestions/mutual";
 import { meetsSuggestionGate } from "@/lib/profile-completeness";
 import { notifyCreditsExhausted, recordCredit, reserveCredits, WEEKLY_FREE_SUGGESTIONS } from "@/lib/credits";
+import { isTestPhone } from "@/lib/test-accounts";
 import { getCycleFlags } from "@/lib/settings";
 
 export async function POST() {
@@ -34,6 +35,7 @@ export async function POST() {
         select: {
           id: true,
           gender: true,
+          phone: true,
           matchCredits: true,
           profile: true,
           personalityResult: { select: { vector: true, personalityType: true } },
@@ -88,6 +90,8 @@ export async function POST() {
       const candidates = eligibleUsers.filter((c) => {
         if (c.id === user.id) return false;
         if (c.gender === user.gender) return false;
+        // Test accounts only meet each other (lib/test-accounts)
+        if (isTestPhone(c.phone) !== isTestPhone(user.phone)) return false;
         // Skip if already suggested (either direction)
         if (existingPairs.has(`${user.id}:${c.id}`)) return false;
         if (existingPairs.has(`${c.id}:${user.id}`)) return false;

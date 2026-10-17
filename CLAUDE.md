@@ -164,7 +164,7 @@ All list pages use server-side pagination. RTL chevron direction: `ChevronRight`
 
 Gateway: `gwjo1s.broadnet.me:8443`. Arabic SMS requires `type=2` (Unicode) with UTF-16BE hex encoding via `toUnicodeHex()`.
 
-Rate limits: 3/phone/5min, 10/IP/15min. Test number: `962796922292` → fixed OTP `111111`.
+Rate limits: 3/phone/5min, 10/IP/15min. **Test accounts** (`src/lib/test-accounts.ts`): built-in fixed-code numbers, the seeded demo numbers and any in the server setting `EXTRA_TEST_PHONES` (comma separated) form a test group — fixed code `111111` for the fixed-code/extra numbers, and test numbers are only ever suggested to each other (auto-suggest, admin Generate and hand-picks), never to real users. Test number: `962796922292` → fixed OTP `111111`.
 
 Config via env: `BROADNET_USER`, `BROADNET_PASS`, `BROADNET_SENDER_ID` (`SRVnaseebak`), `BROADNET_API_URL` (default `https://gwjo1s.broadnet.me:8443/websmpp/websms`). Never hardcode credentials. Provider portal: `http://82.212.81.40:8080/websmpp`
 

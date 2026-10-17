@@ -158,7 +158,7 @@ export default function PhotosPage() {
         body="صورك الشخصية لن تظهر لأي مستخدم إلا بعد التوافق المتبادل بينكما. تأكد من إضافة صور واضحة لزيادة فرصك."
       />
       {/* Page Header */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-l from-primary/5 via-primary/5 to-transparent border border-primary/10 p-6 md:p-8">
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-l from-primary/5 via-primary/5 to-transparent border border-primary/10 p-4 sm:p-6 md:p-8">
         <div className="absolute top-0 left-0 w-40 h-40 bg-primary/10 rounded-full -translate-x-16 -translate-y-16 blur-3xl" />
         <div className="absolute bottom-0 right-0 w-32 h-32 bg-primary/5 rounded-full translate-x-8 translate-y-8 blur-2xl" />
 
@@ -169,7 +169,7 @@ export default function PhotosPage() {
                 <Camera className="h-5 w-5 text-white" />
               </div>
               <div className="flex items-center gap-3">
-                <h1 className="text-2xl md:text-3xl font-bold bg-gradient-to-l from-primary to-secondary bg-clip-text text-transparent">
+                <h1 className="text-xl sm:text-2xl md:text-3xl font-bold bg-gradient-to-l from-primary to-secondary bg-clip-text text-transparent">
                   صوري الشخصية
                 </h1>
                 <span className="inline-flex items-center justify-center h-7 min-w-7 px-2 rounded-full bg-gradient-to-br from-primary to-secondary text-white text-xs font-bold shadow-sm">

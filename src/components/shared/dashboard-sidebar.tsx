@@ -23,6 +23,7 @@ import {
   Gift,
   MessageCircle,
   Ban,
+  Coins,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle, SheetDescription } from "@/components/ui/sheet";
@@ -302,6 +303,17 @@ export function DashboardSidebar() {
           </Link>
 
           <div className="flex items-center gap-1">
+            {/* Credits at a glance: «مهتم» uses one */}
+            {typeof counts.credits === "number" && (
+              <Link
+                href="/dashboard/payments"
+                aria-label={`رصيدك ${counts.credits}`}
+                className="me-1 inline-flex h-8 items-center gap-1 rounded-full border border-accent/40 bg-accent/10 px-2.5 text-xs font-bold text-foreground"
+              >
+                <Coins className="h-3.5 w-3.5 text-accent-foreground" />
+                {counts.credits}
+              </Link>
+            )}
             <Link href="/dashboard/notifications" className="relative h-10 w-10 rounded-xl flex items-center justify-center hover:bg-muted/60 transition-colors">
               <Bell className="h-5 w-5 text-muted-foreground" />
               {unreadCount > 0 && (

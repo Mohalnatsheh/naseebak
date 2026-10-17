@@ -209,7 +209,7 @@ export default function PersonalityQuizPage() {
       <div className="max-w-2xl mx-auto space-y-8 pb-8">
         {/* Page Header - Gradient Card */}
         <div
-          className="relative overflow-hidden rounded-2xl bg-gradient-to-l from-secondary/10 via-primary/5 to-transparent border border-primary/10 p-6 md:p-8"
+          className="relative overflow-hidden rounded-2xl bg-gradient-to-l from-secondary/10 via-primary/5 to-transparent border border-primary/10 p-4 sm:p-6 md:p-8"
           style={{ animation: "fadeSlideIn 0.5s ease-out both" }}
         >
           <div className="absolute top-0 left-0 w-40 h-40 bg-secondary/10 rounded-full -translate-x-16 -translate-y-16 blur-3xl" />
@@ -220,7 +220,7 @@ export default function PersonalityQuizPage() {
               <Brain className="h-7 w-7 text-white" />
             </div>
             <div className="space-y-2">
-              <h1 className="text-2xl md:text-3xl font-bold bg-gradient-to-l from-primary to-secondary bg-clip-text text-transparent">
+              <h1 className="text-xl sm:text-2xl md:text-3xl font-bold bg-gradient-to-l from-primary to-secondary bg-clip-text text-transparent">
                 نتيجة اختبار الشخصية
               </h1>
               <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-l from-secondary/15 to-primary/10 border border-secondary/20">
@@ -405,7 +405,7 @@ export default function PersonalityQuizPage() {
       />
       {/* Gradient Header */}
       <div
-        className="relative overflow-hidden rounded-2xl bg-gradient-to-l from-secondary/10 via-primary/5 to-transparent border border-primary/10 p-6 md:p-8"
+        className="relative overflow-hidden rounded-2xl bg-gradient-to-l from-secondary/10 via-primary/5 to-transparent border border-primary/10 p-4 sm:p-6 md:p-8"
         style={{ animation: "fadeSlideIn 0.5s ease-out both" }}
       >
         <div className="absolute top-0 left-0 w-32 h-32 bg-secondary/10 rounded-full -translate-x-10 -translate-y-10 blur-2xl" />
@@ -416,7 +416,7 @@ export default function PersonalityQuizPage() {
             <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-secondary to-primary flex items-center justify-center shadow-lg shadow-primary/20">
               <Brain className="h-5 w-5 text-white" />
             </div>
-            <h1 className="text-2xl md:text-3xl font-bold bg-gradient-to-l from-primary to-secondary bg-clip-text text-transparent">
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold bg-gradient-to-l from-primary to-secondary bg-clip-text text-transparent">
               اختبار الشخصية
             </h1>
           </div>

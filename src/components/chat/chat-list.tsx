@@ -46,8 +46,6 @@ export function ChatList() {
         </div>
       </div>
 
-      {chats !== null && chats.length > 0 && <InstallAppCard context="chats" />}
-
       {chats === null ? (
         <div className="flex justify-center py-16">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -127,6 +125,9 @@ export function ChatList() {
           })}
         </div>
       )}
+
+      {/* After the list: the chats come first on a phone */}
+      {chats !== null && chats.length > 0 && <InstallAppCard context="chats" />}
     </div>
   );
 }

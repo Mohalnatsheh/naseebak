@@ -360,7 +360,7 @@ function PaymentsContent() {
                 <Coins className="h-6 w-6 text-white" />
               </div>
               <div>
-                <h1 className="text-2xl md:text-3xl font-bold text-white">
+                <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-white">
                   {perRequest ? "رصيد التعارف" : "رصيد الاقتراحات"}
                 </h1>
                 <p className="text-white/60 text-sm mt-0.5">
@@ -393,7 +393,7 @@ function PaymentsContent() {
       </div>
 
       {/* Credit Packages */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
         {packages.map((pkg, index) => {
           const Icon = packageIcons[index] || Gem;
           const features = packageFeatures[index] || [];
@@ -437,18 +437,18 @@ function PaymentsContent() {
                 )}
 
                 <CardContent
-                  className={`relative p-6 ${pkg.popular ? "pt-12" : "pt-8"}`}
+                  className={`relative p-5 md:p-6 ${pkg.popular ? "pt-11 md:pt-12" : "pt-5 md:pt-8"}`}
                 >
                   {/* Icon */}
-                  <div className="flex justify-center mb-5">
+                  <div className="flex justify-center mb-3 md:mb-5">
                     <div
-                      className={`h-16 w-16 rounded-2xl flex items-center justify-center transition-transform duration-500 group-hover:scale-110 group-hover:rotate-3 ${
+                      className={`h-12 w-12 md:h-16 md:w-16 rounded-2xl flex items-center justify-center transition-transform duration-500 group-hover:scale-110 group-hover:rotate-3 ${
                         pkg.popular
                           ? "bg-gradient-to-br from-accent to-accent/70 shadow-lg shadow-accent/25"
                           : "bg-gradient-to-br from-primary to-secondary shadow-lg shadow-primary/20"
                       }`}
                     >
-                      <Icon className="h-8 w-8 text-white" />
+                      <Icon className="h-6 w-6 md:h-8 md:w-8 text-white" />
                     </div>
                   </div>
 
@@ -475,7 +475,7 @@ function PaymentsContent() {
                   <div className="text-center mb-1">
                     <div className="flex items-baseline justify-center gap-1.5">
                       <span
-                        className={`text-5xl font-black ${
+                        className={`text-4xl md:text-5xl font-black ${
                           pkg.popular ? "text-accent-foreground" : "text-primary"
                         }`}
                       >
@@ -488,12 +488,12 @@ function PaymentsContent() {
                   </div>
 
                   {/* Per credit */}
-                  <p className="text-center text-xs text-muted-foreground mb-6">
+                  <p className="text-center text-xs text-muted-foreground mb-4 md:mb-6">
                     {(pkg.price / pkg.credits).toFixed(2)} د.أ لكل رصيد
                   </p>
 
                   {/* Features */}
-                  <div className="space-y-2.5 mb-6">
+                  <div className="space-y-2 md:space-y-2.5 mb-5 md:mb-6">
                     {features.map((feat, i) => (
                       <div
                         key={i}

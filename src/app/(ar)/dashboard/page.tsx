@@ -140,7 +140,7 @@ export default function DashboardPage() {
             <p className="text-primary-foreground/70 text-sm font-medium">
               {getArabicDate()}
             </p>
-            <h1 className="text-3xl sm:text-4xl font-extrabold leading-tight">
+            <h1 className="text-2xl sm:text-4xl font-extrabold leading-tight">
               {getGreeting()}، {profile?.firstName || ""}
             </h1>
             <p className="text-primary-foreground/80 text-sm leading-relaxed max-w-md">

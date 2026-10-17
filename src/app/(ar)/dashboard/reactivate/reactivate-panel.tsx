@@ -65,7 +65,7 @@ export function ReactivatePanel({ firstName, isFemale, deletionScheduledAt }: Pr
               : "h-1.5 bg-gradient-to-l from-primary to-secondary"
           }
         />
-        <CardContent className="space-y-6 p-6 md:p-8">
+        <CardContent className="space-y-6 p-4 sm:p-6 md:p-8">
           <div className="flex flex-col items-center gap-4 text-center">
             <div
               className={

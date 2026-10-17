@@ -22,7 +22,7 @@ export function SuspendedScreen() {
 
       <Card className="relative w-full overflow-hidden border-border/60 shadow-lg">
         <div className="h-1.5 bg-gradient-to-l from-destructive to-destructive/60" />
-        <CardContent className="space-y-6 p-6 md:p-8">
+        <CardContent className="space-y-6 p-4 sm:p-6 md:p-8">
           <div className="flex flex-col items-center gap-4 text-center">
             <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-destructive/15 to-destructive/5">
               <Ban className="h-8 w-8 text-destructive" aria-hidden="true" />

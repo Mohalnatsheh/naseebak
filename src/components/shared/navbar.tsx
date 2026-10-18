@@ -40,6 +40,8 @@ export function Navbar() {
   const [activeSection, setActiveSection] = useState("");
   const [mobileOpen, setMobileOpen] = useState(false);
   const [registrationClosed, setRegistrationClosed] = useState(false);
+  // At the top of the home page the bar sits over the navy hero: light text, white logo
+  const onDark = isHome && !scrolled;
 
   useEffect(() => {
     fetch("/api/settings/registration-status")
@@ -98,7 +100,7 @@ export function Navbar() {
             alt="نصيبك"
             width={120}
             height={52}
-            className="h-12 w-auto transition-transform duration-300 group-hover:scale-105"
+            className={cn("h-12 w-auto transition-transform duration-300 group-hover:scale-105", onDark && "brightness-0 invert")}
             priority
             loading="eager"
           />
@@ -106,7 +108,12 @@ export function Navbar() {
         </Link>
 
         {/* Desktop nav links */}
-        <div className="hidden md:flex items-center gap-1 bg-muted/40 backdrop-blur-sm rounded-full px-1.5 py-1 border border-border/30">
+        <div
+          className={cn(
+            "hidden md:flex items-center gap-1 backdrop-blur-sm rounded-full px-1.5 py-1 border",
+            onDark ? "bg-white/10 border-white/15" : "bg-muted/40 border-border/30"
+          )}
+        >
           {sectionLinks.map((link) => {
             const sectionId = link.href.replace("#", "");
             const isActive = isHome && activeSection === sectionId;
@@ -118,6 +125,8 @@ export function Navbar() {
                   "relative text-sm font-medium px-4 py-2 rounded-full transition-all duration-300",
                   isActive
                     ? "bg-primary text-primary-foreground shadow-sm"
+                    : onDark
+                    ? "text-white/75 hover:text-white hover:bg-white/10"
                     : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
                 )}
               >
@@ -125,7 +134,7 @@ export function Navbar() {
               </Link>
             );
           })}
-          <div className="h-4 w-px bg-border/50 mx-1" />
+          <div className={cn("h-4 w-px mx-1", onDark ? "bg-white/20" : "bg-border/50")} />
           {pageLinks.map((link) => (
             <Link
               key={link.href}
@@ -134,6 +143,8 @@ export function Navbar() {
                 "relative text-sm font-medium px-4 py-2 rounded-full transition-all duration-300",
                 pathname === link.href
                   ? "bg-primary text-primary-foreground shadow-sm"
+                  : onDark
+                  ? "text-white/75 hover:text-white hover:bg-white/10"
                   : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
               )}
             >
@@ -147,13 +158,18 @@ export function Navbar() {
           <Button
             variant="ghost"
             asChild
-            className="text-muted-foreground hover:text-foreground font-medium"
+            className={cn("font-medium", onDark ? "text-white/85 hover:bg-white/10 hover:text-white" : "text-muted-foreground hover:text-foreground")}
           >
             <Link href="/login">تسجيل الدخول</Link>
           </Button>
           <Button
             asChild
-            className="bg-gradient-to-l from-primary to-primary/85 hover:from-primary/90 hover:to-primary/75 shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all duration-300 rounded-xl px-5 font-semibold"
+            className={cn(
+              "transition-all duration-300 rounded-xl px-5 font-semibold",
+              onDark
+                ? "bg-accent text-accent-foreground hover:bg-accent/90"
+                : "bg-gradient-to-l from-primary to-primary/85 hover:from-primary/90 hover:to-primary/75 shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30"
+            )}
           >
             <Link href="/register">
               إنشاء حساب
@@ -169,7 +185,7 @@ export function Navbar() {
               variant="ghost"
               size="icon"
               aria-label="فتح القائمة"
-              className="h-10 w-10 rounded-xl hover:bg-muted/60"
+              className={cn("h-10 w-10 rounded-xl", onDark ? "text-white hover:bg-white/10 hover:text-white" : "hover:bg-muted/60")}
             >
               <Menu className="h-5 w-5" />
             </Button>

@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/card";
 import { trackEvent } from "@/lib/analytics";
 import { toLatinDigits } from "@/lib/digits";
+import { takeLandingStart } from "@/lib/landing-start";
 
 /** Seconds before another verification code may be requested (the server also limits 3 per 5 minutes) */
 const RESEND_SECONDS = 60;
@@ -192,6 +193,12 @@ function RegisterPageContent() {
       }
     } catch {
       // ignore a malformed handoff
+    }
+
+    // «أبحث عن زوجة / زوج» (+ an optional phone) from the landing page's quick start
+    const start = takeLandingStart(typeof window === "undefined" ? undefined : window.sessionStorage);
+    if (start) {
+      setForm((prev) => ({ ...prev, gender: start.gender, phone: prev.phone || start.phone }));
     }
 
     const invitationCode = searchParams.get("invitationCode");

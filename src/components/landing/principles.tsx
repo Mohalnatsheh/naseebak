@@ -1,11 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Image from "next/image";
-import { EyeOff, ShieldCheck, MessageCircle, Users, BadgeCheck } from "lucide-react";
+import { Check, X } from "lucide-react";
 import type { LandingContent } from "./content";
-
-const ICONS = [EyeOff, ShieldCheck, MessageCircle, Users, BadgeCheck];
 
 interface Stats {
   users: number;
@@ -17,8 +14,11 @@ interface Stats {
 const MIN_PUBLIC_USERS = 100;
 const MIN_PUBLIC_MATCHES = 20;
 
-/** What we promise families, on the one dark band of the page; live numbers when there are any. */
-export function LandingPrinciples({ content, chat }: { content: LandingContent; chat: boolean }) {
+/**
+ * «نصيبك ليس تطبيق تعارف»: the usual dating-app experience against ours, row by row, with the
+ * live numbers once there are enough of them.
+ */
+export function LandingPrinciples({ content, displayClass }: { content: LandingContent; displayClass: string }) {
   const [stats, setStats] = useState<Stats | null>(null);
   useEffect(() => {
     fetch("/api/stats/public")
@@ -27,46 +27,53 @@ export function LandingPrinciples({ content, chat }: { content: LandingContent; 
       .catch(() => {});
   }, []);
 
-  const icons = [ICONS[0], ICONS[1], chat ? ICONS[2] : ICONS[4]];
   const numbers = stats
     ? [
-        { value: stats.users, label: "مستخدم مسجّل", min: MIN_PUBLIC_USERS },
+        { value: stats.users, label: "عضو مسجّل", min: MIN_PUBLIC_USERS },
         { value: stats.matches, label: "توافق متبادل", min: MIN_PUBLIC_MATCHES },
       ].filter((n) => n.value >= n.min)
     : [];
 
   return (
-    <section id="features" className="relative scroll-mt-20 overflow-hidden bg-primary py-24 text-primary-foreground sm:py-28">
-      {/* A sealed envelope on navy velvet, kept faint behind the text */}
-      <Image src="/images/landing/privacy.webp" alt="" fill sizes="100vw" className="object-cover opacity-40" aria-hidden />
-      <div className="absolute inset-0 bg-gradient-to-b from-primary/75 via-primary/45 to-primary/85" aria-hidden />
-      <div className="container relative mx-auto px-4">
+    <section id="features" className="scroll-mt-20 bg-muted/40 py-24 sm:py-32">
+      <div className="container mx-auto px-4">
         <div className="mx-auto max-w-2xl text-center">
-          <h2 className="text-3xl font-extrabold sm:text-4xl">مبنية على الستر والاحترام</h2>
-          <p className="mt-4 text-lg leading-relaxed text-primary-foreground/75">
-            تقنية حديثة بخدمة قيمنا، لأن الزواج بالحلال يستحق طريقاً يليق به.
-          </p>
+          <h2 className={`text-4xl text-primary sm:text-5xl ${displayClass}`}>نصيبك ليس تطبيق تعارف</h2>
+          <p className="mt-4 text-lg leading-relaxed text-muted-foreground">طريق جادّ للزواج، مبني على الستر واحترام العائلة.</p>
         </div>
 
-        <div className="mx-auto mt-14 grid max-w-5xl gap-10 sm:grid-cols-3 sm:gap-0">
-          {content.principles.map((p, i) => {
-            const Icon = icons[i];
-            return (
-              <div key={p.title} className={`text-center sm:px-8 ${i > 0 ? "sm:border-s sm:border-primary-foreground/15" : ""}`}>
-                <Icon className="mx-auto h-8 w-8 text-accent" aria-hidden />
-                <h3 className="mt-4 text-xl font-bold">{p.title}</h3>
-                <p className="mt-3 leading-relaxed text-primary-foreground/75">{p.text}</p>
+        <div className="mx-auto mt-14 max-w-4xl overflow-hidden rounded-3xl border border-border/70 bg-card shadow-[0_30px_60px_-40px_oklch(0.39_0.07_249/0.5)]">
+          <div className="grid grid-cols-[5.5rem_1fr_1fr] border-b border-border/70 text-sm font-bold sm:grid-cols-[8rem_1fr_1.2fr]">
+            <span className="p-4" />
+            <span className="p-4 text-muted-foreground">تطبيقات التعارف المعتادة</span>
+            <span className="bg-primary p-4 text-primary-foreground">نصيبك</span>
+          </div>
+          <dl>
+            {content.compare.map((row, i) => (
+              <div
+                key={row.topic}
+                className={`grid grid-cols-[5.5rem_1fr_1fr] text-sm sm:grid-cols-[8rem_1fr_1.2fr] sm:text-base ${i > 0 ? "border-t border-border/60" : ""}`}
+              >
+                <dt className="p-4 font-bold text-foreground">{row.topic}</dt>
+                <dd className="flex gap-2 p-4 text-muted-foreground">
+                  <X className="mt-1 h-4 w-4 shrink-0 text-muted-foreground/60" aria-hidden />
+                  <span>{row.elsewhere}</span>
+                </dd>
+                <dd className="flex gap-2 bg-primary/[0.04] p-4 font-semibold text-foreground">
+                  <Check className="mt-1 h-4 w-4 shrink-0 text-accent" aria-hidden />
+                  <span>{row.here}</span>
+                </dd>
               </div>
-            );
-          })}
+            ))}
+          </dl>
         </div>
 
         {numbers.length > 0 && (
-          <div className="mx-auto mt-16 flex max-w-xl flex-wrap justify-center gap-x-14 gap-y-6 border-t border-primary-foreground/15 pt-10 text-center">
+          <div className="mx-auto mt-14 flex max-w-xl flex-wrap justify-center gap-x-16 gap-y-6 text-center">
             {numbers.map((n) => (
               <div key={n.label}>
-                <p className="text-4xl font-extrabold text-accent">{n.value.toLocaleString("ar-JO-u-nu-latn")}</p>
-                <p className="mt-1 text-sm text-primary-foreground/75">{n.label}</p>
+                <p className={`text-5xl text-primary ${displayClass}`}>{n.value.toLocaleString("ar-JO-u-nu-latn")}+</p>
+                <p className="mt-2 text-sm font-semibold text-muted-foreground">{n.label}</p>
               </div>
             ))}
           </div>

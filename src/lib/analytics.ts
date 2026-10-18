@@ -15,6 +15,7 @@ declare global {
 }
 
 export type AnalyticsEvent =
+  | "landing_start" // { place: "hero" | "final" } — the landing quick start sent someone to /register
   | "otp_requested" // { context: "login" | "register" }
   | "sign_up" // GA4 recommended: { method: "phone" }
   | "login" // GA4 recommended: { method: "phone" }

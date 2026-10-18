@@ -1,25 +1,38 @@
-import Link from "next/link";
-import Image from "next/image";
-import { ArrowLeft } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import type { LandingContent } from "./content";
+"use client";
 
-export function LandingFinalCta({ content }: { content: LandingContent }) {
+import Image from "next/image";
+import type { StartGender } from "@/lib/landing-start";
+import type { LandingContent } from "./content";
+import { StartForm } from "./start-form";
+
+/** The last call: Amman at sunset behind the same quick start as the hero. */
+export function LandingFinalCta({
+  content,
+  displayClass,
+  lookingFor,
+  onLookingFor,
+}: {
+  content: LandingContent;
+  displayClass: string;
+  lookingFor: StartGender | null;
+  onLookingFor: (g: StartGender) => void;
+}) {
   return (
     <section className="pb-24 sm:pb-32">
       <div className="container mx-auto px-4">
-        <div className="relative mx-auto max-w-3xl overflow-hidden rounded-[2rem] border border-accent/30 px-6 py-16 text-center sm:px-12 sm:py-20">
-          {/* Amman at sunset behind the last call to action */}
-          <Image src="/images/landing/cta.webp" alt="" fill sizes="(min-width: 768px) 768px, 100vw" className="object-cover" aria-hidden />
-          <div className="absolute inset-0 bg-gradient-to-t from-primary/85 via-primary/55 to-primary/15" aria-hidden />
-          <h2 className="relative text-3xl font-extrabold text-white [text-shadow:0_2px_12px_rgb(0_0_0/0.35)] sm:text-4xl">{content.cta.title}</h2>
-          <p className="relative mx-auto mt-4 max-w-lg text-lg leading-relaxed text-white/90 [text-shadow:0_1px_8px_rgb(0_0_0/0.4)]">{content.cta.text}</p>
-          <Button asChild size="lg" className="relative mt-8 h-13 bg-accent px-10 text-base font-bold text-accent-foreground shadow-lg shadow-black/20 hover:bg-accent/90">
-            <Link href="/register">
-              أنشئ حسابك مجاناً
-              <ArrowLeft className="h-4 w-4" />
-            </Link>
-          </Button>
+        <div className="relative mx-auto max-w-5xl overflow-hidden rounded-[2.5rem] px-6 py-16 text-white sm:px-14 sm:py-20">
+          <Image src="/images/landing/cta.webp" alt="" fill sizes="(min-width: 1024px) 1024px, 100vw" className="object-cover" />
+          <div className="landing-night absolute inset-0 opacity-90" aria-hidden />
+          <div className="landing-khatam absolute inset-0" aria-hidden />
+          <div className="relative grid items-center gap-10 lg:grid-cols-2">
+            <div className="text-center lg:text-start">
+              <h2 className={`text-4xl leading-tight sm:text-5xl ${displayClass}`}>{content.cta.title}</h2>
+              <p className="mx-auto mt-4 max-w-md text-lg leading-relaxed text-white/80 lg:mx-0">{content.cta.text}</p>
+            </div>
+            <div className="flex justify-center lg:justify-end">
+              <StartForm id="start-final" place="final" gender={lookingFor} onGender={onLookingFor} />
+            </div>
+          </div>
         </div>
       </div>
     </section>

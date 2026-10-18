@@ -10,6 +10,13 @@ const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
 export const ACTIVE_WINDOW_DAYS = 30;
 export const TOUCH_INTERVAL_MS = HOUR_MS;
+/** Shared suggestions: only people really seen (lastActiveAt, no updatedAt fallback) this recently are suggested to others */
+export const CANDIDATE_ACTIVE_DAYS = 7;
+
+/** Seen on the site in the last `days` days — `lastActiveAt` only (null = not seen since tracking began) */
+export function recentlySeenWhere(days = CANDIDATE_ACTIVE_DAYS, now = new Date()): Prisma.UserWhereInput {
+  return { lastActiveAt: { gte: new Date(now.getTime() - days * DAY_MS) } };
+}
 
 /** Record activity, at most once per hour per user (one conditional write; never throws). */
 export async function touchLastActive(userId: string, now = new Date()): Promise<void> {

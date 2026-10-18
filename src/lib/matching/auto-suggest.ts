@@ -20,7 +20,7 @@ import { notify, notifyMany } from "@/lib/notify";
 import { isTestPhone, testPhones } from "@/lib/test-accounts";
 import { MUTUAL_SUGGESTION_MS, SLOT_IDLE_DAYS, revealHiddenFor, slotMutualWhere } from "@/lib/suggestions/mutual";
 import { NOT_ENGAGED, isEngaged } from "@/lib/intro/followup";
-import { activeWhere, isActive } from "@/lib/activity";
+import { activeWhere, CANDIDATE_ACTIVE_DAYS, isActive, recentlySeenWhere } from "@/lib/activity";
 import { arabicCount } from "@/lib/utils";
 import type { SuggestionDecision, SuggestionStatus } from "@prisma/client";
 
@@ -314,8 +314,9 @@ async function generate(userId: string): Promise<SuggestOutcome> {
       isDeactivated: false,
       status: { not: "SUSPENDED" },
       isFlagged: false,
-      // Idle 30+ days (COALESCE(lastActiveAt, updatedAt)): not suggested to anyone until they return
-      ...activeWhere(),
+      // Idle 30+ days (COALESCE(lastActiveAt, updatedAt)): not suggested to anyone until they return.
+      // Shared flow: only people seen in the last 7 days, so a «مهتم» reaches someone who will answer
+      ...(mutual ? recentlySeenWhere(CANDIDATE_ACTIVE_DAYS) : activeWhere()),
       gender: user.gender === "MALE" ? "FEMALE" : "MALE",
       profile: { isComplete: true },
       ...NOT_ENGAGED,

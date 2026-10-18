@@ -12,12 +12,13 @@
  * `notify()` calls this on its own for the three events (matched by type + title, see
  * `smsEventFor`), or when a caller passes `sms: "<event>"`; `sms: false` turns it off.
  */
+import { startOfAmmanDay } from "@/lib/amman-day";
 import type { NotificationType } from "@prisma/client";
 import { db } from "@/lib/db";
 import { sendSms } from "@/lib/sms";
 import { isTestPhone } from "@/lib/test-accounts";
 
-export type SmsNoticeEvent = "match" | "interest" | "expiring";
+export type SmsNoticeEvent = "match" | "interest" | "expiring" | "waiting";
 
 const SITE = "naseebak.com";
 
@@ -26,6 +27,7 @@ export const SMS_NOTICE_TEXT: Record<SmsNoticeEvent, string> = {
   match: `نصيبك: لديك توافق متبادل جديد! ادخل إلى حسابك لمعرفة الخطوة التالية: ${SITE}/dashboard/matches`,
   interest: `نصيبك: شخص أبدى اهتمامه بك. يمكنك الاطلاع على الاقتراح من حسابك: ${SITE}/dashboard/suggestions`,
   expiring: `نصيبك: لديك اقتراح توافق بانتظار قرارك وينتهي خلال يومين: ${SITE}/dashboard/suggestions`,
+  waiting: `نصيبك: لديك اقتراح توافق بانتظار قرارك: ${SITE}/dashboard/suggestions`,
 };
 
 /**
@@ -42,13 +44,6 @@ export function smsEventFor(type: NotificationType, title: string): SmsNoticeEve
   return AUTO_EVENTS.find((e) => e.type === type && e.title === title)?.event ?? null;
 }
 
-/** Midnight today in Amman (UTC+3 all year), as a UTC instant */
-function startOfAmmanDay(now: Date): Date {
-  const offset = 3 * 60 * 60 * 1000;
-  const local = new Date(now.getTime() + offset);
-  local.setUTCHours(0, 0, 0, 0);
-  return new Date(local.getTime() - offset);
-}
 
 /**
  * Whether OneSignal has an enabled push subscription for this member (external_id = user id).

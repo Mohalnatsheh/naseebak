@@ -22,6 +22,7 @@ import { createMutualMatch } from "@/lib/intro/match";
 import { isUnavailable } from "@/lib/matches/state";
 import { getCycleFlags } from "@/lib/settings";
 import { activeWhere } from "@/lib/activity";
+import { startOfAmmanDay } from "@/lib/amman-day";
 
 /** A MUTUAL suggestion stays open this long; after that "waiting" ends without a word. */
 export const MUTUAL_SUGGESTION_DAYS = 7;
@@ -338,6 +339,35 @@ async function findMatchId(a: string, b: string): Promise<string | undefined> {
   return undefined;
 }
 
+const WAITING_TITLE = "اقتراح بانتظار قرارك";
+
+/**
+ * Someone said «مهتم» on a card the other person hasn't answered: nudge them, at most once per
+ * Amman day (any «اقتراح بانتظار قرارك» today counts, the expiry reminder too). Neutral on purpose —
+ * never says someone is interested (the card's own mark does that), never sent for a «لا».
+ * Push + SMS fallback (event "waiting") through notify().
+ */
+async function notifyWaitingDecision(userId: string, suggestionId: string, now: Date): Promise<void> {
+  const already = await db.notification.findFirst({
+    where: { userId, type: "SUGGESTION", title: WAITING_TITLE, createdAt: { gte: startOfAmmanDay(now) } },
+    select: { id: true },
+  });
+  if (already) return;
+  const person = await db.user.findUnique({ where: { id: userId }, select: { gender: true } });
+  const female = person?.gender === "FEMALE";
+  await notify({
+    userId,
+    type: "SUGGESTION",
+    title: WAITING_TITLE,
+    body: female
+      ? "لديك اقتراح توافق ينتظر قرارك. اطّلعي عليه قبل أن تنتهي مدته."
+      : "لديك اقتراح توافق ينتظر قرارك. اطّلع عليه قبل أن تنتهي مدته.",
+    url: "/dashboard/suggestions",
+    metadata: { suggestionId },
+    sms: "waiting",
+  });
+}
+
 export async function decideSuggestion(args: {
   suggestionId: string;
   userId: string;
@@ -504,6 +534,13 @@ export async function decideSuggestion(args: {
   // Older rows only: the other side declined before «لا» closed rows at once
   if (after.recipientDecision !== null && after.candidateDecision !== null) {
     await db.suggestion.updateMany({ where: { id: s.id, status: "PENDING" }, data: { status: "REJECTED" } });
+    return { match: false, ...extra };
+  }
+  // The other side hasn't answered yet: nudge them (a card just revealed from hidden already got
+  // «شخص أبدى اهتمامه بك»; a card still hidden from them can't be answered, so no nudge either)
+  const otherUndecided = (side === "recipient" ? after.candidateDecision : after.recipientDecision) === null;
+  if (after.status === "PENDING" && otherUndecided && !(side === "recipient" && s.hiddenFromCandidate)) {
+    await notifyWaitingDecision(otherId, s.id, now).catch((e) => console.error("[suggestions] waiting notice:", s.id, e));
   }
   return { match: false, ...extra };
 }

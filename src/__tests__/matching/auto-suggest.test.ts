@@ -356,6 +356,18 @@ describe("activity (30 days)", () => {
     const since = where.OR[0].lastActiveAt.gte.getTime();
     expect(Math.abs(Date.now() - 30 * DAY - since)).toBeLessThan(5000);
   });
+
+  it("shared suggestions: only candidates really seen in the last 7 days (no updatedAt fallback)", async () => {
+    flags.getCycleFlags.mockResolvedValue({ introRequests: true, chat: true, mutualSuggestions: true });
+    db.user.findUnique.mockResolvedValue(person("act4", "MALE"));
+    db.user.findMany.mockResolvedValue([]);
+    await autoSuggestForUser("act4");
+    const call = db.user.findMany.mock.calls.find((c) => c[0].where?.role === "USER");
+    const { where } = call![0];
+    expect(where.OR).toBeUndefined();
+    const since = where.lastActiveAt.gte.getTime();
+    expect(Math.abs(Date.now() - 7 * DAY - since)).toBeLessThan(5000);
+  });
 });
 
 describe("autoSuggestWithReason", () => {

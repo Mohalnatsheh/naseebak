@@ -113,4 +113,9 @@ describe("sendSmsNotice", () => {
       expect(text.length).toBeLessThan(140);
     }
   });
+
+  it("the waiting text is neutral (never says someone is interested)", () => {
+    expect(SMS_NOTICE_TEXT.waiting).not.toContain("اهتمام");
+    expect(SMS_NOTICE_TEXT.waiting).toContain("بانتظار قرارك");
+  });
 });

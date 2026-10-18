@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { maybeAwardReferral } from "@/lib/referral";
+import { refreshOpenSuggestionsInBackground } from "@/lib/suggestions/refresh";
 
 const quizQuestions = [
   // --- الاجتماعية (Extraversion) - 4 questions ---
@@ -174,6 +175,8 @@ export async function POST(request: Request) {
     });
 
     await maybeAwardReferral(session.user.id);
+    // Personality is 30% of the match %: update the suggestions not answered yet
+    refreshOpenSuggestionsInBackground(session.user.id);
     return NextResponse.json({
       message: "تم حفظ نتيجة اختبار الشخصية بنجاح",
       result: {

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { notify } from "@/lib/notify";
+import { refreshOpenSuggestionsInBackground } from "@/lib/suggestions/refresh";
 import { buildProfileUpdate } from "@/lib/admin/profile-changes";
 import { safePagination } from "@/lib/admin/query";
 
@@ -82,6 +83,8 @@ export async function PATCH(request: Request) {
     }
 
     const approved = action === "APPROVED";
+    // The profile changed: update the suggestions this person hasn't answered yet
+    if (approved && Object.keys(updateData).length > 0) refreshOpenSuggestionsInBackground(updateRequest.userId);
     const title = approved ? "تمت الموافقة على تعديل ملفك" : "تم رفض تعديل ملفك";
     const baseBody = approved
       ? "تمت مراجعة طلب تعديل ملفك الشخصي والموافقة عليه."

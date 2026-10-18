@@ -3,7 +3,7 @@ import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { profileSchema } from "@/lib/validations/profile";
 import { calculateCompleteness } from "@/lib/profile-completeness";
-import { autoSuggestForUser } from "@/lib/matching/auto-suggest";
+import { refreshOpenSuggestionsInBackground } from "@/lib/suggestions/refresh";
 import { DEALBREAKER_KEYS, type DealbreakerKey } from "@/lib/matching/score";
 import { maybeAwardReferral } from "@/lib/referral";
 import { needsReviewBody, reviewedChanges } from "@/lib/profile-review";
@@ -182,8 +182,9 @@ export async function PUT(request: Request) {
       update: { ...updateData, isComplete: true },
     });
 
-    // Profile is filled in: start suggestions right away (fire-and-forget, never blocks the save)
-    autoSuggestForUser(session.user.id).catch((err) => console.error("Auto-suggest error:", err));
+    // Profile is filled in: bring unanswered suggestions up to date with the new data and fill
+    // free slots right away (fire-and-forget, never blocks the save)
+    refreshOpenSuggestionsInBackground(session.user.id);
 
     // After profile is complete, check for referral credit awarding
     await maybeAwardReferral(session.user.id);

@@ -8,7 +8,7 @@ vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/auth", () => ({
   requireUser: vi.fn(async () => ({ session: { user: { id: "u1", role: "USER" } } })),
 }));
-vi.mock("@/lib/matching/auto-suggest", () => ({ autoSuggestForUser: vi.fn(async () => 0) }));
+vi.mock("@/lib/suggestions/refresh", () => ({ refreshOpenSuggestionsInBackground: vi.fn() }));
 vi.mock("@/lib/referral", () => ({ maybeAwardReferral: vi.fn(async () => undefined) }));
 
 import { PUT } from "@/app/api/profile/route";

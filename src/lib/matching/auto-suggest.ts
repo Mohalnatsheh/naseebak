@@ -87,7 +87,7 @@ export async function openCounts(userIds: string[]): Promise<Map<string, number>
   return counts;
 }
 
-const scoringSelect = {
+export const scoringSelect = {
   id: true,
   gender: true,
   profile: true,

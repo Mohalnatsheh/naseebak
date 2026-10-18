@@ -415,14 +415,17 @@ export default function ProfileSetupPage() {
     setError("");
 
     try {
-      // Guardian first: the profile only counts as complete once it has one (the server checks)
-      const parentRes = await fetch("/api/profile/parent-info", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...parentForm, shareConsent }),
-      });
+      // Legacy: guardian first, the profile only counts as complete once it has one (the server checks).
+      // New cycle: no guardian step; it is asked for when the person chooses a family introduction.
+      const parentRes = guardianStep
+        ? await fetch("/api/profile/parent-info", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ...parentForm, shareConsent }),
+          })
+        : null;
 
-      if (!parentRes.ok) {
+      if (parentRes && !parentRes.ok) {
         const data = await parentRes.json().catch(() => ({}));
         const message = data.error || "حدث خطأ أثناء حفظ بيانات ولي الأمر";
         // The save button is at the bottom of a long step: mark the guardian field the message is
@@ -469,7 +472,9 @@ export default function ProfileSetupPage() {
     }
   }
 
-  const totalSteps = 5;
+  // New cycle: the guardian is asked for only when it is needed (choosing a family introduction)
+  const guardianStep = !counts.flags.introRequests;
+  const totalSteps = guardianStep ? 5 : 4;
   const dealbreakerPrefs = {
     prefAgeMin: form.prefAgeMin, prefAgeMax: form.prefAgeMax, prefCity: form.prefCity,
     prefEducation: form.prefEducation, prefMaritalStatus: form.prefMaritalStatus,
@@ -488,6 +493,11 @@ export default function ProfileSetupPage() {
       />
     ) : null;
   const availableAreas = form.city ? (jordanAreas[form.city] || []) : [];
+
+  // Someone who stopped at the old guardian step (5) resumes on the last step
+  useEffect(() => {
+    if (step > totalSteps) setStep(totalSteps);
+  }, [step, totalSteps]);
 
   if (fetchingProfile) {
     return (

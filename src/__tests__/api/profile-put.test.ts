@@ -10,6 +10,8 @@ vi.mock("@/lib/auth", () => ({
 }));
 vi.mock("@/lib/suggestions/refresh", () => ({ refreshOpenSuggestionsInBackground: vi.fn() }));
 vi.mock("@/lib/referral", () => ({ maybeAwardReferral: vi.fn(async () => undefined) }));
+const flags = vi.hoisted(() => ({ introRequests: false }));
+vi.mock("@/lib/settings", () => ({ getCycleFlags: vi.fn(async () => flags) }));
 
 import { PUT } from "@/app/api/profile/route";
 
@@ -57,12 +59,22 @@ const put = async (body: unknown): Promise<Response> =>
 
 beforeEach(() => {
   vi.clearAllMocks();
+  flags.introRequests = false;
   db.parentInfo.findUnique.mockResolvedValue({ id: "g1" });
   db.profile.upsert.mockResolvedValue({ id: "p1" });
 });
 
 describe("PUT /api/profile", () => {
-  it("refuses to finish the setup before the guardian is saved", async () => {
+  it("new cycle: finishes the setup without a guardian (asked for at the family introduction)", async () => {
+    flags.introRequests = true;
+    db.profile.findUnique.mockResolvedValue(null);
+    db.parentInfo.findUnique.mockResolvedValue(null);
+    const res = await put(payload);
+    expect(res.status).toBe(200);
+    expect(db.profile.upsert).toHaveBeenCalledOnce();
+  });
+
+  it("legacy: refuses to finish the setup before the guardian is saved", async () => {
     db.profile.findUnique.mockResolvedValue(null);
     db.parentInfo.findUnique.mockResolvedValue(null);
     const res = await put(payload);

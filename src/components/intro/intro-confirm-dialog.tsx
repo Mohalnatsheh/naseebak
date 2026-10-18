@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Loader2, Users, MessageCircle, Coins, Gift, ShieldAlert, Check } from "lucide-react";
+import { Loader2, Users, MessageCircle, Coins, Gift, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { useDashboardData } from "@/contexts/dashboard-context";
+import { GuardianQuickForm } from "./guardian-quick-form";
 
 export type IntroDialogMode = "send" | "accept" | "decline";
 
@@ -57,15 +58,21 @@ export function IntroConfirmDialog({
   credits,
   free,
   freeNote,
-  guardian,
+  guardian: guardianProp,
   busy,
   onConfirm,
 }: Props) {
   const [consent, setConsent] = useState(false);
+  // Added here through GuardianQuickForm (saved with consent) before the caller's state catches up
+  const [guardianSaved, setGuardianSaved] = useState(false);
+  const guardian = guardianSaved ? { exists: true, consented: true } : guardianProp;
   // The partner is the opposite gender of the viewer
   const partnerFemale = useDashboardData().profile?.gender === "MALE";
   useEffect(() => {
-    if (open) setConsent(false);
+    if (open) {
+      setConsent(false);
+      setGuardianSaved(false);
+    }
   }, [open]);
 
   const isFamily = type === "FAMILY";
@@ -143,17 +150,7 @@ export function IntroConfirmDialog({
             </div>
           ))}
 
-        {missingGuardian && (
-          <div className="flex items-start gap-3 rounded-xl border border-amber-200/60 bg-amber-50/70 p-3 text-sm text-amber-800">
-            <ShieldAlert className="mt-0.5 h-4 w-4 flex-shrink-0" />
-            <div>
-              <p>لإتمام التعارف العائلي أضف بيانات وليّ الأمر في ملفك الشخصي.</p>
-              <Link href="/dashboard/profile/edit?step=5" className="mt-1 inline-block font-semibold underline underline-offset-4">
-                إضافة بيانات وليّ الأمر
-              </Link>
-            </div>
-          </div>
-        )}
+        {missingGuardian && <GuardianQuickForm onSaved={() => setGuardianSaved(true)} />}
 
         {needsConsent && (
           <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-border/60 p-3 text-sm hover:bg-muted/40">

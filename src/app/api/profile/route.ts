@@ -7,6 +7,7 @@ import { refreshOpenSuggestionsInBackground } from "@/lib/suggestions/refresh";
 import { DEALBREAKER_KEYS, type DealbreakerKey } from "@/lib/matching/score";
 import { maybeAwardReferral } from "@/lib/referral";
 import { needsReviewBody, reviewedChanges } from "@/lib/profile-review";
+import { getCycleFlags } from "@/lib/settings";
 
 export async function GET() {
   try {
@@ -135,9 +136,9 @@ export async function PUT(request: Request) {
     if (existing?.isComplete) {
       const changed = reviewedChanges(existing as unknown as Record<string, unknown>, updateData);
       if (changed.length > 0) return NextResponse.json(needsReviewBody(changed), { status: 409 });
-    } else {
-      // Finishing the setup: the guardian (step 5) must be saved first, so a "complete" profile always
-      // has one (a family introduction needs it)
+    } else if (!(await getCycleFlags()).introRequests) {
+      // Legacy: finishing the setup needs the guardian (step 5) saved first, for the admin-arranged visits.
+      // New cycle: no guardian at setup; every family step asks for it (GUARDIAN_REQUIRED in intro/*).
       const guardian = await db.parentInfo.findUnique({ where: { userId: session.user.id }, select: { id: true } });
       if (!guardian) {
         return NextResponse.json({ error: "أكمل بيانات وليّ الأمر أولاً", code: "GUARDIAN_REQUIRED" }, { status: 400 });

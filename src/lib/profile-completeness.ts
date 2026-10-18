@@ -249,3 +249,26 @@ export function meetsSuggestionGate(
 export function qualifiesForSuggestions(args: { completenessTotal: number; isComplete: boolean; newCycle: boolean }): boolean {
   return args.newCycle ? args.isComplete : args.completenessTotal >= SUGGESTIONS_MIN_COMPLETENESS;
 }
+
+/** A required step of the short setup (new cycle) that is still empty. */
+export interface MissingSetupStep {
+  /** Setup wizard step number (1–4) */
+  step: number;
+  label: string;
+}
+
+/**
+ * New cycle: the required setup steps still empty (same required fields as the setup wizard),
+ * so "finish your setup" can say exactly what is left. Empty with an unfinished setup = everything
+ * is filled but the last step was never saved. The guardian is not a setup step in the new cycle
+ * (it is asked for when choosing a family introduction).
+ */
+export function missingSetupSteps(user: { profile?: Record<string, unknown> | null }): MissingSetupStep[] {
+  const p = user.profile ?? {};
+  const has = (key: string) => p[key] !== null && p[key] !== undefined && p[key] !== "";
+  const missing: MissingSetupStep[] = [];
+  if (!["dateOfBirth", "nationality", "city", "education"].every(has)) missing.push({ step: 1, label: "المعلومات الأساسية" });
+  if (!["maritalStatus", "religiosity"].every(has)) missing.push({ step: 2, label: "الحالة الاجتماعية والتدين" });
+  if (!["prefAgeMin", "prefAgeMax"].every(has)) missing.push({ step: 3, label: "العمر المناسب للشريك" });
+  return missing;
+}

@@ -50,11 +50,36 @@ describe("InterestDialog", () => {
     await waitFor(() => expect(onConfirm).toHaveBeenCalledWith({ introPreference: "FAMILY" }));
   });
 
-  it("FAMILY without a guardian links to the guardian step and blocks confirm", () => {
+  it("FAMILY without a guardian asks for it in the dialog, then allows confirm", async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ parentInfo: { id: "g1" } }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const { onConfirm, confirm } = setup({ guardian: { exists: false, consented: false } });
+    fireEvent.click(screen.getByRole("radio", { name: /تعارف عائلي مباشرة/ }));
+    expect(confirm()).toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText("اسم ولي الأمر"), { target: { value: "محمد أحمد" } });
+    fireEvent.change(screen.getByLabelText("رقم هاتف ولي الأمر"), { target: { value: "0791234567" } });
+    fireEvent.click(screen.getByRole("button", { name: "الأب" }));
+    fireEvent.change(screen.getByLabelText("العنوان"), { target: { value: "عمّان، الجبيهة" } });
+    fireEvent.click(screen.getByRole("button", { name: "حفظ بيانات وليّ الأمر" }));
+
+    await waitFor(() => expect(confirm()).toBeEnabled());
+    const body = JSON.parse((fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1].body as string);
+    expect(body).toMatchObject({ parentName: "محمد أحمد", relationship: "father", shareConsent: true });
+    fireEvent.click(confirm());
+    await waitFor(() => expect(onConfirm).toHaveBeenCalledWith({ introPreference: "FAMILY" }));
+    vi.unstubAllGlobals();
+  });
+
+  it("FAMILY without a guardian: an invalid guardian is not saved", () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
     const { confirm } = setup({ guardian: { exists: false, consented: false } });
     fireEvent.click(screen.getByRole("radio", { name: /تعارف عائلي مباشرة/ }));
-    expect(screen.getByRole("link", { name: /بيانات وليّ الأمر/ })).toHaveAttribute("href", "/dashboard/profile/edit?step=5");
+    fireEvent.click(screen.getByRole("button", { name: "حفظ بيانات وليّ الأمر" }));
+    expect(fetchMock).not.toHaveBeenCalled();
     expect(confirm()).toBeDisabled();
+    vi.unstubAllGlobals();
   });
 
   it("chat option hidden when chat disabled", () => {

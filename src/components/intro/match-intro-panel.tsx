@@ -30,6 +30,7 @@ import type { IntroState } from "@/lib/intro/requests";
 import type { MatchClosure } from "@/lib/matches/state";
 import { IntroConfirmDialog, type IntroDialogMode } from "./intro-confirm-dialog";
 import { GuardianContactCard } from "./guardian-contact-card";
+import { GuardianQuickForm } from "./guardian-quick-form";
 import { ConfirmActionDialog } from "./confirm-action-dialog";
 import { daysLabel, daysLeft, postJson } from "./intro-utils";
 
@@ -241,10 +242,10 @@ export function MatchIntroPanel({ matchId, partnerName }: { matchId: string; par
   }
 
   /** Mixed outcome: the chat side agrees to share its guardian contact on this match */
-  async function shareGuardian() {
+  async function shareGuardian(justConsented = false) {
     if (busy) return;
     setBusy(true);
-    const res = await postJson<IntroState>(`/api/matches/${matchId}/guardian-share`, state?.myGuardian.consented ? {} : { consent: true });
+    const res = await postJson<IntroState>(`/api/matches/${matchId}/guardian-share`, justConsented || state?.myGuardian.consented ? {} : { consent: true });
     setBusy(false);
     if (!res.ok) {
       toast.error(res.data.error ?? "تعذّر حفظ الموافقة، حاول مرة أخرى");
@@ -481,9 +482,8 @@ export function MatchIntroPanel({ matchId, partnerName }: { matchId: string; par
                 )}
               </p>
               {!myGuardian.exists ? (
-                <Link href="/dashboard/profile/edit?step=5" className="inline-block font-semibold underline underline-offset-4">
-                  إضافة بيانات وليّ الأمر
-                </Link>
+                // Saved with consent, then shared on this match straight away
+                <GuardianQuickForm onSaved={() => shareGuardian(true)} />
               ) : (
                 <>
                   {!myGuardian.consented && (
@@ -498,7 +498,7 @@ export function MatchIntroPanel({ matchId, partnerName }: { matchId: string; par
                     </label>
                   )}
                   <div className="flex flex-wrap gap-2">
-                    <Button size="sm" onClick={shareGuardian} disabled={busy || (!myGuardian.consented && !shareConsent)} className="gap-1.5">
+                    <Button size="sm" onClick={() => shareGuardian()} disabled={busy || (!myGuardian.consented && !shareConsent)} className="gap-1.5">
                       {busy && <Loader2 className="h-4 w-4 animate-spin" />}
                       مشاركة بيانات وليّ أمري
                     </Button>

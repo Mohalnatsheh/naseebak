@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Coins, HeartHandshake, Loader2, MessageCircle, ShieldAlert, Users } from "lucide-react";
+import { Coins, HeartHandshake, Loader2, MessageCircle, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { CREDIT_ON_INTEREST_LINE } from "@/lib/suggestions/copy";
+import { GuardianQuickForm } from "@/components/intro/guardian-quick-form";
 
 export type IntroPreferenceChoice = "CHAT" | "FAMILY";
 
@@ -45,14 +46,18 @@ interface Props {
  * Credit on interest: "مهتم" on a shared suggestion asks how the introduction should start if the
  * interest is mutual — chat here first, or a family introduction straight away (needs guardian consent).
  */
-export function InterestDialog({ open, onOpenChange, partnerGender, credits, chatEnabled, guardian, costOnly = false, onConfirm }: Props) {
+export function InterestDialog({ open, onOpenChange, partnerGender, credits, chatEnabled, guardian: guardianProp, costOnly = false, onConfirm }: Props) {
   const [choice, setChoice] = useState<IntroPreferenceChoice | null>(null);
+  // Added here through GuardianQuickForm (saved with consent) before the shared data catches up
+  const [guardianSaved, setGuardianSaved] = useState(false);
+  const guardian = guardianSaved ? { exists: true, consented: true } : guardianProp;
   const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     if (open) {
       setChoice(null);
       setConsent(false);
+      setGuardianSaved(false);
     }
   }, [open]);
 
@@ -96,7 +101,8 @@ export function InterestDialog({ open, onOpenChange, partnerGender, credits, cha
 
   return (
     <Dialog open={open} onOpenChange={(o) => !busy && onOpenChange(o)}>
-      <DialogContent dir="rtl" className="sm:max-w-md text-right">
+      {/* No auto-focus on the first option: its focus ring looked like a default choice */}
+      <DialogContent dir="rtl" className="sm:max-w-md text-right" onOpenAutoFocus={(e) => e.preventDefault()}>
         <DialogHeader className="text-right sm:text-right">
           <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/15 to-accent/15">
             <HeartHandshake className="h-6 w-6 text-primary" aria-hidden="true" />
@@ -128,7 +134,7 @@ export function InterestDialog({ open, onOpenChange, partnerGender, credits, cha
                 <label
                   key={o.value}
                   className={cn(
-                    "flex cursor-pointer items-start gap-3 rounded-xl border p-3.5 transition-colors focus-within:ring-2 focus-within:ring-ring",
+                    "flex cursor-pointer items-start gap-3 rounded-xl border p-3.5 transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring",
                     selected ? "border-primary/50 bg-primary/5 ring-1 ring-primary/30" : "border-border/60 hover:bg-muted/40"
                   )}
                 >
@@ -162,17 +168,7 @@ export function InterestDialog({ open, onOpenChange, partnerGender, credits, cha
           </div>
         )}
 
-        {missingGuardian && (
-          <div className="flex items-start gap-3 rounded-xl border border-amber-200/60 bg-amber-50/70 p-3 text-sm text-amber-800">
-            <ShieldAlert className="mt-0.5 h-4 w-4 flex-shrink-0" aria-hidden="true" />
-            <div>
-              <p>{g("للتعارف العائلي أضف بيانات وليّ الأمر في ملفك أولاً.", "للتعارف العائلي أضيفي بيانات وليّ الأمر في ملفك أولاً.")}</p>
-              <Link href="/dashboard/profile/edit?step=5" className="mt-1 inline-block font-semibold underline underline-offset-4">
-                إضافة بيانات وليّ الأمر
-              </Link>
-            </div>
-          </div>
-        )}
+        {missingGuardian && <GuardianQuickForm onSaved={() => setGuardianSaved(true)} />}
 
         {needsConsent && (
           <div className="rounded-xl border border-border/60 p-3 text-sm hover:bg-muted/40">

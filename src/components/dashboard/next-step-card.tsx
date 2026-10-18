@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { useDashboardData } from "@/contexts/dashboard-context";
 import { CREDIT_ON_INTEREST_LINE } from "@/lib/suggestions/copy";
+import { missingSetupSteps } from "@/lib/profile-completeness";
 
 interface Props {
   /** Profile is ready for suggestions (short setup done in the new cycle, 50% in legacy) */
@@ -43,12 +44,17 @@ export function NextStepCard({ qualifies, pendingSuggestions, credits }: Props) 
 
   let step: Step;
   if (!qualifies) {
+    // Say exactly which required step is left
+    const missing = newCycle && profile ? missingSetupSteps(profile) : [];
+    const setupText = missing.length > 0
+        ? `بقي: ${missing.map((s) => s.label).join("، ")}. لن تبدأ اقتراحاتك قبل إكمالها.`
+        : "خطوات قصيرة فقط، والباقي اختياري يمكنك إكماله لاحقاً.";
     step = {
       icon: UserPen,
       title: newCycle
         ? g("أكمل إعداد ملفك لتبدأ اقتراحاتك", "أكملي إعداد ملفك لتبدأ اقتراحاتك")
         : g("أكمل ملفك لتبدأ الاقتراحات", "أكملي ملفك لتبدأ الاقتراحات"),
-      text: newCycle ? "خطوات قصيرة فقط، والباقي اختياري يمكنك إكماله لاحقاً." : "يلزم إكمال ملفك بنسبة 50% على الأقل.",
+      text: newCycle ? setupText : "يلزم إكمال ملفك بنسبة 50% على الأقل.",
       href: "/dashboard/profile/setup",
       cta: "متابعة الإعداد",
       tone: "accent",

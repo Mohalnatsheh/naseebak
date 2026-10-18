@@ -31,7 +31,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { SUGGESTIONS_MIN_COMPLETENESS, qualifiesForSuggestions as qualifiesForSuggestionsGate } from "@/lib/profile-completeness";
+import { SUGGESTIONS_MIN_COMPLETENESS, missingSetupSteps, qualifiesForSuggestions as qualifiesForSuggestionsGate } from "@/lib/profile-completeness";
 import { PersonCard } from "@/components/shared/person-card";
 import { trackEvent } from "@/lib/analytics";
 import { useDashboardData } from "@/contexts/dashboard-context";
@@ -258,9 +258,11 @@ export default function SuggestionsPage() {
         const total = data.completeness?.total ?? 0;
         setCompletionPercent(total);
 
-        // Collect incomplete section labels
+        // Collect incomplete section labels (new cycle: only the required setup steps still empty)
         const missing: string[] = [];
-        if (data.completeness?.sections) {
+        if (perRequestCredits) {
+          missing.push(...missingSetupSteps(data.user ?? {}).map((s) => s.label));
+        } else if (data.completeness?.sections) {
           for (const s of data.completeness.sections) {
             if (s.percentage < 100) missing.push(s.label);
           }
@@ -439,7 +441,11 @@ toast.success("تهانينا! لديك توافق متبادل!", {
               <h3 className="text-lg font-bold text-foreground">أكمل حسابك لتلقي الاقتراحات</h3>
               <p className="text-sm text-muted-foreground max-w-sm mx-auto leading-relaxed">
                 {perRequestCredits ? (
-                  "أكمل خطوات إعداد ملفك القصيرة لتبدأ اقتراحاتك الأسبوعية المجانية."
+                  incompleteSections.length === 0 ? (
+                    "بياناتك مكتملة، بقي الضغط على «حفظ الملف الشخصي» في آخر خطوة لتبدأ اقتراحاتك."
+                  ) : (
+                    "لن تصلك اقتراحات قبل إكمال هذه الخطوات المطلوبة في إعداد ملفك:"
+                  )
                 ) : (
                   <>
                     يجب إكمال ملفك الشخصي بنسبة {SUGGESTIONS_MIN_COMPLETENESS}% على الأقل قبل البدء في تلقي اقتراحات التوافق. نسبة الاكتمال الحالية: <span className="font-bold text-accent-foreground">{completionPercent}%</span>

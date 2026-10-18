@@ -18,14 +18,17 @@ import { notifyCreditsExhausted, recordCredit, refundCredits, reserveCredits, WE
 import { getCycleFlags, type CycleFlags } from "@/lib/settings";
 import { notify, notifyMany } from "@/lib/notify";
 import { isTestPhone, testPhones } from "@/lib/test-accounts";
-import { MUTUAL_SUGGESTION_MS, openMutualWhere } from "@/lib/suggestions/mutual";
+import { MUTUAL_SUGGESTION_MS, SLOT_IDLE_DAYS, revealHiddenFor, slotMutualWhere } from "@/lib/suggestions/mutual";
 import { NOT_ENGAGED, isEngaged } from "@/lib/intro/followup";
 import { activeWhere, isActive } from "@/lib/activity";
+import type { SuggestionDecision, SuggestionStatus } from "@prisma/client";
 
 const MAX_NEW_SUGGESTIONS = 3;
 const MIN_SCORE = 30;
 /** Credit-on-interest: a person holds at most this many undecided suggestions (replaces the weekly cap) */
 export const MAX_OPEN_SUGGESTIONS = 5;
+/** A pair whose card closed with neither side answering may be suggested again after this long */
+export const RESUGGEST_AFTER_DAYS = 30;
 /** `notify` once-per-day key shared by every "new suggestions" notice */
 const NEW_SUGGESTIONS_DAILY = "new-suggestions";
 const MIN_SCORE_CREDIT_ON_INTEREST = 50;
@@ -50,10 +53,13 @@ export function minSuggestionScore(flags: CycleFlags): number {
   return flags.creditOnInterest ? MIN_SCORE_CREDIT_ON_INTEREST : MIN_SCORE;
 }
 
-/** Suggestions waiting for this user's decision: MUTUAL rows they haven't decided on (either side) + legacy PENDING. */
+/**
+ * Suggestions filling this user's slots: MUTUAL rows they haven't decided on (either side) + legacy
+ * PENDING. A card whose other person has been away SLOT_IDLE_DAYS no longer fills a slot (slotMutualWhere).
+ */
 export async function openSuggestionCount(userId: string): Promise<number> {
   const [mutual, legacy] = await Promise.all([
-    db.suggestion.count({ where: openMutualWhere(userId) }),
+    db.suggestion.count({ where: slotMutualWhere(userId) }),
     db.suggestion.count({ where: { recipientId: userId, status: "PENDING", flow: "LEGACY" } }),
   ]);
   return mutual + legacy;
@@ -63,16 +69,19 @@ export async function openSuggestionCount(userId: string): Promise<number> {
 export async function openCounts(userIds: string[]): Promise<Map<string, number>> {
   const now = new Date();
   const open = { flow: "MUTUAL" as const, status: "PENDING" as const, expiresAt: { gt: now } };
+  // Same rule as slotMutualWhere: an old card with a partner away SLOT_IDLE_DAYS doesn't fill a slot
+  const fresh = { createdAt: { gte: new Date(now.getTime() - SLOT_IDLE_DAYS * 24 * 60 * 60 * 1000) } };
+  const here = activeWhere(SLOT_IDLE_DAYS, now);
   const [asRecipient, asCandidate, legacy] = await Promise.all([
     db.suggestion.groupBy({
       by: ["recipientId"],
       // Same as openMutualWhere: a partner who left doesn't fill a slot
-      where: { ...open, recipientId: { in: userIds }, recipientDecision: null, candidate: { isDeactivated: false, status: { not: "SUSPENDED" } } },
+      where: { ...open, recipientId: { in: userIds }, recipientDecision: null, candidate: { isDeactivated: false, status: { not: "SUSPENDED" } }, OR: [fresh, { candidate: here }] },
       _count: true,
     }),
     db.suggestion.groupBy({
       by: ["candidateId"],
-      where: { ...open, candidateId: { in: userIds }, candidateDecision: null, recipient: { isDeactivated: false, status: { not: "SUSPENDED" } } },
+      where: { ...open, candidateId: { in: userIds }, candidateDecision: null, hiddenFromCandidate: false, recipient: { isDeactivated: false, status: { not: "SUSPENDED" } }, OR: [fresh, { recipient: here }] },
       _count: true,
     }),
     db.suggestion.groupBy({
@@ -142,9 +151,47 @@ export async function nextSuggestionsAtFor(userId: string, now = new Date()): Pr
   return oldest ? new Date(oldest.createdAt.getTime() + WEEK_MS) : null;
 }
 
+/** A past row between two people, as far as "may they be suggested again?" is concerned */
+export interface PastRow {
+  recipientId: string;
+  candidateId: string;
+  status: SuggestionStatus;
+  recipientDecision: SuggestionDecision | null;
+  candidateDecision: SuggestionDecision | null;
+  expiresAt: Date | null;
+  updatedAt: Date;
+}
+
+/** Closed with neither side answering, more than RESUGGEST_AFTER_DAYS ago: they never really met. */
+export function isResuggestable(row: PastRow, now = new Date()): boolean {
+  if (row.status !== "EXPIRED" || row.recipientDecision || row.candidateDecision) return false;
+  const closedAt = row.expiresAt ?? row.updatedAt;
+  return closedAt.getTime() <= now.getTime() - RESUGGEST_AFTER_DAYS * 24 * 60 * 60 * 1000;
+}
+
+/**
+ * How `userId` and each other person may be paired now, from all their past rows: absent = never
+ * suggested (new row userId → them); "reverse" = only an old unanswered row userId → them exists, so
+ * the new one goes the other way (one row per direction); "no" = they met, or both directions are used.
+ */
+export function pairAvailability(userId: string, rows: PastRow[], now = new Date()): Map<string, "reverse" | "no"> {
+  const byPartner = new Map<string, PastRow[]>();
+  for (const r of rows) {
+    const other = r.recipientId === userId ? r.candidateId : r.recipientId;
+    byPartner.set(other, [...(byPartner.get(other) ?? []), r]);
+  }
+  const result = new Map<string, "reverse" | "no">();
+  for (const [other, list] of byPartner) {
+    const forward = list.some((r) => r.recipientId === userId);
+    const backward = list.some((r) => r.candidateId === userId);
+    if (!list.every((r) => isResuggestable(r, now)) || (forward && backward)) result.set(other, "no");
+    else if (forward) result.set(other, "reverse");
+    // Only an old row them → userId: the usual direction userId → them is free (not in the map)
+  }
+  return result;
+}
+
 async function generate(userId: string): Promise<SuggestOutcome> {
-  const last = lastEmptyRun.get(userId);
-  if (last && Date.now() - last < RETRY_COOLDOWN_MS) return outcome(0, "no_candidates");
 
   const user = await db.user.findUnique({
     where: { id: userId },
@@ -181,10 +228,18 @@ async function generate(userId: string): Promise<SuggestOutcome> {
   // (credit-on-interest: top up to MAX_OPEN_SUGGESTIONS instead, with no weekly cap)
   const weekAgo = new Date(Date.now() - WEEK_MS);
   let limit = Math.min(MAX_NEW_SUGGESTIONS, user.matchCredits);
+  // Cards made for others while I was full, shown now that I have room (before anyone new)
+  let revealed = 0;
   if (creditOnInterest) {
     const open = await openSuggestionCount(userId);
     limit = MAX_OPEN_SUGGESTIONS - open;
     if (limit <= 0) return outcome(0, "pending");
+    revealed = await revealHiddenFor(userId, limit);
+    limit -= revealed;
+    if (limit <= 0) {
+      await notify({ userId, type: "SUGGESTION", title: "اقتراحات توافق جديدة", body: "وصلتك اقتراحات توافق جديدة. قم بمراجعتها.", url: "/dashboard/suggestions", oncePerDay: NEW_SUGGESTIONS_DAILY });
+      return outcome(revealed);
+    }
   } else {
     const pending = mutual
       ? await openSuggestionCount(userId)
@@ -202,10 +257,18 @@ async function generate(userId: string): Promise<SuggestOutcome> {
     if (limit <= 0) return outcome(0, "weekly_cap");
   }
 
+  // A recent scan found nobody new: wait before scanning again (cards waiting for me were shown above)
+  const last = lastEmptyRun.get(userId);
+  if (last && Date.now() - last < RETRY_COOLDOWN_MS) return revealed > 0 ? outcome(revealed) : outcome(0, "no_candidates");
+
+  const runStart = new Date();
+  const pastSelect = {
+    recipientId: true, candidateId: true, status: true, recipientDecision: true, candidateDecision: true, expiresAt: true, updatedAt: true,
+  } as const;
   const [suggested, matches, blocks] = await Promise.all([
     db.suggestion.findMany({
       where: { OR: [{ recipientId: userId }, { candidateId: userId }] },
-      select: { recipientId: true, candidateId: true },
+      select: pastSelect,
     }),
     db.mutualMatch.findMany({
       where: { OR: [{ femaleId: userId }, { maleId: userId }] },
@@ -216,8 +279,12 @@ async function generate(userId: string): Promise<SuggestOutcome> {
       select: { blockerId: true, blockedId: true },
     }),
   ]);
+  // Shared flow: a pair whose card closed unanswered on both sides long ago may meet again
+  const availability = mutual ? pairAvailability(userId, suggested) : null;
   const excluded = new Set<string>([
-    ...suggested.flatMap((s) => [s.recipientId, s.candidateId]),
+    ...(availability
+      ? [...availability].filter(([, a]) => a === "no").map(([id]) => id)
+      : suggested.flatMap((s) => [s.recipientId, s.candidateId])),
     ...matches.flatMap((m) => [m.femaleId, m.maleId]),
     ...blocks.flatMap((b) => [b.blockerId, b.blockedId]),
   ]);
@@ -247,12 +314,14 @@ async function generate(userId: string): Promise<SuggestOutcome> {
     .map((c) => ({ candidate: c, score: calculateCompatibility(user, c) }))
     .filter(({ score }) => score >= minSuggestionScore(flags))
     .sort((a, b) => b.score - a.score);
+  // Credit-on-interest: the candidates' own open counts; a full candidate still gets the card, hidden
+  // until I say «مهتم» or they free a slot (never skipped, so a good match never waits for their slots)
+  let busy = new Map<string, number>();
   if (mutual && ranked.length > 0) {
-    // Skip people who already got their share, so popular profiles aren't flooded
+    // Per-request mode: skip people who already got their weekly share, so popular profiles aren't flooded
     const ids = ranked.map((r) => r.candidate.id);
     if (creditOnInterest) {
-      const busy = await openCounts(ids);
-      ranked = ranked.filter((r) => (busy.get(r.candidate.id) ?? 0) < MAX_OPEN_SUGGESTIONS);
+      busy = await openCounts(ids);
     } else {
       const busy = await weeklyCounts(ids, weekAgo);
       ranked = ranked.filter((r) => (busy.get(r.candidate.id) ?? 0) < WEEKLY_FREE_SUGGESTIONS);
@@ -262,21 +331,33 @@ async function generate(userId: string): Promise<SuggestOutcome> {
   // cards for the same pair. Reserve the pair in this process (PM2 fork = one process) and re-check the
   // database for a row in either direction just before creating.
   const pairKey = (id: string) => [userId, id].sort().join("|");
-  let top = ranked.filter((r) => !pairsInFlight.has(pairKey(r.candidate.id))).slice(0, limit);
+  const free = ranked.filter((r) => !pairsInFlight.has(pairKey(r.candidate.id)));
+  let top = free.slice(0, limit);
   top.forEach((r) => pairsInFlight.add(pairKey(r.candidate.id)));
   const reserved = top.map((r) => pairKey(r.candidate.id));
+  // Pairs met before through an old unanswered row userId → them: the new row goes them → userId
+  let reverse = new Set<string>();
+  const isFull = (id: string) => creditOnInterest && (busy.get(id) ?? 0) >= MAX_OPEN_SUGGESTIONS;
   try {
     if (top.length > 0) {
       const ids = top.map((r) => r.candidate.id);
       const taken = await db.suggestion.findMany({
         where: { OR: [{ recipientId: userId, candidateId: { in: ids } }, { candidateId: userId, recipientId: { in: ids } }] },
-        select: { recipientId: true, candidateId: true },
+        select: pastSelect,
       });
-      const takenIds = new Set(taken.map((t) => (t.recipientId === userId ? t.candidateId : t.recipientId)));
-      top = top.filter((r) => !takenIds.has(r.candidate.id));
+      if (mutual) {
+        const now = pairAvailability(userId, taken);
+        reverse = new Set([...now].filter(([, a]) => a === "reverse").map(([id]) => id));
+        // A reversed row would hide me, not them: a full partner is skipped in that rare case
+        top = top.filter((r) => now.get(r.candidate.id) !== "no" && !(reverse.has(r.candidate.id) && isFull(r.candidate.id)));
+      } else {
+        const takenIds = new Set(taken.map((t) => (t.recipientId === userId ? t.candidateId : t.recipientId)));
+        top = top.filter((r) => !takenIds.has(r.candidate.id));
+      }
     }
 
     if (top.length === 0) {
+      if (revealed > 0) return outcome(revealed);
       lastEmptyRun.set(userId, Date.now());
       return outcome(0, "no_candidates");
     }
@@ -287,9 +368,9 @@ async function generate(userId: string): Promise<SuggestOutcome> {
 
     const created = await db.suggestion.createMany({
       data: top.map(({ candidate, score }) => ({
-        recipientId: userId,
-        candidateId: candidate.id,
-        compatibilityScore: score,
+        ...(reverse.has(candidate.id)
+          ? { recipientId: candidate.id, candidateId: userId, compatibilityScore: calculateCompatibility(candidate, user) }
+          : { recipientId: userId, candidateId: candidate.id, compatibilityScore: score, hiddenFromCandidate: isFull(candidate.id) }),
         source: "AI" as const,
         ...(mutual && { flow: "MUTUAL" as const, expiresAt: new Date(Date.now() + MUTUAL_SUGGESTION_MS) }),
       })),
@@ -299,7 +380,7 @@ async function generate(userId: string): Promise<SuggestOutcome> {
       await refundCredits(userId, top.length - created.count);
       await recordCredit({ userId, delta: -created.count, reason: "SUGGESTION", note: "Automatic suggestions" });
     }
-    if (created.count === 0) return outcome(0);
+    if (created.count === 0) return outcome(revealed);
 
     // Top-ups run many times a day (after each decision, on expiry, on page open): one
     // "new suggestions" notice per person per day is enough, the rest wait in the list
@@ -311,10 +392,19 @@ async function generate(userId: string): Promise<SuggestOutcome> {
     if (mutual) {
       await notify({ userId, type: "SUGGESTION", title, body, url: "/dashboard/suggestions", oncePerDay: NEW_SUGGESTIONS_DAILY });
       // The other people see the same suggestion
-      const created = await db.suggestion.findMany({
-        where: { recipientId: userId, flow: "MUTUAL", candidateId: { in: top.map((t) => t.candidate.id) } },
-        select: { candidateId: true },
+      const topIds = top.map((t) => t.candidate.id);
+      const createdRows = await db.suggestion.findMany({
+        where: {
+          flow: "MUTUAL",
+          createdAt: { gte: runStart },
+          OR: [{ recipientId: userId, candidateId: { in: topIds } }, { candidateId: userId, recipientId: { in: topIds } }],
+        },
+        select: { recipientId: true, candidateId: true, hiddenFromCandidate: true },
       });
+      // Hidden cards say nothing to the other person yet
+      const created = createdRows
+        .filter((r) => !r.hiddenFromCandidate)
+        .map((r) => ({ candidateId: r.recipientId === userId ? r.candidateId : r.recipientId }));
       await notifyMany(created.map((c) => c.candidateId), {
         type: "SUGGESTION",
         title: "اقتراح توافق جديد",
@@ -328,7 +418,7 @@ async function generate(userId: string): Promise<SuggestOutcome> {
 
     if (!perRequestCredits && user.matchCredits - created.count <= 0) await notifyCreditsExhausted(userId);
 
-    return outcome(created.count);
+    return outcome(created.count + revealed);
   } finally {
     reserved.forEach((k) => pairsInFlight.delete(k));
   }

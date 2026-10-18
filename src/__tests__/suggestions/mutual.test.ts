@@ -76,6 +76,34 @@ const flush = async () => {
   await new Promise((r) => setTimeout(r, 0));
 };
 
+describe("decideSuggestion: cards made while the candidate was full", () => {
+  it("the candidate can't act on a card still hidden from them", async () => {
+    db.suggestion.findUnique.mockResolvedValue(row({ hiddenFromCandidate: true }));
+    await expectNotFound(decideSuggestion({ suggestionId: "s1", userId: "f1", interested: true }));
+    expect(db.suggestion.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("«مهتم» from the recipient shows it to the candidate with a full window and tells them", async () => {
+    db.suggestion.findUnique.mockResolvedValue(row({ hiddenFromCandidate: true }));
+    await decideSuggestion({ suggestionId: "s1", userId: "u1", interested: true });
+    const reveal = db.suggestion.updateMany.mock.calls
+      .map((c) => c[0] as { where: { hiddenFromCandidate?: boolean }; data: { hiddenFromCandidate?: boolean; expiresAt?: Date; reminderSentAt?: null } })
+      .find((c) => c.where.hiddenFromCandidate === true);
+    expect(reveal?.data.hiddenFromCandidate).toBe(false);
+    expect(reveal?.data.expiresAt!.getTime()).toBeGreaterThan(Date.now() + 6.9 * DAY);
+    expect(reveal?.data.reminderSentAt).toBeNull();
+    expect(notifyMod.notify).toHaveBeenCalledWith(expect.objectContaining({ userId: "f1", title: "شخص أبدى اهتمامه بك" }));
+  });
+
+  it("«لا» from the recipient keeps it hidden and tells nobody", async () => {
+    db.suggestion.findUnique.mockResolvedValue(row({ hiddenFromCandidate: true }));
+    await decideSuggestion({ suggestionId: "s1", userId: "u1", interested: false });
+    const calls = db.suggestion.updateMany.mock.calls.map((c) => c[0] as { where: { hiddenFromCandidate?: boolean } });
+    expect(calls.some((c) => c.where.hiddenFromCandidate === true)).toBe(false);
+    expect(notifyMod.notify).not.toHaveBeenCalledWith(expect.objectContaining({ userId: "f1" }));
+  });
+});
+
 describe("decideSuggestion", () => {
   it("refuses users who are not part of the suggestion", async () => {
     db.suggestion.findUnique.mockResolvedValue(row());

@@ -51,7 +51,8 @@ describe("getSuggestionFeed — new", () => {
     expect(where.OR).toEqual([
       // A partner who left doesn't fill a slot (hidden in the feed anyway)
       { recipientId: "me", recipientDecision: null, candidate: { isDeactivated: false, status: { not: "SUSPENDED" } } },
-      { candidateId: "me", candidateDecision: null, recipient: { isDeactivated: false, status: { not: "SUSPENDED" } } },
+      // A card made while I was full stays hidden from me until the other says «مهتم» or I have room
+      { candidateId: "me", candidateDecision: null, recipient: { isDeactivated: false, status: { not: "SUSPENDED" } }, hiddenFromCandidate: false },
     ]);
   });
 

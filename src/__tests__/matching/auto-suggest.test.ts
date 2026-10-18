@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const db = vi.hoisted(() => ({
   user: { findUnique: vi.fn(), findMany: vi.fn(), updateMany: vi.fn(), update: vi.fn() },
-  suggestion: { count: vi.fn(), findMany: vi.fn(), findFirst: vi.fn(), createMany: vi.fn(), groupBy: vi.fn() },
+  suggestion: { count: vi.fn(), findMany: vi.fn(), findFirst: vi.fn(), createMany: vi.fn(), groupBy: vi.fn(), updateMany: vi.fn() },
   mutualMatch: { findMany: vi.fn() },
   block: { findMany: vi.fn() },
   notification: { create: vi.fn() },
@@ -78,6 +78,7 @@ beforeEach(() => {
   db.user.update.mockResolvedValue({});
   flags.getCycleFlags.mockResolvedValue({ introRequests: false, chat: false, mutualSuggestions: false });
   db.suggestion.groupBy.mockResolvedValue([]);
+  db.suggestion.updateMany.mockResolvedValue({ count: 0 });
 });
 
 describe("autoSuggestForUser", () => {
@@ -169,7 +170,8 @@ describe("autoSuggestForUser", () => {
 
     expect(await autoSuggestForUser("u6")).toBe(0);
     expect(await autoSuggestForUser("u6")).toBe(0);
-    expect(db.user.findUnique).toHaveBeenCalledTimes(1);
+    // The candidate scan is what waits (cards waiting for the user are still shown in between)
+    expect(db.user.findMany).toHaveBeenCalledTimes(1);
   });
 
   it("uses one credit per suggestion and never exceeds the balance", async () => {
@@ -269,7 +271,7 @@ describe("autoSuggestForUser — simultaneous flow", () => {
     db.user.findUnique.mockResolvedValue(person("m1", "MALE"));
     db.user.findMany.mockResolvedValue(["h1", "h2"].map((id) => person(id, "FEMALE")));
     db.suggestion.findMany.mockImplementation(async ({ where }: { where: { flow?: string } }) =>
-      where.flow === "MUTUAL" ? [{ candidateId: "h1" }, { candidateId: "h2" }] : []
+      where.flow === "MUTUAL" ? [{ recipientId: "m1", candidateId: "h1" }, { recipientId: "m1", candidateId: "h2" }] : []
     );
 
     expect(await autoSuggestForUser("m1")).toBe(2);
@@ -404,9 +406,11 @@ describe("credit on interest: open cap 5", () => {
   };
   beforeEach(() => {
     flags.getCycleFlags.mockResolvedValue(on);
-    db.suggestion.findMany.mockImplementation(async ({ where }: { where: { flow?: string } }) =>
-      where.flow === "MUTUAL" ? females(6).map((f) => ({ candidateId: f.id })) : []
+    db.suggestion.findMany.mockImplementation(async ({ where }: { where: { flow?: string; hiddenFromCandidate?: boolean } }) =>
+      where.flow === "MUTUAL" && !where.hiddenFromCandidate ? females(6).map((f) => ({ recipientId: "x", candidateId: f.id })) : []
     );
+    // Good but not "very good" fits: the 5-open cap applies as usual (85%+ may go above it)
+    for (const id of [...females(7).map((f) => f.id), "busy", "free"]) scoring.scoreFor.set(id, 70);
   });
 
   it("tops up to 5 when 0 open", async () => {
@@ -431,16 +435,59 @@ describe("credit on interest: open cap 5", () => {
     expect(db.user.findMany).not.toHaveBeenCalled();
   });
 
-  it("skips a candidate with 5 open", async () => {
+  it("a full candidate still gets the card, hidden from them and not notified", async () => {
     openRows(0);
-    db.user.findUnique.mockResolvedValue(person("co4", "MALE"));
+    db.user.findUnique.mockResolvedValue(person("co4b", "MALE"));
     db.user.findMany.mockResolvedValue([person("busy", "FEMALE"), person("free", "FEMALE")]);
     db.suggestion.groupBy
-      .mockResolvedValueOnce([{ recipientId: "busy", _count: 3 }]) // as recipient
-      .mockResolvedValueOnce([{ candidateId: "busy", _count: 2 }]) // as candidate
-      .mockResolvedValueOnce([]); // legacy
-    await autoSuggestForUser("co4");
-    expect(db.suggestion.createMany.mock.calls[0][0].data.map((d: { candidateId: string }) => d.candidateId)).toEqual(["free"]);
+      .mockResolvedValueOnce([{ recipientId: "busy", _count: 5 }])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+    db.suggestion.findMany.mockImplementation(async ({ where }: { where: { flow?: string; hiddenFromCandidate?: boolean } }) =>
+      where.flow === "MUTUAL" && where.hiddenFromCandidate === undefined
+        ? [{ recipientId: "co4b", candidateId: "busy", hiddenFromCandidate: true }, { recipientId: "co4b", candidateId: "free", hiddenFromCandidate: false }]
+        : []
+    );
+    expect(await autoSuggestForUser("co4b")).toBe(2);
+    const data = db.suggestion.createMany.mock.calls[0][0].data as { candidateId: string; hiddenFromCandidate: boolean }[];
+    expect(data.find((d) => d.candidateId === "busy")?.hiddenFromCandidate).toBe(true);
+    expect(data.find((d) => d.candidateId === "free")?.hiddenFromCandidate).toBe(false);
+    expect(notifyMod.notifyMany.mock.calls[0][0]).toEqual(["free"]);
+  });
+
+  it("with room again, shows cards made while full before adding anyone new", async () => {
+    openRows(3);
+    db.user.findUnique.mockResolvedValue(person("co9", "FEMALE"));
+    db.suggestion.findMany.mockImplementation(async ({ where }: { where: { hiddenFromCandidate?: boolean } }) =>
+      where.hiddenFromCandidate ? [{ id: "h1", expiresAt: new Date(Date.now() + 86400000) }, { id: "h2", expiresAt: null }] : []
+    );
+    db.suggestion.updateMany.mockResolvedValue({ count: 1 });
+    expect(await autoSuggestForUser("co9")).toBe(2);
+    const reveal = db.suggestion.updateMany.mock.calls[0][0] as { data: { hiddenFromCandidate: boolean; expiresAt: Date } };
+    expect(reveal.data.hiddenFromCandidate).toBe(false);
+    expect(reveal.data.expiresAt.getTime()).toBeGreaterThan(Date.now() + 6.9 * 86400000);
+    expect(db.user.findMany).not.toHaveBeenCalled();
+  });
+
+  it("re-suggests a pair whose card closed unanswered over 30 days ago, in the other direction", async () => {
+    openRows(0);
+    const old = { status: "EXPIRED", recipientDecision: null, candidateDecision: null, expiresAt: new Date(Date.now() - 40 * 86400000), updatedAt: new Date() };
+    const recent = { ...old, expiresAt: new Date(Date.now() - 10 * 86400000) };
+    const answered = { ...old, recipientDecision: "DECLINED" };
+    const past = [
+      { recipientId: "co8", candidateId: "again", ...old },
+      { recipientId: "co8", candidateId: "tooSoon", ...recent },
+      { recipientId: "co8", candidateId: "saidNo", ...answered },
+    ];
+    db.suggestion.findMany.mockImplementation(async ({ where }: { where: { flow?: string } }) => (where.flow ? [] : past));
+    db.user.findUnique.mockResolvedValue(person("co8", "MALE"));
+    db.user.findMany.mockImplementation(async ({ where }: { where: { id?: { notIn: string[] } } }) =>
+      ["again", "tooSoon", "saidNo"].filter((id) => !where.id?.notIn.includes(id)).map((id) => person(id, "FEMALE"))
+    );
+    expect(await autoSuggestForUser("co8")).toBe(1);
+    expect(db.suggestion.createMany.mock.calls[0][0].data).toEqual([
+      expect.objectContaining({ recipientId: "again", candidateId: "co8", flow: "MUTUAL" }),
+    ]);
   });
 
   it("never reports weekly_cap and has no weekly window (nextSuggestionsAt null)", async () => {
@@ -484,5 +531,23 @@ describe("credit on interest: open cap 5", () => {
     db.user.findUnique.mockResolvedValue(person("co6", "MALE"));
     db.suggestion.count.mockImplementation(async ({ where }: { where: { createdAt?: unknown } }) => (where.createdAt ? 3 : 0));
     expect((await autoSuggestWithReason("co6")).reason).toBe("weekly_cap");
+  });
+});
+
+describe("pairAvailability", () => {
+  it("only a never-answered, long-closed pair is available again", async () => {
+    const { pairAvailability } = await import("@/lib/matching/auto-suggest");
+    const base = { status: "EXPIRED" as const, recipientDecision: null, candidateDecision: null, expiresAt: new Date(Date.now() - 40 * 86400000), updatedAt: new Date() };
+    const map = pairAvailability("me", [
+      { recipientId: "me", candidateId: "fwd", ...base },
+      { recipientId: "back", candidateId: "me", ...base },
+      { recipientId: "me", candidateId: "both", ...base },
+      { recipientId: "both", candidateId: "me", ...base },
+      { recipientId: "me", candidateId: "open", ...base, status: "PENDING" as const },
+    ]);
+    expect(map.get("fwd")).toBe("reverse");
+    expect(map.has("back")).toBe(false);
+    expect(map.get("both")).toBe("no");
+    expect(map.get("open")).toBe("no");
   });
 });

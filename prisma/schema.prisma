@@ -415,6 +415,9 @@ model Suggestion {
   /// Chosen with "interested" when credit_on_interest is on (null otherwise)
   recipientIntroPreference IntroPreference?
   candidateIntroPreference IntroPreference?
+  /// Made while the candidate already held 5 open cards: hidden from the candidate (and not taking a
+  /// slot) until the recipient says «مهتم» or the candidate frees a slot (revealHiddenFor)
+  hiddenFromCandidate      Boolean @default(false)
 
   createdAt          DateTime         @default(now())
   updatedAt          DateTime         @updatedAt

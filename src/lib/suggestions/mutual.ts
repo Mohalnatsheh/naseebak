@@ -20,6 +20,7 @@ import { createMutualMatch } from "@/lib/intro/match";
 import { setGuardianConsent } from "@/lib/intro/requests";
 import { isUnavailable } from "@/lib/matches/state";
 import { getCycleFlags } from "@/lib/settings";
+import { activeWhere } from "@/lib/activity";
 
 /** A MUTUAL suggestion stays open this long; after that "waiting" ends without a word. */
 export const MUTUAL_SUGGESTION_DAYS = 7;
@@ -41,9 +42,68 @@ export function openMutualWhere(userId: string, now = new Date()): Prisma.Sugges
     expiresAt: { gt: now },
     OR: [
       { recipientId: userId, recipientDecision: null, candidate: activePerson },
-      { candidateId: userId, candidateDecision: null, recipient: activePerson },
+      // Made while I was full: not mine to see until the other says «مهتم» or I free a slot
+      { candidateId: userId, candidateDecision: null, recipient: activePerson, hiddenFromCandidate: false },
     ],
   };
+}
+
+/**
+ * A card stops holding my slot once it is this old and the other person hasn't been on the site
+ * for this long: someone who went quiet must not keep an active person waiting for 7 days.
+ * The card stays visible (openMutualWhere) until it expires, so a late «مهتم» still works.
+ */
+export const SLOT_IDLE_DAYS = 2;
+
+/**
+ * The open rows that count toward `userId`'s MAX_OPEN_SUGGESTIONS: openMutualWhere minus cards
+ * older than SLOT_IDLE_DAYS whose other person hasn't been seen for SLOT_IDLE_DAYS.
+ */
+export function slotMutualWhere(userId: string, now = new Date()): Prisma.SuggestionWhereInput {
+  const fresh = new Date(now.getTime() - SLOT_IDLE_DAYS * 24 * 60 * 60 * 1000);
+  const partnerHere = activeWhere(SLOT_IDLE_DAYS, now);
+  return {
+    flow: "MUTUAL",
+    status: "PENDING",
+    expiresAt: { gt: now },
+    OR: [
+      { recipientId: userId, recipientDecision: null, candidate: activePerson, OR: [{ createdAt: { gte: fresh } }, { candidate: partnerHere }] },
+      { candidateId: userId, candidateDecision: null, recipient: activePerson, hiddenFromCandidate: false, OR: [{ createdAt: { gte: fresh } }, { recipient: partnerHere }] },
+    ],
+  };
+}
+
+/** Shown to the candidate now, with at least a full window ahead (a late reveal must not be a short one). */
+function revealData(expiresAt: Date | null, now: Date) {
+  const full = new Date(now.getTime() + MUTUAL_SUGGESTION_MS);
+  // A reminder sent while hidden reached only the recipient: the revealed card gets its own
+  return { hiddenFromCandidate: false, expiresAt: expiresAt && expiresAt > full ? expiresAt : full, reminderSentAt: null };
+}
+
+/**
+ * `userId` has room again: show up to `room` of the cards made for others while they were full, best
+ * match first. Returns how many were revealed (each gets a full 7-day window from now).
+ */
+export async function revealHiddenFor(userId: string, room: number, now = new Date()): Promise<number> {
+  if (room <= 0) return 0;
+  const hidden = await db.suggestion.findMany({
+    where: {
+      flow: "MUTUAL", status: "PENDING", expiresAt: { gt: now }, candidateId: userId, hiddenFromCandidate: true,
+      candidateDecision: null, recipient: activePerson,
+    },
+    select: { id: true, expiresAt: true },
+    orderBy: [{ compatibilityScore: "desc" }, { createdAt: "asc" }],
+    take: room,
+  });
+  let revealed = 0;
+  for (const h of hidden) {
+    const { count } = await db.suggestion.updateMany({
+      where: { id: h.id, hiddenFromCandidate: true, status: "PENDING" },
+      data: revealData(h.expiresAt, now),
+    });
+    revealed += count;
+  }
+  return revealed;
 }
 
 /**
@@ -235,6 +295,7 @@ export async function decideSuggestion(args: {
   const side = s.recipientId === userId ? "recipient" : s.candidateId === userId ? "candidate" : null;
   if (!side) throw notFound();
   if ((side === "recipient" ? s.recipientDecision : s.candidateDecision) !== null) throw notFound();
+  if (side === "candidate" && s.hiddenFromCandidate) throw notFound();
 
   const otherId = side === "recipient" ? s.candidateId : s.recipientId;
   const blocked = await db.block.findFirst({
@@ -298,6 +359,26 @@ export async function decideSuggestion(args: {
   } else {
     const recorded = await claim(db);
     if (recorded.count === 0) throw notFound();
+  }
+  // Made while the other was full: their card appears now, above their 5, with a full window
+  if (interested && side === "recipient" && s.hiddenFromCandidate) {
+    const { count } = await db.suggestion.updateMany({
+      where: { id: s.id, hiddenFromCandidate: true, status: "PENDING" },
+      data: revealData(s.expiresAt, now),
+    });
+    if (count === 1) {
+      try {
+        await notify({
+          userId: s.candidateId,
+          type: "SUGGESTION",
+          title: "شخص أبدى اهتمامه بك",
+          body: "وصلك اقتراح توافق من شخص مهتم بك. اطّلع عليه قبل أن تنتهي مدته.",
+          url: "/dashboard/suggestions",
+        });
+      } catch (e) {
+        console.error("[suggestions] reveal notice:", s.id, e);
+      }
+    }
   }
   if (flags.creditOnInterest) topUpAfterDecision(userId);
   const extra = creditsLeft === undefined ? {} : { creditsLeft };

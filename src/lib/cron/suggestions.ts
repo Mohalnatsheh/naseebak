@@ -44,7 +44,7 @@ export async function remindMutualSuggestions(now = new Date()): Promise<{ sugge
     },
     select: {
       id: true, recipientId: true, candidateId: true, recipientDecision: true, candidateDecision: true,
-      recipient: partySelect, candidate: partySelect,
+      hiddenFromCandidate: true, recipient: partySelect, candidate: partySelect,
     },
     orderBy: { expiresAt: "asc" },
     take: BATCH,
@@ -76,7 +76,8 @@ export async function remindMutualSuggestions(now = new Date()): Promise<{ sugge
     suggestions++;
     const undecided = [
       ...(s.recipientDecision === null ? [s.recipient] : []),
-      ...(s.candidateDecision === null ? [s.candidate] : []),
+      // A card the candidate can't see yet (made while they were full) is never reminded to them
+      ...(s.candidateDecision === null && !s.hiddenFromCandidate ? [s.candidate] : []),
     ];
     for (const person of undecided) {
       const female = person.gender === "FEMALE";

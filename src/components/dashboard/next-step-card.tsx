@@ -23,6 +23,8 @@ interface Props {
   emptyReason?: string | null;
   /** /api/suggestions failed: say so instead of "searching" */
   suggestionsFailed?: boolean;
+  /** "hero" = inside the navy home header (light text, gold action); default = a card on its own */
+  variant?: "card" | "hero";
 }
 
 interface Step {
@@ -35,7 +37,7 @@ interface Step {
 }
 
 /** The one thing worth doing next, so the dashboard never leaves the user guessing. */
-export function NextStepCard({ qualifies, pendingSuggestions, credits, emptyReason, suggestionsFailed }: Props) {
+export function NextStepCard({ qualifies, pendingSuggestions, credits, emptyReason, suggestionsFailed, variant = "card" }: Props) {
   const { counts, profile } = useDashboardData();
   const newCycle = counts.flags.introRequests;
   const actionableMatches = counts.actionableMatches ?? 0;
@@ -172,6 +174,29 @@ export function NextStepCard({ qualifies, pendingSuggestions, credits, emptyReas
   }
 
   const Icon = step.icon;
+  if (variant === "hero") {
+    return (
+      <div className="flex flex-col gap-4 rounded-2xl border border-white/15 bg-white/[0.07] p-4 backdrop-blur-sm sm:flex-row sm:items-center sm:p-5">
+        <div className="flex min-w-0 flex-1 items-start gap-3.5">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-accent text-accent-foreground">
+            <Icon className="h-5 w-5" aria-hidden />
+          </span>
+          <div className="min-w-0">
+            <p className="text-xs font-semibold text-white/60">خطوتك التالية</p>
+            <h2 className="mt-0.5 text-lg font-bold text-white">{step.title}</h2>
+            <p className="mt-1 text-sm leading-relaxed text-white/75">{step.text}</p>
+          </div>
+        </div>
+        <Link
+          href={step.href}
+          className="inline-flex h-12 shrink-0 items-center justify-center gap-1.5 rounded-xl bg-accent px-5 text-base font-extrabold text-accent-foreground transition hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+        >
+          {step.cta}
+          <ChevronLeft className="h-4 w-4" aria-hidden />
+        </Link>
+      </div>
+    );
+  }
   return (
     <Link href={step.href} className="block">
       <Card

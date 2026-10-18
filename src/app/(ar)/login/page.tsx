@@ -326,7 +326,7 @@ function LoginPageContent() {
           >
             <span className="flex items-center justify-center gap-2">
               <Shield className="size-4" />
-              بياناتك مشفرة ومحمية
+              صورك مخفية حتى التوافق المتبادل
             </span>
             <span className="flex items-center justify-center gap-2">
               <Sparkles className="size-4" />

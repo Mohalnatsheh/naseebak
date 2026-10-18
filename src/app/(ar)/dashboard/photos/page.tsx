@@ -20,6 +20,7 @@ import { ImageLightbox } from "@/components/shared/image-lightbox";
 import { trackEvent } from "@/lib/analytics";
 import { useDashboardData } from "@/contexts/dashboard-context";
 import { LoadError } from "@/components/shared/load-error";
+import { PageHeader } from "@/components/shared/page-header";
 
 interface Photo {
   id: string;
@@ -182,57 +183,36 @@ export default function PhotosPage() {
         title="صورك محمية ومؤمنة"
         body={`صورك الشخصية لن تظهر لأي مستخدم إلا بعد التوافق المتبادل بينكما. ${female ? "تأكدي" : "تأكد"} من إضافة صور واضحة لزيادة فرصك.`}
       />
-      {/* Page Header */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-l from-primary/5 via-primary/5 to-transparent border border-primary/10 p-4 sm:p-6 md:p-8">
-        <div className="absolute top-0 left-0 w-40 h-40 bg-primary/10 rounded-full -translate-x-16 -translate-y-16 blur-3xl" />
-        <div className="absolute bottom-0 right-0 w-32 h-32 bg-primary/5 rounded-full translate-x-8 translate-y-8 blur-2xl" />
-
-        <div className="relative flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div className="space-y-2">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-lg shadow-primary/20">
-                <Camera className="h-5 w-5 text-white" />
-              </div>
-              <div className="flex items-center gap-3">
-                <h1 className="text-xl sm:text-2xl md:text-3xl font-bold bg-gradient-to-l from-primary to-secondary bg-clip-text text-transparent">
-                  صوري الشخصية
-                </h1>
-                <span className="inline-flex items-center justify-center h-7 min-w-7 px-2 rounded-full bg-gradient-to-br from-primary to-secondary text-white text-xs font-bold shadow-sm">
-                  {photos.length} / {MAX_PHOTOS}
-                </span>
-              </div>
-            </div>
-            <p className="text-muted-foreground text-sm md:text-base">
-              أضف صوراً لملفك الشخصي. سيتم عرضها فقط عند التوافق المتبادل
-            </p>
-          </div>
-
-          {/* Upload button */}
-          <div className="flex-shrink-0">
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              multiple
-              className="hidden"
-              onChange={handleUpload}
-              disabled={photos.length >= MAX_PHOTOS || uploading}
-            />
-            <Button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={photos.length >= MAX_PHOTOS || uploading}
-              className="bg-gradient-to-l from-primary to-secondary hover:from-primary/90 hover:to-secondary/90 text-white shadow-lg shadow-primary/20 rounded-xl font-semibold transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
-            >
-              {uploading ? (
-                <Loader2 className="h-4 w-4 animate-spin me-2" />
-              ) : (
-                <ImagePlus className="h-4 w-4 me-2" />
-              )}
-              {uploading ? "جاري الرفع..." : "رفع صورة"}
-            </Button>
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        icon={Camera}
+        title="صوري الشخصية"
+        description="أضف صوراً لملفك الشخصي. سيتم عرضها فقط عند التوافق المتبادل"
+      >
+        <span className="inline-flex h-7 min-w-7 items-center justify-center rounded-full border border-accent/40 bg-accent/10 px-3 text-sm font-bold text-foreground">
+          {photos.length} / {MAX_PHOTOS}
+        </span>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          className="hidden"
+          onChange={handleUpload}
+          disabled={photos.length >= MAX_PHOTOS || uploading}
+        />
+        <Button
+          onClick={() => fileInputRef.current?.click()}
+          disabled={photos.length >= MAX_PHOTOS || uploading}
+          className="h-11 rounded-xl font-semibold"
+        >
+          {uploading ? (
+            <Loader2 className="h-4 w-4 animate-spin me-2" />
+          ) : (
+            <ImagePlus className="h-4 w-4 me-2" />
+          )}
+          {uploading ? "جاري الرفع..." : "رفع صورة"}
+        </Button>
+      </PageHeader>
 
       {/* Privacy Banner */}
       <div className="flex items-center gap-3 p-3.5 bg-gradient-to-l from-primary/5 to-primary/5 rounded-xl border border-primary/10 text-sm text-muted-foreground">

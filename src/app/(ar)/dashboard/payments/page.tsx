@@ -33,6 +33,7 @@ import { useDashboardData } from "@/contexts/dashboard-context";
 import { CREDIT_ON_INTEREST_LINE } from "@/lib/suggestions/copy";
 import { arabicCount } from "@/lib/utils";
 import { LoadError } from "@/components/shared/load-error";
+import { PageHeader } from "@/components/shared/page-header";
 
 const stripePromise = loadStripe(
   process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!
@@ -347,91 +348,25 @@ function PaymentsContent() {
       )}
 
       {!loadFailed && (<>
-      {/* Hero Header */}
-      <div
-        className="relative overflow-hidden rounded-3xl bg-gradient-to-l from-primary via-primary/95 to-secondary p-8 md:p-10"
-        style={{ animation: "fadeSlideIn 0.6s ease-out both" }}
+      <PageHeader
+        icon={Coins}
+        title={perRequest ? "رصيدك" : "رصيد الاقتراحات"}
+        description={
+          creditOnInterest
+            ? `الاقتراحات مجانية. ${CREDIT_ON_INTEREST_LINE}`
+            : perRequest
+            ? "الاقتراحات مجانية. كل طلب تعارف عائلي أو محادثة يستخدم رصيداً واحداً."
+            : "يمكنك شحن رصيدك لتصلك اقتراحات أكثر"
+        }
       >
-        {/* Background decorations */}
-        <div className="absolute top-0 left-0 w-64 h-64 bg-white/[0.04] rounded-full -translate-x-32 -translate-y-32 blur-3xl" />
-        <div className="absolute bottom-0 right-0 w-48 h-48 bg-accent/[0.08] rounded-full translate-x-16 translate-y-16 blur-3xl" />
-        <div className="absolute top-1/2 left-1/3 w-32 h-32 bg-white/[0.03] rounded-full blur-2xl" />
-
-        {/* Geometric pattern */}
-        <div className="absolute inset-0 opacity-[0.04]">
-          <svg
-            className="w-full h-full"
-            viewBox="0 0 400 200"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <defs>
-              <pattern
-                id="paymentPattern"
-                x="0"
-                y="0"
-                width="40"
-                height="40"
-                patternUnits="userSpaceOnUse"
-              >
-                <circle
-                  cx="20"
-                  cy="20"
-                  r="8"
-                  fill="none"
-                  stroke="white"
-                  strokeWidth="0.5"
-                />
-                <circle
-                  cx="20"
-                  cy="20"
-                  r="2"
-                  fill="white"
-                  opacity="0.5"
-                />
-              </pattern>
-            </defs>
-            <rect width="400" height="200" fill="url(#paymentPattern)" />
-          </svg>
+        {/* Current balance */}
+        <div className="inline-flex min-h-11 items-center gap-2.5 rounded-full bg-accent px-5 py-2 text-accent-foreground shadow-sm shadow-accent/20">
+          <Sparkles className="h-4 w-4 shrink-0" aria-hidden="true" />
+          <span className="text-sm font-medium">رصيدك الحالي</span>
+          <span className="text-2xl font-black leading-none">{matchCredits}</span>
+          <span className="text-sm font-medium">رصيد</span>
         </div>
-
-        <div className="relative flex flex-col md:flex-row md:items-center md:justify-between gap-6">
-          <div className="space-y-3">
-            <div className="flex items-center gap-3">
-              <div className="h-12 w-12 rounded-2xl bg-white/10 backdrop-blur-sm flex items-center justify-center ring-1 ring-white/20">
-                <Coins className="h-6 w-6 text-white" />
-              </div>
-              <div>
-                <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-white">
-                  {perRequest ? "رصيدك" : "رصيد الاقتراحات"}
-                </h1>
-                <p className="text-white/60 text-sm mt-0.5">
-                  {creditOnInterest
-                    ? `الاقتراحات مجانية. ${CREDIT_ON_INTEREST_LINE}`
-                    : perRequest
-                    ? "الاقتراحات مجانية. كل طلب تعارف عائلي أو محادثة يستخدم رصيداً واحداً."
-                    : "يمكنك شحن رصيدك لتصلك اقتراحات أكثر"}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Current balance card */}
-          <div className="flex-shrink-0 bg-white/10 backdrop-blur-md rounded-2xl border border-white/15 p-5 min-w-[180px]">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="h-6 w-6 rounded-lg bg-accent/20 flex items-center justify-center">
-                <Sparkles className="h-3.5 w-3.5 text-accent" />
-              </div>
-              <p className="text-xs text-white/60 font-medium">رصيدك الحالي</p>
-            </div>
-            <div className="flex items-baseline gap-2">
-              <span className="text-4xl font-black text-white">
-                {matchCredits}
-              </span>
-              <span className="text-sm text-white/50 font-medium">رصيد</span>
-            </div>
-          </div>
-        </div>
-      </div>
+      </PageHeader>
 
       {/* Credit Packages */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">

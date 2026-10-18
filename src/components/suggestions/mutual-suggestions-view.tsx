@@ -31,6 +31,7 @@ import { useDashboardData } from "@/contexts/dashboard-context";
 import { describeOption, nationalityLabel, oppositeGender } from "@/lib/profile-options";
 import type { FeedItem, FeedTab, OpenFeedItem } from "@/lib/suggestions/feed-types";
 import type { SuggestEmptyReason } from "@/lib/matching/auto-suggest";
+import { PageHeader } from "@/components/shared/page-header";
 
 type Notice =
   | { kind: "match"; matchId?: string }
@@ -352,34 +353,33 @@ export function MutualSuggestionsView({
 
   return (
     <div className="max-w-2xl mx-auto space-y-6 pb-8">
-      {/* Header */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-l from-primary/10 via-primary/5 to-transparent border border-primary/10 p-4 sm:p-6 md:p-8">
-        <div className="absolute top-0 left-0 w-32 h-32 bg-primary/5 rounded-full -translate-x-10 -translate-y-10 blur-2xl" />
-        <div className="absolute bottom-0 right-0 w-24 h-24 bg-accent/10 rounded-full translate-x-6 translate-y-6 blur-2xl" />
-        <div className="relative space-y-2">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center shadow-lg shadow-primary/20">
-              <Sparkles className="h-5 w-5 text-primary-foreground" />
-            </div>
-            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold bg-gradient-to-l from-primary to-primary/70 bg-clip-text text-transparent">
-              الاقتراحات
-            </h1>
-          </div>
-          <p className="text-muted-foreground text-sm md:text-base leading-relaxed">
-            {creditOnInterest
-              ? "يرى الطرفان الاقتراح نفسه ويقرّر كلٌّ منكما وحده. إذا كان الاهتمام متبادلاً يصبح توافقاً، ولا نُطلع أحداً على قرار «لا». عندما يكون الرصيد صفراً قد يظهر أن الطرف الآخر أبدى اهتمامه."
-              : "يرى الطرفان الاقتراح نفسه ويقرّر كلٌّ منكما وحده. إذا كان الاهتمام متبادلاً يصبح توافقاً، ولا نُطلع أحداً على قرار «لا»."}
-          </p>
-          {creditOnInterest && (
-            <p className="flex items-center gap-1.5 text-xs md:text-sm font-medium text-foreground/80">
-              <Coins className="h-4 w-4 shrink-0 text-accent" aria-hidden="true" />
-              <span>
-                {CREDIT_ON_INTEREST_LINE} رصيدك: <span className="font-bold text-foreground">{balance}</span>
-              </span>
-            </p>
-          )}
-        </div>
-      </div>
+      <PageHeader
+        icon={Sparkles}
+        title="الاقتراحات"
+        description={
+          <>
+            <p>يرى الطرفان الاقتراح نفسه ويقرّر كلٌّ منكما وحده، ولا نُطلع أحداً على قرار «لا».</p>
+            {creditOnInterest && (
+              <p className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-accent/40 bg-accent/10 px-3 py-1 text-xs font-medium text-foreground/85 sm:text-sm">
+                <Coins className="h-4 w-4 shrink-0 text-accent-foreground" aria-hidden="true" />
+                <span>
+                  {CREDIT_ON_INTEREST_LINE} رصيدك: <span className="font-bold text-foreground">{balance}</span>
+                </span>
+              </p>
+            )}
+            <details className="group mt-2">
+              <summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-1 text-sm font-semibold text-primary [&::-webkit-details-marker]:hidden">
+                كيف تعمل الاقتراحات؟
+              </summary>
+              <p className="mt-1 text-sm leading-relaxed">
+                {creditOnInterest
+                  ? "إذا كان الاهتمام متبادلاً يصبح توافقاً، فتظهر الصور ويبدأ التعارف الذي اخترتماه. عندما يكون الرصيد صفراً قد يظهر أن الطرف الآخر أبدى اهتمامه."
+                  : "إذا كان الاهتمام متبادلاً يصبح توافقاً، فتظهر الصور والتفاصيل الكاملة للطرفين."}
+              </p>
+            </details>
+          </>
+        }
+      />
 
       <div id="dealbreakers" className="scroll-mt-24">
         <DealbreakersCard />

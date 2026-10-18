@@ -312,6 +312,9 @@ img.protected-photo {
   .animate-bubble-in { animation: none; }
 }
 
+/* Dashboard display face (Reem Kufi via --font-display, set in the dashboard layout) */
+.font-display { font-family: var(--font-display), sans-serif; letter-spacing: 0; }
+
 /* ─── Landing ─── */
 @keyframes landingRise {
   from { opacity: 0; transform: translateY(14px); }

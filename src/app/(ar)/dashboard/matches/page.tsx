@@ -61,6 +61,7 @@ import { PersonCard, type PersonCardTone } from "@/components/shared/person-card
 import { describeOption, nationalityLabel } from "@/lib/profile-options";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useDashboardData } from "@/contexts/dashboard-context";
+import { PageHeader } from "@/components/shared/page-header";
 
 interface Match {
   id: string;
@@ -518,38 +519,20 @@ export default function MatchesPage() {
 
   return (
     <div className="max-w-2xl mx-auto space-y-8 pb-8">
-      {/* Page Header */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-l from-primary/5 via-secondary/5 to-transparent border border-primary/10 p-4 sm:p-6 md:p-8">
-        <div className="absolute top-0 left-0 w-40 h-40 bg-primary/10 rounded-full -translate-x-16 -translate-y-16 blur-3xl" />
-        <div className="absolute bottom-0 right-0 w-32 h-32 bg-primary/5 rounded-full translate-x-8 translate-y-8 blur-2xl" />
-
-        <div className="relative space-y-2">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-lg shadow-primary/20">
-              <Heart className="h-5 w-5 text-white fill-white" />
-            </div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-xl sm:text-2xl md:text-3xl font-bold bg-gradient-to-l from-primary to-secondary bg-clip-text text-transparent">
-                التوافقات المتبادلة
-              </h1>
-              {matches.length > 0 && (
-                <span className="inline-flex items-center justify-center h-7 min-w-7 px-2 rounded-full bg-gradient-to-br from-primary to-secondary text-white text-xs font-bold shadow-sm">
-                  {matches.length}
-                </span>
-              )}
-            </div>
-          </div>
-          <p className="text-muted-foreground text-sm md:text-base">
-            {introMode
-              ? counts.flags.creditOnInterest
-                ? "الأشخاص الذين كان الاهتمام بينك وبينهم متبادلاً. يبدأ التعارف بالطريقة التي اخترتماها عند «مهتم»، وتتابعه من هنا."
-                : isFemale
-                  ? "الأشخاص الذين كان الاهتمام بينكِ وبينهم متبادلاً. اختاري طريقة التعارف: تعارف عائلي أو محادثة قبل الزيارة."
-                  : "الأشخاص الذين كان الاهتمام بينك وبينهم متبادلاً. اختر طريقة التعارف: تعارف عائلي أو محادثة قبل الزيارة."
-              : "الأشخاص الذين تبادلتم الإعجاب. يمكنك رؤية تفاصيلهم وطلب زيارة عائلية."}
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        icon={Heart}
+        title="التوافقات المتبادلة"
+        count={matches.length}
+        description={
+          introMode
+            ? counts.flags.creditOnInterest
+              ? "الأشخاص الذين كان الاهتمام بينك وبينهم متبادلاً. يبدأ التعارف بالطريقة التي اخترتماها عند «مهتم»، وتتابعه من هنا."
+              : isFemale
+                ? "الأشخاص الذين كان الاهتمام بينكِ وبينهم متبادلاً. اختاري طريقة التعارف: تعارف عائلي أو محادثة قبل الزيارة."
+                : "الأشخاص الذين كان الاهتمام بينك وبينهم متبادلاً. اختر طريقة التعارف: تعارف عائلي أو محادثة قبل الزيارة."
+            : "الأشخاص الذين تبادلتم الإعجاب. يمكنك رؤية تفاصيلهم وطلب زيارة عائلية."
+        }
+      />
 
       {/* Match Cards */}
       {matches.length === 0 ? (

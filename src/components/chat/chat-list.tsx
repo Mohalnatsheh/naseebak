@@ -13,6 +13,7 @@ import { listTimeLabel } from "./chat-utils";
 import { InstallAppCard } from "@/components/shared/install-app-card";
 import { useDashboardData } from "@/contexts/dashboard-context";
 import { LoadError } from "@/components/shared/load-error";
+import { PageHeader } from "@/components/shared/page-header";
 
 export function ChatList() {
   const [chats, setChats] = useState<ChatSummary[] | null>(null);
@@ -50,17 +51,11 @@ export function ChatList() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 pb-8">
-      <div className="relative overflow-hidden rounded-2xl border border-primary/10 bg-gradient-to-l from-primary/10 via-primary/5 to-transparent p-6">
-        <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-secondary shadow-lg shadow-primary/20">
-            <MessageCircle className="h-5 w-5 text-primary-foreground" />
-          </div>
-          <div>
-            <h1 className="bg-gradient-to-l from-primary to-secondary bg-clip-text text-2xl font-bold text-transparent">المحادثات</h1>
-            <p className="text-sm text-muted-foreground">محادثات خاصة للتعارف قبل الزيارة العائلية، لمدة 14 يوماً.</p>
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        icon={MessageCircle}
+        title="المحادثات"
+        description="محادثات خاصة للتعارف قبل الزيارة العائلية، لمدة 14 يوماً."
+      />
 
       {chats === null && loadFailed ? (
         <LoadError

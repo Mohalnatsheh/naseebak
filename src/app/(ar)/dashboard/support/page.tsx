@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { useDashboardData } from "@/contexts/dashboard-context";
+import { PageHeader } from "@/components/shared/page-header";
 
 interface Ticket {
   id: string;
@@ -148,24 +149,11 @@ export default function SupportPage() {
 
   return (
     <div className="max-w-2xl mx-auto space-y-8 pb-8">
-      {/* Page Header */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-l from-primary/5 via-primary/5 to-transparent border border-primary/10 p-4 sm:p-6 md:p-8">
-        <div className="absolute top-0 left-0 w-40 h-40 bg-primary/10 rounded-full -translate-x-16 -translate-y-16 blur-3xl" />
-        <div className="absolute bottom-0 right-0 w-32 h-32 bg-primary/5 rounded-full translate-x-8 translate-y-8 blur-2xl" />
-        <div className="relative space-y-2">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-secondary to-primary flex items-center justify-center shadow-lg shadow-primary/20">
-              <LifeBuoy className="h-5 w-5 text-white" />
-            </div>
-            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold bg-gradient-to-l from-primary to-secondary bg-clip-text text-transparent">
-              الدعم والملاحظات
-            </h1>
-          </div>
-          <p className="text-muted-foreground text-sm md:text-base">
-            أرسل تذكرة دعم أو اقتراح وسنتواصل معك في أقرب وقت
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        icon={LifeBuoy}
+        title="الدعم والملاحظات"
+        description="أرسل تذكرة دعم أو اقتراح وسنتواصل معك في أقرب وقت"
+      />
 
       {/* Tabs */}
       <div className="flex gap-2 bg-muted/50 p-1 rounded-xl border border-border/50">

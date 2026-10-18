@@ -46,6 +46,7 @@ import { CandidateDetails } from "@/components/suggestions/candidate-details";
 import { MutualSuggestionsView } from "@/components/suggestions/mutual-suggestions-view";
 import { rechargeToContinue } from "@/components/suggestions/interest-dialog";
 import type { SuggestEmptyReason } from "@/lib/matching/auto-suggest";
+import { PageHeader } from "@/components/shared/page-header";
 
 interface Suggestion {
   id: string;
@@ -544,48 +545,24 @@ toast.success("تهانينا! لديك توافق متبادل!", {
 
   return (
     <div className="max-w-2xl mx-auto space-y-8 pb-8">
-      {/* Page Header */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-l from-primary/10 via-primary/5 to-transparent border border-primary/10 p-4 sm:p-6 md:p-8">
-        <div className="absolute top-0 left-0 w-32 h-32 bg-primary/5 rounded-full -translate-x-10 -translate-y-10 blur-2xl" />
-        <div className="absolute bottom-0 right-0 w-24 h-24 bg-accent/10 rounded-full translate-x-6 translate-y-6 blur-2xl" />
-
-        <div className="relative flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div className="space-y-2">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center shadow-lg shadow-primary/20">
-                <Sparkles className="h-5 w-5 text-primary-foreground" />
-              </div>
-              <div className="flex items-center gap-3">
-                <h1 className="text-xl sm:text-2xl md:text-3xl font-bold bg-gradient-to-l from-primary to-primary/70 bg-clip-text text-transparent">
-                  الاقتراحات
-                </h1>
-                {activeTab === "new" && suggestions.length > 0 && (
-                  <span className="inline-flex items-center justify-center h-7 min-w-7 px-2 rounded-full bg-primary text-primary-foreground text-xs font-bold">
-                    {suggestions.length}
-                  </span>
-                )}
-                {activeTab === "sent" && sentRequests.length > 0 && (
-                  <span className="inline-flex items-center justify-center h-7 min-w-7 px-2 rounded-full bg-primary text-primary-foreground text-xs font-bold">
-                    {sentRequests.length}
-                  </span>
-                )}
-                {activeTab === "interests" && interests.length > 0 && (
-                  <span className="inline-flex items-center justify-center h-7 min-w-7 px-2 rounded-full bg-primary text-primary-foreground text-xs font-bold animate-pulse">
-                    {interests.length}
-                  </span>
-                )}
-              </div>
-            </div>
-            <p className="text-muted-foreground text-sm md:text-base">
-              {activeTab === "new"
-                ? "اقتراحات التوافق بناءً على ملفك الشخصي واختبار الشخصية"
-                : activeTab === "sent"
-                  ? "تتبع حالة طلبات الاهتمام التي أرسلتها"
-                  : "أشخاص أبدوا اهتماماً بملفك الشخصي"}
-            </p>
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        icon={Sparkles}
+        title="الاقتراحات"
+        count={
+          activeTab === "new"
+            ? suggestions.length
+            : activeTab === "sent"
+              ? sentRequests.length
+              : interests.length
+        }
+        description={
+          activeTab === "new"
+            ? "اقتراحات التوافق بناءً على ملفك الشخصي واختبار الشخصية"
+            : activeTab === "sent"
+              ? "تتبع حالة طلبات الاهتمام التي أرسلتها"
+              : "أشخاص أبدوا اهتماماً بملفك الشخصي"
+        }
+      />
 
       {/* Tab Toggle — 3 tabs */}
       <div className="flex gap-1 p-1 rounded-xl bg-muted/50 border border-border/50">

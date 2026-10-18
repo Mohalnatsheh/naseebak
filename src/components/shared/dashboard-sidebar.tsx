@@ -109,7 +109,7 @@ function NavItem({
       </div>
       {!collapsed && <span>{link.label}</span>}
       {isActive && !collapsed && (
-        <div className="absolute start-0 top-1/2 -translate-y-1/2 h-6 w-1 bg-primary rounded-e-full" />
+        <div className="absolute start-0 top-1/2 -translate-y-1/2 h-6 w-1 bg-accent rounded-e-full" />
       )}
     </Link>
   );

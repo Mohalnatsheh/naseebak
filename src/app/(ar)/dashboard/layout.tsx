@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Reem_Kufi } from "next/font/google";
 import { DashboardSidebar } from "@/components/shared/dashboard-sidebar";
 import { Providers } from "@/components/shared/providers";
 import { OneSignalProvider } from "@/components/shared/onesignal-provider";
@@ -10,6 +11,9 @@ import { DashboardFooter } from "@/components/shared/dashboard-footer";
 import { sessionAccountGate } from "@/lib/auth";
 import { DeactivatedGate } from "./reactivate/deactivated-gate";
 import { SuspendedScreen } from "./suspended-screen";
+
+// Geometric Kufi for page titles and big numbers (`font-display`), as on the landing page; body stays Cairo
+const reemKufi = Reem_Kufi({ subsets: ["arabic"], weight: ["600", "700"], display: "swap", variable: "--font-display" });
 
 // Each dashboard section sets its own title in its layout.tsx (pages here are client components)
 export const metadata: Metadata = { title: { default: "لوحة التحكم", template: "%s | نصيبك" } };
@@ -48,7 +52,7 @@ export default async function DashboardLayout({
     <Providers>
       <OneSignalProvider />
       <DashboardDataProvider>
-        <div className="flex min-h-screen overflow-x-hidden">
+        <div className={`flex min-h-screen overflow-x-hidden ${reemKufi.variable}`}>
           <DashboardSidebar />
           <main className="flex-1 md:pt-0 pt-[58px] pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0 min-w-0">
             <div className="max-w-5xl mx-auto px-4 md:px-6 py-6 md:py-8">

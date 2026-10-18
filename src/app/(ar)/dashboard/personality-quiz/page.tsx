@@ -27,6 +27,7 @@ import { trackEvent } from "@/lib/analytics";
 import { arabicCount } from "@/lib/utils";
 import { useDashboardData } from "@/contexts/dashboard-context";
 import { LoadError } from "@/components/shared/load-error";
+import { PageHeader } from "@/components/shared/page-header";
 
 interface Question {
   id: string;
@@ -235,37 +236,21 @@ export default function PersonalityQuizPage() {
 
     return (
       <div className="max-w-2xl mx-auto space-y-8 pb-8">
-        {/* Page Header - Gradient Card */}
-        <div
-          className="relative overflow-hidden rounded-2xl bg-gradient-to-l from-secondary/10 via-primary/5 to-transparent border border-primary/10 p-4 sm:p-6 md:p-8"
-          style={{ animation: "fadeSlideIn 0.5s ease-out both" }}
-        >
-          <div className="absolute top-0 left-0 w-40 h-40 bg-secondary/10 rounded-full -translate-x-16 -translate-y-16 blur-3xl" />
-          <div className="absolute bottom-0 right-0 w-32 h-32 bg-primary/5 rounded-full translate-x-8 translate-y-8 blur-2xl" />
-
-          <div className="relative flex flex-col items-center text-center space-y-4">
-            <div className="h-14 w-14 rounded-xl bg-gradient-to-br from-secondary to-primary flex items-center justify-center shadow-lg shadow-primary/20">
-              <Brain className="h-7 w-7 text-white" />
-            </div>
-            <div className="space-y-2">
-              <h1 className="text-xl sm:text-2xl md:text-3xl font-bold bg-gradient-to-l from-primary to-secondary bg-clip-text text-transparent">
-                نتيجة اختبار الشخصية
-              </h1>
-              <div className="inline-flex min-h-11 items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-l from-secondary/15 to-primary/10 border border-secondary/20">
-                <Sparkles className="h-5 w-5 text-secondary" />
-                <span className="text-xl font-bold bg-gradient-to-l from-secondary to-primary bg-clip-text text-transparent">
-                  {existingResult.personalityType}
-                </span>
-              </div>
-            </div>
-
-            {/* Completion date chip */}
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-card/80 backdrop-blur-sm border border-border/50 text-sm text-muted-foreground">
-              <Clock className="h-3.5 w-3.5 text-primary/60" />
+        <PageHeader
+          icon={Brain}
+          title="نتيجة اختبار الشخصية"
+          description={
+            <span className="inline-flex items-center gap-2">
+              <Clock className="h-3.5 w-3.5 text-primary/60" aria-hidden="true" />
               <span>تاريخ الاختبار: {formattedDate}</span>
-            </div>
-          </div>
-        </div>
+            </span>
+          }
+        >
+          <span className="inline-flex min-h-11 items-center gap-2 rounded-full bg-accent px-5 py-2 text-accent-foreground">
+            <Sparkles className="h-5 w-5 shrink-0" aria-hidden="true" />
+            <span className="text-lg font-bold">{existingResult.personalityType}</span>
+          </span>
+        </PageHeader>
 
         {/* Dimension Scores */}
         {existingResult.vector && existingResult.vector.length === 5 && (
@@ -385,7 +370,7 @@ export default function PersonalityQuizPage() {
                     <p className="text-sm text-muted-foreground">
                       يمكنك إعادة الاختبار بعد
                     </p>
-                    <p className="text-2xl font-bold bg-gradient-to-l from-accent to-accent/80 bg-clip-text text-transparent">
+                    <p className="font-display text-3xl text-accent-foreground">
                       {arabicCount(existingResult.daysRemaining, { one: "يوم واحد", two: "يومين", few: "أيام", many: "يوماً" })}
                     </p>
                     <p className="text-xs text-muted-foreground">
@@ -431,32 +416,16 @@ export default function PersonalityQuizPage() {
         title="اختبار الشخصية يحسّن التوافق"
         body={`اختبار قصير من ${arabicCount(questions.length, { one: "سؤال واحد", two: "سؤالين", few: "أسئلة", many: "سؤالاً" })} يساعدنا في فهم شخصيتك وتقديم اقتراحات توافق أدق. نتائجك تُستخدم لحساب نسبة التوافق مع المرشحين.`}
       />
-      {/* Gradient Header */}
-      <div
-        className="relative overflow-hidden rounded-2xl bg-gradient-to-l from-secondary/10 via-primary/5 to-transparent border border-primary/10 p-4 sm:p-6 md:p-8"
-        style={{ animation: "fadeSlideIn 0.5s ease-out both" }}
+      <PageHeader
+        icon={Brain}
+        title="اختبار الشخصية"
+        description={female ? "أجيبي عن الأسئلة لنساعدكِ في إيجاد أفضل توافق لكِ." : "أجب عن الأسئلة لنساعدك في إيجاد أفضل توافق لك."}
       >
-        <div className="absolute top-0 left-0 w-32 h-32 bg-secondary/10 rounded-full -translate-x-10 -translate-y-10 blur-2xl" />
-        <div className="absolute bottom-0 right-0 w-24 h-24 bg-primary/5 rounded-full translate-x-6 translate-y-6 blur-2xl" />
-
-        <div className="relative space-y-3">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-secondary to-primary flex items-center justify-center shadow-lg shadow-primary/20">
-              <Brain className="h-5 w-5 text-white" />
-            </div>
-            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold bg-gradient-to-l from-primary to-secondary bg-clip-text text-transparent">
-              اختبار الشخصية
-            </h1>
-          </div>
-          <p className="text-muted-foreground text-sm md:text-base">
-            {female ? "أجيبي عن الأسئلة لنساعدكِ في إيجاد أفضل توافق لكِ." : "أجب عن الأسئلة لنساعدك في إيجاد أفضل توافق لك."}
-          </p>
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-card/80 backdrop-blur-sm border border-border/50 text-xs text-muted-foreground">
-            <Clock className="h-3 w-3 text-primary/60" />
-            <span>يستغرق نحو 5 دقائق</span>
-          </div>
-        </div>
-      </div>
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-border/50 bg-card px-3 py-1 text-xs text-muted-foreground">
+          <Clock className="h-3 w-3 text-primary/60" aria-hidden="true" />
+          <span>يستغرق نحو 5 دقائق</span>
+        </span>
+      </PageHeader>
 
       {/* Progress Bar Section */}
       <div
@@ -467,7 +436,7 @@ export default function PersonalityQuizPage() {
           <span className="text-muted-foreground">
             السؤال {Math.min(currentPage * QUESTIONS_PER_PAGE + 1, questions.length)} - {Math.min((currentPage + 1) * QUESTIONS_PER_PAGE, questions.length)} من {questions.length}
           </span>
-          <span className="font-bold bg-gradient-to-l from-primary to-secondary bg-clip-text text-transparent">
+          <span className="font-bold text-primary">
             {progressPercent}%
           </span>
         </div>

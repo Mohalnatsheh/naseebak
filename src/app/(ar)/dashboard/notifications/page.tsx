@@ -34,6 +34,7 @@ import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { LoadError } from "@/components/shared/load-error";
 import { ConfirmActionDialog } from "@/components/intro/confirm-action-dialog";
+import { PageHeader } from "@/components/shared/page-header";
 
 interface Notification {
   id: string;
@@ -334,141 +335,117 @@ export default function NotificationsPage() {
 
   return (
     <div className="max-w-2xl mx-auto space-y-8 pb-8">
-      {/* Page Header */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-l from-primary/5 via-primary/5 to-transparent border border-primary/10 p-4 sm:p-6 md:p-8">
-        <div className="absolute top-0 left-0 w-40 h-40 bg-primary/10 rounded-full -translate-x-16 -translate-y-16 blur-3xl" />
-        <div className="absolute bottom-0 right-0 w-32 h-32 bg-primary/5 rounded-full translate-x-8 translate-y-8 blur-2xl" />
+      <PageHeader
+        icon={Bell}
+        title="الإشعارات"
+        count={unreadCount}
+        description="ستجد هنا جميع التحديثات والإشعارات الخاصة بحسابك"
+      >
+        <Sheet open={prefsOpen} onOpenChange={(open) => { setPrefsOpen(open); if (open) fetchPrefs(); }}>
+          <SheetTrigger asChild>
+            <Button
+              variant="outline"
+              className="h-11 border-primary/30 text-primary hover:bg-primary/5 hover:border-primary/50 rounded-xl gap-2 font-semibold backdrop-blur-sm bg-card/80"
+            >
+              <Settings2 className="h-4 w-4" />
+              الإعدادات
+            </Button>
+          </SheetTrigger>
+          <SheetContent side="right" className="w-[320px] sm:w-[380px] p-0 border-l-0 border-r" dir="rtl">
+            <div className="p-6 border-b border-border/40">
+              <SheetHeader className="text-right">
+                <SheetTitle className="flex items-center gap-3">
+                  <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-md shadow-primary/20">
+                    <Settings2 className="h-4.5 w-4.5 text-white" />
+                  </div>
+                  <span className="text-lg font-bold">إعدادات الإشعارات</span>
+                </SheetTitle>
+              </SheetHeader>
+              <p className="text-xs text-muted-foreground mt-2">
+                اختر التنبيهات التي تصل إلى جهازك. تبقى كل الإشعارات محفوظة هنا.
+              </p>
+            </div>
 
-        <div className="relative flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div className="space-y-2">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-secondary to-primary flex items-center justify-center shadow-lg shadow-primary/20">
-                <Bell className="h-5 w-5 text-white" />
-              </div>
-              <div className="flex items-center gap-3">
-                <h1 className="text-xl sm:text-2xl md:text-3xl font-bold bg-gradient-to-l from-primary to-secondary bg-clip-text text-transparent">
-                  الإشعارات
-                </h1>
-                {unreadCount > 0 && (
-                  <span className="inline-flex items-center justify-center h-7 min-w-7 px-2 rounded-full bg-gradient-to-br from-secondary to-primary text-white text-xs font-bold shadow-sm animate-pulse">
-                    {unreadCount}
+            <div className="p-5 space-y-1 overflow-y-auto">
+              {prefs ? visiblePrefs.map(({ key, label, icon: PrefIcon }) => (
+                // A label, not a button: the Switch inside is already a button (no nested buttons)
+                <label
+                  key={key}
+                  className="flex cursor-pointer items-center justify-between gap-3 w-full rounded-xl px-3 py-3.5 hover:bg-muted/50 transition-colors duration-200"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                      <PrefIcon className="h-4 w-4 text-primary" />
+                    </div>
+                    <span className="text-sm font-medium text-foreground">{label}</span>
+                  </div>
+                  <Switch checked={prefs[key]} onCheckedChange={() => togglePref(key)} />
+                </label>
+              )) : prefsFailed ? (
+                <LoadError message="تعذّر تحميل إعدادات الإشعارات." onRetry={fetchPrefs} className="py-6" />
+              ) : (
+                <div className="flex justify-center py-12">
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                </div>
+              )}
+
+              {/* System notifications - always on */}
+              <div className="flex items-center justify-between gap-3 w-full rounded-xl px-3 py-3.5">
+                <div className="flex items-center gap-3">
+                  <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                    <Info className="h-4 w-4 text-primary" />
+                  </div>
+                  <span className="text-sm font-medium text-foreground">
+                    إشعارات النظام <span className="text-xs font-normal text-muted-foreground">(دائماً مفعّلة)</span>
                   </span>
-                )}
+                </div>
+                {/* Always on: drawn as "on", not greyed out, but can't be changed */}
+                <Switch checked disabled aria-label="إشعارات النظام مفعّلة دائماً" className="disabled:opacity-100 disabled:cursor-default" />
               </div>
             </div>
-            <p className="text-muted-foreground text-sm md:text-base">
-              ستجد هنا جميع التحديثات والإشعارات الخاصة بحسابك
-            </p>
-          </div>
 
-          <div className="flex items-center gap-2 self-start md:self-auto flex-wrap">
-            <Sheet open={prefsOpen} onOpenChange={(open) => { setPrefsOpen(open); if (open) fetchPrefs(); }}>
-              <SheetTrigger asChild>
-                <Button
-                  variant="outline"
-                  className="h-11 border-primary/30 text-primary hover:bg-primary/5 hover:border-primary/50 rounded-xl gap-2 font-semibold backdrop-blur-sm bg-card/80"
-                >
-                  <Settings2 className="h-4 w-4" />
-                  الإعدادات
-                </Button>
-              </SheetTrigger>
-              <SheetContent side="right" className="w-[320px] sm:w-[380px] p-0 border-l-0 border-r" dir="rtl">
-                <div className="p-6 border-b border-border/40">
-                  <SheetHeader className="text-right">
-                    <SheetTitle className="flex items-center gap-3">
-                      <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-md shadow-primary/20">
-                        <Settings2 className="h-4.5 w-4.5 text-white" />
-                      </div>
-                      <span className="text-lg font-bold">إعدادات الإشعارات</span>
-                    </SheetTitle>
-                  </SheetHeader>
-                  <p className="text-xs text-muted-foreground mt-2">
-                    اختر التنبيهات التي تصل إلى جهازك. تبقى كل الإشعارات محفوظة هنا.
-                  </p>
-                </div>
-
-                <div className="p-5 space-y-1 overflow-y-auto">
-                  {prefs ? visiblePrefs.map(({ key, label, icon: PrefIcon }) => (
-                    // A label, not a button: the Switch inside is already a button (no nested buttons)
-                    <label
-                      key={key}
-                      className="flex cursor-pointer items-center justify-between gap-3 w-full rounded-xl px-3 py-3.5 hover:bg-muted/50 transition-colors duration-200"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-                          <PrefIcon className="h-4 w-4 text-primary" />
-                        </div>
-                        <span className="text-sm font-medium text-foreground">{label}</span>
-                      </div>
-                      <Switch checked={prefs[key]} onCheckedChange={() => togglePref(key)} />
-                    </label>
-                  )) : prefsFailed ? (
-                    <LoadError message="تعذّر تحميل إعدادات الإشعارات." onRetry={fetchPrefs} className="py-6" />
-                  ) : (
-                    <div className="flex justify-center py-12">
-                      <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                    </div>
-                  )}
-
-                  {/* System notifications - always on */}
-                  <div className="flex items-center justify-between gap-3 w-full rounded-xl px-3 py-3.5">
-                    <div className="flex items-center gap-3">
-                      <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-                        <Info className="h-4 w-4 text-primary" />
-                      </div>
-                      <span className="text-sm font-medium text-foreground">
-                        إشعارات النظام <span className="text-xs font-normal text-muted-foreground">(دائماً مفعّلة)</span>
-                      </span>
-                    </div>
-                    {/* Always on: drawn as "on", not greyed out, but can't be changed */}
-                    <Switch checked disabled aria-label="إشعارات النظام مفعّلة دائماً" className="disabled:opacity-100 disabled:cursor-default" />
-                  </div>
-                </div>
-
-                <div className="p-5 pt-0 space-y-3">
-                  <div className="flex items-center gap-2 p-3 rounded-xl bg-muted/40 border border-border/30">
-                    <Info className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-                    <p className="text-[11px] text-muted-foreground leading-relaxed">
-                      إشعارات النظام مفعّلة دائماً ولا يمكن إيقافها
-                    </p>
-                  </div>
-                  <Link
-                    href="/dashboard/install"
-                    onClick={() => setPrefsOpen(false)}
-                    className="flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/5 p-3 text-sm transition-colors hover:bg-primary/10"
-                  >
-                    <Smartphone className="h-4 w-4 shrink-0 text-primary" />
-                    <span className="flex-1">
-                      <span className="block font-semibold text-foreground">تثبيت التطبيق والإشعارات</span>
-                      <span className="block text-xs text-muted-foreground">لا تصلك الإشعارات؟ اتبع الخطوات لجهازك</span>
-                    </span>
-                  </Link>
-                </div>
-              </SheetContent>
-            </Sheet>
-            {unreadCount > 0 && (
-              <Button
-                variant="outline"
-                onClick={markAllRead}
-                className="h-11 border-primary/30 text-primary hover:bg-primary/5 hover:border-primary/50 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 rounded-xl gap-2 font-semibold backdrop-blur-sm bg-card/80"
+            <div className="p-5 pt-0 space-y-3">
+              <div className="flex items-center gap-2 p-3 rounded-xl bg-muted/40 border border-border/30">
+                <Info className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  إشعارات النظام مفعّلة دائماً ولا يمكن إيقافها
+                </p>
+              </div>
+              <Link
+                href="/dashboard/install"
+                onClick={() => setPrefsOpen(false)}
+                className="flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/5 p-3 text-sm transition-colors hover:bg-primary/10"
               >
-                <CheckCheck className="h-4 w-4" />
-                تحديد الكل كمقروء
-              </Button>
-            )}
-            {notifications.length > 0 && (
-              <Button
-                variant="ghost"
-                onClick={() => setDeleteAllConfirm(true)}
-                className="h-11 text-destructive/80 hover:text-destructive hover:bg-destructive/5 rounded-xl gap-2 font-medium"
-              >
-                <Trash2 className="h-4 w-4" />
-                حذف الكل
-              </Button>
-            )}
-          </div>
-        </div>
-      </div>
+                <Smartphone className="h-4 w-4 shrink-0 text-primary" />
+                <span className="flex-1">
+                  <span className="block font-semibold text-foreground">تثبيت التطبيق والإشعارات</span>
+                  <span className="block text-xs text-muted-foreground">لا تصلك الإشعارات؟ اتبع الخطوات لجهازك</span>
+                </span>
+              </Link>
+            </div>
+          </SheetContent>
+        </Sheet>
+        {unreadCount > 0 && (
+          <Button
+            variant="outline"
+            onClick={markAllRead}
+            className="h-11 border-primary/30 text-primary hover:bg-primary/5 hover:border-primary/50 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 rounded-xl gap-2 font-semibold backdrop-blur-sm bg-card/80"
+          >
+            <CheckCheck className="h-4 w-4" />
+            تحديد الكل كمقروء
+          </Button>
+        )}
+        {notifications.length > 0 && (
+          <Button
+            variant="ghost"
+            onClick={() => setDeleteAllConfirm(true)}
+            className="h-11 text-destructive/80 hover:text-destructive hover:bg-destructive/5 rounded-xl gap-2 font-medium"
+          >
+            <Trash2 className="h-4 w-4" />
+            حذف الكل
+          </Button>
+        )}
+      </PageHeader>
 
       {/* Notification Cards */}
       {loadFailed ? (

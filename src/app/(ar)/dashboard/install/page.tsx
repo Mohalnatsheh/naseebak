@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { currentDevice, detectDevice, type Device } from "@/lib/install-env";
 import { InstallSteps, NotificationHelp } from "@/components/shared/install-guide";
+import { PageHeader } from "@/components/shared/page-header";
 
 type Tab = "mine" | "ios" | "android";
 
@@ -38,21 +39,11 @@ export default function InstallGuidePage() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-6 pb-8">
-      <div className="relative overflow-hidden rounded-2xl border border-primary/10 bg-gradient-to-l from-primary/10 via-primary/5 to-transparent p-4 sm:p-6 md:p-8">
-        <div className="relative space-y-2">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-secondary shadow-lg shadow-primary/20">
-              <Smartphone className="h-5 w-5 text-white" />
-            </div>
-            <h1 className="bg-gradient-to-l from-primary to-secondary bg-clip-text text-2xl font-bold text-transparent md:text-3xl">
-              ثبّت نصيبك وفعّل الإشعارات
-            </h1>
-          </div>
-          <p className="text-sm text-muted-foreground md:text-base">
-            أضف نصيبك إلى شاشة هاتفك ليفتح كتطبيق، وتصلك الاقتراحات وطلبات التعارف والرسائل فور وصولها.
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        icon={Smartphone}
+        title="ثبّت نصيبك وفعّل الإشعارات"
+        description="أضف نصيبك إلى شاشة هاتفك ليفتح كتطبيق، وتصلك الاقتراحات وطلبات التعارف والرسائل فور وصولها."
+      />
 
       <Card className="border-primary/10">
         <CardContent className="space-y-4 p-5 sm:p-6">

@@ -68,12 +68,6 @@ export function scoreLabel(score: number) {
   return "توافق منخفض";
 }
 
-export function scoreGradient(score: number) {
-  if (score >= 60) return "from-primary to-secondary";
-  if (score >= 40) return "from-accent to-accent/70";
-  return "from-destructive to-destructive/70";
-}
-
 const toneStripe: Record<PersonCardTone, string> = {
   default: "border-s-primary/30",
   pending: "border-s-amber-400",
@@ -83,22 +77,20 @@ const toneStripe: Record<PersonCardTone, string> = {
 };
 
 export function ScoreRing({ score, compact }: { score: number; compact?: boolean }) {
+  // A real progress ring: gold for a good match, muted gold below 60, red under 40
+  const color = score >= 60 ? "var(--accent)" : score >= 40 ? "color-mix(in oklch, var(--accent) 60%, transparent)" : "var(--destructive)";
   return (
     <div
-      className={cn(
-        "shrink-0 rounded-full bg-gradient-to-br p-[5px] ring-4 ring-primary/10 shadow-md",
-        scoreGradient(score),
-        compact ? "h-14 w-14" : "h-16 w-16 sm:h-[72px] sm:w-[72px]"
-      )}
+      className={cn("shrink-0 rounded-full p-[5px] shadow-sm", compact ? "h-14 w-14" : "h-16 w-16 sm:h-[72px] sm:w-[72px]")}
+      style={{ background: `conic-gradient(${color} ${score * 3.6}deg, var(--muted) 0deg)` }}
       role="img"
       aria-label={`نسبة التوافق ${score}%`}
     >
       <div className="h-full w-full rounded-full bg-card flex flex-col items-center justify-center" aria-hidden="true">
-        <span className={cn("font-black text-foreground leading-none", compact ? "text-base" : "text-lg sm:text-xl")}>
+        <span className={cn("font-display text-primary leading-none", compact ? "text-lg" : "text-xl sm:text-2xl")}>
           {score}
-          <span className="text-[0.6em] font-bold">%</span>
+          <span className="text-[0.6em]">%</span>
         </span>
-        {/* Readable caption (was 8px muted) */}
         <span className="text-[10px] text-foreground/70 font-semibold leading-none mt-0.5">توافق</span>
       </div>
     </div>
@@ -190,12 +182,12 @@ export function PersonCard({
   return (
     <Card
       className={cn(
-        "group gap-0 py-0 overflow-hidden border-border/50 border-s-4 transition-all duration-300 hover:border-primary/20 hover:shadow-xl hover:shadow-primary/5",
+        "group gap-0 py-0 overflow-hidden rounded-3xl border-border/50 border-s-4 transition-all duration-300 hover:border-primary/20 hover:shadow-xl hover:shadow-primary/5",
         toneStripe[tone],
         className
       )}
     >
-      {s > 0 && <div className={cn("h-1.5 bg-gradient-to-l", scoreGradient(s))} aria-hidden="true" />}
+      <div className="h-1 bg-gradient-to-l from-accent via-accent/60 to-primary/40" aria-hidden="true" />
       <CardContent className="p-0">
         {/* Header */}
         <div className={cn(pad, compact ? "pt-4 pb-3" : "pt-5 md:pt-6 pb-4")}>
@@ -203,7 +195,7 @@ export function PersonCard({
             <Avatar name={name} photoUrl={photoUrl} photoLocked={photoLocked} mark={avatarMark} compact={compact} />
             <div className="flex-1 min-w-0">
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                <h3 className={cn("font-bold text-foreground truncate max-w-full", compact ? "text-base" : "text-lg sm:text-xl")}>{name}</h3>
+                <h3 className={cn("font-display text-primary truncate max-w-full", compact ? "text-lg" : "text-xl sm:text-2xl")}>{name}</h3>
                 <VerifiedBadge verified={verified} />
                 {badges}
               </div>

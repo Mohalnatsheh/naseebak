@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useDashboardData } from "@/contexts/dashboard-context";
 import { LoadError } from "@/components/shared/load-error";
+import { PageHeader } from "@/components/shared/page-header";
 
 interface ReferralData {
   referralCode: string;
@@ -118,27 +119,15 @@ export default function ReferralPage() {
 
   return (
     <div className="max-w-2xl mx-auto space-y-8 pb-8">
-      {/* Page Header */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-l from-accent/10 via-primary/5 to-transparent border border-primary/10 p-4 sm:p-6 md:p-8">
-        <div className="absolute top-0 left-0 w-40 h-40 bg-accent/10 rounded-full -translate-x-16 -translate-y-16 blur-3xl" />
-        <div className="absolute bottom-0 right-0 w-32 h-32 bg-primary/5 rounded-full translate-x-8 translate-y-8 blur-2xl" />
-
-        <div className="relative space-y-2">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-accent to-accent/70 flex items-center justify-center shadow-lg shadow-accent/20">
-              <Gift className="h-5 w-5 text-white" />
-            </div>
-            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold bg-gradient-to-l from-primary to-secondary bg-clip-text text-transparent">
-              ادعُ صديقاً
-            </h1>
-          </div>
-          <p className="text-muted-foreground text-sm md:text-base">
-            {newCycle
-              ? "شارك رمز الدعوة مع أصدقائك ليسجّلوا في نصيبك، وستحصل على رصيد مجاني عن كل صديق يُنهي إعداد ملفه"
-              : "شارك رمز الدعوة مع أصدقائك ليسجّلوا في نصيبك، وستحصل على رصيد مجاني عن كل صديق يُكمل ملفه الشخصي"}
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        icon={Gift}
+        title="ادعُ صديقاً"
+        description={
+          newCycle
+            ? "شارك رمز الدعوة مع أصدقائك ليسجّلوا في نصيبك، وستحصل على رصيد مجاني عن كل صديق يُنهي إعداد ملفه"
+            : "شارك رمز الدعوة مع أصدقائك ليسجّلوا في نصيبك، وستحصل على رصيد مجاني عن كل صديق يُكمل ملفه الشخصي"
+        }
+      />
 
       {/* Referral Code Card */}
       <Card className="overflow-hidden border-primary/10">

@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ConfirmActionDialog } from "@/components/intro/confirm-action-dialog";
+import { PageHeader } from "@/components/shared/page-header";
 
 interface BlockRow {
   id: string;
@@ -64,19 +65,11 @@ export default function BlocksPage() {
 
   return (
     <div className="max-w-2xl mx-auto space-y-6 pb-8">
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-l from-primary/5 via-secondary/5 to-transparent border border-primary/10 p-4 sm:p-6 md:p-8">
-        <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-lg shadow-primary/20">
-            <Ban className="h-5 w-5 text-white" />
-          </div>
-          <h1 className="text-xl sm:text-2xl md:text-3xl font-bold bg-gradient-to-l from-primary to-secondary bg-clip-text text-transparent">
-            المحظورون
-          </h1>
-        </div>
-        <p className="mt-2 text-muted-foreground text-sm md:text-base">
-          الأشخاص الذين حظرتهم لا يرون ملفك ولا تظهر لهم توافقاتكم، ولا تصلكما اقتراحات لبعضكما.
-        </p>
-      </div>
+      <PageHeader
+        icon={Ban}
+        title="المحظورون"
+        description="الأشخاص الذين حظرتهم لا يرون ملفك ولا تظهر لهم توافقاتكم، ولا تصلكما اقتراحات لبعضكما."
+      />
 
       {loading ? (
         <div className="flex justify-center py-16">

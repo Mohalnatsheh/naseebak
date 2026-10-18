@@ -8,7 +8,6 @@ import {
   Heart,
   Shield,
   Clock,
-  Star,
   CheckCircle2,
   AlertCircle,
   ArrowLeft,
@@ -127,56 +126,72 @@ export default function DashboardPage() {
       Math.floor(new Date().getDate() / 7) % motivationalMessages.length
     ];
 
+  const levelLabel =
+    completeness?.level === "excellent" ? "ممتاز" :
+    completeness?.level === "strong" ? "قوي" :
+    completeness?.level === "good" ? "جيد" :
+    // New cycle: a finished short setup already gets suggestions, so don't call it a beginning
+    counts.flags.introRequests && hasProfile ? "جاهز للاقتراحات" : "في البداية";
+  const topTip = completeness?.tips?.[0];
+  const stats = [
+    // Credit on interest: credit is spent on «مهتم»; per-request: on family/chat requests
+    { href: "/dashboard/payments", value: matchCreditsCount, label: creditsBlockSuggestions ? "رصيد الاقتراحات" : "رصيدك" },
+    // Shared suggestions belong to both people, so "received" undercounts — show what's waiting instead
+    {
+      href: "/dashboard/suggestions",
+      value: creditsBlockSuggestions ? receivedSuggestions : pendingSuggestions ?? 0,
+      label: creditsBlockSuggestions ? "اقتراحات مستلمة" : "اقتراحات جديدة",
+    },
+    { href: "/dashboard/matches", value: matchesCount, label: "توافقات" },
+  ];
+  // Profile ring (r = 26 → circumference ≈ 163.4)
+  const RING = 2 * Math.PI * 26;
+
   return (
     <div className="max-w-4xl mx-auto space-y-6 pb-10">
       {/* ============================================ */}
-      {/*  Welcome banner                              */}
+      {/*  Home header: greeting, the next step, counts */}
       {/* ============================================ */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-l from-primary via-primary/90 to-secondary p-5 sm:p-10 text-primary-foreground shadow-xl shadow-primary/15">
-        {/* Decorative elements */}
-        <div className="absolute top-0 left-0 h-40 w-40 rounded-full bg-white/5 blur-2xl -translate-x-12 -translate-y-12" />
-        <div className="absolute bottom-0 right-0 h-32 w-32 rounded-full bg-white/5 blur-2xl translate-x-8 translate-y-8" />
-        <div className="absolute top-1/2 left-1/3 h-24 w-24 rounded-full bg-accent/10 blur-xl" />
-        {/* Gold accent circle */}
-        <div className="absolute top-4 end-4 h-20 w-20 rounded-full bg-accent/15 blur-2xl" />
+      <section className="landing-night relative overflow-hidden rounded-[2rem] p-5 text-white shadow-xl shadow-primary/20 sm:p-8">
+        <div className="landing-khatam absolute inset-0" aria-hidden />
+        <div className="relative">
+          <p className="text-sm font-medium text-white/60">{getArabicDate()}</p>
+          <h1 className="font-display mt-2 text-[2rem] leading-tight sm:text-5xl">
+            {getGreeting()}، {profile?.firstName || ""}
+          </h1>
+          <p className="mt-2 text-sm text-white/70">
+            {motivational}
+            {isVerified && <span className="ms-2 rounded-full bg-white/10 px-2 py-0.5 text-xs">حساب موثّق</span>}
+          </p>
 
-        <div className="relative flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5">
-          <div className="space-y-3">
-            <p className="text-primary-foreground/70 text-sm font-medium">
-              {getArabicDate()}
-            </p>
-            <h1 className="text-2xl sm:text-4xl font-extrabold leading-tight">
-              {getGreeting()}، {profile?.firstName || ""}
-            </h1>
-            <p className="text-primary-foreground/80 text-sm leading-relaxed max-w-md">
-              {motivational}
-            </p>
+          {/* The one thing to do next */}
+          <div className="mt-6">
+            <NextStepCard
+              variant="hero"
+              qualifies={qualifiesForSuggestions}
+              pendingSuggestions={qualifiesForSuggestions ? pendingSuggestions : 0}
+              matchesCount={matchesCount}
+              credits={matchCreditsCount}
+              emptyReason={emptyReason}
+              suggestionsFailed={suggestionsFailed}
+            />
           </div>
-          <div className="flex items-center gap-3 bg-white/10 backdrop-blur-sm rounded-2xl p-3 border border-white/10">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/15 text-lg font-bold">
-              {profile?.firstName?.charAt(0) || "?"}
-            </div>
-            <div className="text-sm">
-              <p className="font-bold">
-                {profile?.firstName} {profile?.lastName}
-              </p>
-              <p className="text-primary-foreground/60 text-xs">
-                {isVerified ? "حساب موثّق" : "حسابك في نصيبك"}
-              </p>
-            </div>
+
+          <div className="mt-6 grid grid-cols-3">
+            {stats.map((stat, i) => (
+              <Link
+                key={stat.href}
+                href={stat.href}
+                aria-label={`${stat.label}: ${stat.value}`}
+                className={`flex min-h-14 flex-col items-center justify-center px-1 text-center transition hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${i > 0 ? "border-s border-white/15" : ""}`}
+              >
+                <span className="font-display text-3xl text-accent sm:text-4xl">{stat.value}</span>
+                <span className="mt-0.5 text-xs font-medium text-white/70">{stat.label}</span>
+              </Link>
+            ))}
           </div>
         </div>
-      </div>
-
-      {/* The one thing to do next */}
-      <NextStepCard
-        qualifies={qualifiesForSuggestions}
-        pendingSuggestions={qualifiesForSuggestions ? pendingSuggestions : 0}
-        matchesCount={matchesCount}
-        credits={matchCreditsCount}
-        emptyReason={emptyReason}
-        suggestionsFailed={suggestionsFailed}
-      />
+      </section>
 
       {/* One helper card at a time: guardian consent first, then installing the app */}
       {counts.flags.introRequests && counts.guardian?.exists && !counts.guardian.consented ? (
@@ -186,185 +201,100 @@ export default function DashboardPage() {
       )}
 
       {/* ============================================ */}
-      {/*  Profile Strength Indicator (gamified)          */}
+      {/*  Profile strength: ring, the best next tip, details folded */}
       {/* ============================================ */}
-      <Card className="relative overflow-hidden border-border/40 shadow-md">
-        <div className="absolute top-0 right-0 h-32 w-32 rounded-full bg-primary/5 blur-2xl translate-x-8 -translate-y-8" />
-        <CardContent className="pt-6 pb-5">
-          <div className="flex items-center gap-4 mb-4">
-            <div className={`flex h-12 w-12 items-center justify-center rounded-2xl shadow-md ${
-              completeness?.level === "excellent" ? "bg-gradient-to-br from-emerald-500 to-emerald-600" :
-              completeness?.level === "strong" ? "bg-gradient-to-br from-primary to-secondary" :
-              completeness?.level === "good" ? "bg-gradient-to-br from-amber-500 to-amber-600" :
-              "bg-gradient-to-br from-accent to-accent/70"
-            } text-white`}>
-              <Zap className="h-6 w-6" />
-            </div>
-            <div className="flex-1">
-              <div className="flex items-center gap-2 mb-1">
-                <h3 className="font-bold text-foreground text-base">قوة الملف الشخصي</h3>
-                <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${
-                  completeness?.level === "excellent" ? "bg-emerald-100 text-emerald-700" :
-                  completeness?.level === "strong" ? "bg-primary/10 text-primary" :
-                  completeness?.level === "good" ? "bg-amber-100 text-amber-700" :
-                  "bg-accent/15 text-accent-foreground"
-                }`}>
-                  {completeness?.level === "excellent" ? "ممتاز" :
-                   completeness?.level === "strong" ? "قوي" :
-                   completeness?.level === "good" ? "جيد" :
-                   // New cycle: a finished short setup already gets suggestions, so don't call it a beginning
-                   counts.flags.introRequests && hasProfile ? "جاهز للاقتراحات" : "في البداية"}
-                </span>
-              </div>
-              {/* Strength bar */}
-              <div className="h-3 rounded-full bg-muted/60 overflow-hidden">
-                <div
-                  className={`h-full rounded-full transition-all duration-700 ${
-                    completeness?.level === "excellent" ? "bg-gradient-to-l from-emerald-500 to-emerald-400" :
-                    completeness?.level === "strong" ? "bg-gradient-to-l from-primary to-secondary" :
-                    completeness?.level === "good" ? "bg-gradient-to-l from-amber-500 to-amber-400" :
-                    "bg-gradient-to-l from-accent to-accent/70"
-                  }`}
-                  style={{ width: `${completionPercent}%` }}
+      <Card className="overflow-hidden border-border/50 shadow-sm">
+        <CardContent className="pt-5 pb-5">
+          <div className="flex items-center gap-4">
+            <div className="relative h-16 w-16 shrink-0">
+              <svg viewBox="0 0 60 60" className="h-16 w-16 -rotate-90" aria-hidden>
+                <circle cx="30" cy="30" r="26" fill="none" strokeWidth="6" className="stroke-muted" />
+                <circle
+                  cx="30"
+                  cy="30"
+                  r="26"
+                  fill="none"
+                  strokeWidth="6"
+                  strokeLinecap="round"
+                  className={completionPercent === 100 ? "stroke-emerald-500" : "stroke-accent"}
+                  strokeDasharray={RING}
+                  strokeDashoffset={RING * (1 - completionPercent / 100)}
                 />
+              </svg>
+              <span className="font-display absolute inset-0 flex items-center justify-center text-lg text-primary">{completionPercent}%</span>
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="font-bold text-foreground">قوة ملفك الشخصي</h2>
+                <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-bold text-primary">{levelLabel}</span>
               </div>
-              <p className="text-xs text-muted-foreground mt-1">{completionPercent}% مكتمل</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {completionPercent === 100
+                  ? g("ملفك مكتمل، وهذا يجعل اقتراحاتك أدق.", "ملفكِ مكتمل، وهذا يجعل اقتراحاتكِ أدق.")
+                  : g("كلما اكتمل ملفك كانت اقتراحاتك أدق.", "كلما اكتمل ملفكِ كانت اقتراحاتكِ أدق.")}
+              </p>
             </div>
           </div>
 
-          {/* Tips for improvement */}
-          {completeness?.tips && completeness.tips.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-xs font-semibold text-muted-foreground mb-2">نصائح لتحسين ملفك:</p>
-              {completeness.tips.map((tip) => (
-                <Link key={tip.sectionKey} href={tip.link} className="block">
-                  <div className="flex items-center gap-3 p-2.5 rounded-xl border border-primary/10 bg-primary/[0.03] hover:bg-primary/[0.06] transition-colors">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 shrink-0">
-                      <Zap className="h-4 w-4 text-primary" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-foreground">{tip.message}</p>
-                    </div>
-                    <span className="text-xs font-bold text-primary bg-primary/10 rounded-full px-2 py-0.5 shrink-0">
-                      +{tip.impact}%
-                    </span>
-                    <ArrowLeft className="h-4 w-4 text-primary/40 shrink-0" />
-                  </div>
-                </Link>
-              ))}
-            </div>
+          {topTip && (
+            <Link
+              href={topTip.link}
+              className="mt-4 flex items-center gap-3 rounded-xl border border-accent/30 bg-accent/10 p-3 transition-colors hover:bg-accent/15"
+            >
+              <Zap className="h-4 w-4 shrink-0 text-accent-foreground" aria-hidden />
+              <span className="min-w-0 flex-1 text-sm font-semibold text-foreground">{topTip.message}</span>
+              <span className="shrink-0 rounded-full bg-card px-2 py-0.5 text-xs font-bold text-primary">+{topTip.impact}%</span>
+              <ArrowLeft className="h-4 w-4 shrink-0 text-primary/50" aria-hidden />
+            </Link>
           )}
 
-          {/* Section progress bars — only when not 100% */}
-          {completionPercent < 100 && (
-            <div className="space-y-2 mt-4">
-              {(completeness?.sections ?? []).map((section) => (
-                <Link key={section.key} href={section.link} className="block">
-                  <div className={`flex items-center gap-3 p-2.5 rounded-xl border transition-colors ${
-                    section.percentage === 100
-                      ? "bg-emerald-50/60 border-emerald-200/50"
-                      : "bg-primary/[0.03] border-primary/10 hover:bg-primary/[0.06]"
-                  }`}>
+          {completionPercent < 100 && (completeness?.sections?.length ?? 0) > 0 && (
+            <details className="group mt-3">
+              <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between rounded-xl px-1 text-sm font-semibold text-primary [&::-webkit-details-marker]:hidden">
+                تفاصيل الأقسام
+                <ArrowLeft className="h-4 w-4 -rotate-90 transition-transform group-open:rotate-90" aria-hidden />
+              </summary>
+              <div className="mt-1 space-y-2">
+                {(completeness?.tips ?? []).slice(1).map((tip) => (
+                  <Link key={tip.sectionKey} href={tip.link} className="flex items-center gap-3 rounded-xl border border-border/60 p-2.5 hover:bg-muted/50">
+                    <Zap className="h-4 w-4 shrink-0 text-primary/70" aria-hidden />
+                    <span className="min-w-0 flex-1 text-sm text-foreground">{tip.message}</span>
+                    <span className="shrink-0 text-xs font-bold text-primary">+{tip.impact}%</span>
+                  </Link>
+                ))}
+                {(completeness?.sections ?? []).map((section) => (
+                  <Link key={section.key} href={section.link} className="flex items-center gap-3 rounded-xl border border-border/60 p-2.5 hover:bg-muted/50">
                     {section.percentage === 100 ? (
-                      <CheckCircle2 className="h-5 w-5 text-emerald-500 shrink-0" />
+                      <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-500" aria-hidden />
                     ) : (
-                      <AlertCircle className="h-5 w-5 text-primary/60 shrink-0" />
+                      <AlertCircle className="h-5 w-5 shrink-0 text-primary/60" aria-hidden />
                     )}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className={`text-sm font-medium ${section.percentage === 100 ? "text-emerald-800" : "text-foreground"}`}>
-                          {section.label}
-                        </span>
-                        <span className={`text-xs font-bold ${section.percentage === 100 ? "text-emerald-600" : "text-primary"}`}>
-                          {section.percentage}%
-                        </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="mb-1 flex items-center justify-between">
+                        <span className="text-sm font-medium text-foreground">{section.label}</span>
+                        <span className="text-xs font-bold text-primary">{section.percentage}%</span>
                       </div>
-                      <div className="h-1.5 rounded-full bg-muted/60 overflow-hidden">
+                      <div className="h-1.5 overflow-hidden rounded-full bg-muted">
                         <div
-                          className={`h-full rounded-full transition-all duration-500 ${
-                            section.percentage === 100 ? "bg-emerald-500" : "bg-primary/70"
-                          }`}
+                          className={`h-full rounded-full ${section.percentage === 100 ? "bg-emerald-500" : "bg-primary/70"}`}
                           style={{ width: `${section.percentage}%` }}
                         />
                       </div>
                     </div>
-                  </div>
-                </Link>
-              ))}
-            </div>
+                  </Link>
+                ))}
+              </div>
+            </details>
           )}
         </CardContent>
       </Card>
 
       {/* ============================================ */}
-      {/*  Stats grid                                  */}
-      {/* ============================================ */}
-      <div className="grid grid-cols-3 gap-2 sm:gap-4">
-        {[
-          {
-            href: "/dashboard/payments",
-            value: matchCreditsCount,
-            // Credit on interest: credit is spent on «مهتم»; per-request: on family/chat requests
-            label: creditsBlockSuggestions ? "رصيد الاقتراحات" : "رصيدك",
-            icon: Sparkles,
-            gradient: "from-primary to-secondary",
-            bgLight: "from-primary/10 to-secondary/5",
-            textColor: "text-primary",
-            shadowColor: "shadow-primary/10",
-          },
-          {
-            href: "/dashboard/suggestions",
-            // Shared suggestions belong to both people, so "received" undercounts — show what's waiting instead
-            value: creditsBlockSuggestions ? receivedSuggestions : pendingSuggestions ?? 0,
-            label: creditsBlockSuggestions ? "اقتراحات مستلمة" : "اقتراحات جديدة",
-            icon: Star,
-            gradient: "from-accent to-accent/70",
-            bgLight: "from-accent/10 to-accent/5",
-            textColor: "text-accent-foreground",
-            shadowColor: "shadow-accent/10",
-          },
-          {
-            href: "/dashboard/matches",
-            value: matchesCount,
-            label: "توافقات",
-            icon: Heart,
-            gradient: "from-secondary to-primary",
-            bgLight: "from-secondary/10 to-primary/5",
-            textColor: "text-primary",
-            shadowColor: "shadow-primary/10",
-          },
-        ].map((stat, i) => (
-          <Link key={i} href={stat.href} aria-label={`${stat.label}: ${stat.value}`} className="block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-          <Card
-            className={`group relative h-full overflow-hidden border-0 bg-gradient-to-br ${stat.bgLight} hover:shadow-lg ${stat.shadowColor} transition-all duration-300 hover:-translate-y-1`}
-          >
-            <CardContent className="pt-4 pb-3 px-2 sm:pt-5 sm:pb-4 sm:px-4 text-center relative">
-              {/* Decorative circle */}
-              <div className="absolute -top-6 -end-6 h-16 w-16 rounded-full bg-gradient-to-br opacity-5 group-hover:opacity-10 transition-opacity" />
-
-              <div
-                className={`mx-auto mb-2 sm:mb-3 flex h-9 w-9 sm:h-11 sm:w-11 items-center justify-center rounded-xl bg-gradient-to-br ${stat.gradient} text-white shadow-md transition-transform duration-300 group-hover:scale-110`}
-              >
-                <stat.icon className="h-4 w-4 sm:h-5 sm:w-5" />
-              </div>
-              <p className={`text-2xl sm:text-3xl font-extrabold ${stat.textColor} mb-0.5`}>
-                {stat.value}
-              </p>
-              <p className="text-[10px] sm:text-[11px] font-medium text-muted-foreground">
-                {stat.label}
-              </p>
-            </CardContent>
-          </Card>
-          </Link>
-        ))}
-      </div>
-
-      {/* ============================================ */}
       {/*  Activity feed / Timeline                    */}
       {/* ============================================ */}
       <div>
-        <h2 className="text-lg font-bold text-foreground mb-3 flex items-center gap-2">
-          <Clock className="h-5 w-5 text-primary" />
+        <h2 className="font-display text-2xl text-primary mb-3 flex items-center gap-2">
+          <Clock className="h-5 w-5 text-accent" aria-hidden />
           آخر النشاطات
         </h2>
         <Card className="border-border/40 shadow-sm overflow-hidden">

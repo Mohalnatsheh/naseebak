@@ -1,5 +1,6 @@
 import { z } from "zod/v4";
 import { jordanPhoneRegex } from "./auth";
+import { toLatinDigits } from "@/lib/digits";
 
 /** Marriage platform: members must be adults */
 export const MIN_MEMBER_AGE = 18;
@@ -103,7 +104,8 @@ export const parentInfoSchema = z.object({
     .regex(/^[\u0600-\u06FF\s]+$/, "يرجى كتابة اسم ولي الأمر باللغة العربية"),
   parentPhone: z
     .string()
-    .transform((v) => v.replace(/[\s\-()]/g, ""))
+    // Arabic keyboards type ٠٧٩…: convert before checking, like the login phone
+    .transform((v) => toLatinDigits(v).replace(/[\s\-()]/g, ""))
     .pipe(z.string().regex(jordanPhoneRegex, "رقم هاتف ولي الأمر غير صالح. مثال: 0791234567")),
   relationship: z.enum(["father", "mother", "brother", "guardian"], { message: "صلة القرابة مطلوبة" }),
   address: z.string().trim().min(3, "العنوان مطلوب").max(300, "العنوان طويل جداً"),

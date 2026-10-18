@@ -29,6 +29,7 @@ import { OPTION_VALUES, selfLabel, describeOption, oppositeGender } from "@/lib/
 import { activeDealbreakers } from "@/lib/matching/dealbreaker-summary";
 import type { DealbreakerKey } from "@/lib/matching/score";
 import { dateOfBirthError, maxDateOfBirth, parentInfoSchema } from "@/lib/validations/profile";
+import { normalizePhone } from "@/lib/validations/auth";
 
 const educationLevels = [
   "ثانوية عامة",
@@ -214,7 +215,7 @@ export default function ProfileEditPage() {
   // "شرط أساسي" marks: saved directly (a private filter), not part of the review request
   const [dealbreakers, setDealbreakers] = useState<string[]>([]);
   const [originalDealbreakers, setOriginalDealbreakers] = useState<string[]>([]);
-  const { counts } = useDashboardData();
+  const { counts, profile: me } = useDashboardData();
   const showDealbreakers = counts.flags.mutualSuggestions;
 
   // Deep link: /dashboard/profile/edit?step=5 opens the guardian step
@@ -383,6 +384,7 @@ export default function ProfileEditPage() {
         address: form.parentAddress,
       });
       if (!guardian.success) return guardian.error.issues[0]?.message ?? "بيانات وليّ الأمر غير صالحة";
+      if (guardianEdited && me?.phone && normalizePhone(form.parentPhone) === me.phone) return "رقم وليّ الأمر يجب أن يختلف عن رقم هاتفك";
     }
     return null;
   }

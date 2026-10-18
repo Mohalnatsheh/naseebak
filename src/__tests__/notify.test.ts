@@ -1,18 +1,19 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const db = vi.hoisted(() => ({
-  notification: { create: vi.fn() },
+  notification: { create: vi.fn(), findFirst: vi.fn() },
   notificationPreference: { findUnique: vi.fn() },
 }));
 const push = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/onesignal", () => ({ sendPushNotification: push }));
 
-import { notify, notifyMany } from "@/lib/notify";
+import { notify, notifyMany, startOfAmmanDay } from "@/lib/notify";
 
 beforeEach(() => {
   vi.clearAllMocks();
   db.notification.create.mockResolvedValue({});
+  db.notification.findFirst.mockResolvedValue(null);
   db.notificationPreference.findUnique.mockResolvedValue(null);
   push.mockResolvedValue(undefined);
 });
@@ -64,3 +65,33 @@ describe("notify", () => {
     expect(db.notification.create).toHaveBeenCalledTimes(2);
   });
 });
+
+describe("notify oncePerDay", () => {
+  it("sends the first one of the day and tags it", async () => {
+    await notify({ userId: "u1", type: "SUGGESTION", title: "t", body: "b", oncePerDay: "new-suggestions" });
+    const where = db.notification.findFirst.mock.calls[0][0].where;
+    expect(where).toMatchObject({ userId: "u1", type: "SUGGESTION", metadata: { path: ["daily"], equals: "new-suggestions" } });
+    expect(db.notification.create.mock.calls[0][0].data.metadata).toMatchObject({ daily: "new-suggestions" });
+    expect(push).toHaveBeenCalledTimes(1);
+  });
+
+  it("drops later ones the same day (no row, no push)", async () => {
+    db.notification.findFirst.mockResolvedValue({ id: "n1" });
+    await notify({ userId: "u1", type: "SUGGESTION", title: "t", body: "b", oncePerDay: "new-suggestions" });
+    expect(db.notification.create).not.toHaveBeenCalled();
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it("does not look up anything without the option", async () => {
+    await notify({ userId: "u1", type: "SUGGESTION", title: "t", body: "b" });
+    expect(db.notification.findFirst).not.toHaveBeenCalled();
+  });
+
+  it("starts the day at midnight Amman time", () => {
+    // 2026-10-18 01:30 Amman = 2026-10-17 22:30 UTC → day starts 2026-10-17 21:00 UTC
+    expect(startOfAmmanDay(new Date("2026-10-17T22:30:00Z")).toISOString()).toBe("2026-10-17T21:00:00.000Z");
+    // 2026-10-18 20:00 Amman = 17:00 UTC → same day start
+    expect(startOfAmmanDay(new Date("2026-10-18T17:00:00Z")).toISOString()).toBe("2026-10-17T21:00:00.000Z");
+  });
+});
+

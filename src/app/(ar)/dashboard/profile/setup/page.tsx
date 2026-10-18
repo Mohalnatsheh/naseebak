@@ -16,6 +16,7 @@ import { activeDealbreakers } from "@/lib/matching/dealbreaker-summary";
 import type { DealbreakerKey } from "@/lib/matching/score";
 import { arabicCount } from "@/lib/utils";
 import { dateOfBirthError, maxDateOfBirth, parentInfoSchema } from "@/lib/validations/profile";
+import { normalizePhone } from "@/lib/validations/auth";
 
 const asOpts = (values: readonly string[]): Opt[] => values.map((v) => ({ value: v, label: v }));
 const educationLevels = asOpts(["ثانوية عامة", "دبلوم", "بكالوريوس", "ماجستير", "دكتوراه"]);
@@ -112,7 +113,7 @@ export default function ProfileSetupPage() {
 
   // Consent to share the guardian contact after an accepted family introduction (new cycle)
   const [shareConsent, setShareConsent] = useState(false);
-  const { counts, refreshProfile } = useDashboardData();
+  const { counts, refreshProfile, profile: me } = useDashboardData();
   const [autoSaveEnabled, setAutoSaveEnabled] = useState(false);
   const [ownerId, setOwnerId] = useState("");
   const { savedIndicatorVisible, saveToLocalStorage, restoreDraft, clearDraft, saveToServer } = useAutoSave(autoSaveEnabled);
@@ -340,6 +341,10 @@ export default function ProfileSetupPage() {
             if (!errors[key]) errors[key] = issue.message;
           }
         }
+        // The API refuses the user's own number too: say so here, next to the field
+        if (!errors.parentPhone && me?.phone && normalizePhone(parentForm.parentPhone) === me.phone) {
+          errors.parentPhone = "رقم وليّ الأمر يجب أن يختلف عن رقم هاتفك";
+        }
         break;
       }
     }
@@ -418,8 +423,17 @@ export default function ProfileSetupPage() {
       });
 
       if (!parentRes.ok) {
-        const data = await parentRes.json();
-        setError(data.error || "حدث خطأ أثناء حفظ بيانات ولي الأمر");
+        const data = await parentRes.json().catch(() => ({}));
+        const message = data.error || "حدث خطأ أثناء حفظ بيانات ولي الأمر";
+        // The save button is at the bottom of a long step: mark the guardian field the message is
+        // about (or show it by the button) instead of only in the banner at the top of the page
+        const field = /رقم/.test(message) ? "parentPhone" : /اسم/.test(message) ? "parentName" : /العنوان/.test(message) ? "address" : null;
+        if (field) {
+          setFieldErrors({ [field]: message });
+          scrollToFirstError({ [field]: message });
+        } else {
+          setError(message);
+        }
         return;
       }
 
@@ -891,6 +905,14 @@ export default function ProfileSetupPage() {
             )}
           </CardContent>
         </Card>
+      )}
+
+      {/* A save error again by the button: the banner at the top is off screen on phones */}
+      {error && step === totalSteps && (
+        <div role="alert" className="rounded-lg bg-destructive/10 border border-destructive/20 p-3 text-sm text-destructive flex items-center gap-2">
+          <AlertCircle className="h-4 w-4 flex-shrink-0" />
+          <span>{error}</span>
+        </div>
       )}
 
       {/* Navigation Buttons */}

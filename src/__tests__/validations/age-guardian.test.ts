@@ -36,6 +36,14 @@ describe("guardian contact", () => {
     }
   });
 
+  it("accepts a phone typed with Arabic-Indic or Persian digits", () => {
+    for (const parentPhone of ["٠٧٩١٢٣٤٥٦٧", "۰۷۹۱۲۳۴۵۶۷", "٠٧٩ ١٢٣ ٤٥٦٧"]) {
+      const r = parentInfoSchema.safeParse({ ...ok, parentPhone });
+      expect(r.success, parentPhone).toBe(true);
+      if (r.success) expect(r.data.parentPhone).toBe("0791234567");
+    }
+  });
+
   it("refuses a non-Arabic name, a short phone and an unknown relationship", () => {
     expect(parentInfoSchema.safeParse({ ...ok, parentName: "Ahmad" }).success).toBe(false);
     expect(parentInfoSchema.safeParse({ ...ok, parentPhone: "123" }).success).toBe(false);

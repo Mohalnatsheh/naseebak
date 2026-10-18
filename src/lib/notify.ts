@@ -21,6 +21,19 @@ export interface NotifyInput {
   pushOnly?: boolean;
   /** Replace earlier pushes with the same id on the device instead of stacking them */
   collapseId?: string;
+  /**
+   * At most one notification with this key per person per day (Amman time): later ones that day are
+   * dropped, in-app row and push alike (e.g. "new suggestions", which top-ups create many times a day)
+   */
+  oncePerDay?: string;
+}
+
+/** Midnight today in Amman (UTC+3 all year since 2022), as a UTC instant */
+export function startOfAmmanDay(now = new Date()): Date {
+  const AMMAN_OFFSET_MS = 3 * 60 * 60 * 1000;
+  const local = new Date(now.getTime() + AMMAN_OFFSET_MS);
+  local.setUTCHours(0, 0, 0, 0);
+  return new Date(local.getTime() - AMMAN_OFFSET_MS);
 }
 
 const PREFERENCE_KEY: Partial<Record<NotificationType, string>> = {
@@ -43,12 +56,19 @@ async function pushAllowed(userId: string, type: NotificationType): Promise<bool
 }
 
 export async function notify(input: NotifyInput): Promise<void> {
-  const { userId, type, title, body, metadata, pushOnly, collapseId } = input;
+  const { userId, type, title, body, metadata, pushOnly, collapseId, oncePerDay } = input;
   const url = input.url ?? notificationUrl(type, metadata);
   try {
+    if (oncePerDay) {
+      const sentToday = await db.notification.findFirst({
+        where: { userId, type, createdAt: { gte: startOfAmmanDay() }, metadata: { path: ["daily"], equals: oncePerDay } },
+        select: { id: true },
+      });
+      if (sentToday) return;
+    }
     if (!pushOnly) {
       await db.notification.create({
-        data: { userId, type, title, body, metadata: { ...metadata, url } as object },
+        data: { userId, type, title, body, metadata: { ...metadata, url, ...(oncePerDay && { daily: oncePerDay }) } as object },
       });
     }
     if (await pushAllowed(userId, type)) {

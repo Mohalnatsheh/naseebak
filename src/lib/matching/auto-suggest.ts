@@ -26,6 +26,8 @@ const MAX_NEW_SUGGESTIONS = 3;
 const MIN_SCORE = 30;
 /** Credit-on-interest: a person holds at most this many undecided suggestions (replaces the weekly cap) */
 export const MAX_OPEN_SUGGESTIONS = 5;
+/** `notify` once-per-day key shared by every "new suggestions" notice */
+const NEW_SUGGESTIONS_DAILY = "new-suggestions";
 const MIN_SCORE_CREDIT_ON_INTEREST = 50;
 // When a run finds no suitable candidate, wait before scanning again (per user, per server process)
 const RETRY_COOLDOWN_MS = 30 * 60 * 1000;
@@ -299,13 +301,15 @@ async function generate(userId: string): Promise<SuggestOutcome> {
     }
     if (created.count === 0) return outcome(0);
 
+    // Top-ups run many times a day (after each decision, on expiry, on page open): one
+    // "new suggestions" notice per person per day is enough, the rest wait in the list
     const title = "اقتراحات توافق جديدة";
     const body =
       created.count === 1
         ? "وصلك اقتراح توافق جديد. قم بمراجعته."
         : `وصلك ${created.count} اقتراحات توافق جديدة. قم بمراجعتها.`;
     if (mutual) {
-      await notify({ userId, type: "SUGGESTION", title, body, url: "/dashboard/suggestions" });
+      await notify({ userId, type: "SUGGESTION", title, body, url: "/dashboard/suggestions", oncePerDay: NEW_SUGGESTIONS_DAILY });
       // The other people see the same suggestion
       const created = await db.suggestion.findMany({
         where: { recipientId: userId, flow: "MUTUAL", candidateId: { in: top.map((t) => t.candidate.id) } },
@@ -316,9 +320,10 @@ async function generate(userId: string): Promise<SuggestOutcome> {
         title: "اقتراح توافق جديد",
         body: "وصلك اقتراح توافق جديد. قم بمراجعته.",
         url: "/dashboard/suggestions",
+        oncePerDay: NEW_SUGGESTIONS_DAILY,
       });
     } else {
-      await notify({ userId, type: "SUGGESTION", title, body, url: "/dashboard/suggestions" });
+      await notify({ userId, type: "SUGGESTION", title, body, url: "/dashboard/suggestions", oncePerDay: NEW_SUGGESTIONS_DAILY });
     }
 
     if (!perRequestCredits && user.matchCredits - created.count <= 0) await notifyCreditsExhausted(userId);

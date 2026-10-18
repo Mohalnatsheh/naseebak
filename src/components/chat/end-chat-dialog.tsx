@@ -47,6 +47,7 @@ export function EndChatDialog({
   familyStatus,
   busy,
   onConfirm,
+  ended = false,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
@@ -56,6 +57,8 @@ export function EndChatDialog({
   familyStatus?: FamilyStatus;
   busy: boolean;
   onConfirm: (report?: { reason: ReportReasonValue; details?: string }) => void;
+  /** The chat is already closed: reporting only (nothing left to end) */
+  ended?: boolean;
 }) {
   const [reason, setReason] = useState<ReportReasonValue>("HARASSMENT");
   const [details, setDetails] = useState("");
@@ -76,10 +79,14 @@ export function EndChatDialog({
               <ShieldAlert className="h-6 w-6 text-destructive" />
             </div>
           )}
-          <DialogTitle>{report ? `إنهاء المحادثة والإبلاغ عن ${partnerName}` : "إنهاء المحادثة"}</DialogTitle>
+          <DialogTitle>
+            {report ? (ended ? `الإبلاغ عن ${partnerName}` : `إنهاء المحادثة والإبلاغ عن ${partnerName}`) : "إنهاء المحادثة"}
+          </DialogTitle>
           <DialogDescription className="text-right leading-relaxed">
             {report
-              ? "ستُغلق المحادثة نهائياً ويتم حظر الطرف الآخر، ويراجع فريق نصيبك البلاغ."
+              ? ended
+                ? "يراجع فريق نصيبك البلاغ ونص المحادثة، ويتم حظر الطرف الآخر."
+                : "ستُغلق المحادثة نهائياً ويتم حظر الطرف الآخر، ويراجع فريق نصيبك البلاغ."
               : `ستُغلق المحادثة نهائياً للطرفين ولا يمكن فتحها مرة أخرى. سيبقى التوافق مع ${partnerName} ظاهراً.`}
           </DialogDescription>
         </DialogHeader>
@@ -131,7 +138,7 @@ export function EndChatDialog({
             className="flex-1 sm:flex-none"
           >
             {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-            {report ? "إنهاء وإبلاغ" : "إنهاء المحادثة"}
+            {report ? (ended ? "إرسال البلاغ" : "إنهاء وإبلاغ") : "إنهاء المحادثة"}
           </Button>
           <Button variant="ghost" disabled={busy} onClick={() => onOpenChange(false)} className="flex-1 sm:flex-none">
             إلغاء

@@ -613,10 +613,11 @@ model BlogPost {
 
 model Report {
   id          String       @id @default(cuid())
-  reporterId  String
-  reporter    User         @relation("ReportsSubmitted", fields: [reporterId], references: [id], onDelete: Cascade)
-  reportedId  String
-  reported    User         @relation("ReportsReceived", fields: [reportedId], references: [id], onDelete: Cascade)
+  /// Null once that account is deleted: the report and its evidence are kept (see `evidence`)
+  reporterId  String?
+  reporter    User?        @relation("ReportsSubmitted", fields: [reporterId], references: [id], onDelete: SetNull)
+  reportedId  String?
+  reported    User?        @relation("ReportsReceived", fields: [reportedId], references: [id], onDelete: SetNull)
   reason      ReportReason
   details     String?
   status      ReportStatus @default(PENDING)
@@ -625,6 +626,9 @@ model Report {
   // Set when the report was sent while ending a chat (new cycle); no FK so deleting a chat never touches reports
   conversationId String?
   reviewedById   String?
+  /// Snapshot taken before an account in this report is deleted: both people (name, phone) and the
+  /// chat between them, which would otherwise disappear with the match (src/lib/reports.ts)
+  evidence       Json?
   createdAt   DateTime     @default(now())
 
   @@unique([reporterId, reportedId])

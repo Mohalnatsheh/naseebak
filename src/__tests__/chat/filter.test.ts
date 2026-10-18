@@ -74,8 +74,59 @@ describe("phone numbers split across messages", () => {
   });
 
   it("numberShape counts digits and spelled digits", () => {
-    expect(numberShape("صفر سبعة تسعة")).toEqual({ digits: 3, numberish: true });
-    expect(numberShape("رقمي 079")).toEqual({ digits: 3, numberish: true });
-    expect(numberShape("أنا من عمان")).toEqual({ digits: 0, numberish: false });
+    expect(numberShape("صفر سبعة تسعة")).toMatchObject({ digits: 3, numberish: true });
+    expect(numberShape("رقمي 079")).toMatchObject({ digits: 3, numberish: false, longestGroup: 3 });
+    expect(numberShape("079")).toMatchObject({ digits: 3, numberish: true });
+    expect(numberShape("أنا من عمان")).toMatchObject({ digits: 0, numberish: false });
+  });
+});
+
+describe("filter gaps closed (Oct 2026 audit)", () => {
+  const blocked = (t: string) => expect(checkMessage(t).ok, t).toBe(false);
+  const allowed = (t: string) => expect(checkMessage(t).ok, t).toBe(true);
+
+  it("numbers with any symbols between the digits", () => {
+    for (const t of ["079/555/1234", "079_555_1234", "0*7*9*5*5*5*1*2*3*4", "0|79|555|1234", "رقمي 079 / 555 / 1234"]) blocked(t);
+  });
+
+  it("fullwidth, keycap emoji, circled and mathematical digits", () => {
+    blocked("０７９５５５１２３４");
+    blocked("0️⃣7️⃣9️⃣5️⃣5️⃣5️⃣1️⃣2️⃣3️⃣4️⃣");
+    blocked("⓪⑦⑨⑤⑤⑤①②③④");
+    blocked("𝟎𝟕𝟗𝟓𝟓𝟓𝟏𝟐𝟑𝟒");
+  });
+
+  it("digits spelled in dialect or English, or mixed with written digits", () => {
+    blocked("صفر سبعه تسعه خمسه خمسه تنين تلاته");
+    blocked("zero seven nine five five five one two three four");
+    blocked("079 خمسه خمسه خمسه 1234");
+    blocked("صفر 7 تسعة 5 5 5 1");
+  });
+
+  it("social apps written the way people type them", () => {
+    for (const t of ["ضيفني انستجرام", "ابعتلي وتساب", "عندي اينستا", "كلمني تيليغرام", "ماسنجر احسن", "ضيفني ig", "عندي ايمو", "فايبر"]) blocked(t);
+  });
+
+  it("normal messages still go through", () => {
+    for (const t of [
+      "عمري 28 وطولي 175",
+      "تخرجت سنة 2019 من الجامعة الاردنية",
+      "موعدنا 12/10/2026 ان شاء الله",
+      "عندي 3 اخوان و 2 خوات",
+      "وتسلم ايدك على الكلام الحلو",
+      "big family يعني عيلة كبيرة",
+      "من 9 الى 5 بالدوام",
+    ]) allowed(t);
+  });
+});
+
+describe("split numbers wrapped in text", () => {
+  it("pieces with words around them add up (9+ digits)", () => {
+    expect(completesSplitNumber("والباقي 551234", ["رقمي هو 0795"])).toBe(true);
+  });
+
+  it("an age and a height in separate messages don't", () => {
+    expect(completesSplitNumber("وطولي 175", ["عمري 28"])).toBe(false);
+    expect(completesSplitNumber("مواليد 1995", ["طولي 175"])).toBe(false);
   });
 });

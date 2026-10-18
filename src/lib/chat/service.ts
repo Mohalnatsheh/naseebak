@@ -10,8 +10,9 @@ import { notify, notifyMany } from "@/lib/notify";
 import { rateLimit } from "@/lib/rate-limit";
 import { getCycleFlags } from "@/lib/settings";
 import { publishChatEvent } from "@/lib/ably";
-import { checkMessage, completesSplitNumber, numberShape, SPLIT_NUMBER_WINDOW_MS } from "@/lib/chat/filter";
+import { checkMessage, completesSplitNumber, mayBePartOfNumber, SPLIT_NUMBER_WINDOW_MS } from "@/lib/chat/filter";
 import { IntroError } from "@/lib/intro/errors";
+import { fileReport } from "@/lib/reports";
 import { LEGACY_ADMIN_VISIT, cancelPendingBetween, isUnavailable } from "@/lib/matches/state";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -38,6 +39,8 @@ export interface ChatSummary {
   endedByMe: boolean;
   /** One side blocked the other: read-only */
   blocked: boolean;
+  /** The match page isn't available to me (the other person blocked me): hide links to it */
+  matchHidden: boolean;
   lastMessage: { body: string; createdAt: string; mine: boolean } | null;
   unread: number;
 }
@@ -61,15 +64,21 @@ function findConversation(id: string) {
   return db.conversation.findUnique({ where: { id }, include: conversationInclude });
 }
 
-async function loadForUser(id: string, userId: string): Promise<LoadedConversation> {
+/**
+ * `readOnly`: reading, marking read and reporting. A partner who blocked me hides the match, but the
+ * chat stays readable for me so I can keep what was said and report it (a harasser who blocks first
+ * must not silence the other person). Sending and extending still refuse it.
+ */
+async function loadForUser(id: string, userId: string, opts: { readOnly?: boolean } = {}): Promise<LoadedConversation> {
   const c = await findConversation(id);
   if (!c || (c.match.femaleId !== userId && c.match.maleId !== userId)) {
     throw new IntroError("NOT_FOUND", "المحادثة غير موجودة");
   }
-  // Like the match: a partner who blocked me makes the chat disappear for me (the blocker keeps it read-only)
-  const partnerId = c.match.femaleId === userId ? c.match.maleId : c.match.femaleId;
-  const blockedMe = await db.block.findFirst({ where: { blockerId: partnerId, blockedId: userId }, select: { id: true } });
-  if (blockedMe) throw new IntroError("NOT_FOUND", "المحادثة غير موجودة");
+  if (!opts.readOnly) {
+    const partnerId = c.match.femaleId === userId ? c.match.maleId : c.match.femaleId;
+    const blockedMe = await db.block.findFirst({ where: { blockerId: partnerId, blockedId: userId }, select: { id: true } });
+    if (blockedMe) throw new IntroError("NOT_FOUND", "المحادثة غير موجودة");
+  }
   return housekeeping(c);
 }
 
@@ -190,7 +199,8 @@ function summarise(
   userId: string,
   last: { body: string; createdAt: Date; senderId: string } | null,
   unread: number,
-  blocked = false
+  blocked = false,
+  matchHidden = false
 ): ChatSummary {
   const left = c.expiresAt.getTime() - Date.now();
   const partner = partnerOf(c, userId);
@@ -203,6 +213,7 @@ function summarise(
     canExtend: c.status === "ACTIVE" && !c.extended && left <= EXTEND_WINDOW_DAYS * DAY_MS,
     endedByMe: c.status === "ENDED" && c.endedById === userId,
     blocked,
+    matchHidden,
     lastMessage: last
       ? { body: last.body, createdAt: last.createdAt.toISOString(), mine: last.senderId === userId }
       : null,
@@ -245,15 +256,15 @@ export async function listConversations(userId: string): Promise<ChatSummary[]> 
       })
     : [];
   const blockedWith = new Set(blocks.map((b) => (b.blockerId === userId ? b.blockedId : b.blockerId)));
-  // A partner who blocked me: the chat is gone for me, as the match is
+  // A partner who blocked me: the chat stays listed (read-only, can be reported), the match doesn't
   const blockedMeBy = new Set(blocks.filter((b) => b.blockedId === userId).map((b) => b.blockerId));
   const summaries: ChatSummary[] = [];
   for (const row of rows) {
-    const rowPartnerId = row.match.femaleId === userId ? row.match.maleId : row.match.femaleId;
-    if (blockedMeBy.has(rowPartnerId)) continue;
     const c = await housekeeping(row);
     const partnerId = partnerOf(c, userId).id;
-    summaries.push(summarise(c, userId, row.messages[0] ?? null, row._count.messages, blockedWith.has(partnerId)));
+    summaries.push(
+      summarise(c, userId, row.messages[0] ?? null, row._count.messages, blockedWith.has(partnerId), blockedMeBy.has(partnerId))
+    );
   }
   const activity = (s: ChatSummary) => new Date(s.lastMessage?.createdAt ?? 0).getTime();
   return summaries.sort((a, b) => activity(b) - activity(a));
@@ -315,7 +326,7 @@ export async function getConversation(
   userId: string,
   opts: { before?: string; after?: string; limit?: number } = {}
 ): Promise<{ conversation: ChatSummary; messages: ChatMessage[]; hasMore: boolean }> {
-  const c = await loadForUser(id, userId);
+  const c = await loadForUser(id, userId, { readOnly: true });
   const limit = Math.min(Math.max(opts.limit ?? 30, 1), 100);
 
   let messages;
@@ -336,13 +347,15 @@ export async function getConversation(
     messages = page.slice(0, limit).reverse();
   }
 
-  const [unread, blocked] = await Promise.all([
+  const partnerId = partnerOf(c, userId).id;
+  const [unread, blocked, blockedMe] = await Promise.all([
     db.message.count({ where: { conversationId: id, readAt: null, senderId: { not: userId } } }),
-    isBlocked(userId, partnerOf(c, userId).id),
+    isBlocked(userId, partnerId),
+    db.block.findFirst({ where: { blockerId: partnerId, blockedId: userId }, select: { id: true } }),
   ]);
   const last = messages.length ? messages[messages.length - 1] : null;
   return {
-    conversation: summarise(c, userId, last, unread, blocked),
+    conversation: summarise(c, userId, last, unread, blocked, !!blockedMe),
     messages: messages.map((m) => toMessage(m, userId)),
     hasMore,
   };
@@ -378,7 +391,7 @@ export async function sendMessage(args: {
   const check = checkMessage(body);
   if (!check.ok) throw new IntroError("FILTERED", check.message);
   // A number sent in pieces ("صفر سبعة تسعة", then "واحد اثنان …"): read my recent messages together
-  if (numberShape(check.text).numberish) {
+  if (mayBePartOfNumber(check.text)) {
     const recent = await db.message.findMany({
       where: { conversationId, createdAt: { gt: new Date(Date.now() - SPLIT_NUMBER_WINDOW_MS) } },
       orderBy: { createdAt: "desc" },
@@ -434,14 +447,15 @@ export async function sendMessage(args: {
 
 /** Mark the partner's messages read — only those up to `upTo` (what was actually on screen). */
 export async function markRead(conversationId: string, userId: string, upTo?: string): Promise<number> {
-  await loadForUser(conversationId, userId);
+  const c = await loadForUser(conversationId, userId, { readOnly: true });
   const readAt = new Date();
   const until = upTo && !Number.isNaN(Date.parse(upTo)) ? new Date(upTo) : readAt;
   const { count } = await db.message.updateMany({
     where: { conversationId, senderId: { not: userId }, readAt: null, createdAt: { lte: until } },
     data: { readAt },
   });
-  if (count > 0) {
+  // No read receipts across a block (either way)
+  if (count > 0 && !(await isBlocked(userId, partnerOf(c, userId).id))) {
     // The partner's next message push should not be held back by an old throttle
     lastPush.delete(`${conversationId}:${userId}`);
     await publishChatEvent(conversationId, "read", { by: userId, at: readAt.toISOString() });
@@ -484,7 +498,8 @@ export async function endConversation(args: {
   report?: { reason: ReportReason; details?: string };
 }): Promise<void> {
   const { conversationId, userId, report } = args;
-  const c = await loadForUser(conversationId, userId);
+  // Read-only access is enough: someone the other person blocked can still report this chat
+  const c = await loadForUser(conversationId, userId, { readOnly: true });
   const partner = partnerOf(c, userId);
 
   if (c.status !== "ENDED") {
@@ -509,11 +524,8 @@ export async function endConversation(args: {
   }
 
   if (report) {
-    await db.report.upsert({
-      where: { reporterId_reportedId: { reporterId: userId, reportedId: partner.id } },
-      create: { reporterId: userId, reportedId: partner.id, reason: report.reason, details: report.details, conversationId },
-      update: { reason: report.reason, details: report.details, status: "PENDING", conversationId },
-    });
+    // Same path as the match card: reopens a repeat report and counts toward the auto-flag
+    await fileReport({ reporterId: userId, reportedId: partner.id, reason: report.reason, details: report.details, conversationId });
     const existing = await db.block.findFirst({ where: { blockerId: userId, blockedId: partner.id } });
     if (!existing) await db.block.create({ data: { blockerId: userId, blockedId: partner.id } });
     await cancelPendingBetween(userId, partner.id);

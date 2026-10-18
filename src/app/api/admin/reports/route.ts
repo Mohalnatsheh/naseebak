@@ -10,17 +10,19 @@ import { adminEndConversation, setSuspended } from "@/lib/admin/moderation";
  * Attach chat metadata to reports: the chat the report was sent from (Report.conversationId), or —
  * for older reports — the chat the two people had, if any. Dates, status and counts only.
  */
-async function withChats<T extends { reporterId: string; reportedId: string; conversationId: string | null }>(
+async function withChats<T extends { reporterId: string | null; reportedId: string | null; conversationId: string | null }>(
   reports: T[]
 ) {
   if (reports.length === 0) return [];
+  // A deleted account leaves its side null: only its saved evidence is left (Report.evidence)
+  const paired = reports.filter((r): r is T & { reporterId: string; reportedId: string } => !!r.reporterId && !!r.reportedId);
   const conversations = await db.conversation.findMany({
     where: {
       OR: [
         { id: { in: reports.flatMap((r) => (r.conversationId ? [r.conversationId] : [])) } },
         {
           match: {
-            OR: reports.map((r) => ({
+            OR: paired.map((r) => ({
               OR: [
                 { femaleId: r.reporterId, maleId: r.reportedId },
                 { femaleId: r.reportedId, maleId: r.reporterId },
@@ -40,10 +42,12 @@ async function withChats<T extends { reporterId: string; reportedId: string; con
   return reports.map((r) => {
     const c =
       conversations.find((x) => x.id === r.conversationId) ??
-      conversations.find((x) => {
-        const pair = [x.match.femaleId, x.match.maleId];
-        return pair.includes(r.reporterId) && pair.includes(r.reportedId);
-      });
+      (r.reporterId && r.reportedId
+        ? conversations.find((x) => {
+            const pair = [x.match.femaleId, x.match.maleId];
+            return pair.includes(r.reporterId!) && pair.includes(r.reportedId!);
+          })
+        : undefined);
     return {
       ...r,
       chat: c
@@ -146,7 +150,7 @@ export async function PATCH(request: Request) {
       const [chat] = await withChats([existing]);
       if (chat.chat && (await adminEndConversation(chat.chat.id, adminId))) actions.push("chat ended");
     }
-    if (suspendReported) {
+    if (suspendReported && existing.reportedId) {
       const res = await setSuspended(existing.reportedId, true, adminId);
       if (res.changed) actions.push("user suspended");
     }

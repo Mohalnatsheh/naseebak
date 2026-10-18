@@ -27,70 +27,122 @@ const LINK_RE =
 const EMAIL_RE = /\S+@\S+\.\S+/;
 const HANDLE_RE = /(^|[\s(،,])@[a-z0-9_.]{2,}/i;
 
+// Matched anywhere in the message (after normalising), so keep them long enough not to hit normal words
 const SOCIAL_KEYWORDS = [
-  "whatsapp", "watsapp", "واتس", "وتس اب",
-  "instagram", "insta", "انستا", "انستغرام", "انستقرام",
+  "whatsapp", "watsapp", "واتس", "وتس اب", "وتساب", "وتسب",
+  "instagram", "insta", "انستا", "انستغرام", "انستقرام", "انستجرام", "انستكرام", "اينستا", "انستغرم",
   "snapchat", "snap", "سناب",
-  "telegram", "تلغرام", "تيليجرام", "تلجرام", "تيلجرام",
-  "facebook", "فيسبوك", "فيس بوك",
+  "telegram", "تلغرام", "تيليجرام", "تلجرام", "تيلجرام", "تيليغرام", "تليغرام", "تلقرام", "تيليقرام",
+  "facebook", "فيسبوك", "فيس بوك", "messenger", "ماسنجر", "مسنجر",
   "tiktok", "تيك توك", "تيكتوك",
-  "gmail", "hotmail", "ايميل", "اميل",
+  "viber", "فايبر", "twitter", "تويتر", "signal", "سيجنال", "discord", "ديسكورد",
+  "gmail", "hotmail", "yahoo", "outlook", "icloud", "ايميل", "اميل",
 ];
+// Short names only blocked as a whole word ("ig", not "big")
+const SOCIAL_WORDS = new Set(["ig", "fb", "imo", "ايمو"]);
 
-// Digits spelled out in Arabic (after normalising أإآ→ا and ة→ه)
+// Digits spelled out (after normalising أإآ→ا and ة→ه): standard Arabic, Jordanian dialect, English
 const DIGIT_WORDS = new Set([
   "صفر", "واحد", "اثنين", "اثنان", "ثنين", "ثلاثه", "ثلاث", "اربعه", "اربع",
   "خمسه", "خمس", "سته", "ست", "سبعه", "سبع", "ثمانيه", "ثمان", "تسعه", "تسع",
+  "تنين", "اتنين", "ثنتين", "تنتين", "تلاته", "تلات", "تلاث", "تمانيه", "تمنيه", "ثمنيه", "تمان",
+  "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine",
 ]);
 
 const OFFENSIVE = ["يا حمار", "يا كلب", "يا غبي", "يا حيوان", "حقير", "fuck", "shit", "bitch"];
 
-/** Arabic-Indic and Persian digits → ASCII */
+/**
+ * Every digit form a keyboard or emoji picker can produce → ASCII: Arabic-Indic, Persian, fullwidth
+ * (０-９), keycap emoji (0️⃣ = "0" + U+FE0F + U+20E3), circled (①, ⓪) and mathematical (𝟎-𝟿) digits.
+ */
 function normaliseDigits(s: string): string {
   return s
+    .replace(/[\uFE0F\u20E3]/g, "")
     .replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660))
-    .replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x06f0));
+    .replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x06f0))
+    .replace(/[０-９]/g, (d) => String(d.charCodeAt(0) - 0xff10))
+    .replace(/[①-⑨]/g, (d) => String(d.charCodeAt(0) - 0x2460 + 1))
+    .replace(/⓪/g, "0")
+    .replace(/[\u{1D7CE}-\u{1D7FF}]/gu, (d) => String((d.codePointAt(0)! - 0x1d7ce) % 10));
 }
 
 function normaliseArabic(s: string): string {
   return s.replace(/[أإآ]/g, "ا").replace(/ة/g, "ه").replace(/[ً-ْ]/g, "");
 }
 
-/** 7+ digits written as one number, allowing spaces, dashes, dots, plus and brackets between them */
+/**
+ * A phone number written as one run:
+ * - 7+ digits with only spaces, dashes, dots, plus or brackets between them, or
+ * - 9+ digits with any symbols between them (079/555/1234, 079_555_1234, 0*7*9…). Nine keeps dates
+ *   like 12/10/2026 (8 digits) out.
+ */
 function hasPhoneNumber(s: string): boolean {
   const runs = s.match(/\d[\d\s\-.()+]*\d/g) ?? [];
-  return runs.some((run) => run.replace(/\D/g, "").length >= 7);
+  if (runs.some((run) => run.replace(/\D/g, "").length >= 7)) return true;
+  const loose = s.match(/\d(?:[^\p{L}\p{N}]{0,3}\d)+/gu) ?? [];
+  return loose.some((run) => run.replace(/\D/g, "").length >= 9);
 }
 
+/** Message split into words: anything that isn't a letter or a digit separates them */
+function words(s: string): string[] {
+  return normaliseArabic(s.toLowerCase()).split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+}
+
+/** "و" + digit word ("وخمسه") counts as the digit word */
+function digitWord(word: string): boolean {
+  return DIGIT_WORDS.has(word) || (word.startsWith("و") && DIGIT_WORDS.has(word.slice(1)));
+}
+
+/**
+ * 7+ digits in a row, counting written digit groups and spelled-out digits together, so mixing them
+ * ("079 خمسه خمسه خمسه 1234") or spelling in dialect or English doesn't get through.
+ */
 function hasSpelledNumber(s: string): boolean {
+  // Written-only digit runs are hasPhoneNumber's job (it knows dates like 12/10/2026 apart)
   let streak = 0;
-  for (const raw of normaliseArabic(s).split(/[\s،,.-]+/)) {
-    const word = raw.startsWith("و") && DIGIT_WORDS.has(raw.slice(1)) ? raw.slice(1) : raw;
-    streak = DIGIT_WORDS.has(word) ? streak + 1 : 0;
-    if (streak >= 7) return true;
+  let spelled = false;
+  for (const word of words(s)) {
+    if (/^\d+$/.test(word)) streak += word.length;
+    else if (digitWord(word)) {
+      streak += 1;
+      spelled = true;
+    } else {
+      streak = 0;
+      spelled = false;
+    }
+    if (streak >= 7 && spelled) return true;
   }
   return false;
 }
 
 /**
- * How many digits a message carries (written or spelled out), and whether it is "mostly a number":
- * at least half of its words are digit words or digit groups, e.g. "079" or "صفر سبعة تسعة".
+ * How many digits a message carries (written or spelled out), whether it is only a number (every
+ * word is a digit word or digit group, e.g. "079" or "صفر سبعة تسعة"), and its longest digit group.
  */
-export function numberShape(body: string): { digits: number; numberish: boolean } {
-  const tokens = normaliseArabic(normaliseDigits(body ?? "")).split(/[\s،,.\-()+]+/).filter(Boolean);
+export function numberShape(body: string): { digits: number; numberish: boolean; longestGroup: number } {
+  const tokens = words(normaliseDigits(body ?? ""));
   let digits = 0;
   let numericTokens = 0;
-  for (const raw of tokens) {
-    const word = raw.startsWith("و") && DIGIT_WORDS.has(raw.slice(1)) ? raw.slice(1) : raw;
-    if (DIGIT_WORDS.has(word)) {
+  let longestGroup = 0;
+  for (const word of tokens) {
+    if (digitWord(word)) {
       digits += 1;
       numericTokens += 1;
     } else if (/^\d+$/.test(word)) {
       digits += word.length;
       numericTokens += 1;
+      longestGroup = Math.max(longestGroup, word.length);
     }
   }
-  return { digits, numberish: tokens.length > 0 && numericTokens * 2 >= tokens.length };
+  // Only digits (written or spelled): "صفر سبعة تسعة", "079". "رقمي 079" has a word, so it is a
+  // wrapped piece (mayBePartOfNumber) and needs the higher total
+  return { digits, numberish: tokens.length > 0 && numericTokens === tokens.length, longestGroup };
+}
+
+/** Worth reading together with the sender's previous messages: only a number, or carries a 3+ digit group */
+export function mayBePartOfNumber(body: string): boolean {
+  const shape = numberShape(body);
+  return shape.digits > 0 && (shape.numberish || shape.longestGroup >= 3);
 }
 
 /** Minutes within which consecutive number-only messages are read together */
@@ -98,19 +150,25 @@ export const SPLIT_NUMBER_WINDOW_MS = 10 * 60 * 1000;
 
 /**
  * A phone number sent in pieces: this message and the sender's previous messages (newest first,
- * already limited to the recent window) that are all "mostly a number" add up to 7+ digits.
+ * already limited to the recent window) that may be pieces of a number add up to 7+ digits (9+ when
+ * any piece has words around it).
  */
 export function completesSplitNumber(current: string, previousNewestFirst: string[]): boolean {
+  if (!mayBePartOfNumber(current)) return false;
   const now = numberShape(current);
-  if (!now.numberish || now.digits === 0) return false;
   let total = now.digits;
+  // Pieces wrapped in text ("رقمي 0795", "والباقي 551234") need 9 digits, so an age or height
+  // mentioned in passing doesn't add up to a "number"
+  let allNumberish = now.numberish;
+  const enough = () => total >= (allNumberish ? 7 : 9);
   for (const prev of previousNewestFirst) {
+    if (!mayBePartOfNumber(prev)) break;
     const shape = numberShape(prev);
-    if (!shape.numberish || shape.digits === 0) break;
     total += shape.digits;
-    if (total >= 7) return true;
+    allNumberish = allNumberish && shape.numberish;
+    if (enough()) return true;
   }
-  return total >= 7;
+  return enough();
 }
 
 function fail(reason: FilterReason): FilterResult {
@@ -129,6 +187,7 @@ export function checkMessage(body: string): FilterResult {
   if (EMAIL_RE.test(digits) || HANDLE_RE.test(digits)) return fail("CONTACT");
   if (hasPhoneNumber(digits) || hasSpelledNumber(digits)) return fail("CONTACT");
   if (SOCIAL_KEYWORDS.some((k) => lower.includes(normaliseArabic(k)))) return fail("CONTACT");
+  if (words(digits).some((w) => SOCIAL_WORDS.has(w))) return fail("CONTACT");
   if (OFFENSIVE.some((w) => lower.includes(normaliseArabic(w)))) return fail("OFFENSIVE");
 
   return { ok: true, text };

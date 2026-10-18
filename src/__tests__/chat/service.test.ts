@@ -12,11 +12,13 @@ const ably = vi.hoisted(() => ({ publishChatEvent: vi.fn() }));
 const notifyMod = vi.hoisted(() => ({ notify: vi.fn(), notifyMany: vi.fn() }));
 const settings = vi.hoisted(() => ({ getCycleFlags: vi.fn() }));
 const rl = vi.hoisted(() => ({ rateLimit: vi.fn() }));
+const reports = vi.hoisted(() => ({ fileReport: vi.fn() }));
 vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/ably", () => ably);
 vi.mock("@/lib/notify", () => notifyMod);
 vi.mock("@/lib/settings", () => settings);
 vi.mock("@/lib/rate-limit", () => rl);
+vi.mock("@/lib/reports", () => reports);
 
 import { endConversation, extendConversation, getConversation, listConversations, sendMessage } from "@/lib/chat/service";
 import { IntroError } from "@/lib/intro/errors";
@@ -242,10 +244,10 @@ describe("endConversation", () => {
       data: expect.objectContaining({ status: "ENDED", endedById: "u1" }),
     }));
     expect(notifyMod.notify).toHaveBeenCalledWith(expect.objectContaining({ userId: "f1", title: "انتهت المحادثة" }));
-    expect(db.report.upsert).toHaveBeenCalledWith(expect.objectContaining({
-      create: expect.objectContaining({ reporterId: "u1", reportedId: "f1", conversationId: c.id }),
-      update: expect.objectContaining({ conversationId: c.id }),
-    }));
+    // Shared report path: reopens a repeat report and counts toward the auto-flag
+    expect(reports.fileReport).toHaveBeenCalledWith(
+      expect.objectContaining({ reporterId: "u1", reportedId: "f1", reason: "HARASSMENT", conversationId: c.id })
+    );
     expect(db.block.create).toHaveBeenCalledWith({ data: { blockerId: "u1", blockedId: "f1" } });
   });
 });
@@ -281,15 +283,37 @@ describe("listConversations", () => {
     expect(summary.blocked).toBe(true);
   });
 
-  it("hides the chat from the person who was blocked, as the match is", async () => {
+  it("keeps the chat, read-only, for the person who was blocked (match link hidden)", async () => {
     const c = { ...conv(), messages: [], _count: { messages: 0 } };
     db.conversation.findMany.mockResolvedValue([c]);
     db.block.findMany.mockResolvedValue([{ blockerId: "f1", blockedId: "u1" }]);
-    expect(await listConversations("u1")).toEqual([]);
+    const [chat] = await listConversations("u1");
+    expect(chat).toMatchObject({ id: c.id, blocked: true, matchHidden: true });
   });
 
-  it("getConversation is not found for the blocked person", async () => {
-    db.block.findFirst.mockResolvedValueOnce({ id: "blk" });
-    await expect(getConversation("c", "u1")).rejects.toMatchObject({ code: "NOT_FOUND" });
+  it("the blocked person can still read the chat", async () => {
+    const c = conv();
+    db.conversation.findUnique.mockResolvedValue(c);
+    db.message.findMany.mockResolvedValue([]);
+    db.block.findFirst.mockResolvedValue({ id: "blk" });
+    const { conversation } = await getConversation(c.id, "u1");
+    expect(conversation).toMatchObject({ blocked: true, matchHidden: true });
+  });
+
+  it("the blocked person can't send", async () => {
+    const c = conv();
+    db.conversation.findUnique.mockResolvedValue(c);
+    db.block.findFirst.mockResolvedValue({ id: "blk" });
+    await expect(sendMessage({ conversationId: c.id, senderId: "u1", body: "مرحبا" })).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+
+  it("the blocked person can still report the chat", async () => {
+    const c = { ...conv(), status: "ENDED" };
+    db.conversation.findUnique.mockResolvedValue(c);
+    db.block.findFirst.mockResolvedValue({ id: "blk" });
+    await endConversation({ conversationId: c.id, userId: "u1", report: { reason: "HARASSMENT", details: "تهديد" } });
+    expect(reports.fileReport).toHaveBeenCalledWith(expect.objectContaining({ reporterId: "u1", reportedId: "f1", conversationId: c.id }));
+    // Already ended: nobody is told again
+    expect(notifyMod.notify).not.toHaveBeenCalled();
   });
 });

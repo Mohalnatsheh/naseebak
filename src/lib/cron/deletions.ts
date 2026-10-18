@@ -5,6 +5,7 @@
 import { db } from "@/lib/db";
 import { deleteFromBunny, getBunnyPathFromUrl } from "@/lib/bunny";
 import { closeActivityForLeaving } from "@/lib/matches/leave";
+import { snapshotReportEvidence } from "@/lib/reports";
 
 export async function processAccountDeletions(): Promise<number> {
   // Find all requests that are past the scheduled date and not cancelled
@@ -70,10 +71,14 @@ export async function processAccountDeletions(): Promise<number> {
       // Partners are told before the matches disappear with the account
       await closeActivityForLeaving(req.userId, "deleted").catch((e) => console.warn(`Leave notice warning for ${req.userId}:`, e));
 
+      // Reports are kept: save both people and their chat on each report first (the chat goes with
+      // the match), then the report's link to this account is set to null by the foreign key.
+      // A failed snapshot stops this deletion (retried tomorrow) rather than lose the evidence.
+      await snapshotReportEvidence(req.userId);
+
       // Delete all user data (cascade will handle most relations)
       // But we need to clean up manual relations first
       await db.$transaction([
-        db.report.deleteMany({ where: { OR: [{ reporterId: req.userId }, { reportedId: req.userId }] } }),
         db.block.deleteMany({ where: { OR: [{ blockerId: req.userId }, { blockedId: req.userId }] } }),
         db.notification.deleteMany({ where: { userId: req.userId } }),
         db.like.deleteMany({ where: { OR: [{ fromUserId: req.userId }, { toUserId: req.userId }] } }),

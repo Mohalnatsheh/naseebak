@@ -105,7 +105,8 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
     fetchLatest("replace");
   }, [fetchLatest]);
 
-  const matchId = conversation?.matchId;
+  // No match page for someone the other person blocked: don't ask for it
+  const matchId = conversation && !conversation.matchHidden ? conversation.matchId : undefined;
   useEffect(() => {
     if (matchId) loadIntro(matchId);
   }, [matchId, loadIntro]);
@@ -249,7 +250,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
     setBusy(false);
     setEndDialog(null);
     if (res.ok) {
-      toast.success(report ? "تم إنهاء المحادثة وإرسال البلاغ" : "تم إنهاء المحادثة");
+      toast.success(report ? (conversation?.status === "ENDED" ? "تم إرسال البلاغ" : "تم إنهاء المحادثة وإرسال البلاغ") : "تم إنهاء المحادثة");
       fetchLatest("merge");
     } else toast.error(res.data.error ?? "حدث خطأ");
     return res.ok;
@@ -349,11 +350,13 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
                 <CalendarPlus className="h-4 w-4" /> تمديد 7 أيام
               </DropdownMenuItem>
             )}
-            <DropdownMenuItem asChild>
-              <Link href={`/dashboard/matches?match=${conversation.matchId}`}>
-                <Users className="h-4 w-4" /> عرض التوافق
-              </Link>
-            </DropdownMenuItem>
+            {!conversation.matchHidden && (
+              <DropdownMenuItem asChild>
+                <Link href={`/dashboard/matches?match=${conversation.matchId}`}>
+                  <Users className="h-4 w-4" /> عرض التوافق
+                </Link>
+              </DropdownMenuItem>
+            )}
             {conversation.status !== "ENDED" && (
               <>
                 <DropdownMenuSeparator />
@@ -363,7 +366,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
               </>
             )}
             <DropdownMenuItem variant="destructive" onClick={() => setEndDialog("report")}>
-              <Flag className="h-4 w-4" /> إنهاء وإبلاغ
+              <Flag className="h-4 w-4" /> {conversation.status === "ENDED" ? "إبلاغ" : "إنهاء وإبلاغ"}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -500,6 +503,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
         partnerName={conversation.partner.firstName}
         familyStatus={intro?.flags.introRequests && !intro.closed ? family?.status : undefined}
         busy={busy}
+        ended={conversation.status === "ENDED"}
         onConfirm={(report) => {
           end(report).then((ok) => ok && report && router.push("/dashboard/chats"));
         }}

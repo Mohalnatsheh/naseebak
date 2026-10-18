@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { fileReport } from "@/lib/reports";
 
 export async function POST(request: Request) {
   try {
@@ -42,45 +43,20 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "لا يمكنك الإبلاغ عن هذا المستخدم" }, { status: 403 });
     }
 
-    // Check for existing report
-    const existing = await db.report.findUnique({
-      where: {
-        reporterId_reportedId: {
-          reporterId: session.user.id,
-          reportedId,
-        },
-      },
-    });
-
-    if (existing) {
-      return NextResponse.json({ error: "لقد قمت بالإبلاغ عن هذا المستخدم مسبقاً" }, { status: 409 });
-    }
-
-    const report = await db.report.create({
-      data: {
-        reporterId: session.user.id,
-        reportedId,
-        reason,
-        details: details || null,
-      },
-    });
-
-    // Auto-flag user if they have 3+ reports
-    const reportCount = await db.report.count({
-      where: {
-        reportedId,
-        status: { in: ["PENDING", "REVIEWED"] },
-      },
-    });
-    if (reportCount >= 3) {
-      await db.user.update({
-        where: { id: reportedId },
-        data: {
-          isFlagged: true,
-          flagReason: `Auto-flagged: ${reportCount} reports from different users`,
-        },
-      });
-    }
+    // A repeat report reopens the earlier one (both accounts kept) and counts toward the auto-flag
+    // A chat is attached only if it is really between these two (admins open it from the report)
+    const askedChat = typeof body.conversationId === "string" ? body.conversationId : null;
+    const chat = askedChat
+      ? await db.conversation.findFirst({
+          where: {
+            id: askedChat,
+            match: { OR: [{ femaleId: me, maleId: reportedId }, { femaleId: reportedId, maleId: me }] },
+          },
+          select: { id: true },
+        })
+      : null;
+    const conversationId = chat?.id ?? null;
+    const report = await fileReport({ reporterId: me, reportedId, reason, details, conversationId });
 
     return NextResponse.json({ message: "تم إرسال البلاغ بنجاح", report });
   } catch (error) {

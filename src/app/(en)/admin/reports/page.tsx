@@ -15,8 +15,10 @@ interface Report {
   adminNote: string | null;
   reviewedAt: string | null;
   createdAt: string;
-  reporter: { id: string; firstName: string; lastName: string };
-  reported: { id: string; firstName: string; lastName: string; status: string };
+  /** Null once that account was deleted (see evidence) */
+  reporter: { id: string; firstName: string; lastName: string } | null;
+  reported: { id: string; firstName: string; lastName: string; status: string } | null;
+  evidence: ReportEvidence | null;
   reviewedBy: string | null;
   chat: {
     id: string;
@@ -28,6 +30,34 @@ interface Report {
     endedByAdmin: boolean;
     messages: number;
   } | null;
+}
+
+/** Saved before an account in the report was deleted (src/lib/reports.ts snapshotReportEvidence) */
+interface ReportEvidence {
+  capturedAt: string;
+  people: { reporter: EvidencePerson | null; reported: EvidencePerson | null };
+  chat: { id: string; messages: { at: string; from: "reporter" | "reported"; body: string }[]; truncated: boolean } | null;
+}
+interface EvidencePerson {
+  id: string;
+  name: string;
+  phone: string | null;
+}
+
+function PersonLink({ user, saved }: { user: { id: string; firstName: string; lastName: string } | null; saved?: EvidencePerson | null }) {
+  if (user) {
+    return (
+      <Link href={`/admin/users/${user.id}`} className="font-medium text-foreground hover:underline">
+        {user.firstName} {user.lastName}
+      </Link>
+    );
+  }
+  return (
+    <span className="font-medium text-foreground">
+      {saved?.name ?? "Unknown"} {saved?.phone && <span className="font-normal">({saved.phone})</span>}{" "}
+      <span className="text-xs font-normal text-destructive">deleted account</span>
+    </span>
+  );
 }
 
 function shortDate(d: string) {
@@ -171,9 +201,9 @@ export default function AdminReportsPage() {
                     </span>
                   </div>
                   <div className="text-sm text-muted-foreground">
-                    <Link href={`/admin/users/${report.reporter.id}`} className="font-medium text-foreground hover:underline">{report.reporter.firstName} {report.reporter.lastName}</Link>
+                    <PersonLink user={report.reporter} saved={report.evidence?.people.reporter} />
                     {" reported "}
-                    <Link href={`/admin/users/${report.reported.id}`} className="font-medium text-foreground hover:underline">{report.reported.firstName} {report.reported.lastName}</Link>
+                    <PersonLink user={report.reported} saved={report.evidence?.people.reported} />
                   </div>
                   {report.chat && (
                     <div className="text-xs text-muted-foreground border rounded-md px-3 py-2 flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -187,13 +217,28 @@ export default function AdminReportsPage() {
                         </span>
                       )}
                       <span>{report.chat.messages} messages</span>
-                      <Link
-                        href={`/admin/users/${report.reporter.id}#chat-${report.chat.id}`}
-                        className="text-primary hover:underline"
-                      >
+                      <Link href={`/admin/chats/${report.chat.id}`} className="text-primary hover:underline">
                         Chat details
                       </Link>
                     </div>
+                  )}
+                  {report.evidence?.chat && (
+                    <details className="text-xs border rounded-md px-3 py-2">
+                      <summary className="cursor-pointer font-medium text-foreground">
+                        Saved chat ({report.evidence.chat.messages.length} messages
+                        {report.evidence.chat.truncated && ", latest only"}), kept on {shortDate(report.evidence.capturedAt)} when an account was deleted
+                      </summary>
+                      <div className="mt-2 max-h-80 space-y-1 overflow-y-auto" dir="rtl">
+                        {report.evidence.chat.messages.map((m, i) => (
+                          <p key={i} className="break-words">
+                            <span className={m.from === "reported" ? "font-semibold text-destructive" : "font-semibold text-primary"}>
+                              {m.from === "reported" ? "Reported" : "Reporter"}
+                            </span>{" "}
+                            <span className="text-muted-foreground" dir="ltr">{new Date(m.at).toLocaleString("en-GB")}</span>: {m.body}
+                          </p>
+                        ))}
+                      </div>
+                    </details>
                   )}
                   {report.details && (
                     <p className="text-sm text-muted-foreground bg-muted/50 rounded p-2 break-words">{report.details}</p>
@@ -204,7 +249,7 @@ export default function AdminReportsPage() {
                       {report.reviewedBy && <> by {report.reviewedBy}</>}
                     </p>
                   )}
-                  {report.reported.status === "SUSPENDED" && (
+                  {report.reported?.status === "SUSPENDED" && (
                     <p className="text-xs font-medium text-destructive">The reported user is suspended.</p>
                   )}
                   {report.adminNote && (
@@ -223,7 +268,7 @@ export default function AdminReportsPage() {
                             rows={2}
                           />
                           <div className="flex flex-col gap-1.5 text-sm">
-                            {report.reported.status !== "SUSPENDED" && (
+                            {report.reported && report.reported.status !== "SUSPENDED" && (
                               <label className="flex items-center gap-2">
                                 <input
                                   type="checkbox"

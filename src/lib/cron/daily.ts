@@ -14,6 +14,7 @@ import { expireIntroRequests, remindIntroRequests } from "@/lib/cron/intro-reque
 import { expireMutualSuggestionsAll, healMissingMatches, remindMutualSuggestions, runWeeklySuggestions } from "@/lib/cron/suggestions";
 import { runReengagement } from "@/lib/cron/reengagement";
 import { processAccountDeletions } from "@/lib/cron/deletions";
+import { reconcileStripePayments } from "@/lib/payments/fulfil";
 import { cancelClosedLegacyVisits, remindGuardianShare, runFamilyFollowUps } from "@/lib/intro/followup";
 
 export const LAST_RUN_KEY = "cron_daily_last_run";
@@ -93,6 +94,7 @@ async function execute(trigger: DailyRunSummary["trigger"]): Promise<DailyRunSum
   tasks.weeklySuggestions = await runTask("weeklySuggestions", () => runWeeklySuggestions(now()));
   tasks.reengagement = await runTask("reengagement", () => runReengagement(now()));
   tasks.deletions = await runTask("deletions", async () => ({ deleted: await processAccountDeletions() }));
+  tasks.payments = await runTask("payments", () => reconcileStripePayments(now()));
 
   const finished = new Date();
   const summary: DailyRunSummary = {

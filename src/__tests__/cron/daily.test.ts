@@ -28,6 +28,7 @@ vi.mock("@/lib/cron/suggestions", () => ({
 }));
 vi.mock("@/lib/cron/reengagement", () => ({ runReengagement: tasks.runReengagement }));
 vi.mock("@/lib/cron/deletions", () => ({ processAccountDeletions: tasks.processAccountDeletions }));
+vi.mock("@/lib/payments/fulfil", () => ({ reconcileStripePayments: vi.fn(async () => ({ checked: 0, fulfilled: 0 })) }));
 vi.mock("@/lib/auth", () => authMod);
 vi.mock("@/lib/intro/followup", () => ({
   remindGuardianShare: vi.fn(async () => ({ reminded: 0 })),

@@ -174,7 +174,7 @@ Config via env: `BROADNET_USER`, `BROADNET_PASS`, `BROADNET_SENDER_ID` (`naseeba
 
 ## Stripe Payments
 
-JOD currency (3-decimal — fils = price × 1000). Flow: `POST /api/payments/checkout` → Stripe Checkout Session → webhook fulfills order only when `payment_status === "paid"` (`checkout.session.completed` / `async_payment_succeeded`, idempotent); `session-status` answers only the session's owner. Lazy-init client in `src/lib/stripe.ts`.
+Prices are shown in JOD but charged in **USD** (`priceUsdCents` in `checkout/route.ts`; owner's choice, Oct 2026). Flow: `POST /api/payments/checkout` → embedded Stripe Checkout Session (metadata `app: "naseebak"`, `paymentId`, `userId`, `credits`) → credits are added by `fulfilCheckoutSession()` (`src/lib/payments/fulfil.ts`) only when `payment_status === "paid"`, once (claims the Payment row in the same transaction, also a FAILED/timed-out one), from three places: the webhook (`checkout.session.completed` / `async_payment_succeeded`), the return page (`session-status`, owner only) and the daily job (`reconcileStripePayments`, sessions of the last 3 days). **The Stripe account is shared with other sites:** anything without our metadata is ignored (`isOurSession`). Lazy-init client in `src/lib/stripe.ts`.
 
 Env vars: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`
 

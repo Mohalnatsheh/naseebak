@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getStripe } from "@/lib/stripe";
+import { CHECKOUT_APP } from "@/lib/payments/fulfil";
 
 // priceJod = display price in JOD, priceUsdCents = Stripe charge in USD cents
 // JOD→USD ~1.41 rate: 3 JOD≈$4.23, 4 JOD≈$5.64, 7 JOD≈$9.87
@@ -57,6 +58,7 @@ export async function POST(request: Request) {
         },
       ],
       metadata: {
+        app: CHECKOUT_APP,
         paymentId: payment.id,
         userId: session.user.id,
         packageId,

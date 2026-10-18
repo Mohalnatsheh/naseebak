@@ -21,6 +21,7 @@ import {
   ChevronLeft,
   LifeBuoy,
   Gift,
+  Settings,
   MessageCircle,
   Ban,
   Coins,
@@ -55,9 +56,13 @@ const accountLinks: NavLink[] = [
   { href: "/dashboard/blocks", label: "المحظورون", icon: Ban },
   { href: "/dashboard/support", label: "الدعم والملاحظات", icon: LifeBuoy },
   { href: "/dashboard/referral", label: "ادعُ صديقاً", icon: Gift },
+  // Pause / delete live at the bottom of the profile page
+  { href: "/dashboard/profile#account-settings", label: "إعدادات الحساب", icon: Settings },
 ];
 
 function isActiveLink(href: string, pathname: string): boolean {
+  // In-page links (e.g. the profile's account settings) never take the active state from their page
+  if (href.includes("#")) return false;
   return href === "/dashboard" ? pathname === "/dashboard" : pathname.startsWith(href);
 }
 
@@ -104,7 +109,7 @@ function NavItem({
       </div>
       {!collapsed && <span>{link.label}</span>}
       {isActive && !collapsed && (
-        <div className="absolute end-0 top-1/2 -translate-y-1/2 h-6 w-1 bg-primary rounded-e-full" />
+        <div className="absolute start-0 top-1/2 -translate-y-1/2 h-6 w-1 bg-primary rounded-e-full" />
       )}
     </Link>
   );
@@ -137,7 +142,7 @@ export function DashboardSidebar() {
     .map((link) => (badges[link.href] ? { ...link, badge: badges[link.href] } : link));
   const filteredMainLinks = filterLinks(mainLinksWithBadge);
   // Same name for the balance as the home and payments pages
-  const creditsLabel = counts.flags.introRequests ? "رصيد التعارف" : "رصيد الاقتراحات";
+  const creditsLabel = counts.flags.introRequests ? "رصيدك" : "رصيد الاقتراحات";
   const filteredAccountLinks = filterLinks(
     accountLinks.map((link) => (link.href === "/dashboard/payments" ? { ...link, label: creditsLabel } : link))
   );
@@ -159,7 +164,7 @@ export function DashboardSidebar() {
       {/* Logo + user info */}
       <div className={cn("p-4 border-b border-border/40", collapsed && !mobile && "p-3")}>
         <div className="flex items-center justify-between mb-3">
-          <Link href="/dashboard" className="flex items-center gap-2">
+          <Link href="/dashboard" className="flex min-h-11 items-center gap-2">
             <Image
               src="/images/logo.svg"
               alt="نصيبك"
@@ -173,7 +178,7 @@ export function DashboardSidebar() {
               variant="ghost"
               size="icon"
               aria-label="إغلاق القائمة"
-              className="h-8 w-8 rounded-lg text-muted-foreground hover:text-foreground"
+              className="h-11 w-11 rounded-lg text-muted-foreground hover:text-foreground"
               onClick={() => setMobileOpen(false)}
             >
               <X className="h-5 w-5" />
@@ -183,7 +188,7 @@ export function DashboardSidebar() {
               variant="ghost"
               size="icon"
               aria-label={collapsed ? "توسيع القائمة" : "تصغير القائمة"}
-              className="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground"
+              className="h-9 w-9 rounded-lg text-muted-foreground hover:text-foreground"
               onClick={() => setCollapsed(!collapsed)}
             >
               {collapsed ? (
@@ -205,9 +210,6 @@ export function DashboardSidebar() {
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold text-foreground truncate">
                 {userData.firstName} {userData.lastName}
-              </p>
-              <p className="text-[11px] text-muted-foreground">
-                {isMale ? "ذكر" : "أنثى"}
               </p>
             </div>
           </div>
@@ -292,7 +294,7 @@ export function DashboardSidebar() {
       <div className="md:hidden fixed top-0 inset-x-0 z-50 bg-background border-b border-border/40 shadow-sm w-full">
         <div className="h-[2px] bg-gradient-to-l from-primary via-accent to-primary/50" />
         <div className="flex items-center justify-between px-4 h-14">
-          <Link href="/dashboard" className="flex items-center gap-2">
+          <Link href="/dashboard" className="flex min-h-11 items-center gap-2">
             <Image
               src="/images/logo.svg"
               alt="نصيبك"
@@ -308,16 +310,19 @@ export function DashboardSidebar() {
               <Link
                 href="/dashboard/payments"
                 aria-label={`رصيدك ${counts.credits}`}
-                className="me-1 inline-flex h-8 items-center gap-1 rounded-full border border-accent/40 bg-accent/10 px-2.5 text-xs font-bold text-foreground"
+                className="me-1 inline-flex h-11 items-center gap-1 rounded-full border border-accent/40 bg-accent/10 px-3 text-sm font-bold text-foreground"
               >
                 <Coins className="h-3.5 w-3.5 text-accent-foreground" />
                 {counts.credits}
               </Link>
             )}
-            <Link href="/dashboard/notifications" className="relative h-10 w-10 rounded-xl flex items-center justify-center hover:bg-muted/60 transition-colors">
-              <Bell className="h-5 w-5 text-muted-foreground" />
+            <Link
+              href="/dashboard/notifications"
+              aria-label={unreadCount > 0 ? `الإشعارات (${unreadCount} غير مقروءة)` : "الإشعارات"}
+              className="relative h-11 w-11 rounded-xl flex items-center justify-center hover:bg-muted/60 transition-colors">
+              <Bell className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
               {unreadCount > 0 && (
-                <span className="absolute top-1 start-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-bold text-white shadow-sm animate-in zoom-in duration-300">
+                <span aria-hidden="true" className="absolute top-1 start-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-bold text-white shadow-sm animate-in zoom-in duration-300">
                   {unreadCount > 99 ? "99+" : unreadCount}
                 </span>
               )}

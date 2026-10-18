@@ -65,10 +65,71 @@ describe("InterestDialog", () => {
 
     await waitFor(() => expect(confirm()).toBeEnabled());
     const body = JSON.parse((fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1].body as string);
-    expect(body).toMatchObject({ parentName: "محمد أحمد", relationship: "father", shareConsent: true });
+    // Contact only: the consent goes with the «مهتم» and is stored only if it goes through
+    expect(body).toMatchObject({ parentName: "محمد أحمد", relationship: "father" });
+    expect(body).not.toHaveProperty("shareConsent");
     fireEvent.click(confirm());
-    await waitFor(() => expect(onConfirm).toHaveBeenCalledWith({ introPreference: "FAMILY" }));
+    await waitFor(() => expect(onConfirm).toHaveBeenCalledWith({ introPreference: "FAMILY", guardianConsent: true }));
     vi.unstubAllGlobals();
+  });
+
+  it("guardian saved in the dialog, then cancelled: no consent was ever stored (contact kept)", async () => {
+    const fetchMock = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(async () => new Response(JSON.stringify({ parentInfo: { id: "g1" } }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const props: Props = {
+      open: true, onOpenChange: vi.fn(), partnerGender: "FEMALE", credits: 3, chatEnabled: true,
+      guardian: { exists: false, consented: false }, onConfirm: vi.fn(async () => {}),
+    };
+    const { rerender } = render(<InterestDialog {...props} />);
+    fireEvent.click(screen.getByRole("radio", { name: /تعارف عائلي مباشرة/ }));
+    fireEvent.change(screen.getByLabelText("اسم ولي الأمر"), { target: { value: "محمد أحمد" } });
+    fireEvent.change(screen.getByLabelText("رقم هاتف ولي الأمر"), { target: { value: "0791234567" } });
+    fireEvent.click(screen.getByRole("button", { name: "الأب" }));
+    fireEvent.change(screen.getByLabelText("العنوان"), { target: { value: "عمّان، الجبيهة" } });
+    fireEvent.click(screen.getByRole("button", { name: "حفظ بيانات وليّ الأمر" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: /تأكيد/ })).toBeEnabled());
+
+    const [, saveInit] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(JSON.parse(saveInit.body as string)).not.toHaveProperty("shareConsent");
+    rerender(<InterestDialog {...props} open={false} />);
+    await new Promise((r) => setTimeout(r, 20));
+    // Nothing to take back
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    vi.unstubAllGlobals();
+  });
+
+  it("guardian saved in the dialog and the family «مهتم» went through: the consent stays", async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ parentInfo: { id: "g1" } }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const onConfirm = vi.fn(async () => true);
+    const props: Props = {
+      open: true, onOpenChange: vi.fn(), partnerGender: "FEMALE", credits: 3, chatEnabled: true,
+      guardian: { exists: false, consented: false }, onConfirm,
+    };
+    const { rerender } = render(<InterestDialog {...props} />);
+    fireEvent.click(screen.getByRole("radio", { name: /تعارف عائلي مباشرة/ }));
+    fireEvent.change(screen.getByLabelText("اسم ولي الأمر"), { target: { value: "محمد أحمد" } });
+    fireEvent.change(screen.getByLabelText("رقم هاتف ولي الأمر"), { target: { value: "0791234567" } });
+    fireEvent.click(screen.getByRole("button", { name: "الأب" }));
+    fireEvent.change(screen.getByLabelText("العنوان"), { target: { value: "عمّان، الجبيهة" } });
+    fireEvent.click(screen.getByRole("button", { name: "حفظ بيانات وليّ الأمر" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: /تأكيد/ })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: /تأكيد/ }));
+    await waitFor(() => expect(onConfirm).toHaveBeenCalled());
+    rerender(<InterestDialog {...props} open={false} />);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    vi.unstubAllGlobals();
+  });
+
+  it("an error from the server is shown inside the dialog, which stays open", async () => {
+    const onOpenChange = vi.fn();
+    const { confirm } = setup({ onConfirm: vi.fn(async () => "أضف بيانات وليّ الأمر في ملفك الشخصي أولاً"), onOpenChange });
+    fireEvent.click(screen.getByRole("radio", { name: /محادثة هنا أولاً/ }));
+    fireEvent.click(confirm());
+    expect(await screen.findByRole("alert")).toHaveTextContent("أضف بيانات وليّ الأمر");
+    expect(onOpenChange).not.toHaveBeenCalled();
+    expect(confirm()).toBeEnabled();
   });
 
   it("FAMILY without a guardian: an invalid guardian is not saved", () => {

@@ -205,11 +205,7 @@ export default function AdminSuggestionsPage() {
   const [assignError, setAssignError] = useState("");
 
   // ── Browse data ──
-  useEffect(() => {
-    if (tab === "browse") fetchSuggestions();
-  }, [tab, browsePage, browseFilter]);
-
-  async function fetchSuggestions() {
+  const fetchSuggestions = useCallback(async () => {
     setBrowseLoading(true);
     try {
       const params = new URLSearchParams({ page: String(browsePage) });
@@ -224,7 +220,11 @@ export default function AdminSuggestionsPage() {
     } finally {
       setBrowseLoading(false);
     }
-  }
+  }, [browsePage, browseFilter]);
+
+  useEffect(() => {
+    if (tab === "browse") fetchSuggestions();
+  }, [tab, fetchSuggestions]);
 
   async function handleDeleteBrowse(id: string) {
     if (!confirm("Delete this suggestion?")) return;
@@ -996,6 +996,7 @@ function GenerateRules({ flags }: { flags: CycleFlags }) {
         ...(flags.mutualSuggestions
           ? [
               "Shared suggestions: one row shown to both people; each answers once. Both interested → mutual match. No one is told about a “no”.",
+              "A «لا» from either side closes the row at once as Rejected, even if the other side never answered — check each side's decision, Rejected doesn't mean both answered.",
               "Dealbreakers (شروطي الأساسية) are hard filters both ways — a missing value fails the dealbreaker.",
               "Shared suggestions expire after 7 days if not both answered (with credit on interest, a «مهتم» is refunded when the other side never answered).",
             ]

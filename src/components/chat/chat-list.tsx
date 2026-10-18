@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { MessageCircle, Loader2, Clock, Lock, Heart, ChevronLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -12,25 +12,41 @@ import { daysLabel, daysLeft } from "@/components/intro/intro-utils";
 import { listTimeLabel } from "./chat-utils";
 import { InstallAppCard } from "@/components/shared/install-app-card";
 import { useDashboardData } from "@/contexts/dashboard-context";
+import { LoadError } from "@/components/shared/load-error";
 
 export function ChatList() {
   const [chats, setChats] = useState<ChatSummary[] | null>(null);
-  const { counts } = useDashboardData();
+  // Only the first load can fail visibly; a failed refresh keeps the list already on screen
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
+  const loaded = useRef(false);
+  const { counts, profile } = useDashboardData();
+  const female = profile?.gender === "FEMALE";
 
   useEffect(() => {
     let alive = true;
     const load = () =>
       fetch("/api/chats")
-        .then((r) => (r.ok ? r.json() : { conversations: [] }))
-        .then((d) => alive && setChats(d.conversations ?? []))
-        .catch(() => alive && setChats([]));
+        .then((r) => {
+          if (!r.ok) throw new Error(`chats ${r.status}`);
+          return r.json();
+        })
+        .then((d) => {
+          if (!alive) return;
+          loaded.current = true;
+          setChats(d.conversations ?? []);
+          setLoadFailed(false);
+        })
+        .catch(() => {
+          if (alive && !loaded.current) setLoadFailed(true);
+        });
     load();
     const t = setInterval(load, 15000);
     return () => {
       alive = false;
       clearInterval(t);
     };
-  }, []);
+  }, [reloadKey]);
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 pb-8">
@@ -46,7 +62,15 @@ export function ChatList() {
         </div>
       </div>
 
-      {chats === null ? (
+      {chats === null && loadFailed ? (
+        <LoadError
+          message="تعذّر تحميل المحادثات. تحقّق من الاتصال وحاول مرة أخرى."
+          onRetry={() => {
+            setLoadFailed(false);
+            setReloadKey((k) => k + 1);
+          }}
+        />
+      ) : chats === null ? (
         <div className="flex justify-center py-16">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
@@ -61,7 +85,9 @@ export function ChatList() {
               <p className="mx-auto mt-1 max-w-xs text-sm text-muted-foreground">
                 {counts.flags.creditOnInterest
                   ? "تُفتح المحادثة تلقائياً عندما يختار كلاكما «محادثة هنا أولاً» عند «مهتم»، أو بطلب محادثة من صفحة التوافقات."
-                  : "أرسل طلب محادثة من صفحة التوافقات. تُفتح المحادثة عند قبول الطرف الآخر."}
+                  : female
+                    ? "أرسلي طلب محادثة من صفحة التوافقات. تُفتح المحادثة عند قبول الطرف الآخر."
+                    : "أرسل طلب محادثة من صفحة التوافقات. تُفتح المحادثة عند قبول الطرف الآخر."}
               </p>
             </div>
             <Button asChild variant="outline" className="gap-1.5">
@@ -103,7 +129,9 @@ export function ChatList() {
                         )}
                       </div>
                       <p className={cn("mt-0.5 truncate text-sm", c.unread > 0 ? "font-semibold text-foreground" : "text-muted-foreground")}>
-                        {c.lastMessage ? `${c.lastMessage.mine ? "أنت: " : ""}${c.lastMessage.body}` : "ابدأ المحادثة"}
+                        {c.lastMessage
+                          ? `${c.lastMessage.mine ? (female ? "أنتِ: " : "أنت: ") : ""}${c.lastMessage.body}`
+                          : female ? "ابدئي المحادثة" : "ابدأ المحادثة"}
                       </p>
                       <div className="mt-1.5">
                         {c.status === "ACTIVE" ? (

@@ -152,7 +152,7 @@ export async function GET() {
     for (const p of recentPayments) {
       recentActivity.push({
         type: "payment",
-        description: `${p.user.firstName} ${p.user.lastName} paid ${p.amount} JOD (${p.planName})`,
+        description: `${p.user ? `${p.user.firstName} ${p.user.lastName}` : "Deleted account"} paid ${p.amount} JOD (${p.planName})`,
         date: p.createdAt.toISOString(),
       });
     }

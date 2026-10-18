@@ -59,9 +59,11 @@ interface DashboardData {
   completeness: CompletenessResult | null;
   unreadCount: number;
   counts: CycleCounts;
+  /** True until both the profile and the first switch flags (/api/me/counts) have loaded,
+   *  so switch-dependent UI never flashes the legacy flow first */
   loading: boolean;
   refreshProfile: () => Promise<void>;
-  refreshUnread: () => Promise<void>;
+  refreshUnread: () => Promise<unknown>;
 }
 
 const DashboardContext = createContext<DashboardData>({
@@ -83,7 +85,9 @@ export function DashboardDataProvider({ children }: { children: ReactNode }) {
   const [completeness, setCompleteness] = useState<CompletenessResult | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
   const [counts, setCounts] = useState<CycleCounts>(EMPTY_COUNTS);
-  const [loading, setLoading] = useState(true);
+  const [profileLoading, setProfileLoading] = useState(true);
+  const [countsReady, setCountsReady] = useState(false);
+  const loading = profileLoading || !countsReady;
 
   const refreshProfile = useCallback(async () => {
     try {
@@ -94,11 +98,11 @@ export function DashboardDataProvider({ children }: { children: ReactNode }) {
     } catch {
       // Silently fail
     } finally {
-      setLoading(false);
+      setProfileLoading(false);
     }
   }, []);
 
-  const refreshUnread = useCallback(async () => {
+  const refreshUnread = useCallback(async (): Promise<boolean> => {
     try {
       const [res, countsRes] = await Promise.all([
         fetch("/api/notifications/unread-count"),
@@ -108,15 +112,26 @@ export function DashboardDataProvider({ children }: { children: ReactNode }) {
         const data = await res.json();
         setUnreadCount(data.count || 0);
       }
-      if (countsRes.ok) setCounts({ ...EMPTY_COUNTS, ...(await countsRes.json()) });
+      if (countsRes.ok) {
+        setCounts({ ...EMPTY_COUNTS, ...(await countsRes.json()) });
+        return true;
+      }
+      return false;
     } catch {
-      // Silently fail
+      return false;
     }
   }, []);
 
   useEffect(() => {
     refreshProfile();
-    refreshUnread();
+    // The first flags gate `loading`: retry once on a blip, then show the page anyway
+    let retry: ReturnType<typeof setTimeout> | undefined;
+    refreshUnread().then((ok) => {
+      if (ok) return setCountsReady(true);
+      retry = setTimeout(() => {
+        refreshUnread().finally(() => setCountsReady(true));
+      }, 2000);
+    });
 
     const interval = setInterval(refreshUnread, 30000);
 
@@ -127,6 +142,7 @@ export function DashboardDataProvider({ children }: { children: ReactNode }) {
 
     return () => {
       clearInterval(interval);
+      if (retry) clearTimeout(retry);
       window.removeEventListener("naseeb:notifications-read", handleNotificationsRead);
     };
   }, [refreshProfile, refreshUnread]);

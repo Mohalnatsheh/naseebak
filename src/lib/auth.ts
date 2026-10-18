@@ -116,9 +116,17 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   session: { strategy: "jwt" },
 });
 
-export async function requireAdmin() {
+export async function requireAdmin(): Promise<{ error: NextResponse } | { session: Session }> {
   const session = await auth();
   if (!session?.user?.id || session.user.role !== "ADMIN") {
+    return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
+  }
+  // The token's role can be stale: a removed/demoted (or deleted) admin loses access at once
+  const user = await db.user.findUnique({
+    where: { id: session.user.id },
+    select: { role: true, status: true },
+  });
+  if (!user || user.role !== "ADMIN" || user.status === "SUSPENDED") {
     return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
   }
   return { session };
@@ -146,10 +154,14 @@ export async function requireUser(
     where: { id: session.user.id },
     select: { status: true, isDeactivated: true },
   });
-  if (user?.status === "SUSPENDED") {
+  // Deleted account: its token may still be valid, but there is no one to act for
+  if (!user) {
+    return { error: NextResponse.json({ error: "غير مصرح" }, { status: 401 }) };
+  }
+  if (user.status === "SUSPENDED") {
     return { error: NextResponse.json({ error: "تم إيقاف حسابك" }, { status: 403 }) };
   }
-  if (user?.isDeactivated && !options.allowDeactivated) {
+  if (user.isDeactivated && !options.allowDeactivated) {
     return {
       error: NextResponse.json({ error: DEACTIVATED_ERROR, code: "DEACTIVATED" }, { status: 403 }),
     };

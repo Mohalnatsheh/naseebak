@@ -7,6 +7,7 @@ import { BellOff, BellRing, Smartphone, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { requestPushPermission } from "@/lib/push-client";
 import { currentDevice, pushPermission, type PushPermission } from "@/lib/install-env";
+import { useDashboardData } from "@/contexts/dashboard-context";
 
 const HIDDEN_KEY = "naseeb:notification-bar-hidden";
 
@@ -18,6 +19,7 @@ const HIDDEN_KEY = "naseeb:notification-bar-hidden";
  * «لاحقاً» hides it until the browser is closed. Not shown in a chat room (full screen) or on the guide.
  */
 export function NotificationBar() {
+  const female = useDashboardData().profile?.gender === "FEMALE";
   const pathname = usePathname();
   const [permission, setPermission] = useState<PushPermission | null>(null);
   const [hidden, setHidden] = useState(true);
@@ -63,9 +65,15 @@ export function NotificationBar() {
       ? "الإشعارات محظورة على هذا الجهاز، فلن تصلك الاقتراحات والرسائل فور وصولها."
       : needsInstall
         ? device.inApp
-          ? "لتصلك الإشعارات افتح نصيبك في المتصفح ثم ثبّته على جهازك."
-          : "لتصلك الإشعارات على هذا الجهاز ثبّت نصيبك على الشاشة الرئيسية."
-        : "فعّل الإشعارات لتصلك الاقتراحات وطلبات التعارف والرسائل فور وصولها.";
+          ? female
+            ? "لتصلكِ الإشعارات افتحي نصيبك في المتصفح ثم ثبّتيه على جهازكِ."
+            : "لتصلك الإشعارات افتح نصيبك في المتصفح ثم ثبّته على جهازك."
+          : female
+            ? "لتصلكِ الإشعارات على هذا الجهاز ثبّتي نصيبك على الشاشة الرئيسية."
+            : "لتصلك الإشعارات على هذا الجهاز ثبّت نصيبك على الشاشة الرئيسية."
+        : female
+          ? "فعّلي الإشعارات لتصلكِ الاقتراحات وطلبات التعارف والرسائل فور وصولها."
+          : "فعّل الإشعارات لتصلك الاقتراحات وطلبات التعارف والرسائل فور وصولها.";
 
   return (
     <div
@@ -76,11 +84,11 @@ export function NotificationBar() {
       <Icon className="h-5 w-5 flex-shrink-0 text-accent-foreground" aria-hidden="true" />
       <p className="min-w-0 flex-1 leading-relaxed text-foreground/90">{text}</p>
       {permission === "default" ? (
-        <Button size="sm" onClick={enable} disabled={busy} className="flex-shrink-0">
+        <Button onClick={enable} disabled={busy} className="h-11 flex-shrink-0">
           تفعيل
         </Button>
       ) : (
-        <Button asChild size="sm" variant="outline" className="flex-shrink-0">
+        <Button asChild variant="outline" className="h-11 flex-shrink-0">
           <Link href="/dashboard/install">{needsInstall ? "طريقة التثبيت" : "طريقة التفعيل"}</Link>
         </Button>
       )}
@@ -88,9 +96,9 @@ export function NotificationBar() {
         type="button"
         onClick={hide}
         aria-label="لاحقاً"
-        className="flex-shrink-0 rounded-lg p-1 text-muted-foreground hover:bg-muted"
+        className="-me-1 flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted"
       >
-        <X className="h-4 w-4" />
+        <X className="h-4 w-4" aria-hidden="true" />
       </button>
     </div>
   );

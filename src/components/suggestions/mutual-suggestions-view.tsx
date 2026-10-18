@@ -13,6 +13,15 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { PersonCard } from "@/components/shared/person-card";
+import { LoadError } from "@/components/shared/load-error";
+import { ConfirmActionDialog } from "@/components/intro/confirm-action-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { blockConfirmText, reportBlockText } from "@/lib/gendered-copy";
 import { CandidateDetails } from "@/components/suggestions/candidate-details";
 import { DealbreakersCard } from "@/components/suggestions/dealbreakers-card";
 import { InterestDialog, rechargeToContinue, type IntroPreferenceChoice } from "@/components/suggestions/interest-dialog";
@@ -31,6 +40,13 @@ type Notice =
   | { kind: "error"; message: string };
 
 type IntroChoice = { introPreference: IntroPreferenceChoice; guardianConsent?: boolean };
+
+/** Errors answered inside the «مهتم» dialog (the member fixes them there); anything else closes it */
+const DIALOG_ERRORS = new Set(["GUARDIAN_REQUIRED", "CONSENT_REQUIRED", "PREFERENCE_REQUIRED", "DISABLED", "NO_CREDITS"]);
+const DECIDE_FAILED = "تعذّر حفظ قرارك، حاول مرة أخرى";
+
+/** What a decision came to: saved, or not (with an error to show in the dialog when it is one of those) */
+type DecideResult = { ok: true } | { ok: false; dialogError?: string };
 
 /** How long «لا» can be undone before it is sent */
 const DECLINE_UNDO_MS = 5000;
@@ -99,7 +115,9 @@ export function MutualSuggestionsView({
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [menuOpen, setMenuOpen] = useState<string | null>(null);
+  const [blockFor, setBlockFor] = useState<OpenFeedItem | null>(null);
+  const [blocking, setBlocking] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [report, setReport] = useState<{ userId: string; name: string } | null>(null);
   const [reportReason, setReportReason] = useState("FAKE_PROFILE");
@@ -110,16 +128,21 @@ export function MutualSuggestionsView({
 
   const load = useCallback(async (t: FeedTab, p: number) => {
     setLoading(true);
+    setLoadFailed(false);
     try {
       const [cur, other] = await Promise.all([
-        fetch(`/api/suggestions/feed?tab=${t}&page=${p}`).then((r) => r.json()),
-        fetch(`/api/suggestions/feed?tab=${t === "new" ? "waiting" : "new"}&page=1`).then((r) => r.json()),
+        fetch(`/api/suggestions/feed?tab=${t}&page=${p}`).then((r) => {
+          if (!r.ok) throw new Error(`feed ${r.status}`);
+          return r.json();
+        }),
+        fetch(`/api/suggestions/feed?tab=${t === "new" ? "waiting" : "new"}&page=1`).then((r) => (r.ok ? r.json() : { total: 0 }) as Promise<{ total?: number }>),
       ]);
       setItems(((cur.items ?? []) as FeedItem[]).filter((i) => !pendingDeclines.current.has(i.id)));
       setTotalPages(Math.max(1, cur.totalPages ?? 1));
       setTotals(t === "new" ? { new: cur.total ?? 0, waiting: other.total ?? 0 } : { new: other.total ?? 0, waiting: cur.total ?? 0 });
     } catch {
-      setNotice({ kind: "error", message: "تعذّر تحميل الاقتراحات. حاول مرة أخرى." });
+      // Shown in place of the list (with a retry), never as an empty state
+      setLoadFailed(true);
     } finally {
       setLoading(false);
     }
@@ -205,7 +228,12 @@ export function MutualSuggestionsView({
     else void decide(item, true);
   }
 
-  async function decide(item: OpenFeedItem, interested: boolean, choice?: IntroChoice) {
+  /**
+   * `fromDialog`: the «مهتم» dialog stays open until this answers, and the errors the member can fix
+   * there (guardian, consent, choice, credits, a network failure) come back as `dialogError` instead
+   * of a notice at the top of the page.
+   */
+  async function decide(item: OpenFeedItem, interested: boolean, choice?: IntroChoice, fromDialog = false): Promise<DecideResult> {
     setActing(item.id);
     setNotice(null);
     try {
@@ -216,6 +244,10 @@ export function MutualSuggestionsView({
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
+        if (fromDialog && (DIALOG_ERRORS.has(data.code) || res.status >= 500)) {
+          if (data.code === "NO_CREDITS") setBalance(0);
+          return { ok: false, dialogError: data.error || DECIDE_FAILED };
+        }
         if (data.code === "NO_CREDITS") {
           // Same message as the disabled "مهتم"; reloading shows the 0-credit banner and "liked you" tags
           setBalance(0);
@@ -225,7 +257,7 @@ export function MutualSuggestionsView({
         }
         // The card may be gone (expired / blocked): refresh the list
         load(tab, page);
-        return;
+        return { ok: false };
       }
       if (creditOnInterest && interested) {
         const left = typeof data.creditsLeft === "number" ? data.creditsLeft : Math.max(0, balance - 1);
@@ -241,8 +273,11 @@ export function MutualSuggestionsView({
       const waitsNow = interested && !data.match;
       setTotals((t) => ({ new: Math.max(0, t.new - 1), waiting: t.waiting + (waitsNow ? 1 : 0) }));
       setNotice(data.match ? { kind: "match", matchId: data.matchId } : interested ? { kind: "interested" } : { kind: "declined" });
+      return { ok: true };
     } catch {
+      if (fromDialog) return { ok: false, dialogError: DECIDE_FAILED };
       setNotice({ kind: "error", message: "تعذّر حفظ قرارك" });
+      return { ok: false };
     } finally {
       setActing(null);
     }
@@ -259,8 +294,7 @@ export function MutualSuggestionsView({
   }
 
   async function block(item: OpenFeedItem) {
-    setMenuOpen(null);
-    if (!window.confirm(`حظر ${item.candidate.firstName}؟ لن يظهر لك ولن تظهر له مرة أخرى.`)) return;
+    setBlocking(true);
     const res = await fetch("/api/blocks", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -270,9 +304,11 @@ export function MutualSuggestionsView({
       removeAndRefill(item.id);
       setTotals((t) => ({ ...t, [tab]: Math.max(0, t[tab] - 1) }));
       toast.success("تم الحظر");
+      setBlockFor(null);
     } else {
       toast.error("تعذّر الحظر، حاول مرة أخرى");
     }
+    setBlocking(false);
   }
 
   /** Report always comes with a block, as on the matches page: the card leaves the list */
@@ -424,6 +460,8 @@ export function MutualSuggestionsView({
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
           <p className="text-sm text-muted-foreground">جاري التحميل...</p>
         </div>
+      ) : loadFailed && items.length === 0 ? (
+        <LoadError message="تعذّر تحميل الاقتراحات. تحقّق من الاتصال وحاول مرة أخرى." onRetry={() => load(tab, page)} />
       ) : items.length === 0 ? (
         <Card className="border-dashed border-2 border-muted-foreground/20 bg-gradient-to-b from-card to-muted/30">
           <CardContent className="text-center py-14 space-y-4">
@@ -438,7 +476,9 @@ export function MutualSuggestionsView({
                   : emptyReason === "weekly_cap" && nextSuggestionsAt
                     ? `اقتراحاتك القادمة يوم ${formatNextDate(nextSuggestionsAt)}`
                     : emptyReason === "pending"
-                      ? "لديك اقتراحات بانتظار قرارك"
+                      ? totals.waiting > 0
+                        ? "اقتراحاتك المفتوحة بانتظار الطرف الآخر"
+                        : "لديك اقتراحات بانتظار قرارك"
                       : "نبحث لك عن اقتراحات مناسبة"}
             </h3>
             <p className="text-sm text-muted-foreground max-w-xs mx-auto leading-relaxed">
@@ -452,14 +492,23 @@ export function MutualSuggestionsView({
                   : emptyReason === "weekly_cap"
                     ? "تصلك حتى 3 اقتراحات مجانية كل 7 أيام، وسنرسل لك إشعاراً فور وصولها."
                     : emptyReason === "pending"
-                      ? g(
-                          "عندما تقرّر في اقتراحاتك الحالية أو تنتهي مدتها، تصلك اقتراحات جديدة وسنرسل لك إشعاراً فور وصولها.",
-                          "عندما تقرّرين في اقتراحاتك الحالية أو تنتهي مدتها، تصلك اقتراحات جديدة وسنرسل لك إشعاراً فور وصولها."
-                        )
+                      ? totals.waiting > 0
+                        ? "تصلك اقتراحات جديدة عندما يردّ الطرف الآخر على اقتراحاتك المفتوحة أو تنتهي مدتها، وسنرسل لك إشعاراً فور وصولها."
+                        : g(
+                            "عندما تقرّر في اقتراحاتك الحالية أو تنتهي مدتها، تصلك اقتراحات جديدة وسنرسل لك إشعاراً فور وصولها.",
+                            "عندما تقرّرين في اقتراحاتك الحالية أو تنتهي مدتها، تصلك اقتراحات جديدة وسنرسل لك إشعاراً فور وصولها."
+                          )
                       : creditOnInterest
-                        ? "تصلك اقتراحات مجانية باستمرار، حتى 5 في الوقت نفسه، وسنرسل لك إشعاراً فور وصولها. إكمال ملفك واختبار الشخصية يجعلها أدق."
+                        ? "تصلك اقتراحات مجانية جديدة كلما توفّر من يناسبك، وسنرسل لك إشعاراً فور وصولها. إكمال ملفك واختبار الشخصية يجعلها أدق."
                         : "تصلك حتى 3 اقتراحات مجانية كل أسبوع، وسنرسل لك إشعاراً فور وصولها. إكمال ملفك واختبار الشخصية يجعلها أدق."}
             </p>
+            {tab === "new" && emptyReason === "pending" && totals.waiting > 0 && (
+              <div className="flex justify-center pt-1">
+                <Button type="button" variant="outline" className="h-11 rounded-xl" onClick={() => { setTab("waiting"); setPage(1); }}>
+                  عرض ما ينتظر الرد ({totals.waiting})
+                </Button>
+              </div>
+            )}
             {tab === "new" && emptyReason === "no_candidates" && (
               <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
                 <Button asChild size="sm" className="rounded-lg">
@@ -582,32 +631,22 @@ export function MutualSuggestionsView({
                             </Button>
                           </>
                         )}
-                        <div className={`relative ${waiting ? "ms-auto" : ""}`}>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            aria-label="خيارات إضافية"
-                            className="h-12 w-12 rounded-xl"
-                            onClick={() => setMenuOpen(menuOpen === item.id ? null : item.id)}
-                          >
-                            <MoreVertical className="h-5 w-5" />
-                          </Button>
-                          {menuOpen === item.id && (
-                            <div className="absolute bottom-full mb-1 end-0 bg-card border rounded-xl shadow-lg py-1 z-50 w-40">
-                              <button
-                                className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted/50 text-amber-700"
-                                onClick={() => { setReport({ userId: c.id, name: c.firstName }); setMenuOpen(null); }}
-                              >
+                        <div className={waiting ? "ms-auto" : ""}>
+                          <DropdownMenu dir="rtl">
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" aria-label={`خيارات إضافية: ${c.firstName}`} className="h-12 w-12 rounded-xl">
+                                <MoreVertical className="h-5 w-5" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-44">
+                              <DropdownMenuItem className="min-h-11 gap-2 text-amber-700" onSelect={() => setReport({ userId: c.id, name: c.firstName })}>
                                 <ShieldAlert className="h-4 w-4" /> إبلاغ وحظر
-                              </button>
-                              <button
-                                className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted/50 text-destructive"
-                                onClick={() => block(item)}
-                              >
+                              </DropdownMenuItem>
+                              <DropdownMenuItem className="min-h-11 gap-2 text-destructive" onSelect={() => setBlockFor(item)}>
                                 <Ban className="h-4 w-4" /> حظر
-                              </button>
-                            </div>
-                          )}
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
                       </div>
                     </>
@@ -628,11 +667,11 @@ export function MutualSuggestionsView({
 
           {totalPages > 1 && (
             <div className="flex items-center justify-center gap-4 mt-8">
-              <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>
+              <Button variant="outline" className="h-11" disabled={page <= 1} onClick={() => { setPage(page - 1); window.scrollTo({ top: 0, behavior: "smooth" }); }}>
                 <ChevronRight className="h-4 w-4 me-1" /> السابق
               </Button>
               <span className="text-sm text-muted-foreground">صفحة {page} من {totalPages}</span>
-              <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>
+              <Button variant="outline" className="h-11" disabled={page >= totalPages} onClick={() => { setPage(page + 1); window.scrollTo({ top: 0, behavior: "smooth" }); }}>
                 التالي <ChevronLeft className="h-4 w-4 ms-1" />
               </Button>
             </div>
@@ -651,19 +690,33 @@ export function MutualSuggestionsView({
           costOnly={!!interestFor && interestFor.kind !== "mutual"}
           onConfirm={async (choice) => {
             const item = interestFor;
-            if (!item) return;
+            if (!item) return false;
+            // The dialog stays open (busy) until the server answers; fixable errors are shown in it
+            const result = await decide(item, true, choice, true);
+            if (!result.ok && result.dialogError) return result.dialogError;
             setInterestFor(null);
-            await decide(item, true, choice);
+            return result.ok;
           }}
         />
       )}
+
+      <ConfirmActionDialog
+        open={!!blockFor}
+        onOpenChange={(o) => !o && !blocking && setBlockFor(null)}
+        title={`حظر ${blockFor?.candidate.firstName ?? ""}؟`}
+        description={blockConfirmText(viewerGender)}
+        confirmLabel="حظر"
+        destructive
+        busy={blocking}
+        onConfirm={() => blockFor && block(blockFor)}
+      />
 
       <Dialog open={!!report} onOpenChange={(o) => !o && setReport(null)}>
         <DialogContent dir="rtl">
           <DialogHeader>
             <DialogTitle>إبلاغ وحظر {report?.name}</DialogTitle>
             <DialogDescription className="text-start">
-              يراجع فريق نصيبك البلاغ، ويُحظر الطرف الآخر فلا يظهر لك ولا تظهر له مرة أخرى.
+              {reportBlockText(viewerGender)}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">

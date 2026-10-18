@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { createTicketSchema } from "@/lib/validations/support";
 import { parsePagination } from "@/lib/utils";
+import { sendAdminAlert } from "@/lib/admin-alert";
 
 export async function POST(request: Request) {
   try {
@@ -42,6 +43,18 @@ export async function POST(request: Request) {
         description: parsed.data.description,
       },
     });
+
+    // Best-effort admin email; never blocks or fails the request (sendAdminAlert never throws)
+    void sendAdminAlert(
+      "تذكرة دعم جديدة",
+      [
+        `العضو: ${session.user.name ?? ""} (${session.user.id})`,
+        `النوع: ${parsed.data.type}`,
+        `العنوان: ${parsed.data.subject}`,
+        `التفاصيل: ${parsed.data.description}`,
+        `Admin → Support (ticket ${ticket.id})`,
+      ].join("\n")
+    );
 
     return NextResponse.json({ ticket }, { status: 201 });
   } catch (error) {

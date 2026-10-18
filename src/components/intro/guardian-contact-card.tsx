@@ -38,13 +38,13 @@ export function GuardianContactCard({ contact, partnerName }: { contact?: Guardi
         </div>
 
         <div className="flex gap-2">
-          <Button asChild size="sm" className="flex-1 sm:flex-none gap-1.5">
+          <Button asChild className="h-11 flex-1 sm:flex-none gap-1.5">
             <a href={`tel:${phone.tel}`}>
               <Phone className="h-4 w-4" />
               اتصال
             </a>
           </Button>
-          <Button asChild size="sm" variant="outline" className="flex-1 sm:flex-none gap-1.5 border-emerald-300/70 text-emerald-800 hover:bg-emerald-50 dark:text-emerald-300">
+          <Button asChild variant="outline" className="h-11 flex-1 sm:flex-none gap-1.5 border-emerald-300/70 text-emerald-800 hover:bg-emerald-50 dark:text-emerald-300">
             <a href={`https://wa.me/${phone.wa}`} target="_blank" rel="noopener noreferrer">
               <MessageCircle className="h-4 w-4" />
               واتساب

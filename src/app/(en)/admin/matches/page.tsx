@@ -30,18 +30,19 @@ interface MatchRow {
 /** Mutual matches and where each one stands (family / chat requests, chat, legacy visit). */
 export default function AdminMatchesPage() {
   const [rows, setRows] = useState<MatchRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
   const [page, setPage] = useState(1);
   const [pages, setPages] = useState(1);
   const [total, setTotal] = useState(0);
   const [query, setQuery] = useState("");
   const [search, setSearch] = useState("");
+  // The list is loading until the request for the current page + search has settled
+  const requestKey = `${page}\n${search}`;
+  const [settled, setSettled] = useState<{ key: string; error: string } | null>(null);
+  const loading = settled?.key !== requestKey;
+  const error = settled?.key === requestKey ? settled.error : "";
 
   useEffect(() => {
     let alive = true;
-    setLoading(true);
-    setError("");
     const params = new URLSearchParams({ page: String(page) });
     if (search) params.set("q", search);
     fetch(`/api/admin/matches?${params}`)
@@ -54,13 +55,13 @@ export default function AdminMatchesPage() {
         setRows(d.matches ?? []);
         setPages(d.totalPages ?? 1);
         setTotal(d.total ?? 0);
+        setSettled({ key: requestKey, error: "" });
       })
-      .catch(() => alive && setError("Could not load matches."))
-      .finally(() => alive && setLoading(false));
+      .catch(() => alive && setSettled({ key: requestKey, error: "Could not load matches." }));
     return () => {
       alive = false;
     };
-  }, [page, search]);
+  }, [page, search, requestKey]);
 
   const sender = (m: MatchRow, r: RequestState) => m.people.find((p) => p.id === r.senderId)?.firstName ?? "";
 

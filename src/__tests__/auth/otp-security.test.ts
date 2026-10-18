@@ -7,6 +7,11 @@ const db = vi.hoisted(() => ({
 const captured = vi.hoisted(() => ({ config: null as null | { providers: { id: string; authorize: (c: unknown) => unknown }[] } }));
 
 vi.mock("@/lib/db", () => ({ db }));
+// The Postgres limiter behaves like the in-memory one (its own SQL is tested in lib/rate-limit.test.ts)
+vi.mock("@/lib/rate-limit-db", async () => {
+  const { rateLimit } = await import("@/lib/rate-limit");
+  return { rateLimitDb: async (key: string, opts: { maxAttempts?: number; windowMs?: number }) => rateLimit(key, opts) };
+});
 vi.mock("next-auth/providers/credentials", () => ({ default: (cfg: unknown) => cfg }));
 vi.mock("next-auth", () => ({
   default: (config: NonNullable<typeof captured.config>) => {

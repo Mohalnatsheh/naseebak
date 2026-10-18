@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { BellRing, Smartphone, Zap } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -13,14 +13,19 @@ type Tab = "mine" | "ios" | "android";
 const IPHONE = detectDevice("Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) Version/18.0 Mobile Safari/604.1");
 const ANDROID = detectDevice("Mozilla/5.0 (Linux; Android 14) Chrome/130.0 Mobile Safari/537.36");
 
+/** Read the browser once (it does not change in a tab; the server has none); refreshed after an install. */
+let cachedDevice: Device | null = null;
+const getDevice = () => (cachedDevice ??= currentDevice());
+const getServerDevice = () => null;
+const subscribeNoop = () => () => {};
+
 /** Install Naseebak on the phone and turn on notifications: steps for this device, plus iPhone / Android. */
 export default function InstallGuidePage() {
-  const [device, setDevice] = useState<Device | null>(null);
+  const detected = useSyncExternalStore(subscribeNoop, getDevice, getServerDevice);
+  // Set after the install prompt finishes (standalone / browser may have changed)
+  const [refreshed, setRefreshed] = useState<Device | null>(null);
+  const device = refreshed ?? detected;
   const [tab, setTab] = useState<Tab>("mine");
-
-  useEffect(() => {
-    setDevice(currentDevice());
-  }, []);
 
   if (!device) return null;
 
@@ -53,7 +58,7 @@ export default function InstallGuidePage() {
         <CardContent className="space-y-4 p-5 sm:p-6">
           <div className="flex items-center gap-2">
             <Zap className="h-5 w-5 text-primary" />
-            <h2 className="font-bold">١. التثبيت على الهاتف</h2>
+            <h2 className="font-bold">1. التثبيت على الهاتف</h2>
           </div>
           <div role="tablist" aria-label="نوع الجهاز" className="flex gap-2">
             {tabs.map(([t, label]) => (
@@ -64,7 +69,7 @@ export default function InstallGuidePage() {
                 aria-selected={tab === t}
                 onClick={() => setTab(t)}
                 className={cn(
-                  "rounded-full border px-3 py-1 text-sm transition-colors",
+                  "min-h-11 rounded-full border px-4 py-2 text-sm transition-colors",
                   tab === t ? "border-primary bg-primary text-primary-foreground" : "border-border hover:bg-muted"
                 )}
               >
@@ -72,7 +77,10 @@ export default function InstallGuidePage() {
               </button>
             ))}
           </div>
-          <InstallSteps device={shown} onInstalled={() => setDevice(currentDevice())} />
+          <InstallSteps device={shown} onInstalled={() => {
+              cachedDevice = currentDevice();
+              setRefreshed(cachedDevice);
+            }} />
         </CardContent>
       </Card>
 
@@ -80,7 +88,7 @@ export default function InstallGuidePage() {
         <CardContent className="space-y-4 p-5 sm:p-6">
           <div className="flex items-center gap-2">
             <BellRing className="h-5 w-5 text-primary" />
-            <h2 className="font-bold">٢. تفعيل الإشعارات على هذا الجهاز</h2>
+            <h2 className="font-bold">2. تفعيل الإشعارات على هذا الجهاز</h2>
           </div>
           <NotificationHelp device={device} />
           {device.os === "ios" && !device.standalone && (

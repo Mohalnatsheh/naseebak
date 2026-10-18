@@ -1,6 +1,6 @@
 /**
  * Account deletions whose 30-day grace period is over: remove Bunny files, then the user's data.
- * Shared by GET /api/cron/process-deletions (legacy ?token= route) and the daily scheduler.
+ * Run by the daily scheduler (src/lib/cron/daily.ts).
  */
 import { db } from "@/lib/db";
 import { deleteFromBunny, getBunnyPathFromUrl } from "@/lib/bunny";
@@ -13,6 +13,8 @@ export async function processAccountDeletions(): Promise<number> {
     where: {
       scheduledAt: { lte: new Date() },
       cancelledAt: null,
+      // Only accounts still paused: a resumed account (deletion cancelled or not) is never deleted
+      user: { isDeactivated: true },
     },
     select: { id: true, userId: true },
   });
@@ -21,6 +23,13 @@ export async function processAccountDeletions(): Promise<number> {
 
   for (const req of expiredRequests) {
     try {
+      // Re-check right before deleting: the member may have resumed since the list was read
+      const fresh = await db.accountDeletionRequest.findUnique({
+        where: { id: req.id },
+        select: { cancelledAt: true, scheduledAt: true, user: { select: { isDeactivated: true } } },
+      });
+      if (!fresh || fresh.cancelledAt || fresh.scheduledAt > new Date() || !fresh.user?.isDeactivated) continue;
+
       // Clean up Bunny CDN files before DB deletion
       try {
         const [photos, identityDoc, profile] = await Promise.all([

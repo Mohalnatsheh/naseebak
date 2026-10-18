@@ -24,7 +24,14 @@ describe("closeSuggestionsBreakingDealbreakers", () => {
     score.mutuallyAcceptable.mockImplementation((_me: unknown, other: { id: string }) => other.id !== "a");
     expect(await closeSuggestionsBreakingDealbreakers("u1")).toBe(1);
     expect(db.suggestion.updateMany).toHaveBeenCalledWith({
-      where: { id: { in: ["s1"] }, status: "PENDING" },
+      where: {
+        id: { in: ["s1"] },
+        status: "PENDING",
+        OR: [
+          { recipientId: "u1", recipientDecision: null },
+          { candidateId: "u1", candidateDecision: null },
+        ],
+      },
       data: { status: "EXPIRED", expiresAt: expect.any(Date) },
     });
     expect(refunds.refundUnansweredInterests).toHaveBeenCalledWith(expect.objectContaining({ userId: "u1" }));

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { CreditCard, Loader2, ChevronLeft, ChevronRight, DollarSign, TrendingUp, CheckCircle2, RotateCcw } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,7 +15,9 @@ interface PaymentRow {
   provider: string;
   status: string;
   createdAt: string;
-  user: { id: string; firstName: string; lastName: string; phone: string | null };
+  /** null when the account was deleted (payment records are kept) */
+  user: { id: string; firstName: string; lastName: string; phone: string | null } | null;
+  disputedAt?: string | null;
 }
 
 interface Summary {
@@ -40,7 +42,7 @@ export default function AdminPaymentsPage() {
   const [loading, setLoading] = useState(true);
   const [refundingId, setRefundingId] = useState<string | null>(null);
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams({ page: String(page) });
@@ -55,7 +57,11 @@ export default function AdminPaymentsPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [page, filter]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   async function handleRefund(paymentId: string) {
     if (!confirm("Are you sure you want to refund this payment? Credits will be deducted from the user.")) return;
@@ -74,9 +80,6 @@ export default function AdminPaymentsPage() {
     }
   }
 
-  useEffect(() => {
-    load();
-  }, [page, filter]);
 
   return (
     <div className="space-y-6">
@@ -182,8 +185,14 @@ export default function AdminPaymentsPage() {
                   payments.map((payment) => (
                     <tr key={payment.id} className="border-b hover:bg-muted/30 transition-colors">
                       <td className="p-3">
-                        <p className="font-medium text-sm">{payment.user.firstName} {payment.user.lastName}</p>
-                        <p className="text-xs text-muted-foreground">{payment.user.phone || "—"}</p>
+                        {payment.user ? (
+                          <>
+                            <p className="font-medium text-sm">{payment.user.firstName} {payment.user.lastName}</p>
+                            <p className="text-xs text-muted-foreground">{payment.user.phone || "—"}</p>
+                          </>
+                        ) : (
+                          <p className="text-sm text-muted-foreground italic">Deleted account</p>
+                        )}
                       </td>
                       <td className="p-3 text-sm">{payment.planName || "—"}</td>
                       <td className="p-3 text-sm font-medium whitespace-nowrap">{Number(payment.amount).toFixed(2)} {payment.currency}</td>
@@ -191,6 +200,9 @@ export default function AdminPaymentsPage() {
                         <Badge className={statusStyles[payment.status] || ""}>
                           {enumLabel("paymentStatus", payment.status)}
                         </Badge>
+                        {payment.disputedAt && (
+                          <Badge variant="destructive" className="ms-1">Disputed</Badge>
+                        )}
                       </td>
                       <td className="p-3 text-sm">{enumLabel("paymentProvider", payment.provider)}</td>
                       <td className="p-3 text-sm text-muted-foreground whitespace-nowrap">

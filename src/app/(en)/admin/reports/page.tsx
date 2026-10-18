@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { Flag, Loader2, ChevronLeft, ChevronRight, Eye, MessagesSquare } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -84,7 +84,7 @@ export default function AdminReportsPage() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams({ page: String(page) });
@@ -100,11 +100,12 @@ export default function AdminReportsPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [page, filter]);
 
   useEffect(() => {
     load();
-  }, [page, filter]);
+  }, [load]);
+
 
   function closeReview() {
     setReviewingId(null);

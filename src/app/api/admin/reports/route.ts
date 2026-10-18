@@ -5,6 +5,7 @@ import { parsePagination } from "@/lib/utils";
 import type { Prisma } from "@prisma/client";
 import { effectiveConversationStatus } from "@/lib/admin/cycle-stats";
 import { adminEndConversation, setSuspended } from "@/lib/admin/moderation";
+import { endPausedChat, refreshReportFlag } from "@/lib/reports";
 
 /**
  * Attach chat metadata to reports: the chat the report was sent from (Report.conversationId), or —
@@ -148,7 +149,10 @@ export async function PATCH(request: Request) {
     const actions: string[] = [];
     if (endChat) {
       const [chat] = await withChats([existing]);
-      if (chat.chat && (await adminEndConversation(chat.chat.id, adminId))) actions.push("chat ended");
+      // A chat paused for the review is ended for good (it won't resume when the reports are cleared)
+      if (chat.chat && ((await endPausedChat(chat.chat.id, adminId)) || (await adminEndConversation(chat.chat.id, adminId)))) {
+        actions.push("chat ended");
+      }
     }
     if (suspendReported && existing.reportedId) {
       const res = await setSuspended(existing.reportedId, true, adminId);
@@ -164,6 +168,12 @@ export async function PATCH(request: Request) {
         reviewedById: adminId,
       },
     });
+
+    // Dismissals can clear an automatic flag; once fewer than 3 reports wait, paused chats resume
+    if (existing.reportedId) {
+      const after = await refreshReportFlag(existing.reportedId);
+      if (after.resumed > 0) actions.push(`${after.resumed} paused chat(s) resumed`);
+    }
 
     return NextResponse.json({ message: "Report updated", report, actions });
   } catch (error) {

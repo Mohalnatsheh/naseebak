@@ -34,6 +34,8 @@ services:
       NEXT_PUBLIC_APP_URL: http://localhost:3001
       ENABLE_SWITCHES: intro_requests_enabled,chat_enabled,new_suggestions_flow
       RUN_NEW_CYCLE_MIGRATION: "true"
+      # Production build: keep the seeded test phones (fixed code 111111) working locally
+      ALLOW_BUILTIN_TEST_PHONES: "true"
       # Local-only secret for the daily scheduler (production sets its own in .env)
       CRON_SECRET: local-cron-secret
     ports:

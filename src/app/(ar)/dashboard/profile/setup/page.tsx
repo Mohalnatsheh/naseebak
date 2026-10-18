@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, ArrowLeft, ArrowRight, CheckCircle2, Save, AlertCircle } from "lucide-react";
 import { useAutoSave } from "@/hooks/use-auto-save";
@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { jordanAreas, jordanCities } from "@/lib/data/jordan-areas";
 import { trackEvent } from "@/lib/analytics";
-import { useDashboardData } from "@/contexts/dashboard-context";
+import { useDashboardData, type CycleCounts } from "@/contexts/dashboard-context";
 import { Field, ChoiceGroup, DealbreakerToggle } from "@/components/profile/form-fields";
 import { OPTION_VALUES, ownOptions, partnerOptions, type Opt } from "@/lib/profile-options";
 import { activeDealbreakers } from "@/lib/matching/dealbreaker-summary";
@@ -37,6 +37,7 @@ const guardianRelationships: Opt[] = [
   { value: "brother", label: "الأخ" },
   { value: "guardian", label: "ولي الأمر" },
 ];
+const YES_NO = [{ value: "yes", label: "نعم" }, { value: "no", label: "لا" }];
 const inputError = (on: boolean | undefined) => (on ? "border-destructive" : "");
 const textareaClass = (on: boolean | undefined, h = "min-h-[100px]") =>
   `w-full rounded-lg border bg-background px-3 py-2 text-sm ${h} resize-none focus:outline-none focus:ring-2 focus:ring-ring ${on ? "border-destructive" : "border-input"}`;
@@ -73,12 +74,13 @@ export default function ProfileSetupPage() {
     willingToRelocate: "",
     maritalStatus: "",
     religiosity: "",
-    hijab: false,
-    beard: false,
+    // null = not answered yet (never stored as a "no", which would count against a «prefHijab» dealbreaker)
+    hijab: null as boolean | null,
+    beard: null as boolean | null,
     smokingStatus: "",
     cookingAbility: "",
     lifestyle: "",
-    drivingLicense: false,
+    drivingLicense: null as boolean | null,
     aboutMe: "",
     partnerExpectations: "",
     hobbies: "",
@@ -113,7 +115,27 @@ export default function ProfileSetupPage() {
 
   // Consent to share the guardian contact after an accepted family introduction (new cycle)
   const [shareConsent, setShareConsent] = useState(false);
-  const { counts, refreshProfile, profile: me } = useDashboardData();
+  const { refreshProfile, profile: me } = useDashboardData();
+  // The step count depends on the switches: wait for the real flags (the shared context starts
+  // with all-false defaults, which would show the removed guardian step to new members)
+  const [flags, setFlags] = useState<CycleCounts["flags"] | null>(null);
+  const [flagsFailed, setFlagsFailed] = useState(false);
+  const loadFlags = useCallback(async () => {
+    setFlagsFailed(false);
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const res = await fetch("/api/me/counts");
+        if (res.ok) {
+          const data = await res.json();
+          if (data?.flags) { setFlags(data.flags); return; }
+        }
+      } catch {
+        // retry below
+      }
+    }
+    setFlagsFailed(true);
+  }, []);
+  useEffect(() => { loadFlags(); }, [loadFlags]);
   const [autoSaveEnabled, setAutoSaveEnabled] = useState(false);
   const [ownerId, setOwnerId] = useState("");
   const { savedIndicatorVisible, saveToLocalStorage, restoreDraft, clearDraft, saveToServer } = useAutoSave(autoSaveEnabled);
@@ -168,12 +190,12 @@ export default function ProfileSetupPage() {
               willingToRelocate: p.willingToRelocate || "",
               maritalStatus: p.maritalStatus || "",
               religiosity: p.religiosity || "",
-              hijab: p.hijab || false,
-              beard: p.beard || false,
+              hijab: typeof p.hijab === "boolean" ? p.hijab : null,
+              beard: typeof p.beard === "boolean" ? p.beard : null,
               smokingStatus: p.smokingStatus || "",
               cookingAbility: p.cookingAbility || "",
               lifestyle: p.lifestyle || "",
-              drivingLicense: p.drivingLicense || false,
+              drivingLicense: typeof p.drivingLicense === "boolean" ? p.drivingLicense : null,
               aboutMe: p.aboutMe || "",
               partnerExpectations: p.partnerExpectations || "",
               hobbies: p.hobbies || "",
@@ -238,7 +260,8 @@ export default function ProfileSetupPage() {
       }
     }
     fetchProfile();
-  }, []);
+    // Both are stable (useRouter / useCallback with no deps), so this still runs once on mount
+  }, [restoreDraft, router]);
 
   // Auto-save to localStorage on form/step changes (debounced)
   useEffect(() => {
@@ -380,12 +403,12 @@ export default function ProfileSetupPage() {
     }
     if (form.willingToRelocate) payload.willingToRelocate = form.willingToRelocate;
     if (form.religiosity) payload.religiosity = form.religiosity;
-    payload.hijab = form.hijab;
-    payload.beard = form.beard;
+    if (form.hijab !== null) payload.hijab = form.hijab;
+    if (form.beard !== null) payload.beard = form.beard;
     if (form.smokingStatus) payload.smokingStatus = form.smokingStatus;
     if (form.cookingAbility) payload.cookingAbility = form.cookingAbility;
     if (form.lifestyle) payload.lifestyle = form.lifestyle;
-    payload.drivingLicense = form.drivingLicense;
+    if (form.drivingLicense !== null) payload.drivingLicense = form.drivingLicense;
     if (form.aboutMe) payload.aboutMe = form.aboutMe;
     if (form.partnerExpectations) payload.partnerExpectations = form.partnerExpectations;
     if (form.hobbies) payload.hobbies = form.hobbies;
@@ -448,7 +471,7 @@ export default function ProfileSetupPage() {
         // suggestions that start right after already respect them
         body: JSON.stringify({
           ...buildServerPayload(),
-          ...(counts.flags.mutualSuggestions && { dealbreakers: activeDealbreakers(form.dealbreakers, dealbreakerPrefs, gender) }),
+          ...(flags?.mutualSuggestions && { dealbreakers: activeDealbreakers(form.dealbreakers, dealbreakerPrefs, gender) }),
         }),
       });
 
@@ -464,7 +487,7 @@ export default function ProfileSetupPage() {
       await refreshProfile();
       // New cycle: a finished setup is all suggestions need, so go straight to them
       // (legacy still needs 50% completeness: the profile page shows what's missing)
-      router.push(counts.flags.introRequests ? "/dashboard/suggestions" : "/dashboard/profile");
+      router.push(flags?.introRequests ? "/dashboard/suggestions" : "/dashboard/profile");
     } catch {
       setError("حدث خطأ غير متوقع");
     } finally {
@@ -473,7 +496,7 @@ export default function ProfileSetupPage() {
   }
 
   // New cycle: the guardian is asked for only when it is needed (choosing a family introduction)
-  const guardianStep = !counts.flags.introRequests;
+  const guardianStep = flags ? !flags.introRequests : false;
   const totalSteps = guardianStep ? 5 : 4;
   const dealbreakerPrefs = {
     prefAgeMin: form.prefAgeMin, prefAgeMax: form.prefAgeMax, prefCity: form.prefCity,
@@ -481,7 +504,7 @@ export default function ProfileSetupPage() {
     prefReligiosity: form.prefReligiosity, prefSmokingStatus: form.prefSmokingStatus,
     prefHijab: form.prefHijab, prefBeard: form.prefBeard, prefChildrenAcceptance: form.prefChildrenAcceptance,
   };
-  const showDealbreakers = counts.flags.mutualSuggestions;
+  const showDealbreakers = !!flags?.mutualSuggestions;
   /** "شرط أساسي" chip for one preference; disabled until that preference is filled in. */
   const dealbreaker = (key: DealbreakerKey, fieldId: string) =>
     showDealbreakers ? (
@@ -496,10 +519,19 @@ export default function ProfileSetupPage() {
 
   // Someone who stopped at the old guardian step (5) resumes on the last step
   useEffect(() => {
-    if (step > totalSteps) setStep(totalSteps);
-  }, [step, totalSteps]);
+    if (flags && step > totalSteps) setStep(totalSteps);
+  }, [flags, step, totalSteps]);
 
-  if (fetchingProfile) {
+  if (!flags && flagsFailed) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4 text-center">
+        <p className="text-sm text-muted-foreground">تعذّر تحميل الصفحة. تحقّق من اتصالك وحاول مرة أخرى.</p>
+        <Button variant="outline" onClick={loadFlags}>إعادة المحاولة</Button>
+      </div>
+    );
+  }
+
+  if (fetchingProfile || !flags) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -665,38 +697,14 @@ export default function ProfileSetupPage() {
 
             {/* Gender-specific: hijab for women, beard for men */}
             {gender === "FEMALE" && (
-              <Field id="hijab" label="الحجاب">
-                <button
-                  id="hijab"
-                  type="button"
-                  role="switch"
-                  aria-checked={form.hijab}
-                  onClick={() => update("hijab", !form.hijab)}
-                  className={`w-full rounded-xl border px-4 py-3 text-sm transition-all flex items-center justify-between ${form.hijab ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
-                >
-                  <span>محجبة</span>
-                  <div className={`w-10 h-5 rounded-full transition-colors ${form.hijab ? "bg-primary" : "bg-muted"}`}>
-                    <div className={`w-4 h-4 rounded-full bg-white shadow-sm transform transition-transform mt-0.5 ${form.hijab ? "translate-x-1" : "translate-x-5"}`} />
-                  </div>
-                </button>
+              <Field id="hijab" label="هل أنتِ محجبة؟" optional>
+                <ChoiceGroup id="hijab" cols={2} options={YES_NO} isSelected={(v) => form.hijab === (v === "yes")} onSelect={(v) => update("hijab", v === "yes")} />
               </Field>
             )}
 
             {gender === "MALE" && (
-              <Field id="beard" label="اللحية">
-                <button
-                  id="beard"
-                  type="button"
-                  role="switch"
-                  aria-checked={form.beard}
-                  onClick={() => update("beard", !form.beard)}
-                  className={`w-full rounded-xl border px-4 py-3 text-sm transition-all flex items-center justify-between ${form.beard ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
-                >
-                  <span>ملتحٍ</span>
-                  <div className={`w-10 h-5 rounded-full transition-colors ${form.beard ? "bg-primary" : "bg-muted"}`}>
-                    <div className={`w-4 h-4 rounded-full bg-white shadow-sm transform transition-transform mt-0.5 ${form.beard ? "translate-x-1" : "translate-x-5"}`} />
-                  </div>
-                </button>
+              <Field id="beard" label="هل أنت ملتحٍ؟" optional>
+                <ChoiceGroup id="beard" cols={2} options={YES_NO} isSelected={(v) => form.beard === (v === "yes")} onSelect={(v) => update("beard", v === "yes")} />
               </Field>
             )}
 
@@ -708,21 +716,9 @@ export default function ProfileSetupPage() {
               <ChoiceGroup id="lifestyle" cols={4} options={ownOptions("lifestyle", gender)} isSelected={(v) => form.lifestyle === v} onSelect={(v) => update("lifestyle", v)} />
             </Field>
 
-            <Field id="drivingLicense" label="رخصة قيادة" optional>
-              <button
-                id="drivingLicense"
-                type="button"
-                role="switch"
-                aria-checked={form.drivingLicense}
-                onClick={() => update("drivingLicense", !form.drivingLicense)}
-                className={`w-full rounded-xl border px-4 py-3 text-sm transition-all flex items-center justify-between ${form.drivingLicense ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
-              >
-                <span>لدي رخصة قيادة</span>
-                <div className={`w-10 h-5 rounded-full transition-colors ${form.drivingLicense ? "bg-primary" : "bg-muted"}`}>
-                  <div className={`w-4 h-4 rounded-full bg-white shadow-sm transform transition-transform mt-0.5 ${form.drivingLicense ? "translate-x-1" : "translate-x-5"}`} />
-                </div>
-              </button>
-            </Field>
+            <Field id="drivingLicense" label="هل لديك رخصة قيادة؟" optional>
+                <ChoiceGroup id="drivingLicense" cols={2} options={YES_NO} isSelected={(v) => form.drivingLicense === (v === "yes")} onSelect={(v) => update("drivingLicense", v === "yes")} />
+              </Field>
           </CardContent>
         </Card>
       )}
@@ -874,7 +870,7 @@ export default function ProfileSetupPage() {
           <CardHeader>
             <CardTitle>بيانات ولي الأمر</CardTitle>
             <CardDescription>
-              {counts.flags.introRequests
+              {flags?.introRequests
                 ? "بيانات وليّ الأمر سرية، ولا تظهر لأي مستخدم إلا لعائلة الطرف الآخر عند بدء تعارف عائلي على توافق متبادل وبموافقتك."
                 : "هذه البيانات مطلوبة لتنسيق الزيارات العائلية ولن تظهر للمستخدمين الآخرين"}
             </CardDescription>
@@ -896,7 +892,7 @@ export default function ProfileSetupPage() {
               <textarea id="address" value={parentForm.address} onChange={(e) => updateParent("address", e.target.value)} aria-invalid={!!fieldErrors.address} className={textareaClass(!!fieldErrors.address, "min-h-[80px]")} placeholder="العنوان التفصيلي (المدينة، الحي، الشارع...)" />
             </Field>
 
-            {counts.flags.introRequests ? (
+            {flags?.introRequests ? (
               <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-primary/10 bg-primary/5 p-3 text-sm hover:bg-primary/10">
                 <input
                   type="checkbox"

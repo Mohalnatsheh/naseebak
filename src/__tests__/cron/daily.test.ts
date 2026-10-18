@@ -13,6 +13,9 @@ const tasks = vi.hoisted(() => ({
   processAccountDeletions: vi.fn(),
 }));
 const authMod = vi.hoisted(() => ({ requireAdmin: vi.fn() }));
+const alert = vi.hoisted(() => ({ sendAdminAlert: vi.fn() }));
+vi.mock("@/lib/admin-alert", () => alert);
+vi.mock("@/lib/rate-limit-db", () => ({ purgeExpiredRateLimits: vi.fn(async () => 0) }));
 vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/settings", () => settings);
 vi.mock("@/lib/chat/service", () => ({ chatHousekeepingAll: tasks.chatHousekeepingAll }));
@@ -76,6 +79,15 @@ describe("runDailyJobs", () => {
     expect(tasks.processAccountDeletions).toHaveBeenCalled();
     expect(run.totals.errors).toBe(1);
     expect(run.totals.reminders).toBe(3);
+    // The admins are emailed about the failed task
+    expect(alert.sendAdminAlert).toHaveBeenCalledTimes(1);
+    expect(alert.sendAdminAlert.mock.calls[0][0]).toBe("Daily job: 1 task failed");
+    expect(alert.sendAdminAlert.mock.calls[0][1]).toContain("introReminders: boom");
+  });
+
+  it("sends no alert when every task succeeds", async () => {
+    await runDailyJobs("cron");
+    expect(alert.sendAdminAlert).not.toHaveBeenCalled();
   });
 
   it("shares one run between concurrent calls", async () => {

@@ -80,4 +80,14 @@ describe("runReengagement", () => {
     expect(notifyMod.notify).not.toHaveBeenCalled();
     expect(res.sent).toBe(0);
   });
+
+  it("walks all idle users page by page, so those with nothing waiting can't starve the rest", async () => {
+    const page = Array.from({ length: 500 }, (_, i) => ({ id: `a${String(i).padStart(3, "0")}`, lastActiveAt: now, updatedAt: now }));
+    db.user.findMany.mockResolvedValueOnce(page).mockResolvedValueOnce([{ id: "z1", lastActiveAt: now, updatedAt: now }]);
+    db.introRequest.count.mockImplementation(async ({ where }: { where: { receiverId: string } }) => (where.receiverId === "z1" ? 1 : 0));
+    const res = await runReengagement(now);
+    expect(db.user.findMany).toHaveBeenCalledTimes(2);
+    expect(db.user.findMany.mock.calls[1][0]).toMatchObject({ cursor: { id: "a499" }, skip: 1, orderBy: { id: "asc" } });
+    expect(res).toEqual({ idle: 501, sent: 1 });
+  });
 });

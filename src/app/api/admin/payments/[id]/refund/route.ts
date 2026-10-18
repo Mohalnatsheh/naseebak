@@ -1,16 +1,8 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { recordCredit } from "@/lib/credits";
 import { getStripe } from "@/lib/stripe";
-import { notify } from "@/lib/notify";
-
-/** Credits granted by each package (see /api/payments/checkout) — taken back on refund */
-const CREDIT_PACKAGES: Record<string, number> = {
-  credits_3: 3,
-  credits_5: 5,
-  credits_10: 10,
-};
+import { applyRefund } from "@/lib/payments/refund";
 
 export async function POST(
   _request: Request,
@@ -25,15 +17,7 @@ export async function POST(
 
     const payment = await db.payment.findUnique({
       where: { id },
-      select: {
-        id: true,
-        status: true,
-        providerTxId: true,
-        provider: true,
-        userId: true,
-        amount: true,
-        planName: true,
-      },
+      select: { id: true, status: true, providerTxId: true, provider: true },
     });
 
     if (!payment) {
@@ -61,49 +45,11 @@ export async function POST(
       if (code !== "charge_already_refunded") throw err;
     }
 
-    const creditsToDeduct = payment.planName ? CREDIT_PACKAGES[payment.planName] || 0 : 0;
-
-    const refunded = await db.$transaction(async (tx) => {
-      // COMPLETED guard: a concurrent refund of the same payment only deducts once
-      const claimed = await tx.payment.updateMany({
-        where: { id: payment.id, status: "COMPLETED" },
-        data: { status: "REFUNDED" },
-      });
-      if (claimed.count !== 1) return false;
-
-      if (creditsToDeduct > 0) {
-        const user = await tx.user.findUnique({ where: { id: payment.userId }, select: { matchCredits: true } });
-        const before = user?.matchCredits || 0;
-        const after = Math.max(0, before - creditsToDeduct); // floor at 0
-        if (after !== before) {
-          await tx.user.update({ where: { id: payment.userId }, data: { matchCredits: after } });
-          await recordCredit(
-            {
-              userId: payment.userId,
-              delta: after - before,
-              reason: "REFUND",
-              refId: payment.id,
-              adminId: session.user.id,
-            },
-            tx
-          );
-        }
-      }
-      return true;
-    });
-
-    if (!refunded) {
+    // Credits back + notice; the charge.refunded webhook for the same refund is then a no-op
+    const outcome = await applyRefund({ paymentId: payment.id, adminId: session.user.id, note: "Admin refund" });
+    if (outcome !== "refunded") {
       return NextResponse.json({ error: "Payment was already refunded" }, { status: 409 });
     }
-
-    await notify({
-      userId: payment.userId,
-      type: "PAYMENT",
-      title: "تم استرداد المبلغ",
-      body: `تم استرداد مبلغ ${Number(payment.amount).toFixed(2)} دينار أردني إلى حسابك.`,
-      url: "/dashboard/payments",
-      metadata: { paymentId: payment.id },
-    });
 
     return NextResponse.json({ message: "Refund processed successfully" });
   } catch (error) {

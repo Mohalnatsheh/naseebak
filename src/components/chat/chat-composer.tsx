@@ -15,7 +15,9 @@ export const ChatComposer = forwardRef<ChatComposerHandle, {
   onSend: (text: string) => Promise<boolean>;
   error: string | null;
   onTyping: () => void;
-}>(function ChatComposer({ onSend, error, onTyping }, ref) {
+  /** Viewer is a woman: feminine placeholder */
+  female?: boolean;
+}>(function ChatComposer({ onSend, error, onTyping, female }, ref) {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const area = useRef<HTMLTextAreaElement>(null);
@@ -54,7 +56,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, {
           rows={1}
           dir="auto"
           maxLength={MAX + 50}
-          placeholder="اكتب رسالتك…"
+          placeholder={female ? "اكتبي رسالتكِ…" : "اكتب رسالتك…"}
           onChange={(e) => {
             setText(e.target.value);
             onTyping();

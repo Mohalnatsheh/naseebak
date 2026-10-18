@@ -21,15 +21,28 @@ const BATCH = 500;
 
 const partySelect = { select: { id: true, gender: true, isDeactivated: true, status: true } } as const;
 
-/** Close every MUTUAL row past its 7 days (same as the lazy per-user path). */
-export async function expireMutualSuggestionsAll(now = new Date()): Promise<{ expired: number; refunded: number }> {
+/**
+ * Close every MUTUAL row past its 7 days (same as the lazy per-user path), and older rows where one
+ * side already said «لا» (from before «لا» closed the card at once) as REJECTED, never refunded.
+ */
+export async function expireMutualSuggestionsAll(
+  now = new Date()
+): Promise<{ expired: number; rejected: number; refunded: number }> {
+  const { count: rejected } = await db.suggestion.updateMany({
+    where: {
+      flow: "MUTUAL",
+      status: "PENDING",
+      OR: [{ recipientDecision: "DECLINED" }, { candidateDecision: "DECLINED" }],
+    },
+    data: { status: "REJECTED" },
+  });
   const { count } = await db.suggestion.updateMany({
     where: { flow: "MUTUAL", status: "PENDING", expiresAt: { lte: now } },
     data: { status: "EXPIRED" },
   });
   // Also catches rows closed lazily whose refund didn't run (each refund happens once)
   const { refunded } = await refundUnansweredInterests({ now });
-  return { expired: count, refunded };
+  return { expired: count, rejected, refunded };
 }
 
 /** One reminder per suggestion, to each side that hasn't decided, when ≤2 days are left. */
@@ -148,38 +161,66 @@ export async function runWeeklySuggestions(
 
 /**
  * Both said «مهتم» (row ACCEPTED) but creating the match failed: create it now. Without this the pair
- * is charged and stuck with no match. Skips people who left or blocked each other since.
+ * is charged and stuck with no match. Oldest first; rows that can't be healed (someone left or was
+ * suspended) are filtered in the query, and the window is paged through so matched / blocked pairs
+ * never starve the live rows behind them.
  */
 export async function healMissingMatches(now = new Date()): Promise<{ healed: number }> {
-  const rows = await db.suggestion.findMany({
-    where: {
-      flow: "MUTUAL",
-      status: "ACCEPTED",
-      recipientDecision: "INTERESTED",
-      candidateDecision: "INTERESTED",
-      updatedAt: { gte: new Date(now.getTime() - 30 * DAY_MS) },
-    },
-    select: { id: true, recipientId: true, candidateId: true, recipient: partySelect, candidate: partySelect },
-    take: BATCH,
-  });
+  const available = { isDeactivated: false, status: { not: "SUSPENDED" as const } };
+  const where = {
+    flow: "MUTUAL" as const,
+    status: "ACCEPTED" as const,
+    recipientDecision: "INTERESTED" as const,
+    candidateDecision: "INTERESTED" as const,
+    updatedAt: { gte: new Date(now.getTime() - 30 * DAY_MS) },
+    recipient: available,
+    candidate: available,
+  };
   let healed = 0;
-  for (const s of rows) {
-    const female = s.recipient.gender === "FEMALE" ? s.recipient : s.candidate;
-    const male = female.id === s.recipientId ? s.candidate : s.recipient;
-    const exists = await db.mutualMatch.findFirst({ where: { femaleId: female.id, maleId: male.id }, select: { id: true } });
-    if (exists || isUnavailable(female) || isUnavailable(male)) continue;
-    const block = await db.block.findFirst({
-      where: { OR: [{ blockerId: female.id, blockedId: male.id }, { blockerId: male.id, blockedId: female.id }] },
-      select: { id: true },
+  let cursor: string | undefined;
+  for (;;) {
+    const rows = await db.suggestion.findMany({
+      where,
+      select: { id: true, recipientId: true, candidateId: true, recipient: partySelect, candidate: partySelect },
+      orderBy: [{ updatedAt: "asc" }, { id: "asc" }],
+      take: BATCH,
+      ...(cursor && { cursor: { id: cursor }, skip: 1 }),
     });
-    if (block) continue;
-    try {
-      const { createMutualMatch } = await import("@/lib/intro/match");
-      await createMutualMatch({ femaleId: female.id, maleId: male.id, suggestionId: s.id });
-      healed++;
-    } catch (e) {
-      console.error("[cron] heal match", s.id, e);
+    if (rows.length === 0) break;
+    cursor = rows[rows.length - 1].id;
+
+    // One lookup per page: pairs that already have a match, and blocks between any of the people
+    const pairs = rows.map((s) => {
+      const female = s.recipient.gender === "FEMALE" ? s.recipient : s.candidate;
+      const male = female.id === s.recipientId ? s.candidate : s.recipient;
+      return { s, female, male };
+    });
+    const people = [...new Set(pairs.flatMap((p) => [p.female.id, p.male.id]))];
+    const [matches, blocks] = await Promise.all([
+      db.mutualMatch.findMany({
+        where: { femaleId: { in: people }, maleId: { in: people } },
+        select: { femaleId: true, maleId: true },
+      }),
+      db.block.findMany({
+        where: { blockerId: { in: people }, blockedId: { in: people } },
+        select: { blockerId: true, blockedId: true },
+      }),
+    ]);
+    const matched = new Set(matches.map((m) => `${m.femaleId}:${m.maleId}`));
+    const blocked = new Set(blocks.flatMap((b) => [`${b.blockerId}:${b.blockedId}`, `${b.blockedId}:${b.blockerId}`]));
+
+    for (const { s, female, male } of pairs) {
+      if (matched.has(`${female.id}:${male.id}`) || blocked.has(`${female.id}:${male.id}`)) continue;
+      if (isUnavailable(female) || isUnavailable(male)) continue;
+      try {
+        const { createMutualMatch } = await import("@/lib/intro/match");
+        await createMutualMatch({ femaleId: female.id, maleId: male.id, suggestionId: s.id });
+        healed++;
+      } catch (e) {
+        console.error("[cron] heal match", s.id, e);
+      }
     }
+    if (rows.length < BATCH) break;
   }
   return { healed };
 }

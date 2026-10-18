@@ -1,6 +1,6 @@
 /**
- * Simple in-memory rate limiter for API routes.
- * In production, replace with Redis-based rate limiting.
+ * Simple in-memory rate limiter for API routes (per process; resets on restart). Limits that must
+ * survive deploys and hold across processes (OTP send/verify) use `rateLimitDb` in rate-limit-db.ts.
  */
 
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
@@ -33,4 +33,16 @@ export function rateLimit(
 
   entry.count++;
   return { success: true, remaining: maxAttempts - entry.count, resetAt: entry.resetAt };
+}
+
+/**
+ * The visitor's IP. Nginx sets X-Real-IP to the connecting address (and appends it as the last
+ * X-Forwarded-For hop), so those are what we trust — never the first X-Forwarded-For value, which
+ * the client controls.
+ */
+export function clientIp(request: Request): string {
+  const real = request.headers.get("x-real-ip")?.trim();
+  if (real) return real;
+  const hops = request.headers.get("x-forwarded-for")?.split(",").map((h) => h.trim()).filter(Boolean);
+  return hops?.length ? hops[hops.length - 1] : "unknown";
 }

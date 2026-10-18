@@ -33,17 +33,24 @@ export function DealbreakersCard() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
+  const female = gender === "FEMALE";
+  const g = (masculine: string, feminine: string) => (female ? feminine : masculine);
 
   useEffect(() => {
     fetch("/api/profile/dealbreakers")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => {
-        if (!d?.profile) return;
-        setPrefs(d.profile);
-        setSelected(new Set(d.profile.dealbreakers ?? []));
+      .then((r) => {
+        if (!r.ok) throw new Error(`dealbreakers ${r.status}`);
+        return r.json();
       })
-      .catch(() => {});
-  }, []);
+      .then((d) => {
+        // No profile yet: show the "add your preferences first" state rather than a spinner forever
+        setPrefs(d?.profile ?? {});
+        setSelected(new Set(d?.profile?.dealbreakers ?? []));
+      })
+      .catch(() => setLoadFailed(true));
+  }, [reloadKey]);
 
   const available = prefs
     ? DEALBREAKER_KEYS.map((k) => ({ key: k, summary: dealbreakerSummary(k, prefs, gender) })).filter((x) => x.summary)
@@ -68,6 +75,8 @@ export function DealbreakersCard() {
     <Card className="border-border/50">
       <CardContent className="p-0">
         <button
+          type="button"
+          aria-expanded={open}
           onClick={() => setOpen(!open)}
           className="w-full flex items-center justify-between gap-3 px-5 py-4 hover:bg-muted/30 transition-colors rounded-xl"
         >
@@ -78,7 +87,9 @@ export function DealbreakersCard() {
             <div className="text-start min-w-0">
               <p className="font-bold text-sm text-foreground">شروطي الأساسية</p>
               <p className="text-xs text-muted-foreground truncate">
-                {activeCount > 0 ? `${activeCount} من تفضيلاتك شرط لا تنازل عنه` : "حدّد ما لا تقبل التنازل عنه"}
+                {activeCount > 0
+                  ? `${activeCount} من تفضيلاتك ${g("شرط لا تتنازل عنه", "شرط لا تتنازلين عنه")}`
+                  : g("حدّد ما لا تقبل التنازل عنه", "حدّدي ما لا تقبلين التنازل عنه")}
               </p>
             </div>
           </div>
@@ -88,13 +99,26 @@ export function DealbreakersCard() {
         {open && (
           <div className="px-5 pb-5 space-y-3">
             <p className="text-xs text-muted-foreground leading-relaxed">
-              الشرط الأساسي يعني أننا لن نقترح عليك أي شخص لا يحقّقه. اختر بعناية: كثرة الشروط تقلّل الاقتراحات. شروطك خاصة ولا يراها أحد.
+              {g(
+                "الشرط الأساسي يعني أننا لن نقترح عليك أي شخص لا يحقّقه. اختر بعناية: كثرة الشروط تقلّل الاقتراحات. شروطك خاصة ولا يراها أحد.",
+                "الشرط الأساسي يعني أننا لن نقترح عليكِ أي شخص لا يحقّقه. اختاري بعناية: كثرة الشروط تقلّل الاقتراحات. شروطكِ خاصة ولا يراها أحد."
+              )}
             </p>
-            {!prefs ? (
+            {loadFailed ? (
+              <div role="alert" className="flex flex-wrap items-center gap-2 rounded-xl bg-destructive/5 p-3 text-sm text-destructive">
+                تعذّر تحميل شروطك.
+                <Button type="button" variant="outline" className="h-11" onClick={() => { setLoadFailed(false); setReloadKey((k) => k + 1); }}>
+                  إعادة المحاولة
+                </Button>
+              </div>
+            ) : !prefs ? (
               <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
             ) : available.length === 0 ? (
               <div className="rounded-xl bg-muted/40 p-4 text-sm text-muted-foreground">
-                أضف تفضيلاتك في ملفك الشخصي أولاً لتتمكن من تحديد شروطك الأساسية.{" "}
+                {g(
+                  "أضف تفضيلاتك في ملفك الشخصي أولاً لتتمكن من تحديد شروطك الأساسية.",
+                  "أضيفي تفضيلاتكِ في ملفكِ الشخصي أولاً لتتمكني من تحديد شروطكِ الأساسية."
+                )}{" "}
                 <Link href="/dashboard/profile" className="font-semibold text-primary underline-offset-4 hover:underline">
                   ملفي الشخصي
                 </Link>

@@ -16,6 +16,8 @@ import { runReengagement } from "@/lib/cron/reengagement";
 import { processAccountDeletions } from "@/lib/cron/deletions";
 import { reconcileStripePayments } from "@/lib/payments/fulfil";
 import { cancelClosedLegacyVisits, remindGuardianShare, runFamilyFollowUps } from "@/lib/intro/followup";
+import { sendAdminAlert } from "@/lib/admin-alert";
+import { purgeExpiredRateLimits } from "@/lib/rate-limit-db";
 
 export const LAST_RUN_KEY = "cron_daily_last_run";
 
@@ -95,6 +97,7 @@ async function execute(trigger: DailyRunSummary["trigger"]): Promise<DailyRunSum
   tasks.reengagement = await runTask("reengagement", () => runReengagement(now()));
   tasks.deletions = await runTask("deletions", async () => ({ deleted: await processAccountDeletions() }));
   tasks.payments = await runTask("payments", () => reconcileStripePayments(now()));
+  tasks.rateLimits = await runTask("rateLimits", async () => ({ purged: await purgeExpiredRateLimits(now()) }));
 
   const finished = new Date();
   const summary: DailyRunSummary = {
@@ -110,7 +113,26 @@ async function execute(trigger: DailyRunSummary["trigger"]): Promise<DailyRunSum
   } catch (error) {
     console.error("[cron] could not store the run summary:", error);
   }
+  await alertFailedTasks(summary);
   return summary;
+}
+
+/** Email the admins when a task failed (best-effort: sendAdminAlert never throws) */
+export async function alertFailedTasks(summary: DailyRunSummary): Promise<void> {
+  const failed = Object.entries(summary.tasks).filter(
+    (entry): entry is [string, { error: string }] => "error" in entry[1],
+  );
+  if (failed.length === 0) return;
+  const lines = failed.map(([name, r]) => `- ${name}: ${r.error}`);
+  await sendAdminAlert(
+    `Daily job: ${failed.length} task${failed.length === 1 ? "" : "s"} failed`,
+    [
+      `The daily job (${summary.trigger}, started ${summary.startedAt}) finished with errors:`,
+      ...lines,
+      "",
+      "The other tasks ran normally. Details are in /var/log/naseebak/error-0.log and Admin → Settings → Daily jobs.",
+    ].join("\n"),
+  );
 }
 
 /** The last stored summary (admin Settings), or null before the first run. */

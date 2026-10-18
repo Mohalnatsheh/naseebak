@@ -36,7 +36,7 @@ export function SuspendedScreen() {
               اقتراحات أو طلبات أو رسائل.
             </p>
             <p className="text-xs leading-relaxed text-muted-foreground">
-              إن كان الإيقاف بالخطأ، يمكنك التواصل معنا لمراجعة حسابك.
+              إن كان الإيقاف بالخطأ، تواصل معنا عبر نموذج التواصل واكتب رقم هاتفك المسجّل لنراجع حسابك ونرد عليك.
             </p>
           </div>
 
@@ -57,7 +57,7 @@ export function SuspendedScreen() {
               disabled={signingOut}
               onClick={() => {
                 setSigningOut(true);
-                void signOutAndUnlinkPush("/login");
+                signOutAndUnlinkPush("/login").catch(() => setSigningOut(false));
               }}
               className="h-12 rounded-xl font-semibold"
             >

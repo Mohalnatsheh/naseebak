@@ -4,12 +4,17 @@ import { Prisma } from "@prisma/client";
 const db = vi.hoisted(() => ({
   report: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn(), count: vi.fn(), findMany: vi.fn(), updateMany: vi.fn() },
   user: { updateMany: vi.fn(), findMany: vi.fn() },
-  conversation: { findUnique: vi.fn(), findFirst: vi.fn() },
+  conversation: { findUnique: vi.fn(), findFirst: vi.fn(), findMany: vi.fn(async (): Promise<unknown[]> => []), updateMany: vi.fn() },
   message: { findMany: vi.fn() },
 }));
 vi.mock("@/lib/db", () => ({ db }));
+const alert = vi.hoisted(() => ({ sendAdminAlert: vi.fn(async () => {}) }));
+const notifyMod = vi.hoisted(() => ({ notify: vi.fn(async () => {}) }));
+vi.mock("@/lib/admin-alert", () => alert);
+vi.mock("@/lib/notify", () => notifyMod);
+vi.mock("@/lib/ably", () => ({ publishChatEvent: vi.fn(async () => {}) }));
 
-import { fileReport, snapshotReportEvidence } from "@/lib/reports";
+import { fileReport, pausedForReview, refreshReportFlag, snapshotReportEvidence, REPORT_PAUSE_MARKER } from "@/lib/reports";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -17,6 +22,9 @@ beforeEach(() => {
   db.report.update.mockResolvedValue({ id: "r1" });
   db.report.count.mockResolvedValue(1);
   db.report.updateMany.mockResolvedValue({ count: 1 });
+  db.user.findMany.mockResolvedValue([]);
+  db.conversation.findMany.mockResolvedValue([]);
+  db.conversation.updateMany.mockResolvedValue({ count: 1 });
 });
 
 describe("fileReport", () => {
@@ -95,5 +103,74 @@ describe("snapshotReportEvidence", () => {
     await snapshotReportEvidence("a");
     expect(db.conversation.findFirst).toHaveBeenCalled();
     expect(db.report.updateMany.mock.calls[0][0].data.evidence.chat).toBeNull();
+  });
+});
+
+describe("admin alerts, pause for review and clearing the flag", () => {
+  /** count() answers: PENDING-only → pending, PENDING+REVIEWED → open */
+  const counts = (pending: number, open = pending) =>
+    db.report.count.mockImplementation(async ({ where }: { where: { status: unknown } }) =>
+      where.status === "PENDING" ? pending : open
+    );
+
+  it("emails the admins on every report (best effort)", async () => {
+    db.report.findUnique.mockResolvedValue(null);
+    db.user.findMany.mockResolvedValue([
+      { id: "a", firstName: "سارة", lastName: "علي", phone: "962790000001" },
+      { id: "b", firstName: "خالد", lastName: "سعيد", phone: "962790000002" },
+    ]);
+    await fileReport({ reporterId: "a", reportedId: "b", reason: "HARASSMENT", details: "تهديد" });
+    await vi.waitFor(() => expect(alert.sendAdminAlert).toHaveBeenCalled());
+    const [subject, text] = alert.sendAdminAlert.mock.calls[0] as unknown as [string, string];
+    expect(subject).toBe("بلاغ جديد");
+    expect(text).toContain("خالد سعيد");
+    expect(text).toContain("إزعاج أو تحرش");
+    expect(text).toContain("تهديد");
+  });
+
+  it("the 3rd pending report pauses the member's open chats and tells both sides", async () => {
+    db.report.findUnique.mockResolvedValue(null);
+    counts(3);
+    db.conversation.findMany.mockResolvedValue([{ id: "c1", match: { femaleId: "b", maleId: "x" } }]);
+    await fileReport({ reporterId: "a", reportedId: "b", reason: "HARASSMENT" });
+    expect(db.conversation.updateMany).toHaveBeenCalledWith({
+      where: { id: "c1", status: "ACTIVE" },
+      data: { status: "ENDED", endedAt: expect.any(Date), endedByAdminId: REPORT_PAUSE_MARKER },
+    });
+    expect(notifyMod.notify).toHaveBeenCalledWith(expect.objectContaining({ userId: "b", title: "المحادثة متوقفة مؤقتاً" }));
+    expect(notifyMod.notify).toHaveBeenCalledWith(expect.objectContaining({ userId: "x", title: "المحادثة متوقفة مؤقتاً" }));
+    await vi.waitFor(() => expect(alert.sendAdminAlert).toHaveBeenCalledWith("بلاغ جديد — العضو موقوف مؤقتاً للمراجعة", expect.any(String)));
+    expect(await pausedForReview(["b"])).toEqual(new Set(["b"]));
+  });
+
+  it("a repeat of a report that is still pending doesn't pause again", async () => {
+    db.report.findUnique.mockResolvedValue({ id: "r1", details: null, status: "PENDING" });
+    counts(3);
+    await fileReport({ reporterId: "a", reportedId: "b", reason: "SPAM" });
+    expect(db.conversation.findMany).not.toHaveBeenCalled();
+  });
+
+  it("dismissals clear an automatic flag and resume paused chats (paused days given back)", async () => {
+    counts(2, 2);
+    const pausedAt = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    db.conversation.findMany.mockResolvedValue([{ id: "c1", expiresAt, endedAt: pausedAt, match: { femaleId: "b", maleId: "x" } }]);
+    db.conversation.updateMany.mockResolvedValue({ count: 1 });
+    const r = await refreshReportFlag("b");
+    expect(r).toEqual({ flagged: false, resumed: 1 });
+    expect(db.user.updateMany).toHaveBeenCalledWith({
+      where: { id: "b", isFlagged: true, flagReason: { startsWith: "Auto-flagged" } },
+      data: { isFlagged: false, flagReason: null },
+    });
+    const { data } = db.conversation.updateMany.mock.calls[0][0];
+    expect(data).toMatchObject({ status: "ACTIVE", endedAt: null, endedByAdminId: null });
+    expect(data.expiresAt.getTime()).toBeGreaterThanOrEqual(expiresAt.getTime() + 2 * 24 * 60 * 60 * 1000 - 1000);
+  });
+
+  it("chats stay paused while 3 reports still wait", async () => {
+    counts(3, 3);
+    const r = await refreshReportFlag("b");
+    expect(r).toEqual({ flagged: true, resumed: 0 });
+    expect(db.conversation.findMany).not.toHaveBeenCalled();
   });
 });

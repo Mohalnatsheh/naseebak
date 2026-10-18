@@ -21,7 +21,14 @@
  * with its share stamp (`femaleGuardianShareAt` / `maleGuardianShareAt`) AND global consent
  * (`ParentInfo.shareConsentAt`). FAMILY choosers are stamped at match creation, the other side via
  * `shareGuardianForMatch`, and both sides on accepting a later family request. Pre-flag matches keep
- * the global-consent rule.
+ * the global-consent rule. A mixed match (one chose family, one chat) shows neither contact until
+ * both sides are stamped, so nobody's guardian goes out one way only.
+ *
+ * A closed match (blocked, inactive, «لم يحصل نصيب», «تمت الخطبة», finished) never returns guardian
+ * contacts, and nothing can be sent, accepted or shared on a match where either side said «لم يحصل نصيب»
+ * or «تمت الخطبة», with someone engaged on another match, or while one of the two is paused for a
+ * report review (src/lib/reports.ts). Guardian share consent is stored only when the action it is
+ * given for (send / accept / share) goes through.
  */
 import type { IntroRequest, IntroRequestType, MatchOutcome } from "@prisma/client";
 import { db } from "@/lib/db";
@@ -32,14 +39,17 @@ import { IntroError } from "@/lib/intro/errors";
 import { applyIntroOutcome } from "@/lib/intro/outcome";
 import { outcomesFor } from "@/lib/intro/followup";
 import {
+  familyMoveOpenUntil,
   LEGACY_ADMIN_VISIT,
   blockBetween,
   cancelPendingBetween,
   chatEndedByUser,
   describeMatch,
   isUnavailable,
+  loadEngagements,
   type MatchClosure,
 } from "@/lib/matches/state";
+import { isPausedForReview, pausedForReview } from "@/lib/reports";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 export const REQUEST_TTL_DAYS = 7;
@@ -85,6 +95,11 @@ export interface IntroState {
     declinedByMe?: boolean;
     /** True when the next family request is free (the match already has a chat) */
     free?: boolean;
+    /**
+     * After a chat ran out: the family request stays possible until this date (then the match counts
+     * as finished, see CHAT_STALE_DAYS)
+     */
+    openUntil?: string;
     contacts?: GuardianContact;
   };
   chat: {
@@ -93,6 +108,8 @@ export interface IntroState {
     expiresAt?: string;
     declinedByMe?: boolean;
     conversationId?: string;
+    /** The chat is paused while reports about one of the two are reviewed (it resumes afterwards) */
+    paused?: boolean;
   };
   /** After the family introduction: what each side told us (see intro/followup.ts) */
   followUp: {
@@ -128,7 +145,7 @@ async function loadMatchForUser(matchId: string, userId: string) {
     where: { id: matchId },
     include: {
       visitRequest: { select: { id: true, status: true } },
-      conversation: { select: { id: true, status: true, expiresAt: true, endedById: true } },
+      conversation: { select: { id: true, status: true, expiresAt: true, endedById: true, endedByAdminId: true } },
     },
   });
   if (!match || (match.femaleId !== userId && match.maleId !== userId)) {
@@ -147,6 +164,24 @@ async function isBlocked(a: string, b: string): Promise<boolean> {
 }
 
 const INACTIVE_MESSAGE = "هذا الحساب غير نشط حالياً";
+const MATCH_CLOSED_MESSAGE = "انتهى هذا التوافق";
+const UNAVAILABLE_MESSAGE = "لم يعد هذا التوافق متاحاً";
+const PAUSED_MESSAGE = "هذا التوافق متوقف مؤقتاً لمراجعة من فريق نصيبك، حاول لاحقاً";
+
+/**
+ * Refuse any new step on a match that is over for good or on hold: «لم يحصل نصيب» / «تمت الخطبة»
+ * on this match, either person engaged on another match, or one of them paused for a report review.
+ */
+async function assertMatchOpen(
+  match: { id: string; femaleId: string; maleId: string; femaleOutcome: MatchOutcome | null; maleOutcome: MatchOutcome | null },
+): Promise<void> {
+  const outcomes = [match.femaleOutcome, match.maleOutcome];
+  if (outcomes.includes("NOT_A_MATCH") || outcomes.includes("ENGAGED")) throw new IntroError("NOT_ALLOWED", MATCH_CLOSED_MESSAGE);
+  const people = [match.femaleId, match.maleId];
+  const engaged = await loadEngagements(people);
+  if (people.some((id) => engaged.elsewhere(id, match.id))) throw new IntroError("NOT_ALLOWED", UNAVAILABLE_MESSAGE);
+  if ((await pausedForReview(people)).size > 0) throw new IntroError("NOT_ALLOWED", PAUSED_MESSAGE);
+}
 const CHAT_ENDED_MESSAGE = "انتهت المحادثة على هذا التوافق، لذلك لم يعد طلب التعارف العائلي متاحاً";
 
 /** Deactivated, suspended or deleted. */
@@ -195,12 +230,15 @@ export async function getMatchIntroState(matchId: string, userId: string): Promi
   if (block.byThem) throw new IntroError("NOT_FOUND", "التوافق غير موجود");
   await expireStale(matchId);
 
-  const [flags, me, myGuardian, unavailable] = await Promise.all([
+  const [flags, me, myGuardian, partnerGone, engagements] = await Promise.all([
     getCycleFlags(),
     db.user.findUnique({ where: { id: userId }, select: { matchCredits: true } }),
     db.parentInfo.findUnique({ where: { userId } }),
     partnerUnavailable(partnerId),
+    loadEngagements([userId, partnerId]),
   ]);
+  // Engaged with someone else: shown like an inactive account
+  const unavailable = partnerGone || engagements.elsewhere(partnerId, matchId);
   const guardianBase = { exists: !!myGuardian, consented: !!myGuardian?.shareConsentAt };
   const base = { flags, credits: me?.matchCredits ?? 0 };
 
@@ -243,6 +281,7 @@ export async function getMatchIntroState(matchId: string, userId: string): Promi
     chatEnabled: flags.chat,
     introEnabled: flags.introRequests,
     outcomes: outcomesFor(match, userId),
+    engagedElsewhere: { mine: engagements.elsewhere(userId, matchId), partner: false },
   });
 
   // Family
@@ -253,10 +292,11 @@ export async function getMatchIntroState(matchId: string, userId: string): Promi
   if (acceptedFamily) {
     family.status = "accepted";
     family.requestId = acceptedFamily.id;
-    const partnerGuardian = await db.parentInfo.findUnique({ where: { userId: partnerId } });
-    // openedAt matches also need the partner's per-match share stamp
-    const partnerShares = !openedMatch || !!shareStampOf(match, partnerId);
-    if (partnerGuardian?.shareConsentAt && partnerShares) {
+    // openedAt matches need both per-match share stamps: in a mixed match nobody's contact goes out
+    // before the other side shares too. A closed match never returns contacts.
+    const bothShare = !openedMatch || (!!match.femaleGuardianShareAt && !!match.maleGuardianShareAt);
+    const partnerGuardian = !closed && bothShare ? await db.parentInfo.findUnique({ where: { userId: partnerId } }) : null;
+    if (partnerGuardian?.shareConsentAt) {
       family.contacts = {
         name: partnerGuardian.parentName,
         relationship: partnerGuardian.relationship,
@@ -277,6 +317,10 @@ export async function getMatchIntroState(matchId: string, userId: string): Promi
   } else {
     // Free once after a chat that expired (or was closed by an admin)
     family.free = !!match.conversation && ofType(requests, "FAMILY").length === 0;
+    const c = match.conversation;
+    if (c && c.status !== "ENDED" && c.expiresAt < new Date()) {
+      family.openUntil = familyMoveOpenUntil(c.expiresAt).toISOString();
+    }
   }
 
   // Chat
@@ -287,6 +331,7 @@ export async function getMatchIntroState(matchId: string, userId: string): Promi
     chat.status = conversationStatus(match.conversation);
     chat.conversationId = match.conversation.id;
     chat.expiresAt = match.conversation.expiresAt.toISOString();
+    if (isPausedForReview(match.conversation)) chat.paused = true;
   } else if (pendingChat) {
     chat.status = pendingChat.senderId === userId ? "pending_sent" : "pending_received";
     chat.requestId = pendingChat.id;
@@ -304,10 +349,15 @@ export async function getMatchIntroState(matchId: string, userId: string): Promi
   return {
     ...base,
     ...(outcomeType && { outcome: outcomeType }),
-    // The families can talk once both contacts are out (older matches: the accepted family intro is enough)
+    // The families can talk once both contacts are out (older matches: the accepted family intro is
+    // enough; old-flow matches: once the team arranged the visit)
     followUp: {
       ...outcomes,
-      ask: !closed && !!acceptedFamily && (!openedMatch || (!!match.femaleGuardianShareAt && !!match.maleGuardianShareAt)),
+      ask:
+        !closed &&
+        (acceptedFamily
+          ? !openedMatch || (!!match.femaleGuardianShareAt && !!match.maleGuardianShareAt)
+          : family.status === "legacy_admin"),
     },
     myGuardian: { ...guardianBase, sharedForMatch, askShare: !closed && openedMatch && !!acceptedFamily && !sharedForMatch },
     closed,
@@ -324,8 +374,10 @@ export async function sendIntroRequest(args: {
   matchId: string;
   senderId: string;
   type: IntroRequestType;
+  /** FAMILY: guardian share consent given in the send dialog — stored only if the request is created */
+  consent?: boolean;
 }): Promise<{ requestId: string; creditsLeft: number }> {
-  const { matchId, senderId, type } = args;
+  const { matchId, senderId, type, consent } = args;
   const flags = await getCycleFlags();
   if (!flags.introRequests) throw new IntroError("DISABLED");
   if (type === "CHAT" && !flags.chat) throw new IntroError("DISABLED");
@@ -343,6 +395,7 @@ export async function sendIntroRequest(args: {
       await cancelPendingBetween(senderId, partnerId);
       throw new IntroError("NOT_ALLOWED", INACTIVE_MESSAGE);
     }
+    await assertMatchOpen(match);
     await expireStale(matchId);
 
     const requests = await db.introRequest.findMany({ where: { matchId }, orderBy: { createdAt: "desc" } });
@@ -350,6 +403,7 @@ export async function sendIntroRequest(args: {
     if (declinedOf(requests, type)) throw new IntroError("NOT_ALLOWED", "تم رفض هذا الطلب سابقاً");
 
     let free = false;
+    let recordConsent = false;
     if (type === "FAMILY") {
       if (ofType(requests, "FAMILY").some((r) => r.status === "ACCEPTED")) throw new IntroError("NOT_ALLOWED");
       if (match.visitRequest && LEGACY_ADMIN_VISIT.includes(match.visitRequest.status)) {
@@ -358,7 +412,10 @@ export async function sendIntroRequest(args: {
       if (chatEndedByUser(match.conversation)) throw new IntroError("NOT_ALLOWED", CHAT_ENDED_MESSAGE);
       const guardian = await db.parentInfo.findUnique({ where: { userId: senderId } });
       if (!guardian) throw new IntroError("GUARDIAN_REQUIRED");
-      if (!guardian.shareConsentAt) throw new IntroError("CONSENT_REQUIRED");
+      if (!guardian.shareConsentAt) {
+        if (!consent) throw new IntroError("CONSENT_REQUIRED");
+        recordConsent = true;
+      }
       free = !!match.conversation && ofType(requests, "FAMILY").length === 0;
     } else if (match.conversation) {
       throw new IntroError("NOT_ALLOWED", "المحادثة مفتوحة أو انتهت لهذا التوافق");
@@ -370,6 +427,7 @@ export async function sendIntroRequest(args: {
     // Charge and create together: a failed create never costs a credit
     const request = await db.$transaction(async (tx) => {
       if (charge && !(await reserveCredits(senderId, 1, tx))) throw new IntroError("NO_CREDITS");
+      if (recordConsent) await tx.parentInfo.update({ where: { userId: senderId }, data: { shareConsentAt: new Date() } });
       return tx.introRequest.create({
         data: {
           matchId,
@@ -441,6 +499,7 @@ export async function respondToIntroRequest(args: {
     await cancelPendingBetween(request.senderId, userId);
     throw new IntroError("NOT_ALLOWED", INACTIVE_MESSAGE);
   }
+  if (accept) await assertMatchOpen(request.match);
   if (accept && request.type === "FAMILY" && chatEndedByUser(request.match.conversation)) {
     await db.introRequest.updateMany({ where: { id: requestId, status: "PENDING" }, data: { status: "CANCELLED" } });
     throw new IntroError("NOT_ALLOWED", CHAT_ENDED_MESSAGE);
@@ -603,24 +662,25 @@ export async function shareGuardianForMatch(args: {
   if (block.byMe) throw new IntroError("BLOCKED");
   if (await partnerUnavailable(partnerId)) throw new IntroError("NOT_ALLOWED", INACTIVE_MESSAGE);
   if (!match.openedAt) throw new IntroError("NOT_ALLOWED");
+  await assertMatchOpen(match);
 
   const guardian = await db.parentInfo.findUnique({ where: { userId } });
   if (!guardian) throw new IntroError("GUARDIAN_REQUIRED");
-  if (!guardian.shareConsentAt) {
-    if (!consent) throw new IntroError("CONSENT_REQUIRED");
-    await db.parentInfo.update({ where: { userId }, data: { shareConsentAt: new Date() } });
-  }
+  if (!guardian.shareConsentAt && !consent) throw new IntroError("CONSENT_REQUIRED");
 
   const field = match.femaleId === userId ? "femaleGuardianShareAt" : "maleGuardianShareAt";
-  // Conditional: a repeat keeps the first stamp
-  const stamped = await db.mutualMatch.updateMany({ where: { id: matchId, [field]: null }, data: { [field]: new Date() } });
+  // Conditional: a repeat keeps the first stamp. The consent is stored with the share, not before it.
+  const stamped = await db.$transaction(async (tx) => {
+    if (!guardian.shareConsentAt) await tx.parentInfo.update({ where: { userId }, data: { shareConsentAt: new Date() } });
+    return tx.mutualMatch.updateMany({ where: { id: matchId, [field]: null }, data: { [field]: new Date() } });
+  });
   if (stamped.count === 1) {
     // The side that chose family has been waiting for this
     await notify({
       userId: partnerId,
       type: "MATCH",
       title: "تمت مشاركة بيانات وليّ الأمر",
-      body: "شارك الطرف الآخر بيانات وليّ أمره. يمكنكما الآن ترتيب الزيارة العائلية.",
+      body: "شارك الطرف الآخر بيانات وليّ أمره، وتبادلت العائلتان بيانات التواصل. يمكنكما الآن ترتيب الزيارة العائلية.",
       url: `/dashboard/matches?match=${matchId}`,
     });
   }

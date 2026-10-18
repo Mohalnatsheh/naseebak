@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { X } from "lucide-react";
 
 interface FirstVisitTipProps {
@@ -10,19 +10,21 @@ interface FirstVisitTipProps {
   body: string;
 }
 
-export function FirstVisitTip({ storageKey, icon, title, body }: FirstVisitTipProps) {
-  const [visible, setVisible] = useState(false);
+const subscribeNoop = () => () => {};
 
-  useEffect(() => {
-    const dismissed = localStorage.getItem(storageKey);
-    if (!dismissed) {
-      setVisible(true);
-    }
-  }, [storageKey]);
+export function FirstVisitTip({ storageKey, icon, title, body }: FirstVisitTipProps) {
+  // Read localStorage only in the browser (hidden during server render and hydration)
+  const dismissedBefore = useSyncExternalStore(
+    subscribeNoop,
+    () => !!localStorage.getItem(storageKey),
+    () => true
+  );
+  const [dismissedNow, setDismissedNow] = useState(false);
+  const visible = !dismissedBefore && !dismissedNow;
 
   function dismiss() {
     localStorage.setItem(storageKey, "true");
-    setVisible(false);
+    setDismissedNow(true);
   }
 
   if (!visible) return null;
@@ -33,7 +35,7 @@ export function FirstVisitTip({ storageKey, icon, title, body }: FirstVisitTipPr
         onClick={dismiss}
         type="button"
         aria-label="إخفاء النصيحة"
-        className="absolute top-3 end-3 h-6 w-6 rounded-full bg-muted/80 flex items-center justify-center hover:bg-muted transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="absolute top-1.5 end-1.5 h-11 w-11 rounded-full bg-muted/80 flex items-center justify-center hover:bg-muted transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <X className="h-3 w-3 text-muted-foreground" />
       </button>

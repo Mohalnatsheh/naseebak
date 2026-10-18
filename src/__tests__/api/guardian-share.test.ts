@@ -1,11 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const db = vi.hoisted(() => ({
-  mutualMatch: { findUnique: vi.fn(), updateMany: vi.fn() },
+  mutualMatch: { findUnique: vi.fn(), updateMany: vi.fn(), findMany: vi.fn(async () => []) },
   block: { findMany: vi.fn() },
   introRequest: { findMany: vi.fn(), updateMany: vi.fn() },
   parentInfo: { findUnique: vi.fn(), update: vi.fn() },
   user: { findUnique: vi.fn() },
+  $transaction: vi.fn(),
 }));
 const auth = vi.hoisted(() => ({ requireUser: vi.fn() }));
 vi.mock("@/lib/db", () => ({ db }));
@@ -15,6 +16,7 @@ vi.mock("@/lib/settings", () => ({
 }));
 vi.mock("@/lib/intro/outcome", () => ({ applyIntroOutcome: vi.fn(async () => "NONE") }));
 vi.mock("@/lib/notify", () => ({ notify: vi.fn(), notifyMany: vi.fn() }));
+vi.mock("@/lib/reports", () => ({ pausedForReview: vi.fn(async () => new Set()), isPausedForReview: () => false }));
 vi.mock("@/lib/credits", () => ({ reserveCredits: vi.fn(), notifyRequestCreditsExhausted: vi.fn(), recordCredit: vi.fn() }));
 
 import { POST } from "@/app/api/matches/[id]/guardian-share/route";
@@ -37,6 +39,7 @@ beforeEach(() => {
   auth.requireUser.mockResolvedValue({ session: { user: { id: "u1" } } });
   db.mutualMatch.findUnique.mockResolvedValue(openedMatch());
   db.mutualMatch.updateMany.mockResolvedValue({ count: 1 });
+  db.$transaction.mockImplementation(async (fn: (tx: typeof db) => unknown) => fn(db));
   db.block.findMany.mockResolvedValue([]);
   db.introRequest.findMany.mockResolvedValue([
     { id: "o1", matchId: "m1", type: "FAMILY", status: "ACCEPTED", senderId: "f1", receiverId: "u1",

@@ -1,16 +1,24 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Inbox, Loader2, CheckCircle2, RotateCcw, Mail } from "lucide-react";
+import { Inbox, Loader2, CheckCircle2, RotateCcw, Mail, Phone } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Pager, fmtDate } from "@/components/admin/admin-list-bits";
 
+/** 962791234567 → 0791234567 */
+function displayPhone(phone: string): string {
+  return phone.startsWith("962") ? `0${phone.slice(3)}` : phone;
+}
+
 interface ContactMessage {
   id: string;
   name: string;
-  email: string;
+  /** null/"" when only a phone was left */
+  email: string | null;
+  /** 962… */
+  phone?: string | null;
   subject: string;
   message: string;
   userId: string | null;
@@ -135,9 +143,16 @@ export default function AdminMessagesPage() {
                     <h3 className="font-semibold" dir="auto">{m.subject}</h3>
                     <p className="text-sm text-muted-foreground" dir="auto">
                       {m.name} ·{" "}
-                      <a href={`mailto:${m.email}?subject=${encodeURIComponent("Re: " + m.subject)}`} className="text-primary hover:underline" dir="ltr">
-                        {m.email}
-                      </a>
+                      {m.email ? (
+                        <a href={`mailto:${m.email}?subject=${encodeURIComponent("Re: " + m.subject)}`} className="text-primary hover:underline" dir="ltr">
+                          {m.email}
+                        </a>
+                      ) : null}
+                      {m.phone ? (
+                        <a href={`tel:+${m.phone}`} className={`text-primary hover:underline ${m.email ? "ms-2" : ""}`} dir="ltr">
+                          {displayPhone(m.phone)}
+                        </a>
+                      ) : null}
                       {m.userId && <span className="ms-2 text-xs">(signed-in user)</span>}
                     </p>
                   </div>
@@ -145,11 +160,19 @@ export default function AdminMessagesPage() {
                 </div>
                 <p className="whitespace-pre-wrap rounded-lg bg-muted/50 p-3 text-sm" dir="auto">{m.message}</p>
                 <div className="flex flex-wrap items-center justify-end gap-2">
-                  <Button asChild size="sm" variant="outline">
-                    <a href={`mailto:${m.email}?subject=${encodeURIComponent("Re: " + m.subject)}`}>
-                      <Mail className="h-3.5 w-3.5 me-1" /> Reply by email
-                    </a>
-                  </Button>
+                  {m.email ? (
+                    <Button asChild size="sm" variant="outline">
+                      <a href={`mailto:${m.email}?subject=${encodeURIComponent("Re: " + m.subject)}`}>
+                        <Mail className="h-3.5 w-3.5 me-1" /> Reply by email
+                      </a>
+                    </Button>
+                  ) : m.phone ? (
+                    <Button asChild size="sm" variant="outline">
+                      <a href={`tel:+${m.phone}`}>
+                        <Phone className="h-3.5 w-3.5 me-1" /> Call {displayPhone(m.phone)}
+                      </a>
+                    </Button>
+                  ) : null}
                   {m.handledAt ? (
                     <Button size="sm" variant="ghost" disabled={busy === m.id} onClick={() => setHandled(m.id, false)}>
                       {busy === m.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <><RotateCcw className="h-3.5 w-3.5 me-1" />Reopen</>}

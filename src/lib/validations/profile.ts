@@ -1,6 +1,9 @@
 import { z } from "zod/v4";
 import { jordanPhoneRegex } from "./auth";
 import { toLatinDigits } from "@/lib/digits";
+// Both are db-free (pure value lists), safe for the client wizards that import this file
+import { OPTION_VALUES } from "@/lib/profile-options";
+import { EDUCATION_ORDER } from "@/lib/matching/score";
 
 /** Marriage platform: members must be adults */
 export const MIN_MEMBER_AGE = 18;
@@ -32,6 +35,24 @@ export function maxDateOfBirth(now = new Date()): string {
   return d.toISOString().slice(0, 10);
 }
 
+/** Highest partner age a preference may ask for (the wizards' inputs and every API use it). */
+export const PREF_AGE_MAX = 70;
+
+// Select fields: only the stored values the wizards offer (profile columns are plain strings)
+const educationEnum = z.enum(EDUCATION_ORDER, { message: "المستوى التعليمي غير صالح" });
+const maritalEnum = z.enum(OPTION_VALUES.maritalStatus, { message: "الحالة الاجتماعية غير صالحة" });
+const religiosityEnum = z.enum(OPTION_VALUES.religiosity, { message: "مستوى التدين غير صالح" });
+const smokingEnum = z.enum(OPTION_VALUES.smokingStatus, { message: "قيمة التدخين غير صالحة" });
+const cookingEnum = z.enum(OPTION_VALUES.cookingAbility, { message: "قيمة الطبخ غير صالحة" });
+const prefAgeMinField = z.number().int().min(18, "العمر الأدنى يجب أن يكون 18 على الأقل").max(PREF_AGE_MAX, `العمر الأدنى يجب أن يكون ${PREF_AGE_MAX} كحد أقصى`);
+const prefAgeMaxField = z.number().int().min(18, "العمر الأقصى يجب أن يكون 18 على الأقل").max(PREF_AGE_MAX, `العمر الأقصى يجب أن يكون ${PREF_AGE_MAX} كحد أقصى`);
+const AGE_RANGE_MESSAGE = "العمر الأدنى يجب أن يكون أقل من العمر الأقصى أو مساوياً له";
+
+/** min ≤ max when both are given (shared by the profile and draft schemas). */
+function ageRangeOk(v: { prefAgeMin?: number; prefAgeMax?: number }): boolean {
+  return v.prefAgeMin == null || v.prefAgeMax == null || v.prefAgeMin <= v.prefAgeMax;
+}
+
 const dateOfBirthField = z.string().min(1, "تاريخ الميلاد مطلوب").superRefine((v, ctx) => {
   const err = dateOfBirthError(v);
   if (err) ctx.addIssue({ code: "custom", message: err });
@@ -46,7 +67,7 @@ export const profileSchema = z.object({
   dateOfBirth: dateOfBirthField,
   city: z.string().min(1, "المدينة مطلوبة"),
   nationality: z.string().min(1, "الجنسية مطلوبة"),
-  education: z.string().min(1, "المستوى التعليمي مطلوب"),
+  education: educationEnum,
   fieldOfStudy: z.string().optional(),
   job: z.string().optional(),
   incomeRange: z.string().optional(),
@@ -55,15 +76,15 @@ export const profileSchema = z.object({
   skinColor: z.string().optional(),
   childrenCount: z.number().min(0, "عدد الأبناء لا يمكن أن يكون سالباً").max(20, "عدد الأبناء يجب أن يكون 20 كحد أقصى").optional(),
   willingToRelocate: z.string().optional(),
-  maritalStatus: z.string().min(1, "الحالة الاجتماعية مطلوبة"),
-  religiosity: z.string().min(1, "مستوى التدين مطلوب"),
+  maritalStatus: maritalEnum,
+  religiosity: religiosityEnum,
   familyValues: z.string().max(500, "الحد الأقصى 500 حرف").optional(),
   partnerExpectations: z.string().max(500, "الحد الأقصى 500 حرف").optional(),
   hobbies: z.string().optional(),
   interests: z.string().optional(),
   lifestyle: z.string().optional(),
-  hijab: z.boolean().optional(),
-  smokingStatus: z.string().optional(),
+  hijab: z.boolean().nullable().optional(),
+  smokingStatus: smokingEnum.optional(),
   aboutMe: z.string().max(500, "الحد الأقصى 500 حرف").optional(),
   area: z.string().optional(),
   latitude: z.number().optional(),
@@ -72,24 +93,24 @@ export const profileSchema = z.object({
   familyOriginArea: z.string().optional(),
   numberOfSiblings: z.number().min(0, "عدد الإخوة لا يمكن أن يكون سالباً").max(20, "عدد الإخوة يجب أن يكون 20 كحد أقصى").optional(),
   housingType: z.string().optional(),
-  beard: z.boolean().optional(),
-  cookingAbility: z.string().optional(),
+  beard: z.boolean().nullable().optional(),
+  cookingAbility: cookingEnum.optional(),
   drivingLicense: z.boolean().optional(),
   healthConditions: z.string().max(500, "الحد الأقصى 500 حرف").optional(),
   monthlyExpenses: z.string().optional(),
   wantsPhoto: z.boolean().optional(),
   profileImageUrl: z.string().optional(),
-  prefAgeMin: z.number().min(18, "العمر الأدنى يجب أن يكون 18 على الأقل").max(70, "العمر الأدنى يجب أن يكون 70 كحد أقصى"),
-  prefAgeMax: z.number().min(18, "العمر الأقصى يجب أن يكون 18 على الأقل").max(70, "العمر الأقصى يجب أن يكون 70 كحد أقصى"),
+  prefAgeMin: prefAgeMinField,
+  prefAgeMax: prefAgeMaxField,
   prefCity: z.array(z.string()).optional(),
-  prefEducation: z.array(z.string()).optional(),
-  prefMaritalStatus: z.array(z.string()).optional(),
+  prefEducation: z.array(educationEnum).optional(),
+  prefMaritalStatus: z.array(maritalEnum).optional(),
   prefHijab: z.string().optional(),
   prefBeard: z.string().optional(),
-  prefReligiosity: z.array(z.string()).optional(),
-  prefSmokingStatus: z.array(z.string()).optional(),
+  prefReligiosity: z.array(religiosityEnum).optional(),
+  prefSmokingStatus: z.array(smokingEnum).optional(),
   prefChildrenAcceptance: z.string().optional(),
-});
+}).refine(ageRangeOk, { message: AGE_RANGE_MESSAGE, path: ["prefAgeMin"] });
 
 /**
  * Guardian contact: shown to the other family after a family introduction, so it must be a real
@@ -139,8 +160,8 @@ export const profileDraftSchema = z.object({
   hobbies: z.string().optional(),
   interests: z.string().optional(),
   lifestyle: z.string().optional(),
-  hijab: z.boolean().optional(),
-  smokingStatus: z.string().optional(),
+  hijab: z.boolean().nullable().optional(),
+  smokingStatus: smokingEnum.optional(),
   aboutMe: z.string().max(500, "الحد الأقصى 500 حرف").optional(),
   area: z.string().optional(),
   latitude: z.number().optional(),
@@ -149,14 +170,14 @@ export const profileDraftSchema = z.object({
   familyOriginArea: z.string().optional(),
   numberOfSiblings: z.number().min(0, "عدد الإخوة لا يمكن أن يكون سالباً").max(20, "عدد الإخوة يجب أن يكون 20 كحد أقصى").optional(),
   housingType: z.string().optional(),
-  beard: z.boolean().optional(),
-  cookingAbility: z.string().optional(),
+  beard: z.boolean().nullable().optional(),
+  cookingAbility: cookingEnum.optional(),
   drivingLicense: z.boolean().optional(),
   healthConditions: z.string().max(500, "الحد الأقصى 500 حرف").optional(),
   monthlyExpenses: z.string().optional(),
   wantsPhoto: z.boolean().optional(),
-  prefAgeMin: z.number().min(18, "العمر الأدنى يجب أن يكون 18 على الأقل").max(70, "العمر الأدنى يجب أن يكون 70 كحد أقصى").optional(),
-  prefAgeMax: z.number().min(18, "العمر الأقصى يجب أن يكون 18 على الأقل").max(70, "العمر الأقصى يجب أن يكون 70 كحد أقصى").optional(),
+  prefAgeMin: prefAgeMinField.optional(),
+  prefAgeMax: prefAgeMaxField.optional(),
   prefCity: z.array(z.string()).optional(),
   prefEducation: z.array(z.string()).optional(),
   prefMaritalStatus: z.array(z.string()).optional(),
@@ -165,7 +186,7 @@ export const profileDraftSchema = z.object({
   prefReligiosity: z.array(z.string()).optional(),
   prefSmokingStatus: z.array(z.string()).optional(),
   prefChildrenAcceptance: z.string().optional(),
-});
+}).refine(ageRangeOk, { message: AGE_RANGE_MESSAGE, path: ["prefAgeMin"] });
 
 export type ProfileInput = z.infer<typeof profileSchema>;
 export type ParentInfoInput = z.infer<typeof parentInfoSchema>;

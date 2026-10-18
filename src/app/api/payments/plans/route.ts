@@ -1,30 +1,17 @@
 import { NextResponse } from "next/server";
-
-const packages = [
-  {
-    id: "credits_3",
-    name: "3 أرصدة",
-    credits: 3,
-    price: 3,
-    currency: "JOD",
-  },
-  {
-    id: "credits_5",
-    name: "5 أرصدة",
-    credits: 5,
-    price: 4,
-    currency: "JOD",
-    popular: true,
-  },
-  {
-    id: "credits_10",
-    name: "10 أرصدة",
-    credits: 10,
-    price: 7,
-    currency: "JOD",
-  },
-];
+import { CREDIT_PACKAGES } from "@/lib/payments/packages";
 
 export async function GET() {
-  return NextResponse.json({ packages });
+  return NextResponse.json({
+    packages: CREDIT_PACKAGES.map((p) => ({
+      id: p.id,
+      name: p.name,
+      credits: p.credits,
+      price: p.priceJod,
+      currency: "JOD",
+      /** What the card is actually charged (Stripe, USD) */
+      chargeUsd: p.priceUsdCents / 100,
+      ...(p.popular && { popular: true }),
+    })),
+  });
 }

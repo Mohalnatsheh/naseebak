@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { Loader2, Users, MessageCircle, Coins, Gift, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -46,6 +46,9 @@ const POINTS: Record<"FAMILY" | "CHAT", string[]> = {
   ],
 };
 
+/** Credit on interest: requests (and chat → family) are free after the match. */
+export const FREE_REQUEST_NOTE = "مجاناً — الطلبات والمحادثة مجانية بعد التوافق.";
+
 const CONSENT_TEXT =
   "أوافق على مشاركة اسم ورقم وليّ الأمر مع عائلة الطرف الآخر فقط بعد قبول طلب التعارف العائلي.";
 
@@ -63,17 +66,23 @@ export function IntroConfirmDialog({
   onConfirm,
 }: Props) {
   const [consent, setConsent] = useState(false);
-  // Added here through GuardianQuickForm (saved with consent) before the caller's state catches up
+  // Added here through GuardianQuickForm (contact only) before the caller's state catches up: the
+  // consent checkbox follows, and the consent is stored with the request itself
   const [guardianSaved, setGuardianSaved] = useState(false);
-  const guardian = guardianSaved ? { exists: true, consented: true } : guardianProp;
+  const guardian = guardianSaved ? { exists: true, consented: guardianProp.consented } : guardianProp;
   // The partner is the opposite gender of the viewer
-  const partnerFemale = useDashboardData().profile?.gender === "MALE";
-  useEffect(() => {
+  const viewerGender = useDashboardData().profile?.gender;
+  const partnerFemale = viewerGender === "MALE";
+  const viewerFemale = viewerGender === "FEMALE";
+  // Start fresh each time the dialog opens (adjusting state while rendering, not in an effect)
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
     if (open) {
       setConsent(false);
       setGuardianSaved(false);
     }
-  }, [open]);
+  }
 
   const isFamily = type === "FAMILY";
   const needsGuardianStep = isFamily && mode !== "decline";
@@ -110,7 +119,7 @@ export function IntroConfirmDialog({
                 ? isFamily
                   ? `بعد القبول ستظهر بيانات وليّ أمرك لعائلة ${partnerName}، وتظهر لك بيانات ${partnerFemale ? "وليّ أمرها" : "وليّ أمره"}.`
                   : `بعد القبول تُفتح محادثة نصية بينك وبين ${partnerName} لمدة 14 يوماً.`
-                : "راجع التفاصيل قبل الإرسال."}
+                : viewerFemale ? "راجعي التفاصيل قبل الإرسال." : "راجع التفاصيل قبل الإرسال."}
           </DialogDescription>
         </DialogHeader>
 
@@ -134,7 +143,7 @@ export function IntroConfirmDialog({
           ) : noCredits ? (
             <div className="rounded-xl border border-amber-200/60 bg-amber-50/70 p-3 text-sm text-amber-800">
               <p className="font-semibold">رصيدك صفر</p>
-              <p className="mt-1">اشحن رصيدك لإرسال هذا الطلب.</p>
+              <p className="mt-1">{viewerFemale ? "اشحني رصيدكِ لإرسال هذا الطلب." : "اشحن رصيدك لإرسال هذا الطلب."}</p>
             </div>
           ) : (
             <div className="flex items-start gap-3 rounded-xl border border-accent/30 bg-accent/10 p-3 text-sm">
@@ -150,7 +159,7 @@ export function IntroConfirmDialog({
             </div>
           ))}
 
-        {missingGuardian && <GuardianQuickForm onSaved={() => setGuardianSaved(true)} />}
+        {missingGuardian && <GuardianQuickForm shareConsent={false} onSaved={() => setGuardianSaved(true)} />}
 
         {needsConsent && (
           <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-border/60 p-3 text-sm hover:bg-muted/40">
@@ -167,7 +176,7 @@ export function IntroConfirmDialog({
         <DialogFooter className="gap-2 sm:flex-row-reverse sm:justify-start">
           {noCredits ? (
             <Button asChild className="flex-1 sm:flex-none">
-              <Link href="/dashboard/payments">اشحن رصيدك</Link>
+              <Link href="/dashboard/payments">{viewerFemale ? "اشحني رصيدكِ" : "اشحن رصيدك"}</Link>
             </Button>
           ) : (
             <Button

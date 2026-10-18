@@ -48,10 +48,11 @@ const contactInfo = [
 /* ══════════════════════════════════════════════════════ */
 
 export default function ContactPage() {
-  const formView = useInView(0.15);
+  const { ref: formRef, inView: formInView } = useInView(0.15);
 
   const [formData, setFormData] = useState({
     name: "",
+    phone: "",
     email: "",
     subject: "",
     message: "",
@@ -93,7 +94,7 @@ export default function ContactPage() {
         return;
       }
       setStatus("sent");
-      setFormData({ name: "", email: "", subject: "", message: "" });
+      setFormData({ name: "", phone: "", email: "", subject: "", message: "" });
     } catch {
       setError({ message: "تعذّر الاتصال. تحقق من الإنترنت وحاول مرة أخرى.", field: null });
       setStatus("idle");
@@ -169,13 +170,13 @@ export default function ContactPage() {
 
           <div
             className="container mx-auto px-4"
-            ref={formView.ref}
+            ref={formRef}
           >
             <div className="mx-auto max-w-6xl grid gap-8 lg:grid-cols-5">
               {/* Contact Form — Left Column */}
               <Card
                 className={`lg:col-span-3 relative overflow-hidden border-border/50 bg-card/80 backdrop-blur-sm transition-all duration-700 ${
-                  formView.inView
+                  formInView
                     ? "opacity-100 translate-y-0"
                     : "opacity-0 translate-y-8"
                 }`}
@@ -195,7 +196,7 @@ export default function ContactPage() {
                       <CheckCircle2 className="size-12 text-emerald-600" aria-hidden="true" />
                       <h3 className="text-lg font-bold">وصلتنا رسالتك</h3>
                       <p className="max-w-sm text-sm leading-relaxed text-muted-foreground">
-                        شكراً لتواصلك مع نصيبك. سنرد عليك على بريدك الإلكتروني في أقرب وقت ممكن.
+                        شكراً لتواصلك مع نصيبك. سنرد عليك على رقم هاتفك أو بريدك الإلكتروني في أقرب وقت ممكن.
                       </p>
                       <Button variant="outline" className="mt-2 rounded-xl" onClick={() => setStatus("idle")}>
                         إرسال رسالة أخرى
@@ -229,14 +230,32 @@ export default function ContactPage() {
                       />
                     </div>
 
+                    {/* Phone (members sign up with a phone) — a phone or an email is enough */}
+                    <div className="space-y-2">
+                      <Label htmlFor="phone">رقم الهاتف</Label>
+                      <Input
+                        id="phone"
+                        name="phone"
+                        aria-invalid={invalid("phone")}
+                        type="tel"
+                        inputMode="tel"
+                        dir="ltr"
+                        placeholder="07XXXXXXXX"
+                        value={formData.phone}
+                        onChange={handleChange}
+                        className="h-12 rounded-xl border-border/60 bg-background/50 backdrop-blur-sm text-left"
+                      />
+                    </div>
+
                     {/* Email */}
                     <div className="space-y-2">
-                      <Label htmlFor="email">البريد الإلكتروني</Label>
+                      <Label htmlFor="email">
+                        البريد الإلكتروني <span className="text-muted-foreground font-normal">(اختياري إذا أدخلت رقم الهاتف)</span>
+                      </Label>
                       <Input
                         id="email"
                         name="email"
                         aria-invalid={invalid("email")}
-                        required
                         type="email"
                         dir="ltr"
                         placeholder="example@email.com"
@@ -300,12 +319,12 @@ export default function ContactPage() {
               {/* Info Cards — Right Column */}
               <div
                 className={`lg:col-span-2 flex flex-col gap-6 transition-all duration-700 ${
-                  formView.inView
+                  formInView
                     ? "opacity-100 translate-y-0"
                     : "opacity-0 translate-y-8"
                 }`}
                 style={{
-                  transitionDelay: formView.inView ? "150ms" : "0ms",
+                  transitionDelay: formInView ? "150ms" : "0ms",
                 }}
               >
                 {/* Contact info cards */}
@@ -313,12 +332,12 @@ export default function ContactPage() {
                   <Card
                     key={info.title}
                     className={`relative overflow-hidden rounded-2xl bg-card/80 border transition-all duration-500 hover:border-primary/20 hover:shadow-lg ${
-                      formView.inView
+                      formInView
                         ? "opacity-100 translate-y-0"
                         : "opacity-0 translate-y-8"
                     }`}
                     style={{
-                      transitionDelay: formView.inView
+                      transitionDelay: formInView
                         ? `${(i + 1) * 100 + 150}ms`
                         : "0ms",
                     }}

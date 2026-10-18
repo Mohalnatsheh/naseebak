@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { LifeBuoy, Loader2, ChevronLeft, ChevronRight, Eye } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -43,7 +43,7 @@ export default function AdminSupportPage() {
   const [updating, setUpdating] = useState(false);
   const [updateError, setUpdateError] = useState("");
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams({ page: String(page) });
@@ -58,11 +58,12 @@ export default function AdminSupportPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [page, statusFilter, typeFilter]);
 
   useEffect(() => {
     load();
-  }, [page, statusFilter, typeFilter]);
+  }, [load]);
+
 
   async function handleUpdate(ticketId: string, status: string) {
     setUpdating(true);

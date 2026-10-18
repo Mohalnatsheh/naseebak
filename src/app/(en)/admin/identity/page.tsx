@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { ShieldCheck, CheckCircle2, XCircle, Loader2, FileText, User, ChevronLeft, ChevronRight } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -62,11 +62,7 @@ export default function AdminIdentityPage() {
   const [histPage, setHistPage] = useState(1);
   const [histTotalPages, setHistTotalPages] = useState(1);
 
-  useEffect(() => {
-    fetchDocs();
-  }, [tab, histPage]);
-
-  async function fetchDocs() {
+  const fetchDocs = useCallback(async () => {
     setLoading(true);
     setLoadError("");
     try {
@@ -89,7 +85,11 @@ export default function AdminIdentityPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [tab, histPage]);
+
+  useEffect(() => {
+    fetchDocs();
+  }, [fetchDocs]);
 
   async function handleAction(docId: string, action: "approve" | "reject") {
     setActing(docId);
@@ -213,6 +213,7 @@ export default function AdminIdentityPage() {
                         <p className="text-xs text-muted-foreground mb-1">
                           {doc.documentType === "selfie" ? "Selfie" : "Front"}
                         </p>
+                        {/* eslint-disable-next-line @next/next/no-img-element -- admin review of a stored upload URL, which may be a legacy base64 data: URL rather than a cdn.naseebak.com image */}
                         <img
                           src={doc.frontImageUrl}
                           alt={doc.documentType === "selfie" ? "Selfie" : "ID Front"}
@@ -223,6 +224,7 @@ export default function AdminIdentityPage() {
                     {doc.backImageUrl && (
                       <div>
                         <p className="text-xs text-muted-foreground mb-1">Back</p>
+                        {/* eslint-disable-next-line @next/next/no-img-element -- admin review of a stored upload URL, which may be a legacy base64 data: URL rather than a cdn.naseebak.com image */}
                         <img
                           src={doc.backImageUrl}
                           alt="ID Back"
@@ -238,6 +240,7 @@ export default function AdminIdentityPage() {
                         {doc.user.photos && doc.user.photos.length > 0 ? (
                           <div className="grid grid-cols-2 gap-1.5">
                             {doc.user.photos.slice(0, 4).map((photo) => (
+                              // eslint-disable-next-line @next/next/no-img-element -- admin review of a stored upload URL, which may be a legacy base64 data: URL rather than a cdn.naseebak.com image
                               <img
                                 key={photo.id}
                                 src={photo.url}

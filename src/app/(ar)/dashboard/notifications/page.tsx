@@ -31,6 +31,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Switch } from "@/components/ui/switch";
+import { toast } from "sonner";
+import { LoadError } from "@/components/shared/load-error";
+import { ConfirmActionDialog } from "@/components/intro/confirm-action-dialog";
 
 interface Notification {
   id: string;
@@ -192,14 +195,20 @@ export default function NotificationsPage() {
   const [prefs, setPrefs] = useState<NotificationPrefs | null>(null);
   const [deleteAllConfirm, setDeleteAllConfirm] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deletingAll, setDeletingAll] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [prefsFailed, setPrefsFailed] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   async function fetchPrefs() {
+    setPrefsFailed(false);
     try {
       const res = await fetch("/api/notifications/preferences");
+      if (!res.ok) throw new Error(`prefs ${res.status}`);
       const data = await res.json();
       setPrefs(data.preferences);
     } catch {
-      // Silently fail
+      setPrefsFailed(true);
     }
   }
 
@@ -208,29 +217,38 @@ export default function NotificationsPage() {
     const newVal = !prefs[key];
     setPrefs({ ...prefs, [key]: newVal });
     try {
-      await fetch("/api/notifications/preferences", {
+      const res = await fetch("/api/notifications/preferences", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ [key]: newVal }),
       });
+      if (!res.ok) throw new Error(`prefs ${res.status}`);
     } catch {
-      setPrefs({ ...prefs, [key]: !newVal });
+      // Roll back: the switch must never look saved when it wasn't
+      setPrefs((cur) => (cur ? { ...cur, [key]: !newVal } : cur));
+      toast.error("تعذّر حفظ الإعداد، حاول مرة أخرى");
     }
   }
 
   useEffect(() => {
+    // Every page change shows the spinner again (no stale page under a new page number)
+    setLoading(true);
     fetchNotifications();
-  }, [page]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, reloadKey]);
 
   async function fetchNotifications() {
+    setLoadFailed(false);
     try {
       const res = await fetch(`/api/notifications?page=${page}`);
+      if (!res.ok) throw new Error(`notifications ${res.status}`);
       const data = await res.json();
       setNotifications(data.notifications || []);
       setUnreadCount(data.unreadCount || 0);
       setTotalPages(data.totalPages || 1);
     } catch (err) {
       console.error(err);
+      setLoadFailed(true);
     } finally {
       setLoading(false);
     }
@@ -269,15 +287,19 @@ export default function NotificationsPage() {
         setNotifications((prev) => prev.filter((n) => n.id !== id));
         if (wasUnread) setUnreadCount((c) => Math.max(0, c - 1));
         window.dispatchEvent(new CustomEvent("naseeb:notifications-read"));
+      } else {
+        toast.error("تعذّر حذف الإشعار");
       }
     } catch (err) {
       console.error(err);
+      toast.error("تعذّر حذف الإشعار، تحقّق من الاتصال");
     } finally {
       setDeletingId(null);
     }
   }
 
   async function deleteAllNotifications() {
+    setDeletingAll(true);
     try {
       const res = await fetch("/api/notifications", { method: "DELETE" });
       if (res.ok) {
@@ -285,9 +307,14 @@ export default function NotificationsPage() {
         setUnreadCount(0);
         setDeleteAllConfirm(false);
         window.dispatchEvent(new CustomEvent("naseeb:notifications-read"));
+      } else {
+        toast.error("تعذّر حذف الإشعارات، حاول مرة أخرى");
       }
     } catch (err) {
       console.error(err);
+      toast.error("تعذّر حذف الإشعارات، تحقّق من الاتصال");
+    } finally {
+      setDeletingAll(false);
     }
   }
 
@@ -339,8 +366,7 @@ export default function NotificationsPage() {
               <SheetTrigger asChild>
                 <Button
                   variant="outline"
-                  size="sm"
-                  className="border-primary/30 text-primary hover:bg-primary/5 hover:border-primary/50 rounded-xl gap-2 font-semibold backdrop-blur-sm bg-card/80"
+                  className="h-11 border-primary/30 text-primary hover:bg-primary/5 hover:border-primary/50 rounded-xl gap-2 font-semibold backdrop-blur-sm bg-card/80"
                 >
                   <Settings2 className="h-4 w-4" />
                   الإعدادات
@@ -376,7 +402,9 @@ export default function NotificationsPage() {
                       </div>
                       <Switch checked={prefs[key]} onCheckedChange={() => togglePref(key)} />
                     </label>
-                  )) : (
+                  )) : prefsFailed ? (
+                    <LoadError message="تعذّر تحميل إعدادات الإشعارات." onRetry={fetchPrefs} className="py-6" />
+                  ) : (
                     <div className="flex justify-center py-12">
                       <Loader2 className="h-6 w-6 animate-spin text-primary" />
                     </div>
@@ -421,9 +449,8 @@ export default function NotificationsPage() {
             {unreadCount > 0 && (
               <Button
                 variant="outline"
-                size="sm"
                 onClick={markAllRead}
-                className="border-primary/30 text-primary hover:bg-primary/5 hover:border-primary/50 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 rounded-xl gap-2 font-semibold backdrop-blur-sm bg-card/80"
+                className="h-11 border-primary/30 text-primary hover:bg-primary/5 hover:border-primary/50 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 rounded-xl gap-2 font-semibold backdrop-blur-sm bg-card/80"
               >
                 <CheckCheck className="h-4 w-4" />
                 تحديد الكل كمقروء
@@ -431,10 +458,9 @@ export default function NotificationsPage() {
             )}
             {notifications.length > 0 && (
               <Button
-                variant="outline"
-                size="sm"
+                variant="ghost"
                 onClick={() => setDeleteAllConfirm(true)}
-                className="border-destructive/30 text-destructive hover:bg-destructive/5 hover:border-destructive/50 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 rounded-xl gap-2 font-semibold backdrop-blur-sm bg-card/80"
+                className="h-11 text-destructive/80 hover:text-destructive hover:bg-destructive/5 rounded-xl gap-2 font-medium"
               >
                 <Trash2 className="h-4 w-4" />
                 حذف الكل
@@ -445,7 +471,12 @@ export default function NotificationsPage() {
       </div>
 
       {/* Notification Cards */}
-      {notifications.length === 0 ? (
+      {loadFailed ? (
+        <LoadError
+          message="تعذّر تحميل الإشعارات. تحقّق من الاتصال وحاول مرة أخرى."
+          onRetry={() => setReloadKey((k) => k + 1)}
+        />
+      ) : notifications.length === 0 ? (
         <Card className="border-dashed border-2 border-muted-foreground/20 bg-gradient-to-b from-card to-primary/5">
           <CardContent className="text-center py-16 md:py-20 space-y-5">
             <div className="relative mx-auto w-24 h-24">
@@ -536,13 +567,13 @@ export default function NotificationsPage() {
                             <button
                               onClick={(e) => { e.stopPropagation(); deleteNotification(n.id); }}
                               disabled={deletingId === n.id}
-                              className="h-6 w-6 rounded-md flex items-center justify-center text-muted-foreground/50 hover:text-destructive hover:bg-destructive/10 transition-colors opacity-100 md:opacity-0 md:group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                              className="-m-2 h-11 w-11 rounded-md flex items-center justify-center text-muted-foreground/60 hover:text-destructive hover:bg-destructive/10 transition-colors opacity-100 md:opacity-0 md:group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                               aria-label="حذف الإشعار"
                             >
                               {deletingId === n.id ? (
-                                <Loader2 className="h-3 w-3 animate-spin" />
+                                <Loader2 className="h-4 w-4 animate-spin" />
                               ) : (
-                                <Trash2 className="h-3 w-3" />
+                                <Trash2 className="h-4 w-4" />
                               )}
                             </button>
                           </div>
@@ -563,7 +594,7 @@ export default function NotificationsPage() {
                             e.stopPropagation();
                             if (!n.isRead) markRead(n.id);
                           }}
-                          className="inline-flex items-center gap-1 mt-2 rounded text-xs font-semibold text-primary/70 hover:text-primary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          className="inline-flex min-h-11 items-center gap-1 mt-1 -mb-2 rounded text-xs font-semibold text-primary/70 hover:text-primary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                         >
                           <ArrowLeft className="h-3 w-3" aria-hidden="true" />
                           عرض التفاصيل
@@ -578,14 +609,14 @@ export default function NotificationsPage() {
           })}
           {totalPages > 1 && (
             <div className="flex items-center justify-center gap-4 mt-8">
-              <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>
+              <Button variant="outline" className="h-11" disabled={page <= 1} onClick={() => { setPage(page - 1); window.scrollTo({ top: 0, behavior: "smooth" }); }}>
                 <ChevronRight className="h-4 w-4 me-1" />
                 السابق
               </Button>
               <span className="text-sm text-muted-foreground">
                 صفحة {page} من {totalPages}
               </span>
-              <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>
+              <Button variant="outline" className="h-11" disabled={page >= totalPages} onClick={() => { setPage(page + 1); window.scrollTo({ top: 0, behavior: "smooth" }); }}>
                 التالي
                 <ChevronLeft className="h-4 w-4 ms-1" />
               </Button>
@@ -595,33 +626,16 @@ export default function NotificationsPage() {
       )}
 
       {/* Delete All Confirmation Dialog */}
-      {deleteAllConfirm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setDeleteAllConfirm(false)}>
-          <div className="bg-card rounded-2xl border shadow-2xl p-6 w-full max-w-sm space-y-4" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center gap-3">
-              <div className="h-12 w-12 rounded-xl bg-destructive/10 flex items-center justify-center flex-shrink-0">
-                <Trash2 className="h-6 w-6 text-destructive" />
-              </div>
-              <div>
-                <h3 className="text-lg font-bold text-foreground">حذف جميع الإشعارات</h3>
-                <p className="text-sm text-muted-foreground mt-1">هل أنت متأكد من حذف جميع الإشعارات؟ لا يمكن التراجع عن هذا الإجراء.</p>
-              </div>
-            </div>
-            <div className="flex gap-2 pt-2">
-              <Button
-                onClick={deleteAllNotifications}
-                className="flex-1 bg-destructive hover:bg-destructive/90 text-destructive-foreground rounded-xl"
-              >
-                <Trash2 className="h-4 w-4 me-2" />
-                حذف الكل
-              </Button>
-              <Button variant="outline" onClick={() => setDeleteAllConfirm(false)} className="rounded-xl">
-                إلغاء
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmActionDialog
+        open={deleteAllConfirm}
+        onOpenChange={(o) => !deletingAll && setDeleteAllConfirm(o)}
+        title="حذف جميع الإشعارات"
+        description="ستُحذف كل الإشعارات من هذه الصفحة. لا يمكن التراجع عن ذلك."
+        confirmLabel="حذف الكل"
+        destructive
+        busy={deletingAll}
+        onConfirm={deleteAllNotifications}
+      />
 
       {/* Inline keyframes style */}
       <style jsx global>{`

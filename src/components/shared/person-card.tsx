@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import type { ComponentType, ReactNode } from "react";
 import { Briefcase, Calendar, ChevronDown, ChevronUp, Lock, MapPin, Quote, Sparkle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -93,8 +94,12 @@ export function ScoreRing({ score, compact }: { score: number; compact?: boolean
       aria-label={`نسبة التوافق ${score}%`}
     >
       <div className="h-full w-full rounded-full bg-card flex flex-col items-center justify-center" aria-hidden="true">
-        <span className={cn("font-black text-foreground leading-none", compact ? "text-base" : "text-lg sm:text-xl")}>{score}</span>
-        <span className="text-[8px] text-muted-foreground font-medium leading-none mt-0.5">% توافق</span>
+        <span className={cn("font-black text-foreground leading-none", compact ? "text-base" : "text-lg sm:text-xl")}>
+          {score}
+          <span className="text-[0.6em] font-bold">%</span>
+        </span>
+        {/* Readable caption (was 8px muted) */}
+        <span className="text-[10px] text-foreground/70 font-semibold leading-none mt-0.5">توافق</span>
       </div>
     </div>
   );
@@ -117,9 +122,12 @@ function Avatar({
   return (
     <div className="relative shrink-0">
       {photoUrl ? (
-        <img
+        <Image
           src={photoUrl}
           alt={`صورة ${name}`}
+          width={compact ? 56 : 64}
+          height={compact ? 56 : 64}
+          unoptimized
           className={cn(size, "rounded-2xl object-cover border border-primary/15 shadow-sm")}
           draggable={false}
           onContextMenu={(e) => e.preventDefault()}

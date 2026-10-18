@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { dateOfBirthError } from "@/lib/validations/profile";
+import { dateOfBirthError, PREF_AGE_MAX } from "@/lib/validations/profile";
 import { closeSuggestionsBreakingDealbreakers } from "@/lib/suggestions/dealbreaker-sweep";
 import { autoSuggestForUser } from "@/lib/matching/auto-suggest";
+import { sendAdminAlert } from "@/lib/admin-alert";
 
 /**
  * Partner preferences are a private matching filter (like «شروط أساسية»): they save directly, no
@@ -20,7 +21,7 @@ function prefValue(key: string, v: unknown): unknown {
   if (key === "prefAgeMin" || key === "prefAgeMax") {
     if (v === null || v === "") return null;
     const n = typeof v === "number" ? v : parseInt(String(v));
-    return Number.isFinite(n) && n >= 18 && n <= 80 ? n : undefined;
+    return Number.isFinite(n) && n >= 18 && n <= PREF_AGE_MAX ? n : undefined;
   }
   if (LIST_PREFS.has(key)) return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string").slice(0, 30) : undefined;
   return v === null || typeof v === "string" ? v || null : undefined;
@@ -55,8 +56,33 @@ export async function POST(request: Request) {
         reviewed[k] = v;
       }
     }
-    if (typeof prefs.prefAgeMin === "number" && typeof prefs.prefAgeMax === "number" && prefs.prefAgeMin > prefs.prefAgeMax) {
-      return NextResponse.json({ error: "العمر الأدنى يجب أن يكون أقل من العمر الأقصى" }, { status: 400 });
+    // min ≤ max, also when only one end changes (compare with the stored other end)
+    if ("prefAgeMin" in prefs || "prefAgeMax" in prefs) {
+      let min = prefs.prefAgeMin as number | null | undefined;
+      let max = prefs.prefAgeMax as number | null | undefined;
+      if (min === undefined || max === undefined) {
+        const stored = await db.profile.findUnique({ where: { userId }, select: { prefAgeMin: true, prefAgeMax: true } });
+        if (min === undefined) min = stored?.prefAgeMin ?? null;
+        if (max === undefined) max = stored?.prefAgeMax ?? null;
+      }
+      if (typeof min === "number" && typeof max === "number" && min > max) {
+        return NextResponse.json({ error: "العمر الأدنى يجب أن يكون أقل من العمر الأقصى" }, { status: 400 });
+      }
+    }
+
+    // Check for a pending review BEFORE writing anything: never save the preferences and then
+    // refuse the rest (the member would see an error while half of the edit was applied)
+    if (Object.keys(reviewed).length > 0) {
+      const existing = await db.profileUpdateRequest.findFirst({
+        where: { userId, status: "PENDING" },
+        select: { id: true },
+      });
+      if (existing) {
+        return NextResponse.json(
+          { error: "لديك طلب تعديل قيد المراجعة بالفعل. اسحبه أولاً أو انتظر مراجعته.", code: "REQUEST_PENDING" },
+          { status: 409 }
+        );
+      }
     }
 
     if (Object.keys(prefs).length > 0) {
@@ -70,18 +96,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "تم حفظ تفضيلات الشريك", applied: Object.keys(prefs), requested: false });
     }
 
-    // Check if user already has a pending request
-    const existing = await db.profileUpdateRequest.findFirst({
-      where: { userId: session.user.id, status: "PENDING" },
-    });
-
-    if (existing) {
-      return NextResponse.json(
-        { error: "لديك طلب تعديل قيد المراجعة بالفعل" },
-        { status: 409 }
-      );
-    }
-
     const updateRequest = await db.profileUpdateRequest.create({
       data: {
         userId: session.user.id,
@@ -89,6 +103,17 @@ export async function POST(request: Request) {
         message: message || null,
       },
     });
+
+    // Best-effort admin email; never blocks or fails the request (sendAdminAlert never throws)
+    void sendAdminAlert(
+      "طلب تعديل ملف جديد",
+      [
+        `العضو: ${session.user.name ?? ""} (${userId})`,
+        `الحقول: ${Object.keys(reviewed).join(", ")}`,
+        typeof message === "string" && message ? `رسالة العضو: ${message}` : null,
+        `Admin → Profile Requests (request ${updateRequest.id})`,
+      ].filter(Boolean).join("\n")
+    );
 
     return NextResponse.json({ message: "تم إرسال طلب التعديل بنجاح", request: updateRequest, applied: Object.keys(prefs), requested: true });
   } catch (error: unknown) {

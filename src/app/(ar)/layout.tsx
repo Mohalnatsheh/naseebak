@@ -1,9 +1,7 @@
 import type { Metadata } from "next";
 import { Cairo } from "next/font/google";
 import "../globals.css";
-import Script from "next/script";
-import TrackingScripts from "@/components/shared/tracking-scripts";
-import { GA_MEASUREMENT_ID } from "@/lib/analytics";
+import PublicTracking from "@/components/shared/public-tracking";
 import { connection } from "next/server";
 import { auth } from "@/lib/auth";
 import { getMaintenanceState } from "@/lib/settings";
@@ -131,18 +129,8 @@ export default async function ArabicLayout({
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd) }}
         />
-        {/* Google Analytics 4 */}
-        <Script
-          src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`}
-          strategy="afterInteractive"
-        />
-        <Script id="ga4-init" strategy="afterInteractive">
-          {`window.dataLayer = window.dataLayer || [];
-function gtag(){dataLayer.push(arguments);}
-gtag("js", new Date());
-gtag("config", "${GA_MEASUREMENT_ID}");`}
-        </Script>
-        <TrackingScripts />
+        {/* GA4, GTM, Meta Pixel — public pages only (never the dashboard, chats or admin) */}
+        <PublicTracking />
         {showMaintenance ? (
           <MaintenanceScreen message={maintenance.message} />
         ) : (

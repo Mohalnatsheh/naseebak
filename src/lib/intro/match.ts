@@ -16,8 +16,11 @@ const MATCH_TITLE = "توافق متبادل!";
 const REQUESTS_BODY = "تهانينا! لديك توافق متبادل جديد. يمكنك الآن إرسال طلب تعارف عائلي أو طلب محادثة.";
 const CHAT_OPEN_BODY = "توافق متبادل! المحادثة مفتوحة الآن";
 const FAMILY_SHARED_BODY = "توافق متبادل! تم مشاركة بيانات التواصل العائلي";
-/** Mixed choice, to the side that chose chat: the other side's guardian contact is already visible */
-const OTHER_PREFERRED_FAMILY = "توافق متبادل! الطرف الآخر فضّل التعارف العائلي وشارك بيانات وليّ أمره. شارك بيانات وليّ أمرك من صفحة التوافق";
+/**
+ * Mixed choice, to the side that chose chat: neither guardian contact shows until this side shares too
+ * (see getMatchIntroState)
+ */
+const OTHER_PREFERRED_FAMILY = "توافق متبادل! الطرف الآخر فضّل التعارف العائلي. شارك بيانات وليّ أمرك من صفحة التوافق لتتبادل العائلتان بيانات التواصل";
 /** Mixed choice, to the side that chose family: nothing to see until the other side shares */
 const WAITING_FOR_SHARE = "توافق متبادل! فضّل الطرف الآخر المحادثة أولاً، وطلبنا منه مشاركة بيانات وليّ أمره. سنُعلمك فور مشاركتها";
 

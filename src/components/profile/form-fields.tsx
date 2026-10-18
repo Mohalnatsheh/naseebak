@@ -70,7 +70,8 @@ export function ChoiceGroup({
       id={id}
       role="group"
       aria-labelledby={`${id}-label`}
-      aria-invalid={error || undefined}
+      // role="group" can't carry aria-invalid: point at the Field's error text instead
+      aria-describedby={error ? `${id}-error` : undefined}
       className={`grid ${grid} gap-2 ${error ? "ring-1 ring-destructive rounded-xl p-1" : ""}`}
     >
       {options.map((o) => {

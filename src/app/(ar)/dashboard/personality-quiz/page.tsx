@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useEffectEvent, useMemo } from "react";
 import Link from "next/link";
 import {
   Loader2,
@@ -25,6 +25,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { FirstVisitTip } from "@/components/shared/first-visit-tip";
 import { trackEvent } from "@/lib/analytics";
 import { arabicCount } from "@/lib/utils";
+import { useDashboardData } from "@/contexts/dashboard-context";
+import { LoadError } from "@/components/shared/load-error";
 
 interface Question {
   id: string;
@@ -111,16 +113,26 @@ export default function PersonalityQuizPage() {
   const currentPageComplete = currentQuestions.every((q) => answers[q.id] !== undefined);
 
   // Scroll to top when page changes (after React re-renders)
-  useEffect(() => {
-    if (currentPage > 0 || showQuiz) {
+  // Runs on page changes only; reads the latest showQuiz without re-running when it toggles
+  const onPageChange = useEffectEvent((page: number) => {
+    if (page > 0 || showQuiz) {
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
+  });
+  useEffect(() => {
+    onPageChange(currentPage);
   }, [currentPage]);
+
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
+  const female = useDashboardData().profile?.gender === "FEMALE";
 
   useEffect(() => {
     async function load() {
+      setLoadFailed(false);
       try {
         const res = await fetch("/api/profile/personality-quiz");
+        if (!res.ok) throw new Error(`quiz ${res.status}`);
         const data = await res.json();
         setQuestions(data.questions || []);
         if (data.result) {
@@ -128,12 +140,13 @@ export default function PersonalityQuizPage() {
         }
       } catch (err) {
         console.error(err);
+        setLoadFailed(true);
       } finally {
         setLoading(false);
       }
     }
     load();
-  }, []);
+  }, [reloadKey]);
 
   function handleRetake() {
     setExistingResult(null);
@@ -197,6 +210,21 @@ export default function PersonalityQuizPage() {
   }
 
   // --- Result Screen ---
+  // The questions didn't load: an empty quiz would show "0 of 0" and let an empty submit through
+  if (!existingResult && (loadFailed || questions.length === 0)) {
+    return (
+      <div className="max-w-2xl mx-auto py-8">
+        <LoadError
+          message="تعذّر تحميل أسئلة الاختبار. تحقّق من الاتصال وحاول مرة أخرى."
+          onRetry={() => {
+            setLoading(true);
+            setReloadKey((k) => k + 1);
+          }}
+        />
+      </div>
+    );
+  }
+
   if (existingResult && !showQuiz) {
     const completedDate = new Date(existingResult.completedAt);
     const formattedDate = completedDate.toLocaleDateString("ar-JO-u-nu-latn", {
@@ -223,7 +251,7 @@ export default function PersonalityQuizPage() {
               <h1 className="text-xl sm:text-2xl md:text-3xl font-bold bg-gradient-to-l from-primary to-secondary bg-clip-text text-transparent">
                 نتيجة اختبار الشخصية
               </h1>
-              <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-l from-secondary/15 to-primary/10 border border-secondary/20">
+              <div className="inline-flex min-h-11 items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-l from-secondary/15 to-primary/10 border border-secondary/20">
                 <Sparkles className="h-5 w-5 text-secondary" />
                 <span className="text-xl font-bold bg-gradient-to-l from-secondary to-primary bg-clip-text text-transparent">
                   {existingResult.personalityType}
@@ -401,7 +429,7 @@ export default function PersonalityQuizPage() {
         storageKey="naseeb_tip_quiz"
         icon={<Brain className="h-5 w-5 text-primary" />}
         title="اختبار الشخصية يحسّن التوافق"
-        body="اختبار قصير من 20 سؤال يساعدنا في فهم شخصيتك وتقديم اقتراحات توافق أدق. نتائجك تُستخدم لحساب نسبة التوافق مع المرشحين."
+        body={`اختبار قصير من ${arabicCount(questions.length, { one: "سؤال واحد", two: "سؤالين", few: "أسئلة", many: "سؤالاً" })} يساعدنا في فهم شخصيتك وتقديم اقتراحات توافق أدق. نتائجك تُستخدم لحساب نسبة التوافق مع المرشحين.`}
       />
       {/* Gradient Header */}
       <div
@@ -421,7 +449,7 @@ export default function PersonalityQuizPage() {
             </h1>
           </div>
           <p className="text-muted-foreground text-sm md:text-base">
-            أجب عن الأسئلة العشرين لنساعدك في إيجاد أفضل توافق لك.
+            {female ? "أجيبي عن الأسئلة لنساعدكِ في إيجاد أفضل توافق لكِ." : "أجب عن الأسئلة لنساعدك في إيجاد أفضل توافق لك."}
           </p>
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-card/80 backdrop-blur-sm border border-border/50 text-xs text-muted-foreground">
             <Clock className="h-3 w-3 text-primary/60" />
@@ -512,13 +540,16 @@ export default function PersonalityQuizPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="pb-5">
-                <div className="flex gap-2">
+                {/* Stacked on phones: five long labels never fit one 360px row */}
+                <div role="radiogroup" aria-label={q.text} className="flex flex-col gap-2 sm:flex-row">
                   {scaleLabels.map((label, i) => (
                     <button
                       key={i}
                       type="button"
+                      role="radio"
+                      aria-checked={answers[q.id] === i + 1}
                       onClick={() => setAnswers((prev) => ({ ...prev, [q.id]: i + 1 }))}
-                      className={`flex-1 rounded-xl border-2 px-2 py-2.5 text-xs transition-all duration-200 ${
+                      className={`min-h-11 flex-1 rounded-xl border-2 px-3 py-2.5 text-sm sm:px-2 sm:text-xs transition-all duration-200 ${
                         answers[q.id] === i + 1
                           ? "border-transparent bg-gradient-to-br from-secondary to-primary text-white font-semibold shadow-md shadow-primary/20 scale-[1.03]"
                           : "border-border/60 hover:border-primary/40 hover:bg-primary/5 hover:scale-[1.01]"
@@ -543,7 +574,7 @@ export default function PersonalityQuizPage() {
           {currentPage > 0 && (
             <button
               onClick={() => setCurrentPage((p) => p - 1)}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border-2 border-border/60 text-sm font-medium text-foreground hover:border-primary/40 hover:bg-primary/5 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200"
+              className="inline-flex min-h-11 items-center gap-2 px-5 py-2.5 rounded-xl border-2 border-border/60 text-sm font-medium text-foreground hover:border-primary/40 hover:bg-primary/5 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200"
             >
               <ArrowRight className="h-4 w-4" />
               السابق
@@ -564,7 +595,7 @@ export default function PersonalityQuizPage() {
             <button
               onClick={() => setCurrentPage((p) => p + 1)}
               disabled={!currentPageComplete}
-              className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${
+              className={`inline-flex min-h-11 items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${
                 currentPageComplete
                   ? "bg-gradient-to-l from-secondary to-primary text-white shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 hover:scale-[1.02] active:scale-[0.98]"
                   : "bg-muted text-muted-foreground cursor-not-allowed"
@@ -577,7 +608,7 @@ export default function PersonalityQuizPage() {
             <div className="flex flex-col items-end gap-2">
             {/* The answers lock the result for months: say so before sending */}
             <p className="text-xs text-muted-foreground max-w-xs text-start">
-              راجع إجاباتك قبل الإرسال: يمكن إعادة الاختبار بعد نحو 3 أشهر فقط.
+              {female ? "راجعي" : "راجع"} إجاباتك قبل الإرسال: يمكن إعادة الاختبار بعد نحو 3 أشهر فقط.
             </p>
             <button
               onClick={handleSubmit}

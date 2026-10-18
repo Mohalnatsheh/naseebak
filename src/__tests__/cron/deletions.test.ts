@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const db = vi.hoisted(() => ({
-  accountDeletionRequest: { findMany: vi.fn(), delete: vi.fn() },
+  accountDeletionRequest: { findMany: vi.fn(), findUnique: vi.fn(), delete: vi.fn() },
   photo: { findMany: vi.fn() },
   identityDoc: { findUnique: vi.fn() },
   profile: { findUnique: vi.fn() },
@@ -22,11 +22,15 @@ vi.mock("@/lib/reports", () => reports);
 vi.mock("@/lib/matches/leave", () => leave);
 
 import { processAccountDeletions } from "@/lib/cron/deletions";
-import { GET } from "@/app/api/cron/process-deletions/route";
 
 beforeEach(() => {
   vi.clearAllMocks();
   db.accountDeletionRequest.findMany.mockResolvedValue([{ id: "d1", userId: "u1" }]);
+  db.accountDeletionRequest.findUnique.mockResolvedValue({
+    cancelledAt: null,
+    scheduledAt: new Date(Date.now() - 1000),
+    user: { isDeactivated: true },
+  });
   db.photo.findMany.mockResolvedValue([{ url: "photos/u1/a.jpg" }]);
   db.identityDoc.findUnique.mockResolvedValue(null);
   db.profile.findUnique.mockResolvedValue(null);
@@ -42,6 +46,24 @@ describe("processAccountDeletions", () => {
     expect(db.accountDeletionRequest.findMany.mock.calls[0][0].where.cancelledAt).toBeNull();
     expect(bunny.deleteFromBunny).toHaveBeenCalledWith("photos/u1/a.jpg");
     expect(db.$transaction).toHaveBeenCalledTimes(1);
+  });
+
+  it("only lists accounts that are still paused (G02)", async () => {
+    await processAccountDeletions();
+    expect(db.accountDeletionRequest.findMany.mock.calls[0][0].where.user).toEqual({ isDeactivated: true });
+  });
+
+  it("skips an account that was resumed or whose request was cancelled since the list was read", async () => {
+    db.accountDeletionRequest.findUnique.mockResolvedValueOnce({
+      cancelledAt: null, scheduledAt: new Date(Date.now() - 1000), user: { isDeactivated: false },
+    });
+    expect(await processAccountDeletions()).toBe(0);
+    db.accountDeletionRequest.findUnique.mockResolvedValueOnce({
+      cancelledAt: new Date(), scheduledAt: new Date(Date.now() - 1000), user: { isDeactivated: true },
+    });
+    expect(await processAccountDeletions()).toBe(0);
+    expect(db.$transaction).not.toHaveBeenCalled();
+    expect(bunny.deleteFromBunny).not.toHaveBeenCalled();
   });
 
   it("keeps reports: saves their evidence first and never deletes them", async () => {
@@ -65,16 +87,5 @@ describe("processAccountDeletions", () => {
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
     expect(await processAccountDeletions()).toBe(1);
     spy.mockRestore();
-  });
-});
-
-describe("GET /api/cron/process-deletions (old route)", () => {
-  it("still uses the ?token= secret", async () => {
-    process.env.CRON_SECRET = "s3cret";
-    expect((await GET(new Request("http://x/api/cron/process-deletions?token=nope"))).status).toBe(401);
-    const ok = await GET(new Request("http://x/api/cron/process-deletions?token=s3cret"));
-    expect(ok.status).toBe(200);
-    expect(await ok.json()).toMatchObject({ count: 1 });
-    delete process.env.CRON_SECRET;
   });
 });

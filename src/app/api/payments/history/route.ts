@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { parsePagination } from "@/lib/utils";
+import { CHECKOUT_TTL_MS } from "@/lib/payments/packages";
 
 export async function GET(request: Request) {
   try {
@@ -12,12 +13,13 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const { page, pageSize, skip } = parsePagination(searchParams, 10);
 
-    // Auto-expire PENDING payments older than 30 minutes
+    // A pending row whose Stripe session has expired (CHECKOUT_TTL_MS) is over. Older sessions
+    // (before the expiry was set) stay payable for 24h; fulfil still credits a late payment.
     await db.payment.updateMany({
       where: {
         userId: session.user.id,
         status: "PENDING",
-        createdAt: { lt: new Date(Date.now() - 30 * 60 * 1000) },
+        createdAt: { lt: new Date(Date.now() - CHECKOUT_TTL_MS) },
       },
       data: { status: "FAILED" },
     });

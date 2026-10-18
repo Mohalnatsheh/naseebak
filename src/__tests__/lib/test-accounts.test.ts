@@ -1,8 +1,10 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import { TEST_OTP, hasFixedOtp, isTestPhone, testPhones } from "@/lib/test-accounts";
 
 afterEach(() => {
   delete process.env.EXTRA_TEST_PHONES;
+  delete process.env.ALLOW_BUILTIN_TEST_PHONES;
+  vi.unstubAllEnvs();
 });
 
 describe("test accounts", () => {
@@ -25,5 +27,22 @@ describe("test accounts", () => {
     expect(testPhones()).toEqual(expect.arrayContaining(["962796922292", "962790000004", "962790000777"]));
     expect(isTestPhone("962791234567")).toBe(false);
     expect(isTestPhone(null)).toBe(false);
+  });
+
+  it("on production only EXTRA_TEST_PHONES count", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    process.env.EXTRA_TEST_PHONES = "0790000777";
+    expect(hasFixedOtp("962777000001")).toBe(false);
+    expect(hasFixedOtp("962796922292")).toBe(false);
+    expect(isTestPhone("962790000004")).toBe(false);
+    expect(hasFixedOtp("962790000777")).toBe(true);
+    expect(testPhones()).toEqual(["962790000777"]);
+  });
+
+  it("a production build can opt back in (local Docker)", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    process.env.ALLOW_BUILTIN_TEST_PHONES = "true";
+    expect(hasFixedOtp("962777000001")).toBe(true);
+    expect(isTestPhone("962790000004")).toBe(true);
   });
 });

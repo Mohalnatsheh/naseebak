@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Loader2, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -62,12 +62,15 @@ export function EndChatDialog({
 }) {
   const [reason, setReason] = useState<ReportReasonValue>("HARASSMENT");
   const [details, setDetails] = useState("");
-  useEffect(() => {
+  // Start fresh each time the dialog opens (adjusting state while rendering, not in an effect)
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
     if (open) {
       setReason("HARASSMENT");
       setDetails("");
     }
-  }, [open]);
+  }
   const familyWarning = report ? null : familyPathWarning(familyStatus);
 
   return (

@@ -469,6 +469,50 @@ describe("credit on interest: open cap 5", () => {
     expect(db.user.findMany).not.toHaveBeenCalled();
   });
 
+  it("never reveals a hidden card the recipient refused (the reveal query and update both check)", async () => {
+    openRows(3);
+    db.user.findUnique.mockResolvedValue(person("co9c", "FEMALE"));
+    db.suggestion.findMany.mockImplementation(async ({ where }: { where: { hiddenFromCandidate?: boolean } }) =>
+      where.hiddenFromCandidate ? [{ id: "h1", expiresAt: null }] : []
+    );
+    db.suggestion.updateMany.mockResolvedValue({ count: 1 });
+    db.user.findMany.mockResolvedValue([]);
+    await autoSuggestForUser("co9c");
+    const query = db.suggestion.findMany.mock.calls.map((c) => c[0].where).find((w) => w.hiddenFromCandidate === true);
+    expect(query.OR).toEqual([{ recipientDecision: null }, { recipientDecision: "INTERESTED" }]);
+    const update = db.suggestion.updateMany.mock.calls[0][0];
+    expect(update.where.OR).toEqual([{ recipientDecision: null }, { recipientDecision: "INTERESTED" }]);
+  });
+
+  it("a card shown again is announced even when nobody new is added", async () => {
+    openRows(3);
+    db.user.findUnique.mockResolvedValue(person("co9d", "FEMALE"));
+    db.suggestion.findMany.mockImplementation(async ({ where }: { where: { hiddenFromCandidate?: boolean } }) =>
+      where.hiddenFromCandidate ? [{ id: "h1", expiresAt: null }] : []
+    );
+    db.suggestion.updateMany.mockResolvedValue({ count: 1 });
+    db.user.findMany.mockResolvedValue([]);
+    expect(await autoSuggestForUser("co9d")).toBe(1);
+    const notices = notifyMod.notify.mock.calls.map((c) => c[0]).filter((n) => n.type === "SUGGESTION");
+    expect(notices).toEqual([expect.objectContaining({ userId: "co9d", body: "وصلك اقتراح توافق جديد. قم بمراجعته." })]);
+  });
+
+  it("the new-suggestions notice counts revealed and new cards together", async () => {
+    openRows(2);
+    db.user.findUnique.mockResolvedValue(person("co9e", "FEMALE"));
+    db.suggestion.findMany.mockImplementation(async ({ where }: { where: { hiddenFromCandidate?: boolean } }) =>
+      where.hiddenFromCandidate ? [{ id: "h1", expiresAt: null }] : []
+    );
+    db.suggestion.updateMany.mockResolvedValue({ count: 1 });
+    db.user.findMany.mockResolvedValue(["m1", "m2"].map((id) => person(id, "MALE")));
+    scoring.scoreFor.set("m1", 70);
+    scoring.scoreFor.set("m2", 70);
+    expect(await autoSuggestForUser("co9e")).toBe(3);
+    const notices = notifyMod.notify.mock.calls.map((c) => c[0]).filter((n) => n.userId === "co9e");
+    expect(notices).toHaveLength(1);
+    expect(notices[0].body).toContain("3 اقتراحات توافق جديدة");
+  });
+
   it("re-suggests a pair whose card closed unanswered over 30 days ago, in the other direction", async () => {
     openRows(0);
     const old = { status: "EXPIRED", recipientDecision: null, candidateDecision: null, expiresAt: new Date(Date.now() - 40 * 86400000), updatedAt: new Date() };

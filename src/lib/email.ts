@@ -72,12 +72,19 @@ export async function sendNewUserNotification(user: NewUserInfo): Promise<void> 
 
 interface ContactMessageInfo {
   name: string;
-  email: string;
+  email: string | null;
+  /** 962… */
+  phone?: string | null;
   subject: string;
   message: string;
 }
 
 /** Tell the admin inbox about a contact-page message (best effort: the message is already saved). */
+/** 962791234567 → 0791234567 (how Jordanians write it) */
+function phoneForDisplay(phone962: string): string {
+  return phone962.startsWith("962") ? `0${phone962.slice(3)}` : phone962;
+}
+
 export async function sendContactNotification(msg: ContactMessageInfo): Promise<void> {
   const to = process.env.ADMIN_NOTIFY_EMAIL;
   const smtp = getTransporter();
@@ -89,14 +96,29 @@ export async function sendContactNotification(msg: ContactMessageInfo): Promise<
   await smtp.sendMail({
     from: process.env.SMTP_FROM || `"نصيبك Naseebak" <${process.env.SMTP_USER}>`,
     to,
-    replyTo: msg.email,
+    ...(msg.email && { replyTo: msg.email }),
     subject: `رسالة تواصل: ${msg.subject}`,
-    text: `رسالة جديدة من صفحة تواصل معنا\n\nالاسم: ${msg.name}\nالبريد: ${msg.email}\nالموضوع: ${msg.subject}\n\n${msg.message}`,
+    text: `رسالة جديدة من صفحة تواصل معنا\n\nالاسم: ${msg.name}\nالبريد: ${msg.email || "—"}\nالهاتف: ${msg.phone ? phoneForDisplay(msg.phone) : "—"}\nالموضوع: ${msg.subject}\n\n${msg.message}`,
     html: `<div dir="rtl" style="font-family:Arial,sans-serif;color:#1f2937">
   <h2 style="color:#22476a;margin:0 0 12px">رسالة جديدة من صفحة تواصل معنا</h2>
-  <p style="margin:0 0 4px"><b>${escapeHtml(msg.name)}</b> — <span dir="ltr">${escapeHtml(msg.email)}</span></p>
+  <p style="margin:0 0 4px"><b>${escapeHtml(msg.name)}</b> — <span dir="ltr">${escapeHtml([msg.email, msg.phone && phoneForDisplay(msg.phone)].filter(Boolean).join(" · "))}</span></p>
   <p style="margin:0 0 12px;color:#6b7280">${escapeHtml(msg.subject)}</p>
   <p style="white-space:pre-wrap;margin:0">${escapeHtml(msg.message)}</p>
 </div>`,
   });
+}
+
+/** Plain-text email to the admin inbox (ADMIN_NOTIFY_EMAIL). Returns false when SMTP isn't configured. */
+export async function sendAdminEmail(subject: string, text: string): Promise<boolean> {
+  const to = process.env.ADMIN_NOTIFY_EMAIL;
+  const smtp = getTransporter();
+  if (!to || !smtp) return false;
+  await smtp.sendMail({
+    from: process.env.SMTP_FROM || `"نصيبك Naseebak" <${process.env.SMTP_USER}>`,
+    to,
+    subject,
+    text,
+    html: `<div dir="rtl" style="font-family:Arial,sans-serif;color:#1f2937;white-space:pre-wrap">${escapeHtml(text)}</div>`,
+  });
+  return true;
 }

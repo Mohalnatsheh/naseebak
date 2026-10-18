@@ -209,6 +209,9 @@ model User {
   lastActiveAt      DateTime?
   /// Last "لديك ما ينتظرك" re-engagement push (daily scheduler, at most once per 7 days)
   reengagedAt       DateTime?
+  /// Last SMS notice sent instead of a push (members without a push device): at most one per day
+  lastSmsNoticeAt   DateTime?
+  termsAcceptedAt   DateTime? // Terms + privacy + 18+ ticked at sign-up
   createdAt         DateTime   @default(now())
   updatedAt         DateTime   @updatedAt
 
@@ -499,8 +502,9 @@ model VisitRequest {
 
 model Payment {
   id              String        @id @default(cuid())
-  userId          String
-  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Null once the account is deleted: payment records are kept
+  userId          String?
+  user            User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   type            PaymentType   @default(SUBSCRIPTION)
   planName        String?       // e.g. "basic", "premium", "suggestion_pack"
@@ -510,12 +514,17 @@ model Payment {
   providerTxId    String?
   status          PaymentStatus @default(PENDING)
   description     String?
+  /// Stripe Checkout session (cs_…) — set when the session is created; used to expire it on «رجوع»
+  stripeSessionId String?
+  /// A Stripe dispute (chargeback) was opened on this payment
+  disputedAt      DateTime?
 
   subscription    Subscription?
 
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
+  @@index([stripeSessionId])
   @@map("payments")
 }
 
@@ -569,6 +578,16 @@ model ProfileUpdateRequest {
   updatedAt  DateTime  @updatedAt
 
   @@map("profile_update_requests")
+}
+
+/// Fixed-window counters for rate limits that must survive restarts (OTP send/verify)
+model RateLimitBucket {
+  key       String   @id
+  count     Int
+  resetAt   DateTime
+
+  @@index([resetAt])
+  @@map("rate_limit_buckets")
 }
 
 model Otp {
@@ -682,7 +701,10 @@ model SupportTicket {
 model ContactMessage {
   id        String    @id @default(cuid())
   name      String
-  email     String
+  /// Null when the sender left only a phone number
+  email     String?
+  /// Contact phone (962…), when given instead of / besides an email
+  phone     String?
   subject   String
   message   String    @db.Text
   /// Set when the sender was signed in
@@ -817,8 +839,9 @@ model Message {
 /// History starts with the release that added this table; earlier changes are not reconstructed.
 model CreditLedger {
   id        String       @id @default(cuid())
-  userId    String
-  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Null once the account is deleted: credit history is kept
+  userId    String?
+  user      User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
   delta     Int
   reason    CreditReason
   refId     String?      // payment / intro request / referral id

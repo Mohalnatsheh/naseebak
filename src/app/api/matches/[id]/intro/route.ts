@@ -16,9 +16,12 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   }
 }
 
-const sendSchema = z.object({ type: z.enum(["FAMILY", "CHAT"]) });
+const sendSchema = z.object({ type: z.enum(["FAMILY", "CHAT"]), consent: z.literal(true).optional() });
 
-/** Send a family or chat request (1 credit, never refunded) */
+/**
+ * Send a family or chat request (1 credit, never refunded; free with credit on interest).
+ * `consent: true` (FAMILY) records the guardian share consent, only if the request is sent.
+ */
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const result = await requireUser();
@@ -27,7 +30,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const parsed = sendSchema.safeParse(await request.json().catch(() => null));
     if (!parsed.success) return NextResponse.json({ error: "بيانات غير صالحة" }, { status: 400 });
 
-    const sent = await sendIntroRequest({ matchId: id, senderId: result.session.user.id, type: parsed.data.type });
+    const sent = await sendIntroRequest({
+      matchId: id,
+      senderId: result.session.user.id,
+      type: parsed.data.type,
+      consent: parsed.data.consent,
+    });
     return NextResponse.json({ message: "تم إرسال الطلب", ...sent });
   } catch (error) {
     return introErrorResponse(error, "Send intro request");

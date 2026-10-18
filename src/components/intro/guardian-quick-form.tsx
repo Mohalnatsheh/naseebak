@@ -21,10 +21,21 @@ type FormKey = "parentName" | "parentPhone" | "relationship" | "address";
 
 /**
  * New cycle: the guardian isn't asked for at setup, only when it is needed. Shown inside the
- * family-introduction dialogs and the mixed-match share prompt: saves the contact with share consent
- * (it is filled in for exactly this purpose), then `onSaved` lets the caller continue.
+ * family-introduction dialogs and the mixed-match share prompt, then `onSaved` lets the caller continue.
+ * `shareConsent` (default) saves it with share consent; `shareConsent={false}` saves only the contact and
+ * the caller's action (send / accept / share) records the consent once it goes through, so a cancelled
+ * dialog never leaves a consent behind.
  */
-export function GuardianQuickForm({ onSaved }: { onSaved: () => void | Promise<void> }) {
+export function GuardianQuickForm({
+  onSaved,
+  shareConsent = true,
+  note,
+}: {
+  onSaved: () => void | Promise<void>;
+  shareConsent?: boolean;
+  /** Replaces the consent line under the form (e.g. when saving is itself the share) */
+  note?: string;
+}) {
   const { profile, refreshProfile, refreshUnread } = useDashboardData();
   const [form, setForm] = useState<Record<FormKey, string>>({ parentName: "", parentPhone: "", relationship: "", address: "" });
   const [errors, setErrors] = useState<Partial<Record<FormKey, string>>>({});
@@ -59,7 +70,8 @@ export function GuardianQuickForm({ onSaved }: { onSaved: () => void | Promise<v
       const res = await fetch("/api/profile/parent-info", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, shareConsent: true }),
+        // Without `shareConsent` the stored consent is left as it is (none for a new guardian)
+        body: JSON.stringify(shareConsent ? { ...form, shareConsent: true } : form),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -95,7 +107,11 @@ export function GuardianQuickForm({ onSaved }: { onSaved: () => void | Promise<v
       <Field id="gq-address" label="العنوان" error={errors.address}>
         <Input id="gq-address" value={form.address} onChange={(e) => update("address", e.target.value)} placeholder="المدينة والحي" aria-invalid={!!errors.address} />
       </Field>
-      <p className="text-xs text-muted-foreground">بحفظ البيانات أوافق على مشاركة اسم ورقم وليّ الأمر مع عائلة الطرف الآخر فقط عند التعارف العائلي.</p>
+      <p className="text-xs text-muted-foreground">
+        {note ?? (shareConsent
+          ? "بحفظ البيانات أوافق على مشاركة اسم ورقم وليّ الأمر مع عائلة الطرف الآخر فقط عند التعارف العائلي."
+          : "لا تُشارَك البيانات إلا بعد موافقتك في الخطوة التالية.")}
+      </p>
       {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
       <Button type="button" size="sm" onClick={save} disabled={busy} className="w-full gap-1.5">
         {busy && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}

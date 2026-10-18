@@ -109,6 +109,10 @@ describe("sendMessage", () => {
     expect(notifyMod.notify).toHaveBeenCalledWith(expect.objectContaining({
       userId: "f1", type: "CHAT", pushOnly: true, url: `/dashboard/chats/${c.id}`,
     }));
+    // The lock screen shows who wrote, never what
+    const pushed = notifyMod.notify.mock.calls[0][0];
+    expect(pushed.body).toBe("رسالة جديدة من يزن");
+    expect(JSON.stringify(pushed)).not.toContain("السلام عليكم");
   });
 
   it("pushes at most once per 3 minutes per conversation", async () => {

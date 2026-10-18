@@ -20,6 +20,11 @@ import { db } from "@/lib/db";
 /** Days after a chat ran out (no family request since) before the match counts as finished */
 export const CHAT_STALE_DAYS = 14;
 
+/** The free chat → family move stays open until the match fades: CHAT_STALE_DAYS after the chat ran out */
+export function familyMoveOpenUntil(chatExpiresAt: Date): Date {
+  return new Date(chatExpiresAt.getTime() + CHAT_STALE_DAYS * 24 * 60 * 60 * 1000);
+}
+
 export type MatchClosure = "blocked" | "inactive" | "finished" | "ended" | "engaged";
 
 /** Admin is already arranging (or arranged) the visit the old way */
@@ -44,6 +49,8 @@ export interface MatchFacts {
   introEnabled: boolean;
   /** Follow-up answers, mine and the partner's */
   outcomes?: { mine: string | null; partner: string | null };
+  /** «تمت الخطبة» on another match: I'm engaged (closed "engaged") / the partner is (closed "inactive") */
+  engagedElsewhere?: { mine: boolean; partner: boolean };
 }
 
 export interface MatchDescription {
@@ -69,7 +76,11 @@ export function describeMatch(f: MatchFacts, now = new Date()): MatchDescription
   if (f.outcomes?.mine === "NOT_A_MATCH" || f.outcomes?.partner === "NOT_A_MATCH") {
     return { closed: "ended", actionable: false, chatEndedByUser: endedByUser };
   }
-  if (f.outcomes?.mine === "ENGAGED") return { closed: "engaged", actionable: false, chatEndedByUser: endedByUser };
+  // Engaged with someone else: not available on this match any more (shown like an inactive account)
+  if (f.engagedElsewhere?.partner) return { closed: "inactive", actionable: false, chatEndedByUser: endedByUser };
+  if (f.outcomes?.mine === "ENGAGED" || f.engagedElsewhere?.mine) {
+    return { closed: "engaged", actionable: false, chatEndedByUser: endedByUser };
+  }
 
   const of = (type: string, status: string) =>
     f.requests.some((r) => r.type === type && r.status === status && (status !== "PENDING" || r.expiresAt > now));
@@ -111,6 +122,38 @@ export function describeMatch(f: MatchFacts, now = new Date()): MatchDescription
       !pendingChat,
     chatEndedByUser: endedByUser,
   };
+}
+
+type OutcomeRow = { id: string; femaleId: string; maleId: string; femaleOutcome: string | null; maleOutcome: string | null };
+
+/**
+ * A side's «تمت الخطبة» counts only while the other side hasn't said «لم يحصل نصيب» on that match
+ * (older rows can hold both; see setMatchOutcome).
+ */
+export function engagedOn(m: OutcomeRow, userId: string): boolean {
+  if (m.femaleId === userId) return m.femaleOutcome === "ENGAGED" && m.maleOutcome !== "NOT_A_MATCH";
+  if (m.maleId === userId) return m.maleOutcome === "ENGAGED" && m.femaleOutcome !== "NOT_A_MATCH";
+  return false;
+}
+
+/**
+ * Who of `userIds` is engaged, and on which match: `elsewhere(userId, matchId)` is true when they said
+ * «تمت الخطبة» on a match other than `matchId`.
+ */
+export async function loadEngagements(userIds: string[]): Promise<{ elsewhere: (userId: string, matchId: string) => boolean }> {
+  const ids = [...new Set(userIds)];
+  const rows: OutcomeRow[] = ids.length
+    ? ((await db.mutualMatch.findMany({
+        where: {
+          OR: [
+            { femaleId: { in: ids }, femaleOutcome: "ENGAGED" },
+            { maleId: { in: ids }, maleOutcome: "ENGAGED" },
+          ],
+        },
+        select: { id: true, femaleId: true, maleId: true, femaleOutcome: true, maleOutcome: true },
+      })) ?? [])
+    : [];
+  return { elsewhere: (userId, matchId) => rows.some((m) => m.id !== matchId && engagedOn(m, userId)) };
 }
 
 /** Partners who blocked me: their matches are hidden from my list. */
@@ -216,6 +259,7 @@ export async function loadMatchStates(
     }),
   ]);
   const hiddenSet = new Set(hidden);
+  const engagements = await loadEngagements([userId, ...matches.map((m) => (m.femaleId === userId ? m.maleId : m.femaleId))]);
   const blockOf = new Map(myBlocks.map((b) => [b.blockedId, b.id]));
   const out = new Map<string, MatchDescription & { partnerId: string; blockId: string | null }>();
   for (const m of matches) {
@@ -233,6 +277,7 @@ export async function loadMatchStates(
       chatEnabled: flags.chat,
       introEnabled: flags.introRequests,
       outcomes: iAmFemale ? { mine: m.femaleOutcome, partner: m.maleOutcome } : { mine: m.maleOutcome, partner: m.femaleOutcome },
+      engagedElsewhere: { mine: engagements.elsewhere(userId, m.id), partner: engagements.elsewhere(partnerId, m.id) },
     });
     out.set(m.id, { ...d, partnerId, blockId });
   }

@@ -6,7 +6,8 @@ const db = vi.hoisted(() => {
     block: { findFirst: vi.fn() },
     user: { findUnique: vi.fn(), findUniqueOrThrow: vi.fn(), updateMany: vi.fn(), update: vi.fn() },
     creditLedger: { create: vi.fn(), findFirst: vi.fn(async (): Promise<{ id: string } | null> => null) },
-    parentInfo: { findUnique: vi.fn() },
+    parentInfo: { findUnique: vi.fn(), updateMany: vi.fn() },
+    mutualMatch: { findFirst: vi.fn() },
     $transaction: vi.fn(),
   };
   d.$transaction.mockImplementation((fn: (tx: typeof d) => unknown) => fn(d));
@@ -62,6 +63,8 @@ beforeEach(() => {
   db.creditLedger.create.mockResolvedValue({});
   db.parentInfo.findUnique.mockResolvedValue({ userId: "u1", shareConsentAt: new Date() });
   matchMod.createMutualMatch.mockResolvedValue({ matchId: "m1" });
+  db.mutualMatch.findFirst.mockResolvedValue({ id: "m1" });
+  db.parentInfo.updateMany.mockResolvedValue({ count: 1 });
   autoMod.autoSuggestForUser.mockResolvedValue(0);
 });
 
@@ -95,11 +98,12 @@ describe("decideSuggestion: cards made while the candidate was full", () => {
     expect(notifyMod.notify).toHaveBeenCalledWith(expect.objectContaining({ userId: "f1", title: "شخص أبدى اهتمامه بك" }));
   });
 
-  it("«لا» from the recipient keeps it hidden and tells nobody", async () => {
+  it("«لا» from the recipient closes it unseen and tells nobody", async () => {
     db.suggestion.findUnique.mockResolvedValue(row({ hiddenFromCandidate: true }));
     await decideSuggestion({ suggestionId: "s1", userId: "u1", interested: false });
-    const calls = db.suggestion.updateMany.mock.calls.map((c) => c[0] as { where: { hiddenFromCandidate?: boolean } });
+    const calls = db.suggestion.updateMany.mock.calls.map((c) => c[0] as { where: { hiddenFromCandidate?: boolean }; data: { status?: string } });
     expect(calls.some((c) => c.where.hiddenFromCandidate === true)).toBe(false);
+    expect(calls[0].data.status).toBe("REJECTED");
     expect(notifyMod.notify).not.toHaveBeenCalledWith(expect.objectContaining({ userId: "f1" }));
   });
 });
@@ -163,6 +167,11 @@ describe("decideSuggestion", () => {
     await decideSuggestion({ suggestionId: "s1", userId: "u1", interested: true });
     const entries = (db.creditLedger.create.mock.calls as unknown as [{ data: { reason: string; userId: string } }][]).map((c) => c[0].data);
     expect(entries.filter((e) => e.reason === "REFUND").map((e) => e.userId).sort()).toEqual(["f1", "u1"]);
+    // Each gets the neutral refund notice
+    const notices = notifyMod.notify.mock.calls.map((c) => c[0]).filter((n) => n.type === "PAYMENT");
+    expect(notices.map((n) => n.userId).sort()).toEqual(["f1", "u1"]);
+    expect(notices.find((n) => n.userId === "f1")!.body).toContain("أبديتِ اهتمامكِ");
+    expect(notices.every((n) => n.body.includes("قبل أن يكتمل التوافق"))).toBe(true);
   });
 
   it("refuses a second decision by the same person", async () => {
@@ -202,34 +211,49 @@ describe("decideSuggestion", () => {
     expect(matchMod.createMutualMatch).toHaveBeenCalledWith({ femaleId: "f1", maleId: "u1", suggestionId: "s1" });
   });
 
-  it("does not create a second match when the other request already closed it", async () => {
+  it("does not create a second match when the other request already closed it, but links to that match", async () => {
     db.suggestion.findUnique
       .mockResolvedValueOnce(row({ recipientDecision: "INTERESTED" }))
       .mockResolvedValueOnce(row({ candidateDecision: "INTERESTED", recipientDecision: "INTERESTED" }));
     db.suggestion.updateMany.mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({ count: 0 });
+    db.mutualMatch.findFirst.mockResolvedValueOnce({ id: "m9" });
     const res = await decideSuggestion({ suggestionId: "s1", userId: "f1", interested: true });
-    expect(res.match).toBe(true);
+    expect(res).toEqual({ match: true, matchId: "m9" });
     expect(matchMod.createMutualMatch).not.toHaveBeenCalled();
+    expect(db.mutualMatch.findFirst.mock.calls[0][0].where.OR).toEqual([
+      { femaleId: "f1", maleId: "u1" },
+      { femaleId: "u1", maleId: "f1" },
+    ]);
   });
 
-  it("closes the row silently after a no once both decided", async () => {
-    db.suggestion.findUnique
-      .mockResolvedValueOnce(row({ recipientDecision: "INTERESTED" }))
-      .mockResolvedValueOnce(row({ recipientDecision: "INTERESTED", candidateDecision: "DECLINED" }));
+  it("a «لا» after the other's «مهتم» closes the row in the same write, silently", async () => {
+    db.suggestion.findUnique.mockResolvedValueOnce(row({ recipientDecision: "INTERESTED" }));
     const res = await decideSuggestion({ suggestionId: "s1", userId: "f1", interested: false });
     expect(res).toEqual({ match: false });
-    expect(db.suggestion.updateMany.mock.calls[1][0]).toEqual({
-      where: { id: "s1", status: "PENDING" },
-      data: { status: "REJECTED" },
+    expect(db.suggestion.updateMany).toHaveBeenCalledTimes(1);
+    expect(db.suggestion.updateMany.mock.calls[0][0]).toMatchObject({
+      where: { id: "s1", status: "PENDING", candidateDecision: null },
+      data: { candidateDecision: "DECLINED", status: "REJECTED" },
     });
     expect(matchMod.createMutualMatch).not.toHaveBeenCalled();
     expect(notifyMod.notify).not.toHaveBeenCalled();
   });
 
-  it("keeps the row open after a first no", async () => {
-    db.suggestion.findUnique.mockResolvedValueOnce(row()).mockResolvedValueOnce(row({ recipientDecision: "DECLINED" }));
+  it("a first «لا» closes the row at once (the other side can no longer decide on it)", async () => {
+    db.suggestion.findUnique.mockResolvedValueOnce(row());
     await decideSuggestion({ suggestionId: "s1", userId: "u1", interested: false });
     expect(db.suggestion.updateMany).toHaveBeenCalledTimes(1);
+    expect(db.suggestion.updateMany.mock.calls[0][0].data).toMatchObject({ recipientDecision: "DECLINED", status: "REJECTED" });
+    expect(notifyMod.notify).not.toHaveBeenCalled();
+  });
+
+  it("an older row the other side already declined is closed and refused, with no charge", async () => {
+    flags.value = { ...flags.value, creditOnInterest: true };
+    db.suggestion.findUnique.mockResolvedValueOnce(row({ candidateDecision: "DECLINED" }));
+    await expectNotFound(decideSuggestion({ suggestionId: "s1", userId: "u1", interested: true, introPreference: "CHAT" }));
+    expect(db.suggestion.updateMany).toHaveBeenCalledWith({ where: { id: "s1", status: "PENDING" }, data: { status: "REJECTED" } });
+    expect(db.creditLedger.create).not.toHaveBeenCalled();
+    expect(balance.u1).toBe(3);
   });
 });
 
@@ -286,11 +310,11 @@ describe("decideSuggestion with credit on interest", () => {
     db.parentInfo.findUnique.mockResolvedValue({ userId: "u1", shareConsentAt: null });
     await expectCode(yes({ introPreference: "FAMILY", guardianConsent: true }), "NO_CREDITS");
     await expectCode(yes({ introPreference: undefined }), "NO_CREDITS");
-    expect(requestsMod.setGuardianConsent).not.toHaveBeenCalled();
+    expect(db.parentInfo.updateMany).not.toHaveBeenCalled();
   });
 
   it('"لا" costs nothing', async () => {
-    db.suggestion.findUnique.mockResolvedValueOnce(row()).mockResolvedValueOnce(row({ recipientDecision: "DECLINED" }));
+    db.suggestion.findUnique.mockResolvedValueOnce(row());
     const res = await decideSuggestion({ suggestionId: "s1", userId: "u1", interested: false });
     expect(res.match).toBe(false);
     expect(balance.u1).toBe(3);
@@ -299,7 +323,17 @@ describe("decideSuggestion with credit on interest", () => {
     expect(db.suggestion.updateMany.mock.calls[0][0].data).toEqual({
       recipientDecision: "DECLINED",
       recipientDecidedAt: expect.any(Date),
+      status: "REJECTED",
     });
+  });
+
+  it("«لا» tops up both sides (the other side's slot frees too)", async () => {
+    // Let top-ups from earlier tests settle first (their lazy import is still in flight)
+    await flush();
+    autoMod.autoSuggestForUser.mockClear();
+    db.suggestion.findUnique.mockResolvedValueOnce(row());
+    await decideSuggestion({ suggestionId: "s1", userId: "u1", interested: false });
+    await vi.waitFor(() => expect(autoMod.autoSuggestForUser.mock.calls.map((c) => c[0]).sort()).toEqual(["f1", "u1"]));
   });
 
   it("charges once when the claim is lost", async () => {
@@ -346,7 +380,7 @@ describe("decideSuggestion with credit on interest", () => {
     db.suggestion.findUnique.mockResolvedValue(row());
     db.parentInfo.findUnique.mockResolvedValue(null);
     await expectCode(yes({ introPreference: "FAMILY", guardianConsent: true }), "GUARDIAN_REQUIRED");
-    expect(requestsMod.setGuardianConsent).not.toHaveBeenCalled();
+    expect(db.parentInfo.updateMany).not.toHaveBeenCalled();
     expect(db.user.updateMany).not.toHaveBeenCalled();
   });
 
@@ -354,7 +388,7 @@ describe("decideSuggestion with credit on interest", () => {
     db.suggestion.findUnique.mockResolvedValue(row());
     db.parentInfo.findUnique.mockResolvedValue({ userId: "u1", shareConsentAt: null });
     await expectCode(yes({ introPreference: "FAMILY" }), "CONSENT_REQUIRED");
-    expect(requestsMod.setGuardianConsent).not.toHaveBeenCalled();
+    expect(db.parentInfo.updateMany).not.toHaveBeenCalled();
     expect(db.suggestion.updateMany).not.toHaveBeenCalled();
     expect(db.user.updateMany).not.toHaveBeenCalled();
   });
@@ -363,17 +397,30 @@ describe("decideSuggestion with credit on interest", () => {
     db.suggestion.findUnique.mockResolvedValueOnce(row()).mockResolvedValueOnce(row({ recipientDecision: "INTERESTED" }));
     db.parentInfo.findUnique.mockResolvedValue({ userId: "u1", shareConsentAt: null });
     await yes({ introPreference: "FAMILY", guardianConsent: true });
-    expect(requestsMod.setGuardianConsent).toHaveBeenCalledWith("u1");
+    // Stored inside the charge transaction, only for a guardian without consent
+    expect(db.parentInfo.updateMany).toHaveBeenCalledWith({ where: { userId: "u1", shareConsentAt: null }, data: { shareConsentAt: expect.any(Date) } });
     expect(db.suggestion.updateMany.mock.calls[0][0].data).toMatchObject({
       recipientDecision: "INTERESTED",
       recipientIntroPreference: "FAMILY",
     });
   });
 
+  it("FAMILY consent is not stored when the charge fails (lost claim or no credits)", async () => {
+    db.parentInfo.findUnique.mockResolvedValue({ userId: "u1", shareConsentAt: null });
+    db.suggestion.findUnique.mockResolvedValueOnce(row());
+    db.suggestion.updateMany.mockResolvedValueOnce({ count: 0 });
+    await expectNotFound(yes({ introPreference: "FAMILY", guardianConsent: true }));
+    db.suggestion.findUnique.mockResolvedValueOnce(row());
+    db.user.updateMany.mockResolvedValueOnce({ count: 0 });
+    // The mock runs the transaction inline: what matters is that the consent write comes after the reserve
+    await expectCode(yes({ introPreference: "FAMILY", guardianConsent: true }), "NO_CREDITS");
+    expect(db.parentInfo.updateMany).not.toHaveBeenCalled();
+  });
+
   it("FAMILY with existing consent does not ask again", async () => {
     db.suggestion.findUnique.mockResolvedValueOnce(row()).mockResolvedValueOnce(row({ recipientDecision: "INTERESTED" }));
     await yes({ introPreference: "FAMILY" });
-    expect(requestsMod.setGuardianConsent).not.toHaveBeenCalled();
+    expect(db.parentInfo.updateMany).not.toHaveBeenCalled();
     expect(db.suggestion.updateMany.mock.calls[0][0].data).toMatchObject({ recipientIntroPreference: "FAMILY" });
   });
 
@@ -394,7 +441,7 @@ describe("decideSuggestion with credit on interest", () => {
   it("a decision sends no notification", async () => {
     db.suggestion.findUnique.mockResolvedValueOnce(row()).mockResolvedValueOnce(row({ recipientDecision: "INTERESTED" }));
     await yes();
-    db.suggestion.findUnique.mockResolvedValueOnce(row({ id: "s2" })).mockResolvedValueOnce(row({ id: "s2", recipientDecision: "DECLINED" }));
+    db.suggestion.findUnique.mockResolvedValueOnce(row({ id: "s2" }));
     await decideSuggestion({ suggestionId: "s2", userId: "u1", interested: false });
     await flush();
     expect(notifyMod.notify).not.toHaveBeenCalled();
@@ -432,14 +479,14 @@ describe("decideSuggestion with credit on interest", () => {
     expect(exhausted).toHaveLength(1);
   });
 
-  it("logs and rethrows when the match cannot be created after the row closed ACCEPTED (no revert)", async () => {
+  it("logs and still reports success when the match cannot be created after the row closed ACCEPTED (no revert, healed later)", async () => {
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
     db.suggestion.findUnique
       .mockResolvedValueOnce(row({ candidateDecision: "INTERESTED" }))
       .mockResolvedValueOnce(row({ candidateDecision: "INTERESTED", recipientDecision: "INTERESTED" }));
     const boom = new Error("db down");
     matchMod.createMutualMatch.mockRejectedValueOnce(boom);
-    await expect(yes()).rejects.toBe(boom);
+    expect(await yes()).toEqual({ match: true, creditsLeft: 2 });
     expect(spy).toHaveBeenCalledWith(
       expect.stringContaining("createMutualMatch failed"),
       { suggestionId: "s1", femaleId: "f1", maleId: "u1" },
@@ -459,7 +506,7 @@ describe("decideSuggestion with credit on interest", () => {
     await flush();
     expect(autoMod.autoSuggestForUser).toHaveBeenCalledWith("u1");
     autoMod.autoSuggestForUser.mockClear();
-    db.suggestion.findUnique.mockResolvedValueOnce(row({ id: "s2" })).mockResolvedValueOnce(row({ id: "s2", recipientDecision: "DECLINED" }));
+    db.suggestion.findUnique.mockResolvedValueOnce(row({ id: "s2" }));
     await decideSuggestion({ suggestionId: "s2", userId: "u1", interested: false });
     await flush();
     expect(autoMod.autoSuggestForUser).toHaveBeenCalledWith("u1");
@@ -478,7 +525,7 @@ describe("decideSuggestion with credit on interest", () => {
 describe("decideSuggestion with credit on interest off", () => {
   it("flag off: لا and مهتم at 0 credits are still recorded", async () => {
     balance.u1 = 0;
-    db.suggestion.findUnique.mockResolvedValueOnce(row()).mockResolvedValueOnce(row({ recipientDecision: "DECLINED" }));
+    db.suggestion.findUnique.mockResolvedValueOnce(row());
     expect(await decideSuggestion({ suggestionId: "s1", userId: "u1", interested: false })).toEqual({ match: false });
     expect(db.suggestion.updateMany).toHaveBeenCalledTimes(1);
   });
@@ -493,7 +540,7 @@ describe("decideSuggestion with credit on interest off", () => {
     expect(db.$transaction).not.toHaveBeenCalled();
     expect(db.user.updateMany).not.toHaveBeenCalled();
     expect(db.creditLedger.create).not.toHaveBeenCalled();
-    expect(requestsMod.setGuardianConsent).not.toHaveBeenCalled();
+    expect(db.parentInfo.updateMany).not.toHaveBeenCalled();
     expect(db.suggestion.updateMany.mock.calls[0][0].data).toEqual({
       recipientDecision: "INTERESTED",
       recipientDecidedAt: expect.any(Date),

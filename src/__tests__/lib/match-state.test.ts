@@ -24,6 +24,13 @@ const facts = (over: Partial<MatchFacts> = {}): MatchFacts => ({
 const req = (type: string, status: string, expiresAt = later()) => ({ type, status, expiresAt });
 
 describe("describeMatch", () => {
+  it("engaged on another match: closed as engaged for me, as inactive for my other partners", () => {
+    expect(describeMatch(facts({ engagedElsewhere: { mine: true, partner: false } })).closed).toBe("engaged");
+    expect(describeMatch(facts({ engagedElsewhere: { mine: false, partner: true } })).closed).toBe("inactive");
+    // «لم يحصل نصيب» on this match still reads as ended
+    expect(describeMatch(facts({ outcomes: { mine: null, partner: "NOT_A_MATCH" }, engagedElsewhere: { mine: true, partner: false } })).closed).toBe("ended");
+  });
+
   it("a fresh match is open and actionable", () => {
     expect(describeMatch(facts())).toEqual({ closed: null, actionable: true, chatEndedByUser: false });
   });

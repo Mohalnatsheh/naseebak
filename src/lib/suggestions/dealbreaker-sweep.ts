@@ -1,6 +1,7 @@
 /**
  * After a user changes their «شروط أساسية»: close the open suggestions that now break them (either
- * side's conditions), refund the other side's unanswered «مهتم» on those rows, then top up.
+ * side's conditions), refund the other side's «مهتم» on those rows (same rule as the profile refresh,
+ * `refresh.ts`), then top up.
  * Rows the user already decided on are kept: they paid / chose with the old conditions.
  */
 import { db } from "@/lib/db";
@@ -36,7 +37,15 @@ export async function closeSuggestionsBreakingDealbreakers(userId: string, now =
 
   // expiresAt = now so the refund pass (which only looks at closed, past-expiry rows) picks them up
   const { count } = await db.suggestion.updateMany({
-    where: { id: { in: breaking }, status: "PENDING" },
+    where: {
+      id: { in: breaking },
+      status: "PENDING",
+      // Still mine to decide (a decision a moment ago keeps the row)
+      OR: [
+        { recipientId: userId, recipientDecision: null },
+        { candidateId: userId, candidateDecision: null },
+      ],
+    },
     data: { status: "EXPIRED", expiresAt: now },
   });
   await refundUnansweredInterests({ userId, now });

@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/card";
 import { trackEvent } from "@/lib/analytics";
 import { toLatinDigits } from "@/lib/digits";
+import { safeCallbackPath } from "@/lib/safe-redirect";
 
 function LoginPageContent() {
   const router = useRouter();
@@ -186,7 +187,8 @@ function LoginPageContent() {
         return;
       } else {
         trackEvent("login", { method: "phone" });
-        router.push("/dashboard");
+        // Deep link from a push / shared link opened while signed out (same-site only)
+        router.push(safeCallbackPath(searchParams.get("callbackUrl"), window.location.origin));
         router.refresh();
       }
     } catch {
@@ -596,7 +598,7 @@ function LoginPageContent() {
 
           {/* Footer text */}
           <p
-            className="mt-8 text-center text-xs text-muted-foreground/60"
+            className="mt-8 px-4 text-center text-xs leading-relaxed text-muted-foreground/60 text-balance"
             style={{
               animation: mounted
                 ? "fadeSlideUp 0.5s ease-out 0.6s both"
@@ -607,8 +609,7 @@ function LoginPageContent() {
             <Link href="/terms" className="hover:underline text-muted-foreground/80">
               شروط الاستخدام
             </Link>{" "}
-            و{" "}
-            <Link href="/privacy" className="hover:underline text-muted-foreground/80">
+            و<Link href="/privacy" className="hover:underline text-muted-foreground/80">
               سياسة الخصوصية
             </Link>
           </p>

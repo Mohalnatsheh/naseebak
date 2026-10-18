@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { FileText, Plus, Pencil, Trash2, ChevronLeft, ChevronRight, FolderOpen } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -90,7 +90,7 @@ export default function AdminBlogPage() {
 
   /* ──────────────────── Fetchers ──────────────────── */
 
-  async function fetchPosts() {
+  const fetchPosts = useCallback(async () => {
     setPostsLoading(true);
     try {
       const res = await fetch(`/api/admin/blog?page=${postsPage}`);
@@ -102,7 +102,9 @@ export default function AdminBlogPage() {
     } finally {
       setPostsLoading(false);
     }
-  }
+  }, [postsPage]);
+
+  useEffect(() => { fetchPosts(); }, [fetchPosts]);
 
   async function fetchCategories() {
     setCatsLoading(true);
@@ -117,7 +119,6 @@ export default function AdminBlogPage() {
     }
   }
 
-  useEffect(() => { fetchPosts(); }, [postsPage]);
   useEffect(() => { fetchCategories(); }, []);
 
   /* ──────────────────── Post CRUD ──────────────────── */

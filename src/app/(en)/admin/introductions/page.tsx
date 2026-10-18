@@ -57,23 +57,24 @@ function PersonLink({ p }: { p: Person }) {
 export default function AdminIntroductionsPage() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [rows, setRows] = useState<IntroRow[]>([]);
-  const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [pages, setPages] = useState(1);
   const [type, setType] = useState("");
   const [status, setStatus] = useState("");
   const [query, setQuery] = useState("");
   const [search, setSearch] = useState("");
-  const [loadError, setLoadError] = useState(false);
+  // The list is loading until the request for the current filters has settled
+  const requestKey = [page, type, status, search].join("\n");
+  const [settled, setSettled] = useState<{ key: string; failed: boolean } | null>(null);
+  const loading = settled?.key !== requestKey;
+  const loadError = settled?.key === requestKey && settled.failed;
 
   useEffect(() => {
     let alive = true;
-    setLoading(true);
     const params = new URLSearchParams({ page: String(page) });
     if (type) params.set("type", type);
     if (status) params.set("status", status);
     if (search) params.set("q", search);
-    setLoadError(false);
     fetch(`/api/admin/introductions?${params}`)
       .then((r) => {
         if (!r.ok) throw new Error(String(r.status));
@@ -84,13 +85,13 @@ export default function AdminIntroductionsPage() {
         setStats(d.stats ?? null);
         setRows(d.requests ?? []);
         setPages(d.totalPages ?? 1);
+        setSettled({ key: requestKey, failed: false });
       })
-      .catch(() => alive && setLoadError(true))
-      .finally(() => alive && setLoading(false));
+      .catch(() => alive && setSettled({ key: requestKey, failed: true }));
     return () => {
       alive = false;
     };
-  }, [page, type, status, search]);
+  }, [page, type, status, search, requestKey]);
 
   const tiles = stats
     ? [

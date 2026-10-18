@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, use } from "react";
+import { useState, useEffect, useCallback, use } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft, User, Shield, ShieldCheck, Loader2, Ban, CreditCard,
@@ -165,27 +165,22 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
   const [sugExpanded, setSugExpanded] = useState(false);
   const [cycle, setCycle] = useState<CycleData | null>(null);
 
-  useEffect(() => {
-    fetchUser();
-    fetchCycle();
-  }, [id]);
-
   // Links like #chats or #chat-<id> (from the reports page) point into sections that load later
   useEffect(() => {
     if (!cycle || !window.location.hash) return;
     document.getElementById(window.location.hash.slice(1))?.scrollIntoView({ block: "center" });
   }, [cycle]);
 
-  async function fetchCycle() {
+  const fetchCycle = useCallback(async () => {
     try {
       const res = await fetch(`/api/admin/users/${id}/cycle`);
       if (res.ok) setCycle(await res.json());
     } catch (err) {
       console.error(err);
     }
-  }
+  }, [id]);
 
-  async function fetchUser() {
+  const fetchUser = useCallback(async () => {
     try {
       const res = await fetch(`/api/admin/users/${id}`);
       const data = await res.json();
@@ -195,7 +190,12 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
     } finally {
       setLoading(false);
     }
-  }
+  }, [id]);
+
+  useEffect(() => {
+    fetchUser();
+    fetchCycle();
+  }, [fetchUser, fetchCycle]);
 
   async function handleSuspend() {
     if (!user) return;
@@ -522,6 +522,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
                   {user.identityDoc.frontImageUrl && (
                     <div>
                       <p className="text-xs text-muted-foreground mb-1">{user.identityDoc.documentType === "selfie" ? "Selfie" : "Front"}</p>
+                      {/* eslint-disable-next-line @next/next/no-img-element -- admin review of a stored upload URL, which may be a legacy base64 data: URL rather than a cdn.naseebak.com image */}
                       <img
                         src={user.identityDoc.frontImageUrl}
                         alt={user.identityDoc.documentType === "selfie" ? "Selfie" : "ID Front"}
@@ -532,6 +533,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
                   {user.identityDoc.backImageUrl && (
                     <div>
                       <p className="text-xs text-muted-foreground mb-1">Back</p>
+                      {/* eslint-disable-next-line @next/next/no-img-element -- admin review of a stored upload URL, which may be a legacy base64 data: URL rather than a cdn.naseebak.com image */}
                       <img
                         src={user.identityDoc.backImageUrl}
                         alt="ID Back"
@@ -555,6 +557,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {user.photos.map((photo) => (
                   <div key={photo.id} className="relative">
+                    {/* eslint-disable-next-line @next/next/no-img-element -- admin review of a stored upload URL, which may be a legacy base64 data: URL rather than a cdn.naseebak.com image */}
                     <img
                       src={photo.url}
                       alt="User photo"
@@ -834,7 +837,7 @@ function CycleSections({
           <CardTitle className="flex items-center gap-2">
             <MessagesSquare className="h-5 w-5" /> Chats ({cycle.chats.length})
           </CardTitle>
-          <p className="text-xs text-muted-foreground">«View» opens a chat's full message history.</p>
+          <p className="text-xs text-muted-foreground">«View» opens a chat&apos;s full message history.</p>
         </CardHeader>
         <CardContent>
           {cycle.chats.length === 0 ? (

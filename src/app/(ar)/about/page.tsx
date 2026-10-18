@@ -33,19 +33,19 @@ const values = [
     icon: Shield,
     title: "السترة والخصوصية",
     description:
-      "صورك وبياناتك الشخصية مشفّرة ومحمية. ما يظهر شي لأي مستخدم إلا بعد التوافق المتبادل.",
+      "صورك مخفية عن الجميع حتى يحصل توافق متبادل، وبيانات التواصل العائلي ما بتنشارك إلا بموافقتك.",
   },
   {
     icon: Heart,
     title: "الزواج بالحلال",
     description:
-      "كل خطوة على المنصة مبنية على مبدأ الستر والاحترام — لا تواصل قبل التوافق المتبادل، وبإشراف الأهل.",
+      "كل خطوة على المنصة مبنية على مبدأ الستر والاحترام — لا تواصل قبل التوافق المتبادل، والهدف دائماً تعارف جاد ينتهي عند الأهل.",
   },
   {
     icon: Users,
     title: "عادات أردنية أصيلة",
     description:
-      "الزيارة العائلية التقليدية جزء أساسي من العملية — مثل ما اعتدنا في بيوتنا الأردنية.",
+      "التعارف بيمرّ عن طريق العائلة — وليّ الأمر جزء من الطريق نحو الخطبة، مثل ما اعتدنا في بيوتنا الأردنية.",
   },
   {
     icon: Cpu,
@@ -72,13 +72,13 @@ const milestones = [
     year: "2025",
     title: "الإطلاق التجريبي",
     description:
-      "أطلقنا النسخة التجريبية واستقبلنا أول 500 عائلة من مختلف مدن الأردن. الحمد لله، النتائج كانت مشجعة.",
+      "أطلقنا النسخة التجريبية لعدد محدود من العائلات، وتعلّمنا من تجربتهم لنحسّن المنصة.",
   },
   {
     year: "2026",
     title: "التوسع والنمو",
     description:
-      "نوسّع خدماتنا لنوصل لكل عائلة أردنية من الشمال للجنوب — من إربد للعقبة، ومن عمّان للكرك.",
+      "نطوّر المنصة باستمرار لتخدم العائلات في كل مدن الأردن — من إربد للعقبة، ومن عمّان للكرك.",
   },
 ];
 
@@ -87,9 +87,9 @@ const milestones = [
 /* ══════════════════════════════════════════════════════ */
 
 export default function AboutPage() {
-  const missionView = useInView(0.15);
-  const valuesView = useInView(0.15);
-  const timelineView = useInView(0.15);
+  const { ref: missionRef, inView: missionInView } = useInView(0.15);
+  const { ref: valuesRef, inView: valuesInView } = useInView(0.15);
+  const { ref: timelineRef, inView: timelineInView } = useInView(0.15);
 
   return (
     <>
@@ -163,18 +163,18 @@ export default function AboutPage() {
 
           <div
             className="container mx-auto px-4"
-            ref={missionView.ref}
+            ref={missionRef}
           >
             <div className="mx-auto max-w-5xl grid gap-8 md:grid-cols-2">
               {/* Mission Card */}
               <Card
                 className={`group relative overflow-hidden border-border/50 bg-card/80 backdrop-blur-sm transition-all duration-700 hover:border-primary/20 hover:shadow-xl ${
-                  missionView.inView
+                  missionInView
                     ? "opacity-100 translate-y-0"
                     : "opacity-0 translate-y-8"
                 }`}
                 style={{
-                  transitionDelay: missionView.inView ? "0ms" : "0ms",
+                  transitionDelay: missionInView ? "0ms" : "0ms",
                 }}
               >
                 <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-l from-primary to-secondary opacity-60" />
@@ -188,7 +188,7 @@ export default function AboutPage() {
                   <p className="text-sm leading-relaxed text-muted-foreground">
                     نوفّر للعائلات الأردنية طريقة آمنة وموثوقة للزواج بالحلال.
                     نستخدم تقنيات توافق ذكية تحلّل القيم والشخصية والمعايير
-                    الأساسية، مع خصوصية كاملة وزيارات عائلية تقليدية على أصولها —
+                    الأساسية، مع ستر في كل خطوة وتعارف بيمرّ عن طريق العائلة على أصوله —
                     لأن كل عائلة أردنية تستاهل الأفضل لولادها.
                   </p>
                 </CardContent>
@@ -197,12 +197,12 @@ export default function AboutPage() {
               {/* Vision Card */}
               <Card
                 className={`group relative overflow-hidden border-border/50 bg-card/80 backdrop-blur-sm transition-all duration-700 hover:border-primary/20 hover:shadow-xl ${
-                  missionView.inView
+                  missionInView
                     ? "opacity-100 translate-y-0"
                     : "opacity-0 translate-y-8"
                 }`}
                 style={{
-                  transitionDelay: missionView.inView ? "150ms" : "0ms",
+                  transitionDelay: missionInView ? "150ms" : "0ms",
                 }}
               >
                 <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-l from-secondary to-accent opacity-60" />
@@ -232,7 +232,7 @@ export default function AboutPage() {
 
           <div
             className="container relative mx-auto px-4"
-            ref={valuesView.ref}
+            ref={valuesRef}
           >
             <div className="mx-auto max-w-2xl text-center">
               <Badge
@@ -256,12 +256,12 @@ export default function AboutPage() {
                 <Card
                   key={value.title}
                   className={`group relative overflow-hidden border-border/50 bg-card/80 backdrop-blur-sm text-center transition-all duration-500 hover:border-transparent hover:shadow-2xl hover:shadow-primary/[0.08] hover:-translate-y-2 ${
-                    valuesView.inView
+                    valuesInView
                       ? "opacity-100 translate-y-0"
                       : "opacity-0 translate-y-8"
                   }`}
                   style={{
-                    transitionDelay: valuesView.inView
+                    transitionDelay: valuesInView
                       ? `${i * 100}ms`
                       : "0ms",
                     transitionProperty: "all",
@@ -296,7 +296,7 @@ export default function AboutPage() {
 
           <div
             className="container mx-auto px-4"
-            ref={timelineView.ref}
+            ref={timelineRef}
           >
             <div className="mx-auto max-w-2xl text-center">
               <Badge
@@ -324,12 +324,12 @@ export default function AboutPage() {
                   <div
                     key={milestone.year}
                     className={`group relative flex flex-col md:flex-row gap-6 items-start transition-all duration-700 ${
-                      timelineView.inView
+                      timelineInView
                         ? "opacity-100 translate-x-0"
                         : "opacity-0 translate-x-8"
                     }`}
                     style={{
-                      transitionDelay: timelineView.inView
+                      transitionDelay: timelineInView
                         ? `${index * 150}ms`
                         : "0ms",
                     }}
@@ -393,7 +393,7 @@ export default function AboutPage() {
                   ابدأ خطوتك الأولى نحو نصف دينك
                 </h2>
                 <p className="mx-auto mt-6 max-w-xl text-lg leading-relaxed opacity-85">
-                  آلاف العائلات الأردنية من عمّان لإربد للزرقاء بدأت مشوارها معنا.
+                  انضم للعائلات الأردنية اللي بدأت مشوارها معنا.
                   سجّل الآن — التسجيل مجاني وخلال دقيقتين.
                 </p>
                 <div className="mt-12">

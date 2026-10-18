@@ -34,6 +34,7 @@ export async function GET(request: Request) {
           currency: true,
           provider: true,
           status: true,
+          disputedAt: true,
           createdAt: true,
           user: {
             select: { id: true, firstName: true, lastName: true, phone: true },

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const db = vi.hoisted(() => ({
-  mutualMatch: { findUnique: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
+  mutualMatch: { findUnique: vi.fn(), update: vi.fn(), updateMany: vi.fn(), findMany: vi.fn() },
   block: { findFirst: vi.fn(), findMany: vi.fn() },
   introRequest: { findMany: vi.fn(), findUnique: vi.fn(), create: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
   parentInfo: { findUnique: vi.fn(), update: vi.fn() },
@@ -20,13 +20,19 @@ const credits = vi.hoisted(() => ({
 const notifyMod = vi.hoisted(() => ({ notify: vi.fn(), notifyMany: vi.fn() }));
 const settings = vi.hoisted(() => ({ getCycleFlags: vi.fn() }));
 const outcomeMod = vi.hoisted(() => ({ applyIntroOutcome: vi.fn() }));
+const reports = vi.hoisted(() => ({
+  pausedForReview: vi.fn(async (): Promise<Set<string>> => new Set()),
+  isPausedForReview: (c: { status: string; endedByAdminId?: string | null } | null) =>
+    !!c && c.status === "ENDED" && c.endedByAdminId === "system:report-review",
+}));
 vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/credits", () => credits);
 vi.mock("@/lib/notify", () => notifyMod);
 vi.mock("@/lib/settings", () => settings);
 vi.mock("@/lib/intro/outcome", () => outcomeMod);
+vi.mock("@/lib/reports", () => reports);
 
-import { cancelIntroRequest, getMatchIntroState, respondToIntroRequest, sendIntroRequest } from "@/lib/intro/requests";
+import { cancelIntroRequest, getMatchIntroState, respondToIntroRequest, sendIntroRequest, shareGuardianForMatch } from "@/lib/intro/requests";
 import { IntroError } from "@/lib/intro/errors";
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -67,6 +73,8 @@ beforeEach(() => {
   db.user.count.mockResolvedValue(0);
   db.mutualMatch.updateMany.mockResolvedValue({ count: 1 });
   outcomeMod.applyIntroOutcome.mockResolvedValue("NONE");
+  db.mutualMatch.findMany.mockResolvedValue([]);
+  reports.pausedForReview.mockResolvedValue(new Set());
 });
 
 describe("sendIntroRequest", () => {
@@ -513,7 +521,7 @@ const outcomeRow = (type: "CHAT" | "FAMILY") => ({
 const CONTACT = { name: "أبو يزن", relationship: "father", phone: "962790000000" };
 
 describe("per-match guardian consent (openedAt matches)", () => {
-  it("mixed: CHAT side's guardian hidden until per-match share", async () => {
+  it("mixed: neither guardian shows until both sides shared on the match", async () => {
     // f1 chose FAMILY (stamped at creation), u1 chose CHAT (not stamped); both consented globally
     db.mutualMatch.findUnique.mockResolvedValue(opened({ femaleGuardianShareAt: OPENED }));
     db.introRequest.findMany.mockResolvedValue([outcomeRow("FAMILY")]);
@@ -521,8 +529,10 @@ describe("per-match guardian consent (openedAt matches)", () => {
     expect(forFemale.outcome).toBe("FAMILY");
     expect(forFemale.family.status).toBe("accepted");
     expect(forFemale.family.contacts).toBeUndefined();
+    // The CHAT side can't take the family-chooser's contact and leave without sharing back
     const forMale = await getMatchIntroState("m1", "u1");
-    expect(forMale.family.contacts).toEqual(CONTACT);
+    expect(forMale.family.contacts).toBeUndefined();
+    expect(forMale.myGuardian.askShare).toBe(true);
 
     db.mutualMatch.findUnique.mockResolvedValue(opened({ femaleGuardianShareAt: OPENED, maleGuardianShareAt: new Date() }));
     expect((await getMatchIntroState("m1", "f1")).family.contacts).toEqual(CONTACT);
@@ -619,5 +629,126 @@ describe("per-match guardian consent (openedAt matches)", () => {
     const state = await getMatchIntroState("m1", "u1");
     expect(outcomeMod.applyIntroOutcome).not.toHaveBeenCalled();
     expect(state.family.status).toBe("pending_sent");
+  });
+});
+
+describe("closed matches (follow-up answers, engagements, report reviews)", () => {
+  const acceptedFamily = { ...outcomeRow("FAMILY"), respondedAt: new Date(OPENED.getTime() - 1) };
+
+  it("never returns guardian contacts once the match is ended", async () => {
+    db.mutualMatch.findUnique.mockResolvedValue(match({ femaleOutcome: "NOT_A_MATCH", maleOutcome: null }));
+    db.introRequest.findMany.mockResolvedValue([acceptedFamily]);
+    const state = await getMatchIntroState("m1", "u1");
+    expect(state.closed).toBe("ended");
+    expect(state.family.contacts).toBeUndefined();
+    // nor on an «تمت الخطبة» match
+    db.mutualMatch.findUnique.mockResolvedValue(match({ maleOutcome: "ENGAGED" }));
+    const engaged = await getMatchIntroState("m1", "u1");
+    expect(engaged.closed).toBe("engaged");
+    expect(engaged.family.contacts).toBeUndefined();
+  });
+
+  it("refuses to send, accept or share once either side ended it or said «تمت الخطبة»", async () => {
+    for (const over of [{ femaleOutcome: "NOT_A_MATCH" }, { maleOutcome: "ENGAGED" }]) {
+      db.mutualMatch.findUnique.mockResolvedValue(match({ femaleOutcome: null, maleOutcome: null, ...over }));
+      await expectCode(sendIntroRequest({ matchId: "m1", senderId: "u1", type: "CHAT" }), "NOT_ALLOWED");
+      db.introRequest.findUnique.mockResolvedValue(pending({ senderId: "f1", receiverId: "u1", match: match(over) }));
+      await expectCode(respondToIntroRequest({ requestId: "r1", userId: "u1", accept: true }), "NOT_ALLOWED");
+      db.mutualMatch.findUnique.mockResolvedValue(opened({ femaleGuardianShareAt: OPENED, ...over }));
+      await expectCode(shareGuardianForMatch({ matchId: "m1", userId: "u1", consent: true }), "NOT_ALLOWED");
+    }
+    expect(db.introRequest.create).not.toHaveBeenCalled();
+    expect(db.parentInfo.update).not.toHaveBeenCalled();
+    expect(db.mutualMatch.updateMany).not.toHaveBeenCalled();
+    // A decline is still possible
+    db.introRequest.findUnique.mockResolvedValue(pending({ senderId: "f1", receiverId: "u1", match: match({ femaleOutcome: "NOT_A_MATCH" }) }));
+    await expect(respondToIntroRequest({ requestId: "r1", userId: "u1", accept: false })).resolves.toEqual({ status: "DECLINED" });
+  });
+
+  it("a partner engaged on another match shows as inactive and can't be sent anything", async () => {
+    db.mutualMatch.findMany.mockResolvedValue([
+      { id: "other", femaleId: "f1", maleId: "x9", femaleOutcome: "ENGAGED", maleOutcome: null },
+    ]);
+    const state = await getMatchIntroState("m1", "u1");
+    expect(state.closed).toBe("inactive");
+    await expectCode(sendIntroRequest({ matchId: "m1", senderId: "u1", type: "CHAT" }), "NOT_ALLOWED");
+    // …unless the other side of that match said «لم يحصل نصيب»: the engagement doesn't count
+    db.mutualMatch.findMany.mockResolvedValue([
+      { id: "other", femaleId: "f1", maleId: "x9", femaleOutcome: "ENGAGED", maleOutcome: "NOT_A_MATCH" },
+    ]);
+    expect((await getMatchIntroState("m1", "u1")).closed).toBeNull();
+  });
+
+  it("I'm engaged on another match: my other match shows as engaged", async () => {
+    db.mutualMatch.findMany.mockResolvedValue([
+      { id: "other", femaleId: "x9", maleId: "u1", femaleOutcome: null, maleOutcome: "ENGAGED" },
+    ]);
+    expect((await getMatchIntroState("m1", "u1")).closed).toBe("engaged");
+  });
+
+  it("nothing can be sent or accepted while one of the two is paused for a report review", async () => {
+    reports.pausedForReview.mockResolvedValue(new Set(["f1"]));
+    await expectCode(sendIntroRequest({ matchId: "m1", senderId: "u1", type: "CHAT" }), "NOT_ALLOWED");
+    db.introRequest.findUnique.mockResolvedValue(pending({ senderId: "f1", receiverId: "u1" }));
+    await expectCode(respondToIntroRequest({ requestId: "r1", userId: "u1", accept: true }), "NOT_ALLOWED");
+    expect(db.introRequest.create).not.toHaveBeenCalled();
+    expect(db.conversation.create).not.toHaveBeenCalled();
+  });
+
+  it("a paused chat is reported as paused", async () => {
+    db.mutualMatch.findUnique.mockResolvedValue(match({
+      conversation: { id: "c1", status: "ENDED", expiresAt: new Date(Date.now() + DAY), endedById: null, endedByAdminId: "system:report-review" },
+    }));
+    const state = await getMatchIntroState("m1", "u1");
+    expect(state.chat).toMatchObject({ status: "ended", paused: true });
+    // not ended by a user: the family path stays open
+    expect(state.family.status).toBe("none");
+  });
+});
+
+describe("guardian consent is stored only with the action", () => {
+  it("send: consent in the request is recorded with it; without it the request is refused", async () => {
+    db.parentInfo.findUnique.mockResolvedValue(guardian(false));
+    await expectCode(sendIntroRequest({ matchId: "m1", senderId: "u1", type: "FAMILY" }), "CONSENT_REQUIRED");
+    expect(db.parentInfo.update).not.toHaveBeenCalled();
+
+    await sendIntroRequest({ matchId: "m1", senderId: "u1", type: "FAMILY", consent: true });
+    expect(db.parentInfo.update).toHaveBeenCalledWith({ where: { userId: "u1" }, data: { shareConsentAt: expect.any(Date) } });
+    expect(db.introRequest.create).toHaveBeenCalled();
+  });
+
+  it("send: a request that fails (no credits) stores no consent", async () => {
+    db.parentInfo.findUnique.mockResolvedValue(guardian(false));
+    credits.reserveCredits.mockResolvedValue(false);
+    await expectCode(sendIntroRequest({ matchId: "m1", senderId: "u1", type: "FAMILY", consent: true }), "NO_CREDITS");
+    expect(db.parentInfo.update).not.toHaveBeenCalled();
+  });
+
+  it("share: consent goes with the stamp", async () => {
+    db.mutualMatch.findUnique.mockResolvedValue(opened({ femaleGuardianShareAt: OPENED }));
+    db.introRequest.findMany.mockResolvedValue([outcomeRow("FAMILY")]);
+    db.parentInfo.findUnique.mockResolvedValue(guardian(false));
+    await expectCode(shareGuardianForMatch({ matchId: "m1", userId: "u1" }), "CONSENT_REQUIRED");
+    expect(db.parentInfo.update).not.toHaveBeenCalled();
+    await shareGuardianForMatch({ matchId: "m1", userId: "u1", consent: true });
+    expect(db.parentInfo.update).toHaveBeenCalled();
+    expect(db.mutualMatch.updateMany).toHaveBeenCalledWith(expect.objectContaining({ data: { maleGuardianShareAt: expect.any(Date) } }));
+  });
+});
+
+describe("after the chat ran out / old-flow visits", () => {
+  it("states until when the move to family stays possible", async () => {
+    const expired = new Date(Date.now() - 2 * DAY);
+    db.mutualMatch.findUnique.mockResolvedValue(match({ conversation: { id: "c1", status: "EXPIRED", expiresAt: expired, endedById: null } }));
+    const state = await getMatchIntroState("m1", "u1");
+    expect(state.family.status).toBe("none");
+    expect(new Date(state.family.openUntil!).getTime()).toBe(expired.getTime() + 14 * DAY);
+  });
+
+  it("asks how it's going on a match whose visit the team arranged the old way", async () => {
+    db.mutualMatch.findUnique.mockResolvedValue(match({ visitRequest: { id: "v1", status: "COMPLETED" } }));
+    const state = await getMatchIntroState("m1", "u1");
+    expect(state.family.status).toBe("legacy_admin");
+    expect(state.followUp.ask).toBe(true);
   });
 });

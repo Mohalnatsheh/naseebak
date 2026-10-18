@@ -21,6 +21,7 @@ import { isTestPhone, testPhones } from "@/lib/test-accounts";
 import { MUTUAL_SUGGESTION_MS, SLOT_IDLE_DAYS, revealHiddenFor, slotMutualWhere } from "@/lib/suggestions/mutual";
 import { NOT_ENGAGED, isEngaged } from "@/lib/intro/followup";
 import { activeWhere, isActive } from "@/lib/activity";
+import { arabicCount } from "@/lib/utils";
 import type { SuggestionDecision, SuggestionStatus } from "@prisma/client";
 
 const MAX_NEW_SUGGESTIONS = 3;
@@ -47,6 +48,19 @@ export interface SuggestOutcome {
 /** Pairs being created right now (see the pair check before createMany) */
 const pairsInFlight = new Set<string>();
 const outcome = (created: number, reason: SuggestEmptyReason | null = null): SuggestOutcome => ({ created, reason });
+
+/**
+ * One "new suggestions" notice to the person a run was for, counting both the cards just created and
+ * the ones shown again now that they have room (revealed); once a day like every such notice.
+ */
+async function notifyNewForMe(userId: string, count: number): Promise<void> {
+  if (count <= 0) return;
+  const body =
+    count === 1
+      ? "وصلك اقتراح توافق جديد. قم بمراجعته."
+      : `وصلك ${arabicCount(count, { one: "اقتراح توافق جديد", two: "اقتراحا توافق جديدان", few: "اقتراحات توافق جديدة", many: "اقتراح توافق جديد" })}. قم بمراجعتها.`;
+  await notify({ userId, type: "SUGGESTION", title: "اقتراحات توافق جديدة", body, url: "/dashboard/suggestions", oncePerDay: NEW_SUGGESTIONS_DAILY });
+}
 
 /** Lowest compatibility score that may be suggested (credit-on-interest raises it, since an "interested" costs a credit). */
 export function minSuggestionScore(flags: CycleFlags): number {
@@ -237,7 +251,7 @@ async function generate(userId: string): Promise<SuggestOutcome> {
     revealed = await revealHiddenFor(userId, limit);
     limit -= revealed;
     if (limit <= 0) {
-      await notify({ userId, type: "SUGGESTION", title: "اقتراحات توافق جديدة", body: "وصلتك اقتراحات توافق جديدة. قم بمراجعتها.", url: "/dashboard/suggestions", oncePerDay: NEW_SUGGESTIONS_DAILY });
+      await notifyNewForMe(userId, revealed);
       return outcome(revealed);
     }
   } else {
@@ -259,7 +273,11 @@ async function generate(userId: string): Promise<SuggestOutcome> {
 
   // A recent scan found nobody new: wait before scanning again (cards waiting for me were shown above)
   const last = lastEmptyRun.get(userId);
-  if (last && Date.now() - last < RETRY_COOLDOWN_MS) return revealed > 0 ? outcome(revealed) : outcome(0, "no_candidates");
+  if (last && Date.now() - last < RETRY_COOLDOWN_MS) {
+    if (revealed === 0) return outcome(0, "no_candidates");
+    await notifyNewForMe(userId, revealed);
+    return outcome(revealed);
+  }
 
   const runStart = new Date();
   const pastSelect = {
@@ -357,7 +375,10 @@ async function generate(userId: string): Promise<SuggestOutcome> {
     }
 
     if (top.length === 0) {
-      if (revealed > 0) return outcome(revealed);
+      if (revealed > 0) {
+        await notifyNewForMe(userId, revealed);
+        return outcome(revealed);
+      }
       lastEmptyRun.set(userId, Date.now());
       return outcome(0, "no_candidates");
     }
@@ -380,17 +401,13 @@ async function generate(userId: string): Promise<SuggestOutcome> {
       await refundCredits(userId, top.length - created.count);
       await recordCredit({ userId, delta: -created.count, reason: "SUGGESTION", note: "Automatic suggestions" });
     }
+    // Top-ups run many times a day (after each decision, on expiry, on page open): one
+    // "new suggestions" notice per person per day is enough, the rest wait in the list.
+    // Cards shown again from hidden count as new for me.
+    await notifyNewForMe(userId, created.count + revealed);
     if (created.count === 0) return outcome(revealed);
 
-    // Top-ups run many times a day (after each decision, on expiry, on page open): one
-    // "new suggestions" notice per person per day is enough, the rest wait in the list
-    const title = "اقتراحات توافق جديدة";
-    const body =
-      created.count === 1
-        ? "وصلك اقتراح توافق جديد. قم بمراجعته."
-        : `وصلك ${created.count} اقتراحات توافق جديدة. قم بمراجعتها.`;
     if (mutual) {
-      await notify({ userId, type: "SUGGESTION", title, body, url: "/dashboard/suggestions", oncePerDay: NEW_SUGGESTIONS_DAILY });
       // The other people see the same suggestion
       const topIds = top.map((t) => t.candidate.id);
       const createdRows = await db.suggestion.findMany({
@@ -412,8 +429,6 @@ async function generate(userId: string): Promise<SuggestOutcome> {
         url: "/dashboard/suggestions",
         oncePerDay: NEW_SUGGESTIONS_DAILY,
       });
-    } else {
-      await notify({ userId, type: "SUGGESTION", title, body, url: "/dashboard/suggestions", oncePerDay: NEW_SUGGESTIONS_DAILY });
     }
 
     if (!perRequestCredits && user.matchCredits - created.count <= 0) await notifyCreditsExhausted(userId);

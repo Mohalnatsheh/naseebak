@@ -61,7 +61,7 @@ export async function GET() {
     });
 
     // Strip 'topic' from questions before sending to client
-    const questions = quizQuestions.map(({ topic, ...rest }) => rest);
+    const questions = quizQuestions.map(({ id, text, dimension }) => ({ id, text, dimension }));
 
     if (result) {
       const retakeInfo = getRetakeInfo(result.updatedAt);

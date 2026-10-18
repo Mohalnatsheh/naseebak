@@ -25,7 +25,7 @@ export async function POST(request: Request) {
 
     if (!result.success) {
       return NextResponse.json(
-        { error: "بيانات غير صالحة", details: result.error.issues },
+        { error: result.error.issues[0]?.message || "بيانات غير صالحة", details: result.error.issues },
         { status: 400 }
       );
     }
@@ -63,25 +63,35 @@ export async function POST(request: Request) {
 
     // Create user with phone-based email placeholder
     const registrationCredits = await getRegistrationCredits();
-    const user = await db.user.create({
-      data: {
-        firstName,
-        lastName,
-        email: `phone_${phone}@naseeb.local`,
-        phone,
-        passwordHash: null,
-        gender,
-        matchCredits: registrationCredits,
-      },
-      select: {
-        id: true,
-        email: true,
-        phone: true,
-        firstName: true,
-        gender: true,
-        createdAt: true,
-      },
-    });
+    let user;
+    try {
+      user = await db.user.create({
+        data: {
+          firstName,
+          lastName,
+          email: `phone_${phone}@naseeb.local`,
+          phone,
+          passwordHash: null,
+          gender,
+          matchCredits: registrationCredits,
+          termsAcceptedAt: new Date(),
+        },
+        select: {
+          id: true,
+          email: true,
+          phone: true,
+          firstName: true,
+          gender: true,
+          createdAt: true,
+        },
+      });
+    } catch (e) {
+      // Two sign-ups with the same phone at the same moment: the unique key catches the second
+      if ((e as { code?: string })?.code === "P2002") {
+        return NextResponse.json({ error: "رقم الهاتف مسجل مسبقاً" }, { status: 409 });
+      }
+      throw e;
+    }
 
     await recordCredit({ userId: user.id, delta: registrationCredits, reason: "REGISTRATION" });
 

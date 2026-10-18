@@ -30,22 +30,44 @@ import { VerifiedBadge } from "@/components/shared/verified-badge";
 import { cn } from "@/lib/utils";
 import type { ChatSummary, ChatMessage } from "@/lib/chat/service";
 import type { IntroState } from "@/lib/intro/requests";
-import { IntroConfirmDialog } from "@/components/intro/intro-confirm-dialog";
+import { FREE_REQUEST_NOTE, IntroConfirmDialog } from "@/components/intro/intro-confirm-dialog";
 import { daysLabel, daysLeft, postJson } from "@/components/intro/intro-utils";
 import { MessageBubble } from "./message-bubble";
 import { ChatComposer, type ChatComposerHandle } from "./chat-composer";
 import { StarterQuestions } from "./starter-questions";
 import { EndChatDialog, type ReportReasonValue } from "./end-chat-dialog";
+import { ConfirmActionDialog } from "@/components/intro/confirm-action-dialog";
 import { dayLabel, mergeMessages, sameDay, type UiMessage } from "./chat-utils";
 import { useChatChannel } from "./use-chat-channel";
 import { useDashboardData } from "@/contexts/dashboard-context";
 import { checkMessage } from "@/lib/chat/filter";
+
+/** Id for an optimistic message until the server answers (also its clientNonce); only called from send(). */
+function tempMessageId() {
+  return `tmp-${Date.now()}`;
+}
 
 interface ChatResponse {
   conversation: ChatSummary;
   messages: ChatMessage[];
   hasMore: boolean;
   chatEnabled: boolean;
+}
+
+type LatestResult = { kind: "ok"; data: ChatResponse } | { kind: "notFound" } | { kind: "error" };
+
+/** The newest page of the chat (applied by the component; network errors count as "error"). */
+async function requestLatest(conversationId: string): Promise<LatestResult> {
+  const res = await fetch(`/api/chats/${conversationId}`).catch(() => null);
+  if (res?.status === 404) return { kind: "notFound" };
+  if (res?.ok) return { kind: "ok", data: await res.json() };
+  return { kind: "error" };
+}
+
+/** The match's introduction state, or null when it can't be loaded. */
+async function requestIntro(matchId: string): Promise<IntroState | null> {
+  const res = await fetch(`/api/matches/${matchId}/intro`).catch(() => null);
+  return res?.ok ? res.json() : null;
 }
 
 export function ChatRoom({ conversationId }: { conversationId: string }) {
@@ -63,6 +85,8 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
   const [familyDialog, setFamilyDialog] = useState(false);
   const [endDialog, setEndDialog] = useState<null | "end" | "report">(null);
   const [busy, setBusy] = useState(false);
+  // «تمديد 7 أيام» is a one-time move: ask first
+  const [extendConfirm, setExtendConfirm] = useState(false);
 
   const scroller = useRef<HTMLDivElement>(null);
   const viewport = useMobileViewport();
@@ -82,34 +106,51 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
     if (mode === "replace") setHasMore(data.hasMore);
   }, []);
 
-  const fetchLatest = useCallback(
-    async (mode: "replace" | "merge") => {
-      const res = await fetch(`/api/chats/${conversationId}`).catch(() => null);
-      if (res?.status === 404) return setNotFound(true);
-      if (res?.ok) {
+  const applyLatest = useCallback(
+    (result: LatestResult, mode: "replace" | "merge") => {
+      if (result.kind === "notFound") return setNotFound(true);
+      if (result.kind === "ok") {
         setLoadError(false);
-        applyResponse(await res.json(), mode);
+        applyResponse(result.data, mode);
       } else if (mode === "replace") {
         setLoadError(true);
       }
     },
-    [conversationId, applyResponse]
+    [applyResponse]
+  );
+
+  const fetchLatest = useCallback(
+    async (mode: "replace" | "merge") => applyLatest(await requestLatest(conversationId), mode),
+    [conversationId, applyLatest]
   );
 
   const loadIntro = useCallback(async (matchId: string) => {
-    const res = await fetch(`/api/matches/${matchId}/intro`).catch(() => null);
-    if (res?.ok) setIntro(await res.json());
+    const data = await requestIntro(matchId);
+    if (data) setIntro(data);
   }, []);
 
   useEffect(() => {
-    fetchLatest("replace");
-  }, [fetchLatest]);
+    let active = true;
+    requestLatest(conversationId).then((result) => {
+      if (active) applyLatest(result, "replace");
+    });
+    return () => {
+      active = false;
+    };
+  }, [conversationId, applyLatest]);
 
   // No match page for someone the other person blocked: don't ask for it
   const matchId = conversation && !conversation.matchHidden ? conversation.matchId : undefined;
   useEffect(() => {
-    if (matchId) loadIntro(matchId);
-  }, [matchId, loadIntro]);
+    if (!matchId) return;
+    let active = true;
+    requestIntro(matchId).then((data) => {
+      if (active && data) setIntro(data);
+    });
+    return () => {
+      active = false;
+    };
+  }, [matchId]);
 
   const partnerId = conversation?.partner.id;
   const mode = useChatChannel(conversationId, {
@@ -210,7 +251,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
       setComposerError(pre.message);
       return false;
     }
-    const tempId = retryId ?? `tmp-${Date.now()}`;
+    const tempId = retryId ?? tempMessageId();
     const optimistic: UiMessage = { id: tempId, body: text, createdAt: new Date().toISOString(), mine: true, readAt: null, pending: "sending" };
     stickToBottom.current = true;
     setMessages((prev) => (retryId ? prev.map((m) => (m.id === retryId ? optimistic : m)) : [...prev, optimistic]));
@@ -235,6 +276,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
   }
 
   async function extend() {
+    setExtendConfirm(false);
     setBusy(true);
     const res = await postJson<{ conversation: ChatSummary }>(`/api/chats/${conversationId}/extend`);
     setBusy(false);
@@ -259,15 +301,8 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
   async function requestFamily(consent: boolean) {
     if (!conversation) return;
     setBusy(true);
-    if (consent) {
-      const saved = await postJson("/api/profile/guardian-consent");
-      if (!saved.ok) {
-        setBusy(false);
-        toast.error(saved.data.error ?? "تعذّر حفظ الموافقة");
-        return;
-      }
-    }
-    const res = await postJson(`/api/matches/${conversation.matchId}/intro`, { type: "FAMILY" });
+    // The guardian consent goes with the request: stored only if the request is sent
+    const res = await postJson(`/api/matches/${conversation.matchId}/intro`, { type: "FAMILY", ...(consent && { consent: true }) });
     setBusy(false);
     setFamilyDialog(false);
     if (res.ok) toast.success("تم إرسال طلب التعارف العائلي");
@@ -310,6 +345,12 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
   const open = conversation.status === "ACTIVE";
   const canSend = open && chatEnabled && !conversation.blocked;
   const family = intro?.family;
+  // Credit on interest: every request is free, also after an earlier family request expired
+  const familyFree = !!intro?.flags.creditOnInterest || !!family?.free;
+  /** The free move to family stays open until the match fades (CHAT_STALE_DAYS after the chat ran out) */
+  const familyOpenUntil = family?.openUntil
+    ? new Date(family.openUntil).toLocaleDateString("ar-JO-u-nu-latn", { day: "numeric", month: "long" })
+    : null;
 
   return (
     <div
@@ -346,7 +387,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
             {conversation.canExtend && (
-              <DropdownMenuItem onClick={extend} disabled={busy}>
+              <DropdownMenuItem onClick={() => setExtendConfirm(true)} disabled={busy}>
                 <CalendarPlus className="h-4 w-4" /> تمديد 7 أيام
               </DropdownMenuItem>
             )}
@@ -389,11 +430,14 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
           </span>
         )}
         {conversation.canExtend && (
-          <button type="button" onClick={extend} disabled={busy} className="font-semibold text-primary hover:underline">
+          <button type="button" onClick={() => setExtendConfirm(true)} disabled={busy} className="-my-2 inline-flex min-h-11 items-center px-1 font-semibold text-primary hover:underline">
             تمديد 7 أيام
           </button>
         )}
-        <span className="hidden text-muted-foreground sm:inline">لا تشارك أرقام الهواتف أو الحسابات.</span>
+        {/* Shown on phones too (most members chat there) */}
+        <span className="text-muted-foreground">
+          {myGender === "FEMALE" ? "لا تشاركي أرقام الهواتف أو الحسابات." : "لا تشارك أرقام الهواتف أو الحسابات."}
+        </span>
 
         <span className="ms-auto">
           {family?.status === "none" && intro?.flags.introRequests && !intro.closed && !conversation.blocked && conversation.status !== "ENDED" && (
@@ -459,18 +503,20 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
 
       {/* Composer or read-only notice */}
       {canSend ? (
-        <ChatComposer ref={composer} onSend={(t) => send(t)} error={composerError} onTyping={() => composerError && setComposerError(null)} />
+        <ChatComposer ref={composer} female={myGender === "FEMALE"} onSend={(t) => send(t)} error={composerError} onTyping={() => composerError && setComposerError(null)} />
       ) : (
         <div className="border-t border-border/60 bg-muted/30 px-4 py-3 text-center text-sm text-muted-foreground">
           {conversation.blocked
             ? "لا يمكن إرسال رسائل في هذه المحادثة."
+            : intro?.chat.paused
+            ? "المحادثة متوقفة مؤقتاً لمراجعة من فريق نصيبك. سنُعلمك عند استئنافها."
             : conversation.status === "ENDED"
             ? conversation.endedByMe
               ? "تم إنهاء هذه المحادثة من طرفك."
               : "أنهى الطرف الآخر هذه المحادثة."
             : conversation.status === "EXPIRED"
               ? family?.status === "none" && intro?.flags.introRequests && !intro.closed
-                ? "انتهت مدة المحادثة. هل تنتقلان لتعارف عائلي؟ الانتقال مجاني."
+                ? `انتهت مدة المحادثة. هل تنتقلان لتعارف عائلي؟${familyFree ? " الانتقال مجاني" : ""}${familyOpenUntil ? ` ومتاح حتى ${familyOpenUntil}` : ""}.`
                 : "انتهت مدة المحادثة."
               : "المحادثات متوقفة مؤقتاً. يمكنك قراءة الرسائل السابقة."}
           {/* An expired chat keeps the free move to family: offer it right here */}
@@ -491,10 +537,20 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
         type="FAMILY"
         partnerName={conversation.partner.firstName}
         credits={intro?.credits ?? 0}
-        free={family?.free}
+        free={familyFree}
+        freeNote={intro?.flags.creditOnInterest ? FREE_REQUEST_NOTE : undefined}
         guardian={intro?.myGuardian ?? { exists: false, consented: false }}
         busy={busy}
         onConfirm={requestFamily}
+      />
+      <ConfirmActionDialog
+        open={extendConfirm}
+        onOpenChange={(o) => !busy && setExtendConfirm(o)}
+        title="تمديد المحادثة 7 أيام؟"
+        description="يمكن تمديد المحادثة مرة واحدة فقط، فتبقى مفتوحة 7 أيام إضافية لكليكما."
+        confirmLabel="تمديد 7 أيام"
+        busy={busy}
+        onConfirm={extend}
       />
       <EndChatDialog
         open={!!endDialog}

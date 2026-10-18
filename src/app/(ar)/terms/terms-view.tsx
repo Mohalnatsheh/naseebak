@@ -120,7 +120,7 @@ function buildSections(coi: boolean) {
             "يُخصم رصيد واحد من المُرسِل عند إرسال طلب تعارف عائلي أو طلب محادثة، أما قبول الطلب فمجاني.",
             "لا يُسترد الرصيد في حال رفض الطلب أو انتهاء مهلته دون رد.",
           ]),
-      "يمكن شراء أرصدة إضافية من لوحة التحكم بالدينار الأردني، ويتم الدفع ببطاقات Visa وMastercard عبر Stripe.",
+      "يمكن شراء أرصدة إضافية من لوحة التحكم. الأسعار معروضة بالدينار الأردني، ويُحصَّل ما يعادلها بالدولار الأمريكي (المبلغ ظاهر تحت كل باقة) ببطاقات Visa وMastercard عبر Stripe.",
       "لا يوجد اشتراك شهري، ويبقى الرصيد المشترى في الحساب حتى استخدامه.",
       "المبالغ المدفوعة غير قابلة للاسترداد إلا في حالات استثنائية، ونحتفظ بحق تعديل الأسعار، ويُعرض السعر المعتمد قبل إتمام أي عملية شراء.",
     ],
@@ -166,9 +166,9 @@ function buildSections(coi: boolean) {
 
 export function TermsView({ creditOnInterest }: { creditOnInterest: boolean }) {
   const sections = buildSections(creditOnInterest);
-  const introView = useInView(0.15);
-  const sectionsView = useInView(0.1);
-  const contactView = useInView(0.15);
+  const { ref: introRef, inView: introInView } = useInView(0.15);
+  const { ref: sectionsRef, inView: sectionsInView } = useInView(0.1);
+  const { ref: contactRef, inView: contactInView } = useInView(0.15);
 
   return (
     <>
@@ -241,10 +241,10 @@ export function TermsView({ creditOnInterest }: { creditOnInterest: boolean }) {
         <section className="relative py-16">
           <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-l from-transparent via-border to-transparent" />
 
-          <div className="container mx-auto px-4" ref={introView.ref}>
+          <div className="container mx-auto px-4" ref={introRef}>
             <Card
               className={`mx-auto max-w-4xl border-border/50 bg-card/80 backdrop-blur-sm overflow-hidden transition-all duration-700 ${
-                introView.inView
+                introInView
                   ? "opacity-100 translate-y-0"
                   : "opacity-0 translate-y-8"
               }`}
@@ -281,19 +281,19 @@ export function TermsView({ creditOnInterest }: { creditOnInterest: boolean }) {
 
           <div
             className="container relative mx-auto px-4"
-            ref={sectionsView.ref}
+            ref={sectionsRef}
           >
             <div className="mx-auto max-w-4xl space-y-6">
               {sections.map((section, i) => (
                 <Card
                   key={section.title}
                   className={`group relative overflow-hidden border-border/50 bg-card/80 backdrop-blur-sm transition-all duration-700 hover:border-primary/20 hover:shadow-xl ${
-                    sectionsView.inView
+                    sectionsInView
                       ? "opacity-100 translate-y-0"
                       : "opacity-0 translate-y-8"
                   }`}
                   style={{
-                    transitionDelay: sectionsView.inView
+                    transitionDelay: sectionsInView
                       ? `${i * 80}ms`
                       : "0ms",
                   }}
@@ -329,10 +329,10 @@ export function TermsView({ creditOnInterest }: { creditOnInterest: boolean }) {
         <section className="relative py-20">
           <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-l from-transparent via-border to-transparent" />
 
-          <div className="container mx-auto px-4" ref={contactView.ref}>
+          <div className="container mx-auto px-4" ref={contactRef}>
             <div
               className={`relative mx-auto max-w-5xl overflow-hidden rounded-3xl bg-gradient-to-bl from-primary via-primary/95 to-primary/85 px-8 py-16 text-center text-primary-foreground shadow-2xl shadow-primary/25 sm:px-16 sm:py-20 transition-all duration-700 ${
-                contactView.inView
+                contactInView
                   ? "opacity-100 translate-y-0"
                   : "opacity-0 translate-y-8"
               }`}

@@ -51,6 +51,22 @@ describe("chatHousekeepingAll", () => {
     expect(notifyMod.notifyMany).toHaveBeenCalledTimes(2);
     expect(notifyMod.notifyMany.mock.calls[0][0]).toEqual(["f1", "u1"]);
     expect(notifyMod.notifyMany.mock.calls[0][1].title).toBe("انتهت مدة المحادثة");
+    // G21: status notices don't follow the per-message preference
+    expect(notifyMod.notifyMany.mock.calls[0][1].preference).toBe("introRequests");
+    expect(notifyMod.notifyMany.mock.calls[1][1].preference).toBe("introRequests");
+  });
+
+  it("the expiry push says until when the free move to family lasts (G35)", async () => {
+    const expired = conv("old", -DAY);
+    db.conversation.findMany.mockResolvedValue([expired]);
+    await chatHousekeepingAll();
+    const until = new Date(expired.expiresAt.getTime() + 14 * DAY).toLocaleDateString("ar-JO-u-nu-latn", {
+      day: "numeric",
+      month: "long",
+      timeZone: "Asia/Amman",
+    });
+    expect(notifyMod.notifyMany.mock.calls[0][1].body).toContain(`مجاني حتى ${until}`);
+    expect(until).toMatch(/[0-9]/); // Western digits
   });
 
   it("does not warn twice (conditional update lost to the lazy path)", async () => {

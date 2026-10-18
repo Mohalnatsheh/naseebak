@@ -8,7 +8,9 @@
  * transaction that records the decision, and carries the chat/family preference; "لا" is free.
  * At 0 credits "مهتم" is refused (NO_CREDITS) until a recharge; "لا" stays free and the profile stays visible.
  * Refund: when the suggestion closes and the other side NEVER answered, the "مهتم" credit comes back
- * (`refundUnansweredInterests`). A "لا" closes the row as REJECTED and is never refunded. The owner
+ * (`refundUnansweredInterests`). A "لا" closes the row as REJECTED at once (owner decision 2026-10-18):
+ * the other side's card disappears as if it expired (no notice, no way to pay for it), the slot frees,
+ * and a card hidden from a full candidate is never revealed. A "لا" is never refunded; the owner
  * accepted that this lets people infer a "لا" (no refund) from silence (refund).
  */
 import type { IntroPreference, Prisma } from "@prisma/client";
@@ -17,7 +19,6 @@ import { notifyInterestCreditsExhausted, recordCredit, reserveCredits } from "@/
 import { notify } from "@/lib/notify";
 import { IntroError } from "@/lib/intro/errors";
 import { createMutualMatch } from "@/lib/intro/match";
-import { setGuardianConsent } from "@/lib/intro/requests";
 import { isUnavailable } from "@/lib/matches/state";
 import { getCycleFlags } from "@/lib/settings";
 import { activeWhere } from "@/lib/activity";
@@ -90,6 +91,8 @@ export async function revealHiddenFor(userId: string, room: number, now = new Da
     where: {
       flow: "MUTUAL", status: "PENDING", expiresAt: { gt: now }, candidateId: userId, hiddenFromCandidate: true,
       candidateDecision: null, recipient: activePerson,
+      // A card the recipient refused is never shown (a «لا» closes it; this also covers older rows)
+      OR: [{ recipientDecision: null }, { recipientDecision: "INTERESTED" }],
     },
     select: { id: true, expiresAt: true },
     orderBy: [{ compatibilityScore: "desc" }, { createdAt: "asc" }],
@@ -98,7 +101,7 @@ export async function revealHiddenFor(userId: string, room: number, now = new Da
   let revealed = 0;
   for (const h of hidden) {
     const { count } = await db.suggestion.updateMany({
-      where: { id: h.id, hiddenFromCandidate: true, status: "PENDING" },
+      where: { id: h.id, hiddenFromCandidate: true, status: "PENDING", OR: [{ recipientDecision: null }, { recipientDecision: "INTERESTED" }] },
       data: revealData(h.expiresAt, now),
     });
     revealed += count;
@@ -124,6 +127,28 @@ export async function closeSuggestionsBetween(a: string, b: string): Promise<voi
     data: { status: "EXPIRED", expiresAt: now },
   });
   if (count > 0) await refundUnansweredInterests({ userId: a, now });
+}
+
+/**
+ * The «مهتم» credit came back. Neutral wording: it is sent for every early close (expiry, block,
+ * dealbreaker, profile change, engagement, a match lost at the last moment), never says why.
+ */
+async function sendRefundNotice(userId: string, gender: string | null | undefined, suggestionId: string): Promise<void> {
+  try {
+    await notify({
+      userId,
+      type: "PAYMENT",
+      title: "أعدنا لك رصيداً",
+      body:
+        gender === "FEMALE"
+          ? "أُغلق اقتراح أبديتِ اهتمامكِ به قبل أن يكتمل التوافق، فأعدنا لكِ الرصيد."
+          : "أُغلق اقتراح أبديت اهتمامك به قبل أن يكتمل التوافق، فأعدنا لك الرصيد.",
+      url: "/dashboard/suggestions",
+      metadata: { suggestionId },
+    });
+  } catch (e) {
+    console.error("[suggestions] refund notice:", e);
+  }
 }
 
 /**
@@ -186,17 +211,7 @@ export async function refundUnansweredInterests(opts: { userId?: string; now?: D
       });
       if (!done) continue;
       refunded++;
-      await notify({
-        userId,
-        type: "PAYMENT",
-        title: "أعدنا لك رصيداً",
-        body:
-          gender === "FEMALE"
-            ? "انتهت مدة اقتراح أبديتِ اهتمامكِ به دون ردّ من الطرف الآخر، فأعدنا لكِ الرصيد."
-            : "انتهت مدة اقتراح أبديت اهتمامك به دون ردّ من الطرف الآخر، فأعدنا لك الرصيد.",
-        url: "/dashboard/suggestions",
-        metadata: { suggestionId: row.id },
-      }).catch((e) => console.error("[suggestions] refund notice:", e));
+      await sendRefundNotice(userId, gender, row.id);
     } catch (error) {
       console.error("[suggestions] refund failed:", row.id, error);
     }
@@ -207,6 +222,16 @@ export async function refundUnansweredInterests(opts: { userId?: string; now?: D
 /** Lazily close MUTUAL rows of this user whose time ran out. */
 export async function expireMutualSuggestions(userId: string): Promise<void> {
   const startedAt = new Date();
+  // Rows from before «لا» closed the card at once: one side declined, still PENDING → closed the same way
+  await db.suggestion.updateMany({
+    where: {
+      flow: "MUTUAL",
+      status: "PENDING",
+      OR: [{ recipientId: userId }, { candidateId: userId }],
+      AND: [{ OR: [{ recipientDecision: "DECLINED" }, { candidateDecision: "DECLINED" }] }],
+    },
+    data: { status: "REJECTED" },
+  });
   const { count } = await db.suggestion.updateMany({
     where: {
       flow: "MUTUAL",
@@ -252,11 +277,13 @@ export async function closeLegacyInFlight(): Promise<{ closed: number }> {
   return { closed: count };
 }
 
-/** Fire-and-forget top-up after a decision freed a slot; lazy import avoids the auto-suggest <-> mutual cycle. */
-function topUpAfterDecision(userId: string): void {
+/** Fire-and-forget top-up after a decision freed slots; lazy import avoids the auto-suggest <-> mutual cycle. */
+function topUpAfterDecision(userIds: string[]): void {
   void import("@/lib/matching/auto-suggest")
-    .then(({ autoSuggestForUser }) => autoSuggestForUser(userId))
-    .catch((e) => console.error("[suggestions] decision top-up:", userId, e));
+    .then(({ autoSuggestForUser }) =>
+      Promise.all(userIds.map((id) => autoSuggestForUser(id).catch((e) => console.error("[suggestions] decision top-up:", id, e))))
+    )
+    .catch((e) => console.error("[suggestions] decision top-up:", userIds, e));
 }
 
 /** Credit on interest: the chosen introduction must be possible before "مهتم" is charged. */
@@ -278,6 +305,39 @@ async function checkIntroPreference(
   return { needsConsent: true };
 }
 
+/** Give a «مهتم» charge back on a match lost at the last moment (the row's interestRefundedAt is already set). */
+async function refundLostMatch(userId: string, suggestionId: string): Promise<boolean> {
+  const charged = await db.creditLedger.findFirst({ where: { userId, reason: "INTEREST", refId: suggestionId }, select: { id: true } });
+  if (!charged) return false;
+  try {
+    await db.$transaction(async (tx) => {
+      await tx.user.update({ where: { id: userId }, data: { matchCredits: { increment: 1 } } });
+      await recordCredit({ userId, delta: 1, reason: "REFUND", refId: suggestionId }, tx);
+    });
+  } catch (e) {
+    console.error("[suggestions] refund after a lost match:", suggestionId, userId, e);
+    return false;
+  }
+  const person = await db.user.findUnique({ where: { id: userId }, select: { gender: true } }).catch(() => null);
+  await sendRefundNotice(userId, person?.gender, suggestionId);
+  return true;
+}
+
+/**
+ * The other simultaneous «مهتم» created the match: find its id for the link (it may still be
+ * being created, so look a few times before falling back to the general matches page).
+ */
+async function findMatchId(a: string, b: string): Promise<string | undefined> {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const m = await db.mutualMatch
+      .findFirst({ where: { OR: [{ femaleId: a, maleId: b }, { femaleId: b, maleId: a }] }, select: { id: true } })
+      .catch(() => null);
+    if (m) return m.id;
+    if (attempt < 2) await new Promise((r) => setTimeout(r, 300));
+  }
+  return undefined;
+}
+
 export async function decideSuggestion(args: {
   suggestionId: string;
   userId: string;
@@ -296,6 +356,11 @@ export async function decideSuggestion(args: {
   if (!side) throw notFound();
   if ((side === "recipient" ? s.recipientDecision : s.candidateDecision) !== null) throw notFound();
   if (side === "candidate" && s.hiddenFromCandidate) throw notFound();
+  // A row from before «لا» closed the card at once: the other side already declined, so it is gone
+  if ((side === "recipient" ? s.candidateDecision : s.recipientDecision) === "DECLINED") {
+    await db.suggestion.updateMany({ where: { id: s.id, status: "PENDING" }, data: { status: "REJECTED" } });
+    throw notFound();
+  }
 
   const otherId = side === "recipient" ? s.candidateId : s.recipientId;
   const blocked = await db.block.findFirst({
@@ -320,13 +385,15 @@ export async function decideSuggestion(args: {
     const me = await db.user.findUnique({ where: { id: userId }, select: { matchCredits: true } });
     if ((me?.matchCredits ?? 0) < 1) throw new IntroError("NO_CREDITS");
   }
-  // Validated now, stored only once the «مهتم» is really recorded and charged (below)
+  // Validated now, stored only inside the transaction that records and charges the «مهتم» (below)
   const { needsConsent } = charge
     ? await checkIntroPreference(userId, preference, flags.chat, args.guardianConsent)
     : { needsConsent: false };
 
-  // Record my decision once (a concurrent second tap loses here)
+  // Record my decision once (a concurrent second tap loses here). A «لا» closes the row at once:
+  // the other side's card disappears as if it expired and can no longer be paid for.
   const decision = interested ? "INTERESTED" : "DECLINED";
+  const close = interested ? {} : { status: "REJECTED" as const };
   const claim = (client: Pick<typeof db, "suggestion">) =>
     client.suggestion.updateMany({
       where:
@@ -335,24 +402,26 @@ export async function decideSuggestion(args: {
           : { id: s.id, flow: "MUTUAL", status: "PENDING", expiresAt: { gt: now }, candidateDecision: null },
       data:
         side === "recipient"
-          ? { recipientDecision: decision, recipientDecidedAt: now, ...(preference && { recipientIntroPreference: preference }) }
-          : { candidateDecision: decision, candidateDecidedAt: now, ...(preference && { candidateIntroPreference: preference }) },
+          ? { recipientDecision: decision, recipientDecidedAt: now, ...close, ...(preference && { recipientIntroPreference: preference }) }
+          : { candidateDecision: decision, candidateDecidedAt: now, ...close, ...(preference && { candidateIntroPreference: preference }) },
     });
 
   let creditsLeft: number | undefined;
   if (charge) {
-    // Claim + charge together: a lost claim charges nothing, a failed reserve rolls the claim back
-    // The balance is read inside the transaction (row locked by the decrement), so of two
-    // concurrent charges only the one that really reached 0 sends the exhausted notice
+    // Claim + charge + consent together: a lost claim charges nothing and stores no consent, a failed
+    // reserve rolls the claim back. The balance is read inside the transaction (row locked by the
+    // decrement), so of two concurrent charges only the one that really reached 0 sends the exhausted notice
     creditsLeft = await db.$transaction(async (tx) => {
       const recorded = await claim(tx);
       if (recorded.count === 0) throw notFound();
       if (!(await reserveCredits(userId, 1, tx))) throw new IntroError("NO_CREDITS");
       await recordCredit({ userId, delta: -1, reason: "INTEREST", refId: s.id }, tx);
+      if (needsConsent) {
+        await tx.parentInfo.updateMany({ where: { userId, shareConsentAt: null }, data: { shareConsentAt: now } });
+      }
       const left = await tx.user.findUniqueOrThrow({ where: { id: userId }, select: { matchCredits: true } });
       return left.matchCredits;
     });
-    if (needsConsent) await setGuardianConsent(userId);
     if (creditsLeft <= 0) {
       await notifyInterestCreditsExhausted(userId).catch((e) => console.error("[suggestions] exhausted notice:", e));
     }
@@ -380,8 +449,13 @@ export async function decideSuggestion(args: {
       }
     }
   }
-  if (flags.creditOnInterest) topUpAfterDecision(userId);
+  if (flags.creditOnInterest) {
+    // My «لا» freed the other side's slot too (a card still hidden from them held none)
+    const otherFreed = !interested && !(side === "recipient" && s.hiddenFromCandidate);
+    topUpAfterDecision(otherFreed ? [userId, otherId] : [userId]);
+  }
   const extra = creditsLeft === undefined ? {} : { creditsLeft };
+  if (!interested) return { match: false, ...extra };
 
   // Re-read: the other side may have decided at the same moment
   const after = await db.suggestion.findUnique({ where: { id: s.id } });
@@ -393,39 +467,41 @@ export async function decideSuggestion(args: {
       where: { id: s.id, status: "PENDING" },
       data: { status: "ACCEPTED" },
     });
-    if (closed.count === 0) return { match: true, ...extra };
+    if (closed.count === 0) {
+      // The other caller is creating the match: link to it when it is there
+      const matchId = await findMatchId(userId, otherId);
+      return { match: true, ...(matchId && { matchId }), ...extra };
+    }
     // Re-check at the last moment: never create a match with someone who just left
     const partner = await db.user.findUnique({ where: { id: otherId }, select: { isDeactivated: true, status: true } });
     if (isUnavailable(partner)) {
       // Both said «مهتم» but the partner left a moment ago: no match, so give both charges back
       await db.suggestion.updateMany({ where: { id: s.id }, data: { status: "EXPIRED", interestRefundedAt: new Date() } });
+      let refundedMe = false;
       for (const id of [userId, otherId]) {
-        const charged = await db.creditLedger.findFirst({ where: { userId: id, reason: "INTEREST", refId: s.id }, select: { id: true } });
-        if (!charged) continue;
-        await db.$transaction(async (tx) => {
-          await tx.user.update({ where: { id }, data: { matchCredits: { increment: 1 } } });
-          await recordCredit({ userId: id, delta: 1, reason: "REFUND", refId: s.id }, tx);
-        }).catch((e) => console.error("[suggestions] refund after a lost match:", s.id, id, e));
+        const done = await refundLostMatch(id, s.id);
+        if (id === userId) refundedMe = done;
       }
-      const refundedMe = extra.creditsLeft !== undefined ? { creditsLeft: extra.creditsLeft + 1 } : {};
-      return { match: false, ...extra, ...refundedMe };
+      const back = extra.creditsLeft !== undefined && refundedMe ? { creditsLeft: extra.creditsLeft + 1 } : {};
+      return { match: false, ...extra, ...back };
     }
     const me = await db.user.findUnique({ where: { id: userId }, select: { gender: true } });
     const femaleId = me?.gender === "FEMALE" ? userId : otherId;
     const maleId = femaleId === userId ? otherId : userId;
     // The row is already ACCEPTED and both "مهتم" were charged. On a failure here we do NOT
     // reopen the row: both decisions and charges are valid, and reopening would let the pair be
-    // charged again. Logged; the daily job (healMissingMatches) creates it on its next run.
-    let matchId: string;
+    // charged again. The decision is saved, so the member sees success (link to the matches page);
+    // the daily job (healMissingMatches) creates the match on its next run.
     try {
-      ({ matchId } = await createMutualMatch({ femaleId, maleId, suggestionId: s.id }));
+      const { matchId } = await createMutualMatch({ femaleId, maleId, suggestionId: s.id });
+      return { match: true, matchId, ...extra };
     } catch (e) {
       console.error("[suggestions] createMutualMatch failed after ACCEPTED", { suggestionId: s.id, femaleId, maleId }, e);
-      throw e;
+      return { match: true, ...extra };
     }
-    return { match: true, matchId, ...extra };
   }
 
+  // Older rows only: the other side declined before «لا» closed rows at once
   if (after.recipientDecision !== null && after.candidateDecision !== null) {
     await db.suggestion.updateMany({ where: { id: s.id, status: "PENDING" }, data: { status: "REJECTED" } });
   }

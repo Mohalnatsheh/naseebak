@@ -54,6 +54,25 @@ describe("POST /api/contact", () => {
     expect(db.contactMessage.create).not.toHaveBeenCalled();
   });
 
+  it("accepts a phone instead of an email and keeps it with the message (G34)", async () => {
+    const { email: _e, ...noEmail } = valid();
+    void _e;
+    const res = await contact(post({ ...noEmail, phone: "0791112233" }));
+    expect(res.status).toBe(201);
+    const data = db.contactMessage.create.mock.calls[0][0].data;
+    expect(data.email).toBeNull();
+    expect(data.phone).toBe("962791112233");
+    expect(data.message).not.toContain("0791112233");
+  });
+
+  it("rate-limits one phone number across addresses", async () => {
+    const { email: _e, ...noEmail } = valid();
+    void _e;
+    const statuses = [];
+    for (let i = 0; i < 4; i++) statuses.push((await contact(post({ ...noEmail, phone: "0795554433" }))).status);
+    expect(statuses).toEqual([201, 201, 201, 429]);
+  });
+
   it("rate-limits one address", async () => {
     const statuses = [];
     for (let i = 0; i < 6; i++) statuses.push((await contact(post(valid(), "10.9.9.9"))).status);

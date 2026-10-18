@@ -9,12 +9,15 @@ const db = vi.hoisted(() => ({
 vi.mock("@/lib/db", () => ({ db }));
 const flags = vi.hoisted(() => ({ getCycleFlags: vi.fn() }));
 vi.mock("@/lib/settings", () => flags);
-vi.mock("@/lib/notify", () => ({ notify: vi.fn(), notifyMany: vi.fn() }));
+const notifyMod = vi.hoisted(() => ({ notify: vi.fn(), notifyMany: vi.fn() }));
+vi.mock("@/lib/notify", () => notifyMod);
 vi.mock("@/lib/intro/match", () => ({ createMutualMatch: vi.fn() }));
 vi.mock("@/lib/onesignal", () => ({ sendPushNotification: vi.fn() }));
 vi.mock("@/lib/auth", () => ({
   requireAdmin: vi.fn(async () => ({ session: { user: { id: "admin1", role: "ADMIN" } } })),
 }));
+const auto = vi.hoisted(() => ({ autoSuggestForUser: vi.fn(), minSuggestionScore: vi.fn(() => 30) }));
+vi.mock("@/lib/matching/auto-suggest", () => auto);
 const scores = vi.hoisted(() => ({ byId: new Map<string, number>() }));
 vi.mock("@/lib/matching/score", () => ({
   calculateCompatibility: (_a: unknown, b: { id: string }) => scores.byId.get(b.id) ?? 70,
@@ -38,46 +41,58 @@ beforeEach(() => {
   db.suggestion.groupBy.mockResolvedValue([]);
   db.mutualMatch.findMany.mockResolvedValue([]);
   db.block.findMany.mockResolvedValue([]);
+  auto.autoSuggestForUser.mockResolvedValue(0);
 });
 
-describe("admin Generate with credit-on-interest", () => {
-  it("uses the open cap (5 minus open) and the min score 50", async () => {
-    // m1 has 3 open as recipient -> only 2 more; f3 scores 40 and is dropped
-    scores.byId.set("f3", 40);
-    db.user.findMany.mockResolvedValue([
-      person("m1", "MALE"),
-      ...["f1", "f2", "f3", "f4", "f5"].map((id) => person(id, "FEMALE")),
-    ]);
-    db.suggestion.groupBy
-      .mockResolvedValueOnce([{ recipientId: "m1", _count: 3 }])
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([]);
+describe("admin Generate with shared suggestions on", () => {
+  it("runs the automatic top-up for each eligible, active user (new-cycle rules, once-a-day notices)", async () => {
+    db.user.findMany.mockResolvedValue([{ id: "m1" }, { id: "f1" }, { id: "f2" }]);
+    auto.autoSuggestForUser.mockImplementation(async (id: string) => (id === "m1" ? 2 : id === "f1" ? 1 : 0));
     const res = (await generate())!;
     expect(res.status).toBe(200);
-    const forM1 = db.suggestion.create.mock.calls.map((c) => c[0].data).filter((d) => d.recipientId === "m1");
-    expect(forM1).toHaveLength(2);
-    expect(forM1.some((d) => d.candidateId === "f3")).toBe(false);
-    expect(forM1.every((d) => d.compatibilityScore >= 50 && d.flow === "MUTUAL")).toBe(true);
+    expect(await res.json()).toMatchObject({ count: 3 });
+    expect(auto.autoSuggestForUser.mock.calls.map((c) => c[0])).toEqual(["m1", "f1", "f2"]);
+    const where = db.user.findMany.mock.calls[0][0].where;
+    expect(where).toMatchObject({ role: "USER", isDeactivated: false, isFlagged: false, profile: { isComplete: true } });
+    // Idle 30+ days are left out (activeWhere)
+    expect(where.OR).toHaveLength(2);
+    // Nothing is created or announced outside autoSuggestForUser
+    expect(db.suggestion.create).not.toHaveBeenCalled();
+    expect(notifyMod.notify).not.toHaveBeenCalled();
   });
 
-  it("skips a candidate who already holds 5 open", async () => {
-    db.user.findMany.mockResolvedValue([person("m1", "MALE"), person("busy", "FEMALE"), person("free", "FEMALE")]);
-    db.suggestion.groupBy
-      .mockResolvedValueOnce([{ recipientId: "busy", _count: 5 }])
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([]);
-    await generate();
-    const forM1 = db.suggestion.create.mock.calls.map((c) => c[0].data).filter((d) => d.recipientId === "m1");
-    expect(forM1.map((d) => d.candidateId)).toEqual(["free"]);
-  });
-
-  it("keeps the weekly cap of 3 and score 30 with the flag off", async () => {
+  it("same path with credit on interest off (per-request shared flow)", async () => {
     flags.getCycleFlags.mockResolvedValue({ ...on, creditOnInterest: false });
+    db.user.findMany.mockResolvedValue([{ id: "m1" }]);
+    await generate();
+    expect(auto.autoSuggestForUser).toHaveBeenCalledWith("m1");
+    expect(db.suggestion.create).not.toHaveBeenCalled();
+  });
+
+  it("one user's failure does not stop the run", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    db.user.findMany.mockResolvedValue([{ id: "bad" }, { id: "ok" }]);
+    auto.autoSuggestForUser.mockImplementation(async (id: string) => {
+      if (id === "bad") throw new Error("boom");
+      return 1;
+    });
+    const res = (await generate())!;
+    expect(res.status).toBe(200);
+    expect((await res.json()).count).toBe(1);
+    spy.mockRestore();
+  });
+});
+
+describe("admin Generate with shared suggestions off", () => {
+  it("keeps the weekly cap of 3 and score 30 in per-request mode", async () => {
+    flags.getCycleFlags.mockResolvedValue({ introRequests: true, chat: true, mutualSuggestions: false, creditOnInterest: false });
     scores.byId.set("f3", 40);
     db.user.findMany.mockResolvedValue([person("m1", "MALE"), ...["f1", "f2", "f3"].map((id) => person(id, "FEMALE"))]);
     await generate();
     const forM1 = db.suggestion.create.mock.calls.map((c) => c[0].data).filter((d) => d.recipientId === "m1");
     expect(forM1).toHaveLength(3);
     expect(forM1.some((d) => d.candidateId === "f3")).toBe(true);
+    expect(forM1.every((d) => d.flow === undefined)).toBe(true);
+    expect(auto.autoSuggestForUser).not.toHaveBeenCalled();
   });
 });

@@ -61,7 +61,6 @@ export default function AdminChatPage({ params }: { params: Promise<{ id: string
 
   const [left, right] = chat.people;
   const nameOf = (uid: string) => chat.people.find((p) => p.id === uid)?.firstName ?? "?";
-  let lastDay = "";
 
   return (
     <div className="space-y-6">
@@ -91,10 +90,9 @@ export default function AdminChatPage({ params }: { params: Promise<{ id: string
             <p className="py-10 text-center text-sm text-muted-foreground">No messages in this chat.</p>
           ) : (
             <div className="space-y-2 rounded-lg bg-muted/30 p-3 sm:p-4">
-              {messages.map((m) => {
+              {messages.map((m, i) => {
                 const day = fmtDate(m.createdAt);
-                const showDay = day !== lastDay;
-                lastDay = day;
+                const showDay = i === 0 || day !== fmtDate(messages[i - 1].createdAt);
                 const mine = m.senderId === left.id;
                 return (
                   <div key={m.id}>

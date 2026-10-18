@@ -1,7 +1,7 @@
 "use client";
 
 import { compressImage } from "@/lib/image-compress";
-import { useState, useRef, useMemo, useCallback, useEffect, Suspense } from "react";
+import { useState, useRef, useCallback, useEffect, Suspense } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { normalizePhone } from "@/lib/validations/auth";
+import { normalizePhone, arabicLetterCount, NAME_MAX_LENGTH, TERMS_REQUIRED_MESSAGE } from "@/lib/validations/auth";
 import {
   Card,
   CardContent,
@@ -38,7 +38,8 @@ const RESEND_SECONDS = 60;
 /*  Sparkle / confetti CSS-only particles                             */
 /* ------------------------------------------------------------------ */
 function Sparkles() {
-  const particles = useMemo(
+  // Random positions are picked once per mount (lazy initial state), never on re-render
+  const [particles] = useState(
     () =>
       Array.from({ length: 30 }, (_, i) => ({
         id: i,
@@ -48,8 +49,7 @@ function Sparkles() {
         size: 4 + Math.random() * 6,
         // Brand palette: deep blue + warm gold
         color: ["#22476a", "#c19250", "#3a6a95", "#d9b27a", "#22476a", "#c19250"][Math.floor(Math.random() * 6)],
-      })),
-    []
+      }))
   );
 
   return (
@@ -166,6 +166,8 @@ function RegisterPageContent() {
     otp: "",
     referralCode: "",
   });
+  /** One required tick: terms + privacy policy + 18 or older (stored as User.termsAcceptedAt) */
+  const [termsAccepted, setTermsAccepted] = useState(false);
 
   // Track if OTP was already verified (e.g. redirected from login)
   const [otpAlreadyVerified, setOtpAlreadyVerified] = useState(false);
@@ -289,11 +291,11 @@ function RegisterPageContent() {
   function validateStep1(): boolean {
     setError("");
 
-    if (!form.firstName || form.firstName.length < 2) {
+    if (arabicLetterCount(form.firstName) < 2) {
       setError("الاسم الأول يجب أن يكون حرفين على الأقل");
       return false;
     }
-    if (!form.lastName || form.lastName.length < 2) {
+    if (arabicLetterCount(form.lastName) < 2) {
       setError("اسم العائلة يجب أن يكون حرفين على الأقل");
       return false;
     }
@@ -316,6 +318,10 @@ function RegisterPageContent() {
     }
     if (!form.otp || form.otp.length !== 6) {
       setError("يرجى إدخال رمز التحقق المكون من 6 أرقام");
+      return false;
+    }
+    if (!termsAccepted) {
+      setError(TERMS_REQUIRED_MESSAGE);
       return false;
     }
     return true;
@@ -378,11 +384,12 @@ function RegisterPageContent() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          firstName: form.firstName,
-          lastName: form.lastName,
+          firstName: form.firstName.trim(),
+          lastName: form.lastName.trim(),
           phone: normalizedPhone,
           gender: form.gender,
           otp: form.otp,
+          termsAccepted,
         }),
       });
 
@@ -407,7 +414,10 @@ function RegisterPageContent() {
       });
 
       if (signInResult?.error) {
-        setError("حدث خطأ أثناء تسجيل الدخول التلقائي");
+        // The account exists now, so pressing «إنشاء الحساب» again would only fail: send the
+        // member to the login page (referral code and photo can be added from the dashboard)
+        trackEvent("sign_up", { method: "phone" });
+        window.location.href = "/login?exists=true";
         return;
       }
       trackEvent("sign_up", { method: "phone" });
@@ -674,6 +684,7 @@ function RegisterPageContent() {
                       }}
                       className="h-11 rounded-xl border-border/60 bg-muted/30 focus:bg-background transition-colors"
                       required
+                      maxLength={NAME_MAX_LENGTH}
                       dir="rtl"
                     />
                   </div>
@@ -693,6 +704,7 @@ function RegisterPageContent() {
                       }}
                       className="h-11 rounded-xl border-border/60 bg-muted/30 focus:bg-background transition-colors"
                       required
+                      maxLength={NAME_MAX_LENGTH}
                       dir="rtl"
                     />
                   </div>
@@ -861,6 +873,8 @@ function RegisterPageContent() {
                           setOtpSent(false);
                           updateField("otp", "");
                         }
+                        // A code verified on the login page belongs to the old number
+                        setOtpAlreadyVerified(false);
                       }}
                       dir="ltr"
                       className="h-11 pl-[7rem] rounded-xl border-border/60 bg-muted/30 text-left focus:bg-background transition-colors"
@@ -998,6 +1012,7 @@ function RegisterPageContent() {
                       />
                       {photoPreview ? (
                         <div className="relative w-32 h-32 mx-auto rounded-2xl overflow-hidden border-2 border-primary/30 shadow-md group">
+                          {/* eslint-disable-next-line @next/next/no-img-element -- local object-URL preview of the picked file; next/image cannot optimise blob: URLs */}
                           <img
                             src={photoPreview}
                             alt="صورة شخصية"
@@ -1026,6 +1041,29 @@ function RegisterPageContent() {
                     </div>
                   )}
                 </div>
+
+                {/* ---- Terms, privacy and 18+ (required) ---- */}
+                <label htmlFor="terms-accepted" className="flex items-start gap-3 rounded-xl border border-border/60 bg-muted/20 p-3 cursor-pointer">
+                  <input
+                    id="terms-accepted"
+                    type="checkbox"
+                    checked={termsAccepted}
+                    onChange={(e) => setTermsAccepted(e.target.checked)}
+                    className="mt-0.5 h-5 w-5 shrink-0 accent-primary cursor-pointer"
+                    required
+                  />
+                  <span className="text-xs leading-relaxed text-foreground/80">
+                    أوافق على{" "}
+                    <Link href="/terms" target="_blank" className="font-semibold text-primary underline underline-offset-2">
+                      الشروط والأحكام
+                    </Link>{" "}
+                    و
+                    <Link href="/privacy" target="_blank" className="font-semibold text-primary underline underline-offset-2">
+                      سياسة الخصوصية
+                    </Link>
+                    ، وأؤكد أن عمري 18 سنة أو أكثر.
+                  </span>
+                </label>
               </div>
             )}
 

@@ -21,8 +21,10 @@ const MESSAGES: Record<FilterReason, string> = {
   OFFENSIVE: "الرجاء الالتزام بأسلوب محترم.",
 };
 
+// Common generic TLDs + the region's country codes (Gulf, Levant, Egypt, Turkey) and the usual
+// short-link/cheap ones (.xyz, .site, .gg …)
 const LINK_RE =
-  /(https?:\/\/|www\.|wa\.me|t\.me|\b[a-z0-9-]+\.(com|net|org|me|jo|io|co|info|app|link|ly)\b)/i;
+  /(https?:\/\/|www\.|wa\.me|t\.me|\b[a-z0-9-]+\.(com|net|org|me|jo|io|co|info|app|link|ly|xyz|site|online|store|shop|live|page|dev|biz|top|club|pro|tv|cc|gg|ws|to|sa|ae|qa|kw|bh|om|eg|ps|iq|lb|sy|tr|uk|us|ca|de|fr)\b)/i;
 
 const EMAIL_RE = /\S+@\S+\.\S+/;
 const HANDLE_RE = /(^|[\s(،,])@[a-z0-9_.]{2,}/i;

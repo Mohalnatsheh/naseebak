@@ -32,8 +32,8 @@ export function FaqContent({
   const faqs = faqsFor(newCycle, chat, creditOnInterest);
   const [activeCategory, setActiveCategory] = useState("all");
   const [openFaq, setOpenFaq] = useState<number | null>(null);
-  const faqView = useInView(0.1);
-  const ctaView = useInView(0.2);
+  const { ref: faqRef, inView: faqInView } = useInView(0.1);
+  const { ref: ctaRef, inView: ctaInView } = useInView(0.2);
 
   const filteredFaqs =
     activeCategory === "all"
@@ -127,10 +127,10 @@ export function FaqContent({
 
         {/* ═══════════════ FAQ ACCORDION ═══════════════ */}
         <section className="py-16">
-          <div className="container mx-auto px-4" ref={faqView.ref}>
+          <div className="container mx-auto px-4" ref={faqRef}>
             <div
               className={`mx-auto max-w-3xl transition-all duration-700 ${
-                faqView.inView
+                faqInView
                   ? "opacity-100 translate-y-0"
                   : "opacity-0 translate-y-8"
               }`}
@@ -196,10 +196,10 @@ export function FaqContent({
 
         {/* ═══════════════ CTA ═══════════════ */}
         <section className="py-16">
-          <div className="container mx-auto px-4" ref={ctaView.ref}>
+          <div className="container mx-auto px-4" ref={ctaRef}>
             <div
               className={`relative mx-auto max-w-3xl overflow-hidden rounded-3xl bg-gradient-to-bl from-primary via-primary/95 to-primary/85 px-8 py-16 text-center text-primary-foreground shadow-2xl shadow-primary/25 sm:px-16 transition-all duration-700 ${
-                ctaView.inView
+                ctaInView
                   ? "opacity-100 translate-y-0"
                   : "opacity-0 translate-y-8"
               }`}

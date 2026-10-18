@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const db = vi.hoisted(() => ({
   conversation: { findMany: vi.fn(), updateMany: vi.fn() },
-  introRequest: { updateMany: vi.fn() },
+  introRequest: { updateMany: vi.fn(), findMany: vi.fn(async (): Promise<unknown[]> => []) },
   mutualMatch: { findMany: vi.fn() },
   block: { findMany: vi.fn() },
 }));
@@ -42,5 +42,18 @@ describe("closeActivityForLeaving", () => {
     await closeActivityForLeaving("u1", "deleted");
     expect(notifyMod.notify).not.toHaveBeenCalled();
     expect(notifyMod.notifyMany).toHaveBeenCalledWith(["f1"], expect.objectContaining({ title: "انتهى أحد التوافقات" }));
+  });
+
+  it("tells the other person on each cancelled pending request (once per match)", async () => {
+    db.introRequest.findMany.mockResolvedValue([
+      { id: "r1", matchId: "m1", type: "FAMILY", senderId: "f1", receiverId: "u1" },
+      { id: "r2", matchId: "m1", type: "CHAT", senderId: "u1", receiverId: "f1" },
+      { id: "r3", matchId: "m2", type: "CHAT", senderId: "u1", receiverId: "f2" },
+    ]);
+    db.conversation.findMany.mockResolvedValue([]);
+    await closeActivityForLeaving("u1", "paused");
+    expect(notifyMod.notify).toHaveBeenCalledWith(expect.objectContaining({ userId: "f1", title: "أُلغي طلب التعارف العائلي", body: expect.stringContaining("أُلغي طلبك") }));
+    expect(notifyMod.notify).toHaveBeenCalledWith(expect.objectContaining({ userId: "f2", title: "أُلغي طلب المحادثة" }));
+    expect(notifyMod.notify).toHaveBeenCalledTimes(2);
   });
 });

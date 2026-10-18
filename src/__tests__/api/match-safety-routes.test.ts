@@ -46,8 +46,20 @@ beforeEach(() => {
 });
 
 describe("GET /api/matches/[id]/photos", () => {
+  /** Blocks as the two queries of loadMatchStates see them (who blocked me / whom I blocked) */
+  const blocks = (rows: { blockerId: string; blockedId: string }[]) =>
+    db.block.findMany.mockImplementation(async ({ where }: { where: { blockedId?: string; blockerId?: string; OR?: unknown } }) =>
+      rows
+        .filter((r) => (where.blockedId ? r.blockedId === where.blockedId : where.blockerId ? r.blockerId === where.blockerId : true))
+        .map((r, i) => ({ id: `b${i}`, ...r }))
+    );
+  const stateRow = (over: object = {}, female: object = active) => ({
+    ...listMatch("m1", "f1", female), femaleOutcome: null, maleOutcome: null, ...over,
+  });
+
   it("returns the partner's photos for an open match", async () => {
     db.mutualMatch.findUnique.mockResolvedValue(photoMatch());
+    db.mutualMatch.findMany.mockResolvedValue([stateRow()]);
     const res = await getPhotos(new Request("http://x"), params("m1"));
     expect(res.status).toBe(200);
     expect((await res.json()).photos).toHaveLength(1);
@@ -55,14 +67,22 @@ describe("GET /api/matches/[id]/photos", () => {
 
   it("refuses when I blocked them, and hides the match when they blocked me", async () => {
     db.mutualMatch.findUnique.mockResolvedValue(photoMatch());
-    db.block.findMany.mockResolvedValue([{ id: "b", blockerId: "u1" }]);
+    db.mutualMatch.findMany.mockResolvedValue([stateRow()]);
+    blocks([{ blockerId: "u1", blockedId: "f1" }]);
     expect((await getPhotos(new Request("http://x"), params("m1"))).status).toBe(403);
-    db.block.findMany.mockResolvedValue([{ id: "b", blockerId: "f1" }]);
+    blocks([{ blockerId: "f1", blockedId: "u1" }]);
     expect((await getPhotos(new Request("http://x"), params("m1"))).status).toBe(404);
   });
 
   it("refuses for a deactivated partner", async () => {
     db.mutualMatch.findUnique.mockResolvedValue(photoMatch({ isDeactivated: true }));
+    db.mutualMatch.findMany.mockResolvedValue([stateRow({}, { isDeactivated: true, status: "VERIFIED" })]);
+    expect((await getPhotos(new Request("http://x"), params("m1"))).status).toBe(403);
+  });
+
+  it("locks the photos once someone said «لم يحصل نصيب»", async () => {
+    db.mutualMatch.findUnique.mockResolvedValue(photoMatch());
+    db.mutualMatch.findMany.mockResolvedValue([stateRow({ femaleOutcome: "NOT_A_MATCH" })]);
     expect((await getPhotos(new Request("http://x"), params("m1"))).status).toBe(403);
   });
 });
@@ -84,6 +104,18 @@ describe("GET /api/matches", () => {
     expect(byId.m1).toMatchObject({ closed: null, photosRevealed: true });
     expect(byId.m3).toMatchObject({ closed: "blocked", blockId: "blk", photosRevealed: false });
     expect(byId.m4).toMatchObject({ closed: "inactive", photosRevealed: false });
+  });
+
+  it("an ended match («لم يحصل نصيب») keeps only name, age and city", async () => {
+    const profile = { dateOfBirth: new Date("1995-01-01"), city: "عمان", job: "مهندسة", aboutMe: "نبذة", childrenCount: 0 };
+    const row = { ...listMatch("m1", "f1", { ...active, profile }), femaleOutcome: "NOT_A_MATCH", maleOutcome: null };
+    db.mutualMatch.findMany.mockResolvedValue([row]);
+    db.mutualMatch.count.mockResolvedValue(1);
+    const data = await (await getMatches(new Request("http://x/api/matches?page=1"))).json();
+    const m = data.matches[0];
+    expect(m).toMatchObject({ closed: "ended", photosRevealed: false });
+    expect(m.partner).toMatchObject({ firstName: "هديل", city: "عمان", job: null, aboutMe: null });
+    expect(m.partner.age).toBeGreaterThan(18);
   });
 });
 

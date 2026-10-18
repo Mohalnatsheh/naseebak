@@ -19,6 +19,10 @@ interface Props {
    */
   matchesCount?: number;
   credits: number;
+  /** Why no new suggestion came (page 1 of /api/suggestions): "no_candidates" = nobody fits right now */
+  emptyReason?: string | null;
+  /** /api/suggestions failed: say so instead of "searching" */
+  suggestionsFailed?: boolean;
 }
 
 interface Step {
@@ -31,7 +35,7 @@ interface Step {
 }
 
 /** The one thing worth doing next, so the dashboard never leaves the user guessing. */
-export function NextStepCard({ qualifies, pendingSuggestions, credits }: Props) {
+export function NextStepCard({ qualifies, pendingSuggestions, credits, emptyReason, suggestionsFailed }: Props) {
   const { counts, profile } = useDashboardData();
   const newCycle = counts.flags.introRequests;
   const actionableMatches = counts.actionableMatches ?? 0;
@@ -74,7 +78,7 @@ export function NextStepCard({ qualifies, pendingSuggestions, credits }: Props) 
     step = {
       icon: MessageCircle,
       title: "لديك رسائل جديدة",
-      text: g("تابع محادثتك قبل الزيارة العائلية.", "تابعي محادثتك قبل الزيارة العائلية."),
+      text: g("تابع محادثتك من صفحة المحادثات.", "تابعي محادثتك من صفحة المحادثات."),
       href: "/dashboard/chats",
       cta: "فتح المحادثات",
       tone: "primary",
@@ -125,9 +129,31 @@ export function NextStepCard({ qualifies, pendingSuggestions, credits }: Props) 
     step = {
       icon: Users,
       title: g("اختر طريقة التعارف مع توافقك", "اختاري طريقة التعارف مع توافقك"),
-      text: "تعارف عائلي أو محادثة قصيرة قبل الزيارة.",
+      text: counts.flags.chat ? "تعارف عائلي، أو محادثة قصيرة أولاً." : g("ابدأ بطلب تعارف عائلي.", "ابدئي بطلب تعارف عائلي."),
       href: "/dashboard/matches",
       cta: "عرض التوافقات",
+      tone: "primary",
+    };
+  } else if (emptyReason === "no_candidates") {
+    // Nobody fits right now: don't promise that suggestions keep coming
+    step = {
+      icon: Search,
+      title: "لا يوجد حالياً من يناسب شروطك",
+      text: g(
+        "سنقترح عليك فور انضمام من يناسبك. يمكنك مراجعة شروطك الأساسية وتفضيلاتك لتوسيع الاحتمالات.",
+        "سنقترح عليكِ فور انضمام من يناسبك. يمكنكِ مراجعة شروطك الأساسية وتفضيلاتك لتوسيع الاحتمالات."
+      ),
+      href: "/dashboard/suggestions",
+      cta: "صفحة الاقتراحات",
+      tone: "primary",
+    };
+  } else if (suggestionsFailed) {
+    step = {
+      icon: Search,
+      title: "تعذّر تحميل اقتراحاتك الآن",
+      text: g("افتح صفحة الاقتراحات للمحاولة مرة أخرى.", "افتحي صفحة الاقتراحات للمحاولة مرة أخرى."),
+      href: "/dashboard/suggestions",
+      cta: "صفحة الاقتراحات",
       tone: "primary",
     };
   } else {
@@ -135,7 +161,7 @@ export function NextStepCard({ qualifies, pendingSuggestions, credits }: Props) 
       icon: Search,
       title: pendingSuggestions === null ? "جارٍ تجهيز اقتراحاتك…" : "نبحث لك عن اقتراحات مناسبة",
       text: creditOnInterest
-        ? "تصلك اقتراحات مجانية باستمرار، حتى 5 في الوقت نفسه، وسنرسل لك إشعاراً فور وصولها."
+        ? "تصلك اقتراحات مجانية كلما وجدنا من يناسبك، وسنرسل لك إشعاراً فور وصولها."
         : newCycle
           ? "تصلك حتى 3 اقتراحات مجانية كل أسبوع، وسنرسل لك إشعاراً فور وصولها."
           : "سنرسل لك إشعاراً فور وصول اقتراح جديد.",

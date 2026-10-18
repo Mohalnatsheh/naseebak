@@ -36,3 +36,11 @@ export function trackEvent(name: AnalyticsEvent, params?: GtagParams) {
     // Analytics must never break the app
   }
 }
+
+/**
+ * Signed-in areas never load tracking (GA4, GTM, Meta Pixel): the dashboard, chats and admin.
+ * Analytics runs on the public pages only (landing, blog, FAQ, login/register …).
+ */
+export function isPrivatePath(pathname: string | null | undefined): boolean {
+  return /^\/(dashboard|chat|chats|admin)(\/|$)/.test(pathname ?? "");
+}

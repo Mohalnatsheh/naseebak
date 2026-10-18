@@ -2,8 +2,9 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const db = vi.hoisted(() => ({
   suggestion: { updateMany: vi.fn(), findMany: vi.fn() },
-  block: { findFirst: vi.fn() },
+  block: { findFirst: vi.fn(), findMany: vi.fn() },
   user: { findMany: vi.fn() },
+  mutualMatch: { findMany: vi.fn() },
 }));
 const notifyMod = vi.hoisted(() => ({ notify: vi.fn(), notifyMany: vi.fn() }));
 const settings = vi.hoisted(() => ({ getCycleFlags: vi.fn() }));
@@ -12,9 +13,10 @@ vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/notify", () => notifyMod);
 vi.mock("@/lib/settings", () => settings);
 vi.mock("@/lib/matching/auto-suggest", () => auto);
-vi.mock("@/lib/intro/match", () => ({ createMutualMatch: vi.fn() }));
+const createMutualMatch = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/intro/match", () => ({ createMutualMatch }));
 
-import { expireMutualSuggestionsAll, remindMutualSuggestions, runWeeklySuggestions } from "@/lib/cron/suggestions";
+import { expireMutualSuggestionsAll, healMissingMatches, remindMutualSuggestions, runWeeklySuggestions } from "@/lib/cron/suggestions";
 
 const DAY = 24 * 60 * 60 * 1000;
 const now = new Date("2026-10-16T06:00:00Z");
@@ -29,6 +31,8 @@ beforeEach(() => {
   db.suggestion.updateMany.mockResolvedValue({ count: 1 });
   db.suggestion.findMany.mockResolvedValue([]);
   db.block.findFirst.mockResolvedValue(null);
+  db.block.findMany.mockResolvedValue([]);
+  db.mutualMatch.findMany.mockResolvedValue([]);
   db.user.findMany.mockResolvedValue([]);
   settings.getCycleFlags.mockResolvedValue({ introRequests: true, chat: true, mutualSuggestions: true });
   auto.weeklyCounts.mockResolvedValue(new Map());
@@ -38,12 +42,67 @@ beforeEach(() => {
 
 describe("expireMutualSuggestionsAll", () => {
   it("closes every MUTUAL row past its 7 days, like the lazy path", async () => {
-    db.suggestion.updateMany.mockResolvedValue({ count: 3 });
-    expect(await expireMutualSuggestionsAll(now)).toEqual({ expired: 3, refunded: 0 });
+    db.suggestion.updateMany.mockResolvedValueOnce({ count: 0 }).mockResolvedValueOnce({ count: 3 });
+    expect(await expireMutualSuggestionsAll(now)).toEqual({ expired: 3, rejected: 0, refunded: 0 });
     expect(db.suggestion.updateMany).toHaveBeenCalledWith({
       where: { flow: "MUTUAL", status: "PENDING", expiresAt: { lte: now } },
       data: { status: "EXPIRED" },
     });
+  });
+
+  it("first closes older rows one side declined as REJECTED (G03, like the lazy path)", async () => {
+    db.suggestion.updateMany.mockResolvedValueOnce({ count: 2 }).mockResolvedValueOnce({ count: 0 });
+    expect(await expireMutualSuggestionsAll(now)).toEqual({ expired: 0, rejected: 2, refunded: 0 });
+    expect(db.suggestion.updateMany.mock.calls[0][0]).toEqual({
+      where: {
+        flow: "MUTUAL",
+        status: "PENDING",
+        OR: [{ recipientDecision: "DECLINED" }, { candidateDecision: "DECLINED" }],
+      },
+      data: { status: "REJECTED" },
+    });
+  });
+});
+
+describe("healMissingMatches (G40)", () => {
+  const accepted = (id: string, m: string, f: string) => ({
+    id, recipientId: m, candidateId: f, recipient: party(m), candidate: party(f, "FEMALE"),
+  });
+
+  it("orders oldest first and filters left / suspended people in the query", async () => {
+    await healMissingMatches(now);
+    const args = db.suggestion.findMany.mock.calls[0][0];
+    expect(args.orderBy).toEqual([{ updatedAt: "asc" }, { id: "asc" }]);
+    expect(args.where).toMatchObject({
+      flow: "MUTUAL",
+      status: "ACCEPTED",
+      recipient: { isDeactivated: false, status: { not: "SUSPENDED" } },
+      candidate: { isDeactivated: false, status: { not: "SUSPENDED" } },
+    });
+  });
+
+  it("skips matched and blocked pairs and heals the live row behind them", async () => {
+    db.suggestion.findMany.mockResolvedValueOnce([
+      accepted("done", "m1", "f1"),
+      accepted("blocked", "m2", "f2"),
+      accepted("live", "m3", "f3"),
+    ]);
+    db.mutualMatch.findMany.mockResolvedValue([{ femaleId: "f1", maleId: "m1" }]);
+    db.block.findMany.mockResolvedValue([{ blockerId: "m2", blockedId: "f2" }]);
+    expect(await healMissingMatches(now)).toEqual({ healed: 1 });
+    expect(createMutualMatch).toHaveBeenCalledTimes(1);
+    expect(createMutualMatch).toHaveBeenCalledWith({ femaleId: "f3", maleId: "m3", suggestionId: "live" });
+  });
+
+  it("pages past a full batch of rows that can't be healed", async () => {
+    const full = Array.from({ length: 500 }, (_, i) => accepted(`s${i}`, `m${i}`, `f${i}`));
+    db.suggestion.findMany.mockResolvedValueOnce(full).mockResolvedValueOnce([accepted("late", "mx", "fx")]);
+    db.mutualMatch.findMany
+      .mockResolvedValueOnce(full.map((r) => ({ femaleId: r.candidateId, maleId: r.recipientId })))
+      .mockResolvedValueOnce([]);
+    expect(await healMissingMatches(now)).toEqual({ healed: 1 });
+    expect(db.suggestion.findMany.mock.calls[1][0]).toMatchObject({ cursor: { id: "s499" }, skip: 1 });
+    expect(createMutualMatch).toHaveBeenCalledWith({ femaleId: "fx", maleId: "mx", suggestionId: "late" });
   });
 });
 

@@ -6,8 +6,8 @@ import { useDashboardData } from "@/contexts/dashboard-context";
 import { Heart, User, Camera, Brain, Shield, Sparkles, ChevronLeft, ChevronRight, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CREDIT_ON_INTEREST_LINE } from "@/lib/suggestions/copy";
+import { clampStep, readOnboardingDone, shouldShowOnboarding, writeOnboardingDone } from "@/lib/onboarding";
 
-const STORAGE_KEY = "naseeb_onboarding_completed";
 
 interface Step {
   icon: typeof Heart;
@@ -115,7 +115,7 @@ export const ONBOARDING_DONE_EVENT = "naseeb:onboarding-done";
 export function OnboardingGuide() {
   const router = useRouter();
   const pathname = usePathname();
-  const { counts, profile } = useDashboardData();
+  const { counts, profile, loading } = useDashboardData();
   const g: Gendered = (masculine, feminine) => (profile?.gender === "FEMALE" ? feminine : masculine);
   const setupDone = !!profile?.profile && !!(profile.profile as { isComplete?: boolean }).isComplete;
   const steps = counts.flags.creditOnInterest
@@ -129,21 +129,23 @@ export function OnboardingGuide() {
     : { label: g("ابدأ بإعداد ملفك", "ابدئي بإعداد ملفكِ"), link: "/dashboard/profile/setup" };
   const nextRef = useRef<HTMLButtonElement>(null);
   const [show, setShow] = useState(false);
-  const [currentStep, setCurrentStep] = useState(0);
+  const [decided, setDecided] = useState(false);
+  const [currentStep, setStep] = useState(0);
+  // The list can shrink when the switches or the setup state change: never point past its end
+  const stepIndex = clampStep(currentStep, steps.length);
+  const setCurrentStep = (i: number) => setStep(clampStep(i, steps.length));
 
-  useEffect(() => {
-    const completed = localStorage.getItem(STORAGE_KEY);
-    if (!completed) {
-      setShow(true);
-    }
-  }, []);
+  // Decide once, after the profile and the switches have loaded (the steps depend on both).
+  // Adjusting state while rendering: `loading` is true on the server and at hydration, so
+  // localStorage is only read in the browser.
+  if (!decided && !loading) {
+    setDecided(true);
+    const completed = readOnboardingDone(typeof window === "undefined" ? undefined : window.localStorage);
+    if (shouldShowOnboarding({ loading, completed, setupDone, createdAt: profile?.createdAt })) setShow(true);
+  }
 
   function dismiss() {
-    try {
-      localStorage.setItem(STORAGE_KEY, "true");
-    } catch {
-      // ignore
-    }
+    writeOnboardingDone(typeof window === "undefined" ? undefined : window.localStorage);
     setShow(false);
     window.dispatchEvent(new CustomEvent(ONBOARDING_DONE_EVENT));
   }
@@ -163,16 +165,16 @@ export function OnboardingGuide() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, currentStep]);
 
   // Never cover the setup wizard itself
   if (!open) return null;
 
-  const step = steps[currentStep];
+  const step = steps[stepIndex];
+  if (!step) return null;
   const Icon = step.icon;
-  const isLast = currentStep === steps.length - 1;
-  const isFirst = currentStep === 0;
+  const isLast = stepIndex === steps.length - 1;
+  const isFirst = stepIndex === 0;
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
@@ -188,7 +190,7 @@ export function OnboardingGuide() {
           type="button"
           onClick={dismiss}
           aria-label="إغلاق الدليل"
-          className="absolute top-4 end-4 z-10 h-8 w-8 rounded-full bg-muted/80 flex items-center justify-center hover:bg-muted transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="absolute top-3 end-3 z-10 h-11 w-11 rounded-full bg-muted/80 flex items-center justify-center hover:bg-muted transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <X className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
         </button>
@@ -211,9 +213,9 @@ export function OnboardingGuide() {
             <button
               type="button"
               onClick={() => go(step.link!)}
-              className="mt-4 text-sm font-semibold text-primary underline-offset-4 hover:underline"
+              className="mt-4 inline-flex min-h-11 items-center px-3 text-sm font-semibold text-primary underline-offset-4 hover:underline"
             >
-              اذهب إليها الآن
+              {g("انتقل إليها الآن", "انتقلي إليها الآن")}
             </button>
           )}
         </div>
@@ -224,9 +226,9 @@ export function OnboardingGuide() {
             <div
               key={i}
               className={`h-2 rounded-full transition-all duration-300 ${
-                i === currentStep
+                i === stepIndex
                   ? "w-6 bg-primary"
-                  : i < currentStep
+                  : i < stepIndex
                   ? "w-2 bg-primary/40"
                   : "w-2 bg-muted-foreground/20"
               }`}
@@ -238,25 +240,24 @@ export function OnboardingGuide() {
         <div className="p-6 pt-2 flex items-center justify-between gap-3">
           <Button
             variant="ghost"
-            size="sm"
-            onClick={() => setCurrentStep(currentStep - 1)}
+            onClick={() => setCurrentStep(stepIndex - 1)}
             disabled={isFirst}
-            className="rounded-xl"
+            className="h-11 rounded-xl"
           >
             <ChevronRight className="h-4 w-4 me-1" />
             السابق
           </Button>
 
           {isLast ? (
-            <Button ref={nextRef} onClick={() => go(finish.link)} className="rounded-xl font-semibold px-6">
+            <Button ref={nextRef} onClick={() => go(finish.link)} className="h-11 rounded-xl font-semibold px-6">
               {finish.label}
               <Sparkles className="h-4 w-4 ms-1" aria-hidden="true" />
             </Button>
           ) : (
             <Button
               ref={nextRef}
-              onClick={() => setCurrentStep(currentStep + 1)}
-              className="rounded-xl font-semibold px-6"
+              onClick={() => setCurrentStep(stepIndex + 1)}
+              className="h-11 rounded-xl font-semibold px-6"
             >
               التالي
               <ChevronLeft className="h-4 w-4 ms-1" />

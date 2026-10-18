@@ -51,9 +51,12 @@ export default function DashboardPage() {
   const { profile, completeness, counts, loading } = useDashboardData();
   // New cycle: suggestions are free, so "out of credits" no longer blocks suggestions
   const creditsBlockSuggestions = !counts.flags.introRequests;
-  const [mounted, setMounted] = useState(false);
   const [pendingSuggestions, setPendingSuggestions] = useState<number | null>(null);
-  const [suggestionCredits, setSuggestionCredits] = useState<number | null>(null);
+  // Why nothing new came ("weekly_cap" | "no_candidates" | "pending" | null), from page 1 of /api/suggestions
+  const [emptyReason, setEmptyReason] = useState<string | null>(null);
+  const [suggestionsFailed, setSuggestionsFailed] = useState(false);
+  const female = profile?.gender === "FEMALE";
+  const g = (masculine: string, feminine: string) => (female ? feminine : masculine);
   // New cycle: finishing the short setup is enough; legacy: 50% completeness
   const qualifiesForSuggestions = qualifiesForSuggestionsGate({
     completenessTotal: completeness?.total ?? 0,
@@ -61,22 +64,23 @@ export default function DashboardPage() {
     newCycle: counts.flags.introRequests,
   });
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
   // Once the profile qualifies, page 1 of /api/suggestions also tops up suggestions automatically
   useEffect(() => {
     if (loading || !qualifiesForSuggestions) return;
     let cancelled = false;
     fetch("/api/suggestions?page=1")
-      .then((r) => (r.ok ? r.json() : null))
+      .then((r) => {
+        if (!r.ok) throw new Error(`suggestions ${r.status}`);
+        return r.json();
+      })
       .then((d) => {
         if (cancelled) return;
+        setSuggestionsFailed(false);
         setPendingSuggestions(d?.total ?? 0);
-        if (typeof d?.credits === "number") setSuggestionCredits(d.credits);
+        setEmptyReason(typeof d?.emptyReason === "string" ? d.emptyReason : null);
       })
-      .catch(() => { if (!cancelled) setPendingSuggestions(0); });
+      // A failure is not "no suggestions": the next-step card says it couldn't load
+      .catch(() => { if (!cancelled) setSuggestionsFailed(true); });
     return () => { cancelled = true; };
   }, [loading, qualifiesForSuggestions]);
 
@@ -105,7 +109,8 @@ export default function DashboardPage() {
     ([hasProfile, hasQuiz].filter(Boolean).length / 2) * 100
   );
 
-  const matchCreditsCount = profile?.matchCredits || 0;
+  // Same number as the top bar and the next-step card
+  const matchCreditsCount = counts.credits ?? profile?.matchCredits ?? 0;
   const receivedSuggestions = profile?._count?.receivedSuggestions || 0;
   const matchesCount =
     (profile?._count?.matchesAsFemale || 0) +
@@ -169,6 +174,8 @@ export default function DashboardPage() {
         pendingSuggestions={qualifiesForSuggestions ? pendingSuggestions : 0}
         matchesCount={matchesCount}
         credits={matchCreditsCount}
+        emptyReason={emptyReason}
+        suggestionsFailed={suggestionsFailed}
       />
 
       {/* One helper card at a time: guardian consent first, then installing the app */}
@@ -295,8 +302,10 @@ export default function DashboardPage() {
       <div className="grid grid-cols-3 gap-2 sm:gap-4">
         {[
           {
+            href: "/dashboard/payments",
             value: matchCreditsCount,
-            label: creditsBlockSuggestions ? "رصيد الاقتراحات" : "رصيد التعارف",
+            // Credit on interest: credit is spent on «مهتم»; per-request: on family/chat requests
+            label: creditsBlockSuggestions ? "رصيد الاقتراحات" : "رصيدك",
             icon: Sparkles,
             gradient: "from-primary to-secondary",
             bgLight: "from-primary/10 to-secondary/5",
@@ -304,6 +313,7 @@ export default function DashboardPage() {
             shadowColor: "shadow-primary/10",
           },
           {
+            href: "/dashboard/suggestions",
             // Shared suggestions belong to both people, so "received" undercounts — show what's waiting instead
             value: creditsBlockSuggestions ? receivedSuggestions : pendingSuggestions ?? 0,
             label: creditsBlockSuggestions ? "اقتراحات مستلمة" : "اقتراحات جديدة",
@@ -314,6 +324,7 @@ export default function DashboardPage() {
             shadowColor: "shadow-accent/10",
           },
           {
+            href: "/dashboard/matches",
             value: matchesCount,
             label: "توافقات",
             icon: Heart,
@@ -323,9 +334,9 @@ export default function DashboardPage() {
             shadowColor: "shadow-primary/10",
           },
         ].map((stat, i) => (
+          <Link key={i} href={stat.href} aria-label={`${stat.label}: ${stat.value}`} className="block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
           <Card
-            key={i}
-            className={`group relative overflow-hidden border-0 bg-gradient-to-br ${stat.bgLight} hover:shadow-lg ${stat.shadowColor} transition-all duration-300 hover:-translate-y-1`}
+            className={`group relative h-full overflow-hidden border-0 bg-gradient-to-br ${stat.bgLight} hover:shadow-lg ${stat.shadowColor} transition-all duration-300 hover:-translate-y-1`}
           >
             <CardContent className="pt-4 pb-3 px-2 sm:pt-5 sm:pb-4 sm:px-4 text-center relative">
               {/* Decorative circle */}
@@ -344,6 +355,7 @@ export default function DashboardPage() {
               </p>
             </CardContent>
           </Card>
+          </Link>
         ))}
       </div>
 
@@ -395,9 +407,9 @@ export default function DashboardPage() {
                         title: `لديك ${arabicCount(matchesCount, { one: "توافق متبادل", two: "توافقان متبادلان", few: "توافقات متبادلة", many: "توافقاً متبادلاً" })}`,
                         // New cycle: only nudge while a match still waits for its introduction choice
                         desc: creditsBlockSuggestions
-                          ? "يمكنك الآن عرض الصور وطلب زيارة"
+                          ? g("يمكنك الآن عرض الصور وطلب زيارة", "يمكنكِ الآن عرض الصور وطلب زيارة")
                           : actionableMatches > 0
-                            ? "اختر طريقة التعارف: تعارف عائلي أو محادثة"
+                            ? g("اختر طريقة التعارف: تعارف عائلي أو محادثة", "اختاري طريقة التعارف: تعارف عائلي أو محادثة")
                             : "تابع التعارف من صفحة التوافقات",
                         time: !creditsBlockSuggestions && actionableMatches === 0 ? "قيد التعارف" : "جديد",
                       },
@@ -412,7 +424,7 @@ export default function DashboardPage() {
                         iconColor: "text-accent-foreground",
                         iconBg: "bg-accent/10",
                         title: `تلقيت ${arabicCount(receivedSuggestions, { one: "اقتراحاً", two: "اقتراحين", few: "اقتراحات", many: "اقتراحاً" })}`,
-                        desc: "راجع الاقتراحات واتخذ قرارك",
+                        desc: g("راجع الاقتراحات واتخذ قرارك", "راجعي الاقتراحات واتخذي قرارك"),
                         time: "متاح",
                       },
                     ]
@@ -423,12 +435,15 @@ export default function DashboardPage() {
                           iconColor: "text-accent-foreground",
                           iconBg: "bg-accent/10",
                           title: `${arabicCount(pendingSuggestions ?? 0, { one: "اقتراح واحد", two: "اقتراحان", few: "اقتراحات", many: "اقتراحاً" })} بانتظار قرارك`,
-                          desc: "راجع الاقتراحات واختر «مهتم» أو «لا»",
+                          desc: g("راجع الاقتراحات واختر «مهتم» أو «لا»", "راجعي الاقتراحات واختاري «مهتم» أو «لا»"),
                           time: "بانتظارك",
                         },
                       ]
                     : []),
-              ].map((item, i, arr) => (
+              ]
+                // Newest and actionable first; account creation last
+                .reverse()
+                .map((item, i, arr) => (
                 <div key={i} className="flex gap-4">
                   {/* Timeline line + dot */}
                   <div className="flex flex-col items-center">
@@ -464,7 +479,7 @@ export default function DashboardPage() {
                     <Clock className="h-8 w-8 mx-auto mb-2 opacity-40" />
                     <p className="text-sm">لا توجد نشاطات بعد</p>
                     <p className="text-xs mt-1">
-                      أكمل ملفك الشخصي للبدء في تلقي الاقتراحات
+                      {g("أكمل ملفك الشخصي للبدء في تلقي الاقتراحات", "أكملي ملفكِ الشخصي للبدء في تلقي الاقتراحات")}
                     </p>
                   </div>
                 )}

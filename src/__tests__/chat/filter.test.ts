@@ -22,7 +22,7 @@ describe("checkMessage", () => {
     expect(blocked(body)).toBe("CONTACT");
   });
 
-  it.each(["wa.me/96279", "www.site.com", "https://example.com/x", "t.me/user", "mysite.jo"])(
+  it.each(["wa.me/96279", "www.site.com", "https://example.com/x", "t.me/user", "mysite.jo", "mypage.xyz", "shop.sa", "profile.ae"])(
     "blocks links: %s",
     (body) => {
       expect(blocked(body)).toBe("LINK");

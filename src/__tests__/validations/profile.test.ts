@@ -15,7 +15,7 @@ const validProfile = {
   skinColor: "حنطي",
   childrenCount: 0,
   willingToRelocate: "yes",
-  maritalStatus: "أعزب",
+  maritalStatus: "أعزب/عزباء",
   religiosity: "ملتزم",
   familyValues: "أقدر العائلة كثيراً",
   partnerExpectations: "أبحث عن شريك متفهم",
@@ -228,5 +228,44 @@ describe("profileDraftSchema", () => {
       setupStep: 5,
     });
     expect(result.success).toBe(true);
+  });
+});
+
+describe("profileSchema tightening (G47)", () => {
+  const base = {
+    dateOfBirth: "1998-03-02",
+    city: "عمّان",
+    nationality: "أردني",
+    education: "بكالوريوس",
+    maritalStatus: "أعزب/عزباء",
+    religiosity: "ملتزم",
+    prefAgeMin: 25,
+    prefAgeMax: 35,
+  };
+
+  it("refuses min > max partner age, accepts min = max", () => {
+    expect(profileSchema.safeParse({ ...base, prefAgeMin: 40, prefAgeMax: 30 }).success).toBe(false);
+    expect(profileSchema.safeParse({ ...base, prefAgeMin: 30, prefAgeMax: 30 }).success).toBe(true);
+    expect(profileDraftSchema.safeParse({ prefAgeMin: 40, prefAgeMax: 30 }).success).toBe(false);
+    expect(profileDraftSchema.safeParse({ prefAgeMin: 40 }).success).toBe(true);
+  });
+
+  it("uses one partner age maximum (70)", () => {
+    expect(profileSchema.safeParse({ ...base, prefAgeMax: 70 }).success).toBe(true);
+    expect(profileSchema.safeParse({ ...base, prefAgeMax: 71 }).success).toBe(false);
+  });
+
+  it("only accepts the offered values for select fields", () => {
+    expect(profileSchema.safeParse({ ...base, education: "روضة" }).success).toBe(false);
+    expect(profileSchema.safeParse({ ...base, maritalStatus: "متزوج" }).success).toBe(false);
+    expect(profileSchema.safeParse({ ...base, religiosity: "x" }).success).toBe(false);
+    expect(profileSchema.safeParse({ ...base, smokingStatus: "x" }).success).toBe(false);
+    expect(profileSchema.safeParse({ ...base, prefEducation: ["x"] }).success).toBe(false);
+    expect(profileSchema.safeParse({ ...base, smokingStatus: "لا أدخن", prefEducation: ["دبلوم"] }).success).toBe(true);
+  });
+
+  it("keeps an unanswered hijab / beard as null (G30)", () => {
+    expect(profileSchema.safeParse({ ...base, hijab: null, beard: null }).success).toBe(true);
+    expect(profileDraftSchema.safeParse({ hijab: null }).success).toBe(true);
   });
 });

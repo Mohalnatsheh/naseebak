@@ -7,13 +7,14 @@
 import type { ReportReason } from "@prisma/client";
 import { db } from "@/lib/db";
 import { notify, notifyMany } from "@/lib/notify";
+import { CHAT_NOTICE_PREFERENCE } from "@/lib/notification-prefs";
 import { rateLimit } from "@/lib/rate-limit";
 import { getCycleFlags } from "@/lib/settings";
 import { publishChatEvent } from "@/lib/ably";
 import { checkMessage, completesSplitNumber, mayBePartOfNumber, SPLIT_NUMBER_WINDOW_MS } from "@/lib/chat/filter";
 import { IntroError } from "@/lib/intro/errors";
 import { fileReport } from "@/lib/reports";
-import { LEGACY_ADMIN_VISIT, cancelPendingBetween, isUnavailable } from "@/lib/matches/state";
+import { LEGACY_ADMIN_VISIT, cancelPendingBetween, familyMoveOpenUntil, isUnavailable } from "@/lib/matches/state";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 export const EXTENSION_DAYS = 7;
@@ -25,6 +26,15 @@ export const FAMILY_NUDGE_AFTER_DAYS = 7;
 const FAMILY_NUDGE_WINDOW_DAYS = 2;
 export const MESSAGES_PER_DAY = 50;
 const PUSH_THROTTLE_MS = 3 * 60 * 1000;
+
+/** «حتى 12 نوفمبر» — the last day of the free chat → family move */
+export function familyMoveDeadlineLabel(chatExpiresAt: Date): string {
+  return familyMoveOpenUntil(chatExpiresAt).toLocaleDateString("ar-JO-u-nu-latn", {
+    day: "numeric",
+    month: "long",
+    timeZone: "Asia/Amman",
+  });
+}
 
 export type ConversationState = "ACTIVE" | "ENDED" | "EXPIRED";
 
@@ -139,9 +149,10 @@ async function housekeep(c: LoadedConversation): Promise<{ c: LoadedConversation
         await notifyMany([c.match.femaleId, c.match.maleId], {
           type: "CHAT",
           title: "انتهت مدة المحادثة",
-          body: "هل تنتقلان لتعارف عائلي؟ الانتقال مجاني، وتتبادل العائلتان بيانات وليّ الأمر لترتيب الزيارة.",
+          body: `هل تنتقلان لتعارف عائلي؟ الانتقال مجاني حتى ${familyMoveDeadlineLabel(c.expiresAt)}، وتتبادل العائلتان بيانات وليّ الأمر لترتيب الزيارة.`,
           url: `/dashboard/chats/${c.id}`,
           metadata: { conversationId: c.id },
+          preference: CHAT_NOTICE_PREFERENCE,
         });
       }
     }
@@ -165,6 +176,7 @@ async function housekeep(c: LoadedConversation): Promise<{ c: LoadedConversation
         body: "إن شعرتما بالارتياح يمكنكما الانتقال لتعارف عائلي الآن، والانتقال مجاني.",
         url: `/dashboard/chats/${c.id}`,
         metadata: { conversationId: c.id },
+        preference: CHAT_NOTICE_PREFERENCE,
       });
       return { c: { ...c, familyNudgeAt: nudgedAt }, did: "nudged" };
     }
@@ -188,6 +200,7 @@ async function housekeep(c: LoadedConversation): Promise<{ c: LoadedConversation
         : "بقي يومان على انتهاء المحادثة. يمكنكما التمديد مرة واحدة أو الانتقال لتعارف عائلي.",
       url: `/dashboard/chats/${c.id}`,
       metadata: { conversationId: c.id },
+      preference: CHAT_NOTICE_PREFERENCE,
     });
     return { c: { ...c, expiryWarnedAt: warnedAt }, did: "warned" };
   }
@@ -434,8 +447,9 @@ export async function sendMessage(args: {
     await notify({
       userId: partner.id,
       type: "CHAT",
-      title: sender.firstName,
-      body: check.text.length > 80 ? `${check.text.slice(0, 80)}…` : check.text,
+      // Never the message itself: a push shows on the lock screen to whoever holds the phone
+      title: "نصيبك",
+      body: `رسالة جديدة من ${sender.firstName}`,
       url: `/dashboard/chats/${conversationId}`,
       pushOnly: true,
       collapseId: `chat-${conversationId}`,
@@ -488,6 +502,7 @@ export async function extendConversation(conversationId: string, userId: string)
     body: "تم تمديد المحادثة 7 أيام إضافية.",
     url: `/dashboard/chats/${conversationId}`,
     metadata: { conversationId },
+    preference: CHAT_NOTICE_PREFERENCE,
   });
   return summarise({ ...c, expiresAt, extended: true, expiryWarnedAt: null }, userId, null, 0);
 }
@@ -520,6 +535,7 @@ export async function endConversation(args: {
       body: "أنهى الطرف الآخر المحادثة. نتمنى لك التوفيق في اقتراحاتك القادمة.",
       url: "/dashboard/chats",
       metadata: { conversationId },
+      preference: CHAT_NOTICE_PREFERENCE,
     });
   }
 

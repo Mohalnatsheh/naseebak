@@ -147,7 +147,24 @@ describe("registerSchema", () => {
     phone: "0791234567",
     gender: "MALE" as const,
     otp: "123456",
+    termsAccepted: true as const,
   };
+
+  it("requires the terms + privacy + 18+ tick", () => {
+    const { termsAccepted: _t, ...noTerms } = validData;
+    void _t;
+    expect(registerSchema.safeParse(noTerms).success).toBe(false);
+    expect(registerSchema.safeParse({ ...validData, termsAccepted: false }).success).toBe(false);
+  });
+
+  it("trims names, refuses spaces-only or 1-letter names and caps the length", () => {
+    const ok = registerSchema.safeParse({ ...validData, firstName: "  عبد   الله  " });
+    expect(ok.success && ok.data.firstName).toBe("عبد الله");
+    expect(registerSchema.safeParse({ ...validData, firstName: "     " }).success).toBe(false);
+    expect(registerSchema.safeParse({ ...validData, lastName: " م " }).success).toBe(false);
+    expect(registerSchema.safeParse({ ...validData, firstName: "، ؟" }).success).toBe(false);
+    expect(registerSchema.safeParse({ ...validData, lastName: "م".repeat(41) }).success).toBe(false);
+  });
 
   it("should accept valid registration data", () => {
     const result = registerSchema.safeParse(validData);
@@ -195,7 +212,8 @@ describe("registerSchema", () => {
   });
 
   it("should reject missing phone", () => {
-    const { phone, ...noPhone } = validData;
+    const noPhone: Partial<typeof validData> = { ...validData };
+    delete noPhone.phone;
     const result = registerSchema.safeParse(noPhone);
     expect(result.success).toBe(false);
   });

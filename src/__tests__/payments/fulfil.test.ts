@@ -35,7 +35,7 @@ describe("fulfilCheckoutSession", () => {
   it("marks the payment completed and adds the credits, history and a notice", async () => {
     expect(await fulfilCheckoutSession(session())).toBe("fulfilled");
     expect(db.payment.updateMany).toHaveBeenCalledWith({
-      where: { id: "p1", userId: "u1", status: { not: "COMPLETED" } },
+      where: { id: "p1", userId: "u1", status: { in: ["PENDING", "FAILED"] } },
       data: { status: "COMPLETED", providerTxId: "pi_1" },
     });
     expect(db.user.update).toHaveBeenCalledWith({ where: { id: "u1" }, data: { matchCredits: { increment: 5 } } });

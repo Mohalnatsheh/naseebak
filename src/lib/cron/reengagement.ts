@@ -67,45 +67,61 @@ export function reengagementMessage(w: Waiting): { type: NotificationType; body:
   return { type: "CHAT", body, url: "/dashboard/chats" };
 }
 
+/** Pages of BATCH idle users walked per run at most */
+const MAX_PAGES = 10;
+
+/**
+ * Walks the idle users page by page (by id), so the many idle users with nothing waiting (they are
+ * never claimed) can't keep the ones with something waiting out of a fixed-size batch.
+ */
 export async function runReengagement(now = new Date()): Promise<{ idle: number; sent: number }> {
   const notSince = new Date(now.getTime() - REENGAGE_EVERY_DAYS * DAY_MS);
-  const users = await db.user.findMany({
-    where: {
-      AND: [
-        { role: "USER", isDeactivated: false, status: { not: "SUSPENDED" } },
-        idleBetweenWhere(REENGAGE_MIN_IDLE_DAYS, REENGAGE_MAX_IDLE_DAYS, now),
-        { OR: [{ reengagedAt: null }, { reengagedAt: { lt: notSince } }] },
-      ],
-    },
-    select: { id: true, lastActiveAt: true, updatedAt: true },
-    take: BATCH,
-  });
-
+  let idle = 0;
   let sent = 0;
-  for (const u of users) {
-    try {
-      const message = reengagementMessage(await waitingFor(u.id, now));
-      if (!message) continue;
-      // Claim first: a second run (or a parallel one) can't send it again within 7 days
-      const claimed = await db.user.updateMany({
-        where: { id: u.id, OR: [{ reengagedAt: null }, { reengagedAt: { lt: notSince } }] },
-        // This write bumps updatedAt: keep "last seen" where it was for users with no lastActiveAt yet
-        data: { reengagedAt: now, ...(u.lastActiveAt ? {} : { lastActiveAt: u.updatedAt }) },
-      });
-      if (claimed.count !== 1) continue;
-      await notify({
-        userId: u.id,
-        type: message.type,
-        title: "لديك ما ينتظرك في نصيبك",
-        body: message.body,
-        url: message.url,
-        pushOnly: true,
-        collapseId: "reengagement",
-      });
-      sent++;
-    } catch (error) {
-      console.error(`[cron] re-engagement for ${u.id}:`, error);
+  let cursor: string | undefined;
+  for (let page = 0; page < MAX_PAGES; page++) {
+    const users = await db.user.findMany({
+      where: {
+        AND: [
+          { role: "USER", isDeactivated: false, status: { not: "SUSPENDED" } },
+          idleBetweenWhere(REENGAGE_MIN_IDLE_DAYS, REENGAGE_MAX_IDLE_DAYS, now),
+          { OR: [{ reengagedAt: null }, { reengagedAt: { lt: notSince } }] },
+        ],
+      },
+      select: { id: true, lastActiveAt: true, updatedAt: true },
+      orderBy: { id: "asc" },
+      take: BATCH,
+      ...(cursor && { cursor: { id: cursor }, skip: 1 }),
+    });
+    idle += users.length;
+
+    for (const u of users) {
+      try {
+        const message = reengagementMessage(await waitingFor(u.id, now));
+        if (!message) continue;
+        // Claim first: a second run (or a parallel one) can't send it again within 7 days
+        const claimed = await db.user.updateMany({
+          where: { id: u.id, OR: [{ reengagedAt: null }, { reengagedAt: { lt: notSince } }] },
+          // This write bumps updatedAt: keep "last seen" where it was for users with no lastActiveAt yet
+          data: { reengagedAt: now, ...(u.lastActiveAt ? {} : { lastActiveAt: u.updatedAt }) },
+        });
+        if (claimed.count !== 1) continue;
+        await notify({
+          userId: u.id,
+          type: message.type,
+          title: "لديك ما ينتظرك في نصيبك",
+          body: message.body,
+          url: message.url,
+          pushOnly: true,
+          collapseId: "reengagement",
+        });
+        sent++;
+      } catch (error) {
+        console.error(`[cron] re-engagement for ${u.id}:`, error);
+      }
     }
+    if (users.length < BATCH) break;
+    cursor = users[users.length - 1].id;
   }
-  return { idle: users.length, sent };
+  return { idle, sent };
 }

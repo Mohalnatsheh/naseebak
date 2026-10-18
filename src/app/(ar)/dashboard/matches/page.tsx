@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Loader2,
@@ -48,7 +49,9 @@ import {
   ShieldOff,
 } from "lucide-react";
 import { toast } from "sonner";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ImageLightbox } from "@/components/shared/image-lightbox";
@@ -125,34 +128,29 @@ const visitStatusDescriptions: Record<string, string> = {
   CANCELLED: "تم إلغاء طلب الزيارة. يمكنك التواصل مع الدعم لمزيد من المعلومات.",
 };
 
-const visitStatusConfig: Record<string, { color: string; borderColor: string; bgColor: string; icon: typeof Clock }> = {
+const visitStatusConfig: Record<string, { color: string; bgColor: string; icon: typeof Clock }> = {
   REQUESTED: {
     color: "bg-gradient-to-l from-amber-100 to-amber-50 text-amber-700 border-amber-200/60",
-    borderColor: "border-r-amber-400",
     bgColor: "from-amber-50/50 to-transparent",
     icon: Clock,
   },
   FAMILIES_CONTACTED: {
     color: "bg-gradient-to-l from-primary/15 to-primary/5 text-primary border-primary/20",
-    borderColor: "border-r-primary",
     bgColor: "from-primary/5 to-transparent",
     icon: Phone,
   },
   SCHEDULED: {
     color: "bg-gradient-to-l from-green-100 to-green-50 text-green-700 border-green-200/60",
-    borderColor: "border-r-green-500",
     bgColor: "from-green-50/50 to-transparent",
     icon: CalendarCheck,
   },
   COMPLETED: {
     color: "bg-gradient-to-l from-emerald-100 to-emerald-50 text-emerald-700 border-emerald-200/60",
-    borderColor: "border-r-emerald-500",
     bgColor: "from-emerald-50/50 to-transparent",
     icon: CheckCircle2,
   },
   CANCELLED: {
     color: "bg-gradient-to-l from-destructive/15 to-destructive/5 text-destructive border-destructive/20",
-    borderColor: "border-r-destructive",
     bgColor: "from-destructive/5 to-transparent",
     icon: XCircle,
   },
@@ -250,7 +248,6 @@ export default function MatchesPage() {
   const skipNextFetch = useRef(false);
   const focusShown = useRef(false);
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
-  const [menuOpen, setMenuOpen] = useState<string | null>(null);
   // Report always comes with a block here ("إبلاغ وحظر")
   const [reportDialog, setReportDialog] = useState<{ userId: string; name: string } | null>(null);
   const [blockDialog, setBlockDialog] = useState<{ userId: string; name: string } | null>(null);
@@ -289,9 +286,12 @@ export default function MatchesPage() {
         setFeedbackOutcome("PROCEEDED");
         setFeedbackRating(5);
         setFeedbackReason("");
+      } else {
+        toast.error("تعذّر إرسال التقييم، حاول مرة أخرى");
       }
     } catch (err) {
       console.error(err);
+      toast.error("تعذّر إرسال التقييم، تحقّق من الاتصال وحاول مرة أخرى");
     } finally {
       setFeedbackSubmitting(false);
     }
@@ -400,12 +400,14 @@ export default function MatchesPage() {
       setLoadingPhotos((prev) => ({ ...prev, [matchId]: true }));
       try {
         const res = await fetch(`/api/matches/${matchId}/photos`);
-        if (res.ok) {
-          const data = await res.json();
-          setMatchPhotos((prev) => ({ ...prev, [matchId]: data.photos || [] }));
-        }
+        if (!res.ok) throw new Error(`photos ${res.status}`);
+        const data = await res.json();
+        setMatchPhotos((prev) => ({ ...prev, [matchId]: data.photos || [] }));
       } catch (err) {
         console.error("Failed to fetch photos", err);
+        // Close the panel again (a retry is one tap away) instead of claiming there are no photos
+        setShowPhotos((prev) => ({ ...prev, [matchId]: false }));
+        toast.error("تعذّر تحميل الصور، حاول مرة أخرى");
       } finally {
         setLoadingPhotos((prev) => ({ ...prev, [matchId]: false }));
       }
@@ -567,10 +569,12 @@ export default function MatchesPage() {
                   : "عندما يتبادل شخصان الإعجاب، ستظهر هنا تفاصيل التوافق."}
               </p>
             </div>
-            <div className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground/60 pt-2">
-              <Sparkles className="h-3.5 w-3.5" />
-              <span>راجع اقتراحاتك لزيادة فرص التوافق</span>
-            </div>
+            <Button asChild variant="outline" className="h-11 gap-1.5 rounded-xl">
+              <Link href="/dashboard/suggestions">
+                <Sparkles className="h-4 w-4" />
+                {isFemale ? "راجعي اقتراحاتك" : "راجع اقتراحاتك"}
+              </Link>
+            </Button>
           </CardContent>
         </Card>
       ) : (
@@ -735,7 +739,7 @@ export default function MatchesPage() {
                             {matchPhotos[m.id].map((photo, photoIdx) => (
                               <div
                                 key={photo.id}
-                                className="rounded-lg overflow-hidden relative cursor-pointer"
+                                className="rounded-lg overflow-hidden relative cursor-pointer h-44"
                                 onContextMenu={(e) => e.preventDefault()}
                                 onClick={() => {
                                   setLightboxImages(matchPhotos[m.id].map((p) => p.url));
@@ -744,10 +748,13 @@ export default function MatchesPage() {
                                 }}
                               >
                                 <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent z-10 pointer-events-none rounded-lg" />
-                                <img
+                                <Image
                                   src={photo.url}
                                   alt="صورة الشريك"
-                                  className="w-full h-44 object-cover rounded-lg transition-transform duration-300"
+                                  fill
+                                  unoptimized
+                                  sizes="50vw"
+                                  className="object-cover rounded-lg transition-transform duration-300"
                                   draggable={false}
                                   onContextMenu={(e) => e.preventDefault()}
                                 />
@@ -814,35 +821,23 @@ export default function MatchesPage() {
                           </Button>
                         )}
                         {/* Report menu */}
-                        <div className="relative">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            aria-label="خيارات إضافية"
-                            className="h-11 w-11 rounded-xl"
-                            onClick={() => setMenuOpen(menuOpen === m.id ? null : m.id)}
-                          >
-                            <MoreVertical className="h-5 w-5" />
-                          </Button>
-                          {menuOpen === m.id && (
-                            <div className="absolute bottom-full mb-1 end-0 bg-card border rounded-xl shadow-lg py-1 z-50 w-44">
-                              <button
-                                className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted/50 text-foreground"
-                                onClick={() => { setBlockDialog({ userId: m.partner.id, name: m.partner.firstName }); setMenuOpen(null); }}
-                              >
-                                <Ban className="h-4 w-4" />
-                                حظر
-                              </button>
-                              <button
-                                className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted/50 text-destructive"
-                                onClick={() => { setReportDialog({ userId: m.partner.id, name: m.partner.firstName }); setMenuOpen(null); }}
-                              >
-                                <ShieldAlert className="h-4 w-4" />
-                                إبلاغ وحظر
-                              </button>
-                            </div>
-                          )}
-                        </div>
+                        <DropdownMenu dir="rtl">
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" aria-label={`خيارات إضافية: ${m.partner.firstName}`} className="h-11 w-11 rounded-xl">
+                              <MoreVertical className="h-5 w-5" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-44">
+                            <DropdownMenuItem className="min-h-11 gap-2" onSelect={() => setBlockDialog({ userId: m.partner.id, name: m.partner.firstName })}>
+                              <Ban className="h-4 w-4" />
+                              حظر
+                            </DropdownMenuItem>
+                            <DropdownMenuItem className="min-h-11 gap-2 text-destructive" onSelect={() => setReportDialog({ userId: m.partner.id, name: m.partner.firstName })}>
+                              <ShieldAlert className="h-4 w-4" />
+                              إبلاغ وحظر
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                   }
                 >
@@ -865,9 +860,8 @@ export default function MatchesPage() {
                     <MatchClosedNote reason="blocked">
                       {m.blockId && (
                         <Button
-                          size="sm"
                           variant="outline"
-                          className="gap-1.5"
+                          className="h-11 gap-1.5"
                           onClick={() => setUnblockDialog({ blockId: m.blockId!, name: c.firstName })}
                         >
                           <ShieldOff className="h-4 w-4" />
@@ -886,14 +880,14 @@ export default function MatchesPage() {
           })}
           {totalPages > 1 && (
             <div className="flex items-center justify-center gap-4 mt-8">
-              <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>
+              <Button variant="outline" className="h-11" disabled={page <= 1} onClick={() => { setPage(page - 1); window.scrollTo({ top: 0, behavior: "smooth" }); }}>
                 <ChevronRight className="h-4 w-4 me-1" />
                 السابق
               </Button>
               <span className="text-sm text-muted-foreground">
                 صفحة {page} من {totalPages}
               </span>
-              <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>
+              <Button variant="outline" className="h-11" disabled={page >= totalPages} onClick={() => { setPage(page + 1); window.scrollTo({ top: 0, behavior: "smooth" }); }}>
                 التالي
                 <ChevronLeft className="h-4 w-4 ms-1" />
               </Button>
@@ -908,7 +902,7 @@ export default function MatchesPage() {
           <DialogHeader className="text-start sm:text-start">
             <DialogTitle>إبلاغ وحظر {reportDialog?.name}</DialogTitle>
             <DialogDescription className="text-start leading-relaxed">
-              سيصل البلاغ لفريق نصيبك، ويُحظر {reportDialog?.name} فينتهي هذا التوافق ولا {isFemale ? "يرى" : "ترى"} ملفك بعد الآن. تُلغى الطلبات المعلقة بينكما دون استرجاع الرصيد.
+              سيصل البلاغ لفريق نصيبك، ويُحظر {reportDialog?.name} فينتهي هذا التوافق ولا {isFemale ? "يرى" : "ترى"} ملفك بعد الآن. {counts.flags.creditOnInterest ? "تُلغى الطلبات المعلقة بينكما." : "تُلغى الطلبات المعلقة بينكما دون استرجاع الرصيد."}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
@@ -955,7 +949,7 @@ export default function MatchesPage() {
         open={!!blockDialog}
         onOpenChange={(o) => !o && setBlockDialog(null)}
         title={`حظر ${blockDialog?.name ?? ""}`}
-        description={`سينتهي هذا التوافق: لن ${isFemale ? "يرى" : "ترى"} ${blockDialog?.name ?? ""} ملفك ولا ${isFemale ? "يتمكن" : "تتمكن"} من مراسلتك، ولن تتوفر أي خطوات تعارف بينكما. تُلغى الطلبات المعلقة بينكما دون استرجاع الرصيد. يمكنك إلغاء الحظر لاحقاً من صفحة «المحظورون».`}
+        description={`سينتهي هذا التوافق: لن ${isFemale ? "يرى" : "ترى"} ${blockDialog?.name ?? ""} ملفك ولا ${isFemale ? "يتمكن" : "تتمكن"} من مراسلتك، ولن تتوفر أي خطوات تعارف بينكما. ${counts.flags.creditOnInterest ? "تُلغى الطلبات المعلقة بينكما." : "تُلغى الطلبات المعلقة بينكما دون استرجاع الرصيد."} ${isFemale ? "يمكنكِ" : "يمكنك"} إلغاء الحظر لاحقاً من صفحة «المحظورون».`}
         confirmLabel="حظر"
         destructive
         busy={safetyBusy}

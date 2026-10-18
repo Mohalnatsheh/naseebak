@@ -14,6 +14,7 @@ import {
   Shield,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { LoadError } from "@/components/shared/load-error";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -30,6 +31,7 @@ import { activeDealbreakers } from "@/lib/matching/dealbreaker-summary";
 import type { DealbreakerKey } from "@/lib/matching/score";
 import { dateOfBirthError, maxDateOfBirth, parentInfoSchema } from "@/lib/validations/profile";
 import { normalizePhone } from "@/lib/validations/auth";
+import { splitProfileEdit, buildFillBody } from "@/lib/profile-edit-split";
 
 const educationLevels = [
   "ثانوية عامة",
@@ -199,11 +201,17 @@ export default function ProfileEditPage() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, [step]);
   const [loading, setLoading] = useState(true);
+  // The profile didn't load: never show (or save) a blank form built from nothing
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
   const [gender, setGender] = useState<string>("");
   const [hasPendingRequest, setHasPendingRequest] = useState(false);
+  const [withdrawing, setWithdrawing] = useState(false);
+  // Raw stored profile: tells an empty field (may be filled directly) from a stored value (review)
+  const [storedProfile, setStoredProfile] = useState<Record<string, unknown> | null>(null);
   const errorRef = useRef<HTMLDivElement>(null);
 
   // Original values from server — used to compute changes
@@ -226,14 +234,16 @@ export default function ProfileEditPage() {
 
   useEffect(() => {
     async function load() {
+      setLoadFailed(false);
       try {
         const [profileRes, requestsRes, parentRes] = await Promise.all([
           fetch("/api/profile"),
           fetch("/api/profile/update-request"),
           fetch("/api/profile/parent-info"),
         ]);
+        if (!profileRes.ok) throw new Error(`profile ${profileRes.status}`);
         const profileData = await profileRes.json();
-        const requestsData = await requestsRes.json();
+        const requestsData = requestsRes.ok ? await requestsRes.json() : {};
         const parentData = parentRes.ok ? await parentRes.json() : null;
 
         // Check for pending request
@@ -249,6 +259,7 @@ export default function ProfileEditPage() {
 
         if (user?.profile) {
           const p = user.profile;
+          setStoredProfile(p);
           const pi = parentData?.parentInfo;
           const loaded: ProfileForm = {
             dateOfBirth: p.dateOfBirth
@@ -308,13 +319,13 @@ export default function ProfileEditPage() {
           setOriginalDealbreakers(db);
         }
       } catch {
-        // Silently fail
+        setLoadFailed(true);
       } finally {
         setLoading(false);
       }
     }
     load();
-  }, []);
+  }, [reloadKey]);
 
   function update(field: string, value: string | boolean) {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -366,6 +377,14 @@ export default function ProfileEditPage() {
       if (form.numberOfSiblings && (parseInt(form.numberOfSiblings) < 0 || parseInt(form.numberOfSiblings) > 20)) return "عدد الإخوة يجب أن يكون بين 0 و 20";
     }
     if (s === 5) {
+      const guardianTouched =
+        form.parentName !== originalForm.parentName ||
+        form.parentPhone !== originalForm.parentPhone ||
+        form.relationship !== originalForm.relationship ||
+        form.parentAddress !== originalForm.parentAddress;
+      // New cycle: no guardian at setup, so an empty guardian step must never block other edits —
+      // it is checked only once the member starts filling it in
+      if (introMode && !guardianTouched) return null;
       if (!form.parentName) return "يرجى إدخال اسم ولي الأمر";
       if (!form.parentPhone) return "يرجى إدخال رقم هاتف ولي الأمر";
       if (!form.relationship) return "يرجى اختيار صلة القرابة";
@@ -456,6 +475,8 @@ export default function ProfileEditPage() {
   }
 
   async function handleSubmit() {
+    // Never save a form that wasn't filled from the stored profile
+    if (loadFailed) return;
     // Validate all steps before submitting
     for (let s = 1; s <= totalSteps; s++) {
       const err = validateStep(s);
@@ -472,7 +493,21 @@ export default function ProfileEditPage() {
     const dealbreakersChanged = showDealbreakers && !arraysEqual(dealbreakers, originalDealbreakers);
 
     if (Object.keys(changes).length === 0 && !guardianChanged && !dealbreakersChanged) {
-      setError("لم تقم بإجراء أي تعديلات");
+      setError(gender === "FEMALE" ? "لم تُجري أي تعديلات بعد" : "لم تُجرِ أي تعديلات بعد");
+      scrollToError();
+      return;
+    }
+
+    // Empty fields are filled directly (PUT /api/profile), preferences save directly, and only
+    // changes to values already stored wait for review
+    const { fills, prefs, reviewed } = splitProfileEdit(changes, storedProfile ?? {});
+    const fillBody = Object.keys(fills).length > 0 ? buildFillBody(storedProfile ?? {}, fills) : null;
+    // Profile not finished yet (no base to send with the fills): let the review request carry them
+    const requestChanges = { ...prefs, ...reviewed, ...(fillBody ? {} : fills) };
+    const needsReview = Object.keys(requestChanges).some((k) => !k.startsWith("pref"));
+
+    if (hasPendingRequest && needsReview) {
+      setError("تغيير بيانات محفوظة سابقاً يحتاج مراجعة، ولديك طلب تعديل قيد المراجعة. اسحب الطلب الحالي أولاً أو أبقِ هذه البيانات كما هي.");
       scrollToError();
       return;
     }
@@ -483,13 +518,29 @@ export default function ProfileEditPage() {
     try {
       const promises: Promise<Response>[] = [];
 
-      // Submit profile changes for admin review (if any)
-      if (Object.keys(changes).length > 0) {
+      // Fill empty fields first: the save resends the stored basics, so it must run before a
+      // preference change in the same submit (or it would write the old preference back)
+      if (fillBody) {
+        const fillRes = await fetch("/api/profile", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(fillBody),
+        });
+        if (!fillRes.ok) {
+          const data = await fillRes.json().catch(() => ({}));
+          setError(data.error || "تعذّر حفظ البيانات الجديدة");
+          scrollToError();
+          return;
+        }
+      }
+
+      // Preferences (saved directly) + changes to stored values (admin review)
+      if (Object.keys(requestChanges).length > 0) {
         promises.push(
           fetch("/api/profile/update-request", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ changes }),
+            body: JSON.stringify({ changes: requestChanges }),
           })
         );
       }
@@ -527,7 +578,7 @@ export default function ProfileEditPage() {
 
       if (allOk) {
         // Partner preferences save directly; only the other fields wait for review
-        setReviewSent(Object.keys(changes).some((k) => !k.startsWith("pref")));
+        setReviewSent(needsReview);
         setSuccess(true);
       } else {
         const failedRes = results.find((r) => !r.ok);
@@ -551,6 +602,7 @@ export default function ProfileEditPage() {
     Object.keys(getChangedFields()).length +
     (hasGuardianChanges() ? 1 : 0) +
     (showDealbreakers && !arraysEqual(dealbreakers, originalDealbreakers) ? 1 : 0);
+  const willNeedReview = Object.keys(splitProfileEdit(getChangedFields(), storedProfile ?? {}).reviewed).length > 0;
   const partnerGender = oppositeGender(gender);
   /** "شرط أساسي" chip for one preference; disabled until that preference is filled in. */
   const dealbreaker = (key: DealbreakerKey, fieldId: string) =>
@@ -562,6 +614,28 @@ export default function ProfileEditPage() {
         onChange={(v) => setDealbreakers((prev) => (v ? [...new Set([...prev, key])] : prev.filter((k) => k !== key)))}
       />
     ) : null;
+
+  if (!loading && loadFailed) {
+    return (
+      <div className="max-w-2xl mx-auto py-8 space-y-4">
+        <LoadError
+          message="تعذّر تحميل بيانات ملفك، فلا يمكن التعديل الآن. تحقّق من الاتصال وحاول مرة أخرى."
+          onRetry={() => {
+            setLoading(true);
+            setReloadKey((k) => k + 1);
+          }}
+        />
+        <div className="text-center">
+          <Button asChild variant="outline" className="h-11 rounded-xl">
+            <Link href="/dashboard/profile">
+              <ArrowRight className="h-4 w-4 me-2" />
+              العودة للملف الشخصي
+            </Link>
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -578,41 +652,25 @@ export default function ProfileEditPage() {
     );
   }
 
-  // A pending review locks steps 1–4 only; guardian info (step 5) saves directly
-  if (hasPendingRequest && step !== 5) {
-    return (
-      <div className="max-w-2xl mx-auto space-y-6 pb-8">
-        <Card className="relative overflow-hidden border-primary/20 bg-gradient-to-l from-primary/8 to-primary/3 shadow-md">
-          <div className="absolute top-0 right-0 h-32 w-32 rounded-full bg-primary/10 blur-2xl translate-x-8 -translate-y-8" />
-          <CardContent className="pt-8 pb-8 text-center space-y-4">
-            <div className="flex h-16 w-16 mx-auto items-center justify-center rounded-2xl bg-primary/10 border border-primary/20">
-              <Clock className="h-8 w-8 text-primary" />
-            </div>
-            <div className="space-y-2">
-              <h3 className="text-lg font-bold text-primary">
-                لديك طلب تعديل قيد المراجعة
-              </h3>
-              <p className="text-sm text-primary/80 max-w-sm mx-auto leading-relaxed">
-                يجب انتظار مراجعة الإدارة لطلب التعديل الحالي قبل إرسال طلب
-                جديد. سيتم إعلامك بالنتيجة عبر الإشعارات. يمكنك تعديل بيانات وليّ الأمر في أي وقت.
-              </p>
-            </div>
-            <Button variant="outline" className="rounded-xl font-semibold" onClick={() => setStep(5)}>
-              تعديل بيانات وليّ الأمر
-            </Button>
-            <Button
-              asChild
-              className="bg-gradient-to-l from-primary to-primary/80 rounded-xl font-semibold"
-            >
-              <Link href="/dashboard/profile">
-                <ArrowLeft className="h-4 w-4 me-2" />
-                العودة للملف الشخصي
-              </Link>
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
+  async function withdrawRequest() {
+    setWithdrawing(true);
+    setError("");
+    try {
+      const res = await fetch("/api/profile/update-request/withdraw", { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok || res.status === 404) {
+        // 404: it was already reviewed or withdrawn — either way nothing is pending any more
+        setHasPendingRequest(false);
+      } else {
+        setError(data.error || "تعذّر سحب الطلب. حاول مرة أخرى.");
+        scrollToError();
+      }
+    } catch {
+      setError("حدث خطأ في الاتصال. حاول مرة أخرى.");
+      scrollToError();
+    } finally {
+      setWithdrawing(false);
+    }
   }
 
   // Success state
@@ -640,7 +698,7 @@ export default function ProfileEditPage() {
               className="bg-gradient-to-l from-primary to-primary/80 rounded-xl font-semibold"
             >
               <Link href="/dashboard/profile">
-                <ArrowLeft className="h-4 w-4 me-2" />
+                <ArrowRight className="h-4 w-4 me-2" />
                 العودة للملف الشخصي
               </Link>
             </Button>
@@ -654,10 +712,9 @@ export default function ProfileEditPage() {
     <div className="max-w-2xl mx-auto space-y-6 pb-8">
       {/* Header */}
       <div className="space-y-2">
-        <h1 className="text-2xl font-bold">طلب تعديل الملف الشخصي</h1>
+        <h1 className="text-2xl font-bold">تعديل الملف الشخصي</h1>
         <p className="text-muted-foreground text-sm">
-          عدّل البيانات التي تريد تغييرها. سيتم إرسال التعديلات للمراجعة من قبل
-          الإدارة.
+          عدّل البيانات التي تريد تغييرها.
         </p>
       </div>
 
@@ -665,10 +722,30 @@ export default function ProfileEditPage() {
       <div className="flex items-start gap-3 rounded-xl bg-primary/5 border border-primary/15 p-4">
         <AlertCircle className="h-5 w-5 text-primary shrink-0 mt-0.5" />
         <p className="text-sm text-primary leading-relaxed">
-          التعديلات لن تُطبَّق مباشرة. سيقوم فريق الإدارة بمراجعتها والموافقة
-          عليها أو رفضها.
+          تُحفظ تفضيلات الشريك وبيانات وليّ الأمر والحقول الفارغة مباشرة. أما تغيير
+          بيانات محفوظة سابقاً فيُرسل لفريق الإدارة لمراجعته قبل اعتماده.
         </p>
       </div>
+
+      {/* A pending review blocks only another change to stored values; everything else stays editable */}
+      {hasPendingRequest && (
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-xl bg-amber-50 border border-amber-200 p-4">
+          <Clock className="h-5 w-5 text-amber-600 shrink-0" />
+          <p className="text-sm text-amber-800 leading-relaxed flex-1">
+            لديك طلب تعديل قيد المراجعة. يمكنك تعديل تفضيلات الشريك وبيانات وليّ الأمر وتعبئة
+            الحقول الفارغة الآن، أما تغيير بيانات أخرى محفوظة فيكون بعد مراجعة الطلب أو سحبه.
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            className="rounded-xl font-semibold shrink-0"
+            disabled={withdrawing}
+            onClick={withdrawRequest}
+          >
+            {withdrawing ? <Loader2 className="h-4 w-4 animate-spin" /> : "سحب الطلب"}
+          </Button>
+        </div>
+      )}
 
       {/* Progress */}
       <div className="flex items-center gap-2">
@@ -729,7 +806,7 @@ export default function ProfileEditPage() {
                     key={c}
                     type="button"
                     onClick={() => handleCityChange(c)}
-                    className={`rounded-xl border px-3 py-2 text-sm transition-all ${form.city === c ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
+                    className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.city === c ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
                   >
                     {c}
                   </button>
@@ -789,7 +866,7 @@ export default function ProfileEditPage() {
                     key={c}
                     type="button"
                     onClick={() => update("skinColor", c)}
-                    className={`rounded-xl border px-3 py-2 text-sm transition-all ${form.skinColor === c ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
+                    className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.skinColor === c ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
                   >
                     {c}
                   </button>
@@ -805,7 +882,7 @@ export default function ProfileEditPage() {
                     key={e}
                     type="button"
                     onClick={() => update("education", e)}
-                    className={`rounded-xl border px-3 py-2 text-sm transition-all ${form.education === e ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
+                    className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.education === e ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
                   >
                     {e}
                   </button>
@@ -833,7 +910,8 @@ export default function ProfileEditPage() {
                 <Input
                   value={form.jobCustom}
                   onChange={(e) => update("jobCustom", e.target.value)}
-                  placeholder="حدد وظيفتك..."
+                  placeholder={gender === "FEMALE" ? "حدّدي وظيفتكِ..." : "حدّد وظيفتك..."}
+                  aria-label="الوظيفة (نص)"
                   className="mt-2"
                 />
               )}
@@ -847,7 +925,7 @@ export default function ProfileEditPage() {
                     key={r}
                     type="button"
                     onClick={() => update("incomeRange", r)}
-                    className={`rounded-xl border px-3 py-2 text-sm transition-all ${form.incomeRange === r ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
+                    className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.incomeRange === r ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
                   >
                     {r}
                   </button>
@@ -872,15 +950,16 @@ export default function ProfileEditPage() {
               <div className="grid grid-cols-3 gap-2">
                 {maritalStatuses.map((s) => (
                   <button
-                    key={selfLabel("maritalStatus", s, gender)}
+                    key={s}
+                    aria-pressed={form.maritalStatus === s}
                     type="button"
                     onClick={() => {
                       update("maritalStatus", s);
                       if (s === "أعزب/عزباء") update("childrenCount", "0");
                     }}
-                    className={`rounded-xl border px-3 py-2 text-sm transition-all ${form.maritalStatus === s ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
+                    className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.maritalStatus === s ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
                   >
-                    {s}
+                    {selfLabel("maritalStatus", s, gender)}
                   </button>
                 ))}
               </div>
@@ -907,12 +986,13 @@ export default function ProfileEditPage() {
               <div className="grid grid-cols-2 gap-2">
                 {religiosityLevels.map((r) => (
                   <button
-                    key={selfLabel("religiosity", r, gender)}
+                    key={r}
+                    aria-pressed={form.religiosity === r}
                     type="button"
                     onClick={() => update("religiosity", r)}
-                    className={`rounded-xl border px-3 py-2 text-sm transition-all ${form.religiosity === r ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
+                    className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.religiosity === r ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
                   >
-                    {r}
+                    {selfLabel("religiosity", r, gender)}
                   </button>
                 ))}
               </div>
@@ -923,12 +1003,13 @@ export default function ProfileEditPage() {
               <div className="grid grid-cols-2 gap-2">
                 {smokingStatuses.map((s) => (
                   <button
-                    key={selfLabel("smokingStatus", s, gender)}
+                    key={s}
+                    aria-pressed={form.smokingStatus === s}
                     type="button"
                     onClick={() => update("smokingStatus", s)}
-                    className={`rounded-xl border px-3 py-2 text-sm transition-all ${form.smokingStatus === s ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
+                    className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.smokingStatus === s ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
                   >
-                    {s}
+                    {selfLabel("smokingStatus", s, gender)}
                   </button>
                 ))}
               </div>
@@ -939,16 +1020,18 @@ export default function ProfileEditPage() {
                 <Label>الحجاب</Label>
                 <button
                   type="button"
+                  role="switch"
+                  aria-checked={!!form.hijab}
                   onClick={() => update("hijab", !form.hijab)}
                   className={`w-full rounded-xl border px-4 py-3 text-sm transition-all flex items-center justify-between ${form.hijab ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
                 >
                   <span>محجبة</span>
+                  {/* Logical alignment: the knob sits at the start when off and moves to the end when on (RTL-safe) */}
                   <div
-                    className={`w-10 h-5 rounded-full transition-colors ${form.hijab ? "bg-primary" : "bg-muted"}`}
+                    aria-hidden="true"
+                    className={`flex w-10 h-5 shrink-0 rounded-full p-0.5 transition-colors ${form.hijab ? "bg-primary justify-end" : "bg-muted justify-start"}`}
                   >
-                    <div
-                      className={`w-4 h-4 rounded-full bg-white shadow-sm transform transition-transform mt-0.5 ${form.hijab ? "translate-x-1" : "translate-x-5"}`}
-                    />
+                    <div className="w-4 h-4 rounded-full bg-white shadow-sm" />
                   </div>
                 </button>
               </div>
@@ -959,16 +1042,18 @@ export default function ProfileEditPage() {
                 <Label>اللحية</Label>
                 <button
                   type="button"
+                  role="switch"
+                  aria-checked={!!form.beard}
                   onClick={() => update("beard", !form.beard)}
                   className={`w-full rounded-xl border px-4 py-3 text-sm transition-all flex items-center justify-between ${form.beard ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
                 >
                   <span>ملتحٍ</span>
+                  {/* Logical alignment: the knob sits at the start when off and moves to the end when on (RTL-safe) */}
                   <div
-                    className={`w-10 h-5 rounded-full transition-colors ${form.beard ? "bg-primary" : "bg-muted"}`}
+                    aria-hidden="true"
+                    className={`flex w-10 h-5 shrink-0 rounded-full p-0.5 transition-colors ${form.beard ? "bg-primary justify-end" : "bg-muted justify-start"}`}
                   >
-                    <div
-                      className={`w-4 h-4 rounded-full bg-white shadow-sm transform transition-transform mt-0.5 ${form.beard ? "translate-x-1" : "translate-x-5"}`}
-                    />
+                    <div className="w-4 h-4 rounded-full bg-white shadow-sm" />
                   </div>
                 </button>
               </div>
@@ -979,12 +1064,13 @@ export default function ProfileEditPage() {
               <div className="grid grid-cols-2 gap-2">
                 {cookingLevels.map((c) => (
                   <button
-                    key={selfLabel("cookingAbility", c, gender)}
+                    key={c}
+                    aria-pressed={form.cookingAbility === c}
                     type="button"
                     onClick={() => update("cookingAbility", c)}
-                    className={`rounded-xl border px-3 py-2 text-sm transition-all ${form.cookingAbility === c ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
+                    className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.cookingAbility === c ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
                   >
-                    {c}
+                    {selfLabel("cookingAbility", c, gender)}
                   </button>
                 ))}
               </div>
@@ -994,17 +1080,19 @@ export default function ProfileEditPage() {
               <Label>رخصة قيادة <OptionalTag /></Label>
               <button
                 type="button"
+                  role="switch"
+                  aria-checked={!!form.drivingLicense}
                 onClick={() => update("drivingLicense", !form.drivingLicense)}
                 className={`w-full rounded-xl border px-4 py-3 text-sm transition-all flex items-center justify-between ${form.drivingLicense ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
               >
                 <span>لدي رخصة قيادة</span>
-                <div
-                  className={`w-10 h-5 rounded-full transition-colors ${form.drivingLicense ? "bg-primary" : "bg-muted"}`}
-                >
+                {/* Logical alignment: the knob sits at the start when off and moves to the end when on (RTL-safe) */}
                   <div
-                    className={`w-4 h-4 rounded-full bg-white shadow-sm transform transition-transform mt-0.5 ${form.drivingLicense ? "translate-x-1" : "translate-x-5"}`}
-                  />
-                </div>
+                    aria-hidden="true"
+                    className={`flex w-10 h-5 shrink-0 rounded-full p-0.5 transition-colors ${form.drivingLicense ? "bg-primary justify-end" : "bg-muted justify-start"}`}
+                  >
+                    <div className="w-4 h-4 rounded-full bg-white shadow-sm" />
+                  </div>
               </button>
             </div>
           </CardContent>
@@ -1138,7 +1226,7 @@ export default function ProfileEditPage() {
                     key={c}
                     type="button"
                     onClick={() => toggleArray("prefCity", c)}
-                    className={`rounded-xl border px-3 py-2 text-sm transition-all ${form.prefCity.includes(c) ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
+                    className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.prefCity.includes(c) ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
                   >
                     {c}
                   </button>
@@ -1157,7 +1245,7 @@ export default function ProfileEditPage() {
                     key={e}
                     type="button"
                     onClick={() => toggleArray("prefEducation", e)}
-                    className={`rounded-xl border px-3 py-2 text-sm transition-all ${form.prefEducation.includes(e) ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
+                    className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.prefEducation.includes(e) ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
                   >
                     {e}
                   </button>
@@ -1176,7 +1264,7 @@ export default function ProfileEditPage() {
                     key={s}
                     type="button"
                     onClick={() => toggleArray("prefMaritalStatus", s)}
-                    className={`rounded-xl border px-3 py-2 text-sm transition-all ${form.prefMaritalStatus.includes(s) ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
+                    className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.prefMaritalStatus.includes(s) ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
                   >
                     {describeOption("maritalStatus", s, partnerGender)}
                   </button>
@@ -1193,7 +1281,7 @@ export default function ProfileEditPage() {
                 <div className="grid grid-cols-3 gap-2">
                   {preferenceOptions.map((o) => (
                     <button key={o} type="button" onClick={() => update("prefHijab", o)}
-                      className={`rounded-xl border px-3 py-2 text-sm transition-all ${form.prefHijab === o ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
+                      className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.prefHijab === o ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
                     >{o}</button>
                   ))}
                 </div>
@@ -1209,7 +1297,7 @@ export default function ProfileEditPage() {
                 <div className="grid grid-cols-3 gap-2">
                   {preferenceOptions.map((o) => (
                     <button key={o} type="button" onClick={() => update("prefBeard", o)}
-                      className={`rounded-xl border px-3 py-2 text-sm transition-all ${form.prefBeard === o ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
+                      className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.prefBeard === o ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
                     >{o}</button>
                   ))}
                 </div>
@@ -1224,7 +1312,7 @@ export default function ProfileEditPage() {
               <div className="grid grid-cols-2 gap-2">
                 {religiosityLevels.map((r) => (
                   <button key={r} type="button" onClick={() => toggleArray("prefReligiosity", r)}
-                    className={`rounded-xl border px-3 py-2 text-sm transition-all ${form.prefReligiosity.includes(r) ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
+                    className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.prefReligiosity.includes(r) ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
                   >{describeOption("religiosity", r, partnerGender)}</button>
                 ))}
               </div>
@@ -1238,7 +1326,7 @@ export default function ProfileEditPage() {
               <div className="grid grid-cols-2 gap-2">
                 {smokingStatuses.map((s) => (
                   <button key={s} type="button" onClick={() => toggleArray("prefSmokingStatus", s)}
-                    className={`rounded-xl border px-3 py-2 text-sm transition-all ${form.prefSmokingStatus.includes(s) ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
+                    className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.prefSmokingStatus.includes(s) ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
                   >{describeOption("smokingStatus", s, partnerGender)}</button>
                 ))}
               </div>
@@ -1252,7 +1340,7 @@ export default function ProfileEditPage() {
               <div className="grid grid-cols-3 gap-2">
                 {preferenceOptions.map((o) => (
                   <button key={o} type="button" onClick={() => update("prefChildrenAcceptance", o)}
-                    className={`rounded-xl border px-3 py-2 text-sm transition-all ${form.prefChildrenAcceptance === o ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
+                    className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.prefChildrenAcceptance === o ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
                   >{o}</button>
                 ))}
               </div>
@@ -1266,7 +1354,7 @@ export default function ProfileEditPage() {
                     key={r.value}
                     type="button"
                     onClick={() => update("willingToRelocate", r.value)}
-                    className={`rounded-xl border px-3 py-2 text-sm transition-all ${form.willingToRelocate === r.value ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
+                    className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.willingToRelocate === r.value ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
                   >
                     {r.label}
                   </button>
@@ -1334,7 +1422,7 @@ export default function ProfileEditPage() {
                     key={h}
                     type="button"
                     onClick={() => update("housingType", h)}
-                    className={`rounded-xl border px-3 py-2 text-sm transition-all ${form.housingType === h ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
+                    className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.housingType === h ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
                   >
                     {h}
                   </button>
@@ -1350,7 +1438,7 @@ export default function ProfileEditPage() {
                     key={e}
                     type="button"
                     onClick={() => update("monthlyExpenses", e)}
-                    className={`rounded-xl border px-3 py-2 text-sm transition-all ${form.monthlyExpenses === e ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
+                    className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.monthlyExpenses === e ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
                   >
                     {e}
                   </button>
@@ -1426,7 +1514,7 @@ export default function ProfileEditPage() {
                     key={r.value}
                     type="button"
                     onClick={() => update("relationship", r.value)}
-                    className={`rounded-xl border px-3 py-2 text-sm transition-all ${form.relationship === r.value ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
+                    className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.relationship === r.value ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
                   >
                     {r.label}
                   </button>
@@ -1465,7 +1553,13 @@ export default function ProfileEditPage() {
         <div className="flex items-center gap-2 rounded-xl bg-accent/10 border border-accent/30 p-3 text-sm text-accent-foreground">
           <CheckCircle2 className="h-4 w-4 text-accent shrink-0" />
           <span>
-            تم تعديل <strong>{changedCount}</strong> حقل/حقول
+            {changedCount === 1 ? (
+              <>تم تعديل <strong>حقل واحد</strong></>
+            ) : changedCount === 2 ? (
+              <>تم تعديل <strong>حقلين</strong></>
+            ) : (
+              <>تم تعديل <strong>{changedCount}</strong> {changedCount % 100 >= 3 && changedCount % 100 <= 10 ? "حقول" : "حقلاً"}</>
+            )}
           </span>
         </div>
       )}
@@ -1514,7 +1608,7 @@ export default function ProfileEditPage() {
             ) : (
               <>
                 <Send className="h-4 w-4 me-2" />
-                {Object.keys(getChangedFields()).length > 0 ? "إرسال طلب التعديل" : "حفظ التعديلات"} ({changedCount})
+                {willNeedReview ? "إرسال طلب التعديل" : "حفظ التعديلات"} ({changedCount})
               </>
             )}
           </Button>

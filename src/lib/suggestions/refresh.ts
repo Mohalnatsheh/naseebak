@@ -4,8 +4,8 @@
  *
  * - Every such row gets the match % recalculated with the new data.
  * - A row that no longer fits (fails either side's «شروط أساسية», or drops under the minimum score)
- *   is closed, unless the other person already said «مهتم» on it: they paid a credit for that card,
- *   so it stays open (with the new %). Closing tells nobody anything, like an expiry.
+ *   is closed, also when the other person already said «مهتم» on it: their credit comes back
+ *   (`refundUnansweredInterests`, same rule as the dealbreaker sweep). Closing tells nobody why, like an expiry.
  * - Admin hand-picks are never closed for the score (an admin may pick a lower pair on purpose).
  * - Freed slots are topped up right away.
  * Rows the person already answered are left alone.
@@ -14,6 +14,7 @@ import { db } from "@/lib/db";
 import { calculateCompatibility, mutuallyAcceptable, type UserForScoring } from "@/lib/matching/score";
 import { autoSuggestForUser, minSuggestionScore, scoringSelect } from "@/lib/matching/auto-suggest";
 import { getCycleFlags } from "@/lib/settings";
+import { refundUnansweredInterests } from "@/lib/suggestions/mutual";
 
 export interface RefreshResult {
   rescored: number;
@@ -47,8 +48,6 @@ export async function refreshOpenSuggestions(userId: string, now = new Date()): 
       source: true,
       compatibilityScore: true,
       recipientId: true,
-      recipientDecision: true,
-      candidateDecision: true,
       recipient: { select: scoringSelect },
       candidate: { select: scoringSelect },
     },
@@ -59,7 +58,6 @@ export async function refreshOpenSuggestions(userId: string, now = new Date()): 
   for (const row of rows) {
     const iAmRecipient = row.recipientId === userId;
     const other = (iAmRecipient ? row.candidate : row.recipient) as UserForScoring;
-    const otherDecision = iAmRecipient ? row.candidateDecision : row.recipientDecision;
     // Same order as when the row was created (recipient first)
     const recipient = (iAmRecipient ? me : other) as UserForScoring;
     const candidate = (iAmRecipient ? other : me) as UserForScoring;
@@ -67,7 +65,7 @@ export async function refreshOpenSuggestions(userId: string, now = new Date()): 
 
     const fits =
       mutuallyAcceptable(me as UserForScoring, other) && (row.source === "ADMIN" || score >= minScore);
-    if (!fits && otherDecision !== "INTERESTED") {
+    if (!fits) {
       toClose.push(row.id);
       continue;
     }
@@ -83,20 +81,21 @@ export async function refreshOpenSuggestions(userId: string, now = new Date()): 
   }
 
   if (toClose.length > 0) {
-    // Re-checked in the update: never close a row the other side answered «مهتم» on in the meantime
+    // Re-checked in the update: a row I decided on a moment ago is left as it is
+    // expiresAt = now so the refund pass (closed, past-expiry rows) gives back the other side's «مهتم»
     const { count } = await db.suggestion.updateMany({
       where: {
         id: { in: toClose },
         status: "PENDING",
-        // Still mine to decide, and the other side has said nothing or «لا» (a NOT on a nullable column would skip nulls)
         OR: [
-          { recipientId: userId, recipientDecision: null, OR: [{ candidateDecision: null }, { candidateDecision: "DECLINED" }] },
-          { candidateId: userId, candidateDecision: null, OR: [{ recipientDecision: null }, { recipientDecision: "DECLINED" }] },
+          { recipientId: userId, recipientDecision: null },
+          { candidateId: userId, candidateDecision: null },
         ],
       },
       data: { status: "EXPIRED", expiresAt: now },
     });
     result.closed = count;
+    if (count > 0) await refundUnansweredInterests({ userId, now }).catch((e) => console.error("[suggestions] refresh refunds:", e));
   }
 
   // Fills the freed slots (and any that were already free)

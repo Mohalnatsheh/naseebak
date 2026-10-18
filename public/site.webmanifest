@@ -2,7 +2,7 @@
   "name": "نصيبك - نوصّلك بشريك العمر بالحلال",
   "short_name": "نصيبك",
   "description": "منصة أردنية للزواج بالحلال — بسترة واحترام",
-  "start_url": "/",
+  "start_url": "/dashboard",
   "display": "standalone",
   "background_color": "#f8f9fc",
   "theme_color": "#22476a",

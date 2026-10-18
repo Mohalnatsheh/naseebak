@@ -7,6 +7,11 @@ const db = vi.hoisted(() => ({
 const push = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/onesignal", () => ({ sendPushNotification: push }));
+const smsNotice = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/sms-notice", async (orig) => ({
+  ...(await orig<typeof import("@/lib/sms-notice")>()),
+  sendSmsNotice: smsNotice,
+}));
 
 import { notify, notifyMany, startOfAmmanDay } from "@/lib/notify";
 
@@ -16,6 +21,28 @@ beforeEach(() => {
   db.notification.findFirst.mockResolvedValue(null);
   db.notificationPreference.findUnique.mockResolvedValue(null);
   push.mockResolvedValue(undefined);
+});
+
+describe("notify: SMS fallback", () => {
+  it("asks for the SMS fallback on the match, «مهتم» and expiring-card notices", async () => {
+    await notify({ userId: "u1", type: "MATCH", title: "توافق متبادل!", body: "b" });
+    await notify({ userId: "u2", type: "SUGGESTION", title: "شخص أبدى اهتمامه بك", body: "b" });
+    await notify({ userId: "u3", type: "SUGGESTION", title: "اقتراح بانتظار قرارك", body: "b" });
+    expect(smsNotice.mock.calls).toEqual([["u1", "match"], ["u2", "interest"], ["u3", "expiring"]]);
+  });
+
+  it("not for other notices, nor when the member turned that type off, nor with sms: false", async () => {
+    await notify({ userId: "u1", type: "SUGGESTION", title: "اقتراحات توافق جديدة", body: "b" });
+    await notify({ userId: "u1", type: "MATCH", title: "توافق متبادل!", body: "b", sms: false });
+    db.notificationPreference.findUnique.mockResolvedValue({ matches: false });
+    await notify({ userId: "u1", type: "MATCH", title: "توافق متبادل!", body: "b" });
+    expect(smsNotice).not.toHaveBeenCalled();
+  });
+
+  it("a caller can opt in explicitly", async () => {
+    await notify({ userId: "u1", type: "MATCH", title: "x", body: "b", sms: "match" });
+    expect(smsNotice).toHaveBeenCalledWith("u1", "match");
+  });
 });
 
 describe("notify", () => {
@@ -44,6 +71,18 @@ describe("notify", () => {
     db.notificationPreference.findUnique.mockResolvedValue({ chatMessages: false });
     await notify({ userId: "u1", type: "CHAT", title: "t", body: "b", pushOnly: true });
     expect(push).not.toHaveBeenCalled();
+  });
+
+  it("a chat status notice follows its own preference, not «رسائل المحادثات» (G21)", async () => {
+    db.notificationPreference.findUnique.mockResolvedValue({ chatMessages: false });
+    await notify({ userId: "u1", type: "CHAT", title: "انتهت مدة المحادثة", body: "b", preference: "introRequests" });
+    expect(push).toHaveBeenCalledTimes(1);
+
+    vi.clearAllMocks();
+    db.notificationPreference.findUnique.mockResolvedValue({ introRequests: false });
+    await notify({ userId: "u1", type: "CHAT", title: "انتهت مدة المحادثة", body: "b", preference: "introRequests" });
+    expect(push).not.toHaveBeenCalled();
+    expect(db.notification.create).toHaveBeenCalledTimes(1);
   });
 
   it("always pushes SYSTEM notifications", async () => {

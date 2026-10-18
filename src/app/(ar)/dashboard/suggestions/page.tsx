@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useEffectEvent } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
   Loader2,
@@ -33,6 +34,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { SUGGESTIONS_MIN_COMPLETENESS, missingSetupSteps, qualifiesForSuggestions as qualifiesForSuggestionsGate } from "@/lib/profile-completeness";
 import { PersonCard } from "@/components/shared/person-card";
+import { LoadError } from "@/components/shared/load-error";
+import { ConfirmActionDialog } from "@/components/intro/confirm-action-dialog";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { blockConfirmText, forViewer } from "@/lib/gendered-copy";
 import { trackEvent } from "@/lib/analytics";
 import { useDashboardData } from "@/contexts/dashboard-context";
 import { describeOption, nationalityLabel, oppositeGender } from "@/lib/profile-options";
@@ -156,7 +162,8 @@ const STATUS_CONFIG = {
 
 export default function SuggestionsPage() {
   // New cycle: suggestions are free, so no "out of credits" banner here
-  const { counts: cycleCounts, profile: me } = useDashboardData();
+  const router = useRouter();
+  const { counts: cycleCounts, profile: me, loading: switchesLoading } = useDashboardData();
   const perRequestCredits = cycleCounts.flags.introRequests;
   // Candidates are the other gender: describe their options in third person
   const partnerGender = oppositeGender(me?.gender);
@@ -179,6 +186,8 @@ export default function SuggestionsPage() {
   const [acting, setActing] = useState<string | null>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [accountComplete, setAccountComplete] = useState<boolean | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   const [completionPercent, setCompletionPercent] = useState<number>(0);
   const [incompleteSections, setIncompleteSections] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState<"new" | "sent" | "interests">("new");
@@ -189,15 +198,15 @@ export default function SuggestionsPage() {
   const [intPage, setIntPage] = useState(1);
   const [intTotalPages, setIntTotalPages] = useState(1);
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
-  const [menuOpen, setMenuOpen] = useState<string | null>(null);
+  const [blockFor, setBlockFor] = useState<{ userId: string; name: string; cardId: string; tab: "suggestion" | "interest" } | null>(null);
+  const [blocking, setBlocking] = useState(false);
   const [reportDialog, setReportDialog] = useState<{ userId: string; name: string } | null>(null);
   const [reportReason, setReportReason] = useState("FAKE_PROFILE");
   const [reportDetails, setReportDetails] = useState("");
   const [reportSubmitting, setReportSubmitting] = useState(false);
 
-  async function handleBlock(userId: string, name: string, cardId: string, tab: "suggestion" | "interest") {
-    setMenuOpen(null);
-    if (!window.confirm(`حظر ${name}؟ لن يظهر لك ولن تظهر له مرة أخرى.`)) return;
+  async function handleBlock(userId: string, cardId: string, tab: "suggestion" | "interest") {
+    setBlocking(true);
     try {
       const res = await fetch("/api/blocks", {
         method: "POST",
@@ -211,12 +220,15 @@ export default function SuggestionsPage() {
           setInterests((prev) => prev.filter((i) => i.id !== cardId));
         }
         toast.success("تم الحظر");
+        setBlockFor(null);
       } else {
         toast.error("تعذّر الحظر، حاول مرة أخرى");
       }
     } catch (err) {
       console.error(err);
       toast.error("تعذّر الحظر، حاول مرة أخرى");
+    } finally {
+      setBlocking(false);
     }
   }
 
@@ -250,10 +262,17 @@ export default function SuggestionsPage() {
     }
   }
 
+  // Page 1 load from the effect below, with the current page (not a reason to re-run it)
+  const loadSuggestions = useEffectEvent(() => fetchSuggestions());
+
   useEffect(() => {
+    // Wait for the switches: the gate (and its copy) differs per mode
+    if (switchesLoading) return;
     async function init() {
+      setLoadFailed(false);
       try {
         const res = await fetch("/api/profile");
+        if (!res.ok) throw new Error(`profile ${res.status}`);
         const data = await res.json();
         const total = data.completeness?.total ?? 0;
         setCompletionPercent(total);
@@ -277,19 +296,21 @@ export default function SuggestionsPage() {
           })
         );
 
-        await fetchSuggestions();
+        await loadSuggestions();
       } catch {
-        setAccountComplete(false);
+        // A failed load is not an incomplete profile: show an error with retry
+        setLoadFailed(true);
         setLoading(false);
       }
     }
     init();
     // Re-check once the new-cycle switches arrive (the gate differs per mode)
-  }, [perRequestCredits]);
+  }, [perRequestCredits, switchesLoading, reloadKey]);
 
   async function fetchSuggestions(p = sugPage) {
     try {
       const res = await fetch(`/api/suggestions?page=${p}`);
+      if (!res.ok) throw new Error(`suggestions ${res.status}`);
       const data = await res.json();
       if (data.mutualView) {
         setCycleInfo({ creditOnInterest: !!data.creditOnInterest, chatEnabled: data.chatEnabled !== false });
@@ -301,6 +322,7 @@ export default function SuggestionsPage() {
       if (typeof data.credits === "number") setCredits(data.credits);
     } catch (err) {
       console.error(err);
+      setLoadFailed(true);
     } finally {
       setLoading(false);
     }
@@ -315,6 +337,7 @@ export default function SuggestionsPage() {
       setSentTotalPages(data.totalPages || 1);
     } catch (err) {
       console.error(err);
+      toast.error("تعذّر تحميل الطلبات، حاول مرة أخرى");
     } finally {
       setSentLoading(false);
     }
@@ -329,6 +352,7 @@ export default function SuggestionsPage() {
       setIntTotalPages(data.totalPages || 1);
     } catch (err) {
       console.error(err);
+      toast.error("تعذّر تحميل الطلبات، حاول مرة أخرى");
     } finally {
       setInterestsLoading(false);
     }
@@ -371,12 +395,13 @@ export default function SuggestionsPage() {
         }, 400);
         if (data.match) {
 toast.success("تهانينا! لديك توافق متبادل!", {
-            action: { label: "عرض التوافق", onClick: () => window.location.assign("/dashboard/matches") },
+            action: { label: "عرض التوافق", onClick: () => router.push("/dashboard/matches") },
           });
         }
       }
     } catch (err) {
       console.error(err);
+      toast.error("تعذّر حفظ قرارك، تحقّق من الاتصال وحاول مرة أخرى");
     } finally {
       setActing(null);
     }
@@ -403,12 +428,13 @@ toast.success("تهانينا! لديك توافق متبادل!", {
         }
         if (data.match) {
 toast.success("تهانينا! لديك توافق متبادل!", {
-            action: { label: "عرض التوافق", onClick: () => window.location.assign("/dashboard/matches") },
+            action: { label: "عرض التوافق", onClick: () => router.push("/dashboard/matches") },
           });
         }
       }
     } catch (err) {
       console.error(err);
+      toast.error("تعذّر حفظ قرارك، تحقّق من الاتصال وحاول مرة أخرى");
     } finally {
       setActing(null);
     }
@@ -428,6 +454,20 @@ toast.success("تهانينا! لديك توافق متبادل!", {
     );
   }
 
+  if (loadFailed) {
+    return (
+      <div className="max-w-2xl mx-auto py-8">
+        <LoadError
+          message="تعذّر تحميل الاقتراحات. تحقّق من الاتصال وحاول مرة أخرى."
+          onRetry={() => {
+            setLoading(true);
+            setReloadKey((k) => k + 1);
+          }}
+        />
+      </div>
+    );
+  }
+
   if (accountComplete === false) {
     return (
       <div className="max-w-2xl mx-auto space-y-6 pb-8">
@@ -438,7 +478,7 @@ toast.success("تهانينا! لديك توافق متبادل!", {
               <AlertCircle className="h-8 w-8 text-accent-foreground" />
             </div>
             <div className="space-y-2">
-              <h3 className="text-lg font-bold text-foreground">أكمل حسابك لتلقي الاقتراحات</h3>
+              <h3 className="text-lg font-bold text-foreground">{forViewer(me?.gender, "أكمل حسابك لتلقي الاقتراحات", "أكملي حسابكِ لتلقي الاقتراحات")}</h3>
               <p className="text-sm text-muted-foreground max-w-sm mx-auto leading-relaxed">
                 {perRequestCredits ? (
                   incompleteSections.length === 0 ? (
@@ -719,7 +759,7 @@ toast.success("تهانينا! لديك توافق متبادل!", {
                               {acting === s.id ? (
                                 <Loader2 className="h-5 w-5 animate-spin" />
                               ) : (
-                                <><HeartHandshake className="h-5 w-5 me-2" />أبدِ اهتماماً</>
+                                <><HeartHandshake className="h-5 w-5 me-2" />{forViewer(me?.gender, "أبدِ اهتماماً", "أبدي اهتماماً")}</>
                               )}
                             </Button>
                             <Button
@@ -732,35 +772,23 @@ toast.success("تهانينا! لديك توافق متبادل!", {
                               <X className="h-5 w-5" />
                             </Button>
                             {/* Report/Block menu */}
-                            <div className="relative">
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                aria-label="خيارات إضافية"
-                                className="h-12 w-12 rounded-xl"
-                                onClick={() => setMenuOpen(menuOpen === s.id ? null : s.id)}
-                              >
-                                <MoreVertical className="h-5 w-5" />
-                              </Button>
-                              {menuOpen === s.id && (
-                                <div className="absolute bottom-full mb-1 end-0 bg-card border rounded-xl shadow-lg py-1 z-50 w-40">
-                                  <button
-                                    className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted/50 text-amber-600"
-                                    onClick={() => { setReportDialog({ userId: c.id, name: c.firstName }); setMenuOpen(null); }}
-                                  >
-                                    <ShieldAlert className="h-4 w-4" />
-                                    إبلاغ
-                                  </button>
-                                  <button
-                                    className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted/50 text-destructive"
-                                    onClick={() => handleBlock(c.id, c.firstName, s.id, "suggestion")}
-                                  >
-                                    <Ban className="h-4 w-4" />
-                                    حظر
-                                  </button>
-                                </div>
-                              )}
-                            </div>
+                            <DropdownMenu dir="rtl">
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" aria-label={`خيارات إضافية: ${c.firstName}`} className="h-12 w-12 rounded-xl">
+                                  <MoreVertical className="h-5 w-5" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="w-40">
+                                <DropdownMenuItem className="min-h-11 gap-2 text-amber-700" onSelect={() => setReportDialog({ userId: c.id, name: c.firstName })}>
+                                  <ShieldAlert className="h-4 w-4" />
+                                  إبلاغ
+                                </DropdownMenuItem>
+                                <DropdownMenuItem className="min-h-11 gap-2 text-destructive" onSelect={() => setBlockFor({ userId: c.id, name: c.firstName, cardId: s.id, tab: "suggestion" })}>
+                                  <Ban className="h-4 w-4" />
+                                  حظر
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           </div>
                           </>
                       }
@@ -979,35 +1007,23 @@ toast.success("تهانينا! لديك توافق متبادل!", {
                               <X className="h-5 w-5" />
                             </Button>
                             {/* Report/Block menu */}
-                            <div className="relative">
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                aria-label="خيارات إضافية"
-                                className="h-12 w-12 rounded-xl"
-                                onClick={() => setMenuOpen(menuOpen === interest.id ? null : interest.id)}
-                              >
-                                <MoreVertical className="h-5 w-5" />
-                              </Button>
-                              {menuOpen === interest.id && (
-                                <div className="absolute bottom-full mb-1 end-0 bg-card border rounded-xl shadow-lg py-1 z-50 w-40">
-                                  <button
-                                    className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted/50 text-amber-600"
-                                    onClick={() => { setReportDialog({ userId: c.id, name: c.firstName }); setMenuOpen(null); }}
-                                  >
-                                    <ShieldAlert className="h-4 w-4" />
-                                    إبلاغ
-                                  </button>
-                                  <button
-                                    className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted/50 text-destructive"
-                                    onClick={() => handleBlock(c.id, c.firstName, interest.id, "interest")}
-                                  >
-                                    <Ban className="h-4 w-4" />
-                                    حظر
-                                  </button>
-                                </div>
-                              )}
-                            </div>
+                            <DropdownMenu dir="rtl">
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" aria-label={`خيارات إضافية: ${c.firstName}`} className="h-12 w-12 rounded-xl">
+                                  <MoreVertical className="h-5 w-5" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="w-40">
+                                <DropdownMenuItem className="min-h-11 gap-2 text-amber-700" onSelect={() => setReportDialog({ userId: c.id, name: c.firstName })}>
+                                  <ShieldAlert className="h-4 w-4" />
+                                  إبلاغ
+                                </DropdownMenuItem>
+                                <DropdownMenuItem className="min-h-11 gap-2 text-destructive" onSelect={() => setBlockFor({ userId: c.id, name: c.firstName, cardId: interest.id, tab: "interest" })}>
+                                  <Ban className="h-4 w-4" />
+                                  حظر
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           </div>
                           </>
                       }
@@ -1035,49 +1051,62 @@ toast.success("تهانينا! لديك توافق متبادل!", {
         </>
       )}
 
+      <ConfirmActionDialog
+        open={!!blockFor}
+        onOpenChange={(o) => !o && !blocking && setBlockFor(null)}
+        title={`حظر ${blockFor?.name ?? ""}؟`}
+        description={blockConfirmText(me?.gender)}
+        confirmLabel="حظر"
+        destructive
+        busy={blocking}
+        onConfirm={() => blockFor && handleBlock(blockFor.userId, blockFor.cardId, blockFor.tab)}
+      />
+
       {/* Report Dialog */}
-      {reportDialog && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setReportDialog(null)}>
-          <div className="bg-card rounded-2xl border shadow-2xl p-6 w-full max-w-sm space-y-4" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-bold text-foreground">إبلاغ عن {reportDialog.name}</h3>
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">سبب الإبلاغ</label>
-              <select
-                value={reportReason}
-                onChange={(e) => setReportReason(e.target.value)}
-                className="w-full rounded-xl border border-input bg-background px-3 py-2.5 text-sm"
-              >
-                <option value="FAKE_PROFILE">ملف شخصي مزيف</option>
-                <option value="INAPPROPRIATE_CONTENT">محتوى غير لائق</option>
-                <option value="HARASSMENT">تحرّش</option>
-                <option value="SPAM">رسائل مزعجة</option>
-                <option value="OTHER">أخرى</option>
-              </select>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">تفاصيل إضافية (اختياري)</label>
-              <textarea
-                value={reportDetails}
-                onChange={(e) => setReportDetails(e.target.value)}
-                className="w-full rounded-xl border border-input bg-background px-3 py-2.5 text-sm min-h-[80px] resize-none"
-                placeholder="أضف تفاصيل إن وجدت..."
-              />
-            </div>
-            <div className="flex gap-2 pt-2">
-              <Button
-                onClick={handleReportSubmit}
-                disabled={reportSubmitting}
-                className="flex-1 bg-amber-600 hover:bg-amber-700 text-white rounded-xl"
-              >
-                {reportSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "إرسال البلاغ"}
-              </Button>
-              <Button variant="outline" onClick={() => setReportDialog(null)} className="rounded-xl">
-                إلغاء
-              </Button>
-            </div>
+      <Dialog open={!!reportDialog} onOpenChange={(o) => !o && !reportSubmitting && setReportDialog(null)}>
+        <DialogContent dir="rtl" className="sm:max-w-sm text-start">
+          <DialogHeader>
+            <DialogTitle>إبلاغ عن {reportDialog?.name}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2">
+            <label htmlFor="legacy-report-reason" className="text-sm font-medium text-foreground block">سبب الإبلاغ</label>
+            <select
+              id="legacy-report-reason"
+              value={reportReason}
+              onChange={(e) => setReportReason(e.target.value)}
+              className="w-full rounded-xl border border-input bg-background px-3 py-2.5 text-sm"
+            >
+              <option value="FAKE_PROFILE">ملف شخصي مزيف</option>
+              <option value="INAPPROPRIATE_CONTENT">محتوى غير لائق</option>
+              <option value="HARASSMENT">تحرّش</option>
+              <option value="SPAM">رسائل مزعجة</option>
+              <option value="OTHER">أخرى</option>
+            </select>
           </div>
-        </div>
-      )}
+          <div className="space-y-2">
+            <label htmlFor="legacy-report-details" className="text-sm font-medium text-foreground block">تفاصيل إضافية (اختياري)</label>
+            <textarea
+              id="legacy-report-details"
+              value={reportDetails}
+              onChange={(e) => setReportDetails(e.target.value)}
+              className="w-full rounded-xl border border-input bg-background px-3 py-2.5 text-sm min-h-[80px] resize-none"
+              placeholder={forViewer(me?.gender, "أضف تفاصيل إن وجدت...", "أضيفي تفاصيل إن وجدت...")}
+            />
+          </div>
+          <DialogFooter className="gap-2">
+            <Button
+              onClick={handleReportSubmit}
+              disabled={reportSubmitting}
+              className="h-11 bg-amber-600 hover:bg-amber-700 text-white rounded-xl"
+            >
+              {reportSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "إرسال البلاغ"}
+            </Button>
+            <Button variant="outline" onClick={() => setReportDialog(null)} disabled={reportSubmitting} className="h-11 rounded-xl">
+              إلغاء
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Inline keyframes style */}
       <style jsx global>{`

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useEffectEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Users, ShieldCheck, ChevronLeft, ChevronRight, Search, Ban, Loader2, CreditCard, Flag, CheckSquare, Square, Images, ExternalLink } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -52,10 +52,15 @@ export default function AdminUsersPage() {
   const [bulkSuspending, setBulkSuspending] = useState(false);
   const [notice, setNotice] = useState<{ kind: "success" | "error"; text: string } | null>(null);
 
-  useEffect(() => {
+  // Reloads on page change only; the filters apply when the search form is submitted
+  const onPageChange = useEffectEvent(() => {
     // A selection only applies to the rows on screen
     setSelectedIds(new Set());
     fetchUsers();
+  });
+
+  useEffect(() => {
+    onPageChange();
   }, [page]);
 
   async function fetchUsers(resetPage = false) {

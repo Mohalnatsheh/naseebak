@@ -110,8 +110,10 @@ export async function GET(request: Request) {
 
       const state = states.get(m.id);
       const closed = state?.closed ?? null;
-      // Blocked or inactive: a closed card — no photos, no actions
-      const locked = closed === "blocked" || closed === "inactive";
+      // Blocked, inactive or ended («لم يحصل نصيب»): a closed card — no photos, no full profile, no actions
+      const locked = closed === "blocked" || closed === "inactive" || closed === "ended";
+      /** Locked cards keep only who it was (name, age, city) */
+      const detail = <T>(value: T): T | null => (locked ? null : value);
 
       return {
         id: m.id,
@@ -130,33 +132,33 @@ export async function GET(request: Request) {
           isVerified: otherUser.isVerified,
           age,
           city: profile?.city ?? null,
-          area: profile?.area ?? null,
-          nationality: profile?.nationality ?? null,
-          education: profile?.education ?? null,
-          fieldOfStudy: profile?.fieldOfStudy ?? null,
-          job: profile?.job ?? null,
-          incomeRange: profile?.incomeRange ?? null,
-          height: profile?.height ?? null,
-          weight: profile?.weight ?? null,
-          skinColor: profile?.skinColor ?? null,
-          maritalStatus: profile?.maritalStatus ?? null,
-          childrenCount: profile?.childrenCount ?? 0,
-          religiosity: profile?.religiosity ?? null,
-          smokingStatus: profile?.smokingStatus ?? null,
-          aboutMe: profile?.aboutMe ?? null,
-          hobbies: profile?.hobbies ?? null,
-          interests: profile?.interests ?? null,
-          lifestyle: profile?.lifestyle ?? null,
-          beard: profile?.beard ?? null,
-          hijab: profile?.hijab ?? null,
-          tribe: profile?.tribe ?? null,
-          familyOriginArea: profile?.familyOriginArea ?? null,
-          numberOfSiblings: profile?.numberOfSiblings ?? null,
-          housingType: profile?.housingType ?? null,
-          cookingAbility: profile?.cookingAbility ?? null,
-          drivingLicense: profile?.drivingLicense ?? null,
-          willingToRelocate: profile?.willingToRelocate ?? null,
-          familyValues: profile?.familyValues ?? null,
+          area: detail(profile?.area ?? null),
+          nationality: detail(profile?.nationality ?? null),
+          education: detail(profile?.education ?? null),
+          fieldOfStudy: detail(profile?.fieldOfStudy ?? null),
+          job: detail(profile?.job ?? null),
+          incomeRange: detail(profile?.incomeRange ?? null),
+          height: detail(profile?.height ?? null),
+          weight: detail(profile?.weight ?? null),
+          skinColor: detail(profile?.skinColor ?? null),
+          maritalStatus: detail(profile?.maritalStatus ?? null),
+          childrenCount: locked ? 0 : (profile?.childrenCount ?? 0),
+          religiosity: detail(profile?.religiosity ?? null),
+          smokingStatus: detail(profile?.smokingStatus ?? null),
+          aboutMe: detail(profile?.aboutMe ?? null),
+          hobbies: detail(profile?.hobbies ?? null),
+          interests: detail(profile?.interests ?? null),
+          lifestyle: detail(profile?.lifestyle ?? null),
+          beard: detail(profile?.beard ?? null),
+          hijab: detail(profile?.hijab ?? null),
+          tribe: detail(profile?.tribe ?? null),
+          familyOriginArea: detail(profile?.familyOriginArea ?? null),
+          numberOfSiblings: detail(profile?.numberOfSiblings ?? null),
+          housingType: detail(profile?.housingType ?? null),
+          cookingAbility: detail(profile?.cookingAbility ?? null),
+          drivingLicense: detail(profile?.drivingLicense ?? null),
+          willingToRelocate: detail(profile?.willingToRelocate ?? null),
+          familyValues: detail(profile?.familyValues ?? null),
         },
       };
     });

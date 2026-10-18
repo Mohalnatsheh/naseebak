@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { toast } from "sonner";
 import { compressImage } from "@/lib/image-compress";
 import { useState, useEffect, useRef } from "react";
@@ -17,6 +18,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { FirstVisitTip } from "@/components/shared/first-visit-tip";
 import { ImageLightbox } from "@/components/shared/image-lightbox";
 import { trackEvent } from "@/lib/analytics";
+import { useDashboardData } from "@/contexts/dashboard-context";
+import { LoadError } from "@/components/shared/load-error";
 
 interface Photo {
   id: string;
@@ -36,6 +39,9 @@ export default function PhotosPage() {
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [settingPrimary, setSettingPrimary] = useState<string | null>(null);
+  const female = useDashboardData().profile?.gender === "FEMALE";
 
   useEffect(() => {
     fetchPhotos();
@@ -44,10 +50,14 @@ export default function PhotosPage() {
   async function fetchPhotos() {
     try {
       const res = await fetch("/api/profile/photos");
+      if (!res.ok) throw new Error(`photos ${res.status}`);
       const data = await res.json();
       setPhotos(data.photos || []);
+      setLoadFailed(false);
     } catch (err) {
       console.error("Failed to fetch photos", err);
+      // Never claim "no photos yet" when the list just didn't load
+      setLoadFailed(true);
     } finally {
       setLoading(false);
     }
@@ -59,6 +69,17 @@ export default function PhotosPage() {
 
     const remaining = MAX_PHOTOS - photos.length;
     const filesToUpload = Array.from(files).slice(0, remaining);
+    if (files.length > filesToUpload.length) {
+      toast.info(
+        remaining <= 0
+          ? `وصلت للحد الأقصى (${MAX_PHOTOS} صور)`
+          : `يمكن رفع ${remaining === 1 ? "صورة واحدة" : remaining === 2 ? "صورتين" : `${remaining} صور`} فقط (الحد ${MAX_PHOTOS} صور)`
+      );
+      if (filesToUpload.length === 0) {
+        if (fileInputRef.current) fileInputRef.current.value = "";
+        return;
+      }
+    }
 
     setUploading(true);
     try {
@@ -100,7 +121,10 @@ export default function PhotosPage() {
   }
 
   async function setPrimary(photoId: string) {
+    if (settingPrimary) return;
+    setSettingPrimary(photoId);
     const res = await fetch(`/api/profile/photos/${photoId}`, { method: "PATCH" }).catch(() => null);
+    setSettingPrimary(null);
     if (res?.ok) {
       setPhotos((prev) => prev.map((p) => ({ ...p, isPrimary: p.id === photoId })));
       toast.success("تم تعيين الصورة الرئيسية");
@@ -130,6 +154,7 @@ export default function PhotosPage() {
       }
     } catch (err) {
       console.error("Delete failed", err);
+      toast.error("تعذّر حذف الصورة، تحقّق من الاتصال وحاول مرة أخرى");
     } finally {
       setDeletingId(null);
     }
@@ -155,7 +180,7 @@ export default function PhotosPage() {
         storageKey="naseeb_tip_photos"
         icon={<Camera className="h-5 w-5 text-primary" />}
         title="صورك محمية ومؤمنة"
-        body="صورك الشخصية لن تظهر لأي مستخدم إلا بعد التوافق المتبادل بينكما. تأكد من إضافة صور واضحة لزيادة فرصك."
+        body={`صورك الشخصية لن تظهر لأي مستخدم إلا بعد التوافق المتبادل بينكما. ${female ? "تأكدي" : "تأكد"} من إضافة صور واضحة لزيادة فرصك.`}
       />
       {/* Page Header */}
       <div className="relative overflow-hidden rounded-2xl bg-gradient-to-l from-primary/5 via-primary/5 to-transparent border border-primary/10 p-4 sm:p-6 md:p-8">
@@ -220,7 +245,15 @@ export default function PhotosPage() {
       </div>
 
       {/* Photo Grid */}
-      {photos.length === 0 ? (
+      {loadFailed && photos.length === 0 ? (
+        <LoadError
+          message="تعذّر تحميل صورك. تحقّق من الاتصال وحاول مرة أخرى."
+          onRetry={() => {
+            setLoading(true);
+            fetchPhotos();
+          }}
+        />
+      ) : photos.length === 0 ? (
         <Card className="border-dashed border-2 border-muted-foreground/20 bg-gradient-to-b from-card to-primary/5">
           <CardContent className="text-center py-16 md:py-20 space-y-5">
             <div className="relative mx-auto w-24 h-24">
@@ -257,10 +290,13 @@ export default function PhotosPage() {
               }}
             >
               <div className="aspect-square relative">
-                <img
+                <Image
                   src={photo.url}
                   alt={`صورة ${index + 1}`}
-                  className="w-full h-full object-cover cursor-pointer"
+                  fill
+                  unoptimized
+                  sizes="(min-width: 768px) 33vw, 50vw"
+                  className="object-cover cursor-pointer"
                   draggable={false}
                   onContextMenu={(e) => e.preventDefault()}
                   onClick={() => { setLightboxIndex(index); setLightboxOpen(true); }}
@@ -277,20 +313,22 @@ export default function PhotosPage() {
                   <button
                     type="button"
                     onClick={(e) => { e.stopPropagation(); setPrimary(photo.id); }}
-                    className="absolute bottom-2 start-2 inline-flex items-center gap-1 rounded-full bg-card/90 backdrop-blur-sm px-2.5 py-1 text-[11px] font-semibold text-foreground shadow-md hover:bg-card"
+                    disabled={!!settingPrimary}
+                    className="absolute bottom-2 start-2 inline-flex min-h-11 items-center gap-1 rounded-full bg-card/90 backdrop-blur-sm px-3 text-xs font-semibold text-foreground shadow-md hover:bg-card disabled:opacity-70"
                   >
-                    <Star className="h-3 w-3" />
+                    {settingPrimary === photo.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Star className="h-3.5 w-3.5" />}
                     اجعلها الرئيسية
                   </button>
                 )}
 
                 {/* Delete button */}
                 <button
+                  type="button"
                   onClick={(e) => { e.stopPropagation(); handleDelete(photo.id); }}
                   disabled={deletingId === photo.id}
                   aria-label={confirmDeleteId === photo.id ? "تأكيد الحذف" : "حذف الصورة"}
-                  className={`absolute top-2 end-2 h-8 rounded-full bg-destructive/90 backdrop-blur-sm text-destructive-foreground flex items-center justify-center gap-1 transition-all duration-300 hover:bg-destructive ${
-                    confirmDeleteId === photo.id ? "px-3 text-xs font-bold opacity-100" : "w-8 opacity-100 md:opacity-0 md:group-hover:opacity-100"
+                  className={`absolute top-2 end-2 h-11 rounded-full bg-destructive/90 backdrop-blur-sm text-destructive-foreground flex items-center justify-center gap-1 transition-all duration-300 hover:bg-destructive ${
+                    confirmDeleteId === photo.id ? "px-3 text-xs font-bold opacity-100" : "w-11 opacity-100 md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100"
                   }`}
                 >
                   {deletingId === photo.id ? (

@@ -28,7 +28,7 @@ import { cn } from "@/lib/utils";
 import { useDashboardData } from "@/contexts/dashboard-context";
 import type { IntroState } from "@/lib/intro/requests";
 import type { MatchClosure } from "@/lib/matches/state";
-import { IntroConfirmDialog, type IntroDialogMode } from "./intro-confirm-dialog";
+import { FREE_REQUEST_NOTE, IntroConfirmDialog, type IntroDialogMode } from "./intro-confirm-dialog";
 import { GuardianContactCard } from "./guardian-contact-card";
 import { GuardianQuickForm } from "./guardian-quick-form";
 import { ConfirmActionDialog } from "./confirm-action-dialog";
@@ -106,13 +106,22 @@ export function MatchClosedNote({
   );
 }
 
+type IntroLoadResult = { ok: true; state: IntroState } | { ok: false; failed: "error" | "gone" };
+
+async function fetchIntroState(matchId: string): Promise<IntroLoadResult> {
+  try {
+    const res = await fetch(`/api/matches/${matchId}/intro`);
+    if (res.ok) return { ok: true, state: await res.json() };
+    return { ok: false, failed: res.status === 404 ? "gone" : "error" };
+  } catch {
+    return { ok: false, failed: "error" };
+  }
+}
+
 /**
  * "خطوات التعارف" on a mutual match: family introduction and chat requests.
  * Renders nothing while the new cycle switch is off.
  */
-/** Credit on interest: requests (and chat → family) are free after the match. */
-const FREE_REQUEST_NOTE = "مجاناً — الطلبات والمحادثة مجانية بعد التوافق.";
-
 export function MatchIntroPanel({ matchId, partnerName }: { matchId: string; partnerName: string }) {
   const router = useRouter();
   const { refreshUnread, refreshProfile, profile } = useDashboardData();
@@ -130,19 +139,18 @@ export function MatchIntroPanel({ matchId, partnerName }: { matchId: string; par
   const [shareConsent, setShareConsent] = useState(false);
   const [outcomeDialog, setOutcomeDialog] = useState<null | "NOT_A_MATCH" | "ENGAGED">(null);
 
-  const load = useCallback(async () => {
-    try {
-      const res = await fetch(`/api/matches/${matchId}/intro`);
-      if (res.ok) {
-        setState(await res.json());
-        setLoadFailed(null);
-      } else {
-        setLoadFailed(res.status === 404 ? "gone" : "error");
-      }
-    } catch {
-      setLoadFailed("error");
+  const applyLoad = useCallback((result: IntroLoadResult) => {
+    if (result.ok) {
+      setState(result.state);
+      setLoadFailed(null);
+    } else {
+      setLoadFailed(result.failed);
     }
-  }, [matchId]);
+  }, []);
+
+  const load = useCallback(async () => {
+    applyLoad(await fetchIntroState(matchId));
+  }, [matchId, applyLoad]);
 
   async function retry() {
     setRetrying(true);
@@ -151,8 +159,14 @@ export function MatchIntroPanel({ matchId, partnerName }: { matchId: string; par
   }
 
   useEffect(() => {
-    load();
-  }, [load]);
+    let active = true;
+    fetchIntroState(matchId).then((result) => {
+      if (active) applyLoad(result);
+    });
+    return () => {
+      active = false;
+    };
+  }, [matchId, applyLoad]);
 
   if (!state && loadFailed === "gone") return null;
   if (!state && loadFailed === "error") {
@@ -198,18 +212,13 @@ export function MatchIntroPanel({ matchId, partnerName }: { matchId: string; par
   async function confirm(consent: boolean) {
     if (!dialog || busy) return;
     setBusy(true);
-    // Sender's consent is saved first; the receiver's goes with the accept call
-    if (dialog.mode === "send" && consent) {
-      const saved = await postJson("/api/profile/guardian-consent");
-      if (!saved.ok) {
-        setBusy(false);
-        toast.error(saved.data.error ?? "تعذّر حفظ الموافقة");
-        return;
-      }
-    }
+    // The guardian consent goes with the request itself: stored only if it is sent / accepted
     const res =
       dialog.mode === "send"
-        ? await postJson<{ creditsLeft: number }>(`/api/matches/${matchId}/intro`, { type: dialog.type })
+        ? await postJson<{ creditsLeft: number }>(`/api/matches/${matchId}/intro`, {
+            type: dialog.type,
+            ...(consent && { consent: true }),
+          })
         : await postJson<{ status: string; conversationId?: string }>(
             `/api/intro-requests/${dialog.requestId}/respond`,
             { accept: dialog.mode === "accept", consent: consent || undefined }
@@ -241,17 +250,20 @@ export function MatchIntroPanel({ matchId, partnerName }: { matchId: string; par
     if (conversationId) router.push(`/dashboard/chats/${conversationId}`);
   }
 
-  /** Mixed outcome: the chat side agrees to share its guardian contact on this match */
-  async function shareGuardian(justConsented = false) {
+  /**
+   * Mixed outcome: the chat side agrees to share its guardian contact on this match. The consent is
+   * stored with the share (also right after the quick form saved a new contact without it).
+   */
+  async function shareGuardian() {
     if (busy) return;
     setBusy(true);
-    const res = await postJson<IntroState>(`/api/matches/${matchId}/guardian-share`, justConsented || state?.myGuardian.consented ? {} : { consent: true });
+    const res = await postJson<IntroState>(`/api/matches/${matchId}/guardian-share`, state?.myGuardian.consented ? {} : { consent: true });
     setBusy(false);
     if (!res.ok) {
       toast.error(res.data.error ?? "تعذّر حفظ الموافقة، حاول مرة أخرى");
       return;
     }
-    toast.success("تمت مشاركة بيانات وليّ أمرك مع عائلة الطرف الآخر");
+    toast.success("تبادلت العائلتان بيانات التواصل");
     setState(res.data);
     refreshProfile();
     refreshUnread();
@@ -269,7 +281,7 @@ export function MatchIntroPanel({ matchId, partnerName }: { matchId: string; par
       return;
     }
     toast.success(
-      outcome === "ENGAGED" ? "مبارك! أوقفنا الاقتراحات الجديدة لك" : outcome === "NOT_A_MATCH" ? "تم إنهاء التعارف" : "شكراً، سنسألك لاحقاً"
+      outcome === "ENGAGED" ? "مبارك! أوقفنا الاقتراحات الجديدة لك" : outcome === "NOT_A_MATCH" ? "تم إنهاء التوافق" : "شكراً، سنسألك لاحقاً"
     );
     setState(res.data);
     refreshUnread();
@@ -303,7 +315,7 @@ export function MatchIntroPanel({ matchId, partnerName }: { matchId: string; par
       <Button asChild size="sm" variant="outline" className="gap-1.5">
         <Link href="/dashboard/payments">
           <Coins className="h-4 w-4" />
-          اشحن رصيدك للإرسال
+          {g("اشحن رصيدك للإرسال", "اشحني رصيدك للإرسال")}
         </Link>
       </Button>
     ) : (
@@ -387,7 +399,11 @@ export function MatchIntroPanel({ matchId, partnerName }: { matchId: string; par
       break;
     case "ended":
     case "expired":
-      chatChip = <Chip tone="muted" icon={Ban}>{chat.status === "ended" ? "انتهت المحادثة" : "انتهت مدة المحادثة"}</Chip>;
+      chatChip = chat.paused ? (
+        <Chip tone="amber" icon={Clock}>متوقفة مؤقتاً للمراجعة</Chip>
+      ) : (
+        <Chip tone="muted" icon={Ban}>{chat.status === "ended" ? "انتهت المحادثة" : "انتهت مدة المحادثة"}</Chip>
+      );
       chatAction = (
         <Button asChild size="sm" variant="outline">
           <Link href={`/dashboard/chats/${chat.conversationId}`}>عرض المحادثة</Link>
@@ -407,7 +423,7 @@ export function MatchIntroPanel({ matchId, partnerName }: { matchId: string; par
       key: "FAMILY",
       icon: Users,
       title: "طلب تعارف عائلي",
-      text: "تتبادل العائلتان بيانات وليّ الأمر لترتيب الزيارة.",
+      text: "تتبادل العائلتان بيانات وليّ الأمر لترتيب الزيارة، ولا تظهر بيانات أي طرف قبل أن يشارك الطرفان.",
       chip: familyChip,
       action: familyAction,
       highlight: family.status === "pending_received",
@@ -452,7 +468,9 @@ export function MatchIntroPanel({ matchId, partnerName }: { matchId: string; par
         >
           <Clock className="mt-0.5 h-4 w-4 flex-shrink-0" aria-hidden="true" />
           <p className="leading-relaxed">
-            <span className="font-semibold">توافق متبادل!</span> الطرف الآخر فضّل المحادثة أولاً، وطلبنا منه مشاركة بيانات وليّ أمره. سنُعلمك فور مشاركتها.
+            <span className="font-semibold">توافق متبادل!</span> {partnerFemale
+              ? "الطرف الآخر فضّل المحادثة أولاً، وطلبنا منها مشاركة بيانات وليّ أمرها. لا تظهر بيانات وليّ أمرك لها قبل ذلك، وسنُعلمك فور تبادل البيانات."
+              : "الطرف الآخر فضّل المحادثة أولاً، وطلبنا منه مشاركة بيانات وليّ أمره. لا تظهر بيانات وليّ أمرك له قبل ذلك، وسنُعلمك فور تبادل البيانات."}
           </p>
         </div>
       )}
@@ -481,9 +499,16 @@ export function MatchIntroPanel({ matchId, partnerName }: { matchId: string; par
                   "الطرف الآخر فضّل التعارف العائلي — هل توافقين على مشاركة بيانات ولي أمرك؟"
                 )}
               </p>
+              <p className="leading-relaxed text-foreground/80">
+                {g("عند المشاركة ترى", "عند المشاركة ترين")} بيانات وليّ أمر الطرف الآخر أيضاً، ولا تظهر بيانات أي طرف قبل ذلك.
+              </p>
               {!myGuardian.exists ? (
-                // Saved with consent, then shared on this match straight away
-                <GuardianQuickForm onSaved={() => shareGuardian(true)} />
+                // Contact saved without consent; sharing it here (the action) records the consent
+                <GuardianQuickForm
+                  shareConsent={false}
+                  note="بالحفظ أوافق على مشاركة اسم ورقم وليّ الأمر مع عائلة الطرف الآخر على هذا التوافق."
+                  onSaved={() => shareGuardian()}
+                />
               ) : (
                 <>
                   {!myGuardian.consented && (
@@ -553,10 +578,13 @@ export function MatchIntroPanel({ matchId, partnerName }: { matchId: string; par
           <p className="font-semibold text-foreground">كيف يسير التعارف العائلي؟</p>
           <p className="mt-1 leading-relaxed text-muted-foreground">
             {state.followUp.partner === "ENGAGED" && state.followUp.mine !== "ENGAGED"
-              ? "أخبرنا الطرف الآخر أن التعارف انتهى بالخطبة. هل تؤكد ذلك؟"
+              ? `أخبرنا الطرف الآخر أن التعارف انتهى بالخطبة. ${g("هل تؤكد ذلك؟", "هل تؤكدين ذلك؟")}`
               : state.followUp.mine === "CONTINUING"
                 ? "أخبرتنا أنكما ما زلتما تتعارفان. حدّثنا عندما يتغيّر شيء."
-                : "أخبرنا بما وصلتم إليه، فهذا يساعدنا على متابعتك وإيقاف الاقتراحات عند الخطبة."}
+                : g(
+                    "أخبِرنا بما وصلتم إليه، فهذا يساعدنا على متابعتك وإيقاف الاقتراحات عند الخطبة.",
+                    "أخبِرينا بما وصلتم إليه، فهذا يساعدنا على متابعتكِ وإيقاف الاقتراحات عند الخطبة."
+                  )}
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             {state.followUp.mine !== "CONTINUING" && (
@@ -568,7 +596,13 @@ export function MatchIntroPanel({ matchId, partnerName }: { matchId: string; par
               <PartyPopper className="h-4 w-4" aria-hidden="true" />
               تمت الخطبة
             </Button>
-            <Button size="sm" variant="ghost" disabled={busy} onClick={() => setOutcomeDialog("NOT_A_MATCH")}>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={busy}
+              onClick={() => setOutcomeDialog("NOT_A_MATCH")}
+              className="border-destructive/30 text-destructive hover:bg-destructive/5 hover:text-destructive"
+            >
               لم يحصل نصيب
             </Button>
           </div>
@@ -582,7 +616,7 @@ export function MatchIntroPanel({ matchId, partnerName }: { matchId: string; par
             type="button"
             disabled={busy}
             onClick={() => setOutcomeDialog("NOT_A_MATCH")}
-            className="text-xs font-medium text-muted-foreground underline-offset-4 hover:text-destructive hover:underline"
+            className="inline-flex min-h-11 items-center px-2 text-xs font-medium text-muted-foreground underline-offset-4 hover:text-destructive hover:underline"
           >
             إنهاء التوافق
           </button>
@@ -592,13 +626,13 @@ export function MatchIntroPanel({ matchId, partnerName }: { matchId: string; par
       <ConfirmActionDialog
         open={!!outcomeDialog}
         onOpenChange={(o) => !o && setOutcomeDialog(null)}
-        title={outcomeDialog === "ENGAGED" ? "تأكيد الخطبة" : "إنهاء التعارف"}
+        title={outcomeDialog === "ENGAGED" ? "تأكيد الخطبة" : `إنهاء التوافق مع ${partnerName}؟`}
         description={
           outcomeDialog === "ENGAGED"
-            ? "مبارك! سنوقف إرسال اقتراحات جديدة لك، وتُغلق اقتراحاتك المفتوحة. يمكنك التراجع لاحقاً من هذه الصفحة."
-            : `سينتهي التعارف مع ${partnerName}${chat.status === "open" ? " وتُغلق المحادثة" : ""}، وسنُعلم الطرف الآخر بلطف. لا يمكن التراجع عن ذلك.`
+            ? "مبارك! سنوقف إرسال اقتراحات جديدة لك، وتُغلق اقتراحاتك المفتوحة وتوافقاتك الأخرى (تنتهي محادثاتها المفتوحة ويُبلَّغ أصحابها بلطف). يمكنك التراجع لاحقاً من هذه الصفحة لاستئناف الاقتراحات."
+            : `سينتهي التوافق مع ${partnerName}${chat.status === "open" ? " وتُغلق المحادثة" : ""}، وسنُعلم الطرف الآخر بلطف. لا يمكن التراجع عن ذلك.`
         }
-        confirmLabel={outcomeDialog === "ENGAGED" ? "نعم، تمت الخطبة" : "إنهاء التعارف"}
+        confirmLabel={outcomeDialog === "ENGAGED" ? "نعم، تمت الخطبة" : "نعم، إنهاء التوافق"}
         destructive={outcomeDialog === "NOT_A_MATCH"}
         busy={busy}
         onConfirm={() => outcomeDialog && saveOutcome(outcomeDialog)}

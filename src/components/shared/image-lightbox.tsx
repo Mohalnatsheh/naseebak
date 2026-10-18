@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { X, ChevronLeft, ChevronRight } from "lucide-react";
 
@@ -14,11 +15,12 @@ export function ImageLightbox({ images, initialIndex = 0, open, onClose }: Image
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const touchStartX = useRef<number | null>(null);
 
-  useEffect(() => {
-    if (open) {
-      setCurrentIndex(initialIndex);
-    }
-  }, [open, initialIndex]);
+  // Jump to the tapped photo whenever the lightbox opens (adjusting state while rendering, not in an effect)
+  const [shownFor, setShownFor] = useState({ open, initialIndex });
+  if (shownFor.open !== open || shownFor.initialIndex !== initialIndex) {
+    setShownFor({ open, initialIndex });
+    if (open) setCurrentIndex(initialIndex);
+  }
 
   // Lock body scroll when open
   useEffect(() => {
@@ -114,10 +116,14 @@ export function ImageLightbox({ images, initialIndex = 0, open, onClose }: Image
           }
         }}
       >
-        <img
+        <Image
           src={images[currentIndex]}
           alt={`صورة ${currentIndex + 1}`}
-          className="max-w-full max-h-[85vh] object-contain rounded-lg select-none"
+          width={1600}
+          height={1600}
+          unoptimized
+          loading="eager"
+          className="max-w-full max-h-[85vh] w-auto h-auto object-contain rounded-lg select-none"
           draggable={false}
           onContextMenu={(e) => e.preventDefault()}
         />

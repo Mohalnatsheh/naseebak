@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useEffectEvent } from "react";
 import {
   LifeBuoy,
   Loader2,
@@ -17,6 +17,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { useDashboardData } from "@/contexts/dashboard-context";
 
 interface Ticket {
   id: string;
@@ -72,14 +73,20 @@ export default function SupportPage() {
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
+  // Inline, per field (the banner keeps server / network errors)
+  const [fieldErrors, setFieldErrors] = useState<{ type?: string; subject?: string; description?: string }>({});
+  const female = useDashboardData().profile?.gender === "FEMALE";
+  const [expandedTickets, setExpandedTickets] = useState<Set<string>>(new Set());
 
   // Form state
   const [type, setType] = useState("");
   const [subject, setSubject] = useState("");
   const [description, setDescription] = useState("");
 
+  // Reload the list when it's shown or the page changes (loadTickets reads the current page)
+  const onListShown = useEffectEvent(() => loadTickets());
   useEffect(() => {
-    if (tab === "list") loadTickets();
+    if (tab === "list") onListShown();
   }, [tab, ticketPage]);
 
   async function loadTickets() {
@@ -101,16 +108,15 @@ export default function SupportPage() {
     setError("");
     setSuccess(false);
 
-    if (!type) {
-      setError("يرجى اختيار نوع التذكرة");
-      return;
-    }
-    if (subject.length < 5) {
-      setError("الموضوع يجب أن يكون 5 أحرف على الأقل");
-      return;
-    }
-    if (description.length < 20) {
-      setError("الوصف يجب أن يكون 20 حرف على الأقل");
+    const errs: { type?: string; subject?: string; description?: string } = {};
+    if (!type) errs.type = "يرجى اختيار نوع التذكرة";
+    if (subject.trim().length < 5) errs.subject = "الموضوع يجب أن يكون 5 أحرف على الأقل";
+    if (description.trim().length < 20) errs.description = "الوصف يجب أن يكون 20 حرفاً على الأقل";
+    setFieldErrors(errs);
+    if (Object.keys(errs).length > 0) {
+      const first = errs.type ? "ticket-type-label" : errs.subject ? "ticket-subject" : "ticket-description";
+      document.getElementById(first)?.focus?.();
+      document.getElementById(first)?.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
 
@@ -191,17 +197,18 @@ export default function SupportPage() {
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Type selector */}
           <div className="space-y-3">
-            <p id="ticket-type-label" className="text-sm font-semibold text-foreground">نوع التذكرة</p>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3" role="radiogroup" aria-labelledby="ticket-type-label">
+            <p id="ticket-type-label" tabIndex={-1} className="text-sm font-semibold text-foreground outline-none">نوع التذكرة</p>
+            {/* Compact on phones: three short choices in one row, the descriptions from sm up */}
+            <div className="grid grid-cols-3 gap-2 sm:gap-3" role="radiogroup" aria-labelledby="ticket-type-label" aria-describedby={fieldErrors.type ? "ticket-type-error" : undefined}>
               {typeOptions.map((opt) => (
                 <button
                   key={opt.value}
                   type="button"
                   role="radio"
                   aria-checked={type === opt.value}
-                  onClick={() => setType(opt.value)}
+                  onClick={() => { setType(opt.value); setFieldErrors((f) => ({ ...f, type: undefined })); }}
                   className={cn(
-                    "relative flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all duration-200 text-center",
+                    "relative flex min-h-11 flex-col items-center gap-1.5 p-2.5 sm:gap-2 sm:p-4 rounded-xl border-2 transition-all duration-200 text-center",
                     type === opt.value
                       ? "border-primary bg-primary/5 shadow-sm"
                       : "border-border/50 hover:border-primary/30 hover:bg-muted/30"
@@ -224,10 +231,11 @@ export default function SupportPage() {
                   )}>
                     {opt.label}
                   </span>
-                  <span className="text-xs text-muted-foreground">{opt.description}</span>
+                  <span className="hidden text-xs text-muted-foreground sm:block">{opt.description}</span>
                 </button>
               ))}
             </div>
+            {fieldErrors.type && <p id="ticket-type-error" className="text-xs font-medium text-destructive">{fieldErrors.type}</p>}
           </div>
 
           {/* Subject */}
@@ -237,12 +245,19 @@ export default function SupportPage() {
               id="ticket-subject"
               type="text"
               value={subject}
-              onChange={(e) => setSubject(e.target.value)}
-              placeholder="أدخل موضوع التذكرة..."
-              className="w-full rounded-xl border border-input bg-background px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+              onChange={(e) => { setSubject(e.target.value); setFieldErrors((f) => ({ ...f, subject: undefined })); }}
+              placeholder={female ? "أدخلي موضوع التذكرة..." : "أدخل موضوع التذكرة..."}
+              aria-invalid={!!fieldErrors.subject}
+              aria-describedby="ticket-subject-hint"
+              className="w-full rounded-xl border border-input aria-[invalid=true]:border-destructive bg-background px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
               maxLength={200}
             />
-            <p className="text-xs text-muted-foreground">{subject.length}/200</p>
+            <div id="ticket-subject-hint" className="flex items-center justify-between gap-2 text-xs">
+              <span className={fieldErrors.subject ? "font-medium text-destructive" : "text-muted-foreground"}>
+                {fieldErrors.subject ?? "5 أحرف على الأقل"}
+              </span>
+              <span className="text-muted-foreground">{subject.length}/200</span>
+            </div>
           </div>
 
           {/* Description */}
@@ -251,13 +266,20 @@ export default function SupportPage() {
             <textarea
               id="ticket-description"
               value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="اشرح بالتفصيل..."
-              className="w-full rounded-xl border border-input bg-background px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all min-h-[120px] resize-y"
+              onChange={(e) => { setDescription(e.target.value); setFieldErrors((f) => ({ ...f, description: undefined })); }}
+              placeholder={female ? "اشرحي بالتفصيل..." : "اشرح بالتفصيل..."}
+              aria-invalid={!!fieldErrors.description}
+              aria-describedby="ticket-description-hint"
+              className="w-full rounded-xl border border-input aria-[invalid=true]:border-destructive bg-background px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all min-h-[120px] resize-y"
               maxLength={2000}
               rows={5}
             />
-            <p className="text-xs text-muted-foreground">{description.length}/2000</p>
+            <div id="ticket-description-hint" className="flex items-center justify-between gap-2 text-xs">
+              <span className={fieldErrors.description ? "font-medium text-destructive" : "text-muted-foreground"}>
+                {fieldErrors.description ?? "20 حرفاً على الأقل"}
+              </span>
+              <span className="text-muted-foreground">{description.length}/2000</span>
+            </div>
           </div>
 
           {error && (
@@ -346,9 +368,26 @@ export default function SupportPage() {
                         </span>
                       </div>
 
-                      <p className="text-sm text-muted-foreground leading-relaxed line-clamp-3">
+                      <p className={cn("text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap", !expandedTickets.has(ticket.id) && "line-clamp-3")}>
                         {ticket.description}
                       </p>
+                      {ticket.description.length > 160 && (
+                        <button
+                          type="button"
+                          aria-expanded={expandedTickets.has(ticket.id)}
+                          onClick={() =>
+                            setExpandedTickets((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(ticket.id)) next.delete(ticket.id);
+                              else next.add(ticket.id);
+                              return next;
+                            })
+                          }
+                          className="-my-2 inline-flex min-h-11 items-center text-xs font-semibold text-primary hover:underline"
+                        >
+                          {expandedTickets.has(ticket.id) ? "عرض أقل" : "عرض الوصف كاملاً"}
+                        </button>
+                      )}
 
                       {ticket.adminNote && (
                         <div className="flex items-start gap-2 p-3 rounded-xl bg-primary/5 border border-primary/10">

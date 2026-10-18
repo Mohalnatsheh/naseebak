@@ -8,6 +8,8 @@ vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/matching/score", () => score);
 vi.mock("@/lib/matching/auto-suggest", () => auto);
 vi.mock("@/lib/settings", () => ({ getCycleFlags: vi.fn(async () => flags.value) }));
+const refunds = vi.hoisted(() => ({ refundUnansweredInterests: vi.fn() }));
+vi.mock("@/lib/suggestions/mutual", () => refunds);
 
 import { refreshOpenSuggestions } from "@/lib/suggestions/refresh";
 
@@ -25,6 +27,7 @@ beforeEach(() => {
   db.suggestion.updateMany.mockResolvedValue({ count: 1 });
   score.mutuallyAcceptable.mockReturnValue(true);
   auto.autoSuggestForUser.mockResolvedValue(0);
+  refunds.refundUnansweredInterests.mockResolvedValue({ refunded: 0 });
 });
 
 describe("refreshOpenSuggestions", () => {
@@ -64,23 +67,32 @@ describe("refreshOpenSuggestions", () => {
     expect(auto.autoSuggestForUser).toHaveBeenCalledWith("u1");
   });
 
-  it("keeps a row the other side said «مهتم» on, with the new %", async () => {
+  it("closes a row the other side already said «مهتم» on too, and refunds their credit (same rule as the sweep)", async () => {
     db.suggestion.findMany.mockResolvedValue([row("paid", "a", { candidateDecision: "INTERESTED" })]);
     score.calculateCompatibility.mockReturnValue(30);
     const r = await refreshOpenSuggestions("u1");
-    expect(r).toEqual({ rescored: 1, closed: 0 });
-    expect(db.suggestion.updateMany.mock.calls.every((c) => c[0].data.status !== "EXPIRED")).toBe(true);
+    expect(r.closed).toBe(1);
+    const close = db.suggestion.updateMany.mock.calls.find((c) => c[0].data.status === "EXPIRED")![0];
+    expect(close.where.id).toEqual({ in: ["paid"] });
+    expect(refunds.refundUnansweredInterests).toHaveBeenCalledWith(expect.objectContaining({ userId: "u1" }));
   });
 
-  it("the close re-checks that the other side hasn't said «مهتم» meanwhile", async () => {
+  it("the close re-checks that I haven't decided meanwhile", async () => {
     db.suggestion.findMany.mockResolvedValue([row("low", "a")]);
     score.calculateCompatibility.mockReturnValue(10);
     await refreshOpenSuggestions("u1");
     const close = db.suggestion.updateMany.mock.calls.find((c) => c[0].data.status === "EXPIRED")![0];
     expect(close.where.OR).toEqual([
-      { recipientId: "u1", recipientDecision: null, OR: [{ candidateDecision: null }, { candidateDecision: "DECLINED" }] },
-      { candidateId: "u1", candidateDecision: null, OR: [{ recipientDecision: null }, { recipientDecision: "DECLINED" }] },
+      { recipientId: "u1", recipientDecision: null },
+      { candidateId: "u1", candidateDecision: null },
     ]);
+  });
+
+  it("no refund pass when nothing closed", async () => {
+    db.suggestion.findMany.mockResolvedValue([row("ok", "a")]);
+    score.calculateCompatibility.mockReturnValue(70);
+    await refreshOpenSuggestions("u1");
+    expect(refunds.refundUnansweredInterests).not.toHaveBeenCalled();
   });
 
   it("never closes an admin hand-pick for its score (dealbreakers still apply)", async () => {

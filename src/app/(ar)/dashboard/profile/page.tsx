@@ -1,9 +1,12 @@
 "use client";
 
+import Image from "next/image";
 import { toast } from "sonner";
 import { useState, useEffect, useRef } from "react";
 import { useDashboardData } from "@/contexts/dashboard-context";
 import { selfLabel } from "@/lib/profile-options";
+import { compressImage } from "@/lib/image-compress";
+import { arabicCount } from "@/lib/utils";
 import Link from "next/link";
 import {
   Loader2,
@@ -151,7 +154,8 @@ function InfoField({
       </div>
       <div className="min-w-0">
         <p className="text-[11px] text-muted-foreground font-medium">{label}</p>
-        <p className="text-sm font-semibold text-foreground truncate">{value}</p>
+        {/* Long values (cities, notes) wrap instead of being cut off */}
+        <p className="text-sm font-semibold text-foreground break-words">{value}</p>
       </div>
     </div>
   );
@@ -219,10 +223,13 @@ export default function ProfilePage() {
   const [deleteReason, setDeleteReason] = useState("");
   const [deletionLoading, setDeletionLoading] = useState(false);
 
+  const [reloadKey, setReloadKey] = useState(0);
+
   useEffect(() => {
     async function fetchProfile() {
       try {
         const res = await fetch("/api/profile");
+        if (!res.ok) throw new Error(`profile ${res.status}`);
         const data = await res.json();
         setUser(data.user);
         if (data.completeness) setCompleteness(data.completeness);
@@ -258,22 +265,24 @@ export default function ProfilePage() {
     fetchProfile();
     fetchPendingRequest();
     fetchDeletionStatus();
-  }, []);
+  }, [reloadKey]);
 
   async function handleAvatarUpload(file: File) {
-    const maxSize = 5 * 1024 * 1024;
-    if (file.size > maxSize) return;
-    const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
-    if (!allowedTypes.includes(file.type)) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("الملف ليس صورة. اختر صورة بصيغة JPG أو PNG.");
+      return;
+    }
 
     setAvatarUploading(true);
     try {
-      const imageData = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result as string);
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
+      // Same as the photos page: shrink large phone photos before upload (keeps it under the 5MB limit)
+      let imageData: string;
+      try {
+        imageData = await compressImage(file);
+      } catch {
+        toast.error("تعذّر قراءة الصورة. جرّب صورة بصيغة JPG أو PNG.");
+        return;
+      }
 
       const res = await fetch("/api/profile/avatar", {
         method: "POST",
@@ -293,9 +302,14 @@ export default function ProfilePage() {
               }
             : prev
         );
+        toast.success("تم تحديث الصورة");
+      } else {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error || "تعذّر رفع الصورة. حاول مرة أخرى.");
       }
     } catch (err) {
       console.error("Avatar upload failed", err);
+      toast.error("تعذّر رفع الصورة. تحقّق من الاتصال وحاول مرة أخرى.");
     } finally {
       setAvatarUploading(false);
       if (avatarInputRef.current) avatarInputRef.current.value = "";
@@ -328,8 +342,23 @@ export default function ProfilePage() {
           </div>
         </div>
         <p className="text-muted-foreground font-medium">
-          لم يتم العثور على الملف الشخصي
+          تعذّر تحميل الملف الشخصي
         </p>
+        <div className="flex flex-wrap items-center justify-center gap-2">
+          <Button
+            type="button"
+            className="h-11 rounded-xl"
+            onClick={() => {
+              setLoading(true);
+              setReloadKey((k) => k + 1);
+            }}
+          >
+            إعادة المحاولة
+          </Button>
+          <Button asChild variant="outline" className="h-11 rounded-xl">
+            <Link href="/dashboard">العودة للرئيسية</Link>
+          </Button>
+        </div>
       </div>
     );
   }
@@ -385,9 +414,12 @@ export default function ProfilePage() {
               />
               <div className="h-20 w-20 rounded-2xl bg-white/15 backdrop-blur-sm flex items-center justify-center border border-white/20 shadow-lg overflow-hidden">
                 {p?.profileImageUrl ? (
-                  <img
+                  <Image
                     src={p.profileImageUrl}
                     alt="صورة الملف الشخصي"
+                    width={80}
+                    height={80}
+                    unoptimized
                     className="w-full h-full object-cover"
                   />
                 ) : (
@@ -400,6 +432,7 @@ export default function ProfilePage() {
                 type="button"
                 onClick={() => avatarInputRef.current?.click()}
                 disabled={avatarUploading}
+                aria-label="تغيير الصورة"
                 className="absolute inset-0 rounded-2xl bg-black/40 opacity-0 group-hover/avatar:opacity-100 transition-all duration-300 flex items-center justify-center cursor-pointer"
               >
                 {avatarUploading ? (
@@ -414,11 +447,11 @@ export default function ProfilePage() {
                 onClick={() => avatarInputRef.current?.click()}
                 disabled={avatarUploading}
                 aria-label="تغيير الصورة"
-                className="absolute -bottom-1.5 -start-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-card text-primary shadow-md ring-2 ring-primary md:hidden"
+                className="absolute -bottom-2.5 -start-2.5 flex h-10 w-10 items-center justify-center rounded-full bg-card text-primary shadow-md ring-2 ring-primary md:hidden"
               >
-                <Camera className="h-3.5 w-3.5" />
+                <Camera className="h-4 w-4" />
               </button>
-              {user.identityDoc?.status === "APPROVED" && (
+              {!introMode && user.identityDoc?.status === "APPROVED" && (
                 <div className="absolute -bottom-1.5 -end-1.5 h-7 w-7 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-500 flex items-center justify-center shadow-md ring-2 ring-primary">
                   <Shield className="h-3.5 w-3.5 text-white" />
                 </div>
@@ -430,15 +463,13 @@ export default function ProfilePage() {
                 {user.firstName} {user.lastName}
               </h1>
               <div className="flex flex-wrap items-center gap-2">
-                <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold bg-white/15 text-white/90 border border-white/20">
-                  {isMale ? "ذكر" : "أنثى"}
-                </span>
                 {p?.dateOfBirth && (
                   <span className="inline-flex items-center gap-1 rounded-full bg-white/15 text-white/90 border border-white/20 px-3 py-1 text-xs font-bold">
                     {getAge(p.dateOfBirth)} سنة
                   </span>
                 )}
-                {user.identityDoc?.status === "APPROVED" && (
+                {/* The verified badge is hidden everywhere user-facing in the new cycle */}
+                {!introMode && user.identityDoc?.status === "APPROVED" && (
                   <span className="inline-flex items-center gap-1 rounded-full bg-white/15 text-white/90 border border-white/20 px-3 py-1 text-xs font-bold">
                     <Shield className="h-3 w-3" />
                     موثّق
@@ -496,7 +527,7 @@ export default function ProfilePage() {
               <CompletionRing percentage={completionPct} />
               <div className="flex-1">
                 <h3 className="font-bold text-foreground text-base">
-                  أكمل ملفك الشخصي
+                  {isMale ? "أكمل ملفك الشخصي" : "أكملي ملفكِ الشخصي"}
                 </h3>
                 <p className="text-xs text-muted-foreground mt-0.5">
                   كلما زادت نسبة الاكتمال، زادت جودة الاقتراحات
@@ -581,8 +612,9 @@ export default function ProfilePage() {
                   ملفك الشخصي مكتمل
                 </h3>
                 <p className="text-sm text-emerald-700/80 leading-relaxed">
-                  ملفك الشخصي مكتمل بالكامل. أنت مؤهل للحصول على أفضل
-                  الاقتراحات!
+                  {isMale
+                    ? "ملفك الشخصي مكتمل بالكامل. أنت مؤهل للحصول على أفضل الاقتراحات!"
+                    : "ملفكِ الشخصي مكتمل بالكامل. أنتِ مؤهلة للحصول على أفضل الاقتراحات!"}
                 </p>
               </div>
             </div>
@@ -1100,7 +1132,7 @@ export default function ProfilePage() {
         {[
           {
             value: user.matchCredits,
-            label: introMode ? "رصيد التعارف" : "رصيد الاقتراحات",
+            label: introMode ? "رصيدك" : "رصيد الاقتراحات",
             icon: Sparkles,
             gradient: "from-primary to-secondary",
             bgLight: "from-primary/10 to-secondary/10",
@@ -1170,7 +1202,9 @@ export default function ProfilePage() {
               href: "/dashboard/photos",
               icon: Camera,
               label: "صوري الشخصية",
-              desc: `${user.photos?.length ?? 0} صور مرفوعة`,
+              desc: (user.photos?.length ?? 0) === 0
+                ? "لا صور مرفوعة بعد"
+                : arabicCount(user.photos.length, { one: "صورة واحدة مرفوعة", two: "صورتان مرفوعتان", few: "صور مرفوعة", many: "صورة مرفوعة" }),
               gradient: "from-primary to-primary/70",
               hoverBorder: "hover:border-primary/30",
             },
@@ -1236,28 +1270,31 @@ export default function ProfilePage() {
       {/* ============================================ */}
       {/*  Deactivate Account                          */}
       {/* ============================================ */}
+      <h2 id="account-settings" className="scroll-mt-24 text-lg font-bold text-foreground pt-2">إعدادات الحساب</h2>
       <div style={{ animation: "fadeSlideIn 0.5s ease-out 0.55s both" }}>
-        <Card className="relative overflow-hidden border-destructive/20 shadow-sm">
-          <div className="h-1 bg-gradient-to-l from-destructive/70 to-destructive" />
+        {/* Pausing is reversible: amber, not the red of permanent deletion */}
+        <Card className="relative overflow-hidden border-amber-200/70 shadow-sm">
+          <div className="h-1 bg-gradient-to-l from-amber-300 to-amber-500" />
           <CardContent className="p-5 md:p-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="flex items-start gap-4">
-                <div className="h-11 w-11 rounded-xl bg-gradient-to-br from-destructive/10 to-destructive/5 flex items-center justify-center flex-shrink-0">
-                  <Ban className="h-5 w-5 text-destructive" />
+                <div className="h-11 w-11 rounded-xl bg-amber-50 flex items-center justify-center flex-shrink-0">
+                  <Ban className="h-5 w-5 text-amber-700" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-destructive text-base">
-                    تعطيل الحساب
+                  <h3 className="font-bold text-foreground text-base">
+                    تعطيل الحساب مؤقتاً
                   </h3>
                   <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
-                    سيتم إخفاء ملفك الشخصي ولن تتلقى اقتراحات جديدة. يمكنك
-                    إعادة تفعيله في أي وقت بتسجيل الدخول مجدداً.
+                    {isMale
+                      ? "سيتم إخفاء ملفك الشخصي ولن تتلقى اقتراحات جديدة. يمكنك إعادة تفعيله في أي وقت بتسجيل الدخول مجدداً."
+                      : "سيتم إخفاء ملفكِ الشخصي ولن تتلقي اقتراحات جديدة. يمكنكِ إعادة تفعيله في أي وقت بتسجيل الدخول مجدداً."}
                   </p>
                 </div>
               </div>
               <Button
                 variant="outline"
-                className="border-destructive/30 text-destructive hover:bg-destructive/5 hover:border-destructive/50 shrink-0 rounded-xl font-semibold transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
+                className="h-11 border-amber-300 text-amber-800 hover:bg-amber-50 shrink-0 rounded-xl font-semibold transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
                 onClick={() => setShowDeactivateConfirm(true)}
               >
                 <Ban className="h-4 w-4 me-2" />
@@ -1272,14 +1309,13 @@ export default function ProfilePage() {
                     <AlertCircle className="h-5 w-5 text-destructive" />
                   </div>
                   <p className="text-sm font-bold text-destructive">
-                    هل أنت متأكد من رغبتك في تعطيل حسابك؟
+                    {isMale ? "هل أنت متأكد من رغبتك في تعطيل حسابك؟" : "هل أنتِ متأكدة من رغبتكِ في تعطيل حسابكِ؟"}
                   </p>
                 </div>
                 <p className="text-xs text-muted-foreground leading-relaxed">
-                  سيتم إخفاء ملفك الشخصي من جميع الاقتراحات، وتظهر توافقاتك
-                  للطرف الآخر مغلقة فلا مراسلة ولا طلبات تعارف حتى تعيد التفعيل.
-                  يبقى رصيدك كما هو، ويمكنك إعادة تفعيل حسابك في أي وقت عبر
-                  تسجيل الدخول مجددًا.
+                  {isMale
+                    ? "سيتم إخفاء ملفك الشخصي من جميع الاقتراحات، وتظهر توافقاتك للطرف الآخر مغلقة فلا مراسلة ولا طلبات تعارف حتى تعيد التفعيل. يبقى رصيدك كما هو، ويمكنك إعادة تفعيل حسابك في أي وقت عبر تسجيل الدخول مجددًا."
+                    : "سيتم إخفاء ملفكِ الشخصي من جميع الاقتراحات، وتظهر توافقاتكِ للطرف الآخر مغلقة فلا مراسلة ولا طلبات تعارف حتى تعيدي التفعيل. يبقى رصيدكِ كما هو، ويمكنكِ إعادة تفعيل حسابكِ في أي وقت عبر تسجيل الدخول مجددًا."}
                 </p>
                 <div className="flex gap-3">
                   <Button
@@ -1291,6 +1327,8 @@ export default function ProfilePage() {
                       try {
                         const res = await fetch("/api/profile/deactivate", {
                           method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ action: "pause" }),
                         });
                         if (res.ok) {
                           // Full reload: the dashboard now shows the reactivation page only
@@ -1371,9 +1409,11 @@ export default function ProfilePage() {
                       if (res.ok) {
                         setDeletionRequest(null);
                         setShowDeleteConfirm(false);
+                      } else {
+                        toast.error("تعذّر إلغاء طلب الحذف. حاول مرة أخرى.");
                       }
                     } catch {
-                      // Error handling
+                      toast.error("حدث خطأ في الاتصال. حاول مرة أخرى.");
                     } finally {
                       setDeletionLoading(false);
                     }
@@ -1404,7 +1444,7 @@ export default function ProfilePage() {
                 </div>
                 <Button
                   variant="outline"
-                  className="border-destructive/30 text-destructive hover:bg-destructive/5 hover:border-destructive/50 shrink-0 rounded-xl font-semibold"
+                  className="h-11 border-destructive/30 text-destructive hover:bg-destructive/5 hover:border-destructive/50 shrink-0 rounded-xl font-semibold"
                   onClick={() => setShowDeleteConfirm(true)}
                 >
                   <Trash2 className="h-4 w-4 me-2" />

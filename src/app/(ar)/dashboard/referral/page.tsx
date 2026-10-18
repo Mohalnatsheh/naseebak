@@ -14,6 +14,8 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { useDashboardData } from "@/contexts/dashboard-context";
+import { LoadError } from "@/components/shared/load-error";
 
 interface ReferralData {
   referralCode: string;
@@ -28,17 +30,26 @@ interface ReferralData {
   }[];
 }
 
+/** Same cap as MAX_REWARDED_REFERRALS in src/lib/referral.ts (that module imports the db) */
+const MAX_REWARDED_REFERRALS = 10;
+
 export default function ReferralPage() {
+  // New cycle: the reward is paid once the friend finishes the short setup; legacy: 100% profile
+  const { counts: { flags } } = useDashboardData();
+  const newCycle = flags.introRequests;
   const [data, setData] = useState<ReferralData | null>(null);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     async function fetchData() {
       try {
         const res = await fetch("/api/referral");
+        // An error body (401/500) has no referral fields: treat it as a failed load, never render it
+        if (!res.ok) throw new Error(`referral ${res.status}`);
         const json = await res.json();
-        setData(json);
+        setData(Array.isArray(json?.referrals) ? json : null);
       } catch (err) {
         console.error("Failed to fetch referral data", err);
       } finally {
@@ -46,7 +57,7 @@ export default function ReferralPage() {
       }
     }
     fetchData();
-  }, []);
+  }, [reloadKey]);
 
   async function handleCopy() {
     if (!data) return;
@@ -93,8 +104,14 @@ export default function ReferralPage() {
 
   if (!data) {
     return (
-      <div className="text-center py-20 text-muted-foreground">
-        حدث خطأ في تحميل البيانات
+      <div className="max-w-2xl mx-auto py-8">
+        <LoadError
+          message="تعذّر تحميل بيانات الدعوة. تحقّق من الاتصال وحاول مرة أخرى."
+          onRetry={() => {
+            setLoading(true);
+            setReloadKey((k) => k + 1);
+          }}
+        />
       </div>
     );
   }
@@ -116,7 +133,9 @@ export default function ReferralPage() {
             </h1>
           </div>
           <p className="text-muted-foreground text-sm md:text-base">
-            شارك رمز الدعوة مع أصدقائك ليسجّلوا في نصيبك، وستحصل على رصيد مجاني عن كل صديق يُكمل ملفه الشخصي
+            {newCycle
+              ? "شارك رمز الدعوة مع أصدقائك ليسجّلوا في نصيبك، وستحصل على رصيد مجاني عن كل صديق يُنهي إعداد ملفه"
+              : "شارك رمز الدعوة مع أصدقائك ليسجّلوا في نصيبك، وستحصل على رصيد مجاني عن كل صديق يُكمل ملفه الشخصي"}
           </p>
         </div>
       </div>
@@ -187,7 +206,10 @@ export default function ReferralPage() {
           </div>
 
           <p className="text-xs text-muted-foreground text-center leading-relaxed">
-            تحصل على الرصيد عندما يُكمل صديقك ملفه الشخصي بنسبة 100%
+            {newCycle
+              ? "تحصلان على الرصيد عندما يُنهي صديقك إعداد ملفه الشخصي"
+              : "تحصلان على الرصيد عندما يُكمل صديقك ملفه الشخصي بنسبة 100%"}
+            {` (رصيد الداعي لأول ${MAX_REWARDED_REFERRALS} أصدقاء)`}
           </p>
         </CardContent>
       </Card>
@@ -258,7 +280,7 @@ export default function ReferralPage() {
                     ) : (
                       <>
                         <Clock className="h-3 w-3" />
-                        بانتظار اكتمال الملف
+                        {newCycle ? "بانتظار إنهاء الإعداد" : "بانتظار اكتمال الملف"}
                       </>
                     )}
                   </div>

@@ -26,8 +26,10 @@ export function StarterQuestions({ onPick, myGender }: { onPick: (q: string) => 
       <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/15 to-accent/20">
         <Sparkles className="h-6 w-6 text-primary" />
       </div>
-      <p className="font-semibold text-foreground">ابدأ المحادثة</p>
-      <p className="mt-1 text-sm text-muted-foreground">اختر سؤالاً لتبدأ، أو اكتب رسالتك.</p>
+      <p className="font-semibold text-foreground">{myGender === "FEMALE" ? "ابدئي المحادثة" : "ابدأ المحادثة"}</p>
+      <p className="mt-1 text-sm text-muted-foreground">
+        {myGender === "FEMALE" ? "اختاري سؤالاً لتبدئي، أو اكتبي رسالتكِ." : "اختر سؤالاً لتبدأ، أو اكتب رسالتك."}
+      </p>
       <div className="mt-4 flex flex-wrap justify-center gap-2">
         {QUESTIONS.map((q) => (
           <button

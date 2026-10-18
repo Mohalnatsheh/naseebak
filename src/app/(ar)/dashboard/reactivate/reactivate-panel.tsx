@@ -44,7 +44,7 @@ export function ReactivatePanel({ firstName, isFemale, deletionScheduledAt }: Pr
         setLoading(false);
         return;
       }
-      toast.success("تم إعادة تفعيل حسابك");
+      toast.success("تمّت إعادة تفعيل حسابك");
       // Full reload so the dashboard layout re-reads the account state
       window.location.href = "/dashboard";
     } catch {
@@ -82,7 +82,8 @@ export function ReactivatePanel({ firstName, isFemale, deletionScheduledAt }: Pr
             </div>
             <div className="space-y-2">
               <p className="text-sm text-muted-foreground">
-                {isFemale ? `أهلاً بعودتكِ يا ${firstName}` : `أهلاً بعودتك يا ${firstName}`}
+                {/* Neutral: also shown right after pausing, not only on a return */}
+                {`مرحباً يا ${firstName}`}
               </p>
               <h1 className="text-2xl font-bold text-foreground">
                 {deleting ? (isFemale ? "طلبتِ حذف حسابكِ" : "طلبتَ حذف حسابك") : "حسابك متوقف مؤقتاً"}
@@ -108,8 +109,8 @@ export function ReactivatePanel({ firstName, isFemale, deletionScheduledAt }: Pr
               </div>
               <p className="text-xs leading-relaxed text-muted-foreground">
                 {isFemale
-                  ? "حتى ذلك الموعد يمكنكِ إلغاء الطلب واستعادة حسابكِ كما هو، ببياناتكِ وتوافقاتكِ. بعد الحذف لا يمكن استعادة أي بيانات."
-                  : "حتى ذلك الموعد يمكنك إلغاء الطلب واستعادة حسابك كما هو، ببياناتك وتوافقاتك. بعد الحذف لا يمكن استعادة أي بيانات."}
+                  ? "حتى ذلك الموعد يمكنكِ إلغاء الطلب واستعادة حسابكِ ببياناتكِ وتوافقاتكِ، أما المحادثات وطلبات التعارف التي انتهت عند تعطيل الحساب فلا تعود. بعد الحذف لا يمكن استعادة أي بيانات."
+                  : "حتى ذلك الموعد يمكنك إلغاء الطلب واستعادة حسابك ببياناتك وتوافقاتك، أما المحادثات وطلبات التعارف التي انتهت عند تعطيل الحساب فلا تعود. بعد الحذف لا يمكن استعادة أي بيانات."}
               </p>
             </div>
           ) : (
@@ -121,8 +122,8 @@ export function ReactivatePanel({ firstName, isFemale, deletionScheduledAt }: Pr
               </p>
               <p className="text-xs leading-relaxed text-muted-foreground">
                 {isFemale
-                  ? "أعيدي تفعيل حسابكِ لتعودي إلى لوحة التحكم وتتابعي رحلتكِ من حيث توقفتِ."
-                  : "أعد تفعيل حسابك لتعود إلى لوحة التحكم وتتابع رحلتك من حيث توقفت."}
+                  ? "أعيدي تفعيل حسابكِ لتعودي إلى لوحة التحكم: تعود توافقاتكِ كما هي، أما المحادثات وطلبات التعارف التي انتهت عند التعطيل فلا تعود."
+                  : "أعد تفعيل حسابك لتعود إلى لوحة التحكم: تعود توافقاتك كما هي، أما المحادثات وطلبات التعارف التي انتهت عند التعطيل فلا تعود."}
               </p>
             </div>
           )}
@@ -149,7 +150,8 @@ export function ReactivatePanel({ firstName, isFemale, deletionScheduledAt }: Pr
               disabled={loading || signingOut}
               onClick={() => {
                 setSigningOut(true);
-                void signOutAndUnlinkPush("/login");
+                // A failed sign-out must not leave the spinner running forever
+                signOutAndUnlinkPush("/login").catch(() => setSigningOut(false));
               }}
               className="h-12 rounded-xl font-semibold"
             >

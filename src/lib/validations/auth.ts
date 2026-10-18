@@ -38,13 +38,38 @@ export const verifyOtpSchema = z.object({
 });
 
 const arabicNameRegex = /^[\u0600-\u06FF\s]+$/;
+/** Longest first / family name accepted at sign-up */
+export const NAME_MAX_LENGTH = 40;
+
+/** Arabic letters only (no spaces, digits or punctuation from the Arabic block). */
+export function arabicLetterCount(v: string): number {
+  return (v.match(/[\u0621-\u064A\u0671-\u06D3]/g) ?? []).length;
+}
+
+/** Trimmed, inner spaces collapsed, Arabic only, at least 2 letters, at most NAME_MAX_LENGTH chars. */
+function arabicNameField(label: string) {
+  return z
+    .string()
+    .transform((v) => v.replace(/\s+/g, " ").trim())
+    .pipe(
+      z
+        .string()
+        .max(NAME_MAX_LENGTH, `${label} طويل جداً (${NAME_MAX_LENGTH} حرفاً كحد أقصى)`)
+        .regex(arabicNameRegex, `${label} يجب أن يكون بالعربية فقط`)
+        .refine((v) => arabicLetterCount(v) >= 2, `${label} يجب أن يكون حرفين على الأقل`),
+    );
+}
+
+export const TERMS_REQUIRED_MESSAGE = "يرجى الموافقة على الشروط وسياسة الخصوصية وتأكيد أن عمرك 18 سنة أو أكثر";
 
 export const registerSchema = z.object({
-  firstName: z.string().min(2, "الاسم الأول يجب أن يكون حرفين على الأقل").regex(arabicNameRegex, "الاسم الأول يجب أن يكون بالعربية فقط"),
-  lastName: z.string().min(2, "اسم العائلة يجب أن يكون حرفين على الأقل").regex(arabicNameRegex, "اسم العائلة يجب أن يكون بالعربية فقط"),
+  firstName: arabicNameField("الاسم الأول"),
+  lastName: arabicNameField("اسم العائلة"),
   phone: phoneSchema,
   gender: z.enum(["MALE", "FEMALE"]),
   otp: otpCodeSchema,
+  // One required tick: terms + privacy policy + "I am 18 or older"; the time is stored on the user
+  termsAccepted: z.literal(true, { message: TERMS_REQUIRED_MESSAGE }),
 });
 
 export const loginSchema = z.object({

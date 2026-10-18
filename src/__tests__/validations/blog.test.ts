@@ -23,7 +23,8 @@ describe("createBlogPostSchema", () => {
   });
 
   it("should default status to DRAFT when not provided", () => {
-    const { status, ...noStatus } = validPost;
+    const noStatus: Partial<typeof validPost> = { ...validPost };
+    delete noStatus.status;
     const result = createBlogPostSchema.safeParse(noStatus);
     expect(result.success).toBe(true);
     if (result.success) {
@@ -32,7 +33,8 @@ describe("createBlogPostSchema", () => {
   });
 
   it("should accept post without readTime", () => {
-    const { readTime, ...noReadTime } = validPost;
+    const noReadTime: Partial<typeof validPost> = { ...validPost };
+    delete noReadTime.readTime;
     const result = createBlogPostSchema.safeParse(noReadTime);
     expect(result.success).toBe(true);
   });

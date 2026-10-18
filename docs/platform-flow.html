@@ -1,0 +1,1166 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Naseebak Platform Flow</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Readex+Pro:wght@400;500;600;700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: sticky table of contents on the left, one long reference column on the right; flows read top to bottom in the order a member lives them. */
+:root {
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --fg: #172434;
+  --muted: #5b6878;
+  --line: #dde2e9;
+  --navy: #22476a;
+  --navy-soft: #e7eef5;
+  --gold: #a87a3c;
+  --gold-soft: #f6eddf;
+  --high: #b3261e;
+  --high-soft: #fbe9e7;
+  --med: #9a6100;
+  --med-soft: #fdf1dc;
+  --low: #3f6b4f;
+  --low-soft: #e6f1ea;
+  --code-bg: #eef1f5;
+  --font-display: "Readex Pro", "Segoe UI", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --font-ar: "Readex Pro", "Geeza Pro", "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1722; --surface: #162131; --fg: #e4e9f0; --muted: #98a5b6; --line: #27354a;
+    --navy: #8fb4da; --navy-soft: #1c2d44; --gold: #d6a967; --gold-soft: #2f2618;
+    --high: #f08a80; --high-soft: #3a1c1b; --med: #e5b45c; --med-soft: #33270f;
+    --low: #8ccaa0; --low-soft: #17301f; --code-bg: #1d2a3d; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1722; --surface: #162131; --fg: #e4e9f0; --muted: #98a5b6; --line: #27354a;
+  --navy: #8fb4da; --navy-soft: #1c2d44; --gold: #d6a967; --gold-soft: #2f2618;
+  --high: #f08a80; --high-soft: #3a1c1b; --med: #e5b45c; --med-soft: #33270f;
+  --low: #8ccaa0; --low-soft: #17301f; --code-bg: #1d2a3d; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 15px; line-height: 1.6; }
+.wrap { max-width: 1240px; margin: 0 auto; padding-block: 32px 80px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 40px; }
+@media (max-width: 900px) { .wrap { grid-template-columns: minmax(0, 1fr); gap: 20px; } }
+
+nav.toc { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 20px); align-self: start; max-height: calc(100vh - 40px); overflow-y: auto; font-size: 13px; }
+nav.toc .brand { font-family: var(--font-display); font-weight: 600; font-size: 15px; color: var(--navy); margin-bottom: 14px; display: flex; gap: 8px; align-items: baseline; }
+nav.toc .brand span[lang="ar"] { color: var(--gold); }
+nav.toc h4 { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 16px 0 6px; font-weight: 600; }
+nav.toc a { display: block; color: var(--fg); text-decoration: none; padding: 3px 8px; border-radius: 6px; }
+nav.toc a:hover, nav.toc a:focus-visible { background: var(--navy-soft); color: var(--navy); outline: none; }
+@media (max-width: 900px) {
+  nav.toc { position: static; max-height: none; }
+  nav.toc .groups { display: flex; flex-wrap: wrap; gap: 6px; }
+  nav.toc h4 { display: none; }
+  nav.toc a { background: var(--surface); border: 1px solid var(--line); font-size: 12px; }
+}
+
+main { min-width: 0; }
+header.hero { padding-bottom: 24px; border-bottom: 1px solid var(--line); margin-bottom: 32px; }
+.eyebrow { font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--gold); font-weight: 600; }
+h1 { font-family: var(--font-display); font-weight: 600; font-size: clamp(28px, 4vw, 40px); line-height: 1.15; margin: 6px 0 10px; text-wrap: balance; color: var(--fg); }
+h1 span[lang="ar"] { color: var(--navy); }
+.lede { max-width: 70ch; color: var(--muted); margin: 0; }
+.meta { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; padding: 3px 10px; border-radius: 999px; background: var(--navy-soft); color: var(--navy); font-weight: 500; white-space: nowrap; }
+.chip.gold { background: var(--gold-soft); color: var(--gold); }
+.chip.on::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--low); }
+
+section { margin-bottom: 56px; scroll-margin-top: 20px; }
+h2 { font-family: var(--font-display); font-weight: 600; font-size: 24px; margin: 0 0 6px; text-wrap: balance; display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+h2 .num { font-family: var(--font-mono); font-size: 13px; color: var(--gold); font-weight: 500; }
+h3 { font-family: var(--font-display); font-weight: 500; font-size: 16px; margin: 24px 0 8px; color: var(--navy); }
+.sub { color: var(--muted); margin: 0 0 18px; max-width: 75ch; }
+p { max-width: 75ch; }
+[lang="ar"] { font-family: var(--font-ar); }
+code, .path { font-family: var(--font-mono); font-size: 12.5px; background: var(--code-bg); padding: 1px 5px; border-radius: 4px; word-break: break-word; }
+.path { color: var(--muted); background: none; padding: 0; font-size: 12px; }
+
+/* journey rail */
+.rail { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); overflow: hidden; }
+.stage { padding: 16px 14px; border-inline-end: 1px solid var(--line); position: relative; text-decoration: none; color: inherit; display: block; }
+.stage:last-child { border-inline-end: none; }
+.stage:hover, .stage:focus-visible { background: var(--navy-soft); outline: none; }
+.stage .n { font-family: var(--font-mono); font-size: 11px; color: var(--gold); }
+.stage .t { font-family: var(--font-display); font-weight: 600; font-size: 14px; margin: 2px 0 4px; }
+.stage .d { font-size: 12.5px; color: var(--muted); line-height: 1.45; }
+.stage .ar { font-family: var(--font-ar); font-size: 12px; color: var(--navy); display: block; margin-top: 6px; }
+@media (max-width: 640px) { .rail { grid-template-columns: 1fr 1fr; } .stage { border-bottom: 1px solid var(--line); } }
+
+/* flow steps */
+.flow { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 20px 22px; }
+.entry { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13px; color: var(--muted); margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px dashed var(--line); }
+.entry b { color: var(--fg); font-weight: 600; }
+ol.steps { list-style: none; counter-reset: s; margin: 0; padding: 0; display: grid; gap: 0; }
+ol.steps > li { counter-increment: s; position: relative; padding: 0 0 16px 40px; }
+ol.steps > li::before { content: counter(s); position: absolute; left: 0; top: 0; width: 26px; height: 26px; border-radius: 50%; background: var(--navy); color: var(--surface); font-family: var(--font-mono); font-size: 12px; display: grid; place-items: center; font-weight: 500; }
+ol.steps > li::after { content: ""; position: absolute; left: 12.5px; top: 28px; bottom: 2px; width: 1px; background: var(--line); }
+ol.steps > li:last-child { padding-bottom: 0; }
+ol.steps > li:last-child::after { display: none; }
+ol.steps .st { font-weight: 600; }
+ol.steps .dt { color: var(--muted); font-size: 14px; }
+ol.steps ul { margin: 4px 0 0; padding-left: 18px; color: var(--muted); font-size: 14px; }
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-top: 16px; }
+.fact { background: var(--bg); border-radius: 8px; padding: 10px 12px; font-size: 13px; min-width: 0; }
+.fact h5 { margin: 0 0 4px; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--gold); font-weight: 600; }
+.fact ul { margin: 0; padding-left: 16px; }
+.gaplinks { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; font-size: 12px; align-items: center; }
+.gaplinks > span { color: var(--muted); }
+.gl { text-decoration: none; font-family: var(--font-mono); font-size: 11.5px; padding: 2px 7px; border-radius: 5px; font-weight: 500; }
+.gl.h { background: var(--high-soft); color: var(--high); }
+.gl.m { background: var(--med-soft); color: var(--med); }
+.gl.l { background: var(--low-soft); color: var(--low); }
+
+/* tables */
+.tbl { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 11px; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); font-weight: 600; background: var(--bg); white-space: nowrap; }
+tr:last-child td { border-bottom: none; }
+td.num { font-variant-numeric: tabular-nums; font-family: var(--font-mono); font-size: 12.5px; white-space: nowrap; }
+
+/* outcome matrix */
+.matrix { display: grid; grid-template-columns: 110px repeat(3, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; font-size: 13px; }
+.matrix > div { background: var(--surface); padding: 10px 12px; }
+.matrix .hd { background: var(--bg); font-weight: 600; font-size: 12px; color: var(--muted); }
+.matrix .chat { color: var(--navy); font-weight: 600; }
+.matrix .fam { color: var(--gold); font-weight: 600; }
+@media (max-width: 640px) { .matrix { grid-template-columns: 80px repeat(3, minmax(0, 1fr)); font-size: 12px; } }
+
+/* state pills */
+.states { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 8px 0; font-size: 12px; }
+.states .s { font-family: var(--font-mono); padding: 2px 8px; border-radius: 5px; background: var(--navy-soft); color: var(--navy); }
+.states .s.end { background: var(--bg); color: var(--muted); border: 1px solid var(--line); }
+.states .arr { color: var(--muted); }
+
+/* gaps register */
+.summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 18px; }
+.sumtile { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+.sumtile .v { font-family: var(--font-display); font-size: 28px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.sumtile .k { font-size: 12px; color: var(--muted); }
+.sumtile.h .v { color: var(--high); } .sumtile.m .v { color: var(--med); } .sumtile.l .v { color: var(--low); }
+.filters { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; align-items: center; }
+.filters .lbl { font-size: 12px; color: var(--muted); margin-inline-end: 4px; }
+.fbtn { font: inherit; font-size: 12.5px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); border-radius: 999px; padding: 4px 12px; cursor: pointer; }
+.fbtn[aria-pressed="true"] { background: var(--navy); color: var(--surface); border-color: var(--navy); }
+.fbtn:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.gap { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 4px 14px; padding: 14px 16px; border-bottom: 1px solid var(--line); background: var(--surface); scroll-margin-top: 20px; }
+.gap:target { box-shadow: inset 3px 0 0 var(--gold); background: var(--gold-soft); }
+.gaplist { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.gaplist .gap:last-child { border-bottom: none; }
+.gap .id { font-family: var(--font-mono); font-size: 12px; font-weight: 500; }
+.sev { display: inline-block; font-size: 10.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; padding: 1px 7px; border-radius: 4px; margin-top: 4px; }
+.sev.h { background: var(--high-soft); color: var(--high); }
+.sev.m { background: var(--med-soft); color: var(--med); }
+.sev.l { background: var(--low-soft); color: var(--low); }
+.gap .ttl { font-weight: 600; }
+.gap .area { font-size: 11.5px; color: var(--gold); font-weight: 600; letter-spacing: .04em; text-transform: uppercase; margin-inline-start: 8px; }
+.gap .body { color: var(--muted); font-size: 14px; margin-top: 2px; }
+.gap .fix { font-size: 13.5px; margin-top: 4px; }
+.gap .done { font-size: 13.5px; margin-top: 6px; padding: 6px 10px; border-radius: 8px; background: var(--low-soft); }
+.gap .done b { font-weight: 600; color: var(--low); }
+.gap .done.part { background: var(--med-soft); }
+.gap .done.part b { color: var(--med); }
+.gap.is-done .ttl { text-decoration: line-through; text-decoration-color: var(--line); }
+.gap .fix b { color: var(--low); font-weight: 600; }
+.empty-note { padding: 20px; color: var(--muted); text-align: center; background: var(--surface); }
+.callout { border: 1px solid var(--line); border-inline-start: 3px solid var(--gold); background: var(--surface); padding: 12px 16px; border-radius: 8px; font-size: 14px; margin: 14px 0; max-width: 80ch; }
+footer { color: var(--muted); font-size: 12.5px; border-top: 1px solid var(--line); padding-top: 16px; }
+@media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+</style>
+
+<div class="wrap">
+<nav class="toc" aria-label="Contents">
+  <div class="brand"><span lang="ar">نصيبك</span> Platform flow</div>
+  <div class="groups">
+    <h4>Overview</h4>
+    <a href="#journey">The journey</a>
+    <a href="#numbers">Timers &amp; numbers</a>
+    <h4>Member flows</h4>
+    <a href="#signup">1 · Sign up</a>
+    <a href="#signin">2 · Sign in &amp; session</a>
+    <a href="#setup">3 · Profile setup</a>
+    <a href="#edit">4 · Profile edit &amp; review</a>
+    <a href="#extras">5 · Photos, quiz, referral</a>
+    <a href="#generate">6 · Suggestions generated</a>
+    <a href="#decide">7 · «مهتم» / «لا»</a>
+    <a href="#lifecycle">8 · Suggestion lifecycle</a>
+    <a href="#match">9 · Mutual match</a>
+    <a href="#requests">10 · Intro requests</a>
+    <a href="#chat">11 · In-app chat</a>
+    <a href="#family">12 · Family intro &amp; follow-up</a>
+    <a href="#safety">13 · Block, report, unmatch</a>
+    <a href="#leaving">14 · Pause, delete, return</a>
+    <a href="#payments">15 · Buying credits</a>
+    <h4>System</h4>
+    <a href="#notifications">16 · Notifications</a>
+    <a href="#cron">17 · Daily job</a>
+    <a href="#admin">18 · Admin panel</a>
+    <h4>Review</h4>
+    <a href="#gaps">Gaps register</a>
+  </div>
+</nav>
+
+<main>
+<header class="hero">
+  <div class="eyebrow">Flow map · from the code, 18 Oct 2026</div>
+  <h1><span lang="ar">نصيبك</span> from first visit to engagement</h1>
+  <p class="lede">Every flow on the live site as the code runs it today, step by step, with what changes in the database, which notifications go out, and the timers. Gaps found while tracing each flow are linked inline and collected in the register at the end.</p>
+  <div class="meta">
+    <span class="chip on">intro_requests_enabled</span>
+    <span class="chip on">chat_enabled</span>
+    <span class="chip on">new_suggestions_flow</span>
+    <span class="chip on">credit_on_interest</span>
+    <span class="chip gold">Legacy flow still in code, mostly unreachable</span>
+  </div>
+</header>
+
+<!-- JOURNEY -->
+<section id="journey">
+  <h2>The journey</h2>
+  <p class="sub">The path a member takes with all four switches on. Click a stage to jump to its flow.</p>
+  <div class="rail">
+    <a class="stage" href="#signup"><div class="n">01</div><div class="t">Sign up</div><div class="d">Phone + SMS code, Arabic name, gender. 3 free credits.</div><span class="ar" lang="ar">إنشاء حساب</span></a>
+    <a class="stage" href="#setup"><div class="n">02</div><div class="t">Setup</div><div class="d">4 short steps. No guardian asked here.</div><span class="ar" lang="ar">إعداد الملف</span></a>
+    <a class="stage" href="#generate"><div class="n">03</div><div class="t">Suggestions</div><div class="d">Up to 5 open cards, score ≥ 50, no photos.</div><span class="ar" lang="ar">اقتراحات</span></a>
+    <a class="stage" href="#decide"><div class="n">04</div><div class="t">Decide</div><div class="d">«مهتم» costs 1 credit and picks chat or family. «لا» is free.</div><span class="ar" lang="ar">مهتم / لا</span></a>
+    <a class="stage" href="#match"><div class="n">05</div><div class="t">Match</div><div class="d">Both «مهتم». Photos open. Chat or family starts at once.</div><span class="ar" lang="ar">توافق متبادل</span></a>
+    <a class="stage" href="#chat"><div class="n">06</div><div class="t">Chat</div><div class="d">14 days (+7 once), filtered text only.</div><span class="ar" lang="ar">محادثة</span></a>
+    <a class="stage" href="#family"><div class="n">07</div><div class="t">Family</div><div class="d">Guardian contacts shared. Families arrange the visit.</div><span class="ar" lang="ar">تعارف عائلي</span></a>
+    <a class="stage" href="#family"><div class="n">08</div><div class="t">Outcome</div><div class="d">Asked at days 7, 21, 35: continuing, not a match, engaged.</div><span class="ar" lang="ar">تمت الخطبة</span></a>
+  </div>
+
+  <h3>How the pieces connect</h3>
+  <pre class="mermaid">
+flowchart LR
+  A[Register\nOTP] --> B[Setup 4 steps\nisComplete]
+  B --> C[Auto suggestions\nmax 5 open, score ≥ 50]
+  C -->|«لا» free| X[Card hidden\nother side not told]
+  C -->|«مهتم» −1 credit\n+ chat/family choice| W[Waiting for other side\n7-day window]
+  W -->|other «مهتم»| M[Mutual match\nphotos revealed]
+  W -->|other never answers| R[Expired\ncredit refunded]
+  W -->|other «لا»| N[Closed\nno refund]
+  M -->|both chose chat| CH[Chat 14 days]
+  M -->|any side chose family| F[Family intro\nguardian contacts]
+  CH -->|«ننتقل لتعارف عائلي» free| F
+  CH -->|expires / ended| E[Finished]
+  F --> FU[Follow-up day 7 / 21 / 35]
+  FU -->|تمت الخطبة| G[Engaged\nsuggestions paused]
+  FU -->|لم يحصل نصيب| E
+  C -.->|0 credits| P[Buy credits\nStripe]
+  P -.-> C
+  </pre>
+</section>
+
+<!-- NUMBERS -->
+<section id="numbers">
+  <h2>Timers &amp; numbers</h2>
+  <p class="sub">Every constant that shapes the flow, in one place.</p>
+  <div class="tbl"><table>
+    <thead><tr><th>Rule</th><th>Value</th><th>Where</th></tr></thead>
+    <tbody>
+      <tr><td>Free credits at registration</td><td class="num">3</td><td class="path">credits.ts · NEW_CYCLE_FREE_CREDITS</td></tr>
+      <tr><td>Cost of «مهتم» / «لا»</td><td class="num">1 / 0</td><td class="path">suggestions/mutual.ts · decideSuggestion</td></tr>
+      <tr><td>Open suggestions per person</td><td class="num">5</td><td class="path">auto-suggest.ts · MAX_OPEN_SUGGESTIONS</td></tr>
+      <tr><td>Minimum compatibility score (provisional)</td><td class="num">50</td><td class="path">auto-suggest.ts · minSuggestionScore</td></tr>
+      <tr><td>Suggestion window / reminder</td><td class="num">7 d / 2 d left</td><td class="path">mutual.ts · MUTUAL_SUGGESTION_DAYS</td></tr>
+      <tr><td>Idle partner frees my slot after</td><td class="num">2 d</td><td class="path">mutual.ts · SLOT_IDLE_DAYS</td></tr>
+      <tr><td>Same pair again (only if neither answered)</td><td class="num">30 d</td><td class="path">auto-suggest.ts · RESUGGEST_AFTER_DAYS</td></tr>
+      <tr><td>Refund look-back in daily job</td><td class="num">7 d</td><td class="path">mutual.ts · refundUnansweredInterests</td></tr>
+      <tr><td>Chat length / extension</td><td class="num">14 d / +7 once</td><td class="path">chat/service.ts · CHAT_TTL_DAYS</td></tr>
+      <tr><td>Chat family nudge</td><td class="num">day 7</td><td class="path">chat/service.ts · housekeep</td></tr>
+      <tr><td>Chat counted as finished</td><td class="num">14 d after expiry</td><td class="path">matches/state.ts · CHAT_STALE_DAYS</td></tr>
+      <tr><td>Intro request expiry / reminder</td><td class="num">7 d / 2 d left</td><td class="path">intro/requests.ts · REQUEST_TTL_DAYS</td></tr>
+      <tr><td>Guardian-share reminder (mixed match)</td><td class="num">day 2</td><td class="path">intro/followup.ts · remindGuardianShare</td></tr>
+      <tr><td>Family follow-up asks</td><td class="num">7 · 21 · 35</td><td class="path">intro/followup.ts · FOLLOW_UP_MAX = 3</td></tr>
+      <tr><td>Reports before auto-flag</td><td class="num">3 people</td><td class="path">reports.ts · AUTO_FLAG_REPORTS</td></tr>
+      <tr><td>Active user (gets and is given suggestions)</td><td class="num">seen ≤ 30 d</td><td class="path">activity.ts · activeWhere</td></tr>
+      <tr><td>Re-engagement push</td><td class="num">idle 7–30 d, once / 7 d</td><td class="path">cron/reengagement.ts</td></tr>
+      <tr><td>Deletion grace</td><td class="num">30 d</td><td class="path">api/profile/delete</td></tr>
+      <tr><td>OTP life / verified window</td><td class="num">5 min / 30 min</td><td class="path">send-otp · VERIFIED_OTP_WINDOW_MS</td></tr>
+      <tr><td>Chat send limits</td><td class="num">5 / 5 s · 50 / day</td><td class="path">chat/service.ts (in memory)</td></tr>
+      <tr><td>Packages (shown JOD → charged USD)</td><td class="num">3 cr 3 JD · 5 cr 4 JD · 10 cr 7 JD</td><td class="path">payments/plans + checkout</td></tr>
+      <tr><td>Referral reward</td><td class="num">referrer +2 · new user +1</td><td class="path">referral.ts</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- 1 SIGNUP -->
+<section id="signup">
+  <h2><span class="num">01</span>Sign up</h2>
+  <p class="sub">A single form, then an SMS code. The account exists only after the code is verified.</p>
+  <div class="flow">
+    <div class="entry"><span><b>Page</b> <code>/register</code></span><span><b>APIs</b> send-otp → verify-otp → register → referral/apply → profile/photos</span></div>
+    <ol class="steps">
+      <li><span class="st">Registration status check.</span> <span class="dt">If admin closed registration the form shows an alert; if the check fails the form stays open.</span></li>
+      <li><span class="st">Form.</span> <span class="dt">Arabic first and last name (other characters stripped as typed), gender cards, phone, optional invitation code (pre-filled from <code>?invitationCode=</code>), optional photo.</span></li>
+      <li><span class="st">Send code.</span> <span class="dt">Server checks maintenance, rate limits (3 per phone / 5 min, 10 per IP / 15 min) and whether the phone exists. Existing phone → redirect to <code>/login?exists=true</code>. Code lives 5 min; a failed SMS deletes it and returns 502. Test numbers get <code>111111</code>.</span></li>
+      <li><span class="st">Verify + create.</span> <span class="dt">verify-otp marks the code verified (5 tries per phone). register creates the <code>User</code> (email <code>phone_962…@naseeb.local</code>, 3 credits, ledger <code>REGISTRATION</code>) and emails the admin.</span></li>
+      <li><span class="st">Auto sign-in, then referral and photo.</span> <span class="dt">Sign-in uses up the code. Referral or photo failures show as amber warnings.</span></li>
+      <li><span class="st">Success screen.</span> <span class="dt">«ابدأ إعداد ملفك» → setup wizard.</span></li>
+    </ol>
+    <div class="facts">
+      <div class="fact"><h5>Notifications</h5>Admin email only. The member gets nothing.</div>
+      <div class="fact"><h5>Not checked here</h5><ul><li>Age (only in setup)</li><li>Terms / privacy acceptance</li></ul></div>
+    </div>
+    <div class="gaplinks"><span>Gaps:</span><a class="gl h" href="#G10">G10</a><a class="gl m" href="#G25">G25</a><a class="gl m" href="#G26">G26</a><a class="gl m" href="#G34">G34</a><a class="gl l" href="#G48">G48</a></div>
+  </div>
+</section>
+
+<!-- 2 SIGNIN -->
+<section id="signin">
+  <h2><span class="num">02</span>Sign in &amp; session</h2>
+  <p class="sub">Phone + code only. Passwords exist for admins only; forgot / reset password pages just redirect to login.</p>
+  <div class="flow">
+    <div class="entry"><span><b>Page</b> <code>/login</code></span><span><b>Code</b> <span class="path">lib/auth.ts · auth.config.ts · middleware.ts</span></span></div>
+    <ol class="steps">
+      <li><span class="st">Send + verify code.</span> <span class="dt">Unknown phones still get an SMS.</span></li>
+      <li><span class="st">signIn.</span> <span class="dt">5 tries per phone per 15 min. Suspended → refused. Deactivated may sign in.</span></li>
+      <li><span class="st">Unknown phone.</span> <span class="dt">Phone + code are handed to <code>/register?from=login</code> through sessionStorage.</span></li>
+      <li><span class="st">Success.</span> <span class="dt">Always lands on <code>/dashboard</code>.</span></li>
+      <li><span class="st">Session.</span> <span class="dt">JWT, 30 days by default, holds id / role / gender. <code>requireUser()</code> re-reads status from the DB; <code>requireAdmin()</code> trusts the token.</span></li>
+      <li><span class="st">Gates.</span> <span class="dt">Middleware only checks signed-in and admin role. The dashboard layout shows a suspended screen or the reactivate-only gate.</span></li>
+    </ol>
+    <div class="gaplinks"><span>Gaps:</span><a class="gl m" href="#G22">G22</a><a class="gl m" href="#G23">G23</a><a class="gl m" href="#G24">G24</a><a class="gl m" href="#G37">G37</a></div>
+  </div>
+</section>
+
+<!-- 3 SETUP -->
+<section id="setup">
+  <h2><span class="num">03</span>Profile setup</h2>
+  <p class="sub">Four steps in the new cycle (legacy had a fifth guardian step). Finishing sets <code>Profile.isComplete</code>, which is the only gate for suggestions.</p>
+  <div class="flow">
+    <div class="entry"><span><b>Page</b> <code>/dashboard/profile/setup</code></span><span><b>APIs</b> PATCH profile/draft (each step) · PUT profile (finish)</span><span><b>Forced?</b> No, nothing redirects an incomplete user here</span></div>
+    <div class="tbl" style="margin-bottom:16px"><table>
+      <thead><tr><th>Step</th><th>Required</th><th>Optional</th></tr></thead>
+      <tbody>
+        <tr><td>1 Personal</td><td>birth date (18–80), nationality, city, education</td><td>area, field, job, height, weight, skin colour, income</td></tr>
+        <tr><td>2 Lifestyle</td><td>marital status (+children if not single), religiosity</td><td>smoking, hijab / beard, cooking, lifestyle, licence</td></tr>
+        <tr><td>3 About + preferences</td><td>partner age min / max</td><td>about me, expectations, hobbies, values, «شرط أساسي» dealbreaker chips, relocation</td></tr>
+        <tr><td>4 Family</td><td>none</td><td>tribe, origin, siblings, housing, expenses, health</td></tr>
+      </tbody>
+    </table></div>
+    <ol class="steps">
+      <li><span class="st">Resume.</span> <span class="dt">Server profile + <code>setupStep</code>; a newer local draft (30-day, per owner) wins. Old step-5 users land on step 4.</span></li>
+      <li><span class="st">Each «التالي».</span> <span class="dt">Validates the step, saves a draft in the background.</span></li>
+      <li><span class="st">Finish.</span> <span class="dt">PUT profile with dealbreakers → <code>isComplete = true</code>, refresh suggestions in the background, maybe pay the referral.</span></li>
+      <li><span class="st">Redirect.</span> <span class="dt">To <code>/dashboard/suggestions</code>, where the first cards are generated on load.</span></li>
+    </ol>
+    <div class="callout">The guardian is asked only when it is needed: in <span lang="ar">InterestDialog</span> when choosing family, in the family request dialogs, and in the mixed-match share prompt (<code>GuardianQuickForm</code>, saves with share consent).</div>
+    <div class="gaplinks"><span>Gaps:</span><a class="gl m" href="#G30">G30</a><a class="gl m" href="#G31">G31</a><a class="gl l" href="#G47">G47</a></div>
+  </div>
+</section>
+
+<!-- 4 EDIT -->
+<section id="edit">
+  <h2><span class="num">04</span>Profile edit &amp; review</h2>
+  <p class="sub">After setup, most changes go to an admin review queue. Partner preferences and dealbreakers save directly.</p>
+  <div class="flow">
+    <div class="entry"><span><b>Page</b> <code>/dashboard/profile/edit</code> (always 5 steps)</span><span><b>APIs</b> profile/update-request · profile/parent-info · profile/dealbreakers</span></div>
+    <ol class="steps">
+      <li><span class="st">Submit validates steps 1–5.</span> <span class="dt">Step 5 is the guardian and requires name, phone, relationship and address.</span></li>
+      <li><span class="st"><code>pref*</code> fields</span> <span class="dt">save directly, then a dealbreaker sweep closes cards that no longer fit, then a top-up.</span></li>
+      <li><span class="st">Everything else in steps 1–4</span> <span class="dt">becomes one <code>ProfileUpdateRequest</code> (one pending at a time). The form locks except step 5 until an admin decides.</span></li>
+      <li><span class="st">Admin approves or rejects</span> <span class="dt">in Admin → Profile Requests. Member gets a SYSTEM notice; suggestions refresh.</span></li>
+      <li><span class="st">Guardian change</span> <span class="dt">saves directly. Withdrawing consent notifies partners on accepted family intros.</span></li>
+    </ol>
+    <div class="facts">
+      <div class="fact"><h5>Review rule</h5>Filling an empty field or resending the same value is direct; changing or clearing a stored value needs review (<code>reviewedChanges</code>).</div>
+      <div class="fact"><h5>Completeness score</h5>Basic 35 · preferences 25 · quiz 15 · photos 15 · family + guardian 10. Not a gate in the new cycle.</div>
+    </div>
+    <div class="gaplinks"><span>Gaps:</span><a class="gl h" href="#G01">G01</a><a class="gl m" href="#G20">G20</a><a class="gl m" href="#G29">G29</a></div>
+  </div>
+</section>
+
+<!-- 5 EXTRAS -->
+<section id="extras">
+  <h2><span class="num">05</span>Photos, quiz, referral</h2>
+  <div class="flow">
+    <h3 style="margin-top:0">Photos</h3>
+    <p>Up to 5 images (JPEG / PNG / WebP, 5 MB, compressed in the browser) uploaded to Bunny under <code>photos/{userId}/</code> and served from the public CDN. First photo is the main one. There is no blur: photos are simply not sent before a match. After a match the partner's photos are returned unless blocked or inactive. Identity verification and the face-match badge are removed.</p>
+    <h3>Personality quiz</h3>
+    <p>20 Likert questions, all required, no partial save. Builds a 5-dimension vector used for 30% of the score. Retake after 3 months. Refreshes suggestions.</p>
+    <h3>Referral</h3>
+    <ol class="steps">
+      <li><span class="st">Code</span> <span class="dt">created on first visit to <code>/dashboard/referral</code>; link is <code>/register?invitationCode=…</code>.</span></li>
+      <li><span class="st">Apply</span> <span class="dt">once, before setup is finished, never your own.</span></li>
+      <li><span class="st">Reward</span> <span class="dt">when the new member has finished setup <b>and</b> saved a guardian: referrer +2, new member +1, both notified.</span></li>
+    </ol>
+    <div class="gaplinks"><span>Gaps:</span><a class="gl m" href="#G28">G28</a><a class="gl m" href="#G32">G32</a></div>
+  </div>
+</section>
+
+<!-- 6 GENERATE -->
+<section id="generate">
+  <h2><span class="num">06</span>Suggestions generated</h2>
+  <p class="sub">Automatic, no admin. One <code>Suggestion</code> row (flow MUTUAL) is shown to both people.</p>
+  <div class="flow">
+    <div class="entry"><span><b>Engine</b> <span class="path">lib/matching/auto-suggest.ts · score.ts</span></span><span><b>Triggers</b> suggestions page / dashboard load, profile save, quiz, preferences save, after a decision, on expiry, daily job (150 users)</span></div>
+    <ol class="steps">
+      <li><span class="st">Am I eligible?</span> <span class="dt">USER role, not suspended / deactivated / flagged / engaged, setup finished, seen in the last 30 days.</span></li>
+      <li><span class="st">How many slots?</span> <span class="dt"><code>5 − open cards</code>. A card older than 2 days whose other person hasn't been seen for 2 days stops using a slot but stays visible.</span></li>
+      <li><span class="st">Show hidden cards first.</span> <span class="dt">Cards created while I was full (<code>hiddenFromCandidate</code>) are revealed best score first, each with a fresh 7 days.</span></li>
+      <li><span class="st">Find candidates.</span> <span class="dt">Opposite gender, active, complete, not flagged or engaged, no past pair / match / block, same test group. Both sides' dealbreakers must pass (a missing value fails).</span></li>
+      <li><span class="st">Score ≥ 50.</span> <span class="dt">Preferences both ways 50 · personality 30 · profile quality 20 (65 / 0 / 35 without both quizzes).</span></li>
+      <li><span class="st">Create rows.</span> <span class="dt">7-day window. If the candidate already has 5, the row is created hidden from them.</span></li>
+      <li><span class="st">Notify.</span> <span class="dt">«اقتراحات توافق جديدة» to me and «اقتراح توافق جديد» to each visible candidate, at most once per person per Amman day.</span></li>
+    </ol>
+    <div class="facts">
+      <div class="fact"><h5>Card shows</h5>Public profile fields, match %, up to 3 "why matched" reasons from my own preferences. No photos, no guardian, no preferences.</div>
+      <div class="fact"><h5>Empty state</h5><code>pending</code> (5 open) or <code>no_candidates</code> with a link to dealbreakers / preferences.</div>
+      <div class="fact"><h5>Admin paths</h5>Hand-pick (5-cap enforced, min score not) and Generate (still legacy rules).</div>
+    </div>
+    <div class="gaplinks"><span>Gaps:</span><a class="gl m" href="#G15">G15</a><a class="gl m" href="#G16">G16</a><a class="gl m" href="#G17">G17</a><a class="gl l" href="#G44">G44</a><a class="gl l" href="#G45">G45</a></div>
+  </div>
+</section>
+
+<!-- 7 DECIDE -->
+<section id="decide">
+  <h2><span class="num">07</span><span lang="ar">«مهتم» / «لا»</span></h2>
+  <p class="sub">Each side decides alone. The other side is never told about a «لا».</p>
+  <div class="flow">
+    <div class="entry"><span><b>UI</b> <span class="path">components/suggestions/mutual-suggestions-view.tsx · interest-dialog.tsx</span></span><span><b>API</b> POST /api/suggestions/[id]/decide</span></div>
+    <h3 style="margin-top:0">«لا»</h3>
+    <ol class="steps">
+      <li><span class="st">Card hides at once</span> <span class="dt">with a 5-second «تراجع» undo; then sent (also on page close).</span></li>
+      <li><span class="st">Saved as DECLINED.</span> <span class="dt">The row stays PENDING until the other side decides too. Toast: «لا نُطلع الطرف الآخر على قرار «لا»».</span></li>
+      <li><span class="st">Slot freed, top-up runs</span> <span class="dt">for me only.</span></li>
+    </ol>
+    <h3>«مهتم»</h3>
+    <ol class="steps">
+      <li><span class="st">InterestDialog.</span> <span class="dt">Pick «محادثة هنا أولاً» (chat) or family. Family without a guardian shows the quick guardian form; family needs the consent tick. Shows «مهتم يستخدم رصيداً واحداً — رصيدك N» and the refund rule.</span></li>
+      <li><span class="st">One transaction:</span> <span class="dt">claim the decision, take 1 credit (only if balance ≥ 1), write ledger <code>INTEREST</code>. A double tap charges once.</span></li>
+      <li><span class="st">Balance hits 0</span> <span class="dt">→ PAYMENT notice «انتهى رصيدك — اشحن لتتابع».</span></li>
+      <li><span class="st">Card moves to «بانتظار الطرف الآخر»</span> <span class="dt">until the window ends, whatever the other side did.</span></li>
+      <li><span class="st">If the card was hidden from the other side,</span> <span class="dt">it is revealed to them now with «شخص أبدى اهتمامه بك» and a fresh 7 days.</span></li>
+      <li><span class="st">Other side already «مهتم»</span> <span class="dt">→ ACCEPTED → mutual match (flow 9).</span></li>
+    </ol>
+    <div class="facts">
+      <div class="fact"><h5>At 0 credits</h5>Cards stay fully visible, «لا» stays free, «مهتم» is disabled with a recharge link. Cards where the other side said «مهتم» show «أبدى/أبدت اهتمامه بك».</div>
+      <div class="fact"><h5>Refund</h5>Only when the window closes and the other side never answered. No refund after a «لا».</div>
+    </div>
+    <div class="gaplinks"><span>Gaps:</span><a class="gl h" href="#G03">G03</a><a class="gl h" href="#G04">G04</a><a class="gl m" href="#G18">G18</a><a class="gl m" href="#G19">G19</a><a class="gl l" href="#G43">G43</a><a class="gl l" href="#G44">G44</a></div>
+  </div>
+</section>
+
+<!-- 8 LIFECYCLE -->
+<section id="lifecycle">
+  <h2><span class="num">08</span>Suggestion lifecycle</h2>
+  <div class="flow">
+    <div class="states"><span class="s">PENDING</span><span class="arr">→</span><span class="s">ACCEPTED</span><span class="arr">both «مهتم»</span></div>
+    <div class="states"><span class="s">PENDING</span><span class="arr">→</span><span class="s end">REJECTED</span><span class="arr">both decided, not both «مهتم»</span></div>
+    <div class="states"><span class="s">PENDING</span><span class="arr">→</span><span class="s end">EXPIRED</span><span class="arr">7 days passed, or closed early (block, dealbreaker sweep, profile refresh, engaged)</span></div>
+    <div class="tbl" style="margin-top:14px"><table>
+      <thead><tr><th>Moment</th><th>What happens</th><th>Who is told</th></tr></thead>
+      <tbody>
+        <tr><td>Created</td><td><code>expiresAt = now + 7 d</code></td><td>Both (once per day), hidden candidate nothing</td></tr>
+        <tr><td>One side decides</td><td>Row stays PENDING</td><td>Nobody</td></tr>
+        <tr><td>2 days left</td><td>Daily job, once per row; skipped if the other side said «لا», blocked, hidden</td><td>Each undecided side: «اقتراح بانتظار قرارك»</td></tr>
+        <tr><td>Expiry, I said «مهتم», other silent</td><td>EXPIRED, credit back once (<code>interestRefundedAt</code>, ledger REFUND)</td><td>Me: «أعدنا لك رصيداً»</td></tr>
+        <tr><td>Expiry, I said «مهتم», other «لا»</td><td>EXPIRED, no refund</td><td>Nobody</td></tr>
+        <tr><td>Expiry, I never answered</td><td>Card disappears</td><td>Nobody</td></tr>
+        <tr><td>Both «مهتم» but match failed</td><td><code>healMissingMatches</code> creates it at 06:00</td><td>Match notices</td></tr>
+      </tbody>
+    </table></div>
+    <p class="sub" style="margin-top:12px">Expiry runs lazily on every feed load and in the daily job. A pair may be suggested again after 30 days only if neither side ever answered.</p>
+    <div class="gaplinks"><span>Gaps:</span><a class="gl m" href="#G15">G15</a><a class="gl l" href="#G43">G43</a><a class="gl l" href="#G45">G45</a></div>
+  </div>
+</section>
+
+<!-- 9 MATCH -->
+<section id="match">
+  <h2><span class="num">09</span>Mutual match</h2>
+  <p class="sub">The match is free. It opens straight into what both people chose on «مهتم».</p>
+  <div class="flow">
+    <div class="entry"><span><b>Code</b> <span class="path">intro/match.ts · createMutualMatch → openMatch → intro/outcome.ts · applyIntroOutcome</span></span></div>
+    <div class="matrix" role="table" aria-label="Match outcome by choice">
+      <div class="hd" role="columnheader">Her ↓ / His →</div><div class="hd chat">Chat</div><div class="hd fam">Family</div><div class="hd">No choice (old row)</div>
+      <div class="hd chat">Chat</div><div>Chat opens, 14 days. Notice «المحادثة مفتوحة الآن» → chat.</div><div>Family intro. His guardian shown to her; she is asked to share hers (reminder day 2).</div><div>Request buttons (free).</div>
+      <div class="hd fam">Family</div><div>Family intro. Her guardian shown to him; he is asked to share (reminder day 2).</div><div>Family intro, both guardians shared. «تم مشاركة بيانات التواصل العائلي».</div><div>Request buttons.</div>
+      <div class="hd">No choice</div><div>Request buttons.</div><div>Request buttons.</div><div>Request buttons.</div>
+    </div>
+    <ol class="steps" style="margin-top:16px">
+      <li><span class="st"><code>MutualMatch</code> created</span> <span class="dt">with <code>openedAt</code>; the outcome is stored as an auto-accepted <code>IntroRequest</code> (<code>respondedAt === expiresAt</code>).</span></li>
+      <li><span class="st">Photos and full details</span> <span class="dt">open to both on <code>/dashboard/matches</code>.</span></li>
+      <li><span class="st">Guardian contact shows</span> <span class="dt">only for a side that has a per-match share stamp <b>and</b> <code>ParentInfo.shareConsentAt</code>.</span></li>
+      <li><span class="st">After a family outcome</span> <span class="dt">either side may still send a free chat request.</span></li>
+    </ol>
+    <div class="gaplinks"><span>Gaps:</span><a class="gl h" href="#G07">G07</a><a class="gl m" href="#G38">G38</a><a class="gl l" href="#G46">G46</a></div>
+  </div>
+</section>
+
+<!-- 10 REQUESTS -->
+<section id="requests">
+  <h2><span class="num">10</span>Intro requests</h2>
+  <p class="sub">Used when the match opened with request buttons, or to add the other path later. Free while credit on interest is on.</p>
+  <div class="flow">
+    <div class="entry"><span><b>APIs</b> POST matches/[id]/intro · intro-requests/[id]/respond · intro-requests/[id]/cancel · matches/[id]/guardian-share</span></div>
+    <div class="states"><span class="s">PENDING</span><span class="arr">→</span><span class="s">ACCEPTED</span><span class="arr">/</span><span class="s end">DECLINED</span><span class="arr">/</span><span class="s end">EXPIRED 7 d</span><span class="arr">/</span><span class="s end">CANCELLED</span></div>
+    <ol class="steps">
+      <li><span class="st">Send.</span> <span class="dt">Refused if blocked, partner gone, same type pending or declined before, family already accepted, legacy visit running, or chat ended by a user. Family needs a guardian + consent.</span></li>
+      <li><span class="st">Receiver notified</span> <span class="dt">(INTRO_REQUEST); reminded at 2 days left.</span></li>
+      <li><span class="st">Accept.</span> <span class="dt">Chat → new conversation. Family → receiver needs a guardian + consent; both share stamps set.</span></li>
+      <li><span class="st">Decline</span> <span class="dt">is final for that type on that match. Sender is told.</span></li>
+      <li><span class="st">Cancel</span> <span class="dt">by the sender: no refund, receiver told it was withdrawn.</span></li>
+      <li><span class="st">Expiry</span> <span class="dt">by the daily job; sender told once.</span></li>
+    </ol>
+    <div class="gaplinks"><span>Gaps:</span><a class="gl h" href="#G09">G09</a><a class="gl m" href="#G33">G33</a></div>
+  </div>
+</section>
+
+<!-- 11 CHAT -->
+<section id="chat">
+  <h2><span class="num">11</span>In-app chat</h2>
+  <p class="sub">Text only between the two members, filtered, real time through Ably. Admins can read the full history (each view is logged).</p>
+  <div class="flow">
+    <div class="entry"><span><b>Pages</b> <code>/dashboard/chats</code>, <code>/dashboard/chats/[id]</code></span><span><b>Code</b> <span class="path">lib/chat/service.ts · filter.ts · ably.ts</span></span></div>
+    <div class="states"><span class="s">ACTIVE</span><span class="arr">→</span><span class="s end">EXPIRED</span><span class="arr">/</span><span class="s end">ENDED (user or admin)</span></div>
+    <ol class="steps">
+      <li><span class="st">Send a message.</span> <span class="dt">Refused if chat off, expired, ended, a user suspended / inactive, or blocked.</span>
+        <ul><li>Filter: links, emails, @handles, phone digits (all digit scripts), spelled-out numbers, social keywords, a short insult list.</li><li>Split numbers caught across the sender's own consecutive messages (10 min, 6 back).</li><li>Limits 5 per 5 s, 50 per day.</li></ul></li>
+      <li><span class="st">Partner pushed</span> <span class="dt">(push only, one per 3 min per chat, shows the text).</span></li>
+      <li><span class="st">Day 7:</span> <span class="dt">one "ready for a family introduction?" nudge to both while the family path is open.</span></li>
+      <li><span class="st">2 days left:</span> <span class="dt">warning to both. Either side may extend +7 once in the last 3 days; partner told.</span></li>
+      <li><span class="st">Move to family</span> <span class="dt">any time: «ننتقل لتعارف عائلي» in the strip or the expired footer, free.</span></li>
+      <li><span class="st">Expiry:</span> <span class="dt">read-only; both get «هل تنتقلان لتعارف عائلي؟ الانتقال مجاني». 14 days later with no family request the match counts as finished.</span></li>
+      <li><span class="st">End / end and report:</span> <span class="dt">ENDED, pending family requests cancelled, partner told. Ending closes the family path on this match. With a report it also blocks.</span></li>
+    </ol>
+    <div class="callout">Guardian read-only access to the chat was in the design (<code>new-cycle-design.md</code>) but is deferred and not built.</div>
+    <div class="gaplinks"><span>Gaps:</span><a class="gl m" href="#G21">G21</a><a class="gl m" href="#G35">G35</a><a class="gl m" href="#G36">G36</a><a class="gl l" href="#G50">G50</a></div>
+  </div>
+</section>
+
+<!-- 12 FAMILY -->
+<section id="family">
+  <h2><span class="num">12</span>Family intro &amp; follow-up</h2>
+  <p class="sub">The platform shares guardian name, relationship and phone. Families arrange the visit themselves; the site only asks how it went.</p>
+  <div class="flow">
+    <div class="entry"><span><b>Code</b> <span class="path">intro/followup.ts · POST matches/[id]/outcome</span></span></div>
+    <ol class="steps">
+      <li><span class="st">Contacts shown</span> <span class="dt">on the match card (<code>GuardianContactCard</code>, tel and WhatsApp links). In a mixed match the family-chooser sees an amber "waiting" banner until the other side shares.</span></li>
+      <li><span class="st">Follow-up</span> <span class="dt">«كيف يسير التعارف العائلي؟» at day 7, then every 14 days, at most 3 times.</span></li>
+      <li><span class="st">ما زلنا نتعارف (CONTINUING)</span> <span class="dt">keeps it open; also the undo for engaged.</span></li>
+      <li><span class="st">لم يحصل نصيب (NOT_A_MATCH)</span> <span class="dt">closes the match for both, ends any chat, cancels requests, partner told gently.</span></li>
+      <li><span class="st">تمت الخطبة (ENGAGED)</span> <span class="dt">closes my undecided suggestions (with refunds), pauses new ones, asks the partner to confirm.</span></li>
+    </ol>
+    <div class="gaplinks"><span>Gaps:</span><a class="gl h" href="#G05">G05</a><a class="gl h" href="#G08">G08</a><a class="gl h" href="#G06">G06</a><a class="gl m" href="#G39">G39</a><a class="gl m" href="#G40">G40</a></div>
+  </div>
+</section>
+
+<!-- 13 SAFETY -->
+<section id="safety">
+  <h2><span class="num">13</span>Block, report, unmatch</h2>
+  <div class="flow">
+    <div class="tbl"><table>
+      <thead><tr><th>Action</th><th>Effect</th><th>Who is told</th></tr></thead>
+      <tbody>
+        <tr><td>Block (<code>POST /api/blocks</code>)</td><td>Pending requests cancelled, chat ENDED for good, open shared suggestions closed (refund rule applies). Blocked person loses the match (404) but keeps the chat read-only to report.</td><td>Nobody</td></tr>
+        <tr><td>Report (match card or chat)</td><td>One report per pair; a repeat reopens it. Needs a prior suggestion or match. 3+ reporters → <code>isFlagged</code> (no new suggestions, nothing else).</td><td>Nobody (admin sees it in the panel)</td></tr>
+        <tr><td>End and report (chat)</td><td>Report + block + chat ended</td><td>Partner: chat ended</td></tr>
+        <tr><td>«إنهاء التوافق»</td><td>Same as NOT_A_MATCH</td><td>Partner</td></tr>
+        <tr><td>Unblock (<code>/dashboard/blocks</code>)</td><td>Deletes the block row. The chat stays ended.</td><td>Nobody</td></tr>
+      </tbody>
+    </table></div>
+    <div class="gaplinks"><span>Gaps:</span><a class="gl m" href="#G27">G27</a><a class="gl m" href="#G32">G32</a></div>
+  </div>
+</section>
+
+<!-- 14 LEAVING -->
+<section id="leaving">
+  <h2><span class="num">14</span>Pause, delete, return</h2>
+  <div class="flow">
+    <ol class="steps">
+      <li><span class="st">Pause</span> <span class="dt">(<code>POST /api/profile/deactivate</code>, a toggle). Chats end, pending requests cancelled, chat partners told. Dashboard shows only the reactivate page.</span></li>
+      <li><span class="st">Delete request</span> <span class="dt">schedules deletion in 30 days and deactivates. Same clean-up as pause.</span></li>
+      <li><span class="st">Return</span> <span class="dt">(<code>POST /api/profile/reactivate</code>) clears the flag and cancels any pending deletion.</span></li>
+      <li><span class="st">Final deletion</span> <span class="dt">(daily job): Bunny files removed, open-match partners told, report evidence snapshotted, user deleted.</span></li>
+      <li><span class="st">Support</span> <span class="dt"><code>/dashboard/support</code> tickets (max 5 open), admin replies with a status + note. Public <code>/contact</code> form saves a message and emails the admin.</span></li>
+    </ol>
+    <div class="gaplinks"><span>Gaps:</span><a class="gl h" href="#G02">G02</a><a class="gl m" href="#G22">G22</a><a class="gl m" href="#G34">G34</a><a class="gl l" href="#G51">G51</a></div>
+  </div>
+</section>
+
+<!-- 15 PAYMENTS -->
+<section id="payments">
+  <h2><span class="num">15</span>Buying credits</h2>
+  <p class="sub">Embedded Stripe Checkout on a Stripe account shared with other sites. Prices show in JOD, charges are in USD.</p>
+  <div class="flow">
+    <div class="entry"><span><b>Page</b> <code>/dashboard/payments</code></span><span><b>APIs</b> payments/checkout · session-status · cancel · webhook · history</span></div>
+    <div class="tbl" style="margin-bottom:16px"><table>
+      <thead><tr><th>Package</th><th>Credits</th><th>Shown</th><th>Charged</th></tr></thead>
+      <tbody>
+        <tr><td>credits_3</td><td class="num">3</td><td class="num">3 JOD</td><td class="num">$4.23</td></tr>
+        <tr><td>credits_5 (popular)</td><td class="num">5</td><td class="num">4 JOD</td><td class="num">$5.64</td></tr>
+        <tr><td>credits_10</td><td class="num">10</td><td class="num">7 JOD</td><td class="num">$9.87</td></tr>
+      </tbody>
+    </table></div>
+    <ol class="steps">
+      <li><span class="st">Checkout</span> <span class="dt">creates a PENDING <code>Payment</code> row first, then the Stripe session (metadata <code>app: naseebak</code>, paymentId, userId, credits).</span></li>
+      <li><span class="st">Embedded form</span> <span class="dt">loads with the publishable key (baked in at build time).</span></li>
+      <li><span class="st">Return URL</span> <span class="dt"><code>NEXT_PUBLIC_APP_URL/dashboard/payments?session_id=…</code> calls session-status, which fulfils if paid.</span></li>
+      <li><span class="st">Credits added once</span> <span class="dt">by <code>fulfilCheckoutSession</code> from any of three places: webhook, return page, or daily reconcile (last 3 days). Ledger PURCHASE, PAYMENT notice.</span></li>
+      <li><span class="st">«رجوع»</span> <span class="dt">fails only rows older than 30 min; the session itself stays payable for 24 h.</span></li>
+    </ol>
+    <div class="callout"><b>Production on 18 Oct:</b> 6 checkouts, 0 paid, 4 still PENDING and no webhook calls seen. If the webhook were registered, Stripe's <code>checkout.session.expired</code> event would have turned those rows FAILED after 24 h. Check the Stripe dashboard webhook endpoint and <code>error-0.log</code> for <code>Checkout error</code> or <code>Webhook signature</code>.</div>
+    <div class="gaplinks"><span>Gaps:</span><a class="gl h" href="#G11">G11</a><a class="gl m" href="#G13">G13</a><a class="gl m" href="#G14">G14</a></div>
+  </div>
+</section>
+
+<!-- 16 NOTIFICATIONS -->
+<section id="notifications">
+  <h2><span class="num">16</span>Notifications</h2>
+  <p class="sub">Every member notice is an in-app row plus a OneSignal push (if the member allows that type). There is no SMS or email to members for any cycle event; SMS is only the login code and manual campaigns.</p>
+  <div class="tbl"><table>
+    <thead><tr><th>Event</th><th>Type</th><th>Channel</th><th>Trigger</th></tr></thead>
+    <tbody>
+      <tr><td>New suggestions</td><td>SUGGESTION</td><td>App + push, once a day</td><td>auto-suggest</td></tr>
+      <tr><td lang="ar">شخص أبدى اهتمامه بك</td><td>SUGGESTION</td><td>App + push</td><td>hidden card revealed by a «مهتم»</td></tr>
+      <tr><td>Suggestion ends in ≤ 2 days</td><td>SUGGESTION</td><td>App + push</td><td>daily job</td></tr>
+      <tr><td>Unanswered «مهتم» refunded</td><td>PAYMENT</td><td>App + push</td><td>expiry</td></tr>
+      <tr><td>Credits ran out</td><td>PAYMENT</td><td>App + push</td><td>«مهتم» to 0</td></tr>
+      <tr><td>Match opened (chat / family / mixed)</td><td>MATCH</td><td>App + push</td><td>createMutualMatch</td></tr>
+      <tr><td>Guardian shared / share reminder</td><td>MATCH</td><td>App + push</td><td>share, day 2</td></tr>
+      <tr><td>Intro request received / accepted / declined / withdrawn / expiring / expired</td><td>INTRO_REQUEST</td><td>App + push</td><td>requests + daily job</td></tr>
+      <tr><td>New chat message</td><td>CHAT</td><td>Push only, 1 per 3 min</td><td>send</td></tr>
+      <tr><td>Chat day-7 nudge / 2 days left / extended / expired / ended</td><td>CHAT</td><td>App + push</td><td>housekeeping</td></tr>
+      <tr><td>Family follow-up / not a match / congratulations</td><td>MATCH</td><td>App + push</td><td>daily job, outcome</td></tr>
+      <tr><td>Guardian consent withdrawn</td><td>MATCH</td><td>App + push</td><td>parent-info</td></tr>
+      <tr><td>Re-engagement (idle 7–30 d)</td><td>by item</td><td>Push only</td><td>daily job</td></tr>
+      <tr><td>Purchase / refund</td><td>PAYMENT</td><td>App + push</td><td>fulfil, admin refund</td></tr>
+      <tr><td>Referral reward</td><td>SYSTEM</td><td>App + push</td><td>maybeAwardReferral</td></tr>
+      <tr><td>Profile edit approved / rejected, support reply, suspension</td><td>SYSTEM / SUPPORT</td><td>App + push</td><td>admin</td></tr>
+      <tr><td>Admin broadcast</td><td>SYSTEM</td><td>App + push</td><td>Admin → Notifications</td></tr>
+      <tr><td>New registration, contact message</td><td>n/a</td><td>Admin email</td><td>register, contact</td></tr>
+    </tbody>
+  </table></div>
+  <div class="gaplinks"><span>Gaps:</span><a class="gl h" href="#G12">G12</a><a class="gl m" href="#G17">G17</a><a class="gl m" href="#G21">G21</a><a class="gl m" href="#G27">G27</a><a class="gl l" href="#G43">G43</a></div>
+</section>
+
+<!-- 17 CRON -->
+<section id="cron">
+  <h2><span class="num">17</span>Daily job · 06:00 Amman</h2>
+  <p class="sub"><code>/etc/cron.d/naseebak</code> calls <code>/api/cron/daily</code> with the bearer secret. Tasks run in this order; one failing doesn't stop the rest. The summary shows in Admin → Settings.</p>
+  <div class="tbl"><table>
+    <thead><tr><th>#</th><th>Task</th><th>What it does</th></tr></thead>
+    <tbody>
+      <tr><td class="num">1</td><td>introExpiry</td><td>Overdue requests → EXPIRED; sender told once</td></tr>
+      <tr><td class="num">2</td><td>introReminders</td><td>Receiver reminded at ≤ 2 days</td></tr>
+      <tr><td class="num">3</td><td>suggestionExpiry</td><td>Shared suggestions → EXPIRED + unanswered «مهتم» refunds</td></tr>
+      <tr><td class="num">4</td><td>suggestionReminders</td><td>Undecided sides reminded at ≤ 2 days</td></tr>
+      <tr><td class="num">5</td><td>chats</td><td>Expire + family offer, day-7 nudge, 2-days-left warning</td></tr>
+      <tr><td class="num">6</td><td>matchHeal</td><td>Creates matches missing for ACCEPTED rows (30 d)</td></tr>
+      <tr><td class="num">7</td><td>guardianShareReminders</td><td>Day-2 reminder to the chat side of a mixed match</td></tr>
+      <tr><td class="num">8</td><td>familyFollowUps</td><td>Day 7, then every 14 days, max 3</td></tr>
+      <tr><td class="num">9</td><td>legacyVisits</td><td>Cancels REQUESTED visits on closed matches</td></tr>
+      <tr><td class="num">10</td><td>weeklySuggestions</td><td>Tops up to 5 open, 150 users per run</td></tr>
+      <tr><td class="num">11</td><td>reengagement</td><td>Push to idle users with something waiting</td></tr>
+      <tr><td class="num">12</td><td>deletions</td><td>Runs account deletions due today</td></tr>
+      <tr><td class="num">13</td><td>payments</td><td>Reconciles paid Stripe sessions from the last 3 days</td></tr>
+    </tbody>
+  </table></div>
+  <p class="sub" style="margin-top:12px">Also on the server: DB backup 03:30 (14 days local + encrypted copy on Bunny).</p>
+  <div class="gaplinks"><span>Gaps:</span><a class="gl m" href="#G40">G40</a><a class="gl l" href="#G52">G52</a></div>
+</section>
+
+<!-- 18 ADMIN -->
+<section id="admin">
+  <h2><span class="num">18</span>Admin panel</h2>
+  <p class="sub">The member cycle needs no admin. These pages remain for moderation, money and content. All 42 admin APIs call <code>requireAdmin()</code>.</p>
+  <div class="tbl"><table>
+    <thead><tr><th>Page</th><th>What the admin does</th><th>Still needed?</th></tr></thead>
+    <tbody>
+      <tr><td>Dashboard</td><td>Stats, new-cycle funnel</td><td>Yes</td></tr>
+      <tr><td>Users / user detail</td><td>Search, photos, suspend, ± credits with reason, flag, end chats, full cycle history</td><td>Yes</td></tr>
+      <tr><td>Profile Requests</td><td>Approve / reject profile edits</td><td><b>Yes, every step 1–4 edit waits here</b></td></tr>
+      <tr><td>Reports · Blocks</td><td>Review, resolve, end chat · list, remove</td><td>Yes</td></tr>
+      <tr><td>Payments</td><td>List, refund through Stripe</td><td>Yes</td></tr>
+      <tr><td>Support · Contact Messages</td><td>Reply to tickets · mark handled</td><td>Yes</td></tr>
+      <tr><td>Settings</td><td>Admins, registration, maintenance, tracking, cycle switches, credit top-up, daily job run</td><td>Yes</td></tr>
+      <tr><td>Matches · Introductions · Chats</td><td>Read-only overviews, full chat history (logged), end a chat</td><td>Moderation</td></tr>
+      <tr><td>Suggestions</td><td>Generate, hand-pick, delete</td><td>Optional</td></tr>
+      <tr><td>Notifications · Blog · Deletions</td><td>Broadcast · posts · cancel a deletion</td><td>Optional / content</td></tr>
+      <tr><td>Identity · Visits</td><td>Old ID documents · old admin-arranged visits</td><td>Legacy</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- GAPS -->
+<section id="gaps">
+  <h2>Gaps register</h2>
+  <p class="sub">Found while tracing the code. <b>Update 18 Oct (evening):</b> 46 fixed in code (struck through), 6 partly fixed — each card says what changed and what is left; nothing deployed yet. High = members lose money, data or access, or the flow breaks. Medium = a dead end, wrong copy, or an admin dependency. Low = polish. The top items in each flow were spot-checked against the code; treat the rest as leads to confirm before fixing.</p>
+  <div class="summary">
+    <div class="sumtile h"><div class="v" id="cH">0</div><div class="k">High</div></div>
+    <div class="sumtile m"><div class="v" id="cM">0</div><div class="k">Medium</div></div>
+    <div class="sumtile l"><div class="v" id="cL">0</div><div class="k">Low</div></div>
+    <div class="sumtile"><div class="v" id="cAll">0</div><div class="k">Total</div></div>
+  </div>
+  <div class="filters" id="sevFilters"><span class="lbl">Severity</span>
+    <button class="fbtn" id="fs-all" data-sev="all" aria-pressed="true">All</button>
+    <button class="fbtn" id="fs-h" data-sev="h" aria-pressed="false">High</button>
+    <button class="fbtn" id="fs-m" data-sev="m" aria-pressed="false">Medium</button>
+    <button class="fbtn" id="fs-l" data-sev="l" aria-pressed="false">Low</button>
+  </div>
+  <div class="filters" id="areaFilters"><span class="lbl">Area</span>
+    <button class="fbtn" id="fa-all" data-area="all" aria-pressed="true">All</button>
+    <button class="fbtn" id="fa-acc" data-area="Account" aria-pressed="false">Account</button>
+    <button class="fbtn" id="fa-sug" data-area="Suggestions" aria-pressed="false">Suggestions</button>
+    <button class="fbtn" id="fa-post" data-area="After match" aria-pressed="false">After match</button>
+    <button class="fbtn" id="fa-pay" data-area="Payments" aria-pressed="false">Payments</button>
+    <button class="fbtn" id="fa-not" data-area="Notifications" aria-pressed="false">Notifications</button>
+    <button class="fbtn" id="fa-sec" data-area="Security" aria-pressed="false">Security</button>
+    <button class="fbtn" id="fa-copy" data-area="Copy" aria-pressed="false">Copy</button>
+  </div>
+
+  <div class="gaplist" id="gaplist">
+    <!-- HIGH -->
+    <div class="gap is-done" id="G01" data-sev="h" data-area="Account"><div><div class="id">G01</div><span class="sev h">High</span></div><div>
+      <div class="ttl">The edit page won't save anything until a guardian is entered<span class="area">Account</span></div>
+      <div class="body">Submit validates steps 1–5, and step 5 requires guardian name, phone, relationship and address. Since 18 Oct new members skip the guardian at setup, so most of them can't save any edit, preferences included.</div>
+      <div class="fix"><b>Fix:</b> in the new cycle, validate step 5 only when the guardian fields were touched. <span class="path">dashboard/profile/edit/page.tsx:368, :460</span></div>
+      <div class="done ok"><b>Fixed 18 Oct:</b> Step 5 is validated only once the guardian fields are touched (new cycle).</div></div></div>
+
+    <div class="gap is-done" id="G02" data-sev="h" data-area="Account"><div><div class="id">G02</div><span class="sev h">High</span></div><div>
+      <div class="ttl">Pause is a toggle, so a stale tab can wake an account that is scheduled for deletion<span class="area">Account</span></div>
+      <div class="body"><code>deactivate</code> flips <code>isDeactivated</code>. After a deletion request, a second tap turns the account back on without cancelling the deletion, and the deletion job doesn't check the flag. The account looks active, then is deleted.</div>
+      <div class="fix"><b>Fix:</b> make pause and resume explicit, and have resume cancel the deletion (or the job skip active accounts). <span class="path">api/profile/deactivate/route.ts:22 · cron/deletions.ts</span></div>
+      <div class="done ok"><b>Fixed 18 Oct:</b> Explicit pause/resume; resume cancels the deletion; the job only deletes still-paused accounts and re-checks each request.</div></div></div>
+
+    <div class="gap is-done" id="G03" data-sev="h" data-area="Suggestions"><div><div class="id">G03</div><span class="sev h">High</span></div><div>
+      <div class="ttl">A «لا» doesn't close the card, so the other side can pay for a match that can't happen<span class="area">Suggestions</span></div>
+      <div class="body">The row turns REJECTED only when both have decided. Until then the other side still sees it and can spend a credit on «مهتم», with no refund. It also keeps their slot busy for up to 7 days. CLAUDE.md says a «لا» closes the row; the code doesn't.</div>
+      <div class="fix"><b>Fix:</b> decide on purpose. Either keep it (it hides the «لا») and free the slot, or quietly expire the card for the other side. <span class="path">suggestions/mutual.ts:429</span></div>
+      <div class="done ok"><b>Fixed 18 Oct:</b> A «لا» closes the row at once (REJECTED); the other side's card disappears as if expired, both slots free. Older rows close lazily and in the daily job.</div></div></div>
+
+    <div class="gap is-done" id="G04" data-sev="h" data-area="Suggestions"><div><div class="id">G04</div><span class="sev h">High</span></div><div>
+      <div class="ttl">A hidden card the recipient already refused can still be revealed and paid for<span class="area">Suggestions</span></div>
+      <div class="body"><code>revealHiddenFor</code> checks only the candidate's own decision, not the recipient's. A full candidate who frees a slot is shown a card the other side already said «لا» to. CLAUDE.md says "a «لا» closes it unseen".</div>
+      <div class="fix"><b>Fix:</b> add <code>recipientDecision: null</code> (or not DECLINED) to the reveal filter, and close hidden rows on «لا». <span class="path">suggestions/mutual.ts:89</span></div>
+      <div class="done ok"><b>Fixed 18 Oct:</b> Reveal requires the recipient's answer to be empty or «مهتم»; a «لا» closes the hidden row.</div></div></div>
+
+    <div class="gap is-done" id="G05" data-sev="h" data-area="After match"><div><div class="id">G05</div><span class="sev h">High</span></div><div>
+      <div class="ttl">An "engaged" member can get stuck out of suggestions for good<span class="area">After match</span></div>
+      <div class="body">If A says تمت الخطبة and B then says لم يحصل نصيب, A's ENGAGED stays. Any later change is refused once someone said NOT_A_MATCH, and the card shows "ended", so the undo never appears. A is excluded from suggestions forever.</div>
+      <div class="fix"><b>Fix:</b> when NOT_A_MATCH closes a match, reset the other side's ENGAGED (or let a closed match still undo). <span class="path">intro/followup.ts:95 · matches/state.ts:69</span></div>
+      <div class="done ok"><b>Fixed 18 Oct:</b> NOT_A_MATCH resets the other side's ENGAGED; members already stuck come back without a data fix.</div></div></div>
+
+    <div class="gap is-done" id="G06" data-sev="h" data-area="After match"><div><div class="id">G06</div><span class="sev h">High</span></div><div>
+      <div class="ttl">Guardian contacts are still returned by the API after a match ends<span class="area">After match</span></div>
+      <div class="body"><code>GET /api/matches/[id]/intro</code> still builds the guardian name and phone when the match is ended, finished or engaged. The UI hides it, but anyone reading the response keeps getting the current number.</div>
+      <div class="fix"><b>Fix:</b> drop <code>family.contacts</code> whenever the match is closed. <span class="path">intro/requests.ts:248</span></div>
+      <div class="done ok"><b>Fixed 18 Oct:</b> A closed match never returns guardian contacts.</div></div></div>
+
+    <div class="gap is-done" id="G07" data-sev="h" data-area="After match"><div><div class="id">G07</div><span class="sev h">High</span></div><div>
+      <div class="ttl">Mixed match shares one guardian before the other side has shared anything<span class="area">After match</span></div>
+      <div class="body">When one chose family and the other chose chat, the chat-chooser sees the family-chooser's guardian at once, then can leave without sharing back. The copy says the families exchange contacts.</div>
+      <div class="fix"><b>Fix:</b> show both guardians only once both sides are stamped, or tell the family-chooser at the choice that theirs goes first. <span class="path">intro/outcome.ts · match-intro-panel.tsx:410</span></div>
+      <div class="done ok"><b>Fixed 18 Oct:</b> Mixed match: neither guardian shows until both have shared; the family choice says so.</div></div></div>
+
+    <div class="gap is-done" id="G08" data-sev="h" data-area="After match"><div><div class="id">G08</div><span class="sev h">High</span></div><div>
+      <div class="ttl">An engaged member's open «مهتم» cards stay open, so others still pay to match them<span class="area">After match</span></div>
+      <div class="body">ENGAGED closes only the cards the member hadn't answered. Cards where they already said «مهتم» stay, and a partner can say «مهتم», be charged, and match someone who is engaged. Their other chats and matches also carry on without notice.</div>
+      <div class="fix"><b>Fix:</b> on ENGAGED, close all their PENDING shared suggestions (with refunds) and tell other open matches. <span class="path">intro/followup.ts:62</span></div>
+      <div class="done ok"><b>Fixed 18 Oct:</b> ENGAGED closes all PENDING shared suggestions (refunds) and the member's other open matches, with a neutral notice.</div></div></div>
+
+    <div class="gap is-done" id="G09" data-sev="h" data-area="After match"><div><div class="id">G09</div><span class="sev h">High</span></div><div>
+      <div class="ttl">The server doesn't check whether a match ended before sending, accepting or sharing<span class="area">After match</span></div>
+      <div class="body"><code>sendIntroRequest</code>, <code>respondToIntroRequest</code> and <code>shareGuardianForMatch</code> never read the outcomes. The UI hides the buttons, but the API still lets someone share a guardian or push "you can now arrange the family visit" on a match the other side ended.</div>
+      <div class="fix"><b>Fix:</b> refuse these when either outcome is NOT_A_MATCH or ENGAGED. <span class="path">intro/requests.ts:337, :594</span></div>
+      <div class="done ok"><b>Fixed 18 Oct:</b> Send / accept / share are refused after NOT_A_MATCH or ENGAGED, or while a report review pauses the member.</div></div></div>
+
+    <div class="gap is-done" id="G10" data-sev="h" data-area="Security"><div><div class="id">G10</div><span class="sev h">High</span></div><div>
+      <div class="ttl">Fixed-code test numbers work on production<span class="area">Security</span></div>
+      <div class="body"><code>962777000001</code> and <code>962777000002</code> sign in with <code>111111</code> for anyone. The seeded demo numbers <code>9627900000xx</code> are in the test group, so a real person who registers one is never suggested to real members.</div>
+      <div class="fix"><b>Fix:</b> on production keep only <code>EXTRA_TEST_PHONES</code> (owner's two numbers). <span class="path">lib/test-accounts.ts:15, :18</span></div>
+      <div class="done ok"><b>Fixed 18 Oct:</b> On production only EXTRA_TEST_PHONES get 111111 and form the test group. Owner: make sure that list holds every number still needed.</div></div></div>
+
+    <div class="gap" id="G11" data-sev="h" data-area="Payments"><div><div class="id">G11</div><span class="sev h">High</span></div><div>
+      <div class="ttl">No payment has completed since launch, and the webhook seems not to reach the site<span class="area">Payments</span></div>
+      <div class="body">The 4 PENDING rows would be FAILED by now if Stripe's 24-hour <code>expired</code> event were arriving. Likely causes: no endpoint for naseebak.com on the shared account, wrong events, a secret from another site's endpoint, mismatched live/test keys, or a wrong <code>NEXT_PUBLIC_APP_URL</code>. PENDING rows are also created before the Stripe call, so a failed call looks like an abandoned checkout.</div>
+      <div class="fix"><b>Fix:</b> check the Stripe webhook endpoint and delivery log, grep <code>error-0.log</code>, then run one real payment end to end. <span class="path">api/payments/checkout/route.ts:30, :45 · webhook/route.ts</span></div>
+      <div class="done part"><b>Partly fixed 18 Oct:</b> Code: the PENDING row is written only after Stripe returns a session; Stripe errors are logged; async_payment_failed handled. Owner: check the webhook endpoint, events and secret in Stripe, then run one real payment.</div></div></div>
+
+    <div class="gap is-done" id="G12" data-sev="h" data-area="Notifications"><div><div class="id">G12</div><span class="sev h">High</span></div><div>
+      <div class="ttl">Members without push get no news about anything<span class="area">Notifications</span></div>
+      <div class="body">Every cycle event is in-app + push only; there's no SMS or email fallback. A member who didn't allow push (or uses an iPhone without installing the app) never hears about a match, a «مهتم», or an expiring card. Only 22 of 184 pre-launch members came back; the one-off SMS on 18 Oct is the test of this.</div>
+      <div class="fix"><b>Fix:</b> after measuring that SMS, add an SMS for the few high-value events (match, someone interested, card expiring) for members with no push device. <span class="path">lib/notify.ts</span></div>
+      <div class="done ok"><b>Fixed 18 Oct:</b> SMS fallback for match / «شخص أبدى اهتمامه بك» / expiring card, only with no push subscription, max 1 per member per Amman day (User.lastSmsNoticeAt).</div></div></div>
+
+    <!-- MEDIUM -->
+    <div class="gap is-done" id="G13" data-sev="m" data-area="Payments"><div><div class="id">G13</div><span class="sev m">Medium</span></div><div>
+      <div class="ttl">Abandoned checkouts are never cleaned up properly<span class="area">Payments</span></div>
+      <div class="body">«رجوع» fails only rows older than 30 minutes and never expires the Stripe session. History marks rows FAILED after 30 minutes while the session stays payable for 24 hours. No scheduled clean-up.</div>
+      <div class="fix"><b>Fix:</b> on «رجوع», fail that row and expire its session. <span class="path">dashboard/payments/page.tsx:209 · api/payments/cancel</span></div>
+      <div class="done ok"><b>Fixed 18 Oct:</b> «رجوع»/«إلغاء» expire the Stripe session and fail that row; sessions and history share a 35-minute timer.</div></div></div>
+
+    <div class="gap is-done" id="G14" data-sev="m" data-area="Payments"><div><div class="id">G14</div><span class="sev m">Medium</span></div><div>
+      <div class="ttl">Refunds and disputes in Stripe aren't reflected, and payment records vanish with the user<span class="area">Payments</span></div>
+      <div class="body"><code>charge.refunded</code> and <code>charge.dispute.created</code> are ignored, so a refund made in Stripe keeps the credits. The refund notice says "دينار أردني" but USD was charged. Deleting a user cascades to their Payment and ledger rows. Packages are defined in three files.</div>
+      <div class="fix"><b>Fix:</b> handle those events, keep payment rows on deletion (set null), and use one package list. <span class="path">schema.prisma:503, :821 · admin/payments/[id]/refund</span></div>
+      <div class="done ok"><b>Fixed 18 Oct:</b> charge.refunded and charge.dispute.created handled; notices in USD; Payment and ledger rows survive deletion; one package list.</div></div></div>
+
+    <div class="gap" id="G15" data-sev="m" data-area="Suggestions"><div><div class="id">G15</div><span class="sev m">Medium</span></div><div>
+      <div class="ttl">The candidate pool runs out for good<span class="area">Suggestions</span></div>
+      <div class="body">A pair can be suggested again only if neither side ever answered. With about 200 members, a minimum score of 50 and strict dealbreakers (a missing value fails), many members will reach permanent «no one fits».</div>
+      <div class="fix"><b>Fix:</b> run <code>scripts/score-distribution.ts</code> on a production copy, confirm the 50 minimum, and consider re-suggesting «لا» pairs after a long gap or a profile change.</div>
+      <div class="done part"><b>Partly fixed 18 Oct:</b> Not changed: needs scripts/score-distribution.ts on a production copy. Pairs that expired unanswered are already re-suggested after 30 days.</div></div></div>
+
+    <div class="gap is-done" id="G16" data-sev="m" data-area="Suggestions"><div><div class="id">G16</div><span class="sev m">Medium</span></div><div>
+      <div class="ttl">Admin Generate ignores the new rules and can spam<span class="area">Suggestions</span></div>
+      <div class="body">No active or not-engaged filter, skips full candidates instead of hiding the card, and sends one notice per row with no once-a-day limit.</div>
+      <div class="fix"><b>Fix:</b> route it through <code>autoSuggestForUser</code>, or hide the button while credit on interest is on. <span class="path">api/admin/suggestions/generate/route.ts:26</span></div>
+      <div class="done ok"><b>Fixed 18 Oct:</b> With shared suggestions on, admin Generate runs autoSuggestForUser per eligible user (same rules, once-a-day notice).</div></div></div>
+
+    <div class="gap is-done" id="G17" data-sev="m" data-area="Suggestions"><div><div class="id">G17</div><span class="sev m">Medium</span></div><div>
+      <div class="ttl">Cards revealed from hidden often arrive without a notice<span class="area">Suggestions</span></div>
+      <div class="body">When a member frees a slot, the revealed card is announced only if no new card was added in the same run.</div>
+      <div class="fix"><b>Fix:</b> count revealed cards in the "new suggestions" notice. <span class="path">auto-suggest.ts:239</span></div>
+      <div class="done ok"><b>Fixed 18 Oct:</b> Revealed cards count in the «new suggestions» notice on every path.</div></div></div>
+
+    <div class="gap is-done" id="G18" data-sev="m" data-area="Suggestions"><div><div class="id">G18</div><span class="sev m">Medium</span></div><div>
+      <div class="ttl">If the match step fails after the charge, the member sees an error<span class="area">Suggestions</span></div>
+      <div class="body">The credit is taken, then <code>createMutualMatch</code> throws and the UI says «تعذّر حفظ قرارك». The match is repaired only at 06:00. Saving guardian consent also runs after the charge.</div>
+      <div class="fix"><b>Fix:</b> return success when the decision is saved and repair the match in the background; save consent inside the transaction. <span class="path">suggestions/mutual.ts:355, :421</span></div>
+      <div class="done ok"><b>Fixed 18 Oct:</b> A failed match step after the charge returns success; the daily heal creates the match; consent is saved inside the transaction.</div></div></div>
+
+    <div class="gap is-done" id="G19" data-sev="m" data-area="Suggestions"><div><div class="id">G19</div><span class="sev m">Medium</span></div><div>
+      <div class="ttl">InterestDialog closes before the server answers<span class="area">Suggestions</span></div>
+      <div class="body">Errors such as <code>GUARDIAN_REQUIRED</code> or <code>CONSENT_REQUIRED</code> show at the top of the page, away from the card, and the member has to start again.</div>
+      <div class="fix"><b>Fix:</b> keep the dialog open until the request returns and show the error inside it. <span class="path">mutual-suggestions-view.tsx:655</span></div>
+      <div class="done ok"><b>Fixed 18 Oct:</b> The «مهتم» dialog stays open until the server answers and shows fixable errors inside it.</div></div></div>
+
+    <div class="gap is-done" id="G20" data-sev="m" data-area="Account"><div><div class="id">G20</div><span class="sev m">Medium</span></div><div>
+      <div class="ttl">Profile edits still wait for an admin<span class="area">Account</span></div>
+      <div class="body">Every step 1–4 change goes to Profile Requests, including filling a field that was empty (which the API would accept directly). While one is pending the whole form is locked, preferences included, and the member can't withdraw it.</div>
+      <div class="fix"><b>Fix:</b> send empty-field fills straight to <code>PUT /api/profile</code>, keep preferences editable, add "withdraw request". <span class="path">profile/edit/page.tsx:487, :582</span></div>
+      <div class="done ok"><b>Fixed 18 Oct:</b> Empty fields and preferences save directly; a pending review no longer locks the form; «سحب الطلب» added.</div></div></div>
+
+    <div class="gap is-done" id="G21" data-sev="m" data-area="Notifications"><div><div class="id">G21</div><span class="sev m">Medium</span></div><div>
+      <div class="ttl">Requests are cancelled silently<span class="area">Notifications</span></div>
+      <div class="body">When a partner pauses or deletes, or a chat ends, pending requests are cancelled without telling the sender. Chat notifications also follow the "chat messages" push setting, so turning that off hides expiry and nudge notices.</div>
+      <div class="fix"><b>Fix:</b> tell the sender when the request is cancelled because the partner left. <span class="path">matches/leave.ts · matches/state.ts:156</span></div>
+      <div class="done ok"><b>Fixed 18 Oct:</b> Senders are told when a request is cancelled because the partner left; chat expiry/nudge notices no longer follow the chat-message push setting.</div></div></div>
+
+    <div class="gap is-done" id="G22" data-sev="m" data-area="Security"><div><div class="id">G22</div><span class="sev m">Medium</span></div><div>
+      <div class="ttl">Sessions outlive deletion and demotion<span class="area">Security</span></div>
+      <div class="body">A deleted user's JWT still passes (a missing row isn't rejected). <code>requireAdmin()</code> trusts the role in the token, so a removed admin keeps access until it expires.</div>
+      <div class="fix"><b>Fix:</b> reject when the user row is missing; re-check the admin role in the database. <span class="path">lib/auth.ts:119, :145</span></div>
+      <div class="done ok"><b>Fixed 18 Oct:</b> Sessions of deleted users get 401; requireAdmin re-reads role and suspension from the database.</div></div></div>
+
+    <div class="gap is-done" id="G23" data-sev="m" data-area="Account"><div><div class="id">G23</div><span class="sev m">Medium</span></div><div>
+      <div class="ttl">Deep links are lost after login<span class="area">Account</span></div>
+      <div class="body">Login always goes to <code>/dashboard</code>. A member who taps a push while signed out never reaches the match or chat it was about.</div>
+      <div class="fix"><b>Fix:</b> honour <code>callbackUrl</code> (same-site only). <span class="path">login/page.tsx:189</span></div>
+      <div class="done ok"><b>Fixed 18 Oct:</b> Login honours a same-site callbackUrl only (src/lib/safe-redirect.ts).</div></div></div>
+
+    <div class="gap is-done" id="G24" data-sev="m" data-area="Account"><div><div class="id">G24</div><span class="sev m">Medium</span></div><div>
+      <div class="ttl">Sign-up dead ends after a login hand-off or failed auto sign-in<span class="area">Account</span></div>
+      <div class="body">Changing the phone after coming from login skips verification and the register call fails. If auto sign-in fails after the account is created, pressing the button again fails too; referral and photo are lost and nothing points to login.</div>
+      <div class="fix"><b>Fix:</b> reset the verified flag on phone change; on sign-in failure after register, send to <code>/login</code>. <span class="path">register/page.tsx:171, :409, :858</span></div>
+      <div class="done ok"><b>Fixed 18 Oct:</b> Changing the phone clears the verified flag; a failed auto sign-in after register sends to /login.</div></div></div>
+
+    <div class="gap is-done" id="G25" data-sev="m" data-area="Account"><div><div class="id">G25</div><span class="sev m">Medium</span></div><div>
+      <div class="ttl">No terms acceptance or 18+ confirmation at sign-up<span class="area">Account</span></div>
+      <div class="body">Age is checked only later in setup. Members never tick terms or privacy, which matters for a site that shares guardian phone numbers and lets admins read chats.</div>
+      <div class="fix"><b>Fix:</b> add one required checkbox to the register form and store the time.</div>
+      <div class="done ok"><b>Fixed 18 Oct:</b> Required terms + privacy + 18+ checkbox; stored as User.termsAcceptedAt.</div></div></div>
+
+    <div class="gap is-done" id="G26" data-sev="m" data-area="Account"><div><div class="id">G26</div><span class="sev m">Medium</span></div><div>
+      <div class="ttl">Names of only spaces pass, and there's no length limit<span class="area">Account</span></div>
+      <div class="body">The Arabic-name regex allows whitespace and there is no trim or max length.</div>
+      <div class="fix"><b>Fix:</b> trim, require at least 2 letters, cap the length. <span class="path">validations/auth.ts:40</span></div>
+      <div class="done ok"><b>Fixed 18 Oct:</b> Names trimmed, at least 2 Arabic letters, max 40, on client and server.</div></div></div>
+
+    <div class="gap is-done" id="G27" data-sev="m" data-area="After match"><div><div class="id">G27</div><span class="sev m">Medium</span></div><div>
+      <div class="ttl">Reports don't hide anyone, and nobody is alerted<span class="area">After match</span></div>
+      <div class="body">3 reports only stop new suggestions. The flagged member keeps chatting and requesting, and the flag never clears if reports are dismissed. Admins get no email for reports, support tickets or profile requests.</div>
+      <div class="fix"><b>Fix:</b> email the admin on every report, and at 3 reports also pause open chats until reviewed. <span class="path">lib/reports.ts:62</span></div>
+      <div class="done ok"><b>Fixed 18 Oct:</b> Every report, support ticket and profile request emails the admins; at 3 pending reports open chats pause until review; the flag clears when dismissals bring it under 3.</div></div></div>
+
+    <div class="gap is-done" id="G28" data-sev="m" data-area="Copy"><div><div class="id">G28</div><span class="sev m">Medium</span></div><div>
+      <div class="ttl">Referral copy promises the wrong rule<span class="area">Copy</span></div>
+      <div class="body">The page says the reward needs a 100% profile; the code pays when setup is done and a guardian is saved. Since setup no longer asks for a guardian, most referred members never trigger it. No cap per referrer either.</div>
+      <div class="fix"><b>Fix:</b> decide whether the guardian is still needed for the reward, then align copy and code. <span class="path">referral/page.tsx:190 · referral.ts:42</span></div>
+      <div class="done ok"><b>Fixed 18 Oct:</b> Reward pays when the friend finishes setup (no guardian); referrer capped at 10 rewards; copy aligned.</div></div></div>
+
+    <div class="gap is-done" id="G29" data-sev="m" data-area="Account"><div><div class="id">G29</div><span class="sev m">Medium</span></div><div>
+      <div class="ttl">Preferences can be written and then rejected in the same save<span class="area">Account</span></div>
+      <div class="body">With a pending review, update-request saves the <code>pref*</code> fields first, then returns 409 for the rest. The member sees an error but half was saved.</div>
+      <div class="fix"><b>Fix:</b> check for a pending request before writing anything. <span class="path">api/profile/update-request:62</span></div>
+      <div class="done ok"><b>Fixed 18 Oct:</b> Pending review is checked before anything is written.</div></div></div>
+
+    <div class="gap is-done" id="G30" data-sev="m" data-area="Suggestions"><div><div class="id">G30</div><span class="sev m">Medium</span></div><div>
+      <div class="ttl">Unanswered hijab / beard is saved as "no"<span class="area">Suggestions</span></div>
+      <div class="body">The toggle defaults to false and is stored as a real answer, which then counts against a «prefHijab» dealbreaker.</div>
+      <div class="fix"><b>Fix:</b> store null until the member answers. <span class="path">profile/setup/page.tsx:383</span></div>
+      <div class="done ok"><b>Fixed 18 Oct:</b> Hijab / beard / licence stay null until answered (نعم / لا choices).</div></div></div>
+
+    <div class="gap is-done" id="G31" data-sev="m" data-area="Account"><div><div class="id">G31</div><span class="sev m">Medium</span></div><div>
+      <div class="ttl">Setup can show the old 5-step wizard while switches load<span class="area">Account</span></div>
+      <div class="body">The step count reads <code>counts.flags</code>, which start all false. A slow or failed counts call gives a new member the guardian step that was removed.</div>
+      <div class="fix"><b>Fix:</b> wait for the flags before choosing the step count. <span class="path">profile/setup/page.tsx:476</span></div>
+      <div class="done ok"><b>Fixed 18 Oct:</b> Setup waits for the switch flags (retry, then «إعادة المحاولة»).</div></div></div>
+
+    <div class="gap" id="G32" data-sev="m" data-area="Security"><div><div class="id">G32</div><span class="sev m">Medium</span></div><div>
+      <div class="ttl">Photos stay reachable forever<span class="area">Security</span></div>
+      <div class="body">Photos are on a public CDN path, so a URL seen once stays valid after a block or unmatch. Photos and full profile also stay visible to an ex-match after لم يحصل نصيب.</div>
+      <div class="fix"><b>Fix:</b> lock photos on NOT_A_MATCH like on a block; consider signed CDN URLs. <span class="path">api/matches/[id]/photos · bunny.ts:52</span></div>
+      <div class="done part"><b>Partly fixed 18 Oct:</b> Photos and full profile locked on NOT_A_MATCH. Signed CDN URLs not done (public URLs seen once stay valid).</div></div></div>
+
+    <div class="gap is-done" id="G33" data-sev="m" data-area="After match"><div><div class="id">G33</div><span class="sev m">Medium</span></div><div>
+      <div class="ttl">Chat → family dialog can show a cost that won't be charged<span class="area">After match</span></div>
+      <div class="body">After an earlier family request expired, the chat room's dialog says one credit will be taken (or offers only "recharge" at 0), though nothing is charged while credit on interest is on.</div>
+      <div class="fix"><b>Fix:</b> pass the same free flags the match card uses. <span class="path">chat-room.tsx:493</span></div>
+      <div class="done ok"><b>Fixed 18 Oct:</b> The chat → family dialog shows «free» under credit on interest, like the match card.</div></div></div>
+
+    <div class="gap" id="G34" data-sev="m" data-area="Account"><div><div class="id">G34</div><span class="sev m">Medium</span></div><div>
+      <div class="ttl">The suspended screen points to a form that needs an email<span class="area">Account</span></div>
+      <div class="body">Members only have phones, but <code>/contact</code> requires an email. Support tickets have no reply thread.</div>
+      <div class="fix"><b>Fix:</b> accept a phone number on the contact form.</div>
+      <div class="done part"><b>Partly fixed 18 Oct:</b> The contact form accepts a phone (ContactMessage.phone, tel: link in admin). A reply thread for support tickets is not built.</div></div></div>
+
+    <div class="gap is-done" id="G35" data-sev="m" data-area="After match"><div><div class="id">G35</div><span class="sev m">Medium</span></div><div>
+      <div class="ttl">The free move to family has an unstated deadline<span class="area">After match</span></div>
+      <div class="body">The expiry push says the move is free, but 14 days later the match turns "finished" and the button disappears.</div>
+      <div class="fix"><b>Fix:</b> say "free for 14 days", or keep the button while the match is open.</div>
+      <div class="done ok"><b>Fixed 18 Oct:</b> The deadline is stated: the read-only chat footer and the expiry push say until when the free move lasts.</div></div></div>
+
+    <div class="gap is-done" id="G36" data-sev="m" data-area="Security"><div><div class="id">G36</div><span class="sev m">Medium</span></div><div>
+      <div class="ttl">Chat push shows message text on the lock screen<span class="area">Security</span></div>
+      <div class="body">The first 80 characters appear in the notification, visible to anyone holding the phone.</div>
+      <div class="fix"><b>Fix:</b> send "رسالة جديدة من …" without the text. <span class="path">chat/service.ts:434</span></div>
+      <div class="done ok"><b>Fixed 18 Oct:</b> Chat push reads «رسالة جديدة من …» with no message text.</div></div></div>
+
+    <div class="gap" id="G37" data-sev="m" data-area="Security"><div><div class="id">G37</div><span class="sev m">Medium</span></div><div>
+      <div class="ttl">Locks and rate limits live in memory and trust the client IP header<span class="area">Security</span></div>
+      <div class="body">Limits reset on every deploy and hold only with one PM2 process. IP limits take the first <code>X-Forwarded-For</code> value, which the client controls.</div>
+      <div class="fix"><b>Fix:</b> take the last proxy hop (or <code>X-Real-IP</code> from Nginx); move key limits to Postgres. <span class="path">rate-limit.ts · send-otp:63</span></div>
+      <div class="done part"><b>Partly fixed 18 Oct:</b> IP from X-Real-IP / last X-Forwarded-For hop; OTP limits in Postgres. Login, chat and contact limits still in memory. Owner: confirm Nginx sets X-Real-IP.</div></div></div>
+
+    <div class="gap" id="G38" data-sev="m" data-area="Security"><div><div class="id">G38</div><span class="sev m">Medium</span></div><div>
+      <div class="ttl">Guardians are never told their number is shared<span class="area">Security</span></div>
+      <div class="body">The member's tick alone shares a third person's phone. The quick form saves consent even if the dialog is then cancelled. Re-granting consent re-exposes the guardian on old matches without notice.</div>
+      <div class="fix"><b>Fix:</b> save consent only when the action completes; consider an SMS to the guardian the first time it's shared.</div>
+      <div class="done part"><b>Partly fixed 18 Oct:</b> Consent is saved only when the action completes; closed matches never re-expose a guardian. No SMS to the guardian yet.</div></div></div>
+
+    <div class="gap is-done" id="G39" data-sev="m" data-area="After match"><div><div class="id">G39</div><span class="sev m">Medium</span></div><div>
+      <div class="ttl">Matches from the old visit flow never get a follow-up<span class="area">After match</span></div>
+      <div class="body">Follow-up needs an accepted family request, so couples who met through admin visits can't say تمت الخطبة and keep getting suggestions. Old REQUESTED visits sit in the admin queue with no expiry.</div>
+      <div class="fix"><b>Fix:</b> include legacy visits in the follow-up, or close them out once.</div>
+      <div class="done ok"><b>Fixed 18 Oct:</b> Legacy arranged visits get the follow-up; REQUESTED visits idle 30 days are cancelled (new cycle on).</div></div></div>
+
+    <div class="gap is-done" id="G40" data-sev="m" data-area="After match"><div><div class="id">G40</div><span class="sev m">Medium</span></div><div>
+      <div class="ttl">Daily batches can starve live rows<span class="area">After match</span></div>
+      <div class="body">Follow-ups (300), re-engagement, heal and legacy visits take a fixed batch with no order and no "skipped" marker, so closed rows come back every day and can push live ones out.</div>
+      <div class="fix"><b>Fix:</b> filter closed rows in the query and order by oldest. <span class="path">intro/followup.ts:203, :266 · cron/reengagement.ts:81</span></div>
+      <div class="done ok"><b>Fixed 18 Oct:</b> Follow-ups, re-engagement, legacy visits and the match heal filter closed rows and run oldest first.</div></div></div>
+
+    <div class="gap is-done" id="G41" data-sev="m" data-area="Copy"><div><div class="id">G41</div><span class="sev m">Medium</span></div><div>
+      <div class="ttl">The about page makes claims the site doesn't keep<span class="area">Copy</span></div>
+      <div class="body">Says photos and data are encrypted, "under parents' supervision", and mentions "the first 500 families". It also ignores the switches.</div>
+      <div class="fix"><b>Fix:</b> rewrite to match the current flow. <span class="path">about/page.tsx:36, :42, :75</span></div>
+      <div class="done ok"><b>Fixed 18 Oct:</b> About page rewritten without the encryption, supervision and «500 families» claims; true under any switch.</div></div></div>
+
+    <div class="gap is-done" id="G42" data-sev="m" data-area="Security"><div><div class="id">G42</div><span class="sev m">Medium</span></div><div>
+      <div class="ttl">Analytics runs inside the dashboard and chat, with no consent banner<span class="area">Security</span></div>
+      <div class="body">GA4, GTM and Meta Pixel load on every <code>(ar)</code> page, including chats.</div>
+      <div class="fix"><b>Fix:</b> load tracking on public pages only, or ask for consent.</div>
+      <div class="done ok"><b>Fixed 18 Oct:</b> GA4 / GTM / Pixel load on public pages only. Dashboard events (begin_checkout, payment_success) are no longer sent.</div></div></div>
+
+    <!-- LOW -->
+    <div class="gap is-done" id="G43" data-sev="l" data-area="Notifications"><div><div class="id">G43</div><span class="sev l">Low</span></div><div>
+      <div class="ttl">Refund notice says "expired with no answer" for early closes<span class="area">Notifications</span></div>
+      <div class="body">Also sent when a card closed early (block, dealbreaker, engagement). The refund for a match lost at the last moment sends no notice at all.</div>
+      <div class="fix"><b>Fix:</b> neutral wording; send the lost-match notice. <span class="path">mutual.ts:195, :402</span></div>
+      <div class="done ok"><b>Fixed 18 Oct:</b> Neutral refund wording for every early close; the lost-match refund now sends the notice.</div></div></div>
+
+    <div class="gap is-done" id="G44" data-sev="l" data-area="Copy"><div><div class="id">G44</div><span class="sev l">Low</span></div><div>
+      <div class="ttl">Copy says "up to 5" and "suggestions keep coming"<span class="area">Copy</span></div>
+      <div class="body">Reveals and the idle rule can show more than 5. The next-step card promises more suggestions even when the reason is <code>no_candidates</code>. The dashboard still labels the balance «رصيد التعارف».</div>
+      <div class="fix"><b>Fix:</b> read <code>emptyReason</code> in the card; rename the balance. <span class="path">next-step-card.tsx:134 · dashboard/page.tsx:299</span></div>
+      <div class="done ok"><b>Fixed 18 Oct:</b> Next-step card reads emptyReason; «رصيد التعارف» → «رصيدك»; «حتى 5» copy removed.</div></div></div>
+
+    <div class="gap is-done" id="G45" data-sev="l" data-area="Suggestions"><div><div class="id">G45</div><span class="sev l">Low</span></div><div>
+      <div class="ttl">Dealbreaker sweep and profile refresh treat paid cards differently<span class="area">Suggestions</span></div>
+      <div class="body">The refresh keeps cards where the other side already paid «مهتم»; the dealbreaker sweep closes them.</div>
+      <div class="fix"><b>Fix:</b> pick one rule. <span class="path">dealbreaker-sweep.ts:38 · refresh.ts:87</span></div>
+      <div class="done ok"><b>Fixed 18 Oct:</b> Refresh and the dealbreaker sweep both close paid cards that no longer fit, with the refund.</div></div></div>
+
+    <div class="gap is-done" id="G46" data-sev="l" data-area="After match"><div><div class="id">G46</div><span class="sev l">Low</span></div><div>
+      <div class="ttl">Second simultaneous «مهتم» gets no match link<span class="area">After match</span></div>
+      <div class="body">Returns <code>{match: true}</code> without the id, so the link goes to the general matches page.</div>
+      <div class="fix"><b>Fix:</b> look up the match id before returning. <span class="path">mutual.ts:396</span></div>
+      <div class="done ok"><b>Fixed 18 Oct:</b> The second simultaneous «مهتم» looks up the match id for its link.</div></div></div>
+
+    <div class="gap is-done" id="G47" data-sev="l" data-area="Account"><div><div class="id">G47</div><span class="sev l">Low</span></div><div>
+      <div class="ttl">Loose server validation on profile fields<span class="area">Account</span></div>
+      <div class="body">No min ≤ max check on partner age, enum fields are free strings, preference age allows 80 in one route and 70 elsewhere, and nationality is free text.</div>
+      <div class="fix"><b>Fix:</b> tighten <code>profileSchema</code>. <span class="path">validations/profile.ts:82</span></div>
+      <div class="done ok"><b>Fixed 18 Oct:</b> min ≤ max partner age, enum fields validated, one preference age max (70). Nationality still free text.</div></div></div>
+
+    <div class="gap is-done" id="G48" data-sev="l" data-area="Account"><div><div class="id">G48</div><span class="sev l">Low</span></div><div>
+      <div class="ttl">Duplicate registration returns 500<span class="area">Account</span></div>
+      <div class="body">Two sign-ups with the same phone at the same moment hit the unique key without a friendly error.</div>
+      <div class="fix"><b>Fix:</b> catch P2002 and return 409. <span class="path">api/auth/register/route.ts:66</span></div>
+      <div class="done ok"><b>Fixed 18 Oct:</b> Duplicate phone (P2002) returns 409.</div></div></div>
+
+    <div class="gap is-done" id="G49" data-sev="l" data-area="Copy"><div><div class="id">G49</div><span class="sev l">Low</span></div><div>
+      <div class="ttl">Small copy and rule slips<span class="area">Copy</span></div>
+      <div class="body">«موثّق» chip on the profile page ignores the switch; install page uses Arabic-Indic digits; the next-step card assumes a family visit follows every chat; the manifest opens on the landing page instead of the dashboard.</div>
+      <div class="fix"><b>Fix:</b> quick copy pass. <span class="path">profile/page.tsx:441 · install/page.tsx:56</span></div>
+      <div class="done ok"><b>Fixed 18 Oct:</b> «موثّق» chip follows the switch; Western digits on install; next-step copy fixed; manifest opens /dashboard.</div></div></div>
+
+    <div class="gap is-done" id="G50" data-sev="l" data-area="After match"><div><div class="id">G50</div><span class="sev l">Low</span></div><div>
+      <div class="ttl">Known chat filter gaps<span class="area">After match</span></div>
+      <div class="body">Two people alternating digits (accepted by the owner), pieces over 10 minutes apart, domains not on the list (.xyz, .sa, .ae), spaced-out handles.</div>
+      <div class="fix"><b>Fix:</b> widen the TLD list; leave the rest unless abuse shows up. <span class="path">chat/filter.ts:24</span></div>
+      <div class="done ok"><b>Fixed 18 Oct:</b> More domain endings blocked (.xyz, .sa, .ae, regional codes). Alternating digits still accepted by the owner.</div></div></div>
+
+    <div class="gap is-done" id="G51" data-sev="l" data-area="Copy"><div><div class="id">G51</div><span class="sev l">Low</span></div><div>
+      <div class="ttl">Return screen promises a full restore<span class="area">Copy</span></div>
+      <div class="body">«استعادة حسابك كما هو… وتوافقاتك», but chats ended on pause stay ended.</div>
+      <div class="fix"><b>Fix:</b> say matches come back, chats don't. <span class="path">reactivate-panel.tsx:111</span></div>
+      <div class="done ok"><b>Fixed 18 Oct:</b> Return screen says matches come back, chats ended on pause don't.</div></div></div>
+
+    <div class="gap is-done" id="G52" data-sev="l" data-area="Security"><div><div class="id">G52</div><span class="sev l">Low</span></div><div>
+      <div class="ttl">Old deletion cron route takes the secret in the URL<span class="area">Security</span></div>
+      <div class="body"><code>/api/cron/process-deletions?token=</code> ends up in Nginx logs and compares with <code>!==</code>. Job errors only show in the stored summary; nothing alerts.</div>
+      <div class="fix"><b>Fix:</b> remove the old route; email the admin when a task fails. <span class="path">api/cron/process-deletions/route.ts:13</span></div>
+      <div class="done ok"><b>Fixed 18 Oct:</b> Old process-deletions route removed; a failed daily task emails the admins.</div></div></div>
+
+    <div class="empty-note" id="noGaps" hidden>No gaps match these filters.</div>
+  </div>
+</section>
+
+<footer>
+  Traced from the code in <code>naseebak/</code> on 18 Oct 2026, with all four new-cycle switches on, cross-checked against CLAUDE.md and the cycle specs. Where CLAUDE.md and the code disagree (for example, whether a «لا» closes the card), the page follows the code and lists the difference as a gap.
+</footer>
+</main>
+</div>
+
+<script>
+(function () {
+  var rows = Array.prototype.slice.call(document.querySelectorAll('#gaplist .gap'));
+  var sev = 'all', area = 'all';
+  function count() {
+    var c = { h: 0, m: 0, l: 0 };
+    rows.forEach(function (r) { c[r.dataset.sev]++; });
+    document.getElementById('cH').textContent = c.h;
+    document.getElementById('cM').textContent = c.m;
+    document.getElementById('cL').textContent = c.l;
+    document.getElementById('cAll').textContent = rows.length;
+  }
+  function apply() {
+    var shown = 0;
+    rows.forEach(function (r) {
+      var ok = (sev === 'all' || r.dataset.sev === sev) && (area === 'all' || r.dataset.area === area);
+      r.hidden = !ok; if (ok) shown++;
+    });
+    document.getElementById('noGaps').hidden = shown > 0;
+  }
+  function wire(groupId, attr, set) {
+    var btns = document.querySelectorAll('#' + groupId + ' .fbtn');
+    btns.forEach(function (b) {
+      b.addEventListener('click', function () {
+        btns.forEach(function (x) { x.setAttribute('aria-pressed', 'false'); });
+        b.setAttribute('aria-pressed', 'true');
+        set(b.dataset[attr]); apply();
+      });
+    });
+  }
+  wire('sevFilters', 'sev', function (v) { sev = v; });
+  wire('areaFilters', 'area', function (v) { area = v; });
+  // Jumping to a gap from a flow clears filters so the target is visible
+  document.querySelectorAll('a.gl').forEach(function (a) {
+    a.addEventListener('click', function () {
+      sev = 'all'; area = 'all';
+      document.querySelectorAll('.fbtn').forEach(function (x) { x.setAttribute('aria-pressed', x.dataset.sev === 'all' || x.dataset.area === 'all' ? 'true' : 'false'); });
+      apply();
+    });
+  });
+  count(); apply();
+})();
+</script>
+
+<!--claude-mermaid-runtime-begin:3477-->
+<style>.mermaid-diagram{margin-block:4px}.mermaid-diagram svg{display:block;margin:0 auto;max-width:100%;height:auto}</style>
+<script src="/_runtime/mermaid-11.16.1.min.js"></script>
+<script>(function(){
+var CFG={"palettes":{"light":{"surface":"#f4efe4","text":"#42392e","line":"#8a7f6d","border":"#7a6c52","bg":"#fffdf8"},"dark":{"surface":"#262b34","text":"#f2f3f5","line":"#a8adb8","border":"#9aa4b8","bg":"#1f232b"}}};
+if(typeof mermaid==='undefined')return;
+var pres=Array.prototype.slice.call(document.querySelectorAll('pre.mermaid')).filter(function(p){if(p.hasAttribute('data-claude-mermaid-claimed'))return false;p.setAttribute('data-claude-mermaid-claimed','1');return true;});
+if(!pres.length)return;
+var mq=window.matchMedia?window.matchMedia('(prefers-color-scheme: dark)'):null;
+var root=document.documentElement;
+var items=pres.map(function(pre){
+var mount=document.createElement('div');mount.className='mermaid-diagram';
+return {pre:pre,mount:mount,src:pre.textContent||''};
+});
+var seq=0;
+var renderGen=0;
+var lastKey='';
+function pageBg(fallback){
+var els=[document.body,document.documentElement];
+for(var i=0;i<els.length;i++){
+var c=els[i]&&getComputedStyle(els[i]).backgroundColor;
+if(c&&c!=='transparent'&&c!=='rgba(0, 0, 0, 0)')return c;
+}
+return fallback;
+}
+function render(){
+var theme=root.getAttribute('data-theme');
+var dark=theme==='dark'||(!!(mq&&mq.matches)&&theme!=='light');
+var pal=dark?CFG.palettes.dark:CFG.palettes.light;
+var bg=pageBg(pal.bg);
+var key=(dark?'d':'l')+'|'+bg;
+if(key===lastKey)return;
+lastKey=key;
+var gen=++renderGen;
+var font=getComputedStyle(document.body).fontFamily||'sans-serif';
+var nat={useMaxWidth:false};
+mermaid.initialize({
+startOnLoad:false,securityLevel:'strict',theme:'base',
+flowchart:nat,sequence:nat,er:nat,state:nat,class:nat,pie:nat,
+gantt:nat,journey:nat,timeline:nat,gitGraph:nat,mindmap:nat,xyChart:nat,
+quadrantChart:nat,sankey:nat,c4:nat,requirement:nat,block:nat,
+packet:nat,kanban:nat,architecture:nat,radar:nat,
+themeVariables:{background:bg,mainBkg:pal.surface,primaryColor:pal.surface,
+primaryTextColor:pal.text,lineColor:pal.line,primaryBorderColor:pal.border,
+nodeBorder:pal.border,clusterBorder:pal.border,edgeLabelBackground:bg,
+clusterBkg:'rgba(127,127,127,0.07)',titleColor:pal.text,
+darkMode:dark,rowOdd:bg,rowEven:'rgba(127,127,127,0.07)',
+attributeBackgroundColorOdd:bg,attributeBackgroundColorEven:'rgba(127,127,127,0.07)',
+fontSize:'16px',fontFamily:font},
+themeCSS:'.node rect, .node circle, .node polygon, .node path, .cluster rect { stroke-width: 2px; }'
+});
+items.forEach(function(it){
+var id='claude-mermaid-'+seq++;
+mermaid.render(id,it.src).then(function(r){
+if(gen!==renderGen)return;
+var prev=it.pre.previousElementSibling;
+if(prev&&prev.className==='mermaid-diagram'&&prev!==it.mount)return;
+it.mount.innerHTML=r.svg;
+if(!it.mount.parentNode)it.pre.parentNode.insertBefore(it.mount,it.pre);
+it.pre.style.display='none';
+},function(){
+var scratch=document.getElementById(id);
+if(scratch)scratch.parentNode.removeChild(scratch);
+scratch=document.getElementById('d'+id);
+if(scratch)scratch.parentNode.removeChild(scratch);
+if(gen!==renderGen)return;
+if(it.mount.parentNode)it.mount.parentNode.removeChild(it.mount);
+it.pre.style.display='';
+});
+});
+}
+render();
+if(mq&&mq.addEventListener)mq.addEventListener('change',render);
+if(typeof MutationObserver!=='undefined')new MutationObserver(render).observe(root,{attributes:true,attributeFilter:['data-theme']});
+})();</script>
+<!--claude-mermaid-runtime-end-->
+
+</body></html>

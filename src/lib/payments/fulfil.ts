@@ -39,7 +39,8 @@ export async function fulfilCheckoutSession(session: Stripe.Checkout.Session): P
   // A FAILED row (timed out in the app while the buyer was still paying) is fulfilled too
   const fulfilled = await db.$transaction(async (tx) => {
     const marked = await tx.payment.updateMany({
-      where: { id: paymentId, userId, status: { not: "COMPLETED" } },
+      // Never a REFUNDED row: a refunded session still reads "paid" in the daily reconcile
+      where: { id: paymentId, userId, status: { in: ["PENDING", "FAILED"] } },
       data: {
         status: "COMPLETED",
         providerTxId: (typeof session.payment_intent === "string" && session.payment_intent) || session.id,

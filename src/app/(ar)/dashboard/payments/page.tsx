@@ -31,6 +31,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { trackEvent } from "@/lib/analytics";
 import { useDashboardData } from "@/contexts/dashboard-context";
 import { CREDIT_ON_INTEREST_LINE } from "@/lib/suggestions/copy";
+import { arabicCount } from "@/lib/utils";
+import { LoadError } from "@/components/shared/load-error";
 
 const stripePromise = loadStripe(
   process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!
@@ -42,6 +44,8 @@ interface CreditPackage {
   credits: number;
   price: number;
   currency: string;
+  /** Amount actually charged by Stripe, in USD */
+  chargeUsd?: number;
   popular?: boolean;
 }
 
@@ -87,6 +91,9 @@ function PaymentsContent() {
   const [packages, setPackages] = useState<CreditPackage[]>([]);
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
   const [matchCredits, setMatchCredits] = useState(0);
+  // Plans/history didn't load: never show a balance of 0 or an empty package list as if real
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [histPage, setHistPage] = useState(1);
   const [histTotalPages, setHistTotalPages] = useState(1);
@@ -99,6 +106,7 @@ function PaymentsContent() {
   // Embedded checkout state
   const [checkoutSecret, setCheckoutSecret] = useState<string | null>(null);
   const [checkoutPackageName, setCheckoutPackageName] = useState<string>("");
+  const [checkoutPaymentId, setCheckoutPaymentId] = useState<string | null>(null);
 
   const loadData = useCallback(async (p = histPage) => {
     try {
@@ -106,8 +114,10 @@ function PaymentsContent() {
         fetch("/api/payments/plans"),
         fetch(`/api/payments/history?page=${p}`),
       ]);
+      if (!plansRes.ok || !histRes.ok) throw new Error(`payments ${plansRes.status}/${histRes.status}`);
       const plansData = await plansRes.json();
       const histData = await histRes.json();
+      setLoadFailed(false);
 
       setPackages(plansData.packages || []);
       setPayments(histData.payments || []);
@@ -115,6 +125,7 @@ function PaymentsContent() {
       setHistTotalPages(histData.totalPages || 1);
     } catch (err) {
       console.error(err);
+      setLoadFailed(true);
     }
   }, [histPage]);
 
@@ -174,6 +185,7 @@ function PaymentsContent() {
         trackEvent("begin_checkout", { currency: "JOD", package_name: packageName });
         setCheckoutSecret(result.clientSecret);
         setCheckoutPackageName(packageName);
+        setCheckoutPaymentId(result.paymentId ?? null);
         return;
       }
       console.error("Checkout failed:", result.error);
@@ -190,27 +202,46 @@ function PaymentsContent() {
   }
 
   async function handleCancelPayment(paymentId: string) {
+    if (cancellingId) return;
+    setCancellingId(paymentId);
     try {
-      await fetch("/api/payments/cancel", {
+      const res = await fetch("/api/payments/cancel", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ paymentId }),
       });
+      if (!res.ok) throw new Error(`cancel ${res.status}`);
       setToast({ type: "info", message: "تم إلغاء عملية الدفع" });
       loadData();
     } catch (err) {
       console.error(err);
+      setToast({ type: "error", message: "تعذّر إلغاء عملية الدفع، حاول مرة أخرى" });
+    } finally {
+      setCancellingId(null);
     }
   }
 
-  function closeCheckout() {
+  async function closeCheckout() {
+    const paymentId = checkoutPaymentId;
     setCheckoutSecret(null);
     setCheckoutPackageName("");
-    fetch("/api/payments/cancel", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({}),
-    });
+    setCheckoutPaymentId(null);
+    // Closes this checkout on Stripe too, so it can no longer be paid
+    try {
+      const res = await fetch("/api/payments/cancel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(paymentId ? { paymentId } : {}),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (data.paid) {
+        setToast({ type: "success", message: "تم الدفع بنجاح! تمت إضافة الرصيد" });
+        refreshUnread();
+        refreshProfile();
+      }
+    } catch (err) {
+      console.error(err);
+    }
     loadData();
   }
 
@@ -286,6 +317,8 @@ function PaymentsContent() {
       {/* Toast notification */}
       {toast && (
         <div
+          role="status"
+          aria-live="polite"
           className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 rounded-xl px-5 py-3 shadow-lg border backdrop-blur-sm transition-all duration-300 ${
             toast.type === "success"
               ? "bg-emerald-50/95 border-emerald-200 text-emerald-800"
@@ -306,6 +339,14 @@ function PaymentsContent() {
         </div>
       )}
 
+      {loadFailed && (
+        <LoadError
+          message="تعذّر تحميل رصيدك والباقات. تحقّق من الاتصال وحاول مرة أخرى."
+          onRetry={() => loadData()}
+        />
+      )}
+
+      {!loadFailed && (<>
       {/* Hero Header */}
       <div
         className="relative overflow-hidden rounded-3xl bg-gradient-to-l from-primary via-primary/95 to-secondary p-8 md:p-10"
@@ -361,7 +402,7 @@ function PaymentsContent() {
               </div>
               <div>
                 <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-white">
-                  {perRequest ? "رصيد التعارف" : "رصيد الاقتراحات"}
+                  {perRequest ? "رصيدك" : "رصيد الاقتراحات"}
                 </h1>
                 <p className="text-white/60 text-sm mt-0.5">
                   {creditOnInterest
@@ -458,6 +499,8 @@ function PaymentsContent() {
                   </h3>
 
                   {/* Credits count */}
+                  {/* The count chip only when the package name doesn't already say it */}
+                  {!pkg.name.includes(String(pkg.credits)) && (
                   <div className="text-center mb-4">
                     <span
                       className={`inline-flex items-center gap-1.5 text-sm font-semibold px-3 py-1 rounded-full ${
@@ -467,9 +510,12 @@ function PaymentsContent() {
                       }`}
                     >
                       <Gem className="h-3.5 w-3.5" />
-                      {pkg.credits} {perRequest ? "أرصدة" : "اقتراحات"}
+                      {perRequest
+                        ? arabicCount(pkg.credits, { one: "رصيد واحد", two: "رصيدان", few: "أرصدة", many: "رصيداً" })
+                        : arabicCount(pkg.credits, { one: "اقتراح واحد", two: "اقتراحان", few: "اقتراحات", many: "اقتراحاً" })}
                     </span>
                   </div>
+                  )}
 
                   {/* Price */}
                   <div className="text-center mb-1">
@@ -488,9 +534,14 @@ function PaymentsContent() {
                   </div>
 
                   {/* Per credit */}
-                  <p className="text-center text-xs text-muted-foreground mb-4 md:mb-6">
+                  <p className={`text-center text-xs text-muted-foreground ${pkg.chargeUsd ? "mb-1" : "mb-4 md:mb-6"}`}>
                     {(pkg.price / pkg.credits).toFixed(2)} د.أ لكل رصيد
                   </p>
+                  {pkg.chargeUsd ? (
+                    <p className="text-center text-[11px] text-muted-foreground mb-4 md:mb-6">
+                      يُدفع بالدولار: {pkg.chargeUsd.toFixed(2)}$
+                    </p>
+                  ) : null}
 
                   {/* Features */}
                   <div className="space-y-2 md:space-y-2.5 mb-5 md:mb-6">
@@ -576,6 +627,7 @@ function PaymentsContent() {
               const isCompleted = p.status === "COMPLETED";
               const isFailed = p.status === "FAILED";
               const isPending = p.status === "PENDING";
+              const isRefunded = p.status === "REFUNDED";
 
               return (
                 <div
@@ -592,7 +644,9 @@ function PaymentsContent() {
                             ? "bg-emerald-500"
                             : isFailed
                               ? "bg-destructive/70"
-                              : "bg-accent"
+                              : isRefunded
+                                ? "bg-muted-foreground/40"
+                                : "bg-accent"
                         }`}
                       />
                       <CardContent className="flex-1 flex items-center justify-between py-4 px-5">
@@ -603,13 +657,17 @@ function PaymentsContent() {
                                 ? "bg-emerald-500/10"
                                 : isFailed
                                   ? "bg-destructive/10"
-                                  : "bg-accent/10"
+                                  : isRefunded
+                                    ? "bg-muted"
+                                    : "bg-accent/10"
                             }`}
                           >
                             {isCompleted ? (
                               <CheckCircle2 className="h-5 w-5 text-emerald-500" />
                             ) : isFailed ? (
                               <XCircle className="h-5 w-5 text-destructive/70" />
+                            ) : isRefunded ? (
+                              <ArrowRight className="h-5 w-5 text-muted-foreground" />
                             ) : (
                               <Clock className="h-5 w-5 text-accent" />
                             )}
@@ -645,7 +703,9 @@ function PaymentsContent() {
                                   ? "bg-emerald-500/10 text-emerald-600"
                                   : isFailed
                                     ? "bg-destructive/10 text-destructive"
-                                    : "bg-accent/10 text-accent-foreground"
+                                    : isRefunded
+                                      ? "bg-muted text-muted-foreground"
+                                      : "bg-accent/10 text-accent-foreground"
                               }`}
                             >
                               {isCompleted ? (
@@ -656,7 +716,12 @@ function PaymentsContent() {
                               ) : isFailed ? (
                                 <>
                                   <XCircle className="h-3 w-3" />
-                                  ملغى
+                                  لم يكتمل
+                                </>
+                              ) : isRefunded ? (
+                                <>
+                                  <ArrowRight className="h-3 w-3" />
+                                  مُسترد
                                 </>
                               ) : (
                                 <>
@@ -667,10 +732,12 @@ function PaymentsContent() {
                             </span>
                             {isPending && (
                               <button
+                                type="button"
                                 onClick={() => handleCancelPayment(p.id)}
-                                className="text-[10px] text-destructive hover:text-destructive font-semibold transition-colors flex items-center gap-0.5"
+                                disabled={cancellingId === p.id}
+                                className="-my-3 inline-flex min-h-11 items-center gap-1 px-2 text-xs text-destructive hover:text-destructive font-semibold transition-colors disabled:opacity-60"
                               >
-                                <X className="h-3 w-3" />
+                                {cancellingId === p.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <X className="h-3.5 w-3.5" />}
                                 إلغاء
                               </button>
                             )}
@@ -700,6 +767,7 @@ function PaymentsContent() {
           )}
         </div>
       )}
+      </>)}
 
       {/* Inline keyframes style */}
       <style jsx global>{`

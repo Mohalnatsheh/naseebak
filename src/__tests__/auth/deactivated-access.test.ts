@@ -17,7 +17,7 @@ vi.mock("next-auth", () => ({
   },
 }));
 
-import { requireUser, sessionAccountGate } from "@/lib/auth";
+import { requireAdmin, requireUser, sessionAccountGate } from "@/lib/auth";
 
 const phoneLogin = () => captured.config!.providers.find((p) => p.id === "credentials")!;
 const baseUser = { id: "u1", email: "phone_962790000000@naseeb.local", firstName: "يزن", role: "USER", gender: "MALE", isVerified: false };
@@ -84,6 +84,12 @@ describe("requireUser", () => {
     expect("session" in r).toBe(true);
   });
 
+  it("rejects a session whose account was deleted", async () => {
+    db.user.findUnique.mockResolvedValue(null);
+    const r = await requireUser();
+    expect("error" in r && r.error.status).toBe(401);
+  });
+
   it("rejects suspended users even on reactivation routes", async () => {
     db.user.findUnique.mockResolvedValue({ status: "SUSPENDED", isDeactivated: true });
     const r = await requireUser({ allowDeactivated: true });
@@ -107,5 +113,30 @@ describe("sessionAccountGate (dashboard guard)", () => {
     expect(await sessionAccountGate()).toBeNull();
     authMock.mockResolvedValue(null);
     expect(await sessionAccountGate()).toBeNull();
+  });
+});
+
+describe("requireAdmin", () => {
+  beforeEach(() => authMock.mockResolvedValue({ user: { id: "a1", role: "ADMIN" } }));
+
+  it("passes an admin whose role is still ADMIN in the database", async () => {
+    db.user.findUnique.mockResolvedValue({ role: "ADMIN", status: "ACTIVE" });
+    expect("session" in (await requireAdmin())).toBe(true);
+  });
+
+  it("refuses a demoted or deleted admin with a valid token", async () => {
+    db.user.findUnique.mockResolvedValue({ role: "USER", status: "ACTIVE" });
+    const demoted = await requireAdmin();
+    expect("error" in demoted && demoted.error.status).toBe(403);
+    db.user.findUnique.mockResolvedValue(null);
+    const deleted = await requireAdmin();
+    expect("error" in deleted && deleted.error.status).toBe(403);
+  });
+
+  it("refuses a USER token without a database read", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1", role: "USER" } });
+    const r = await requireAdmin();
+    expect("error" in r && r.error.status).toBe(403);
+    expect(db.user.findUnique).not.toHaveBeenCalled();
   });
 });

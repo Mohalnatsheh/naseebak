@@ -6,6 +6,7 @@
 import type { UserStatus } from "@prisma/client";
 import { db } from "@/lib/db";
 import { notify } from "@/lib/notify";
+import { CHAT_NOTICE_PREFERENCE } from "@/lib/notification-prefs";
 import { publishChatEvent } from "@/lib/ably";
 
 export class ModerationError extends Error {
@@ -55,6 +56,7 @@ export async function adminEndConversation(
         body: "أنهى فريق نصيبك هذه المحادثة. يمكنك التواصل مع الدعم لمزيد من المعلومات.",
         url: "/dashboard/chats",
         metadata: { conversationId },
+        preference: CHAT_NOTICE_PREFERENCE,
       })
     )
   );

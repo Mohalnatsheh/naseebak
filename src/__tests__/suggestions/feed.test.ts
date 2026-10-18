@@ -56,9 +56,12 @@ describe("getSuggestionFeed — new", () => {
     ]);
   });
 
-  it("expires overdue rows first", async () => {
+  it("closes older rows one side declined, then expires overdue rows first", async () => {
     await getSuggestionFeed("me", "new", 1);
-    expect(db.suggestion.updateMany.mock.calls[0][0].data).toEqual({ status: "EXPIRED" });
+    const [declined, expired] = db.suggestion.updateMany.mock.calls.map((c) => c[0]);
+    expect(declined.data).toEqual({ status: "REJECTED" });
+    expect(declined.where.AND).toEqual([{ OR: [{ recipientDecision: "DECLINED" }, { candidateDecision: "DECLINED" }] }]);
+    expect(expired.data).toEqual({ status: "EXPIRED" });
   });
 
   it("includes legacy suggestions and unanswered legacy interests", async () => {

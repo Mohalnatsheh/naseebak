@@ -1148,7 +1148,7 @@ export default function ProfileEditPage() {
 
             <div className="space-y-2">
               <div className="flex items-start justify-between gap-3">
-                <Label className="block min-w-0 flex-1 leading-relaxed">المستوى التعليمي المفضل <span className="text-xs text-muted-foreground">(يمكن اختيار أكثر من مستوى)</span> <OptionalTag /></Label>
+                <Label className="block min-w-0 flex-1 leading-relaxed">المستوى التعليمي المفضل <span className="text-xs text-muted-foreground">(كل مستوى يشمل ما فوقه)</span> <OptionalTag /></Label>
                 {dealbreaker("education", "prefEducation")}
               </div>
               <div className="grid grid-cols-3 gap-2">

@@ -792,7 +792,7 @@ export default function ProfileSetupPage() {
               <ChoiceGroup id="prefCity" multiple options={jordanCities.map((c) => ({ value: c, label: c }))} isSelected={(v) => form.prefCity.includes(v)} onSelect={(v) => toggleArray("prefCity", v)} />
             </Field>
 
-            <Field id="prefEducation" label="المستوى التعليمي المفضل" hint="(يمكن اختيار أكثر من مستوى)" optional aside={dealbreaker("education", "prefEducation")}>
+            <Field id="prefEducation" label="المستوى التعليمي المفضل" hint="(كل مستوى يشمل ما فوقه)" optional aside={dealbreaker("education", "prefEducation")}>
               <ChoiceGroup id="prefEducation" multiple options={educationLevels} isSelected={(v) => form.prefEducation.includes(v)} onSelect={(v) => toggleArray("prefEducation", v)} />
             </Field>
 

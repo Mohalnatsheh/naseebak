@@ -2,7 +2,7 @@
  * "شرط أساسي" helpers shared by the suggestions panel and the profile wizards:
  * which preferences can be a dealbreaker and how to say them in words.
  */
-import { DEALBREAKER_KEYS, prefYesNo, wantsNoChildren, type DealbreakerKey } from "@/lib/matching/score";
+import { DEALBREAKER_KEYS, EDUCATION_ORDER, minEducation, prefYesNo, wantsNoChildren, type DealbreakerKey } from "@/lib/matching/score";
 import { describeOption, oppositeGender, type OptionField } from "@/lib/profile-options";
 
 export interface DealbreakerPrefs {
@@ -30,7 +30,12 @@ export function dealbreakerSummary(key: DealbreakerKey, p: DealbreakerPrefs, myG
     case "age":
       return p.prefAgeMin || p.prefAgeMax ? `${p.prefAgeMin || "—"} – ${p.prefAgeMax || "—"} سنة` : null;
     case "city": return list(p.prefCity);
-    case "education": return list(p.prefEducation);
+    case "education": {
+      // A level means "this level or higher" (educationMatches)
+      const min = minEducation(p.prefEducation);
+      if (!min) return list(p.prefEducation);
+      return min === EDUCATION_ORDER[EDUCATION_ORDER.length - 1] ? min : `${min} فأعلى`;
+    }
     case "maritalStatus": return list(p.prefMaritalStatus, "maritalStatus");
     case "religiosity": return list(p.prefReligiosity, "religiosity");
     case "smokingStatus": return list(p.prefSmokingStatus, "smokingStatus");

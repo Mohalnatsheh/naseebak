@@ -199,7 +199,7 @@ export function checkPreferenceMatchDetailed(
 
   // Education preference
   if (profile.prefEducation && profile.prefEducation.length > 0 && otherProfile.education) {
-    details.push({ field: "education", label: "Education", matched: profile.prefEducation.includes(otherProfile.education), weight: 1, userPref: profile.prefEducation.join(", "), candidateValue: otherProfile.education });
+    details.push({ field: "education", label: "Education", matched: educationMatches(profile.prefEducation, otherProfile.education) === true, weight: 1, userPref: profile.prefEducation.join(", "), candidateValue: otherProfile.education });
   }
 
   // Marital status preference
@@ -341,6 +341,33 @@ export function calculateCompatibilityDetailed(
   };
 }
 
+// --- Education: a preferred level means "this level or higher" ---
+
+/** Education levels, lowest first (the values the wizards store) */
+export const EDUCATION_ORDER = ["ثانوية عامة", "دبلوم", "بكالوريوس", "ماجستير", "دكتوراه"] as const;
+
+/**
+ * Does `value` meet an education preference? The lowest level picked counts as a minimum, so "دبلوم"
+ * also accepts a bachelor's or higher (owner decision 2026-10-18: people picked their own level
+ * meaning "at least"). null = no preference. Unknown values fall back to an exact match.
+ */
+export function educationMatches(pref: readonly string[] | null | undefined, value: string | null | undefined): boolean | null {
+  if (!pref || pref.length === 0) return null;
+  if (!value) return false;
+  if (pref.includes(value)) return true;
+  const rank = (v: string) => (EDUCATION_ORDER as readonly string[]).indexOf(v);
+  const ranks = pref.map(rank).filter((i) => i >= 0);
+  return ranks.length > 0 && rank(value) >= Math.min(...ranks);
+}
+
+/** The lowest education level picked, when every pick is a known level (for "دبلوم فأعلى" wording). */
+export function minEducation(pref: readonly string[] | null | undefined): string | null {
+  if (!pref || pref.length === 0) return null;
+  const ranks = pref.map((v) => (EDUCATION_ORDER as readonly string[]).indexOf(v));
+  if (ranks.some((i) => i < 0)) return null;
+  return EDUCATION_ORDER[Math.min(...ranks)];
+}
+
 // --- Dealbreakers (hard filters, simultaneous suggestions flow) ---
 
 /** Preference keys a user can mark as "شرط أساسي". */
@@ -378,7 +405,7 @@ function dealbreakerHolds(key: DealbreakerKey, owner: ProfileForScoring, other: 
       return (!owner.prefAgeMin || age >= owner.prefAgeMin) && (!owner.prefAgeMax || age <= owner.prefAgeMax);
     }
     case "city": return inList(owner.prefCity, other.city);
-    case "education": return inList(owner.prefEducation, other.education);
+    case "education": return educationMatches(owner.prefEducation, other.education);
     case "maritalStatus": return inList(owner.prefMaritalStatus, other.maritalStatus);
     case "religiosity": return inList(owner.prefReligiosity, other.religiosity);
     case "smokingStatus": return inList(owner.prefSmokingStatus, other.smokingStatus);

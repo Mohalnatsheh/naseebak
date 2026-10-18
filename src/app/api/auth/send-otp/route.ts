@@ -26,7 +26,7 @@ async function sendSms(phone: string, text: string): Promise<boolean> {
     const params = new URLSearchParams({
       user,
       pass,
-      sid: process.env.BROADNET_SENDER_ID || "SRVnaseebak",
+      sid: process.env.BROADNET_SENDER_ID || "naseebak",
       mno: phone,
       type: "2",
       text: toUnicodeHex(text),

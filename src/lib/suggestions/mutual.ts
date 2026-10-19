@@ -59,7 +59,8 @@ export const SLOT_IDLE_DAYS = 2;
 
 /**
  * The open rows that count toward `userId`'s MAX_OPEN_SUGGESTIONS: openMutualWhere minus cards
- * older than SLOT_IDLE_DAYS whose other person hasn't been seen for SLOT_IDLE_DAYS.
+ * older than SLOT_IDLE_DAYS whose other person hasn't been seen for SLOT_IDLE_DAYS, and minus cards
+ * still hidden from the other side (they can't answer it yet, so it doesn't take the recipient's slot).
  */
 export function slotMutualWhere(userId: string, now = new Date()): Prisma.SuggestionWhereInput {
   const fresh = new Date(now.getTime() - SLOT_IDLE_DAYS * 24 * 60 * 60 * 1000);
@@ -69,7 +70,7 @@ export function slotMutualWhere(userId: string, now = new Date()): Prisma.Sugges
     status: "PENDING",
     expiresAt: { gt: now },
     OR: [
-      { recipientId: userId, recipientDecision: null, candidate: activePerson, OR: [{ createdAt: { gte: fresh } }, { candidate: partnerHere }] },
+      { recipientId: userId, recipientDecision: null, candidate: activePerson, hiddenFromCandidate: false, OR: [{ createdAt: { gte: fresh } }, { candidate: partnerHere }] },
       { candidateId: userId, candidateDecision: null, recipient: activePerson, hiddenFromCandidate: false, OR: [{ createdAt: { gte: fresh } }, { recipient: partnerHere }] },
     ],
   };

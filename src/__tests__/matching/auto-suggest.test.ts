@@ -26,7 +26,7 @@ vi.mock("@/lib/matching/score", async (importOriginal) => {
   };
 });
 
-import { autoSuggestForUser, autoSuggestWithReason, minSuggestionScore, nextSuggestionsAtFor } from "@/lib/matching/auto-suggest";
+import { autoSuggestForUser, autoSuggestWithReason, minSuggestionScore, nextSuggestionsAtFor, openCounts } from "@/lib/matching/auto-suggest";
 
 // Profile with every basic + preference field filled → 60% completeness (above the 50% threshold)
 const fullProfile = (gender: "MALE" | "FEMALE") => ({
@@ -465,6 +465,26 @@ describe("credit on interest: open cap 5", () => {
     expect(data.find((d) => d.candidateId === "busy")?.hiddenFromCandidate).toBe(true);
     expect(data.find((d) => d.candidateId === "free")?.hiddenFromCandidate).toBe(false);
     expect(notifyMod.notifyMany.mock.calls[0][0]).toEqual(["free"]);
+  });
+
+  it("G53: candidates with a free slot come before full ones (score order within each group)", async () => {
+    openRows(3); // room for 2
+    db.user.findUnique.mockResolvedValue(person("co4c", "MALE"));
+    db.user.findMany.mockResolvedValue([person("busy1", "FEMALE"), person("busy2", "FEMALE"), person("free1", "FEMALE")]);
+    db.suggestion.groupBy
+      .mockResolvedValueOnce([{ recipientId: "busy1", _count: 5 }, { recipientId: "busy2", _count: 5 }])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+    await autoSuggestForUser("co4c");
+    const data = db.suggestion.createMany.mock.calls[0][0].data as { candidateId: string; hiddenFromCandidate: boolean }[];
+    expect(data.map((d) => d.candidateId)).toEqual(["free1", "busy1"]);
+    expect(data.map((d) => d.hiddenFromCandidate)).toEqual([false, true]);
+  });
+
+  it("G53: a card hidden from the candidate doesn't fill the recipient's slots", async () => {
+    await openCounts(["r1"]);
+    const recipientQuery = db.suggestion.groupBy.mock.calls.find((c) => c[0].by[0] === "recipientId" && c[0].where.flow === "MUTUAL")![0];
+    expect(recipientQuery.where.hiddenFromCandidate).toBe(false);
   });
 
   it("with room again, shows cards made while full before adding anyone new", async () => {

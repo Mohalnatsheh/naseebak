@@ -56,7 +56,7 @@ export async function POST(request: Request) {
     const existingByPhone = await db.user.findUnique({ where: { phone } });
     if (existingByPhone) {
       return NextResponse.json(
-        { error: "رقم الهاتف مسجل مسبقاً" },
+        { error: "رقم الهاتف مسجل مسبقاً", code: "PHONE_EXISTS" },
         { status: 409 }
       );
     }
@@ -88,7 +88,7 @@ export async function POST(request: Request) {
     } catch (e) {
       // Two sign-ups with the same phone at the same moment: the unique key catches the second
       if ((e as { code?: string })?.code === "P2002") {
-        return NextResponse.json({ error: "رقم الهاتف مسجل مسبقاً" }, { status: 409 });
+        return NextResponse.json({ error: "رقم الهاتف مسجل مسبقاً", code: "PHONE_EXISTS" }, { status: 409 });
       }
       throw e;
     }

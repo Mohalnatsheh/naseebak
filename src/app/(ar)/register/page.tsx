@@ -278,11 +278,6 @@ function RegisterPageContent() {
         return;
       }
 
-      // If phone already registered, redirect to login
-      if (data.userExists) {
-        window.location.href = "/login?exists=true";
-        return;
-      }
       trackEvent("otp_requested", { context: "register" });
 
       setOtpSent(true);
@@ -405,6 +400,13 @@ function RegisterPageContent() {
         data = await res.json();
       } catch {
         setError("الخادم مشغول حالياً. حاول مرة أخرى بعد قليل.");
+        return;
+      }
+
+      if (res.status === 409 && data.code === "PHONE_EXISTS") {
+        // The number already has an account (send-otp never says so): the verified code signs in
+        const existing = await signIn("credentials", { phone: normalizedPhone, otp: form.otp, redirect: false });
+        window.location.href = existing?.error ? "/login?exists=true" : "/dashboard";
         return;
       }
 

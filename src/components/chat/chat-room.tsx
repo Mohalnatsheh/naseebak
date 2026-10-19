@@ -344,6 +344,9 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
   const left = daysLeft(conversation.expiresAt);
   const open = conversation.status === "ACTIVE";
   const canSend = open && chatEnabled && !conversation.blocked;
+  // «إنهاء المحادثة» only on an open chat with no block either way (the server refuses the rest);
+  // «إبلاغ» stays on every chat
+  const endable = open && !conversation.blocked;
   const family = intro?.family;
   // Credit on interest: every request is free, also after an earlier family request expired
   const familyFree = !!intro?.flags.creditOnInterest || !!family?.free;
@@ -398,7 +401,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
                 </Link>
               </DropdownMenuItem>
             )}
-            {conversation.status !== "ENDED" && (
+            {endable && (
               <>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => setEndDialog("end")}>
@@ -407,7 +410,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
               </>
             )}
             <DropdownMenuItem variant="destructive" onClick={() => setEndDialog("report")}>
-              <Flag className="h-4 w-4" /> {conversation.status === "ENDED" ? "إبلاغ" : "إنهاء وإبلاغ"}
+              <Flag className="h-4 w-4" /> {endable ? "إنهاء وإبلاغ" : "إبلاغ"}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -559,7 +562,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
         partnerName={conversation.partner.firstName}
         familyStatus={intro?.flags.introRequests && !intro.closed ? family?.status : undefined}
         busy={busy}
-        ended={conversation.status === "ENDED"}
+        ended={!endable}
         onConfirm={(report) => {
           end(report).then((ok) => ok && report && router.push("/dashboard/chats"));
         }}

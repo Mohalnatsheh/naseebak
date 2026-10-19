@@ -266,6 +266,32 @@ describe("endConversation", () => {
   });
 });
 
+describe("endConversation on a chat that isn't open (G61)", () => {
+  it.each([
+    ["expired", () => conv({ status: "EXPIRED", expiresAt: new Date(Date.now() - DAY) })],
+    ["ended", () => conv({ status: "ENDED" })],
+  ])("refuses to end an %s chat and tells nobody", async (_label, make) => {
+    const c = make();
+    db.conversation.findUnique.mockResolvedValue(c);
+    await expectCode(endConversation({ conversationId: c.id, userId: "u1" }), "NOT_ALLOWED");
+    expect(db.conversation.update).not.toHaveBeenCalled();
+    expect(notifyMod.notify).not.toHaveBeenCalled();
+  });
+
+  it("a blocked person can't end the chat (no «أنهى الطرف الآخر» to the blocker), but can still report", async () => {
+    const c = conv();
+    db.conversation.findUnique.mockResolvedValue(c);
+    db.block.findFirst.mockImplementation(async ({ where }: { where: { OR?: unknown; blockerId?: string } }) =>
+      where.OR ? { id: "b" } : null,
+    );
+    await expectCode(endConversation({ conversationId: c.id, userId: "u1" }), "NOT_ALLOWED");
+    await endConversation({ conversationId: c.id, userId: "u1", report: { reason: "HARASSMENT" } });
+    expect(db.conversation.update).not.toHaveBeenCalled();
+    expect(notifyMod.notify).not.toHaveBeenCalled();
+    expect(reports.fileReport).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("endConversation closes the family path", () => {
   it("ending a chat cancels a pending family request on that match (no refund)", async () => {
     const c = conv();

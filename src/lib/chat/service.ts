@@ -520,8 +520,13 @@ export async function endConversation(args: {
   // Read-only access is enough: someone the other person blocked can still report this chat
   const c = await loadForUser(conversationId, userId, { readOnly: true });
   const partner = partnerOf(c, userId);
+  // Only an open chat can be ended (and the partner told): not an expired or ended one, and not across
+  // a block — a blocked person must not push «أنهى الطرف الآخر المحادثة» to the blocker. Reporting
+  // («إبلاغ») stays possible on any chat.
+  const open = c.status === "ACTIVE" && c.expiresAt.getTime() > Date.now() && !(await isBlocked(userId, partner.id));
+  if (!open && !report) throw new IntroError("NOT_ALLOWED", "لا يمكن إنهاء هذه المحادثة الآن");
 
-  if (c.status !== "ENDED") {
+  if (open) {
     await db.conversation.update({
       where: { id: conversationId },
       data: { status: "ENDED", endedById: userId, endedAt: new Date() },

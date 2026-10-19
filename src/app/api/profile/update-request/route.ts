@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { dateOfBirthError, PREF_AGE_MAX } from "@/lib/validations/profile";
+import { PREF_AGE_MAX, profileUpdateRequestSchema } from "@/lib/validations/profile";
 import { refreshOpenSuggestionsInBackground } from "@/lib/suggestions/refresh";
 import { sendAdminAlert } from "@/lib/admin-alert";
 
@@ -32,16 +32,21 @@ export async function POST(request: Request) {
     if ("error" in result) return result.error;
     const { session } = result;
 
-    const body = await request.json();
-    const { changes, message } = body;
-
-    if (!changes || typeof changes !== "object" || Object.keys(changes).length === 0) {
+    const body = await request.json().catch(() => null);
+    if (!body?.changes || typeof body.changes !== "object" || Object.keys(body.changes).length === 0) {
       return NextResponse.json({ error: "يرجى تحديد التعديلات المطلوبة" }, { status: 400 });
     }
-    if (typeof changes.dateOfBirth === "string" && changes.dateOfBirth) {
-      const dobError = dateOfBirthError(changes.dateOfBirth);
-      if (dobError) return NextResponse.json({ error: dobError }, { status: 400 });
+    // Only the profile's own fields, with the wizards' values and limits (the approval stores them as is)
+    const parsed = profileUpdateRequestSchema.safeParse(body);
+    if (!parsed.success) {
+      const issue = parsed.error.issues[0];
+      const unknownKey = issue?.code === "unrecognized_keys";
+      return NextResponse.json(
+        { error: unknownKey ? "تعديل غير معروف في الطلب" : issue?.message || "بيانات غير صالحة" },
+        { status: 400 },
+      );
     }
+    const { changes, message } = parsed.data;
 
     const userId = session.user.id;
     const prefs: Record<string, unknown> = {};

@@ -269,3 +269,15 @@ describe("profileSchema tightening (G47)", () => {
     expect(profileDraftSchema.safeParse({ hijab: null }).success).toBe(true);
   });
 });
+
+describe("text and list limits (G68)", () => {
+  it("caps short fields at 100, long texts at 500 and lists at 30, in both schemas", () => {
+    expect(profileSchema.safeParse({ ...validProfile, job: "x".repeat(100) }).success).toBe(true);
+    expect(profileSchema.safeParse({ ...validProfile, job: "x".repeat(101) }).success).toBe(false);
+    expect(profileSchema.safeParse({ ...validProfile, tribe: "x".repeat(101) }).success).toBe(false);
+    expect(profileSchema.safeParse({ ...validProfile, hobbies: "x".repeat(501) }).success).toBe(false);
+    expect(profileSchema.safeParse({ ...validProfile, prefCity: Array.from({ length: 31 }, () => "عمان") }).success).toBe(false);
+    expect(profileDraftSchema.safeParse({ city: "x".repeat(101) }).success).toBe(false);
+    expect(profileDraftSchema.safeParse({ interests: "x".repeat(501) }).success).toBe(false);
+  });
+});

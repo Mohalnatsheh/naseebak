@@ -561,11 +561,11 @@ describe("credit on interest: open cap 5", () => {
     expect(db.suggestion.findFirst).not.toHaveBeenCalled();
   });
 
-  it("drops candidates below 50 (30 is enough with the flag off)", async () => {
-    expect(minSuggestionScore({ ...on })).toBe(50);
+  it("drops candidates below 60 (30 is enough with the flag off)", async () => {
+    expect(minSuggestionScore({ ...on })).toBe(60);
     expect(minSuggestionScore({ ...on, creditOnInterest: false })).toBe(30);
-    scoring.scoreFor.set("lo", 40);
-    scoring.scoreFor.set("hi", 55);
+    scoring.scoreFor.set("lo", 55);
+    scoring.scoreFor.set("hi", 65);
     openRows(0);
     db.user.findUnique.mockResolvedValue(person("co7", "MALE"));
     db.user.findMany.mockResolvedValue([person("lo", "FEMALE"), person("hi", "FEMALE")]);

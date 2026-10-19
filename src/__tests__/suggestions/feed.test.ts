@@ -147,6 +147,30 @@ describe("getSuggestionFeed — ordering", () => {
     expect(items.map((i) => i.id)).toEqual(["best", "tie", "low"]);
   });
 
+  it("puts cards the other side said «مهتم» to first, silently (credit-on-interest on)", async () => {
+    settings.getCycleFlags.mockResolvedValue({ introRequests: true, chat: true, mutualSuggestions: true, creditOnInterest: true });
+    const best = { ...mutualRow("best", person("f1", "FEMALE")), compatibilityScore: 95 };
+    const declined = { ...mutualRow("declined", person("f2", "FEMALE")), compatibilityScore: 90, recipientDecision: "DECLINED" };
+    const liked = { ...mutualRow("liked", person("f3", "FEMALE")), compatibilityScore: 61, recipientDecision: "INTERESTED" };
+    const likedBetter = { ...mutualRow("likedBetter", person("f4", "MALE"), true), compatibilityScore: 80, candidateDecision: "INTERESTED" };
+    db.suggestion.findMany.mockResolvedValueOnce([best, declined, likedBetter, liked]).mockResolvedValueOnce([]);
+    const { items } = await getSuggestionFeed("me", "new", 1);
+    expect(items.map((i) => i.id)).toEqual(["likedBetter", "liked", "best", "declined"]);
+    // Nothing on the card says why (credits left → no likedYou tag, no internal field)
+    for (const i of items) {
+      expect(i).not.toHaveProperty("likedYou");
+      expect(i).not.toHaveProperty("waitingOnMe");
+    }
+  });
+
+  it("keeps «مهتم»-first off when credit-on-interest is off", async () => {
+    const fresh = { ...mutualRow("fresh", person("f1", "FEMALE")), createdAt: new Date() };
+    const liked = { ...mutualRow("liked", person("f2", "FEMALE")), recipientDecision: "INTERESTED", createdAt: new Date(Date.now() - 3 * DAY) };
+    db.suggestion.findMany.mockResolvedValueOnce([liked, fresh]).mockResolvedValueOnce([]);
+    const { items } = await getSuggestionFeed("me", "new", 1);
+    expect(items.map((i) => i.id)).toEqual(["fresh", "liked"]);
+  });
+
   it("stays newest-first when the flag is off", async () => {
     const old = { ...mutualRow("old", person("f1", "FEMALE")), compatibilityScore: 95, createdAt: new Date(Date.now() - 5 * DAY) };
     const fresh = { ...mutualRow("fresh", person("f2", "FEMALE")), compatibilityScore: 40, createdAt: new Date() };

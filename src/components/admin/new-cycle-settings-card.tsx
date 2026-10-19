@@ -111,7 +111,7 @@ export function NewCycleSettingsCard() {
       key: "creditOnInterest" as const,
       icon: Coins,
       title: "Credit on interest",
-      text: "Suggestions are free (5 open at a time, score ≥ 50, best first). Each 'Interested' costs the user 1 credit (refunded if the other side never answers within 7 days); matches, requests and chat are free. A mutual match opens straight into chat or family introduction. Turning it on closes older-style suggestions still waiting for a decision. Needs Shared suggestions on.",
+      text: "Suggestions are free (5 open at a time, score ≥ 60, best first). Each 'Interested' costs the user 1 credit (refunded if the other side never answers within 7 days); matches, requests and chat are free. A mutual match opens straight into chat or family introduction. Turning it on closes older-style suggestions still waiting for a decision. Needs Shared suggestions on.",
       on: !!state?.introRequests && !!state?.mutualSuggestions && !!state?.creditOnInterest,
       disabled: !state?.introRequests || !state?.mutualSuggestions,
     },

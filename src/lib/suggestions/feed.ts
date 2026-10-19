@@ -6,6 +6,8 @@
  * with credit_on_interest on and a balance of 0, MUTUAL rows in "new" carry `likedYou` when the other
  * side already said "مهتم" (the profile stays visible; only "مهتم" waits for a recharge). A "لا" from
  * them looks exactly like no decision.
+ * Order (credit_on_interest): in "new", cards the other side already said "مهتم" to come first
+ * (owner decision 2026-10-19, silently — nothing on the card says why), then best score, then newest.
  */
 import { db } from "@/lib/db";
 import { calculateCompatibility } from "@/lib/matching/score";
@@ -20,7 +22,8 @@ export type { FeedCandidate, FeedItem, FeedKind, FeedTab, OpenFeedItem } from "@
 
 const SOURCE_LIMIT = 50;
 
-/** Feed order: today newest first; credit-on-interest shows the best matches first (newest first among equals). */
+/** DB order: newest first; credit-on-interest fetches the best matches first (newest first among equals).
+ *  The "new" tab then puts cards waiting on my answer first (see getSuggestionFeed). */
 export function suggestionOrder(flags: CycleFlags) {
   return flags.creditOnInterest
     ? [{ compatibilityScore: "desc" as const }, { createdAt: "desc" as const }]
@@ -114,6 +117,8 @@ export async function getSuggestionFeed(
   type Row = {
     kind: FeedKind; id: string; score: number | null; createdAt: Date; other: Person;
     likedYou?: boolean;
+    // Ordering only (the other side said "مهتم"); never sent to the client
+    waitingOnMe?: boolean;
     expiresAt?: Date | null;
   };
   const rows: Row[] = [];
@@ -154,6 +159,7 @@ export async function getSuggestionFeed(
       rows.push({
         kind: "mutual", id: s.id, score: s.compatibilityScore, createdAt: s.createdAt, other: otherOf(s as never),
         expiresAt: s.expiresAt,
+        waitingOnMe: theirDecision === "INTERESTED",
         ...(atZero && theirDecision === "INTERESTED" && { likedYou: true }),
       });
     }
@@ -207,7 +213,9 @@ export async function getSuggestionFeed(
     .filter((r) => !blocked.has(r.other.id) && !isUnavailable(r.other))
     .sort((a, b) =>
       flags.creditOnInterest
-        ? (b.score ?? -1) - (a.score ?? -1) || b.createdAt.getTime() - a.createdAt.getTime()
+        ? Number(!!b.waitingOnMe) - Number(!!a.waitingOnMe) ||
+          (b.score ?? -1) - (a.score ?? -1) ||
+          b.createdAt.getTime() - a.createdAt.getTime()
         : b.createdAt.getTime() - a.createdAt.getTime()
     );
   const total = visible.length;

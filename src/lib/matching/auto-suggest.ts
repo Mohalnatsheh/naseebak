@@ -8,7 +8,7 @@
  * `credit_on_interest`) has no weekly cap: a person holds at most MAX_OPEN_SUGGESTIONS (5) undecided
  * suggestions (a MUTUAL row counts for both sides), topped up on page open / profile save, after a
  * decision and when a suggestion expires; candidates already holding 5 are skipped; minimum score is
- * `minSuggestionScore()` (50 provisional, 30 otherwise); `emptyReason` is `pending` (5 open) or
+ * `minSuggestionScore()` (60, 30 otherwise); `emptyReason` is `pending` (5 open) or
  * `no_candidates`, never `weekly_cap`.
  */
 import { db } from "@/lib/db";
@@ -32,7 +32,8 @@ export const MAX_OPEN_SUGGESTIONS = 5;
 export const RESUGGEST_AFTER_DAYS = 30;
 /** `notify` once-per-day key shared by every "new suggestions" notice */
 const NEW_SUGGESTIONS_DAILY = "new-suggestions";
-const MIN_SCORE_CREDIT_ON_INTEREST = 50;
+// 60 since 2026-10-19 (owner, on production data: 50–54% cards got «مهتم» 5% of the time, no match below 60)
+const MIN_SCORE_CREDIT_ON_INTEREST = 60;
 // When a run finds no suitable candidate, wait before scanning again (per user, per server process)
 const RETRY_COOLDOWN_MS = 30 * 60 * 1000;
 const lastEmptyRun = new Map<string, number>();

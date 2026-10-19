@@ -6,6 +6,8 @@ const db = vi.hoisted(() => ({
   user: { updateMany: vi.fn(), findMany: vi.fn() },
   conversation: { findUnique: vi.fn(), findFirst: vi.fn(), findMany: vi.fn(async (): Promise<unknown[]> => []), updateMany: vi.fn() },
   message: { findMany: vi.fn() },
+  block: { findFirst: vi.fn(async (): Promise<unknown> => null) },
+  mutualMatch: { findMany: vi.fn(async (): Promise<unknown[]> => []) },
 }));
 vi.mock("@/lib/db", () => ({ db }));
 const alert = vi.hoisted(() => ({ sendAdminAlert: vi.fn(async () => {}) }));
@@ -14,7 +16,10 @@ vi.mock("@/lib/admin-alert", () => alert);
 vi.mock("@/lib/notify", () => notifyMod);
 vi.mock("@/lib/ably", () => ({ publishChatEvent: vi.fn(async () => {}) }));
 
-import { fileReport, pausedForReview, refreshReportFlag, snapshotReportEvidence, REPORT_PAUSE_MARKER } from "@/lib/reports";
+import {
+  endPausedChats, fileReport, pausedForReview, refreshReportFlag, snapshotReportEvidence,
+  PAUSED_MATCH_CLOSED_MARKER, REPORT_PAUSE_MARKER,
+} from "@/lib/reports";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -25,6 +30,8 @@ beforeEach(() => {
   db.user.findMany.mockResolvedValue([]);
   db.conversation.findMany.mockResolvedValue([]);
   db.conversation.updateMany.mockResolvedValue({ count: 1 });
+  db.block.findFirst.mockResolvedValue(null);
+  db.mutualMatch.findMany.mockResolvedValue([]);
 });
 
 describe("fileReport", () => {
@@ -63,6 +70,22 @@ describe("fileReport", () => {
     db.report.count.mockResolvedValue(2);
     await fileReport({ reporterId: "a", reportedId: "b", reason: "HARASSMENT" });
     expect(db.user.updateMany).not.toHaveBeenCalled();
+  });
+});
+
+const openMatch = {
+  id: "m1", femaleId: "b", maleId: "x", femaleOutcome: null, maleOutcome: null,
+  female: { isDeactivated: false, status: "ACTIVE" }, male: { isDeactivated: false, status: "ACTIVE" },
+};
+
+describe("endPausedChats (G55)", () => {
+  it("turns paused rows on the given matches into a real end", async () => {
+    db.conversation.updateMany.mockResolvedValue({ count: 2 });
+    expect(await endPausedChats({ id: "m1" }, { endedById: "u1" })).toBe(2);
+    expect(db.conversation.updateMany).toHaveBeenCalledWith({
+      where: { status: "ENDED", endedByAdminId: REPORT_PAUSE_MARKER, match: { id: "m1" } },
+      data: { endedById: "u1", endedByAdminId: null },
+    });
   });
 });
 
@@ -154,7 +177,7 @@ describe("admin alerts, pause for review and clearing the flag", () => {
     counts(2, 2);
     const pausedAt = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
-    db.conversation.findMany.mockResolvedValue([{ id: "c1", expiresAt, endedAt: pausedAt, match: { femaleId: "b", maleId: "x" } }]);
+    db.conversation.findMany.mockResolvedValue([{ id: "c1", expiresAt, endedAt: pausedAt, match: openMatch }]);
     db.conversation.updateMany.mockResolvedValue({ count: 1 });
     const r = await refreshReportFlag("b");
     expect(r).toEqual({ flagged: false, resumed: 1 });
@@ -165,6 +188,33 @@ describe("admin alerts, pause for review and clearing the flag", () => {
     const { data } = db.conversation.updateMany.mock.calls[0][0];
     expect(data).toMatchObject({ status: "ACTIVE", endedAt: null, endedByAdminId: null });
     expect(data.expiresAt.getTime()).toBeGreaterThanOrEqual(expiresAt.getTime() + 2 * 24 * 60 * 60 * 1000 - 1000);
+  });
+
+  it.each([
+    ["a block between the two", () => db.block.findFirst.mockResolvedValue({ id: "bl1" }), {}],
+    ["«لم يحصل نصيب» on the match", () => {}, { maleOutcome: "NOT_A_MATCH" }],
+    ["«تمت الخطبة» on the match", () => {}, { femaleOutcome: "ENGAGED" }],
+    ["a partner who paused their account", () => {}, { male: { isDeactivated: true, status: "ACTIVE" } }],
+    ["a suspended partner", () => {}, { male: { isDeactivated: false, status: "SUSPENDED" } }],
+    [
+      "a side engaged on another match",
+      () => db.mutualMatch.findMany.mockResolvedValue([{ id: "m2", femaleId: "z", maleId: "x", femaleOutcome: null, maleOutcome: "ENGAGED" }]),
+      {},
+    ],
+  ])("G55: a paused chat is not resumed after %s — it ends for good", async (_label, arrange, matchPatch) => {
+    counts(2, 2);
+    arrange();
+    db.conversation.findMany.mockResolvedValue([
+      { id: "c1", expiresAt: new Date(), endedAt: new Date(), match: { ...openMatch, ...matchPatch } },
+    ]);
+    const r = await refreshReportFlag("b");
+    expect(r.resumed).toBe(0);
+    expect(db.conversation.updateMany).toHaveBeenCalledTimes(1);
+    expect(db.conversation.updateMany).toHaveBeenCalledWith({
+      where: { id: "c1", status: "ENDED", endedByAdminId: REPORT_PAUSE_MARKER },
+      data: { endedByAdminId: PAUSED_MATCH_CLOSED_MARKER },
+    });
+    expect(notifyMod.notify).not.toHaveBeenCalled();
   });
 
   it("chats stay paused while 3 reports still wait", async () => {

@@ -11,6 +11,7 @@ import { db } from "@/lib/db";
 import { notify, notifyMany } from "@/lib/notify";
 import { CHAT_NOTICE_PREFERENCE } from "@/lib/notification-prefs";
 import { publishChatEvent } from "@/lib/ably";
+import { endPausedChats } from "@/lib/reports";
 
 export async function closeActivityForLeaving(userId: string, reason: "paused" | "deleting" | "deleted"): Promise<void> {
   const now = new Date();
@@ -39,6 +40,9 @@ export async function closeActivityForLeaving(userId: string, reason: "paused" |
       preference: CHAT_NOTICE_PREFERENCE,
     });
   }
+
+  // Chats paused for a report review end for good as well (a later review must not reopen them)
+  await endPausedChats(mine, { endedById: userId });
 
   const pendingWhere = { status: "PENDING" as const, OR: [{ senderId: userId }, { receiverId: userId }] };
   const pending =

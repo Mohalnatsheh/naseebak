@@ -7,7 +7,7 @@ const db = vi.hoisted(() => ({
   introRequest: { updateMany: vi.fn(), count: vi.fn(), findFirst: vi.fn() },
   suggestion: { findMany: vi.fn() },
   message: { count: vi.fn() },
-  conversation: { count: vi.fn(), findMany: vi.fn(async () => []), update: vi.fn() },
+  conversation: { count: vi.fn(), findMany: vi.fn(async () => []), update: vi.fn(), updateMany: vi.fn(async () => ({ count: 0 })) },
   parentInfo: { findUnique: vi.fn() },
 }));
 vi.mock("@/lib/db", () => ({ db }));
@@ -133,6 +133,11 @@ describe("POST /api/blocks", () => {
       where: expect.objectContaining({ status: "PENDING" }),
       data: { status: "CANCELLED" },
     }));
+    // G55: a chat paused for review between the two ends for good
+    expect(db.conversation.updateMany).toHaveBeenCalledWith({
+      where: { status: "ENDED", endedByAdminId: "system:report-review", match: expect.anything() },
+      data: { endedById: "u1", endedByAdminId: null },
+    });
   });
 
   it("validates the body and refuses self-blocks", async () => {

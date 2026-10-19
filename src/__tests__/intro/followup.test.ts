@@ -15,6 +15,8 @@ const state = vi.hoisted(() => ({
   LEGACY_ADMIN_VISIT: ["FAMILIES_CONTACTED", "SCHEDULED", "COMPLETED"],
 }));
 const refunds = vi.hoisted(() => ({ refundUnansweredInterests: vi.fn() }));
+const reports = vi.hoisted(() => ({ endPausedChats: vi.fn(async () => 0) }));
+vi.mock("@/lib/reports", () => reports);
 vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/notify", () => notifyMod);
 vi.mock("@/lib/matches/state", () => state);
@@ -46,6 +48,20 @@ describe("setMatchOutcome", () => {
     expect(db.conversation.update).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "c1" }, data: expect.objectContaining({ status: "ENDED", endedById: "u1" }) }));
     expect(state.cancelPendingBetween).toHaveBeenCalledWith("u1", "f1");
     expect(notifyMod.notify).toHaveBeenCalledWith(expect.objectContaining({ userId: "f1", title: "انتهى التعارف" }));
+  });
+
+  it("G55: «لم يحصل نصيب» also ends a chat paused for review, for good", async () => {
+    db.mutualMatch.findFirst.mockResolvedValue(match({ conversation: { id: "c1", status: "ENDED" } }));
+    await setMatchOutcome({ matchId: "m1", userId: "u1", outcome: "NOT_A_MATCH" });
+    expect(reports.endPausedChats).toHaveBeenCalledWith({ id: "m1" }, { endedById: "u1" });
+  });
+
+  it("G55: «تمت الخطبة» ends paused chats on my other open matches", async () => {
+    db.mutualMatch.findFirst.mockResolvedValue(match());
+    state.loadMatchStates.mockResolvedValue(new Map([["m2", { closed: null, partnerId: "p2" }]]));
+    db.conversation.findUnique.mockResolvedValue({ id: "c2", status: "ENDED" });
+    await setMatchOutcome({ matchId: "m1", userId: "f1", outcome: "ENGAGED" });
+    expect(reports.endPausedChats).toHaveBeenCalledWith({ id: "m2" }, { endedById: "f1" });
   });
 
   it("«تمت الخطبة» closes my open suggestions, refunds others and asks the partner to confirm", async () => {

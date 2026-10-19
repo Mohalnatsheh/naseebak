@@ -32,6 +32,14 @@ describe("closeActivityForLeaving", () => {
     expect(notifyMod.notifyMany).not.toHaveBeenCalled();
   });
 
+  it("G55: a chat paused for review ends for good too", async () => {
+    await closeActivityForLeaving("u1", "paused");
+    expect(db.conversation.updateMany).toHaveBeenCalledWith({
+      where: { status: "ENDED", endedByAdminId: "system:report-review", match: { OR: [{ femaleId: "u1" }, { maleId: "u1" }] } },
+      data: expect.objectContaining({ endedByAdminId: null }),
+    });
+  });
+
   it("deletion tells every partner on an open match once, skipping ended matches and blocks", async () => {
     db.mutualMatch.findMany.mockResolvedValue([
       { femaleId: "f1", maleId: "u1", femaleOutcome: null, maleOutcome: null },

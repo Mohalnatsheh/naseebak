@@ -23,6 +23,7 @@ import { LEGACY_ADMIN_VISIT, cancelPendingBetween, isUnavailable, loadMatchState
 import { refundUnansweredInterests } from "@/lib/suggestions/mutual";
 import { publishChatEvent } from "@/lib/ably";
 import { getCycleFlags } from "@/lib/settings";
+import { endPausedChats } from "@/lib/reports";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 export const FOLLOW_UP_FIRST_DAYS = 7;
@@ -110,6 +111,7 @@ async function closeOtherMatches(userId: string, matchIds: { id: string; partner
         });
         if (ended.count === 1) await publishChatEvent(chat.id, "status", { status: "ENDED" }).catch(() => {});
       }
+      await endPausedChats({ id }, { endedById: userId });
       await notify({
         userId: partnerId,
         type: "MATCH",
@@ -171,6 +173,7 @@ export async function setMatchOutcome(args: { matchId: string; userId: string; o
       await db.conversation.update({ where: { id: chat.id }, data: { status: "ENDED", endedById: userId, endedAt: now } });
       await publishChatEvent(chat.id, "status", { status: "ENDED" }).catch(() => {});
     }
+    await endPausedChats({ id: matchId }, { endedById: userId });
     await notify({
       userId: partnerId,
       type: "MATCH",

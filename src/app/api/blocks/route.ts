@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { cancelPendingBetween } from "@/lib/matches/state";
 import { publishChatEvent } from "@/lib/ably";
 import { closeSuggestionsBetween } from "@/lib/suggestions/mutual";
+import { endPausedChats } from "@/lib/reports";
 
 export async function GET() {
   try {
@@ -94,6 +95,16 @@ export async function POST(request: Request) {
       await db.conversation.update({ where: { id: c.id }, data: { status: "ENDED", endedById: session.user.id, endedAt: new Date() } });
       await publishChatEvent(c.id, "status", { status: "ENDED" }).catch(() => {});
     }
+    // A chat paused for a report review ends for good too (a later review must not reopen it)
+    await endPausedChats(
+      {
+        OR: [
+          { femaleId: session.user.id, maleId: blockedId },
+          { femaleId: blockedId, maleId: session.user.id },
+        ],
+      },
+      { endedById: session.user.id },
+    );
     await closeSuggestionsBetween(session.user.id, blockedId).catch((e) => console.error("Close suggestions on block:", e));
 
     return NextResponse.json({ message: "تم حظر المستخدم بنجاح", block });

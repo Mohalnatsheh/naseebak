@@ -9,6 +9,10 @@ const captured = vi.hoisted(() => ({ config: null as null | { providers: { id: s
 
 vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/rate-limit", () => ({ rateLimit: () => ({ success: true }) }));
+vi.mock("@/lib/rate-limit-db", () => ({
+  rateLimitDb: async () => ({ success: true }),
+  rateLimitDbBlocked: async () => ({ blocked: false, resetAt: 0 }),
+}));
 vi.mock("next-auth/providers/credentials", () => ({ default: (cfg: unknown) => cfg }));
 vi.mock("next-auth", () => ({
   default: (config: NonNullable<typeof captured.config>) => {

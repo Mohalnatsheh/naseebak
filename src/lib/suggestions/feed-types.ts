@@ -1,6 +1,7 @@
 /** Client-safe feed types and helpers: no db or server imports. */
 
-export type FeedTab = "new" | "waiting";
+/** new = nobody answered yet · interested = the other side already said «مهتم» · waiting = my «مهتم» */
+export type FeedTab = "new" | "interested" | "waiting";
 export type FeedKind = "mutual" | "legacy_suggestion" | "legacy_interest" | "legacy_sent";
 
 export interface FeedCandidate {
@@ -48,11 +49,10 @@ export interface OpenFeedItem {
   /** Shared suggestions only: when the card closes if it isn't a match by then */
   expiresAt?: string;
   candidate: FeedCandidate;
-  /**
-   * Credit on interest at 0 credits only: the other side already said "مهتم" (owner exception, the
-   * recharge incentive; a "لا" is never distinguishable from no decision)
-   */
+  /** "interested" tab (and legacy interests): the other side already said «مهتم» */
   likedYou?: true;
+  /** "waiting" tab: the other side said «لا» (owner decision 2026-10-19: shown, no refund) */
+  declined?: true;
 }
 
 /** Every card is open: at 0 credits the profile stays visible and only "مهتم" waits for a recharge */

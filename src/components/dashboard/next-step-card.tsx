@@ -108,8 +108,8 @@ export function NextStepCard({ qualifies, pendingSuggestions, credits, emptyReas
       icon: Sparkles,
       title: pendingSuggestions === 1 ? "لديك اقتراح جديد" : "لديك اقتراحات جديدة",
       text: g(
-        "اطّلع عليها وقرّر. لا نُطلع أحداً على قرار «لا».",
-        "اطّلعي عليها وقرّري. لا نُطلع أحداً على قرار «لا»."
+        "اطّلع عليها وقرّر. من أبدى اهتمامه بك تجده في «مهتمون بك».",
+        "اطّلعي عليها وقرّري. من أبدى اهتمامه بكِ تجدينه في «مهتمون بكِ»."
       ),
       href: "/dashboard/suggestions",
       cta: "عرض الاقتراحات",

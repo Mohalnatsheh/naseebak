@@ -1,13 +1,14 @@
 /**
- * The two-tab suggestions feed (simultaneous flow), per viewer:
- *   new     — what I still have to decide: MUTUAL rows, plus legacy suggestions and interests in flight
- *   waiting — what I said "مهتم" to and isn't a match (yet): MUTUAL rows until they expire, plus legacy sent
- * Items never carry the other person's decision or the row's status — single exception (owner):
- * with credit_on_interest on and a balance of 0, MUTUAL rows in "new" carry `likedYou` when the other
- * side already said "مهتم" (the profile stays visible; only "مهتم" waits for a recharge). A "لا" from
- * them looks exactly like no decision.
- * Order (credit_on_interest): in "new", cards the other side already said "مهتم" to come first
- * (owner decision 2026-10-19, silently — nothing on the card says why), then best score, then newest.
+ * The three-tab suggestions feed (simultaneous flow), per viewer:
+ *   new        — what I still have to decide and nobody answered yet: MUTUAL rows, plus legacy suggestions
+ *   interested — what I still have to decide where the other side already said «مهتم» (`likedYou`),
+ *                plus legacy interests in flight (owner decision 2026-10-19: interest is shown openly)
+ *   waiting    — what I said «مهتم» to and isn't a match (yet): MUTUAL rows until they expire, plus
+ *                legacy sent; a row the other side declined carries `declined` (owner decision
+ *                2026-10-19: shown as «لم يحصل توافق», no refund)
+ * Items never carry the other person's raw decision or the row's status, only these derived flags.
+ * A «لا» is therefore seen only by someone who had already said «مهتم»; for everyone else the card
+ * simply disappears.
  */
 import { db } from "@/lib/db";
 import { calculateCompatibility } from "@/lib/matching/score";
@@ -22,8 +23,7 @@ export type { FeedCandidate, FeedItem, FeedKind, FeedTab, OpenFeedItem } from "@
 
 const SOURCE_LIMIT = 50;
 
-/** DB order: newest first; credit-on-interest fetches the best matches first (newest first among equals).
- *  The "new" tab then puts cards waiting on my answer first (see getSuggestionFeed). */
+/** Order: newest first; credit-on-interest shows the best matches first (newest first among equals). */
 export function suggestionOrder(flags: CycleFlags) {
   return flags.creditOnInterest
     ? [{ compatibilityScore: "desc" as const }, { createdAt: "desc" as const }]
@@ -89,9 +89,13 @@ export async function hasOpenMutual(userId: string): Promise<boolean> {
   return (await db.suggestion.count({ where: openMutualWhere(userId) })) > 0;
 }
 
-/** Number of items in the "new" tab (dashboard card, tab badge). */
+/** Cards still to decide: the "new" and "interested" tabs together (dashboard card, next step). */
 export async function countNewItems(userId: string): Promise<number> {
-  return (await getSuggestionFeed(userId, "new", 1, 1)).total;
+  const [fresh, interested] = await Promise.all([
+    getSuggestionFeed(userId, "new", 1, 1),
+    getSuggestionFeed(userId, "interested", 1, 1),
+  ]);
+  return fresh.total + interested.total;
 }
 
 export async function getSuggestionFeed(
@@ -111,27 +115,24 @@ export async function getSuggestionFeed(
   ]);
   if (!viewer) return { items: [], page, totalPages: 0, total: 0 };
 
-  // Credit on interest with nothing left: cards stay open, "liked you" shows where it applies
-  const atZero = tab === "new" && flags.creditOnInterest && (viewer.matchCredits ?? 0) < 1;
-
   type Row = {
     kind: FeedKind; id: string; score: number | null; createdAt: Date; other: Person;
     likedYou?: boolean;
-    // Ordering only (the other side said "مهتم"); never sent to the client
-    waitingOnMe?: boolean;
+    declined?: boolean;
     expiresAt?: Date | null;
   };
   const rows: Row[] = [];
   const mutualSelect = {
     id: true, compatibilityScore: true, createdAt: true, recipientId: true, expiresAt: true,
-    // Read only for the 0-credit "liked you" tag; never sent to the client
+    // Read only for the derived likedYou / declined flags; never sent to the client
     recipientDecision: true, candidateDecision: true,
     recipient: { select: personSelect }, candidate: { select: personSelect },
   } as const;
   const otherOf = (s: { recipientId: string; recipient: Person; candidate: Person }) =>
     s.recipientId === userId ? s.candidate : s.recipient;
 
-  if (tab === "new") {
+  if (tab === "new" || tab === "interested") {
+    const interestedTab = tab === "interested";
     const [mutual, legacy, likes, myResponses] = await Promise.all([
       db.suggestion.findMany({
         where: openMutualWhere(userId, now),
@@ -156,19 +157,20 @@ export async function getSuggestionFeed(
     const answered = new Set(myResponses.map((r) => r.toUserId));
     for (const s of mutual) {
       const theirDecision = s.recipientId === userId ? s.candidateDecision : s.recipientDecision;
+      // (a DECLINED other side never reaches here: a «لا» closes the row as REJECTED at once)
+      if ((theirDecision === "INTERESTED") !== interestedTab) continue;
       rows.push({
         kind: "mutual", id: s.id, score: s.compatibilityScore, createdAt: s.createdAt, other: otherOf(s as never),
         expiresAt: s.expiresAt,
-        waitingOnMe: theirDecision === "INTERESTED",
-        ...(atZero && theirDecision === "INTERESTED" && { likedYou: true }),
+        ...(interestedTab && { likedYou: true }),
       });
     }
     // Credit on interest: older-style cards are closed (closeLegacyInFlight), shared flow only
     const legacyOpen = !flags.creditOnInterest;
-    if (legacyOpen) for (const s of legacy) rows.push({ kind: "legacy_suggestion", id: s.id, score: s.compatibilityScore, createdAt: s.createdAt, other: s.candidate as Person });
-    if (legacyOpen) for (const l of likes) {
+    if (legacyOpen && !interestedTab) for (const s of legacy) rows.push({ kind: "legacy_suggestion", id: s.id, score: s.compatibilityScore, createdAt: s.createdAt, other: s.candidate as Person });
+    if (legacyOpen && interestedTab) for (const l of likes) {
       if (answered.has(l.fromUser.id)) continue;
-      rows.push({ kind: "legacy_interest", id: l.id, score: null, createdAt: l.createdAt, other: l.fromUser as Person });
+      rows.push({ kind: "legacy_interest", id: l.id, score: null, createdAt: l.createdAt, other: l.fromUser as Person, likedYou: true });
     }
   } else {
     // Legacy sent interests keep their old 14-day "waiting" window
@@ -177,7 +179,7 @@ export async function getSuggestionFeed(
       db.suggestion.findMany({
         where: {
           flow: "MUTUAL",
-          // REJECTED too: a "لا" from the other side must look exactly like "not yet"
+          // REJECTED too: a «لا» from the other side stays visible as «لم يحصل توافق» until the window ends
           status: { in: ["PENDING", "REJECTED"] },
           expiresAt: { gt: now },
           OR: [
@@ -201,7 +203,13 @@ export async function getSuggestionFeed(
       }),
     ]);
     const matched = new Set(matches.flatMap((m) => [m.femaleId, m.maleId]));
-    for (const s of mutual) rows.push({ kind: "mutual", id: s.id, score: s.compatibilityScore, createdAt: s.createdAt, other: otherOf(s as never), expiresAt: s.expiresAt });
+    for (const s of mutual) {
+      const theirDecision = s.recipientId === userId ? s.candidateDecision : s.recipientDecision;
+      rows.push({
+        kind: "mutual", id: s.id, score: s.compatibilityScore, createdAt: s.createdAt, other: otherOf(s as never), expiresAt: s.expiresAt,
+        ...(theirDecision === "DECLINED" && { declined: true }),
+      });
+    }
     if (!flags.creditOnInterest) for (const s of legacySent) {
       if (matched.has(s.candidate.id)) continue;
       rows.push({ kind: "legacy_sent", id: s.id, score: s.compatibilityScore, createdAt: s.updatedAt, other: s.candidate as Person });
@@ -213,9 +221,7 @@ export async function getSuggestionFeed(
     .filter((r) => !blocked.has(r.other.id) && !isUnavailable(r.other))
     .sort((a, b) =>
       flags.creditOnInterest
-        ? Number(!!b.waitingOnMe) - Number(!!a.waitingOnMe) ||
-          (b.score ?? -1) - (a.score ?? -1) ||
-          b.createdAt.getTime() - a.createdAt.getTime()
+        ? (b.score ?? -1) - (a.score ?? -1) || b.createdAt.getTime() - a.createdAt.getTime()
         : b.createdAt.getTime() - a.createdAt.getTime()
     );
   const total = visible.length;
@@ -231,6 +237,7 @@ export async function getSuggestionFeed(
       candidate: toFeedCandidate(r.other),
       ...(r.expiresAt && { expiresAt: r.expiresAt.toISOString() }),
       ...(r.likedYou && { likedYou: true as const }),
+      ...(r.declined && { declined: true as const }),
     };
   });
   return { items, page, totalPages: Math.ceil(total / pageSize), total };

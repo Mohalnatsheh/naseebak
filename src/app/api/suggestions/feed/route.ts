@@ -1,16 +1,17 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { parsePagination } from "@/lib/utils";
-import { getSuggestionFeed } from "@/lib/suggestions/feed";
+import { getSuggestionFeed, type FeedTab } from "@/lib/suggestions/feed";
 
-/** Two-tab feed of the simultaneous suggestions flow: ?tab=new|waiting&page=n */
+/** Three-tab feed of the simultaneous suggestions flow: ?tab=new|interested|waiting&page=n */
 export async function GET(request: Request) {
   try {
     const result = await requireUser();
     if ("error" in result) return result.error;
     const { searchParams } = new URL(request.url);
     const { page, pageSize } = parsePagination(searchParams, 10);
-    const tab = searchParams.get("tab") === "waiting" ? "waiting" : "new";
+    const wanted = searchParams.get("tab");
+    const tab: FeedTab = wanted === "waiting" || wanted === "interested" ? wanted : "new";
     return NextResponse.json(await getSuggestionFeed(result.session.user.id, tab, page, pageSize));
   } catch (error) {
     console.error("Suggestion feed error:", error);

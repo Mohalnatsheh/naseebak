@@ -64,19 +64,21 @@ describe("getSuggestionFeed — new", () => {
     expect(expired.data).toEqual({ status: "EXPIRED" });
   });
 
-  it("includes legacy suggestions and unanswered legacy interests", async () => {
+  it("includes legacy suggestions in «new» and unanswered legacy interests in «interested»", async () => {
     db.suggestion.findMany
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{ id: "L1", compatibilityScore: 60, createdAt: new Date(), candidate: person("f2", "FEMALE") }]);
+    const { items } = await getSuggestionFeed("me", "new", 1);
+    expect(items.map((i) => [i.kind, i.id])).toEqual([["legacy_suggestion", "L1"]]);
+    expect(db.suggestion.findMany.mock.calls[1][0].where).toEqual({ flow: "LEGACY", recipientId: "me", status: "PENDING" });
     db.like.findMany
       .mockResolvedValueOnce([
         { id: "like1", createdAt: new Date(), suggestionId: "x", fromUser: person("f3", "FEMALE") },
         { id: "like2", createdAt: new Date(), suggestionId: "y", fromUser: person("f4", "FEMALE") },
       ])
       .mockResolvedValueOnce([{ toUserId: "f4" }]); // already answered f4
-    const { items } = await getSuggestionFeed("me", "new", 1);
-    expect(items.map((i) => [i.kind, i.id]).sort()).toEqual([["legacy_interest", "like1"], ["legacy_suggestion", "L1"]]);
-    expect(db.suggestion.findMany.mock.calls[1][0].where).toEqual({ flow: "LEGACY", recipientId: "me", status: "PENDING" });
+    const interested = await getSuggestionFeed("me", "interested", 1);
+    expect(interested.items.map((i) => [i.kind, i.id, i.likedYou])).toEqual([["legacy_interest", "like1", true]]);
   });
 
   it("hides blocked people", async () => {
@@ -147,28 +149,31 @@ describe("getSuggestionFeed — ordering", () => {
     expect(items.map((i) => i.id)).toEqual(["best", "tie", "low"]);
   });
 
-  it("puts cards the other side said «مهتم» to first, silently (credit-on-interest on)", async () => {
+  it("«new» holds only cards nobody answered; cards the other side said «مهتم» to move to «interested» with likedYou", async () => {
     settings.getCycleFlags.mockResolvedValue({ introRequests: true, chat: true, mutualSuggestions: true, creditOnInterest: true });
     const best = { ...mutualRow("best", person("f1", "FEMALE")), compatibilityScore: 95 };
-    const declined = { ...mutualRow("declined", person("f2", "FEMALE")), compatibilityScore: 90, recipientDecision: "DECLINED" };
     const liked = { ...mutualRow("liked", person("f3", "FEMALE")), compatibilityScore: 61, recipientDecision: "INTERESTED" };
     const likedBetter = { ...mutualRow("likedBetter", person("f4", "MALE"), true), compatibilityScore: 80, candidateDecision: "INTERESTED" };
-    db.suggestion.findMany.mockResolvedValueOnce([best, declined, likedBetter, liked]).mockResolvedValueOnce([]);
-    const { items } = await getSuggestionFeed("me", "new", 1);
-    expect(items.map((i) => i.id)).toEqual(["likedBetter", "liked", "best", "declined"]);
-    // Nothing on the card says why (credits left → no likedYou tag, no internal field)
-    for (const i of items) {
-      expect(i).not.toHaveProperty("likedYou");
-      expect(i).not.toHaveProperty("waitingOnMe");
+    db.suggestion.findMany.mockResolvedValueOnce([best, likedBetter, liked]).mockResolvedValueOnce([]);
+    const fresh = await getSuggestionFeed("me", "new", 1);
+    expect(fresh.items.map((i) => i.id)).toEqual(["best"]);
+    expect(fresh.items[0]).not.toHaveProperty("likedYou");
+    db.suggestion.findMany.mockResolvedValueOnce([best, likedBetter, liked]).mockResolvedValueOnce([]);
+    const interested = await getSuggestionFeed("me", "interested", 1);
+    expect(interested.items.map((i) => [i.id, i.likedYou])).toEqual([["likedBetter", true], ["liked", true]]);
+    // The raw decisions and the row status never reach the client
+    for (const i of [...fresh.items, ...interested.items]) {
+      expect(JSON.stringify(i)).not.toContain("Decision");
+      expect(i).not.toHaveProperty("status");
     }
   });
 
-  it("keeps «مهتم»-first off when credit-on-interest is off", async () => {
-    const fresh = { ...mutualRow("fresh", person("f1", "FEMALE")), createdAt: new Date() };
-    const liked = { ...mutualRow("liked", person("f2", "FEMALE")), recipientDecision: "INTERESTED", createdAt: new Date(Date.now() - 3 * DAY) };
-    db.suggestion.findMany.mockResolvedValueOnce([liked, fresh]).mockResolvedValueOnce([]);
-    const { items } = await getSuggestionFeed("me", "new", 1);
-    expect(items.map((i) => i.id)).toEqual(["fresh", "liked"]);
+  it("the «interested» tab doesn't depend on the credit-on-interest flag", async () => {
+    const liked = { ...mutualRow("liked", person("f2", "FEMALE")), recipientDecision: "INTERESTED" };
+    db.suggestion.findMany.mockResolvedValueOnce([liked]).mockResolvedValueOnce([]);
+    expect((await getSuggestionFeed("me", "new", 1)).items).toEqual([]);
+    db.suggestion.findMany.mockResolvedValueOnce([liked]).mockResolvedValueOnce([]);
+    expect((await getSuggestionFeed("me", "interested", 1)).items[0]).toMatchObject({ id: "liked", likedYou: true });
   });
 
   it("stays newest-first when the flag is off", async () => {
@@ -202,7 +207,7 @@ describe("getSuggestionFeed — at 0 credits", () => {
     expect(JSON.stringify(items)).not.toContain("Decision");
   });
 
-  it("likedYou only when the other said INTERESTED (not on DECLINED or undecided)", async () => {
+  it("«new» at 0 credits: no likedYou, and an undecided card looks the same whatever the other side did", async () => {
     settings.getCycleFlags.mockResolvedValue(on);
     db.user.findUnique.mockResolvedValue(broke);
     db.suggestion.findMany
@@ -210,19 +215,35 @@ describe("getSuggestionFeed — at 0 credits", () => {
       .mockResolvedValueOnce([]);
     const { items } = await getSuggestionFeed("me", "new", 1);
     const byId = Object.fromEntries(items.map((i) => [i.id, i]));
-    expect(byId.yes).toMatchObject({ likedYou: true });
+    expect(byId.yes).toBeUndefined();
     expect(byId.no).not.toHaveProperty("likedYou");
     expect(byId.none).not.toHaveProperty("likedYou");
-    // A "لا" looks exactly like no decision
     expect(Object.keys(byId.no).sort()).toEqual(Object.keys(byId.none).sort());
   });
 
-  it("likedYou never present with credits left", async () => {
+  it("«interested» keeps the full card and the likedYou tag at 0 credits too", async () => {
     settings.getCycleFlags.mockResolvedValue(on);
+    db.user.findUnique.mockResolvedValue(broke);
     db.suggestion.findMany.mockResolvedValueOnce([withDecision("s1", "INTERESTED")]).mockResolvedValueOnce([]);
-    const { items } = await getSuggestionFeed("me", "new", 1);
-    expect(items[0]).not.toHaveProperty("likedYou");
+    const { items } = await getSuggestionFeed("me", "interested", 1);
+    expect(items[0]).toMatchObject({ id: "s1", likedYou: true, candidate: { id: "f-s1" } });
     expect(items[0]).not.toHaveProperty("locked");
+    expect(JSON.stringify(items)).not.toContain("Decision");
+  });
+
+  it("«waiting» marks a card the other side declined, and only that one", async () => {
+    settings.getCycleFlags.mockResolvedValue(on);
+    const mine = (id: string, otherDecision: "DECLINED" | null) => ({
+      ...mutualRow(id, person(`f-${id}`, "FEMALE"), true),
+      expiresAt: new Date(Date.now() + 5 * DAY),
+      recipientDecision: "INTERESTED",
+      candidateDecision: otherDecision,
+    });
+    db.suggestion.findMany.mockResolvedValueOnce([mine("no", "DECLINED"), mine("open", null)]).mockResolvedValueOnce([]);
+    const { items } = await getSuggestionFeed("me", "waiting", 1);
+    const byId = Object.fromEntries(items.map((i) => [i.id, i]));
+    expect(byId.no).toMatchObject({ declined: true });
+    expect(byId.open).not.toHaveProperty("declined");
     expect(JSON.stringify(items)).not.toContain("Decision");
   });
 
@@ -235,13 +256,10 @@ describe("getSuggestionFeed — at 0 credits", () => {
     expect(items[0]).not.toHaveProperty("locked");
   });
 
-  it("flag off unchanged", async () => {
+  it("flag off: a card the other side said «مهتم» to still goes to «interested», not «new»", async () => {
     db.user.findUnique.mockResolvedValue(broke);
     db.suggestion.findMany.mockResolvedValueOnce([withDecision("s1", "INTERESTED")]).mockResolvedValueOnce([]);
-    const { items } = await getSuggestionFeed("me", "new", 1);
-    expect(items[0]).toMatchObject({ kind: "mutual", id: "s1", candidate: { id: "f-s1" } });
-    expect(items[0]).not.toHaveProperty("locked");
-    expect(items[0]).not.toHaveProperty("likedYou");
+    expect((await getSuggestionFeed("me", "new", 1)).items).toEqual([]);
   });
 
   it("older-style items are hidden while credit on interest is on; the waiting tab shows full cards", async () => {

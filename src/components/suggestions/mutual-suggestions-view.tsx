@@ -66,9 +66,19 @@ function decisionRequest(item: OpenFeedItem, interested: boolean, choice?: Intro
 
 /**
  * Simultaneous suggestions (switch `new_suggestions_flow`): both people see the same suggestion and
- * decide on their own. Two tabs: to decide, and "بانتظار الطرف الآخر". A "لا" from the other side
- * is never shown — the card just waits until it closes.
+ * decide on their own. Three tabs: new (nobody answered yet), «مهتمون بك» (the other side already
+ * said «مهتم»: a «مهتم» here is an instant match) and «بانتظار الطرف الآخر» (my «مهتم»; a card the
+ * other side declined shows «لم يحصل توافق» until its window ends). `?tab=interested` opens that tab.
  */
+const TAB_KEYS: FeedTab[] = ["new", "interested", "waiting"];
+
+/** After a «لا»: the other side learns of it only if they had already said «مهتم» */
+function declineToast(item: OpenFeedItem, g: (m: string, f: string) => string): string {
+  return item.likedYou || item.kind === "legacy_interest"
+    ? g("تم. سيظهر للطرف الآخر أنه لم يحصل توافق.", "تم. سيظهر للطرف الآخر أنه لم يحصل توافق.")
+    : g("تم. لن يظهر لك هذا الاقتراح مجدداً، ولن يعرف الطرف الآخر بقرارك.", "تم. لن يظهر لكِ هذا الاقتراح مجدداً، ولن يعرف الطرف الآخر بقراركِ.");
+}
+
 /** "الأحد 19 أكتوبر" (Western digits). */
 function formatNextDate(iso: string): string {
   return new Date(iso).toLocaleDateString("ar-JO-u-nu-latn", { weekday: "long", day: "numeric", month: "long" });
@@ -110,7 +120,7 @@ export function MutualSuggestionsView({
   const [interestFor, setInterestFor] = useState<OpenFeedItem | null>(null);
   const [tab, setTab] = useState<FeedTab>("new");
   const [items, setItems] = useState<FeedItem[]>([]);
-  const [totals, setTotals] = useState<Record<FeedTab, number>>({ new: 0, waiting: 0 });
+  const [totals, setTotals] = useState<Record<FeedTab, number>>({ new: 0, interested: 0, waiting: 0 });
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
@@ -131,16 +141,20 @@ export function MutualSuggestionsView({
     setLoading(true);
     setLoadFailed(false);
     try {
-      const [cur, other] = await Promise.all([
+      const others = TAB_KEYS.filter((k) => k !== t);
+      const [cur, ...rest] = await Promise.all([
         fetch(`/api/suggestions/feed?tab=${t}&page=${p}`).then((r) => {
           if (!r.ok) throw new Error(`feed ${r.status}`);
           return r.json();
         }),
-        fetch(`/api/suggestions/feed?tab=${t === "new" ? "waiting" : "new"}&page=1`).then((r) => (r.ok ? r.json() : { total: 0 }) as Promise<{ total?: number }>),
+        ...others.map((k) => fetch(`/api/suggestions/feed?tab=${k}&page=1`).then((r) => (r.ok ? r.json() : { total: 0 }) as Promise<{ total?: number }>)),
       ]);
       setItems(((cur.items ?? []) as FeedItem[]).filter((i) => !pendingDeclines.current.has(i.id)));
       setTotalPages(Math.max(1, cur.totalPages ?? 1));
-      setTotals(t === "new" ? { new: cur.total ?? 0, waiting: other.total ?? 0 } : { new: other.total ?? 0, waiting: cur.total ?? 0 });
+      const next = { new: 0, interested: 0, waiting: 0 } as Record<FeedTab, number>;
+      next[t] = cur.total ?? 0;
+      others.forEach((k, i) => { next[k] = rest[i]?.total ?? 0; });
+      setTotals(next);
     } catch {
       // Shown in place of the list (with a retry), never as an empty state
       setLoadFailed(true);
@@ -152,6 +166,12 @@ export function MutualSuggestionsView({
   useEffect(() => {
     load(tab, page);
   }, [load, tab, page]);
+
+  // A notice link («شخص أبدى اهتمامه بك») opens the tab it points to
+  useEffect(() => {
+    const wanted = new URLSearchParams(window.location.search).get("tab");
+    if (wanted === "interested" || wanted === "waiting") setTab(wanted);
+  }, []);
 
   // Leaving the page inside the undo window still sends the «لا» (keepalive survives the navigation)
   useEffect(() => {
@@ -198,7 +218,7 @@ export function MutualSuggestionsView({
       }
     }, DECLINE_UNDO_MS);
     pendingDeclines.current.set(item.id, { item, timer });
-    toast("تم. لن يظهر لك هذا الاقتراح مجدداً، ولا نُطلع الطرف الآخر على قرار «لا».", {
+    toast(declineToast(item, g), {
       duration: DECLINE_UNDO_MS,
       action: {
         label: "تراجع",
@@ -272,7 +292,7 @@ export function MutualSuggestionsView({
       removeAndRefill(item.id);
       // A legacy interest answered "yes" is always a match; a legacy suggestion "yes" waits like a mutual one
       const waitsNow = interested && !data.match;
-      setTotals((t) => ({ new: Math.max(0, t.new - 1), waiting: t.waiting + (waitsNow ? 1 : 0) }));
+      setTotals((t) => ({ ...t, [tab]: Math.max(0, t[tab] - 1), waiting: t.waiting + (waitsNow ? 1 : 0) }));
       setNotice(data.match ? { kind: "match", matchId: data.matchId } : interested ? { kind: "interested" } : { kind: "declined" });
       return { ok: true };
     } catch {
@@ -348,6 +368,7 @@ export function MutualSuggestionsView({
 
   const tabs: { key: FeedTab; label: string; short: string; icon: typeof Sparkles }[] = [
     { key: "new", label: "اقتراحات جديدة", short: "جديدة", icon: Sparkles },
+    { key: "interested", label: g("مهتمون بك", "مهتمون بكِ"), short: "مهتمون", icon: Heart },
     { key: "waiting", label: "بانتظار الطرف الآخر", short: "بالانتظار", icon: Hourglass },
   ];
 
@@ -358,7 +379,10 @@ export function MutualSuggestionsView({
         title="الاقتراحات"
         description={
           <>
-            <p>يرى الطرفان الاقتراح نفسه ويقرّر كلٌّ منكما وحده، ولا نُطلع أحداً على قرار «لا».</p>
+            <p>{g(
+              "يرى الطرفان الاقتراح نفسه ويقرّر كلٌّ منكما وحده. نُعلمك عندما يبدي أحدهم اهتمامه بك، أما قرار «لا» فلا يعرفه إلا من أبدى اهتمامه.",
+              "يرى الطرفان الاقتراح نفسه ويقرّر كلٌّ منكما وحده. نُعلمكِ عندما يبدي أحدهم اهتمامه بكِ، أما قرار «لا» فلا يعرفه إلا من أبدى اهتمامه."
+            )}</p>
             {creditOnInterest && (
               <p className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-accent/40 bg-accent/10 px-3 py-1 text-xs font-medium text-foreground/85 sm:text-sm">
                 <Coins className="h-4 w-4 shrink-0 text-accent-foreground" aria-hidden="true" />
@@ -373,7 +397,7 @@ export function MutualSuggestionsView({
               </summary>
               <p className="mt-1 text-sm leading-relaxed">
                 {creditOnInterest
-                  ? "إذا كان الاهتمام متبادلاً يصبح توافقاً، فتظهر الصور ويبدأ التعارف الذي اخترتماه. عندما يكون الرصيد صفراً قد يظهر أن الطرف الآخر أبدى اهتمامه."
+                  ? "إذا كان الاهتمام متبادلاً يصبح توافقاً، فتظهر الصور ويبدأ التعارف الذي اخترتماه. من أبدى اهتمامه بك يظهر في «مهتمون بك»، و«مهتم» هناك توافق فوري."
                   : "إذا كان الاهتمام متبادلاً يصبح توافقاً، فتظهر الصور والتفاصيل الكاملة للطرفين."}
               </p>
             </details>
@@ -385,7 +409,7 @@ export function MutualSuggestionsView({
         <DealbreakersCard />
       </div>
 
-      {/* Two tabs */}
+      {/* Three tabs */}
       <div className="flex gap-1 p-1 rounded-xl bg-muted/50 border border-border/50" role="tablist">
         {tabs.map((t) => (
           <button
@@ -403,7 +427,7 @@ export function MutualSuggestionsView({
             {totals[t.key] > 0 && (
               <span
                 className={`inline-flex items-center justify-center h-5 min-w-5 px-1.5 rounded-full text-[10px] font-bold ${
-                  tab === t.key ? "bg-primary text-primary-foreground" : "bg-muted-foreground/20 text-muted-foreground"
+                  tab === t.key ? "bg-primary text-primary-foreground" : t.key === "interested" ? "bg-accent text-accent-foreground" : "bg-muted-foreground/20 text-muted-foreground"
                 }`}
               >
                 {totals[t.key]}
@@ -440,7 +464,7 @@ export function MutualSuggestionsView({
             </div>
           )}
           {notice.kind === "interested" && "تم تسجيل اهتمامك. إذا أبدى الطرف الآخر اهتمامه أيضاً يصبح توافقاً متبادلاً ونخبرك فوراً."}
-          {notice.kind === "declined" && "تم. لن يظهر لك هذا الاقتراح مجدداً، ولا نُطلع الطرف الآخر على قرار «لا»."}
+          {notice.kind === "declined" && g("تم. لن يظهر لك هذا الاقتراح مجدداً.", "تم. لن يظهر لكِ هذا الاقتراح مجدداً.")}
           {notice.kind === "no_credits" && (
             <div className="flex flex-wrap items-center justify-between gap-3">
               <span>{rechargeToContinue(viewerFemale)}</span>
@@ -466,10 +490,12 @@ export function MutualSuggestionsView({
         <Card className="border-dashed border-2 border-muted-foreground/20 bg-gradient-to-b from-card to-muted/30">
           <CardContent className="text-center py-14 space-y-4">
             <div className="mx-auto h-20 w-20 rounded-full bg-gradient-to-br from-primary/5 to-accent/5 flex items-center justify-center border-2 border-dashed border-muted-foreground/20">
-              {tab === "new" ? <Search className="h-9 w-9 text-muted-foreground/40" /> : <Clock className="h-9 w-9 text-muted-foreground/40" />}
+              {tab === "new" ? <Search className="h-9 w-9 text-muted-foreground/40" /> : tab === "interested" ? <Heart className="h-9 w-9 text-muted-foreground/40" /> : <Clock className="h-9 w-9 text-muted-foreground/40" />}
             </div>
             <h3 className="font-semibold text-lg text-foreground">
-              {tab !== "new"
+              {tab === "interested"
+                ? "لم يُبدِ أحد اهتمامه بعد"
+                : tab === "waiting"
                 ? "لا يوجد ما ينتظر الرد"
                 : emptyReason === "no_candidates"
                   ? "لا يوجد حالياً من يطابق شروطك"
@@ -482,7 +508,12 @@ export function MutualSuggestionsView({
                       : "نبحث لك عن اقتراحات مناسبة"}
             </h3>
             <p className="text-sm text-muted-foreground max-w-xs mx-auto leading-relaxed">
-              {tab !== "new"
+              {tab === "interested"
+                ? g(
+                    "عندما يبدي أحدهم اهتمامه بك على اقتراح مشترك، يظهر هنا وتصلك رسالة. «مهتم» منك عندها توافق فوري.",
+                    "عندما يبدي أحدهم اهتمامه بكِ على اقتراح مشترك، يظهر هنا وتصلكِ رسالة. «مهتم» منكِ عندها توافق فوري."
+                  )
+                : tab === "waiting"
                 ? g(
                     "عندما تختار «مهتم» على اقتراح، يظهر هنا حتى يقرّر الطرف الآخر أو تنتهي مدته.",
                     "عندما تختارين «مهتم» على اقتراح، يظهر هنا حتى يقرّر الطرف الآخر أو تنتهي مدته."
@@ -524,7 +555,7 @@ export function MutualSuggestionsView({
       ) : (
         <div className="space-y-6">
           {/* 0 credits: everything stays visible and «لا» is free; only «مهتم» waits for a recharge */}
-          {tab === "new" && outOfCredits && (
+          {tab !== "waiting" && outOfCredits && (
             <div role="note" className="flex flex-wrap items-start gap-3 rounded-xl border border-amber-200/60 bg-amber-50/70 p-4 text-sm leading-relaxed text-amber-900">
               <Coins className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
               <p className="min-w-0 flex-1">
@@ -544,6 +575,7 @@ export function MutualSuggestionsView({
             const score = Math.round(item.compatibilityScore);
             const isOpen = expanded.has(item.id);
             const waiting = tab === "waiting";
+            const declined = waiting && !!item.declined;
             return (
               <div key={item.id} style={{ animation: `fadeSlideIn 0.4s ease-out ${index * 0.08}s both` }}>
                 <PersonCard
@@ -557,17 +589,23 @@ export function MutualSuggestionsView({
                   photoLocked
                   badges={
                     <>
-                      {waiting && (
+                      {declined ? (
+                        <Badge className="bg-muted text-muted-foreground border border-border text-[11px] gap-1">
+                          <X className="h-3 w-3" /> لم يحصل توافق
+                        </Badge>
+                      ) : waiting ? (
                         <Badge className="bg-amber-100 text-amber-800 border border-amber-200/60 text-[11px] gap-1">
                           <Hourglass className="h-3 w-3" /> بانتظار الطرف الآخر
                         </Badge>
-                      )}
+                      ) : null}
                       {(item.kind === "legacy_interest" || item.likedYou) && (
-                        <Badge className="bg-accent/15 text-accent-foreground border border-accent/25 text-[11px]">{partnerGender === "FEMALE" ? "أبدت اهتمامها بك" : "أبدى اهتمامه بك"}</Badge>
+                        <Badge className="bg-accent/15 text-accent-foreground border border-accent/25 text-[11px] gap-1">
+                          <Heart className="h-3 w-3" /> {partnerGender === "FEMALE" ? "أبدت اهتمامها بك" : "أبدى اهتمامه بك"}
+                        </Badge>
                       )}
                     </>
                   }
-                  tone={waiting ? "pending" : "default"}
+                  tone={declined ? "muted" : waiting ? "pending" : "default"}
                   /* Third-person, gender-correct labels about the other person */
                   tags={[
                     { icon: User, label: c.maritalStatus && describeOption("maritalStatus", c.maritalStatus, partnerGender) },
@@ -589,10 +627,22 @@ export function MutualSuggestionsView({
                   details={<CandidateDetails c={c} />}
                   actions={
                     <>
-                      {waiting && (
+                      {declined && (
+                        <p className="mb-3 text-xs text-muted-foreground leading-relaxed">
+                          {partnerGender === "FEMALE" ? "اختارت الطرف الآخر «لا» هذه المرة." : "اختار الطرف الآخر «لا» هذه المرة."}{" "}
+                          {g("لا يُسترجع الرصيد، وتصلك اقتراحات جديدة تباعاً.", "لا يُسترجع الرصيد، وتصلكِ اقتراحات جديدة تباعاً.")}
+                        </p>
+                      )}
+                      {waiting && !declined && (
                         <p className="mb-3 text-xs text-muted-foreground leading-relaxed">
                           {partnerGender === "FEMALE" ? "إذا أبدت اهتمامها أيضاً" : "إذا أبدى اهتمامه أيضاً"} يصبح توافقاً متبادلاً ونخبرك فوراً.
                           {item.expiresAt && ` يُغلق الاقتراح تلقائياً يوم ${formatNextDate(item.expiresAt)} إن لم يكتمل.`}
+                        </p>
+                      )}
+                      {tab === "interested" && !outOfCredits && (
+                        <p className="mb-3 flex items-center gap-1.5 text-xs font-medium text-foreground/85">
+                          <Heart className="h-3.5 w-3.5 text-accent" aria-hidden="true" />
+                          {g("«مهتم» الآن توافق فوري", "«مهتم» الآن توافق فوري")}
                         </p>
                       )}
                       {!waiting && creditOnInterest && (

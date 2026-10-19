@@ -339,17 +339,16 @@ async function findMatchId(a: string, b: string): Promise<string | undefined> {
   return undefined;
 }
 
-const WAITING_TITLE = "اقتراح بانتظار قرارك";
+export const INTEREST_TITLE = "شخص أبدى اهتمامه بك";
 
 /**
- * Someone said «مهتم» on a card the other person hasn't answered: nudge them, at most once per
- * Amman day (any «اقتراح بانتظار قرارك» today counts, the expiry reminder too). Neutral on purpose —
- * never says someone is interested (the card's own mark does that), never sent for a «لا».
- * Push + SMS fallback (event "waiting") through notify().
+ * Someone said «مهتم» on a card the other person hasn't answered (owner decision 2026-10-19: interest
+ * is shown openly, in the «مهتمون بك» tab): tell them, at most once per Amman day. Never sent for a
+ * «لا». Push + SMS fallback (event "interest") through notify().
  */
-async function notifyWaitingDecision(userId: string, suggestionId: string, now: Date): Promise<void> {
+async function notifyInterestShown(userId: string, suggestionId: string, now: Date): Promise<void> {
   const already = await db.notification.findFirst({
-    where: { userId, type: "SUGGESTION", title: WAITING_TITLE, createdAt: { gte: startOfAmmanDay(now) } },
+    where: { userId, type: "SUGGESTION", title: INTEREST_TITLE, createdAt: { gte: startOfAmmanDay(now) } },
     select: { id: true },
   });
   if (already) return;
@@ -358,13 +357,13 @@ async function notifyWaitingDecision(userId: string, suggestionId: string, now: 
   await notify({
     userId,
     type: "SUGGESTION",
-    title: WAITING_TITLE,
+    title: INTEREST_TITLE,
     body: female
-      ? "لديك اقتراح توافق ينتظر قرارك. اطّلعي عليه قبل أن تنتهي مدته."
-      : "لديك اقتراح توافق ينتظر قرارك. اطّلع عليه قبل أن تنتهي مدته.",
-    url: "/dashboard/suggestions",
+      ? "وصلكِ اقتراح توافق من شخص مهتم بكِ. اطّلعي عليه وقرّري قبل أن تنتهي مدته."
+      : "وصلك اقتراح توافق من شخص مهتم بك. اطّلع عليه وقرّر قبل أن تنتهي مدته.",
+    url: "/dashboard/suggestions?tab=interested",
     metadata: { suggestionId },
-    sms: "waiting",
+    sms: "interest",
   });
 }
 
@@ -466,17 +465,7 @@ export async function decideSuggestion(args: {
       data: revealData(s.expiresAt, now),
     });
     if (count === 1) {
-      try {
-        await notify({
-          userId: s.candidateId,
-          type: "SUGGESTION",
-          title: "شخص أبدى اهتمامه بك",
-          body: "وصلك اقتراح توافق من شخص مهتم بك. اطّلع عليه قبل أن تنتهي مدته.",
-          url: "/dashboard/suggestions",
-        });
-      } catch (e) {
-        console.error("[suggestions] reveal notice:", s.id, e);
-      }
+      await notifyInterestShown(s.candidateId, s.id, now).catch((e) => console.error("[suggestions] reveal notice:", s.id, e));
     }
   }
   if (flags.creditOnInterest) {
@@ -536,11 +525,11 @@ export async function decideSuggestion(args: {
     await db.suggestion.updateMany({ where: { id: s.id, status: "PENDING" }, data: { status: "REJECTED" } });
     return { match: false, ...extra };
   }
-  // The other side hasn't answered yet: nudge them (a card just revealed from hidden already got
-  // «شخص أبدى اهتمامه بك»; a card still hidden from them can't be answered, so no nudge either)
+  // The other side hasn't answered yet: tell them someone is interested (a card just revealed from
+  // hidden was told above; a card still hidden from them can't be answered, so nothing yet)
   const otherUndecided = (side === "recipient" ? after.candidateDecision : after.recipientDecision) === null;
   if (after.status === "PENDING" && otherUndecided && !(side === "recipient" && s.hiddenFromCandidate)) {
-    await notifyWaitingDecision(otherId, s.id, now).catch((e) => console.error("[suggestions] waiting notice:", s.id, e));
+    await notifyInterestShown(otherId, s.id, now).catch((e) => console.error("[suggestions] interest notice:", s.id, e));
   }
   return { match: false, ...extra };
 }

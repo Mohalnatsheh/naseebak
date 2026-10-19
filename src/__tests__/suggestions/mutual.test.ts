@@ -199,35 +199,34 @@ describe("decideSuggestion", () => {
     expect(notifyMod.notify).toHaveBeenCalledWith({
       userId: "u1",
       type: "SUGGESTION",
-      title: "اقتراح بانتظار قرارك",
-      body: "لديك اقتراح توافق ينتظر قرارك. اطّلع عليه قبل أن تنتهي مدته.",
-      url: "/dashboard/suggestions",
+      title: "شخص أبدى اهتمامه بك",
+      body: "وصلك اقتراح توافق من شخص مهتم بك. اطّلع عليه وقرّر قبل أن تنتهي مدته.",
+      url: "/dashboard/suggestions?tab=interested",
       metadata: { suggestionId: "s1" },
-      sms: "waiting",
+      sms: "interest",
     });
-    expect(JSON.stringify(notifyMod.notify.mock.calls[0][0])).not.toContain("اهتمام");
     expect(notifyMod.notifyMany).not.toHaveBeenCalled();
   });
 
-  it("the waiting nudge goes at most once per Amman day", async () => {
+  it("the interest notice goes at most once per Amman day", async () => {
     db.notification.findFirst.mockResolvedValueOnce({ id: "n1" });
     db.suggestion.findUnique.mockResolvedValueOnce(row()).mockResolvedValueOnce(row({ candidateDecision: "INTERESTED" }));
     await decideSuggestion({ suggestionId: "s1", userId: "f1", interested: true });
     expect(db.notification.findFirst.mock.calls[0][0].where).toMatchObject({
-      userId: "u1", type: "SUGGESTION", title: "اقتراح بانتظار قرارك",
+      userId: "u1", type: "SUGGESTION", title: "شخص أبدى اهتمامه بك",
     });
     expect(notifyMod.notify).not.toHaveBeenCalled();
   });
 
-  it("the waiting nudge uses the feminine form for a woman", async () => {
+  it("the interest notice uses the feminine form for a woman", async () => {
     db.suggestion.findUnique.mockResolvedValueOnce(row()).mockResolvedValueOnce(row({ recipientDecision: "INTERESTED" }));
     await decideSuggestion({ suggestionId: "s1", userId: "u1", interested: true });
     expect(notifyMod.notify).toHaveBeenCalledWith(expect.objectContaining({
-      userId: "f1", body: "لديك اقتراح توافق ينتظر قرارك. اطّلعي عليه قبل أن تنتهي مدته.",
+      userId: "f1", body: "وصلكِ اقتراح توافق من شخص مهتم بكِ. اطّلعي عليه وقرّري قبل أن تنتهي مدته.",
     }));
   });
 
-  it("no waiting nudge on a card just revealed from hidden (it got «شخص أبدى اهتمامه بك»)", async () => {
+  it("a card just revealed from hidden gets the interest notice once, not twice", async () => {
     db.suggestion.findUnique
       .mockResolvedValueOnce(row({ hiddenFromCandidate: true }))
       .mockResolvedValueOnce(row({ recipientDecision: "INTERESTED" }));
@@ -236,7 +235,7 @@ describe("decideSuggestion", () => {
     expect(titles).toEqual(["شخص أبدى اهتمامه بك"]);
   });
 
-  it("a failing waiting nudge never fails the decision", async () => {
+  it("a failing interest notice never fails the decision", async () => {
     db.notification.findFirst.mockRejectedValueOnce(new Error("db down"));
     db.suggestion.findUnique.mockResolvedValueOnce(row()).mockResolvedValueOnce(row({ candidateDecision: "INTERESTED" }));
     await expect(decideSuggestion({ suggestionId: "s1", userId: "f1", interested: true })).resolves.toEqual({ match: false });
@@ -483,13 +482,13 @@ describe("decideSuggestion with credit on interest", () => {
     expect(balance.u1).toBe(3);
   });
 
-  it("a decision says nothing about itself: «مهتم» only nudges the other side neutrally, «لا» sends nothing", async () => {
+  it("«مهتم» tells the other side someone is interested; «لا» sends nothing", async () => {
     db.suggestion.findUnique.mockResolvedValueOnce(row()).mockResolvedValueOnce(row({ recipientDecision: "INTERESTED" }));
     await yes();
     db.suggestion.findUnique.mockResolvedValueOnce(row({ id: "s2" }));
     await decideSuggestion({ suggestionId: "s2", userId: "u1", interested: false });
     await flush();
-    expect(notifyMod.notify.mock.calls.map((c) => [c[0].userId, c[0].title])).toEqual([["f1", "اقتراح بانتظار قرارك"]]);
+    expect(notifyMod.notify.mock.calls.map((c) => [c[0].userId, c[0].title])).toEqual([["f1", "شخص أبدى اهتمامه بك"]]);
     expect(notifyMod.notifyMany).not.toHaveBeenCalled();
   });
 

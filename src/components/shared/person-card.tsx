@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
  * data, state, actions and dialogs and passes them in through the slots.
  */
 
-export type PersonCardTone = "default" | "pending" | "info" | "success" | "danger";
+export type PersonCardTone = "default" | "pending" | "info" | "success" | "danger" | "muted";
 
 export interface PersonCardTag {
   icon: ComponentType<{ className?: string }>;
@@ -74,6 +74,7 @@ const toneStripe: Record<PersonCardTone, string> = {
   info: "border-s-primary",
   success: "border-s-emerald-500",
   danger: "border-s-destructive",
+  muted: "border-s-border opacity-80",
 };
 
 export function ScoreRing({ score, compact }: { score: number; compact?: boolean }) {

@@ -13,7 +13,7 @@ import { getCycleFlags } from "@/lib/settings";
 import { publishChatEvent } from "@/lib/ably";
 import { checkMessage, completesSplitNumber, mayBePartOfNumber, SPLIT_NUMBER_WINDOW_MS } from "@/lib/chat/filter";
 import { IntroError } from "@/lib/intro/errors";
-import { fileReport } from "@/lib/reports";
+import { fileReport, pausedForReview } from "@/lib/reports";
 import { LEGACY_ADMIN_VISIT, cancelPendingBetween, familyMoveOpenUntil, isUnavailable } from "@/lib/matches/state";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -399,6 +399,10 @@ export async function sendMessage(args: {
     throw new IntroError("NOT_ALLOWED", "هذا الحساب غير نشط حالياً، لا يمكن إرسال رسائل الآن");
   }
   if (await isBlocked(senderId, partner.id)) throw new IntroError("BLOCKED");
+  // Either side under report review (3+ pending reports): nothing new until an admin has looked
+  if ((await pausedForReview([senderId, partner.id])).size > 0) {
+    throw new IntroError("NOT_ALLOWED", "المحادثة متوقفة مؤقتاً لمراجعة من فريق نصيبك");
+  }
 
   // Filter first: a blocked attempt is never saved and doesn't use up the sending allowance
   const check = checkMessage(body);

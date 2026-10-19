@@ -46,3 +46,23 @@ describe("rateLimitDb", () => {
     expect(db.rateLimitBucket.deleteMany).toHaveBeenCalledWith({ where: { resetAt: { lt: now } } });
   });
 });
+
+describe("rateLimitDbBlocked", () => {
+  it("reports a full window without counting, and fails open", async () => {
+    const { rateLimitDbBlocked } = await import("@/lib/rate-limit-db");
+    const now = new Date();
+    const resetAt = new Date(now.getTime() + 60_000);
+    (db.rateLimitBucket as Record<string, unknown>).findUnique = vi.fn()
+      .mockResolvedValueOnce({ count: 5, resetAt })
+      .mockResolvedValueOnce({ count: 4, resetAt })
+      .mockResolvedValueOnce({ count: 9, resetAt: new Date(now.getTime() - 1) })
+      .mockRejectedValueOnce(new Error("down"));
+    expect(await rateLimitDbBlocked("k", 5, now)).toEqual({ blocked: true, resetAt: resetAt.getTime() });
+    expect((await rateLimitDbBlocked("k", 5, now)).blocked).toBe(false);
+    expect((await rateLimitDbBlocked("k", 5, now)).blocked).toBe(false);
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect((await rateLimitDbBlocked("k", 5, now)).blocked).toBe(false);
+    spy.mockRestore();
+    expect(db.$queryRaw).not.toHaveBeenCalled();
+  });
+});

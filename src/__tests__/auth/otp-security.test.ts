@@ -10,10 +10,16 @@ vi.mock("@/lib/db", () => ({ db }));
 // The Postgres limiter behaves like the in-memory one (its own SQL is tested in lib/rate-limit.test.ts)
 vi.mock("@/lib/rate-limit-db", async () => {
   const { rateLimit } = await import("@/lib/rate-limit");
-  return { rateLimitDb: async (key: string, opts: { maxAttempts?: number; windowMs?: number }) => rateLimit(key, opts) };
+  return {
+    rateLimitDb: async (key: string, opts: { maxAttempts?: number; windowMs?: number }) => rateLimit(key, opts),
+    rateLimitDbBlocked: async () => ({ blocked: false, resetAt: 0 }),
+  };
 });
 vi.mock("next-auth/providers/credentials", () => ({ default: (cfg: unknown) => cfg }));
 vi.mock("next-auth", () => ({
+  CredentialsSignin: class extends Error {
+    code = "credentials";
+  },
   default: (config: NonNullable<typeof captured.config>) => {
     captured.config = config;
     return { handlers: {}, auth: vi.fn(), signIn: vi.fn(), signOut: vi.fn() };

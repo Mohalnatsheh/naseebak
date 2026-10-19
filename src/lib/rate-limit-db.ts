@@ -35,3 +35,22 @@ export async function purgeExpiredRateLimits(now = new Date()): Promise<number> 
   const { count } = await db.rateLimitBucket.deleteMany({ where: { resetAt: { lt: now } } });
   return count;
 }
+
+/**
+ * Read-only check of a bucket (no attempt counted), for limits that count failures only: sign-in
+ * checks first and calls `rateLimitDb` only after a failed attempt. Fails open if the DB is down.
+ */
+export async function rateLimitDbBlocked(
+  key: string,
+  maxAttempts: number,
+  now = new Date(),
+): Promise<{ blocked: boolean; resetAt: number }> {
+  try {
+    const row = await db.rateLimitBucket.findUnique({ where: { key } });
+    if (!row || row.resetAt <= now) return { blocked: false, resetAt: 0 };
+    return { blocked: row.count >= maxAttempts, resetAt: row.resetAt.getTime() };
+  } catch (error) {
+    console.error("[rate-limit] database check failed, allowing:", key, error);
+    return { blocked: false, resetAt: 0 };
+  }
+}

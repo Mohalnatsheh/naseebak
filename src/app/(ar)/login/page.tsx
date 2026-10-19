@@ -20,6 +20,8 @@ import {
 import { trackEvent } from "@/lib/analytics";
 import { toLatinDigits } from "@/lib/digits";
 import { safeCallbackPath } from "@/lib/safe-redirect";
+import { rateLimitedMinutes } from "@/lib/login-limit";
+import { arabicCount } from "@/lib/utils";
 
 function LoginPageContent() {
   const router = useRouter();
@@ -166,6 +168,13 @@ function LoginPageContent() {
       });
 
       if (result?.error) {
+        const waitMinutes = rateLimitedMinutes(result.code);
+        if (waitMinutes) {
+          setError(`محاولات دخول كثيرة غير ناجحة. حاول مرة أخرى بعد ${arabicCount(waitMinutes, { one: "دقيقة", two: "دقيقتين", few: "دقائق", many: "دقيقة" })}.`);
+          setShake(true);
+          setTimeout(() => setShake(false), 600);
+          return;
+        }
         if (!userExists) {
           // Phone not registered → redirect to register
           // Hand the verified phone + code over privately (never in the URL / analytics)
@@ -180,7 +189,7 @@ function LoginPageContent() {
           router.push("/register?from=login");
           return;
         }
-        // User exists but login failed (suspended, rate limited, etc.)
+        // User exists but login failed (suspended, or the code was used up)
         setError("فشل تسجيل الدخول. قد يكون حسابك معلقاً أو حاول مرة أخرى لاحقاً.");
         setShake(true);
         setTimeout(() => setShake(false), 600);

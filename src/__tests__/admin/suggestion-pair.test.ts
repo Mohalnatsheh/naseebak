@@ -7,7 +7,7 @@ const db = vi.hoisted(() => ({
   suggestion: { findFirst: vi.fn() },
 }));
 vi.mock("@/lib/db", () => ({ db }));
-const followup = vi.hoisted(() => ({ isEngaged: vi.fn(async (_id: string) => false) }));
+const followup = vi.hoisted(() => ({ isEngaged: vi.fn(async (id: string) => id === "") }));
 vi.mock("@/lib/intro/followup", () => followup);
 const score = vi.hoisted(() => ({ mutuallyAcceptable: vi.fn(() => true) }));
 vi.mock("@/lib/matching/score", () => score);

@@ -2,8 +2,7 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { dateOfBirthError, PREF_AGE_MAX } from "@/lib/validations/profile";
-import { closeSuggestionsBreakingDealbreakers } from "@/lib/suggestions/dealbreaker-sweep";
-import { autoSuggestForUser } from "@/lib/matching/auto-suggest";
+import { refreshOpenSuggestionsInBackground } from "@/lib/suggestions/refresh";
 import { sendAdminAlert } from "@/lib/admin-alert";
 
 /**
@@ -87,10 +86,9 @@ export async function POST(request: Request) {
 
     if (Object.keys(prefs).length > 0) {
       await db.profile.update({ where: { userId }, data: prefs });
-      // New preferences: close open suggestions that now break a «شرط أساسي», then fill the gaps
-      closeSuggestionsBreakingDealbreakers(userId)
-        .then(() => autoSuggestForUser(userId))
-        .catch((e) => console.error("Preference change top-up error:", e));
+      // New preferences: rescore the open cards, close those that now break a «شرط أساسي» or fall
+      // under the minimum score, then fill the gaps (same as PUT /api/profile and the quiz)
+      refreshOpenSuggestionsInBackground(userId);
     }
     if (Object.keys(reviewed).length === 0) {
       return NextResponse.json({ message: "تم حفظ تفضيلات الشريك", applied: Object.keys(prefs), requested: false });

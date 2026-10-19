@@ -1,58 +1,59 @@
 "use client";
 
-import { useState, useSyncExternalStore } from "react";
-import { BellRing, Smartphone, Zap } from "lucide-react";
+import { useState } from "react";
+import { BellRing, ChevronLeft } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { currentDevice, detectDevice, type Device } from "@/lib/install-env";
-import { InstallSteps, NotificationHelp } from "@/components/shared/install-guide";
+import { detectDevice } from "@/lib/install-env";
+import { useDashboardData } from "@/contexts/dashboard-context";
+import { forViewer } from "@/lib/gendered-copy";
+import { InstallSteps } from "@/components/shared/install-guide";
+import { PushSetupFlow } from "@/components/shared/push-setup";
 import { PageHeader } from "@/components/shared/page-header";
 
-type Tab = "mine" | "ios" | "android";
+type Tab = "ios" | "android";
 
-/** Sample devices for the "other device" tabs (helping someone else, or a misdetected browser). */
+/** Sample devices for helping someone else (or a misdetected browser). */
 const IPHONE = detectDevice("Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) Version/18.0 Mobile Safari/604.1");
 const ANDROID = detectDevice("Mozilla/5.0 (Linux; Android 14) Chrome/130.0 Mobile Safari/537.36");
 
-/** Read the browser once (it does not change in a tab; the server has none); refreshed after an install. */
-let cachedDevice: Device | null = null;
-const getDevice = () => (cachedDevice ??= currentDevice());
-const getServerDevice = () => null;
-const subscribeNoop = () => () => {};
-
-/** Install Naseebak on the phone and turn on notifications: steps for this device, plus iPhone / Android. */
+/**
+ * Turn on notifications on this phone: the guided setup (same as the bottom sheet), then the install
+ * steps for another iPhone / Android. The "open in Safari / Chrome" button of the setup lands here.
+ */
 export default function InstallGuidePage() {
-  const detected = useSyncExternalStore(subscribeNoop, getDevice, getServerDevice);
-  // Set after the install prompt finishes (standalone / browser may have changed)
-  const [refreshed, setRefreshed] = useState<Device | null>(null);
-  const device = refreshed ?? detected;
-  const [tab, setTab] = useState<Tab>("mine");
-
-  if (!device) return null;
-
-  const shown = tab === "ios" ? IPHONE : tab === "android" ? ANDROID : device;
-  const tabs: [Tab, string][] = [
-    ["mine", "جهازي"],
-    ["ios", "iPhone"],
-    ["android", "Android"],
-  ];
+  const gender = useDashboardData().profile?.gender;
+  const [tab, setTab] = useState<Tab>("ios");
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6 pb-8">
+    <div className="mx-auto max-w-xl space-y-6 pb-8">
       <PageHeader
-        icon={Smartphone}
-        title="ثبّت نصيبك وفعّل الإشعارات"
-        description="أضف نصيبك إلى شاشة هاتفك ليفتح كتطبيق، وتصلك الاقتراحات وطلبات التعارف والرسائل فور وصولها."
+        icon={BellRing}
+        title={forViewer(gender, "فعّل الإشعارات", "فعّلي الإشعارات")}
+        description={forViewer(
+          gender,
+          "لتعرف فوراً بالاقتراحات الجديدة والتوافق والرسائل، حتى والموقع مغلق.",
+          "لتعرفي فوراً بالاقتراحات الجديدة والتوافق والرسائل، حتى والموقع مغلق."
+        )}
       />
 
       <Card className="border-primary/10">
-        <CardContent className="space-y-4 p-5 sm:p-6">
-          <div className="flex items-center gap-2">
-            <Zap className="h-5 w-5 text-primary" />
-            <h2 className="font-bold">1. التثبيت على الهاتف</h2>
-          </div>
+        <CardContent className="p-5 sm:p-6">
+          <PushSetupFlow gender={gender} />
+        </CardContent>
+      </Card>
+
+      <details className="group rounded-2xl border border-border bg-card p-4">
+        <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between text-sm font-semibold">
+          خطوات التثبيت لجهاز آخر
+          <ChevronLeft className="h-4 w-4 transition-transform group-open:-rotate-90" />
+        </summary>
+        <div className="mt-3 space-y-4">
           <div role="tablist" aria-label="نوع الجهاز" className="flex gap-2">
-            {tabs.map(([t, label]) => (
+            {([
+              ["ios", "iPhone"],
+              ["android", "Android"],
+            ] as [Tab, string][]).map(([t, label]) => (
               <button
                 key={t}
                 type="button"
@@ -68,27 +69,9 @@ export default function InstallGuidePage() {
               </button>
             ))}
           </div>
-          <InstallSteps device={shown} onInstalled={() => {
-              cachedDevice = currentDevice();
-              setRefreshed(cachedDevice);
-            }} />
-        </CardContent>
-      </Card>
-
-      <Card className="border-primary/10">
-        <CardContent className="space-y-4 p-5 sm:p-6">
-          <div className="flex items-center gap-2">
-            <BellRing className="h-5 w-5 text-primary" />
-            <h2 className="font-bold">2. تفعيل الإشعارات على هذا الجهاز</h2>
-          </div>
-          <NotificationHelp device={device} />
-          {device.os === "ios" && !device.standalone && (
-            <p className="rounded-xl bg-muted/40 p-3 text-xs leading-relaxed text-muted-foreground">
-              على iPhone: ثبّت نصيبك أولاً، ثم افتحه من الأيقونة وارجع إلى هذه الصفحة (الإعدادات ← تثبيت التطبيق والإشعارات) لتفعيل الإشعارات.
-            </p>
-          )}
-        </CardContent>
-      </Card>
+          <InstallSteps device={tab === "ios" ? IPHONE : ANDROID} />
+        </div>
+      </details>
     </div>
   );
 }

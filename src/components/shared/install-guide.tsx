@@ -55,7 +55,7 @@ const B = ({ children }: { children: ReactNode }) => <span className="font-semib
 const openIconStep = <Step icon={<BellRing />}>افتح نصيبك من <B>الأيقونة الجديدة</B> على شاشتك، ثم وافق على الإشعارات</Step>;
 
 /** Copies the guide link, for pasting into Safari / Chrome. */
-function CopyLink({ label = "نسخ رابط الموقع" }: { label?: string }) {
+export function CopyLink({ label = "نسخ رابط الموقع" }: { label?: string }) {
   const [copied, setCopied] = useState(false);
   async function copy() {
     try {
@@ -220,7 +220,7 @@ export function InstallSteps({ device, onInstalled }: { device: Device; onInstal
 }
 
 /** How to allow notifications again after "Block", per device. */
-function UnblockSteps({ device }: { device: Device }) {
+export function UnblockSteps({ device }: { device: Device }) {
   if (device.os === "ios") {
     return (
       <Steps>

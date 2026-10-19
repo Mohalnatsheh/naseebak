@@ -55,3 +55,38 @@ export function pushPermission(): PushPermission {
   if (typeof window === "undefined" || !("Notification" in window)) return "unsupported";
   return Notification.permission;
 }
+
+/**
+ * The one next step to get notifications on this device (guided setup):
+ * - browser: inside Instagram / Facebook…: reopen the site in Safari / Chrome
+ * - install: iPhone outside the home-screen app (Apple allows web push only there)
+ * - allow:   one tap, then «سماح» in the system prompt
+ * - blocked: allowed again only from the phone / browser settings
+ * - done:    notifications on
+ * - none:    this browser can't do push at all (old iPhone, unusual browser)
+ */
+export type PushStage = "browser" | "install" | "allow" | "blocked" | "done" | "none";
+
+export function pushStage(device: Device, permission: PushPermission): PushStage {
+  if (permission === "granted") return "done";
+  if (device.inApp) return "browser";
+  if (permission === "denied") return "blocked";
+  if (permission === "default") return "allow";
+  if (device.os === "ios" && !device.standalone) return device.browser === "safari" || device.browser === "chrome" ? "install" : "browser";
+  return "none";
+}
+
+/**
+ * Link that leaves an in-app browser for the phone's real browser, landing on `url`:
+ * Android → Chrome intent (falls back to the page itself), iPhone → Safari (`x-safari-https`, iOS 17+).
+ * Null on desktop (nothing to escape).
+ */
+export function openInBrowserUrl(device: Device, url: string): string | null {
+  const u = new URL(url);
+  if (device.os === "android") {
+    const fallback = encodeURIComponent(u.href);
+    return `intent://${u.host}${u.pathname}${u.search}#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=${fallback};end`;
+  }
+  if (device.os === "ios") return `x-safari-${u.href}`;
+  return null;
+}

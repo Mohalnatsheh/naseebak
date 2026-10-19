@@ -12,6 +12,11 @@ import { activeWhere } from "@/lib/activity";
 import { MAX_OPEN_SUGGESTIONS, autoSuggestForUser, openCounts, weeklyCounts } from "@/lib/matching/auto-suggest";
 import { WEEKLY_FREE_SUGGESTIONS } from "@/lib/credits";
 import { refundUnansweredInterests } from "@/lib/suggestions/mutual";
+import { startOfAmmanDay } from "@/lib/amman-day";
+
+/** Same titles as the waiting nudge and the hidden-card reveal in suggestions/mutual.ts */
+const WAITING_TITLE = "اقتراح بانتظار قرارك";
+const INTEREST_SHOWN_TITLE = "شخص أبدى اهتمامه بك";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 export const SUGGESTION_REMIND_BEFORE_DAYS = 2;
@@ -65,6 +70,18 @@ export async function remindMutualSuggestions(now = new Date()): Promise<{ sugge
 
   let suggestions = 0;
   let reminded = 0;
+  // One «اقتراح بانتظار قرارك» per person per Amman day, whatever sent it: this reminder (one per run,
+  // not one per card), the waiting nudge (notifyWaitingDecision) or the «شخص أبدى اهتمامه بك» reveal
+  const told = new Set<string>();
+  const toldToday = async (userId: string): Promise<boolean> => {
+    if (told.has(userId)) return true;
+    const today = await db.notification.findFirst({
+      where: { userId, title: { in: [WAITING_TITLE, INTEREST_SHOWN_TITLE] }, createdAt: { gte: startOfAmmanDay(now) } },
+      select: { id: true },
+    });
+    if (today) told.add(userId);
+    return !!today;
+  };
   for (const s of due) {
     const claimed = await db.suggestion.updateMany({
       where: { id: s.id, status: "PENDING", reminderSentAt: null },
@@ -93,11 +110,14 @@ export async function remindMutualSuggestions(now = new Date()): Promise<{ sugge
       ...(s.candidateDecision === null && !s.hiddenFromCandidate ? [s.candidate] : []),
     ];
     for (const person of undecided) {
+      if (await toldToday(person.id)) continue;
+      told.add(person.id);
       const female = person.gender === "FEMALE";
       await notify({
         userId: person.id,
         type: "SUGGESTION",
-        title: "اقتراح بانتظار قرارك",
+        title: WAITING_TITLE,
+        oncePerDay: "waiting-decision",
         body: female
           ? "بقي يومان أو أقل على انتهاء اقتراح توافق لم تقرّري فيه بعد. اطّلعي عليه الآن."
           : "بقي يومان أو أقل على انتهاء اقتراح توافق لم تقرّر فيه بعد. اطّلع عليه الآن.",

@@ -62,6 +62,9 @@ interface DashboardData {
   /** True until both the profile and the first switch flags (/api/me/counts) have loaded,
    *  so switch-dependent UI never flashes the legacy flow first */
   loading: boolean;
+  /** The last /api/profile load failed (network, server error, no user in the answer). The profile
+   *  loaded before, if any, is kept; with none, pages show LoadError instead of "finish your setup" */
+  profileFailed: boolean;
   refreshProfile: () => Promise<void>;
   refreshUnread: () => Promise<unknown>;
 }
@@ -72,6 +75,7 @@ const DashboardContext = createContext<DashboardData>({
   unreadCount: 0,
   counts: EMPTY_COUNTS,
   loading: true,
+  profileFailed: false,
   refreshProfile: async () => {},
   refreshUnread: async () => {},
 });
@@ -86,17 +90,22 @@ export function DashboardDataProvider({ children }: { children: ReactNode }) {
   const [unreadCount, setUnreadCount] = useState(0);
   const [counts, setCounts] = useState<CycleCounts>(EMPTY_COUNTS);
   const [profileLoading, setProfileLoading] = useState(true);
+  const [profileFailed, setProfileFailed] = useState(false);
   const [countsReady, setCountsReady] = useState(false);
   const loading = profileLoading || !countsReady;
 
   const refreshProfile = useCallback(async () => {
     try {
       const res = await fetch("/api/profile");
+      if (!res.ok) throw new Error(`profile ${res.status}`);
       const data = await res.json();
-      setProfile(data.user ?? null);
+      if (!data?.user) throw new Error("profile missing");
+      setProfile(data.user);
       if (data.completeness) setCompleteness(data.completeness);
+      setProfileFailed(false);
     } catch {
-      // Silently fail
+      // Keep whatever loaded before; never treat a failed load as an empty (incomplete) profile
+      setProfileFailed(true);
     } finally {
       setProfileLoading(false);
     }
@@ -148,7 +157,7 @@ export function DashboardDataProvider({ children }: { children: ReactNode }) {
   }, [refreshProfile, refreshUnread]);
 
   return (
-    <DashboardContext.Provider value={{ profile, completeness, unreadCount, counts, loading, refreshProfile, refreshUnread }}>
+    <DashboardContext.Provider value={{ profile, completeness, unreadCount, counts, loading, profileFailed, refreshProfile, refreshUnread }}>
       {children}
     </DashboardContext.Provider>
   );

@@ -240,7 +240,9 @@ export default function MatchesPage() {
   /** The match list failed to load: show a retry instead of an empty list */
   const [loadError, setLoadError] = useState(false);
   // Matches are never gated (no profile/quiz check): the viewer's gender only picks the wording
-  const { counts, profile } = useDashboardData();
+  // `switchesLoading`: wait for the first switch flags (and my gender) before any copy, so the page never
+  // flashes the legacy / masculine wording first
+  const { counts, profile, loading: switchesLoading } = useDashboardData();
   const isFemale = profile?.gender === "FEMALE";
   const introMode = counts.flags.introRequests;
   // Opened from a notification link (?match=<id>): scroll to and highlight that card
@@ -475,7 +477,7 @@ export default function MatchesPage() {
     return () => clearTimeout(t);
   }, [loading, matches]);
 
-  if (loading) {
+  if (loading || switchesLoading) {
     return (
       <div className="flex flex-col items-center justify-center py-20 gap-4">
         <div className="relative">

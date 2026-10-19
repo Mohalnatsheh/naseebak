@@ -562,6 +562,9 @@ model Notification {
 
   createdAt       DateTime         @default(now())
 
+  // The list / "once per day" checks and the unread badge every open tab polls
+  @@index([userId, createdAt])
+  @@index([userId, isRead])
   @@map("notifications")
 }
 

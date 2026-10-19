@@ -142,7 +142,15 @@ export function DashboardDataProvider({ children }: { children: ReactNode }) {
       }, 2000);
     });
 
-    const interval = setInterval(refreshUnread, 30000);
+    // Only a tab the member is looking at polls: a background tab would keep them "recently seen"
+    // (/api/me/counts touches lastActiveAt) and load the database for nothing. Back on the tab → refresh.
+    const interval = setInterval(() => {
+      if (document.visibilityState === "visible") refreshUnread();
+    }, 30000);
+    function handleVisibility() {
+      if (document.visibilityState === "visible") refreshUnread();
+    }
+    document.addEventListener("visibilitychange", handleVisibility);
 
     function handleNotificationsRead() {
       refreshUnread();
@@ -152,6 +160,7 @@ export function DashboardDataProvider({ children }: { children: ReactNode }) {
     return () => {
       clearInterval(interval);
       if (retry) clearTimeout(retry);
+      document.removeEventListener("visibilitychange", handleVisibility);
       window.removeEventListener("naseeb:notifications-read", handleNotificationsRead);
     };
   }, [refreshProfile, refreshUnread]);

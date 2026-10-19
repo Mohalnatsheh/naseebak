@@ -80,3 +80,41 @@ describe("dashboard home when the profile failed (G56)", () => {
     vi.doUnmock("@/contexts/dashboard-context");
   });
 });
+
+describe("DashboardDataProvider polling (G65)", () => {
+  it("skips the 30 s poll in a background tab and refreshes once when the tab is shown again", async () => {
+    vi.useFakeTimers();
+    let visibility: DocumentVisibilityState = "visible";
+    const spy = vi.spyOn(document, "visibilityState", "get").mockImplementation(() => visibility);
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      const url = String(input);
+      if (url === "/api/profile") return json({ user: { id: "u1" } });
+      if (url === "/api/me/counts") return json({ flags });
+      return json({ count: 0 });
+    });
+    const countsCalls = () => fetchSpy.mock.calls.filter((c) => String(c[0]) === "/api/me/counts").length;
+    fetchSpy.mockClear();
+    render(<DashboardDataProvider><Probe /></DashboardDataProvider>);
+    await act(async () => {});
+    expect(countsCalls()).toBe(1);
+
+    visibility = "hidden";
+    await act(async () => {
+      vi.advanceTimersByTime(90_000);
+    });
+    expect(countsCalls()).toBe(1);
+
+    visibility = "visible";
+    await act(async () => {
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    expect(countsCalls()).toBe(2);
+
+    await act(async () => {
+      vi.advanceTimersByTime(30_000);
+    });
+    expect(countsCalls()).toBe(3);
+    spy.mockRestore();
+    vi.useRealTimers();
+  });
+});

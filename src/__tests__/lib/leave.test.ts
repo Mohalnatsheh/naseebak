@@ -23,7 +23,11 @@ beforeEach(() => {
 describe("closeActivityForLeaving", () => {
   it("pausing ends open chats, cancels pending requests and tells the chat partner", async () => {
     await closeActivityForLeaving("u1", "paused");
-    expect(db.conversation.updateMany).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: "ENDED", endedById: "u1" }) }));
+    // G61: ended with a system marker, not as "ended by a user" (keeps the partner's free family move)
+    expect(db.conversation.updateMany).toHaveBeenCalledWith({
+      where: { id: "c1", status: "ACTIVE" },
+      data: { status: "ENDED", endedByAdminId: "system:left", endedAt: expect.any(Date) },
+    });
     expect(db.introRequest.updateMany).toHaveBeenCalledWith({
       where: { status: "PENDING", OR: [{ senderId: "u1" }, { receiverId: "u1" }] },
       data: { status: "CANCELLED" },
@@ -36,7 +40,7 @@ describe("closeActivityForLeaving", () => {
     await closeActivityForLeaving("u1", "paused");
     expect(db.conversation.updateMany).toHaveBeenCalledWith({
       where: { status: "ENDED", endedByAdminId: "system:report-review", match: { OR: [{ femaleId: "u1" }, { maleId: "u1" }] } },
-      data: expect.objectContaining({ endedByAdminId: null }),
+      data: { endedById: null, endedByAdminId: "system:left" },
     });
   });
 

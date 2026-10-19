@@ -12,6 +12,7 @@ import { notify, notifyMany } from "@/lib/notify";
 import { CHAT_NOTICE_PREFERENCE } from "@/lib/notification-prefs";
 import { publishChatEvent } from "@/lib/ably";
 import { endPausedChats } from "@/lib/reports";
+import { CHAT_LEFT_MARKER } from "@/lib/matches/state";
 
 export async function closeActivityForLeaving(userId: string, reason: "paused" | "deleting" | "deleted"): Promise<void> {
   const now = new Date();
@@ -24,7 +25,9 @@ export async function closeActivityForLeaving(userId: string, reason: "paused" |
   for (const c of active) {
     const ended = await db.conversation.updateMany({
       where: { id: c.id, status: "ACTIVE" },
-      data: { status: "ENDED", endedById: userId, endedAt: now },
+      // A system marker, not endedById: leaving isn't "a user ended the chat", so the partner keeps
+      // the free family move on this match (chatEndedByUser)
+      data: { status: "ENDED", endedByAdminId: CHAT_LEFT_MARKER, endedAt: now },
     });
     if (ended.count !== 1) continue;
     await publishChatEvent(c.id, "status", { status: "ENDED" }).catch(() => {});
@@ -42,7 +45,7 @@ export async function closeActivityForLeaving(userId: string, reason: "paused" |
   }
 
   // Chats paused for a report review end for good as well (a later review must not reopen them)
-  await endPausedChats(mine, { endedById: userId });
+  await endPausedChats(mine, { endedByAdminId: CHAT_LEFT_MARKER });
 
   const pendingWhere = { status: "PENDING" as const, OR: [{ senderId: userId }, { receiverId: userId }] };
   const pending =

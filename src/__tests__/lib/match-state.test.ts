@@ -7,7 +7,7 @@ const db = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/db", () => ({ db }));
 
-import { cancelDeadPendingFor, describeMatch, isUnavailable, loadMatchStates, type MatchFacts } from "@/lib/matches/state";
+import { cancelDeadPendingFor, chatEndedByUser, describeMatch, isUnavailable, loadMatchStates, type MatchFacts } from "@/lib/matches/state";
 
 const DAY = 24 * 60 * 60 * 1000;
 const later = () => new Date(Date.now() + DAY);
@@ -52,6 +52,13 @@ describe("describeMatch", () => {
   it("chat ended by a user → finished (no family request any more)", () => {
     const d = describeMatch(facts({ conversation: { status: "ENDED", expiresAt: later(), endedById: "u1" } }));
     expect(d).toMatchObject({ closed: "finished", actionable: false, chatEndedByUser: true });
+  });
+
+  it("G61: a chat closed because a side left isn't «ended by a user» — the family move stays open", () => {
+    const left = { status: "ENDED", expiresAt: later(), endedById: null, endedByAdminId: "system:left" };
+    expect(describeMatch(facts({ conversation: left }))).toMatchObject({ closed: null, actionable: true, chatEndedByUser: false });
+    // an older row stamped with the leaver's id plus the marker is read the same way
+    expect(chatEndedByUser({ ...left, endedById: "u1" })).toBe(false);
   });
 
   it("chat expired naturally → family still possible", () => {

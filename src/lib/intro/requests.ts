@@ -479,7 +479,7 @@ export async function respondToIntroRequest(args: {
       match: {
         include: {
           visitRequest: { select: { id: true, status: true } },
-          conversation: { select: { id: true, status: true, expiresAt: true, endedById: true } },
+          conversation: { select: { id: true, status: true, expiresAt: true, endedById: true, endedByAdminId: true } },
         },
       },
     },

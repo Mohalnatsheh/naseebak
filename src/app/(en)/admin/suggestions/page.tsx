@@ -227,11 +227,12 @@ export default function AdminSuggestionsPage() {
   }, [tab, fetchSuggestions]);
 
   async function handleDeleteBrowse(id: string) {
-    if (!confirm("Delete this suggestion?")) return;
+    if (!confirm("Remove this suggestion? A shared suggestion is closed (an unanswered «مهتم» is refunded), not deleted.")) return;
     setDeleting(id);
     try {
       const res = await fetch(`/api/admin/suggestions/${id}`, { method: "DELETE" });
       if (res.ok) setSuggestions((prev) => prev.filter((s) => s.id !== id));
+      else alert((await res.json().catch(() => null))?.error ?? "Could not remove this suggestion");
     } catch (err) {
       console.error(err);
     } finally {
@@ -343,7 +344,7 @@ export default function AdminSuggestionsPage() {
 
   // ── Manage User: delete suggestion ──
   async function handleDeleteUserSuggestion(id: string) {
-    if (!confirm("Delete this suggestion?")) return;
+    if (!confirm("Remove this suggestion? A shared suggestion is closed (an unanswered «مهتم» is refunded), not deleted.")) return;
     setDeleting(id);
     try {
       const res = await fetch(`/api/admin/suggestions/${id}`, { method: "DELETE" });
@@ -357,6 +358,8 @@ export default function AdminSuggestionsPage() {
           setCandidates(candData.candidates || []);
           setCandidatesTotal(candData.total || 0);
         }
+      } else {
+        alert((await res.json().catch(() => null))?.error ?? "Could not remove this suggestion");
       }
     } catch (err) {
       console.error(err);

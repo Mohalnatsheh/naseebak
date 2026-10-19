@@ -7,19 +7,45 @@ const db = vi.hoisted(() => ({
   suggestion: { findFirst: vi.fn() },
 }));
 vi.mock("@/lib/db", () => ({ db }));
+const followup = vi.hoisted(() => ({ isEngaged: vi.fn(async (_id: string) => false) }));
+vi.mock("@/lib/intro/followup", () => followup);
+const score = vi.hoisted(() => ({ mutuallyAcceptable: vi.fn(() => true) }));
+vi.mock("@/lib/matching/score", () => score);
+vi.mock("@/lib/matching/auto-suggest", () => ({ scoringSelect: { id: true, gender: true, profile: true } }));
 
 import { checkSuggestionPair } from "@/lib/admin/suggestion-pair";
 
 const person = (id: string, gender: string, over: object = {}) => ({
-  id, gender, role: "USER", status: "VERIFIED", isDeactivated: false, ...over,
+  id, gender, role: "USER", status: "VERIFIED", isDeactivated: false, isFlagged: false, profile: {}, ...over,
 });
 
 beforeEach(() => {
   vi.clearAllMocks();
   db.user.findMany.mockResolvedValue([person("a", "FEMALE"), person("b", "MALE")]);
+  followup.isEngaged.mockResolvedValue(false);
+  score.mutuallyAcceptable.mockReturnValue(true);
   db.block.findFirst.mockResolvedValue(null);
   db.mutualMatch.findFirst.mockResolvedValue(null);
   db.suggestion.findFirst.mockResolvedValue(null);
+});
+
+describe("checkSuggestionPair, the cycle's rules (G62)", () => {
+  it("refuses a pair that breaks one side's dealbreakers, with a clear message", async () => {
+    score.mutuallyAcceptable.mockReturnValue(false);
+    const r = await checkSuggestionPair("a", "b");
+    expect(r).toMatchObject({ status: 409 });
+    expect(r?.error).toMatch(/dealbreaker/);
+  });
+
+  it("refuses an engaged person", async () => {
+    followup.isEngaged.mockImplementation(async (id: string) => id === "b");
+    expect(await checkSuggestionPair("a", "b")).toMatchObject({ status: 409, error: expect.stringMatching(/engaged/) });
+  });
+
+  it("refuses a flagged person", async () => {
+    db.user.findMany.mockResolvedValue([person("a", "FEMALE", { isFlagged: true }), person("b", "MALE")]);
+    expect(await checkSuggestionPair("a", "b")).toMatchObject({ status: 409, error: expect.stringMatching(/flagged/) });
+  });
 });
 
 describe("checkSuggestionPair", () => {

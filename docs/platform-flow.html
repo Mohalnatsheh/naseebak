@@ -1033,85 +1033,100 @@ flowchart LR
       <div class="done ok"><b>Fixed 18 Oct:</b> Old process-deletions route removed; a failed daily task emails the admins.</div></div></div>
 
 
-    <div class="gap" id="G53" data-sev="h" data-area="Suggestions"><div><div class="id">G53</div><span class="sev h">High</span></div><div>
+    <div class="gap is-done" id="G53" data-sev="h" data-area="Suggestions"><div><div class="id">G53</div><span class="sev h">High</span></div><div>
       <div class="ttl">Hidden cards clog the pool<span class="area">Suggestions</span></div>
       <div class="body">300 of 698 open cards are hidden from the candidate (they were full). 39 members have every open card hidden from the other side, 53 have 3+: their 5 slots hold cards nobody else can see, and only paying a credit on each moves them. Candidate selection never prefers people with a free slot. (Production data, 19 Oct.)</div>
-      <div class="fix"><b>Fix:</b> Rank candidates with a free slot first; cap hidden cards per recipient (e.g. 2 of 5) or don't count hidden cards in the recipient's slots. <span class="path">matching/auto-suggest.ts:331, :360</span></div></div></div>
+      <div class="fix"><b>Fix:</b> Rank candidates with a free slot first; cap hidden cards per recipient (e.g. 2 of 5) or don't count hidden cards in the recipient's slots. <span class="path">matching/auto-suggest.ts:331, :360</span>
+      <div class="done ok"><b>Partly fixed 19 Oct:</b> candidates with a free slot are ranked first and hidden cards no longer fill the recipient's slots (e3e6b31). Cap on hidden cards per recipient still an owner decision.</div></div></div></div>
 
-    <div class="gap" id="G54" data-sev="h" data-area="Security"><div><div class="id">G54</div><span class="sev h">High</span></div><div>
+    <div class="gap is-done" id="G54" data-sev="h" data-area="Security"><div><div class="id">G54</div><span class="sev h">High</span></div><div>
       <div class="ttl">Sign-in limit counts successful logins<span class="area">Security</span></div>
       <div class="body">5 sign-ins per phone in 15 minutes (any device) lock the member out with «فشل تسجيل الدخول. قد يكون حسابك معلقاً». In memory, so it also resets on every deploy. Reproduced in the QA run.</div>
-      <div class="fix"><b>Fix:</b> Count failures only, move to rateLimitDb, show "try again in N minutes". <span class="path">lib/auth.ts:31</span></div></div></div>
+      <div class="fix"><b>Fix:</b> Count failures only, move to rateLimitDb, show "try again in N minutes". <span class="path">lib/auth.ts:31</span>
+      <div class="done ok"><b>Fixed 19 Oct:</b> sign-in counts failed attempts only, in Postgres, with a "wait N minutes" message (d540e84).</div></div></div></div>
 
-    <div class="gap" id="G55" data-sev="h" data-area="After match"><div><div class="id">G55</div><span class="sev h">High</span></div><div>
+    <div class="gap is-done" id="G55" data-sev="h" data-area="After match"><div><div class="id">G55</div><span class="sev h">High</span></div><div>
       <div class="ttl">A chat paused for review comes back even when the match died<span class="area">After match</span></div>
       <div class="body">resumeChatsFor only checks whether the partner is also paused; block, «لم يحصل نصيب» and leaving only end ACTIVE chats. Dismissing a report can reopen a chat on a blocked or ended match.</div>
-      <div class="fix"><b>Fix:</b> Skip and end for good paused chats whose match is blocked, ended, engaged or whose partner left; make those closers also end paused rows. <span class="path">lib/reports.ts:177 · api/blocks/route.ts:81 · intro/followup.ts:169</span></div></div></div>
+      <div class="fix"><b>Fix:</b> Skip and end for good paused chats whose match is blocked, ended, engaged or whose partner left; make those closers also end paused rows. <span class="path">lib/reports.ts:177 · api/blocks/route.ts:81 · intro/followup.ts:169</span>
+      <div class="done ok"><b>Fixed 19 Oct:</b> a paused chat on a closed match ends for good; block / «لم يحصل نصيب» / leaving end paused rows too (a5a8778).</div></div></div></div>
 
-    <div class="gap" id="G56" data-sev="h" data-area="Account"><div><div class="id">G56</div><span class="sev h">High</span></div><div>
+    <div class="gap is-done" id="G56" data-sev="h" data-area="Account"><div><div class="id">G56</div><span class="sev h">High</span></div><div>
       <div class="ttl">Home shows "finish your setup" when /api/profile fails<span class="area">Account</span></div>
       <div class="body">The dashboard context swallows the error; the home page then treats the member as incomplete: no name, 0% ring, zero counts, gold CTA back into setup. Weak connections in Instagram's browser will hit this.</div>
-      <div class="fix"><b>Fix:</b> Track profileFailed and render LoadError (retry) instead of the hero. <span class="path">contexts/dashboard-context.tsx:92 · dashboard/page.tsx:60</span></div></div></div>
+      <div class="fix"><b>Fix:</b> Track profileFailed and render LoadError (retry) instead of the hero. <span class="path">contexts/dashboard-context.tsx:92 · dashboard/page.tsx:60</span>
+      <div class="done ok"><b>Fixed 19 Oct:</b> the home page shows a retry instead of «finish your setup» when the profile fails to load (2c8276d).</div></div></div></div>
 
     <div class="gap" id="G57" data-sev="h" data-area="Suggestions"><div><div class="id">G57</div><span class="sev h">High</span></div><div>
       <div class="ttl">A popular member at 0 credits is a credit sink<span class="area">Suggestions</span></div>
       <div class="body">One woman with 0 credits, last seen 18 Oct, holds 15 visible cards, 13 with a paid «مهتم» waiting (men's credits are held 7 days before the refund), and got «شخص أبدى اهتمامه بك» 5 times in one day. (Production data.)</div>
       <div class="fix"><b>Fix:</b> Owner decision: limit the reveal notice to once per Amman day; refund earlier (e.g. after 2 idle days) when the other side has 0 credits and hasn't been seen. <span class="path">suggestions/mutual.ts:79, :463</span></div></div></div>
 
-    <div class="gap" id="G58" data-sev="m" data-area="Security"><div><div class="id">G58</div><span class="sev m">Medium</span></div><div>
+    <div class="gap is-done" id="G58" data-sev="m" data-area="Security"><div><div class="id">G58</div><span class="sev m">Medium</span></div><div>
       <div class="ttl">Phone-number enumeration through send-otp<span class="area">Security</span></div>
       <div class="body">With context "register" the route answers userExists without sending an SMS, so anyone can test whether a number is registered on a marriage site, 10 per IP per 15 min.</div>
-      <div class="fix"><b>Fix:</b> Always send the code; reveal "exists" only after a verified code. <span class="path">api/auth/send-otp/route.ts:66</span></div></div></div>
+      <div class="fix"><b>Fix:</b> Always send the code; reveal "exists" only after a verified code. <span class="path">api/auth/send-otp/route.ts:66</span>
+      <div class="done ok"><b>Fixed 19 Oct:</b> sign-up send-otp always sends the code; only register answers PHONE_EXISTS after a verified code (778f3ab).</div></div></div></div>
 
-    <div class="gap" id="G59" data-sev="m" data-area="After match"><div><div class="id">G59</div><span class="sev m">Medium</span></div><div>
+    <div class="gap is-done" id="G59" data-sev="m" data-area="After match"><div><div class="id">G59</div><span class="sev m">Medium</span></div><div>
       <div class="ttl">Chat filter bypasses<span class="area">After match</span></div>
       <div class="body">Spelled digits with filler words («صفر ثم سبعة ثم تسعة…»; «صفر سبعة تسعة واحد اثنين ثلاثة» passed in the QA run), two-digit groups with words between, letter homoglyphs (O79 555 I234, 079x555x1234), «وتس» / «whats app».</div>
-      <div class="fix"><b>Fix:</b> Count digits and digit-words across the whole message (≥ 9 → block), strip letters inside digit runs, add the keyword variants. <span class="path">lib/chat/filter.ts:81</span></div></div></div>
+      <div class="fix"><b>Fix:</b> Count digits and digit-words across the whole message (≥ 9 → block), strip letters inside digit runs, add the keyword variants. <span class="path">lib/chat/filter.ts:81</span>
+      <div class="done ok"><b>Fixed 19 Oct:</b> spelled digits among words, split groups, look-alike letters and «وتس»/«whats app» are blocked (620b8c0).</div></div></div></div>
 
-    <div class="gap" id="G60" data-sev="m" data-area="After match"><div><div class="id">G60</div><span class="sev m">Medium</span></div><div>
+    <div class="gap is-done" id="G60" data-sev="m" data-area="After match"><div><div class="id">G60</div><span class="sev m">Medium</span></div><div>
       <div class="ttl">"Paused for review" doesn't stop a new chat<span class="area">After match</span></div>
       <div class="body">A CHAT+CHAT match opens a conversation with no pausedForReview check, and sendMessage never checks it either.</div>
-      <div class="fix"><b>Fix:</b> Treat a paused side like assertMatchOpen does; refuse sendMessage while paused. <span class="path">intro/outcome.ts:86 · chat/service.ts:388</span></div></div></div>
+      <div class="fix"><b>Fix:</b> Treat a paused side like assertMatchOpen does; refuse sendMessage while paused. <span class="path">intro/outcome.ts:86 · chat/service.ts:388</span>
+      <div class="done ok"><b>Fixed 19 Oct:</b> a side paused for review opens no chat and can't send (f20e9dc).</div></div></div></div>
 
-    <div class="gap" id="G61" data-sev="m" data-area="After match"><div><div class="id">G61</div><span class="sev m">Medium</span></div><div>
+    <div class="gap is-done" id="G61" data-sev="m" data-area="After match"><div><div class="id">G61</div><span class="sev m">Medium</span></div><div>
       <div class="ttl">Match-closing edge cases<span class="area">After match</span></div>
       <div class="body">A blocked person can still end an expired chat and push «أنهى الطرف الآخر المحادثة» to the blocker; a mixed-match share goes one way after the family side withdrew consent; pausing the account marks every chat "ended by a user", closing the free family move on all matches; «تمت الخطبة» / «لم يحصل نصيب» are accepted on any match (ENGAGED on a finished match → 200 in the QA run).</div>
-      <div class="fix"><b>Fix:</b> End with a system marker when leaving; require the partner's consent in shareGuardianForMatch; hide «إنهاء» when blocked or not ACTIVE; gate outcomes on an accepted family intro. <span class="path">chat/service.ts:517 · intro/requests.ts:667 · matches/leave.ts:24 · intro/followup.ts:128</span></div></div></div>
+      <div class="fix"><b>Fix:</b> End with a system marker when leaving; require the partner's consent in shareGuardianForMatch; hide «إنهاء» when blocked or not ACTIVE; gate outcomes on an accepted family intro. <span class="path">chat/service.ts:517 · intro/requests.ts:667 · matches/leave.ts:24 · intro/followup.ts:128</span>
+      <div class="done ok"><b>Fixed 19 Oct:</b> leaving uses a system marker; sharing needs the partner's consent and an accepted family intro; «إنهاء» only on an open unblocked chat; «تمت الخطبة» only after the families were introduced (0312a42…6a1a89c).</div></div></div></div>
 
-    <div class="gap" id="G62" data-sev="m" data-area="Suggestions"><div><div class="id">G62</div><span class="sev m">Medium</span></div><div>
+    <div class="gap is-done" id="G62" data-sev="m" data-area="Suggestions"><div><div class="id">G62</div><span class="sev m">Medium</span></div><div>
       <div class="ttl">Admin tools don't follow the cycle rules<span class="area">Suggestions</span></div>
       <div class="body">Deleting a shared suggestion loses a paid «مهتم» for good; hand-pick ignores dealbreakers / engaged / flagged, so the card is created and then culled by the next profile save with a refund and no explanation.</div>
-      <div class="fix"><b>Fix:</b> Close + refund instead of delete; add mutuallyAcceptable, isEngaged and flagged to checkSuggestionPair. <span class="path">api/admin/suggestions/[id]/route.ts:15 · lib/admin/suggestion-pair.ts:13</span></div></div></div>
+      <div class="fix"><b>Fix:</b> Close + refund instead of delete; add mutuallyAcceptable, isEngaged and flagged to checkSuggestionPair. <span class="path">api/admin/suggestions/[id]/route.ts:15 · lib/admin/suggestion-pair.ts:13</span>
+      <div class="done ok"><b>Fixed 19 Oct:</b> admin removal closes and refunds; hand-picks refuse dealbreaker breaks, engaged and flagged people (a8a61e3).</div></div></div></div>
 
-    <div class="gap" id="G63" data-sev="m" data-area="Suggestions"><div><div class="id">G63</div><span class="sev m">Medium</span></div><div>
+    <div class="gap is-done" id="G63" data-sev="m" data-area="Suggestions"><div><div class="id">G63</div><span class="sev m">Medium</span></div><div>
       <div class="ttl">Preference changes don't rescore open cards<span class="area">Suggestions</span></div>
       <div class="body">Partner preferences save directly but never call refreshOpenSuggestions, so open cards keep a stale % and rows now under 60 stay open.</div>
-      <div class="fix"><b>Fix:</b> Call refreshOpenSuggestionsInBackground(userId). <span class="path">api/profile/update-request/route.ts:88</span></div></div></div>
+      <div class="fix"><b>Fix:</b> Call refreshOpenSuggestionsInBackground(userId). <span class="path">api/profile/update-request/route.ts:88</span>
+      <div class="done ok"><b>Fixed 19 Oct:</b> preference changes rescore and refresh the open cards (be0c707).</div></div></div></div>
 
-    <div class="gap" id="G64" data-sev="m" data-area="Notifications"><div><div class="id">G64</div><span class="sev m">Medium</span></div><div>
+    <div class="gap is-done" id="G64" data-sev="m" data-area="Notifications"><div><div class="id">G64</div><span class="sev m">Medium</span></div><div>
       <div class="ttl">Double «اقتراح بانتظار قرارك»<span class="area">Notifications</span></div>
       <div class="body">The night nudge and the 06:00 reminder don't see each other, and the reminder sends one push per card.</div>
-      <div class="fix"><b>Fix:</b> Share the once-per-day check; oncePerDay on the reminder. <span class="path">suggestions/mutual.ts:350 · cron/suggestions.ts:95</span></div></div></div>
+      <div class="fix"><b>Fix:</b> Share the once-per-day check; oncePerDay on the reminder. <span class="path">suggestions/mutual.ts:350 · cron/suggestions.ts:95</span>
+      <div class="done ok"><b>Fixed 19 Oct:</b> one reminder per person per day, skipped when a nudge or interest notice already went out (76b5752).</div></div></div></div>
 
-    <div class="gap" id="G65" data-sev="m" data-area="Notifications"><div><div class="id">G65</div><span class="sev m">Medium</span></div><div>
+    <div class="gap is-done" id="G65" data-sev="m" data-area="Notifications"><div><div class="id">G65</div><span class="sev m">Medium</span></div><div>
       <div class="ttl">Notifications table unindexed; background tabs stay "recently seen"<span class="area">Notifications</span></div>
       <div class="body">No index on userId while every open tab polls every 30 s and oncePerDay scans it on every top-up. The same poll touches lastActiveAt from background tabs, so a laptop tab left open keeps a member suggested for weeks.</div>
-      <div class="fix"><b>Fix:</b> @@index([userId, createdAt]); skip the poll when the tab is hidden. <span class="path">prisma/schema.prisma Notification · contexts/dashboard-context.tsx:136</span></div></div></div>
+      <div class="fix"><b>Fix:</b> @@index([userId, createdAt]); skip the poll when the tab is hidden. <span class="path">prisma/schema.prisma Notification · contexts/dashboard-context.tsx:136</span>
+      <div class="done ok"><b>Fixed 19 Oct:</b> two Notification indexes; background tabs stop polling (0943b88).</div></div></div></div>
 
-    <div class="gap" id="G66" data-sev="m" data-area="Notifications"><div><div class="id">G66</div><span class="sev m">Medium</span></div><div>
+    <div class="gap is-done" id="G66" data-sev="m" data-area="Notifications"><div><div class="id">G66</div><span class="sev m">Medium</span></div><div>
       <div class="ttl">«تفعيل» before OneSignal loaded leaves the device unsubscribed<span class="area">Notifications</span></div>
       <div class="body">The browser prompt grants permission, the success screen shows, but no OneSignal subscription exists until the next page load.</div>
-      <div class="fix"><b>Fix:</b> After "granted", wait for ready and optIn(), or listen to permissionChange. <span class="path">lib/push-client.ts:18 · shared/onesignal-provider.tsx</span></div></div></div>
+      <div class="fix"><b>Fix:</b> After "granted", wait for ready and optIn(), or listen to permissionChange. <span class="path">lib/push-client.ts:18 · shared/onesignal-provider.tsx</span>
+      <div class="done ok"><b>Fixed 19 Oct:</b> a browser-prompt grant before OneSignal loads still subscribes (9d8a19b).</div></div></div></div>
 
-    <div class="gap" id="G67" data-sev="m" data-area="Copy"><div><div class="id">G67</div><span class="sev m">Medium</span></div><div>
+    <div class="gap is-done" id="G67" data-sev="m" data-area="Copy"><div><div class="id">G67</div><span class="sev m">Medium</span></div><div>
       <div class="ttl">Stale copy and legacy flashes<span class="area">Copy</span></div>
       <div class="body">Privacy page is static and contradicts the live rules (weekly suggestions, "nobody learns your decision", guardian only after a request), FAQ answer 5 too; matches and payments render legacy / masculine copy before the flags arrive; wizard placeholders address women in the masculine; the setup wizard keeps saving after its data failed to load.</div>
-      <div class="fix"><b>Fix:</b> Switch-aware privacy page; wait for loading; forViewer placeholders; retry screen on a failed load. <span class="path">privacy/page.tsx:46 · faq-data.ts:112 · matches/page.tsx:243 · setup/page.tsx:255</span></div></div></div>
+      <div class="fix"><b>Fix:</b> Switch-aware privacy page; wait for loading; forViewer placeholders; retry screen on a failed load. <span class="path">privacy/page.tsx:46 · faq-data.ts:112 · matches/page.tsx:243 · setup/page.tsx:255</span>
+      <div class="done ok"><b>Partly fixed 19 Oct:</b> matches/payments wait for the flags, setup retry screen, feminine placeholders (3bdd0d4); privacy and FAQ wording updated by the tab change (663ebe6 + follow-up).</div></div></div></div>
 
-    <div class="gap" id="G68" data-sev="m" data-area="Security"><div><div class="id">G68</div><span class="sev m">Medium</span></div><div>
+    <div class="gap is-done" id="G68" data-sev="m" data-area="Security"><div><div class="id">G68</div><span class="sev m">Medium</span></div><div>
       <div class="ttl">Validation holes in profile edits<span class="area">Security</span></div>
       <div class="body">update-request accepts any JSON (an array dateOfBirth passes the 18+ check and is approved as a date); most profile strings have no length limit and are shown on other members' cards; visit-status returns adminNotes.</div>
-      <div class="fix"><b>Fix:</b> Zod schema derived from the draft schema with .max(); select only status fields. <span class="path">api/profile/update-request/route.ts:42 · validations/profile.ts · matches/[id]/visit-status/route.ts:16</span></div></div></div>
+      <div class="fix"><b>Fix:</b> Zod schema derived from the draft schema with .max(); select only status fields. <span class="path">api/profile/update-request/route.ts:42 · validations/profile.ts · matches/[id]/visit-status/route.ts:16</span>
+      <div class="done ok"><b>Fixed 19 Oct:</b> strict update-request validation, text limits, visit-status returns status fields only (a513af8).</div></div></div></div>
 
     <div class="empty-note" id="noGaps" hidden>No gaps match these filters.</div>
   </div>

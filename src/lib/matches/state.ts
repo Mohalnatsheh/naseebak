@@ -41,7 +41,7 @@ export function isUnavailable(u: { isDeactivated?: boolean | null; status?: stri
 
 export interface MatchFacts {
   requests: { type: IntroRequestType | string; status: string; expiresAt: Date }[];
-  conversation: { status: string; expiresAt: Date; endedById?: string | null } | null;
+  conversation: { status: string; expiresAt: Date; endedById?: string | null; endedByAdminId?: string | null } | null;
   visitStatus?: string | null;
   partnerUnavailable: boolean;
   blockedByMe: boolean;
@@ -65,8 +65,14 @@ export interface MatchDescription {
   chatEndedByUser: boolean;
 }
 
+/**
+ * `Conversation.endedByAdminId` of a chat closed because one side left (paused their account, asked
+ * for deletion): not a user's choice, so the free family move on that match stays open.
+ */
+export const CHAT_LEFT_MARKER = "system:left";
+
 export function chatEndedByUser(c: MatchFacts["conversation"]): boolean {
-  return !!c && c.status === "ENDED" && !!c.endedById;
+  return !!c && c.status === "ENDED" && !!c.endedById && c.endedByAdminId !== CHAT_LEFT_MARKER;
 }
 
 export function describeMatch(f: MatchFacts, now = new Date()): MatchDescription {
@@ -251,7 +257,7 @@ export async function loadMatchStates(
         female: { select: { isDeactivated: true, status: true } },
         male: { select: { isDeactivated: true, status: true } },
         visitRequest: { select: { status: true } },
-        conversation: { select: { status: true, expiresAt: true, endedById: true } },
+        conversation: { select: { status: true, expiresAt: true, endedById: true, endedByAdminId: true } },
         introRequests: { select: { type: true, status: true, expiresAt: true } },
         femaleOutcome: true,
         maleOutcome: true,

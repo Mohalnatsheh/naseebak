@@ -7,8 +7,8 @@ const db = vi.hoisted(() => ({
 const requireUser = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/auth", () => ({ requireUser }));
-vi.mock("@/lib/suggestions/dealbreaker-sweep", () => ({ closeSuggestionsBreakingDealbreakers: vi.fn(async () => undefined) }));
-vi.mock("@/lib/matching/auto-suggest", () => ({ autoSuggestForUser: vi.fn(async () => undefined) }));
+const refresh = vi.hoisted(() => ({ refreshOpenSuggestionsInBackground: vi.fn() }));
+vi.mock("@/lib/suggestions/refresh", () => refresh);
 const sendAdminAlert = vi.hoisted(() => vi.fn(async () => undefined));
 vi.mock("@/lib/admin-alert", () => ({ sendAdminAlert }));
 
@@ -40,6 +40,17 @@ describe("POST /api/profile/update-request", () => {
     const res = await POST(req({ prefAgeMax: 35 }));
     expect(res.status).toBe(200);
     expect(db.profile.update).toHaveBeenCalledWith({ where: { userId: "u1" }, data: { prefAgeMax: 35 } });
+  });
+
+  it("G63: saved preferences rescore the open cards (refresh: minimum score + dealbreakers, then top-up)", async () => {
+    const res = await POST(req({ prefAgeMax: 35 }));
+    expect(res.status).toBe(200);
+    expect(refresh.refreshOpenSuggestionsInBackground).toHaveBeenCalledWith("u1");
+  });
+
+  it("a request without preference changes doesn't refresh", async () => {
+    await POST(req({ job: "طبيب" }));
+    expect(refresh.refreshOpenSuggestionsInBackground).not.toHaveBeenCalled();
   });
 
   it("checks min ≤ max against the stored other end", async () => {

@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Loader2 } from "lucide-react";
+import { rateLimitedMinutes } from "@/lib/login-limit";
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -30,7 +31,12 @@ export default function AdminLoginPage() {
       });
 
       if (result?.error) {
-        setError("Invalid email or password");
+        const waitMinutes = rateLimitedMinutes(result.code);
+        setError(
+          waitMinutes
+            ? `Too many failed attempts. Try again in ${waitMinutes} minute${waitMinutes === 1 ? "" : "s"}.`
+            : "Invalid email or password",
+        );
       } else {
         router.push("/admin");
         router.refresh();

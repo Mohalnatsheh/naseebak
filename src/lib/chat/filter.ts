@@ -31,7 +31,7 @@ const HANDLE_RE = /(^|[\s(،,])@[a-z0-9_.]{2,}/i;
 
 // Matched anywhere in the message (after normalising), so keep them long enough not to hit normal words
 const SOCIAL_KEYWORDS = [
-  "whatsapp", "watsapp", "واتس", "وتس اب", "وتساب", "وتسب",
+  "whatsapp", "watsapp", "whats app", "what's app", "wats app", "واتس", "واتس اب", "وات ساب", "وات س اب", "وتس اب", "وتساب", "وتسب",
   "instagram", "insta", "انستا", "انستغرام", "انستقرام", "انستجرام", "انستكرام", "اينستا", "انستغرم",
   "snapchat", "snap", "سناب",
   "telegram", "تلغرام", "تيليجرام", "تلجرام", "تيلجرام", "تيليغرام", "تليغرام", "تلقرام", "تيليقرام",
@@ -40,8 +40,8 @@ const SOCIAL_KEYWORDS = [
   "viber", "فايبر", "twitter", "تويتر", "signal", "سيجنال", "discord", "ديسكورد",
   "gmail", "hotmail", "yahoo", "outlook", "icloud", "ايميل", "اميل",
 ];
-// Short names only blocked as a whole word ("ig", not "big")
-const SOCIAL_WORDS = new Set(["ig", "fb", "imo", "ايمو"]);
+// Short names only blocked as a whole word ("ig", not "big"; "وتس", not "وتسلم" / "وتسعين")
+const SOCIAL_WORDS = new Set(["ig", "fb", "imo", "ايمو", "وتس"]);
 
 // Digits spelled out (after normalising أإآ→ا and ة→ه): standard Arabic, Jordanian dialect, English
 const DIGIT_WORDS = new Set([
@@ -83,6 +83,54 @@ function hasPhoneNumber(s: string): boolean {
   if (runs.some((run) => run.replace(/\D/g, "").length >= 7)) return true;
   const loose = s.match(/\d(?:[^\p{L}\p{N}]{0,3}\d)+/gu) ?? [];
   return loose.some((run) => run.replace(/\D/g, "").length >= 9);
+}
+
+/**
+ * Latin letters standing in for digits inside a number ("O79 555 I234" → 0, 1) and letters used as
+ * separators between digits ("079x555x1234"): only for the number checks, never the stored text.
+ */
+function normaliseNumberDisguise(s: string): string {
+  let out = s;
+  // Repeat so a run of look-alikes next to a digit ("OO79") is read one letter at a time
+  for (let i = 0; i < 4; i++) {
+    const next = out
+      .replace(/(?<=\d)[oO]|[oO](?=\d)/g, "0")
+      .replace(/(?<=\d)[Iil]|[Iil](?=\d)/g, "1");
+    if (next === out) break;
+    out = next;
+  }
+  return out.replace(/(?<=\d)[a-zA-Z]{1,3}(?=\d)/g, "");
+}
+
+/** A year (1950–2039) or a round amount ("5000" dowry, "1500" salary): ordinary talk, not a phone group */
+function ordinaryNumber(group: string): boolean {
+  if (group.length < 4) return false;
+  const n = Number(group);
+  return (n >= 1950 && n <= 2039) || /00$/.test(group);
+}
+
+/** Digit words anywhere in one message that make it a spelled number («صفر ثم سبعة ثم تسعة…») */
+const SCATTERED_DIGIT_WORDS = 6;
+/** Digits anywhere in one message (written groups + spelled digits, word-separated) that make it a number */
+const SCATTERED_DIGITS = 9;
+
+/**
+ * A number hidden among words: 6+ spelled digits anywhere ("صفر ثم سبعة ثم تسعة ثم …"), or 9+ digits
+ * in total across groups with words between them ("07 ثم 95 ثم 55 ثم 12 ثم 34"). Years and round
+ * amounts don't count, so "مواليد 1995 وتخرجت 2017 والمهر 5000" stays an ordinary message.
+ */
+function hasScatteredNumber(s: string): boolean {
+  let spelled = 0;
+  let total = 0;
+  for (const word of words(s)) {
+    if (digitWord(word)) {
+      spelled += 1;
+      total += 1;
+    } else if (/^\d+$/.test(word) && !ordinaryNumber(word)) {
+      total += word.length;
+    }
+  }
+  return spelled >= SCATTERED_DIGIT_WORDS || total >= SCATTERED_DIGITS;
 }
 
 /** Message split into words: anything that isn't a letter or a digit separates them */
@@ -187,7 +235,8 @@ export function checkMessage(body: string): FilterResult {
 
   if (LINK_RE.test(digits)) return fail("LINK");
   if (EMAIL_RE.test(digits) || HANDLE_RE.test(digits)) return fail("CONTACT");
-  if (hasPhoneNumber(digits) || hasSpelledNumber(digits)) return fail("CONTACT");
+  const numbers = normaliseNumberDisguise(digits);
+  if (hasPhoneNumber(numbers) || hasSpelledNumber(numbers) || hasScatteredNumber(numbers)) return fail("CONTACT");
   if (SOCIAL_KEYWORDS.some((k) => lower.includes(normaliseArabic(k)))) return fail("CONTACT");
   if (words(digits).some((w) => SOCIAL_WORDS.has(w))) return fail("CONTACT");
   if (OFFENSIVE.some((w) => lower.includes(normaliseArabic(w)))) return fail("OFFENSIVE");

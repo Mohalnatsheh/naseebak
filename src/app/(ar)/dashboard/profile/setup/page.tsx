@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, ArrowLeft, ArrowRight, CheckCircle2, Save, AlertCircle } from "lucide-react";
 import { useAutoSave } from "@/hooks/use-auto-save";
+import { LoadError } from "@/components/shared/load-error";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -15,6 +16,7 @@ import { OPTION_VALUES, ownOptions, partnerOptions, type Opt } from "@/lib/profi
 import { activeDealbreakers } from "@/lib/matching/dealbreaker-summary";
 import type { DealbreakerKey } from "@/lib/matching/score";
 import { arabicCount } from "@/lib/utils";
+import { forViewer } from "@/lib/gendered-copy";
 import { dateOfBirthError, maxDateOfBirth, parentInfoSchema } from "@/lib/validations/profile";
 import { normalizePhone } from "@/lib/validations/auth";
 
@@ -140,128 +142,134 @@ export default function ProfileSetupPage() {
   const [ownerId, setOwnerId] = useState("");
   const { savedIndicatorVisible, saveToLocalStorage, restoreDraft, clearDraft, saveToServer } = useAutoSave(autoSaveEnabled);
 
+  // The saved profile didn't load: show a retry and never save over it (no auto-save, no form)
+  const [profileFailed, setProfileFailed] = useState(false);
+
   // Fetch existing profile data on load, then check localStorage draft
-  useEffect(() => {
-    async function fetchProfile() {
-      try {
-        const res = await fetch("/api/profile");
-        let serverUpdatedAt: string | null = null;
-        let serverStep = 1;
-        let draftOwner = "";
+  const loadProfile = useCallback(async () => {
+    setProfileFailed(false);
+    setFetchingProfile(true);
+    let loaded = false;
+    try {
+      const res = await fetch("/api/profile");
+      let serverUpdatedAt: string | null = null;
+      let serverStep = 1;
+      let draftOwner = "";
 
-        if (res.ok) {
-          const data = await res.json();
-          const user = data.user;
-          if (user?.id) {
-            draftOwner = user.id;
-            setOwnerId(user.id);
-          }
-
-          // If profile is already complete, redirect to view page
-          if (user?.profile?.isComplete) {
-            router.push("/dashboard/profile");
-            return;
-          }
-
-          if (user?.gender) {
-            setGender(user.gender);
-            // Default nationality in the user's own gender ("أردنية" for women)
-            if (user.gender === "FEMALE") setForm((prev) => (prev.nationality === "أردني" ? { ...prev, nationality: "أردنية" } : prev));
-          }
-          if (user?.profile) {
-            const p = user.profile;
-            serverUpdatedAt = p.updatedAt || null;
-            serverStep = p.setupStep || 1;
-            setForm((prev) => ({
-              ...prev,
-              dateOfBirth: p.dateOfBirth ? new Date(p.dateOfBirth).toISOString().split("T")[0] : "",
-              city: p.city || "",
-              area: p.area || "",
-              nationality: p.nationality || (user.gender === "FEMALE" ? "أردنية" : "أردني"),
-              education: p.education || "",
-              fieldOfStudy: p.fieldOfStudy || "",
-              job: p.job && jobValues.includes(p.job) ? p.job : p.job ? "أخرى" : "",
-              jobCustom: p.job && !jobValues.includes(p.job) ? p.job : "",
-              height: p.height ? String(p.height) : "",
-              weight: p.weight ? String(p.weight) : "",
-              skinColor: p.skinColor || "",
-              incomeRange: p.incomeRange || "",
-              childrenCount: p.childrenCount != null ? String(p.childrenCount) : "",
-              willingToRelocate: p.willingToRelocate || "",
-              maritalStatus: p.maritalStatus || "",
-              religiosity: p.religiosity || "",
-              hijab: typeof p.hijab === "boolean" ? p.hijab : null,
-              beard: typeof p.beard === "boolean" ? p.beard : null,
-              smokingStatus: p.smokingStatus || "",
-              cookingAbility: p.cookingAbility || "",
-              lifestyle: p.lifestyle || "",
-              drivingLicense: typeof p.drivingLicense === "boolean" ? p.drivingLicense : null,
-              aboutMe: p.aboutMe || "",
-              partnerExpectations: p.partnerExpectations || "",
-              hobbies: p.hobbies || "",
-              interests: p.interests || "",
-              familyValues: p.familyValues || "",
-              tribe: p.tribe || "",
-              familyOriginArea: p.familyOriginArea || "",
-              numberOfSiblings: p.numberOfSiblings != null ? String(p.numberOfSiblings) : "",
-              housingType: p.housingType || "",
-              monthlyExpenses: p.monthlyExpenses || "",
-              healthConditions: p.healthConditions || "",
-              prefAgeMin: p.prefAgeMin != null ? String(p.prefAgeMin) : "",
-              prefAgeMax: p.prefAgeMax != null ? String(p.prefAgeMax) : "",
-              prefCity: Array.isArray(p.prefCity) ? p.prefCity : [],
-              prefEducation: Array.isArray(p.prefEducation) ? p.prefEducation : [],
-              prefMaritalStatus: Array.isArray(p.prefMaritalStatus) ? p.prefMaritalStatus : [],
-              prefHijab: p.prefHijab || "",
-              prefBeard: p.prefBeard || "",
-              prefReligiosity: Array.isArray(p.prefReligiosity) ? p.prefReligiosity : [],
-              prefSmokingStatus: Array.isArray(p.prefSmokingStatus) ? p.prefSmokingStatus : [],
-              prefChildrenAcceptance: p.prefChildrenAcceptance || "",
-              dealbreakers: Array.isArray(p.dealbreakers) ? p.dealbreakers : [],
-            }));
-            setStep(serverStep);
-          }
-          if (user?.parentInfo) {
-            const pi = user.parentInfo;
-            setParentForm((prev) => ({
-              ...prev,
-              parentName: pi.parentName || "",
-              parentPhone: pi.parentPhone || "",
-              relationship: pi.relationship || "",
-              address: pi.address || "",
-            }));
-            setShareConsent(!!pi.shareConsentAt);
-          }
-        }
-
-        // Check localStorage draft — use it if it's fresher than server data
-        const draft = restoreDraft(draftOwner);
-        if (draft) {
-          const draftTime = new Date(draft.savedAt).getTime();
-          const serverTime = serverUpdatedAt ? new Date(serverUpdatedAt).getTime() : 0;
-
-          if (draftTime > serverTime) {
-            if (draft.form) {
-              setForm((prev) => ({ ...prev, ...(draft.form as typeof prev) }));
-            }
-            if (draft.parentForm) {
-              setParentForm((prev) => ({ ...prev, ...(draft.parentForm as typeof prev) }));
-            }
-            if (draft.step >= 1 && draft.step <= 5) {
-              setStep(draft.step);
-            }
-          }
-        }
-      } catch {
-        // Silently fail - user will fill in fresh data
-      } finally {
-        setFetchingProfile(false);
-        setAutoSaveEnabled(true);
+      if (!res.ok) throw new Error(`profile ${res.status}`);
+      const data = await res.json();
+      const user = data.user;
+      if (!user?.id) throw new Error("profile missing");
+      if (user?.id) {
+        draftOwner = user.id;
+        setOwnerId(user.id);
       }
+
+      // If profile is already complete, redirect to view page
+      if (user?.profile?.isComplete) {
+        router.push("/dashboard/profile");
+        return;
+      }
+
+      if (user?.gender) {
+        setGender(user.gender);
+        // Default nationality in the user's own gender ("أردنية" for women)
+        if (user.gender === "FEMALE") setForm((prev) => (prev.nationality === "أردني" ? { ...prev, nationality: "أردنية" } : prev));
+      }
+      if (user?.profile) {
+        const p = user.profile;
+        serverUpdatedAt = p.updatedAt || null;
+        serverStep = p.setupStep || 1;
+        setForm((prev) => ({
+          ...prev,
+          dateOfBirth: p.dateOfBirth ? new Date(p.dateOfBirth).toISOString().split("T")[0] : "",
+          city: p.city || "",
+          area: p.area || "",
+          nationality: p.nationality || (user.gender === "FEMALE" ? "أردنية" : "أردني"),
+          education: p.education || "",
+          fieldOfStudy: p.fieldOfStudy || "",
+          job: p.job && jobValues.includes(p.job) ? p.job : p.job ? "أخرى" : "",
+          jobCustom: p.job && !jobValues.includes(p.job) ? p.job : "",
+          height: p.height ? String(p.height) : "",
+          weight: p.weight ? String(p.weight) : "",
+          skinColor: p.skinColor || "",
+          incomeRange: p.incomeRange || "",
+          childrenCount: p.childrenCount != null ? String(p.childrenCount) : "",
+          willingToRelocate: p.willingToRelocate || "",
+          maritalStatus: p.maritalStatus || "",
+          religiosity: p.religiosity || "",
+          hijab: typeof p.hijab === "boolean" ? p.hijab : null,
+          beard: typeof p.beard === "boolean" ? p.beard : null,
+          smokingStatus: p.smokingStatus || "",
+          cookingAbility: p.cookingAbility || "",
+          lifestyle: p.lifestyle || "",
+          drivingLicense: typeof p.drivingLicense === "boolean" ? p.drivingLicense : null,
+          aboutMe: p.aboutMe || "",
+          partnerExpectations: p.partnerExpectations || "",
+          hobbies: p.hobbies || "",
+          interests: p.interests || "",
+          familyValues: p.familyValues || "",
+          tribe: p.tribe || "",
+          familyOriginArea: p.familyOriginArea || "",
+          numberOfSiblings: p.numberOfSiblings != null ? String(p.numberOfSiblings) : "",
+          housingType: p.housingType || "",
+          monthlyExpenses: p.monthlyExpenses || "",
+          healthConditions: p.healthConditions || "",
+          prefAgeMin: p.prefAgeMin != null ? String(p.prefAgeMin) : "",
+          prefAgeMax: p.prefAgeMax != null ? String(p.prefAgeMax) : "",
+          prefCity: Array.isArray(p.prefCity) ? p.prefCity : [],
+          prefEducation: Array.isArray(p.prefEducation) ? p.prefEducation : [],
+          prefMaritalStatus: Array.isArray(p.prefMaritalStatus) ? p.prefMaritalStatus : [],
+          prefHijab: p.prefHijab || "",
+          prefBeard: p.prefBeard || "",
+          prefReligiosity: Array.isArray(p.prefReligiosity) ? p.prefReligiosity : [],
+          prefSmokingStatus: Array.isArray(p.prefSmokingStatus) ? p.prefSmokingStatus : [],
+          prefChildrenAcceptance: p.prefChildrenAcceptance || "",
+          dealbreakers: Array.isArray(p.dealbreakers) ? p.dealbreakers : [],
+        }));
+        setStep(serverStep);
+      }
+      if (user?.parentInfo) {
+        const pi = user.parentInfo;
+        setParentForm((prev) => ({
+          ...prev,
+          parentName: pi.parentName || "",
+          parentPhone: pi.parentPhone || "",
+          relationship: pi.relationship || "",
+          address: pi.address || "",
+        }));
+        setShareConsent(!!pi.shareConsentAt);
+      }
+
+      // Check localStorage draft — use it if it's fresher than server data
+      const draft = restoreDraft(draftOwner);
+      if (draft) {
+        const draftTime = new Date(draft.savedAt).getTime();
+        const serverTime = serverUpdatedAt ? new Date(serverUpdatedAt).getTime() : 0;
+
+        if (draftTime > serverTime) {
+          if (draft.form) {
+            setForm((prev) => ({ ...prev, ...(draft.form as typeof prev) }));
+          }
+          if (draft.parentForm) {
+            setParentForm((prev) => ({ ...prev, ...(draft.parentForm as typeof prev) }));
+          }
+          if (draft.step >= 1 && draft.step <= 5) {
+            setStep(draft.step);
+          }
+        }
+      }
+      loaded = true;
+    } catch {
+      // Never treat a failed load as an empty profile: saving it would overwrite what is stored
+      setProfileFailed(true);
+    } finally {
+      setFetchingProfile(false);
+      setAutoSaveEnabled(loaded);
     }
-    fetchProfile();
     // Both are stable (useRouter / useCallback with no deps), so this still runs once on mount
   }, [restoreDraft, router]);
+  useEffect(() => { loadProfile(); }, [loadProfile]);
 
   // Auto-save to localStorage on form/step changes (debounced)
   useEffect(() => {
@@ -522,6 +530,14 @@ export default function ProfileSetupPage() {
     if (flags && step > totalSteps) setStep(totalSteps);
   }, [flags, step, totalSteps]);
 
+  if (profileFailed) {
+    return (
+      <div className="max-w-2xl mx-auto py-12">
+        <LoadError message="تعذّر تحميل ملفك. تحقّق من اتصالك وحاول مرة أخرى." onRetry={loadProfile} />
+      </div>
+    );
+  }
+
   if (!flags && flagsFailed) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] gap-4 text-center">
@@ -633,7 +649,7 @@ export default function ProfileSetupPage() {
               </select>
               {form.job === "أخرى" && (
                 <div data-field="jobCustom">
-                  <Input id="jobCustom" aria-label="الوظيفة (أخرى)" value={form.jobCustom} onChange={(e) => update("jobCustom", e.target.value)} placeholder="حدد وظيفتك..." className={`mt-2 ${inputError(!!fieldErrors.jobCustom)}`} />
+                  <Input id="jobCustom" aria-label="الوظيفة (أخرى)" value={form.jobCustom} onChange={(e) => update("jobCustom", e.target.value)} placeholder={forViewer(gender, "حدّد وظيفتك...", "حدّدي وظيفتكِ...")} className={`mt-2 ${inputError(!!fieldErrors.jobCustom)}`} />
                   {fieldErrors.jobCustom && <p className="text-xs text-destructive mt-1">{fieldErrors.jobCustom}</p>}
                 </div>
               )}
@@ -735,12 +751,12 @@ export default function ProfileSetupPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <Field id="aboutMe" label="نبذة عني" optional>
-              <textarea id="aboutMe" value={form.aboutMe} onChange={(e) => update("aboutMe", e.target.value)} className={textareaClass(false)} placeholder="تحدث عن نفسك واهتماماتك وطموحاتك..." maxLength={500} />
+              <textarea id="aboutMe" value={form.aboutMe} onChange={(e) => update("aboutMe", e.target.value)} className={textareaClass(false)} placeholder={forViewer(gender, "تحدث عن نفسك واهتماماتك وطموحاتك...", "تحدثي عن نفسكِ واهتماماتكِ وطموحاتكِ...")} maxLength={500} />
               <p className="text-xs text-muted-foreground text-left" dir="ltr">{form.aboutMe.length}/500</p>
             </Field>
 
             <Field id="partnerExpectations" label="مواصفات الشريك المطلوبة" optional>
-              <textarea id="partnerExpectations" value={form.partnerExpectations} onChange={(e) => update("partnerExpectations", e.target.value)} className={textareaClass(false)} placeholder="صف المواصفات التي تبحث عنها في شريك حياتك..." maxLength={500} />
+              <textarea id="partnerExpectations" value={form.partnerExpectations} onChange={(e) => update("partnerExpectations", e.target.value)} className={textareaClass(false)} placeholder={forViewer(gender, "صف المواصفات التي تبحث عنها في شريكة حياتك...", "صفي المواصفات التي تبحثين عنها في شريك حياتكِ...")} maxLength={500} />
               <p className="text-xs text-muted-foreground text-left" dir="ltr">{form.partnerExpectations.length}/500</p>
             </Field>
 
@@ -753,7 +769,7 @@ export default function ProfileSetupPage() {
             </Field>
 
             <Field id="familyValues" label="القيم العائلية" optional>
-              <textarea id="familyValues" value={form.familyValues} onChange={(e) => update("familyValues", e.target.value)} className={textareaClass(false, "min-h-[80px]")} placeholder="ما هي القيم التي تعتز بها في الحياة الأسرية..." maxLength={500} />
+              <textarea id="familyValues" value={form.familyValues} onChange={(e) => update("familyValues", e.target.value)} className={textareaClass(false, "min-h-[80px]")} placeholder={forViewer(gender, "ما هي القيم التي تعتز بها في الحياة الأسرية...", "ما هي القيم التي تعتزين بها في الحياة الأسرية...")} maxLength={500} />
               <p className="text-xs text-muted-foreground text-left" dir="ltr">{form.familyValues.length}/500</p>
             </Field>
 
@@ -857,7 +873,7 @@ export default function ProfileSetupPage() {
             </Field>
 
             <Field id="healthConditions" label="حالات صحية" optional>
-              <textarea id="healthConditions" value={form.healthConditions} onChange={(e) => update("healthConditions", e.target.value)} className={textareaClass(false, "min-h-[80px]")} placeholder="أي حالات صحية تود الإفصاح عنها..." maxLength={500} />
+              <textarea id="healthConditions" value={form.healthConditions} onChange={(e) => update("healthConditions", e.target.value)} className={textareaClass(false, "min-h-[80px]")} placeholder={forViewer(gender, "أي حالات صحية تود الإفصاح عنها...", "أي حالات صحية تودين الإفصاح عنها...")} maxLength={500} />
             </Field>
           </CardContent>
         </Card>

@@ -5,6 +5,7 @@ const db = vi.hoisted(() => ({
   block: { findFirst: vi.fn(), findMany: vi.fn() },
   user: { findMany: vi.fn() },
   mutualMatch: { findMany: vi.fn() },
+  notification: { findFirst: vi.fn() },
 }));
 const notifyMod = vi.hoisted(() => ({ notify: vi.fn(), notifyMany: vi.fn() }));
 const settings = vi.hoisted(() => ({ getCycleFlags: vi.fn() }));
@@ -34,6 +35,7 @@ beforeEach(() => {
   db.block.findMany.mockResolvedValue([]);
   db.mutualMatch.findMany.mockResolvedValue([]);
   db.user.findMany.mockResolvedValue([]);
+  db.notification.findFirst.mockResolvedValue(null);
   settings.getCycleFlags.mockResolvedValue({ introRequests: true, chat: true, mutualSuggestions: true });
   auto.weeklyCounts.mockResolvedValue(new Map());
   auto.openCounts.mockResolvedValue(new Map());
@@ -134,6 +136,28 @@ describe("remindMutualSuggestions", () => {
     const res = await remindMutualSuggestions(now);
     expect(notifyMod.notify).not.toHaveBeenCalled();
     expect(res).toEqual({ suggestions: 0, reminded: 0 });
+  });
+
+  it("G64: one reminder per person per run, not one per card, marked once-per-day", async () => {
+    db.suggestion.findMany.mockResolvedValue([row({ id: "a" }), row({ id: "b" }), row({ id: "c" })]);
+    const res = await remindMutualSuggestions(now);
+    expect(notifyMod.notify.mock.calls.map((c) => c[0].userId).sort()).toEqual(["f1", "u1"]);
+    expect(notifyMod.notify.mock.calls.every((c) => c[0].oncePerDay === "waiting-decision")).toBe(true);
+    expect(res).toEqual({ suggestions: 3, reminded: 2 });
+  });
+
+  it("G64: skips someone who already got the waiting nudge or the «أبدى اهتمامه» notice today", async () => {
+    db.suggestion.findMany.mockResolvedValue([row()]);
+    db.notification.findFirst.mockImplementation(async ({ where }: { where: { userId: string } }) =>
+      where.userId === "u1" ? { id: "n1" } : null,
+    );
+    await remindMutualSuggestions(now);
+    expect(notifyMod.notify).toHaveBeenCalledTimes(1);
+    expect(notifyMod.notify.mock.calls[0][0].userId).toBe("f1");
+    const where = db.notification.findFirst.mock.calls[0][0].where;
+    expect(where.title).toEqual({ in: ["اقتراح بانتظار قرارك", "شخص أبدى اهتمامه بك"] });
+    // Midnight in Amman (UTC+3) for 06:00 UTC on 16 Oct
+    expect(where.createdAt).toEqual({ gte: new Date("2026-10-15T21:00:00Z") });
   });
 
   it("skips claimed rows, blocks and inactive people", async () => {

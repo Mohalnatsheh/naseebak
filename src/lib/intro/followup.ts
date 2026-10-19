@@ -23,6 +23,7 @@ import { LEGACY_ADMIN_VISIT, cancelPendingBetween, isUnavailable, loadMatchState
 import { refundUnansweredInterests } from "@/lib/suggestions/mutual";
 import { publishChatEvent } from "@/lib/ably";
 import { getCycleFlags } from "@/lib/settings";
+import { endPausedChats } from "@/lib/reports";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 export const FOLLOW_UP_FIRST_DAYS = 7;
@@ -110,6 +111,7 @@ async function closeOtherMatches(userId: string, matchIds: { id: string; partner
         });
         if (ended.count === 1) await publishChatEvent(chat.id, "status", { status: "ENDED" }).catch(() => {});
       }
+      await endPausedChats({ id }, { endedById: userId });
       await notify({
         userId: partnerId,
         type: "MATCH",
@@ -125,6 +127,27 @@ async function closeOtherMatches(userId: string, matchIds: { id: string; partner
   return closed;
 }
 
+/**
+ * The families were introduced on this match (= `followUp.ask` in getMatchIntroState): an accepted
+ * FAMILY introduction with both guardian stamps (matches opened under credit on interest; older
+ * matches: the accepted introduction is enough), or a legacy visit the team arranged.
+ */
+export async function familiesIntroduced(match: {
+  id: string;
+  openedAt: Date | null;
+  femaleGuardianShareAt: Date | null;
+  maleGuardianShareAt: Date | null;
+  visitRequest: { status: VisitStatus } | null;
+}): Promise<boolean> {
+  if (match.visitRequest && LEGACY_ADMIN_VISIT.includes(match.visitRequest.status)) return true;
+  const family = await db.introRequest.findFirst({
+    where: { matchId: match.id, type: "FAMILY", status: "ACCEPTED" },
+    select: { id: true },
+  });
+  if (!family) return false;
+  return !match.openedAt || (!!match.femaleGuardianShareAt && !!match.maleGuardianShareAt);
+}
+
 export async function setMatchOutcome(args: { matchId: string; userId: string; outcome: MatchOutcome }): Promise<void> {
   const { matchId, userId, outcome } = args;
   const now = new Date();
@@ -132,7 +155,9 @@ export async function setMatchOutcome(args: { matchId: string; userId: string; o
     where: { id: matchId, OR: [{ femaleId: userId }, { maleId: userId }] },
     select: {
       id: true, femaleId: true, maleId: true, femaleOutcome: true, maleOutcome: true,
+      openedAt: true, femaleGuardianShareAt: true, maleGuardianShareAt: true,
       conversation: { select: { id: true, status: true } },
+      visitRequest: { select: { status: true } },
     },
   });
   if (!match) throw new FollowUpError("NOT_FOUND", "التوافق غير موجود");
@@ -145,6 +170,10 @@ export async function setMatchOutcome(args: { matchId: string; userId: string; o
   // Once someone said «لم يحصل نصيب» the match is closed for both
   if (previous === "NOT_A_MATCH" || partner === "NOT_A_MATCH") throw new FollowUpError("NOT_ALLOWED", "انتهى هذا التوافق");
   if (previous === outcome) return;
+  // «تمت الخطبة» only after the families met: the same condition that shows «كيف يسير التعارف العائلي؟»
+  if (outcome === "ENGAGED" && !(await familiesIntroduced(match))) {
+    throw new FollowUpError("NOT_ALLOWED", "يمكنك إخبارنا بالخطبة بعد إتمام التعارف العائلي على هذا التوافق");
+  }
 
   // Engaged: note my other matches that are still open before this answer closes them
   const others =
@@ -171,6 +200,7 @@ export async function setMatchOutcome(args: { matchId: string; userId: string; o
       await db.conversation.update({ where: { id: chat.id }, data: { status: "ENDED", endedById: userId, endedAt: now } });
       await publishChatEvent(chat.id, "status", { status: "ENDED" }).catch(() => {});
     }
+    await endPausedChats({ id: matchId }, { endedById: userId });
     await notify({
       userId: partnerId,
       type: "MATCH",

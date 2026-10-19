@@ -19,6 +19,7 @@ import { arabicCount } from "@/lib/utils";
 import { GuardianConsentCard } from "@/components/intro/guardian-consent-card";
 import { NextStepCard } from "@/components/dashboard/next-step-card";
 import { InstallAppCard } from "@/components/shared/install-app-card";
+import { LoadError } from "@/components/shared/load-error";
 import { qualifiesForSuggestions as qualifiesForSuggestionsGate } from "@/lib/profile-completeness";
 
 /* ------------------------------------------------------------------ */
@@ -47,7 +48,8 @@ function getGreeting() {
 /*  Main Component                                                    */
 /* ================================================================== */
 export default function DashboardPage() {
-  const { profile, completeness, counts, loading } = useDashboardData();
+  const { profile, completeness, counts, loading, profileFailed, refreshProfile } = useDashboardData();
+  const [retrying, setRetrying] = useState(false);
   // New cycle: suggestions are free, so "out of credits" no longer blocks suggestions
   const creditsBlockSuggestions = !counts.flags.introRequests;
   const [pendingSuggestions, setPendingSuggestions] = useState<number | null>(null);
@@ -93,6 +95,29 @@ export default function DashboardPage() {
         <p className="text-sm text-muted-foreground animate-pulse">
           جارٍ تحميل لوحة التحكم...
         </p>
+      </div>
+    );
+  }
+
+  // The profile didn't load: say so with a retry, never "finish your setup" with a 0% ring
+  if (!profile) {
+    return (
+      <div className="py-12">
+        <LoadError
+          message={
+            profileFailed
+              ? "تعذّر تحميل بياناتك. تحقّق من الاتصال وحاول مرة أخرى."
+              : "تعذّر تحميل البيانات. حاول مرة أخرى."
+          }
+          onRetry={
+            retrying
+              ? undefined
+              : () => {
+                  setRetrying(true);
+                  refreshProfile().finally(() => setRetrying(false));
+                }
+          }
+        />
       </div>
     );
   }

@@ -1,13 +1,9 @@
 import NextAuth, { type Session } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
-import bcrypt from "bcryptjs";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { authConfig } from "@/lib/auth.config";
-import { rateLimit } from "@/lib/rate-limit";
-import { normalizePhone, VERIFIED_OTP_WINDOW_MS } from "@/lib/validations/auth";
-import { toLatinDigits } from "@/lib/digits";
-import { touchLastActive } from "@/lib/activity";
+import { authorizeAdminLogin, authorizePhoneLogin } from "@/lib/auth-authorize";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
@@ -18,61 +14,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         phone: { label: "Phone", type: "text" },
         otp: { label: "OTP", type: "text" },
       },
-      async authorize(credentials) {
-        const rawPhone = credentials?.phone as string | undefined;
-        const rawOtp = credentials?.otp as string | undefined;
-
-        if (!rawPhone || !rawOtp) return null;
-        // Arabic-keyboard digits (٠-٩) are the same code
-        const otp = toLatinDigits(rawOtp).trim();
-        const phone = normalizePhone(rawPhone);
-
-        // Rate limit login attempts by phone
-        const { success } = rateLimit(`login:${phone}`, {
-          maxAttempts: 5,
-          windowMs: 15 * 60 * 1000, // 15 minutes
-        });
-
-        if (!success) return null;
-
-        // A code verified by /api/auth/verify-otp, sent within the last 30 minutes (the login →
-        // register hand-off needs more than the 5-minute entry window). Used up on success below.
-        const verifiedOtp = await db.otp.findFirst({
-          where: {
-            phone,
-            code: otp,
-            verified: true,
-            createdAt: { gt: new Date(Date.now() - VERIFIED_OTP_WINDOW_MS) },
-          },
-          orderBy: { createdAt: "desc" },
-        });
-
-        if (!verifiedOtp) return null;
-
-        // Look up user by phone
-        const user = await db.user.findUnique({
-          where: { phone },
-        });
-
-        if (!user) return null;
-
-        // Suspended accounts stay locked out. Deactivated accounts (paused, or inside the
-        // 30-day deletion grace period) may sign in: the dashboard sends them to
-        // /dashboard/reactivate and every other user API refuses them (requireUser).
-        if (user.status === "SUSPENDED") return null;
-        // Single use: the code can't sign anyone in again
-        await db.otp.deleteMany({ where: { phone, verified: true } });
-        await touchLastActive(user.id);
-
-        return {
-          id: user.id,
-          email: user.email,
-          name: user.firstName,
-          role: user.role,
-          gender: user.gender,
-          isVerified: user.isVerified,
-        };
-      },
+      authorize: authorizePhoneLogin,
     }),
     Credentials({
       id: "admin-credentials",
@@ -80,37 +22,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
       },
-      async authorize(credentials) {
-        const email = credentials?.email as string | undefined;
-        const password = credentials?.password as string | undefined;
-
-        if (!email || !password) return null;
-
-        const { success } = rateLimit(`admin-login:${email}`, {
-          maxAttempts: 5,
-          windowMs: 15 * 60 * 1000,
-        });
-
-        if (!success) return null;
-
-        const user = await db.user.findUnique({
-          where: { email },
-        });
-
-        if (!user || user.role !== "ADMIN" || !user.passwordHash) return null;
-
-        const isValid = await bcrypt.compare(password, user.passwordHash);
-        if (!isValid) return null;
-
-        return {
-          id: user.id,
-          email: user.email,
-          name: user.firstName,
-          role: user.role,
-          gender: user.gender,
-          isVerified: user.isVerified,
-        };
-      },
+      authorize: authorizeAdminLogin,
     }),
   ],
   session: { strategy: "jwt" },

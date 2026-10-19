@@ -4,6 +4,9 @@
  */
 import { isTestPhone } from "@/lib/test-accounts";
 import { db } from "@/lib/db";
+import { scoringSelect } from "@/lib/matching/auto-suggest";
+import { mutuallyAcceptable, type UserForScoring } from "@/lib/matching/score";
+import { isEngaged } from "@/lib/intro/followup";
 
 export interface PairError {
   error: string;
@@ -15,7 +18,7 @@ export async function checkSuggestionPair(recipientId: string, candidateId: stri
 
   const users = await db.user.findMany({
     where: { id: { in: [recipientId, candidateId] } },
-    select: { id: true, gender: true, role: true, status: true, isDeactivated: true, phone: true },
+    select: { id: true, gender: true, role: true, status: true, isDeactivated: true, isFlagged: true, phone: true },
   });
   const recipient = users.find((u) => u.id === recipientId);
   const candidate = users.find((u) => u.id === candidateId);
@@ -28,6 +31,23 @@ export async function checkSuggestionPair(recipientId: string, candidateId: stri
   for (const u of [recipient, candidate]) {
     if (u.status === "SUSPENDED") return { error: "One of them is suspended", status: 400 };
     if (u.isDeactivated) return { error: "One of them has deactivated their account", status: 400 };
+  }
+  // Same rules as automatic suggestions, so the card isn't culled (and refunded) by the next profile save
+  if (recipient.isFlagged || candidate.isFlagged) {
+    return { error: "One of them is flagged (reports): flagged members get no new suggestions", status: 409 };
+  }
+  if ((await isEngaged(recipientId)) || (await isEngaged(candidateId))) {
+    return { error: "One of them said «تمت الخطبة» (engaged): suggestions are paused for them", status: 409 };
+  }
+  const scoring = (await db.user.findMany({
+    where: { id: { in: [recipientId, candidateId] } },
+    select: scoringSelect,
+  })) as unknown as UserForScoring[];
+  const a = scoring.find((u) => u.id === recipientId);
+  const b = scoring.find((u) => u.id === candidateId);
+  if (!a?.profile || !b?.profile) return { error: "One of them has no profile yet", status: 400 };
+  if (!mutuallyAcceptable(a, b)) {
+    return { error: "This pair breaks a dealbreaker (شروطي الأساسية) of one of them", status: 409 };
   }
 
   const either = <A extends string, B extends string>(a: A, b: B) => [

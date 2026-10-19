@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { dateOfBirthError, PREF_AGE_MAX } from "@/lib/validations/profile";
-import { closeSuggestionsBreakingDealbreakers } from "@/lib/suggestions/dealbreaker-sweep";
-import { autoSuggestForUser } from "@/lib/matching/auto-suggest";
+import { PREF_AGE_MAX, profileUpdateRequestSchema } from "@/lib/validations/profile";
+import { refreshOpenSuggestionsInBackground } from "@/lib/suggestions/refresh";
 import { sendAdminAlert } from "@/lib/admin-alert";
 
 /**
@@ -33,16 +32,21 @@ export async function POST(request: Request) {
     if ("error" in result) return result.error;
     const { session } = result;
 
-    const body = await request.json();
-    const { changes, message } = body;
-
-    if (!changes || typeof changes !== "object" || Object.keys(changes).length === 0) {
+    const body = await request.json().catch(() => null);
+    if (!body?.changes || typeof body.changes !== "object" || Object.keys(body.changes).length === 0) {
       return NextResponse.json({ error: "يرجى تحديد التعديلات المطلوبة" }, { status: 400 });
     }
-    if (typeof changes.dateOfBirth === "string" && changes.dateOfBirth) {
-      const dobError = dateOfBirthError(changes.dateOfBirth);
-      if (dobError) return NextResponse.json({ error: dobError }, { status: 400 });
+    // Only the profile's own fields, with the wizards' values and limits (the approval stores them as is)
+    const parsed = profileUpdateRequestSchema.safeParse(body);
+    if (!parsed.success) {
+      const issue = parsed.error.issues[0];
+      const unknownKey = issue?.code === "unrecognized_keys";
+      return NextResponse.json(
+        { error: unknownKey ? "تعديل غير معروف في الطلب" : issue?.message || "بيانات غير صالحة" },
+        { status: 400 },
+      );
     }
+    const { changes, message } = parsed.data;
 
     const userId = session.user.id;
     const prefs: Record<string, unknown> = {};
@@ -87,10 +91,9 @@ export async function POST(request: Request) {
 
     if (Object.keys(prefs).length > 0) {
       await db.profile.update({ where: { userId }, data: prefs });
-      // New preferences: close open suggestions that now break a «شرط أساسي», then fill the gaps
-      closeSuggestionsBreakingDealbreakers(userId)
-        .then(() => autoSuggestForUser(userId))
-        .catch((e) => console.error("Preference change top-up error:", e));
+      // New preferences: rescore the open cards, close those that now break a «شرط أساسي» or fall
+      // under the minimum score, then fill the gaps (same as PUT /api/profile and the quiz)
+      refreshOpenSuggestionsInBackground(userId);
     }
     if (Object.keys(reviewed).length === 0) {
       return NextResponse.json({ message: "تم حفظ تفضيلات الشريك", applied: Object.keys(prefs), requested: false });

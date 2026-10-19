@@ -32,6 +32,7 @@ import type { DealbreakerKey } from "@/lib/matching/score";
 import { dateOfBirthError, maxDateOfBirth, parentInfoSchema } from "@/lib/validations/profile";
 import { normalizePhone } from "@/lib/validations/auth";
 import { splitProfileEdit, buildFillBody } from "@/lib/profile-edit-split";
+import { forViewer } from "@/lib/gendered-copy";
 
 const educationLevels = [
   "ثانوية عامة",
@@ -910,7 +911,7 @@ export default function ProfileEditPage() {
                 <Input
                   value={form.jobCustom}
                   onChange={(e) => update("jobCustom", e.target.value)}
-                  placeholder={gender === "FEMALE" ? "حدّدي وظيفتكِ..." : "حدّد وظيفتك..."}
+                  placeholder={forViewer(gender, "حدّد وظيفتك...", "حدّدي وظيفتكِ...")}
                   aria-label="الوظيفة (نص)"
                   className="mt-2"
                 />
@@ -1117,7 +1118,7 @@ export default function ProfileEditPage() {
                 value={form.aboutMe}
                 onChange={(e) => update("aboutMe", e.target.value)}
                 className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm min-h-[100px] resize-none focus:outline-none focus:ring-2 focus:ring-ring"
-                placeholder="تحدث عن نفسك واهتماماتك وطموحاتك..."
+                placeholder={forViewer(gender, "تحدث عن نفسك واهتماماتك وطموحاتك...", "تحدثي عن نفسكِ واهتماماتكِ وطموحاتكِ...")}
                 maxLength={500}
               />
               <p className="text-xs text-muted-foreground text-left" dir="ltr">
@@ -1134,7 +1135,7 @@ export default function ProfileEditPage() {
                   update("partnerExpectations", e.target.value)
                 }
                 className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm min-h-[100px] resize-none focus:outline-none focus:ring-2 focus:ring-ring"
-                placeholder="صف المواصفات التي تبحث عنها في شريك حياتك..."
+                placeholder={forViewer(gender, "صف المواصفات التي تبحث عنها في شريكة حياتك...", "صفي المواصفات التي تبحثين عنها في شريك حياتكِ...")}
                 maxLength={500}
               />
               <p className="text-xs text-muted-foreground text-left" dir="ltr">
@@ -1159,7 +1160,7 @@ export default function ProfileEditPage() {
                 value={form.familyValues}
                 onChange={(e) => update("familyValues", e.target.value)}
                 className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm min-h-[80px] resize-none focus:outline-none focus:ring-2 focus:ring-ring"
-                placeholder="ما هي القيم التي تعتز بها في الحياة الأسرية..."
+                placeholder={forViewer(gender, "ما هي القيم التي تعتز بها في الحياة الأسرية...", "ما هي القيم التي تعتزين بها في الحياة الأسرية...")}
                 maxLength={500}
               />
               <p className="text-xs text-muted-foreground text-left" dir="ltr">
@@ -1455,7 +1456,7 @@ export default function ProfileEditPage() {
                   update("healthConditions", e.target.value)
                 }
                 className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm min-h-[80px] resize-none focus:outline-none focus:ring-2 focus:ring-ring"
-                placeholder="أي حالات صحية تود الإفصاح عنها..."
+                placeholder={forViewer(gender, "أي حالات صحية تود الإفصاح عنها...", "أي حالات صحية تودين الإفصاح عنها...")}
                 maxLength={500}
               />
             </div>

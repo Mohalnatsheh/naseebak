@@ -90,8 +90,9 @@ export async function openCounts(userIds: string[]): Promise<Map<string, number>
   const [asRecipient, asCandidate, legacy] = await Promise.all([
     db.suggestion.groupBy({
       by: ["recipientId"],
-      // Same as openMutualWhere: a partner who left doesn't fill a slot
-      where: { ...open, recipientId: { in: userIds }, recipientDecision: null, candidate: { isDeactivated: false, status: { not: "SUSPENDED" } }, OR: [fresh, { candidate: here }] },
+      // Same as openMutualWhere: a partner who left doesn't fill a slot; nor does a card hidden from
+      // the candidate (slotMutualWhere)
+      where: { ...open, recipientId: { in: userIds }, recipientDecision: null, hiddenFromCandidate: false, candidate: { isDeactivated: false, status: { not: "SUSPENDED" } }, OR: [fresh, { candidate: here }] },
       _count: true,
     }),
     db.suggestion.groupBy({
@@ -342,6 +343,10 @@ async function generate(userId: string): Promise<SuggestOutcome> {
     const ids = ranked.map((r) => r.candidate.id);
     if (creditOnInterest) {
       busy = await openCounts(ids);
+      // People with a free slot first (score order within each group): a card they can see at once
+      // beats a slightly better one hidden behind their full list (G53, production: 300 of 698 hidden)
+      const full = (id: string) => (busy.get(id) ?? 0) >= MAX_OPEN_SUGGESTIONS;
+      ranked = [...ranked].sort((a, b) => Number(full(a.candidate.id)) - Number(full(b.candidate.id)) || b.score - a.score);
     } else {
       const busy = await weeklyCounts(ids, weekAgo);
       ranked = ranked.filter((r) => (busy.get(r.candidate.id) ?? 0) < WEEKLY_FREE_SUGGESTIONS);

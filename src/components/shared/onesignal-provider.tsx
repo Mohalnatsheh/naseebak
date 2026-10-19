@@ -40,6 +40,14 @@ export function OneSignalProvider() {
           await OneSignal.User.PushSubscription.optIn().catch((e: unknown) => console.warn("[OneSignal] opt-in failed:", e));
         }
 
+        // Allowed later on this page (a browser prompt shown before the SDK was ready, or the
+        // browser's own settings): subscribe as soon as the permission turns to granted
+        OneSignal.Notifications.addEventListener("permissionChange", (granted: boolean) => {
+          if (granted && !OneSignal.User.PushSubscription.optedIn) {
+            OneSignal.User.PushSubscription.optIn().catch((e: unknown) => console.warn("[OneSignal] opt-in failed:", e));
+          }
+        });
+
         // Save player ID to backend
         const playerId = await OneSignal.User.PushSubscription.id;
         if (playerId) {

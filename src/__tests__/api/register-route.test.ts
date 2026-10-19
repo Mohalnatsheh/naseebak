@@ -48,4 +48,14 @@ describe("POST /api/auth/register", () => {
     const res = await POST(req(body));
     expect(res.status).toBe(409);
   });
+
+  it("G58: a registered number is revealed only after a verified code (409 PHONE_EXISTS)", async () => {
+    db.user.findUnique.mockResolvedValue({ id: "u0" });
+    const res = await POST(req(body));
+    expect(res.status).toBe(409);
+    expect((await res.json()).code).toBe("PHONE_EXISTS");
+    db.otp.findFirst.mockResolvedValue(null);
+    const unverified = await POST(req(body));
+    expect(unverified.status).toBe(400);
+  });
 });

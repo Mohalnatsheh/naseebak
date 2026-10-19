@@ -37,6 +37,11 @@ vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/notify", () => notifyMod);
 vi.mock("@/lib/credits", () => credits);
 vi.mock("@/lib/settings", () => ({ getCycleFlags: vi.fn(async () => flags.value) }));
+const reports = vi.hoisted(() => ({
+  pausedForReview: vi.fn(async (): Promise<Set<string>> => new Set()),
+  isPausedForReview: vi.fn(() => false),
+}));
+vi.mock("@/lib/reports", () => reports);
 vi.mock("@/lib/matching/auto-suggest", () => ({ autoSuggestForUser: vi.fn(async () => 0) }));
 
 import { applyIntroOutcome } from "@/lib/intro/outcome";
@@ -68,6 +73,7 @@ beforeEach(() => {
   db.mutualMatch.create.mockImplementation(async ({ data }: { data: object }) => ({ id: "m1", ...data }));
   db.mutualMatch.update.mockResolvedValue({});
   db.$executeRaw.mockResolvedValue(1);
+  reports.pausedForReview.mockResolvedValue(new Set());
 });
 
 describe("applyIntroOutcome", () => {
@@ -109,6 +115,19 @@ describe("applyIntroOutcome", () => {
     expect(data).not.toHaveProperty("maleGuardianShareAt");
     expect(db.conversation.create).not.toHaveBeenCalled();
   });
+
+  it.each([["CHAT", "CHAT"], ["FAMILY", "FAMILY"], ["CHAT", "FAMILY"]])(
+    "G60: %s+%s with a side paused for review → NONE (no chat, no guardian stamp)",
+    async (recipient, candidate) => {
+      db.suggestion.findUnique.mockResolvedValue(suggestion(recipient, candidate));
+      reports.pausedForReview.mockResolvedValue(new Set(["u1"]));
+      expect(await applyIntroOutcome(match, ON)).toBe("NONE");
+      expect(reports.pausedForReview).toHaveBeenCalledWith(["f1", "u1"]);
+      expect(db.introRequest.create).not.toHaveBeenCalled();
+      expect(db.conversation.create).not.toHaveBeenCalled();
+      expect(db.mutualMatch.update).not.toHaveBeenCalled();
+    },
+  );
 
   it("CHAT+CHAT with chat flag off → NONE", async () => {
     db.suggestion.findUnique.mockResolvedValue(suggestion("CHAT", "CHAT"));

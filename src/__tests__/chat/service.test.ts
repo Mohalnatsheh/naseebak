@@ -12,7 +12,7 @@ const ably = vi.hoisted(() => ({ publishChatEvent: vi.fn() }));
 const notifyMod = vi.hoisted(() => ({ notify: vi.fn(), notifyMany: vi.fn() }));
 const settings = vi.hoisted(() => ({ getCycleFlags: vi.fn() }));
 const rl = vi.hoisted(() => ({ rateLimit: vi.fn() }));
-const reports = vi.hoisted(() => ({ fileReport: vi.fn() }));
+const reports = vi.hoisted(() => ({ fileReport: vi.fn(), pausedForReview: vi.fn(async (): Promise<Set<string>> => new Set()) }));
 vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/ably", () => ably);
 vi.mock("@/lib/notify", () => notifyMod);
@@ -63,6 +63,7 @@ beforeEach(() => {
   db.conversation.updateMany.mockResolvedValue({ count: 1 });
   db.introRequest.updateMany.mockResolvedValue({ count: 0 });
   db.block.findMany.mockResolvedValue([]);
+  reports.pausedForReview.mockResolvedValue(new Set());
 });
 
 /** u1 blocked f1: the blocker keeps a read-only chat (a block the other way hides it, see listConversations) */
@@ -97,6 +98,15 @@ describe("sendMessage", () => {
     expect(err).toBeInstanceOf(IntroError);
     expect(err.code).toBe("NOT_ALLOWED");
     expect(err.message).toContain("غير نشط");
+    expect(db.message.create).not.toHaveBeenCalled();
+  });
+
+  it("G60: refuses while either side is paused for a report review", async () => {
+    const c = conv();
+    db.conversation.findUnique.mockResolvedValue(c);
+    reports.pausedForReview.mockResolvedValue(new Set(["f1"]));
+    await expectCode(sendMessage({ conversationId: c.id, senderId: "u1", body: "مرحبا" }), "NOT_ALLOWED");
+    expect(reports.pausedForReview).toHaveBeenCalledWith(["u1", "f1"]);
     expect(db.message.create).not.toHaveBeenCalled();
   });
 
@@ -253,6 +263,32 @@ describe("endConversation", () => {
       expect.objectContaining({ reporterId: "u1", reportedId: "f1", reason: "HARASSMENT", conversationId: c.id })
     );
     expect(db.block.create).toHaveBeenCalledWith({ data: { blockerId: "u1", blockedId: "f1" } });
+  });
+});
+
+describe("endConversation on a chat that isn't open (G61)", () => {
+  it.each([
+    ["expired", () => conv({ status: "EXPIRED", expiresAt: new Date(Date.now() - DAY) })],
+    ["ended", () => conv({ status: "ENDED" })],
+  ])("refuses to end an %s chat and tells nobody", async (_label, make) => {
+    const c = make();
+    db.conversation.findUnique.mockResolvedValue(c);
+    await expectCode(endConversation({ conversationId: c.id, userId: "u1" }), "NOT_ALLOWED");
+    expect(db.conversation.update).not.toHaveBeenCalled();
+    expect(notifyMod.notify).not.toHaveBeenCalled();
+  });
+
+  it("a blocked person can't end the chat (no «أنهى الطرف الآخر» to the blocker), but can still report", async () => {
+    const c = conv();
+    db.conversation.findUnique.mockResolvedValue(c);
+    db.block.findFirst.mockImplementation(async ({ where }: { where: { OR?: unknown; blockerId?: string } }) =>
+      where.OR ? { id: "b" } : null,
+    );
+    await expectCode(endConversation({ conversationId: c.id, userId: "u1" }), "NOT_ALLOWED");
+    await endConversation({ conversationId: c.id, userId: "u1", report: { reason: "HARASSMENT" } });
+    expect(db.conversation.update).not.toHaveBeenCalled();
+    expect(notifyMod.notify).not.toHaveBeenCalled();
+    expect(reports.fileReport).toHaveBeenCalledTimes(1);
   });
 });
 

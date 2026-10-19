@@ -61,18 +61,14 @@ export async function POST(request: Request) {
       select: { id: true },
     });
 
-    // If called from register context and phone is already registered,
-    // return immediately without generating or sending OTP
-    const context = body.context;
-    if (context === "register" && existingUserForGate) {
-      return NextResponse.json({
-        message: "رقم الهاتف مسجل مسبقاً",
-        userExists: true,
-      });
-    }
+    // Sign-up never tells whether a number is registered (anyone could test numbers on a marriage
+    // site): the code is always sent and the answer is the same. Only a verified code reveals it
+    // (POST /api/auth/register → 409 PHONE_EXISTS, and the register page signs the member in).
+    const forRegister = body.context === "register";
 
-    // If phone is new and registration is closed, block OTP
-    if (!existingUserForGate) {
+    // Registration closed: block OTP for new numbers (for sign-up, for every number, so the
+    // answer doesn't depend on whether the number exists)
+    if (forRegister || !existingUserForGate) {
       const regOpen = await isRegistrationOpen();
       if (!regOpen) {
         return NextResponse.json(
@@ -123,6 +119,7 @@ export async function POST(request: Request) {
       }
     }
 
+    if (forRegister) return NextResponse.json({ message: "تم إرسال رمز التحقق" });
     return NextResponse.json({
       message: "تم إرسال رمز التحقق",
       userExists: !!existingUserForGate,

@@ -14,6 +14,7 @@ import type { IntroPreference } from "@prisma/client";
 import { db } from "@/lib/db";
 import type { CycleFlags } from "@/lib/settings";
 import { CHAT_TTL_DAYS } from "@/lib/intro/requests";
+import { pausedForReview } from "@/lib/reports";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -59,6 +60,9 @@ export async function applyIntroOutcome(match: OutcomeMatch, flags: CycleFlags):
   const prefs = await readIntroPreferences(match);
   const outcome = outcomeFor(prefs, flags);
   if (outcome === "NONE") return outcome;
+  // Like assertMatchOpen: nothing opens (no chat, no guardian stamp) while either side is paused for a
+  // report review — the match shows the request buttons, which stay refused until the review is done
+  if ((await pausedForReview([match.femaleId, match.maleId])).size > 0) return "NONE";
 
   await db.$transaction(async (tx) => {
     // Serialise concurrent calls (creation + lazy heal) on the match row before the done-check

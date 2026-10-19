@@ -84,7 +84,8 @@ export default function PaymentsPage() {
 function PaymentsContent() {
   // New cycle: a credit is spent per family/chat request, suggestions are free;
   // credit on interest: a credit is spent on "مهتم" instead, requests are free
-  const { counts: { flags }, refreshUnread, refreshProfile } = useDashboardData();
+  // `switchesLoading`: the copy depends on the switch flags, so wait for them (no legacy-copy flash)
+  const { counts: { flags }, refreshUnread, refreshProfile, loading: switchesLoading } = useDashboardData();
   const perRequest = flags.introRequests;
   const creditOnInterest = !!flags.creditOnInterest;
   const router = useRouter();
@@ -246,7 +247,7 @@ function PaymentsContent() {
     loadData();
   }
 
-  if (loading) {
+  if (loading || switchesLoading) {
     return (
       <div className="flex flex-col items-center justify-center py-20 gap-4">
         <div className="relative">

@@ -18,6 +18,7 @@ import { notify } from "@/lib/notify";
 import { CHAT_NOTICE_PREFERENCE } from "@/lib/notification-prefs";
 import { publishChatEvent } from "@/lib/ably";
 import { sendAdminAlert } from "@/lib/admin-alert";
+import { isUnavailable, loadEngagements } from "@/lib/matches/state";
 
 /** Reports from this many different people flag an account (no new suggestions, admin attention) */
 export const AUTO_FLAG_REPORTS = 3;
@@ -25,6 +26,8 @@ export const AUTO_FLAG_REPORTS = 3;
 const MAX_STORED_DETAILS = 5000;
 /** `Conversation.endedByAdminId` of a chat paused while its member's reports are reviewed (not an admin id) */
 export const REPORT_PAUSE_MARKER = "system:report-review";
+/** `endedByAdminId` of a paused chat that ended for good because its match closed while it was paused */
+export const PAUSED_MATCH_CLOSED_MARKER = "system:match-closed";
 const AUTO_FLAG_PREFIX = "Auto-flagged";
 
 const REASON_LABEL: Record<ReportReason, string> = {
@@ -173,17 +176,54 @@ async function pauseChatsFor(userId: string): Promise<number> {
   return paused;
 }
 
-/** Resume the member's paused chats once they are no longer under review (and neither is the partner). */
+/**
+ * A paused chat whose match closed in the meantime ends for good instead (the pause marker is replaced,
+ * so a later review never reopens it). Used by the closers: block, «لم يحصل نصيب», «تمت الخطبة» on
+ * another match, leaving. `ender` is what an ACTIVE chat closed the same way would get.
+ */
+export async function endPausedChats(
+  match: Prisma.MutualMatchWhereInput,
+  ender: { endedById?: string; endedByAdminId?: string },
+): Promise<number> {
+  const { count } = await db.conversation.updateMany({
+    where: { status: "ENDED", endedByAdminId: REPORT_PAUSE_MARKER, match },
+    data: { endedById: ender.endedById ?? null, endedByAdminId: ender.endedByAdminId ?? null },
+  });
+  return count;
+}
+
+/**
+ * Resume the member's paused chats once they are no longer under review (and neither is the partner).
+ * A chat whose match died while it was paused (a block between the two, «لم يحصل نصيب» / «تمت الخطبة»
+ * on it, either side engaged on another match, or a partner who left / was suspended) is not resumed:
+ * it ends for good (PAUSED_MATCH_CLOSED_MARKER).
+ */
 async function resumeChatsFor(userId: string): Promise<number> {
   const now = new Date();
+  const person = { select: { isDeactivated: true, status: true } };
   const chats = await db.conversation.findMany({
     where: { status: "ENDED", endedByAdminId: REPORT_PAUSE_MARKER, match: { OR: [{ femaleId: userId }, { maleId: userId }] } },
-    select: { id: true, expiresAt: true, endedAt: true, match: { select: { femaleId: true, maleId: true } } },
+    select: {
+      id: true, expiresAt: true, endedAt: true,
+      match: {
+        select: {
+          id: true, femaleId: true, maleId: true, femaleOutcome: true, maleOutcome: true,
+          female: person, male: person,
+        },
+      },
+    },
   });
   let resumed = 0;
   for (const c of chats) {
     const partner = c.match.femaleId === userId ? c.match.maleId : c.match.femaleId;
     if ((await pausedForReview([partner])).size > 0) continue;
+    if (await matchClosedForChat(c.match)) {
+      await db.conversation.updateMany({
+        where: { id: c.id, status: "ENDED", endedByAdminId: REPORT_PAUSE_MARKER },
+        data: { endedByAdminId: PAUSED_MATCH_CLOSED_MARKER },
+      });
+      continue;
+    }
     // The days spent paused are given back
     const pausedMs = c.endedAt ? Math.max(0, now.getTime() - c.endedAt.getTime()) : 0;
     const { count } = await db.conversation.updateMany({
@@ -195,6 +235,28 @@ async function resumeChatsFor(userId: string): Promise<number> {
     await tellBoth(c, "استُؤنفت المحادثة", "انتهت المراجعة ويمكنكما متابعة المحادثة.");
   }
   return resumed;
+}
+
+/** Did the match behind a paused chat close while it was paused? */
+async function matchClosedForChat(m: {
+  id: string; femaleId: string; maleId: string; femaleOutcome: string | null; maleOutcome: string | null;
+  female: { isDeactivated: boolean; status: string } | null; male: { isDeactivated: boolean; status: string } | null;
+}): Promise<boolean> {
+  const outcomes = [m.femaleOutcome, m.maleOutcome];
+  if (outcomes.includes("NOT_A_MATCH") || outcomes.includes("ENGAGED")) return true;
+  if (isUnavailable(m.female) || isUnavailable(m.male)) return true;
+  const block = await db.block.findFirst({
+    where: {
+      OR: [
+        { blockerId: m.femaleId, blockedId: m.maleId },
+        { blockerId: m.maleId, blockedId: m.femaleId },
+      ],
+    },
+    select: { id: true },
+  });
+  if (block) return true;
+  const engagements = await loadEngagements([m.femaleId, m.maleId]);
+  return engagements.elsewhere(m.femaleId, m.id) || engagements.elsewhere(m.maleId, m.id);
 }
 
 /**

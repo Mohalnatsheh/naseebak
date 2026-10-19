@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
 import Image from "next/image";
 import {
+  BellOff,
   BellRing,
   Check,
   ChevronLeft,
@@ -11,6 +12,7 @@ import {
   MoreVertical,
   RotateCw,
   Share,
+  SlidersHorizontal,
   SquarePlus,
   X,
 } from "lucide-react";
@@ -21,6 +23,8 @@ import { forViewer } from "@/lib/gendered-copy";
 import { requestPushPermission } from "@/lib/push-client";
 import {
   currentDevice,
+  NO_CHROME_PARAM,
+  openInAnyBrowserUrl,
   openInBrowserUrl,
   pushPermission,
   pushStage,
@@ -122,7 +126,7 @@ function Progress({ device, stage }: { device: Device; stage: PushStage }) {
 /* ─── Drawings of what to tap (no screenshots: they go out of date with every iOS release) ─── */
 
 function Mock({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={cn("rounded-2xl border border-border bg-muted/40 p-3", className)} aria-hidden="true">{children}</div>;
+  return <div className={cn("overflow-hidden rounded-2xl border border-border bg-muted/40 p-3", className)} aria-hidden="true">{children}</div>;
 }
 
 /** The thing to tap: gold ring + gentle pulse */
@@ -149,6 +153,13 @@ function StepCard({ n, title, children }: { n: number; title: ReactNode; childre
 
 const B = ({ children }: { children: ReactNode }) => <span className="font-bold text-foreground">{children}</span>;
 
+/** What the in-app browser's menu item is called (Instagram names it differently per phone) */
+function inAppMenuLabel(device: Device): { ar: string; en: string } {
+  if (device.os === "ios") return { ar: "فتح في المتصفح الخارجي", en: "Open in external browser" };
+  if (device.inApp === "instagram") return { ar: "فتح في Chrome", en: "Open in Chrome" };
+  return { ar: "فتح في المتصفح", en: "Open in browser" };
+}
+
 /** Instagram / Facebook top bar with the menu button */
 function InAppBarMock({ device }: { device: Device }) {
   return (
@@ -162,7 +173,7 @@ function InAppBarMock({ device }: { device: Device }) {
         <div className="rounded-lg px-2.5 py-2 text-xs text-muted-foreground">Copy link</div>
         <Tap className="w-full justify-start gap-2 px-2.5 py-2 text-xs font-semibold text-foreground">
           <ExternalLink className="h-4 w-4" />
-          {device.os === "ios" ? "Open in external browser" : "Open in Chrome"}
+          {inAppMenuLabel(device).en}
         </Tap>
       </div>
     </Mock>
@@ -247,6 +258,36 @@ function AllowPromptMock() {
   );
 }
 
+/** Android Chrome's address bar: the crossed bell (quiet prompt) or the site settings button */
+function ChromeBarMock({ icon, children }: { icon: ReactNode; children?: ReactNode }) {
+  return (
+    <Mock>
+      <div className="flex items-center gap-2 rounded-xl bg-card px-3 py-2 text-muted-foreground shadow-sm" dir="ltr">
+        <Tap className="h-8 w-8 text-foreground">{icon}</Tap>
+        <span className="flex-1 rounded-lg bg-muted px-2 py-1 text-xs">naseebak.com</span>
+        <MoreVertical className="h-5 w-5" />
+      </div>
+      {children}
+    </Mock>
+  );
+}
+
+function ChromeNotificationsRowMock() {
+  return (
+    <div className="mt-2 rounded-xl bg-card p-1.5 shadow-sm">
+      <Tap className="w-full justify-between px-3 py-2.5 text-sm font-semibold text-foreground">
+        <span className="flex items-center gap-2">
+          <BellRing className="h-4 w-4" />
+          الإشعارات · Notifications
+        </span>
+        <span dir="ltr" className="flex h-5 w-9 items-center justify-end rounded-full bg-primary px-0.5">
+          <span className="h-4 w-4 rounded-full bg-white" />
+        </span>
+      </Tap>
+    </div>
+  );
+}
+
 /* ─── The flow ─── */
 
 export function PushSetupFlow({
@@ -262,6 +303,13 @@ export function PushSetupFlow({
 }) {
   const { device, permission, stage, refresh } = usePushState();
   const [busy, setBusy] = useState(false);
+  // The "open in Chrome/Safari" tap didn't leave this page (no Chrome, old iOS, blocked by the app);
+  // Android also lands here with ?nochrome=1 when Chrome couldn't open
+  const [stuck, setStuck] = useState(
+    () => typeof window !== "undefined" && new URLSearchParams(window.location.search).has(NO_CHROME_PARAM)
+  );
+  // «تفعيل» answered without a pop-up (Chrome's quiet bell, or it was closed)
+  const [noPrompt, setNoPrompt] = useState(false);
   const v = (m: string, f: string) => forViewer(gender, m, f);
 
   if (!device || !stage || !permission) return null;
@@ -271,17 +319,27 @@ export function PushSetupFlow({
     try {
       await requestPushPermission();
     } finally {
+      if (pushPermission() === "default") setNoPrompt(true);
       refresh();
       setBusy(false);
     }
+  }
+
+  function watchLeave() {
+    setTimeout(() => {
+      if (document.visibilityState === "visible") setStuck(true);
+    }, 2500);
   }
 
   const browserName = device.os === "ios" ? "Safari" : "Chrome";
   let body: ReactNode;
 
   if (stage === "browser") {
-    const href = openInBrowserUrl(device, `${INSTALL_GUIDE_URL}?from=app`);
+    const target = `${INSTALL_GUIDE_URL}?from=app`;
+    const href = openInBrowserUrl(device, target);
+    const anyBrowser = openInAnyBrowserUrl(device, target);
     const appName = device.inApp ? IN_APP_NAME[device.inApp] : null;
+    const menu = inAppMenuLabel(device);
     body = (
       <div className="space-y-4">
         <div className="space-y-1.5">
@@ -297,13 +355,30 @@ export function PushSetupFlow({
             {v("اضغط الزر لينتقل نصيبك إلى", "اضغطي الزر لينتقل نصيبك إلى")} {browserName}:
           </p>
         </div>
-        {href && device.inApp && (
+        {href && (device.inApp || device.os === "android") && (
           <Button asChild size="lg" className="h-14 w-full gap-2 text-base">
-            <a href={href}>
+            <a href={href} onClick={watchLeave}>
               <ExternalLink className="h-5 w-5" />
               افتح في {browserName}
             </a>
           </Button>
+        )}
+        {stuck && (
+          <div className="space-y-3 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3">
+            <p className="text-sm font-semibold leading-relaxed">
+              {anyBrowser
+                ? v("لم ينتقل إلى Chrome؟ قد لا يكون Chrome على هاتفك. افتحه في أي متصفح آخر:", "لم ينتقل إلى Chrome؟ قد لا يكون Chrome على هاتفكِ. افتحيه في أي متصفح آخر:")
+                : v("لم ينتقل؟ استخدم الطريقة اليدوية بالأسفل.", "لم ينتقل؟ استخدمي الطريقة اليدوية بالأسفل.")}
+            </p>
+            {anyBrowser && (
+              <Button asChild variant="outline" size="lg" className="h-12 w-full gap-2 bg-card">
+                <a href={anyBrowser}>
+                  <ExternalLink className="h-4 w-4" />
+                  افتح في متصفح آخر
+                </a>
+              </Button>
+            )}
+          </div>
         )}
         <p className="rounded-xl bg-primary/5 p-3 text-xs leading-relaxed text-foreground/80">
           {v(
@@ -312,16 +387,16 @@ export function PushSetupFlow({
           )}
         </p>
         {device.inApp ? (
-          <details className="group rounded-xl border border-border p-3">
+          <details key={stuck ? "open" : "closed"} open={stuck} className="group rounded-xl border border-border p-3">
             <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between text-sm font-semibold">
               لم يفتح؟ الطريقة اليدوية
               <ChevronLeft className="h-4 w-4 transition-transform group-open:-rotate-90" />
             </summary>
             <ol className="mt-3 space-y-4">
-              <StepCard n={1} title={<>اضغط زر <B>{device.os === "ios" ? "⋯" : "⋮"}</B> في أعلى الشاشة، ثم <B>«{device.os === "ios" ? "فتح في المتصفح الخارجي" : "فتح في Chrome"}»</B></>}>
+              <StepCard n={1} title={<>اضغط زر <B>{device.os === "ios" ? "⋯" : "⋮"}</B> في أعلى الشاشة، ثم <B>«{menu.ar}»</B></>}>
                 <InAppBarMock device={device} />
               </StepCard>
-              <StepCard n={2} title={<>أو انسخ الرابط والصقه في {browserName}:</>}>
+              <StepCard n={2} title={<>أو انسخ الرابط والصقه في {device.os === "ios" ? "Safari" : "Chrome أو أي متصفح"}:</>}>
                 <CopyLink />
               </StepCard>
             </ol>
@@ -368,9 +443,27 @@ export function PushSetupFlow({
         </div>
         <Button size="lg" onClick={allow} disabled={busy} className="h-14 w-full gap-2 text-base">
           <BellRing className="h-5 w-5" />
-          تفعيل الإشعارات
+          {noPrompt ? v("حاول مرة أخرى", "حاولي مرة أخرى") : "تفعيل الإشعارات"}
         </Button>
-        <AllowPromptMock />
+        {noPrompt ? (
+          <div className="space-y-3 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3">
+            <p className="text-sm font-semibold leading-relaxed">لم تظهر النافذة؟</p>
+            {device.os === "android" ? (
+              <>
+                <p className="text-sm leading-relaxed">
+                  {v("اضغط رمز", "اضغطي رمز")} <B>الجرس</B> {v("في شريط العنوان أعلى الشاشة، ثم اختر", "في شريط العنوان أعلى الشاشة، ثم اختاري")} <B>«السماح»</B>.
+                </p>
+                <ChromeBarMock icon={<BellOff className="h-5 w-5" />} />
+              </>
+            ) : (
+              <p className="text-sm leading-relaxed">
+                {v("اضغط الزر مرة أخرى. إن لم يحدث شيء افتح", "اضغطي الزر مرة أخرى. إن لم يحدث شيء افتحي")} <B>الإعدادات ← الإشعارات ← نصيبك</B> {v("وفعّل «السماح بالإشعارات».", "وفعّلي «السماح بالإشعارات».")}
+              </p>
+            )}
+          </div>
+        ) : (
+          <AllowPromptMock />
+        )}
       </div>
     );
   } else if (stage === "blocked") {
@@ -382,7 +475,20 @@ export function PushSetupFlow({
             {v("سبق أن اخترت «عدم السماح»، فلا يمكن طلبها من جديد من داخل الموقع. افتحها من الإعدادات:", "سبق أن اخترتِ «عدم السماح»، فلا يمكن طلبها من جديد من داخل الموقع. افتحيها من الإعدادات:")}
           </p>
         </div>
-        <UnblockSteps device={device} />
+        {device.os === "android" && device.browser === "chrome" && !device.standalone ? (
+          <ol className="space-y-5">
+            <StepCard n={1} title={<>{v("اضغط", "اضغطي")} زر <B>الإعدادات</B> بجانب الرابط في أعلى الشاشة</>}>
+              <ChromeBarMock icon={<SlidersHorizontal className="h-5 w-5" />} />
+            </StepCard>
+            <StepCard n={2} title={<>{v("فعّل", "فعّلي")} <B>«الإشعارات»</B> {v("ثم ارجع إلى هنا", "ثم ارجعي إلى هنا")}</>}>
+              <Mock>
+                <ChromeNotificationsRowMock />
+              </Mock>
+            </StepCard>
+          </ol>
+        ) : (
+          <UnblockSteps device={device} />
+        )}
         <Button variant="outline" size="lg" onClick={() => window.location.reload()} className="h-12 w-full gap-2">
           <RotateCw className="h-4 w-4" />
           {v("فعّلتها، تحقّق الآن", "فعّلتها، تحقّقي الآن")}

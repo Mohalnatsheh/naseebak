@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { detectDevice, openInBrowserUrl, pushStage } from "@/lib/install-env";
+import { detectDevice, openInAnyBrowserUrl, openInBrowserUrl, pushStage } from "@/lib/install-env";
 
 const IOS_SAFARI = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1";
 const IOS_CHROME = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/130.0 Mobile/15E148 Safari/604.1";
@@ -46,7 +46,9 @@ describe("pushStage", () => {
     expect(pushStage(detectDevice(ANDROID_CHROME), "default")).toBe("allow");
     expect(pushStage(iosApp, "denied")).toBe("blocked");
     expect(pushStage(iosApp, "granted")).toBe("done");
-    expect(pushStage(detectDevice(ANDROID_CHROME), "unsupported")).toBe("none");
+    // An Android browser without push gets "open in Chrome", never a dead end
+    expect(pushStage(detectDevice(ANDROID_CHROME), "unsupported")).toBe("browser");
+    expect(pushStage(detectDevice("Mozilla/5.0 (Windows NT 10.0) Chrome/130.0"), "unsupported")).toBe("none");
   });
 });
 
@@ -54,8 +56,14 @@ describe("openInBrowserUrl", () => {
   const url = "https://naseebak.com/dashboard/install?from=instagram";
   it("opens Chrome on Android with the page as fallback", () => {
     expect(openInBrowserUrl(detectDevice(ANDROID_FB), url)).toBe(
-      "intent://naseebak.com/dashboard/install?from=instagram#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=https%3A%2F%2Fnaseebak.com%2Fdashboard%2Finstall%3Ffrom%3Dinstagram;end"
+      "intent://naseebak.com/dashboard/install?from=instagram#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=https%3A%2F%2Fnaseebak.com%2Fdashboard%2Finstall%3Ffrom%3Dinstagram%26nochrome%3D1;end"
     );
+  });
+  it("Android without Chrome: any browser (default or chooser); nothing elsewhere", () => {
+    expect(openInAnyBrowserUrl(detectDevice(ANDROID_FB), url)).toBe(
+      "intent://naseebak.com/dashboard/install?from=instagram#Intent;scheme=https;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;end"
+    );
+    expect(openInAnyBrowserUrl(detectDevice(IOS_INSTAGRAM), url)).toBeNull();
   });
   it("opens Safari on iPhone, nothing on desktop", () => {
     expect(openInBrowserUrl(detectDevice(IOS_INSTAGRAM), url)).toBe("x-safari-https://naseebak.com/dashboard/install?from=instagram");

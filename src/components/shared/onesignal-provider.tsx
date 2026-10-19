@@ -34,6 +34,12 @@ export function OneSignalProvider() {
         // Sign-out now unlinks this device, and permission requests go through OneSignal
         markOneSignalReady();
 
+        // Allowed in the browser but not subscribed (allowed before OneSignal loaded, or opted out
+        // earlier): subscribe now, so "allowed" always means pushes arrive
+        if (typeof Notification !== "undefined" && Notification.permission === "granted" && !OneSignal.User.PushSubscription.optedIn) {
+          await OneSignal.User.PushSubscription.optIn().catch((e: unknown) => console.warn("[OneSignal] opt-in failed:", e));
+        }
+
         // Save player ID to backend
         const playerId = await OneSignal.User.PushSubscription.id;
         if (playerId) {

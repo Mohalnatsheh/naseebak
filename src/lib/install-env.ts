@@ -73,6 +73,8 @@ export function pushStage(device: Device, permission: PushPermission): PushStage
   if (permission === "denied") return "blocked";
   if (permission === "default") return "allow";
   if (device.os === "ios" && !device.standalone) return device.browser === "safari" || device.browser === "chrome" ? "install" : "browser";
+  // Android browsers without push (some makers' own browsers): open Chrome instead of a dead end
+  if (device.os === "android") return "browser";
   return "none";
 }
 
@@ -84,9 +86,25 @@ export function pushStage(device: Device, permission: PushPermission): PushStage
 export function openInBrowserUrl(device: Device, url: string): string | null {
   const u = new URL(url);
   if (device.os === "android") {
-    const fallback = encodeURIComponent(u.href);
+    // No Chrome (or turned off): Android loads the fallback here, which offers any other browser
+    const back = new URL(u.href);
+    back.searchParams.set(NO_CHROME_PARAM, "1");
+    const fallback = encodeURIComponent(back.href);
     return `intent://${u.host}${u.pathname}${u.search}#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=${fallback};end`;
   }
   if (device.os === "ios") return `x-safari-${u.href}`;
   return null;
+}
+
+/** Set on the page Android falls back to when Chrome couldn't open */
+export const NO_CHROME_PARAM = "nochrome";
+
+/**
+ * Android only: open `url` in the phone's default browser (Samsung Internet, Firefox…) or let the
+ * member pick one — for phones without Chrome. Null elsewhere.
+ */
+export function openInAnyBrowserUrl(device: Device, url: string): string | null {
+  if (device.os !== "android") return null;
+  const u = new URL(url);
+  return `intent://${u.host}${u.pathname}${u.search}#Intent;scheme=https;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;end`;
 }

@@ -166,6 +166,7 @@ async function isBlocked(a: string, b: string): Promise<boolean> {
 const INACTIVE_MESSAGE = "هذا الحساب غير نشط حالياً";
 const MATCH_CLOSED_MESSAGE = "انتهى هذا التوافق";
 const UNAVAILABLE_MESSAGE = "لم يعد هذا التوافق متاحاً";
+const PARTNER_NOT_SHARING_MESSAGE = "لا يمكن إتمام التعارف العائلي حالياً لأن الطرف الآخر لم يعد يشارك بيانات وليّ الأمر";
 const PAUSED_MESSAGE = "هذا التوافق متوقف مؤقتاً لمراجعة من فريق نصيبك، حاول لاحقاً";
 
 /**
@@ -540,9 +541,7 @@ export async function respondToIntroRequest(args: {
       recordConsent = true;
     }
     // Both families must be sharing at the moment of acceptance
-    if (!senderGuardian?.shareConsentAt) {
-      throw new IntroError("NOT_ALLOWED", "لا يمكن إتمام التعارف العائلي حالياً لأن الطرف الآخر لم يعد يشارك بيانات وليّ الأمر");
-    }
+    if (!senderGuardian?.shareConsentAt) throw new IntroError("NOT_ALLOWED", PARTNER_NOT_SHARING_MESSAGE);
   } else {
     if (!(await getCycleFlags()).chat) throw new IntroError("DISABLED", "المحادثات متوقفة حالياً، حاول لاحقاً");
     if (request.match.conversation) throw new IntroError("NOT_ALLOWED");
@@ -663,9 +662,20 @@ export async function shareGuardianForMatch(args: {
   if (await partnerUnavailable(partnerId)) throw new IntroError("NOT_ALLOWED", INACTIVE_MESSAGE);
   if (!match.openedAt) throw new IntroError("NOT_ALLOWED");
   await assertMatchOpen(match);
+  // Only on a match whose family introduction is accepted (the mixed-match outcome row, or a request)
+  const family = await db.introRequest.findFirst({
+    where: { matchId, type: "FAMILY", status: "ACCEPTED" },
+    select: { id: true },
+  });
+  if (!family) throw new IntroError("NOT_ALLOWED");
 
-  const guardian = await db.parentInfo.findUnique({ where: { userId } });
+  const [guardian, partnerGuardian] = await Promise.all([
+    db.parentInfo.findUnique({ where: { userId } }),
+    db.parentInfo.findUnique({ where: { userId: partnerId }, select: { shareConsentAt: true } }),
+  ]);
   if (!guardian) throw new IntroError("GUARDIAN_REQUIRED");
+  // Same rule as accepting a family request: both families must be sharing, or the share goes one way
+  if (!partnerGuardian?.shareConsentAt) throw new IntroError("NOT_ALLOWED", PARTNER_NOT_SHARING_MESSAGE);
   if (!guardian.shareConsentAt && !consent) throw new IntroError("CONSENT_REQUIRED");
 
   const field = match.femaleId === userId ? "femaleGuardianShareAt" : "maleGuardianShareAt";

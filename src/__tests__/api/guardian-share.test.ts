@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const db = vi.hoisted(() => ({
   mutualMatch: { findUnique: vi.fn(), updateMany: vi.fn(), findMany: vi.fn(async () => []) },
   block: { findMany: vi.fn() },
-  introRequest: { findMany: vi.fn(), updateMany: vi.fn() },
+  introRequest: { findMany: vi.fn(), updateMany: vi.fn(), findFirst: vi.fn() },
   parentInfo: { findUnique: vi.fn(), update: vi.fn() },
   user: { findUnique: vi.fn() },
   $transaction: vi.fn(),
@@ -47,12 +47,19 @@ beforeEach(() => {
   ]);
   db.introRequest.updateMany.mockResolvedValue({ count: 0 });
   db.parentInfo.findUnique.mockResolvedValue(guardian(true));
+  db.introRequest.findFirst.mockResolvedValue({ id: "o1" });
   db.user.findUnique.mockResolvedValue({ matchCredits: 0, isDeactivated: false, status: "VERIFIED" });
 });
 
 describe("POST /api/matches/[id]/guardian-share", () => {
+  /** My guardian (u1) and the partner's (f1) */
+  const guardians = (mine: ReturnType<typeof guardian> | null, partnerConsented = true) =>
+    db.parentInfo.findUnique.mockImplementation(async ({ where }: { where: { userId: string } }) =>
+      where.userId === "u1" ? mine : guardian(partnerConsented),
+    );
+
   it("guardian-share stamps only my side and requires consent", async () => {
-    db.parentInfo.findUnique.mockResolvedValue(guardian(false));
+    guardians(guardian(false));
     const refused = await post();
     expect(refused.status).toBe(412);
     expect((await refused.json()).code).toBe("CONSENT_REQUIRED");
@@ -81,8 +88,27 @@ describe("POST /api/matches/[id]/guardian-share", () => {
     });
   });
 
+  it("G61: refused (no stamp, no consent stored) when the partner withdrew their consent", async () => {
+    guardians(guardian(false), false);
+    const res = await post({ consent: true });
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toContain("لم يعد يشارك بيانات وليّ الأمر");
+    expect(db.parentInfo.update).not.toHaveBeenCalled();
+    expect(db.mutualMatch.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("G61: refused without an accepted family introduction on the match", async () => {
+    db.introRequest.findFirst.mockResolvedValue(null);
+    expect((await post({ consent: true })).status).toBe(409);
+    expect(db.introRequest.findFirst).toHaveBeenCalledWith({
+      where: { matchId: "m1", type: "FAMILY", status: "ACCEPTED" },
+      select: { id: true },
+    });
+    expect(db.mutualMatch.updateMany).not.toHaveBeenCalled();
+  });
+
   it("needs a guardian", async () => {
-    db.parentInfo.findUnique.mockResolvedValue(null);
+    guardians(null);
     const res = await post({ consent: true });
     expect(res.status).toBe(412);
     expect((await res.json()).code).toBe("GUARDIAN_REQUIRED");

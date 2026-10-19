@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const db = vi.hoisted(() => ({
   mutualMatch: { findUnique: vi.fn(), update: vi.fn(), updateMany: vi.fn(), findMany: vi.fn() },
   block: { findFirst: vi.fn(), findMany: vi.fn() },
-  introRequest: { findMany: vi.fn(), findUnique: vi.fn(), create: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
+  introRequest: { findMany: vi.fn(), findUnique: vi.fn(), findFirst: vi.fn(async (): Promise<unknown> => ({ id: "o1" })), create: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
   parentInfo: { findUnique: vi.fn(), update: vi.fn() },
   user: { findUnique: vi.fn(), count: vi.fn() },
   conversation: { create: vi.fn() },
@@ -727,7 +727,7 @@ describe("guardian consent is stored only with the action", () => {
   it("share: consent goes with the stamp", async () => {
     db.mutualMatch.findUnique.mockResolvedValue(opened({ femaleGuardianShareAt: OPENED }));
     db.introRequest.findMany.mockResolvedValue([outcomeRow("FAMILY")]);
-    db.parentInfo.findUnique.mockResolvedValue(guardian(false));
+    db.parentInfo.findUnique.mockImplementation(async ({ where }: { where: { userId: string } }) => guardian(where.userId !== "u1"));
     await expectCode(shareGuardianForMatch({ matchId: "m1", userId: "u1" }), "CONSENT_REQUIRED");
     expect(db.parentInfo.update).not.toHaveBeenCalled();
     await shareGuardianForMatch({ matchId: "m1", userId: "u1", consent: true });

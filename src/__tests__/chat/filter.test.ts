@@ -130,3 +130,48 @@ describe("split numbers wrapped in text", () => {
     expect(completesSplitNumber("مواليد 1995", ["طولي 175"])).toBe(false);
   });
 });
+
+describe("G59: numbers hidden among words, look-alike letters, more app names", () => {
+  const blocked = (t: string) => expect(checkMessage(t).ok, t).toBe(false);
+  const allowed = (t: string) => expect(checkMessage(t).ok, t).toBe(true);
+
+  it("spelled digits with filler words between them (6+ digit words anywhere)", () => {
+    blocked("صفر سبعة تسعة واحد اثنين ثلاثة");
+    blocked("صفر ثم سبعة ثم تسعة ثم خمسة ثم خمسة ثم خمسة");
+    blocked("اول اشي صفر وبعدين سبعه وبعدها تسعه، وبعدين واحد واحد واحد");
+  });
+
+  it("digit groups separated by words (9+ digits in total)", () => {
+    blocked("07 ثم 95 ثم 55 ثم 12 ثم 34");
+    blocked("رقمي 079 والباقي 555 وبعدها 1234");
+    blocked("صفر 79 بعدين 555 واخر اشي 12 34");
+  });
+
+  it("look-alike letters inside a number", () => {
+    blocked("O79 555 I234");
+    blocked("o79-555-l234");
+    blocked("079x555x1234");
+    blocked("079a555b1234");
+  });
+
+  it("more ways to write WhatsApp", () => {
+    for (const t of ["ضيفني وتس", "كلمني واتس اب", "عندي وات ساب", "whats app me", "what's app?"]) blocked(t);
+  });
+
+  it("ordinary messages with numbers still pass", () => {
+    for (const t of [
+      "عمري 28 وطولي 175",
+      "عندي 3 أطفال",
+      "عندي 3 أطفال، أعمارهم 5 و 8 و 12 سنة",
+      "مواليد 1995 وتخرجت 2017 واشتغلت 2019",
+      "المهر 5000 دينار والمؤخر 10000",
+      "راتبي 750 والدوام من 8 لـ 4",
+      "واحد من اخواني متزوج وعنده ثلاث بنات",
+      "خمسة وتسعين بالمية من الناس بحبوا السفر",
+      "وتسلم ايدك",
+      "big family يعني عيلة كبيرة",
+      "رح نحكي الساعة 10:30 مساءً",
+      "iPhone 15 Pro",
+    ]) allowed(t);
+  });
+});

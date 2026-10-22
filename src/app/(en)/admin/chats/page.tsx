@@ -20,9 +20,7 @@ interface ChatRow {
   endedBy: string | null;
   messages: number;
   unread: number;
-  unreadSince: string | null;
-  waitingFor: string | null;
-  sms: { status: string | null; at: string | null } | null;
+  sms: { talking: boolean; members: { name: string; status: string | null; at: string | null }[] } | null;
 }
 
 const FILTERS: [string, string][] = [["", "All"], ...(["ACTIVE", "ENDED", "EXPIRED"] as const).map((s): [string, string] => [s, enumLabel("chatStatus", s)])];
@@ -64,12 +62,12 @@ export default function AdminChatsPage() {
 
   const [smsing, setSmsing] = useState<string | null>(null);
   async function sendSms(c: ChatRow) {
-    if (!confirm(`Send an SMS now to ${c.waitingFor ?? "the receiver"} about their unread message(s)?`)) return;
+    if (!confirm(`Send an SMS now to ${(c.sms?.members ?? []).map((m) => m.name).join(" & ") || "the member"} (chat not started)?`)) return;
     setSmsing(c.id);
     const res = await fetch(`/api/admin/chats/${c.id}/sms`, { method: "POST" }).catch(() => null);
     const data = await res?.json().catch(() => null);
     setSmsing(null);
-    if (!res?.ok) alert(data?.error === "nothing_unread" ? "No unread messages in this chat." : "SMS could not be sent.");
+    if (!res?.ok) alert(data?.error === "both_talking" ? "Both members are already talking — no SMS." : "SMS could not be sent.");
     else alert(`Result: ${(data?.results ?? []).map((r: string) => SMS_LABEL[r] ?? r).join(", ")}`);
     load();
   }
@@ -137,7 +135,7 @@ export default function AdminChatsPage() {
                     <th className="hidden py-2 pe-4 font-medium md:table-cell">Expires</th>
                     <th className="hidden py-2 pe-4 font-medium md:table-cell">Ended</th>
                     <th className="py-2 pe-4 text-right font-medium">Messages</th>
-                    <th className="py-2 pe-4 font-medium">Unread · SMS</th>
+                    <th className="py-2 pe-4 font-medium">Not started · SMS</th>
                     <th className="py-2 font-medium" />
                   </tr>
                 </thead>
@@ -188,7 +186,7 @@ const SMS_LABEL: Record<string, string> = {
   sent: "SMS sent",
   sent_admin: "SMS sent (admin)",
   has_push: "Has push — no SMS",
-  already_today: "Already got an SMS today",
+  already_today: "Already got an SMS today — retrying",
   opted_out: "Turned chat notices off",
   unknown_push: "Push status unknown — retrying",
   failed: "SMS failed — retrying",
@@ -196,19 +194,22 @@ const SMS_LABEL: Record<string, string> = {
 };
 
 function SmsCell({ chat, sending, onSend }: { chat: ChatRow; sending: boolean; onSend: () => void }) {
-  if (!chat.unread) return <span className="text-muted-foreground">—</span>;
-  const status = chat.sms?.status ?? null;
-  const sent = status === "sent" || status === "sent_admin";
+  if (!chat.sms) return <span className="text-muted-foreground">—</span>;
+  if (chat.sms.talking) return <span className="text-xs text-muted-foreground">Both talking — no SMS</span>;
+  const pending = chat.sms.members.filter((m) => m.status !== "sent" && m.status !== "sent_admin");
   return (
     <div className="flex flex-col gap-1 text-xs">
-      <span className="font-medium">
-        {chat.unread} unread{chat.waitingFor ? ` · waiting for ${chat.waitingFor}` : ""}
-      </span>
-      <span className={sent ? "text-emerald-700" : "text-muted-foreground"}>
-        {status ? SMS_LABEL[status] ?? status : "No SMS yet (sent after 2 h if no push)"}
-        {chat.sms?.at ? ` · ${new Date(chat.sms.at).toLocaleString("en-GB", { timeZone: "Asia/Amman", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}` : ""}
-      </span>
-      {!sent && chat.status === "ACTIVE" && (
+      {chat.sms.members.map((m) => {
+        const sent = m.status === "sent" || m.status === "sent_admin";
+        return (
+          <span key={m.name} className={sent ? "text-emerald-700" : "text-muted-foreground"}>
+            <span className="font-medium text-foreground">{m.name}</span> hasn&apos;t written ·{" "}
+            {m.status ? SMS_LABEL[m.status] ?? m.status : "No SMS yet (sent after 2 h if no push)"}
+            {m.at ? ` · ${new Date(m.at).toLocaleString("en-GB", { timeZone: "Asia/Amman", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}` : ""}
+          </span>
+        );
+      })}
+      {pending.length > 0 && chat.status === "ACTIVE" && (
         <Button size="sm" variant="secondary" className="h-7 w-fit px-2 text-xs" disabled={sending} onClick={onSend}>
           {sending ? "Sending…" : "Send SMS now"}
         </Button>

@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { parsePagination } from "@/lib/utils";
 import { personSearch } from "@/lib/admin/search";
 import { effectiveConversationStatus } from "@/lib/admin/cycle-stats";
+import { chatSmsOverview } from "@/lib/chat/unread-sms";
 
 const person = { select: { id: true, firstName: true, lastName: true, status: true } } as const;
 
@@ -39,10 +40,12 @@ export async function GET(request: Request) {
           endedById: true, endedByAdminId: true, endedAt: true,
           match: { select: { id: true, female: person, male: person } },
           _count: { select: { messages: true } },
-          messages: { where: { readAt: null }, orderBy: { createdAt: "desc" }, select: { senderId: true, createdAt: true, smsNoticeAt: true, smsNoticeStatus: true } },
+          messages: { where: { readAt: null }, select: { id: true } },
         },
       }),
     ]);
+
+    const smsInfo = await chatSmsOverview(rows.map((r) => r.id));
 
     return NextResponse.json({
       chats: rows.map((c) => ({
@@ -60,11 +63,9 @@ export async function GET(request: Request) {
             ? [c.match.female, c.match.male].find((p) => p.id === c.endedById)?.firstName ?? "user"
             : null,
         messages: c._count.messages,
-        // Unread messages and the SMS state of the newest one (lib/chat/unread-sms.ts)
         unread: c.messages.length,
-        unreadSince: c.messages.at(-1)?.createdAt ?? null,
-        waitingFor: c.messages[0] ? ([c.match.female, c.match.male].find((p) => p.id !== c.messages[0].senderId)?.firstName ?? null) : null,
-        sms: c.messages[0] ? { status: c.messages[0].smsNoticeStatus, at: c.messages[0].smsNoticeAt } : null,
+        // Chats that haven't started: who hasn't written and their one SMS (lib/chat/unread-sms.ts)
+        sms: smsInfo.get(c.id) ?? null,
       })),
       page,
       total,

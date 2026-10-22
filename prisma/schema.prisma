@@ -860,3 +860,19 @@ model CreditLedger {
   @@index([reason, createdAt])
   @@map("credit_ledger")
 }
+
+/// One SMS per member per chat that hasn't started (lib/chat/unread-sms.ts): the latest attempt and its result.
+model ChatSmsNotice {
+  id             String   @id @default(cuid())
+  conversationId String
+  userId         String
+  /// sent | sent_admin | has_push | already_today | opted_out | unknown_push | failed | skipped
+  status         String
+  at             DateTime
+  /// Admin id for «Send SMS now»; null = the 15-minute job
+  sentBy         String?
+
+  @@unique([conversationId, userId])
+  @@index([conversationId])
+  @@map("chat_sms_notices")
+}

@@ -18,7 +18,7 @@ import { db } from "@/lib/db";
 import { sendSms } from "@/lib/sms";
 import { isTestPhone } from "@/lib/test-accounts";
 
-export type SmsNoticeEvent = "match" | "interest" | "expiring" | "waiting" | "message";
+export type SmsNoticeEvent = "match" | "interest" | "expiring" | "waiting" | "message" | "chat_open";
 
 const SITE = "naseebak.com";
 
@@ -29,6 +29,7 @@ export const SMS_NOTICE_TEXT: Record<SmsNoticeEvent, string> = {
   expiring: `نصيبك: لديك اقتراح توافق بانتظار قرارك وينتهي خلال يومين: ${SITE}/dashboard/suggestions`,
   waiting: `نصيبك: لديك اقتراح توافق بانتظار قرارك: ${SITE}/dashboard/suggestions`,
   message: `نصيبك: لديك رسالة جديدة بانتظارك. افتح محادثاتك: ${SITE}/dashboard/chats`,
+  chat_open: `نصيبك: تم فتح محادثة لك ولم تبدأ بعد. ابدأ الحديث الآن: ${SITE}/dashboard/chats`,
 };
 
 /**

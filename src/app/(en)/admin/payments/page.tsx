@@ -206,7 +206,14 @@ export default function AdminPaymentsPage() {
                       </td>
                       <td className="p-3 text-sm">{enumLabel("paymentProvider", payment.provider)}</td>
                       <td className="p-3 text-sm text-muted-foreground whitespace-nowrap">
-                        {new Date(payment.createdAt).toLocaleDateString()}
+                        {new Date(payment.createdAt).toLocaleString("en-GB", {
+                          timeZone: "Asia/Amman",
+                          year: "numeric",
+                          month: "short",
+                          day: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
                       </td>
                       <td className="p-3">
                         {payment.status === "COMPLETED" && (

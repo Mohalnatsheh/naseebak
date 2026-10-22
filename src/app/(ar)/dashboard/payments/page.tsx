@@ -109,6 +109,7 @@ function PaymentsContent() {
   // Embedded checkout state
   const [checkoutSecret, setCheckoutSecret] = useState<string | null>(null);
   const [checkoutPackageName, setCheckoutPackageName] = useState<string>("");
+  const [checkoutPackage, setCheckoutPackage] = useState<CreditPackage | null>(null);
   const [checkoutPaymentId, setCheckoutPaymentId] = useState<string | null>(null);
 
   const loadData = useCallback(async (p = histPage) => {
@@ -188,6 +189,7 @@ function PaymentsContent() {
         trackEvent("begin_checkout", { currency: "JOD", package_name: packageName });
         setCheckoutSecret(result.clientSecret);
         setCheckoutPackageName(packageName);
+        setCheckoutPackage(packages.find((p) => p.id === packageId) ?? null);
         setCheckoutPaymentId(result.paymentId ?? null);
         return;
       }
@@ -228,6 +230,7 @@ function PaymentsContent() {
     const paymentId = checkoutPaymentId;
     setCheckoutSecret(null);
     setCheckoutPackageName("");
+    setCheckoutPackage(null);
     setCheckoutPaymentId(null);
     // Closes this checkout on Stripe too, so it can no longer be paid
     try {
@@ -290,6 +293,18 @@ function PaymentsContent() {
             رجوع
           </Button>
         </div>
+
+        {checkoutPackage?.chargeUsd ? (
+          <div className="rounded-2xl border border-accent/30 bg-accent/10 px-4 py-3 text-sm leading-relaxed">
+            <p className="font-bold text-foreground">
+              المبلغ الذي سيظهر في صفحة الدفع: {checkoutPackage.chargeUsd.toFixed(2)}$
+              <span className="font-semibold text-muted-foreground"> (= {checkoutPackage.price} د.أ)</span>
+            </p>
+            <p className="text-muted-foreground mt-0.5">
+              الدفع يتم بالدولار الأمريكي، وقد يحوّل بنكك المبلغ إلى الدينار حسب سعر الصرف لديه.
+            </p>
+          </div>
+        ) : null}
 
         <Card className="overflow-hidden border-primary/20">
           <CardContent className="p-0">
@@ -475,9 +490,12 @@ function PaymentsContent() {
                     {(pkg.price / pkg.credits).toFixed(2)} د.أ لكل رصيد
                   </p>
                   {pkg.chargeUsd ? (
-                    <p className="text-center text-[11px] text-muted-foreground mb-4 md:mb-6">
-                      يُدفع بالدولار: {pkg.chargeUsd.toFixed(2)}$
-                    </p>
+                    <div className="flex justify-center mb-4 md:mb-6">
+                      <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/15 bg-primary/5 px-3 py-1 text-sm font-semibold text-primary">
+                        <CircleDollarSign className="h-4 w-4" />
+                        تدفع {pkg.chargeUsd.toFixed(2)}$ بالدولار
+                      </span>
+                    </div>
                   ) : null}
 
                   {/* Features */}

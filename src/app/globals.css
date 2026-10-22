@@ -312,8 +312,8 @@ img.protected-photo {
   .animate-bubble-in { animation: none; }
 }
 
-/* Dashboard display face (Reem Kufi via --font-display, set in the dashboard layout) */
-.font-display { font-family: var(--font-display), sans-serif; letter-spacing: 0; }
+/* Titles and big numbers: the site font (Cairo), extra bold — one Arabic face everywhere */
+.font-display { font-weight: 800; letter-spacing: 0; }
 
 /* ─── Landing ─── */
 @keyframes landingRise {

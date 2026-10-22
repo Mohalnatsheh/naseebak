@@ -35,6 +35,7 @@ export async function POST(request: Request) {
       checkoutSession = await getStripe().checkout.sessions.create({
         mode: "payment",
         ui_mode: "embedded",
+        locale: "ar", // Stripe's payment form in Arabic
         line_items: [
           {
             price_data: {

@@ -830,9 +830,13 @@ model Message {
   sender         User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
   body           String
   readAt         DateTime?
+  /// Unread-message SMS (lib/chat/unread-sms.ts): last attempt and its result (sent, sent_admin, has_push, already_today, opted_out, …)
+  smsNoticeAt     DateTime?
+  smsNoticeStatus String?
   createdAt      DateTime     @default(now())
 
   @@index([conversationId, createdAt])
+  @@index([readAt, createdAt])
   @@map("messages")
 }
 

@@ -39,6 +39,7 @@ export async function GET(request: Request) {
           endedById: true, endedByAdminId: true, endedAt: true,
           match: { select: { id: true, female: person, male: person } },
           _count: { select: { messages: true } },
+          messages: { where: { readAt: null }, orderBy: { createdAt: "desc" }, select: { senderId: true, createdAt: true, smsNoticeAt: true, smsNoticeStatus: true } },
         },
       }),
     ]);
@@ -59,6 +60,11 @@ export async function GET(request: Request) {
             ? [c.match.female, c.match.male].find((p) => p.id === c.endedById)?.firstName ?? "user"
             : null,
         messages: c._count.messages,
+        // Unread messages and the SMS state of the newest one (lib/chat/unread-sms.ts)
+        unread: c.messages.length,
+        unreadSince: c.messages.at(-1)?.createdAt ?? null,
+        waitingFor: c.messages[0] ? ([c.match.female, c.match.male].find((p) => p.id !== c.messages[0].senderId)?.firstName ?? null) : null,
+        sms: c.messages[0] ? { status: c.messages[0].smsNoticeStatus, at: c.messages[0].smsNoticeAt } : null,
       })),
       page,
       total,

@@ -18,7 +18,7 @@ import { db } from "@/lib/db";
 import { sendSms } from "@/lib/sms";
 import { isTestPhone } from "@/lib/test-accounts";
 
-export type SmsNoticeEvent = "match" | "interest" | "expiring" | "waiting";
+export type SmsNoticeEvent = "match" | "interest" | "expiring" | "waiting" | "message";
 
 const SITE = "naseebak.com";
 
@@ -28,6 +28,7 @@ export const SMS_NOTICE_TEXT: Record<SmsNoticeEvent, string> = {
   interest: `نصيبك: شخص أبدى اهتمامه بك. يمكنك الاطلاع على الاقتراح من حسابك: ${SITE}/dashboard/suggestions`,
   expiring: `نصيبك: لديك اقتراح توافق بانتظار قرارك وينتهي خلال يومين: ${SITE}/dashboard/suggestions`,
   waiting: `نصيبك: لديك اقتراح توافق بانتظار قرارك: ${SITE}/dashboard/suggestions`,
+  message: `نصيبك: لديك رسالة جديدة بانتظارك. افتح محادثاتك: ${SITE}/dashboard/chats`,
 };
 
 /**
@@ -82,6 +83,8 @@ export async function sendSmsNotice(
   userId: string,
   event: SmsNoticeEvent,
   now = new Date(),
+  /** Admin «send now»: skip the once-a-day cap and the push check (still never test / suspended / deactivated). */
+  opts: { force?: boolean } = {},
 ): Promise<SmsNoticeResult> {
   try {
     const user = await db.user.findUnique({
@@ -99,16 +102,18 @@ export async function sendSmsNotice(
     if (!user?.phone || user.role !== "USER" || user.status === "SUSPENDED" || user.isDeactivated) return "skipped";
     if (isTestPhone(user.phone)) return "skipped";
     const dayStart = startOfAmmanDay(now);
-    if (user.lastSmsNoticeAt && user.lastSmsNoticeAt >= dayStart) return "already_today";
+    if (!opts.force && user.lastSmsNoticeAt && user.lastSmsNoticeAt >= dayStart) return "already_today";
 
-    const push = await hasPushDevice(userId);
-    if (push === true) return "has_push";
-    if (push === null) return "unknown_push";
+    if (!opts.force) {
+      const push = await hasPushDevice(userId);
+      if (push === true) return "has_push";
+      if (push === null) return "unknown_push";
+    }
 
     // Claim today's SMS (two notices at the same moment send one). This write bumps updatedAt:
     // keep "last seen" where it was for members with no lastActiveAt yet (see runReengagement)
     const { count } = await db.user.updateMany({
-      where: { id: userId, OR: [{ lastSmsNoticeAt: null }, { lastSmsNoticeAt: { lt: dayStart } }] },
+      where: opts.force ? { id: userId } : { id: userId, OR: [{ lastSmsNoticeAt: null }, { lastSmsNoticeAt: { lt: dayStart } }] },
       data: { lastSmsNoticeAt: now, ...(user.lastActiveAt ? {} : { lastActiveAt: user.updatedAt }) },
     });
     if (count === 0) return "already_today";

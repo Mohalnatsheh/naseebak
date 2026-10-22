@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { effectiveConversationStatus } from "@/lib/admin/cycle-stats";
 
 const person = { select: { id: true, firstName: true, lastName: true, status: true } } as const;
-/** A chat lasts at most 21 days at 50 messages/day per person, so this covers every chat. */
+/** There is no daily cap, so very long chats keep their newest messages (`truncated` marks the cut). */
 const MAX_MESSAGES = 3000;
 
 /** One chat with its full message history, oldest first. Every view is logged (admin id + chat id). */
@@ -21,7 +21,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
         endedById: true, endedByAdminId: true, endedAt: true,
         match: { select: { id: true, female: person, male: person } },
         messages: {
-          orderBy: { createdAt: "asc" },
+          orderBy: { createdAt: "desc" },
           take: MAX_MESSAGES,
           select: { id: true, senderId: true, body: true, readAt: true, createdAt: true },
         },
@@ -48,7 +48,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
             ? people.find((p) => p.id === chat.endedById)?.firstName ?? "user"
             : null,
       },
-      messages: chat.messages,
+      // newest MAX_MESSAGES, shown oldest first
+      messages: [...chat.messages].reverse(),
       truncated: chat.messages.length === MAX_MESSAGES,
     });
   } catch (error) {

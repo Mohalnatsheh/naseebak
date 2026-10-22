@@ -24,7 +24,6 @@ export const WARN_BEFORE_DAYS = 2;
 export const FAMILY_NUDGE_AFTER_DAYS = 7;
 /** ...only within this window, so chats that were already older on release day aren't all nudged at once */
 const FAMILY_NUDGE_WINDOW_DAYS = 2;
-export const MESSAGES_PER_DAY = 50;
 const PUSH_THROTTLE_MS = 3 * 60 * 1000;
 
 /** «حتى 12 نوفمبر» — the last day of the free chat → family move */
@@ -426,12 +425,9 @@ export async function sendMessage(args: {
     }
   }
 
-  // ~1 message per second on average, short bursts allowed
+  // ~1 message per second on average, short bursts allowed (no daily cap)
   if (!rateLimit(`chat-burst:${senderId}`, { maxAttempts: 5, windowMs: 5000 }).success) {
     throw new IntroError("RATE_LIMITED", "تمهّل قليلاً قبل إرسال رسالة أخرى");
-  }
-  if (!rateLimit(`chat-day:${senderId}`, { maxAttempts: MESSAGES_PER_DAY, windowMs: DAY_MS }).success) {
-    throw new IntroError("RATE_LIMITED", "وصلت للحد اليومي للرسائل (50 رسالة). تابع غداً.");
   }
 
   const message = await db.message.create({ data: { conversationId, senderId, body: check.text } });

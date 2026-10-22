@@ -106,6 +106,8 @@ export function Footer() {
               <Link href="/privacy" className="hover:text-primary transition-colors duration-200">سياسة الخصوصية</Link>
               <span className="text-border">|</span>
               <Link href="/terms" className="hover:text-primary transition-colors duration-200">شروط الاستخدام</Link>
+              <span className="text-border">|</span>
+              <Link href="/refund-policy" className="hover:text-primary transition-colors duration-200">سياسة الاسترداد</Link>
             </div>
             <p>&copy; {new Date().getFullYear()} نصيبك. جميع الحقوق محفوظة.</p>
           </div>

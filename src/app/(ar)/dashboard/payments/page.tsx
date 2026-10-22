@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, Suspense } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { loadStripe } from "@stripe/stripe-js";
 import {
@@ -537,6 +538,13 @@ function PaymentsContent() {
           );
         })}
       </div>
+
+      <p className="text-center text-xs leading-relaxed text-muted-foreground">
+        الأسعار بالدينار الأردني، ويتم الخصم بما يعادلها بالدولار الأمريكي (يظهر في كشف الحساب باسم LOGICCR). البائع: LOGIC CENTER FOR WEBSITE DESIGN ·{" "}
+        <Link href="/refund-policy" className="font-semibold text-primary underline-offset-4 hover:underline">
+          سياسة الاسترداد
+        </Link>
+      </p>
 
       {/* Payment History */}
       {payments.length > 0 && (

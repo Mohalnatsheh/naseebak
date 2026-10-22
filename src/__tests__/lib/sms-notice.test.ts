@@ -85,6 +85,18 @@ describe("sendSmsNotice", () => {
     expect(sms.sendSms).not.toHaveBeenCalled();
   });
 
+  it("admin «send now» skips the push check but never the once-a-day cap", async () => {
+    const now = new Date("2026-10-18T12:00:00Z");
+    fetchMock.mockResolvedValue({ status: 200, ok: true, json: async () => ({ subscriptions: [{ type: "iOSPush", enabled: true }] }) });
+    expect(await sendSmsNotice("u1", "message", now, { skipPushCheck: true })).toBe("sent");
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(db.user.updateMany.mock.calls[0][0].where.OR).toBeDefined(); // the daily claim is still atomic
+
+    db.user.findUnique.mockResolvedValue(member({ lastSmsNoticeAt: new Date("2026-10-18T05:00:00Z") }));
+    expect(await sendSmsNotice("u1", "message", now, { skipPushCheck: true })).toBe("already_today");
+    expect(sms.sendSms).toHaveBeenCalledTimes(1);
+  });
+
   it("never when push can reach them or reachability is unknown", async () => {
     fetchMock.mockResolvedValue({ status: 200, ok: true, json: async () => ({ subscriptions: [{ type: "iOSPush", enabled: true }] }) });
     expect(await sendSmsNotice("u1", "match")).toBe("has_push");

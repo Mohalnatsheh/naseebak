@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { sendChatSmsNow } from "@/lib/chat/unread-sms";
 
-/** «Send SMS now»: text the member(s) who haven't started this chat (no daily cap / push check / wait). */
+/** «Send SMS now»: text the member(s) who haven't started this chat (no push check / wait; still max one SMS a day). */
 export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const result = await requireAdmin();

@@ -186,7 +186,7 @@ const SMS_LABEL: Record<string, string> = {
   sent: "SMS sent",
   sent_admin: "SMS sent (admin)",
   has_push: "Has push — no SMS",
-  already_today: "Already got an SMS today — retrying",
+  already_today: "Already got an SMS today — sent on a later day",
   opted_out: "Turned chat notices off",
   unknown_push: "Push status unknown — retrying",
   failed: "SMS failed — retrying",

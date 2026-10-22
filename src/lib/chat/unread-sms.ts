@@ -12,8 +12,8 @@
  *
  * One row per (chat, member) in `chat_sms_notices` records the result for /admin/chats. "already_today",
  * "unknown_push" and "failed" are retried on a later run (every 15 min, at most every 3 h); every other result is
- * final, so a member never gets two SMS for the same chat. Admins can send one directly (`sendChatSmsNow`: no daily
- * cap, no push check, no 2-hour wait — still only to members who haven't started that chat).
+ * final, so a member never gets two SMS for the same chat. Admins can send one directly (`sendChatSmsNow`: still once
+ * a day, but no push check and no 2-hour wait — still only to members who haven't started that chat).
  */
 import { db } from "@/lib/db";
 import { CHAT_NOTICE_PREFERENCE } from "@/lib/notification-prefs";
@@ -109,7 +109,10 @@ export async function runUnreadSms(now = new Date()) {
   return { chats: chats.length, targets: targetsN, ...counts };
 }
 
-/** Admin «Send SMS now»: the members who haven't started this chat, right away (no cap, no push check, no wait). */
+/**
+ * Admin «Send SMS now»: the members who haven't started this chat, right away (no push check, no wait). The
+ * one-SMS-per-day cap still applies: "already_today" stays retryable, so the automatic run sends it on a later day.
+ */
 export async function sendChatSmsNow(conversationId: string, adminId: string, now = new Date()) {
   const c = await db.conversation.findUnique({ where: { id: conversationId }, select: chatSelect });
   if (!c) return { ok: false as const, reason: "not_found" };
@@ -119,7 +122,7 @@ export async function sendChatSmsNow(conversationId: string, adminId: string, no
   for (const t of targets) {
     const status: ChatSmsStatus = !(await chatNoticesOn(t.userId))
       ? "opted_out"
-      : await sendSmsNotice(t.userId, t.event, now, { force: true }).then((r) => (r === "sent" ? "sent_admin" : r));
+      : await sendSmsNotice(t.userId, t.event, now, { skipPushCheck: true }).then((r) => (r === "sent" ? "sent_admin" : r));
     await record(c.id, t.userId, status, now, adminId);
     results.push(status);
   }

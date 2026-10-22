@@ -4,7 +4,8 @@
  * the installed app). Events: a mutual match, someone said «مهتم» (the hidden-card reveal notice)
  * and a suggestion about to expire.
  *
- * Rules: at most one SMS per member per Amman day (`User.lastSmsNoticeAt`, claimed atomically),
+ * Rules: at most one SMS per member per Amman day (`User.lastSmsNoticeAt`, claimed atomically) — for every
+ * notice, admin «send now» included (owner decision 2026-10-22; OTP codes are not notices and are not capped),
  * never for test accounts, admins, suspended or deactivated members, never when the member turned
  * that notification type off, and never when push reachability is unknown (OneSignal not configured
  * or the lookup failed) — an SMS costs money and must not duplicate a push.
@@ -84,8 +85,8 @@ export async function sendSmsNotice(
   userId: string,
   event: SmsNoticeEvent,
   now = new Date(),
-  /** Admin «send now»: skip the once-a-day cap and the push check (still never test / suspended / deactivated). */
-  opts: { force?: boolean } = {},
+  /** Admin «send now»: skip the push check. The once-a-day cap always applies (still never test / suspended / deactivated). */
+  opts: { skipPushCheck?: boolean } = {},
 ): Promise<SmsNoticeResult> {
   try {
     const user = await db.user.findUnique({
@@ -103,9 +104,9 @@ export async function sendSmsNotice(
     if (!user?.phone || user.role !== "USER" || user.status === "SUSPENDED" || user.isDeactivated) return "skipped";
     if (isTestPhone(user.phone)) return "skipped";
     const dayStart = startOfAmmanDay(now);
-    if (!opts.force && user.lastSmsNoticeAt && user.lastSmsNoticeAt >= dayStart) return "already_today";
+    if (user.lastSmsNoticeAt && user.lastSmsNoticeAt >= dayStart) return "already_today";
 
-    if (!opts.force) {
+    if (!opts.skipPushCheck) {
       const push = await hasPushDevice(userId);
       if (push === true) return "has_push";
       if (push === null) return "unknown_push";
@@ -114,7 +115,7 @@ export async function sendSmsNotice(
     // Claim today's SMS (two notices at the same moment send one). This write bumps updatedAt:
     // keep "last seen" where it was for members with no lastActiveAt yet (see runReengagement)
     const { count } = await db.user.updateMany({
-      where: opts.force ? { id: userId } : { id: userId, OR: [{ lastSmsNoticeAt: null }, { lastSmsNoticeAt: { lt: dayStart } }] },
+      where: { id: userId, OR: [{ lastSmsNoticeAt: null }, { lastSmsNoticeAt: { lt: dayStart } }] },
       data: { lastSmsNoticeAt: now, ...(user.lastActiveAt ? {} : { lastActiveAt: user.updatedAt }) },
     });
     if (count === 0) return "already_today";

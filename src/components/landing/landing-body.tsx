@@ -4,22 +4,26 @@ import { useState } from "react";
 import type { StartGender } from "@/lib/landing-start";
 import type { LandingContent } from "./content";
 import { LandingHero } from "./hero";
-import { LandingJourney } from "./journey";
-import { LandingPrinciples } from "./principles";
+import { LandingSteps } from "./steps";
+import { LandingProductTour } from "./product-tour";
+import { LandingTrust } from "./trust";
+import { LandingReasons } from "./reasons";
 import { LandingFaq } from "./faq";
 import { LandingFinalCta } from "./final-cta";
 import { StickyStart } from "./sticky-start";
 
-/** The page body; «أبحث عن زوجة / زوج» is shared by both quick-start forms and the example cards. */
-export function LandingBody({ content, verseClass, displayClass }: { content: LandingContent; verseClass: string; displayClass: string }) {
+/** The page body; «أبحث عن زوجة / زوج» is shared by both quick-start forms. */
+export function LandingBody({ content }: { content: LandingContent }) {
   const [lookingFor, setLookingFor] = useState<StartGender | null>(null);
   return (
     <main className="overflow-x-clip">
-      <LandingHero content={content} verseClass={verseClass} displayClass={displayClass} lookingFor={lookingFor} onLookingFor={setLookingFor} />
-      <LandingJourney content={content} displayClass={displayClass} />
-      <LandingPrinciples content={content} displayClass={displayClass} />
+      <LandingHero content={content} lookingFor={lookingFor} onLookingFor={setLookingFor} />
+      <LandingSteps content={content} />
+      <LandingProductTour content={content} />
+      <LandingTrust content={content} />
+      <LandingReasons content={content} />
       <LandingFaq content={content} />
-      <LandingFinalCta content={content} displayClass={displayClass} lookingFor={lookingFor} onLookingFor={setLookingFor} />
+      <LandingFinalCta content={content} lookingFor={lookingFor} onLookingFor={setLookingFor} />
       <StickyStart />
     </main>
   );

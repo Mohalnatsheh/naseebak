@@ -306,6 +306,19 @@ function PaymentsContent() {
           </div>
         ) : null}
 
+        {/* Stripe's form has no Arabic, so the fields are explained here */}
+        <div className="rounded-2xl border border-border bg-card px-4 py-3 text-sm leading-relaxed">
+          <p className="font-bold text-foreground">نموذج الدفع الآمن من Stripe يظهر بالإنجليزية:</p>
+          <ul className="mt-1.5 grid gap-1 text-muted-foreground sm:grid-cols-2">
+            <li><span dir="ltr" className="font-semibold text-foreground">Email</span>: بريدك لاستلام الإيصال</li>
+            <li><span dir="ltr" className="font-semibold text-foreground">Card number</span>: رقم البطاقة</li>
+            <li><span dir="ltr" className="font-semibold text-foreground">MM / YY</span>: تاريخ انتهاء البطاقة</li>
+            <li><span dir="ltr" className="font-semibold text-foreground">CVC</span>: الرمز المكوّن من 3 أرقام خلف البطاقة</li>
+            <li><span dir="ltr" className="font-semibold text-foreground">Cardholder name</span>: الاسم كما على البطاقة</li>
+            <li><span dir="ltr" className="font-semibold text-foreground">Pay</span>: زر إتمام الدفع</li>
+          </ul>
+        </div>
+
         <Card className="overflow-hidden border-primary/20">
           <CardContent className="p-0">
             <EmbeddedCheckoutProvider

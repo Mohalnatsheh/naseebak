@@ -110,7 +110,7 @@ export function Navbar() {
         {/* Desktop nav links */}
         <div
           className={cn(
-            "hidden md:flex items-center gap-1 backdrop-blur-sm rounded-full px-1.5 py-1 border",
+            "hidden xl:flex items-center gap-1 backdrop-blur-sm rounded-full px-1.5 py-1 border",
             onDark ? "bg-white/10 border-white/15" : "bg-muted/40 border-border/30"
           )}
         >
@@ -122,7 +122,7 @@ export function Navbar() {
                 key={link.href}
                 href={`/${link.href}`}
                 className={cn(
-                  "relative text-sm font-medium px-4 py-2 rounded-full transition-all duration-300",
+                  "relative whitespace-nowrap text-sm font-medium px-4 py-2 rounded-full transition-all duration-300",
                   isActive
                     ? "bg-primary text-primary-foreground shadow-sm"
                     : onDark
@@ -140,7 +140,7 @@ export function Navbar() {
               key={link.href}
               href={link.href}
               className={cn(
-                "relative text-sm font-medium px-4 py-2 rounded-full transition-all duration-300",
+                "relative whitespace-nowrap text-sm font-medium px-4 py-2 rounded-full transition-all duration-300",
                 pathname === link.href
                   ? "bg-primary text-primary-foreground shadow-sm"
                   : onDark
@@ -172,7 +172,7 @@ export function Navbar() {
             )}
           >
             <Link href="/register">
-              إنشاء حساب
+              ابدأ التسجيل
               <ArrowLeft className="h-4 w-4 ms-1.5" />
             </Link>
           </Button>
@@ -180,7 +180,7 @@ export function Navbar() {
 
         {/* Mobile menu */}
         <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-          <SheetTrigger asChild className="md:hidden">
+          <SheetTrigger asChild className="xl:hidden">
             <Button
               variant="ghost"
               size="icon"
@@ -267,7 +267,7 @@ export function Navbar() {
                 className="w-full h-12 rounded-xl font-semibold text-base bg-gradient-to-l from-primary to-primary/85 shadow-md shadow-primary/20"
               >
                 <Link href="/register" onClick={() => setMobileOpen(false)}>
-                  إنشاء حساب
+                  ابدأ التسجيل
                   <ArrowLeft className="h-4 w-4 ms-1.5" />
                 </Link>
               </Button>

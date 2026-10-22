@@ -1,52 +1,47 @@
 "use client";
 
-import { useState } from "react";
 import { Check } from "lucide-react";
 import type { StartGender } from "@/lib/landing-start";
 import type { LandingContent } from "./content";
 import { StartForm } from "./start-form";
-import { DemoDeck } from "./demo-deck";
+import { PhoneFrame } from "./phone-frame";
 
 /**
- * Navy night with a faint gold khatam pattern: the promise and the quick start on one side, a card
- * the visitor can try on the other. Picking «زوجة / زوج» also switches the example cards.
+ * Navy hero: who we are, the promise and the real quick start on one side; the actual suggestion
+ * screen (and, on wide screens, the «مهتم» choice behind it) on the other.
  */
 export function LandingHero({
   content,
-  verseClass,
-  displayClass,
   lookingFor,
   onLookingFor,
 }: {
   content: LandingContent;
-  verseClass: string;
-  displayClass: string;
   lookingFor: StartGender | null;
   onLookingFor: (g: StartGender) => void;
 }) {
-  const [tried, setTried] = useState(false);
+  const [front, back] = content.tour;
 
   return (
-    <section className="landing-night relative overflow-hidden pt-28 pb-20 text-white sm:pt-32 lg:pb-28">
+    <section className="landing-night relative overflow-hidden pt-24 pb-16 text-white sm:pt-32 lg:pb-24">
       <div className="landing-khatam absolute inset-0" aria-hidden />
-      <div className="container relative mx-auto grid items-center gap-14 px-4 lg:grid-cols-[1.15fr_0.85fr] lg:gap-10">
+      <div className="container relative mx-auto grid items-center gap-12 px-4 lg:grid-cols-[1.1fr_0.9fr] lg:gap-8">
         <div className="text-center lg:text-start">
-          <p className={`landing-rise text-xl text-accent sm:text-2xl ${verseClass}`}>﴿ وَجَعَلَ بَيْنَكُم مَّوَدَّةً وَرَحْمَةً ﴾</p>
+          <p className="inline-flex items-center gap-2 rounded-full border border-accent/40 bg-accent/10 px-4 py-1.5 text-sm font-bold text-accent">
+            {content.hero.eyebrow}
+          </p>
           <h1
-            className={`landing-rise mt-5 text-[2.6rem] leading-[1.25] sm:text-6xl lg:text-[3.6rem] xl:text-[4.2rem] ${displayClass}`}
-            style={{ animationDelay: "80ms" }}
+            className="mt-5 text-[2.35rem] font-extrabold leading-[1.3] sm:text-6xl lg:text-[3.5rem] xl:text-[4rem]"
           >
-            نوصّلك بشريك العمر
+            {content.hero.title.split(" ").slice(0, 2).join(" ")}
             <br />
-            بالحلال، وبرضا العائلتين
+            <span className="text-accent">{content.hero.title.split(" ").slice(2).join(" ")}</span>
           </h1>
-          <p className="landing-rise mx-auto mt-6 max-w-xl text-lg leading-loose text-white/75 lg:mx-0" style={{ animationDelay: "160ms" }}>
+          <p className="mx-auto mt-5 min-h-[6.75rem] max-w-xl text-lg leading-loose text-white/80 sm:min-h-0 lg:mx-0">
             {content.hero.lead}
           </p>
 
           <ul
-            className="landing-rise mx-auto mt-6 flex max-w-xl flex-wrap justify-center gap-x-5 gap-y-2 text-sm font-semibold text-white/85 lg:mx-0 lg:justify-start"
-            style={{ animationDelay: "200ms" }}
+            className="mx-auto mt-5 flex max-w-xl flex-wrap justify-center gap-x-5 gap-y-2 max-[374px]:min-h-[4.75rem] text-sm font-semibold text-white/90 lg:mx-0 lg:justify-start"
           >
             {content.hero.points.map((p) => (
               <li key={p} className="inline-flex items-center gap-1.5">
@@ -55,16 +50,24 @@ export function LandingHero({
             ))}
           </ul>
 
-          <div className="landing-rise mx-auto mt-9 flex justify-center lg:mx-0 lg:justify-start" style={{ animationDelay: "240ms" }}>
+          <div className="mx-auto mt-8 flex justify-center lg:mx-0 lg:justify-start">
             <StartForm id="start" place="hero" gender={lookingFor} onGender={onLookingFor} />
           </div>
-          <p className="text-sm text-white/60">
-            {tried ? "هكذا تماماً تصلك اقتراحاتك بعد التسجيل." : content.hero.note}
-          </p>
         </div>
 
-        <div className="landing-rise" style={{ animationDelay: "320ms" }}>
-          <DemoDeck lookingFor={lookingFor} onTry={() => setTried(true)} />
+        <div className="landing-rise relative mx-auto w-full max-w-[19rem] sm:max-w-[21rem] lg:max-w-none" style={{ animationDelay: "260ms" }}>
+          <div className="relative mx-auto w-[16.5rem] sm:w-[18.5rem] lg:w-[20rem]">
+            {back && (
+              <PhoneFrame
+                src={back.image}
+                alt=""
+                sizes="320px"
+                className="absolute top-8 -end-32 hidden w-[88%] rotate-6 opacity-90 xl:block"
+              />
+            )}
+            <PhoneFrame src={front.image} alt={front.alt} priority sizes="(min-width: 1024px) 320px, 300px" className="relative" />
+          </div>
+          <p className="mt-4 text-center text-xs text-white/55 xl:mt-8">لقطة حقيقية من نصيبك بحسابات تجريبية</p>
         </div>
       </div>
     </section>

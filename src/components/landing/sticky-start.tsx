@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
+import { trackEvent } from "@/lib/analytics";
 
 /**
  * Phones only: once both quick-start forms (and the footer) are off screen, a slim bar keeps «ابدأ مجاناً» in reach.
@@ -39,13 +40,14 @@ export function StickyStart() {
       aria-hidden={!show}
     >
       <div className="flex items-center gap-3">
-        <p className="min-w-0 flex-1 text-sm font-semibold leading-snug text-foreground">التسجيل مجاني، واقتراحاتك الأولى تصلك فوراً</p>
+        <p className="min-w-0 flex-1 text-sm font-semibold leading-snug text-foreground">التسجيل مجاني، والصور مخفية حتى التوافق</p>
         <Link
           href="/register"
+          onClick={() => trackEvent("landing_start", { place: "sticky" })}
           tabIndex={show ? 0 : -1}
           className="inline-flex h-12 shrink-0 items-center gap-1.5 rounded-xl bg-accent px-5 text-base font-extrabold text-accent-foreground"
         >
-          ابدأ مجاناً
+          ابدأ التسجيل
           <ArrowLeft className="h-4 w-4" aria-hidden />
         </Link>
       </div>

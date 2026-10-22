@@ -90,36 +90,48 @@ export function StartForm({
       </fieldset>
 
       <label htmlFor={`${uid}-phone`} className={cn("mt-4 block text-sm font-semibold", dark ? "text-white/80" : "text-foreground/80")}>
-        رقم هاتفك الأردني <span className={dark ? "text-white/50" : "text-muted-foreground"}>(اختياري الآن)</span>
+        رقم هاتفك <span className={dark ? "text-white/50" : "text-muted-foreground"}>(اختياري الآن)</span>
       </label>
       <div className="mt-2 flex flex-col gap-2 sm:flex-row">
-        <input
-          id={`${uid}-phone`}
-          type="tel"
-          inputMode="tel"
-          autoComplete="tel"
+        <div
           dir="ltr"
-          placeholder="07X XXX XXXX"
-          value={phone}
-          onChange={(e) => setPhone(e.target.value)}
-          aria-invalid={!!error && cleanStartPhone(phone) === null}
           className={cn(
-            "h-14 min-w-0 rounded-2xl border px-4 sm:flex-1 text-start text-base font-semibold tracking-wide outline-none transition-colors focus-visible:ring-2 focus-visible:ring-accent",
-            dark
-              ? "border-white/20 bg-white/10 text-white placeholder:text-white/40 focus:border-accent"
-              : "border-border bg-card text-foreground placeholder:text-muted-foreground focus:border-primary"
+            "flex h-14 min-w-0 items-center rounded-2xl border transition-colors focus-within:ring-2 focus-within:ring-accent sm:flex-1",
+            dark ? "border-white/20 bg-white/10 focus-within:border-accent" : "border-border bg-card focus-within:border-primary"
           )}
-        />
+        >
+          <span className={cn("ps-4 pe-2 text-base font-bold", dark ? "text-white/60" : "text-muted-foreground")} aria-hidden>
+            +962
+          </span>
+          <input
+            id={`${uid}-phone`}
+            type="tel"
+            inputMode="tel"
+            autoComplete="tel-national"
+            placeholder="7X XXX XXXX"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            aria-invalid={!!error && cleanStartPhone(phone) === null}
+            aria-describedby={`${uid}-hint`}
+            className={cn(
+              "h-full min-w-0 flex-1 rounded-e-2xl bg-transparent pe-4 text-start text-base font-semibold tracking-wide outline-none",
+              dark ? "text-white placeholder:text-white/40" : "text-foreground placeholder:text-muted-foreground"
+            )}
+          />
+        </div>
         <button
           type="submit"
           disabled={going}
           className="inline-flex h-14 items-center justify-center gap-2 rounded-2xl bg-accent px-7 text-lg font-extrabold text-accent-foreground shadow-[0_12px_30px_-12px_oklch(0.69_0.10_74/0.8)] transition-transform hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:opacity-70 motion-safe:active:scale-[0.98]"
         >
-          ابدأ مجاناً
+          {going ? "لحظة…" : "ابدأ التسجيل"}
           <ArrowLeft className="h-5 w-5" aria-hidden />
         </button>
       </div>
-      <p id={`${uid}-err`} role="alert" className={cn("mt-2 min-h-5 text-sm font-semibold", dark ? "text-amber-200" : "text-destructive")}>
+      <p id={`${uid}-hint`} className={cn("mt-2 text-xs", dark ? "text-white/60" : "text-muted-foreground")}>
+        رقمك لا يظهر لأي مستخدم، ونرسل عليه رمز التحقق فقط. التسجيل مجاني.
+      </p>
+      <p id={`${uid}-err`} role="alert" className={cn("mt-1 min-h-5 text-sm font-semibold", dark ? "text-amber-200" : "text-destructive")}>
         {error}
       </p>
     </form>

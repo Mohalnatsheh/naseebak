@@ -321,13 +321,6 @@ img.protected-photo {
   to { opacity: 1; transform: none; }
 }
 .landing-rise { animation: landingRise 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
-.journey-thread {
-  background: linear-gradient(to bottom, var(--accent), color-mix(in oklch, var(--accent) 35%, transparent));
-  transform: scaleY(0);
-  transform-origin: top;
-  transition: transform 1.4s cubic-bezier(0.2, 0.7, 0.2, 1);
-}
-.journey.is-drawn .journey-thread { transform: scaleY(1); }
 /* Navy night (hero + final call) and a faint gold khatam (eight-point star) tile over it */
 .landing-night {
   background:
@@ -342,30 +335,8 @@ img.protected-photo {
   -webkit-mask-image: radial-gradient(ellipse at 70% 40%, #000 0%, transparent 75%);
   mask-image: radial-gradient(ellipse at 70% 40%, #000 0%, transparent 75%);
 }
-.journey-thread-x {
-  background: linear-gradient(to left, var(--accent), color-mix(in oklch, var(--accent) 35%, transparent));
-  transform: scaleX(0);
-  transform-origin: right;
-  transition: transform 1.4s cubic-bezier(0.2, 0.7, 0.2, 1);
-}
-.journey.is-drawn .journey-thread-x { transform: scaleX(1); }
-
-/* The hero's example card: in, out on «لا», and the mutual-match reveal */
-@keyframes demoIn { from { opacity: 0; transform: translateY(10px) scale(0.98); } to { opacity: 1; transform: none; } }
-@keyframes demoOut { to { opacity: 0; transform: translateX(-40%) rotate(-6deg); } }
-@keyframes demoMatch { 0% { opacity: 0; transform: scale(0.94); } 60% { opacity: 1; transform: scale(1.02); } 100% { transform: none; } }
-@keyframes demoDots { 0%, 20% { content: "."; } 40% { content: ".."; } 60%, 100% { content: "..."; } }
-.demo-card { animation: demoIn 0.45s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
-.demo-card-out { animation: demoOut 0.5s ease-in 0.7s forwards; }
-.demo-match { animation: demoMatch 0.6s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
-.demo-dots::after { content: "..."; animation: demoDots 1.2s steps(1) infinite; }
-
 @media (prefers-reduced-motion: reduce) {
   .landing-rise { animation: none; }
-  .journey-thread { transform: none; transition: none; }
-  .journey-thread-x { transform: none; transition: none; }
-  .demo-card, .demo-card-out, .demo-match { animation: none; }
-  .demo-dots::after { animation: none; }
 }
 
 /*

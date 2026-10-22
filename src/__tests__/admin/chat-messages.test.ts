@@ -36,9 +36,10 @@ describe("GET /api/admin/chats/[id]/messages", () => {
       id: "c1", status: "ENDED", createdAt: new Date(now - 864e5), expiresAt: new Date(now + 864e5), extended: false,
       endedById: "m1", endedByAdminId: null, endedAt: new Date(now),
       match: { id: "mm1", female: sara, male: yazan },
+      // the query returns the newest first; the route shows them oldest first
       messages: [
-        { id: "a", senderId: "f1", body: "السلام عليكم", readAt: new Date(now), createdAt: new Date(now - 1000) },
         { id: "b", senderId: "m1", body: "وعليكم السلام", readAt: null, createdAt: new Date(now) },
+        { id: "a", senderId: "f1", body: "السلام عليكم", readAt: new Date(now), createdAt: new Date(now - 1000) },
       ],
     });
     const res = await call();
@@ -48,7 +49,7 @@ describe("GET /api/admin/chats/[id]/messages", () => {
     expect(d.chat.endedBy).toBe("يزن");
     expect(d.messages.map((m: { body: string }) => m.body)).toEqual(["السلام عليكم", "وعليكم السلام"]);
     expect(d.truncated).toBe(false);
-    expect(db.conversation.findUnique.mock.calls[0][0].select.messages.orderBy).toEqual({ createdAt: "asc" });
+    expect(db.conversation.findUnique.mock.calls[0][0].select.messages.orderBy).toEqual({ createdAt: "desc" });
     expect(log).toHaveBeenCalledWith(expect.stringContaining("[admin-chat-view] admin=admin1 chat=c1"));
   });
 });

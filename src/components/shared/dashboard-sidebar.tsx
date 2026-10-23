@@ -6,7 +6,6 @@ import { usePathname } from "next/navigation";
 import { signOutAndUnlinkPush } from "@/lib/push-client";
 import Image from "next/image";
 import {
-  Menu,
   Bell,
   User,
   LogOut,
@@ -42,11 +41,14 @@ interface NavLink {
 
 const mainLinks: NavLink[] = [
   { href: "/dashboard", label: "الرئيسية", icon: Home },
-  { href: "/dashboard/suggestions", label: "الاقتراحات", icon: Sparkles },
-  { href: "/dashboard/matches", label: "التوافقات", icon: Heart },
+  { href: "/dashboard/suggestions", label: "التوافقات", icon: Sparkles },
+  { href: "/dashboard/matches", label: "التوافق المتبادل", icon: Heart },
   { href: "/dashboard/chats", label: "المحادثات", icon: MessageCircle },
   { href: "/dashboard/notifications", label: "الإشعارات", icon: Bell },
 ];
+
+/** Account pages: «حسابي» in the bottom bar is active on these */
+const ACCOUNT_PREFIXES = ["/dashboard/profile", "/dashboard/photos", "/dashboard/personality-quiz", "/dashboard/payments", "/dashboard/blocks", "/dashboard/support", "/dashboard/referral", "/dashboard/install"];
 
 const accountLinks: NavLink[] = [
   { href: "/dashboard/profile", label: "الملف الشخصي", icon: User },
@@ -133,6 +135,7 @@ export function DashboardSidebar() {
 
   const badges: Record<string, number> = {
     "/dashboard/notifications": unreadCount,
+    "/dashboard/suggestions": counts.likedYou ?? 0,
     "/dashboard/matches": counts.pendingIntros,
     "/dashboard/chats": counts.unreadChats,
   };
@@ -147,11 +150,22 @@ export function DashboardSidebar() {
     accountLinks.map((link) => (link.href === "/dashboard/payments" ? { ...link, label: creditsLabel } : link))
   );
 
-  // Bottom bar: home, suggestions, matches, chats (when on); everything else is under «المزيد»
-  const bottomLinks: (NavLink & { short?: string })[] = filteredMainLinks
-    .filter((l) => l.href !== "/dashboard/notifications")
-    .map((l) => (l.href === "/dashboard/suggestions" ? { ...l, short: "اقتراحات" } : l.href === "/dashboard/matches" ? { ...l, short: "توافقات" } : l.href === "/dashboard/chats" ? { ...l, short: "محادثات" } : l));
-  const moreActive = !bottomLinks.some((l) => isActiveLink(l.href, pathname)) && pathname !== "/dashboard/notifications";
+  // Bottom bar: الرئيسية · التوافقات (suggestions + mutual matches) · المحادثات (when on) · حسابي.
+  // Notifications live behind the bell in the top bar.
+  const matchesArea = (p: string) => p.startsWith("/dashboard/suggestions") || p.startsWith("/dashboard/matches");
+  const bottomLinks: (NavLink & { active: (p: string) => boolean })[] = filteredMainLinks
+    .filter((l) => l.href !== "/dashboard/notifications" && l.href !== "/dashboard/matches")
+    .map((l) =>
+      l.href === "/dashboard/suggestions"
+        ? {
+            ...l,
+            // What waits for my answer: people interested in me + family/chat requests
+            badge: (counts.likedYou ?? 0) + counts.pendingIntros || undefined,
+            active: matchesArea,
+          }
+        : { ...l, active: (p: string) => isActiveLink(l.href, p) }
+    );
+  const accountActive = ACCOUNT_PREFIXES.some((p) => pathname.startsWith(p));
   // A chat room is full screen on phones
   const hideBottomBar = /^\/dashboard\/chats\/[^/]+/.test(pathname);
 
@@ -329,7 +343,7 @@ export function DashboardSidebar() {
             </Link>
             <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
             <SheetContent side="right" className="w-80 p-0 border-r-0 flex flex-col" showCloseButton={false}>
-              <SheetTitle className="sr-only">القائمة</SheetTitle>
+              <SheetTitle className="sr-only">حسابي</SheetTitle>
               <SheetDescription className="sr-only">صفحات لوحة التحكم وحسابك</SheetDescription>
               {sidebarContent(true)}
             </SheetContent>
@@ -338,7 +352,7 @@ export function DashboardSidebar() {
         </div>
       </div>
 
-      {/* Mobile bottom tab bar: the main pages one tap away; «المزيد» opens the full menu */}
+      {/* Mobile bottom tab bar: الرئيسية · التوافقات · المحادثات · حسابي (opens the account menu) */}
       {!hideBottomBar && (
         <nav
           aria-label="التنقل الرئيسي"
@@ -346,26 +360,28 @@ export function DashboardSidebar() {
         >
           <ul className="flex h-16 items-stretch">
             {bottomLinks.map((link) => {
-              const active = isActiveLink(link.href, pathname);
+              const active = link.active(pathname);
+              const badge = link.badge ?? 0;
               return (
                 <li key={link.href} className="flex-1">
                   <Link
                     href={link.href}
                     aria-current={active ? "page" : undefined}
+                    aria-label={badge > 0 ? `${link.label} (${badge})` : undefined}
                     className={cn(
-                      "flex h-full flex-col items-center justify-center gap-1 text-[11px] font-medium transition-colors",
-                      active ? "text-primary" : "text-muted-foreground"
+                      "flex h-full flex-col items-center justify-center gap-1 text-xs transition-colors",
+                      active ? "font-bold text-primary" : "font-medium text-muted-foreground"
                     )}
                   >
-                    <span className={cn("relative flex h-7 w-12 items-center justify-center rounded-full transition-colors", active && "bg-primary/10")}>
-                      <link.icon className="h-5 w-5" />
-                      {link.badge && link.badge > 0 ? (
-                        <span className="absolute -top-1 end-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-bold text-white">
-                          {link.badge > 99 ? "99+" : link.badge}
+                    <span className={cn("relative flex h-8 w-14 items-center justify-center rounded-full transition-colors", active && "bg-primary/10")}>
+                      <link.icon className="h-5 w-5" aria-hidden />
+                      {badge > 0 ? (
+                        <span aria-hidden className="absolute -top-1 end-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-white">
+                          {badge > 99 ? "99+" : badge}
                         </span>
                       ) : null}
                     </span>
-                    {link.short ?? link.label}
+                    {link.label}
                   </Link>
                 </li>
               );
@@ -374,16 +390,16 @@ export function DashboardSidebar() {
               <button
                 type="button"
                 onClick={() => setMobileOpen(true)}
-                aria-label="المزيد من الصفحات"
+                aria-haspopup="dialog"
                 className={cn(
-                  "flex h-full w-full flex-col items-center justify-center gap-1 text-[11px] font-medium transition-colors",
-                  moreActive ? "text-primary" : "text-muted-foreground"
+                  "flex h-full w-full flex-col items-center justify-center gap-1 text-xs transition-colors",
+                  accountActive ? "font-bold text-primary" : "font-medium text-muted-foreground"
                 )}
               >
-                <span className={cn("flex h-7 w-12 items-center justify-center rounded-full", moreActive && "bg-primary/10")}>
-                  <Menu className="h-5 w-5" />
+                <span className={cn("flex h-8 w-14 items-center justify-center rounded-full", accountActive && "bg-primary/10")}>
+                  <User className="h-5 w-5" aria-hidden />
                 </span>
-                المزيد
+                حسابي
               </button>
             </li>
           </ul>

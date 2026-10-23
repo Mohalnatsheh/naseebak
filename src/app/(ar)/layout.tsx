@@ -47,6 +47,8 @@ export const metadata: Metadata = {
     ],
   },
   manifest: "/site.webmanifest",
+  // iPhone home-screen app: full screen with the brand name under the icon
+  appleWebApp: { capable: true, title: "نصيبك", statusBarStyle: "default" },
   openGraph: {
     type: "website",
     locale: "ar_JO",

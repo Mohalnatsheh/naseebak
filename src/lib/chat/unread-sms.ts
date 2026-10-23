@@ -17,20 +17,18 @@
  */
 import { db } from "@/lib/db";
 import { CHAT_NOTICE_PREFERENCE } from "@/lib/notification-prefs";
-import { sendSmsNotice, type SmsNoticeResult } from "@/lib/sms-notice";
+import { isQuietHour, sendSmsNotice, type SmsNoticeResult } from "@/lib/sms-notice";
 
 export const CHAT_SMS_AFTER_MS = 2 * 60 * 60 * 1000;
 export const CHAT_SMS_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 const RETRY_AFTER_MS = 3 * 60 * 60 * 1000;
-export const RETRYABLE = ["already_today", "unknown_push", "failed"];
+// "quiet": an admin «send now» at night waits for the morning run
+export const RETRYABLE = ["already_today", "unknown_push", "failed", "quiet"];
 export type ChatSmsStatus = SmsNoticeResult | "opted_out" | "sent_admin";
 export type ChatSmsEvent = "chat_open" | "message";
 
-/** Pure: Amman hour (UTC+3 all year) — 23:00–08:59 is quiet. */
-export function isQuietHour(now: Date): boolean {
-  const h = (now.getUTCHours() + 3) % 24;
-  return h >= 23 || h < 9;
-}
+/** 23:00–08:59 Amman is quiet for every notice SMS (shared rule, lib/sms-notice.ts) */
+export { isQuietHour };
 
 export interface ChatShape {
   femaleId: string;

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronLeft, UserPen, Inbox, MessageCircle, Sparkles, Users, Coins, Search } from "lucide-react";
+import { ChevronLeft, UserPen, Inbox, MessageCircle, Sparkles, Users, Coins, Search, Heart } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { useDashboardData } from "@/contexts/dashboard-context";
@@ -103,16 +103,24 @@ export function NextStepCard({ qualifies, pendingSuggestions, credits, emptyReas
       cta: g("اشحن رصيدك", "اشحني رصيدك"),
       tone: "accent",
     };
+  } else if ((counts.likedYou ?? 0) > 0 && !(creditOnInterest && balance <= 0)) {
+    // Someone already said «مهتم»: one «مهتم» back is a mutual match
+    const n = counts.likedYou ?? 0;
+    step = {
+      icon: Heart,
+      title: n === 1 ? g("شخص مهتم بالتحدث معك", "شخص مهتم بالتحدث معكِ") : g(`${n} أشخاص مهتمون بالتحدث معك`, `${n} أشخاص مهتمون بالتحدث معكِ`),
+      text: g("أبدوا اهتمامهم بالتعرف إليك. «مهتم» منك هنا توافق فوري.", "أبدوا اهتمامهم بالتعرف إليكِ. «مهتم» منكِ هنا توافق فوري."),
+      href: "/dashboard/suggestions?tab=interested",
+      cta: g("اطّلع الآن", "اطّلعي الآن"),
+      tone: "accent",
+    };
   } else if ((pendingSuggestions ?? 0) > 0) {
     step = {
       icon: Sparkles,
-      title: pendingSuggestions === 1 ? "لديك اقتراح جديد" : "لديك اقتراحات جديدة",
-      text: g(
-        "اطّلع عليها وقرّر. من أبدى اهتمامه بك تجده في «مهتمون بك».",
-        "اطّلعي عليها وقرّري. من أبدى اهتمامه بكِ تجدينه في «مهتمون بكِ»."
-      ),
+      title: "لديك توافقات جديدة",
+      text: g("اكتشف الأشخاص الجدد الذين قد يناسبونك.", "اكتشفي الأشخاص الجدد الذين قد يناسبونكِ."),
       href: "/dashboard/suggestions",
-      cta: "عرض الاقتراحات",
+      cta: g("اكتشف الآن", "اكتشفي الآن"),
       tone: "primary",
     };
   } else if (newCycle && !creditOnInterest && actionableMatches > 0 && credits === 0) {
@@ -133,7 +141,7 @@ export function NextStepCard({ qualifies, pendingSuggestions, credits, emptyReas
       title: g("اختر طريقة التعارف مع توافقك", "اختاري طريقة التعارف مع توافقك"),
       text: counts.flags.chat ? "تعارف عائلي، أو محادثة قصيرة أولاً." : g("ابدأ بطلب تعارف عائلي.", "ابدئي بطلب تعارف عائلي."),
       href: "/dashboard/matches",
-      cta: "عرض التوافقات",
+      cta: "التوافقات المتبادلة",
       tone: "primary",
     };
   } else if (emptyReason === "no_candidates") {
@@ -146,16 +154,16 @@ export function NextStepCard({ qualifies, pendingSuggestions, credits, emptyReas
         "سنقترح عليكِ فور انضمام من يناسبك. يمكنكِ مراجعة شروطك الأساسية وتفضيلاتك لتوسيع الاحتمالات."
       ),
       href: "/dashboard/suggestions",
-      cta: "صفحة الاقتراحات",
+      cta: "صفحة التوافقات",
       tone: "primary",
     };
   } else if (suggestionsFailed) {
     step = {
       icon: Search,
       title: "تعذّر تحميل اقتراحاتك الآن",
-      text: g("افتح صفحة الاقتراحات للمحاولة مرة أخرى.", "افتحي صفحة الاقتراحات للمحاولة مرة أخرى."),
+      text: g("افتح صفحة التوافقات للمحاولة مرة أخرى.", "افتحي صفحة التوافقات للمحاولة مرة أخرى."),
       href: "/dashboard/suggestions",
-      cta: "صفحة الاقتراحات",
+      cta: "صفحة التوافقات",
       tone: "primary",
     };
   } else {
@@ -168,7 +176,7 @@ export function NextStepCard({ qualifies, pendingSuggestions, credits, emptyReas
           ? "تصلك حتى 3 اقتراحات مجانية كل أسبوع، وسنرسل لك إشعاراً فور وصولها."
           : "سنرسل لك إشعاراً فور وصول اقتراح جديد.",
       href: "/dashboard/suggestions",
-      cta: "صفحة الاقتراحات",
+      cta: "صفحة التوافقات",
       tone: "primary",
     };
   }

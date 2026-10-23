@@ -10,6 +10,7 @@
  * A «لا» is therefore seen only by someone who had already said «مهتم»; for everyone else the card
  * simply disappears.
  */
+import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { calculateCompatibility } from "@/lib/matching/score";
 import { suggestionReason } from "@/lib/matching/reasons";
@@ -87,6 +88,31 @@ async function blockedIdsOf(userId: string): Promise<Set<string>> {
 /** Does this user still have a MUTUAL suggestion to decide? (keeps the two-tab view after a switch-off) */
 export async function hasOpenMutual(userId: string): Promise<boolean> {
   return (await db.suggestion.count({ where: openMutualWhere(userId) })) > 0;
+}
+
+/**
+ * Cheap badge counts for the shared flow, same rules as the feed's MUTUAL rows (openMutualWhere,
+ * blocked people left out): `fresh` = nobody answered yet («الجديد»), `likedYou` = the other side said
+ * «مهتم» and I haven't decided («مهتمون بالتحدث معك»). Two COUNT queries — safe for the 30-second poll.
+ */
+export async function countMutualTabs(userId: string, now = new Date()): Promise<{ fresh: number; likedYou: number }> {
+  const blocked = [...(await blockedIdsOf(userId))];
+  const where = (theirs: "INTERESTED" | null) => {
+    const base = openMutualWhere(userId, now);
+    const [asRecipient, asCandidate] = base.OR as Prisma.SuggestionWhereInput[];
+    return {
+      ...base,
+      OR: [
+        { ...asRecipient, candidateDecision: theirs, ...(blocked.length && { candidateId: { notIn: blocked } }) },
+        { ...asCandidate, recipientDecision: theirs, ...(blocked.length && { recipientId: { notIn: blocked } }) },
+      ],
+    };
+  };
+  const [fresh, likedYou] = await Promise.all([
+    db.suggestion.count({ where: where(null) }),
+    db.suggestion.count({ where: where("INTERESTED") }),
+  ]);
+  return { fresh, likedYou };
 }
 
 /** Cards still to decide: the "new" and "interested" tabs together (dashboard card, next step). */

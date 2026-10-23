@@ -6,12 +6,12 @@ import { BellOff, BellRing, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useDashboardData } from "@/contexts/dashboard-context";
 import { forViewer } from "@/lib/gendered-copy";
-import { readOnboardingDone } from "@/lib/onboarding";
 import { PushSetupSheet, usePushState } from "@/components/shared/push-setup";
 
 const HIDDEN_KEY = "naseeb:notification-bar-hidden";
-const AUTO_OPENED_KEY = "naseeb:push-setup-auto-at";
-const AUTO_OPEN_EVERY_MS = 24 * 60 * 60 * 1000;
+/** «لاحقاً» lasts this long (was one browser session: in-app browsers and the installed iPhone app start
+ *  new sessions all the time, so the bar came back on nearly every visit) */
+const HIDDEN_FOR_MS = 3 * 24 * 60 * 60 * 1000;
 /** Fired by the home card (and anything else) to open the guided setup */
 export const OPEN_PUSH_SETUP_EVENT = "naseeb:open-push-setup";
 
@@ -26,35 +26,24 @@ function subscribeHidden(onChange: () => void) {
 }
 function readHidden(): boolean {
   try {
-    return sessionStorage.getItem(HIDDEN_KEY) === "1";
+    const at = Number(localStorage.getItem(HIDDEN_KEY));
+    return (!!at && Date.now() - at < HIDDEN_FOR_MS) || sessionStorage.getItem(HIDDEN_KEY) === "1";
   } catch {
     return false;
   }
 }
 
-function autoOpenDue(): boolean {
-  try {
-    const at = Number(localStorage.getItem(AUTO_OPENED_KEY));
-    if (at && Date.now() - at < AUTO_OPEN_EVERY_MS) return false;
-    localStorage.setItem(AUTO_OPENED_KEY, String(Date.now()));
-    return true;
-  } catch {
-    return false; // storage blocked: never nag on every load
-  }
-}
-
 /**
- * Notifications, until they are on for this device:
- * - a short bar on every dashboard page (not home, which has its own card; not in a chat room, the
- *   guide or the setup) whose one button opens the guided setup sheet (PushSetupSheet)
- * - on phones the sheet also opens by itself on the home page, at most once a day, after the
- *   onboarding guide (and right after it finishes)
- * «لاحقاً» hides the bar until the browser is closed.
+ * Notifications, until they are on for this device: a short bar on dashboard pages (not home, which
+ * has its own install/notifications card; not in a chat room, the guide or the setup) whose one button
+ * opens the guided setup sheet (PushSetupSheet). The sheet no longer opens by itself on the home page
+ * (it stacked on top of the home card): it opens only when the member asks. «لاحقاً» hides the bar for
+ * 3 days.
  */
 export function NotificationBar() {
   const gender = useDashboardData().profile?.gender;
   const pathname = usePathname();
-  const { device, stage } = usePushState();
+  const { stage } = usePushState();
   const hidden = useSyncExternalStore(subscribeHidden, readHidden, () => true);
   const [open, setOpen] = useState(false);
 
@@ -63,25 +52,6 @@ export function NotificationBar() {
     window.addEventListener(OPEN_PUSH_SETUP_EVENT, onOpen);
     return () => window.removeEventListener(OPEN_PUSH_SETUP_EVENT, onOpen);
   }, []);
-
-  const actionable = stage === "browser" || stage === "install" || stage === "allow";
-  const phone = device?.os === "ios" || device?.os === "android";
-
-  // Auto-open on the home page (phones, something to do, onboarding seen), at most once a day
-  useEffect(() => {
-    if (pathname !== "/dashboard" || !actionable || !phone) return;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const tryOpen = () => {
-      if (!readOnboardingDone(window.localStorage)) return;
-      timer = setTimeout(() => autoOpenDue() && setOpen(true), 1200);
-    };
-    tryOpen();
-    window.addEventListener("naseeb:onboarding-done", tryOpen);
-    return () => {
-      window.removeEventListener("naseeb:onboarding-done", tryOpen);
-      if (timer) clearTimeout(timer);
-    };
-  }, [pathname, actionable, phone]);
 
   const sheet = <PushSetupSheet open={open} onOpenChange={setOpen} gender={gender} />;
 
@@ -98,7 +68,7 @@ export function NotificationBar() {
 
   function hide() {
     try {
-      sessionStorage.setItem(HIDDEN_KEY, "1");
+      localStorage.setItem(HIDDEN_KEY, String(Date.now()));
     } catch {
       // private mode: stays visible (nothing to remember it in)
     }

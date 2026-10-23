@@ -35,6 +35,7 @@ import { CREDIT_ON_INTEREST_LINE } from "@/lib/suggestions/copy";
 import { arabicCount } from "@/lib/utils";
 import { LoadError } from "@/components/shared/load-error";
 import { PageHeader } from "@/components/shared/page-header";
+import { markPageNotificationsRead } from "@/lib/notifications-client";
 
 const stripePromise = loadStripe(
   process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!
@@ -83,6 +84,11 @@ export default function PaymentsPage() {
 }
 
 function PaymentsContent() {
+  // Opening this page clears the bell for the notifications that lead here
+  useEffect(() => {
+    markPageNotificationsRead("/dashboard/payments");
+  }, []);
+
   // New cycle: a credit is spent per family/chat request, suggestions are free;
   // credit on interest: a credit is spent on "مهتم" instead, requests are free
   // `switchesLoading`: the copy depends on the switch flags, so wait for them (no legacy-copy flash)

@@ -5,7 +5,7 @@ const db = vi.hoisted(() => ({
   block: { findMany: vi.fn(), findUnique: vi.fn(), create: vi.fn() },
   user: { findUnique: vi.fn() },
   introRequest: { updateMany: vi.fn(), count: vi.fn(), findFirst: vi.fn() },
-  suggestion: { findMany: vi.fn() },
+  suggestion: { findMany: vi.fn(), count: vi.fn() },
   message: { count: vi.fn() },
   conversation: { count: vi.fn(), findMany: vi.fn(async () => []), update: vi.fn(), updateMany: vi.fn(async () => ({ count: 0 })) },
   parentInfo: { findUnique: vi.fn() },
@@ -164,5 +164,36 @@ describe("GET /api/me/counts", () => {
     const data = await (await getCounts()).json();
     expect(data.actionableMatches).toBe(1);
     expect(db.introRequest.updateMany).toHaveBeenCalledWith(expect.objectContaining({ data: { status: "CANCELLED" } }));
+  });
+
+  function quietCounts() {
+    db.introRequest.count.mockResolvedValue(0);
+    db.introRequest.findFirst.mockResolvedValue(null);
+    db.message.count.mockResolvedValue(0);
+    db.conversation.count.mockResolvedValue(0);
+    db.parentInfo.findUnique.mockResolvedValue(null);
+    db.mutualMatch.findMany.mockResolvedValue([]);
+  }
+
+  it("adds the «الجديد» / «مهتمون بالتحدث معك» badge counts, leaving out blocked people", async () => {
+    quietCounts();
+    db.block.findMany.mockResolvedValue([{ blockerId: "u1", blockedId: "x9" }]);
+    db.suggestion.count.mockResolvedValueOnce(4).mockResolvedValueOnce(2);
+    const data = await (await getCounts()).json();
+    expect(data.newSuggestions).toBe(4);
+    expect(data.likedYou).toBe(2);
+    const likedWhere = db.suggestion.count.mock.calls[1][0].where;
+    expect(likedWhere.OR[0]).toMatchObject({ recipientId: "u1", recipientDecision: null, candidateDecision: "INTERESTED", candidateId: { notIn: ["x9"] } });
+    expect(likedWhere.OR[1]).toMatchObject({ candidateId: "u1", candidateDecision: null, recipientDecision: "INTERESTED", hiddenFromCandidate: false });
+  });
+
+  it("a failing badge count never breaks the poll", async () => {
+    quietCounts();
+    db.block.findMany.mockResolvedValue([]);
+    db.suggestion.count.mockRejectedValue(new Error("db down"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const res = await getCounts();
+    expect(res.status).toBe(200);
+    expect((await res.json()).likedYou).toBeUndefined();
   });
 });

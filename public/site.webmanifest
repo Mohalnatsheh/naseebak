@@ -1,8 +1,10 @@
 {
+  "id": "/dashboard",
   "name": "نصيبك - نوصّلك بشريك العمر بالحلال",
   "short_name": "نصيبك",
   "description": "منصة أردنية للزواج بالحلال — بسترة واحترام",
   "start_url": "/dashboard",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#f8f9fc",
   "theme_color": "#22476a",
@@ -19,5 +21,10 @@
       "sizes": "512x512",
       "type": "image/png"
     }
+  ],
+  "shortcuts": [
+    { "name": "التوافقات", "url": "/dashboard/suggestions", "icons": [{ "src": "/images/icon-192.png", "sizes": "192x192" }] },
+    { "name": "مهتمون بالتحدث معك", "url": "/dashboard/suggestions?tab=interested", "icons": [{ "src": "/images/icon-192.png", "sizes": "192x192" }] },
+    { "name": "المحادثات", "url": "/dashboard/chats", "icons": [{ "src": "/images/icon-192.png", "sizes": "192x192" }] }
   ]
 }

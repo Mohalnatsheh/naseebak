@@ -2,60 +2,44 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import {
-  Loader2,
-  Sparkles,
-  Heart,
-  Shield,
-  Clock,
-  CheckCircle2,
-  AlertCircle,
-  ArrowLeft,
-  Zap,
-} from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
+import { Loader2, Sparkles, Heart, MessageCircle, Bell, ChevronLeft, Zap } from "lucide-react";
 import { useDashboardData } from "@/contexts/dashboard-context";
-import { arabicCount } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { GuardianConsentCard } from "@/components/intro/guardian-consent-card";
 import { NextStepCard } from "@/components/dashboard/next-step-card";
 import { InstallAppCard } from "@/components/shared/install-app-card";
 import { LoadError } from "@/components/shared/load-error";
+import { listTimeLabel } from "@/components/chat/chat-utils";
 import { qualifiesForSuggestions as qualifiesForSuggestionsGate } from "@/lib/profile-completeness";
+import type { ChatSummary } from "@/lib/chat/service";
 
-/* ------------------------------------------------------------------ */
-/*  Arabic date formatter                                              */
-/* ------------------------------------------------------------------ */
-function getArabicDate() {
-  return new Date().toLocaleDateString("ar-JO-u-nu-latn", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
+/** Amman time (UTC+3 all year), whatever the device clock says */
+function ammanHour(): number {
+  return (new Date().getUTCHours() + 3) % 24;
 }
 
-/* ------------------------------------------------------------------ */
-/*  Greeting by time of day                                            */
-/* ------------------------------------------------------------------ */
 function getGreeting() {
-  const hour = new Date().getHours();
-  if (hour < 12) return "صباح الخير";
-  if (hour < 17) return "مساء الخير";
-  return "مساء الخير";
+  const h = ammanHour();
+  return h >= 4 && h < 12 ? "صباح الخير" : "مساء الخير";
 }
 
-/* ================================================================== */
-/*  Main Component                                                    */
-/* ================================================================== */
+function getArabicDate() {
+  return new Date().toLocaleDateString("ar-JO-u-nu-latn", { weekday: "long", day: "numeric", month: "long", timeZone: "Asia/Amman" });
+}
+
+/**
+ * Home: a daily action centre. Greeting → the one next step → what waits for me (each count opens
+ * exactly that list) → conversations to continue → one helper card → profile strength (only while
+ * it's not complete). Every number comes from the server (/api/me/counts, /api/chats).
+ */
 export default function DashboardPage() {
-  const { profile, completeness, counts, loading, profileFailed, refreshProfile } = useDashboardData();
+  const { profile, completeness, counts, unreadCount, loading, profileFailed, refreshProfile } = useDashboardData();
   const [retrying, setRetrying] = useState(false);
-  // New cycle: suggestions are free, so "out of credits" no longer blocks suggestions
-  const creditsBlockSuggestions = !counts.flags.introRequests;
   const [pendingSuggestions, setPendingSuggestions] = useState<number | null>(null);
   // Why nothing new came ("weekly_cap" | "no_candidates" | "pending" | null), from page 1 of /api/suggestions
   const [emptyReason, setEmptyReason] = useState<string | null>(null);
   const [suggestionsFailed, setSuggestionsFailed] = useState(false);
+  const [chats, setChats] = useState<ChatSummary[] | null>(null);
   const female = profile?.gender === "FEMALE";
   const g = (masculine: string, feminine: string) => (female ? feminine : masculine);
   // New cycle: finishing the short setup is enough; legacy: 50% completeness
@@ -64,6 +48,7 @@ export default function DashboardPage() {
     isComplete: !!profile?.profile?.isComplete,
     newCycle: counts.flags.introRequests,
   });
+  const chatOn = counts.flags.chat || counts.hasChats;
 
   // Once the profile qualifies, page 1 of /api/suggestions also tops up suggestions automatically
   useEffect(() => {
@@ -85,16 +70,22 @@ export default function DashboardPage() {
     return () => { cancelled = true; };
   }, [loading, qualifiesForSuggestions]);
 
+  // Conversations to continue (the same list as the chats page)
+  useEffect(() => {
+    if (loading || !chatOn) return;
+    let cancelled = false;
+    fetch("/api/chats")
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`chats ${r.status}`))))
+      .then((d) => { if (!cancelled) setChats((d.conversations ?? []) as ChatSummary[]); })
+      .catch(() => { if (!cancelled) setChats([]); });
+    return () => { cancelled = true; };
+  }, [loading, chatOn]);
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-24 gap-4">
-        <div className="relative">
-          <div className="h-12 w-12 rounded-full border-4 border-muted animate-pulse" />
-          <Loader2 className="absolute inset-0 m-auto h-6 w-6 animate-spin text-primary" />
-        </div>
-        <p className="text-sm text-muted-foreground animate-pulse">
-          جارٍ تحميل لوحة التحكم...
-        </p>
+        <Loader2 className="h-8 w-8 animate-spin text-primary" aria-hidden />
+        <p className="text-sm text-muted-foreground">جارٍ تحميل صفحتك…</p>
       </div>
     );
   }
@@ -104,11 +95,7 @@ export default function DashboardPage() {
     return (
       <div className="py-12">
         <LoadError
-          message={
-            profileFailed
-              ? "تعذّر تحميل بياناتك. تحقّق من الاتصال وحاول مرة أخرى."
-              : "تعذّر تحميل البيانات. حاول مرة أخرى."
-          }
+          message={profileFailed ? "تعذّر تحميل بياناتك. تحقّق من الاتصال وحاول مرة أخرى." : "تعذّر تحميل البيانات. حاول مرة أخرى."}
           onRetry={
             retrying
               ? undefined
@@ -122,327 +109,171 @@ export default function DashboardPage() {
     );
   }
 
-  // The verified badge is hidden everywhere user-facing in the new cycle (identity checks were removed)
-  const isVerified = !counts.flags.introRequests && profile?.identityDoc?.status === "APPROVED";
-  const actionableMatches = counts.actionableMatches ?? 0;
-  const hasProfile = profile?.profile?.isComplete;
-  const hasQuiz = !!profile?.personalityResult;
-
-  /* Use server-computed completeness or fall back to old logic */
-  const completionPercent = completeness?.total ?? Math.round(
-    ([hasProfile, hasQuiz].filter(Boolean).length / 2) * 100
-  );
-
-  // Same number as the top bar and the next-step card
-  const matchCreditsCount = counts.credits ?? profile?.matchCredits ?? 0;
-  const receivedSuggestions = profile?._count?.receivedSuggestions || 0;
-  const matchesCount =
-    (profile?._count?.matchesAsFemale || 0) +
-    (profile?._count?.matchesAsMale || 0);
-
-  const motivationalMessages = [
-    "كل خطوة تقربك من النصيب المكتوب لك",
-    "التوكل على الله أول خطوات التوفيق",
-    "يسّر الله لك ما فيه الخير",
-    "الخيرة فيما اختاره الله",
-  ];
-  const motivational =
-    motivationalMessages[
-      Math.floor(new Date().getDate() / 7) % motivationalMessages.length
-    ];
-
-  const levelLabel =
-    completeness?.level === "excellent" ? "ممتاز" :
-    completeness?.level === "strong" ? "قوي" :
-    completeness?.level === "good" ? "جيد" :
-    // New cycle: a finished short setup already gets suggestions, so don't call it a beginning
-    counts.flags.introRequests && hasProfile ? "جاهز للاقتراحات" : "في البداية";
+  const matchesCount = (profile._count?.matchesAsFemale || 0) + (profile._count?.matchesAsMale || 0);
+  const credits = counts.credits ?? profile.matchCredits ?? 0;
+  const completionPercent = completeness?.total ?? 0;
   const topTip = completeness?.tips?.[0];
-  const stats = [
-    // Credit on interest: credit is spent on «مهتم»; per-request: on family/chat requests
-    { href: "/dashboard/payments", value: matchCreditsCount, label: creditsBlockSuggestions ? "رصيد الاقتراحات" : "رصيدك" },
-    // Shared suggestions belong to both people, so "received" undercounts — show what's waiting instead
-    {
-      href: "/dashboard/suggestions",
-      value: creditsBlockSuggestions ? receivedSuggestions : pendingSuggestions ?? 0,
-      label: creditsBlockSuggestions ? "اقتراحات مستلمة" : "اقتراحات جديدة",
-    },
-    { href: "/dashboard/matches", value: matchesCount, label: "توافقات" },
-  ];
-  // Profile ring (r = 26 → circumference ≈ 163.4)
-  const RING = 2 * Math.PI * 26;
+  const shared = counts.flags.mutualSuggestions && typeof counts.newSuggestions === "number";
+
+  // What waits for me — each tile opens exactly the list it counts
+  const tiles = shared
+    ? [
+        { key: "new", href: "/dashboard/suggestions", icon: Sparkles, value: counts.newSuggestions ?? 0, label: "توافقات جديدة" },
+        { key: "liked", href: "/dashboard/suggestions?tab=interested", icon: Heart, value: counts.likedYou ?? 0, label: g("مهتمون بالتحدث معك", "مهتمون بالتحدث معكِ") },
+        ...(chatOn ? [{ key: "chats", href: "/dashboard/chats", icon: MessageCircle, value: counts.unreadChats, label: "رسائل جديدة" }] : []),
+      ]
+    : [];
+
+  // Unread first, then the most recent; active chats only
+  const recentChats = (chats ?? [])
+    .filter((c) => c.status === "ACTIVE" && !c.matchHidden)
+    .sort((a, b) => b.unread - a.unread || +new Date(b.lastMessage?.createdAt ?? 0) - +new Date(a.lastMessage?.createdAt ?? 0))
+    .slice(0, 3);
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6 pb-10">
-      {/* ============================================ */}
-      {/*  Home header: greeting, the next step, counts */}
-      {/* ============================================ */}
-      <section className="landing-night relative overflow-hidden rounded-[2rem] p-5 text-white shadow-xl shadow-primary/20 sm:p-8">
+    <div className="mx-auto max-w-3xl space-y-5 pb-8">
+      {/* Greeting + the one next step */}
+      <section className="landing-night relative overflow-hidden rounded-[1.75rem] p-4 text-white shadow-lg shadow-primary/15 sm:p-6">
         <div className="landing-khatam absolute inset-0" aria-hidden />
         <div className="relative">
-          <p className="text-sm font-medium text-white/60">{getArabicDate()}</p>
-          <h1 className="font-display mt-2 text-[2rem] leading-tight sm:text-5xl">
-            {getGreeting()}، {profile?.firstName || ""}
-          </h1>
-          <p className="mt-2 text-sm text-white/70">
-            {motivational}
-            {isVerified && <span className="ms-2 rounded-full bg-white/10 px-2 py-0.5 text-xs">حساب موثّق</span>}
-          </p>
-
-          {/* The one thing to do next */}
-          <div className="mt-6">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-white/60">{getArabicDate()}</p>
+              <h1 className="font-display mt-1 truncate text-2xl leading-tight sm:text-3xl">
+                {getGreeting()}، {profile.firstName}
+              </h1>
+            </div>
+            {/* Phones have the bell in the top bar; desktop gets it here */}
+            <Link
+              href="/dashboard/notifications"
+              aria-label={unreadCount > 0 ? `الإشعارات (${unreadCount} غير مقروءة)` : "الإشعارات"}
+              className="relative hidden h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/10 hover:bg-white/15 md:flex"
+            >
+              <Bell className="h-5 w-5" aria-hidden />
+              {unreadCount > 0 && (
+                <span aria-hidden className="absolute -top-1 -start-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold">
+                  {unreadCount > 99 ? "99+" : unreadCount}
+                </span>
+              )}
+            </Link>
+          </div>
+          <div className="mt-4">
             <NextStepCard
               variant="hero"
               qualifies={qualifiesForSuggestions}
-              pendingSuggestions={qualifiesForSuggestions ? pendingSuggestions : 0}
+              pendingSuggestions={qualifiesForSuggestions ? (shared ? counts.newSuggestions ?? 0 : pendingSuggestions) : 0}
               matchesCount={matchesCount}
-              credits={matchCreditsCount}
+              credits={credits}
               emptyReason={emptyReason}
               suggestionsFailed={suggestionsFailed}
             />
           </div>
-
-          <div className="mt-6 grid grid-cols-3">
-            {stats.map((stat, i) => (
-              <Link
-                key={stat.href}
-                href={stat.href}
-                aria-label={`${stat.label}: ${stat.value}`}
-                className={`flex min-h-14 flex-col items-center justify-center px-1 text-center transition hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${i > 0 ? "border-s border-white/15" : ""}`}
-              >
-                <span className="font-display text-3xl text-accent sm:text-4xl">{stat.value}</span>
-                <span className="mt-0.5 text-xs font-medium text-white/70">{stat.label}</span>
-              </Link>
-            ))}
-          </div>
         </div>
       </section>
 
-      {/* One helper card at a time: guardian consent first, then installing the app */}
-      {counts.flags.introRequests && counts.guardian?.exists && !counts.guardian.consented ? (
-        <GuardianConsentCard />
-      ) : (
-        <InstallAppCard />
+      {/* What waits for me */}
+      {qualifiesForSuggestions && tiles.length > 0 && (
+        <section aria-label="ما ينتظرك اليوم">
+          <ul className={cn("grid gap-2.5", tiles.length === 3 ? "grid-cols-3" : "grid-cols-2")}>
+            {tiles.map((t) => (
+              <li key={t.key}>
+                <Link
+                  href={t.href}
+                  aria-label={`${t.label}: ${t.value}`}
+                  className={cn(
+                    "flex h-full min-h-24 flex-col justify-between rounded-2xl border p-3 transition-colors",
+                    t.value > 0 ? "border-primary/20 bg-primary/5 hover:bg-primary/10" : "border-border/60 bg-card hover:bg-muted/50"
+                  )}
+                >
+                  <span className="flex items-center justify-between">
+                    <t.icon className={cn("h-5 w-5", t.value > 0 ? "text-primary" : "text-muted-foreground")} aria-hidden />
+                    <span className={cn("font-display text-2xl leading-none", t.value > 0 ? "text-primary" : "text-muted-foreground/70")}>{t.value}</span>
+                  </span>
+                  <span className="mt-2 text-[13px] font-semibold leading-snug text-foreground">{t.label}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
 
-      {/* ============================================ */}
-      {/*  Profile strength: ring, the best next tip, details folded */}
-      {/* ============================================ */}
-      <Card className="overflow-hidden border-border/50 shadow-sm">
-        <CardContent className="pt-5 pb-5">
-          <div className="flex items-center gap-4">
-            <div className="relative h-16 w-16 shrink-0">
-              <svg viewBox="0 0 60 60" className="h-16 w-16 -rotate-90" aria-hidden>
-                <circle cx="30" cy="30" r="26" fill="none" strokeWidth="6" className="stroke-muted" />
-                <circle
-                  cx="30"
-                  cy="30"
-                  r="26"
-                  fill="none"
-                  strokeWidth="6"
-                  strokeLinecap="round"
-                  className={completionPercent === 100 ? "stroke-emerald-500" : "stroke-accent"}
-                  strokeDasharray={RING}
-                  strokeDashoffset={RING * (1 - completionPercent / 100)}
-                />
-              </svg>
-              <span className="font-display absolute inset-0 flex items-center justify-center text-lg text-primary">{completionPercent}%</span>
+      {/* Conversations to continue */}
+      {chatOn && chats !== null && (
+        <section>
+          <div className="mb-2 flex items-center justify-between px-1">
+            <h2 className="text-lg font-bold text-foreground">{g("تابع محادثاتك", "تابعي محادثاتكِ")}</h2>
+            {recentChats.length > 0 && (
+              <Link href="/dashboard/chats" className="inline-flex min-h-11 items-center gap-0.5 text-sm font-semibold text-primary">
+                الكل <ChevronLeft className="h-4 w-4" aria-hidden />
+              </Link>
+            )}
+          </div>
+          {recentChats.length === 0 ? (
+            <p className="rounded-2xl border border-dashed border-border bg-card px-4 py-4 text-sm leading-relaxed text-muted-foreground">
+              {matchesCount > 0
+                ? g("لا محادثة مفتوحة الآن. يمكنك طلب محادثة من التوافقات المتبادلة.", "لا محادثة مفتوحة الآن. يمكنكِ طلب محادثة من التوافقات المتبادلة.")
+                : "تبدأ المحادثة عندما يقول الطرفان «مهتم» ويختاران «محادثة هنا أولاً»."}
+            </p>
+          ) : (
+            <ul className="divide-y divide-border/60 overflow-hidden rounded-2xl border border-border/60 bg-card">
+              {recentChats.map((c) => (
+                <li key={c.id}>
+                  <Link href={`/dashboard/chats/${c.id}`} className="flex items-center gap-3 px-3.5 py-3 hover:bg-muted/40">
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary/10 text-base font-bold text-primary" aria-hidden>
+                      {c.partner.firstName.charAt(0)}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="flex items-center justify-between gap-2">
+                        <span className="truncate font-bold text-foreground">{c.partner.firstName}</span>
+                        {c.lastMessage && <span className="shrink-0 text-xs text-muted-foreground">{listTimeLabel(c.lastMessage.createdAt)}</span>}
+                      </span>
+                      <span className={cn("block truncate text-sm", c.unread > 0 ? "font-semibold text-foreground" : "text-muted-foreground")}>
+                        {c.lastMessage ? `${c.lastMessage.mine ? g("أنت: ", "أنتِ: ") : ""}${c.lastMessage.body}` : g("ابدأ المحادثة", "ابدئي المحادثة")}
+                      </span>
+                    </span>
+                    {c.unread > 0 && (
+                      <span className="flex h-6 min-w-6 shrink-0 items-center justify-center rounded-full bg-accent px-1.5 text-xs font-bold text-accent-foreground" aria-label={`${c.unread} غير مقروءة`}>
+                        {c.unread > 99 ? "99+" : c.unread}
+                      </span>
+                    )}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
+
+      {/* One helper card at a time: guardian consent first, then installing the app */}
+      {counts.flags.introRequests && counts.guardian?.exists && !counts.guardian.consented ? <GuardianConsentCard /> : <InstallAppCard />}
+
+      {/* Profile strength: only while there is something left to add */}
+      {completionPercent < 100 && (
+        <section className="rounded-2xl border border-border/60 bg-card p-4">
+          <div className="flex items-center gap-3">
+            <div
+              className="relative h-12 w-12 shrink-0 rounded-full"
+              style={{ background: `conic-gradient(var(--accent) ${completionPercent * 3.6}deg, var(--muted) 0)` }}
+              role="img"
+              aria-label={`اكتمال الملف ${completionPercent}%`}
+            >
+              <span className="absolute inset-1 flex items-center justify-center rounded-full bg-card text-xs font-bold text-primary">{completionPercent}%</span>
             </div>
             <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <h2 className="font-bold text-foreground">قوة ملفك الشخصي</h2>
-                <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-bold text-primary">{levelLabel}</span>
-              </div>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {completionPercent === 100
-                  ? g("ملفك مكتمل، وهذا يجعل اقتراحاتك أدق.", "ملفكِ مكتمل، وهذا يجعل اقتراحاتكِ أدق.")
-                  : g("كلما اكتمل ملفك كانت اقتراحاتك أدق.", "كلما اكتمل ملفكِ كانت اقتراحاتكِ أدق.")}
-              </p>
+              <h2 className="font-bold text-foreground">{g("ملفك", "ملفكِ")} مكتمل {completionPercent}%</h2>
+              <p className="text-sm text-muted-foreground">{g("كلما اكتمل ملفك كانت توافقاتك أدق.", "كلما اكتمل ملفكِ كانت توافقاتكِ أدق.")}</p>
             </div>
           </div>
-
           {topTip && (
-            <Link
-              href={topTip.link}
-              className="mt-4 flex items-center gap-3 rounded-xl border border-accent/30 bg-accent/10 p-3 transition-colors hover:bg-accent/15"
-            >
+            <Link href={topTip.link} className="mt-3 flex min-h-11 items-center gap-3 rounded-xl border border-accent/30 bg-accent/10 px-3 py-2.5 hover:bg-accent/15">
               <Zap className="h-4 w-4 shrink-0 text-accent-foreground" aria-hidden />
               <span className="min-w-0 flex-1 text-sm font-semibold text-foreground">{topTip.message}</span>
-              <span className="shrink-0 rounded-full bg-card px-2 py-0.5 text-xs font-bold text-primary">+{topTip.impact}%</span>
-              <ArrowLeft className="h-4 w-4 shrink-0 text-primary/50" aria-hidden />
+              <span className="shrink-0 text-xs font-bold text-primary">+{topTip.impact}%</span>
+              <ChevronLeft className="h-4 w-4 shrink-0 text-primary/60" aria-hidden />
             </Link>
           )}
-
-          {completionPercent < 100 && (completeness?.sections?.length ?? 0) > 0 && (
-            <details className="group mt-3">
-              <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between rounded-xl px-1 text-sm font-semibold text-primary [&::-webkit-details-marker]:hidden">
-                تفاصيل الأقسام
-                <ArrowLeft className="h-4 w-4 -rotate-90 transition-transform group-open:rotate-90" aria-hidden />
-              </summary>
-              <div className="mt-1 space-y-2">
-                {(completeness?.tips ?? []).slice(1).map((tip) => (
-                  <Link key={tip.sectionKey} href={tip.link} className="flex items-center gap-3 rounded-xl border border-border/60 p-2.5 hover:bg-muted/50">
-                    <Zap className="h-4 w-4 shrink-0 text-primary/70" aria-hidden />
-                    <span className="min-w-0 flex-1 text-sm text-foreground">{tip.message}</span>
-                    <span className="shrink-0 text-xs font-bold text-primary">+{tip.impact}%</span>
-                  </Link>
-                ))}
-                {(completeness?.sections ?? []).map((section) => (
-                  <Link key={section.key} href={section.link} className="flex items-center gap-3 rounded-xl border border-border/60 p-2.5 hover:bg-muted/50">
-                    {section.percentage === 100 ? (
-                      <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-500" aria-hidden />
-                    ) : (
-                      <AlertCircle className="h-5 w-5 shrink-0 text-primary/60" aria-hidden />
-                    )}
-                    <div className="min-w-0 flex-1">
-                      <div className="mb-1 flex items-center justify-between">
-                        <span className="text-sm font-medium text-foreground">{section.label}</span>
-                        <span className="text-xs font-bold text-primary">{section.percentage}%</span>
-                      </div>
-                      <div className="h-1.5 overflow-hidden rounded-full bg-muted">
-                        <div
-                          className={`h-full rounded-full ${section.percentage === 100 ? "bg-emerald-500" : "bg-primary/70"}`}
-                          style={{ width: `${section.percentage}%` }}
-                        />
-                      </div>
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            </details>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* ============================================ */}
-      {/*  Activity feed / Timeline                    */}
-      {/* ============================================ */}
-      <div>
-        <h2 className="font-display text-2xl text-primary mb-3 flex items-center gap-2">
-          <Clock className="h-5 w-5 text-accent" aria-hidden />
-          آخر النشاطات
-        </h2>
-        <Card className="border-border/40 shadow-sm overflow-hidden">
-          <CardContent className="pt-5 pb-3">
-            {/* Timeline items */}
-            <div className="space-y-0">
-              {[
-                ...(profile?.createdAt
-                  ? [
-                      {
-                        icon: CheckCircle2,
-                        iconColor: "text-emerald-500",
-                        iconBg: "bg-emerald-50",
-                        title: "تم إنشاء الحساب",
-                        desc: "مرحباً بك في منصة نصيبك",
-                        time: new Date(profile.createdAt).toLocaleDateString(
-                          "ar-JO-u-nu-latn"
-                        ),
-                      },
-                    ]
-                  : []),
-                ...(!isVerified
-                  ? []
-                  : [
-                      {
-                        icon: Shield,
-                        iconColor: "text-emerald-500",
-                        iconBg: "bg-emerald-50",
-                        title: "تم التحقق من الهوية",
-                        desc: "حسابك موثّق ومفعّل بالكامل",
-                        time: "مكتمل",
-                      },
-                    ]),
-                ...(matchesCount > 0
-                  ? [
-                      {
-                        icon: Heart,
-                        iconColor: "text-primary",
-                        iconBg: "bg-primary/10",
-                        title: `لديك ${arabicCount(matchesCount, { one: "توافق متبادل", two: "توافقان متبادلان", few: "توافقات متبادلة", many: "توافقاً متبادلاً" })}`,
-                        // New cycle: only nudge while a match still waits for its introduction choice
-                        desc: creditsBlockSuggestions
-                          ? g("يمكنك الآن عرض الصور وطلب زيارة", "يمكنكِ الآن عرض الصور وطلب زيارة")
-                          : actionableMatches > 0
-                            ? g("اختر طريقة التعارف: تعارف عائلي أو محادثة", "اختاري طريقة التعارف: تعارف عائلي أو محادثة")
-                            : "تابع التعارف من صفحة التوافقات",
-                        time: !creditsBlockSuggestions && actionableMatches === 0 ? "قيد التعارف" : "جديد",
-                      },
-                    ]
-                  : []),
-                // Legacy: everything received. New cycle: the shared suggestions waiting for my decision
-                // (`_count.receivedSuggestions` misses the ones where I'm the other side)
-                ...(creditsBlockSuggestions && receivedSuggestions > 0
-                  ? [
-                      {
-                        icon: Sparkles,
-                        iconColor: "text-accent-foreground",
-                        iconBg: "bg-accent/10",
-                        title: `تلقيت ${arabicCount(receivedSuggestions, { one: "اقتراحاً", two: "اقتراحين", few: "اقتراحات", many: "اقتراحاً" })}`,
-                        desc: g("راجع الاقتراحات واتخذ قرارك", "راجعي الاقتراحات واتخذي قرارك"),
-                        time: "متاح",
-                      },
-                    ]
-                  : !creditsBlockSuggestions && (pendingSuggestions ?? 0) > 0
-                    ? [
-                        {
-                          icon: Sparkles,
-                          iconColor: "text-accent-foreground",
-                          iconBg: "bg-accent/10",
-                          title: `${arabicCount(pendingSuggestions ?? 0, { one: "اقتراح واحد", two: "اقتراحان", few: "اقتراحات", many: "اقتراحاً" })} بانتظار قرارك`,
-                          desc: g("راجع الاقتراحات واختر «مهتم» أو «لا»", "راجعي الاقتراحات واختاري «مهتم» أو «لا»"),
-                          time: "بانتظارك",
-                        },
-                      ]
-                    : []),
-              ]
-                // Newest and actionable first; account creation last
-                .reverse()
-                .map((item, i, arr) => (
-                <div key={i} className="flex gap-4">
-                  {/* Timeline line + dot */}
-                  <div className="flex flex-col items-center">
-                    <div
-                      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${item.iconBg}`}
-                    >
-                      <item.icon className={`h-4 w-4 ${item.iconColor}`} />
-                    </div>
-                    {i < arr.length - 1 && (
-                      <div className="w-px flex-1 bg-border/60 my-1" />
-                    )}
-                  </div>
-                  {/* Content */}
-                  <div className={`pb-5 ${i === arr.length - 1 ? "pb-1" : ""}`}>
-                    <p className="text-sm font-bold text-foreground">
-                      {item.title}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {item.desc}
-                    </p>
-                    <span className="inline-block mt-1.5 text-[10px] font-medium text-muted-foreground/70 bg-muted/50 rounded-full px-2 py-0.5">
-                      {item.time}
-                    </span>
-                  </div>
-                </div>
-              ))}
-
-              {/* If no activity at all */}
-              {!profile?.createdAt &&
-                matchesCount === 0 &&
-                receivedSuggestions === 0 && (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <Clock className="h-8 w-8 mx-auto mb-2 opacity-40" />
-                    <p className="text-sm">لا توجد نشاطات بعد</p>
-                    <p className="text-xs mt-1">
-                      {g("أكمل ملفك الشخصي للبدء في تلقي الاقتراحات", "أكملي ملفكِ الشخصي للبدء في تلقي الاقتراحات")}
-                    </p>
-                  </div>
-                )}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
+        </section>
+      )}
     </div>
   );
 }

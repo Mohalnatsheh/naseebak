@@ -6,6 +6,7 @@
  *
  * Rules: at most one SMS per member per Amman day (`User.lastSmsNoticeAt`, claimed atomically) — for every
  * notice, admin «send now» included (owner decision 2026-10-22; OTP codes are not notices and are not capped),
+ * none at night (23:00–09:00 Amman: held, then sent by `catchUpQuietSms` from the 15-minute job),
  * never for test accounts, admins, suspended or deactivated members, never when the member turned
  * that notification type off, and never when push reachability is unknown (OneSignal not configured
  * or the lookup failed) — an SMS costs money and must not duplicate a push.
@@ -78,7 +79,13 @@ export async function hasPushDevice(userId: string): Promise<boolean | null> {
   }
 }
 
-export type SmsNoticeResult = "sent" | "skipped" | "has_push" | "unknown_push" | "already_today" | "failed";
+export type SmsNoticeResult = "sent" | "skipped" | "has_push" | "unknown_push" | "already_today" | "quiet" | "failed";
+
+/** Pure: Amman hour (UTC+3 all year) — no notice SMS 23:00–08:59 (owner decision 2026-10-23, all notices). */
+export function isQuietHour(now: Date): boolean {
+  const h = (now.getUTCHours() + 3) % 24;
+  return h >= 23 || h < 9;
+}
 
 /** Send the event's SMS if this member qualifies (see the rules above). Never throws. */
 export async function sendSmsNotice(
@@ -89,6 +96,8 @@ export async function sendSmsNotice(
   opts: { skipPushCheck?: boolean } = {},
 ): Promise<SmsNoticeResult> {
   try {
+    // Night: nothing is sent or claimed; catchUpQuietSms sends it after 09:00 (chat SMS retry on their own)
+    if (isQuietHour(now)) return "quiet";
     const user = await db.user.findUnique({
       where: { id: userId },
       select: {
@@ -131,4 +140,56 @@ export async function sendSmsNotice(
     console.error("[sms-notice] failed:", userId, event, error);
     return "failed";
   }
+}
+
+/** Same preference keys as notify(): no SMS for a type the member turned off */
+const SMS_PREFERENCE: Partial<Record<NotificationType, string>> = { SUGGESTION: "suggestions", MATCH: "matches" };
+/** Most important first, when one member got several held notices in the night */
+const EVENT_RANK: SmsNoticeEvent[] = ["match", "interest", "expiring"];
+/** How far back a held notice still deserves its SMS */
+const CATCH_UP_WINDOW_MS = 12 * 60 * 60 * 1000;
+
+/**
+ * After 09:00 Amman: the SMS that notify() held back during the night (match / interest / expiring
+ * notices created 23:00–09:00) — one per member, the most important one, only while the notice is still
+ * unread. Every normal rule still applies inside sendSmsNotice (one per day, no push device, ...).
+ * Called by the 15-minute job; a member already texted today simply gets "already_today".
+ */
+export async function catchUpQuietSms(now = new Date()): Promise<Record<string, number>> {
+  if (isQuietHour(now)) return { skipped: 1 };
+  const since = new Date(now.getTime() - CATCH_UP_WINDOW_MS);
+  const rows = await db.notification.findMany({
+    where: {
+      createdAt: { gte: since },
+      isRead: false,
+      OR: AUTO_EVENTS.map((e) => ({ type: e.type, title: e.title })),
+      user: { OR: [{ lastSmsNoticeAt: null }, { lastSmsNoticeAt: { lt: startOfAmmanDay(now) } }] },
+    },
+    select: { userId: true, type: true, title: true, createdAt: true },
+    orderBy: { createdAt: "asc" },
+    take: 2000,
+  });
+  // Only the notices that were held (made during quiet hours)
+  const best = new Map<string, { event: SmsNoticeEvent; type: NotificationType }>();
+  for (const r of rows) {
+    if (!isQuietHour(r.createdAt)) continue;
+    const event = smsEventFor(r.type, r.title);
+    if (!event) continue;
+    const prev = best.get(r.userId);
+    if (!prev || EVENT_RANK.indexOf(event) < EVENT_RANK.indexOf(prev.event)) best.set(r.userId, { event, type: r.type });
+  }
+  const counts: Record<string, number> = {};
+  for (const [userId, { event, type }] of [...best].slice(0, 300)) {
+    const key = SMS_PREFERENCE[type];
+    if (key) {
+      const pref = await db.notificationPreference.findUnique({ where: { userId } });
+      if (pref && (pref as unknown as Record<string, unknown>)[key] === false) {
+        counts.opted_out = (counts.opted_out ?? 0) + 1;
+        continue;
+      }
+    }
+    const status = await sendSmsNotice(userId, event, now);
+    counts[status] = (counts[status] ?? 0) + 1;
+  }
+  return counts;
 }

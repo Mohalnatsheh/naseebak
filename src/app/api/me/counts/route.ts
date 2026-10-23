@@ -5,6 +5,7 @@ import { getCycleFlags } from "@/lib/settings";
 import { chatHousekeepingForUser } from "@/lib/chat/service";
 import { cancelDeadPendingFor, hiddenPartnerIds, loadMatchStates, visibleConversationsWhere } from "@/lib/matches/state";
 import { touchLastActive } from "@/lib/activity";
+import { countMutualTabs } from "@/lib/suggestions/feed";
 
 /**
  * Dashboard badges for the new cycle, polled with the unread-notification count:
@@ -36,7 +37,7 @@ export async function GET() {
     await cancelDeadPendingFor(userId).catch((e) => console.error("Cancel dead requests:", e));
 
     const pendingWhere = { receiverId: userId, status: "PENDING" as const, expiresAt: { gt: new Date() } };
-    const [pendingIntros, firstPending, unreadChats, chatCount, guardian, states, me] = await Promise.all([
+    const [pendingIntros, firstPending, unreadChats, chatCount, guardian, states, me, tabs] = await Promise.all([
       db.introRequest.count({ where: pendingWhere }),
       // The one that expires first, so the dashboard card can open that match
       db.introRequest.findFirst({ where: pendingWhere, orderBy: { expiresAt: "asc" }, select: { matchId: true } }),
@@ -52,6 +53,14 @@ export async function GET() {
       loadMatchStates(userId, flags),
       // Credit on interest: the balance gates "مهتم" (dashboard next step)
       flags.creditOnInterest ? db.user.findUnique({ where: { id: userId }, select: { matchCredits: true } }) : null,
+      // Shared suggestions: «الجديد» and «مهتمون بالتحدث معك» badges (home + bottom bar)
+      // A failure here only hides those two badges, never the whole poll
+      flags.mutualSuggestions
+        ? countMutualTabs(userId).catch((e) => {
+            console.error("Suggestion counts:", e);
+            return null;
+          })
+        : null,
     ]);
     const actionableMatches = [...states.values()].filter((s) => s.actionable).length;
 
@@ -64,6 +73,7 @@ export async function GET() {
       guardian: { exists: !!guardian, consented: !!guardian?.shareConsentAt },
       actionableMatches,
       ...(flags.creditOnInterest && { credits: me?.matchCredits ?? 0 }),
+      ...(tabs && { newSuggestions: tabs.fresh, likedYou: tabs.likedYou }),
     });
   } catch (error) {
     console.error("Counts error:", error);

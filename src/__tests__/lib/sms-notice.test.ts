@@ -1,11 +1,15 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
-const db = vi.hoisted(() => ({ user: { findUnique: vi.fn(), updateMany: vi.fn() } }));
+const db = vi.hoisted(() => ({
+  user: { findUnique: vi.fn(), updateMany: vi.fn() },
+  notification: { findMany: vi.fn() },
+  notificationPreference: { findUnique: vi.fn() },
+}));
 const sms = vi.hoisted(() => ({ sendSms: vi.fn() }));
 vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/sms", () => sms);
 
-import { hasPushDevice, sendSmsNotice, SMS_NOTICE_TEXT } from "@/lib/sms-notice";
+import { catchUpQuietSms, hasPushDevice, isQuietHour, sendSmsNotice, SMS_NOTICE_TEXT } from "@/lib/sms-notice";
 
 const fetchMock = vi.fn();
 const member = (over: Record<string, unknown> = {}) => ({
@@ -129,5 +133,42 @@ describe("sendSmsNotice", () => {
   it("the waiting text is neutral (never says someone is interested)", () => {
     expect(SMS_NOTICE_TEXT.waiting).not.toContain("اهتمام");
     expect(SMS_NOTICE_TEXT.waiting).toContain("بانتظار قرارك");
+  });
+});
+
+describe("quiet hours (23:00–09:00 Amman)", () => {
+  it("no notice SMS at night, nothing claimed", async () => {
+    noDevice();
+    const night = new Date("2026-10-18T21:30:00Z"); // 00:30 Amman
+    expect(isQuietHour(night)).toBe(true);
+    expect(await sendSmsNotice("u1", "interest", night)).toBe("quiet");
+    expect(await sendSmsNotice("u1", "message", night, { skipPushCheck: true })).toBe("quiet");
+    expect(db.user.updateMany).not.toHaveBeenCalled();
+    expect(sms.sendSms).not.toHaveBeenCalled();
+  });
+
+  it("after 09:00 sends one held SMS per member, the most important event", async () => {
+    noDevice();
+    const morning = new Date("2026-10-19T06:15:00Z"); // 09:15 Amman
+    db.notification.findMany.mockResolvedValue([
+      { userId: "u1", type: "SUGGESTION", title: "اقتراح بانتظار قرارك", createdAt: new Date("2026-10-19T03:00:00Z") }, // 06:00 — held
+      { userId: "u1", type: "MATCH", title: "توافق متبادل!", createdAt: new Date("2026-10-18T22:00:00Z") }, // 01:00 — held
+      { userId: "u2", type: "SUGGESTION", title: "شخص أبدى اهتمامه بك", createdAt: new Date("2026-10-18T17:00:00Z") }, // 20:00 — not held
+    ]);
+    const counts = await catchUpQuietSms(morning);
+    expect(counts).toEqual({ sent: 1 });
+    expect(sms.sendSms).toHaveBeenCalledTimes(1);
+    expect(sms.sendSms).toHaveBeenCalledWith("962791234567", SMS_NOTICE_TEXT.match);
+  });
+
+  it("respects a turned-off notice type and does nothing at night", async () => {
+    noDevice();
+    db.notification.findMany.mockResolvedValue([
+      { userId: "u1", type: "MATCH", title: "توافق متبادل!", createdAt: new Date("2026-10-18T22:00:00Z") },
+    ]);
+    db.notificationPreference.findUnique.mockResolvedValue({ matches: false });
+    expect(await catchUpQuietSms(new Date("2026-10-19T07:00:00Z"))).toEqual({ opted_out: 1 });
+    expect(await catchUpQuietSms(new Date("2026-10-19T02:00:00Z"))).toEqual({ skipped: 1 });
+    expect(sms.sendSms).not.toHaveBeenCalled();
   });
 });

@@ -31,7 +31,7 @@ import { useDashboardData } from "@/contexts/dashboard-context";
 import { describeOption, nationalityLabel, oppositeGender } from "@/lib/profile-options";
 import type { FeedItem, FeedTab, OpenFeedItem } from "@/lib/suggestions/feed-types";
 import type { SuggestEmptyReason } from "@/lib/matching/auto-suggest";
-import { PageHeader } from "@/components/shared/page-header";
+import { markPageNotificationsRead } from "@/lib/notifications-client";
 
 type Notice =
   | { kind: "match"; matchId?: string }
@@ -103,6 +103,11 @@ export function MutualSuggestionsView({
   credits?: number;
 } = {}) {
   const { profile, counts, refreshProfile, refreshUnread } = useDashboardData();
+  // Opening this page clears the bell for the notifications that lead here
+  useEffect(() => {
+    markPageNotificationsRead("/dashboard/suggestions");
+  }, []);
+
   const viewerGender = profile?.gender;
   const partnerGender = oppositeGender(viewerGender);
   const viewerFemale = viewerGender === "FEMALE";
@@ -118,7 +123,12 @@ export function MutualSuggestionsView({
   const outOfCredits = creditOnInterest && balance <= 0;
   const guardian = counts.guardian ?? { exists: !!profile?.parentInfo, consented: !!profile?.parentInfo?.shareConsentAt };
   const [interestFor, setInterestFor] = useState<OpenFeedItem | null>(null);
-  const [tab, setTab] = useState<FeedTab>("new");
+  // Start on the tab in the URL right away (this view only renders in the browser, after the page's own load)
+  const [tab, setTab] = useState<FeedTab>(() => {
+    if (typeof window === "undefined") return "new";
+    const wanted = new URLSearchParams(window.location.search).get("tab");
+    return wanted === "interested" || wanted === "waiting" ? wanted : "new";
+  });
   const [items, setItems] = useState<FeedItem[]>([]);
   const [totals, setTotals] = useState<Record<FeedTab, number>>({ new: 0, interested: 0, waiting: 0 });
   const [page, setPage] = useState(1);
@@ -137,7 +147,10 @@ export function MutualSuggestionsView({
   /** «لا» waiting out its undo window: hidden from the list, sent when the timer ends (or the page closes) */
   const pendingDeclines = useRef(new Map<string, { item: OpenFeedItem; timer: ReturnType<typeof setTimeout> }>());
 
+  /** Only the latest load may touch the screen (a slower, older answer for another tab is dropped) */
+  const loadSeq = useRef(0);
   const load = useCallback(async (t: FeedTab, p: number) => {
+    const seq = ++loadSeq.current;
     setLoading(true);
     setLoadFailed(false);
     try {
@@ -149,6 +162,7 @@ export function MutualSuggestionsView({
         }),
         ...others.map((k) => fetch(`/api/suggestions/feed?tab=${k}&page=1`).then((r) => (r.ok ? r.json() : { total: 0 }) as Promise<{ total?: number }>)),
       ]);
+      if (seq !== loadSeq.current) return;
       setItems(((cur.items ?? []) as FeedItem[]).filter((i) => !pendingDeclines.current.has(i.id)));
       setTotalPages(Math.max(1, cur.totalPages ?? 1));
       const next = { new: 0, interested: 0, waiting: 0 } as Record<FeedTab, number>;
@@ -157,9 +171,9 @@ export function MutualSuggestionsView({
       setTotals(next);
     } catch {
       // Shown in place of the list (with a retry), never as an empty state
-      setLoadFailed(true);
+      if (seq === loadSeq.current) setLoadFailed(true);
     } finally {
-      setLoading(false);
+      if (seq === loadSeq.current) setLoading(false);
     }
   }, []);
 
@@ -167,10 +181,17 @@ export function MutualSuggestionsView({
     load(tab, page);
   }, [load, tab, page]);
 
-  // A notice link («شخص أبدى اهتمامه بك») opens the tab it points to
+  // The tab lives in the URL (?tab=new|interested|waiting): notice links, the home cards, refresh and
+  // back/forward all land on the right category
   useEffect(() => {
-    const wanted = new URLSearchParams(window.location.search).get("tab");
-    if (wanted === "interested" || wanted === "waiting") setTab(wanted);
+    const fromUrl = () => {
+      const wanted = new URLSearchParams(window.location.search).get("tab");
+      setTab(wanted === "interested" || wanted === "waiting" ? wanted : "new");
+      setPage(1);
+    };
+    // The first tab comes from the URL in useState; this follows back/forward afterwards
+    window.addEventListener("popstate", fromUrl);
+    return () => window.removeEventListener("popstate", fromUrl);
   }, []);
 
   // Leaving the page inside the undo window still sends the «لا» (keepalive survives the navigation)
@@ -206,12 +227,16 @@ export function MutualSuggestionsView({
   function declineWithUndo(item: OpenFeedItem) {
     setNotice(null);
     removeAndRefill(item.id);
-    setTotals((t) => ({ ...t, new: Math.max(0, t.new - 1) }));
+    // The count of the tab the card was on (a «لا» on «مهتمون بالتحدث معك» used to lower «الجديد»)
+    const from: FeedTab = item.likedYou || item.kind === "legacy_interest" ? "interested" : "new";
+    setTotals((t) => ({ ...t, [from]: Math.max(0, t[from] - 1) }));
     const timer = setTimeout(async () => {
       pendingDeclines.current.delete(item.id);
       const ok = await sendDecline(item);
       if (ok) {
         trackEvent("suggestion_response", { response: "reject", mutual_match: false });
+        // Bottom bar / home badges follow the confirmed decision
+        refreshUnread();
       } else {
         toast.error("تعذّر حفظ قرارك، حاول مرة أخرى");
         load(tab, page);
@@ -238,6 +263,10 @@ export function MutualSuggestionsView({
     setTab(t);
     setPage(1);
     setNotice(null);
+    const url = new URL(window.location.href);
+    if (t === "new") url.searchParams.delete("tab");
+    else url.searchParams.set("tab", t);
+    window.history.pushState(null, "", url.pathname + url.search);
   }
 
   /**
@@ -366,75 +395,110 @@ export function MutualSuggestionsView({
     setReportDetails("");
   }
 
-  const tabs: { key: FeedTab; label: string; short: string; icon: typeof Sparkles }[] = [
-    { key: "new", label: "اقتراحات جديدة", short: "جديدة", icon: Sparkles },
-    { key: "interested", label: g("مهتمون بك", "مهتمون بكِ"), short: "مهتمون", icon: Heart },
-    { key: "waiting", label: "بانتظار الطرف الآخر", short: "بالانتظار", icon: Hourglass },
+  // The three categories (same feed rules as before, new names: what the person sees, not how it works)
+  const tabs: { key: FeedTab; label: string; subtitle: string; icon: typeof Sparkles }[] = [
+    { key: "new", label: "الجديد", subtitle: g("اكتشف أشخاصاً جدداً قد يناسبونك.", "اكتشفي أشخاصاً جدداً قد يناسبونكِ."), icon: Sparkles },
+    {
+      key: "interested",
+      label: g("مهتمون بالتحدث معك", "مهتمون بالتحدث معكِ"),
+      subtitle: g("أشخاص أبدوا اهتمامهم بالتعرف إليك. «مهتم» منك هنا توافق فوري.", "أشخاص أبدوا اهتمامهم بالتعرف إليكِ. «مهتم» منكِ هنا توافق فوري."),
+      icon: Heart,
+    },
+    {
+      key: "waiting",
+      label: g("أنا مهتم بالتحدث معهم", "أنا مهتمة بالتحدث معهم"),
+      subtitle: g("الأشخاص الذين أرسلت إليهم اهتمامك، حتى يقرّروا أو تنتهي المدة.", "الأشخاص الذين أرسلتِ إليهم اهتمامكِ، حتى يقرّروا أو تنتهي المدة."),
+      icon: Hourglass,
+    },
   ];
+  const activeTab = tabs.find((t) => t.key === tab) ?? tabs[0];
+  const matchesCount = (profile?._count?.matchesAsFemale ?? 0) + (profile?._count?.matchesAsMale ?? 0);
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6 pb-8">
-      <PageHeader
-        icon={Sparkles}
-        title="الاقتراحات"
-        description={
-          <>
-            <p>{g(
-              "يرى الطرفان الاقتراح نفسه ويقرّر كلٌّ منكما وحده. نُعلمك عندما يبدي أحدهم اهتمامه بك، أما قرار «لا» فلا يعرفه إلا من أبدى اهتمامه.",
-              "يرى الطرفان الاقتراح نفسه ويقرّر كلٌّ منكما وحده. نُعلمكِ عندما يبدي أحدهم اهتمامه بكِ، أما قرار «لا» فلا يعرفه إلا من أبدى اهتمامه."
-            )}</p>
-            {creditOnInterest && (
-              <p className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-accent/40 bg-accent/10 px-3 py-1 text-xs font-medium text-foreground/85 sm:text-sm">
-                <Coins className="h-4 w-4 shrink-0 text-accent-foreground" aria-hidden="true" />
-                <span>
-                  {CREDIT_ON_INTEREST_LINE} رصيدك: <span className="font-bold text-foreground">{balance}</span>
-                </span>
-              </p>
-            )}
-            <details className="group mt-2">
-              <summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-1 text-sm font-semibold text-primary [&::-webkit-details-marker]:hidden">
-                كيف تعمل الاقتراحات؟
-              </summary>
-              <p className="mt-1 text-sm leading-relaxed">
-                {creditOnInterest
-                  ? "إذا كان الاهتمام متبادلاً يصبح توافقاً، فتظهر الصور ويبدأ التعارف الذي اخترتماه. من أبدى اهتمامه بك يظهر في «مهتمون بك»، و«مهتم» هناك توافق فوري."
-                  : "إذا كان الاهتمام متبادلاً يصبح توافقاً، فتظهر الصور والتفاصيل الكاملة للطرفين."}
-              </p>
-            </details>
-          </>
-        }
-      />
-
-      <div id="dealbreakers" className="scroll-mt-24">
-        <DealbreakersCard />
+    <div className="max-w-2xl mx-auto space-y-5 pb-8">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="font-display text-3xl leading-tight text-primary sm:text-4xl">التوافقات</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {g("يرى الطرفان الاقتراح نفسه، ويقرّر كلٌّ منكما وحده.", "يرى الطرفان الاقتراح نفسه، ويقرّر كلٌّ منكما وحده.")}
+          </p>
+        </div>
+        {creditOnInterest && (
+          <Link
+            href="/dashboard/payments"
+            className="inline-flex min-h-10 items-center gap-1.5 rounded-full border border-accent/40 bg-accent/10 px-3 text-sm font-semibold text-foreground"
+            aria-label={`رصيدك ${balance}. ${CREDIT_ON_INTEREST_LINE}`}
+          >
+            <Coins className="h-4 w-4 text-accent-foreground" aria-hidden />
+            رصيدك {balance}
+          </Link>
+        )}
       </div>
 
-      {/* Three tabs */}
-      <div className="flex gap-1 p-1 rounded-xl bg-muted/50 border border-border/50" role="tablist">
-        {tabs.map((t) => (
-          <button
-            key={t.key}
-            role="tab"
-            aria-selected={tab === t.key}
-            onClick={() => switchTab(t.key)}
-            className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 ${
-              tab === t.key ? "bg-card text-foreground shadow-sm border border-border/50" : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <t.icon className="h-4 w-4" />
-            <span className="hidden sm:inline">{t.label}</span>
-            <span className="sm:hidden">{t.short}</span>
-            {totals[t.key] > 0 && (
-              <span
-                className={`inline-flex items-center justify-center h-5 min-w-5 px-1.5 rounded-full text-[10px] font-bold ${
-                  tab === t.key ? "bg-primary text-primary-foreground" : t.key === "interested" ? "bg-accent text-accent-foreground" : "bg-muted-foreground/20 text-muted-foreground"
+      {/* Mutual matches: the next step after «مهتم» from both sides */}
+      {matchesCount > 0 && (
+        <Link
+          href="/dashboard/matches"
+          className="flex items-center gap-3 rounded-2xl border border-primary/15 bg-primary/5 p-3.5 transition-colors hover:bg-primary/10"
+        >
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+            <HeartHandshake className="h-5 w-5" aria-hidden />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block font-bold text-foreground">
+              {g("توافقاتك المتبادلة", "توافقاتكِ المتبادلة")} ({matchesCount})
+            </span>
+            <span className="block text-sm text-muted-foreground">
+              {counts.pendingIntros > 0
+                ? `${counts.pendingIntros === 1 ? "طلب واحد" : `${counts.pendingIntros} طلبات`} بانتظار ردّك`
+                : "الصور، والتعارف الذي اخترتماه، والخطوة التالية"}
+            </span>
+          </span>
+          {counts.pendingIntros > 0 && (
+            <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-destructive px-1.5 text-xs font-bold text-white" aria-hidden>
+              {counts.pendingIntros}
+            </span>
+          )}
+          <ChevronLeft className="h-5 w-5 shrink-0 text-primary/60" aria-hidden />
+        </Link>
+      )}
+
+      {/* Three categories: equal columns, labels may wrap to two lines on small phones (never clipped) */}
+      <div>
+        <div className="grid grid-cols-3 gap-1 rounded-2xl border border-border/50 bg-muted/50 p-1" role="tablist" aria-label="أقسام التوافقات">
+          {tabs.map((t) => {
+            const on = tab === t.key;
+            return (
+              <button
+                key={t.key}
+                type="button"
+                role="tab"
+                id={`feed-tab-${t.key}`}
+                aria-selected={on}
+                aria-controls="feed-panel"
+                onClick={() => switchTab(t.key)}
+                className={`relative flex min-h-14 flex-col items-center justify-center gap-0.5 rounded-xl px-1.5 py-2 text-center text-[13px] font-semibold leading-tight transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 sm:flex-row sm:gap-1.5 sm:text-sm ${
+                  on ? "border border-border/50 bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
                 }`}
               >
-                {totals[t.key]}
-              </span>
-            )}
-          </button>
-        ))}
+                <span className="flex items-center gap-1">
+                  <t.icon className="h-4 w-4 shrink-0" aria-hidden />
+                  {totals[t.key] > 0 && (
+                    <span
+                      className={`inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-bold sm:order-last ${
+                        on ? "bg-primary text-primary-foreground" : t.key === "interested" ? "bg-accent text-accent-foreground" : "bg-muted-foreground/20 text-muted-foreground"
+                      }`}
+                    >
+                      {totals[t.key]}
+                    </span>
+                  )}
+                </span>
+                <span>{t.label}</span>
+              </button>
+            );
+          })}
+        </div>
+        <p className="mt-2.5 px-1 text-sm text-muted-foreground">{activeTab.subtitle}</p>
       </div>
 
       {/* Result of the last decision */}
@@ -479,6 +543,7 @@ export function MutualSuggestionsView({
         </div>
       )}
 
+      <div id="feed-panel" role="tabpanel" aria-labelledby={`feed-tab-${tab}`}>
       {loading ? (
         <div className="flex flex-col items-center justify-center py-16 gap-4">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -494,9 +559,9 @@ export function MutualSuggestionsView({
             </div>
             <h3 className="font-semibold text-lg text-foreground">
               {tab === "interested"
-                ? "لم يُبدِ أحد اهتمامه بعد"
+                ? "لا توجد اهتمامات جديدة حالياً"
                 : tab === "waiting"
-                ? "لا يوجد ما ينتظر الرد"
+                ? g("لم ترسل أي اهتمام بعد", "لم ترسلي أي اهتمام بعد")
                 : emptyReason === "no_candidates"
                   ? "لا يوجد حالياً من يطابق شروطك"
                   : emptyReason === "weekly_cap" && nextSuggestionsAt
@@ -510,13 +575,13 @@ export function MutualSuggestionsView({
             <p className="text-sm text-muted-foreground max-w-xs mx-auto leading-relaxed">
               {tab === "interested"
                 ? g(
-                    "عندما يبدي أحدهم اهتمامه بك على اقتراح مشترك، يظهر هنا وتصلك رسالة. «مهتم» منك عندها توافق فوري.",
-                    "عندما يبدي أحدهم اهتمامه بكِ على اقتراح مشترك، يظهر هنا وتصلكِ رسالة. «مهتم» منكِ عندها توافق فوري."
+                    "استمر في استكشاف التوافقات، فقد تتعرّف إلى شخص يناسبك. من يبدي اهتمامه بك يظهر هنا.",
+                    "استمري في استكشاف التوافقات، فقد تتعرّفين إلى شخص يناسبكِ. من يبدي اهتمامه بكِ يظهر هنا."
                   )
                 : tab === "waiting"
                 ? g(
-                    "عندما تختار «مهتم» على اقتراح، يظهر هنا حتى يقرّر الطرف الآخر أو تنتهي مدته.",
-                    "عندما تختارين «مهتم» على اقتراح، يظهر هنا حتى يقرّر الطرف الآخر أو تنتهي مدته."
+                    "ابدأ باكتشاف التوافقات الجديدة. عندما تختار «مهتم» على اقتراح، يظهر هنا حتى يقرّر الطرف الآخر أو تنتهي مدته.",
+                    "ابدئي باكتشاف التوافقات الجديدة. عندما تختارين «مهتم» على اقتراح، يظهر هنا حتى يقرّر الطرف الآخر أو تنتهي مدته."
                   )
                 : emptyReason === "no_candidates"
                   ? "لم نجد حالياً أحداً تنطبق عليه شروطك الأساسية وتفضيلاتك. مراجعتها قد توسّع فرصك، ونبحث لك من جديد تلقائياً كلما انضم أشخاص جدد."
@@ -533,9 +598,16 @@ export function MutualSuggestionsView({
                         ? "تصلك اقتراحات مجانية جديدة كلما توفّر من يناسبك، وسنرسل لك إشعاراً فور وصولها. إكمال ملفك واختبار الشخصية يجعلها أدق."
                         : "تصلك حتى 3 اقتراحات مجانية كل أسبوع، وسنرسل لك إشعاراً فور وصولها. إكمال ملفك واختبار الشخصية يجعلها أدق."}
             </p>
+            {tab !== "new" && totals.new > 0 && (
+              <div className="flex justify-center pt-1">
+                <Button type="button" className="h-11 rounded-xl" onClick={() => switchTab("new")}>
+                  <Sparkles className="h-4 w-4 me-1.5" aria-hidden /> {g("اكتشف الجديد", "اكتشفي الجديد")} ({totals.new})
+                </Button>
+              </div>
+            )}
             {tab === "new" && emptyReason === "pending" && totals.waiting > 0 && (
               <div className="flex justify-center pt-1">
-                <Button type="button" variant="outline" className="h-11 rounded-xl" onClick={() => { setTab("waiting"); setPage(1); }}>
+                <Button type="button" variant="outline" className="h-11 rounded-xl" onClick={() => switchTab("waiting")}>
                   عرض ما ينتظر الرد ({totals.waiting})
                 </Button>
               </div>
@@ -728,6 +800,12 @@ export function MutualSuggestionsView({
           )}
         </div>
       )}
+      </div>
+
+      {/* What I won't compromise on: below the list, so the categories stay in the first screen */}
+      <div id="dealbreakers" className="scroll-mt-24 pt-2">
+        <DealbreakersCard />
+      </div>
 
       {creditOnInterest && (
         <InterestDialog

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { MessageCircle, Loader2, Clock, Lock, Heart, ChevronLeft } from "lucide-react";
+import { MessageCircle, Loader2, Clock, Lock, Heart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { VerifiedBadge } from "@/components/shared/verified-badge";
@@ -14,8 +14,14 @@ import { InstallAppCard } from "@/components/shared/install-app-card";
 import { useDashboardData } from "@/contexts/dashboard-context";
 import { LoadError } from "@/components/shared/load-error";
 import { PageHeader } from "@/components/shared/page-header";
+import { markPageNotificationsRead } from "@/lib/notifications-client";
 
 export function ChatList() {
+  // Opening this page clears the bell for the notifications that lead here
+  useEffect(() => {
+    markPageNotificationsRead("/dashboard/chats", { exact: true });
+  }, []);
+
   const [chats, setChats] = useState<ChatSummary[] | null>(null);
   // Only the first load can fail visibly; a failed refresh keeps the list already on screen
   const [loadFailed, setLoadFailed] = useState(false);
@@ -87,66 +93,67 @@ export function ChatList() {
             </div>
             <Button asChild variant="outline" className="gap-1.5">
               <Link href="/dashboard/matches">
-                <Heart className="h-4 w-4" /> الذهاب إلى التوافقات
+                <Heart className="h-4 w-4" /> التوافقات المتبادلة
               </Link>
             </Button>
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-3">
+        // One list, messaging-app style: whole row taps through, unread in bold with a count
+        <ul className="divide-y divide-border/60 overflow-hidden rounded-2xl border border-border/60 bg-card">
           {chats.map((c) => {
             const left = daysLeft(c.expiresAt);
             return (
-              <Link key={c.id} href={`/dashboard/chats/${c.id}`} className="block">
-                <Card
-                  className={cn(
-                    "transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary/5",
-                    c.unread > 0 ? "border-primary/30" : "border-border/50"
-                  )}
+              <li key={c.id}>
+                <Link
+                  href={`/dashboard/chats/${c.id}`}
+                  aria-label={c.unread > 0 ? `${c.partner.firstName}، ${c.unread} رسائل غير مقروءة` : c.partner.firstName}
+                  className={cn("flex items-center gap-3 px-3.5 py-3.5 transition-colors hover:bg-muted/40", c.unread > 0 && "bg-primary/[0.03]")}
                 >
-                  <CardContent className="flex items-center gap-4 p-4">
-                    <div className="relative flex h-13 w-13 flex-shrink-0 items-center justify-center rounded-2xl border border-primary/15 bg-gradient-to-br from-primary/15 to-accent/15">
-                      <span className="text-xl font-bold text-primary">{c.partner.firstName.charAt(0)}</span>
-                      {c.unread > 0 && (
-                        <span className="absolute -top-1.5 -end-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-bold text-accent-foreground ring-2 ring-card">
-                          {c.unread > 99 ? "99+" : c.unread}
+                  <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-primary/10 text-lg font-bold text-primary" aria-hidden>
+                    {c.partner.firstName.charAt(0)}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-center justify-between gap-2">
+                      <span className="flex min-w-0 items-center gap-2">
+                        <span className="truncate font-bold text-foreground">{c.partner.firstName}</span>
+                        <VerifiedBadge verified={c.partner.isVerified} />
+                      </span>
+                      {c.lastMessage && (
+                        <span className={cn("flex-shrink-0 text-xs", c.unread > 0 ? "font-semibold text-primary" : "text-muted-foreground")}>
+                          {listTimeLabel(c.lastMessage.createdAt)}
                         </span>
                       )}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex min-w-0 items-center gap-2">
-                          <span className="truncate font-bold text-foreground">{c.partner.firstName}</span>
-                          <VerifiedBadge verified={c.partner.isVerified} />
-                        </div>
-                        {c.lastMessage && (
-                          <span className="flex-shrink-0 text-xs text-muted-foreground">{listTimeLabel(c.lastMessage.createdAt)}</span>
-                        )}
-                      </div>
-                      <p className={cn("mt-0.5 truncate text-sm", c.unread > 0 ? "font-semibold text-foreground" : "text-muted-foreground")}>
+                    </span>
+                    <span className="mt-0.5 flex items-center gap-2">
+                      <span className={cn("min-w-0 flex-1 truncate text-sm", c.unread > 0 ? "font-semibold text-foreground" : "text-muted-foreground")}>
                         {c.lastMessage
                           ? `${c.lastMessage.mine ? (female ? "أنتِ: " : "أنت: ") : ""}${c.lastMessage.body}`
                           : female ? "ابدئي المحادثة" : "ابدأ المحادثة"}
-                      </p>
-                      <div className="mt-1.5">
-                        {c.status === "ACTIVE" ? (
-                          <span className={cn("inline-flex items-center gap-1 text-[11px] font-semibold", left <= 3 ? "text-amber-700" : "text-muted-foreground")}>
-                            <Clock className="h-3 w-3" /> متبقي {daysLabel(left)}
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-muted-foreground">
-                            <Lock className="h-3 w-3" /> {c.status === "ENDED" ? "منتهية" : "انتهت المدة"}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <ChevronLeft className="h-5 w-5 flex-shrink-0 text-muted-foreground/50" />
-                  </CardContent>
-                </Card>
-              </Link>
+                      </span>
+                      {c.unread > 0 && (
+                        <span className="flex h-5 min-w-5 flex-shrink-0 items-center justify-center rounded-full bg-accent px-1.5 text-[11px] font-bold text-accent-foreground" aria-hidden>
+                          {c.unread > 99 ? "99+" : c.unread}
+                        </span>
+                      )}
+                    </span>
+                    <span className="mt-1 block">
+                      {c.status === "ACTIVE" ? (
+                        <span className={cn("inline-flex items-center gap-1 text-[11px] font-semibold", left <= 3 ? "text-amber-700" : "text-muted-foreground")}>
+                          <Clock className="h-3 w-3" aria-hidden /> متبقي {daysLabel(left)}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-muted-foreground">
+                          <Lock className="h-3 w-3" aria-hidden /> {c.status === "ENDED" ? "منتهية" : "انتهت المدة"}
+                        </span>
+                      )}
+                    </span>
+                  </span>
+                </Link>
+              </li>
             );
           })}
-        </div>
+        </ul>
       )}
 
       {/* After the list: the chats come first on a phone */}

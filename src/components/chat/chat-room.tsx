@@ -41,6 +41,7 @@ import { dayLabel, mergeMessages, sameDay, type UiMessage } from "./chat-utils";
 import { useChatChannel } from "./use-chat-channel";
 import { useDashboardData } from "@/contexts/dashboard-context";
 import { checkMessage } from "@/lib/chat/filter";
+import { markPageNotificationsRead } from "@/lib/notifications-client";
 
 /** Id for an optimistic message until the server answers (also its clientNonce); only called from send(). */
 function tempMessageId() {
@@ -71,6 +72,11 @@ async function requestIntro(matchId: string): Promise<IntroState | null> {
 }
 
 export function ChatRoom({ conversationId }: { conversationId: string }) {
+  // Opening this page clears the bell for the notifications that lead here
+  useEffect(() => {
+    markPageNotificationsRead(`/dashboard/chats/${conversationId}`);
+  }, [conversationId]);
+
   const router = useRouter();
   const myGender = useDashboardData().profile?.gender as string | undefined;
   const [conversation, setConversation] = useState<ChatSummary | null>(null);

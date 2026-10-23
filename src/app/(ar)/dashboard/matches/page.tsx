@@ -62,6 +62,7 @@ import { describeOption, nationalityLabel } from "@/lib/profile-options";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useDashboardData } from "@/contexts/dashboard-context";
 import { PageHeader } from "@/components/shared/page-header";
+import { markPageNotificationsRead } from "@/lib/notifications-client";
 
 interface Match {
   id: string;
@@ -230,6 +231,11 @@ function Section({
 }
 
 export default function MatchesPage() {
+  // Opening this page clears the bell for the notifications that lead here
+  useEffect(() => {
+    markPageNotificationsRead("/dashboard/matches");
+  }, []);
+
   const [matches, setMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);

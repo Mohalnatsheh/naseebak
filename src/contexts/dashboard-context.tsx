@@ -43,6 +43,10 @@ export interface CycleCounts {
   actionableMatches: number;
   /** credit_on_interest only: my balance ("مهتم" costs 1) */
   credits?: number;
+  /** Shared suggestions only: cards nobody answered yet («الجديد») */
+  newSuggestions?: number;
+  /** Shared suggestions only: the other side said «مهتم», I haven't decided («مهتمون بالتحدث معك») */
+  likedYou?: number;
 }
 
 const EMPTY_COUNTS: CycleCounts = {

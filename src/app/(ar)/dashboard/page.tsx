@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Loader2, Sparkles, Heart, MessageCircle, Bell, ChevronLeft, Zap } from "lucide-react";
+import { Loader2, Sparkles, Heart, Bell, ChevronLeft, Zap, Inbox, Coins } from "lucide-react";
 import { useDashboardData } from "@/contexts/dashboard-context";
 import { cn } from "@/lib/utils";
 import { GuardianConsentCard } from "@/components/intro/guardian-consent-card";
@@ -11,6 +11,7 @@ import { InstallAppCard } from "@/components/shared/install-app-card";
 import { LoadError } from "@/components/shared/load-error";
 import { listTimeLabel } from "@/components/chat/chat-utils";
 import { qualifiesForSuggestions as qualifiesForSuggestionsGate } from "@/lib/profile-completeness";
+import { matchesHref } from "@/lib/matches/links";
 import type { ChatSummary } from "@/lib/chat/service";
 
 /** Amman time (UTC+3 all year), whatever the device clock says */
@@ -35,7 +36,6 @@ function getArabicDate() {
 export default function DashboardPage() {
   const { profile, completeness, counts, unreadCount, loading, profileFailed, refreshProfile } = useDashboardData();
   const [retrying, setRetrying] = useState(false);
-  const [pendingSuggestions, setPendingSuggestions] = useState<number | null>(null);
   // Why nothing new came ("weekly_cap" | "no_candidates" | "pending" | null), from page 1 of /api/suggestions
   const [emptyReason, setEmptyReason] = useState<string | null>(null);
   const [suggestionsFailed, setSuggestionsFailed] = useState(false);
@@ -50,7 +50,8 @@ export default function DashboardPage() {
   });
   const chatOn = counts.flags.chat || counts.hasChats;
 
-  // Once the profile qualifies, page 1 of /api/suggestions also tops up suggestions automatically
+  // Once the profile qualifies, page 1 of /api/suggestions tops up suggestions automatically (the counts
+  // shown come from /api/me/counts; this call also says why nothing new came)
   useEffect(() => {
     if (loading || !qualifiesForSuggestions) return;
     let cancelled = false;
@@ -62,7 +63,7 @@ export default function DashboardPage() {
       .then((d) => {
         if (cancelled) return;
         setSuggestionsFailed(false);
-        setPendingSuggestions(d?.total ?? 0);
+
         setEmptyReason(typeof d?.emptyReason === "string" ? d.emptyReason : null);
       })
       // A failure is not "no suggestions": the next-step card says it couldn't load
@@ -115,14 +116,42 @@ export default function DashboardPage() {
   const topTip = completeness?.tips?.[0];
   const shared = counts.flags.mutualSuggestions && typeof counts.newSuggestions === "number";
 
-  // What waits for me — each tile opens exactly the list it counts
-  const tiles = shared
-    ? [
-        { key: "new", href: "/dashboard/suggestions", icon: Sparkles, value: counts.newSuggestions ?? 0, label: "توافقات جديدة" },
-        { key: "liked", href: "/dashboard/suggestions?tab=interested", icon: Heart, value: counts.likedYou ?? 0, label: g("مهتمون بالتحدث معك", "مهتمون بالتحدث معكِ") },
-        ...(chatOn ? [{ key: "chats", href: "/dashboard/chats", icon: MessageCircle, value: counts.unreadChats, label: "رسائل جديدة" }] : []),
-      ]
-    : [];
+  // «بانتظار ردّك»: only what needs my answer, each with a button to the exact place to answer it
+  const likedYou = counts.likedYou ?? 0;
+  const fresh = counts.newSuggestions ?? 0;
+  const outOfCredits = !!counts.flags.creditOnInterest && credits <= 0;
+  const waiting: { key: string; icon: typeof Heart; title: string; note: string; href: string; cta: string }[] = [
+    ...(counts.pendingIntros > 0
+      ? [{
+          key: "requests",
+          icon: Inbox,
+          title: counts.pendingIntros === 1 ? "طلب تعارف بانتظار ردّك" : `${counts.pendingIntros} طلبات تعارف بانتظار ردّك`,
+          note: "على أحد توافقاتك المتبادلة، وتنتهي بعد 7 أيام من إرسالها.",
+          href: matchesHref(counts.flags.mutualSuggestions, counts.pendingIntroMatchId),
+          cta: g("ردّ الآن", "ردّي الآن"),
+        }]
+      : []),
+    ...(shared && likedYou > 0
+      ? [{
+          key: "liked",
+          icon: Heart,
+          title: likedYou === 1 ? g("شخص مهتم بالتحدث معك", "شخص مهتم بالتحدث معكِ") : g(`${likedYou} أشخاص مهتمون بالتحدث معك`, `${likedYou} أشخاص مهتمون بالتحدث معكِ`),
+          note: g("«مهتم» منك يعني توافقاً فورياً.", "«مهتم» منكِ يعني توافقاً فورياً."),
+          href: "/dashboard/suggestions?tab=interested",
+          cta: g("ردّ الآن", "ردّي الآن"),
+        }]
+      : []),
+    ...(shared && fresh > 0
+      ? [{
+          key: "new",
+          icon: Sparkles,
+          title: fresh === 1 ? "توافق جديد بانتظار قرارك" : `${fresh} توافقات جديدة بانتظار قرارك`,
+          note: "«مهتم» أو «لا»، وقرارك لا يعرفه أحد.",
+          href: "/dashboard/suggestions",
+          cta: g("قرّر الآن", "قرّري الآن"),
+        }]
+      : []),
+  ];
 
   // Unread first, then the most recent; active chats only
   const recentChats = (chats ?? [])
@@ -132,68 +161,84 @@ export default function DashboardPage() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-5 pb-8">
-      {/* Greeting + the one next step */}
-      <section className="landing-night relative overflow-hidden rounded-[1.75rem] p-4 text-white shadow-lg shadow-primary/15 sm:p-6">
-        <div className="landing-khatam absolute inset-0" aria-hidden />
-        <div className="relative">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-xs font-medium text-white/60">{getArabicDate()}</p>
-              <h1 className="font-display mt-1 truncate text-2xl leading-tight sm:text-3xl">
-                {getGreeting()}، {profile.firstName}
-              </h1>
-            </div>
-            {/* Phones have the bell in the top bar; desktop gets it here */}
-            <Link
-              href="/dashboard/notifications"
-              aria-label={unreadCount > 0 ? `الإشعارات (${unreadCount} غير مقروءة)` : "الإشعارات"}
-              className="relative hidden h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/10 hover:bg-white/15 md:flex"
-            >
-              <Bell className="h-5 w-5" aria-hidden />
-              {unreadCount > 0 && (
-                <span aria-hidden className="absolute -top-1 -start-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold">
-                  {unreadCount > 99 ? "99+" : unreadCount}
-                </span>
-              )}
-            </Link>
-          </div>
-          <div className="mt-4">
-            <NextStepCard
-              variant="hero"
-              qualifies={qualifiesForSuggestions}
-              pendingSuggestions={qualifiesForSuggestions ? (shared ? counts.newSuggestions ?? 0 : pendingSuggestions) : 0}
-              matchesCount={matchesCount}
-              credits={credits}
-              emptyReason={emptyReason}
-              suggestionsFailed={suggestionsFailed}
-            />
-          </div>
+      {/* Greeting: one slim row */}
+      <section className="flex items-center gap-3 rounded-2xl border border-border/60 bg-card px-4 py-3">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-base font-bold text-primary-foreground" aria-hidden>
+          {profile.firstName?.charAt(0) || "؟"}
+        </span>
+        <div className="min-w-0 flex-1">
+          <h1 className="truncate text-base font-bold leading-tight text-foreground">
+            {getGreeting()}، {profile.firstName}
+          </h1>
+          <p className="text-xs text-muted-foreground">{getArabicDate()}</p>
         </div>
+        {/* Phones have the bell in the top bar; desktop gets it here */}
+        <Link
+          href="/dashboard/notifications"
+          aria-label={unreadCount > 0 ? `الإشعارات (${unreadCount} غير مقروءة)` : "الإشعارات"}
+          className="relative hidden h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-muted/60 hover:bg-muted md:flex"
+        >
+          <Bell className="h-5 w-5 text-muted-foreground" aria-hidden />
+          {unreadCount > 0 && (
+            <span aria-hidden className="absolute -top-1 -start-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-white">
+              {unreadCount > 99 ? "99+" : unreadCount}
+            </span>
+          )}
+        </Link>
       </section>
 
-      {/* What waits for me */}
-      {qualifiesForSuggestions && tiles.length > 0 && (
-        <section aria-label="ما ينتظرك اليوم">
-          <ul className={cn("grid gap-2.5", tiles.length === 3 ? "grid-cols-3" : "grid-cols-2")}>
-            {tiles.map((t) => (
-              <li key={t.key}>
-                <Link
-                  href={t.href}
-                  aria-label={`${t.label}: ${t.value}`}
-                  className={cn(
-                    "flex h-full min-h-24 flex-col justify-between rounded-2xl border p-3 transition-colors",
-                    t.value > 0 ? "border-primary/20 bg-primary/5 hover:bg-primary/10" : "border-border/60 bg-card hover:bg-muted/50"
-                  )}
-                >
-                  <span className="flex items-center justify-between">
-                    <t.icon className={cn("h-5 w-5", t.value > 0 ? "text-primary" : "text-muted-foreground")} aria-hidden />
-                    <span className={cn("font-display text-2xl leading-none", t.value > 0 ? "text-primary" : "text-muted-foreground/70")}>{t.value}</span>
+      {/* Profile setup not finished: the one thing to do before suggestions start */}
+      {!qualifiesForSuggestions && (
+        <NextStepCard
+          qualifies={false}
+          pendingSuggestions={0}
+          matchesCount={matchesCount}
+          credits={credits}
+          emptyReason={emptyReason}
+          suggestionsFailed={suggestionsFailed}
+        />
+      )}
+
+      {/* «بانتظار ردّك»: only when something needs my answer */}
+      {qualifiesForSuggestions && waiting.length > 0 && (
+        <section aria-labelledby="waiting-title" className="overflow-hidden rounded-2xl border border-accent/40 bg-card shadow-sm">
+          <div className="flex items-center gap-2 border-b border-accent/20 bg-accent/10 px-4 py-2.5">
+            <span className="relative flex h-2.5 w-2.5" aria-hidden>
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent opacity-60 motion-reduce:animate-none" />
+              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-accent" />
+            </span>
+            <h2 id="waiting-title" className="text-sm font-bold text-foreground">بانتظار ردّك</h2>
+          </div>
+          <ul className="divide-y divide-border/60">
+            {waiting.map((w) => (
+              <li key={w.key} className="flex items-center gap-3 px-4 py-3.5">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                  <w.icon className="h-5 w-5" aria-hidden />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-bold text-foreground">{w.title}</span>
+                  <span className="mt-0.5 inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
+                    بانتظار ردّك
                   </span>
-                  <span className="mt-2 text-[13px] font-semibold leading-snug text-foreground">{t.label}</span>
+                  <span className="mt-1 block text-xs text-muted-foreground">{w.note}</span>
+                </span>
+                <Link
+                  href={w.href}
+                  className="inline-flex h-10 shrink-0 items-center gap-1 rounded-xl bg-primary px-3.5 text-sm font-bold text-primary-foreground transition hover:bg-primary/90"
+                >
+                  {w.cta}
+                  <ChevronLeft className="h-4 w-4" aria-hidden />
                 </Link>
               </li>
             ))}
           </ul>
+          {/* «مهتم» needs a credit: say so here, before the member taps through */}
+          {outOfCredits && (likedYou > 0 || fresh > 0) && (
+            <Link href="/dashboard/payments" className="flex items-center gap-2 border-t border-border/60 bg-amber-50/70 px-4 py-2.5 text-xs font-semibold text-amber-900">
+              <Coins className="h-4 w-4 shrink-0" aria-hidden />
+              {g("رصيدك صفر: اشحن رصيدك لتقول «مهتم».", "رصيدكِ صفر: اشحني رصيدكِ لتقولي «مهتم».")}
+            </Link>
+          )}
         </section>
       )}
 

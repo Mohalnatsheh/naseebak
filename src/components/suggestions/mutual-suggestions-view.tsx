@@ -26,7 +26,6 @@ import { CandidateDetails } from "@/components/suggestions/candidate-details";
 import { DealbreakersCard } from "@/components/suggestions/dealbreakers-card";
 import { MatchesView } from "@/components/matches/matches-view";
 import { InterestDialog, rechargeToContinue, type IntroPreferenceChoice } from "@/components/suggestions/interest-dialog";
-import { CREDIT_ON_INTEREST_LINE } from "@/lib/suggestions/copy";
 import { trackEvent } from "@/lib/analytics";
 import { useDashboardData } from "@/contexts/dashboard-context";
 import { describeOption, nationalityLabel, oppositeGender } from "@/lib/profile-options";
@@ -457,16 +456,6 @@ export function MutualSuggestionsView({
             {g("يرى الطرفان الاقتراح نفسه، ويقرّر كلٌّ منكما وحده.", "يرى الطرفان الاقتراح نفسه، ويقرّر كلٌّ منكما وحده.")}
           </p>
         </div>
-        {creditOnInterest && (
-          <Link
-            href="/dashboard/payments"
-            className="inline-flex min-h-10 items-center gap-1.5 rounded-full border border-accent/40 bg-accent/10 px-3 text-sm font-semibold text-foreground"
-            aria-label={`رصيدك ${balance}. ${CREDIT_ON_INTEREST_LINE}`}
-          >
-            <Coins className="h-4 w-4 text-accent-foreground" aria-hidden />
-            رصيدك {balance}
-          </Link>
-        )}
       </div>
 
       {/* Four categories: 2×2 on phones (labels never clipped), one row from sm up */}
@@ -746,7 +735,7 @@ export function MutualSuggestionsView({
                         ) : (
                           <p className="mb-3 flex items-center gap-1.5 text-xs text-muted-foreground">
                             <Coins className="h-3.5 w-3.5 text-accent" aria-hidden="true" />
-                            مهتم يستخدم رصيداً واحداً — رصيدك {balance}
+                            «مهتم» يستخدم رصيداً واحداً
                           </p>
                         )
                       )}

@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Cairo } from "next/font/google";
 import "../globals.css";
 import PublicTracking from "@/components/shared/public-tracking";
@@ -75,6 +75,14 @@ export const metadata: Metadata = {
       "max-snippet": -1,
     },
   },
+};
+
+// iPhone: without viewport-fit=cover every env(safe-area-inset-*) is 0, so the bottom bars
+// (dashboard tabs, chat box, landing start bar) sat under the home indicator in the installed app
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 const organizationJsonLd = {

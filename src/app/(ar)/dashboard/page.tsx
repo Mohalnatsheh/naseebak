@@ -13,6 +13,7 @@ import { listTimeLabel } from "@/components/chat/chat-utils";
 import { qualifiesForSuggestions as qualifiesForSuggestionsGate } from "@/lib/profile-completeness";
 import { matchesHref } from "@/lib/matches/links";
 import type { ChatSummary } from "@/lib/chat/service";
+import type { FeedItem } from "@/lib/suggestions/feed-types";
 
 /** Amman time (UTC+3 all year), whatever the device clock says */
 function ammanHour(): number {
@@ -49,6 +50,8 @@ export default function DashboardPage() {
     newCycle: counts.flags.introRequests,
   });
   const chatOn = counts.flags.chat || counts.hasChats;
+  const sharedFeed = counts.flags.mutualSuggestions;
+  const [suggested, setSuggested] = useState<FeedItem[] | null>(null);
 
   // Once the profile qualifies, page 1 of /api/suggestions tops up suggestions automatically (the counts
   // shown come from /api/me/counts; this call also says why nothing new came)
@@ -67,9 +70,14 @@ export default function DashboardPage() {
         setEmptyReason(typeof d?.emptyReason === "string" ? d.emptyReason : null);
       })
       // A failure is not "no suggestions": the next-step card says it couldn't load
-      .catch(() => { if (!cancelled) setSuggestionsFailed(true); });
+      .catch(() => { if (!cancelled) setSuggestionsFailed(true); })
+      // «توافقات مقترحة»: the people in the «الجديد» tab, read after the top-up above ran
+      .then(() => (sharedFeed ? fetch("/api/suggestions/feed?tab=new&page=1") : null))
+      .then((r) => (r ? (r.ok ? r.json() : Promise.reject(new Error(`feed ${r.status}`))) : null))
+      .then((d) => { if (!cancelled && d) setSuggested((d.items ?? []) as FeedItem[]); })
+      .catch(() => { if (!cancelled) setSuggested([]); });
     return () => { cancelled = true; };
-  }, [loading, qualifiesForSuggestions]);
+  }, [loading, qualifiesForSuggestions, sharedFeed]);
 
   // Conversations to continue (the same list as the chats page)
   useEffect(() => {
@@ -188,6 +196,10 @@ export default function DashboardPage() {
         </Link>
       </section>
 
+      {/* Install the site on the home screen + turn notifications on: first, while this device can't get them
+          (hides itself once done, and for 3 days after «إخفاء») */}
+      <InstallAppCard />
+
       {/* Profile setup not finished: the one thing to do before suggestions start */}
       {!qualifiesForSuggestions && (
         <NextStepCard
@@ -290,8 +302,53 @@ export default function DashboardPage() {
         </section>
       )}
 
-      {/* One helper card at a time: guardian consent first, then installing the app */}
-      {counts.flags.introRequests && counts.guardian?.exists && !counts.guardian.consented ? <GuardianConsentCard /> : <InstallAppCard />}
+      {/* «توافقات مقترحة»: who is waiting in «الجديد», a tap away (photos stay hidden: initials only) */}
+      {sharedFeed && qualifiesForSuggestions && suggested !== null && (
+        <section>
+          <div className="mb-2 flex items-center justify-between px-1">
+            <h2 className="text-lg font-bold text-foreground">توافقات مقترحة</h2>
+            {suggested.length > 0 && (
+              <Link href="/dashboard/suggestions" className="inline-flex min-h-11 items-center gap-0.5 text-sm font-semibold text-primary">
+                الكل <ChevronLeft className="h-4 w-4" aria-hidden />
+              </Link>
+            )}
+          </div>
+          {suggested.length === 0 ? (
+            <p className="rounded-2xl border border-dashed border-border bg-card px-4 py-4 text-sm leading-relaxed text-muted-foreground">
+              {emptyReason === "pending"
+                ? "لديك اقتراحات بانتظار الطرف الآخر. ستصلك اقتراحات جديدة قريباً."
+                : g("لا توافقات جديدة الآن. نُعلمك فور وصول اقتراح يناسبك.", "لا توافقات جديدة الآن. نُعلمكِ فور وصول اقتراح يناسبكِ.")}
+            </p>
+          ) : (
+            <ul className="-mx-1 flex snap-x gap-2 overflow-x-auto rounded-2xl border border-border/60 bg-card px-2 py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {suggested.map((s) => (
+                <li key={s.id} className="w-[5.25rem] shrink-0 snap-start">
+                  <Link href="/dashboard/suggestions" className="flex flex-col items-center gap-1.5 rounded-xl px-1 py-1 text-center transition-colors hover:bg-muted/40">
+                    <span className="relative">
+                      <span
+                        className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 text-2xl font-bold text-primary ring-2 ring-accent/60 ring-offset-2 ring-offset-card"
+                        aria-hidden
+                      >
+                        {s.candidate.firstName.charAt(0)}
+                      </span>
+                      <span className="absolute inset-x-0 -bottom-1 mx-auto w-fit rounded-full bg-accent px-1.5 text-[10px] font-bold leading-4 text-accent-foreground">
+                        {Math.round(s.compatibilityScore)}%
+                      </span>
+                    </span>
+                    <span className="mt-1 w-full truncate text-sm font-semibold text-foreground">{s.candidate.firstName}</span>
+                    <span className="w-full truncate text-[11px] text-muted-foreground">
+                      {[s.candidate.age ? `${s.candidate.age} سنة` : null, s.candidate.city].filter(Boolean).join(" · ") || " "}
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
+
+      {/* Guardian consent still missing (new cycle) */}
+      {counts.flags.introRequests && counts.guardian?.exists && !counts.guardian.consented && <GuardianConsentCard />}
 
       {/* Profile strength: only while there is something left to add */}
       {completionPercent < 100 && (

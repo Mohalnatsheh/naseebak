@@ -17,6 +17,7 @@ import {
   Lock,
   CheckCircle2,
   ArrowLeft,
+  ChevronDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -96,13 +97,20 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
 
   const scroller = useRef<HTMLDivElement>(null);
   const viewport = useMobileViewport();
-  // Keyboard opened / closed: keep the newest message in view if the reader was at the bottom
-  useEffect(() => {
-    const el = scroller.current;
-    if (el && el.scrollHeight - el.scrollTop - el.clientHeight < 160) el.scrollTop = el.scrollHeight;
-  }, [viewport?.height]);
   const composer = useRef<ChatComposerHandle>(null);
   const stickToBottom = useRef(true);
+  // The message area changes size after opening (the family bar loads, the keyboard opens / closes):
+  // keep the newest message in view while the reader is at the bottom
+  const loaded = messages.length > 0 || hasMore;
+  useEffect(() => {
+    const el = scroller.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => {
+      if (stickToBottom.current) el.scrollTop = el.scrollHeight;
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [loaded]);
   const markingRead = useRef(false);
 
   const applyResponse = useCallback((data: ChatResponse, mode: "replace" | "merge") => {
@@ -224,10 +232,18 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
     if (el && stickToBottom.current) el.scrollTop = el.scrollHeight;
   }, [messages]);
 
+  // Scrolled up to read history: a "back to the newest" button with how many arrived since
+  const [away, setAway] = useState(false);
+  const [seenUpTo, setSeenUpTo] = useState("");
+  const unseen = away ? messages.filter((m) => !m.mine && !m.pending && m.createdAt > seenUpTo).length : 0;
+
   function onScroll() {
     const el = scroller.current;
     if (!el) return;
-    stickToBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+    const distance = el.scrollHeight - el.scrollTop - el.clientHeight;
+    stickToBottom.current = distance < 120;
+    setAway(distance > 160);
+    if (distance < 120) setSeenUpTo(messages.at(-1)?.createdAt ?? "");
   }
 
   async function loadOlder() {
@@ -367,30 +383,48 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
       style={viewport ? { height: viewport.height, top: viewport.top } : undefined}
       className="mx-auto flex max-w-3xl flex-col overflow-hidden bg-card max-md:fixed max-md:inset-x-0 max-md:top-0 max-md:z-50 max-md:h-[100dvh] md:h-[calc(100dvh-4rem)] md:rounded-2xl md:border md:border-border/60 md:shadow-sm"
     >
-      {/* Header */}
-      <header className="flex items-center gap-3 border-b border-border/60 px-3 py-3 sm:px-4">
-        <Button asChild variant="ghost" size="icon-sm" aria-label="رجوع">
+      {/* Header: who, and how long the chat stays open */}
+      <header className="flex items-center gap-2 border-b border-border/60 px-2 pb-2.5 pt-[max(0.625rem,env(safe-area-inset-top))] sm:px-4">
+        <Button asChild variant="ghost" size="icon" aria-label="رجوع" className="shrink-0">
           <Link href="/dashboard/chats">
             <ArrowRight className="h-5 w-5" />
           </Link>
         </Button>
-        <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl border border-primary/15 bg-gradient-to-br from-primary/15 to-accent/15">
-          <span className="text-lg font-bold text-primary">{conversation.partner.firstName.charAt(0)}</span>
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 items-center gap-2">
-            <h1 className="truncate font-bold text-foreground">{conversation.partner.firstName}</h1>
-            <VerifiedBadge verified={conversation.partner.isVerified} />
-          </div>
-          <p className="flex items-center gap-1 text-xs text-muted-foreground">
-            <ShieldCheck className="h-3.5 w-3.5" />
-            محادثة خاصة عبر نصيبك
-            {mode === "live" && <span className="ms-1 inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" aria-label="متصل" />}
-          </p>
-        </div>
+        {(() => {
+          const who = (
+            <>
+              <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-primary text-base font-bold text-primary-foreground">
+                {conversation.partner.firstName.charAt(0)}
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="flex min-w-0 items-center gap-2">
+                  <h1 className="truncate font-bold leading-tight text-foreground">{conversation.partner.firstName}</h1>
+                  <VerifiedBadge verified={conversation.partner.isVerified} />
+                </div>
+                <p className={cn("mt-0.5 flex items-center gap-1 text-xs", open && left <= 3 ? "font-semibold text-amber-700" : "text-muted-foreground")}>
+                  {open ? <Clock className="h-3.5 w-3.5" aria-hidden /> : <Lock className="h-3.5 w-3.5" aria-hidden />}
+                  {open ? `متبقي ${daysLabel(left)}` : conversation.status === "ENDED" ? "المحادثة منتهية" : "انتهت مدة المحادثة"}
+                  {mode === "live" && <span className="ms-1 inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" aria-label="متصل" />}
+                </p>
+              </div>
+            </>
+          );
+          // Tapping the name opens the match (not for someone the other person blocked)
+          return conversation.matchHidden ? (
+            <div className="flex min-w-0 flex-1 items-center gap-2.5">{who}</div>
+          ) : (
+            <Link
+              href={`/dashboard/matches?match=${conversation.matchId}`}
+              aria-label={`عرض توافق ${conversation.partner.firstName}`}
+              className="-my-1 flex min-h-11 min-w-0 flex-1 items-center gap-2.5 rounded-xl px-1 transition-colors hover:bg-muted/50"
+            >
+              {who}
+            </Link>
+          );
+        })()}
         <DropdownMenu dir="rtl">
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon-sm" aria-label="خيارات">
+            <Button variant="ghost" size="icon" aria-label="خيارات" className="shrink-0">
               <MoreVertical className="h-5 w-5" />
             </Button>
           </DropdownMenuTrigger>
@@ -422,58 +456,61 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
         </DropdownMenu>
       </header>
 
-      {/* Info strip */}
-      <div className="flex flex-wrap items-center gap-2 border-b border-border/40 bg-muted/30 px-4 py-2 text-xs">
-        {open ? (
-          <span
-            className={cn(
-              "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 font-semibold",
-              left <= 3 ? "border-amber-200/70 bg-amber-50 text-amber-700" : "border-border/60 bg-card text-muted-foreground"
+      {/* One slim bar, only when there is something to do: extend near the end, the family step */}
+      {(() => {
+        const offerFamily =
+          family?.status === "none" && !!intro?.flags.introRequests && !intro.closed && !conversation.blocked && conversation.status === "ACTIVE";
+        const extendSoon = conversation.canExtend && left <= 3;
+        const familyNote =
+          family?.status === "pending_sent" || family?.status === "pending_received" || family?.status === "accepted" ? family.status : null;
+        if (!offerFamily && !extendSoon && !familyNote) return null;
+        return (
+          <div className="flex min-h-11 items-center gap-2 border-b border-border/40 bg-accent/10 px-3 py-1.5 text-sm">
+            {extendSoon && (
+              <>
+                <Clock className="h-4 w-4 shrink-0 text-amber-700" aria-hidden />
+                <span className="min-w-0 flex-1 truncate text-foreground/80">تنتهي المحادثة قريباً</span>
+                <Button size="xs" variant="outline" onClick={() => setExtendConfirm(true)} disabled={busy} className="shrink-0">
+                  تمديد 7 أيام
+                </Button>
+              </>
             )}
-          >
-            <Clock className="h-3.5 w-3.5" /> متبقي {daysLabel(left)}
-          </span>
-        ) : (
-          <span className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-card px-2.5 py-1 font-semibold text-muted-foreground">
-            <Lock className="h-3.5 w-3.5" /> {conversation.status === "ENDED" ? "المحادثة منتهية" : "انتهت مدة المحادثة"}
-          </span>
-        )}
-        {conversation.canExtend && (
-          <button type="button" onClick={() => setExtendConfirm(true)} disabled={busy} className="-my-2 inline-flex min-h-11 items-center px-1 font-semibold text-primary hover:underline">
-            تمديد 7 أيام
-          </button>
-        )}
-        {/* Shown on phones too (most members chat there) */}
-        <span className="text-muted-foreground">
-          {myGender === "FEMALE" ? "لا تشاركي أرقام الهواتف أو الحسابات." : "لا تشارك أرقام الهواتف أو الحسابات."}
-        </span>
-
-        <span className="ms-auto">
-          {family?.status === "none" && intro?.flags.introRequests && !intro.closed && !conversation.blocked && conversation.status !== "ENDED" && (
-            <Button size="xs" onClick={() => setFamilyDialog(true)} className="gap-1">
-              <Users className="h-3.5 w-3.5" /> ننتقل لتعارف عائلي
-            </Button>
-          )}
-          {family?.status === "pending_sent" && (
-            <span className="inline-flex items-center gap-1 font-semibold text-amber-700">
-              <Clock className="h-3.5 w-3.5" /> طلب التعارف العائلي بانتظار الرد
-            </span>
-          )}
-          {family?.status === "pending_received" && (
-            <Link href={`/dashboard/matches?match=${conversation.matchId}`} className="inline-flex items-center gap-1 font-semibold text-accent-foreground hover:underline">
-              وصلك طلب تعارف عائلي <ArrowLeft className="h-3.5 w-3.5" />
-            </Link>
-          )}
-          {family?.status === "accepted" && (
-            <Link href={`/dashboard/matches?match=${conversation.matchId}`} className="inline-flex items-center gap-1 font-semibold text-emerald-700 hover:underline">
-              <CheckCircle2 className="h-3.5 w-3.5" /> بيانات وليّ الأمر
-            </Link>
-          )}
-        </span>
-      </div>
+            {!extendSoon && offerFamily && (
+              <>
+                <Users className="h-4 w-4 shrink-0 text-accent-foreground" aria-hidden />
+                <span className="min-w-0 flex-1 truncate text-foreground/80">جاهزان للخطوة التالية؟</span>
+                <Button size="xs" onClick={() => setFamilyDialog(true)} className="shrink-0">
+                  تعارف عائلي
+                </Button>
+              </>
+            )}
+            {!extendSoon && !offerFamily && familyNote === "pending_sent" && (
+              <span className="inline-flex items-center gap-1.5 font-semibold text-amber-700">
+                <Clock className="h-4 w-4" aria-hidden /> طلب التعارف العائلي بانتظار الرد
+              </span>
+            )}
+            {!extendSoon && !offerFamily && familyNote === "pending_received" && (
+              <Link href={`/dashboard/matches?match=${conversation.matchId}`} className="inline-flex min-h-11 flex-1 items-center gap-1.5 font-semibold text-primary">
+                <Users className="h-4 w-4" aria-hidden /> وصلك طلب تعارف عائلي <ArrowLeft className="ms-auto h-4 w-4" aria-hidden />
+              </Link>
+            )}
+            {!extendSoon && !offerFamily && familyNote === "accepted" && (
+              <Link href={`/dashboard/matches?match=${conversation.matchId}`} className="inline-flex min-h-11 flex-1 items-center gap-1.5 font-semibold text-emerald-700">
+                <CheckCircle2 className="h-4 w-4" aria-hidden /> بيانات وليّ الأمر <ArrowLeft className="ms-auto h-4 w-4" aria-hidden />
+              </Link>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Messages */}
-      <div ref={scroller} onScroll={onScroll} className="chat-backdrop flex-1 overflow-y-auto px-3 py-4 sm:px-5">
+      <div className="relative min-h-0 flex-1">
+      <div ref={scroller} onScroll={onScroll} className="chat-backdrop h-full overflow-y-auto overscroll-contain px-3 py-3 sm:px-5">
+        {/* Shown once at the top of every chat (most members chat on phones) */}
+        <p className="mx-auto mb-1 flex w-fit max-w-full items-center gap-1.5 rounded-full bg-card/90 px-3 py-1.5 text-xs text-muted-foreground shadow-sm ring-1 ring-border/50">
+          <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-primary" aria-hidden />
+          {myGender === "FEMALE" ? "محادثة خاصة · لا تشاركي الأرقام أو الحسابات" : "محادثة خاصة · لا تشارك الأرقام أو الحسابات"}
+        </p>
         {hasMore && (
           <div className="mb-2 text-center">
             <Button variant="outline" size="xs" onClick={loadOlder} disabled={loadingOlder}>
@@ -509,12 +546,32 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
           );
         })}
       </div>
+        {/* Back to the newest message after scrolling up (with what arrived meanwhile) */}
+        {away && (
+          <button
+            type="button"
+            onClick={() => {
+              const el = scroller.current;
+              if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+            }}
+            aria-label={unseen > 0 ? `${unseen} رسائل جديدة — انتقل لآخر رسالة` : "انتقل لآخر رسالة"}
+            className="absolute bottom-3 end-3 flex h-11 w-11 items-center justify-center rounded-full border border-border/60 bg-card text-primary shadow-lg transition-transform active:scale-95"
+          >
+            <ChevronDown className="h-5 w-5" aria-hidden />
+            {unseen > 0 && (
+              <span aria-hidden className="absolute -top-1.5 -start-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-accent px-1 text-[11px] font-bold text-accent-foreground">
+                {unseen > 99 ? "99+" : unseen}
+              </span>
+            )}
+          </button>
+        )}
+      </div>
 
       {/* Composer or read-only notice */}
       {canSend ? (
-        <ChatComposer ref={composer} female={myGender === "FEMALE"} onSend={(t) => send(t)} error={composerError} onTyping={() => composerError && setComposerError(null)} />
+        <ChatComposer ref={composer} female={myGender === "FEMALE"} keyboardOpen={!!viewport?.keyboard} onSend={(t) => send(t)} error={composerError} onTyping={() => composerError && setComposerError(null)} />
       ) : (
-        <div className="border-t border-border/60 bg-muted/30 px-4 py-3 text-center text-sm text-muted-foreground">
+        <div className="border-t border-border/60 bg-muted/30 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] text-center text-sm text-muted-foreground">
           {conversation.blocked
             ? "لا يمكن إرسال رسائل في هذه المحادثة."
             : intro?.chat.paused
@@ -581,13 +638,16 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
  * Phones only: the visible area (shrinks when the keyboard opens, unlike 100dvh on iPhone).
  * Also stops the page behind the full-screen chat from scrolling. null on tablets / desktop.
  */
-function useMobileViewport(): { height: number; top: number } | null {
-  const [vp, setVp] = useState<{ height: number; top: number } | null>(null);
+function useMobileViewport(): { height: number; top: number; keyboard: boolean } | null {
+  const [vp, setVp] = useState<{ height: number; top: number; keyboard: boolean } | null>(null);
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 767px)");
     const vv = window.visualViewport;
-    const update = () =>
-      setVp(mq.matches ? { height: Math.round(vv?.height ?? window.innerHeight), top: Math.round(vv?.offsetTop ?? 0) } : null);
+    const update = () => {
+      const height = Math.round(vv?.height ?? window.innerHeight);
+      // The keyboard covers the home indicator: no safe-area gap under the box then
+      setVp(mq.matches ? { height, top: Math.round(vv?.offsetTop ?? 0), keyboard: window.innerHeight - height > 120 } : null);
+    };
     update();
     vv?.addEventListener("resize", update);
     vv?.addEventListener("scroll", update);

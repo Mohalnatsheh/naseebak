@@ -17,7 +17,9 @@ export const ChatComposer = forwardRef<ChatComposerHandle, {
   onTyping: () => void;
   /** Viewer is a woman: feminine placeholder */
   female?: boolean;
-}>(function ChatComposer({ onSend, error, onTyping, female }, ref) {
+  /** Phone keyboard is up: drop the home-indicator padding */
+  keyboardOpen?: boolean;
+}>(function ChatComposer({ onSend, error, onTyping, female, keyboardOpen }, ref) {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const area = useRef<HTMLTextAreaElement>(null);
@@ -47,7 +49,12 @@ export const ChatComposer = forwardRef<ChatComposerHandle, {
   }
 
   return (
-    <div className="border-t border-border/60 bg-card/95 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur supports-[backdrop-filter]:bg-card/80">
+    <div
+      className={cn(
+        "border-t border-border/60 bg-card/95 px-3 pt-2 backdrop-blur supports-[backdrop-filter]:bg-card/80",
+        keyboardOpen ? "pb-2" : "pb-[max(0.75rem,env(safe-area-inset-bottom))]"
+      )}
+    >
       {error && <p className="mb-2 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
       <div className="flex items-end gap-2">
         <textarea
@@ -56,6 +63,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, {
           rows={1}
           dir="auto"
           maxLength={MAX + 50}
+          enterKeyHint="send"
           placeholder={female ? "اكتبي رسالتكِ…" : "اكتب رسالتك…"}
           onChange={(e) => {
             setText(e.target.value);
@@ -72,6 +80,8 @@ export const ChatComposer = forwardRef<ChatComposerHandle, {
         <button
           type="button"
           onClick={submit}
+          // Keep the focus in the box so the phone keyboard stays open between messages
+          onPointerDown={(e) => e.preventDefault()}
           disabled={!text.trim() || sending || text.trim().length > MAX}
           aria-label="إرسال"
           className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-md shadow-primary/20 transition-all hover:bg-primary/90 active:scale-95 disabled:opacity-40"

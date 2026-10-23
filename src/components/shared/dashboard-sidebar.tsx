@@ -15,7 +15,6 @@ import {
   Home,
   Brain,
   Camera,
-  X,
   ChevronRight,
   ChevronLeft,
   LifeBuoy,
@@ -26,7 +25,6 @@ import {
   Coins,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { useDashboardData } from "@/contexts/dashboard-context";
@@ -48,7 +46,7 @@ const mainLinks: NavLink[] = [
 ];
 
 /** Account pages: «حسابي» in the bottom bar is active on these */
-const ACCOUNT_PREFIXES = ["/dashboard/profile", "/dashboard/photos", "/dashboard/personality-quiz", "/dashboard/payments", "/dashboard/blocks", "/dashboard/support", "/dashboard/referral", "/dashboard/install"];
+const ACCOUNT_PREFIXES = ["/dashboard/account", "/dashboard/profile", "/dashboard/photos", "/dashboard/personality-quiz", "/dashboard/payments", "/dashboard/blocks", "/dashboard/support", "/dashboard/referral", "/dashboard/install"];
 
 const accountLinks: NavLink[] = [
   { href: "/dashboard/profile", label: "الملف الشخصي", icon: User },
@@ -119,7 +117,6 @@ function NavItem({
 
 export function DashboardSidebar() {
   const pathname = usePathname();
-  const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const { profile, unreadCount, counts } = useDashboardData();
 
@@ -173,10 +170,11 @@ export function DashboardSidebar() {
     void signOutAndUnlinkPush("/login");
   };
 
-  const sidebarContent = (mobile: boolean) => (
+  // Desktop only: phones use the bottom bar and the «حسابي» page
+  const sidebar = (
     <>
       {/* Logo + user info */}
-      <div className={cn("p-4 border-b border-border/40", collapsed && !mobile && "p-3")}>
+      <div className={cn("p-4 border-b border-border/40", collapsed && "p-3")}>
         <div className="flex items-center justify-between mb-3">
           <Link href="/dashboard" className="flex min-h-11 items-center gap-2">
             <Image
@@ -187,18 +185,7 @@ export function DashboardSidebar() {
               className="w-auto flex-shrink-0 h-8"
             />
           </Link>
-          {mobile ? (
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label="إغلاق القائمة"
-              className="h-11 w-11 rounded-lg text-muted-foreground hover:text-foreground"
-              onClick={() => setMobileOpen(false)}
-            >
-              <X className="h-5 w-5" />
-            </Button>
-          ) : (
-            <Button
+          <Button
               variant="ghost"
               size="icon"
               aria-label={collapsed ? "توسيع القائمة" : "تصغير القائمة"}
@@ -211,10 +198,9 @@ export function DashboardSidebar() {
                 <ChevronRight className="h-4 w-4" />
               )}
             </Button>
-          )}
         </div>
 
-        {(!collapsed || mobile) && userData && (
+        {!collapsed && userData && (
           <div className="flex items-center gap-3 p-2.5 bg-muted/40 rounded-xl border border-border/30">
             <Avatar className="h-9 w-9 border border-primary/20 flex-shrink-0">
               <AvatarFallback className="bg-gradient-to-br from-primary/15 to-primary/5 text-primary text-sm font-bold">
@@ -235,10 +221,10 @@ export function DashboardSidebar() {
         <p
           className={cn(
             "text-[10px] uppercase tracking-wider text-muted-foreground/60 font-semibold px-3 mb-2",
-            collapsed && !mobile && "text-center px-0"
+            collapsed && "text-center px-0"
           )}
         >
-          {collapsed && !mobile ? "—" : "القائمة الرئيسية"}
+          {collapsed ? "—" : "القائمة الرئيسية"}
         </p>
         <div className="flex flex-col gap-0.5 mb-4">
           {filteredMainLinks.map((link) => (
@@ -246,8 +232,7 @@ export function DashboardSidebar() {
               key={link.href}
               link={link}
               pathname={pathname}
-              collapsed={collapsed && !mobile}
-              onClick={mobile ? () => setMobileOpen(false) : undefined}
+              collapsed={collapsed}
             />
           ))}
         </div>
@@ -255,10 +240,10 @@ export function DashboardSidebar() {
         <p
           className={cn(
             "text-[10px] uppercase tracking-wider text-muted-foreground/60 font-semibold px-3 mb-2",
-            collapsed && !mobile && "text-center px-0"
+            collapsed && "text-center px-0"
           )}
         >
-          {collapsed && !mobile ? "—" : "الحساب"}
+          {collapsed ? "—" : "الحساب"}
         </p>
         <div className="flex flex-col gap-0.5">
           {filteredAccountLinks.map((link) => (
@@ -266,8 +251,7 @@ export function DashboardSidebar() {
               key={link.href}
               link={link}
               pathname={pathname}
-              collapsed={collapsed && !mobile}
-              onClick={mobile ? () => setMobileOpen(false) : undefined}
+              collapsed={collapsed}
             />
           ))}
         </div>
@@ -279,14 +263,14 @@ export function DashboardSidebar() {
           onClick={handleSignOut}
           className={cn(
             "flex items-center gap-3 w-full rounded-xl px-3 py-2.5 text-sm font-medium text-destructive/80 hover:text-destructive hover:bg-destructive/5 transition-all duration-200",
-            collapsed && !mobile && "justify-center px-2"
+            collapsed && "justify-center px-2"
           )}
-          title={collapsed && !mobile ? "تسجيل الخروج" : undefined}
+          title={collapsed ? "تسجيل الخروج" : undefined}
         >
           <div className="h-8 w-8 rounded-lg flex items-center justify-center bg-destructive/5 flex-shrink-0">
             <LogOut className="h-4 w-4" />
           </div>
-          {(!collapsed || mobile) && <span>تسجيل الخروج</span>}
+          {!collapsed && <span>تسجيل الخروج</span>}
         </button>
       </div>
     </>
@@ -301,10 +285,10 @@ export function DashboardSidebar() {
           collapsed ? "w-[72px]" : "w-64"
         )}
       >
-        {sidebarContent(false)}
+        {sidebar}
       </aside>
 
-      {/* Mobile hamburger + sheet */}
+      {/* Mobile top bar: logo, balance, bell */}
       <div className="md:hidden fixed top-0 inset-x-0 z-50 bg-background border-b border-border/40 shadow-sm w-full">
         <div className="h-[2px] bg-gradient-to-l from-primary via-accent to-primary/50" />
         <div className="flex items-center justify-between px-4 h-14">
@@ -341,18 +325,11 @@ export function DashboardSidebar() {
                 </span>
               )}
             </Link>
-            <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-            <SheetContent side="right" className="w-80 p-0 border-r-0 flex flex-col" showCloseButton={false}>
-              <SheetTitle className="sr-only">حسابي</SheetTitle>
-              <SheetDescription className="sr-only">صفحات لوحة التحكم وحسابك</SheetDescription>
-              {sidebarContent(true)}
-            </SheetContent>
-          </Sheet>
           </div>
         </div>
       </div>
 
-      {/* Mobile bottom tab bar: الرئيسية · التوافقات · المحادثات · حسابي (opens the account menu) */}
+      {/* Mobile bottom tab bar: الرئيسية · التوافقات · المحادثات · حسابي (the account page) */}
       {!hideBottomBar && (
         <nav
           aria-label="التنقل الرئيسي"
@@ -387,10 +364,9 @@ export function DashboardSidebar() {
               );
             })}
             <li className="flex-1">
-              <button
-                type="button"
-                onClick={() => setMobileOpen(true)}
-                aria-haspopup="dialog"
+              <Link
+                href="/dashboard/account"
+                aria-current={accountActive ? "page" : undefined}
                 className={cn(
                   "flex h-full w-full flex-col items-center justify-center gap-1 text-xs transition-colors",
                   accountActive ? "font-bold text-primary" : "font-medium text-muted-foreground"
@@ -400,7 +376,7 @@ export function DashboardSidebar() {
                   <User className="h-5 w-5" aria-hidden />
                 </span>
                 حسابي
-              </button>
+              </Link>
             </li>
           </ul>
         </nav>

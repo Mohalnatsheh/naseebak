@@ -3,7 +3,6 @@ import { DashboardSidebar } from "@/components/shared/dashboard-sidebar";
 import { Providers } from "@/components/shared/providers";
 import { OneSignalProvider } from "@/components/shared/onesignal-provider";
 import { NotificationBar } from "@/components/shared/notification-bar";
-import { OnboardingGuide } from "@/components/shared/onboarding-guide";
 import { DashboardDataProvider } from "@/contexts/dashboard-context";
 import { Toaster } from "@/components/ui/sonner";
 import { DashboardFooter } from "@/components/shared/dashboard-footer";
@@ -54,7 +53,6 @@ export default async function DashboardLayout({
             <div className="max-w-5xl mx-auto px-4 md:px-6 py-6 md:py-8">
               {/* Every page, until notifications are on (replaces the one-time popup) */}
               <NotificationBar />
-              <OnboardingGuide />
               {children}
             </div>
             <DashboardFooter />

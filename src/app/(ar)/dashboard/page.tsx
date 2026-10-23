@@ -161,24 +161,25 @@ export default function DashboardPage() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-5 pb-8">
-      {/* Greeting: one slim row */}
-      <section className="flex items-center gap-3 rounded-2xl border border-border/60 bg-card px-4 py-3">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-base font-bold text-primary-foreground" aria-hidden>
+      {/* Greeting: the navy brand card, compact */}
+      <section className="landing-night relative flex items-center gap-3 overflow-hidden rounded-2xl px-4 py-3.5 text-white shadow-md shadow-primary/15">
+        <div className="landing-khatam absolute inset-0" aria-hidden />
+        <span className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-accent text-lg font-bold text-accent-foreground ring-2 ring-white/20" aria-hidden>
           {profile.firstName?.charAt(0) || "؟"}
         </span>
-        <div className="min-w-0 flex-1">
-          <h1 className="truncate text-base font-bold leading-tight text-foreground">
+        <div className="relative min-w-0 flex-1">
+          <h1 className="font-display truncate text-xl leading-tight">
             {getGreeting()}، {profile.firstName}
           </h1>
-          <p className="text-xs text-muted-foreground">{getArabicDate()}</p>
+          <p className="mt-0.5 text-xs text-white/65">{getArabicDate()}</p>
         </div>
         {/* Phones have the bell in the top bar; desktop gets it here */}
         <Link
           href="/dashboard/notifications"
           aria-label={unreadCount > 0 ? `الإشعارات (${unreadCount} غير مقروءة)` : "الإشعارات"}
-          className="relative hidden h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-muted/60 hover:bg-muted md:flex"
+          className="relative hidden h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/10 hover:bg-white/15 md:flex"
         >
-          <Bell className="h-5 w-5 text-muted-foreground" aria-hidden />
+          <Bell className="h-5 w-5" aria-hidden />
           {unreadCount > 0 && (
             <span aria-hidden className="absolute -top-1 -start-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-white">
               {unreadCount > 99 ? "99+" : unreadCount}

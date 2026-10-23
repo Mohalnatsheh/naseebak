@@ -24,6 +24,7 @@ import {
 import { blockConfirmText, reportBlockText } from "@/lib/gendered-copy";
 import { CandidateDetails } from "@/components/suggestions/candidate-details";
 import { DealbreakersCard } from "@/components/suggestions/dealbreakers-card";
+import { MatchesView } from "@/components/matches/matches-view";
 import { InterestDialog, rechargeToContinue, type IntroPreferenceChoice } from "@/components/suggestions/interest-dialog";
 import { CREDIT_ON_INTEREST_LINE } from "@/lib/suggestions/copy";
 import { trackEvent } from "@/lib/analytics";
@@ -129,6 +130,10 @@ export function MutualSuggestionsView({
     const wanted = new URLSearchParams(window.location.search).get("tab");
     return wanted === "interested" || wanted === "waiting" ? wanted : "new";
   });
+  // The fourth category, «توافق متبادل» (?tab=matches): the mutual-matches list, not a feed tab
+  const [showMatches, setShowMatches] = useState(
+    () => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("tab") === "matches"
+  );
   const [items, setItems] = useState<FeedItem[]>([]);
   const [totals, setTotals] = useState<Record<FeedTab, number>>({ new: 0, interested: 0, waiting: 0 });
   const [page, setPage] = useState(1);
@@ -186,7 +191,8 @@ export function MutualSuggestionsView({
   useEffect(() => {
     const fromUrl = () => {
       const wanted = new URLSearchParams(window.location.search).get("tab");
-      setTab(wanted === "interested" || wanted === "waiting" ? wanted : "new");
+      setShowMatches(wanted === "matches");
+      if (wanted !== "matches") setTab(wanted === "interested" || wanted === "waiting" ? wanted : "new");
       setPage(1);
     };
     // The first tab comes from the URL in useState; this follows back/forward afterwards
@@ -258,12 +264,16 @@ export function MutualSuggestionsView({
     });
   }
 
-  function switchTab(t: FeedTab) {
-    if (t === tab) return;
-    setTab(t);
-    setPage(1);
+  function switchTab(t: FeedTab | "matches") {
+    if (t === "matches" ? showMatches : !showMatches && t === tab) return;
+    setShowMatches(t === "matches");
+    if (t !== "matches") {
+      setTab(t);
+      setPage(1);
+    }
     setNotice(null);
     const url = new URL(window.location.href);
+    url.searchParams.delete("match"); // a ?match= focus only belongs to the first visit
     if (t === "new") url.searchParams.delete("tab");
     else url.searchParams.set("tab", t);
     window.history.pushState(null, "", url.pathname + url.search);
@@ -395,8 +405,8 @@ export function MutualSuggestionsView({
     setReportDetails("");
   }
 
-  // The three categories (same feed rules as before, new names: what the person sees, not how it works)
-  const tabs: { key: FeedTab; label: string; subtitle: string; icon: typeof Sparkles }[] = [
+  // The four categories: three feed tabs (same rules as before) + the mutual matches
+  const tabs: { key: FeedTab | "matches"; label: string; subtitle: string; icon: typeof Sparkles }[] = [
     { key: "new", label: "الجديد", subtitle: g("اكتشف أشخاصاً جدداً قد يناسبونك.", "اكتشفي أشخاصاً جدداً قد يناسبونكِ."), icon: Sparkles },
     {
       key: "interested",
@@ -410,9 +420,33 @@ export function MutualSuggestionsView({
       subtitle: g("الأشخاص الذين أرسلت إليهم اهتمامك، حتى يقرّروا أو تنتهي المدة.", "الأشخاص الذين أرسلتِ إليهم اهتمامكِ، حتى يقرّروا أو تنتهي المدة."),
       icon: Hourglass,
     },
+    {
+      key: "matches",
+      label: "توافق متبادل",
+      subtitle: g(
+        "قال كلاكما «مهتم»: الصور والتفاصيل، والتعارف الذي اخترتماه، والخطوة التالية.",
+        "قال كلاكما «مهتم»: الصور والتفاصيل، والتعارف الذي اخترتماه، والخطوة التالية."
+      ),
+      icon: HeartHandshake,
+    },
   ];
-  const activeTab = tabs.find((t) => t.key === tab) ?? tabs[0];
+  const activeKey = showMatches ? "matches" : tab;
+  const activeTab = tabs.find((t) => t.key === activeKey) ?? tabs[0];
   const matchesCount = (profile?._count?.matchesAsFemale ?? 0) + (profile?._count?.matchesAsMale ?? 0);
+  // Badge per category: what waits (red for requests to answer on a match), else how many
+  const badgeFor = (key: FeedTab | "matches") => (key === "matches" ? counts.pendingIntros || matchesCount : totals[key]);
+
+  /** «عرض التوافق» after a match: the matches tab, focused on that match */
+  function openMatch(matchId?: string) {
+    const url = new URL(window.location.href);
+    url.searchParams.set("tab", "matches");
+    if (matchId) url.searchParams.set("match", matchId);
+    window.history.pushState(null, "", url.pathname + url.search);
+    setNotice(null);
+    setShowMatches(true);
+    refreshProfile();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
 
   return (
     <div className="max-w-2xl mx-auto space-y-5 pb-8">
@@ -435,39 +469,13 @@ export function MutualSuggestionsView({
         )}
       </div>
 
-      {/* Mutual matches: the next step after «مهتم» from both sides */}
-      {matchesCount > 0 && (
-        <Link
-          href="/dashboard/matches"
-          className="flex items-center gap-3 rounded-2xl border border-primary/15 bg-primary/5 p-3.5 transition-colors hover:bg-primary/10"
-        >
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-            <HeartHandshake className="h-5 w-5" aria-hidden />
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block font-bold text-foreground">
-              {g("توافقاتك المتبادلة", "توافقاتكِ المتبادلة")} ({matchesCount})
-            </span>
-            <span className="block text-sm text-muted-foreground">
-              {counts.pendingIntros > 0
-                ? `${counts.pendingIntros === 1 ? "طلب واحد" : `${counts.pendingIntros} طلبات`} بانتظار ردّك`
-                : "الصور، والتعارف الذي اخترتماه، والخطوة التالية"}
-            </span>
-          </span>
-          {counts.pendingIntros > 0 && (
-            <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-destructive px-1.5 text-xs font-bold text-white" aria-hidden>
-              {counts.pendingIntros}
-            </span>
-          )}
-          <ChevronLeft className="h-5 w-5 shrink-0 text-primary/60" aria-hidden />
-        </Link>
-      )}
-
-      {/* Three categories: equal columns, labels may wrap to two lines on small phones (never clipped) */}
+      {/* Four categories: 2×2 on phones (labels never clipped), one row from sm up */}
       <div>
-        <div className="grid grid-cols-3 gap-1 rounded-2xl border border-border/50 bg-muted/50 p-1" role="tablist" aria-label="أقسام التوافقات">
+        <div className="grid grid-cols-2 gap-1 rounded-2xl border border-border/50 bg-muted/50 p-1 sm:grid-cols-4" role="tablist" aria-label="أقسام التوافقات">
           {tabs.map((t) => {
-            const on = tab === t.key;
+            const on = activeKey === t.key;
+            const badge = badgeFor(t.key);
+            const urgent = t.key === "interested" || (t.key === "matches" && counts.pendingIntros > 0);
             return (
               <button
                 key={t.key}
@@ -477,29 +485,36 @@ export function MutualSuggestionsView({
                 aria-selected={on}
                 aria-controls="feed-panel"
                 onClick={() => switchTab(t.key)}
-                className={`relative flex min-h-14 flex-col items-center justify-center gap-0.5 rounded-xl px-1.5 py-2 text-center text-[13px] font-semibold leading-tight transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 sm:flex-row sm:gap-1.5 sm:text-sm ${
+                className={`relative flex min-h-12 items-center justify-center gap-1.5 rounded-xl px-2 py-2 text-center text-[13px] font-semibold leading-tight transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 sm:flex-col sm:gap-0.5 sm:text-sm lg:flex-row lg:gap-1.5 ${
                   on ? "border border-border/50 bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
                 }`}
               >
-                <span className="flex items-center gap-1">
-                  <t.icon className="h-4 w-4 shrink-0" aria-hidden />
-                  {totals[t.key] > 0 && (
-                    <span
-                      className={`inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-bold sm:order-last ${
-                        on ? "bg-primary text-primary-foreground" : t.key === "interested" ? "bg-accent text-accent-foreground" : "bg-muted-foreground/20 text-muted-foreground"
-                      }`}
-                    >
-                      {totals[t.key]}
-                    </span>
-                  )}
-                </span>
+                <t.icon className="h-4 w-4 shrink-0" aria-hidden />
                 <span>{t.label}</span>
+                {badge > 0 && (
+                  <span
+                    className={`inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full px-1.5 text-[11px] font-bold ${
+                      t.key === "matches" && counts.pendingIntros > 0
+                        ? "bg-destructive text-white"
+                        : on
+                          ? "bg-primary text-primary-foreground"
+                          : urgent
+                            ? "bg-accent text-accent-foreground"
+                            : "bg-muted-foreground/20 text-muted-foreground"
+                    }`}
+                  >
+                    {badge}
+                  </span>
+                )}
               </button>
             );
           })}
         </div>
         <p className="mt-2.5 px-1 text-sm text-muted-foreground">{activeTab.subtitle}</p>
       </div>
+
+      {/* «الجديد»: what I won't compromise on, as a filter bar right above the new suggestions */}
+      {!showMatches && tab === "new" && <DealbreakersCard />}
 
       {/* Result of the last decision */}
       {notice && (
@@ -520,10 +535,8 @@ export function MutualSuggestionsView({
               <span className="flex items-center gap-2 font-semibold">
                 <Heart className="h-4 w-4" /> تهانينا! الاهتمام متبادل وأصبح لديك توافق جديد.
               </span>
-              <Button asChild size="sm" className="rounded-lg">
-                <Link href={notice.matchId ? `/dashboard/matches?match=${notice.matchId}` : "/dashboard/matches"}>
-                  عرض التوافق <ChevronLeft className="h-4 w-4 ms-1" />
-                </Link>
+              <Button size="sm" className="rounded-lg" onClick={() => openMatch(notice.matchId)}>
+                عرض التوافق <ChevronLeft className="h-4 w-4 ms-1" />
               </Button>
             </div>
           )}
@@ -543,6 +556,11 @@ export function MutualSuggestionsView({
         </div>
       )}
 
+      {showMatches ? (
+        <div id="feed-panel" role="tabpanel" aria-labelledby="feed-tab-matches">
+          <MatchesView embedded />
+        </div>
+      ) : (
       <div id="feed-panel" role="tabpanel" aria-labelledby={`feed-tab-${tab}`}>
       {loading ? (
         <div className="flex flex-col items-center justify-center py-16 gap-4">
@@ -801,11 +819,7 @@ export function MutualSuggestionsView({
         </div>
       )}
       </div>
-
-      {/* What I won't compromise on: below the list, so the categories stay in the first screen */}
-      <div id="dealbreakers" className="scroll-mt-24 pt-2">
-        <DealbreakersCard />
-      </div>
+      )}
 
       {creditOnInterest && (
         <InterestDialog

@@ -132,13 +132,16 @@ export function DashboardSidebar() {
 
   const badges: Record<string, number> = {
     "/dashboard/notifications": unreadCount,
-    "/dashboard/suggestions": counts.likedYou ?? 0,
+    // Shared suggestions: the mutual matches are a tab here, so their requests count here too
+    "/dashboard/suggestions": (counts.likedYou ?? 0) + (counts.flags.mutualSuggestions ? counts.pendingIntros : 0),
     "/dashboard/matches": counts.pendingIntros,
     "/dashboard/chats": counts.unreadChats,
   };
   const mainLinksWithBadge = mainLinks
     // Chats appear once the chat switch is on (or the user already has chats to read)
     .filter((link) => link.href !== "/dashboard/chats" || counts.flags.chat || counts.hasChats)
+    // Shared suggestions: mutual matches are the «توافق متبادل» tab of التوافقات
+    .filter((link) => link.href !== "/dashboard/matches" || !counts.flags.mutualSuggestions)
     .map((link) => (badges[link.href] ? { ...link, badge: badges[link.href] } : link));
   const filteredMainLinks = filterLinks(mainLinksWithBadge);
   // Same name for the balance as the home and payments pages

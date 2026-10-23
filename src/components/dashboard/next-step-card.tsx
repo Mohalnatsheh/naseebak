@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { useDashboardData } from "@/contexts/dashboard-context";
 import { CREDIT_ON_INTEREST_LINE } from "@/lib/suggestions/copy";
 import { missingSetupSteps } from "@/lib/profile-completeness";
+import { matchesHref } from "@/lib/matches/links";
 
 interface Props {
   /** Profile is ready for suggestions (short setup done in the new cycle, 50% in legacy) */
@@ -70,9 +71,7 @@ export function NextStepCard({ qualifies, pendingSuggestions, credits, emptyReas
       icon: Inbox,
       title: counts.pendingIntros === 1 ? "لديك طلب تعارف بانتظار ردك" : "لديك طلبات تعارف بانتظار ردك",
       text: "الطلبات تنتهي بعد 7 أيام من إرسالها.",
-      href: counts.pendingIntroMatchId
-        ? `/dashboard/matches?match=${encodeURIComponent(counts.pendingIntroMatchId)}`
-        : "/dashboard/matches",
+      href: matchesHref(counts.flags.mutualSuggestions, counts.pendingIntroMatchId),
       cta: "عرض الطلب",
       tone: "accent",
     };
@@ -140,7 +139,7 @@ export function NextStepCard({ qualifies, pendingSuggestions, credits, emptyReas
       icon: Users,
       title: g("اختر طريقة التعارف مع توافقك", "اختاري طريقة التعارف مع توافقك"),
       text: counts.flags.chat ? "تعارف عائلي، أو محادثة قصيرة أولاً." : g("ابدأ بطلب تعارف عائلي.", "ابدئي بطلب تعارف عائلي."),
-      href: "/dashboard/matches",
+      href: matchesHref(counts.flags.mutualSuggestions),
       cta: "التوافقات المتبادلة",
       tone: "primary",
     };

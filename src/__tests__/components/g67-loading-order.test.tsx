@@ -44,12 +44,34 @@ beforeEach(() => {
 });
 
 describe("G67: pages wait for the switch flags before switch-dependent copy", () => {
-  it("matches page shows its loader while the dashboard context is loading", async () => {
+  it("matches view shows its loader while the dashboard context is loading", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(() => json({ matches: [], totalPages: 1 }));
+    const { MatchesView } = await import("@/components/matches/matches-view");
+    render(<MatchesView />);
+    await act(async () => {});
+    expect(screen.getByText("جاري تحميل التوافقات...")).toBeTruthy();
+  });
+
+  it("/dashboard/matches sends shared-suggestion members to the «توافق متبادل» tab, keeping ?match=", async () => {
+    const replace = vi.spyOn(router, "replace");
+    vi.spyOn(globalThis, "fetch").mockImplementation(() => json({ matches: [], totalPages: 1 }));
+    window.history.replaceState(null, "", "/dashboard/matches?match=m%201");
+    data.current = { ...data.current, loading: false, profile: { gender: "MALE" }, counts: { flags: newFlags } };
     const { default: MatchesPage } = await import("@/app/(ar)/dashboard/matches/page");
     render(<MatchesPage />);
     await act(async () => {});
-    expect(screen.getByText("جاري تحميل التوافقات...")).toBeTruthy();
+    expect(replace).toHaveBeenCalledWith("/dashboard/suggestions?tab=matches&match=m%201");
+    window.history.replaceState(null, "", "/");
+  });
+
+  it("/dashboard/matches still shows the list on its own when shared suggestions are off", async () => {
+    const replace = vi.spyOn(router, "replace");
+    vi.spyOn(globalThis, "fetch").mockImplementation(() => json({ matches: [], totalPages: 1 }));
+    data.current = { ...data.current, loading: false, profile: { gender: "MALE" }, counts: { flags: legacyFlags, pendingIntros: 0 } };
+    const { default: MatchesPage } = await import("@/app/(ar)/dashboard/matches/page");
+    render(<MatchesPage />);
+    await waitFor(() => expect(screen.getByText("التوافقات المتبادلة")).toBeTruthy());
+    expect(replace).not.toHaveBeenCalled();
   });
 
   it("payments page shows its loader while the dashboard context is loading", async () => {

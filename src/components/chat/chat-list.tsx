@@ -15,6 +15,7 @@ import { useDashboardData } from "@/contexts/dashboard-context";
 import { LoadError } from "@/components/shared/load-error";
 import { PageHeader } from "@/components/shared/page-header";
 import { markPageNotificationsRead } from "@/lib/notifications-client";
+import { matchesHref } from "@/lib/matches/links";
 
 export function ChatList() {
   // Opening this page clears the bell for the notifications that lead here
@@ -92,7 +93,7 @@ export function ChatList() {
               </p>
             </div>
             <Button asChild variant="outline" className="gap-1.5">
-              <Link href="/dashboard/matches">
+              <Link href={matchesHref(counts.flags.mutualSuggestions)}>
                 <Heart className="h-4 w-4" /> التوافقات المتبادلة
               </Link>
             </Button>

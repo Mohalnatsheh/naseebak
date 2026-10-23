@@ -10,6 +10,7 @@ import {
 import { useDashboardData } from "@/contexts/dashboard-context";
 import { signOutAndUnlinkPush } from "@/lib/push-client";
 import { cn } from "@/lib/utils";
+import { matchesHref } from "@/lib/matches/links";
 
 interface Row {
   href: string;
@@ -59,7 +60,7 @@ export default function AccountPage() {
       title: "نشاطي",
       rows: [
         { href: "/dashboard/notifications", label: "الإشعارات", icon: Bell, badge: unreadCount },
-        { href: "/dashboard/matches", label: g("توافقاتي المتبادلة", "توافقاتي المتبادلة"), icon: Heart, badge: counts.pendingIntros },
+        { href: matchesHref(counts.flags.mutualSuggestions), label: "توافقاتي المتبادلة", icon: Heart, badge: counts.pendingIntros },
       ],
     },
     {

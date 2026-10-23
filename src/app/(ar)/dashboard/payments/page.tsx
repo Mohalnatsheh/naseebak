@@ -26,6 +26,7 @@ import {
   TrendingUp,
   ChevronLeft,
   ChevronRight,
+  PartyPopper,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -36,6 +37,7 @@ import { arabicCount } from "@/lib/utils";
 import { LoadError } from "@/components/shared/load-error";
 import { PageHeader } from "@/components/shared/page-header";
 import { markPageNotificationsRead } from "@/lib/notifications-client";
+import { discountPercent } from "@/lib/payments/packages";
 
 const stripePromise = loadStripe(
   process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!
@@ -50,6 +52,8 @@ interface CreditPackage {
   /** Amount actually charged by Stripe, in USD */
   chargeUsd?: number;
   popular?: boolean;
+  /** Opening offer: the old price, struck through */
+  wasPrice?: number;
 }
 
 interface PaymentRecord {
@@ -404,6 +408,24 @@ function PaymentsContent() {
         </div>
       </PageHeader>
 
+      {/* Opening offer: why the prices are low right now */}
+      {packages.some((p) => discountPercent({ priceJod: p.price, wasJod: p.wasPrice })) && (
+        <section className="landing-night relative overflow-hidden rounded-2xl px-4 py-4 text-white shadow-md shadow-primary/15 sm:px-6">
+          <div className="landing-khatam absolute inset-0" aria-hidden />
+          <div className="relative flex items-center gap-3">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-accent text-accent-foreground" aria-hidden>
+              <PartyPopper className="h-5 w-5" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <h2 className="font-display text-lg leading-tight sm:text-xl">خصم افتتاح نصيبك</h2>
+              <p className="mt-0.5 text-sm text-white/75">
+                احتفالاً بافتتاح المنصة: خصم حتى {Math.max(...packages.map((p) => discountPercent({ priceJod: p.price, wasJod: p.wasPrice }) ?? 0))}% على كل الباقات، لفترة محدودة.
+              </p>
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* Credit Packages */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
         {packages.map((pkg, index) => {
@@ -488,8 +510,21 @@ function PaymentsContent() {
                   </div>
                   )}
 
-                  {/* Price */}
+                  {/* Price (the opening offer shows the old price struck through and the saving) */}
                   <div className="text-center mb-1">
+                    {(() => {
+                      const off = discountPercent({ priceJod: pkg.price, wasJod: pkg.wasPrice });
+                      return off ? (
+                        <div className="mb-1 flex items-center justify-center gap-2">
+                          <span className="text-base font-semibold text-muted-foreground line-through decoration-destructive/70 decoration-2">
+                            {pkg.wasPrice} د.أ
+                          </span>
+                          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-800">
+                            وفّر {off}%
+                          </span>
+                        </div>
+                      ) : null;
+                    })()}
                     <div className="flex items-baseline justify-center gap-1.5">
                       <span
                         className={`text-4xl md:text-5xl font-black ${

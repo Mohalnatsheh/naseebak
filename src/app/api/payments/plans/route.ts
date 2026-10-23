@@ -12,6 +12,8 @@ export async function GET() {
       /** What the card is actually charged (Stripe, USD) */
       chargeUsd: p.priceUsdCents / 100,
       ...(p.popular && { popular: true }),
+      /** Opening offer: the old price, shown struck through */
+      ...(p.wasJod && { wasPrice: p.wasJod }),
     })),
   });
 }

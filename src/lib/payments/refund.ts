@@ -11,7 +11,7 @@ import { db } from "@/lib/db";
 import { notify } from "@/lib/notify";
 import { recordCredit } from "@/lib/credits";
 import { sendAdminAlert } from "@/lib/admin-alert";
-import { findPackage, formatUsd } from "@/lib/payments/packages";
+import { findAnyPackage, formatUsd } from "@/lib/payments/packages";
 
 export type RefundResult = "refunded" | "already" | "not_found";
 
@@ -27,7 +27,8 @@ export async function applyRefund(args: {
   if (!payment) return "not_found";
   if (payment.status === "REFUNDED") return "already";
 
-  const pkg = findPackage(payment.planName);
+  // Also packages no longer sold: an older purchase gives back what it bought
+  const pkg = findAnyPackage(payment.planName);
   const creditsToDeduct = pkg?.credits ?? 0;
   const userId = payment.userId;
 

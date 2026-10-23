@@ -26,20 +26,20 @@ beforeEach(() => {
 describe("POST /api/payments/checkout", () => {
   it("writes the PENDING row only after Stripe returns a session, with its id", async () => {
     stripe.create.mockResolvedValue({ id: "cs_1", client_secret: "sec" });
-    const res = await checkout(post({ packageId: "credits_5" }));
+    const res = await checkout(post({ packageId: "launch_25" }));
     expect(res.status).toBe(200);
     const args = stripe.create.mock.calls[0][0];
-    expect(args.line_items[0].price_data).toMatchObject({ currency: "usd", unit_amount: 564 });
+    expect(args.line_items[0].price_data).toMatchObject({ currency: "usd", unit_amount: 846 });
     expect(args.expires_at).toBeGreaterThan(Date.now() / 1000 + 30 * 60);
     const row = db.payment.create.mock.calls[0][0].data;
-    expect(row).toMatchObject({ status: "PENDING", stripeSessionId: "cs_1", amount: 4, planName: "credits_5", userId: "u1" });
+    expect(row).toMatchObject({ status: "PENDING", stripeSessionId: "cs_1", amount: 6, planName: "launch_25", userId: "u1" });
     expect(row.id).toBe(args.metadata.paymentId);
   });
 
   it("leaves no row behind when Stripe fails", async () => {
     stripe.create.mockRejectedValue(Object.assign(new Error("No such key"), { type: "StripeAuthenticationError" }));
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    const res = await checkout(post({ packageId: "credits_5" }));
+    const res = await checkout(post({ packageId: "launch_25" }));
     expect(res.status).toBe(502);
     expect(db.payment.create).not.toHaveBeenCalled();
     expect(errSpy.mock.calls[0][0]).toContain("Stripe checkout session failed");
@@ -75,5 +75,16 @@ describe("POST /api/payments/cancel («رجوع»)", () => {
     expect(db.payment.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "p2", userId: "u1", status: "PENDING" } }));
     expect(stripe.expire).not.toHaveBeenCalled();
     expect(db.payment.updateMany).not.toHaveBeenCalled();
+  });
+});
+
+describe("opening-offer packages", () => {
+  it("sells 10 credits for 3 JD and keeps old packages for refunds only", async () => {
+    const { CREDIT_PACKAGES, findPackage, findAnyPackage, discountPercent, packagesSentence } = await import("@/lib/payments/packages");
+    expect(CREDIT_PACKAGES[0]).toMatchObject({ credits: 10, priceJod: 3, priceUsdCents: 423 });
+    expect(findPackage("credits_5")).toBeUndefined();
+    expect(findAnyPackage("credits_5")?.credits).toBe(5);
+    expect(discountPercent(CREDIT_PACKAGES[0])).toBe(57);
+    expect(packagesSentence()).toContain("10 أرصدة بـ 3 د.أ");
   });
 });

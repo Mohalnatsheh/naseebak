@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { maybeAwardReferral } from "@/lib/referral";
-import { parentInfoSchema } from "@/lib/validations/profile";
+import { parentInfoSchemaFor } from "@/lib/validations/profile";
+import { COUNTRIES, toCountry } from "@/lib/countries";
 import { notifyMany } from "@/lib/notify";
 
 /**
@@ -83,16 +84,18 @@ export async function POST(request: Request) {
     }
 
     // A new or changed contact is handed to the other family: validate it like any other user input
-    const parsed = parentInfoSchema.safeParse(body);
+    // The guardian must be reachable in the member's own country
+    const me = await db.user.findUnique({ where: { id: session.user.id }, select: { phone: true, country: true } });
+    const country = toCountry(me?.country);
+    const parsed = parentInfoSchemaFor(country).safeParse(body);
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "بيانات غير صالحة" }, { status: 400 });
     }
     const { parentName, relationship, address, notes } = parsed.data;
-    const parentPhone = normalizePhone(parsed.data.parentPhone);
+    const parentPhone = normalizePhone(parsed.data.parentPhone, country);
 
-    const me = await db.user.findUnique({ where: { id: session.user.id }, select: { phone: true } });
     if (me?.phone && me.phone === parentPhone) {
-      return NextResponse.json({ error: "رقم وليّ الأمر يجب أن يختلف عن رقم هاتفك" }, { status: 400 });
+      return NextResponse.json({ error: `رقم وليّ الأمر يجب أن يختلف عن رقم ${COUNTRIES[country].words.phone}ك` }, { status: 400 });
     }
 
     const parentInfo = await db.parentInfo.upsert({

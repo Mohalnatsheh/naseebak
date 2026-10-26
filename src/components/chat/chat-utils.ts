@@ -1,4 +1,5 @@
 import type { ChatMessage } from "@/lib/chat/service";
+import { countryConfig } from "@/lib/countries";
 
 /** A message on screen: saved, or still sending / failed (optimistic). */
 export interface UiMessage extends ChatMessage {
@@ -11,25 +12,27 @@ function startOfDay(d: Date): number {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
 }
 
-export function timeLabel(iso: string): string {
-  return new Date(iso).toLocaleTimeString("ar-JO-u-nu-latn", { hour: "numeric", minute: "2-digit" });
+// Labels use the member's country locale (Gregorian, Western digits) and the device's clock, like the
+// day grouping (`startOfDay`): `country` = the viewer's (JO / SA), Jordan when unknown
+export function timeLabel(iso: string, country?: unknown): string {
+  return new Date(iso).toLocaleTimeString(countryConfig(country).dateLocale, { hour: "numeric", minute: "2-digit" });
 }
 
-export function dayLabel(iso: string): string {
+export function dayLabel(iso: string, country?: unknown): string {
   const d = new Date(iso);
   const diff = Math.round((startOfDay(new Date()) - startOfDay(d)) / DAY_MS);
   if (diff === 0) return "اليوم";
   if (diff === 1) return "أمس";
-  return d.toLocaleDateString("ar-JO-u-nu-latn", { weekday: "long", day: "numeric", month: "long" });
+  return d.toLocaleDateString(countryConfig(country).dateLocale, { weekday: "long", day: "numeric", month: "long" });
 }
 
 /** Chat list: time today, "أمس", else a short date */
-export function listTimeLabel(iso: string): string {
+export function listTimeLabel(iso: string, country?: unknown): string {
   const d = new Date(iso);
   const diff = Math.round((startOfDay(new Date()) - startOfDay(d)) / DAY_MS);
-  if (diff === 0) return timeLabel(iso);
+  if (diff === 0) return timeLabel(iso, country);
   if (diff === 1) return "أمس";
-  return d.toLocaleDateString("ar-JO-u-nu-latn", { day: "numeric", month: "short" });
+  return d.toLocaleDateString(countryConfig(country).dateLocale, { day: "numeric", month: "short" });
 }
 
 export function sameDay(a: string, b: string): boolean {

@@ -20,8 +20,8 @@ interface Stats {
   totalSuggestions: number;
   activeSubscriptions: number;
   suspendedUsers: number;
-  totalRevenue: number;
-  revenueThisWeek: number;
+  /** Completed payments per currency (never added across currencies) */
+  revenue: { currency: string; total: number; thisWeek: number }[];
   completedPayments: number;
   pendingReports: number;
   pendingProfileRequests: number;
@@ -51,6 +51,12 @@ interface ActivityItem {
   type: string;
   description: string;
   date: string;
+}
+
+/** "120 JOD · 300 SAR" (one amount per currency), "0" when nothing was paid */
+function money(rows: Stats["revenue"], key: "total" | "thisWeek"): string {
+  if (!rows || rows.length === 0) return "0";
+  return rows.map((r) => `${r[key].toFixed(0)} ${r.currency}`).join(" · ");
 }
 
 const activityDots: Record<string, string> = {
@@ -111,8 +117,8 @@ export default function AdminDashboardPage() {
         { label: "Female Users", value: stats.femaleUsers, icon: Users, tone: "accent" },
         { label: "Mutual Matches", value: stats.totalMatches, icon: Heart, tone: "accent" },
         { label: "Total Suggestions", value: stats.totalSuggestions, icon: Sparkles, tone: "primary" },
-        { label: "Total Revenue", value: `${Number(stats.totalRevenue).toFixed(0)} JOD`, icon: DollarSign, tone: "success" },
-        { label: "Revenue This Week", value: `${Number(stats.revenueThisWeek).toFixed(0)} JOD`, icon: DollarSign, tone: "success" },
+        { label: "Total Revenue", value: money(stats.revenue, "total"), icon: DollarSign, tone: "success" },
+        { label: "Revenue This Week", value: money(stats.revenue, "thisWeek"), icon: DollarSign, tone: "success" },
         { label: "Flagged Users", value: stats.flaggedUsers, icon: Flag, tone: "danger" },
         { label: "Verified Users", value: stats.verifiedUsers, icon: UserCheck, tone: "muted", legacy: true },
         { label: "Pending Verifications", value: stats.pendingVerifications, icon: Clock, tone: "muted", legacy: true },

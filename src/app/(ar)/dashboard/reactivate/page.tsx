@@ -20,6 +20,7 @@ export default async function ReactivatePage() {
     select: {
       firstName: true,
       gender: true,
+      country: true,
       isDeactivated: true,
       deletionRequest: { select: { scheduledAt: true, cancelledAt: true } },
     },
@@ -35,6 +36,7 @@ export default async function ReactivatePage() {
     <ReactivatePanel
       firstName={user.firstName}
       isFemale={user.gender === "FEMALE"}
+      country={user.country}
       deletionScheduledAt={pendingDeletion ? pendingDeletion.scheduledAt.toISOString() : null}
     />
   );

@@ -3,8 +3,9 @@
 import Image from "next/image";
 import { toast } from "sonner";
 import { useState, useEffect, useRef } from "react";
-import { useDashboardData } from "@/contexts/dashboard-context";
-import { selfLabel } from "@/lib/profile-options";
+import { useCountry, useDashboardData } from "@/contexts/dashboard-context";
+import { selfLabel, tribeLabel } from "@/lib/profile-options";
+import { formatDate } from "@/lib/countries";
 import { compressImage } from "@/lib/image-compress";
 import { arabicCount } from "@/lib/utils";
 import Link from "next/link";
@@ -203,6 +204,8 @@ function SectionCard({
 
 export default function ProfilePage() {
   const introMode = useDashboardData().counts.flags.introRequests;
+  // Dates and wording follow the member's country
+  const country = useCountry();
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [completeness, setCompleteness] = useState<any>(null);
@@ -637,7 +640,7 @@ export default function ProfilePage() {
               <InfoField
                 icon={Calendar}
                 label="تاريخ الميلاد"
-                value={`${new Date(p.dateOfBirth).toLocaleDateString("ar-JO-u-nu-latn")} (${getAge(p.dateOfBirth)} سنة)`}
+                value={`${formatDate(p.dateOfBirth, country.code)} (${getAge(p.dateOfBirth)} سنة)`}
                 gradient="from-primary/10 to-secondary/5"
               />
             )}
@@ -924,7 +927,7 @@ export default function ProfilePage() {
             {p.tribe && (
               <InfoField
                 icon={Users}
-                label="العشيرة"
+                label={tribeLabel(country.code)}
                 value={p.tribe}
                 gradient="from-secondary/10 to-primary/5"
                 iconColor="text-secondary"
@@ -1384,9 +1387,7 @@ export default function ProfilePage() {
                     <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
                       سيتم حذف حسابك نهائياً في{" "}
                       <span className="font-bold text-destructive">
-                        {new Date(
-                          deletionRequest.scheduledAt
-                        ).toLocaleDateString("ar-JO-u-nu-latn", {
+                        {formatDate(deletionRequest.scheduledAt, country.code, {
                           year: "numeric",
                           month: "long",
                           day: "numeric",

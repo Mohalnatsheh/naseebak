@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
 import type { CompletenessResult } from "@/lib/profile-completeness";
+import { COUNTRIES, toCountry, type CountryCode, type CountryConfig } from "@/lib/countries";
 
 /** The signed-in user as returned (JSON-serialised) by GET /api/profile */
 export interface DashboardProfile {
@@ -65,6 +66,8 @@ interface DashboardData {
   completeness: CompletenessResult | null;
   unreadCount: number;
   counts: CycleCounts;
+  /** The member's country (JO until the profile has loaded): wording, places, money and dates follow it */
+  country: CountryCode;
   /** True until both the profile and the first switch flags (/api/me/counts) have loaded,
    *  so switch-dependent UI never flashes the legacy flow first */
   loading: boolean;
@@ -80,6 +83,7 @@ const DashboardContext = createContext<DashboardData>({
   completeness: null,
   unreadCount: 0,
   counts: EMPTY_COUNTS,
+  country: "JO",
   loading: true,
   profileFailed: false,
   refreshProfile: async () => {},
@@ -88,6 +92,11 @@ const DashboardContext = createContext<DashboardData>({
 
 export function useDashboardData() {
   return useContext(DashboardContext);
+}
+
+/** The member's country config (COUNTRIES[country]): words, phone, currency, dates */
+export function useCountry(): CountryConfig {
+  return COUNTRIES[toCountry(useContext(DashboardContext).country)];
 }
 
 export function DashboardDataProvider({ children }: { children: ReactNode }) {
@@ -172,7 +181,7 @@ export function DashboardDataProvider({ children }: { children: ReactNode }) {
   }, [refreshProfile, refreshUnread]);
 
   return (
-    <DashboardContext.Provider value={{ profile, completeness, unreadCount, counts, loading, profileFailed, refreshProfile, refreshUnread }}>
+    <DashboardContext.Provider value={{ profile, completeness, unreadCount, counts, country: toCountry(profile?.country), loading, profileFailed, refreshProfile, refreshUnread }}>
       {children}
     </DashboardContext.Provider>
   );

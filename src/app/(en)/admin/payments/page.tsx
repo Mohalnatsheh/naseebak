@@ -21,9 +21,15 @@ interface PaymentRow {
 }
 
 interface Summary {
-  totalRevenue: number;
+  /** Completed payments per currency: never added across currencies */
+  revenue: { currency: string; total: number; monthly: number; count: number }[];
   completedCount: number;
-  monthlyRevenue: number;
+}
+
+/** "12.00 JOD · 30.00 SAR" (one amount per currency), or "0.00" when nothing was paid */
+function amounts(rows: Summary["revenue"], key: "total" | "monthly"): string {
+  if (rows.length === 0) return "0.00";
+  return rows.map((r) => `${r[key].toFixed(2)} ${r.currency}`).join(" · ");
 }
 
 const statusStyles: Record<string, string> = {
@@ -102,7 +108,7 @@ export default function AdminPaymentsPage() {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Total Revenue</p>
-                  <p className="text-2xl font-bold">{Number(summary.totalRevenue).toFixed(2)} JOD</p>
+                  <p className="text-2xl font-bold">{amounts(summary.revenue, "total")}</p>
                 </div>
               </div>
             </CardContent>
@@ -115,7 +121,7 @@ export default function AdminPaymentsPage() {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">This Month</p>
-                  <p className="text-2xl font-bold">{Number(summary.monthlyRevenue).toFixed(2)} JOD</p>
+                  <p className="text-2xl font-bold">{amounts(summary.revenue, "monthly")}</p>
                 </div>
               </div>
             </CardContent>

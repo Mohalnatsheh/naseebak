@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { useDashboardData } from "@/contexts/dashboard-context";
+import { formatDate } from "@/lib/countries";
 import { PageHeader } from "@/components/shared/page-header";
 
 interface Ticket {
@@ -76,7 +77,8 @@ export default function SupportPage() {
   const [error, setError] = useState("");
   // Inline, per field (the banner keeps server / network errors)
   const [fieldErrors, setFieldErrors] = useState<{ type?: string; subject?: string; description?: string }>({});
-  const female = useDashboardData().profile?.gender === "FEMALE";
+  const { profile: me, country } = useDashboardData();
+  const female = me?.gender === "FEMALE";
   const [expandedTickets, setExpandedTickets] = useState<Set<string>>(new Set());
 
   // Form state
@@ -352,7 +354,7 @@ export default function SupportPage() {
                           </div>
                         </div>
                         <span className="text-xs text-muted-foreground shrink-0">
-                          {new Date(ticket.createdAt).toLocaleDateString("ar-JO-u-nu-latn")}
+                          {formatDate(ticket.createdAt, country)}
                         </span>
                       </div>
 

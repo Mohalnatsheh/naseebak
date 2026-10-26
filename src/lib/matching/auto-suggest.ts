@@ -115,6 +115,8 @@ export async function openCounts(userIds: string[]): Promise<Map<string, number>
 export const scoringSelect = {
   id: true,
   gender: true,
+  // Members are only paired within their own country (see the candidate query in `generate`)
+  country: true,
   profile: true,
   personalityResult: { select: { vector: true, personalityType: true } },
   photos: { select: { id: true } },
@@ -250,7 +252,7 @@ async function generate(userId: string): Promise<SuggestOutcome> {
     const open = await openSuggestionCount(userId);
     limit = MAX_OPEN_SUGGESTIONS - open;
     if (limit <= 0) return outcome(0, "pending");
-    revealed = await revealHiddenFor(userId, limit);
+    revealed = await revealHiddenFor(userId, limit, new Date(), user.country);
     limit -= revealed;
     if (limit <= 0) {
       await notifyNewForMe(userId, revealed);
@@ -320,6 +322,9 @@ async function generate(userId: string): Promise<SuggestOutcome> {
       // Shared flow: only people seen in the last 7 days, so a «مهتم» reaches someone who will answer
       ...(mutual ? recentlySeenWhere(CANDIDATE_ACTIVE_DAYS) : activeWhere()),
       gender: user.gender === "MALE" ? "FEMALE" : "MALE",
+      // Same country only (an account's country follows its phone). A future system setting
+      // `cross_country_matching` (off) will lift this; existing rows/matches are left as they are.
+      country: user.country,
       profile: { isComplete: true },
       ...NOT_ENGAGED,
       // Test accounts only meet each other; real users never meet them

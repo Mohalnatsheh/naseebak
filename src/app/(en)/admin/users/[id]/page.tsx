@@ -14,6 +14,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { enumLabel } from "@/lib/admin/enum-labels";
+import { countryConfig, toCountry } from "@/lib/countries";
+import { CountryFlag } from "@/components/shared/country-flag";
 
 interface UserDetail {
   id: string;
@@ -22,6 +24,8 @@ interface UserDetail {
   email: string;
   phone: string | null;
   gender: string;
+  /** "JO" | "SA": follows the phone, members are only matched within it */
+  country: string;
   role: string;
   status: string;
   isVerified: boolean;
@@ -370,6 +374,10 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
               <Badge variant={user.gender === "MALE" ? "default" : "secondary"}>
                 {user.gender === "MALE" ? "Male" : "Female"}
               </Badge>
+              <Badge variant="outline">
+                <CountryFlag country={toCountry(user.country)} className="me-1 inline h-3 w-4 align-[-1px]" />
+                {countryConfig(user.country).nameEn}
+              </Badge>
               {user.role === "ADMIN" && <Badge variant="destructive">Admin</Badge>}
               {user.isDeactivated && <Badge variant="outline" className="text-destructive">Deactivated</Badge>}
               {user.isFlagged && (
@@ -471,6 +479,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
           <CardContent className="space-y-2 text-sm">
             <InfoRow icon={<Mail className="h-4 w-4" />} label="Email" value={user.email} />
             <InfoRow icon={<Phone className="h-4 w-4" />} label="Phone" value={user.phone || "—"} />
+            <InfoRow label="Country" value={countryConfig(user.country).nameEn} />
             <InfoRow icon={<Calendar className="h-4 w-4" />} label="Joined" value={new Date(user.createdAt).toLocaleDateString()} />
             <InfoRow icon={<ShieldCheck className="h-4 w-4" />} label="Verified" value={user.isVerified ? `Yes (${user.verifiedAt ? new Date(user.verifiedAt).toLocaleDateString() : ""})` : "No"} />
             <InfoRow icon={<CreditCard className="h-4 w-4" />} label="Credits" value={String(user.matchCredits)} />

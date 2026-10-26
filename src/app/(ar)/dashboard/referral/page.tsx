@@ -15,6 +15,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useDashboardData } from "@/contexts/dashboard-context";
+import { formatDate } from "@/lib/countries";
 import { LoadError } from "@/components/shared/load-error";
 import { PageHeader } from "@/components/shared/page-header";
 
@@ -36,7 +37,7 @@ const MAX_REWARDED_REFERRALS = 10;
 
 export default function ReferralPage() {
   // New cycle: the reward is paid once the friend finishes the short setup; legacy: 100% profile
-  const { counts: { flags } } = useDashboardData();
+  const { counts: { flags }, country } = useDashboardData();
   const newCycle = flags.introRequests;
   const [data, setData] = useState<ReferralData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -248,7 +249,7 @@ export default function ReferralPage() {
                         {referral.referee.firstName}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {new Date(referral.createdAt).toLocaleDateString("ar-JO-u-nu-latn", {
+                        {formatDate(referral.createdAt, country, {
                           year: "numeric",
                           month: "short",
                           day: "numeric",

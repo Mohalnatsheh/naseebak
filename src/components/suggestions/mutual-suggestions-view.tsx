@@ -28,6 +28,7 @@ import { MatchesView } from "@/components/matches/matches-view";
 import { InterestDialog, rechargeToContinue, type IntroPreferenceChoice } from "@/components/suggestions/interest-dialog";
 import { trackEvent } from "@/lib/analytics";
 import { useDashboardData } from "@/contexts/dashboard-context";
+import { formatDate } from "@/lib/countries";
 import { describeOption, nationalityLabel, oppositeGender } from "@/lib/profile-options";
 import type { FeedItem, FeedTab, OpenFeedItem } from "@/lib/suggestions/feed-types";
 import type { SuggestEmptyReason } from "@/lib/matching/auto-suggest";
@@ -80,8 +81,8 @@ function declineToast(item: OpenFeedItem, g: (m: string, f: string) => string): 
 }
 
 /** "الأحد 19 أكتوبر" (Western digits). */
-function formatNextDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("ar-JO-u-nu-latn", { weekday: "long", day: "numeric", month: "long" });
+function formatNextDate(iso: string, country: unknown): string {
+  return formatDate(iso, country, { weekday: "long", day: "numeric", month: "long" });
 }
 
 export function MutualSuggestionsView({
@@ -102,7 +103,7 @@ export function MutualSuggestionsView({
   /** Balance when the page loaded (from /api/suggestions) */
   credits?: number;
 } = {}) {
-  const { profile, counts, refreshProfile, refreshUnread } = useDashboardData();
+  const { profile, counts, refreshProfile, refreshUnread, country } = useDashboardData();
   // Opening this page clears the bell for the notifications that lead here
   useEffect(() => {
     markPageNotificationsRead("/dashboard/suggestions");
@@ -572,7 +573,7 @@ export function MutualSuggestionsView({
                 : emptyReason === "no_candidates"
                   ? "لا يوجد حالياً من يطابق شروطك"
                   : emptyReason === "weekly_cap" && nextSuggestionsAt
-                    ? `اقتراحاتك القادمة يوم ${formatNextDate(nextSuggestionsAt)}`
+                    ? `اقتراحاتك القادمة يوم ${formatNextDate(nextSuggestionsAt, country)}`
                     : emptyReason === "pending"
                       ? totals.waiting > 0
                         ? "اقتراحاتك المفتوحة بانتظار الطرف الآخر"
@@ -715,7 +716,7 @@ export function MutualSuggestionsView({
                       {waiting && !declined && (
                         <p className="mb-3 text-xs text-muted-foreground leading-relaxed">
                           {partnerGender === "FEMALE" ? "إذا أبدت اهتمامها أيضاً" : "إذا أبدى اهتمامه أيضاً"} يصبح توافقاً متبادلاً ونخبرك فوراً.
-                          {item.expiresAt && ` يُغلق الاقتراح تلقائياً يوم ${formatNextDate(item.expiresAt)} إن لم يكتمل.`}
+                          {item.expiresAt && ` يُغلق الاقتراح تلقائياً يوم ${formatNextDate(item.expiresAt, country)} إن لم يكتمل.`}
                         </p>
                       )}
                       {tab === "interested" && !outOfCredits && (

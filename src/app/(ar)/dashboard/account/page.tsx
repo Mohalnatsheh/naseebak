@@ -8,6 +8,7 @@ import {
   ShieldCheck, Smartphone, Loader2, PenLine, MapPin,
 } from "lucide-react";
 import { useDashboardData } from "@/contexts/dashboard-context";
+import { countryConfig } from "@/lib/countries";
 import { signOutAndUnlinkPush } from "@/lib/push-client";
 import { cn } from "@/lib/utils";
 import { matchesHref } from "@/lib/matches/links";
@@ -34,7 +35,7 @@ function ageFrom(dob: unknown): number | null {
  * then every account page in short groups, and sign-out last. Same links as the desktop sidebar.
  */
 export default function AccountPage() {
-  const { profile, completeness, counts, unreadCount, loading } = useDashboardData();
+  const { profile, completeness, counts, unreadCount, loading, country } = useDashboardData();
   const [signingOut, setSigningOut] = useState(false);
   const female = profile?.gender === "FEMALE";
   const g = (masculine: string, feminine: string) => (female ? feminine : masculine);
@@ -81,7 +82,7 @@ export default function AccountPage() {
     {
       title: "التطبيق والمساعدة",
       rows: [
-        { href: "/dashboard/install", label: "التطبيق والإشعارات على هاتفك", icon: Smartphone },
+        { href: "/dashboard/install", label: `التطبيق والإشعارات على ${countryConfig(country).words.phone}ك`, icon: Smartphone },
         { href: "/dashboard/support", label: "الدعم والملاحظات", icon: LifeBuoy },
         { href: "/dashboard/referral", label: "ادعُ صديقاً", icon: Gift },
       ],

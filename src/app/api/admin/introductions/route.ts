@@ -4,6 +4,7 @@ import { requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { parsePagination } from "@/lib/utils";
 import { personSearch } from "@/lib/admin/search";
+import { byUserCountry, getAdminCountry, matchCountryWhere } from "@/lib/admin/country-filter";
 
 const TYPES = ["FAMILY", "CHAT"];
 const STATUSES = ["PENDING", "ACCEPTED", "DECLINED", "EXPIRED", "CANCELLED"];
@@ -22,12 +23,16 @@ export async function GET(request: Request) {
     // Filter by person: a user id (from the user page) or a name/phone search
     const userId = searchParams.get("userId");
     const who = personSearch(searchParams.get("q"));
+    // Admin's selected country (both people of a match are always from one country); a list for one
+    // person opened from their user page shows all of theirs
+    const country = await getAdminCountry(request);
+    const byCountry = byUserCountry(country, "sender");
     const where = {
       ...(type && TYPES.includes(type) && { type: type as IntroRequestType }),
       ...(status && STATUSES.includes(status) && { status: status as IntroRequestStatus }),
       ...(userId
         ? { OR: [{ senderId: userId }, { receiverId: userId }] }
-        : who && { OR: [{ sender: who }, { receiver: who }] }),
+        : { ...byCountry, ...(who && { OR: [{ sender: who }, { receiver: who }] }) }),
     };
 
     // Expiry is applied lazily when users read; settle overdue requests first so the numbers are right
@@ -37,8 +42,10 @@ export async function GET(request: Request) {
     });
 
     const [grouped, activeChats, total, requests] = await Promise.all([
-      db.introRequest.groupBy({ by: ["status"], _count: true }),
-      db.conversation.count({ where: { status: "ACTIVE", expiresAt: { gt: new Date() } } }),
+      db.introRequest.groupBy({ by: ["status"], where: byCountry, _count: true }),
+      db.conversation.count({
+        where: { status: "ACTIVE", expiresAt: { gt: new Date() }, ...(country !== "ALL" && { match: matchCountryWhere(country) }) },
+      }),
       db.introRequest.count({ where }),
       db.introRequest.findMany({
         where,

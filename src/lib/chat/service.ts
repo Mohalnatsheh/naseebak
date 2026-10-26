@@ -6,6 +6,7 @@
  */
 import type { ReportReason } from "@prisma/client";
 import { db } from "@/lib/db";
+import { formatDate } from "@/lib/countries";
 import { notify, notifyMany } from "@/lib/notify";
 import { CHAT_NOTICE_PREFERENCE } from "@/lib/notification-prefs";
 import { rateLimit } from "@/lib/rate-limit";
@@ -26,13 +27,9 @@ export const FAMILY_NUDGE_AFTER_DAYS = 7;
 const FAMILY_NUDGE_WINDOW_DAYS = 2;
 const PUSH_THROTTLE_MS = 3 * 60 * 1000;
 
-/** «حتى 12 نوفمبر» — the last day of the free chat → family move */
-export function familyMoveDeadlineLabel(chatExpiresAt: Date): string {
-  return familyMoveOpenUntil(chatExpiresAt).toLocaleDateString("ar-JO-u-nu-latn", {
-    day: "numeric",
-    month: "long",
-    timeZone: "Asia/Amman",
-  });
+/** «حتى 12 نوفمبر» — the last day of the free chat → family move, in the members' country (JO when unknown) */
+export function familyMoveDeadlineLabel(chatExpiresAt: Date, country?: unknown): string {
+  return formatDate(familyMoveOpenUntil(chatExpiresAt), country, { day: "numeric", month: "long" });
 }
 
 export type ConversationState = "ACTIVE" | "ENDED" | "EXPIRED";
@@ -62,7 +59,7 @@ export interface ChatMessage {
   readAt: string | null;
 }
 
-const partyUser = { select: { id: true, firstName: true, isVerified: true, status: true, isDeactivated: true } } as const;
+const partyUser = { select: { id: true, firstName: true, isVerified: true, status: true, isDeactivated: true, country: true } } as const;
 const conversationInclude = {
   match: { select: { id: true, femaleId: true, maleId: true, female: partyUser, male: partyUser } },
 } as const;
@@ -148,7 +145,7 @@ async function housekeep(c: LoadedConversation): Promise<{ c: LoadedConversation
         await notifyMany([c.match.femaleId, c.match.maleId], {
           type: "CHAT",
           title: "انتهت مدة المحادثة",
-          body: `هل تنتقلان لتعارف عائلي؟ الانتقال مجاني حتى ${familyMoveDeadlineLabel(c.expiresAt)}، وتتبادل العائلتان بيانات وليّ الأمر لترتيب الزيارة.`,
+          body: `هل تنتقلان لتعارف عائلي؟ الانتقال مجاني حتى ${familyMoveDeadlineLabel(c.expiresAt, c.match.female?.country)}، وتتبادل العائلتان بيانات وليّ الأمر لترتيب الزيارة.`,
           url: `/dashboard/chats/${c.id}`,
           metadata: { conversationId: c.id },
           preference: CHAT_NOTICE_PREFERENCE,

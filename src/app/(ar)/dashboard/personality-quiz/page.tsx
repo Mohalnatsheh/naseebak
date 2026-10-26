@@ -26,6 +26,7 @@ import { FirstVisitTip } from "@/components/shared/first-visit-tip";
 import { trackEvent } from "@/lib/analytics";
 import { arabicCount } from "@/lib/utils";
 import { useDashboardData } from "@/contexts/dashboard-context";
+import { formatDate } from "@/lib/countries";
 import { LoadError } from "@/components/shared/load-error";
 import { PageHeader } from "@/components/shared/page-header";
 
@@ -126,7 +127,8 @@ export default function PersonalityQuizPage() {
 
   const [loadFailed, setLoadFailed] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
-  const female = useDashboardData().profile?.gender === "FEMALE";
+  const { profile: me, country } = useDashboardData();
+  const female = me?.gender === "FEMALE";
 
   useEffect(() => {
     async function load() {
@@ -228,7 +230,7 @@ export default function PersonalityQuizPage() {
 
   if (existingResult && !showQuiz) {
     const completedDate = new Date(existingResult.completedAt);
-    const formattedDate = completedDate.toLocaleDateString("ar-JO-u-nu-latn", {
+    const formattedDate = formatDate(completedDate, country, {
       year: "numeric",
       month: "long",
       day: "numeric",
@@ -376,7 +378,7 @@ export default function PersonalityQuizPage() {
                     <p className="text-xs text-muted-foreground">
                       التاريخ المتاح:{" "}
                       <span className="font-medium text-foreground">
-                        {new Date(existingResult.retakeDate).toLocaleDateString("ar-JO-u-nu-latn", {
+                        {formatDate(existingResult.retakeDate, country, {
                           year: "numeric",
                           month: "long",
                           day: "numeric",

@@ -2,6 +2,7 @@
  * SMTP email (Hostinger). Lazy-init transporter, same pattern as src/lib/stripe.ts.
  */
 import nodemailer, { type Transporter } from "nodemailer";
+import { COUNTRIES, COUNTRY_CODES, countryConfig, countryOfPhone } from "@/lib/countries";
 
 let transporter: Transporter | null = null;
 
@@ -37,6 +38,8 @@ interface NewUserInfo {
   phone: string;
   gender: string;
   createdAt: Date;
+  /** Account country (JO / SA); the phone's country when missing */
+  country?: string | null;
 }
 
 /** Notify the admin inbox (ADMIN_NOTIFY_EMAIL) that a new user registered. */
@@ -51,16 +54,19 @@ export async function sendNewUserNotification(user: NewUserInfo): Promise<void> 
   const fullName = `${user.firstName} ${user.lastName}`;
   const phone = `+${user.phone}`;
   const gender = user.gender === "MALE" ? "ذكر" : "أنثى";
-  const date = user.createdAt.toLocaleString("ar-JO-u-nu-latn", { timeZone: "Asia/Amman" });
+  // The member's country: its calendar/time zone for the date, and named in the mail
+  const cfg = countryConfig(user.country ?? countryOfPhone(user.phone));
+  const date = user.createdAt.toLocaleString(cfg.dateLocale, { timeZone: cfg.timeZone });
 
   await smtp.sendMail({
     from: process.env.SMTP_FROM || `"نصيبك Naseebak" <${process.env.SMTP_USER}>`,
     to,
     subject: `مستخدم جديد: ${fullName}`,
-    text: `تسجيل مستخدم جديد في نصيبك\n\nالاسم: ${fullName}\nرقم الهاتف: ${phone}\nالجنس: ${gender}\nتاريخ التسجيل: ${date}`,
+    text: `تسجيل مستخدم جديد في نصيبك\n\nالدولة: ${cfg.name}\nالاسم: ${fullName}\nرقم الهاتف: ${phone}\nالجنس: ${gender}\nتاريخ التسجيل: ${date}`,
     html: `<div dir="rtl" style="font-family:Arial,sans-serif;color:#1f2937">
   <h2 style="color:#22476a;margin:0 0 12px">تسجيل مستخدم جديد في نصيبك</h2>
   <table style="border-collapse:collapse">
+    <tr><td style="padding:4px 0 4px 16px;color:#6b7280">الدولة</td><td style="padding:4px 0">${cfg.flag} ${cfg.name}</td></tr>
     <tr><td style="padding:4px 0 4px 16px;color:#6b7280">الاسم</td><td style="padding:4px 0"><b>${escapeHtml(fullName)}</b></td></tr>
     <tr><td style="padding:4px 0 4px 16px;color:#6b7280">رقم الهاتف</td><td style="padding:4px 0" dir="ltr">${escapeHtml(phone)}</td></tr>
     <tr><td style="padding:4px 0 4px 16px;color:#6b7280">الجنس</td><td style="padding:4px 0">${gender}</td></tr>
@@ -80,9 +86,10 @@ interface ContactMessageInfo {
 }
 
 /** Tell the admin inbox about a contact-page message (best effort: the message is already saved). */
-/** 962791234567 → 0791234567 (how Jordanians write it) */
-function phoneForDisplay(phone962: string): string {
-  return phone962.startsWith("962") ? `0${phone962.slice(3)}` : phone962;
+/** 962791234567 → 0791234567, 966512345678 → 0512345678 (how people write it locally) */
+function phoneForDisplay(phone: string): string {
+  const dial = COUNTRY_CODES.map((c) => COUNTRIES[c].dialCode).find((d) => phone.startsWith(d));
+  return dial ? `0${phone.slice(dial.length)}` : phone;
 }
 
 export async function sendContactNotification(msg: ContactMessageInfo): Promise<void> {

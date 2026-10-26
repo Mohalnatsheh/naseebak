@@ -9,6 +9,8 @@ const sendContactNotification = vi.hoisted(() => vi.fn(async () => {}));
 vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/email", () => ({ sendContactNotification }));
 vi.mock("@/lib/referral", () => ({ maybeAwardReferral: vi.fn() }));
+// The contact form reads the visitor's country cookie (no request scope in tests): Jordan
+vi.mock("@/lib/countries/server", () => ({ getVisitorCountry: vi.fn(async () => "JO") }));
 vi.mock("@/lib/auth", () => ({
   auth: vi.fn(async () => null),
   requireUser: vi.fn(async () => ({ session: { user: { id: "u1" } } })),
@@ -103,6 +105,26 @@ describe("PUT /api/profile/parent-info", () => {
     const res = await putGuardian(req({ ...ok, parentPhone: "0790009999" }));
     expect(res.status).toBe(400);
     expect((await res.json()).error).toMatch(/يختلف عن رقم هاتفك/);
+  });
+
+  it("refuses a Saudi guardian for a Jordanian member", async () => {
+    const res = await putGuardian(req({ ...ok, parentPhone: "0512345678" }));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/هاتف ولي الأمر غير صالح/);
+  });
+
+  it("Saudi member: stores a Saudi guardian as 966…, refuses a Jordanian one", async () => {
+    db.user.findUnique.mockResolvedValue({ phone: "966500009999", country: "SA" });
+    const res = await putGuardian(req({ ...ok, parentPhone: "051 234 5678" }));
+    expect(res.status).toBe(200);
+    expect(db.parentInfo.upsert).toHaveBeenCalledWith(expect.objectContaining({
+      create: expect.objectContaining({ parentPhone: "966512345678" }),
+    }));
+    const bad = await putGuardian(req({ ...ok, parentPhone: "0791234567" }));
+    expect(bad.status).toBe(400);
+    expect((await bad.json()).error).toMatch(/جوال ولي الأمر غير صالح. مثال: 0512345678/);
+    const own = await putGuardian(req({ ...ok, parentPhone: "0500009999" }));
+    expect((await own.json()).error).toMatch(/يختلف عن رقم جوالك/);
   });
 });
 

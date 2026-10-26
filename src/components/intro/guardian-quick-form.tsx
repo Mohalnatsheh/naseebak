@@ -5,8 +5,8 @@ import { Loader2, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field, ChoiceGroup } from "@/components/profile/form-fields";
-import { useDashboardData } from "@/contexts/dashboard-context";
-import { parentInfoSchema } from "@/lib/validations/profile";
+import { useCountry, useDashboardData } from "@/contexts/dashboard-context";
+import { parentInfoSchemaFor } from "@/lib/validations/profile";
 import { normalizePhone } from "@/lib/validations/auth";
 import type { Opt } from "@/lib/profile-options";
 
@@ -37,6 +37,8 @@ export function GuardianQuickForm({
   note?: string;
 }) {
   const { profile, refreshProfile, refreshUnread } = useDashboardData();
+  // The guardian must be a mobile of the member's own country («هاتف» 07… / «جوال» 05…)
+  const country = useCountry();
   const [form, setForm] = useState<Record<FormKey, string>>({ parentName: "", parentPhone: "", relationship: "", address: "" });
   const [errors, setErrors] = useState<Partial<Record<FormKey, string>>>({});
   const [error, setError] = useState("");
@@ -50,7 +52,7 @@ export function GuardianQuickForm({
   async function save() {
     if (busy) return;
     // Same rules as the API (the other family sees this contact)
-    const parsed = parentInfoSchema.safeParse(form);
+    const parsed = parentInfoSchemaFor(country.code).safeParse(form);
     const next: Partial<Record<FormKey, string>> = {};
     if (!parsed.success) {
       for (const issue of parsed.error.issues) {
@@ -58,8 +60,8 @@ export function GuardianQuickForm({
         if (!next[key]) next[key] = issue.message;
       }
     }
-    if (!next.parentPhone && profile?.phone && normalizePhone(form.parentPhone) === profile.phone) {
-      next.parentPhone = "رقم وليّ الأمر يجب أن يختلف عن رقم هاتفك";
+    if (!next.parentPhone && profile?.phone && normalizePhone(form.parentPhone, country.code) === profile.phone) {
+      next.parentPhone = `رقم وليّ الأمر يجب أن يختلف عن رقم ${country.words.phone}ك`;
     }
     setErrors(next);
     if (Object.keys(next).length > 0) return;
@@ -98,8 +100,8 @@ export function GuardianQuickForm({
       <Field id="gq-parentName" label="اسم ولي الأمر" error={errors.parentName}>
         <Input id="gq-parentName" value={form.parentName} onChange={(e) => update("parentName", e.target.value)} placeholder="الاسم الكامل لولي الأمر" aria-invalid={!!errors.parentName} />
       </Field>
-      <Field id="gq-parentPhone" label="رقم هاتف ولي الأمر" error={errors.parentPhone}>
-        <Input id="gq-parentPhone" type="tel" value={form.parentPhone} onChange={(e) => update("parentPhone", e.target.value)} placeholder="07XXXXXXXX" dir="ltr" className="text-left" aria-invalid={!!errors.parentPhone} />
+      <Field id="gq-parentPhone" label={`رقم ${country.words.phone} ولي الأمر`} error={errors.parentPhone}>
+        <Input id="gq-parentPhone" type="tel" value={form.parentPhone} onChange={(e) => update("parentPhone", e.target.value)} placeholder={`0${country.phone.placeholder}`} dir="ltr" className="text-left" aria-invalid={!!errors.parentPhone} />
       </Field>
       <Field id="gq-relationship" label="صلة القرابة" error={errors.relationship}>
         <ChoiceGroup id="gq-relationship" cols={2} options={RELATIONSHIPS} isSelected={(v) => form.relationship === v} onSelect={(v) => update("relationship", v)} error={!!errors.relationship} />

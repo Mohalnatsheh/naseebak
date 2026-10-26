@@ -5,6 +5,8 @@
  * option describes someone else (partner preferences, other people's cards).
  */
 
+import { countryConfig, toCountry, type CountryCode } from "@/lib/countries";
+
 export interface Opt {
   value: string;
   label: string;
@@ -74,6 +76,60 @@ export function selfLabel(field: OptionField, value: string, gender: string | nu
 /** The label of one stored value describing a person of `gender` to someone else. */
 export function describeOption(field: OptionField, value: string, gender: string | null | undefined): string {
   return OTHER[norm(gender)][field]?.[value] ?? selfLabel(field, value, gender);
+}
+
+/* ---------- Per-country lists (the member's country; db-free, safe in client wizards) ---------- */
+
+/**
+ * Nationality suggestions for the free-text field (masculine stored form; the member's country
+ * first, then other Arab nationalities). The wizards offer them as a datalist; any value is accepted.
+ */
+const NATIONALITIES: Record<CountryCode, readonly string[]> = {
+  JO: [
+    "أردني", "فلسطيني", "سوري", "عراقي", "مصري", "لبناني", "سعودي", "يمني", "سوداني",
+    "كويتي", "إماراتي", "بحريني", "قطري", "عماني", "مغربي", "جزائري", "تونسي", "ليبي", "موريتاني", "صومالي",
+  ],
+  SA: [
+    "سعودي", "يمني", "مصري", "سوري", "أردني", "فلسطيني", "لبناني", "عراقي", "سوداني",
+    "كويتي", "إماراتي", "بحريني", "قطري", "عماني", "مغربي", "جزائري", "تونسي", "ليبي", "موريتاني", "صومالي",
+  ],
+};
+
+/** Default nationality in the person's own gender: «أردني/أردنية» (Jordan), «سعودي/سعودية» (Saudi Arabia) */
+export function defaultNationality(gender: string | null | undefined, country: unknown): string {
+  const w = countryConfig(country).words;
+  return gender === "FEMALE" ? w.nationalityFemale : w.nationalityMale;
+}
+
+/** Nationality suggestions in the person's own gender, the member's country first */
+export function nationalityOptions(gender: string | null | undefined, country: unknown): string[] {
+  return NATIONALITIES[toCountry(country)].map((n) => nationalityLabel(n, gender) ?? n);
+}
+
+/** Label of the stored `tribe` field for a viewer of `country`: «العشيرة» / «القبيلة» */
+export function tribeLabel(country: unknown): string {
+  return countryConfig(country).words.tribe;
+}
+
+/**
+ * Monthly income / expense ranges in the country's currency. Stored as shown, so the Jordanian
+ * values must never change (existing rows keep them).
+ */
+const INCOME_RANGES: Record<CountryCode, readonly string[]> = {
+  JO: ["أقل من 300 د.أ", "300-500 د.أ", "500-1000 د.أ", "1000-2000 د.أ", "أكثر من 2000 د.أ"],
+  SA: ["أقل من 5,000 ر.س", "5,000-10,000 ر.س", "10,000-20,000 ر.س", "20,000-35,000 ر.س", "أكثر من 35,000 ر.س"],
+};
+const EXPENSE_RANGES: Record<CountryCode, readonly string[]> = {
+  JO: ["أقل من 300 د.أ", "300-500 د.أ", "500-800 د.أ", "أكثر من 800 د.أ"],
+  SA: ["أقل من 3,000 ر.س", "3,000-6,000 ر.س", "6,000-10,000 ر.س", "10,000-15,000 ر.س", "أكثر من 15,000 ر.س"],
+};
+
+export function incomeRangesFor(country: unknown): readonly string[] {
+  return INCOME_RANGES[toCountry(country)];
+}
+
+export function expenseRangesFor(country: unknown): readonly string[] {
+  return EXPENSE_RANGES[toCountry(country)];
 }
 
 /**

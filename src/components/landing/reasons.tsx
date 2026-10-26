@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { HeartHandshake, Lock, Sparkles, Users } from "lucide-react";
 import type { LandingContent } from "./content";
+import { countryConfig } from "@/lib/countries";
 
 interface Stats {
   users: number;
@@ -19,11 +20,11 @@ const ICONS = [HeartHandshake, Sparkles, Lock, Users];
 export function LandingReasons({ content }: { content: LandingContent }) {
   const [stats, setStats] = useState<Stats | null>(null);
   useEffect(() => {
-    fetch("/api/stats/public")
+    fetch(`/api/stats/public?country=${content.country}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => d && typeof d.users === "number" && setStats(d))
       .catch(() => {});
-  }, []);
+  }, [content.country]);
 
   const numbers = stats
     ? [
@@ -60,7 +61,7 @@ export function LandingReasons({ content }: { content: LandingContent }) {
           <div className="mx-auto mt-14 flex max-w-xl flex-wrap justify-center gap-x-16 gap-y-6 text-center">
             {numbers.map((n) => (
               <div key={n.label}>
-                <p className="text-5xl font-extrabold text-accent">{n.value.toLocaleString("ar-JO-u-nu-latn")}+</p>
+                <p className="text-5xl font-extrabold text-accent">{n.value.toLocaleString(countryConfig(content.country).dateLocale)}+</p>
                 <p className="mt-2 text-sm font-semibold text-white/75">{n.label}</p>
               </div>
             ))}

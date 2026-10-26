@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { ChevronDown, MessageCircle, Shield, CreditCard, Users, HelpCircle } from "lucide-react";
 import { PageHeroPhoto } from "@/components/shared/page-hero-photo";
 import { faqsFor } from "./faq-data";
+import type { CountryCode } from "@/lib/countries";
 
 /* ──────────────────── DATA ──────────────────── */
 
@@ -24,12 +25,15 @@ export function FaqContent({
   newCycle,
   chat,
   creditOnInterest = false,
+  country = "JO",
 }: {
   newCycle: boolean;
   chat: boolean;
   creditOnInterest?: boolean;
+  /** Visitor's country (answers, phone wording, prices) */
+  country?: CountryCode;
 }) {
-  const faqs = faqsFor(newCycle, chat, creditOnInterest);
+  const faqs = faqsFor(newCycle, chat, creditOnInterest, country);
   const [activeCategory, setActiveCategory] = useState("all");
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const { ref: faqRef, inView: faqInView } = useInView(0.1);

@@ -3,6 +3,7 @@ import { requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { notify } from "@/lib/notify";
 import { enumParam, safePagination } from "@/lib/admin/query";
+import { byUserCountry, getAdminCountry } from "@/lib/admin/country-filter";
 import type { TicketStatus, TicketType } from "@prisma/client";
 
 const TICKET_STATUSES: TicketStatus[] = ["OPEN", "IN_PROGRESS", "RESOLVED", "CLOSED"];
@@ -26,7 +27,8 @@ export async function GET(request: Request) {
     const status = enumParam(searchParams.get("status"), TICKET_STATUSES);
     const type = enumParam(searchParams.get("type"), TICKET_TYPES);
 
-    const where: Record<string, unknown> = {};
+    // Admin's selected country ("ALL" = every country)
+    const where: Record<string, unknown> = { ...byUserCountry(await getAdminCountry(request), "user") };
     if (status) where.status = status;
     if (type) where.type = type;
 

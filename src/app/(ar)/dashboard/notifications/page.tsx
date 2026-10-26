@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { notificationUrl } from "@/lib/notification-links";
 import { useDashboardData } from "@/contexts/dashboard-context";
+import { formatDate } from "@/lib/countries";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
@@ -148,8 +149,8 @@ const defaultConfig = {
   dotColor: "bg-muted-foreground",
 };
 
-function timeAgo(dateStr: string) {
-  return new Date(dateStr).toLocaleDateString("ar-JO-u-nu-latn");
+function timeAgo(dateStr: string, country: unknown) {
+  return formatDate(dateStr, country);
 }
 
 interface NotificationPrefs {
@@ -181,7 +182,7 @@ const NEW_CYCLE_PREFS: (keyof NotificationPrefs)[] = ["introRequests", "chatMess
 
 export default function NotificationsPage() {
   const router = useRouter();
-  const { counts } = useDashboardData();
+  const { counts, country } = useDashboardData();
   const visiblePrefs = prefLabels.filter(({ key }) =>
     counts.flags.introRequests
       ? !LEGACY_PREFS.includes(key) && (key !== "chatMessages" || counts.flags.chat)
@@ -538,7 +539,7 @@ export default function NotificationsPage() {
                             {/* Time badge */}
                             <span className="inline-flex items-center gap-1 rounded-lg bg-muted/60 border border-border/50 px-2 py-0.5 text-[10px] text-muted-foreground font-medium">
                               <Clock className="h-2.5 w-2.5" />
-                              {timeAgo(n.createdAt)}
+                              {timeAgo(n.createdAt, country)}
                             </span>
                             {/* Delete button */}
                             <button

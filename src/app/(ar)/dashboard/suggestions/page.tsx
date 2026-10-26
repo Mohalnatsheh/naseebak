@@ -41,6 +41,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { blockConfirmText, forViewer } from "@/lib/gendered-copy";
 import { trackEvent } from "@/lib/analytics";
 import { useDashboardData } from "@/contexts/dashboard-context";
+import { formatDate } from "@/lib/countries";
 import { describeOption, nationalityLabel, oppositeGender } from "@/lib/profile-options";
 import { CandidateDetails } from "@/components/suggestions/candidate-details";
 import { MutualSuggestionsView } from "@/components/suggestions/mutual-suggestions-view";
@@ -164,7 +165,7 @@ const STATUS_CONFIG = {
 export default function SuggestionsPage() {
   // New cycle: suggestions are free, so no "out of credits" banner here
   const router = useRouter();
-  const { counts: cycleCounts, profile: me, loading: switchesLoading } = useDashboardData();
+  const { counts: cycleCounts, profile: me, loading: switchesLoading, country } = useDashboardData();
   const perRequestCredits = cycleCounts.flags.introRequests;
   // Candidates are the other gender: describe their options in third person
   const partnerGender = oppositeGender(me?.gender);
@@ -827,7 +828,7 @@ toast.success("تهانينا! لديك توافق متبادل!", {
               {sentRequests.map((req, index) => {
                 const config = STATUS_CONFIG[req.status];
                 const StatusIcon = config.icon;
-                const sentDate = new Date(req.sentAt).toLocaleDateString("ar-JO-u-nu-latn", {
+                const sentDate = formatDate(req.sentAt, country, {
                   year: "numeric",
                   month: "short",
                   day: "numeric",

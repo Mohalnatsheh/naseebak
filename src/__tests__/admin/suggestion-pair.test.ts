@@ -91,3 +91,19 @@ describe("checkSuggestionPair", () => {
     expect(db.suggestion.findFirst.mock.calls[0][0].where.OR).toHaveLength(2);
   });
 });
+
+describe("checkSuggestionPair, same country only (multi-country)", () => {
+  it("refuses a Jordan ↔ Saudi pair with 409 and a clear message", async () => {
+    db.user.findMany.mockResolvedValue([person("a", "FEMALE", { country: "JO" }), person("b", "MALE", { country: "SA" })]);
+    const r = await checkSuggestionPair("a", "b");
+    expect(r).toMatchObject({ status: 409 });
+    expect(r?.error).toMatch(/Jordan \/ Saudi Arabia/);
+    expect(r?.error).toMatch(/own country/);
+    expect(db.suggestion.findFirst).not.toHaveBeenCalled();
+  });
+
+  it("allows two Saudi members", async () => {
+    db.user.findMany.mockResolvedValue([person("a", "FEMALE", { country: "SA" }), person("b", "MALE", { country: "SA" })]);
+    expect(await checkSuggestionPair("a", "b")).toBeNull();
+  });
+});

@@ -3,6 +3,7 @@ import { requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { notifyMany } from "@/lib/notify";
 import { safePagination, enumParam } from "@/lib/admin/query";
+import { getAdminCountry, matchCountryWhere } from "@/lib/admin/country-filter";
 import type { VisitStatus } from "@prisma/client";
 
 export async function GET(request: Request) {
@@ -13,7 +14,10 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const { page, pageSize, skip } = safePagination(searchParams, 20);
     const status = enumParam(searchParams.get("status"), VISIT_STATUSES);
-    const where = status ? { status } : {};
+    // Admin's selected country (both people of a match are always from one country)
+    const country = await getAdminCountry(request);
+    const byCountry = country === "ALL" ? {} : { match: matchCountryWhere(country) };
+    const where = { ...byCountry, ...(status ? { status } : {}) };
 
     const [visits, total, byStatus] = await Promise.all([
       db.visitRequest.findMany({
@@ -63,7 +67,7 @@ export async function GET(request: Request) {
         orderBy: { createdAt: "desc" },
       }),
       db.visitRequest.count({ where }),
-      db.visitRequest.groupBy({ by: ["status"], _count: { _all: true } }),
+      db.visitRequest.groupBy({ by: ["status"], where: byCountry, _count: { _all: true } }),
     ]);
 
     // Counts for the filter chips, across all pages and statuses

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { enumParam, safePagination } from "@/lib/admin/query";
+import { getAdminCountry, paymentCountryWhere } from "@/lib/admin/country-filter";
 import type { PaymentStatus } from "@prisma/client";
 
 const PAYMENT_STATUSES: PaymentStatus[] = ["PENDING", "COMPLETED", "FAILED", "REFUNDED"];
@@ -16,12 +17,14 @@ export async function GET(request: Request) {
     // Unknown status values are ignored (all payments) instead of a Prisma 500
     const status = enumParam(url.searchParams.get("status"), PAYMENT_STATUSES);
 
-    const where = status ? { status } : {};
+    // Admin's selected country (a deleted member's payment is placed by its currency)
+    const byCountry = paymentCountryWhere(await getAdminCountry(request));
+    const where = { ...byCountry, ...(status ? { status } : {}) };
 
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-    const [payments, total, totalRevenue, monthlyRevenue] = await Promise.all([
+    const [payments, total, totals, monthly] = await Promise.all([
       db.payment.findMany({
         where,
         skip,
@@ -37,21 +40,33 @@ export async function GET(request: Request) {
           disputedAt: true,
           createdAt: true,
           user: {
-            select: { id: true, firstName: true, lastName: true, phone: true },
+            select: { id: true, firstName: true, lastName: true, phone: true, country: true },
           },
         },
       }),
       db.payment.count({ where }),
-      db.payment.aggregate({
-        where: { status: "COMPLETED" },
+      // Amounts are only ever added up within one currency (JOD, SAR…)
+      db.payment.groupBy({
+        by: ["currency"],
+        where: { ...byCountry, status: "COMPLETED" },
         _sum: { amount: true },
         _count: true,
       }),
-      db.payment.aggregate({
-        where: { status: "COMPLETED", createdAt: { gte: startOfMonth } },
+      db.payment.groupBy({
+        by: ["currency"],
+        where: { ...byCountry, status: "COMPLETED", createdAt: { gte: startOfMonth } },
         _sum: { amount: true },
       }),
     ]);
+
+    const revenue = totals
+      .map((t) => ({
+        currency: t.currency,
+        total: Number(t._sum.amount ?? 0),
+        monthly: Number(monthly.find((m) => m.currency === t.currency)?._sum.amount ?? 0),
+        count: t._count,
+      }))
+      .sort((a, b) => a.currency.localeCompare(b.currency));
 
     return NextResponse.json({
       payments,
@@ -59,9 +74,9 @@ export async function GET(request: Request) {
       page,
       totalPages: Math.ceil(total / pageSize),
       summary: {
-        totalRevenue: totalRevenue._sum.amount || 0,
-        completedCount: totalRevenue._count || 0,
-        monthlyRevenue: monthlyRevenue._sum.amount || 0,
+        /** One entry per currency (a single one when one country is selected) */
+        revenue,
+        completedCount: revenue.reduce((n, r) => n + r.count, 0),
       },
     });
   } catch (error) {

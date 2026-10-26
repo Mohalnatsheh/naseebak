@@ -28,7 +28,7 @@ export function ChatList() {
   const [loadFailed, setLoadFailed] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const loaded = useRef(false);
-  const { counts, profile } = useDashboardData();
+  const { counts, profile, country } = useDashboardData();
   const female = profile?.gender === "FEMALE";
 
   useEffect(() => {
@@ -122,7 +122,7 @@ export function ChatList() {
                       </span>
                       {c.lastMessage && (
                         <span className={cn("flex-shrink-0 text-xs", c.unread > 0 ? "font-semibold text-primary" : "text-muted-foreground")}>
-                          {listTimeLabel(c.lastMessage.createdAt)}
+                          {listTimeLabel(c.lastMessage.createdAt, country)}
                         </span>
                       )}
                     </span>

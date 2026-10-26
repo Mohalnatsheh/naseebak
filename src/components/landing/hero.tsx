@@ -51,7 +51,7 @@ export function LandingHero({
           </ul>
 
           <div className="mx-auto mt-8 flex justify-center lg:mx-0 lg:justify-start">
-            <StartForm id="start" place="hero" gender={lookingFor} onGender={onLookingFor} />
+            <StartForm id="start" place="hero" country={content.country} gender={lookingFor} onGender={onLookingFor} />
           </div>
         </div>
 

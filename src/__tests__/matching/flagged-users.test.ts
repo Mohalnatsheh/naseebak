@@ -78,7 +78,7 @@ describe("flagged users and automatic suggestions", () => {
   });
 
   it("admin Generate only considers unflagged users (both sides come from that list)", async () => {
-    const res = (await generate())!;
+    const res = (await generate(new Request("http://localhost/api/admin/suggestions/generate", { method: "POST" })))!;
     expect(res.status).toBe(200);
     expect(db.user.findMany.mock.calls[0][0].where).toMatchObject({ isFlagged: false });
   });

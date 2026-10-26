@@ -9,6 +9,7 @@ import { notifyCreditsExhausted, recordCredit, reserveCredits, WEEKLY_FREE_SUGGE
 import { isTestPhone } from "@/lib/test-accounts";
 import { getCycleFlags } from "@/lib/settings";
 import { activeWhere } from "@/lib/activity";
+import { getAdminCountry, userCountryWhere, type AdminCountry } from "@/lib/countries/server";
 
 /**
  * Shared suggestions on (`new_suggestions_flow`, with or without `credit_on_interest`): the same run
@@ -16,9 +17,11 @@ import { activeWhere } from "@/lib/activity";
  * rule (active, not engaged, open cap / weekly cap, min score, dealbreakers, a full candidate gets the
  * card hidden instead of being skipped, re-suggest rules) and sends at most one notice a day per person.
  */
-async function generateSharedSuggestions(): Promise<{ created: number; users: number; failed: number }> {
+async function generateSharedSuggestions(country: AdminCountry): Promise<{ created: number; users: number; failed: number }> {
   const users = await db.user.findMany({
     where: {
+      // Admin's selected country ("ALL" = everyone); autoSuggestForUser only pairs within one country
+      ...userCountryWhere(country),
       role: "USER",
       isDeactivated: false,
       status: { not: "SUSPENDED" },
@@ -43,17 +46,18 @@ async function generateSharedSuggestions(): Promise<{ created: number; users: nu
   return { created, users: users.length, failed };
 }
 
-export async function POST() {
+export async function POST(request: Request) {
   try {
     const result = await requireAdmin();
     if ("error" in result) return result.error;
     const { session } = result;
 
+    const country = await getAdminCountry(request);
     const flags = await getCycleFlags();
     const { introRequests: perRequestCredits, mutualSuggestions: mutual } = flags;
 
     if (mutual) {
-      const { created, failed } = await generateSharedSuggestions();
+      const { created, failed } = await generateSharedSuggestions(country);
       return NextResponse.json({
         message: `Generated ${created} suggestions${failed > 0 ? ` (${failed} users failed, see logs)` : ""}`,
         count: created,
@@ -69,6 +73,7 @@ export async function POST() {
     const eligibleUsers = (
       await db.user.findMany({
         where: {
+          ...userCountryWhere(country),
           role: "USER",
           isDeactivated: false,
           status: { not: "SUSPENDED" },
@@ -78,6 +83,7 @@ export async function POST() {
         select: {
           id: true,
           gender: true,
+          country: true,
           phone: true,
           matchCredits: true,
           profile: true,
@@ -127,6 +133,8 @@ export async function POST() {
       const candidates = eligibleUsers.filter((c) => {
         if (c.id === user.id) return false;
         if (c.gender === user.gender) return false;
+        // Same country only (a future `cross_country_matching` setting will lift this)
+        if (c.country !== user.country) return false;
         // Test accounts only meet each other (lib/test-accounts)
         if (isTestPhone(c.phone) !== isTestPhone(user.phone)) return false;
         // Skip if already suggested (either direction)

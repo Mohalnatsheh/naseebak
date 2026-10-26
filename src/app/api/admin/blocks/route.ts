@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { parsePagination } from "@/lib/utils";
+import { byUserCountry, getAdminCountry } from "@/lib/admin/country-filter";
 
 export async function GET(request: Request) {
   try {
@@ -11,8 +12,12 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     const { page, pageSize, skip } = parsePagination(url.searchParams, 20);
 
+    // Admin's selected country, by the blocker's country
+    const where = byUserCountry(await getAdminCountry(request), "blocker");
+
     const [blocks, total] = await Promise.all([
       db.block.findMany({
+        where,
         skip,
         take: pageSize,
         orderBy: { createdAt: "desc" },
@@ -27,7 +32,7 @@ export async function GET(request: Request) {
           },
         },
       }),
-      db.block.count(),
+      db.block.count({ where }),
     ]);
 
     return NextResponse.json({

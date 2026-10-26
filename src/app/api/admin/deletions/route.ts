@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { safePagination } from "@/lib/admin/query";
+import { byUserCountry, getAdminCountry } from "@/lib/admin/country-filter";
 
 export async function GET(request: Request) {
   try {
@@ -12,7 +13,7 @@ export async function GET(request: Request) {
       new URL(request.url).searchParams,
       20,
     );
-    const where = { cancelledAt: null };
+    const where = { cancelledAt: null, ...byUserCountry(await getAdminCountry(request), "user") };
 
     const [requests, total] = await Promise.all([
       db.accountDeletionRequest.findMany({

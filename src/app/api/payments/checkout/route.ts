@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { getStripe } from "@/lib/stripe";
 import { CHECKOUT_APP } from "@/lib/payments/fulfil";
 import { CHECKOUT_TTL_MS, findPackage } from "@/lib/payments/packages";
+import { toCountry } from "@/lib/countries";
 
 /** Stripe's error fields worth logging (never the full request) */
 function stripeErrorInfo(error: unknown) {
@@ -19,7 +20,9 @@ export async function POST(request: Request) {
     const { session } = result;
 
     const body = await request.json().catch(() => ({}));
-    const pkg = findPackage(body?.packageId);
+    // Only the packages of the member's own country are on sale to them
+    const me = await db.user.findUnique({ where: { id: session.user.id }, select: { country: true } });
+    const pkg = findPackage(body?.packageId, toCountry(me?.country));
     if (!pkg) {
       return NextResponse.json({ error: "الباقة غير صالحة" }, { status: 400 });
     }
@@ -31,16 +34,16 @@ export async function POST(request: Request) {
 
     let checkoutSession;
     try {
-      // Embedded mode (no redirect); charged in USD, shown in JOD (lib/payments/packages)
+      // Embedded mode (no redirect); Jordan: charged in USD, shown in JOD · Saudi Arabia: SAR (lib/payments/packages)
       checkoutSession = await getStripe().checkout.sessions.create({
         mode: "payment",
         ui_mode: "embedded",
         line_items: [
           {
             price_data: {
-              currency: "usd",
+              currency: pkg.chargeCurrency,
               product_data: { name: pkg.name },
-              unit_amount: pkg.priceUsdCents,
+              unit_amount: pkg.chargeAmount,
             },
             quantity: 1,
           },
@@ -63,14 +66,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "تعذّر بدء عملية الدفع الآن. حاول مرة أخرى بعد قليل." }, { status: 502 });
     }
 
-    // Amount stored in JOD for display; the charge itself is pkg.priceUsdCents
+    // Amount stored in the display currency (JOD / SAR); the charge itself is pkg.chargeAmount
     await db.payment.create({
       data: {
         id: paymentId,
         userId: session.user.id,
         type: "MATCH_CREDITS",
         planName: pkg.id,
-        amount: pkg.priceJod,
+        amount: pkg.price,
+        currency: pkg.currency,
         provider: "STRIPE",
         status: "PENDING",
         stripeSessionId: checkoutSession.id,

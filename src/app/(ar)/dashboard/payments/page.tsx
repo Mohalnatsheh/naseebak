@@ -409,7 +409,7 @@ function PaymentsContent() {
       </PageHeader>
 
       {/* Opening offer: why the prices are low right now */}
-      {packages.some((p) => discountPercent({ priceJod: p.price, wasJod: p.wasPrice })) && (
+      {packages.some((p) => discountPercent({ price: p.price, wasPrice: p.wasPrice })) && (
         <section className="landing-night relative overflow-hidden rounded-2xl px-4 py-4 text-white shadow-md shadow-primary/15 sm:px-6">
           <div className="landing-khatam absolute inset-0" aria-hidden />
           <div className="relative flex items-center gap-3">
@@ -419,7 +419,7 @@ function PaymentsContent() {
             <div className="min-w-0 flex-1">
               <h2 className="font-display text-lg leading-tight sm:text-xl">خصم افتتاح نصيبك</h2>
               <p className="mt-0.5 text-sm text-white/75">
-                احتفالاً بافتتاح المنصة: خصم حتى {Math.max(...packages.map((p) => discountPercent({ priceJod: p.price, wasJod: p.wasPrice }) ?? 0))}% على كل الباقات، لفترة محدودة.
+                احتفالاً بافتتاح المنصة: خصم حتى {Math.max(...packages.map((p) => discountPercent({ price: p.price, wasPrice: p.wasPrice }) ?? 0))}% على كل الباقات، لفترة محدودة.
               </p>
             </div>
           </div>
@@ -513,7 +513,7 @@ function PaymentsContent() {
                   {/* Price (the opening offer shows the old price struck through and the saving) */}
                   <div className="text-center mb-1">
                     {(() => {
-                      const off = discountPercent({ priceJod: pkg.price, wasJod: pkg.wasPrice });
+                      const off = discountPercent({ price: pkg.price, wasPrice: pkg.wasPrice });
                       return off ? (
                         <div className="mb-1 flex items-center justify-center gap-2">
                           <span className="text-base font-semibold text-muted-foreground line-through decoration-destructive/70 decoration-2">

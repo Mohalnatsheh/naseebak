@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const db = vi.hoisted(() => ({
   payment: { create: vi.fn(), findFirst: vi.fn(), updateMany: vi.fn() },
+  user: { findUnique: vi.fn() },
 }));
 const stripe = vi.hoisted(() => ({ create: vi.fn(), expire: vi.fn(), retrieve: vi.fn() }));
 const fulfil = vi.hoisted(() => ({ fulfilCheckoutSession: vi.fn(), CHECKOUT_APP: "naseebak" }));
@@ -21,6 +22,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   process.env.STRIPE_SECRET_KEY = "sk_test";
   db.payment.updateMany.mockResolvedValue({ count: 1 });
+  db.user.findUnique.mockResolvedValue({ country: "JO" });
 });
 
 describe("POST /api/payments/checkout", () => {
@@ -81,10 +83,33 @@ describe("POST /api/payments/cancel («رجوع»)", () => {
 describe("opening-offer packages", () => {
   it("sells 10 credits for 3 JD and keeps old packages for refunds only", async () => {
     const { CREDIT_PACKAGES, findPackage, findAnyPackage, discountPercent, packagesSentence } = await import("@/lib/payments/packages");
-    expect(CREDIT_PACKAGES[0]).toMatchObject({ credits: 10, priceJod: 3, priceUsdCents: 423 });
+    expect(CREDIT_PACKAGES[0]).toMatchObject({ credits: 10, price: 3, currency: "JOD", chargeCurrency: "usd", chargeAmount: 423 });
     expect(findPackage("credits_5")).toBeUndefined();
     expect(findAnyPackage("credits_5")?.credits).toBe(5);
     expect(discountPercent(CREDIT_PACKAGES[0])).toBe(57);
     expect(packagesSentence()).toContain("10 أرصدة بـ 3 د.أ");
+  });
+});
+
+describe("packages per country", () => {
+  it("Saudi members see SAR packages charged in SAR, and can't buy the Jordanian ones", async () => {
+    const { packagesFor, findPackage, packagesSentence, formatCharge } = await import("@/lib/payments/packages");
+    expect(packagesFor("SA").map((p) => p.price)).toEqual([15, 30, 50]);
+    expect(packagesFor("SA")[0]).toMatchObject({ currency: "SAR", chargeCurrency: "sar", chargeAmount: 1500 });
+    expect(findPackage("launch_10", "SA")).toBeUndefined();
+    expect(findPackage("sa_10", "JO")).toBeUndefined();
+    expect(packagesSentence("SA")).toContain("10 أرصدة بـ 15 ر.س");
+    expect(formatCharge(packagesFor("SA")[0])).toBe("15 ر.س");
+  });
+
+  it("checkout charges a Saudi member in SAR and refuses Jordanian packages", async () => {
+    db.user.findUnique.mockResolvedValue({ country: "SA" });
+    stripe.create.mockResolvedValue({ id: "cs_sa", client_secret: "sec" });
+    const res = await checkout(post({ packageId: "sa_25" }));
+    expect(res.status).toBe(200);
+    expect(stripe.create.mock.calls[0][0].line_items[0].price_data).toMatchObject({ currency: "sar", unit_amount: 3000 });
+    expect(db.payment.create.mock.calls[0][0].data).toMatchObject({ amount: 30, currency: "SAR", planName: "sa_25" });
+    const refused = await checkout(post({ packageId: "launch_25" }));
+    expect(refused.status).toBe(400);
   });
 });

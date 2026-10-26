@@ -11,6 +11,8 @@ export interface DashboardProfile {
   email: string;
   phone: string;
   gender: string;
+  /** Account country (JO / SA) — wording, places, money and dates follow it */
+  country?: string;
   status: string;
   isVerified: boolean;
   isDeactivated: boolean;

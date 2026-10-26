@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { countryOfPhone } from "@/lib/countries";
 import { registerSchema, normalizePhone, VERIFIED_OTP_WINDOW_MS } from "@/lib/validations/auth";
 import { getMaintenanceState, isRegistrationOpen } from "@/lib/settings";
 import { getRegistrationCredits, recordCredit } from "@/lib/credits";
@@ -71,6 +72,8 @@ export async function POST(request: Request) {
           lastName,
           email: `phone_${phone}@naseeb.local`,
           phone,
+          // The account's country follows its phone number (962 → JO, 966 → SA)
+          country: countryOfPhone(phone) ?? "JO",
           passwordHash: null,
           gender,
           matchCredits: registrationCredits,

@@ -192,6 +192,9 @@ model User {
   firstName         String
   lastName          String
   gender            Gender
+  /// Country of the account (JO / SA), from the phone number at registration; members only meet
+  /// people of their own country (multi-country 2026-10-26). Existing rows = JO.
+  country           String     @default("JO")
   role              UserRole   @default(USER)
   status            UserStatus @default(PENDING)
   /// Status to restore on unsuspend (set while SUSPENDED)
@@ -257,6 +260,7 @@ model User {
   messages              Message[]
   creditLedger          CreditLedger[]
 
+  @@index([country, gender])
   @@map("users")
 }
 
@@ -712,6 +716,8 @@ model ContactMessage {
   message   String    @db.Text
   /// Set when the sender was signed in
   userId    String?
+  /// Visitor's country when the message was sent (JO / SA; admin filters by it)
+  country   String    @default("JO")
   handledAt DateTime?
   createdAt DateTime  @default(now())
 

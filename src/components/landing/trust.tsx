@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/shared/site-link";
 import { EyeOff, Flag, MessageSquareLock, ShieldCheck } from "lucide-react";
 import type { LandingContent } from "./content";
 

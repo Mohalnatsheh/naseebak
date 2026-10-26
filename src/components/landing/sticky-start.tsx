@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
+import Link from "@/components/shared/site-link";
 import { ArrowLeft } from "lucide-react";
 import { trackEvent } from "@/lib/analytics";
 

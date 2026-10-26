@@ -1,18 +1,20 @@
 import type { Metadata } from "next";
 import { getVisitorCountry } from "@/lib/countries/server";
 import { publicCopy } from "@/lib/public-copy";
+import { absoluteUrl, seoAlternates } from "@/lib/site-paths";
 
 /** Description and Open Graph locale follow the visitor's country */
 export async function generateMetadata(): Promise<Metadata> {
-  const copy = publicCopy(await getVisitorCountry());
+  const country = await getVisitorCountry();
+  const copy = publicCopy(country);
   return {
     title: "تواصل معنا",
     description: `تواصل مع فريق نصيبك للإجابة على استفساراتك حول منصة تيسير الزواج بالحلال ${copy.inCountry}. نحن هنا لمساعدتك`,
-    alternates: { canonical: "https://naseebak.com/contact" },
+    alternates: seoAlternates("/contact", country),
     openGraph: {
       title: "تواصل معنا | نصيبك",
       description: "تواصل مع فريق نصيبك للإجابة على استفساراتك حول منصة تيسير الزواج بالحلال",
-      url: "https://naseebak.com/contact",
+      url: absoluteUrl("/contact", country),
       locale: copy.ogLocale,
     },
   };

@@ -7,7 +7,8 @@ import { connection } from "next/server";
 import { auth } from "@/lib/auth";
 import { getMaintenanceState } from "@/lib/settings";
 import { MaintenanceScreen } from "@/components/shared/maintenance-screen";
-import { getVisitorCountry } from "@/lib/countries/server";
+import { getGeoCountry, getVisitorCountry, hasCountryChoice } from "@/lib/countries/server";
+import { CountrySuggestBanner } from "@/components/shared/country-suggest-banner";
 import { publicCopy } from "@/lib/public-copy";
 import { VisitorCountryProvider } from "@/components/shared/visitor-country";
 
@@ -35,7 +36,7 @@ const baseMetadata = {
     default: "نصيبك - نوصّلك بشريك العمر بالحلال",
     template: "%s | نصيبك",
   },
-  alternates: { canonical: "https://naseebak.com" },
+  // No site-wide canonical: every page sets its own (localized pages: src/lib/site-paths.ts seoAlternates)
   authors: [{ name: "نصيبك", url: "https://naseebak.com" }],
   creator: "نصيبك",
   publisher: "نصيبك",
@@ -122,7 +123,7 @@ export default async function ArabicLayout({
   const maintenance = await getMaintenanceState();
   const isAdmin = maintenance.enabled ? (await auth())?.user?.role === "ADMIN" : false;
   const showMaintenance = maintenance.enabled && !isAdmin;
-  const country = await getVisitorCountry();
+  const [country, geoCountry, hasChoice] = await Promise.all([getVisitorCountry(), getGeoCountry(), hasCountryChoice()]);
 
   return (
     <html lang="ar" dir="rtl">
@@ -150,6 +151,7 @@ export default async function ArabicLayout({
                 </div>
               )}
               {children}
+              <CountrySuggestBanner siteCountry={country} geoCountry={geoCountry} hasChoice={hasChoice} />
             </>
           )}
         </VisitorCountryProvider>

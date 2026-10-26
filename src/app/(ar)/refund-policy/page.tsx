@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link from "@/components/shared/site-link";
 import {
   Building2,
   Receipt,

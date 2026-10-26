@@ -2,7 +2,7 @@
 
 import { compressImage } from "@/lib/image-compress";
 import { useState, useRef, useCallback, useEffect, Suspense } from "react";
-import Link from "next/link";
+import Link from "@/components/shared/site-link";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";

@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useState } from "react";
-import Link from "next/link";
+import Link from "@/components/shared/site-link";
 import { Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { LandingContent } from "./content";

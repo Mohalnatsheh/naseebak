@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link from "@/components/shared/site-link";
 import Image from "next/image";
 import { Heart, Facebook, Twitter, Instagram, Youtube } from "lucide-react";
 import { useVisitorCountry } from "@/components/shared/visitor-country";

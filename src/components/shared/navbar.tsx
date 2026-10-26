@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Link from "next/link";
+import Link from "@/components/shared/site-link";
 import { usePathname } from "next/navigation";
 import Image from "next/image";
 import { Menu, ArrowLeft, X, Info } from "lucide-react";

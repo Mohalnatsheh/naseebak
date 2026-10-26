@@ -1,18 +1,34 @@
 /** Server-only country helpers: the visitor's country (public pages) and the admin's selected country. */
 import { cookies, headers } from "next/headers";
 import { ADMIN_COUNTRY_COOKIE, COUNTRY_COOKIE, DEFAULT_COUNTRY, isCountryCode, type CountryCode } from "@/lib/countries";
+import { SITE_COUNTRY_HEADER } from "@/lib/site-paths";
 
 /**
- * Visitor's country: the switcher cookie, else a geo header if the proxy / CDN adds one
- * (Cloudflare `cf-ipcountry`, or `x-country-code` that Nginx GeoIP can set), else Jordan.
+ * Visitor's country. A localized page (src/lib/site-paths.ts) follows its URL — `/sa/...` = Saudi
+ * Arabia, the root = Jordan — through the header the proxy sets. Other pages (login, register, blog):
+ * the switcher cookie, else a geo header if the proxy / CDN adds one (Cloudflare `cf-ipcountry`, or
+ * `x-country-code` that Nginx GeoIP can set), else Jordan.
  */
 export async function getVisitorCountry(): Promise<CountryCode> {
+  const h = await headers();
+  const site = h.get(SITE_COUNTRY_HEADER)?.toUpperCase();
+  if (isCountryCode(site)) return site;
   const jar = await cookies();
   const chosen = jar.get(COUNTRY_COOKIE)?.value?.toUpperCase();
   if (isCountryCode(chosen)) return chosen;
+  return (await getGeoCountry()) ?? DEFAULT_COUNTRY;
+}
+
+/** Country from the IP, when the proxy / CDN provides it (null otherwise) */
+export async function getGeoCountry(): Promise<CountryCode | null> {
   const h = await headers();
   const geo = (h.get("cf-ipcountry") || h.get("x-country-code") || "").toUpperCase();
-  return isCountryCode(geo) ? geo : DEFAULT_COUNTRY;
+  return isCountryCode(geo) ? geo : null;
+}
+
+/** Did the visitor choose a country (switcher, /sa link or ?country=)? */
+export async function hasCountryChoice(): Promise<boolean> {
+  return isCountryCode((await cookies()).get(COUNTRY_COOKIE)?.value?.toUpperCase());
 }
 
 export type AdminCountry = CountryCode | "ALL";

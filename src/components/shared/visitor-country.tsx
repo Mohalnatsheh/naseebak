@@ -1,10 +1,11 @@
 "use client";
 
 import { createContext, useContext, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Check, ChevronDown } from "lucide-react";
 import { COUNTRIES, COUNTRY_CODES, DEFAULT_COUNTRY, type CountryCode } from "@/lib/countries";
 import { rememberVisitorCountry } from "@/lib/visitor-country";
+import { localizedPath, switchCountryPath } from "@/lib/site-paths";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { CountryFlag } from "@/components/shared/country-flag";
@@ -21,10 +22,16 @@ export function useVisitorCountry(): CountryCode {
   return useContext(VisitorCountryContext);
 }
 
+/** Links on public pages: "/faq" → "/sa/faq" for a Saudi visitor (pages without a country URL unchanged) */
+export function useSitePath(): (href: string) => string {
+  const country = useVisitorCountry();
+  return (href: string) => localizedPath(href, country);
+}
+
 /**
  * Flag + name of the visitor's country (🇯🇴 الأردن / 🇸🇦 السعودية) with a menu to switch at any time:
- * stores the cookie and re-renders the page from the server. The Saudi flag is the emoji only (it
- * carries the Shahada: never drawn as a graphic).
+ * stores the cookie, then opens the same page in that country (/faq ↔ /sa/faq) or re-renders a page that
+ * has no country URL. Flags: CountryFlag (Saudi Arabia as a plain green badge, never the Shahada).
  */
 export function CountrySwitcher({
   onDark = false,
@@ -41,12 +48,15 @@ export function CountrySwitcher({
 }) {
   const current = useVisitorCountry();
   const router = useRouter();
+  const pathname = usePathname();
   const [pending, startTransition] = useTransition();
 
+  /** A page with country URLs goes to the other country's URL (/faq ↔ /sa/faq); others re-render */
   function choose(code: CountryCode) {
     if (code === current) return;
     rememberVisitorCountry(code);
-    startTransition(() => router.refresh());
+    const target = switchCountryPath(pathname || "/", code);
+    startTransition(() => (target ? router.push(target + (typeof window !== "undefined" ? window.location.hash : "")) : router.refresh()));
   }
 
   const cfg = COUNTRIES[current];

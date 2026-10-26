@@ -3,18 +3,20 @@ import { getCycleFlags } from "@/lib/settings";
 import { faqsFor } from "./faq-data";
 import { getVisitorCountry } from "@/lib/countries/server";
 import { publicCopy } from "@/lib/public-copy";
+import { absoluteUrl, seoAlternates } from "@/lib/site-paths";
 
 export async function generateMetadata(): Promise<Metadata> {
-  const copy = publicCopy(await getVisitorCountry());
+  const country = await getVisitorCountry();
+  const copy = publicCopy(country);
   return {
     title: "الأسئلة الشائعة",
     description:
       "إجابات على أكثر الأسئلة شيوعاً حول منصة نصيبك لتيسير الزواج بالحلال — التسجيل، الخصوصية، الباقات، التوافق، والمزيد",
-    alternates: { canonical: "https://naseebak.com/faq" },
+    alternates: seoAlternates("/faq", country),
     openGraph: {
       title: "الأسئلة الشائعة | نصيبك",
       description: `إجابات على أكثر الأسئلة شيوعاً حول منصة نصيبك لتيسير الزواج بالحلال ${copy.inCountry}`,
-      url: "https://naseebak.com/faq",
+      url: absoluteUrl("/faq", country),
       locale: copy.ogLocale,
     },
   };

@@ -18,6 +18,7 @@ import { reconcileStripePayments } from "@/lib/payments/fulfil";
 import { cancelClosedLegacyVisits, remindGuardianShare, runFamilyFollowUps } from "@/lib/intro/followup";
 import { sendAdminAlert } from "@/lib/admin-alert";
 import { purgeExpiredRateLimits } from "@/lib/rate-limit-db";
+import { runPollRotation } from "@/lib/engagement/polls";
 
 export const LAST_RUN_KEY = "cron_daily_last_run";
 
@@ -97,6 +98,7 @@ async function execute(trigger: DailyRunSummary["trigger"]): Promise<DailyRunSum
   tasks.reengagement = await runTask("reengagement", () => runReengagement(now()));
   tasks.deletions = await runTask("deletions", async () => ({ deleted: await processAccountDeletions() }));
   tasks.payments = await runTask("payments", () => reconcileStripePayments(now()));
+  tasks.pollRotation = await runTask("pollRotation", () => runPollRotation(now()));
   tasks.rateLimits = await runTask("rateLimits", async () => ({ purged: await purgeExpiredRateLimits(now()) }));
 
   const finished = new Date();

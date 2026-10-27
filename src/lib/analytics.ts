@@ -26,7 +26,8 @@ export type AnalyticsEvent =
   | "suggestion_response" // { response: "accept" | "reject" }
   | "interest_response" // { response: "accept" | "reject" }
   | "begin_checkout" // GA4 recommended
-  | "payment_success";
+  | "payment_success"
+  | "poll_vote"; // { source: "page" | "instagram" } — a visitor answered «سؤال نصيبك» on /poll
 
 export function trackEvent(name: AnalyticsEvent, params?: GtagParams) {
   try {

@@ -131,6 +131,7 @@ const creditReasonLabel: Record<string, string> = {
   REFUND: "Refund",
   REFERRAL: "Referral reward",
   INTEREST: "Interest",
+  POLL_REWARD: "Question answered",
 };
 
 function formatDate(d: string | null) {

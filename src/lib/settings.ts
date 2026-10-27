@@ -8,6 +8,9 @@ const DEFAULTS: Record<string, string> = {
   chat_enabled: "false",
   new_suggestions_flow: "false",
   credit_on_interest: "false",
+  engagement_polls_enabled: "false",
+  poll_round_days: "3",
+  poll_reward_credits: "1",
 };
 
 const cache = new Map<string, { value: string; expiresAt: number }>();

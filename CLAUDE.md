@@ -321,6 +321,16 @@ Pages at `/admin` (incl. new-cycle Matches, Chats, Introductions), mobile-friend
 
 **Credit history:** every change to `matchCredits` must call `recordCredit()` (`src/lib/credits.ts`) → `CreditLedger` row with a `CreditReason` (REGISTRATION, PURCHASE, REQUEST, INTEREST, SUGGESTION, ADMIN_ADJUST, MIGRATION_GIFT, REFUND, REFERRAL). Best-effort outside a transaction client, so a history write never blocks a purchase or request. History starts with this release (no backfill).
 
+## Naseebak Question («سؤال نصيبك»)
+
+Switch `engagement_polls_enabled` (default off; toggle in Admin → Naseebak Question, `/admin/polls`). One question is asked on Instagram (story poll + link sticker), on the public page `/poll` (`/poll/<slug>` for a given one; 404 while off or for a draft) and in the `PollCard` on the dashboard home (`src/components/engagement/`). Tables `polls` / `poll_votes` (additive). Logic in `src/lib/engagement/polls.ts`, db-free types/helpers in `poll-types.ts`, voter in `voter.ts`.
+
+- **A new question every `poll_round_days` (3):** the admin queues questions («Add to queue» = DRAFT); when the running one reaches `Poll.endsAt` the oldest draft goes live (`rotatePollsIfDue`, claimed with conditional updates; run lazily on every read and by the daily job task `pollRotation`). With nothing queued the question keeps running and the daily job emails the admins (also a day ahead). «Start now» starts a draft at once (closes the running one); «Reopen» a closed one
+- **Reward:** a member's first answer to a question earns `poll_reward_credits` (1; 0 = off, max 5) in the same transaction as the vote (`matchCredits` + ledger `POLL_REWARD`, `PollVote.rewardCredits`), so one per question. Visitors never earn, and public pages never mention credits (owner rule); the dashboard card shows the offer and the credit added
+- **Voters:** a signed-in `USER` votes as a member (gender stored for the women/men split); anyone else as a visitor browser (cookie `nsb_pv`, only its sha256 stored); test accounts vote (and earn) with source `test` and are never counted. One vote, final (a repeat returns the first); 30 votes/hour per IP (`rateLimitDb`)
+- **Results** show only after voting (or once closed) and from `MIN_POLL_RESULTS` = 10 counted votes; the women/men split from 10 member votes each
+- **Admin:** settings (days per question, credits per answer, credits given so far), queue order (NEXT / QUEUE #n), edit (wording only once votes exist), delete (no votes), results by members/visitors/women/men/Instagram/dashboard, the tagged Instagram link (`pollShareUrl`) and a 1080×1920 «نتيجة سؤال نصيبك» story (`/admin/polls/[id]/story`, Download PNG via `html-to-image`, Cairo loaded on that page). GA event `poll_vote` on the public page. Marketing loop: `Marketing/strategy/ENGAGEMENT_FORMATS.md`
+
 ## Contact Page
 
 `/contact` posts to `POST /api/contact` (`contactSchema` in `src/lib/validations/contact.ts`: a Jordanian mobile or an email, at least one; honeypot `website`, 5/hour per IP, 3/hour per email / phone) → `ContactMessage` row (`phone` stored normalised) (additive table `contact_messages`) + best-effort admin email (`sendContactNotification`). Read and mark handled in Admin → Contact Messages (`/admin/messages`). Footer social icons show only for the `NEXT_PUBLIC_SOCIAL_*` env vars that are set.

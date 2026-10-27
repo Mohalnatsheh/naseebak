@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { GuardianConsentCard } from "@/components/intro/guardian-consent-card";
 import { NextStepCard } from "@/components/dashboard/next-step-card";
 import { InstallAppCard } from "@/components/shared/install-app-card";
+import { PollCard } from "@/components/engagement/poll-card";
 import { LoadError } from "@/components/shared/load-error";
 import { listTimeLabel } from "@/components/chat/chat-utils";
 import { qualifiesForSuggestions as qualifiesForSuggestionsGate } from "@/lib/profile-completeness";
@@ -346,6 +347,9 @@ export default function DashboardPage() {
           )}
         </section>
       )}
+
+      {/* «سؤال الأسبوع»: the same question as on Instagram and /poll (switch engagement_polls_enabled) */}
+      <PollCard />
 
       {/* Guardian consent still missing (new cycle) */}
       {counts.flags.introRequests && counts.guardian?.exists && !counts.guardian.consented && <GuardianConsentCard />}

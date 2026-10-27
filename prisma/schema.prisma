@@ -180,6 +180,8 @@ enum CreditReason {
   REFUND
   REFERRAL
   INTEREST
+  /// Answering «سؤال نصيبك» (poll_reward_credits per question)
+  POLL_REWARD
 }
 
 // ─── Models ─────────────────────────────────────────────────────────────────
@@ -256,6 +258,7 @@ model User {
   receivedIntroRequests IntroRequest[] @relation("IntroReceiver")
   messages              Message[]
   creditLedger          CreditLedger[]
+  pollVotes             PollVote[]
 
   @@map("users")
 }
@@ -875,4 +878,57 @@ model ChatSmsNotice {
   @@unique([conversationId, userId])
   @@index([conversationId])
   @@map("chat_sms_notices")
+}
+
+enum PollStatus {
+  DRAFT
+  ACTIVE
+  CLOSED
+}
+
+/// «سؤال نصيبك» (switch engagement_polls_enabled): one question asked on Instagram, the public page /poll and
+/// the dashboard home, a new one every poll_round_days (queued DRAFTs, oldest first). At most one ACTIVE poll at a time. Results show only from MIN_POLL_RESULTS votes.
+model Poll {
+  id        String     @id @default(cuid())
+  /// URL name: /poll/<slug>
+  slug      String     @unique
+  question  String
+  /// [{ id, label }], 2 to 4 options; ids never change once votes exist
+  options   Json
+  /// Short line shown after voting (optional)
+  note      String?
+  status    PollStatus @default(DRAFT)
+  startedAt DateTime?
+  /// When the scheduler swaps in the next queued question (startedAt + poll_round_days)
+  endsAt    DateTime?
+  closedAt  DateTime?
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  votes     PollVote[]
+
+  @@index([status])
+  @@map("polls")
+}
+
+/// One vote per member (userId) or per visitor browser (visitorKey = sha256 of the visitor cookie)
+model PollVote {
+  id         String   @id @default(cuid())
+  pollId     String
+  poll       Poll     @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  optionId   String
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  visitorKey String?
+  /// Gender of a member when voting (women/men split); null for visitors
+  gender     Gender?
+  /// dashboard | page | instagram
+  source     String   @default("page")
+  /// Credits given to the member for this answer (0 for visitors or when the reward is off)
+  rewardCredits Int   @default(0)
+  createdAt  DateTime @default(now())
+
+  @@unique([pollId, userId])
+  @@unique([pollId, visitorKey])
+  @@index([pollId, optionId])
+  @@map("poll_votes")
 }

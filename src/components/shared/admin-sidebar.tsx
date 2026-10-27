@@ -5,7 +5,7 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { signOut } from "next-auth/react";
-import { LayoutDashboard, Users, ShieldCheck, Sparkles, CalendarHeart, FileText, Menu, LogOut, Flag, ClipboardEdit, CreditCard, Bell, Ban, Trash2, Settings, LifeBuoy, HeartHandshake, Archive, ChevronDown, Heart, MessagesSquare, Inbox } from "lucide-react";
+import { LayoutDashboard, Users, ShieldCheck, Sparkles, CalendarHeart, FileText, Menu, LogOut, Flag, ClipboardEdit, CreditCard, Bell, Ban, Trash2, Settings, LifeBuoy, HeartHandshake, Archive, ChevronDown, Heart, MessagesSquare, Inbox, MessageCircleQuestion } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
@@ -35,6 +35,7 @@ const sidebarLinks: SidebarLink[] = [
   { href: "/admin/deletions", label: "Deletions", icon: Trash2 },
   { href: "/admin/support", label: "Support Tickets", icon: LifeBuoy },
   { href: "/admin/messages", label: "Contact Messages", icon: Inbox },
+  { href: "/admin/polls", label: "Naseebak Question", icon: MessageCircleQuestion },
   { href: "/admin/blog", label: "Blog", icon: FileText },
   { href: "/admin/settings", label: "Settings", icon: Settings },
 ];

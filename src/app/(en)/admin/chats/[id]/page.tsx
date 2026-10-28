@@ -1,8 +1,8 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
+import { use, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Check, CheckCheck, Loader2, MessagesSquare } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowUp, Check, CheckCheck, Loader2, MessagesSquare, Search } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { fmtDate, PersonLink, StateBadge, type PersonRef } from "@/components/admin/admin-list-bits";
@@ -37,6 +37,8 @@ export default function AdminChatPage({ params }: { params: Promise<{ id: string
   const [messages, setMessages] = useState<Msg[]>([]);
   const [truncated, setTruncated] = useState(false);
   const [error, setError] = useState("");
+  const [find, setFind] = useState("");
+  const [only, setOnly] = useState("");
 
   useEffect(() => {
     fetch(`/api/admin/chats/${id}/messages`)
@@ -50,6 +52,12 @@ export default function AdminChatPage({ params }: { params: Promise<{ id: string
       .catch((e: Error) => setError(e.message));
   }, [id]);
 
+  const term = find.trim().toLowerCase();
+  const shown = useMemo(
+    () => messages.filter((m) => (!only || m.senderId === only) && (!term || m.body.toLowerCase().includes(term))),
+    [messages, only, term],
+  );
+
   if (error) return <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>;
   if (!chat) {
     return (
@@ -61,6 +69,8 @@ export default function AdminChatPage({ params }: { params: Promise<{ id: string
 
   const [left, right] = chat.people;
   const nameOf = (uid: string) => chat.people.find((p) => p.id === uid)?.firstName ?? "?";
+  const countOf = (uid: string) => messages.filter((m) => m.senderId === uid).length;
+  const filtering = !!term || !!only;
 
   return (
     <div className="space-y-6">
@@ -79,20 +89,45 @@ export default function AdminChatPage({ params }: { params: Promise<{ id: string
             Started {fmtDate(chat.createdAt)} · Expires {fmtDate(chat.expiresAt)}
             {chat.extended && " (extended)"}
             {chat.endedAt && ` · Ended ${fmtDate(chat.endedAt)} ${chat.endedBy === "admin" ? "by admin" : `by ${chat.endedBy}`}`}
-            {` · ${messages.length} messages`}
+            {` · ${messages.length} messages (${left.firstName} ${countOf(left.id)} · ${right.firstName} ${countOf(right.id)})`}
+            {messages.length > 0 && ` · last ${fmtDate(messages[messages.length - 1].createdAt)} ${fmtTime(messages[messages.length - 1].createdAt)}`}
           </p>
+          {messages.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="relative min-w-0 flex-1 basis-56">
+                <Search className="pointer-events-none absolute start-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  id="chat-find"
+                  value={find}
+                  onChange={(e) => setFind(e.target.value)}
+                  placeholder="Search in this chat…"
+                  dir="auto"
+                  className="h-9 w-full rounded-md border bg-background ps-8 pe-3 text-sm"
+                />
+              </label>
+              <select id="chat-only" value={only} onChange={(e) => setOnly(e.target.value)} className="h-9 rounded-md border bg-background px-2 text-sm">
+                <option value="">Both people</option>
+                <option value={left.id}>Only {left.firstName}</option>
+                <option value={right.id}>Only {right.firstName}</option>
+              </select>
+              <a href="#chat-top" className="inline-flex h-9 items-center gap-1 rounded-md border px-2.5 text-sm hover:bg-muted"><ArrowUp className="h-3.5 w-3.5" /> First</a>
+              <a href="#chat-end" className="inline-flex h-9 items-center gap-1 rounded-md border px-2.5 text-sm hover:bg-muted"><ArrowDown className="h-3.5 w-3.5" /> Latest</a>
+              {filtering && <span className="text-xs text-muted-foreground">{shown.length} of {messages.length} shown</span>}
+            </div>
+          )}
         </CardHeader>
         <CardContent>
           {truncated && (
-            <p className="mb-3 rounded-md bg-amber-100 px-3 py-2 text-sm text-amber-800">Showing the first {messages.length} messages only.</p>
+            <p className="mb-3 rounded-md bg-amber-100 px-3 py-2 text-sm text-amber-800">Showing the latest {messages.length} messages only.</p>
           )}
           {messages.length === 0 ? (
             <p className="py-10 text-center text-sm text-muted-foreground">No messages in this chat.</p>
           ) : (
-            <div className="space-y-2 rounded-lg bg-muted/30 p-3 sm:p-4">
-              {messages.map((m, i) => {
+            <div id="chat-top" className="space-y-2 rounded-lg bg-muted/30 p-3 sm:p-4">
+              {filtering && shown.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">No message matches.</p>}
+              {shown.map((m, i) => {
                 const day = fmtDate(m.createdAt);
-                const showDay = i === 0 || day !== fmtDate(messages[i - 1].createdAt);
+                const showDay = i === 0 || day !== fmtDate(shown[i - 1].createdAt);
                 const mine = m.senderId === left.id;
                 return (
                   <div key={m.id}>
@@ -105,7 +140,7 @@ export default function AdminChatPage({ params }: { params: Promise<{ id: string
                         )}
                       >
                         <p className={cn("text-xs font-semibold", mine ? "text-primary" : "text-primary-foreground/80")}>{nameOf(m.senderId)}</p>
-                        <p dir="auto" className="whitespace-pre-wrap break-words text-sm leading-relaxed">{m.body}</p>
+                        <p dir="auto" className="whitespace-pre-wrap break-words text-sm leading-relaxed"><Highlight text={m.body} term={term} /></p>
                         <p className={cn("mt-1 flex items-center justify-end gap-1 text-[11px]", mine ? "text-muted-foreground" : "text-primary-foreground/70")}>
                           {fmtTime(m.createdAt)}
                           {m.readAt ? <CheckCheck className="h-3 w-3" aria-label="Read" /> : <Check className="h-3 w-3" aria-label="Sent" />}
@@ -115,10 +150,25 @@ export default function AdminChatPage({ params }: { params: Promise<{ id: string
                   </div>
                 );
               })}
+              <div id="chat-end" />
             </div>
           )}
         </CardContent>
       </Card>
     </div>
   );
+}
+
+/** Marks every occurrence of the search term (case-insensitive) */
+function Highlight({ text, term }: { text: string; term: string }) {
+  if (!term) return <>{text}</>;
+  const parts: React.ReactNode[] = [];
+  const lower = text.toLowerCase();
+  let at = 0;
+  for (let i = lower.indexOf(term); i !== -1; i = lower.indexOf(term, i + term.length)) {
+    parts.push(text.slice(at, i), <mark key={i} className="rounded bg-amber-200 px-0.5 text-foreground">{text.slice(i, i + term.length)}</mark>);
+    at = i + term.length;
+  }
+  parts.push(text.slice(at));
+  return <>{parts}</>;
 }

@@ -16,6 +16,7 @@ const reports = vi.hoisted(() => ({ fileReport: vi.fn(), pausedForReview: vi.fn(
 vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/ably", () => ably);
 vi.mock("@/lib/notify", () => notifyMod);
+vi.mock("@/lib/chat/bell", () => ({ upsertChatBell: vi.fn(), clearChatBell: vi.fn() }));
 vi.mock("@/lib/settings", () => settings);
 vi.mock("@/lib/rate-limit", () => rl);
 vi.mock("@/lib/reports", () => reports);

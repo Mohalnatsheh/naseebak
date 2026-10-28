@@ -356,7 +356,7 @@ const SMS_LABEL: Record<string, string> = {
 
 function SmsCell({ chat, sending, onSend }: { chat: ChatRow; sending: boolean; onSend: () => void }) {
   if (!chat.sms) return <span className="text-muted-foreground">—</span>;
-  if (chat.sms.talking) return <span className="text-xs text-muted-foreground">Both talking — no SMS</span>;
+  if (chat.sms.talking) return <span className="text-xs text-muted-foreground">Both talking · SMS only for messages unread 2 h+ (no push, max 1 a day)</span>;
   const pending = chat.sms.members.filter((m) => m.status !== "sent" && m.status !== "sent_admin");
   return (
     <div className="flex flex-col gap-1 text-xs">

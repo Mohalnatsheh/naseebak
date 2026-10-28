@@ -1,5 +1,6 @@
 /**
- * SMS for chats that never got going (owner decision 2026-10-22). Most members have no push device (31%), so new
+ * SMS for chats that never got going (owner decision 2026-10-22), and since 2026-10-28 for unread messages in chats
+ * where both talk (see ongoingChatTargets). Most members have no push device (31%), so new
  * chats stalled: 10 chats with no message at all, 8 where a woman wrote first and never got a reply.
  *
  * Who gets ONE SMS per chat (`chatSmsTargets`):
@@ -54,11 +55,48 @@ export function chatSmsTargets(c: ChatShape, now: Date, ignoreDelay = false): { 
   return due(oldest) ? [{ userId: silent, event: "message" }] : [];
 }
 
+/**
+ * Chats where both have written (owner decision 2026-10-28, after members said chat messages never reached them):
+ * a member with a partner message unread for 2 h+ gets «لديك رسالة جديدة» — through the same shared rules (one SMS
+ * a day, only without a push device, not at night, not when chat notices are off). The unread messages are stamped
+ * with the result (`smsNoticeStatus`/`smsNoticeAt`), so the same unread messages never bring a second SMS; a
+ * retryable result is tried again after RETRY_AFTER_MS. A new unread message after the member read the chat starts over.
+ */
+export interface OngoingMessage {
+  id: string;
+  senderId: string;
+  readAt: Date | null;
+  createdAt: Date;
+  smsNoticeStatus: string | null;
+  smsNoticeAt: Date | null;
+}
+
+export function ongoingChatTargets(
+  c: { femaleId: string; maleId: string; messages: OngoingMessage[] },
+  now: Date,
+): { userId: string; messageIds: string[] }[] {
+  if (new Set(c.messages.map((m) => m.senderId)).size < 2) return [];
+  const out: { userId: string; messageIds: string[] }[] = [];
+  for (const userId of [c.femaleId, c.maleId]) {
+    const unread = c.messages.filter((m) => m.senderId !== userId && !m.readAt);
+    if (!unread.length) continue;
+    // These unread messages already brought a final answer (sent, has push, opted out…), or a recent retryable one
+    const handled = unread.some((m) =>
+      m.smsNoticeStatus && (!RETRYABLE.includes(m.smsNoticeStatus) || (m.smsNoticeAt && now.getTime() - m.smsNoticeAt.getTime() < RETRY_AFTER_MS)),
+    );
+    if (handled) continue;
+    const oldest = unread.reduce((a, m) => (m.createdAt < a ? m.createdAt : a), unread[0].createdAt);
+    if (now.getTime() - oldest.getTime() < CHAT_SMS_AFTER_MS) continue;
+    out.push({ userId, messageIds: unread.map((m) => m.id) });
+  }
+  return out;
+}
+
 const chatSelect = {
   id: true,
   createdAt: true,
   match: { select: { femaleId: true, maleId: true } },
-  messages: { select: { senderId: true, readAt: true, createdAt: true, smsNoticeStatus: true } },
+  messages: { select: { id: true, senderId: true, readAt: true, createdAt: true, smsNoticeStatus: true, smsNoticeAt: true } },
 } as const;
 
 async function chatNoticesOn(userId: string) {
@@ -86,7 +124,8 @@ async function record(conversationId: string, userId: string, status: ChatSmsSta
 export async function runUnreadSms(now = new Date()) {
   if (isQuietHour(now)) return { skipped: "quiet_hours" as const };
   const chats = await db.conversation.findMany({
-    where: { status: "ACTIVE", expiresAt: { gt: now }, createdAt: { gte: new Date(now.getTime() - CHAT_SMS_MAX_AGE_MS) } },
+    // Open chats of any age: the not-started SMS still only chases chats from the last 7 days (below)
+    where: { status: "ACTIVE", expiresAt: { gt: now } },
     select: chatSelect,
     take: 2000,
   });
@@ -94,6 +133,14 @@ export async function runUnreadSms(now = new Date()) {
   const counts: Record<string, number> = {};
   let targetsN = 0;
   for (const c of chats) {
+    // Both talking: unread messages, at most one SMS per member per day
+    for (const t of ongoingChatTargets({ ...c.match, messages: c.messages }, now)) {
+      targetsN++;
+      const status: ChatSmsStatus = (await chatNoticesOn(t.userId)) ? await sendSmsNotice(t.userId, "message", now) : "opted_out";
+      await db.message.updateMany({ where: { id: { in: t.messageIds } }, data: { smsNoticeStatus: status, smsNoticeAt: now } });
+      counts[`ongoing_${status}`] = (counts[`ongoing_${status}`] ?? 0) + 1;
+    }
+    if (now.getTime() - c.createdAt.getTime() > CHAT_SMS_MAX_AGE_MS) continue;
     const targets = chatSmsTargets({ ...c.match, createdAt: c.createdAt, messages: c.messages }, now);
     for (const t of targets) {
       const legacy = c.messages.some((m) => m.senderId !== t.userId && (m.smsNoticeStatus === "sent" || m.smsNoticeStatus === "sent_admin"));

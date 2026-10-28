@@ -7,6 +7,7 @@
 import type { ReportReason } from "@prisma/client";
 import { db } from "@/lib/db";
 import { notify, notifyMany } from "@/lib/notify";
+import { clearChatBell, upsertChatBell } from "@/lib/chat/bell";
 import { CHAT_NOTICE_PREFERENCE } from "@/lib/notification-prefs";
 import { rateLimit } from "@/lib/rate-limit";
 import { getCycleFlags } from "@/lib/settings";
@@ -439,11 +440,14 @@ export async function sendMessage(args: {
     clientNonce,
   });
 
+  const sender = senderId === c.match.femaleId ? c.match.female : c.match.male;
+  // The bell, for members without a push device (one entry per chat, kept up to date)
+  await upsertChatBell(partner.id, conversationId, sender.firstName);
+
   const key = `${conversationId}:${partner.id}`;
   const now = Date.now();
   if (now - (lastPush.get(key) ?? 0) >= PUSH_THROTTLE_MS) {
     lastPush.set(key, now);
-    const sender = senderId === c.match.femaleId ? c.match.female : c.match.male;
     await notify({
       userId: partner.id,
       type: "CHAT",
@@ -468,6 +472,7 @@ export async function markRead(conversationId: string, userId: string, upTo?: st
     where: { conversationId, senderId: { not: userId }, readAt: null, createdAt: { lte: until } },
     data: { readAt },
   });
+  if (count > 0) await clearChatBell(userId, conversationId);
   // No read receipts across a block (either way)
   if (count > 0 && !(await isBlocked(userId, partnerOf(c, userId).id))) {
     // The partner's next message push should not be held back by an old throttle

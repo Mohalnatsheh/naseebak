@@ -40,6 +40,7 @@ import { EndChatDialog, type ReportReasonValue } from "./end-chat-dialog";
 import { ConfirmActionDialog } from "@/components/intro/confirm-action-dialog";
 import { dayLabel, mergeMessages, sameDay, type UiMessage } from "./chat-utils";
 import { useChatChannel } from "./use-chat-channel";
+import { ChatPushBanner } from "./chat-push-banner";
 import { useDashboardData } from "@/contexts/dashboard-context";
 import { checkMessage } from "@/lib/chat/filter";
 import { markPageNotificationsRead } from "@/lib/notifications-client";
@@ -455,6 +456,9 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
           </DropdownMenuContent>
         </DropdownMenu>
       </header>
+
+      {/* Notifications off on this device: a slim line with the guided setup, while the chat is open */}
+      {open && !conversation.blocked && <ChatPushBanner viewerGender={myGender} partnerName={conversation.partner.firstName} />}
 
       {/* One slim bar, only when there is something to do: extend near the end, the family step */}
       {(() => {

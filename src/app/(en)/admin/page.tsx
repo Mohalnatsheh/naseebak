@@ -8,6 +8,7 @@ import {
   ArrowUpRight, ArrowDownRight, LifeBuoy, HeartHandshake, MessagesSquare, Coins,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { RevenuePanel } from "@/components/admin/revenue-panel";
 import { Badge } from "@/components/ui/badge";
 
 interface Stats {
@@ -157,6 +158,9 @@ export default function AdminDashboardPage() {
             Could not load the dashboard numbers. Refresh the page; if it keeps failing, check the server logs.
           </div>
         )}
+
+        {/* Revenue: today / yesterday / the day before, trends, latest payments */}
+        <RevenuePanel />
 
         {/* Stats Grid */}
         {loading ? (

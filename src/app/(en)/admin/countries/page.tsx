@@ -8,6 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
+import { CountryFlag } from "@/components/shared/country-flag";
+import type { CountryCode } from "@/lib/countries";
 
 type Provider = "DEFAULT" | "BROADNET" | "UNIFONIC" | "MOCK" | "NONE";
 
@@ -170,7 +172,7 @@ function CountryCard({ row, onSaved }: { row: CountryRow; onSaved: () => void })
     <Card>
       <CardHeader className="space-y-2">
         <CardTitle className="flex flex-wrap items-center gap-2">
-          <span className="text-2xl">{row.display.flag.emoji}</span>
+          <CountryFlag country={code as CountryCode} className="h-[18px] w-6" />
           {row.display.name.en} <span dir="rtl" className="text-base font-normal text-muted-foreground">({row.display.name.ar})</span>
           <span className="text-sm font-normal text-muted-foreground">· {code} · {row.display.dialCode} · {row.display.currency.code}</span>
           {row.display.isDefault && <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">Default</span>}
@@ -218,7 +220,7 @@ function CountryCard({ row, onSaved }: { row: CountryRow; onSaved: () => void })
                 dir={f.dir}
                 maxLength={f.max}
                 value={(form[f.key] as string | null) ?? ""}
-                placeholder={f.placeholder}
+                placeholder={f.placeholder.replace("+962", row.display.dialCode)}
                 onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
               />
             </div>

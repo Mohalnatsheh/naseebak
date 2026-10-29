@@ -1,4 +1,6 @@
 /** Client helpers shared by the introduction components. */
+import { COUNTRIES, COUNTRY_CODES, countryConfig } from "@/lib/countries";
+
 export const RELATIONSHIP_LABELS: Record<string, string> = {
   father: "الأب",
   mother: "الأم",
@@ -19,16 +21,25 @@ export function daysLabel(n: number): string {
   return `${n} يوماً`;
 }
 
-/** 9627XXXXXXXX → { display: "+962 7X XXX XXXX", tel: "+9627…", wa: "9627…" } */
-export function formatJordanPhone(raw: string) {
+/**
+ * A stored guardian mobile of any served country → { display, tel, wa }:
+ * 9627XXXXXXXX → "+962 7X XXX XXXX", 9665XXXXXXXX → "+966 5X XXX XXXX". A local number (0…) takes
+ * the dial code of `country` (the viewer's; Jordan when unknown).
+ */
+export function formatGuardianPhone(raw: string, country?: unknown) {
   const digits = raw.replace(/\D/g, "");
-  const intl = digits.startsWith("962") ? digits : digits.startsWith("0") ? `962${digits.slice(1)}` : digits;
-  const local = intl.startsWith("962") ? intl.slice(3) : intl;
+  const known = COUNTRY_CODES.map((c) => COUNTRIES[c].dialCode).find((d) => digits.startsWith(d) && digits.length > 10);
+  const dial = known ?? countryConfig(country).dialCode;
+  const intl = known ? digits : digits.startsWith("0") ? `${dial}${digits.slice(1)}` : digits;
+  const local = intl.startsWith(dial) ? intl.slice(dial.length) : intl;
   const display = local.length === 9
-    ? `+962 ${local.slice(0, 2)} ${local.slice(2, 5)} ${local.slice(5)}`
+    ? `+${dial} ${local.slice(0, 2)} ${local.slice(2, 5)} ${local.slice(5)}`
     : `+${intl}`;
   return { display, tel: `+${intl}`, wa: intl };
 }
+
+/** Older name (Jordanian numbers format exactly as before) */
+export const formatJordanPhone = formatGuardianPhone;
 
 export interface ApiError {
   error?: string;

@@ -4,6 +4,7 @@ import { requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { parsePagination } from "@/lib/utils";
 import { personSearch } from "@/lib/admin/search";
+import { getAdminCountry, matchCountryWhere } from "@/lib/admin/country-filter";
 import { effectiveConversationStatus, effectiveRequestStatus } from "@/lib/admin/cycle-stats";
 
 const person = { select: { id: true, firstName: true, lastName: true, status: true } } as const;
@@ -20,7 +21,11 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const { page, skip, pageSize: take } = parsePagination(searchParams, 20);
     const who = personSearch(searchParams.get("q"));
-    const where: Prisma.MutualMatchWhereInput = who ? { OR: [{ female: who }, { male: who }] } : {};
+    // Admin's selected country (both people of a match are always from one country)
+    const where: Prisma.MutualMatchWhereInput = {
+      ...matchCountryWhere(await getAdminCountry(request)),
+      ...(who && { OR: [{ female: who }, { male: who }] }),
+    };
     const now = new Date();
 
     const [total, rows] = await Promise.all([

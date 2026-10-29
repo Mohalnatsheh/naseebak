@@ -8,24 +8,23 @@ import { LoadError } from "@/components/shared/load-error";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { jordanAreas, jordanCities } from "@/lib/data/jordan-areas";
+import { areasFor, citiesFor } from "@/lib/countries/places";
+import { COUNTRIES, toCountry, type CountryCode } from "@/lib/countries";
 import { trackEvent } from "@/lib/analytics";
 import { useDashboardData, type CycleCounts } from "@/contexts/dashboard-context";
 import { Field, ChoiceGroup, DealbreakerToggle } from "@/components/profile/form-fields";
-import { OPTION_VALUES, ownOptions, partnerOptions, type Opt } from "@/lib/profile-options";
+import { OPTION_VALUES, defaultNationality, expenseRangesFor, incomeRangesFor, nationalityOptions, ownOptions, partnerOptions, tribeLabel, type Opt } from "@/lib/profile-options";
 import { activeDealbreakers } from "@/lib/matching/dealbreaker-summary";
 import type { DealbreakerKey } from "@/lib/matching/score";
 import { arabicCount } from "@/lib/utils";
 import { forViewer } from "@/lib/gendered-copy";
-import { dateOfBirthError, maxDateOfBirth, parentInfoSchema } from "@/lib/validations/profile";
+import { dateOfBirthError, maxDateOfBirth, parentInfoSchemaFor } from "@/lib/validations/profile";
 import { normalizePhone } from "@/lib/validations/auth";
 
 const asOpts = (values: readonly string[]): Opt[] => values.map((v) => ({ value: v, label: v }));
 const educationLevels = asOpts(["ثانوية عامة", "دبلوم", "بكالوريوس", "ماجستير", "دكتوراه"]);
 const housingTypes = asOpts(["ملك", "إيجار", "مع العائلة"]);
-const expenseRanges = asOpts(["أقل من 300 د.أ", "300-500 د.أ", "500-800 د.أ", "أكثر من 800 د.أ"]);
 const skinColors = asOpts(["أبيض", "حنطي", "أسمر", "غامق"]);
-const incomeRanges = asOpts(["أقل من 300 د.أ", "300-500 د.أ", "500-1000 د.أ", "1000-2000 د.أ", "أكثر من 2000 د.أ"]);
 const relocateOptions: Opt[] = [
   { value: "yes", label: "نعم" },
   { value: "no", label: "لا" },
@@ -63,7 +62,7 @@ export default function ProfileSetupPage() {
     dateOfBirth: "",
     city: "",
     area: "",
-    nationality: "أردني",
+    nationality: "",
     education: "",
     fieldOfStudy: "",
     job: "",
@@ -117,7 +116,13 @@ export default function ProfileSetupPage() {
 
   // Consent to share the guardian contact after an accepted family introduction (new cycle)
   const [shareConsent, setShareConsent] = useState(false);
-  const { refreshProfile, profile: me } = useDashboardData();
+  const { refreshProfile, profile: me, country: contextCountry } = useDashboardData();
+  // Places, money, wording and the guardian's phone follow the member's country (from the loaded profile)
+  const [loadedCountry, setLoadedCountry] = useState<CountryCode | null>(null);
+  const country = COUNTRIES[toCountry(loadedCountry ?? contextCountry)];
+  const cities = citiesFor(country.code);
+  const incomeRanges = asOpts(incomeRangesFor(country.code));
+  const expenseRanges = asOpts(expenseRangesFor(country.code));
   // The step count depends on the switches: wait for the real flags (the shared context starts
   // with all-false defaults, which would show the removed guardian step to new members)
   const [flags, setFlags] = useState<CycleCounts["flags"] | null>(null);
@@ -171,11 +176,11 @@ export default function ProfileSetupPage() {
         return;
       }
 
-      if (user?.gender) {
-        setGender(user.gender);
-        // Default nationality in the user's own gender ("أردنية" for women)
-        if (user.gender === "FEMALE") setForm((prev) => (prev.nationality === "أردني" ? { ...prev, nationality: "أردنية" } : prev));
-      }
+      const userCountry = toCountry(user.country);
+      setLoadedCountry(userCountry);
+      if (user?.gender) setGender(user.gender);
+      // Default nationality: the member's country, in their own gender («أردنية» / «سعودية» for women)
+      setForm((prev) => (prev.nationality ? prev : { ...prev, nationality: defaultNationality(user.gender, userCountry) }));
       if (user?.profile) {
         const p = user.profile;
         serverUpdatedAt = p.updatedAt || null;
@@ -185,7 +190,7 @@ export default function ProfileSetupPage() {
           dateOfBirth: p.dateOfBirth ? new Date(p.dateOfBirth).toISOString().split("T")[0] : "",
           city: p.city || "",
           area: p.area || "",
-          nationality: p.nationality || (user.gender === "FEMALE" ? "أردنية" : "أردني"),
+          nationality: p.nationality || defaultNationality(user.gender, userCountry),
           education: p.education || "",
           fieldOfStudy: p.fieldOfStudy || "",
           job: p.job && jobValues.includes(p.job) ? p.job : p.job ? "أخرى" : "",
@@ -316,7 +321,7 @@ export default function ProfileSetupPage() {
   // When city changes, reset area if it doesn't belong to the new city
   function handleCityChange(city: string) {
     update("city", city);
-    const areas = jordanAreas[city] || [];
+    const areas = areasFor(country.code)[city] || [];
     if (!areas.includes(form.area)) {
       update("area", "");
     }
@@ -361,11 +366,11 @@ export default function ProfileSetupPage() {
       }
       case 5: {
         if (!parentForm.parentName) errors.parentName = "اسم ولي الأمر مطلوب";
-        if (!parentForm.parentPhone) errors.parentPhone = "رقم هاتف ولي الأمر مطلوب";
+        if (!parentForm.parentPhone) errors.parentPhone = `رقم ${country.words.phone} ولي الأمر مطلوب`;
         if (!parentForm.relationship) errors.relationship = "صلة القرابة مطلوبة";
         if (!parentForm.address) errors.address = "العنوان مطلوب";
         // Same rules as the API (the other family sees this contact)
-        const guardian = parentInfoSchema.safeParse({ ...parentForm, notes: undefined });
+        const guardian = parentInfoSchemaFor(country.code).safeParse({ ...parentForm, notes: undefined });
         if (!guardian.success) {
           for (const issue of guardian.error.issues) {
             const key = String(issue.path[0]);
@@ -373,8 +378,8 @@ export default function ProfileSetupPage() {
           }
         }
         // The API refuses the user's own number too: say so here, next to the field
-        if (!errors.parentPhone && me?.phone && normalizePhone(parentForm.parentPhone) === me.phone) {
-          errors.parentPhone = "رقم وليّ الأمر يجب أن يختلف عن رقم هاتفك";
+        if (!errors.parentPhone && me?.phone && normalizePhone(parentForm.parentPhone, country.code) === me.phone) {
+          errors.parentPhone = `رقم وليّ الأمر يجب أن يختلف عن رقم ${country.words.phone}ك`;
         }
         break;
       }
@@ -523,7 +528,7 @@ export default function ProfileSetupPage() {
         onChange={(v) => toggleDealbreaker(key, v)}
       />
     ) : null;
-  const availableAreas = form.city ? (jordanAreas[form.city] || []) : [];
+  const availableAreas = form.city ? (areasFor(country.code)[form.city] || []) : [];
 
   // Someone who stopped at the old guardian step (5) resumes on the last step
   useEffect(() => {
@@ -605,12 +610,15 @@ export default function ProfileSetupPage() {
                 <Input id="dateOfBirth" type="date" max={maxDateOfBirth()} value={form.dateOfBirth} onChange={(e) => update("dateOfBirth", e.target.value)} dir="ltr" aria-invalid={!!fieldErrors.dateOfBirth} className={inputError(!!fieldErrors.dateOfBirth)} />
               </Field>
               <Field id="nationality" label="الجنسية" error={fieldErrors.nationality}>
-                <Input id="nationality" value={form.nationality} onChange={(e) => update("nationality", e.target.value)} aria-invalid={!!fieldErrors.nationality} className={inputError(!!fieldErrors.nationality)} />
+                <Input id="nationality" list="nationality-options" value={form.nationality} onChange={(e) => update("nationality", e.target.value)} aria-invalid={!!fieldErrors.nationality} className={inputError(!!fieldErrors.nationality)} />
+                <datalist id="nationality-options">
+                  {nationalityOptions(gender, country.code).map((n) => <option key={n} value={n} />)}
+                </datalist>
               </Field>
             </div>
 
             <Field id="city" label="المدينة" error={fieldErrors.city}>
-              <ChoiceGroup id="city" options={jordanCities.map((c) => ({ value: c, label: c }))} isSelected={(v) => form.city === v} onSelect={handleCityChange} error={!!fieldErrors.city} />
+              <ChoiceGroup id="city" options={cities.map((c) => ({ value: c, label: c }))} isSelected={(v) => form.city === v} onSelect={handleCityChange} error={!!fieldErrors.city} />
             </Field>
 
             {form.city && availableAreas.length > 0 && (
@@ -801,7 +809,7 @@ export default function ProfileSetupPage() {
             </div>
 
             <Field id="prefCity" label="المدن المفضلة" hint="(يمكن اختيار أكثر من مدينة)" optional aside={dealbreaker("city", "prefCity")}>
-              <ChoiceGroup id="prefCity" multiple options={jordanCities.map((c) => ({ value: c, label: c }))} isSelected={(v) => form.prefCity.includes(v)} onSelect={(v) => toggleArray("prefCity", v)} />
+              <ChoiceGroup id="prefCity" multiple options={cities.map((c) => ({ value: c, label: c }))} isSelected={(v) => form.prefCity.includes(v)} onSelect={(v) => toggleArray("prefCity", v)} />
             </Field>
 
             <Field id="prefEducation" label="المستوى التعليمي المفضل" hint="(كل مستوى يشمل ما فوقه)" optional aside={dealbreaker("education", "prefEducation")}>
@@ -852,8 +860,8 @@ export default function ProfileSetupPage() {
             <CardDescription>بيانات إضافية عن العائلة والسكن. كلها اختيارية ويمكنك إكمالها لاحقاً.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Field id="tribe" label="العشيرة" optional>
-              <Input id="tribe" value={form.tribe} onChange={(e) => update("tribe", e.target.value)} placeholder="اسم العشيرة" />
+            <Field id="tribe" label={tribeLabel(country.code)} optional>
+              <Input id="tribe" value={form.tribe} onChange={(e) => update("tribe", e.target.value)} placeholder={`اسم ${tribeLabel(country.code)}`} />
             </Field>
 
             <Field id="familyOriginArea" label="منطقة أصل العائلة" optional>
@@ -896,8 +904,8 @@ export default function ProfileSetupPage() {
               <Input id="parentName" value={parentForm.parentName} onChange={(e) => updateParent("parentName", e.target.value)} placeholder="الاسم الكامل لولي الأمر" aria-invalid={!!fieldErrors.parentName} className={inputError(!!fieldErrors.parentName)} />
             </Field>
 
-            <Field id="parentPhone" label="رقم هاتف ولي الأمر" error={fieldErrors.parentPhone}>
-              <Input id="parentPhone" type="tel" value={parentForm.parentPhone} onChange={(e) => updateParent("parentPhone", e.target.value)} placeholder="07XXXXXXXX" dir="ltr" aria-invalid={!!fieldErrors.parentPhone} className={`text-left ${inputError(!!fieldErrors.parentPhone)}`} />
+            <Field id="parentPhone" label={`رقم ${country.words.phone} ولي الأمر`} error={fieldErrors.parentPhone}>
+              <Input id="parentPhone" type="tel" value={parentForm.parentPhone} onChange={(e) => updateParent("parentPhone", e.target.value)} placeholder={`0${country.phone.placeholder}`} dir="ltr" aria-invalid={!!fieldErrors.parentPhone} className={`text-left ${inputError(!!fieldErrors.parentPhone)}`} />
             </Field>
 
             <Field id="relationship" label="صلة القرابة" error={fieldErrors.relationship}>

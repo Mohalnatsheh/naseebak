@@ -1,5 +1,6 @@
 import { z } from "zod/v4";
-import { jordanPhoneRegex } from "./auth";
+import { isValidPhone } from "./auth";
+import { countryConfig } from "@/lib/countries";
 import { toLatinDigits } from "@/lib/digits";
 // Both are db-free (pure value lists), safe for the client wizards that import this file
 import { OPTION_VALUES } from "@/lib/profile-options";
@@ -123,9 +124,12 @@ export const profileSchema = z.object({
 
 /**
  * Guardian contact: shown to the other family after a family introduction, so it must be a real
- * Arabic name and a reachable Jordanian mobile (any accepted format; normalise before storing).
+ * Arabic name and a reachable mobile of the member's own country (any accepted format of that
+ * country; normalise with `normalizePhone(v, country)` before storing).
  */
-export const parentInfoSchema = z.object({
+export function parentInfoSchemaFor(country: unknown) {
+  const c = countryConfig(country);
+  return z.object({
   parentName: z
     .string()
     .trim()
@@ -136,11 +140,17 @@ export const parentInfoSchema = z.object({
     .string()
     // Arabic keyboards type ٠٧٩…: convert before checking, like the login phone
     .transform((v) => toLatinDigits(v).replace(/[\s\-()]/g, ""))
-    .pipe(z.string().regex(jordanPhoneRegex, "رقم هاتف ولي الأمر غير صالح. مثال: 0791234567")),
+    .pipe(
+      z.string().refine((v) => isValidPhone(v, c.code), `رقم ${c.words.phone} ولي الأمر غير صالح. مثال: ${c.phone.example}`),
+    ),
   relationship: z.enum(["father", "mother", "brother", "guardian"], { message: "صلة القرابة مطلوبة" }),
   address: z.string().trim().min(3, "العنوان مطلوب").max(300, "العنوان طويل جداً"),
   notes: z.string().max(500, "الحد الأقصى 500 حرف").optional().nullable(),
-});
+  });
+}
+
+/** Jordan's guardian rules (older callers and tests); members use `parentInfoSchemaFor(country)` */
+export const parentInfoSchema = parentInfoSchemaFor("JO");
 
 /** The draft's fields without the min ≤ max check, so other schemas can build on them (update requests) */
 export const profileDraftFields = z.object({

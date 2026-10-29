@@ -24,12 +24,13 @@ import {
   CardTitle,
   CardDescription,
 } from "@/components/ui/card";
-import { jordanAreas, jordanCities } from "@/lib/data/jordan-areas";
+import { areasFor, citiesFor } from "@/lib/countries/places";
+import { COUNTRIES, toCountry, type CountryCode } from "@/lib/countries";
 import { OptionalTag, DealbreakerToggle } from "@/components/profile/form-fields";
-import { OPTION_VALUES, selfLabel, describeOption, oppositeGender } from "@/lib/profile-options";
+import { OPTION_VALUES, selfLabel, describeOption, oppositeGender, defaultNationality, expenseRangesFor, incomeRangesFor, nationalityOptions, tribeLabel } from "@/lib/profile-options";
 import { activeDealbreakers } from "@/lib/matching/dealbreaker-summary";
 import type { DealbreakerKey } from "@/lib/matching/score";
-import { dateOfBirthError, maxDateOfBirth, parentInfoSchema } from "@/lib/validations/profile";
+import { dateOfBirthError, maxDateOfBirth, parentInfoSchemaFor } from "@/lib/validations/profile";
 import { normalizePhone } from "@/lib/validations/auth";
 import { splitProfileEdit, buildFillBody } from "@/lib/profile-edit-split";
 import { forViewer } from "@/lib/gendered-copy";
@@ -56,20 +57,7 @@ const cookingLevels = [
   "أطبخ ممتازاً",
 ];
 const housingTypes = ["ملك", "إيجار", "مع العائلة"];
-const expenseRanges = [
-  "أقل من 300 د.أ",
-  "300-500 د.أ",
-  "500-800 د.أ",
-  "أكثر من 800 د.أ",
-];
 const skinColors = ["أبيض", "حنطي", "أسمر", "غامق"];
-const incomeRanges = [
-  "أقل من 300 د.أ",
-  "300-500 د.أ",
-  "500-1000 د.أ",
-  "1000-2000 د.أ",
-  "أكثر من 2000 د.أ",
-];
 const jobOptions: readonly string[] = OPTION_VALUES.job;
 const preferenceOptions = ["نعم", "لا", "لا يهم"];
 const guardianRelationships = [
@@ -143,7 +131,7 @@ const emptyForm: ProfileForm = {
   dateOfBirth: "",
   city: "",
   area: "",
-  nationality: "أردني",
+  nationality: "",
   education: "",
   job: "",
   jobCustom: "",
@@ -224,7 +212,13 @@ export default function ProfileEditPage() {
   // "شرط أساسي" marks: saved directly (a private filter), not part of the review request
   const [dealbreakers, setDealbreakers] = useState<string[]>([]);
   const [originalDealbreakers, setOriginalDealbreakers] = useState<string[]>([]);
-  const { counts, profile: me } = useDashboardData();
+  const { counts, profile: me, country: contextCountry } = useDashboardData();
+  // Places, money, wording and the guardian's phone follow the member's country (from the loaded profile)
+  const [loadedCountry, setLoadedCountry] = useState<CountryCode | null>(null);
+  const country = COUNTRIES[toCountry(loadedCountry ?? contextCountry)];
+  const cities = citiesFor(country.code);
+  const incomeRanges = incomeRangesFor(country.code);
+  const expenseRanges = expenseRangesFor(country.code);
   const showDealbreakers = counts.flags.mutualSuggestions;
 
   // Deep link: /dashboard/profile/edit?step=5 opens the guardian step
@@ -257,6 +251,8 @@ export default function ProfileEditPage() {
 
         const user = profileData.user;
         if (user?.gender) setGender(user.gender);
+        const userCountry = toCountry(user?.country);
+        setLoadedCountry(userCountry);
 
         if (user?.profile) {
           const p = user.profile;
@@ -268,7 +264,7 @@ export default function ProfileEditPage() {
               : "",
             city: p.city || "",
             area: p.area || "",
-            nationality: p.nationality || "أردني",
+            nationality: p.nationality || defaultNationality(user?.gender, userCountry),
             education: p.education || "",
             job: p.job && jobOptions.includes(p.job) ? p.job : p.job ? "أخرى" : "",
             jobCustom: p.job && !jobOptions.includes(p.job) ? p.job : "",
@@ -345,7 +341,7 @@ export default function ProfileEditPage() {
 
   function handleCityChange(city: string) {
     update("city", city);
-    const areas = jordanAreas[city] || [];
+    const areas = areasFor(country.code)[city] || [];
     if (!areas.includes(form.area)) {
       update("area", "");
     }
@@ -387,7 +383,7 @@ export default function ProfileEditPage() {
       // it is checked only once the member starts filling it in
       if (introMode && !guardianTouched) return null;
       if (!form.parentName) return "يرجى إدخال اسم ولي الأمر";
-      if (!form.parentPhone) return "يرجى إدخال رقم هاتف ولي الأمر";
+      if (!form.parentPhone) return `يرجى إدخال رقم ${country.words.phone} ولي الأمر`;
       if (!form.relationship) return "يرجى اختيار صلة القرابة";
       if (!form.parentAddress) return "يرجى إدخال العنوان";
       // Same rules as the API (the other family sees this contact) — only when it is being changed,
@@ -397,14 +393,14 @@ export default function ProfileEditPage() {
         form.parentPhone !== originalForm.parentPhone ||
         form.relationship !== originalForm.relationship ||
         form.parentAddress !== originalForm.parentAddress;
-      const guardian = !guardianEdited ? { success: true as const } : parentInfoSchema.safeParse({
+      const guardian = !guardianEdited ? { success: true as const } : parentInfoSchemaFor(country.code).safeParse({
         parentName: form.parentName,
         parentPhone: form.parentPhone,
         relationship: form.relationship,
         address: form.parentAddress,
       });
       if (!guardian.success) return guardian.error.issues[0]?.message ?? "بيانات وليّ الأمر غير صالحة";
-      if (guardianEdited && me?.phone && normalizePhone(form.parentPhone) === me.phone) return "رقم وليّ الأمر يجب أن يختلف عن رقم هاتفك";
+      if (guardianEdited && me?.phone && normalizePhone(form.parentPhone, country.code) === me.phone) return `رقم وليّ الأمر يجب أن يختلف عن رقم ${country.words.phone}ك`;
     }
     return null;
   }
@@ -598,7 +594,7 @@ export default function ProfileEditPage() {
   }
 
   const totalSteps = 5;
-  const availableAreas = form.city ? jordanAreas[form.city] || [] : [];
+  const availableAreas = form.city ? areasFor(country.code)[form.city] || [] : [];
   const changedCount =
     Object.keys(getChangedFields()).length +
     (hasGuardianChanges() ? 1 : 0) +
@@ -793,16 +789,20 @@ export default function ProfileEditPage() {
                 <RequiredLabel htmlFor="edit-field-2">الجنسية</RequiredLabel>
                 <Input
                   id="edit-field-2"
+                  list="edit-nationality-options"
                   value={form.nationality}
                   onChange={(e) => update("nationality", e.target.value)}
                 />
+                <datalist id="edit-nationality-options">
+                  {nationalityOptions(gender, country.code).map((n) => <option key={n} value={n} />)}
+                </datalist>
               </div>
             </div>
 
             <div className="space-y-2">
               <RequiredLabel>المدينة</RequiredLabel>
               <div className="grid grid-cols-3 gap-2">
-                {jordanCities.map((c) => (
+                {cities.map((c) => (
                   <button
                     key={c}
                     type="button"
@@ -1222,7 +1222,7 @@ export default function ProfileEditPage() {
                 {dealbreaker("city", "prefCity")}
               </div>
               <div className="grid grid-cols-3 gap-2">
-                {jordanCities.map((c) => (
+                {cities.map((c) => (
                   <button
                     key={c}
                     type="button"
@@ -1378,12 +1378,12 @@ export default function ProfileEditPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="edit-field-14">العشيرة <OptionalTag /></Label>
+              <Label htmlFor="edit-field-14">{tribeLabel(country.code)} <OptionalTag /></Label>
               <Input
                 id="edit-field-14"
                 value={form.tribe}
                 onChange={(e) => update("tribe", e.target.value)}
-                placeholder="اسم العشيرة"
+                placeholder={`اسم ${tribeLabel(country.code)}`}
               />
             </div>
 
@@ -1495,13 +1495,13 @@ export default function ProfileEditPage() {
             </div>
 
             <div className="space-y-2">
-              <RequiredLabel htmlFor="edit-field-19">رقم هاتف ولي الأمر</RequiredLabel>
+              <RequiredLabel htmlFor="edit-field-19">رقم {country.words.phone} ولي الأمر</RequiredLabel>
               <Input
                 id="edit-field-19"
                 type="tel"
                 value={form.parentPhone}
                 onChange={(e) => update("parentPhone", e.target.value)}
-                placeholder="07XXXXXXXX"
+                placeholder={`0${country.phone.placeholder}`}
                 dir="ltr"
                 className="text-left"
               />

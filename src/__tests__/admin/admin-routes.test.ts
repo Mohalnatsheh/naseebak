@@ -126,7 +126,7 @@ describe("notifications broadcast", () => {
     const res = await sendNotification(jsonReq({ title: "t", body: "b", url: "https://evil.example" }));
     expect(res?.status).toBe(200);
     expect(db.user.findMany.mock.calls[0][0].where).toEqual({
-      role: "USER", isDeactivated: false, status: { not: "SUSPENDED" },
+      role: "USER", isDeactivated: false, status: { not: "SUSPENDED" }, country: "JO",
     });
     expect(notifyMock.notifyMany).toHaveBeenCalledWith(["a", "b"], expect.objectContaining({ type: "SYSTEM", url: "/dashboard" }));
   });

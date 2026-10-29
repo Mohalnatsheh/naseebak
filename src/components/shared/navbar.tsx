@@ -1,25 +1,17 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Link from "next/link";
+import Link from "@/components/shared/site-link";
 import { usePathname } from "next/navigation";
 import Image from "next/image";
 import { Menu, ArrowLeft, X, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
+import { CountrySwitcher } from "@/components/shared/visitor-country";
 
-function JordanFlag({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 1200 600" className={className} aria-label="علم الأردن">
-      <rect width="1200" height="200" fill="#000" />
-      <rect y="200" width="1200" height="200" fill="#fff" />
-      <rect y="400" width="1200" height="200" fill="#007A3D" />
-      <polygon points="0,0 450,300 0,600" fill="#CE1126" />
-      <polygon points="135,260 150,300 190,300 158,325 170,365 135,343 100,365 112,325 80,300 120,300" fill="#fff" />
-    </svg>
-  );
-}
+// The visitor's country shows as an emoji flag + name in the switcher (the Saudi flag carries the
+// Shahada: never drawn as a graphic next to the logo)
 
 const sectionLinks = [
   { href: "#features", label: "المميزات" },
@@ -104,7 +96,6 @@ export function Navbar() {
             priority
             loading="eager"
           />
-          <JordanFlag className="h-4 w-6 rounded-[2px] shadow-sm" />
         </Link>
 
         {/* Desktop nav links */}
@@ -155,6 +146,7 @@ export function Navbar() {
 
         {/* Desktop auth buttons */}
         <div className="hidden md:flex items-center gap-2.5">
+          <CountrySwitcher onDark={onDark} />
           <Button
             variant="ghost"
             asChild
@@ -178,109 +170,119 @@ export function Navbar() {
           </Button>
         </div>
 
-        {/* Mobile menu */}
-        <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-          <SheetTrigger asChild className="xl:hidden">
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label="فتح القائمة"
-              className={cn("h-10 w-10 rounded-xl", onDark ? "text-white hover:bg-white/10 hover:text-white" : "hover:bg-muted/60")}
-            >
-              <Menu className="h-5 w-5" />
-            </Button>
-          </SheetTrigger>
-          <SheetContent side="right" className="w-80 border-r-0" showCloseButton={false}>
-            {/* Mobile menu header */}
-            <div className="flex items-center justify-between mb-8">
-              <div className="flex items-center gap-2">
-                <SheetTitle className="sr-only">القائمة</SheetTitle>
-                <SheetDescription className="sr-only">روابط صفحات نصيبك وتسجيل الدخول</SheetDescription>
-                <Image
-                  src="/images/logo.svg"
-                  alt="نصيبك"
-                  width={120}
-                  height={52}
-                  className="h-12 w-auto"
-                />
-                <JordanFlag className="h-4 w-6 rounded-[2px] shadow-sm" />
-              </div>
+        {/* Mobile: country flag + menu */}
+        <div className="flex items-center gap-1.5 xl:hidden">
+          <CountrySwitcher onDark={onDark} compact className="md:hidden" />
+          <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+            <SheetTrigger asChild className="xl:hidden">
               <Button
                 variant="ghost"
                 size="icon"
-                aria-label="إغلاق القائمة"
-                className="h-8 w-8 rounded-lg text-muted-foreground hover:text-foreground"
-                onClick={() => setMobileOpen(false)}
+                aria-label="فتح القائمة"
+                className={cn("h-10 w-10 rounded-xl", onDark ? "text-white hover:bg-white/10 hover:text-white" : "hover:bg-muted/60")}
               >
-                <X className="h-5 w-5" />
+                <Menu className="h-5 w-5" />
               </Button>
-            </div>
-
-            {/* Mobile section links */}
-            <div className="flex flex-col gap-1">
-              {sectionLinks.map((link) => (
-                <Link
-                  key={link.href}
-                  href={`/${link.href}`}
+            </SheetTrigger>
+            <SheetContent side="right" className="w-80 border-r-0" showCloseButton={false}>
+              {/* Mobile menu header */}
+              <div className="flex items-center justify-between mb-8">
+                <div className="flex items-center gap-2">
+                  <SheetTitle className="sr-only">القائمة</SheetTitle>
+                  <SheetDescription className="sr-only">روابط صفحات نصيبك وتسجيل الدخول</SheetDescription>
+                  <Image
+                    src="/images/logo.svg"
+                    alt="نصيبك"
+                    width={120}
+                    height={52}
+                    className="h-12 w-auto"
+                  />
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="إغلاق القائمة"
+                  className="h-8 w-8 rounded-lg text-muted-foreground hover:text-foreground"
                   onClick={() => setMobileOpen(false)}
-                  className="flex items-center gap-3 text-lg font-medium text-foreground/80 hover:text-primary hover:bg-primary/5 rounded-xl px-4 py-3.5 transition-all duration-200"
                 >
-                  {link.label}
-                </Link>
+                  <X className="h-5 w-5" />
+                </Button>
+              </div>
+
+              {/* Mobile section links */}
+              <div className="flex flex-col gap-1">
+                {sectionLinks.map((link) => (
+                  <Link
+                    key={link.href}
+                    href={`/${link.href}`}
+                    onClick={() => setMobileOpen(false)}
+                    className="flex items-center gap-3 text-lg font-medium text-foreground/80 hover:text-primary hover:bg-primary/5 rounded-xl px-4 py-3.5 transition-all duration-200"
+                  >
+                    {link.label}
+                  </Link>
+                  ))}
+              </div>
+
+              <div className="my-3 h-px bg-border/30" />
+
+              {/* Mobile page links */}
+              <div className="flex flex-col gap-1">
+                {pageLinks.map((link) => (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    onClick={() => setMobileOpen(false)}
+                    className={cn(
+                      "flex items-center gap-3 text-lg font-medium rounded-xl px-4 py-3.5 transition-all duration-200",
+                      pathname === link.href
+                        ? "text-primary bg-primary/5"
+                        : "text-foreground/80 hover:text-primary hover:bg-primary/5"
+                    )}
+                  >
+                    {link.label}
+                  </Link>
                 ))}
-            </div>
+              </div>
 
-            <div className="my-3 h-px bg-border/30" />
+              <div className="my-3 h-px bg-border/30" />
 
-            {/* Mobile page links */}
-            <div className="flex flex-col gap-1">
-              {pageLinks.map((link) => (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  onClick={() => setMobileOpen(false)}
-                  className={cn(
-                    "flex items-center gap-3 text-lg font-medium rounded-xl px-4 py-3.5 transition-all duration-200",
-                    pathname === link.href
-                      ? "text-primary bg-primary/5"
-                      : "text-foreground/80 hover:text-primary hover:bg-primary/5"
-                  )}
+              {/* Country (switch any time) */}
+              <div className="px-1">
+                <p className="mb-2 px-1 text-sm font-semibold text-muted-foreground">البلد</p>
+                <CountrySwitcher variant="row" />
+              </div>
+
+              {/* Mobile auth buttons */}
+              <div className="mt-8 flex flex-col gap-3 px-1">
+                <Button
+                  variant="outline"
+                  asChild
+                  className="w-full h-12 rounded-xl font-semibold text-base border-border/60"
                 >
-                  {link.label}
-                </Link>
-              ))}
-            </div>
+                  <Link href="/login" onClick={() => setMobileOpen(false)}>
+                    تسجيل الدخول
+                  </Link>
+                </Button>
+                <Button
+                  asChild
+                  className="w-full h-12 rounded-xl font-semibold text-base bg-gradient-to-l from-primary to-primary/85 shadow-md shadow-primary/20"
+                >
+                  <Link href="/register" onClick={() => setMobileOpen(false)}>
+                    ابدأ التسجيل
+                    <ArrowLeft className="h-4 w-4 ms-1.5" />
+                  </Link>
+                </Button>
+              </div>
 
-            {/* Mobile auth buttons */}
-            <div className="mt-8 flex flex-col gap-3 px-1">
-              <Button
-                variant="outline"
-                asChild
-                className="w-full h-12 rounded-xl font-semibold text-base border-border/60"
-              >
-                <Link href="/login" onClick={() => setMobileOpen(false)}>
-                  تسجيل الدخول
-                </Link>
-              </Button>
-              <Button
-                asChild
-                className="w-full h-12 rounded-xl font-semibold text-base bg-gradient-to-l from-primary to-primary/85 shadow-md shadow-primary/20"
-              >
-                <Link href="/register" onClick={() => setMobileOpen(false)}>
-                  ابدأ التسجيل
-                  <ArrowLeft className="h-4 w-4 ms-1.5" />
-                </Link>
-              </Button>
-            </div>
-
-            {/* Bottom decoration */}
-            <div className="absolute bottom-8 left-0 right-0 flex justify-center">
-              <p className="text-xs text-muted-foreground/40">
-                الزواج بالحلال
-              </p>
-            </div>
-          </SheetContent>
-        </Sheet>
+              {/* Bottom decoration */}
+              <div className="absolute bottom-8 left-0 right-0 flex justify-center">
+                <p className="text-xs text-muted-foreground/40">
+                  الزواج بالحلال
+                </p>
+              </div>
+            </SheetContent>
+          </Sheet>
+        </div>
       </nav>
     </header>
   );

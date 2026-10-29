@@ -3,6 +3,7 @@ import { requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { notify } from "@/lib/notify";
 import { parsePagination } from "@/lib/utils";
+import { byUserCountry, getAdminCountry } from "@/lib/admin/country-filter";
 
 export async function GET(request: Request) {
   try {
@@ -12,11 +13,13 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     const tab = url.searchParams.get("tab") || "pending";
     const { page, pageSize, skip } = parsePagination(url.searchParams, 20);
+    // Admin's selected country ("ALL" = every country)
+    const byCountry = byUserCountry(await getAdminCountry(request), "user");
 
     if (tab === "history") {
       const [docs, total] = await Promise.all([
         db.identityDoc.findMany({
-          where: { status: { not: "PENDING" } },
+          where: { ...byCountry, status: { not: "PENDING" } },
           skip,
           take: pageSize,
           orderBy: { reviewedAt: "desc" },
@@ -29,7 +32,7 @@ export async function GET(request: Request) {
             },
           },
         }),
-        db.identityDoc.count({ where: { status: { not: "PENDING" } } }),
+        db.identityDoc.count({ where: { ...byCountry, status: { not: "PENDING" } } }),
       ]);
 
       return NextResponse.json({
@@ -42,7 +45,7 @@ export async function GET(request: Request) {
 
     // Default: pending — include profile photos so admins can compare them with the selfie
     const docs = await db.identityDoc.findMany({
-      where: { status: "PENDING" },
+      where: { ...byCountry, status: "PENDING" },
       include: {
         user: {
           select: {

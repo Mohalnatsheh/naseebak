@@ -1,17 +1,27 @@
 import type { Metadata } from "next";
+import { getVisitorCountry } from "@/lib/countries/server";
+import { publicCopy } from "@/lib/public-copy";
+import { absoluteUrl, seoAlternates } from "@/lib/site-paths";
 
-export const metadata: Metadata = {
-  title: "من نحن",
-  description:
-    "تعرّف على قصة نصيبك ورسالتنا في تيسير الزواج بالحلال في الأردن — تقنية حديثة مع عادات أردنية أصيلة، بسترة واحترام",
-  alternates: { canonical: "https://naseebak.com/about" },
-  openGraph: {
-    title: "من نحن | نصيبك",
+/** Description and Open Graph locale follow the visitor's country */
+export async function generateMetadata(): Promise<Metadata> {
+  const country = await getVisitorCountry();
+  const copy = publicCopy(country);
+  return {
+    title: "من نحن",
     description:
-      "تعرّف على قصة نصيبك ورسالتنا في تيسير الزواج بالحلال في الأردن",
-    url: "https://naseebak.com/about",
-  },
-};
+      country === "SA"
+        ? "تعرّف على قصة نصيبك ورسالتنا في تيسير الزواج بالحلال في المملكة العربية السعودية — تقنية حديثة تحترم عاداتنا وقيمنا، بستر واحترام"
+        : "تعرّف على قصة نصيبك ورسالتنا في تيسير الزواج بالحلال في الأردن — تقنية حديثة مع عادات أردنية أصيلة، بسترة واحترام",
+    alternates: seoAlternates("/about", country),
+    openGraph: {
+      title: "من نحن | نصيبك",
+      description: `تعرّف على قصة نصيبك ورسالتنا في تيسير الزواج بالحلال ${copy.inCountry}`,
+      url: absoluteUrl("/about", country),
+      locale: copy.ogLocale,
+    },
+  };
+}
 
 export default function AboutLayout({
   children,

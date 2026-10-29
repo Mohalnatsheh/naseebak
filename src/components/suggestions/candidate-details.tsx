@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useDashboardData } from "@/contexts/dashboard-context";
-import { describeOption, nationalityLabel, oppositeGender } from "@/lib/profile-options";
+import { describeOption, nationalityLabel, oppositeGender, tribeLabel } from "@/lib/profile-options";
 import {
   User, Calendar, MapPin, MapPinned, Flag, Baby, Ruler, Weight, Palette, GraduationCap, BookOpen,
   Briefcase, Wallet, Moon, Cigarette, Activity, UtensilsCrossed, Car, Users, Gem, Home, Heart,
@@ -107,7 +107,8 @@ function Section({
 /* ── Candidate expanded details shared component ── */
 export function CandidateDetails({ c }: { c: CandidateDetailsData }) {
   // Candidates are the other gender: describe their options in third person
-  const partnerGender = oppositeGender(useDashboardData().profile?.gender);
+  const { profile: viewer, country } = useDashboardData();
+  const partnerGender = oppositeGender(viewer?.gender);
   return (
     <div className="px-5 md:px-6 pb-4 space-y-3" style={{ animation: "fadeSlideIn 0.3s ease-out" }}>
       <Section title="المعلومات الشخصية" icon={User} defaultOpen={true}>
@@ -141,7 +142,7 @@ export function CandidateDetails({ c }: { c: CandidateDetailsData }) {
         <InfoRow icon={Car} label="رخصة قيادة" value={c.drivingLicense !== null && c.drivingLicense !== undefined ? (c.drivingLicense ? "نعم" : "لا") : null} />
       </Section>
       <Section title="العائلة" icon={Users} defaultOpen={true}>
-        <InfoRow icon={Gem} label="العشيرة" value={c.tribe} />
+        <InfoRow icon={Gem} label={tribeLabel(country)} value={c.tribe} />
         <InfoRow icon={MapPinned} label="منطقة أصل العائلة" value={c.familyOriginArea} />
         <InfoRow icon={Users} label="عدد الإخوة" value={c.numberOfSiblings !== null && c.numberOfSiblings !== undefined ? `${c.numberOfSiblings}` : null} />
         <InfoRow icon={Home} label="نوع السكن" value={c.housingType} />

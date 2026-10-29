@@ -7,16 +7,19 @@ import { toast } from "sonner";
 import { CalendarClock, Loader2, LogOut, PauseCircle, RotateCcw, ShieldCheck, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { formatDate as formatCountryDate } from "@/lib/countries";
 
 interface Props {
   firstName: string;
   isFemale: boolean;
+  /** Account country (JO / SA): dates follow it */
+  country?: string;
   /** ISO date of the scheduled permanent deletion, or null when the account is only paused */
   deletionScheduledAt: string | null;
 }
 
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString("ar-JO-u-nu-latn", {
+function formatDate(iso: string, country: unknown) {
+  return formatCountryDate(iso, country, {
     weekday: "long",
     year: "numeric",
     month: "long",
@@ -28,7 +31,7 @@ function daysLeft(iso: string) {
   return Math.max(0, Math.ceil((new Date(iso).getTime() - Date.now()) / (24 * 60 * 60 * 1000)));
 }
 
-export function ReactivatePanel({ firstName, isFemale, deletionScheduledAt }: Props) {
+export function ReactivatePanel({ firstName, isFemale, country, deletionScheduledAt }: Props) {
   const [loading, setLoading] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const deleting = !!deletionScheduledAt;
@@ -97,7 +100,7 @@ export function ReactivatePanel({ firstName, isFemale, deletionScheduledAt }: Pr
                 <CalendarClock className="mt-0.5 h-5 w-5 flex-shrink-0 text-destructive" />
                 <p className="text-sm leading-relaxed text-foreground">
                   سيُحذف حسابك نهائياً بتاريخ{" "}
-                  <span className="font-bold text-destructive">{formatDate(deletionScheduledAt)}</span>
+                  <span className="font-bold text-destructive">{formatDate(deletionScheduledAt, country)}</span>
                   {remaining > 0 && (
                     <span className="text-muted-foreground">
                       {" "}

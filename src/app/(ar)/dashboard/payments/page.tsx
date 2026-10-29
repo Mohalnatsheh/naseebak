@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, Suspense } from "react";
+import { useState, useEffect, useEffectEvent, useCallback, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { loadStripe } from "@stripe/stripe-js";
@@ -38,6 +38,10 @@ import { LoadError } from "@/components/shared/load-error";
 import { PageHeader } from "@/components/shared/page-header";
 import { markPageNotificationsRead } from "@/lib/notifications-client";
 import { discountPercent } from "@/lib/payments/packages";
+import { COUNTRIES, formatDate, toCountry } from "@/lib/countries";
+
+/** «ر.س» for riyal rows; anything else (Jordan's rows: JOD / USD) as stored */
+const currencyLabel = (c: string) => (c === "SAR" ? "ر.س" : c);
 
 const stripePromise = loadStripe(
   process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!
@@ -49,8 +53,12 @@ interface CreditPackage {
   credits: number;
   price: number;
   currency: string;
-  /** Amount actually charged by Stripe, in USD */
+  /** «د.أ» / «ر.س» */
+  currencySymbol?: string;
+  /** Amount actually charged by Stripe, in USD (Jordan only) */
   chargeUsd?: number;
+  /** What the card is charged: «4.23$» / «15 ر.س» */
+  chargeLabel?: string;
   popular?: boolean;
   /** Opening offer: the old price, struck through */
   wasPrice?: number;
@@ -96,7 +104,11 @@ function PaymentsContent() {
   // New cycle: a credit is spent per family/chat request, suggestions are free;
   // credit on interest: a credit is spent on "مهتم" instead, requests are free
   // `switchesLoading`: the copy depends on the switch flags, so wait for them (no legacy-copy flash)
-  const { counts: { flags }, refreshUnread, refreshProfile, loading: switchesLoading } = useDashboardData();
+  const { counts: { flags }, refreshUnread, refreshProfile, loading: switchesLoading, country: memberCountry } = useDashboardData();
+  // Packages, currency and wording follow the member's country (the plans answer names it)
+  const [planCountry, setPlanCountry] = useState<string | null>(null);
+  const country = COUNTRIES[toCountry(planCountry ?? memberCountry)];
+  const currencySymbol = (pkg?: CreditPackage | null) => pkg?.currencySymbol ?? country.currency.symbol;
   const perRequest = flags.introRequests;
   const creditOnInterest = !!flags.creditOnInterest;
   const router = useRouter();
@@ -134,6 +146,7 @@ function PaymentsContent() {
       setLoadFailed(false);
 
       setPackages(plansData.packages || []);
+      if (plansData.country) setPlanCountry(plansData.country);
       setPayments(histData.payments || []);
       setMatchCredits(histData.matchCredits ?? 0);
       setHistTotalPages(histData.totalPages || 1);
@@ -151,6 +164,9 @@ function PaymentsContent() {
     init();
   }, [loadData]);
 
+  // Analytics only: the currency is read when the payment is confirmed, not a reason to re-check it
+  const trackPaid = useEffectEvent(() => trackEvent("payment_success", { currency: country.currency.code }));
+
   // Handle return from embedded checkout
   useEffect(() => {
     const sessionId = searchParams.get("session_id");
@@ -159,7 +175,7 @@ function PaymentsContent() {
         .then((res) => res.json())
         .then((data) => {
           if (data.status === "complete" && data.paymentStatus === "paid") {
-            trackEvent("payment_success", { currency: "JOD" });
+            trackPaid();
             setToast({
               type: "success",
               message: "تم الدفع بنجاح! تمت إضافة الرصيد",
@@ -196,7 +212,7 @@ function PaymentsContent() {
       });
       const result = await res.json();
       if (res.ok && result.clientSecret) {
-        trackEvent("begin_checkout", { currency: "JOD", package_name: packageName });
+        trackEvent("begin_checkout", { currency: country.currency.code, package_name: packageName });
         setCheckoutSecret(result.clientSecret);
         setCheckoutPackageName(packageName);
         setCheckoutPackage(packages.find((p) => p.id === packageId) ?? null);
@@ -308,10 +324,16 @@ function PaymentsContent() {
           <div className="rounded-2xl border border-accent/30 bg-accent/10 px-4 py-3 text-sm leading-relaxed">
             <p className="font-bold text-foreground">
               المبلغ الذي سيظهر في صفحة الدفع: {checkoutPackage.chargeUsd.toFixed(2)}$
-              <span className="font-semibold text-muted-foreground"> (= {checkoutPackage.price} د.أ)</span>
+              <span className="font-semibold text-muted-foreground"> (= {checkoutPackage.price} {currencySymbol(checkoutPackage)})</span>
             </p>
             <p className="text-muted-foreground mt-0.5">
               الدفع يتم بالدولار الأمريكي، وقد يحوّل بنكك المبلغ إلى الدينار حسب سعر الصرف لديه.
+            </p>
+          </div>
+        ) : checkoutPackage ? (
+          <div className="rounded-2xl border border-accent/30 bg-accent/10 px-4 py-3 text-sm leading-relaxed">
+            <p className="font-bold text-foreground">
+              المبلغ الذي سيظهر في صفحة الدفع: {checkoutPackage.chargeLabel ?? `${checkoutPackage.price} ${currencySymbol(checkoutPackage)}`}
             </p>
           </div>
         ) : null}
@@ -409,7 +431,7 @@ function PaymentsContent() {
       </PageHeader>
 
       {/* Opening offer: why the prices are low right now */}
-      {packages.some((p) => discountPercent({ priceJod: p.price, wasJod: p.wasPrice })) && (
+      {packages.some((p) => discountPercent({ price: p.price, wasPrice: p.wasPrice })) && (
         <section className="landing-night relative overflow-hidden rounded-2xl px-4 py-4 text-white shadow-md shadow-primary/15 sm:px-6">
           <div className="landing-khatam absolute inset-0" aria-hidden />
           <div className="relative flex items-center gap-3">
@@ -419,7 +441,7 @@ function PaymentsContent() {
             <div className="min-w-0 flex-1">
               <h2 className="font-display text-lg leading-tight sm:text-xl">خصم افتتاح نصيبك</h2>
               <p className="mt-0.5 text-sm text-white/75">
-                احتفالاً بافتتاح المنصة: خصم حتى {Math.max(...packages.map((p) => discountPercent({ priceJod: p.price, wasJod: p.wasPrice }) ?? 0))}% على كل الباقات، لفترة محدودة.
+                احتفالاً بافتتاح المنصة: خصم حتى {Math.max(...packages.map((p) => discountPercent({ price: p.price, wasPrice: p.wasPrice }) ?? 0))}% على كل الباقات، لفترة محدودة.
               </p>
             </div>
           </div>
@@ -513,11 +535,11 @@ function PaymentsContent() {
                   {/* Price (the opening offer shows the old price struck through and the saving) */}
                   <div className="text-center mb-1">
                     {(() => {
-                      const off = discountPercent({ priceJod: pkg.price, wasJod: pkg.wasPrice });
+                      const off = discountPercent({ price: pkg.price, wasPrice: pkg.wasPrice });
                       return off ? (
                         <div className="mb-1 flex items-center justify-center gap-2">
                           <span className="text-base font-semibold text-muted-foreground line-through decoration-destructive/70 decoration-2">
-                            {pkg.wasPrice} د.أ
+                            {pkg.wasPrice} {currencySymbol(pkg)}
                           </span>
                           <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-800">
                             وفّر {off}%
@@ -534,14 +556,14 @@ function PaymentsContent() {
                         {pkg.price}
                       </span>
                       <span className="text-base text-muted-foreground font-semibold">
-                        د.أ
+                        {currencySymbol(pkg)}
                       </span>
                     </div>
                   </div>
 
                   {/* Per credit */}
                   <p className={`text-center text-xs text-muted-foreground ${pkg.chargeUsd ? "mb-1" : "mb-4 md:mb-6"}`}>
-                    {(pkg.price / pkg.credits).toFixed(2)} د.أ لكل رصيد
+                    {(pkg.price / pkg.credits).toFixed(2)} {currencySymbol(pkg)} لكل رصيد
                   </p>
                   {pkg.chargeUsd ? (
                     <div className="flex justify-center mb-4 md:mb-6">
@@ -612,7 +634,12 @@ function PaymentsContent() {
       </div>
 
       <p className="text-center text-xs leading-relaxed text-muted-foreground">
-        الأسعار بالدينار الأردني، ويتم الخصم بما يعادلها بالدولار الأمريكي (يظهر في كشف الحساب باسم LOGICCR). البائع: LOGIC CENTER FOR WEBSITE DESIGN ·{" "}
+        {country.code === "SA" ? (
+          // [NEEDS INPUT] statement descriptor and seller name for the Saudi Stripe account
+          <>الأسعار بالريال السعودي شاملة، ويتم الدفع بالريال عبر Stripe ·{" "}</>
+        ) : (
+          <>الأسعار بالدينار الأردني، ويتم الخصم بما يعادلها بالدولار الأمريكي (يظهر في كشف الحساب باسم LOGICCR). البائع: LOGIC CENTER FOR WEBSITE DESIGN ·{" "}</>
+        )}
         <Link href="/refund-policy" className="font-semibold text-primary underline-offset-4 hover:underline">
           سياسة الاسترداد
         </Link>
@@ -693,14 +720,11 @@ function PaymentsContent() {
                               {p.description}
                             </p>
                             <span className="text-[11px] text-muted-foreground">
-                              {new Date(p.createdAt).toLocaleDateString(
-                                "ar-JO-u-nu-latn",
-                                {
-                                  year: "numeric",
-                                  month: "short",
-                                  day: "numeric",
-                                }
-                              )}
+                              {formatDate(p.createdAt, country.code, {
+                                year: "numeric",
+                                month: "short",
+                                day: "numeric",
+                              })}
                             </span>
                           </div>
                         </div>
@@ -709,7 +733,7 @@ function PaymentsContent() {
                           <span className="text-lg font-bold text-foreground">
                             {p.amount}{" "}
                             <span className="text-xs font-medium text-muted-foreground">
-                              {p.currency}
+                              {currencyLabel(p.currency)}
                             </span>
                           </span>
                           <div className="flex items-center gap-2">

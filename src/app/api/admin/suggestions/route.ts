@@ -9,6 +9,7 @@ import { notifyMany } from "@/lib/notify";
 import { MUTUAL_SUGGESTION_MS } from "@/lib/suggestions/mutual";
 import { checkSuggestionPair } from "@/lib/admin/suggestion-pair";
 import { MAX_OPEN_SUGGESTIONS, openSuggestionCount } from "@/lib/matching/auto-suggest";
+import { getAdminCountry, userCountryWhere } from "@/lib/countries/server";
 
 export async function GET(request: Request) {
   try {
@@ -22,7 +23,7 @@ export async function GET(request: Request) {
 
     // Shared (MUTUAL) suggestions expire lazily: a PENDING row past expiresAt is shown as EXPIRED
     const now = new Date();
-    const where: Prisma.SuggestionWhereInput =
+    const byStatus: Prisma.SuggestionWhereInput =
       status === "EXPIRED"
         ? { OR: [{ status: "EXPIRED" }, { status: "PENDING", expiresAt: { lt: now } }] }
         : status === "PENDING"
@@ -30,6 +31,10 @@ export async function GET(request: Request) {
           : status
             ? { status: status as "ACCEPTED" | "REJECTED" }
             : {};
+    // Admin's selected country (suggestions are always between two members of one country)
+    const country = await getAdminCountry(request);
+    const where: Prisma.SuggestionWhereInput =
+      country === "ALL" ? byStatus : { ...byStatus, recipient: userCountryWhere(country) };
 
     const [suggestions, total, flags] = await Promise.all([
       db.suggestion.findMany({

@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { scoringSelect } from "@/lib/matching/auto-suggest";
 import { mutuallyAcceptable, type UserForScoring } from "@/lib/matching/score";
 import { isEngaged } from "@/lib/intro/followup";
+import { DEFAULT_COUNTRY, countryConfig } from "@/lib/countries";
 
 export interface PairError {
   error: string;
@@ -18,13 +19,21 @@ export async function checkSuggestionPair(recipientId: string, candidateId: stri
 
   const users = await db.user.findMany({
     where: { id: { in: [recipientId, candidateId] } },
-    select: { id: true, gender: true, role: true, status: true, isDeactivated: true, isFlagged: true, phone: true },
+    select: { id: true, gender: true, role: true, status: true, isDeactivated: true, isFlagged: true, phone: true, country: true },
   });
   const recipient = users.find((u) => u.id === recipientId);
   const candidate = users.find((u) => u.id === candidateId);
   if (!recipient || !candidate) return { error: "User not found", status: 404 };
   if (recipient.role !== "USER" || candidate.role !== "USER") return { error: "Only users can be suggested", status: 400 };
   if (recipient.gender === candidate.gender) return { error: "Both people have the same gender", status: 400 };
+  // Members are only paired within their own country (same rule as automatic suggestions).
+  // A future system setting `cross_country_matching` (off) will lift this.
+  if ((recipient.country ?? DEFAULT_COUNTRY) !== (candidate.country ?? DEFAULT_COUNTRY)) {
+    return {
+      error: `Different countries (${countryConfig(recipient.country).nameEn} / ${countryConfig(candidate.country).nameEn}): members are only suggested to people from their own country`,
+      status: 409,
+    };
+  }
   if (isTestPhone(recipient.phone) !== isTestPhone(candidate.phone)) {
     return { error: "Test accounts can only be paired with other test accounts", status: 400 };
   }

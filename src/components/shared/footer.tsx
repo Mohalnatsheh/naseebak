@@ -1,6 +1,10 @@
-import Link from "next/link";
+"use client";
+
+import Link from "@/components/shared/site-link";
 import Image from "next/image";
 import { Heart, Facebook, Twitter, Instagram, Youtube } from "lucide-react";
+import { useVisitorCountry } from "@/components/shared/visitor-country";
+import { publicCopy } from "@/lib/public-copy";
 
 // Inlined at build time (NEXT_PUBLIC_*); an empty value hides that icon
 const SOCIAL_LINKS = (
@@ -13,6 +17,7 @@ const SOCIAL_LINKS = (
 ).filter((l): l is typeof l & { href: string } => !!l.href);
 
 export function Footer() {
+  const copy = publicCopy(useVisitorCountry());
   return (
     <footer className="relative overflow-hidden bg-gradient-to-b from-card to-muted/40 border-t">
       {/* Gradient top border */}
@@ -38,7 +43,7 @@ export function Footer() {
               />
             </Link>
             <p className="text-sm text-muted-foreground leading-relaxed max-w-xs">
-              منصة أردنية توصّل العائلات بالشريك الأنسب بالحلال — تقنية ذكية مع عادات أردنية أصيلة، بسترة واحترام.
+              {copy.footerAbout}
             </p>
           </div>
 
@@ -74,7 +79,7 @@ export function Footer() {
                   info@naseebak.com
                 </a>
               </li>
-              <li>عمّان، الأردن</li>
+              <li>{copy.footerPlace}</li>
             </ul>
             {/* Social icons: only the accounts that exist (set in NEXT_PUBLIC_SOCIAL_*) */}
             {SOCIAL_LINKS.length > 0 && (
@@ -100,7 +105,7 @@ export function Footer() {
         <div className="mt-12 pt-6 border-t border-border/40">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
             <p className="flex items-center gap-1.5">
-              صُنع بـ <Heart className="h-3.5 w-3.5 text-destructive fill-destructive" /> في الأردن
+              صُنع بـ <Heart className="h-3.5 w-3.5 text-destructive fill-destructive" /> {copy.footerMadeIn}
             </p>
             <div className="flex items-center gap-4">
               <Link href="/privacy" className="hover:text-primary transition-colors duration-200">سياسة الخصوصية</Link>

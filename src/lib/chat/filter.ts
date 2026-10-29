@@ -43,11 +43,14 @@ const SOCIAL_KEYWORDS = [
 // Short names only blocked as a whole word ("ig", not "big"; "وتس", not "وتسلم" / "وتسعين")
 const SOCIAL_WORDS = new Set(["ig", "fb", "imo", "ايمو", "وتس"]);
 
-// Digits spelled out (after normalising أإآ→ا and ة→ه): standard Arabic, Jordanian dialect, English
+// Digits spelled out (after normalising أإآ→ا and ة→ه): standard Arabic, Jordanian and Gulf dialects
+// («زيرو», «ثنتين»), English. Phone numbers of every served country (Jordan 07…/962…, Saudi Arabia
+// 05…/966…) are caught by length, whatever the prefix
 const DIGIT_WORDS = new Set([
   "صفر", "واحد", "اثنين", "اثنان", "ثنين", "ثلاثه", "ثلاث", "اربعه", "اربع",
   "خمسه", "خمس", "سته", "ست", "سبعه", "سبع", "ثمانيه", "ثمان", "تسعه", "تسع",
   "تنين", "اتنين", "ثنتين", "تنتين", "تلاته", "تلات", "تلاث", "تمانيه", "تمنيه", "ثمنيه", "تمان",
+  "زيرو",
   "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine",
 ]);
 

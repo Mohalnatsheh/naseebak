@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ConfirmActionDialog } from "@/components/intro/confirm-action-dialog";
 import { PageHeader } from "@/components/shared/page-header";
+import { useDashboardData } from "@/contexts/dashboard-context";
+import { formatDate } from "@/lib/countries";
 
 interface BlockRow {
   id: string;
@@ -16,6 +18,7 @@ interface BlockRow {
 
 /** People I blocked, with unblock (GET /api/blocks, DELETE /api/blocks/[id]). */
 export default function BlocksPage() {
+  const { country } = useDashboardData();
   const [blocks, setBlocks] = useState<BlockRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -100,7 +103,7 @@ export default function BlocksPage() {
                 <div className="min-w-0">
                   <p className="font-semibold text-foreground truncate">{b.blocked.firstName}</p>
                   <p className="text-xs text-muted-foreground">
-                    حُظر بتاريخ {new Date(b.createdAt).toLocaleDateString("ar-JO-u-nu-latn")}
+                    حُظر بتاريخ {formatDate(b.createdAt, country)}
                   </p>
                 </div>
                 <Button size="sm" variant="outline" className="gap-1.5 shrink-0" onClick={() => setTarget(b)}>

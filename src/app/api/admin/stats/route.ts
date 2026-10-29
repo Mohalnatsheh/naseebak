@@ -4,26 +4,38 @@ import { db } from "@/lib/db";
 import { getCycleFlags } from "@/lib/settings";
 import { meetsSuggestionGate } from "@/lib/profile-completeness";
 import { buildFunnel, summarizeIntroRequests } from "@/lib/admin/cycle-stats";
+import {
+  byUserCountry,
+  getAdminCountry,
+  matchCountryWhere,
+  paymentCountryWhere,
+  reportCountryWhere,
+  userCountryWhere,
+  type AdminCountry,
+} from "@/lib/admin/country-filter";
 
 /** Every count on the dashboard is about members, not admins. */
 const USERS = { role: "USER" as const };
 
 /** New-cycle numbers for the dashboard (only computed while `intro_requests_enabled` is on). */
-async function cycleStats(now: Date, oneWeekAgo: Date) {
+async function cycleStats(now: Date, oneWeekAgo: Date, country: AdminCountry) {
+  const members = { ...USERS, ...userCountryWhere(country) };
+  const inCountry = country === "ALL" ? {} : { match: matchCountryWhere(country) };
   const [intro, activeChats, spent, users, suggestionUsers, matches, acceptedIntros] = await Promise.all([
-    db.introRequest.findMany({ select: { type: true, status: true, expiresAt: true } }),
-    db.conversation.count({ where: { status: "ACTIVE", expiresAt: { gt: now } } }),
+    db.introRequest.findMany({ where: byUserCountry(country, "sender"), select: { type: true, status: true, expiresAt: true } }),
+    db.conversation.count({ where: { status: "ACTIVE", expiresAt: { gt: now }, ...inCountry } }),
     // Credits spent in the cycle: requests (per-request mode) or «مهتم» (credit on interest), minus the
     // «مهتم» refunds (positive REFUND rows; a payment refund is negative and isn't spending)
     db.creditLedger.aggregate({
       where: {
         createdAt: { gte: oneWeekAgo },
+        ...byUserCountry(country, "user"),
         OR: [{ reason: { in: ["REQUEST", "INTEREST"] } }, { reason: "REFUND", delta: { gt: 0 } }],
       },
       _sum: { delta: true },
     }),
     db.user.findMany({
-      where: { role: "USER" },
+      where: members,
       select: {
         id: true,
         profile: true,
@@ -32,9 +44,12 @@ async function cycleStats(now: Date, oneWeekAgo: Date) {
         parentInfo: { select: { id: true, parentName: true } },
       },
     }),
-    db.suggestion.findMany({ select: { recipientId: true, candidateId: true } }),
-    db.mutualMatch.findMany({ select: { femaleId: true, maleId: true } }),
-    db.introRequest.findMany({ where: { status: "ACCEPTED" }, select: { senderId: true, receiverId: true } }),
+    db.suggestion.findMany({ where: byUserCountry(country, "recipient"), select: { recipientId: true, candidateId: true } }),
+    db.mutualMatch.findMany({ where: matchCountryWhere(country), select: { femaleId: true, maleId: true } }),
+    db.introRequest.findMany({
+      where: { status: "ACCEPTED", ...byUserCountry(country, "sender") },
+      select: { senderId: true, receiverId: true },
+    }),
   ]);
 
   const registered = new Set(users.map((u) => u.id));
@@ -55,10 +70,15 @@ async function cycleStats(now: Date, oneWeekAgo: Date) {
   };
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const result = await requireAdmin();
     if ("error" in result) return result.error;
+
+    // Admin's selected country: every number is for that country ("ALL" = totals of every country)
+    const country = await getAdminCountry(request);
+    const MEMBERS = { ...USERS, ...userCountryWhere(country) };
+    const payments = paymentCountryWhere(country);
 
     const now = new Date();
     const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
@@ -68,41 +88,39 @@ export async function GET() {
       totalUsers, maleUsers, femaleUsers, verifiedUsers,
       pendingVerifications, totalMatches, totalSuggestions,
       activeSubscriptions, suspendedUsers,
-      totalRevenue, completedPayments,
+      revenueTotals, completedPayments,
       pendingReports, pendingProfileRequests, pendingSupportTickets,
       flaggedUsers,
       registrationsThisWeek, registrationsLastWeek,
       recentUsers, recentMatches, recentPayments,
-      revenueThisWeek, flags,
+      revenueWeek, flags,
     ] = await Promise.all([
-      db.user.count({ where: USERS }),
-      db.user.count({ where: { ...USERS, gender: "MALE" } }),
-      db.user.count({ where: { ...USERS, gender: "FEMALE" } }),
-      db.user.count({ where: { ...USERS, status: "VERIFIED" } }),
-      db.identityDoc.count({ where: { status: "PENDING" } }),
-      db.mutualMatch.count(),
-      db.suggestion.count(),
-      db.subscription.count({ where: { status: "ACTIVE" } }),
-      db.user.count({ where: { ...USERS, status: "SUSPENDED" } }),
-      db.payment.aggregate({
-        where: { status: "COMPLETED" },
-        _sum: { amount: true },
-        _count: true,
-      }),
-      db.payment.count({ where: { status: "COMPLETED" } }),
-      db.report.count({ where: { status: "PENDING" } }),
-      db.profileUpdateRequest.count({ where: { status: "PENDING" } }),
-      db.supportTicket.count({ where: { status: { in: ["OPEN", "IN_PROGRESS"] } } }),
-      db.user.count({ where: { ...USERS, isFlagged: true } }),
-      db.user.count({ where: { ...USERS, createdAt: { gte: oneWeekAgo } } }),
-      db.user.count({ where: { ...USERS, createdAt: { gte: twoWeeksAgo, lt: oneWeekAgo } } }),
+      db.user.count({ where: MEMBERS }),
+      db.user.count({ where: { ...MEMBERS, gender: "MALE" } }),
+      db.user.count({ where: { ...MEMBERS, gender: "FEMALE" } }),
+      db.user.count({ where: { ...MEMBERS, status: "VERIFIED" } }),
+      db.identityDoc.count({ where: { status: "PENDING", ...byUserCountry(country, "user") } }),
+      db.mutualMatch.count({ where: matchCountryWhere(country) }),
+      db.suggestion.count({ where: byUserCountry(country, "recipient") }),
+      db.subscription.count({ where: { status: "ACTIVE", ...byUserCountry(country, "user") } }),
+      db.user.count({ where: { ...MEMBERS, status: "SUSPENDED" } }),
+      // Revenue is only ever added up within one currency (JOD, SAR…)
+      db.payment.groupBy({ by: ["currency"], where: { ...payments, status: "COMPLETED" }, _sum: { amount: true } }),
+      db.payment.count({ where: { ...payments, status: "COMPLETED" } }),
+      db.report.count({ where: { ...reportCountryWhere(country), status: "PENDING" } }),
+      db.profileUpdateRequest.count({ where: { status: "PENDING", ...byUserCountry(country, "user") } }),
+      db.supportTicket.count({ where: { status: { in: ["OPEN", "IN_PROGRESS"] }, ...byUserCountry(country, "user") } }),
+      db.user.count({ where: { ...MEMBERS, isFlagged: true } }),
+      db.user.count({ where: { ...MEMBERS, createdAt: { gte: oneWeekAgo } } }),
+      db.user.count({ where: { ...MEMBERS, createdAt: { gte: twoWeeksAgo, lt: oneWeekAgo } } }),
       db.user.findMany({
-        where: USERS,
+        where: MEMBERS,
         orderBy: { createdAt: "desc" },
         take: 5,
         select: { id: true, firstName: true, lastName: true, gender: true, createdAt: true },
       }),
       db.mutualMatch.findMany({
+        where: matchCountryWhere(country),
         orderBy: { createdAt: "desc" },
         take: 3,
         select: {
@@ -113,19 +131,21 @@ export async function GET() {
         },
       }),
       db.payment.findMany({
-        where: { status: "COMPLETED" },
+        where: { ...payments, status: "COMPLETED" },
         orderBy: { createdAt: "desc" },
         take: 3,
         select: {
           id: true,
           amount: true,
+          currency: true,
           planName: true,
           createdAt: true,
           user: { select: { firstName: true, lastName: true } },
         },
       }),
-      db.payment.aggregate({
-        where: { status: "COMPLETED", createdAt: { gte: oneWeekAgo } },
+      db.payment.groupBy({
+        by: ["currency"],
+        where: { ...payments, status: "COMPLETED", createdAt: { gte: oneWeekAgo } },
         _sum: { amount: true },
       }),
       getCycleFlags(),
@@ -152,24 +172,33 @@ export async function GET() {
     for (const p of recentPayments) {
       recentActivity.push({
         type: "payment",
-        description: `${p.user ? `${p.user.firstName} ${p.user.lastName}` : "Deleted account"} paid ${p.amount} JOD (${p.planName})`,
+        description: `${p.user ? `${p.user.firstName} ${p.user.lastName}` : "Deleted account"} paid ${p.amount} ${p.currency} (${p.planName})`,
         date: p.createdAt.toISOString(),
       });
     }
 
     recentActivity.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-    const cycle = flags.introRequests ? await cycleStats(now, oneWeekAgo) : null;
+    const cycle = flags.introRequests ? await cycleStats(now, oneWeekAgo, country) : null;
+
+    // One entry per currency (a single one when one country is selected)
+    const revenue = revenueTotals
+      .map((r) => ({
+        currency: r.currency,
+        total: Number(r._sum.amount ?? 0),
+        thisWeek: Number(revenueWeek.find((w) => w.currency === r.currency)?._sum.amount ?? 0),
+      }))
+      .sort((a, b) => a.currency.localeCompare(b.currency));
 
     return NextResponse.json({
+      country,
       flags,
       cycle,
       stats: {
         totalUsers, maleUsers, femaleUsers, verifiedUsers,
         pendingVerifications, totalMatches, totalSuggestions,
         activeSubscriptions, suspendedUsers,
-        totalRevenue: totalRevenue._sum.amount || 0,
-        revenueThisWeek: revenueThisWeek._sum.amount || 0,
+        revenue,
         completedPayments,
         pendingReports,
         pendingProfileRequests,

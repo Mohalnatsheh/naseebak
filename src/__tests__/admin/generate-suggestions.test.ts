@@ -26,6 +26,13 @@ vi.mock("@/lib/matching/score", () => ({
 
 import { POST as generate } from "@/app/api/admin/suggestions/generate/route";
 
+/** Admin request; `country` = the admin_country cookie (none → Jordan) */
+const req = (country?: string) =>
+  new Request("http://localhost/api/admin/suggestions/generate", {
+    method: "POST",
+    headers: country ? { cookie: `admin_country=${country}` } : {},
+  });
+
 const person = (id: string, gender: "MALE" | "FEMALE") => ({
   id, gender, matchCredits: 10, profile: { isComplete: true },
   personalityResult: null, photos: [], identityDoc: null, parentInfo: null,
@@ -48,7 +55,7 @@ describe("admin Generate with shared suggestions on", () => {
   it("runs the automatic top-up for each eligible, active user (new-cycle rules, once-a-day notices)", async () => {
     db.user.findMany.mockResolvedValue([{ id: "m1" }, { id: "f1" }, { id: "f2" }]);
     auto.autoSuggestForUser.mockImplementation(async (id: string) => (id === "m1" ? 2 : id === "f1" ? 1 : 0));
-    const res = (await generate())!;
+    const res = (await generate(req()))!;
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({ count: 3 });
     expect(auto.autoSuggestForUser.mock.calls.map((c) => c[0])).toEqual(["m1", "f1", "f2"]);
@@ -64,7 +71,7 @@ describe("admin Generate with shared suggestions on", () => {
   it("same path with credit on interest off (per-request shared flow)", async () => {
     flags.getCycleFlags.mockResolvedValue({ ...on, creditOnInterest: false });
     db.user.findMany.mockResolvedValue([{ id: "m1" }]);
-    await generate();
+    await generate(req());
     expect(auto.autoSuggestForUser).toHaveBeenCalledWith("m1");
     expect(db.suggestion.create).not.toHaveBeenCalled();
   });
@@ -76,7 +83,7 @@ describe("admin Generate with shared suggestions on", () => {
       if (id === "bad") throw new Error("boom");
       return 1;
     });
-    const res = (await generate())!;
+    const res = (await generate(req()))!;
     expect(res.status).toBe(200);
     expect((await res.json()).count).toBe(1);
     spy.mockRestore();
@@ -88,11 +95,37 @@ describe("admin Generate with shared suggestions off", () => {
     flags.getCycleFlags.mockResolvedValue({ introRequests: true, chat: true, mutualSuggestions: false, creditOnInterest: false });
     scores.byId.set("f3", 40);
     db.user.findMany.mockResolvedValue([person("m1", "MALE"), ...["f1", "f2", "f3"].map((id) => person(id, "FEMALE"))]);
-    await generate();
+    await generate(req());
     const forM1 = db.suggestion.create.mock.calls.map((c) => c[0].data).filter((d) => d.recipientId === "m1");
     expect(forM1).toHaveLength(3);
     expect(forM1.some((d) => d.candidateId === "f3")).toBe(true);
     expect(forM1.every((d) => d.flow === undefined)).toBe(true);
     expect(auto.autoSuggestForUser).not.toHaveBeenCalled();
+  });
+});
+
+describe("admin Generate per country (multi-country)", () => {
+  it("shared flow: runs only for the admin's selected country (Jordan by default, every country with ALL)", async () => {
+    db.user.findMany.mockResolvedValue([]);
+    await generate(req());
+    expect(db.user.findMany.mock.calls[0][0].where.country).toBe("JO");
+    await generate(req("SA"));
+    expect(db.user.findMany.mock.calls[1][0].where.country).toBe("SA");
+    await generate(req("ALL"));
+    expect(db.user.findMany.mock.calls[2][0].where).not.toHaveProperty("country");
+  });
+
+  it("legacy flow with ALL: never pairs a Jordanian with a Saudi", async () => {
+    flags.getCycleFlags.mockResolvedValue({ introRequests: true, chat: true, mutualSuggestions: false, creditOnInterest: false });
+    db.user.findMany.mockResolvedValue([
+      { ...person("jo-m", "MALE"), country: "JO" },
+      { ...person("jo-f", "FEMALE"), country: "JO" },
+      { ...person("sa-m", "MALE"), country: "SA" },
+      { ...person("sa-f", "FEMALE"), country: "SA" },
+    ]);
+    await generate(req("ALL"));
+    const pairs = db.suggestion.create.mock.calls.map((c) => [c[0].data.recipientId, c[0].data.candidateId]);
+    expect(pairs.length).toBeGreaterThan(0);
+    for (const [a, b] of pairs) expect(a.slice(0, 2)).toBe(b.slice(0, 2));
   });
 });

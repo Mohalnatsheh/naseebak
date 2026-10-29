@@ -2,14 +2,17 @@ import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { notify, notifyMany } from "@/lib/notify";
+import { byUserCountry, getAdminCountry, userCountryWhere } from "@/lib/admin/country-filter";
+import { countryConfig } from "@/lib/countries";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const result = await requireAdmin();
     if ("error" in result) return result.error;
 
     const notifications = await db.notification.findMany({
-      where: { type: "SYSTEM" },
+      // Admin's selected country ("ALL" = every country)
+      where: { type: "SYSTEM", ...byUserCountry(await getAdminCountry(request), "user") },
       orderBy: { createdAt: "desc" },
       take: 50,
       select: {
@@ -58,22 +61,30 @@ export async function POST(request: Request) {
     }
 
     const input = { type: "SYSTEM" as const, title, body: notifBody, url: safeUrl(body.url) };
+    // Sends only reach the admin's selected country ("ALL" = every country)
+    const country = await getAdminCountry(request);
 
     if (userId) {
       if (typeof userId !== "string") {
         return NextResponse.json({ error: "Invalid user" }, { status: 400 });
       }
-      const user = await db.user.findUnique({ where: { id: userId }, select: { id: true } });
+      const user = await db.user.findUnique({ where: { id: userId }, select: { id: true, country: true } });
       if (!user) {
         return NextResponse.json({ error: "User not found" }, { status: 404 });
+      }
+      if (country !== "ALL" && user.country !== country) {
+        return NextResponse.json(
+          { error: `This member is in ${countryConfig(user.country).nameEn}: switch the admin country to send to them` },
+          { status: 409 }
+        );
       }
       await notify({ ...input, userId });
       return NextResponse.json({ message: "Notification sent to user" });
     }
 
-    // Broadcast: active users only (not suspended, not deactivated)
+    // Broadcast: active users only (not suspended, not deactivated), of the selected country
     const users = await db.user.findMany({
-      where: { role: "USER", isDeactivated: false, status: { not: "SUSPENDED" } },
+      where: { role: "USER", isDeactivated: false, status: { not: "SUSPENDED" }, ...userCountryWhere(country) },
       select: { id: true },
     });
 
@@ -87,7 +98,8 @@ export async function POST(request: Request) {
       await notifyMany(userIds.slice(i, i + BROADCAST_BATCH), input);
     }
 
-    return NextResponse.json({ message: `Notification sent to ${users.length} users` });
+    const where = country === "ALL" ? "" : ` in ${countryConfig(country).nameEn}`;
+    return NextResponse.json({ message: `Notification sent to ${users.length} users${where}` });
   } catch (error) {
     console.error("Admin send notification error:", error);
     return NextResponse.json({ error: "Server error" }, { status: 500 });

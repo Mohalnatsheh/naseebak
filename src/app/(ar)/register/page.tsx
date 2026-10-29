@@ -2,7 +2,7 @@
 
 import { compressImage } from "@/lib/image-compress";
 import { useState, useRef, useCallback, useEffect, Suspense } from "react";
-import Link from "next/link";
+import Link from "@/components/shared/site-link";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
@@ -31,6 +31,10 @@ import {
 import { trackEvent } from "@/lib/analytics";
 import { toLatinDigits } from "@/lib/digits";
 import { takeLandingStart } from "@/lib/landing-start";
+import { useVisitorCountry } from "@/components/shared/visitor-country";
+import { DialCodeToggle } from "@/components/shared/dial-code-toggle";
+import { COUNTRIES, type CountryCode } from "@/lib/countries";
+import { dialCountryFor, isPhoneFor, phoneExampleError, phoneFormatsError, phoneWord } from "@/lib/phone-field";
 
 /** Seconds before another verification code may be requested (the server also limits 3 per 5 minutes) */
 const RESEND_SECONDS = 60;
@@ -167,6 +171,10 @@ function RegisterPageContent() {
     otp: "",
     referralCode: "",
   });
+  /** Dial-code toggle (🇯🇴 +962 / 🇸🇦 +966), preselected from the visitor's country; the account's
+   *  country is then taken from the number on the server */
+  const visitorCountry = useVisitorCountry();
+  const [country, setCountry] = useState<CountryCode>(visitorCountry);
   /** One required tick: terms + privacy policy + 18 or older (stored as User.termsAcceptedAt) */
   const [termsAccepted, setTermsAccepted] = useState(false);
 
@@ -187,6 +195,7 @@ function RegisterPageContent() {
         const handoff = JSON.parse(raw) as { phone?: string; otp?: string; at?: number };
         if (handoff.phone && handoff.otp && Date.now() - (handoff.at ?? 0) < 10 * 60 * 1000) {
           setForm((prev) => ({ ...prev, phone: handoff.phone!, otp: handoff.otp! }));
+          setCountry((c) => dialCountryFor(handoff.phone!, c));
           setOtpSent(true);
           setOtpAlreadyVerified(true);
         }
@@ -199,6 +208,7 @@ function RegisterPageContent() {
     const start = takeLandingStart(typeof window === "undefined" ? undefined : window.sessionStorage);
     if (start) {
       setForm((prev) => ({ ...prev, gender: start.gender, phone: prev.phone || start.phone }));
+      if (start.phone) setCountry((c) => dialCountryFor(start.phone, c));
     }
 
     const invitationCode = searchParams.get("invitationCode");
@@ -250,13 +260,12 @@ function RegisterPageContent() {
     setOtpNotice("");
     if (resendIn > 0) return;
     // Say what is wrong with the number here, instead of the server's generic "invalid data"
-    const cleaned = form.phone.replace(/[\s\-()]/g, "");
-    if (!/^(?:00962|0?0?\+?962|0)?7[789]\d{7}$/.test(cleaned)) {
-      setError("رقم الهاتف غير صالح. أدخل رقماً أردنياً مثل 0791234567");
+    if (!isPhoneFor(form.phone, country)) {
+      setError(phoneExampleError(country));
       return;
     }
     setSendingOtp(true);
-    const normalizedPhone = normalizePhone(form.phone);
+    const normalizedPhone = normalizePhone(form.phone, country);
 
     try {
       const res = await fetch("/api/auth/send-otp", {
@@ -306,12 +315,11 @@ function RegisterPageContent() {
       return false;
     }
     if (!form.phone) {
-      setError("يرجى إدخال رقم الهاتف");
+      setError(`يرجى إدخال رقم ${phoneWord(country)}`);
       return false;
     }
-    const cleaned = form.phone.replace(/[\s\-()]/g, "");
-    if (!/^(?:00962|0?0?\+?962|0)?7[789]\d{7}$/.test(cleaned)) {
-      setError("رقم الهاتف غير صالح. الصيغ المقبولة: 07X, 7X, 9627X, +9627X, 009627X");
+    if (!isPhoneFor(form.phone, country)) {
+      setError(phoneFormatsError(country));
       return false;
     }
     if (!otpSent) {
@@ -356,7 +364,7 @@ function RegisterPageContent() {
     setError("");
     setLoading(true);
 
-    const normalizedPhone = normalizePhone(form.phone);
+    const normalizedPhone = normalizePhone(form.phone, country);
 
     try {
       // Step 1: Verify the OTP first (skip if already verified from login redirect)
@@ -855,29 +863,35 @@ function RegisterPageContent() {
                     htmlFor="phone"
                     className="text-xs font-semibold text-muted-foreground"
                   >
-                    رقم الهاتف
+                    رقم {phoneWord(country)}
                   </Label>
                   <div className="relative">
-                    <div dir="ltr" className="absolute left-0 top-0 bottom-0 flex items-center pl-3 pointer-events-none z-10">
-                      <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                        <svg width="20" height="14" viewBox="0 0 22 16" className="rounded-sm shadow-sm shrink-0">
-                          <rect width="22" height="5.33" fill="#000" />
-                          <rect y="5.33" width="22" height="5.33" fill="#fff" />
-                          <rect y="10.66" width="22" height="5.34" fill="#007A3D" />
-                          <polygon points="0,0 10,8 0,16" fill="#CE1126" />
-                          <polygon points="3.6,6.4 4.2,8 3,7 4.4,7 3.2,8" fill="#fff" transform="scale(0.7) translate(1.5,5)" />
-                        </svg>
-                        <span className="font-medium text-xs">+962</span>
-                      </span>
-                      <span className="mx-2 h-4 w-px bg-border/60" />
+                    <div dir="ltr" className="absolute left-0 top-0 bottom-0 flex items-center pl-1 z-10">
+                      <DialCodeToggle
+                        country={country}
+                        disabled={otpAlreadyVerified}
+                        className="h-8 text-xs"
+                        onChange={(c) => {
+                          setCountry(c);
+                          if (otpSent) {
+                            setOtpSent(false);
+                            updateField("otp", "");
+                          }
+                          setOtpAlreadyVerified(false);
+                        }}
+                      />
+                      <span className="mx-1 h-4 w-px bg-border/60 pointer-events-none" />
                     </div>
                     <Input
                       id="phone"
                       type="tel"
-                      placeholder="7XXXXXXXX"
+                      placeholder={COUNTRIES[country].phone.placeholder}
                       value={form.phone}
                       onChange={(e) => {
-                        updateField("phone", toLatinDigits(e.target.value));
+                        const v = toLatinDigits(e.target.value);
+                        updateField("phone", v);
+                        // A full number of the other country switches the dial code to it
+                        setCountry((c) => dialCountryFor(v, c));
                         if (otpSent) {
                           setOtpSent(false);
                           updateField("otp", "");
@@ -958,7 +972,7 @@ function RegisterPageContent() {
                     <Shield className="h-4 w-4 text-primary" />
                   </div>
                   <span className="leading-relaxed text-xs">
-                    اسمك الكامل ورقم هاتفك محميان بالكامل ولن يظهرا لأي مستخدم آخر على المنصة. يُعرض فقط الاسم الأول للمستخدمين الآخرين
+                    اسمك الكامل ورقم {country === "SA" ? "جوالك" : "هاتفك"} محميان بالكامل ولن يظهرا لأي مستخدم آخر على المنصة. يُعرض فقط الاسم الأول للمستخدمين الآخرين
                   </span>
                 </div>
 

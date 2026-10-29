@@ -3,10 +3,12 @@
 import { Phone, MessageCircle, ShieldCheck, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { GuardianContact } from "@/lib/intro/requests";
-import { RELATIONSHIP_LABELS, formatJordanPhone } from "./intro-utils";
+import { RELATIONSHIP_LABELS, formatGuardianPhone } from "./intro-utils";
+import { useDashboardData } from "@/contexts/dashboard-context";
 
 /** Shown to both sides after an accepted family introduction. */
 export function GuardianContactCard({ contact, partnerName }: { contact?: GuardianContact; partnerName: string }) {
+  const { country } = useDashboardData();
   if (!contact) {
     return (
       <div className="rounded-2xl border border-emerald-200/60 bg-emerald-50/60 p-4 text-sm text-emerald-800 dark:bg-emerald-950/20 dark:text-emerald-300">
@@ -15,7 +17,7 @@ export function GuardianContactCard({ contact, partnerName }: { contact?: Guardi
     );
   }
 
-  const phone = formatJordanPhone(contact.phone);
+  const phone = formatGuardianPhone(contact.phone, country);
   return (
     <div className="rounded-2xl border border-emerald-200/60 bg-gradient-to-l from-emerald-50/80 to-card p-4 md:p-5 dark:from-emerald-950/20">
       <div className="flex items-center gap-2 text-sm font-semibold text-emerald-800 dark:text-emerald-300">

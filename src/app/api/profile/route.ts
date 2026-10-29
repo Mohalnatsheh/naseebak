@@ -24,6 +24,7 @@ export async function GET() {
         email: true,
         phone: true,
         gender: true,
+        country: true,
         status: true,
         isVerified: true,
         isDeactivated: true,

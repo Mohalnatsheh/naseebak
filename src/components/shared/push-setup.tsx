@@ -20,6 +20,8 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { forViewer } from "@/lib/gendered-copy";
+import { useDashboardData } from "@/contexts/dashboard-context";
+import { countryConfig } from "@/lib/countries";
 import { requestPushPermission } from "@/lib/push-client";
 import {
   currentDevice,
@@ -311,6 +313,8 @@ export function PushSetupFlow({
   // «تفعيل» answered without a pop-up (Chrome's quiet bell, or it was closed)
   const [noPrompt, setNoPrompt] = useState(false);
   const v = (m: string, f: string) => forViewer(gender, m, f);
+  // «هاتفك» / «جوالك»: the member's country (Jordan outside the dashboard)
+  const handset = countryConfig(useDashboardData().country).words.phone;
 
   if (!device || !stage || !permission) return null;
 
@@ -367,7 +371,7 @@ export function PushSetupFlow({
           <div className="space-y-3 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3">
             <p className="text-sm font-semibold leading-relaxed">
               {anyBrowser
-                ? v("لم ينتقل إلى Chrome؟ قد لا يكون Chrome على هاتفك. افتحه في أي متصفح آخر:", "لم ينتقل إلى Chrome؟ قد لا يكون Chrome على هاتفكِ. افتحيه في أي متصفح آخر:")
+                ? v(`لم ينتقل إلى Chrome؟ قد لا يكون Chrome على ${handset}ك. افتحه في أي متصفح آخر:`, `لم ينتقل إلى Chrome؟ قد لا يكون Chrome على ${handset}كِ. افتحيه في أي متصفح آخر:`)
                 : v("لم ينتقل؟ استخدم الطريقة اليدوية بالأسفل.", "لم ينتقل؟ استخدمي الطريقة اليدوية بالأسفل.")}
             </p>
             {anyBrowser && (
@@ -411,7 +415,7 @@ export function PushSetupFlow({
     body = (
       <div className="space-y-4">
         <div className="space-y-1.5">
-          <h3 className="font-display text-xl">{v("أضف نصيبك إلى شاشة هاتفك", "أضيفي نصيبك إلى شاشة هاتفكِ")}</h3>
+          <h3 className="font-display text-xl">{v(`أضف نصيبك إلى شاشة ${handset}ك`, `أضيفي نصيبك إلى شاشة ${handset}كِ`)}</h3>
           <p className="text-sm leading-relaxed text-muted-foreground">
             على iPhone تصل الإشعارات فقط عندما يُفتح نصيبك من أيقونته. ثلاث ضغطات، ثم افتحه من الأيقونة:
           </p>

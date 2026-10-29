@@ -627,3 +627,31 @@ describe("pairAvailability", () => {
     expect(map.get("open")).toBe("no");
   });
 });
+
+describe("same country only (multi-country)", () => {
+  it("a Saudi member gets only Saudi candidates", async () => {
+    db.user.findUnique.mockResolvedValue({ ...person("sa-m", "MALE"), country: "SA" });
+    db.user.findMany.mockResolvedValue(["sa-f1", "sa-f2"].map((id) => ({ ...person(id, "FEMALE"), country: "SA" })));
+    expect(await autoSuggestForUser("sa-m")).toBe(2);
+    expect(db.user.findMany.mock.calls[0][0].where.country).toBe("SA");
+    // The viewer's country comes from the same select as the scoring fields
+    expect(db.user.findUnique.mock.calls[0][0].select.country).toBe(true);
+  });
+
+  it("a Jordanian member is only matched with Jordanians", async () => {
+    db.user.findUnique.mockResolvedValue({ ...person("jo-f", "FEMALE"), country: "JO" });
+    db.user.findMany.mockResolvedValue([]);
+    await autoSuggestForUser("jo-f");
+    expect(db.user.findMany.mock.calls[0][0].where.country).toBe("JO");
+  });
+
+  it("credit on interest: only reveals hidden cards from the member's own country", async () => {
+    flags.getCycleFlags.mockResolvedValue({ introRequests: true, chat: true, mutualSuggestions: true, creditOnInterest: true });
+    db.suggestion.count.mockResolvedValue(0);
+    db.user.findUnique.mockResolvedValue({ ...person("sa-f", "FEMALE"), country: "SA" });
+    db.user.findMany.mockResolvedValue([]);
+    await autoSuggestForUser("sa-f");
+    const reveal = db.suggestion.findMany.mock.calls.map((c) => c[0].where).find((w) => w.hiddenFromCandidate === true);
+    expect(reveal.recipient).toMatchObject({ country: "SA", isDeactivated: false });
+  });
+});

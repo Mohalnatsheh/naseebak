@@ -11,12 +11,13 @@ import { InstallAppCard } from "@/components/shared/install-app-card";
 import { PollCard } from "@/components/engagement/poll-card";
 import { LoadError } from "@/components/shared/load-error";
 import { listTimeLabel } from "@/components/chat/chat-utils";
+import { formatDate, type CountryCode } from "@/lib/countries";
 import { qualifiesForSuggestions as qualifiesForSuggestionsGate } from "@/lib/profile-completeness";
 import { matchesHref } from "@/lib/matches/links";
 import type { ChatSummary } from "@/lib/chat/service";
 import type { FeedItem } from "@/lib/suggestions/feed-types";
 
-/** Amman time (UTC+3 all year), whatever the device clock says */
+/** Local time in Jordan and Saudi Arabia (both UTC+3 all year), whatever the device clock says */
 function ammanHour(): number {
   return (new Date().getUTCHours() + 3) % 24;
 }
@@ -26,8 +27,8 @@ function getGreeting() {
   return h >= 4 && h < 12 ? "صباح الخير" : "مساء الخير";
 }
 
-function getArabicDate() {
-  return new Date().toLocaleDateString("ar-JO-u-nu-latn", { weekday: "long", day: "numeric", month: "long", timeZone: "Asia/Amman" });
+function getArabicDate(country: CountryCode) {
+  return formatDate(new Date(), country, { weekday: "long", day: "numeric", month: "long" });
 }
 
 /**
@@ -36,7 +37,7 @@ function getArabicDate() {
  * it's not complete). Every number comes from the server (/api/me/counts, /api/chats).
  */
 export default function DashboardPage() {
-  const { profile, completeness, counts, unreadCount, loading, profileFailed, refreshProfile } = useDashboardData();
+  const { profile, completeness, counts, unreadCount, loading, profileFailed, refreshProfile, country } = useDashboardData();
   const [retrying, setRetrying] = useState(false);
   // Why nothing new came ("weekly_cap" | "no_candidates" | "pending" | null), from page 1 of /api/suggestions
   const [emptyReason, setEmptyReason] = useState<string | null>(null);
@@ -180,7 +181,7 @@ export default function DashboardPage() {
           <h1 className="font-display truncate text-xl leading-tight">
             {getGreeting()}، {profile.firstName}
           </h1>
-          <p className="mt-0.5 text-xs text-white/65">{getArabicDate()}</p>
+          <p className="mt-0.5 text-xs text-white/65">{getArabicDate(country)}</p>
         </div>
         {/* Phones have the bell in the top bar; desktop gets it here */}
         <Link
@@ -284,7 +285,7 @@ export default function DashboardPage() {
                     <span className="min-w-0 flex-1">
                       <span className="flex items-center justify-between gap-2">
                         <span className="truncate font-bold text-foreground">{c.partner.firstName}</span>
-                        {c.lastMessage && <span className="shrink-0 text-xs text-muted-foreground">{listTimeLabel(c.lastMessage.createdAt)}</span>}
+                        {c.lastMessage && <span className="shrink-0 text-xs text-muted-foreground">{listTimeLabel(c.lastMessage.createdAt, country)}</span>}
                       </span>
                       <span className={cn("block truncate text-sm", c.unread > 0 ? "font-semibold text-foreground" : "text-muted-foreground")}>
                         {c.lastMessage ? `${c.lastMessage.mine ? g("أنت: ", "أنتِ: ") : ""}${c.lastMessage.body}` : g("ابدأ المحادثة", "ابدئي المحادثة")}

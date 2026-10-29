@@ -26,6 +26,7 @@ export async function GET(request: Request) {
         firstName: true,
         lastName: true,
         gender: true,
+        country: true,
         profile: true,
         personalityResult: { select: { vector: true } },
         photos: { select: { id: true } },
@@ -48,6 +49,8 @@ export async function GET(request: Request) {
           isDeactivated: false,
           status: { not: "SUSPENDED" },
           gender: oppositeGender,
+          // Same country only, like automatic suggestions (a future `cross_country_matching` setting lifts this)
+          country: targetUser.country,
           profile: { isComplete: true },
         },
         select: {

@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link from "@/components/shared/site-link";
 import {
   Building2,
   Receipt,
@@ -17,10 +17,12 @@ import { Footer } from "@/components/shared/footer";
 import { useInView } from "@/hooks/use-in-view";
 import { PageHeroPhoto } from "@/components/shared/page-hero-photo";
 import { IslamicPatternBg } from "@/components/shared/islamic-pattern";
+import { useVisitorCountry } from "@/components/shared/visitor-country";
 
 /* ──────────────────── DATA ──────────────────── */
 
-const sections = [
+/** Jordan (the original text) */
+const joSections = [
   {
     icon: Building2,
     title: "الجهة البائعة",
@@ -76,11 +78,73 @@ const sections = [
   },
 ];
 
+/** Saudi version (reviewed copy from naseebak-ksa) */
+const saSections = [
+  {
+    icon: Building2,
+    title: "الجهة البائعة",
+    items: [
+      // [NEEDS LEGAL REVIEW: KSA] [NEEDS INPUT] legal name, commercial registration (CR) and VAT number of the Saudi operator
+      "تُشغّل منصة نصيبك الجهةُ المالكة لها، وتتم جميع عمليات الدفع على المنصة باسمها.",
+      "للتواصل بخصوص أي عملية دفع: info@naseebak.com أو صفحة «تواصل معنا».",
+    ],
+  },
+  {
+    icon: Receipt,
+    title: "ما الذي تشتريه",
+    items: [
+      "الأرصدة خدمة رقمية تُستخدم داخل المنصة فقط، وتُضاف إلى حسابك فور إتمام الدفع.",
+      "لا قيمة نقدية للأرصدة، ولا يمكن تحويلها إلى مستخدم آخر أو صرفها نقداً.",
+      "لا يوجد اشتراك ولا تجديد تلقائي؛ كل عملية شراء دفعة واحدة، ويبقى الرصيد في حسابك حتى استخدامه.",
+      // [NEEDS LEGAL REVIEW: KSA] [NEEDS INPUT] card statement descriptor; confirm whether prices include VAT
+      "تُعرض الأسعار بالريال السعودي (ر.س)، ويُخصم من البطاقة المبلغ نفسه بالريال السعودي.",
+    ],
+  },
+  {
+    icon: RotateCcw,
+    title: "متى يحق لك الاسترداد",
+    items: [
+      // [NEEDS LEGAL REVIEW: KSA] check against the e-commerce law and consumer rules for digital services
+      "خلال 14 يوماً من تاريخ الشراء، إذا لم يُستخدم أي رصيد من الباقة المشتراة.",
+      "إذا خُصم المبلغ أكثر من مرة لعملية الشراء نفسها، يُسترد المبلغ المكرر كاملاً.",
+      "إذا تم الدفع ولم تُضف الأرصدة إلى حسابك، نضيفها فوراً أو نسترد المبلغ كاملاً حسب رغبتك.",
+    ],
+  },
+  {
+    icon: Ban,
+    title: "حالات لا يشملها الاسترداد",
+    items: [
+      "الأرصدة التي استُخدمت داخل المنصة وفق قواعد خصم الرصيد المبيّنة في شروط الاستخدام.",
+      "طلبات الاسترداد بعد مرور 14 يوماً على الشراء، باستثناء الخصم المكرر أو عدم إضافة الأرصدة.",
+      "الحسابات التي تم إيقافها أو حذفها بسبب مخالفة شروط الاستخدام.",
+    ],
+  },
+  {
+    icon: Mail,
+    title: "كيف تطلب الاسترداد",
+    items: [
+      "راسلنا على info@naseebak.com أو عبر صفحة «تواصل معنا»، مع ذكر الاسم المسجّل ورقم الجوال المرتبط بالحساب وتاريخ الشراء والمبلغ.",
+      "نرد على طلبك خلال 3 أيام عمل.",
+      "عند الموافقة، يُعاد المبلغ إلى البطاقة نفسها التي تم الدفع بها، ويظهر عادةً خلال 5 إلى 10 أيام عمل حسب البنك.",
+      "عند استرداد مبلغ باقة، تُخصم أرصدة تلك الباقة من حسابك.",
+    ],
+  },
+  {
+    icon: AlertTriangle,
+    title: "عملية لا تعرفها؟",
+    items: [
+      "إذا لاحظت في كشف حسابك عملية لا تعرفها من نصيبك، يُرجى التواصل معنا أولاً وسنحلّها بسرعة قبل فتح اعتراض لدى البنك.",
+    ],
+  },
+];
+
 /* ══════════════════════════════════════════════════════ */
 /*               REFUND POLICY PAGE                      */
 /* ══════════════════════════════════════════════════════ */
 
 export default function RefundPolicyPage() {
+  const sa = useVisitorCountry() === "SA";
+  const sections = sa ? saSections : joSections;
   const { ref: introRef, inView: introInView } = useInView(0.15);
   const { ref: sectionsRef, inView: sectionsInView } = useInView(0.1);
   const { ref: contactRef, inView: contactInView } = useInView(0.15);
@@ -146,7 +210,7 @@ export default function RefundPolicyPage() {
               className="mx-auto mt-4 text-sm text-muted-foreground/70"
               style={{ animation: "fadeSlideUp 0.8s ease-out 0.6s both" }}
             >
-              آخر تحديث: 22 أكتوبر 2026
+              آخر تحديث: {sa ? "24 أكتوبر 2026" : "22 أكتوبر 2026"}
             </p>
           </div>
         </section>

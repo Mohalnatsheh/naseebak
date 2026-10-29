@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, Suspense } from "react";
-import Link from "next/link";
+import Link from "@/components/shared/site-link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
 import Image from "next/image";
@@ -22,11 +22,18 @@ import { toLatinDigits } from "@/lib/digits";
 import { safeCallbackPath } from "@/lib/safe-redirect";
 import { rateLimitedMinutes } from "@/lib/login-limit";
 import { arabicCount } from "@/lib/utils";
+import { useVisitorCountry } from "@/components/shared/visitor-country";
+import { DialCodeToggle } from "@/components/shared/dial-code-toggle";
+import { COUNTRIES, type CountryCode } from "@/lib/countries";
+import { dialCountryFor, isPhoneFor, phoneFormatsError, phoneWord } from "@/lib/phone-field";
 
 function LoginPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [phone, setPhone] = useState("");
+  /** Dial-code toggle (🇯🇴 +962 / 🇸🇦 +966), preselected from the visitor's country */
+  const visitorCountry = useVisitorCountry();
+  const [country, setCountry] = useState<CountryCode>(visitorCountry);
   const [otp, setOtp] = useState("");
   const [otpSent, setOtpSent] = useState(false);
   /** Wait before another code may be requested (the server also limits 3 per 5 minutes) */
@@ -61,12 +68,9 @@ function LoginPageContent() {
     }
   }, [otpSent]);
 
-  const phoneRegex = /^(?:00962|0?0?\+?962|0)?7[789]\d{7}$/;
-
   function validatePhone(): boolean {
-    const cleaned = phone.replace(/[\s\-()]/g, "");
-    if (!phoneRegex.test(cleaned)) {
-      setError("رقم الهاتف غير صالح. الصيغ المقبولة: 07X, 7X, 9627X, +9627X, 009627X");
+    if (!isPhoneFor(phone, country)) {
+      setError(phoneFormatsError(country));
       setShake(true);
       setTimeout(() => setShake(false), 600);
       return false;
@@ -82,7 +86,7 @@ function LoginPageContent() {
       return;
     }
     setSendingOtp(true);
-    const normalizedPhone = normalizePhone(phone);
+    const normalizedPhone = normalizePhone(phone, country);
 
     try {
       const res = await fetch("/api/auth/send-otp", {
@@ -134,7 +138,7 @@ function LoginPageContent() {
     setError("");
     setLoading(true);
 
-    const normalizedPhone = normalizePhone(phone);
+    const normalizedPhone = normalizePhone(phone, country);
 
     try {
       // First verify the OTP
@@ -416,7 +420,7 @@ function LoginPageContent() {
                 <h1>تسجيل الدخول</h1>
               </CardTitle>
               <CardDescription className="text-base text-muted-foreground">
-                أدخل رقم هاتفك للدخول إلى حسابك
+                أدخل رقم {country === "SA" ? "جوالك" : "هاتفك"} للدخول إلى حسابك
               </CardDescription>
             </CardHeader>
 
@@ -429,7 +433,7 @@ function LoginPageContent() {
                     style={{ animation: "fadeSlideDown 0.3s ease-out both" }}
                   >
                     <Info className="size-4 shrink-0" />
-                    رقم الهاتف مسجل مسبقاً. سجّل دخولك من هنا
+                    رقم {phoneWord(country)} مسجل مسبقاً. سجّل دخولك من هنا
                   </div>
                 )}
 
@@ -454,29 +458,32 @@ function LoginPageContent() {
                   }}
                 >
                   <Label htmlFor="phone" className="text-sm font-semibold">
-                    رقم الهاتف
+                    رقم {phoneWord(country)}
                   </Label>
                   <div className="relative group">
-                    <div dir="ltr" className="absolute left-0 top-0 bottom-0 flex items-center pl-3 pointer-events-none z-10">
-                      <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                        <svg width="22" height="16" viewBox="0 0 22 16" className="rounded-sm shadow-sm shrink-0">
-                          <rect width="22" height="5.33" fill="#000" />
-                          <rect y="5.33" width="22" height="5.33" fill="#fff" />
-                          <rect y="10.66" width="22" height="5.34" fill="#007A3D" />
-                          <polygon points="0,0 10,8 0,16" fill="#CE1126" />
-                          <polygon points="3.6,6.4 4.2,8 3,7 4.4,7 3.2,8" fill="#fff" transform="scale(0.7) translate(1.5,5)" />
-                        </svg>
-                        <span className="font-medium">+962</span>
-                      </span>
-                      <span className="mx-2 h-5 w-px bg-border/60" />
+                    <div dir="ltr" className="absolute left-0 top-0 bottom-0 flex items-center pl-1.5 z-10">
+                      <DialCodeToggle
+                        country={country}
+                        onChange={(c) => {
+                          setCountry(c);
+                          if (otpSent) {
+                            setOtpSent(false);
+                            setOtp("");
+                          }
+                        }}
+                      />
+                      <span className="mx-1.5 h-5 w-px bg-border/60 pointer-events-none" />
                     </div>
                     <Input
                       id="phone"
                       type="tel"
-                      placeholder="7XXXXXXXX"
+                      placeholder={COUNTRIES[country].phone.placeholder}
                       value={phone}
                       onChange={(e) => {
-                        setPhone(toLatinDigits(e.target.value));
+                        const v = toLatinDigits(e.target.value);
+                        setPhone(v);
+                        // A full number of the other country switches the dial code to it
+                        setCountry((c) => dialCountryFor(v, c));
                         if (otpSent) {
                           setOtpSent(false);
                           setOtp("");

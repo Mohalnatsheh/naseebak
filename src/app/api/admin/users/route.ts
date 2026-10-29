@@ -3,6 +3,7 @@ import { requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { parsePagination } from "@/lib/utils";
 import type { Prisma } from "@prisma/client";
+import { getAdminCountry, userCountryWhere } from "@/lib/countries/server";
 
 export async function GET(request: Request) {
   try {
@@ -18,7 +19,8 @@ export async function GET(request: Request) {
     const gender = url.searchParams.get("gender") || "";
     const status = url.searchParams.get("status") || "";
 
-    const where: Prisma.UserWhereInput = {};
+    // Admin's selected country ("ALL" = every country)
+    const where: Prisma.UserWhereInput = { ...userCountryWhere(await getAdminCountry(request)) };
 
     if (search) {
       where.OR = [
@@ -51,6 +53,7 @@ export async function GET(request: Request) {
           email: true,
           phone: true,
           gender: true,
+          country: true,
           role: true,
           status: true,
           isVerified: true,

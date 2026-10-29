@@ -1,21 +1,33 @@
 import { NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { startOfAmmanDay } from "@/lib/amman-day";
 import { findAnyPackage } from "@/lib/payments/packages";
+import { countryConfig } from "@/lib/countries";
+import { getAdminCountry, paymentCountryWhere } from "@/lib/admin/country-filter";
 import { changePct, conversionPct, fillDays, sumDays, type DayRow } from "@/lib/admin/revenue";
 
 const DAY = 24 * 60 * 60 * 1000;
 const num = (v: unknown) => Number(v ?? 0);
 
 /**
- * Admin dashboard → Revenue (JOD, Amman days): today, yesterday, the day before, the last 14 days, 7 / 30 days with the
- * change from the period before, all time, today's packages, and the latest payments.
+ * Admin dashboard → Revenue for the admin's selected country, in its currency (Amman and Riyadh are both UTC+3, so
+ * one day boundary serves both): today, yesterday, the day before, the last 14 days, 7 / 30 days with the change from
+ * the period before, all time, today's packages, and the latest payments. «All countries» shows the default country,
+ * never a sum of different currencies.
  */
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const result = await requireAdmin();
     if ("error" in result) return result.error;
+
+    const picked = await getAdminCountry(request);
+    const country = picked === "ALL" ? "JO" : picked;
+    const currency = countryConfig(country).currency.code;
+    const byCountry = paymentCountryWhere(country);
+    // Same rule as paymentCountryWhere, in SQL: the member's country, or the currency for a deleted member's payment
+    const inCountry = Prisma.sql`((p."userId" IS NOT NULL AND u.country = ${country}) OR (p."userId" IS NULL AND p.currency = ${currency}))`;
 
     const now = new Date();
     const today0 = startOfAmmanDay(now);
@@ -23,33 +35,35 @@ export async function GET() {
 
     const [dailyRaw, allTime, todayPackages, sameTimeYesterday, recent] = await Promise.all([
       db.$queryRaw<{ day: string; started: bigint; paid: bigint; revenue: unknown; payers: bigint; refunded: unknown }[]>`
-        SELECT to_char(("createdAt" + interval '3 hours')::date, 'YYYY-MM-DD') AS day,
+        SELECT to_char((p."createdAt" + interval '3 hours')::date, 'YYYY-MM-DD') AS day,
           count(*) AS started,
-          count(*) FILTER (WHERE status = 'COMPLETED') AS paid,
-          coalesce(sum(amount) FILTER (WHERE status = 'COMPLETED'), 0) AS revenue,
-          count(DISTINCT "userId") FILTER (WHERE status = 'COMPLETED') AS payers,
-          coalesce(sum(amount) FILTER (WHERE status = 'REFUNDED'), 0) AS refunded
-        FROM payments WHERE "createdAt" >= ${since}
+          count(*) FILTER (WHERE p.status = 'COMPLETED') AS paid,
+          coalesce(sum(p.amount) FILTER (WHERE p.status = 'COMPLETED'), 0) AS revenue,
+          count(DISTINCT p."userId") FILTER (WHERE p.status = 'COMPLETED') AS payers,
+          coalesce(sum(p.amount) FILTER (WHERE p.status = 'REFUNDED'), 0) AS refunded
+        FROM payments p LEFT JOIN users u ON u.id = p."userId"
+        WHERE p."createdAt" >= ${since} AND ${inCountry}
         GROUP BY 1`,
       db.$queryRaw<{ revenue: unknown; paid: bigint; payers: bigint; refunded: unknown }[]>`
-        SELECT coalesce(sum(amount) FILTER (WHERE status = 'COMPLETED'), 0) AS revenue,
-          count(*) FILTER (WHERE status = 'COMPLETED') AS paid,
-          count(DISTINCT "userId") FILTER (WHERE status = 'COMPLETED') AS payers,
-          coalesce(sum(amount) FILTER (WHERE status = 'REFUNDED'), 0) AS refunded
-        FROM payments`,
+        SELECT coalesce(sum(p.amount) FILTER (WHERE p.status = 'COMPLETED'), 0) AS revenue,
+          count(*) FILTER (WHERE p.status = 'COMPLETED') AS paid,
+          count(DISTINCT p."userId") FILTER (WHERE p.status = 'COMPLETED') AS payers,
+          coalesce(sum(p.amount) FILTER (WHERE p.status = 'REFUNDED'), 0) AS refunded
+        FROM payments p LEFT JOIN users u ON u.id = p."userId"
+        WHERE ${inCountry}`,
       db.payment.groupBy({
         by: ["planName"],
-        where: { status: "COMPLETED", createdAt: { gte: today0 } },
+        where: { status: "COMPLETED", createdAt: { gte: today0 }, ...byCountry },
         _count: { _all: true },
         _sum: { amount: true },
       }),
       db.payment.aggregate({
-        where: { status: "COMPLETED", createdAt: { gte: new Date(today0.getTime() - DAY), lte: new Date(now.getTime() - DAY) } },
+        where: { status: "COMPLETED", createdAt: { gte: new Date(today0.getTime() - DAY), lte: new Date(now.getTime() - DAY) }, ...byCountry },
         _sum: { amount: true },
         _count: { _all: true },
       }),
       db.payment.findMany({
-        where: { status: "COMPLETED" },
+        where: { status: "COMPLETED", ...byCountry },
         orderBy: { createdAt: "desc" },
         take: 8,
         select: { id: true, createdAt: true, amount: true, planName: true, user: { select: { id: true, firstName: true, gender: true } } },
@@ -66,11 +80,13 @@ export async function GET() {
     const d30 = sumDays(last(30)), p30 = sumDays(last(30, 30));
     const label = (id: string | null) => {
       const p = findAnyPackage(id);
-      return p ? `${p.credits} credits · ${p.priceJod} JOD` : id ?? "—";
+      return p ? `${p.credits} credits · ${p.price} ${p.currency}` : id ?? "—";
     };
 
     return NextResponse.json({
       asOf: now,
+      country,
+      currency,
       days: last(14),
       today: { ...today, conversion: conversionPct(today.paid, today.started) },
       yesterday: { ...yesterday, conversion: conversionPct(yesterday.paid, yesterday.started) },

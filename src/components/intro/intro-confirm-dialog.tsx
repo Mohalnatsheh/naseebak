@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { useDashboardData } from "@/contexts/dashboard-context";
+import { countryConfig } from "@/lib/countries";
 import { GuardianQuickForm } from "./guardian-quick-form";
 
 export type IntroDialogMode = "send" | "accept" | "decline";
@@ -34,9 +35,10 @@ interface Props {
   onConfirm: (consent: boolean) => void;
 }
 
-const POINTS: Record<"FAMILY" | "CHAT", string[]> = {
+/** `phoneWord`: «الهاتف» (Jordan) / «الجوال» (Saudi Arabia), the viewer's country */
+const points = (phoneWord: string): Record<"FAMILY" | "CHAT", string[]> => ({
   FAMILY: [
-    "عند القبول تظهر لكل طرف بيانات وليّ أمر الطرف الآخر: الاسم وصلة القرابة ورقم الهاتف.",
+    `عند القبول تظهر لكل طرف بيانات وليّ أمر الطرف الآخر: الاسم وصلة القرابة ورقم ال${phoneWord}.`,
     "تتواصل العائلتان مباشرة لترتيب موعد الزيارة.",
   ],
   CHAT: [
@@ -44,7 +46,7 @@ const POINTS: Record<"FAMILY" | "CHAT", string[]> = {
     "لا يُسمح بمشاركة أرقام الهواتف أو الروابط أو حسابات التواصل.",
     "يمكنكما الانتقال لتعارف عائلي في أي وقت.",
   ],
-};
+});
 
 /** Credit on interest: requests (and chat → family) are free after the match. */
 export const FREE_REQUEST_NOTE = "مجاناً — الطلبات والمحادثة مجانية بعد التوافق.";
@@ -71,7 +73,8 @@ export function IntroConfirmDialog({
   const [guardianSaved, setGuardianSaved] = useState(false);
   const guardian = guardianSaved ? { exists: true, consented: guardianProp.consented } : guardianProp;
   // The partner is the opposite gender of the viewer
-  const viewerGender = useDashboardData().profile?.gender;
+  const { profile: viewer, country } = useDashboardData();
+  const viewerGender = viewer?.gender;
   const partnerFemale = viewerGender === "MALE";
   const viewerFemale = viewerGender === "FEMALE";
   // Start fresh each time the dialog opens (adjusting state while rendering, not in an effect)
@@ -125,7 +128,7 @@ export function IntroConfirmDialog({
 
         {mode === "send" && (
           <ul className="space-y-2">
-            {POINTS[type].map((p) => (
+            {points(countryConfig(country).words.phone)[type].map((p) => (
               <li key={p} className="flex items-start gap-2 text-sm text-foreground/80">
                 <Check className="mt-0.5 h-4 w-4 flex-shrink-0 text-primary" />
                 <span>{p}</span>

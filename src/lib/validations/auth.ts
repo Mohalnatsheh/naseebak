@@ -1,15 +1,43 @@
 import { z } from "zod/v4";
 import { toLatinDigits } from "@/lib/digits";
+import { COUNTRIES, COUNTRY_CODES, type CountryCode } from "@/lib/countries";
 
-// Matches all Jordanian mobile formats:
-// 07[789]XXXXXXX, 7[789]XXXXXXX, 9627[789]XXXXXXX, +9627[789]XXXXXXX, 009627[789]XXXXXXX
+// Jordanian mobile formats: 07[789]XXXXXXX, 7[789]XXXXXXX, 9627[789]XXXXXXX, +9627[789]XXXXXXX, 009627[789]XXXXXXX
 export const jordanPhoneRegex = /^(?:00962|0?0?\+?962|0)?7[789]\d{7}$/;
+// Saudi mobile formats: 05XXXXXXXX, 5XXXXXXXX, 9665XXXXXXXX, +9665XXXXXXXX, 009665XXXXXXXX
+export const saudiPhoneRegex = /^(?:00966|\+966|966|0)?5\d{8}$/;
+
+const PHONE_REGEX: Record<CountryCode, RegExp> = { JO: jordanPhoneRegex, SA: saudiPhoneRegex };
+
+function cleanPhone(v: string): string {
+  return toLatinDigits(v).replace(/[\s\-()]/g, "");
+}
+
+/** Valid mobile of `country` (any of its formats), or of any served country when none is given */
+export function isValidPhone(v: string, country?: CountryCode): boolean {
+  const cleaned = cleanPhone(v);
+  return (country ? [country] : COUNTRY_CODES).some((c) => PHONE_REGEX[c].test(cleaned));
+}
+
+/**
+ * The country a typed number belongs to: by its international prefix, else by its local shape
+ * (7[789]… = Jordan, 5… = Saudi Arabia), else `fallback`.
+ */
+export function phoneInputCountry(v: string, fallback?: CountryCode): CountryCode | null {
+  const cleaned = cleanPhone(v);
+  for (const c of COUNTRY_CODES) {
+    const dial = COUNTRIES[c].dialCode;
+    if (cleaned.startsWith(`00${dial}`) || cleaned.startsWith(`+${dial}`) || (cleaned.startsWith(dial) && cleaned.length > 10)) return c;
+  }
+  for (const c of COUNTRY_CODES) if (PHONE_REGEX[c].test(cleaned)) return c;
+  return fallback ?? null;
+}
 
 // Arabic-Indic / Persian digits are accepted and converted first (Arabic keyboards)
 const phoneSchema = z
   .string()
-  .transform((v) => toLatinDigits(v).replace(/[\s\-()]/g, ""))
-  .pipe(z.string().regex(jordanPhoneRegex, "رقم الهاتف غير صالح. الصيغ المقبولة: 07X, 7X, 9627X, +9627X, 009627X"));
+  .transform((v) => cleanPhone(v))
+  .pipe(z.string().refine((v) => isValidPhone(v), "رقم الهاتف غير صالح. أدخل رقماً أردنياً (07…) أو سعودياً (05…)"));
 
 const otpCodeSchema = z
   .string()
@@ -17,15 +45,15 @@ const otpCodeSchema = z
   .pipe(z.string().regex(/^\d{6}$/, "رمز التحقق يجب أن يكون 6 أرقام"));
 
 /**
- * Normalize any valid Jordanian phone format to 962XXXXXXXXX (international)
- * Call this before sending to the API.
+ * Normalize any valid Jordanian or Saudi mobile to its international form (962… / 966…).
+ * The country comes from the number itself; `country` only decides a number that fits neither.
  */
-export function normalizePhone(phone: string): string {
-  const cleaned = toLatinDigits(phone).replace(/[\s\-()]/g, "");
-  // Remove leading 00962, +962, 962, or 0
-  const normalized = cleaned.replace(/^(?:00962|\+962|962|0)/, "");
-  // normalized should now be 7[789]XXXXXXX (9 digits)
-  return `962${normalized}`;
+export function normalizePhone(phone: string, country?: CountryCode): string {
+  const cleaned = cleanPhone(phone);
+  const c = phoneInputCountry(cleaned, country) ?? "JO";
+  const dial = COUNTRIES[c].dialCode;
+  const national = cleaned.replace(new RegExp(`^(?:00${dial}|\\+${dial}|${dial}|0)`), "");
+  return `${dial}${national}`;
 }
 
 export const sendOtpSchema = z.object({

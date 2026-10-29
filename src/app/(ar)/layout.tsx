@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import type { CountryCode } from "@/lib/countries";
 import { Cairo } from "next/font/google";
 import "../globals.css";
 import PublicTracking from "@/components/shared/public-tracking";
@@ -6,6 +7,10 @@ import { connection } from "next/server";
 import { auth } from "@/lib/auth";
 import { getMaintenanceState } from "@/lib/settings";
 import { MaintenanceScreen } from "@/components/shared/maintenance-screen";
+import { getGeoCountry, getVisitorCountry, hasCountryChoice } from "@/lib/countries/server";
+import { CountrySuggestBanner } from "@/components/shared/country-suggest-banner";
+import { publicCopy } from "@/lib/public-copy";
+import { VisitorCountryProvider } from "@/components/shared/visitor-country";
 
 const cairo = Cairo({
   subsets: ["arabic", "latin"],
@@ -13,26 +18,25 @@ const cairo = Cairo({
   display: "swap",
 });
 
-export const metadata: Metadata = {
+/** Description, keywords and Open Graph locale follow the visitor's country (Jordan by default) */
+export async function generateMetadata(): Promise<Metadata> {
+  const copy = publicCopy(await getVisitorCountry());
+  return {
+    ...baseMetadata,
+    description: copy.description,
+    keywords: copy.keywords,
+    openGraph: { ...baseMetadata.openGraph, locale: copy.ogLocale, description: copy.description },
+    twitter: { ...baseMetadata.twitter, description: copy.shortDescription },
+  };
+}
+
+const baseMetadata = {
   metadataBase: new URL("https://naseebak.com"),
   title: {
     default: "نصيبك - نوصّلك بشريك العمر بالحلال",
     template: "%s | نصيبك",
   },
-  description:
-    "منصة أردنية توصّل العائلات بالشريك الأنسب بالحلال — تقنية ذكية مع عادات أردنية أصيلة، بسترة واحترام",
-  alternates: { canonical: "https://naseebak.com" },
-  keywords: [
-    "زواج",
-    "زواج بالحلال",
-    "نصيبك",
-    "زواج أردني",
-    "تعارف للزواج",
-    "شريك الحياة",
-    "زواج إسلامي",
-    "خطبة",
-    "الأردن",
-  ],
+  // No site-wide canonical: every page sets its own (localized pages: src/lib/site-paths.ts seoAlternates)
   authors: [{ name: "نصيبك", url: "https://naseebak.com" }],
   creator: "نصيبك",
   publisher: "نصيبك",
@@ -51,18 +55,13 @@ export const metadata: Metadata = {
   appleWebApp: { capable: true, title: "نصيبك", statusBarStyle: "default" },
   openGraph: {
     type: "website",
-    locale: "ar_JO",
     url: "https://naseebak.com",
     siteName: "نصيبك",
     title: "نصيبك - نوصّلك بشريك العمر بالحلال",
-    description:
-      "منصة أردنية توصّل العائلات بالشريك الأنسب بالحلال — تقنية ذكية مع عادات أردنية أصيلة، بسترة واحترام",
   },
   twitter: {
     card: "summary_large_image",
     title: "نصيبك - نوصّلك بشريك العمر بالحلال",
-    description:
-      "منصة أردنية توصّل العائلات بالشريك الأنسب بالحلال — تقنية ذكية مع عادات أردنية أصيلة",
   },
   robots: {
     index: true,
@@ -75,7 +74,7 @@ export const metadata: Metadata = {
       "max-snippet": -1,
     },
   },
-};
+} satisfies Metadata;
 
 // iPhone: without viewport-fit=cover every env(safe-area-inset-*) is 0, so the bottom bars
 // (dashboard tabs, chat box, landing start bar) sat under the home indicator in the installed app
@@ -85,22 +84,21 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-const organizationJsonLd = {
-  "@context": "https://schema.org",
-  "@type": "Organization",
-  name: "نصيبك",
-  alternateName: "Naseebak",
-  url: "https://naseebak.com",
-  logo: "https://naseebak.com/images/logo.svg",
-  description:
-    "منصة أردنية توصّل العائلات بالشريك الأنسب بالحلال — تقنية ذكية مع عادات أردنية أصيلة",
-  foundingDate: "2025",
-  areaServed: {
-    "@type": "Country",
-    name: "Jordan",
-  },
-  sameAs: [],
-};
+function organizationJsonLd(country: CountryCode) {
+  const copy = publicCopy(country);
+  return {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    name: "نصيبك",
+    alternateName: "Naseebak",
+    url: "https://naseebak.com",
+    logo: "https://naseebak.com/images/logo.svg",
+    description: copy.shortDescription,
+    foundingDate: "2025",
+    areaServed: copy.areaServed,
+    sameAs: [],
+  };
+}
 
 const websiteJsonLd = {
   "@context": "https://schema.org",
@@ -125,6 +123,7 @@ export default async function ArabicLayout({
   const maintenance = await getMaintenanceState();
   const isAdmin = maintenance.enabled ? (await auth())?.user?.role === "ADMIN" : false;
   const showMaintenance = maintenance.enabled && !isAdmin;
+  const [country, geoCountry, hasChoice] = await Promise.all([getVisitorCountry(), getGeoCountry(), hasCountryChoice()]);
 
   return (
     <html lang="ar" dir="rtl">
@@ -132,7 +131,7 @@ export default async function ArabicLayout({
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
-            __html: JSON.stringify(organizationJsonLd),
+            __html: JSON.stringify(organizationJsonLd(country)),
           }}
         />
         <script
@@ -141,18 +140,21 @@ export default async function ArabicLayout({
         />
         {/* GA4, GTM, Meta Pixel — public pages only (never the dashboard, chats or admin) */}
         <PublicTracking />
-        {showMaintenance ? (
-          <MaintenanceScreen message={maintenance.message} />
-        ) : (
-          <>
-            {maintenance.enabled && (
-              <div className="sticky top-0 z-[100] bg-amber-500 px-4 py-1.5 text-center text-xs font-bold text-white">
-                وضع الصيانة مفعّل — الزوار يرون صفحة الصيانة، وأنت ترى الموقع لأنك مسؤول
-              </div>
-            )}
-            {children}
-          </>
-        )}
+        <VisitorCountryProvider country={country}>
+          {showMaintenance ? (
+            <MaintenanceScreen message={maintenance.message} />
+          ) : (
+            <>
+              {maintenance.enabled && (
+                <div className="sticky top-0 z-[100] bg-amber-500 px-4 py-1.5 text-center text-xs font-bold text-white">
+                  وضع الصيانة مفعّل — الزوار يرون صفحة الصيانة، وأنت ترى الموقع لأنك مسؤول
+                </div>
+              )}
+              {children}
+              <CountrySuggestBanner siteCountry={country} geoCountry={geoCountry} hasChoice={hasChoice} />
+            </>
+          )}
+        </VisitorCountryProvider>
       </body>
     </html>
   );

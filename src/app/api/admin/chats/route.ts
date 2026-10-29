@@ -4,6 +4,7 @@ import { requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { parsePagination } from "@/lib/utils";
 import { personSearch } from "@/lib/admin/search";
+import { getAdminCountry, matchCountryWhere } from "@/lib/admin/country-filter";
 import { effectiveConversationStatus } from "@/lib/admin/cycle-stats";
 import { chatSmsOverview } from "@/lib/chat/unread-sms";
 import { enumParam } from "@/lib/admin/query";
@@ -31,17 +32,22 @@ export async function GET(request: Request) {
     const who = personSearch(q);
     // A pasted chat id finds that chat directly
     const byId = /^c[a-z0-9]{20,30}$/.test(q) ? q : null;
+    // Admin's selected country (both people of a match are always from one country)
+    const byCountry = matchCountryWhere(await getAdminCountry(request));
 
     const where: Prisma.ConversationWhereInput = {
       ...(status === "ACTIVE" && { status: "ACTIVE", expiresAt: { gt: now } }),
       ...(status === "ENDED" && { status: "ENDED" }),
       ...(status === "EXPIRED" && { OR: [{ status: "EXPIRED" }, { status: "ACTIVE", expiresAt: { lte: now } }] }),
-      ...(byId ? { id: byId } : who && { match: { OR: [{ female: who }, { male: who }] } }),
+      ...(byId
+        ? { id: byId }
+        : { match: { ...byCountry, ...(who && { OR: [{ female: who }, { male: who }] }) } }),
     };
 
     // Every chat (small table) with its activity, for the summary, the filters and the sort
     const [all, perSender, lastRows, reportRows] = await Promise.all([
       db.conversation.findMany({
+        where: { match: byCountry },
         select: { id: true, status: true, createdAt: true, expiresAt: true, endedByAdminId: true },
       }),
       db.message.groupBy({ by: ["conversationId", "senderId"], _count: { _all: true } }),

@@ -1,42 +1,69 @@
 /**
- * The one list of credit packages (db-free: the payments page may import it).
- * Prices are shown in JOD but Stripe charges the USD amount (owner's choice, Oct 2026):
- * `priceUsdCents` is what the card is actually charged (JOD→USD ≈ 1.41).
+ * Credit packages per country (db-free: the payments page may import it).
+ *   Jordan: shown in JOD, Stripe charges the USD amount (owner's choice, Oct 2026; JOD→USD ≈ 1.41).
+ *   Saudi Arabia: shown and charged in SAR (prices `[NEEDS INPUT]` owner confirmation; no "was" price —
+ *   the Saudi market never had an earlier price).
+ * A member only ever sees and buys their own country's packages (checkout checks it).
  */
+import { toCountry, type CountryCode } from "@/lib/countries";
+
 export interface CreditPackage {
   id: string;
+  country: CountryCode;
   name: string;
   credits: number;
-  /** Display price in JOD */
-  priceJod: number;
-  /** Amount charged by Stripe, in USD cents */
-  priceUsdCents: number;
+  /** Display price, in `currency` */
+  price: number;
+  currency: "JOD" | "SAR";
+  /** What Stripe charges: currency + amount in minor units (cents / halalas) */
+  chargeCurrency: "usd" | "sar";
+  chargeAmount: number;
   popular?: boolean;
-  /** Opening offer: what this package would cost at the old rate (shown struck through) */
-  wasJod?: number;
+  /** Opening offer (Jordan): what this package would cost at the old rate (shown struck through) */
+  wasPrice?: number;
 }
 
-/** The old best rate (10 for 7 JD): the «قبل» price of the opening packages is counted with it */
+/** The old best Jordanian rate (10 for 7 JD): the «قبل» price of the opening packages is counted with it */
 const OLD_JOD_PER_CREDIT = 0.7;
 const was = (credits: number) => Math.round(credits * OLD_JOD_PER_CREDIT * 10) / 10;
 
-/** Opening offer (owner decision 2026-10-23): 10 credits for 3 JD, the bigger packages a little cheaper per credit */
-export const CREDIT_PACKAGES: readonly CreditPackage[] = [
-  { id: "launch_10", name: "10 أرصدة", credits: 10, priceJod: 3, priceUsdCents: 423, wasJod: was(10) },
-  { id: "launch_25", name: "25 رصيداً", credits: 25, priceJod: 6, priceUsdCents: 846, popular: true, wasJod: was(25) },
-  { id: "launch_50", name: "50 رصيداً", credits: 50, priceJod: 10, priceUsdCents: 1410, wasJod: was(50) },
-];
+const jo = (id: string, name: string, credits: number, price: number, usdCents: number, popular = false): CreditPackage => ({
+  id, country: "JO", name, credits, price, currency: "JOD", chargeCurrency: "usd", chargeAmount: usdCents, ...(popular && { popular }), wasPrice: was(credits),
+});
+const sa = (id: string, name: string, credits: number, price: number, popular = false): CreditPackage => ({
+  id, country: "SA", name, credits, price, currency: "SAR", chargeCurrency: "sar", chargeAmount: price * 100, ...(popular && { popular }),
+});
 
-/** Packages no longer sold: kept so a refund of an older purchase takes back the right credits */
+const PACKAGES: Record<CountryCode, readonly CreditPackage[]> = {
+  // Opening offer (owner decision 2026-10-23): 10 credits for 3 JD, the bigger packages a little cheaper per credit
+  JO: [jo("launch_10", "10 أرصدة", 10, 3, 423), jo("launch_25", "25 رصيداً", 25, 6, 846, true), jo("launch_50", "50 رصيداً", 50, 10, 1410)],
+  SA: [sa("sa_10", "10 أرصدة", 10, 15), sa("sa_25", "25 رصيداً", 25, 30, true), sa("sa_50", "50 رصيداً", 50, 50)],
+};
+
+/** Jordanian packages no longer sold: kept so a refund of an older purchase takes back the right credits */
 const RETIRED_PACKAGES: readonly CreditPackage[] = [
-  { id: "credits_3", name: "3 أرصدة", credits: 3, priceJod: 3, priceUsdCents: 423 },
-  { id: "credits_5", name: "5 أرصدة", credits: 5, priceJod: 4, priceUsdCents: 564 },
-  { id: "credits_10", name: "10 أرصدة", credits: 10, priceJod: 7, priceUsdCents: 987 },
+  { id: "credits_3", country: "JO", name: "3 أرصدة", credits: 3, price: 3, currency: "JOD", chargeCurrency: "usd", chargeAmount: 423 },
+  { id: "credits_5", country: "JO", name: "5 أرصدة", credits: 5, price: 4, currency: "JOD", chargeCurrency: "usd", chargeAmount: 564 },
+  { id: "credits_10", country: "JO", name: "10 أرصدة", credits: 10, price: 7, currency: "JOD", chargeCurrency: "usd", chargeAmount: 987 },
 ];
 
-/** A package on sale (checkout) */
-export function findPackage(id: string | null | undefined): CreditPackage | undefined {
-  return id ? CREDIT_PACKAGES.find((p) => p.id === id) : undefined;
+/** Packages on sale in a country */
+export function packagesFor(country: unknown): readonly CreditPackage[] {
+  return PACKAGES[toCountry(country)];
+}
+
+/** Jordan's list (kept for older callers and tests) */
+export const CREDIT_PACKAGES = PACKAGES.JO;
+
+/** A package on sale; with `country`, only that country's */
+export function findPackage(id: string | null | undefined, country?: CountryCode): CreditPackage | undefined {
+  if (!id) return undefined;
+  const lists = country ? [PACKAGES[country]] : Object.values(PACKAGES);
+  for (const list of lists) {
+    const p = list.find((x) => x.id === id);
+    if (p) return p;
+  }
+  return undefined;
 }
 
 /** Any package ever sold (refunds) */
@@ -44,19 +71,31 @@ export function findAnyPackage(id: string | null | undefined): CreditPackage | u
   return findPackage(id) ?? (id ? RETIRED_PACKAGES.find((p) => p.id === id) : undefined);
 }
 
+const SYMBOL = { JOD: "د.أ", SAR: "ر.س" } as const;
+
+/** «3 د.أ» / «15 ر.س» */
+export function formatPrice(p: Pick<CreditPackage, "price" | "currency">): string {
+  return `${p.price} ${SYMBOL[p.currency]}`;
+}
+
 /** «10 أرصدة بـ 3 د.أ، أو 25 رصيداً بـ 6 د.أ، أو 50 رصيداً بـ 10 د.أ» (FAQ) */
-export function packagesSentence(): string {
-  return CREDIT_PACKAGES.map((p) => `${p.name} بـ ${p.priceJod} د.أ`).join("، أو ");
+export function packagesSentence(country: unknown = "JO"): string {
+  return packagesFor(country).map((p) => `${p.name} بـ ${formatPrice(p)}`).join("، أو ");
 }
 
 /** Percent saved against the «قبل» price, or null */
-export function discountPercent(p: { priceJod: number; wasJod?: number | null }): number | null {
-  return p.wasJod && p.wasJod > p.priceJod ? Math.round((1 - p.priceJod / p.wasJod) * 100) : null;
+export function discountPercent(p: { price: number; wasPrice?: number | null }): number | null {
+  return p.wasPrice && p.wasPrice > p.price ? Math.round((1 - p.price / p.wasPrice) * 100) : null;
 }
 
-/** "4.23$" — the amount actually charged */
+/** "4.23$" — a USD amount in cents */
 export function formatUsd(cents: number): string {
   return `${(cents / 100).toFixed(2)}$`;
+}
+
+/** What the card is actually charged: «4.23$» (Jordan) / «15 ر.س» (Saudi Arabia) */
+export function formatCharge(p: Pick<CreditPackage, "chargeCurrency" | "chargeAmount">): string {
+  return p.chargeCurrency === "usd" ? formatUsd(p.chargeAmount) : `${(p.chargeAmount / 100).toLocaleString("en-US")} ر.س`;
 }
 
 /**

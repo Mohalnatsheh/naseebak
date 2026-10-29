@@ -9,6 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { enumLabel } from "@/lib/admin/enum-labels";
+import { countryConfig, toCountry } from "@/lib/countries";
+import { CountryFlag } from "@/components/shared/country-flag";
 
 interface UserRow {
   id: string;
@@ -17,6 +19,8 @@ interface UserRow {
   email: string;
   phone: string | null;
   gender: string;
+  /** "JO" | "SA" */
+  country: string;
   role: string;
   status: string;
   isVerified: boolean;
@@ -269,6 +273,7 @@ export default function AdminUsersPage() {
                   <th className="text-left p-3 text-sm font-medium">Name</th>
                   <th className="text-left p-3 text-sm font-medium">Phone</th>
                   <th className="text-left p-3 text-sm font-medium">Photos</th>
+                  <th className="text-left p-3 text-sm font-medium">Country</th>
                   <th className="hidden md:table-cell text-left p-3 text-sm font-medium">Gender</th>
                   <th className="hidden md:table-cell text-left p-3 text-sm font-medium">City</th>
                   <th className="text-left p-3 text-sm font-medium">Status</th>
@@ -282,14 +287,14 @@ export default function AdminUsersPage() {
                 {loading ? (
                   Array.from({ length: 5 }).map((_, i) => (
                     <tr key={i} className="border-b">
-                      <td colSpan={11} className="p-3">
+                      <td colSpan={12} className="p-3">
                         <div className="h-6 bg-muted animate-pulse rounded" />
                       </td>
                     </tr>
                   ))
                 ) : users.length === 0 ? (
                   <tr>
-                    <td colSpan={11} className="text-center p-8 text-muted-foreground">
+                    <td colSpan={12} className="text-center p-8 text-muted-foreground">
                       No users found
                     </td>
                   </tr>
@@ -333,6 +338,12 @@ export default function AdminUsersPage() {
                         ) : (
                           <span className="text-xs text-muted-foreground whitespace-nowrap">No photos</span>
                         )}
+                      </td>
+                      <td className="p-3">
+                        <Badge variant="outline" className="text-xs whitespace-nowrap" title={countryConfig(u.country).nameEn}>
+                          <CountryFlag country={toCountry(u.country)} className="me-1 inline h-3 w-4 align-[-1px]" />
+                          {u.country}
+                        </Badge>
                       </td>
                       <td className="hidden md:table-cell p-3">
                         <Badge variant={u.gender === "MALE" ? "default" : "secondary"} className="text-xs">

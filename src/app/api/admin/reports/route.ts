@@ -6,6 +6,7 @@ import type { Prisma } from "@prisma/client";
 import { effectiveConversationStatus } from "@/lib/admin/cycle-stats";
 import { adminEndConversation, setSuspended } from "@/lib/admin/moderation";
 import { endPausedChat, refreshReportFlag } from "@/lib/reports";
+import { getAdminCountry, reportCountryWhere } from "@/lib/admin/country-filter";
 
 /**
  * Attach chat metadata to reports: the chat the report was sent from (Report.conversationId), or —
@@ -77,7 +78,8 @@ export async function GET(request: Request) {
     const raw = searchParams.get("status");
     const status = raw === "PENDING" || raw === "REVIEWED" || raw === "DISMISSED" ? raw : undefined;
 
-    const where: Prisma.ReportWhereInput = status ? { status } : {};
+    // Admin's selected country, by the reported member's country (see reportCountryWhere)
+    const where: Prisma.ReportWhereInput = { ...reportCountryWhere(await getAdminCountry(request)), ...(status && { status }) };
 
     const [reports, total] = await Promise.all([
       db.report.findMany({

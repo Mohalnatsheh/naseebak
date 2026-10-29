@@ -11,7 +11,7 @@ import { db } from "@/lib/db";
 import { notify } from "@/lib/notify";
 import { recordCredit } from "@/lib/credits";
 import { sendAdminAlert } from "@/lib/admin-alert";
-import { findAnyPackage, formatUsd } from "@/lib/payments/packages";
+import { findAnyPackage, formatCharge } from "@/lib/payments/packages";
 
 export type RefundResult = "refunded" | "already" | "not_found";
 
@@ -72,7 +72,7 @@ export async function applyRefund(args: {
       title: "تم استرداد المبلغ",
       // Charged in USD (shown in JOD): say what actually goes back to the card
       body: pkg
-        ? `تم استرداد ${formatUsd(pkg.priceUsdCents)} (قيمة باقة ${pkg.name}) إلى بطاقتك، وأُزيل رصيد الباقة من حسابك.`
+        ? `تم استرداد ${formatCharge(pkg)} (قيمة باقة ${pkg.name}) إلى بطاقتك، وأُزيل رصيد الباقة من حسابك.`
         : "تم استرداد قيمة عملية الدفع إلى بطاقتك.",
       url: "/dashboard/payments",
       metadata: { paymentId: payment.id },

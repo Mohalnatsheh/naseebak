@@ -58,9 +58,10 @@ import { ImageLightbox } from "@/components/shared/image-lightbox";
 import { MatchClosedNote, MatchIntroPanel } from "@/components/intro/match-intro-panel";
 import { ConfirmActionDialog } from "@/components/intro/confirm-action-dialog";
 import { PersonCard, type PersonCardTone } from "@/components/shared/person-card";
-import { describeOption, nationalityLabel } from "@/lib/profile-options";
+import { describeOption, nationalityLabel, tribeLabel } from "@/lib/profile-options";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useDashboardData } from "@/contexts/dashboard-context";
+import { formatDate } from "@/lib/countries";
 import { PageHeader } from "@/components/shared/page-header";
 import { markPageNotificationsRead } from "@/lib/notifications-client";
 
@@ -252,7 +253,7 @@ export function MatchesView({ embedded = false }: { embedded?: boolean } = {}) {
   // Matches are never gated (no profile/quiz check): the viewer's gender only picks the wording
   // `switchesLoading`: wait for the first switch flags (and my gender) before any copy, so the page never
   // flashes the legacy / masculine wording first
-  const { counts, profile, loading: switchesLoading } = useDashboardData();
+  const { counts, profile, loading: switchesLoading, country } = useDashboardData();
   const isFemale = profile?.gender === "FEMALE";
   const introMode = counts.flags.introRequests;
   // Opened from a notification link (?match=<id>): scroll to and highlight that card
@@ -609,7 +610,7 @@ export function MatchesView({ embedded = false }: { embedded?: boolean } = {}) {
                   photoUrl={!locked && m.photosRevealed ? matchPhotos[m.id]?.[0]?.url : undefined}
                   photoLocked={!locked && !m.photosRevealed}
                   tone={showVisitBanner && m.visitStatus ? visitStatusTone[m.visitStatus] ?? "default" : "default"}
-                  meta={<>توافق بتاريخ {new Date(m.createdAt).toLocaleDateString("ar-JO-u-nu-latn")}</>}
+                  meta={<>توافق بتاريخ {formatDate(m.createdAt, country)}</>}
                   status={
                     showVisitBanner && m.visitStatus && statusConfig ? (
                       <Badge className={`gap-1.5 px-3 py-1 border text-xs font-semibold ${statusConfig.color}`}>
@@ -665,7 +666,7 @@ export function MatchesView({ embedded = false }: { embedded?: boolean } = {}) {
                         </Section>
 
                         <Section title="العائلة" icon={Users} defaultOpen={true}>
-                          <InfoRow icon={Gem} label="العشيرة" value={c.tribe} />
+                          <InfoRow icon={Gem} label={tribeLabel(country)} value={c.tribe} />
                           <InfoRow icon={MapPinned} label="منطقة أصل العائلة" value={c.familyOriginArea} />
                           <InfoRow icon={Users} label="عدد الإخوة" value={c.numberOfSiblings !== null && c.numberOfSiblings !== undefined ? `${c.numberOfSiblings}` : null} />
                           <InfoRow icon={Home} label="نوع السكن" value={c.housingType} />
@@ -710,7 +711,7 @@ export function MatchesView({ embedded = false }: { embedded?: boolean } = {}) {
                         <div>
                           <p className="text-xs text-green-600 font-medium mb-0.5">موعد الزيارة</p>
                           <p className="font-bold text-green-800">
-                            {new Date(m.scheduledDate).toLocaleDateString("ar-JO-u-nu-latn", {
+                            {formatDate(m.scheduledDate, country, {
                               weekday: "long",
                               year: "numeric",
                               month: "long",

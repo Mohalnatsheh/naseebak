@@ -87,12 +87,18 @@ function revealData(expiresAt: Date | null, now: Date) {
  * `userId` has room again: show up to `room` of the cards made for others while they were full, best
  * match first. Returns how many were revealed (each gets a full 7-day window from now).
  */
-export async function revealHiddenFor(userId: string, room: number, now = new Date()): Promise<number> {
+export async function revealHiddenFor(
+  userId: string,
+  room: number,
+  now = new Date(),
+  /** The member's country: only same-country cards are revealed (until a `cross_country_matching` setting exists) */
+  country?: string,
+): Promise<number> {
   if (room <= 0) return 0;
   const hidden = await db.suggestion.findMany({
     where: {
       flow: "MUTUAL", status: "PENDING", expiresAt: { gt: now }, candidateId: userId, hiddenFromCandidate: true,
-      candidateDecision: null, recipient: activePerson,
+      candidateDecision: null, recipient: country ? { ...activePerson, country } : activePerson,
       // A card the recipient refused is never shown (a «لا» closes it; this also covers older rows)
       OR: [{ recipientDecision: null }, { recipientDecision: "INTERESTED" }],
     },

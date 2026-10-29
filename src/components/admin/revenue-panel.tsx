@@ -27,6 +27,8 @@ interface Period {
 }
 interface Revenue {
   asOf: string;
+  country: string;
+  currency: string;
   days: Day[];
   today: Day;
   yesterday: Day;
@@ -39,7 +41,7 @@ interface Revenue {
   recent: { id: string; at: string; amount: number; package: string; member: { id: string; firstName: string } | null }[];
 }
 
-const jod = (n: number) => `${Number.isInteger(n) ? n : n.toFixed(1)} JOD`;
+const money = (n: number, cur: string) => `${Number.isInteger(n) ? n : n.toFixed(1)} ${cur}`;
 const dayName = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
 const REFRESH_MS = 60_000;
 
@@ -57,7 +59,8 @@ function Change({ value, suffix }: { value: number | null; suffix: string }) {
   );
 }
 
-function DayTile({ title, d, change, changeSuffix, highlight }: { title: string; d: Day; change: number | null; changeSuffix: string; highlight?: boolean }) {
+function DayTile({ title, d, change, changeSuffix, highlight, cur }: { title: string; d: Day; change: number | null; changeSuffix: string; highlight?: boolean; cur: string }) {
+  const jod = (n: number) => money(n, cur);
   return (
     <div className={cn("rounded-xl border bg-card p-4", highlight && "border-emerald-300 bg-emerald-50/50")}>
       <div className="flex items-baseline justify-between gap-2">
@@ -76,7 +79,8 @@ function DayTile({ title, d, change, changeSuffix, highlight }: { title: string;
   );
 }
 
-function Bars({ days }: { days: Day[] }) {
+function Bars({ days, cur }: { days: Day[]; cur: string }) {
+  const jod = (n: number) => money(n, cur);
   const max = Math.max(1, ...days.map((d) => d.revenue));
   return (
     <div>
@@ -145,12 +149,14 @@ export function RevenuePanel() {
     return () => clearInterval(t);
   }, [load]);
 
+  const cur = data?.currency ?? "JOD";
+  const jod = (n: number) => money(n, cur);
   return (
     <Card>
       <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 space-y-0">
         <CardTitle className="flex items-center gap-2">
           <DollarSign className="h-5 w-5 text-emerald-600" /> Revenue
-          <span className="text-xs font-normal text-muted-foreground">Amman days · completed payments</span>
+          <span className="text-xs font-normal text-muted-foreground">{data ? `${data.country} · ${cur} · ` : ""}completed payments · Amman/Riyadh days</span>
         </CardTitle>
         <Button variant="outline" size="sm" onClick={load} disabled={loading}>
           <RefreshCw className={cn("me-1 h-3.5 w-3.5", loading && "animate-spin")} />
@@ -164,9 +170,9 @@ export function RevenuePanel() {
         ) : (
           <>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-              <DayTile title="Today" d={data.today} change={data.pace.change} changeSuffix={`vs yesterday by now (${jod(data.pace.yesterdaySameTime)})`} highlight />
-              <DayTile title="Yesterday" d={data.yesterday} change={pct(data.yesterday.revenue, data.dayBefore.revenue)} changeSuffix="vs the day before" />
-              <DayTile title="Day before" d={data.dayBefore} change={pct(data.dayBefore.revenue, data.days[data.days.length - 4]?.revenue ?? 0)} changeSuffix="vs its day before" />
+              <DayTile title="Today" d={data.today} change={data.pace.change} changeSuffix={`vs yesterday by now (${jod(data.pace.yesterdaySameTime)})`} highlight cur={cur} />
+              <DayTile title="Yesterday" d={data.yesterday} change={pct(data.yesterday.revenue, data.dayBefore.revenue)} changeSuffix="vs the day before" cur={cur} />
+              <DayTile title="Day before" d={data.dayBefore} change={pct(data.dayBefore.revenue, data.days[data.days.length - 4]?.revenue ?? 0)} changeSuffix="vs its day before" cur={cur} />
             </div>
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -197,9 +203,9 @@ export function RevenuePanel() {
             <div className="rounded-xl border bg-card p-4">
               <div className="mb-3 flex items-baseline justify-between">
                 <span className="text-sm font-medium">Last 14 days</span>
-                <span className="text-xs text-muted-foreground">JOD per day · today in green · hover a bar for details</span>
+                <span className="text-xs text-muted-foreground">{cur} per day · today in green · hover a bar for details</span>
               </div>
-              <Bars days={data.days} />
+              <Bars days={data.days} cur={cur} />
             </div>
 
             <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">

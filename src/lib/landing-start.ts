@@ -3,7 +3,8 @@
  * sessionStorage — never the URL (no phone numbers in links, logs or analytics). Valid 30 minutes.
  */
 import { toLatinDigits } from "@/lib/digits";
-import { jordanPhoneRegex } from "@/lib/validations/auth";
+import { isValidPhone } from "@/lib/validations/auth";
+import type { CountryCode } from "@/lib/countries";
 
 export const LANDING_START_KEY = "naseeb:register-start";
 const MAX_AGE_MS = 30 * 60 * 1000;
@@ -12,16 +13,16 @@ export type StartGender = "MALE" | "FEMALE";
 
 export interface LandingStart {
   gender: StartGender;
-  /** As typed (Western digits), already checked against jordanPhoneRegex; "" when left empty */
+  /** As typed (Western digits), already checked with isValidPhone (visitor's country); "" when left empty */
   phone: string;
   at: number;
 }
 
-/** "" = empty (allowed), null = not a Jordanian mobile number */
-export function cleanStartPhone(raw: string): string | null {
+/** "" = empty (allowed), null = not a mobile of `country` (of any served country when none is given) */
+export function cleanStartPhone(raw: string, country?: CountryCode): string | null {
   const cleaned = toLatinDigits(raw).replace(/[\s\-()]/g, "");
   if (!cleaned) return "";
-  return jordanPhoneRegex.test(cleaned) ? cleaned : null;
+  return isValidPhone(cleaned, country) ? cleaned : null;
 }
 
 export function saveLandingStart(storage: Pick<Storage, "setItem"> | undefined, start: Omit<LandingStart, "at">, now = Date.now()) {

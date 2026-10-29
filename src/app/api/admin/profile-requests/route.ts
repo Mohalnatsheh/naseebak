@@ -5,6 +5,7 @@ import { notify } from "@/lib/notify";
 import { refreshOpenSuggestionsInBackground } from "@/lib/suggestions/refresh";
 import { buildProfileUpdate } from "@/lib/admin/profile-changes";
 import { safePagination } from "@/lib/admin/query";
+import { byUserCountry, getAdminCountry } from "@/lib/admin/country-filter";
 
 export async function GET(request: Request) {
   try {
@@ -12,7 +13,8 @@ export async function GET(request: Request) {
     if ("error" in result) return result.error;
 
     const { page, pageSize, skip } = safePagination(new URL(request.url).searchParams, 20);
-    const where = { status: "PENDING" as const };
+    // Admin's selected country ("ALL" = every country)
+    const where = { status: "PENDING" as const, ...byUserCountry(await getAdminCountry(request), "user") };
 
     const [requests, total] = await Promise.all([
       db.profileUpdateRequest.findMany({

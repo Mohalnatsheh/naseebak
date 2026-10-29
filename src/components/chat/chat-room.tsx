@@ -42,6 +42,7 @@ import { dayLabel, mergeMessages, sameDay, type UiMessage } from "./chat-utils";
 import { useChatChannel } from "./use-chat-channel";
 import { ChatPushBanner } from "./chat-push-banner";
 import { useDashboardData } from "@/contexts/dashboard-context";
+import { formatDate } from "@/lib/countries";
 import { checkMessage } from "@/lib/chat/filter";
 import { markPageNotificationsRead } from "@/lib/notifications-client";
 
@@ -80,7 +81,8 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
   }, [conversationId]);
 
   const router = useRouter();
-  const myGender = useDashboardData().profile?.gender as string | undefined;
+  const { profile: me, country } = useDashboardData();
+  const myGender = me?.gender as string | undefined;
   const [conversation, setConversation] = useState<ChatSummary | null>(null);
   const [messages, setMessages] = useState<UiMessage[]>([]);
   const [hasMore, setHasMore] = useState(false);
@@ -375,7 +377,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
   const familyFree = !!intro?.flags.creditOnInterest || !!family?.free;
   /** The free move to family stays open until the match fades (CHAT_STALE_DAYS after the chat ran out) */
   const familyOpenUntil = family?.openUntil
-    ? new Date(family.openUntil).toLocaleDateString("ar-JO-u-nu-latn", { day: "numeric", month: "long" })
+    ? formatDate(family.openUntil, country, { day: "numeric", month: "long" })
     : null;
 
   return (
@@ -537,7 +539,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
               {newDay && (
                 <div className="my-4 flex justify-center">
                   <span className="rounded-full bg-card/90 px-3 py-1 text-[11px] font-medium text-muted-foreground shadow-sm ring-1 ring-border/50">
-                    {dayLabel(m.createdAt)}
+                    {dayLabel(m.createdAt, country)}
                   </span>
                 </div>
               )}

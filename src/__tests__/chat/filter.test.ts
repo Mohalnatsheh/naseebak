@@ -175,3 +175,41 @@ describe("G59: numbers hidden among words, look-alike letters, more app names", 
     ]) allowed(t);
   });
 });
+
+describe("checkMessage — Saudi numbers (multi-country)", () => {
+  it.each([
+    "0512345678",
+    "جوالي 05 1234 5678",
+    "٠٥١٢٣٤٥٦٧٨",
+    "+966512345678",
+    "+966-51-234-5678",
+    "00966512345678",
+    "966 51 234 5678",
+    "(051) 234.5678",
+    "051/234/5678",
+    "O5I2345678",
+    "صفر خمسه واحد اثنين ثلاثه اربعه خمسه",
+    "زيرو خمسه خمسه ثنتين ثلاث اربع",
+    "05 ثم 12 ثم 34 ثم 56 ثم 78",
+    "كلمني سناب",
+  ])("blocks %s", (body) => {
+    expect(blocked(body)).toBe("CONTACT");
+  });
+
+  it("reads a Saudi number sent in pieces", () => {
+    expect(completesSplitNumber("5678", ["051 234"])).toBe(true);
+    expect(completesSplitNumber("234 5678", ["+966 51"])).toBe(true);
+  });
+
+  it("Jordanian numbers are still blocked next to Saudi ones", () => {
+    expect(blocked("0791234567")).toBe("CONTACT");
+    expect(blocked("+962791234567")).toBe("CONTACT");
+  });
+
+  it.each(["أسكن في الرياض منذ 2015", "راتبي 9000 ريال", "عمري 31 وطولي 170", "عندي 5 إخوة"])(
+    "allows ordinary Saudi messages: %s",
+    (body) => {
+      expect(checkMessage(body)).toEqual({ ok: true, text: body });
+    },
+  );
+});

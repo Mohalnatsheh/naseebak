@@ -1,20 +1,36 @@
 import type { MetadataRoute } from "next";
 import { db } from "@/lib/db";
+import { COUNTRY_CODES } from "@/lib/countries";
+import { absoluteUrl, seoAlternates } from "@/lib/site-paths";
+
+/** Pages that exist once per country: every country's URL, each listing the others (hreflang) */
+const LOCALIZED: { path: string; changeFrequency: "weekly" | "monthly" | "yearly"; priority: number }[] = [
+  { path: "/", changeFrequency: "weekly", priority: 1.0 },
+  { path: "/about", changeFrequency: "monthly", priority: 0.8 },
+  { path: "/faq", changeFrequency: "monthly", priority: 0.7 },
+  { path: "/contact", changeFrequency: "monthly", priority: 0.6 },
+  { path: "/privacy", changeFrequency: "yearly", priority: 0.3 },
+  { path: "/terms", changeFrequency: "yearly", priority: 0.3 },
+  { path: "/refund-policy", changeFrequency: "yearly", priority: 0.3 },
+];
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = "https://naseebak.com";
 
+  const localizedPages: MetadataRoute.Sitemap = LOCALIZED.flatMap((p) =>
+    COUNTRY_CODES.map((c) => ({
+      url: absoluteUrl(p.path, c),
+      lastModified: new Date(),
+      changeFrequency: p.changeFrequency,
+      priority: p.priority,
+      alternates: { languages: seoAlternates(p.path, c).languages },
+    }))
+  );
   const staticPages: MetadataRoute.Sitemap = [
-    { url: baseUrl, lastModified: new Date(), changeFrequency: "weekly", priority: 1.0 },
-    { url: `${baseUrl}/about`, lastModified: new Date(), changeFrequency: "monthly", priority: 0.8 },
-    { url: `${baseUrl}/contact`, lastModified: new Date(), changeFrequency: "monthly", priority: 0.6 },
+    ...localizedPages,
     { url: `${baseUrl}/blog`, lastModified: new Date(), changeFrequency: "weekly", priority: 0.8 },
-    { url: `${baseUrl}/faq`, lastModified: new Date(), changeFrequency: "monthly", priority: 0.7 },
     { url: `${baseUrl}/login`, lastModified: new Date(), changeFrequency: "yearly", priority: 0.5 },
     { url: `${baseUrl}/register`, lastModified: new Date(), changeFrequency: "yearly", priority: 0.6 },
-    { url: `${baseUrl}/privacy`, lastModified: new Date(), changeFrequency: "yearly", priority: 0.3 },
-    { url: `${baseUrl}/terms`, lastModified: new Date(), changeFrequency: "yearly", priority: 0.3 },
-    { url: `${baseUrl}/refund-policy`, lastModified: new Date(), changeFrequency: "yearly", priority: 0.3 },
   ];
 
   let blogPages: MetadataRoute.Sitemap = [];

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
+import Link from "@/components/shared/site-link";
 import {
   Mail,
   MapPin,
@@ -25,7 +25,8 @@ import { Footer } from "@/components/shared/footer";
 import { useInView } from "@/hooks/use-in-view";
 import { IslamicPatternBg } from "@/components/shared/islamic-pattern";
 import { PageHeroPhoto } from "@/components/shared/page-hero-photo";
-import { contactSchema } from "@/lib/validations/contact";
+import { contactSchemaFor } from "@/lib/validations/contact";
+import { useVisitorCountry } from "@/components/shared/visitor-country";
 
 /* ──────────────────── DATA ──────────────────── */
 
@@ -43,11 +44,24 @@ const contactInfo = [
   },
 ];
 
+/** Saudi version (reviewed copy from naseebak-ksa) */
+const saContactInfo = [
+  contactInfo[0],
+  {
+    icon: MapPin,
+    title: "الموقع",
+    // [NEEDS INPUT] city / registered address of the Saudi entity, if the owner wants one shown
+    value: "المملكة العربية السعودية",
+  },
+];
+
 /* ══════════════════════════════════════════════════════ */
 /*                  CONTACT PAGE                         */
 /* ══════════════════════════════════════════════════════ */
 
 export default function ContactPage() {
+  const country = useVisitorCountry();
+  const sa = country === "SA";
   const { ref: formRef, inView: formInView } = useInView(0.15);
 
   const [formData, setFormData] = useState({
@@ -72,7 +86,7 @@ export default function ContactPage() {
     e.preventDefault();
     if (status === "sending") return;
     // Same rules as the API, checked here first so the message points at the field
-    const check = contactSchema.safeParse({ ...formData, website });
+    const check = contactSchemaFor(country).safeParse({ ...formData, website });
     if (!check.success) {
       const issue = check.error.issues[0];
       setError({ message: issue?.message ?? "بيانات غير صالحة", field: issue ? String(issue.path[0]) : null });
@@ -196,7 +210,7 @@ export default function ContactPage() {
                       <CheckCircle2 className="size-12 text-emerald-600" aria-hidden="true" />
                       <h3 className="text-lg font-bold">وصلتنا رسالتك</h3>
                       <p className="max-w-sm text-sm leading-relaxed text-muted-foreground">
-                        شكراً لتواصلك مع نصيبك. سنرد عليك على رقم هاتفك أو بريدك الإلكتروني في أقرب وقت ممكن.
+                        شكراً لتواصلك مع نصيبك. سنرد عليك على رقم {sa ? "جوالك" : "هاتفك"} أو بريدك الإلكتروني في أقرب وقت ممكن.
                       </p>
                       <Button variant="outline" className="mt-2 rounded-xl" onClick={() => setStatus("idle")}>
                         إرسال رسالة أخرى
@@ -232,7 +246,7 @@ export default function ContactPage() {
 
                     {/* Phone (members sign up with a phone) — a phone or an email is enough */}
                     <div className="space-y-2">
-                      <Label htmlFor="phone">رقم الهاتف</Label>
+                      <Label htmlFor="phone">{sa ? "رقم الجوال" : "رقم الهاتف"}</Label>
                       <Input
                         id="phone"
                         name="phone"
@@ -240,7 +254,7 @@ export default function ContactPage() {
                         type="tel"
                         inputMode="tel"
                         dir="ltr"
-                        placeholder="07XXXXXXXX"
+                        placeholder={sa ? "05XXXXXXXX" : "07XXXXXXXX"}
                         value={formData.phone}
                         onChange={handleChange}
                         className="h-12 rounded-xl border-border/60 bg-background/50 backdrop-blur-sm text-left"
@@ -250,7 +264,7 @@ export default function ContactPage() {
                     {/* Email */}
                     <div className="space-y-2">
                       <Label htmlFor="email">
-                        البريد الإلكتروني <span className="text-muted-foreground font-normal">(اختياري إذا أدخلت رقم الهاتف)</span>
+                        البريد الإلكتروني <span className="text-muted-foreground font-normal">(اختياري إذا أدخلت رقم {sa ? "الجوال" : "الهاتف"})</span>
                       </Label>
                       <Input
                         id="email"
@@ -328,7 +342,7 @@ export default function ContactPage() {
                 }}
               >
                 {/* Contact info cards */}
-                {contactInfo.map((info, i) => (
+                {(sa ? saContactInfo : contactInfo).map((info, i) => (
                   <Card
                     key={info.title}
                     className={`relative overflow-hidden rounded-2xl bg-card/80 border transition-all duration-500 hover:border-primary/20 hover:shadow-lg ${

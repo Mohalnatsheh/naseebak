@@ -3,6 +3,7 @@
 import { Check, CheckCheck, Clock, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { timeLabel, type UiMessage } from "./chat-utils";
+import { useDashboardData } from "@/contexts/dashboard-context";
 
 /** One message. Mine sit on the start (right in RTL) in brand blue; theirs on the end, white.
  * Time and read ticks sit inside the bubble, at its bottom corner. */
@@ -17,6 +18,7 @@ export function MessageBubble({
   onRetry?: () => void;
 }) {
   const mine = message.mine;
+  const { country } = useDashboardData();
   return (
     <div className={cn("flex animate-bubble-in", mine ? "justify-start" : "justify-end", grouped ? "mt-1" : "mt-3")}>
       <div className={cn("flex max-w-[85%] flex-col sm:max-w-[70%]", mine ? "items-start" : "items-end")}>
@@ -40,7 +42,7 @@ export function MessageBubble({
               <Clock className="h-3 w-3" aria-label="جارٍ الإرسال" />
             ) : (
               <>
-                <span>{timeLabel(message.createdAt)}</span>
+                <span>{timeLabel(message.createdAt, country)}</span>
                 {mine && !message.pending &&
                   (message.readAt ? (
                     <CheckCheck className="h-3.5 w-3.5 text-accent" aria-label="تمت القراءة" />

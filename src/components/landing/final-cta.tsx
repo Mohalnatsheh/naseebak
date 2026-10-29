@@ -28,7 +28,7 @@ export function LandingFinalCta({
               <p className="mx-auto mt-4 max-w-md text-lg leading-relaxed text-white/80 lg:mx-0">{content.cta.text}</p>
             </div>
             <div className="flex justify-center lg:justify-end">
-              <StartForm id="start-final" place="final" gender={lookingFor} onGender={onLookingFor} />
+              <StartForm id="start-final" place="final" country={content.country} gender={lookingFor} onGender={onLookingFor} />
             </div>
           </div>
         </div>

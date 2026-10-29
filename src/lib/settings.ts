@@ -11,6 +11,8 @@ const DEFAULTS: Record<string, string> = {
   engagement_polls_enabled: "false",
   poll_round_days: "3",
   poll_reward_credits: "1",
+  // Notice SMS (match, interest, reminders, chat). Off since 2026-10-29 (owner): SMS only for sign-in codes
+  sms_notices_enabled: "false",
 };
 
 const cache = new Map<string, { value: string; expiresAt: number }>();

@@ -6,8 +6,11 @@ const db = vi.hoisted(() => ({
   notificationPreference: { findUnique: vi.fn() },
 }));
 const sms = vi.hoisted(() => ({ sendSms: vi.fn() }));
+// The owner switch: on for these tests (the default is off since 2026-10-29), off in its own test
+const settings = vi.hoisted(() => ({ getSetting: vi.fn(async () => "true") }));
 vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/sms", () => sms);
+vi.mock("@/lib/settings", () => settings);
 
 import { catchUpQuietSms, hasPushDevice, isQuietHour, sendSmsNotice, SMS_NOTICE_TEXT } from "@/lib/sms-notice";
 
@@ -26,6 +29,7 @@ const noDevice = () => fetchMock.mockResolvedValue({ status: 404, ok: false });
 
 beforeEach(() => {
   vi.clearAllMocks();
+  settings.getSetting.mockResolvedValue("true");
   vi.stubGlobal("fetch", fetchMock);
   process.env.NEXT_PUBLIC_ONESIGNAL_APP_ID = "app";
   process.env.ONESIGNAL_REST_API_KEY = "key";
@@ -170,5 +174,18 @@ describe("quiet hours (23:00–09:00 Amman)", () => {
     expect(await catchUpQuietSms(new Date("2026-10-19T07:00:00Z"))).toEqual({ opted_out: 1 });
     expect(await catchUpQuietSms(new Date("2026-10-19T02:00:00Z"))).toEqual({ skipped: 1 });
     expect(sms.sendSms).not.toHaveBeenCalled();
+  });
+});
+
+describe("owner switch: notice SMS off (2026-10-29)", () => {
+  it("sends nothing and claims nothing while sms_notices_enabled is not true", async () => {
+    settings.getSetting.mockResolvedValue("false");
+    db.user.findUnique.mockResolvedValue(member());
+    noDevice();
+    expect(await sendSmsNotice("u1", "match", new Date("2026-10-29T12:00:00Z"))).toBe("disabled");
+    expect(sms.sendSms).not.toHaveBeenCalled();
+    expect(db.user.updateMany).not.toHaveBeenCalled();
+    expect(await catchUpQuietSms(new Date("2026-10-29T12:00:00Z"))).toEqual({ disabled: 1 });
+    expect(db.notification.findMany).not.toHaveBeenCalled();
   });
 });

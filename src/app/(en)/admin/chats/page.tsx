@@ -352,6 +352,7 @@ const SMS_LABEL: Record<string, string> = {
   unknown_push: "Push status unknown — retrying",
   failed: "SMS failed — retrying",
   skipped: "Not eligible (test / suspended)",
+  disabled: "SMS notices are switched off",
 };
 
 function SmsCell({ chat, sending, onSend }: { chat: ChatRow; sending: boolean; onSend: () => void }) {

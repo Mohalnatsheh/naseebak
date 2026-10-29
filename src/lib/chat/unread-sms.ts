@@ -18,7 +18,7 @@
  */
 import { db } from "@/lib/db";
 import { CHAT_NOTICE_PREFERENCE } from "@/lib/notification-prefs";
-import { isQuietHour, sendSmsNotice, type SmsNoticeResult } from "@/lib/sms-notice";
+import { isQuietHour, sendSmsNotice, smsNoticesEnabled, type SmsNoticeResult } from "@/lib/sms-notice";
 
 export const CHAT_SMS_AFTER_MS = 2 * 60 * 60 * 1000;
 export const CHAT_SMS_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
@@ -122,6 +122,8 @@ async function record(conversationId: string, userId: string, status: ChatSmsSta
 
 /** The 15-minute job. */
 export async function runUnreadSms(now = new Date()) {
+  // Notice SMS off (owner, 2026-10-29): nothing is sent or recorded, so turning them back on starts clean
+  if (!(await smsNoticesEnabled())) return { skipped: "sms_notices_off" as const };
   if (isQuietHour(now)) return { skipped: "quiet_hours" as const };
   const chats = await db.conversation.findMany({
     // Open chats of any age: the not-started SMS still only chases chats from the last 7 days (below)

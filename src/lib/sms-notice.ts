@@ -19,6 +19,12 @@ import type { NotificationType } from "@prisma/client";
 import { db } from "@/lib/db";
 import { sendSms } from "@/lib/sms";
 import { isTestPhone } from "@/lib/test-accounts";
+import { getSetting } from "@/lib/settings";
+
+/** Owner switch (2026-10-29): notice SMS are off unless system_settings sms_notices_enabled = "true". OTP SMS are never affected. */
+export async function smsNoticesEnabled(): Promise<boolean> {
+  return (await getSetting("sms_notices_enabled")) === "true";
+}
 
 export type SmsNoticeEvent = "match" | "interest" | "expiring" | "waiting" | "message" | "chat_open";
 
@@ -79,7 +85,7 @@ export async function hasPushDevice(userId: string): Promise<boolean | null> {
   }
 }
 
-export type SmsNoticeResult = "sent" | "skipped" | "has_push" | "unknown_push" | "already_today" | "quiet" | "failed";
+export type SmsNoticeResult = "sent" | "skipped" | "has_push" | "unknown_push" | "already_today" | "quiet" | "failed" | "disabled";
 
 /** Pure: Amman hour (UTC+3 all year) — no notice SMS 23:00–08:59 (owner decision 2026-10-23, all notices). */
 export function isQuietHour(now: Date): boolean {
@@ -96,6 +102,8 @@ export async function sendSmsNotice(
   opts: { skipPushCheck?: boolean } = {},
 ): Promise<SmsNoticeResult> {
   try {
+    // Notice SMS switched off (owner): nothing is sent or claimed
+    if (!(await smsNoticesEnabled())) return "disabled";
     // Night: nothing is sent or claimed; catchUpQuietSms sends it after 09:00 (chat SMS retry on their own)
     if (isQuietHour(now)) return "quiet";
     const user = await db.user.findUnique({
@@ -156,6 +164,7 @@ const CATCH_UP_WINDOW_MS = 12 * 60 * 60 * 1000;
  * Called by the 15-minute job; a member already texted today simply gets "already_today".
  */
 export async function catchUpQuietSms(now = new Date()): Promise<Record<string, number>> {
+  if (!(await smsNoticesEnabled())) return { disabled: 1 };
   if (isQuietHour(now)) return { skipped: 1 };
   const since = new Date(now.getTime() - CATCH_UP_WINDOW_MS);
   const rows = await db.notification.findMany({

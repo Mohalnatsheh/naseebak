@@ -124,9 +124,19 @@ HTTP, an Android debug build, and (where an emulator is available) a run against
 - ✅ Milestone 7 — 1215 backend tests, `tsc`, `eslint .` 0 problems, production webpack build OK and served
   (`next start`): `/`, `/sa`, `/register`, `/login`, `/faq`, `/sa/terms`, `/payments/return`, country APIs — no page errors.
 
+- ✅ Milestone 8 (2026-10-29, after the first report) — app: photos (pick, upload ≤ 5, main photo, delete),
+  partner preferences with «شرط أساسي» (same options and rules as the web wizard, saved at once), personality quiz
+  (result + 3-month retake rule), live chat through Ably SSE with polling fallback. Backend: local photo storage
+  without Bunny (`.dev-uploads/`, `/api/dev/uploads/...`, refused on real servers). Checked: 52 Flutter tests,
+  1218 Vitest, tsc, eslint, production build; real API run (photos upload/list/serve/main/delete, preferences +
+  dealbreakers, wrong age range refused, quiz save + retake refused, Ably token 404 without a key); emulator: photo
+  picked from the gallery and uploaded, preferences + «شرط أساسي» saved (checked in the database), quiz result.
+
 ### Not done / limits
-- iOS build (needs macOS), native push (needs Firebase), Ably in the app (polls instead), photo upload, dealbreakers,
-  personality quiz and preferences beyond the age range in the app, English UI.
+- iOS build (needs macOS), native push (needs Firebase), English UI.
+- Live chat through Ably is built and unit-tested but **not tried against a real Ably account** (no key locally).
+- The app has no editor for the remaining optional profile fields (height, family, lifestyle…) — the web edit page
+  covers them; the app shows the free-text ones and sends changes to review as before.
 - Arabic typing on the emulator is not possible through adb, so chat text typed in tests was Latin.
 - `src/lib/settings.ts` (global switches) still keeps its 30 s cache per module copy — a switch change can take up to
   30 s per route, as before (unchanged behaviour).

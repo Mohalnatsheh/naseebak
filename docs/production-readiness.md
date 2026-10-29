@@ -30,7 +30,8 @@ Nothing on branch `feature/multi-country-mobile` is deployed. This is what must 
 | iOS | Needs a Mac with Xcode, Apple Developer account, bundle id, signing — not buildable on this Windows machine |
 | Push | Not active. Needs a Firebase project (`google-services.json` / `GoogleService-Info.plist`), FCM server key on the backend and a device-token endpoint; the web keeps OneSignal |
 | Payments in the app | The app opens Stripe's hosted page and polls the payment; review app-store rules for selling digital credits (Google Play / Apple may require their in-app purchase for digital goods) — **owner/legal decision before release** |
-| Real time chat | The app polls every 4 s (the web uses Ably); acceptable for launch, Ably mobile tokens can come later |
+| Real time chat | The app uses the same subscribe-only Ably tokens as the web (SSE, read-only) with polling as the fallback. **Not tested end to end** — no `ABLY_API_KEY` locally; check on a staging server with the key before release |
+| Photos | Production uploads go to Bunny as today; the local `.dev-uploads/` fallback is refused on any server whose address isn’t localhost |
 
 ## Known limitations
 - The admin country settings are global per country; the new-cycle switches, blog and `سؤال نصيبك` questions are

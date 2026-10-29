@@ -72,10 +72,12 @@ lib/
     home               counts, next step, «سؤال نصيبك»
     discovery          suggestions feed (new / interested / waiting), card, «مهتم» sheet
     matches            list, detail with the introduction panel
-    chat               list, room (4 s polling), bubbles
+    chat               list, room, bubbles; live events through Ably SSE (chat_live.dart) when the server has
+                       ABLY_API_KEY, else 4 s polling
     notifications      list + routing to screens
     credits            balance, packages, checkout, history
-    profile            my profile, text edits (review rules), guardian
+    profile            my profile, text edits (review rules), guardian, photos (image_picker, ≤ 5, main photo),
+                       partner preferences + «شروطي الأساسية», personality quiz
     settings           account, notification preferences, blocks, pause/delete
 ```
 
@@ -94,4 +96,7 @@ CSS classes inlined so flutter_svg renders it).
 - **429 on «إرسال رمز التحقق»:** 3 codes per number per 5 minutes. Wait, or use another test number.
 - **`INSTALL_FAILED_INSUFFICIENT_STORAGE`:** `adb uninstall com.naseebak.naseebak_app` and reinstall, or wipe the emulator.
 - **Arabic text via `adb shell input text`** does not work (adb limitation) — type on the emulator keyboard.
+- **Photos on a local backend:** without Bunny keys the server keeps uploads in `.dev-uploads/` and returns
+  relative `/api/dev/uploads/...` URLs; the app resolves them against the API base (`core/network/media_url.dart`).
+  To test the picker on the emulator, `adb push` an image to `/sdcard/Pictures/` first.
 - **Dates show Arabic-Indic digits:** `DateFormat.useNativeDigitsByDefaultFor('ar', false)` runs in `main()`; keep it.

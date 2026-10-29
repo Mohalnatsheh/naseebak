@@ -10,9 +10,11 @@ import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/common.dart';
 import '../matches/match_detail_screen.dart' show ReportSheet;
 import 'chat_bubble.dart';
+import 'chat_live.dart';
 import 'chat_models.dart';
 
-/// One conversation. The website gets live events from Ably; the app polls `?after=` every 4 s while open.
+/// One conversation. With Ably configured on the server, live events (`ChatLive`) trigger a fetch at once and the
+/// `?after=` poll slows to a safety net every 20 s; without it the app polls every 4 s while open.
 class ChatRoomScreen extends ConsumerStatefulWidget {
   const ChatRoomScreen({super.key, required this.chatId, this.pollInterval = const Duration(seconds: 4)});
   final String chatId;
@@ -34,6 +36,10 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
   Object? _error;
   Timer? _timer;
   bool _polling = false;
+  bool _pollAgain = false;
+  StreamSubscription<void>? _live;
+  bool _liveConnected = false;
+  static const _livePollInterval = Duration(seconds: 20);
   int _nonceSeq = 0;
 
   ChatRepository get _repo => ref.read(chatRepositoryProvider);
@@ -50,6 +56,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _timer?.cancel();
+    _live?.cancel();
     _input.dispose();
     _scroll.dispose();
     super.dispose();
@@ -59,15 +66,33 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       _startPolling();
+      _startLive();
       _poll();
     } else if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) {
       _timer?.cancel();
+      _stopLive();
     }
   }
 
   void _startPolling() {
     _timer?.cancel();
-    _timer = Timer.periodic(widget.pollInterval, (_) => _poll());
+    _timer = Timer.periodic(_liveConnected ? _livePollInterval : widget.pollInterval, (_) => _poll());
+  }
+
+  void _startLive() {
+    if (_live != null) return;
+    _live = ref.read(chatLiveProvider).events(widget.chatId, connected: (on) {
+      if (!mounted || on == _liveConnected) return;
+      _liveConnected = on;
+      _startPolling();
+      if (on) _poll();
+    }).listen((_) => _poll(), onDone: () => _live = null);
+  }
+
+  void _stopLive() {
+    _live?.cancel();
+    _live = null;
+    _liveConnected = false;
   }
 
   Future<void> _load() async {
@@ -88,6 +113,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
       });
       _markRead();
       _startPolling();
+      _startLive();
     } catch (e) {
       if (mounted) setState(() => _error = e);
     } finally {
@@ -103,7 +129,12 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
   }
 
   Future<void> _poll() async {
-    if (_polling || _loading || !mounted) return;
+    if (_polling) {
+      // A live event during a fetch: fetch once more right after it
+      _pollAgain = true;
+      return;
+    }
+    if (_loading || !mounted) return;
     _polling = true;
     try {
       final after = _lastServerTime;
@@ -127,6 +158,10 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
       // Silent: the next tick retries; a 401 signs out through the API client
     } finally {
       _polling = false;
+      if (_pollAgain && mounted) {
+        _pollAgain = false;
+        _poll();
+      }
     }
   }
 

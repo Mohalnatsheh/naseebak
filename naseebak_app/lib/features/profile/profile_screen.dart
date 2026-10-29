@@ -135,6 +135,27 @@ class ProfileScreen extends ConsumerWidget {
                     ),
                   ),
                 const SizedBox(height: 8),
+                const SectionTitle('ملفي في نصيبك'),
+                for (final link in const [
+                  (Icons.photo_library_outlined, 'صوري', 'مخفية حتى التوافق المتبادل', '/profile/photos'),
+                  (Icons.tune_rounded, 'تفضيلات الشريك', 'العمر والمدينة والتعليم… وشروطي الأساسية', '/profile/preferences'),
+                  (Icons.psychology_alt_outlined, 'اختبار الشخصية', 'يدخل في نسبة التوافق', '/profile/quiz'),
+                ])
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Card(
+                      child: ListTile(
+                        leading: Icon(link.$1, color: AppColors.navy),
+                        title: Text(link.$2),
+                        subtitle: Text(link.$3),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () async {
+                          await context.push(link.$4);
+                          ref.invalidate(myProfileProvider);
+                        },
+                      ),
+                    ),
+                  ),
                 Card(
                   child: ListTile(
                     leading: const Icon(Icons.family_restroom_rounded, color: AppColors.navy),

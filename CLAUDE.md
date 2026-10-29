@@ -343,7 +343,8 @@ Records: `docs/multi-country-mobile-implementation.md`, API: `docs/api-mobile.md
 - **SMS:** `sendSms` uses the country's provider; `MOCK` keeps messages in a local outbox (`/api/dev/sms-outbox`) and is refused unless NODE_ENV≠production or `SMS_MOCK=true` with a localhost `NEXT_PUBLIC_APP_URL`.
 - **Money:** Saudi purchases stay off until `PRICES_APPROVED.SA` (`src/lib/payments/packages.ts`) — SAR prices are drafts. Checkout `mode: "hosted"` for the app; `GET /api/payments/[id]/status`; local mock checkout (`PAYMENTS_MOCK=true`, `/api/dev/mock-checkout/[id]`) credits through `fulfilCheckoutSession`.
 - **Mobile auth:** `mobile_sessions` (SHA-256 of a random `nsb_…` token, 60 days, revoked on logout); `/api/mobile/auth/token` (same check as web sign-in: `authorizePhoneLogin`), `/api/mobile/auth/logout`, `/api/mobile/me`. `requireUser()` / `currentSession()` accept `Authorization: Bearer` (members only; `requireAdmin` never).
-- **App:** `naseebak_app/` (Flutter 3.41.6, Riverpod, go_router, Dio, secure storage, Cairo font, RTL). Debug API `http://10.0.2.2:3020`; see `naseebak_app/README.md`.
+- **App:** `naseebak_app/` (Flutter 3.41.6, Riverpod, go_router, Dio, secure storage, image_picker, Cairo font, RTL). Debug API `http://10.0.2.2:3020`; see `naseebak_app/README.md`. Live chat: Ably SSE with the web’s subscribe-only token, each event only triggers a fetch; polling fallback.
+- **Local photos:** without Bunny keys `src/lib/bunny.ts` stores uploads in `.dev-uploads/` (git-ignored) and returns `/api/dev/uploads/...` (`localUploadsAllowed()`: dev, or `UPLOADS_LOCAL=true` + localhost app URL; never a real server).
 - **Local setup:** database `naseeb_mobile` on localhost:5434; git-ignored `.env.development.local` / `.env.production.local` override `.env` / `.env.local` (Neon + real SMS) — always pass `DATABASE_URL` explicitly to Prisma CLI commands here.
 
 ## Contact Page

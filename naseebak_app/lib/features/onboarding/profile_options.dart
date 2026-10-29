@@ -8,6 +8,15 @@ class ProfileOptions {
   static const maritalStatus = ['أعزب/عزباء', 'مطلق/مطلقة', 'أرمل/أرملة'];
   static const single = 'أعزب/عزباء';
   static const religiosity = ['ملتزم جداً', 'ملتزم', 'متوسط', 'غير ملتزم'];
+  static const smokingStatus = ['لا أدخن', 'أدخن', 'أدخن أحياناً', 'تركت التدخين'];
+
+  /// Yes / no partner preferences (stored as is; score.ts `prefYesNo`, `wantsNoChildren`)
+  static const yesNo = ['نعم', 'لا', 'لا يهم'];
+
+  /// «شروطي الأساسية» keys (score.ts DEALBREAKER_KEYS)
+  static const dealbreakerKeys = [
+    'age', 'city', 'education', 'maritalStatus', 'religiosity', 'smokingStatus', 'hijab', 'beard', 'children',
+  ];
 
   static const relationships = {
     'father': 'الأب',

@@ -42,9 +42,158 @@ class GuardianInfo {
   final bool consented;
 }
 
+/// One of my photos (`GET /api/profile/photos`).
+class MyPhoto {
+  const MyPhoto({required this.id, required this.url, required this.isPrimary});
+
+  factory MyPhoto.fromJson(Map<String, dynamic> j) =>
+      MyPhoto(id: asStringOr(j['id']), url: asStringOr(j['url']), isPrimary: asBool(j['isPrimary']) ?? false);
+
+  final String id;
+  final String url;
+  final bool isPrimary;
+}
+
+/// The private partner preferences and «شروطي الأساسية» (`GET /api/profile/dealbreakers`).
+class PartnerPrefs {
+  const PartnerPrefs({
+    this.ageMin,
+    this.ageMax,
+    this.cities = const [],
+    this.education = const [],
+    this.maritalStatus = const [],
+    this.religiosity = const [],
+    this.smoking = const [],
+    this.hijab,
+    this.beard,
+    this.children,
+    this.dealbreakers = const {},
+  });
+
+  factory PartnerPrefs.fromJson(Map<String, dynamic> p) => PartnerPrefs(
+        ageMin: asInt(p['prefAgeMin']),
+        ageMax: asInt(p['prefAgeMax']),
+        cities: asStringList(p['prefCity']),
+        education: asStringList(p['prefEducation']),
+        maritalStatus: asStringList(p['prefMaritalStatus']),
+        religiosity: asStringList(p['prefReligiosity']),
+        smoking: asStringList(p['prefSmokingStatus']),
+        hijab: _yesNo(p['prefHijab']),
+        beard: _yesNo(p['prefBeard']),
+        children: _children(p['prefChildrenAcceptance']),
+        dealbreakers: asStringList(p['dealbreakers']).toSet(),
+      );
+
+  /// Older rows store yes / no in English (score.ts `prefYesNo`)
+  static String? _yesNo(Object? v) => switch (v) {
+        'yes' || 'نعم' => 'نعم',
+        'no' || 'لا' => 'لا',
+        'لا يهم' => 'لا يهم',
+        _ => null,
+      };
+
+  static String? _children(Object? v) => v == 'no_children' ? 'لا' : _yesNo(v);
+
+  final int? ageMin;
+  final int? ageMax;
+  final List<String> cities;
+  final List<String> education;
+  final List<String> maritalStatus;
+  final List<String> religiosity;
+  final List<String> smoking;
+  final String? hijab;
+  final String? beard;
+  final String? children;
+  final Set<String> dealbreakers;
+
+  /// The `changes` for `POST /api/profile/update-request` (preferences only, so the server saves them at once)
+  Map<String, dynamic> toChanges({required bool female}) => {
+        'prefAgeMin': ageMin,
+        'prefAgeMax': ageMax,
+        'prefCity': cities,
+        'prefEducation': education,
+        'prefMaritalStatus': maritalStatus,
+        'prefReligiosity': religiosity,
+        'prefSmokingStatus': smoking,
+        if (female) 'prefBeard': beard ?? '' else 'prefHijab': hijab ?? '',
+        'prefChildrenAcceptance': children ?? '',
+      };
+}
+
+/// The personality quiz (`GET /api/profile/personality-quiz`).
+class QuizQuestion {
+  const QuizQuestion({required this.id, required this.text});
+  final String id;
+  final String text;
+}
+
+class QuizResult {
+  const QuizResult({required this.type, required this.vector, required this.canRetake, required this.daysRemaining});
+
+  factory QuizResult.fromJson(Map<String, dynamic> j) => QuizResult(
+        type: asStringOr(j['personalityType']),
+        vector: (j['vector'] is List ? j['vector'] as List : const []).map((v) => asDouble(v) ?? 0).toList(),
+        canRetake: asBool(j['canRetake']) ?? false,
+        daysRemaining: asInt(j['daysRemaining']) ?? 0,
+      );
+
+  final String type;
+  final List<double> vector;
+  final bool canRetake;
+  final int daysRemaining;
+}
+
+class Quiz {
+  const Quiz({required this.questions, this.result});
+  final List<QuizQuestion> questions;
+  final QuizResult? result;
+}
+
 class ProfileRepository {
   ProfileRepository(this._api);
   final ApiClient _api;
+
+  Future<List<MyPhoto>> photos() async =>
+      asMapList((await _api.get('/api/profile/photos'))['photos']).map(MyPhoto.fromJson).toList();
+
+  /// `photoData` is a `data:image/jpeg;base64,…` URL (≤ 5 MB; at most 5 photos, the first becomes the main one)
+  Future<void> uploadPhoto(String photoData) async {
+    await _api.post('/api/profile/photos', body: {'photoData': photoData});
+  }
+
+  Future<void> setMainPhoto(String id) async {
+    await _api.patch('/api/profile/photos/$id');
+  }
+
+  Future<void> deletePhoto(String id) async {
+    await _api.delete('/api/profile/photos/$id');
+  }
+
+  Future<PartnerPrefs> partnerPrefs() async =>
+      PartnerPrefs.fromJson(asMap((await _api.get('/api/profile/dealbreakers'))['profile']));
+
+  /// Preferences save directly (no review); «شروطي الأساسية» only when shared suggestions are on.
+  Future<void> savePartnerPrefs(PartnerPrefs prefs, {required bool female, required bool withDealbreakers}) async {
+    await _api.post('/api/profile/update-request', body: {'changes': prefs.toChanges(female: female)});
+    if (withDealbreakers) {
+      await _api.put('/api/profile/dealbreakers', body: {'keys': prefs.dealbreakers.toList()});
+    }
+  }
+
+  Future<Quiz> quiz() async {
+    final j = await _api.get('/api/profile/personality-quiz');
+    return Quiz(
+      questions: asMapList(j['questions'])
+          .map((q) => QuizQuestion(id: asStringOr(q['id']), text: asStringOr(q['text'])))
+          .toList(),
+      result: asMapOrNull(j['result']) == null ? null : QuizResult.fromJson(asMap(j['result'])),
+    );
+  }
+
+  Future<QuizResult> submitQuiz(Map<String, int> answers) async {
+    final j = await _api.post('/api/profile/personality-quiz', body: {'answers': answers});
+    return QuizResult.fromJson({...asMap(j['result']), 'canRetake': false, 'daysRemaining': 90});
+  }
 
   Future<MyProfile> load() async => MyProfile.fromJson(await _api.get('/api/profile'));
 

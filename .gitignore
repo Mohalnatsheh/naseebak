@@ -52,3 +52,5 @@ Untitled
 
 
 /Marketing/
+# local photo uploads (dev only, src/lib/bunny.ts)
+/.dev-uploads/

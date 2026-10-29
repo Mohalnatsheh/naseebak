@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../app/providers.dart';
 import '../../core/auth/auth_controller.dart';
 import '../../core/localization/digits.dart';
 import '../../core/network/api_exception.dart';
+import '../../core/network/media_url.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/common.dart';
 import '../../shared/widgets/person_details_view.dart';
@@ -230,7 +232,7 @@ class _PhotosSectionState extends ConsumerState<_PhotosSection> {
         itemBuilder: (_, i) => ClipRRect(
           borderRadius: BorderRadius.circular(16),
           child: Image.network(
-            _photos![i],
+            resolveMediaUrl(ref.read(apiBaseUrlProvider), _photos![i]),
             width: 170,
             height: 220,
             fit: BoxFit.cover,

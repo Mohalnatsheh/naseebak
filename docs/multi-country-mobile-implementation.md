@@ -97,4 +97,36 @@ HTTP, an Android debug build, and (where an emulator is available) a run against
 - ✅ Milestone 1 — inspection, this document, safe local setup: database `naseeb_mobile` on localhost:5434,
   git-ignored `.env.development.local` / `.env.production.local` (no real SMS/email; Neon never touched).
 - ✅ Merge of `feature/multi-country` onto the live version (`8d2dea0`), tsc clean, 1171/1171 tests.
-- ⬜ Milestone 2 onwards — see below as it lands.
+- ✅ Milestone 2 — `country_settings` (typed, admin-editable, safe defaults), `GET /api/countries`,
+  `GET /api/countries/[code]` (safe fields only), seeds (`prisma/seed-countries.mjs`, `--dev` local only). Commit `fc8da19`.
+- ✅ Milestone 3 — sign-up gated by country (inactive / closed / mismatch) in `send-otp` and `register`; SMS routed
+  by the country setting with a MOCK provider + `/api/dev/sms-outbox` (refused on real servers); landing hero/SEO
+  overrides; Admin → Countries (settings, warnings, member numbers, credential yes/no, safe test SMS); polls per
+  country; Saudi purchases off until `PRICES_APPROVED.SA`; hosted checkout + `GET /api/payments/[id]/status` + local
+  mock checkout through `fulfilCheckoutSession`; mobile Bearer tokens (`mobile_sessions`, `/api/mobile/*`,
+  `requireUser` accepts them, admin routes never). Browser-checked: admin Countries (save, warnings, test SMS via
+  mock), `/` and `/sa` titles and hero. Scripted API check of the mobile sign-in (see `docs/local-testing.md`).
+- ✅ Tests: 1215 passing (44 new: settings, SMS routing + mock, mobile tokens, bearer `requireUser`, mobile routes,
+  admin countries, checkout gate); `tsc` clean; `eslint .` 0 problems.
+- ✅ Milestones 4–5 — Flutter app `naseebak_app/` (Flutter 3.41.6): country picker from the API, phone + code sign-in
+  and sign-up, token storage and restore, paused-account screen, short setup (lists from the API), home, shared
+  suggestions (three tabs, «مهتم» sheet with chat/family + consent, «لا»), matches with the intro panel, chat (polling,
+  sent/failed/filtered + edit), notifications, credits (packages, hosted or mock checkout, status polling, history,
+  Saudi «غير متاح»), profile, guardian, notification preferences, blocks, pause/delete, logout.
+  `flutter analyze` 0 issues · `flutter test` 40 passed · `flutter build apk --debug` OK. Emulator (Pixel 8 Pro API 31)
+  walkthrough against :3020 with screenshots in `naseebak_app/docs/screens/`: Jordan sign-in → home → suggestions →
+  matches → credits mock buy (10 → 20) → logout → Saudi sign-in (packages unavailable); sign-up + onboarding to home;
+  Saudi chat both ways incl. a filtered number; «مهتم» sheet opened and cancelled.
+- ✅ Milestone 6 — scripted API run with mobile tokens (Saudi pair): Saudi-only suggestions, «مهتم» 1 credit, repeat
+  refused without a second charge, mutual match free, chat opened, message delivered, number blocked, bell entry; no
+  cross-country suggestion in the database. Saudi switched off in the admin → hidden from the country API, `/sa`
+  → Jordan home, new Saudi sign-up refused, existing Saudi member can still sign in; switched back on → listed at once.
+- ✅ Milestone 7 — 1215 backend tests, `tsc`, `eslint .` 0 problems, production webpack build OK and served
+  (`next start`): `/`, `/sa`, `/register`, `/login`, `/faq`, `/sa/terms`, `/payments/return`, country APIs — no page errors.
+
+### Not done / limits
+- iOS build (needs macOS), native push (needs Firebase), Ably in the app (polls instead), photo upload, dealbreakers,
+  personality quiz and preferences beyond the age range in the app, English UI.
+- Arabic typing on the emulator is not possible through adb, so chat text typed in tests was Latin.
+- `src/lib/settings.ts` (global switches) still keeps its 30 s cache per module copy — a switch change can take up to
+  30 s per route, as before (unchanged behaviour).

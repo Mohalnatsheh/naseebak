@@ -333,6 +333,19 @@ Switch `engagement_polls_enabled` (default off; toggle in Admin → Naseebak Que
 - **Results** show only after voting (or once closed) and from `MIN_POLL_RESULTS` = 10 counted votes; the women/men split from 10 member votes each
 - **Admin:** settings (days per question, credits per answer, credits given so far), queue order (NEXT / QUEUE #n), edit (wording only once votes exist), delete (no votes), results by members/visitors/women/men/Instagram/dashboard, the tagged Instagram link (`pollShareUrl`) and a 1080×1920 «نتيجة سؤال نصيبك» story (`/admin/polls/[id]/story`, Download PNG via `html-to-image`, Cairo loaded on that page). GA event `poll_vote` on the public page. Marketing loop: `Marketing/strategy/ENGAGEMENT_FORMATS.md`
 
+## Countries and the mobile app (branch feature/multi-country-mobile, not deployed)
+
+Records: `docs/multi-country-mobile-implementation.md`, API: `docs/api-mobile.md`, local runs: `docs/local-testing.md`, before release: `docs/production-readiness.md`.
+
+- **Countries:** fixed facts in code (`src/lib/countries/index.ts`: JO, SA — dial code, phone rules, currency, time zone); admin-editable settings in `country_settings` (`src/lib/countries/settings.ts`, 30 s process-wide cache): active, registrationOpen, purchasesEnabled, smsProvider (DEFAULT/BROADNET/UNIFONIC/MOCK/NONE) + sender id, support contacts, hero/SEO overrides, pollsEnabled. No row = safe defaults: Jordan as today, every other country inactive and not selling. Admin → Countries (`/admin/countries`). A member's country follows the phone number and never changes; members are only paired within one country.
+- **Public API:** `GET /api/countries` (active only), `GET /api/countries/[code]` (+ content, support, legal links, cities/areas/nationalities) — display data only, never provider settings or secrets.
+- **Sign-up gate:** `countrySignupBlock()` in `send-otp` (register / new numbers) and `register`: inactive / closed country or a `country` that isn't the number's → refused; existing members can always sign in.
+- **SMS:** `sendSms` uses the country's provider; `MOCK` keeps messages in a local outbox (`/api/dev/sms-outbox`) and is refused unless NODE_ENV≠production or `SMS_MOCK=true` with a localhost `NEXT_PUBLIC_APP_URL`.
+- **Money:** Saudi purchases stay off until `PRICES_APPROVED.SA` (`src/lib/payments/packages.ts`) — SAR prices are drafts. Checkout `mode: "hosted"` for the app; `GET /api/payments/[id]/status`; local mock checkout (`PAYMENTS_MOCK=true`, `/api/dev/mock-checkout/[id]`) credits through `fulfilCheckoutSession`.
+- **Mobile auth:** `mobile_sessions` (SHA-256 of a random `nsb_…` token, 60 days, revoked on logout); `/api/mobile/auth/token` (same check as web sign-in: `authorizePhoneLogin`), `/api/mobile/auth/logout`, `/api/mobile/me`. `requireUser()` / `currentSession()` accept `Authorization: Bearer` (members only; `requireAdmin` never).
+- **App:** `naseebak_app/` (Flutter 3.41.6, Riverpod, go_router, Dio, secure storage, Cairo font, RTL). Debug API `http://10.0.2.2:3020`; see `naseebak_app/README.md`.
+- **Local setup:** database `naseeb_mobile` on localhost:5434; git-ignored `.env.development.local` / `.env.production.local` override `.env` / `.env.local` (Neon + real SMS) — always pass `DATABASE_URL` explicitly to Prisma CLI commands here.
+
 ## Contact Page
 
 `/contact` posts to `POST /api/contact` (`contactSchema` in `src/lib/validations/contact.ts`: a Jordanian mobile or an email, at least one; honeypot `website`, 5/hour per IP, 3/hour per email / phone) → `ContactMessage` row (`phone` stored normalised) (additive table `contact_messages`) + best-effort admin email (`sendContactNotification`). Read and mark handled in Admin → Contact Messages (`/admin/messages`). Footer social icons show only for the `NEXT_PUBLIC_SOCIAL_*` env vars that are set.

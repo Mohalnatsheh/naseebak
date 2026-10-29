@@ -50,13 +50,16 @@ function toSettings(r: CountrySetting): CountrySettings {
 }
 
 const TTL = 30_000;
-let cache: { at: number; rows: Map<CountryCode, CountrySettings> } | null = null;
+// One cache per server process, shared by every route (Next.js may give each route its own copy of this module,
+// and an admin's save must clear the copy the public API reads too)
+const store = globalThis as unknown as { __naseebakCountryCache?: { at: number; rows: Map<CountryCode, CountrySettings> } | null };
 
 export function clearCountrySettingsCache() {
-  cache = null;
+  store.__naseebakCountryCache = null;
 }
 
 async function loadAll(): Promise<Map<CountryCode, CountrySettings>> {
+  const cache = store.__naseebakCountryCache;
   if (cache && Date.now() - cache.at < TTL) return cache.rows;
   const rows = new Map<CountryCode, CountrySettings>(COUNTRY_CODES.map((c) => [c, defaultCountrySettings(c)]));
   try {
@@ -68,7 +71,7 @@ async function loadAll(): Promise<Map<CountryCode, CountrySettings>> {
     // Database trouble: fall back to the safe defaults rather than failing every page
     console.error("[countries] settings could not be read, using defaults:", error);
   }
-  cache = { at: Date.now(), rows };
+  store.__naseebakCountryCache = { at: Date.now(), rows };
   return rows;
 }
 

@@ -13,6 +13,8 @@ import { db } from "@/lib/db";
 import { COUNTRIES, COUNTRY_CODES, DEFAULT_COUNTRY, countryConfig, countryOfPhone, isCountryCode, type CountryCode } from "@/lib/countries";
 import { PRICES_APPROVED, packagesFor } from "@/lib/payments/packages";
 import { localizedPath } from "@/lib/site-paths";
+import { areasFor, citiesFor } from "@/lib/countries/places";
+import { nationalityOptions } from "@/lib/profile-options";
 
 export type CountrySettings = Omit<CountrySetting, "createdAt" | "updatedAt" | "updatedById">;
 export type ResolvedSmsProvider = "BROADNET" | "UNIFONIC" | "MOCK" | "NONE";
@@ -205,6 +207,12 @@ export function publicCountryDetail(s: CountrySettings, content: { heroTitle: st
       faq: abs("/faq"),
       contact: abs("/contact"),
       register: `${siteUrl.replace(/\/$/, "")}/register?country=${code.toLowerCase()}`,
+    },
+    // The choices the web setup wizard offers for this country (the app must not keep its own copies)
+    lists: {
+      cities: citiesFor(code),
+      areas: areasFor(code),
+      nationalities: { male: nationalityOptions("MALE", code), female: nationalityOptions("FEMALE", code) },
     },
   };
 }

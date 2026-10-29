@@ -43,7 +43,7 @@ Active countries only.
 ### `GET /api/countries/{code}`
 One active country with page text and links; 404 `COUNTRY_UNKNOWN` / `COUNTRY_INACTIVE`.
 Adds `content { heroTitle, heroSubtitle, seoTitle, seoDescription }`, `support { email, phone, whatsapp }` and
-`links { home, terms, privacy, refundPolicy, faq, contact, register }` (absolute URLs).
+`links { home, terms, privacy, refundPolicy, faq, contact, register }` (absolute URLs), and `lists { cities, areas, nationalities: { male, female } }` — the same choices the web setup wizard offers for that country.
 
 Never returned: SMS provider, sender ids, credentials, Stripe keys, internal settings.
 
@@ -77,7 +77,7 @@ Test numbers (fixed code `111111`, never an SMS): see `docs/local-testing.md`.
   Poll every 2–3 s for up to ~2 min after returning from the checkout page. The server adds credits only after Stripe
   confirms the payment (and only once) — the app never adds credits itself.
 - Local only: `POST /api/dev/mock-checkout/{paymentId}` `{ outcome: "paid" | "cancelled" }` → `{ result }` (404 on real servers).
-- `GET /api/payments/history?page=1` → the member's payments.
+- `GET /api/payments/history?page=1` → the member's payments (web shape: `amount` is a decimal string; prefer `/api/payments/{id}/status` for one payment).
 
 ## Member endpoints the app uses (existing, unchanged)
 
@@ -88,9 +88,9 @@ All take the Bearer token. Source of truth for each shape: the route file under 
 | Counts / badges | `GET /api/me/counts` (flags, credits, new suggestions, liked-you, unread chats, pending intros) |
 | Profile | `GET/PUT /api/profile`, `PATCH /api/profile/draft`, `POST /api/profile/update-request`, `PUT /api/profile/dealbreakers`, `GET/POST /api/profile/photos`, `PATCH/DELETE /api/profile/photos/{id}`, `GET/PUT /api/profile/parent-info` |
 | Suggestions (discovery) | `GET /api/suggestions` (tops up, `emptyReason`), `GET /api/suggestions/feed?tab=new|interested|waiting&page=`, `POST /api/suggestions/{id}/decide` `{ interested: boolean, introPreference?: "CHAT"|"FAMILY", guardianConsent?: boolean }` («مهتم» needs `introPreference`; FAMILY needs the guardian saved + consent; errors carry `code`: `NO_CREDITS`, `GUARDIAN_REQUIRED`, `CONSENT_REQUIRED`, `PREFERENCE_REQUIRED`) |
-| Matches | `GET /api/matches`, `POST /api/matches/{id}/intro`, `POST /api/intro-requests/{id}/respond`, `POST /api/intro-requests/{id}/cancel`, `POST /api/matches/{id}/outcome`, `GET /api/matches/{id}/photos` |
-| Chats | `GET /api/chats`, `GET/POST /api/chats/{id}/messages`, `POST /api/chats/{id}/read`, `POST /api/chats/{id}/end`, `POST /api/chats/{id}/extend` (live updates: the web uses Ably; the app polls) |
-| Notifications | `GET /api/notifications?page=`, `POST /api/notifications/{id}/read`, `POST /api/notifications/read-all`, `GET /api/notifications/unread-count`, `GET/PUT /api/notifications/preferences` |
+| Matches | `GET /api/matches` (`?focus=<matchId>` to open one; there is no `GET /api/matches/{id}`), `POST /api/matches/{id}/intro`, `POST /api/intro-requests/{id}/respond`, `POST /api/intro-requests/{id}/cancel`, `POST /api/matches/{id}/outcome`, `GET /api/matches/{id}/photos` |
+| Chats | `GET /api/chats`, `GET /api/chats/{id}?before=<iso>|after=<iso>` (conversation + a page of messages), `POST /api/chats/{id}/messages`, `POST /api/chats/{id}/read`, `POST /api/chats/{id}/end`, `POST /api/chats/{id}/extend` (live updates: the web uses Ably; the app polls) |
+| Notifications | `GET /api/notifications?page=`, `PATCH /api/notifications/{id}/read`, `PUT /api/notifications/read-all`, `GET /api/notifications/unread-count`, `GET/PATCH /api/notifications/preferences` |
 | سؤال نصيبك | `GET /api/polls/current`, `POST /api/polls/vote` `{ pollId, optionId, source: "dashboard" }` |
 | Safety | `GET/POST /api/blocks`, `DELETE /api/blocks/{id}`, `POST /api/reports` |
 | Account | `POST /api/profile/deactivate` `{ action: "pause"|"resume" }`, `POST /api/profile/reactivate`, `POST /api/profile/delete` |

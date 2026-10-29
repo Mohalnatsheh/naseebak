@@ -40,6 +40,12 @@ const PACKAGES: Record<CountryCode, readonly CreditPackage[]> = {
   SA: [sa("sa_10", "10 أرصدة", 10, 15), sa("sa_25", "25 رصيداً", 25, 30, true), sa("sa_50", "50 رصيداً", 50, 50)],
 };
 
+/**
+ * Prices the owner approved for sale. Saudi prices above are a draft ([NEEDS INPUT] owner + Stripe SAR check): Saudi
+ * purchases stay off even if an admin switches them on, until this says true (src/lib/countries/settings.ts).
+ */
+export const PRICES_APPROVED: Record<CountryCode, boolean> = { JO: true, SA: false };
+
 /** Jordanian packages no longer sold: kept so a refund of an older purchase takes back the right credits */
 const RETIRED_PACKAGES: readonly CreditPackage[] = [
   { id: "credits_3", country: "JO", name: "3 أرصدة", credits: 3, price: 3, currency: "JOD", chargeCurrency: "usd", chargeAmount: 423 },

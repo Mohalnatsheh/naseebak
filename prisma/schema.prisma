@@ -262,6 +262,7 @@ model User {
   messages              Message[]
   creditLedger          CreditLedger[]
   pollVotes             PollVote[]
+  mobileSessions        MobileSession[]
 
   @@index([country, gender])
   @@map("users")
@@ -937,4 +938,63 @@ model PollVote {
   @@unique([pollId, visitorKey])
   @@index([pollId, optionId])
   @@map("poll_votes")
+}
+
+enum SmsProviderKind {
+  /// The country's usual provider: Jordan → Broadnet, Saudi Arabia → Unifonic
+  DEFAULT
+  BROADNET
+  UNIFONIC
+  /// Development only: never sends, keeps the message in a local outbox (refused in production)
+  MOCK
+  /// No SMS for this country (sign-up codes fail with 502)
+  NONE
+}
+
+/// Admin-editable settings of a country (multi-country 2026-10-29). Fixed facts (dial code, phone rules, currency,
+/// time zone) stay in code (src/lib/countries); a missing row means the code defaults (src/lib/countries/settings.ts):
+/// Jordan active and selling, every other country inactive with purchases off — so a deploy never opens a country.
+/// Provider secrets are never stored here (env only).
+model CountrySetting {
+  /// ISO 3166-1 alpha-2 (JO, SA)
+  code             String          @id
+  active           Boolean         @default(false)
+  registrationOpen Boolean         @default(true)
+  purchasesEnabled Boolean         @default(false)
+  smsProvider      SmsProviderKind @default(DEFAULT)
+  /// Overrides the provider's env sender id when set
+  smsSenderId      String?
+  supportEmail     String?
+  supportPhone     String?
+  supportWhatsapp  String?
+  /// Public page overrides (empty = the built-in copy)
+  seoTitle         String?
+  seoDescription   String?
+  heroTitle        String?
+  heroSubtitle     String?
+  /// «سؤال نصيبك» for members of this country
+  pollsEnabled     Boolean         @default(true)
+  updatedById      String?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  @@map("country_settings")
+}
+
+/// Sign-in of the mobile app (Bearer token). Only a SHA-256 of the token is stored; revoked on logout or by the
+/// member's other sessions being cleared. Web sign-in keeps the NextAuth cookie.
+model MobileSession {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash  String    @unique
+  /// e.g. "android 15 · Pixel 8" (sent by the app, shown to the member/admin)
+  device     String?
+  expiresAt  DateTime
+  lastUsedAt DateTime?
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([userId])
+  @@map("mobile_sessions")
 }

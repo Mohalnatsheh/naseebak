@@ -5,6 +5,7 @@ import { rateLimitDb } from "@/lib/rate-limit-db";
 import { sendSms } from "@/lib/sms";
 import { sendOtpSchema, normalizePhone } from "@/lib/validations/auth";
 import { getMaintenanceState, isRegistrationOpen } from "@/lib/settings";
+import { countrySignupBlock } from "@/lib/countries/settings";
 import { TEST_OTP, hasFixedOtp } from "@/lib/test-accounts";
 
 // Fixed OTP for test numbers — bypass SMS (list and EXTRA_TEST_PHONES in lib/test-accounts)
@@ -76,6 +77,9 @@ export async function POST(request: Request) {
           { status: 403 }
         );
       }
+      // The number's country must be open for sign-up (same answer whether or not the number exists)
+      const blocked = await countrySignupBlock(phone, typeof body.country === "string" ? body.country : null);
+      if (blocked) return NextResponse.json({ error: blocked.error, code: blocked.code }, { status: blocked.status });
     }
 
     // Delete previous unexpired OTPs for this phone

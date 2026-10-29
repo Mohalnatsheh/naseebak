@@ -4,23 +4,42 @@
  *                          Config: BROADNET_USER, BROADNET_PASS, BROADNET_SENDER_ID, BROADNET_API_URL.
  *   Saudi Arabia (966…)  → Unifonic REST. Config: UNIFONIC_APP_SID, UNIFONIC_SENDER_ID (a sender name
  *                          registered with CST), UNIFONIC_API_URL. `[NEEDS INPUT]` account — untested until set.
- * A country with no configured provider returns false (send-otp answers 502, notices are skipped).
+ * Since 2026-10-29 the provider is the country's admin setting (country_settings.smsProvider, DEFAULT = the provider
+ * above), so a country can switch provider or be set to NONE without a deploy; MOCK keeps messages in a local outbox
+ * (src/lib/sms-mock.ts) and is refused on any real server. Sender ids can be overridden per country.
+ * A country with no working provider returns false (send-otp answers 502, notices are skipped).
  * Used for OTP codes (send-otp) and the SMS notice fallback (lib/sms-notice.ts).
  */
 import { countryOfPhone } from "@/lib/countries";
+import { getCountrySettings, resolveSmsProvider } from "@/lib/countries/settings";
+import { maskPhone, sendMockSms } from "@/lib/sms-mock";
 
 export async function sendSms(phone: string, text: string): Promise<boolean> {
   const country = countryOfPhone(phone);
-  if (country === "SA") return sendUnifonic(phone, text);
-  if (country === "JO") return sendBroadnet(phone, text);
-  console.error(`[SMS] No SMS provider for ${phone}`);
-  return false;
+  if (!country) {
+    console.error(`[SMS] No country for ${maskPhone(phone)}`);
+    return false;
+  }
+  const setting = await getCountrySettings(country);
+  const provider = resolveSmsProvider(country, setting.smsProvider);
+  const sender = setting.smsSenderId || undefined;
+  switch (provider) {
+    case "MOCK":
+      return sendMockSms(phone, text);
+    case "BROADNET":
+      return sendBroadnet(phone, text, sender);
+    case "UNIFONIC":
+      return sendUnifonic(phone, text, sender);
+    case "NONE":
+      console.error(`[SMS] SMS are off for ${country} (${maskPhone(phone)})`);
+      return false;
+  }
 }
 
 /** Saudi Arabia — Unifonic (https://el.cloud.unifonic.com/rest/SMS/messages) */
-async function sendUnifonic(phone: string, text: string): Promise<boolean> {
+async function sendUnifonic(phone: string, text: string, senderOverride?: string): Promise<boolean> {
   const appSid = process.env.UNIFONIC_APP_SID;
-  const sender = process.env.UNIFONIC_SENDER_ID;
+  const sender = senderOverride || process.env.UNIFONIC_SENDER_ID;
   if (!appSid || !sender) {
     console.error("[SMS] UNIFONIC_APP_SID / UNIFONIC_SENDER_ID are not configured (Saudi numbers)");
     return false;
@@ -32,7 +51,7 @@ async function sendUnifonic(phone: string, text: string): Promise<boolean> {
       body: new URLSearchParams({ AppSid: appSid, SenderID: sender, Recipient: phone, Body: text, responseType: "JSON" }).toString(),
     });
     const body = await res.text();
-    console.log(`[SMS] Unifonic response for ${phone}: status=${res.status} body="${body.slice(0, 200)}"`);
+    console.log(`[SMS] Unifonic response for ${maskPhone(phone)}: status=${res.status} body="${body.slice(0, 200)}"`);
     if (!res.ok) return false;
     try {
       const j = JSON.parse(body) as { success?: boolean | string };
@@ -54,7 +73,7 @@ export function toUnicodeHex(text: string): string {
 }
 
 /** Jordan — Broadnet */
-async function sendBroadnet(phone: string, text: string): Promise<boolean> {
+async function sendBroadnet(phone: string, text: string, senderOverride?: string): Promise<boolean> {
   const user = process.env.BROADNET_USER;
   const pass = process.env.BROADNET_PASS;
   if (!user || !pass) {
@@ -66,7 +85,7 @@ async function sendBroadnet(phone: string, text: string): Promise<boolean> {
     const params = new URLSearchParams({
       user,
       pass,
-      sid: process.env.BROADNET_SENDER_ID || "naseebak",
+      sid: senderOverride || process.env.BROADNET_SENDER_ID || "naseebak",
       mno: phone,
       type: "2",
       text: toUnicodeHex(text),

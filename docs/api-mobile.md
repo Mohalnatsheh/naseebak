@@ -1,0 +1,99 @@
+# Naseebak mobile API
+
+The Flutter app (`naseebak_app/`) talks to the **same Next.js API as the website** — there is no second backend.
+Base URL: `https://naseebak.com` in production; locally `http://localhost:3020` (Android emulator:
+`http://10.0.2.2:3020`). All bodies are JSON (UTF-8). Arabic messages are meant to be shown to the member as is.
+
+## Conventions
+
+- **Auth:** `Authorization: Bearer <token>` on every member endpoint (the web uses a cookie; both work everywhere
+  `requireUser()` is used). Tokens come from `POST /api/mobile/auth/token`, last 60 days, and are revoked on logout.
+- **Errors:** non-2xx answers are `{ "error": "<Arabic message>", "code"?: "<MACHINE_CODE>" }`. Common statuses:
+  400 invalid input · 401 not signed in / token invalid → sign out locally · 403 `DEACTIVATED` (account paused: only
+  `/api/profile/reactivate` works) or forbidden · 404 not found · 409 conflict (already done) · 429 rate limited ·
+  502 provider failure (SMS / Stripe) · 503 maintenance.
+- **Pagination:** list endpoints take `?page=1` (1-based) and answer `page`, `total`, `totalPages`.
+- **Country:** a member's country is fixed by their phone number at registration (962 → JO, 966 → SA). The app sends
+  the picked country with sign-up (`country`), and the server checks it matches the number. Members only ever see
+  people of their own country; packages and currency follow the member's country.
+- **Digits:** Western digits everywhere; phone and code fields also accept Arabic-Indic digits.
+
+## Countries (public, no auth)
+
+### `GET /api/countries`
+Active countries only.
+```json
+{
+  "defaultCountry": "JO",
+  "countries": [{
+    "code": "JO", "name": { "ar": "الأردن", "en": "Jordan" }, "inName": "في الأردن",
+    "flag": { "emoji": "🇯🇴", "id": "jo" }, "dialCode": "+962",
+    "phone": { "placeholder": "7XXXXXXXX", "example": "0791234567", "nationalPattern": "^7[789]\\d{7}$" },
+    "currency": { "code": "JOD", "symbol": "د.أ" },
+    "locales": ["ar"], "defaultLocale": "ar", "direction": "rtl",
+    "timeZone": "Asia/Amman", "dateLocale": "ar-JO-u-nu-latn",
+    "isDefault": true, "active": true, "registrationOpen": true, "purchasesEnabled": true,
+    "features": { "polls": true },
+    "words": { "phone": "هاتف", "tribe": "العشيرة", "nationalityMale": "أردني", "nationalityFemale": "أردنية" }
+  }]
+}
+```
+`nationalPattern` validates the number after the dial code (without the leading 0).
+
+### `GET /api/countries/{code}`
+One active country with page text and links; 404 `COUNTRY_UNKNOWN` / `COUNTRY_INACTIVE`.
+Adds `content { heroTitle, heroSubtitle, seoTitle, seoDescription }`, `support { email, phone, whatsapp }` and
+`links { home, terms, privacy, refundPolicy, faq, contact, register }` (absolute URLs).
+
+Never returned: SMS provider, sender ids, credentials, Stripe keys, internal settings.
+
+## Sign-up and sign-in
+
+1. `POST /api/auth/send-otp` `{ phone, context: "register" | "login", country? }` → `200 { message, userExists? }`.
+   Sign-up (`register`) never reveals whether the number exists. Errors: 403 `COUNTRY_INACTIVE` /
+   `COUNTRY_REGISTRATION_CLOSED` (or the global registration switch), 400 `COUNTRY_MISMATCH` (number not of the picked
+   country), 429 (3 codes per number per 5 min, 10 per IP per 15 min), 502 (SMS could not be sent — locally, use the
+   mock outbox), 503 maintenance.
+2. `POST /api/auth/verify-otp` `{ phone, code }` → `200 { verified: true }`. 5 tries per number, then the code is gone.
+3. New member only: `POST /api/auth/register`
+   `{ firstName, lastName, phone, gender: "MALE"|"FEMALE", otp, termsAccepted: true, country? }` → `201`.
+   409 `PHONE_EXISTS` = already a member → just do step 4.
+4. `POST /api/mobile/auth/token` `{ phone, code, device? }` → `201 { token, expiresAt, user }`.
+   401 `INVALID_CODE` (wrong/expired/already used), 429 `RATE_LIMITED` (`retryAfterMinutes`). The code is used up here.
+5. `GET /api/mobile/me` → `{ user }` (works for paused accounts too):
+   `{ id, firstName, lastName, gender, phone, country: <country>, credits, status, deactivated, profile: { exists, complete }, createdAt }`.
+6. `POST /api/mobile/auth/logout` (Bearer) → `{ ok: true }`; the token stops working at once.
+
+Test numbers (fixed code `111111`, never an SMS): see `docs/local-testing.md`.
+
+## Payments
+
+- `GET /api/payments/plans` → `{ country, purchasesEnabled, packages: [{ id, name, credits, price, currency, currencySymbol, chargeUsd?, chargeLabel, popular?, wasPrice? }] }`.
+  When `purchasesEnabled` is false (country not selling yet — Saudi Arabia today) show the packages as unavailable.
+- `POST /api/payments/checkout` `{ packageId, mode: "hosted" }` →
+  `{ checkoutUrl, paymentId }` (open in the browser) or, locally with mock payments, `{ mock: true, paymentId }`.
+  403 `PURCHASES_DISABLED`, 400 `INVALID_PACKAGE`, 502 Stripe unavailable.
+- `GET /api/payments/{paymentId}/status` → `{ payment: { id, status: "PENDING"|"COMPLETED"|"FAILED"|"REFUNDED", packageId, amount, currency, createdAt }, credits }`.
+  Poll every 2–3 s for up to ~2 min after returning from the checkout page. The server adds credits only after Stripe
+  confirms the payment (and only once) — the app never adds credits itself.
+- Local only: `POST /api/dev/mock-checkout/{paymentId}` `{ outcome: "paid" | "cancelled" }` → `{ result }` (404 on real servers).
+- `GET /api/payments/history?page=1` → the member's payments.
+
+## Member endpoints the app uses (existing, unchanged)
+
+All take the Bearer token. Source of truth for each shape: the route file under `src/app/api/<path>/route.ts`.
+
+| Feature | Endpoints |
+|---|---|
+| Counts / badges | `GET /api/me/counts` (flags, credits, new suggestions, liked-you, unread chats, pending intros) |
+| Profile | `GET/PUT /api/profile`, `PATCH /api/profile/draft`, `POST /api/profile/update-request`, `PUT /api/profile/dealbreakers`, `GET/POST /api/profile/photos`, `PATCH/DELETE /api/profile/photos/{id}`, `GET/PUT /api/profile/parent-info` |
+| Suggestions (discovery) | `GET /api/suggestions` (tops up, `emptyReason`), `GET /api/suggestions/feed?tab=new|interested|waiting&page=`, `POST /api/suggestions/{id}/decide` `{ interested: boolean, introPreference?: "CHAT"|"FAMILY", guardianConsent?: boolean }` («مهتم» needs `introPreference`; FAMILY needs the guardian saved + consent; errors carry `code`: `NO_CREDITS`, `GUARDIAN_REQUIRED`, `CONSENT_REQUIRED`, `PREFERENCE_REQUIRED`) |
+| Matches | `GET /api/matches`, `POST /api/matches/{id}/intro`, `POST /api/intro-requests/{id}/respond`, `POST /api/intro-requests/{id}/cancel`, `POST /api/matches/{id}/outcome`, `GET /api/matches/{id}/photos` |
+| Chats | `GET /api/chats`, `GET/POST /api/chats/{id}/messages`, `POST /api/chats/{id}/read`, `POST /api/chats/{id}/end`, `POST /api/chats/{id}/extend` (live updates: the web uses Ably; the app polls) |
+| Notifications | `GET /api/notifications?page=`, `POST /api/notifications/{id}/read`, `POST /api/notifications/read-all`, `GET /api/notifications/unread-count`, `GET/PUT /api/notifications/preferences` |
+| سؤال نصيبك | `GET /api/polls/current`, `POST /api/polls/vote` `{ pollId, optionId, source: "dashboard" }` |
+| Safety | `GET/POST /api/blocks`, `DELETE /api/blocks/{id}`, `POST /api/reports` |
+| Account | `POST /api/profile/deactivate` `{ action: "pause"|"resume" }`, `POST /api/profile/reactivate`, `POST /api/profile/delete` |
+
+The business rules (credits on «مهتم», refunds, matching, privacy of «لا», photos hidden until a match) all live on
+the server; the app only shows what these endpoints return.

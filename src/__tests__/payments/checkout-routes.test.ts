@@ -9,6 +9,12 @@ const fulfil = vi.hoisted(() => ({ fulfilCheckoutSession: vi.fn(), CHECKOUT_APP:
 vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/auth", () => ({ requireUser: async () => ({ session: { user: { id: "u1" } } }) }));
 vi.mock("@/lib/payments/fulfil", () => fulfil);
+// Lets a test act as if a country's prices were approved and sales switched on (null = the real rule)
+const gate = vi.hoisted(() => ({ selling: null as null | boolean }));
+vi.mock("@/lib/countries/settings", async (orig) => {
+  const real = await orig<typeof import("@/lib/countries/settings")>();
+  return { ...real, purchasesAvailable: (s: Parameters<typeof real.purchasesAvailable>[0]) => gate.selling ?? real.purchasesAvailable(s) };
+});
 vi.mock("@/lib/stripe", () => ({
   getStripe: () => ({ checkout: { sessions: { create: stripe.create, expire: stripe.expire, retrieve: stripe.retrieve } } }),
 }));
@@ -102,7 +108,16 @@ describe("packages per country", () => {
     expect(formatCharge(packagesFor("SA")[0])).toBe("15 ر.س");
   });
 
-  it("checkout charges a Saudi member in SAR and refuses Jordanian packages", async () => {
+  it("Saudi checkout is refused while Saudi prices are not approved", async () => {
+    db.user.findUnique.mockResolvedValue({ country: "SA" });
+    const res = await checkout(post({ packageId: "sa_25" }));
+    expect(res.status).toBe(403);
+    expect(await res.json()).toMatchObject({ code: "PURCHASES_DISABLED" });
+    expect(stripe.create).not.toHaveBeenCalled();
+  });
+
+  it("once Saudi sales are approved and on: charges in SAR and refuses Jordanian packages", async () => {
+    gate.selling = true;
     db.user.findUnique.mockResolvedValue({ country: "SA" });
     stripe.create.mockResolvedValue({ id: "cs_sa", client_secret: "sec" });
     const res = await checkout(post({ packageId: "sa_25" }));
@@ -111,5 +126,6 @@ describe("packages per country", () => {
     expect(db.payment.create.mock.calls[0][0].data).toMatchObject({ amount: 30, currency: "SAR", planName: "sa_25" });
     const refused = await checkout(post({ packageId: "launch_25" }));
     expect(refused.status).toBe(400);
+    gate.selling = null;
   });
 });

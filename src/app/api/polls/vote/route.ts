@@ -29,6 +29,7 @@ export async function POST(request: Request) {
 
     const voter = await resolveVoter({ createCookie: true });
     if (voter.kind === "blocked") return NextResponse.json({ error: "حسابك غير مفعّل" }, { status: 403 });
+    if (voter.kind === "member" && voter.pollsOff) return NextResponse.json({ error: ERRORS.NOT_FOUND[0] }, { status: 404 });
     const { pollId, optionId } = parsed.data;
     // The dashboard is members only; a visitor can't claim it
     const source = voter.kind === "member" ? parsed.data.source : parsed.data.source === "dashboard" ? "page" : parsed.data.source;

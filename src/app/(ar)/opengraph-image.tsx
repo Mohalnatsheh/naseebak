@@ -63,6 +63,7 @@ export default async function Image() {
         />
 
         {/* Logo */}
+        {/* eslint-disable-next-line @next/next/no-img-element -- ImageResponse renders plain <img> with a data: URL (next/image does not work here) */}
         <img
           src={logoBase64}
           alt="نصيبك"

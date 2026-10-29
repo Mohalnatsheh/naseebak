@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { countryOfPhone } from "@/lib/countries";
 import { registerSchema, normalizePhone, VERIFIED_OTP_WINDOW_MS } from "@/lib/validations/auth";
 import { getMaintenanceState, isRegistrationOpen } from "@/lib/settings";
+import { countrySignupBlock } from "@/lib/countries/settings";
 import { getRegistrationCredits, recordCredit } from "@/lib/credits";
 import { sendNewUserNotification } from "@/lib/email";
 
@@ -33,6 +34,8 @@ export async function POST(request: Request) {
 
     const { firstName, lastName, gender, otp } = result.data;
     const phone = normalizePhone(result.data.phone);
+    const blocked = await countrySignupBlock(phone, result.data.country ?? null);
+    if (blocked) return NextResponse.json({ error: blocked.error, code: blocked.code }, { status: blocked.status });
 
     // A code verified by /api/auth/verify-otp within the last 30 minutes (login → register
     // hand-off included). Sign-in right after registering uses it up.

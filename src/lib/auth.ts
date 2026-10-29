@@ -1,9 +1,11 @@
 import NextAuth, { type Session } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { NextResponse } from "next/server";
+import { headers } from "next/headers";
 import { db } from "@/lib/db";
 import { authConfig } from "@/lib/auth.config";
 import { authorizeAdminLogin, authorizePhoneLogin } from "@/lib/auth-authorize";
+import { sessionFromBearer } from "@/lib/mobile-auth";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
@@ -54,10 +56,25 @@ type RequireUserResult =
   | { error: NextResponse }
   | { session: Session & { user: NonNullable<Session["user"]> & { id: string } } };
 
+/**
+ * The signed-in member for an API route: the web cookie (NextAuth) or, for the mobile app, an
+ * `Authorization: Bearer` token (src/lib/mobile-auth.ts). Admins sign in on the web only.
+ */
+export async function currentSession(): Promise<Session | null> {
+  const session = await auth().catch(() => null);
+  if (session?.user?.id) return session;
+  try {
+    return await sessionFromBearer((await headers()).get("authorization"));
+  } catch {
+    // Outside a request (tests, scripts): no header to read
+    return null;
+  }
+}
+
 export async function requireUser(
   options: { allowDeactivated?: boolean } = {},
 ): Promise<RequireUserResult> {
-  const session = await auth();
+  const session = await currentSession();
   if (!session?.user?.id) {
     return { error: NextResponse.json({ error: "غير مصرح" }, { status: 401 }) };
   }

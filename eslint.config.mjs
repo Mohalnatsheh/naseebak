@@ -15,5 +15,6 @@ export default defineConfig([
       "react-hooks/purity": "warn",
     },
   },
-  globalIgnores([".next/**", "out/**", "build/**", "coverage/**", "next-env.d.ts", "docker/**"]),
+  // Marketing/ (reel studio, vendored skills) and naseebak_app/ (Flutter, own analyzer) are not part of the website
+  globalIgnores([".next/**", "out/**", "build/**", "coverage/**", "next-env.d.ts", "docker/**", "Marketing/**", "naseebak_app/**"]),
 ]);

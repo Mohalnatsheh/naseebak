@@ -98,6 +98,8 @@ export const registerSchema = z.object({
   otp: otpCodeSchema,
   // One required tick: terms + privacy policy + "I am 18 or older"; the time is stored on the user
   termsAccepted: z.literal(true, { message: TERMS_REQUIRED_MESSAGE }),
+  // Optional: the country the member picked (app / dial-code switch); it must be the number's country
+  country: z.string().length(2).optional(),
 });
 
 export const loginSchema = z.object({

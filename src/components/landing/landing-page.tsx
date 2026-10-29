@@ -4,8 +4,10 @@ import type { CountryCode } from "@/lib/countries";
 import { contentFor, type LandingMode } from "./content";
 import { LandingBody } from "./landing-body";
 
-export function LandingPage({ mode, country }: { mode: LandingMode; country: CountryCode }) {
-  const content = contentFor(mode, country);
+export function LandingPage({ mode, country, hero }: { mode: LandingMode; country: CountryCode; hero?: { title: string; lead: string } }) {
+  const base = contentFor(mode, country);
+  // The country's admin overrides (country_settings) replace the built-in hero text
+  const content = hero ? { ...base, hero: { ...base.hero, title: hero.title, lead: hero.lead } } : base;
   return (
     <>
       <Navbar />

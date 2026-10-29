@@ -13,6 +13,7 @@ export async function GET(request: Request) {
     const poll = slug ? await getPublishedPoll(slug.slice(0, 40)) : await getActivePoll();
     if (!poll) return NextResponse.json({ poll: null });
     const voter = await resolveVoter();
+    if (voter.kind === "member" && voter.pollsOff) return NextResponse.json({ poll: null });
     const myVote =
       voter.kind === "member"
         ? await findMyVote(poll.id, { userId: voter.userId })

@@ -23,10 +23,10 @@ If a build complains about licenses: `yes | flutter doctor --android-licenses`.
 
 | Where the app runs | Command |
 |---|---|
-| Android emulator → local backend | `flutter run` (debug default is `http://10.0.2.2:3020`) |
+| Production (default, every build) | `flutter run` / `flutter build apk --release` → `https://naseebak.com` |
+| Android emulator → local backend | `flutter run --dart-define=API_BASE_URL=http://10.0.2.2:3020` |
 | Physical phone on the same Wi-Fi | `flutter run --dart-define=API_BASE_URL=http://192.168.1.20:3020` (your PC's LAN IP) — also add that IP to `android/app/src/debug/res/xml/network_security_config.xml`, debug builds only allow plain HTTP to 10.0.2.2 / localhost / 127.0.0.1 |
 | Phone over USB without Wi-Fi | `adb reverse tcp:3020 tcp:3020` then `flutter run --dart-define=API_BASE_URL=http://localhost:3020` |
-| Production | release builds default to `https://naseebak.com` (or pass the define) |
 
 Release builds never allow cleartext HTTP (the network security config lives in `src/debug` only).
 
@@ -34,14 +34,16 @@ Release builds never allow cleartext HTTP (the network security config lives in 
 
 ```bash
 flutter emulators --launch Pixel_8_Pro_API_31
-flutter run
+flutter run                                                   # production (naseebak.com)
+flutter run --dart-define=API_BASE_URL=http://10.0.2.2:3020   # local backend
+flutter build apk --release                                   # test APK on production
 ```
 
-Local test accounts (code is always `111111`, no SMS): Jordan `0796922292` (سارة), `0777000001`, `0777000002`,
+On production, sign in with a real number (a real SMS code is sent). Local backend test accounts (code is always `111111`, no SMS): Jordan `0796922292` (سارة), `0777000001`, `0777000002`,
 `0790000004`; Saudi Arabia `0500000771` (ريم), `0500000772` (فهد). Other numbers: read the code from
 `GET http://localhost:3020/api/dev/sms-outbox?phone=05xxxxxxxx`.
 
-Local payments are a mock: «شراء» → a dialog «دفع تجريبي» (debug builds only) → `POST /api/dev/mock-checkout/{id}` →
+Local payments are a mock: «شراء» → a dialog «دفع تجريبي» (debug builds on a local backend only) → `POST /api/dev/mock-checkout/{id}` →
 the app polls `GET /api/payments/{id}/status`. Saudi Arabia has `purchasesEnabled: false`, so packages show as
 «غير متاح».
 

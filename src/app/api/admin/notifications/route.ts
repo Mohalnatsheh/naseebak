@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { notify, notifyMany } from "@/lib/notify";
+import { notify, notifyMany, type PushChannel } from "@/lib/notify";
 import { byUserCountry, getAdminCountry, userCountryWhere } from "@/lib/admin/country-filter";
 import { countryConfig } from "@/lib/countries";
 
@@ -60,7 +60,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Title and body are required" }, { status: 400 });
     }
 
-    const input = { type: "SYSTEM" as const, title, body: notifBody, url: safeUrl(body.url) };
+    // "all" (website + app), "web" (OneSignal only) or "app" (FCM only, and only members who have the app)
+    const channel: PushChannel = body.channel ?? "all";
+    if (!(["all", "web", "app"] as const).includes(channel)) {
+      return NextResponse.json({ error: "channel must be all, web or app" }, { status: 400 });
+    }
+    const input = { type: "SYSTEM" as const, title, body: notifBody, url: safeUrl(body.url), channel };
     // Sends only reach the admin's selected country ("ALL" = every country)
     const country = await getAdminCountry(request);
 
@@ -82,9 +87,19 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "Notification sent to user" });
     }
 
-    // Broadcast: active users only (not suspended, not deactivated), of the selected country
+    // Broadcast: active users only (not suspended, not deactivated), of the selected country; "app" = only members
+    // with the app and a valid sign-in, so website-only members don't get an app message in their list
+    const now = new Date();
     const users = await db.user.findMany({
-      where: { role: "USER", isDeactivated: false, status: { not: "SUSPENDED" }, ...userCountryWhere(country) },
+      where: {
+        role: "USER",
+        isDeactivated: false,
+        status: { not: "SUSPENDED" },
+        ...userCountryWhere(country),
+        ...(channel === "app" && {
+          pushDevices: { some: { mobileSession: { revokedAt: null, expiresAt: { gt: now } } } },
+        }),
+      },
       select: { id: true },
     });
 
@@ -99,7 +114,8 @@ export async function POST(request: Request) {
     }
 
     const where = country === "ALL" ? "" : ` in ${countryConfig(country).nameEn}`;
-    return NextResponse.json({ message: `Notification sent to ${users.length} users${where}` });
+    const via = channel === "web" ? " (website push only)" : channel === "app" ? " (app push only)" : "";
+    return NextResponse.json({ message: `Notification sent to ${users.length} users${where}${via}` });
   } catch (error) {
     console.error("Admin send notification error:", error);
     return NextResponse.json({ error: "Server error" }, { status: 500 });

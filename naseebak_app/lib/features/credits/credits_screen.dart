@@ -111,13 +111,16 @@ class _CreditsScreenState extends ConsumerState<CreditsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final plans = ref.watch(plansProvider);
+    final payments = ref.watch(appPaymentsProvider);
+    // Payments hidden in the app: balance and history only (no packages, no pointer to buying elsewhere)
+    final plans = payments ? ref.watch(plansProvider) : null;
     final me = ref.watch(authControllerProvider).me;
     return Scaffold(
       appBar: AppBar(
         title: const Text('الرصيد'),
         actions: [
-          TextButton(onPressed: () => context.push('/credits/history'), child: const Text('السجل')),
+          // Payment history only where buying is shown (hidden for test accounts / the app payments switch)
+          if (payments) TextButton(onPressed: () => context.push('/credits/history'), child: const Text('السجل')),
         ],
       ),
       body: RefreshIndicator(
@@ -156,6 +159,7 @@ class _CreditsScreenState extends ConsumerState<CreditsScreen> {
               'يُستخدم الرصيد عند إبداء الاهتمام أو طلب التعارف بحسب نظام المنصة. لا يُخصم أي رصيد على «لا».',
               style: TextStyle(color: AppColors.muted, fontSize: 13.5),
             ),
+            if (plans != null) ...[
             const SizedBox(height: 16),
             const SectionTitle('الباقات'),
             plans.when(
@@ -194,6 +198,7 @@ class _CreditsScreenState extends ConsumerState<CreditsScreen> {
                 ],
               ),
             ),
+            ],
           ],
         ),
       ),

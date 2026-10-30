@@ -27,9 +27,12 @@ Nothing on branch `feature/multi-country-mobile` is deployed. This is what must 
 |---|---|
 | API | Same server; app talks to `https://naseebak.com` (`--dart-define=API_BASE_URL=https://naseebak.com`) |
 | Android signing | Create an upload keystore, `android/key.properties` (never committed), Play Console app, privacy policy URL, data-safety form |
-| iOS | Needs a Mac with Xcode, Apple Developer account, bundle id, signing — not buildable on this Windows machine |
-| Push | Not active. Needs a Firebase project (`google-services.json` / `GoogleService-Info.plist`), FCM server key on the backend and a device-token endpoint; the web keeps OneSignal |
-| Payments in the app | The app opens Stripe's hosted page and polls the payment; review app-store rules for selling digital credits (Google Play / Apple may require their in-app purchase for digital goods) — **owner/legal decision before release** |
+| iOS | `ios/` exists (2026-10-30): bundle `com.naseebak.naseebakApp`, team `4S958MQTCR`, min iOS 15, iPhone only, privacy manifest, push entitlement. Builds and runs on the simulator; a real-device push test is still to do (APNs key uploaded in Firebase for development and production) |
+| Push | Built (FCM, Firebase project `naseebak-app`): deploy with `--db-push` (table `push_devices`) and set `FCM_CREDENTIALS` in the server `.env`. Tested end to end on Android against a local backend |
+| Payments in the app | Owner decision: Stripe's hosted page, not Apple/Google in-app purchase (store-review risk). Admin → Settings → «Mobile app» → «Payments in the app» hides buying in the app at once; test accounts (the review login `0796922292`) never see payments or payment history in the app |
+| Force update | Admin → Settings → «Mobile app»: required / optional version per platform + store links (set the App Store link once listed) |
+| Crash reports | Firebase Crashlytics in release builds; iOS dSYMs uploaded by an Xcode build phase |
+| Store review account | `0796922292` (code `111111`, in `EXTRA_TEST_PHONES`): test accounts are only suggested to each other — add one or two complete opposite-gender test profiles and credits so reviewers see suggestions, a match and the chat |
 | Real time chat | The app uses the same subscribe-only Ably tokens as the web (SSE, read-only) with polling as the fallback. **Not tested end to end** — no `ABLY_API_KEY` locally; check on a staging server with the key before release |
 | Photos | Production uploads go to Bunny as today; the local `.dev-uploads/` fallback is refused on any server whose address isn’t localhost |
 

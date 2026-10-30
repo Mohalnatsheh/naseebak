@@ -2,4 +2,8 @@
 <resources>
     <!-- Naseebak navy (AppColors.navyDeep): the window colour before Flutter's animated splash draws -->
     <color name="splash_navy">#15304A</color>
+    <!-- Brand gold: tint of the push icon in the notification shade -->
+    <color name="notification_gold">#C19250</color>
+    <!-- Launcher icon tile (same light tile as the website icon) -->
+    <color name="ic_launcher_background">#F3F5F9</color>
 </resources>

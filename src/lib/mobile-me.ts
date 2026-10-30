@@ -2,6 +2,7 @@
 import { db } from "@/lib/db";
 import { toCountry } from "@/lib/countries";
 import { getCountrySettings, publicCountry } from "@/lib/countries/settings";
+import { appPaymentsFor } from "@/lib/mobile-config";
 
 export async function mobileMe(userId: string) {
   const u = await db.user.findUnique({
@@ -33,6 +34,8 @@ export async function mobileMe(userId: string) {
     status: u.status,
     deactivated: u.isDeactivated,
     profile: { exists: !!u.profile, complete: !!u.profile?.isComplete },
+    /** Buying credits shown in the app (Admin → Settings → Mobile app; never for test accounts) */
+    appPayments: await appPaymentsFor(u.phone),
     createdAt: u.createdAt,
   };
 }

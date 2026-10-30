@@ -9,7 +9,9 @@ import '../../core/network/json.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/common.dart';
 import '../home/counts.dart';
+import '../profile/preferences_screen.dart';
 import 'interest_sheet.dart';
+import 'preferences_bar.dart';
 import 'suggestion_card.dart';
 import 'suggestion_models.dart';
 import 'suggestions_repository.dart';
@@ -26,6 +28,18 @@ class SuggestionsScreen extends ConsumerStatefulWidget {
 class _SuggestionsScreenState extends ConsumerState<SuggestionsScreen> with SingleTickerProviderStateMixin {
   late final TabController _tabs =
       TabController(length: FeedTab.values.length, vsync: this, initialIndex: widget.initialTab.index);
+
+  /// Bumped after the preferences change: every tab reloads (the server rescored and topped up the cards)
+  int _generation = 0;
+
+  Future<void> _editPreferences() async {
+    await context.push('/profile/preferences');
+    if (!mounted) return;
+    ref.invalidate(partnerPrefsProvider);
+    ref.invalidate(suggestionsMetaProvider);
+    ref.invalidate(countsProvider);
+    setState(() => _generation++);
+  }
 
   @override
   void didUpdateWidget(covariant SuggestionsScreen oldWidget) {
@@ -51,6 +65,14 @@ class _SuggestionsScreenState extends ConsumerState<SuggestionsScreen> with Sing
     return Scaffold(
       appBar: AppBar(
         title: const Text('الاقتراحات'),
+        actions: [
+          IconButton(
+            key: const Key('edit-prefs'),
+            tooltip: 'تفضيلاتي وشروطي الأساسية',
+            icon: const Icon(Icons.tune_rounded),
+            onPressed: _editPreferences,
+          ),
+        ],
         bottom: TabBar(
           controller: _tabs,
           tabs: [
@@ -72,7 +94,10 @@ class _SuggestionsScreenState extends ConsumerState<SuggestionsScreen> with Sing
         error: (e, _) => ErrorView(error: e, onRetry: () => ref.invalidate(suggestionsMetaProvider)),
         data: (m) => TabBarView(
           controller: _tabs,
-          children: [for (final t in FeedTab.values) FeedList(key: PageStorageKey(t), tab: t, meta: m)],
+          children: [
+            for (final t in FeedTab.values)
+              FeedList(key: PageStorageKey('$t-$_generation'), tab: t, meta: m, onEditPreferences: _editPreferences),
+          ],
         ),
       ),
     );
@@ -81,9 +106,12 @@ class _SuggestionsScreenState extends ConsumerState<SuggestionsScreen> with Sing
 
 /// One paginated tab of the feed.
 class FeedList extends ConsumerStatefulWidget {
-  const FeedList({super.key, required this.tab, required this.meta});
+  const FeedList({super.key, required this.tab, required this.meta, this.onEditPreferences});
   final FeedTab tab;
   final SuggestionsMeta meta;
+
+  /// Shown as the bar at the top of «جديدة» (and the "no one fits" empty state)
+  final VoidCallback? onEditPreferences;
 
   @override
   ConsumerState<FeedList> createState() => _FeedListState();
@@ -197,7 +225,13 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
     if (!mounted) return;
     if (e is ApiException) {
       if (e.kind == ApiErrorKind.noCredits) {
-        showSnack(context, e.message, action: SnackBarAction(label: 'شحن', onPressed: () => context.push('/credits')));
+        showSnack(
+          context,
+          e.message,
+          action: ref.read(appPaymentsProvider)
+              ? SnackBarAction(label: 'شحن', onPressed: () => context.push('/credits'))
+              : null,
+        );
         return;
       }
       if (e.kind == ApiErrorKind.notFound) {
@@ -223,6 +257,7 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
             chatAvailable: (counts?.flags.chat ?? false) && (me?.country.chatEnabled ?? true),
             creditOnInterest: counts?.flags.creditOnInterest ?? false,
             credits: me?.credits,
+            canRecharge: ref.read(appPaymentsProvider),
             guardianConsented: counts?.guardianConsented ?? false,
             onSubmit: (pref, consent) =>
                 repo.answer(item, interested: true, introPreference: pref, guardianConsent: consent),
@@ -273,10 +308,16 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
     final me = ref.watch(authControllerProvider).me;
     if (_loading && _items.isEmpty) return const SkeletonList(count: 2, itemHeight: 260);
     if (_error != null && _items.isEmpty) return ErrorView(error: _error!, onRetry: _load);
+    final onEdit = widget.onEditPreferences;
+    final bar = widget.tab == FeedTab.newTab && onEdit != null ? PreferencesBar(onEdit: onEdit) : null;
+    final head = bar == null ? 0 : 1;
     return RefreshIndicator(
       onRefresh: _refresh,
       child: _items.isEmpty
-          ? ListView(children: [SizedBox(height: 420, child: _empty(context))])
+          ? ListView(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+              children: [?bar, SizedBox(height: 420, child: _empty(context))],
+            )
           : NotificationListener<ScrollNotification>(
               onNotification: (n) {
                 if (n.metrics.pixels > n.metrics.maxScrollExtent - 400) _loadMore();
@@ -284,9 +325,11 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
               },
               child: ListView.separated(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
-                itemCount: _items.length + 1,
+                itemCount: head + _items.length + 1,
                 separatorBuilder: (_, _) => const SizedBox(height: 14),
-                itemBuilder: (context, i) {
+                itemBuilder: (context, index) {
+                  if (index < head) return bar!;
+                  final i = index - head;
                   if (i == _items.length) {
                     if (_loadingMore) {
                       return const Padding(
@@ -342,9 +385,9 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
           return MessageView(
             icon: Icons.search_off_rounded,
             title: 'لا يوجد حالياً من يناسب ما تبحث عنه',
-            body: 'نضيف اقتراحات جديدة عند انضمام أعضاء يناسبونك. يمكنك مراجعة تفضيلاتك في ملفك.',
-            actionLabel: 'ملفي الشخصي',
-            onAction: () => context.push('/profile'),
+            body: 'نضيف اقتراحات جديدة عند انضمام أعضاء يناسبونك. تخفيف شروطك الأساسية يفتح اقتراحات أكثر.',
+            actionLabel: 'تعديل تفضيلاتي',
+            onAction: widget.onEditPreferences ?? () => context.push('/profile/preferences'),
           );
         }
         return const MessageView(

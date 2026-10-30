@@ -18,6 +18,8 @@ vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/auth-authorize", () => authz);
 vi.mock("@/lib/auth", () => ({ requireUser: async () => ({ session: { user: { id: "u1" } } }) }));
 vi.mock("@/lib/settings", () => ({
+  // Nothing stored: app payments on (src/lib/mobile-config.ts)
+  getSetting: async () => "",
   getMaintenanceState: async () => ({ enabled: false, message: "" }),
   getCycleFlags: async () => ({ introRequests: true, chat: true, mutualSuggestions: true, creditOnInterest: true }),
 }));
@@ -118,6 +120,16 @@ describe("checkout", () => {
     expect(args.ui_mode).toBeUndefined();
     expect(args.success_url).toContain("/payments/return?status=success");
     expect(db.payment.create.mock.calls[0][0].data).toMatchObject({ status: "PENDING", stripeSessionId: "cs_1" });
+  });
+
+  it("the app checkout is refused for a test account (store review login), the website's is not", async () => {
+    process.env.EXTRA_TEST_PHONES = "0796922292";
+    db.user.findUnique.mockResolvedValue({ country: "JO", phone: "962796922292" });
+    const res = await checkout(post({ packageId: "launch_10", mode: "hosted" }));
+    expect(res.status).toBe(403);
+    expect((await res.json()).code).toBe("APP_PURCHASES_DISABLED");
+    expect(stripe.create).not.toHaveBeenCalled();
+    delete process.env.EXTRA_TEST_PHONES;
   });
 
   it("mock mode (local) never calls Stripe", async () => {

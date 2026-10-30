@@ -7,6 +7,7 @@
 import type { NotificationType } from "@prisma/client";
 import { db } from "@/lib/db";
 import { sendPushNotification } from "@/lib/onesignal";
+import { sendFcmPush } from "@/lib/fcm";
 import { notificationUrl } from "@/lib/notification-links";
 import { sendSmsNotice, smsEventFor, type SmsNoticeEvent } from "@/lib/sms-notice";
 import type { PreferenceKey } from "@/lib/notification-prefs";
@@ -42,7 +43,11 @@ export interface NotifyInput {
    * so muting message pushes doesn't hide them). null = always pushed, like SYSTEM.
    */
   preference?: PreferenceKey | null;
+  /** Which push to send: the website (OneSignal), the mobile app (FCM) or both (default). The in-app row is the same. */
+  channel?: PushChannel;
 }
+
+export type PushChannel = "all" | "web" | "app";
 
 /** Midnight today in Amman (UTC+3 all year since 2022), as a UTC instant */
 export function startOfAmmanDay(now = new Date()): Date {
@@ -72,7 +77,7 @@ async function pushAllowed(userId: string, type: NotificationType, override?: Pr
 }
 
 export async function notify(input: NotifyInput): Promise<void> {
-  const { userId, type, title, body, metadata, pushOnly, collapseId, oncePerDay } = input;
+  const { userId, type, title, body, metadata, pushOnly, collapseId, oncePerDay, channel = "all" } = input;
   const url = input.url ?? notificationUrl(type, metadata);
   try {
     if (oncePerDay) {
@@ -88,7 +93,11 @@ export async function notify(input: NotifyInput): Promise<void> {
       });
     }
     if (await pushAllowed(userId, type, input.preference)) {
-      await sendPushNotification({ userId, title, body, url, collapseId });
+      // Website (OneSignal) and mobile app (FCM) in parallel; each fails silently on its own
+      await Promise.all([
+        channel !== "app" && sendPushNotification({ userId, title, body, url, collapseId }),
+        channel !== "web" && sendFcmPush({ userId, title, body, url, collapseId }),
+      ]);
       const smsEvent = input.sms === false ? null : (input.sms ?? smsEventFor(type, title));
       // Not awaited: the OneSignal lookup + SMS must not slow the action that triggered it
       if (smsEvent) void sendSmsNotice(userId, smsEvent);

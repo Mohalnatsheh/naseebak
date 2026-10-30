@@ -4,7 +4,10 @@ import { getConversation } from "@/lib/chat/service";
 import { introErrorResponse } from "@/lib/intro/http";
 import { getCycleFlags } from "@/lib/settings";
 
-/** One conversation with messages: ?before=<iso> loads older, ?after=<iso> polls newer */
+/**
+ * One conversation with messages: ?before=<iso>[&beforeId=<message id>] loads older (exact cursor with the id,
+ * else inclusive), ?after=<iso> polls newer (inclusive). Clients merge by message id.
+ */
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const result = await requireUser();
@@ -15,6 +18,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     const [data, flags] = await Promise.all([
       getConversation(id, result.session.user.id, {
         before: valid(url.searchParams.get("before")),
+        beforeId: url.searchParams.get("beforeId")?.slice(0, 64) || undefined,
         after: valid(url.searchParams.get("after")),
       }),
       getCycleFlags(),

@@ -20,6 +20,7 @@ import { db } from "@/lib/db";
 import { sendSms } from "@/lib/sms";
 import { isTestPhone } from "@/lib/test-accounts";
 import { getSetting } from "@/lib/settings";
+import { hasAppPushDevice } from "@/lib/fcm";
 
 /** Owner switch (2026-10-29): notice SMS are off unless system_settings sms_notices_enabled = "true". OTP SMS are never affected. */
 export async function smsNoticesEnabled(): Promise<boolean> {
@@ -56,10 +57,12 @@ export function smsEventFor(type: NotificationType, title: string): SmsNoticeEve
 
 
 /**
- * Whether OneSignal has an enabled push subscription for this member (external_id = user id).
- * null = unknown (not configured, or the lookup failed).
+ * Whether a push can reach this member: the mobile app with a valid sign-in (FCM, `push_devices`), else an
+ * enabled OneSignal web subscription (external_id = user id).
+ * null = unknown (OneSignal not configured, or the lookup failed).
  */
 export async function hasPushDevice(userId: string): Promise<boolean | null> {
+  if (process.env.FCM_CREDENTIALS && (await hasAppPushDevice(userId).catch(() => false))) return true;
   const appId = process.env.NEXT_PUBLIC_ONESIGNAL_APP_ID;
   const key = process.env.ONESIGNAL_REST_API_KEY;
   if (!appId || !key) return null;

@@ -11,7 +11,6 @@ import {
   CheckCircle2,
   Inbox,
   Ban,
-  CalendarHeart,
   ArrowLeft,
   Coins,
   Gift,
@@ -364,7 +363,7 @@ export function MatchIntroPanel({ matchId, partnerName }: { matchId: string; par
       familyChip = <Chip tone="muted" icon={Ban}>{family.declinedByMe ? "تم الاعتذار من طرفك" : "لم يتم قبول الطلب"}</Chip>;
       break;
     case "legacy_admin":
-      familyChip = <Chip tone="primary" icon={CalendarHeart}>فريق نصيبك يتابع الزيارة</Chip>;
+      // An older admin-arranged visit: its status shows on the card; the team no longer contacts the families
       break;
     case "closed":
       familyChip = <Chip tone="muted" icon={Ban}>غير متاح بعد إنهاء المحادثة</Chip>;

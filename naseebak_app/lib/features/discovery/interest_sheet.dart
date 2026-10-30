@@ -17,12 +17,16 @@ class InterestSheet extends StatefulWidget {
     required this.credits,
     required this.guardianConsented,
     required this.onSubmit,
+    this.canRecharge = true,
   });
 
   final String firstName;
   final bool chatAvailable;
   final bool creditOnInterest;
   final int? credits;
+
+  /// Payments shown in the app: offer «اشحن رصيدك» on NO_CREDITS
+  final bool canRecharge;
 
   /// My guardian contact is saved and consent was already given (no checkbox needed)
   final bool guardianConsented;
@@ -154,6 +158,7 @@ class _InterestSheetState extends State<InterestSheet> {
   Widget? _errorAction(BuildContext context) {
     switch (_errorCode) {
       case 'NO_CREDITS':
+        if (!widget.canRecharge) return null;
         return TextButton(
           onPressed: () {
             Navigator.of(context).pop();

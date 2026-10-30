@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
+import { appPaymentsFor } from "@/lib/mobile-config";
 import { db } from "@/lib/db";
 import { getStripe } from "@/lib/stripe";
 import { CHECKOUT_APP } from "@/lib/payments/fulfil";
@@ -33,8 +34,12 @@ export async function POST(request: Request) {
     const body = await request.json().catch(() => ({}));
     const hosted = body?.mode === "hosted";
     // Only the packages of the member's own country are on sale to them
-    const me = await db.user.findUnique({ where: { id: session.user.id }, select: { country: true } });
+    const me = await db.user.findUnique({ where: { id: session.user.id }, select: { country: true, phone: true } });
     const country = toCountry(me?.country);
+    // The app's checkout follows the app-only payments switch (the website's embedded checkout doesn't)
+    if (hosted && !(await appPaymentsFor(me?.phone))) {
+      return NextResponse.json({ error: "الشراء غير متاح في التطبيق حالياً", code: "APP_PURCHASES_DISABLED" }, { status: 403 });
+    }
     if (!purchasesAvailable(await getCountrySettings(country))) {
       return NextResponse.json({ error: "الشراء غير متاح في دولتك حالياً", code: "PURCHASES_DISABLED" }, { status: 403 });
     }

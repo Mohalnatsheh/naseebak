@@ -15,6 +15,7 @@ class Me {
     required this.deactivated,
     required this.profileExists,
     required this.profileComplete,
+    this.appPayments = true,
   });
 
   factory Me.fromJson(Map<String, dynamic> j) {
@@ -31,6 +32,7 @@ class Me {
       deactivated: asBool(j['deactivated']) ?? false,
       profileExists: asBool(profile['exists']) ?? false,
       profileComplete: asBool(profile['complete']) ?? false,
+      appPayments: asBool(j['appPayments']) ?? true,
     );
   }
 
@@ -48,6 +50,9 @@ class Me {
   final bool profileExists;
   final bool profileComplete;
 
+  /// Buying credits shown in the app (Admin → Settings → Mobile app; always off for test accounts)
+  final bool appPayments;
+
   bool get isFemale => gender == 'FEMALE';
 
   Me copyWith({int? credits}) => Me(
@@ -62,5 +67,6 @@ class Me {
         deactivated: deactivated,
         profileExists: profileExists,
         profileComplete: profileComplete,
+        appPayments: appPayments,
       );
 }

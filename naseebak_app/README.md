@@ -1,6 +1,6 @@
 # Naseebak mobile app (نصيبك)
 
-Flutter app for Android (iOS-ready code, not built yet) that talks to the **same Next.js API as the website**
+Flutter app for Android and iOS that talks to the **same Next.js API as the website**
 (`../src/app/api`). Arabic-first, right-to-left. The server decides matches, credits and privacy; the app only
 shows what the API returns.
 
@@ -46,6 +46,21 @@ On production, sign in with a real number (a real SMS code is sent). Local backe
 Local payments are a mock: «شراء» → a dialog «دفع تجريبي» (debug builds on a local backend only) → `POST /api/dev/mock-checkout/{id}` →
 the app polls `GET /api/payments/{id}/status`. Saudi Arabia has `purchasesEnabled: false`, so packages show as
 «غير متاح».
+
+## Push, updates, payments switch (2026-10-30)
+
+- **Push (FCM):** Firebase project `naseebak-app`. Android reads `android/app/google-services.json`, iOS
+  `lib/firebase_options.dart`. After sign-in the app asks permission and registers its Firebase Installation ID with
+  `POST /api/mobile/push`; logout removes it first (`lib/core/push/push_service.dart`). Without Firebase config the app
+  runs with push off. Local test: run the backend with `FCM_CREDENTIALS` in `.env.development.local`, sign in, then call
+  `notify()` from a script (`npx tsx --env-file=.env.development.local …`).
+- **Force update / payments:** `lib/core/update/app_update.dart` wraps the app (`UpdateGate`) and reads
+  `GET /api/mobile/config`; `appPaymentsProvider` (from `/api/mobile/me` → `appPayments`) hides packages, history and
+  every «شحن». Both are set in Admin → Settings → «Mobile app».
+- **Chat cache:** newest 100 messages per chat in the cache directory (`chat_cache.dart`), wiped on sign-out.
+- **iOS:** `flutter run -d <simulator id>` (needs `pod install`; `flutter build ios --simulator` fails on this Flutter
+  without an x86_64 engine). Real device: Developer Mode on, team `4S958MQTCR`.
+- **Crashlytics:** release builds only.
 
 ## Test, analyze, build
 

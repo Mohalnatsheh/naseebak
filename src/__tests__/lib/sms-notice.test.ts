@@ -4,6 +4,7 @@ const db = vi.hoisted(() => ({
   user: { findUnique: vi.fn(), updateMany: vi.fn() },
   notification: { findMany: vi.fn() },
   notificationPreference: { findUnique: vi.fn() },
+  pushDevice: { findMany: vi.fn(async () => [] as { fid: string }[]) },
 }));
 const sms = vi.hoisted(() => ({ sendSms: vi.fn() }));
 // The owner switch: on for these tests (the default is off since 2026-10-29), off in its own test
@@ -60,6 +61,17 @@ describe("hasPushDevice", () => {
     expect(await hasPushDevice("u1")).toBeNull();
     delete process.env.ONESIGNAL_REST_API_KEY;
     expect(await hasPushDevice("u1")).toBeNull();
+  });
+
+  it("the mobile app with a valid sign-in counts first (FCM configured), without asking OneSignal", async () => {
+    process.env.FCM_CREDENTIALS = "{}";
+    db.pushDevice.findMany.mockResolvedValueOnce([{ fid: "t1" }]);
+    expect(await hasPushDevice("u1")).toBe(true);
+    expect(fetchMock).not.toHaveBeenCalled();
+    // No app device → OneSignal decides as before
+    noDevice();
+    expect(await hasPushDevice("u1")).toBe(false);
+    delete process.env.FCM_CREDENTIALS;
   });
 });
 

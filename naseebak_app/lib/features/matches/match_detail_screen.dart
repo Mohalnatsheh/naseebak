@@ -275,7 +275,7 @@ class _IntroPanelState extends ConsumerState<IntroPanel> {
       if (e.code == 'GUARDIAN_REQUIRED') {
         showSnack(context, e.message,
             action: SnackBarAction(label: 'إضافة', onPressed: () => context.push('/profile/guardian')));
-      } else if (e.kind == ApiErrorKind.noCredits) {
+      } else if (e.kind == ApiErrorKind.noCredits && ref.read(appPaymentsProvider)) {
         showSnack(context, e.message, action: SnackBarAction(label: 'شحن', onPressed: () => context.push('/credits')));
       } else {
         showSnack(context, e.message);
@@ -386,11 +386,8 @@ class _IntroPanelState extends ConsumerState<IntroPanel> {
             ));
             gap();
           case 'legacy_admin':
-            children.add(const InfoBanner(
-              text: 'يتابع فريق نصيبك ترتيب الزيارة العائلية ويتواصل مع العائلتين.',
-              icon: Icons.support_agent_rounded,
-            ));
-            gap();
+            // An older admin-arranged visit: its status shows above; the team no longer contacts the families
+            break;
           case 'declined':
             children.add(const InfoBanner(text: 'لم يتم قبول التعارف العائلي على هذا التوافق.', tone: BannerTone.warning));
             gap();

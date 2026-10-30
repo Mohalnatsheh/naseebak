@@ -334,23 +334,32 @@ export async function chatHousekeepingAll(now = new Date()): Promise<{ expired: 
 export async function getConversation(
   id: string,
   userId: string,
-  opts: { before?: string; after?: string; limit?: number } = {}
+  opts: { before?: string; beforeId?: string; after?: string; limit?: number } = {}
 ): Promise<{ conversation: ChatSummary; messages: ChatMessage[]; hasMore: boolean }> {
   const c = await loadForUser(id, userId, { readOnly: true });
   const limit = Math.min(Math.max(opts.limit ?? 30, 1), 100);
 
+  // Two messages can share a millisecond: pages are ordered by (createdAt, id), and a cursor that is only a time is
+  // inclusive (clients merge by id), so a message on a page boundary is never skipped
   let messages;
   let hasMore = false;
   if (opts.after) {
     messages = await db.message.findMany({
-      where: { conversationId: id, createdAt: { gt: new Date(opts.after) } },
-      orderBy: { createdAt: "asc" },
+      where: { conversationId: id, createdAt: { gte: new Date(opts.after) } },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
       take: 100,
     });
   } else {
+    const before = opts.before ? new Date(opts.before) : null;
     const page = await db.message.findMany({
-      where: { conversationId: id, ...(opts.before && { createdAt: { lt: new Date(opts.before) } }) },
-      orderBy: { createdAt: "desc" },
+      where: {
+        conversationId: id,
+        ...(before &&
+          (opts.beforeId
+            ? { OR: [{ createdAt: { lt: before } }, { createdAt: before, id: { lt: opts.beforeId } }] }
+            : { createdAt: { lte: before } })),
+      },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       take: limit + 1,
     });
     hasMore = page.length > limit;

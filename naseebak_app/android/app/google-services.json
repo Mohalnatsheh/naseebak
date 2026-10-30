@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "215267934979",
+    "project_id": "naseebak-app",
+    "storage_bucket": "naseebak-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:215267934979:android:5f50109d42cd1d42569f36",
+        "android_client_info": {
+          "package_name": "com.naseebak.naseebak_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBz1dpgFXf-Ch-5FXwGP1q9FTUuxJ1fYFo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

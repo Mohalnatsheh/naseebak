@@ -66,6 +66,35 @@ Never returned: SMS provider, sender ids, credentials, Stripe keys, internal set
 
 Test numbers (fixed code `111111`, never an SMS): see `docs/local-testing.md`.
 
+## Push notifications (Firebase Cloud Messaging)
+
+The app gets push straight from FCM (`src/lib/fcm.ts`); the website stays on OneSignal. Every `notify()` sends to both.
+
+- The device is its Firebase Installation ID (FID, FCM direct send: `FirebaseMessaging.register()` → `onRegistered`;
+  the old registration tokens are deprecated in firebase_messaging 17 / firebase-admin 14).
+- `POST /api/mobile/push` (Bearer only) `{ fid, platform: "android" | "ios" }` → `{ ok: true }`. Call it after sign-in
+  and on every `onRegistered`. The FID is tied to this sign-in: after logout / revoke / expiry it gets no pushes.
+  403 `APP_ONLY` (website cookie, or a token of another sign-in), 400 `INVALID`.
+- `DELETE /api/mobile/push` `{ fid }` → `{ ok: true }`. Call it before `/api/mobile/auth/logout`.
+- Message: `notification { title, body }` + `data { url? }` — `url` is the website path (`/dashboard/chats/<id>`,
+  `/dashboard/matches?match=<id>`, …); the app maps it to a screen like the in-app notifications list (`appRouteFor`).
+  Android channel `naseebak_default`; chat pushes replace each other (same `tag` / `collapseKey`).
+- Server env: `FCM_CREDENTIALS` = the Firebase service-account JSON on one line. Unset → no FCM pushes.
+- A member with the app and a valid sign-in counts as reachable for the SMS fallback (no notice SMS).
+
+## App config (public, no auth)
+
+- `GET /api/mobile/config` → `{ android: { minVersion, latestVersion, storeUrl }, ios: { … } }` (Admin → Settings →
+  «Mobile app»). Below `minVersion` the app shows a full-screen «حدّث التطبيق»; below `latestVersion` a dismissible
+  notice; empty = no gate. Read on start and every resume; a failed request never blocks the app.
+- `GET /api/mobile/me` → `user.appPayments`: buying shown in the app (the admin switch; always false for test
+  accounts). The app checkout (`mode: "hosted"`) answers 403 `APP_PURCHASES_DISABLED` when it is false.
+
+## Chat paging
+
+- `GET /api/chats/{id}` → the newest 30. Older: `?before=<createdAt>&beforeId=<id>` of the oldest message held (exact
+  cursor, ordered by time then id). Newer: `?after=<createdAt>` (inclusive — drop messages you already have).
+
 ## Payments
 
 - `GET /api/payments/plans` → `{ country, purchasesEnabled, packages: [{ id, name, credits, price, currency, currencySymbol, chargeUsd?, chargeLabel, popular?, wasPrice? }] }`.

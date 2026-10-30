@@ -33,6 +33,7 @@ export default function AdminNotificationsPage() {
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [url, setUrl] = useState("/dashboard");
+  const [channel, setChannel] = useState<"all" | "web" | "app">("all");
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null);
   const [userSearch, setUserSearch] = useState("");
@@ -73,7 +74,8 @@ export default function AdminNotificationsPage() {
     e.preventDefault();
     if (!title || !body) return;
     if (!sendAll && !selectedUser) return;
-    if (sendAll && !confirm("Send this notification to ALL active users?")) return;
+    const reach = channel === "app" ? "ALL active users who have the app" : "ALL active users";
+    if (sendAll && !confirm(`Send this notification to ${reach}?`)) return;
 
     setSending(true);
     setResult(null);
@@ -86,6 +88,7 @@ export default function AdminNotificationsPage() {
           title,
           body,
           url,
+          channel,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -181,6 +184,34 @@ export default function AdminNotificationsPage() {
                 </select>
               </div>
             )}
+
+            <div className="space-y-2">
+              <Label>Send to</Label>
+              <div className="flex flex-wrap gap-2">
+                {([
+                  ["all", "Website + App"],
+                  ["web", "Website only"],
+                  ["app", "App only"],
+                ] as const).map(([value, label]) => (
+                  <Button
+                    key={value}
+                    type="button"
+                    variant={channel === value ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setChannel(value)}
+                  >
+                    {label}
+                  </Button>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {channel === "app"
+                  ? "Push on the mobile app only; a broadcast reaches only members who have the app."
+                  : channel === "web"
+                    ? "Browser push (OneSignal) only; the notice still appears in every member's list."
+                    : "Browser push and app push; the notice appears in the member's list."}
+              </p>
+            </div>
 
             <div className="space-y-2">
               <Label>Title</Label>

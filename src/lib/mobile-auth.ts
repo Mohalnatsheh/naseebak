@@ -71,3 +71,18 @@ export async function revokeAllMobileSessions(userId: string, now = new Date()):
   const { count } = await db.mobileSession.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: now } });
   return count;
 }
+
+/** The valid app sign-in behind a Bearer token (id + member), for rows tied to one sign-in such as push devices */
+export async function activeMobileSession(
+  authorization: string | null | undefined,
+  now = new Date(),
+): Promise<{ id: string; userId: string } | null> {
+  const token = bearerToken(authorization);
+  if (!token) return null;
+  const row = await db.mobileSession.findUnique({
+    where: { tokenHash: hashMobileToken(token) },
+    select: { id: true, userId: true, expiresAt: true, revokedAt: true },
+  });
+  if (!row || row.revokedAt || row.expiresAt <= now) return null;
+  return { id: row.id, userId: row.userId };
+}

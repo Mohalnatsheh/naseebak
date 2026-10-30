@@ -4,16 +4,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/auth/auth_controller.dart';
 import '../../core/localization/digits.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/common.dart';
 import '../matches/match_detail_screen.dart' show ReportSheet;
 import 'chat_bubble.dart';
+import 'chat_cache.dart';
 import 'chat_live.dart';
 import 'chat_models.dart';
 
-/// One conversation. With Ably configured on the server, live events (`ChatLive`) trigger a fetch at once and the
+/// One conversation. It opens at once from the messages kept on the device (`ChatCache`), then the newest page from
+/// the API is merged in. With Ably configured on the server, live events (`ChatLive`) trigger a fetch at once and the
 /// `?after=` poll slows to a safety net every 20 s; without it the app polls every 4 s while open.
 class ChatRoomScreen extends ConsumerStatefulWidget {
   const ChatRoomScreen({super.key, required this.chatId, this.pollInterval = const Duration(seconds: 4)});
@@ -42,7 +45,13 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
   static const _livePollInterval = Duration(seconds: 20);
   int _nonceSeq = 0;
 
+  /// Scrolled up to read history (shows «الأحدث» with what arrived meanwhile)
+  bool _away = false;
+  int _unseen = 0;
+
   ChatRepository get _repo => ref.read(chatRepositoryProvider);
+  ChatCache get _cache => ref.read(chatCacheProvider);
+  String? get _memberId => ref.read(authControllerProvider).me?.id;
 
   @override
   void initState() {
@@ -100,25 +109,81 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
       _loading = true;
       _error = null;
     });
+    // What this device already has: the chat shows at once, the network only adds what changed
+    final member = _memberId;
+    if (member != null && _chat == null) {
+      final cached = await _cache.read(member, widget.chatId);
+      if (cached != null && mounted && _chat == null) {
+        setState(() {
+          _chat = cached.conversation;
+          _messages
+            ..clear()
+            ..addAll(cached.messages);
+          _hasMore = cached.hasMore;
+        });
+      }
+    }
     try {
       final page = await _repo.load(widget.chatId);
       if (!mounted) return;
       setState(() {
         _chat = page.conversation;
         _chatEnabled = page.chatEnabled;
-        _messages
-          ..clear()
-          ..addAll(page.messages);
-        _hasMore = page.hasMore;
+        _mergeLatest(page);
       });
+      _saveCache();
       _markRead();
       _startPolling();
       _startLive();
+      _fillScreen();
     } catch (e) {
-      if (mounted) setState(() => _error = e);
+      if (!mounted) return;
+      final gone = e is ApiException && (e.kind == ApiErrorKind.notFound || e.kind == ApiErrorKind.forbidden);
+      if (gone && member != null) {
+        // No longer mine to read (hidden after a block, account left…): forget the copy on this device
+        await _cache.remove(member, widget.chatId);
+        if (!mounted) return;
+        setState(() {
+          _chat = null;
+          _messages.clear();
+        });
+      }
+      if (_chat == null) {
+        setState(() => _error = e);
+      } else {
+        // Offline with a cached copy: keep showing it, the poll retries
+        _startPolling();
+      }
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  /// The newest page over what the device had: contiguous → keep the older cached messages and take the page for
+  /// the rest (new messages, read ticks); a gap (more than a page arrived meanwhile) → start again from the page.
+  void _mergeLatest(ChatPage page) {
+    final pending = _messages.where((m) => m.state != SendState.sent).toList();
+    final cached = _messages.where((m) => m.state == SendState.sent).toList();
+    final oldestNew = page.messages.isEmpty ? null : page.messages.first;
+    final contiguous =
+        !page.hasMore || cached.isEmpty || (oldestNew != null && cached.any((m) => m.id == oldestNew.id));
+    final older = contiguous && oldestNew != null && page.hasMore
+        ? cached.takeWhile((m) => m.id != oldestNew.id).toList()
+        : <ChatMessage>[];
+    final pageIds = page.messages.map((m) => m.id).toSet();
+    _messages
+      ..clear()
+      ..addAll(older.where((m) => !pageIds.contains(m.id)))
+      ..addAll(page.messages)
+      ..addAll(pending.where((m) => !pageIds.contains(m.id)));
+    _hasMore = older.isEmpty ? page.hasMore : (_hasMore || page.hasMore);
+  }
+
+  void _saveCache() {
+    final member = _memberId;
+    final chat = _chat;
+    if (member == null || chat == null) return;
+    _cache.write(member, widget.chatId, CachedChat(conversation: chat, messages: _messages, hasMore: _hasMore));
   }
 
   DateTime? get _lastServerTime {
@@ -151,8 +216,10 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
           _messages.insertAll(0, page.messages);
         } else {
           _insertSorted(fresh);
+          if (_away) _unseen += fresh.where((m) => !m.mine).length;
         }
       });
+      if (fresh.isNotEmpty) _saveCache();
       if (fresh.any((m) => !m.mine)) _markRead();
     } catch (_) {
       // Silent: the next tick retries; a 401 signs out through the API client
@@ -170,20 +237,48 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     final pending = _messages.where((m) => m.state != SendState.sent).toList();
     _messages.removeWhere((m) => m.state != SendState.sent);
     _messages.addAll(fresh);
-    _messages.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+    // Same order as the server: time, then id (two messages can share a millisecond)
+    _messages.sort((a, b) {
+      final t = a.createdAt.compareTo(b.createdAt);
+      return t != 0 ? t : a.id.compareTo(b.id);
+    });
     _messages.addAll(pending);
   }
 
   void _onScroll() {
-    // reverse: true — older messages are at the far end
-    if (_scroll.position.pixels > _scroll.position.maxScrollExtent - 200) _loadOlder();
+    // reverse: true — offset 0 is the newest message, older ones are at the far end
+    final pos = _scroll.position;
+    if (pos.pixels > pos.maxScrollExtent - 200) _loadOlder();
+    final away = pos.pixels > 300;
+    if (away != _away) {
+      setState(() {
+        _away = away;
+        if (!away) _unseen = 0;
+      });
+    }
+  }
+
+  /// A first page too short to scroll can't trigger «older»: keep loading until the list fills the screen
+  void _fillScreen() {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted || !_hasMore || !_scroll.hasClients) return;
+      if (_scroll.position.maxScrollExtent > 0) return;
+      await _loadOlder();
+      _fillScreen();
+    });
+  }
+
+  void _toNewest() {
+    if (!_scroll.hasClients) return;
+    _scroll.animateTo(0, duration: const Duration(milliseconds: 300), curve: Curves.easeOutCubic);
   }
 
   Future<void> _loadOlder() async {
     if (!_hasMore || _loadingOlder || _messages.isEmpty) return;
     setState(() => _loadingOlder = true);
     try {
-      final page = await _repo.load(widget.chatId, before: _messages.first.createdAt);
+      final first = _messages.first;
+      final page = await _repo.load(widget.chatId, before: first.createdAt, beforeId: first.id);
       if (!mounted) return;
       final known = _messages.map((m) => m.id).toSet();
       setState(() {
@@ -221,6 +316,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
       _messages.add(local);
       if (retry == null) _input.clear();
     });
+    _toNewest();
     try {
       final sent = await _repo.send(widget.chatId, text, nonce: nonce);
       if (!mounted) return;
@@ -228,6 +324,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
         _messages.removeWhere((m) => m.nonce == nonce || m.id == sent.id);
         _insertSorted([sent]);
       });
+      _saveCache();
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() {
@@ -348,26 +445,42 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
                       title: 'ابدأ المحادثة بالسلام',
                       body: 'تعرّفا على بعض باحترام: القيم، والطموحات، وتصوّر الحياة الأسرية.',
                     )
-                  : ListView.builder(
-                      controller: _scroll,
-                      reverse: true,
-                      padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-                      itemCount: items.length + (_loadingOlder ? 1 : 0),
-                      itemBuilder: (context, i) {
-                        if (i == items.length) {
-                          return const Padding(
-                            padding: EdgeInsets.all(12),
-                            child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
-                          );
-                        }
-                        final m = items[i];
-                        return ChatBubble(
-                          message: m,
-                          onRetry: m.state == SendState.failed
-                              ? () => m.filtered ? _editFailed(m) : _send(m)
-                              : null,
-                        );
-                      },
+                  : Stack(
+                      children: [
+                        ListView.builder(
+                          controller: _scroll,
+                          reverse: true,
+                          padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+                          itemCount: items.length + (_loadingOlder ? 1 : 0),
+                          itemBuilder: (context, i) {
+                            if (i == items.length) {
+                              return const Padding(
+                                padding: EdgeInsets.all(12),
+                                child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                              );
+                            }
+                            final m = items[i];
+                            return ChatBubble(
+                              key: ValueKey(m.id),
+                              message: m,
+                              onRetry: m.state == SendState.failed
+                                  ? () => m.filtered ? _editFailed(m) : _send(m)
+                                  : null,
+                            );
+                          },
+                        ),
+                        if (_away)
+                          PositionedDirectional(
+                            bottom: 12,
+                            start: 12,
+                            child: FilledButton.tonalIcon(
+                              key: const Key('chat-newest'),
+                              onPressed: _toNewest,
+                              icon: const Icon(Icons.arrow_downward_rounded, size: 18),
+                              label: Text(_unseen > 0 ? 'الأحدث ($_unseen)' : 'الأحدث'),
+                            ),
+                          ),
+                      ],
                     ),
             ),
             _footer(chat),

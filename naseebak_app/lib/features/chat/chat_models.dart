@@ -44,6 +44,23 @@ class ChatSummary {
     );
   }
 
+  /// Same shape as the API (chat cache)
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'matchId': matchId,
+        'partner': {'id': partnerId, 'firstName': partnerName},
+        'status': status,
+        'expiresAt': expiresAt?.toUtc().toIso8601String(),
+        'canExtend': canExtend,
+        'endedByMe': endedByMe,
+        'blocked': blocked,
+        'matchHidden': matchHidden,
+        'lastMessage': lastMessage == null
+            ? null
+            : {'body': lastMessage, 'createdAt': lastMessageAt?.toUtc().toIso8601String(), 'mine': lastMine},
+        'unread': unread,
+      };
+
   final String id;
   final String matchId;
   final String partnerId;
@@ -89,6 +106,15 @@ class ChatMessage {
         readAt: asDate(j['readAt']),
       );
 
+  /// Same shape as the API (chat cache)
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'body': body,
+        'createdAt': createdAt.toUtc().toIso8601String(),
+        'mine': mine,
+        'readAt': readAt?.toUtc().toIso8601String(),
+      };
+
   final String id;
   final String body;
   final DateTime createdAt;
@@ -133,10 +159,12 @@ class ChatRepository {
     return asMapList(j['conversations']).map(ChatSummary.fromJson).toList();
   }
 
-  /// `GET /api/chats/{id}` — `before` loads older, `after` polls newer (ISO dates).
-  Future<ChatPage> load(String id, {DateTime? before, DateTime? after}) async {
+  /// `GET /api/chats/{id}` — `before` (+ `beforeId`, the exact cursor) loads older, `after` polls newer (inclusive:
+  /// the caller drops messages it already has).
+  Future<ChatPage> load(String id, {DateTime? before, String? beforeId, DateTime? after}) async {
     final j = await _api.get('/api/chats/$id', query: {
       if (before != null) 'before': before.toUtc().toIso8601String(),
+      if (before != null && beforeId != null) 'beforeId': beforeId,
       if (after != null) 'after': after.toUtc().toIso8601String(),
     });
     return ChatPage(

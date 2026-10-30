@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { NewCycleSettingsCard } from "@/components/admin/new-cycle-settings-card";
 import { DailyJobsCard } from "@/components/admin/daily-jobs-card";
+import { MobileAppCard } from "@/components/admin/mobile-app-card";
 
 interface AdminAccount {
   id: string;
@@ -345,6 +346,8 @@ export default function AdminSettingsPage() {
           </div>
         </CardContent>
       </Card>
+
+      <MobileAppCard />
 
       {/* Tracking & Analytics */}
       <Card>

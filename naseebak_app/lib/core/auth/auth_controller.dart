@@ -2,7 +2,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
 import '../../features/auth/me.dart';
+import '../../features/chat/chat_cache.dart';
 import '../network/api_exception.dart';
+import '../push/push_service.dart';
 
 enum AuthStatus {
   /// Restoring the saved session
@@ -87,6 +89,8 @@ class AuthController extends Notifier<AuthState> {
   }
 
   Future<void> logout() async {
+    // Before the token is revoked: the server must still know who removes the push token
+    await ref.read(pushServiceProvider).unregister();
     try {
       await ref.read(authRepositoryProvider).logout();
     } catch (_) {
@@ -103,6 +107,8 @@ class AuthController extends Notifier<AuthState> {
 
   Future<void> _signOutLocally() async {
     await ref.read(tokenStoreProvider).clear();
+    // Private conversations never stay on a phone after sign-out
+    await ref.read(chatCacheProvider).clearAll();
     state = const AuthState.signedOut();
   }
 
@@ -115,6 +121,9 @@ class AuthController extends Notifier<AuthState> {
 }
 
 final authControllerProvider = NotifierProvider<AuthController, AuthState>(AuthController.new);
+
+/// Whether this member may buy credits in the app (hides packages and every «شحن» when off)
+final appPaymentsProvider = Provider<bool>((ref) => ref.watch(authControllerProvider.select((s) => s.me?.appPayments ?? true)));
 
 /// The country picked on this device (null before the first pick).
 class SelectedCountryCode extends Notifier<String?> {

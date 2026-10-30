@@ -358,3 +358,34 @@ describe("listConversations", () => {
     expect(notifyMod.notify).not.toHaveBeenCalled();
   });
 });
+
+describe("getConversation paging (two messages in one millisecond)", () => {
+  const T = "2026-10-30T10:00:00.000Z";
+
+  it("older with an id is an exact (createdAt, id) cursor; pages are ordered by time then id", async () => {
+    db.conversation.findUnique.mockResolvedValue(conv());
+    db.message.findMany.mockResolvedValue([]);
+    db.message.count.mockResolvedValue(0);
+    await getConversation("c", "u1", { before: T, beforeId: "m5" });
+    expect(db.message.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { conversationId: "c", OR: [{ createdAt: { lt: new Date(T) } }, { createdAt: new Date(T), id: { lt: "m5" } }] },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      }),
+    );
+  });
+
+  it("a time-only cursor (website) and the newer poll are inclusive: clients merge by id", async () => {
+    db.conversation.findUnique.mockResolvedValue(conv());
+    db.message.findMany.mockResolvedValue([]);
+    db.message.count.mockResolvedValue(0);
+    await getConversation("c", "u1", { before: T });
+    expect(db.message.findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({ where: { conversationId: "c", createdAt: { lte: new Date(T) } } }),
+    );
+    await getConversation("c", "u1", { after: T });
+    expect(db.message.findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({ where: { conversationId: "c", createdAt: { gte: new Date(T) } } }),
+    );
+  });
+});

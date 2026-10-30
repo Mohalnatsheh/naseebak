@@ -1,0 +1,164 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { Check, Loader2, Smartphone } from "lucide-react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import type { MobilePlatform, MobilePlatformConfig } from "@/lib/mobile-config";
+
+type Config = Record<MobilePlatform, MobilePlatformConfig> & { paymentsEnabled: boolean };
+
+const PLATFORMS: { key: MobilePlatform; name: string }[] = [
+  { key: "android", name: "Android" },
+  { key: "ios", name: "iOS (iPhone)" },
+];
+
+const EMPTY: MobilePlatformConfig = { minVersion: "", latestVersion: "", storeUrl: "" };
+
+/**
+ * Admin → Settings: the mobile app's update gate per platform and its payments switch (src/lib/mobile-config.ts).
+ * Required = older versions are blocked until updated; optional = a notice the member may skip.
+ * Payments off = no buying in the app (website unchanged); test accounts never see payments in the app.
+ */
+export function MobileAppCard() {
+  const [config, setConfig] = useState<Config>({ android: EMPTY, ios: EMPTY, paymentsEnabled: true });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    fetch("/api/admin/settings/mobile-app")
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((d: Config) => setConfig(d))
+      .catch(() => setError("Could not load the app versions"))
+      .finally(() => setLoading(false));
+  }, []);
+
+  function set(p: MobilePlatform, field: keyof MobilePlatformConfig, value: string) {
+    setSaved(false);
+    setConfig((c) => ({ ...c, [p]: { ...c[p], [field]: value } }));
+  }
+
+  async function save() {
+    const raising = PLATFORMS.filter((p) => config[p.key].minVersion.trim()).map((p) => `${p.name} ${config[p.key].minVersion.trim()}`);
+    if (raising.length && !confirm(`Block every app older than: ${raising.join(", ")}? Those members must update before they can use the app.`)) {
+      return;
+    }
+    setSaving(true);
+    setError("");
+    try {
+      const res = await fetch("/api/admin/settings/mobile-app", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(config),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) setError(data.error || "Save failed");
+      else {
+        setConfig(data);
+        setSaved(true);
+      }
+    } catch {
+      setError("Save failed");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Smartphone className="h-5 w-5 text-primary" />
+          Mobile app
+        </CardTitle>
+        <CardDescription>
+          Required update: older apps are blocked with «حدّث التطبيق» until updated. Optional update: older apps see a
+          notice they can skip. Versions look like 1.2.0; leave empty for none.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        {!loading && (
+          <div className="flex items-start justify-between gap-4 rounded-lg border p-4">
+            <div className="space-y-1">
+              <p className="font-medium">Payments in the app</p>
+              <p className="text-sm text-muted-foreground">
+                {config.paymentsEnabled
+                  ? "Members can buy credits in the app (Stripe page). Test accounts never see payments in the app."
+                  : "Buying is hidden in the app; members keep their balance and buy on the website."}
+              </p>
+            </div>
+            <Button
+              type="button"
+              size="sm"
+              variant={config.paymentsEnabled ? "default" : "outline"}
+              aria-label="Toggle payments in the app"
+              onClick={() => {
+                setSaved(false);
+                setConfig((c) => ({ ...c, paymentsEnabled: !c.paymentsEnabled }));
+              }}
+            >
+              {config.paymentsEnabled ? "Shown" : "Hidden"}
+            </Button>
+          </div>
+        )}
+        {loading ? (
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        ) : (
+          PLATFORMS.map(({ key, name }) => (
+            <div key={key} className="space-y-3 rounded-lg border p-4">
+              <p className="font-medium">{name}</p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label htmlFor={`${key}-min`}>Required update (minimum version)</Label>
+                  <Input
+                    id={`${key}-min`}
+                    dir="ltr"
+                    placeholder="e.g. 1.0.0"
+                    value={config[key].minVersion}
+                    onChange={(e) => set(key, "minVersion", e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor={`${key}-latest`}>Optional update (latest version)</Label>
+                  <Input
+                    id={`${key}-latest`}
+                    dir="ltr"
+                    placeholder="e.g. 1.1.0"
+                    value={config[key].latestVersion}
+                    onChange={(e) => set(key, "latestVersion", e.target.value)}
+                  />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor={`${key}-store`}>Store link</Label>
+                <Input
+                  id={`${key}-store`}
+                  dir="ltr"
+                  placeholder="https://…"
+                  value={config[key].storeUrl}
+                  onChange={(e) => set(key, "storeUrl", e.target.value)}
+                />
+              </div>
+            </div>
+          ))
+        )}
+        {error && <p className="text-sm text-destructive">{error}</p>}
+        <div className="flex items-center gap-3">
+          <Button onClick={save} disabled={loading || saving}>
+            {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+            Save
+          </Button>
+          {saved && (
+            <span className="flex items-center gap-1 text-sm text-emerald-600">
+              <Check className="h-3.5 w-3.5" /> Saved (apps pick it up within 30 seconds)
+            </span>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}

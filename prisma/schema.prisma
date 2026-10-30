@@ -263,6 +263,7 @@ model User {
   creditLedger          CreditLedger[]
   pollVotes             PollVote[]
   mobileSessions        MobileSession[]
+  pushDevices           PushDevice[]
 
   @@index([country, gender])
   @@map("users")
@@ -992,9 +993,29 @@ model MobileSession {
   device     String?
   expiresAt  DateTime
   lastUsedAt DateTime?
-  revokedAt  DateTime?
-  createdAt  DateTime  @default(now())
+  revokedAt   DateTime?
+  createdAt   DateTime     @default(now())
+  pushDevices PushDevice[]
 
   @@index([userId])
   @@map("mobile_sessions")
+}
+
+/// FCM target (FID) of the mobile app (src/lib/fcm.ts). Tied to the app sign-in that registered it: pushes go only to
+/// devices whose session is still valid, so logout / revoke stops them at once. The website stays on OneSignal.
+model PushDevice {
+  id              String        @id @default(cuid())
+  userId          String
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mobileSessionId String
+  mobileSession   MobileSession @relation(fields: [mobileSessionId], references: [id], onDelete: Cascade)
+  /// Firebase Installation ID (FCM direct-send target; one row per FID, moves to whichever sign-in registers it)
+  fid             String        @unique
+  /// "android" | "ios"
+  platform        String
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([userId])
+  @@map("push_devices")
 }

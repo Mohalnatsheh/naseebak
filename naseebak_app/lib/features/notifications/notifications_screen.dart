@@ -45,8 +45,20 @@ class AppNotification {
 }
 
 /// Maps a notification (its web `metadata.url`, else its type) to an app screen.
-String appRouteFor(AppNotification n) {
-  final url = n.url;
+String appRouteFor(AppNotification n) => appRouteForLink(url: n.url, type: n.type);
+
+/// The app's tab roots: switched to with `go` (pushing one over the tab shell duplicates its page key)
+const appTabRoots = ['/home', '/suggestions', '/matches', '/chats', '/account'];
+
+/// Opens a notification's screen (in-app list and push taps): a tab is switched to, anything else is pushed, and
+/// the screen already on top (e.g. the chat being read) is left as it is.
+void openAppRoute(GoRouter router, String route) {
+  if (router.state.uri.toString() == route) return;
+  appTabRoots.contains(Uri.parse(route).path) ? router.go(route) : router.push(route);
+}
+
+/// Same mapping for a website path and an optional notification type (in-app list and push taps).
+String appRouteForLink({String? url, String? type}) {
   if (url != null && url.isNotEmpty) {
     final uri = Uri.tryParse(url);
     if (uri != null) {
@@ -56,6 +68,8 @@ String appRouteFor(AppNotification n) {
       if (path.startsWith('/dashboard/matches')) return match != null ? '/matches/$match' : '/matches';
       if (path.startsWith('/dashboard/suggestions')) {
         final tab = uri.queryParameters['tab'];
+        // The website's «توافق متبادل» tab (matchesHref) is the app's matches tab
+        if (tab == 'matches') return match != null ? '/matches/$match' : '/matches';
         return tab != null ? '/suggestions?tab=$tab' : '/suggestions';
       }
       if (path.startsWith('/dashboard/chats')) return '/chats';
@@ -63,12 +77,13 @@ String appRouteFor(AppNotification n) {
       if (path.startsWith('/dashboard/profile/edit')) return '/profile/edit';
       if (path.startsWith('/dashboard/profile')) return '/profile';
       if (path.startsWith('/dashboard/support')) return '/support';
+      if (path.startsWith('/dashboard/notifications')) return '/notifications';
       if (path.startsWith('/dashboard/referral')) return '/referral';
       if (path.startsWith('/dashboard/photos')) return '/profile/photos';
       if (path.startsWith('/dashboard/personality-quiz')) return '/profile/quiz';
     }
   }
-  return switch (n.type) {
+  return switch (type) {
     'SUGGESTION' || 'INTEREST' => '/suggestions',
     'MATCH' || 'VISIT_UPDATE' || 'INTRO_REQUEST' => '/matches',
     'CHAT' => '/chats',
@@ -165,7 +180,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
       setState(() => _items[i] = n.read());
       _repo.markRead(n.id).then((_) => ref.invalidate(unreadNotificationsProvider)).catchError((_) {});
     }
-    context.push(appRouteFor(n));
+    openAppRoute(GoRouter.of(context), appRouteFor(n));
   }
 
   Future<void> _readAll() async {

@@ -66,7 +66,8 @@ class ApiClient {
   Future<Json> patch(String path, {Object? body}) =>
       _send(() => dio.patch<dynamic>(path, data: body ?? const <String, dynamic>{}, options: _opts(true)));
 
-  Future<Json> delete(String path) => _send(() => dio.delete<dynamic>(path, options: _opts(true)));
+  Future<Json> delete(String path, {Object? body}) =>
+      _send(() => dio.delete<dynamic>(path, data: body, options: _opts(true)));
 
   Options _opts(bool auth) => Options(extra: {'auth': auth});
 

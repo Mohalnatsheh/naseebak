@@ -585,10 +585,12 @@ export function MatchesView({ embedded = false }: { embedded?: boolean } = {}) {
             const locked = m.closed === "blocked" || m.closed === "inactive";
 
             // New cycle: a visit the admin never picked up is replaced by the intro panel
-            // New cycle: an untouched or closed (superseded by a family intro) admin visit isn't shown
+            // New cycle: an untouched or closed (superseded by a family intro) admin visit isn't shown, and no
+            // banner says the team is coordinating with the families (it no longer does)
             const showVisitBanner =
               !locked &&
-              !!m.visitStatus && !(introMode && (m.visitStatus === "REQUESTED" || m.visitStatus === "CANCELLED"));
+              !!m.visitStatus &&
+              !(introMode && (m.visitStatus === "REQUESTED" || m.visitStatus === "CANCELLED" || m.visitStatus === "FAMILIES_CONTACTED"));
 
             return (
               <div

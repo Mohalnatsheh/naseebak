@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Naseebak navy (AppColors.navyDeep): the window colour before Flutter's animated splash draws -->
+    <color name="splash_navy">#15304A</color>
+</resources>

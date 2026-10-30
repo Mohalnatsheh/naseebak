@@ -7,9 +7,11 @@ import 'package:go_router/go_router.dart';
 
 import '../../app/providers.dart';
 import '../../core/auth/auth_controller.dart';
+import '../../core/localization/digits.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/common.dart';
+import '../welcome/brand_visuals.dart';
 import 'auth_repository.dart';
 import 'pending_auth.dart';
 import 'phone_validation.dart';
@@ -25,6 +27,7 @@ class OtpScreen extends ConsumerStatefulWidget {
 
 class _OtpScreenState extends ConsumerState<OtpScreen> {
   final _controller = TextEditingController();
+  final _focus = FocusNode();
   Timer? _timer;
   late int _left = widget.resendSeconds;
   bool _verifying = false;
@@ -34,6 +37,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
   @override
   void initState() {
     super.initState();
+    _focus.addListener(() => setState(() {}));
     _startCooldown();
   }
 
@@ -41,6 +45,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
   void dispose() {
     _timer?.cancel();
     _controller.dispose();
+    _focus.dispose();
     super.dispose();
   }
 
@@ -107,7 +112,6 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
   @override
   Widget build(BuildContext context) {
     final pending = ref.watch(pendingAuthProvider);
-    final theme = Theme.of(context);
     if (pending == null) {
       return Scaffold(
         appBar: AppBar(),
@@ -119,79 +123,156 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
         ),
       );
     }
+    final digits = toLatinDigits(_controller.text);
     return Scaffold(
-      appBar: AppBar(title: const Text('رمز التحقق')),
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
-          children: [
-            Text('أدخل الرمز', style: theme.textTheme.headlineSmall),
-            const SizedBox(height: 8),
-            Wrap(
-              crossAxisAlignment: WrapCrossAlignment.center,
+      backgroundColor: AppColors.offWhite,
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          AuthHero(
+            showBack: true,
+            title: 'أدخل رمز التحقق',
+            subtitle: 'أرسلنا رمزاً من 6 أرقام برسالة نصية إلى \u2066${pending.phone}\u2069',
+          ),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
               children: [
-                Text('أرسلنا رمزاً من 6 أرقام إلى ',
-                    style: theme.textTheme.bodyMedium?.copyWith(color: AppColors.muted)),
-                Directionality(
-                  textDirection: TextDirection.ltr,
-                  child: Text(pending.phone,
-                      style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700)),
+                FadeSlideIn(
+                  delay: const Duration(milliseconds: 250),
+                  child: Directionality(
+                    textDirection: TextDirection.ltr,
+                    child: SizedBox(
+                      height: 64,
+                      child: Stack(children: [
+                        // Six boxes show the code; the real (invisible) field sits on top and takes the input
+                        Row(children: [
+                          for (var i = 0; i < 6; i++) ...[
+                            if (i > 0) const SizedBox(width: 8),
+                            Expanded(child: _CodeBox(char: i < digits.length ? digits[i] : null, active: i == digits.length && _focus.hasFocus, error: _error != null)),
+                          ],
+                        ]),
+                        Positioned.fill(
+                          child: TextField(
+                            key: const Key('otp-field'),
+                            controller: _controller,
+                            focusNode: _focus,
+                            autofocus: true,
+                            keyboardType: TextInputType.number,
+                            autofillHints: const [AutofillHints.oneTimeCode],
+                            inputFormatters: [
+                              FilteringTextInputFormatter.allow(RegExp(r'[0-9٠-٩۰-۹]')),
+                              LengthLimitingTextInputFormatter(6),
+                            ],
+                            showCursor: false,
+                            enableInteractiveSelection: false,
+                            style: const TextStyle(color: Colors.transparent, fontSize: 1),
+                            decoration: const InputDecoration(
+                              counterText: '',
+                              border: InputBorder.none,
+                              enabledBorder: InputBorder.none,
+                              focusedBorder: InputBorder.none,
+                              filled: false,
+                            ),
+                            onChanged: (v) {
+                              setState(() => _error = null);
+                              if (normalizeOtp(v) != null) _verify(pending);
+                            },
+                            onSubmitted: (_) => _verify(pending),
+                          ),
+                        ),
+                      ]),
+                    ),
+                  ),
+                ),
+                if (_error != null) ...[
+                  const SizedBox(height: 14),
+                  InfoBanner(text: _error!, tone: BannerTone.danger),
+                ],
+                const SizedBox(height: 24),
+                FadeSlideIn(
+                  delay: const Duration(milliseconds: 350),
+                  child: LoadingButton(
+                    key: const Key('verify-otp'),
+                    label: 'تأكيد',
+                    loading: _verifying,
+                    onPressed: () => _verify(pending),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Center(
+                  child: _left > 0
+                      ? Row(mainAxisSize: MainAxisSize.min, children: [
+                          SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              value: _left / widget.resendSeconds,
+                              strokeWidth: 2,
+                              color: AppColors.gold,
+                              backgroundColor: AppColors.line,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text('يمكنك طلب رمز جديد بعد $_left ثانية',
+                              key: const Key('resend-countdown'), style: const TextStyle(color: AppColors.muted)),
+                        ])
+                      : TextButton.icon(
+                          key: const Key('resend'),
+                          onPressed: _resending ? null : () => _resend(pending),
+                          icon: const Icon(Icons.refresh_rounded),
+                          label: Text(_resending ? 'جارٍ الإرسال…' : 'إعادة إرسال الرمز'),
+                        ),
+                ),
+                Center(
+                  child: TextButton(
+                    onPressed: _verifying ? null : () => context.pop(),
+                    child: const Text('تعديل الرقم'),
+                  ),
                 ),
               ],
             ),
-            const SizedBox(height: 28),
-            Directionality(
-              textDirection: TextDirection.ltr,
-              child: TextField(
-                key: const Key('otp-field'),
-                controller: _controller,
-                autofocus: true,
-                keyboardType: TextInputType.number,
-                textAlign: TextAlign.center,
-                autofillHints: const [AutofillHints.oneTimeCode],
-                inputFormatters: [
-                  FilteringTextInputFormatter.allow(RegExp(r'[0-9٠-٩۰-۹]')),
-                  LengthLimitingTextInputFormatter(6),
-                ],
-                style: const TextStyle(fontSize: 28, letterSpacing: 14, fontWeight: FontWeight.w700),
-                decoration: const InputDecoration(hintText: '••••••', counterText: ''),
-                onChanged: (v) {
-                  if (_error != null) setState(() => _error = null);
-                  if (normalizeOtp(v) != null) _verify(pending);
-                },
-                onSubmitted: (_) => _verify(pending),
-              ),
-            ),
-            if (_error != null) ...[
-              const SizedBox(height: 14),
-              InfoBanner(text: _error!, tone: BannerTone.danger),
-            ],
-            const SizedBox(height: 24),
-            LoadingButton(
-              key: const Key('verify-otp'),
-              label: 'تأكيد',
-              loading: _verifying,
-              onPressed: () => _verify(pending),
-            ),
-            const SizedBox(height: 12),
-            Center(
-              child: _left > 0
-                  ? Text('يمكنك طلب رمز جديد بعد $_left ثانية',
-                      key: const Key('resend-countdown'),
-                      style: const TextStyle(color: AppColors.muted))
-                  : TextButton(
-                      key: const Key('resend'),
-                      onPressed: _resending ? null : () => _resend(pending),
-                      child: Text(_resending ? 'جارٍ الإرسال…' : 'إعادة إرسال الرمز'),
-                    ),
-            ),
-            Center(
-              child: TextButton(
-                onPressed: _verifying ? null : () => context.pop(),
-                child: const Text('تعديل الرقم'),
-              ),
-            ),
-          ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// One digit of the code: gold border on the next box to fill, a soft pop when a digit lands.
+class _CodeBox extends StatelessWidget {
+  const _CodeBox({required this.char, required this.active, required this.error});
+  final String? char;
+  final bool active;
+  final bool error;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = error
+        ? AppColors.danger
+        : active
+            ? AppColors.gold
+            : char != null
+                ? AppColors.navy
+                : AppColors.line;
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color, width: active || char != null ? 2 : 1.2),
+        boxShadow: [
+          if (active) BoxShadow(color: AppColors.gold.withValues(alpha: 0.25), blurRadius: 14, offset: const Offset(0, 4)),
+        ],
+      ),
+      alignment: Alignment.center,
+      child: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 180),
+        transitionBuilder: (child, a) => ScaleTransition(scale: a, child: child),
+        child: Text(
+          char ?? '',
+          key: ValueKey(char),
+          style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: AppColors.navy),
         ),
       ),
     );

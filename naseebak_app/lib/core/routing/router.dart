@@ -28,17 +28,31 @@ import '../../features/profile/quiz_screen.dart';
 import '../../features/referral/referral_screen.dart';
 import '../../features/settings/settings_screen.dart';
 import '../../features/support/support_screen.dart';
+import '../../features/welcome/intro_screen.dart';
+import '../../features/welcome/splash_screen.dart';
+import '../../features/welcome/welcome_state.dart';
 import '../auth/auth_controller.dart';
 
 /// Where the member must be, given the session and the picked country (null = stay).
 ///
-/// Order: country picked → session known → signed in → not paused → short setup done.
-String? guardRedirect({required String location, required String? countryCode, required AuthState auth}) {
+/// Order: splash played → (first launch: intro pages) → country picked → session known → signed in → not paused →
+/// short setup done.
+String? guardRedirect({
+  required String location,
+  required String? countryCode,
+  required AuthState auth,
+  bool splashDone = true,
+  bool introSeen = true,
+}) {
+  if (!splashDone) return location == '/splash' ? null : '/splash';
   final onCountry = location == '/country';
   final onAuth = location.startsWith('/auth/');
   final signedIn = auth.isSignedIn;
 
-  if (!signedIn && countryCode == null) return onCountry ? null : '/country';
+  if (!signedIn && countryCode == null) {
+    if (!introSeen) return location == '/intro' ? null : '/intro';
+    return onCountry ? null : '/country';
+  }
 
   switch (auth.status) {
     case AuthStatus.unknown:
@@ -53,7 +67,7 @@ String? guardRedirect({required String location, required String? countryCode, r
       if (!me.profileComplete) {
         return location == '/onboarding' || location == '/profile/guardian' ? null : '/onboarding';
       }
-      const entry = ['/splash', '/country', '/paused', '/onboarding'];
+      const entry = ['/splash', '/intro', '/country', '/paused', '/onboarding'];
       if (onAuth || entry.contains(location)) return '/home';
       return null;
   }
@@ -69,6 +83,8 @@ class _RouterRefresh extends ChangeNotifier {
       if (before != after) notifyListeners();
     });
     ref.listen(selectedCountryCodeProvider, (_, _) => notifyListeners());
+    ref.listen(splashDoneProvider, (_, _) => notifyListeners());
+    ref.listen(introSeenProvider, (_, _) => notifyListeners());
   }
 }
 
@@ -86,9 +102,12 @@ final routerProvider = Provider<GoRouter>((ref) {
       location: state.uri.path,
       countryCode: ref.read(selectedCountryCodeProvider),
       auth: ref.read(authControllerProvider),
+      splashDone: ref.read(splashDoneProvider),
+      introSeen: ref.read(introSeenProvider),
     ),
     routes: [
       GoRoute(path: '/splash', builder: (_, _) => const SplashScreen()),
+      GoRoute(path: '/intro', builder: (_, _) => const IntroScreen()),
       GoRoute(path: '/country', builder: (_, _) => const CountryPickerScreen()),
       GoRoute(path: '/auth/phone', builder: (_, _) => const PhoneScreen()),
       GoRoute(path: '/auth/otp', builder: (_, _) => const OtpScreen()),

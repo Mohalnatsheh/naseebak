@@ -65,6 +65,8 @@ lib/
                   storage (secure token, country), localization (digits/dates), routing (go_router + guards), theme
   shared/         person model + option labels, common widgets (buttons, states, banners, person details)
   features/
+    welcome            animated splash (gold ring + khatam pattern), three intro pages on first launch
+                       (intro_seen in shared preferences), shared brand visuals for the sign-in screens
     country_selection  picker + repository (GET /api/countries)
     auth               phone / code / sign-up / paused screens, phone validation
     onboarding         the short setup (same fields the web wizard requires; cities and nationalities from
@@ -84,7 +86,8 @@ lib/
     settings           account, notification preferences, blocks, pause/delete
 ```
 
-Routing guard (`core/routing/router.dart` → `guardRedirect`): no country → country picker; restoring the session →
+Routing guard (`core/routing/router.dart` → `guardRedirect`): the splash plays once; first launch → intro pages; no
+country → country picker; restoring the session →
 splash; signed out → phone screen; paused account → paused screen; short setup not finished → setup; otherwise the
 5-tab shell. A 401 from any authenticated call clears the token and signs out.
 

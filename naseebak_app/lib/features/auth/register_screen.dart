@@ -10,6 +10,7 @@ import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/common.dart';
 import '../country_selection/country_providers.dart';
 import '../referral/referral_screen.dart' show cleanReferralCode;
+import '../welcome/brand_visuals.dart';
 import 'pending_auth.dart';
 
 /// Arabic name rule of the backend: Arabic letters and spaces, at least 2 letters, at most 40 chars.
@@ -54,7 +55,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       'first': validateArabicName(_first.text, 'الاسم الأول'),
       'last': validateArabicName(_last.text, 'اسم العائلة'),
       'gender': _gender == null ? 'اختر الجنس' : null,
-      'invite': _invite.text.trim().isEmpty || cleanReferralCode(_invite.text).length == 8 ? null : 'رمز الدعوة يتكون من 8 أحرف وأرقام',
+      'invite': _invite.text.trim().isEmpty || cleanReferralCode(_invite.text).length == 8
+          ? null
+          : 'رمز الدعوة يتكون من 8 أحرف وأرقام',
       'terms': _terms ? null : 'يرجى الموافقة على الشروط وسياسة الخصوصية وتأكيد أن عمرك 18 سنة أو أكثر',
     };
     setState(() {
@@ -73,7 +76,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     try {
       var created = false;
       try {
-        await ref.read(authRepositoryProvider).register(
+        await ref
+            .read(authRepositoryProvider)
+            .register(
               firstName: _first.text.trim().replaceAll(RegExp(r'\s+'), ' '),
               lastName: _last.text.trim().replaceAll(RegExp(r'\s+'), ' '),
               phone: pending.phone,
@@ -118,109 +123,122 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     final details = ref.watch(countryDetailsProvider(pending.countryCode)).valueOrNull;
     final theme = Theme.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('إنشاء حساب')),
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
-          children: [
-            Text('عرّفنا بنفسك', style: theme.textTheme.headlineSmall),
-            const SizedBox(height: 6),
-            Text('يظهر اسمك الأول فقط للطرف الآخر.', style: theme.textTheme.bodyMedium?.copyWith(color: AppColors.muted)),
-            const SizedBox(height: 24),
-            TextField(
-              key: const Key('first-name'),
-              controller: _first,
-              textInputAction: TextInputAction.next,
-              decoration: InputDecoration(labelText: 'الاسم الأول', errorText: _fieldErrors['first']),
-            ),
-            const SizedBox(height: 14),
-            TextField(
-              key: const Key('last-name'),
-              controller: _last,
-              textInputAction: TextInputAction.done,
-              decoration: InputDecoration(labelText: 'اسم العائلة', errorText: _fieldErrors['last']),
-            ),
-            const SizedBox(height: 14),
-            TextField(
-              key: const Key('invite-code'),
-              controller: _invite,
-              textCapitalization: TextCapitalization.characters,
-              textDirection: TextDirection.ltr,
-              decoration: InputDecoration(labelText: 'رمز الدعوة (اختياري)', errorText: _fieldErrors['invite']),
-            ),
-            const SizedBox(height: 22),
-            Text('أنا', style: theme.textTheme.titleSmall),
-            const SizedBox(height: 8),
-            Row(
+      backgroundColor: AppColors.offWhite,
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const AuthHero(
+            showBack: true,
+            title: 'عرّفنا بنفسك',
+            subtitle: 'خطوة أخيرة لإنشاء حسابك. يظهر اسمك الأول فقط للطرف الآخر.',
+          ),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(24, 4, 24, 32),
               children: [
-                Expanded(child: _genderOption('MALE', 'رجل', 'أبحث عن زوجة', Icons.man_rounded)),
-                const SizedBox(width: 12),
-                Expanded(child: _genderOption('FEMALE', 'امرأة', 'أبحث عن زوج', Icons.woman_rounded)),
-              ],
-            ),
-            if (_fieldErrors['gender'] != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 6),
-                child: Text(_fieldErrors['gender']!, style: const TextStyle(color: AppColors.danger, fontSize: 13)),
-              ),
-            const SizedBox(height: 20),
-            InkWell(
-              borderRadius: BorderRadius.circular(12),
-              onTap: () => setState(() => _terms = !_terms),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Checkbox(
-                    key: const Key('terms'),
-                    value: _terms,
-                    onChanged: (v) => setState(() => _terms = v ?? false),
+                TextField(
+                  key: const Key('first-name'),
+                  controller: _first,
+                  textInputAction: TextInputAction.next,
+                  decoration: InputDecoration(labelText: 'الاسم الأول', errorText: _fieldErrors['first']),
+                ),
+                const SizedBox(height: 14),
+                TextField(
+                  key: const Key('last-name'),
+                  controller: _last,
+                  textInputAction: TextInputAction.done,
+                  decoration: InputDecoration(labelText: 'اسم العائلة', errorText: _fieldErrors['last']),
+                ),
+                const SizedBox(height: 14),
+                TextField(
+                  key: const Key('invite-code'),
+                  controller: _invite,
+                  textCapitalization: TextCapitalization.characters,
+                  textDirection: TextDirection.ltr,
+                  decoration: InputDecoration(labelText: 'رمز الدعوة (اختياري)', errorText: _fieldErrors['invite']),
+                ),
+                const SizedBox(height: 22),
+                Text('أنا', style: theme.textTheme.titleSmall),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(child: _genderOption('MALE', 'رجل', 'أبحث عن زوجة', Icons.man_rounded)),
+                    const SizedBox(width: 12),
+                    Expanded(child: _genderOption('FEMALE', 'امرأة', 'أبحث عن زوج', Icons.woman_rounded)),
+                  ],
+                ),
+                if (_fieldErrors['gender'] != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Text(_fieldErrors['gender']!, style: const TextStyle(color: AppColors.danger, fontSize: 13)),
                   ),
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.only(top: 12),
-                      child: Text.rich(
-                        TextSpan(
-                          style: theme.textTheme.bodyMedium,
-                          children: [
-                            const TextSpan(text: 'أوافق على '),
+                const SizedBox(height: 20),
+                InkWell(
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: () => setState(() => _terms = !_terms),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Checkbox(
+                        key: const Key('terms'),
+                        value: _terms,
+                        onChanged: (v) => setState(() => _terms = v ?? false),
+                      ),
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: 12),
+                          child: Text.rich(
                             TextSpan(
-                              text: 'الشروط والأحكام',
-                              style: const TextStyle(color: AppColors.navy, fontWeight: FontWeight.w700, decoration: TextDecoration.underline),
-                              recognizer: TapGestureRecognizer()..onTap = () => openExternal(context, details?.links.terms),
+                              style: theme.textTheme.bodyMedium,
+                              children: [
+                                const TextSpan(text: 'أوافق على '),
+                                TextSpan(
+                                  text: 'الشروط والأحكام',
+                                  style: const TextStyle(
+                                    color: AppColors.navy,
+                                    fontWeight: FontWeight.w700,
+                                    decoration: TextDecoration.underline,
+                                  ),
+                                  recognizer: TapGestureRecognizer()
+                                    ..onTap = () => openExternal(context, details?.links.terms),
+                                ),
+                                const TextSpan(text: ' و'),
+                                TextSpan(
+                                  text: 'سياسة الخصوصية',
+                                  style: const TextStyle(
+                                    color: AppColors.navy,
+                                    fontWeight: FontWeight.w700,
+                                    decoration: TextDecoration.underline,
+                                  ),
+                                  recognizer: TapGestureRecognizer()
+                                    ..onTap = () => openExternal(context, details?.links.privacy),
+                                ),
+                                const TextSpan(text: '، وأؤكد أن عمري 18 سنة أو أكثر.'),
+                              ],
                             ),
-                            const TextSpan(text: ' و'),
-                            TextSpan(
-                              text: 'سياسة الخصوصية',
-                              style: const TextStyle(color: AppColors.navy, fontWeight: FontWeight.w700, decoration: TextDecoration.underline),
-                              recognizer: TapGestureRecognizer()..onTap = () => openExternal(context, details?.links.privacy),
-                            ),
-                            const TextSpan(text: '، وأؤكد أن عمري 18 سنة أو أكثر.'),
-                          ],
+                          ),
                         ),
                       ),
-                    ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+                if (_fieldErrors['terms'] != null)
+                  Padding(
+                    padding: const EdgeInsetsDirectional.only(start: 12, top: 4),
+                    child: Text(_fieldErrors['terms']!, style: const TextStyle(color: AppColors.danger, fontSize: 13)),
+                  ),
+                if (_error != null) ...[const SizedBox(height: 14), InfoBanner(text: _error!, tone: BannerTone.danger)],
+                const SizedBox(height: 24),
+                LoadingButton(
+                  key: const Key('register-submit'),
+                  label: 'إنشاء الحساب',
+                  loading: _busy,
+                  onPressed: () => _submit(pending),
+                ),
+              ],
             ),
-            if (_fieldErrors['terms'] != null)
-              Padding(
-                padding: const EdgeInsetsDirectional.only(start: 12, top: 4),
-                child: Text(_fieldErrors['terms']!, style: const TextStyle(color: AppColors.danger, fontSize: 13)),
-              ),
-            if (_error != null) ...[
-              const SizedBox(height: 14),
-              InfoBanner(text: _error!, tone: BannerTone.danger),
-            ],
-            const SizedBox(height: 24),
-            LoadingButton(
-              key: const Key('register-submit'),
-              label: 'إنشاء الحساب',
-              loading: _busy,
-              onPressed: () => _submit(pending),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

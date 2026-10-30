@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/auth/auth_controller.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/common.dart';
+import '../welcome/brand_visuals.dart';
 import 'country.dart';
 import 'country_providers.dart';
 
@@ -50,34 +51,10 @@ class _CountryPickerScreenState extends ConsumerState<CountryPickerScreen> {
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Container(
-            color: AppColors.navy,
-            padding: EdgeInsets.fromLTRB(24, MediaQuery.paddingOf(context).top + 32, 24, 32),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (Navigator.of(context).canPop())
-                  Align(
-                    alignment: AlignmentDirectional.centerStart,
-                    child: IconButton(
-                      tooltip: 'رجوع',
-                      onPressed: () => Navigator.of(context).maybePop(),
-                      icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
-                    ),
-                  ),
-                const BrandLogo(height: 52, onDark: true),
-                const SizedBox(height: 24),
-                const Text(
-                  'أهلاً بك في نصيبك',
-                  style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'اختر دولتك لنعرض لك ما يناسبك. يُحدَّد حسابك برقم هاتفك، ولا ترى إلا أعضاء دولتك.',
-                  style: TextStyle(color: Colors.white.withValues(alpha: 0.82), fontSize: 15, height: 1.6),
-                ),
-              ],
-            ),
+          AuthHero(
+            showBack: Navigator.of(context).canPop(),
+            title: 'أهلاً بك في نصيبك',
+            subtitle: 'اختر دولتك لنعرض لك ما يناسبك. يُحدَّد حسابك برقم هاتفك، ولا ترى إلا أعضاء دولتك.',
           ),
           Expanded(
             child: countries.when(

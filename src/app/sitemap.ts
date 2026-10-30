@@ -1,6 +1,6 @@
 import type { MetadataRoute } from "next";
 import { db } from "@/lib/db";
-import { COUNTRY_CODES } from "@/lib/countries";
+import { activeCountryCodes } from "@/lib/countries/settings";
 import { absoluteUrl, seoAlternates } from "@/lib/site-paths";
 
 /** Pages that exist once per country: every country's URL, each listing the others (hreflang) */
@@ -17,13 +17,15 @@ const LOCALIZED: { path: string; changeFrequency: "weekly" | "monthly" | "yearly
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = "https://naseebak.com";
 
+  // Only the countries switched on in Admin → Countries are listed
+  const countries = await activeCountryCodes();
   const localizedPages: MetadataRoute.Sitemap = LOCALIZED.flatMap((p) =>
-    COUNTRY_CODES.map((c) => ({
+    countries.map((c) => ({
       url: absoluteUrl(p.path, c),
       lastModified: new Date(),
       changeFrequency: p.changeFrequency,
       priority: p.priority,
-      alternates: { languages: seoAlternates(p.path, c).languages },
+      alternates: { languages: seoAlternates(p.path, c, countries).languages },
     }))
   );
   const staticPages: MetadataRoute.Sitemap = [

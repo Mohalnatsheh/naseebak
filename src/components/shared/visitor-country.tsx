@@ -3,23 +3,42 @@
 import { createContext, useContext, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Check, ChevronDown } from "lucide-react";
-import { COUNTRIES, COUNTRY_CODES, DEFAULT_COUNTRY, type CountryCode } from "@/lib/countries";
+import { COUNTRIES, DEFAULT_COUNTRY, type CountryCode } from "@/lib/countries";
 import { rememberVisitorCountry } from "@/lib/visitor-country";
 import { localizedPath, switchCountryPath } from "@/lib/site-paths";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { CountryFlag } from "@/components/shared/country-flag";
 
-/** The visitor's country, read on the server (cookie / geo header, else Jordan) by the (ar) layout */
-const VisitorCountryContext = createContext<CountryCode>(DEFAULT_COUNTRY);
+/**
+ * The visitor's country, read on the server (cookie / geo header, else Jordan) by the (ar) layout, and the countries
+ * switched on in Admin → Countries (only those are offered anywhere on the site).
+ */
+const VisitorCountryContext = createContext<{ country: CountryCode; countries: readonly CountryCode[] }>({
+  country: DEFAULT_COUNTRY,
+  countries: [DEFAULT_COUNTRY],
+});
 
-export function VisitorCountryProvider({ country, children }: { country: CountryCode; children: React.ReactNode }) {
-  return <VisitorCountryContext.Provider value={country}>{children}</VisitorCountryContext.Provider>;
+export function VisitorCountryProvider({
+  country,
+  countries,
+  children,
+}: {
+  country: CountryCode;
+  countries: readonly CountryCode[];
+  children: React.ReactNode;
+}) {
+  return <VisitorCountryContext.Provider value={{ country, countries }}>{children}</VisitorCountryContext.Provider>;
+}
+
+/** Countries open on the site right now (the default country at least) */
+export function useActiveCountries(): readonly CountryCode[] {
+  return useContext(VisitorCountryContext).countries;
 }
 
 /** Public pages: the country whose copy, phone format and prices to show */
 export function useVisitorCountry(): CountryCode {
-  return useContext(VisitorCountryContext);
+  return useContext(VisitorCountryContext).country;
 }
 
 /** Links on public pages: "/faq" → "/sa/faq" for a Saudi visitor (pages without a country URL unchanged) */
@@ -47,6 +66,7 @@ export function CountrySwitcher({
   className?: string;
 }) {
   const current = useVisitorCountry();
+  const countries = useActiveCountries();
   const router = useRouter();
   const pathname = usePathname();
   const [pending, startTransition] = useTransition();
@@ -60,10 +80,12 @@ export function CountrySwitcher({
   }
 
   const cfg = COUNTRIES[current];
+  // One country open: nothing to switch, so no switcher at all
+  if (countries.length < 2) return null;
   if (variant === "row") {
     return (
       <div role="radiogroup" aria-label="البلد" className={cn("grid grid-cols-2 gap-2", pending && "opacity-70", className)}>
-        {COUNTRY_CODES.map((code) => {
+        {countries.map((code) => {
           const c = COUNTRIES[code];
           const on = code === current;
           return (
@@ -102,7 +124,7 @@ export function CountrySwitcher({
         <ChevronDown className="h-3.5 w-3.5 opacity-70" aria-hidden />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-40">
-        {COUNTRY_CODES.map((code) => {
+        {countries.map((code) => {
           const c = COUNTRIES[code];
           return (
             <DropdownMenuItem key={code} onSelect={() => choose(code)} className="gap-2 text-base">

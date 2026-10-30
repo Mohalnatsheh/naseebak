@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { getVisitorCountry } from "@/lib/countries/server";
+import { activeCountryCodes } from "@/lib/countries/settings";
 import { publicCopy } from "@/lib/public-copy";
 import { absoluteUrl, seoAlternates } from "@/lib/site-paths";
 
@@ -11,7 +12,7 @@ export async function generateMetadata(): Promise<Metadata> {
     title: "شروط الاستخدام",
     description:
       "اقرأ شروط استخدام منصة نصيبك والتزاماتنا تجاه المستخدمين وحقوقك كمستخدم في منصة تيسير الزواج بالحلال",
-    alternates: seoAlternates("/terms", country),
+    alternates: seoAlternates("/terms", country, await activeCountryCodes()),
     openGraph: {
       title: "شروط الاستخدام | نصيبك",
       description: `شروط استخدام منصة نصيبك لتيسير الزواج بالحلال ${copy.inCountry}`,

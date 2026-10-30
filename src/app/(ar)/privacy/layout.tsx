@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { getVisitorCountry } from "@/lib/countries/server";
+import { activeCountryCodes } from "@/lib/countries/settings";
 import { publicCopy } from "@/lib/public-copy";
 import { absoluteUrl, seoAlternates } from "@/lib/site-paths";
 
@@ -11,7 +12,7 @@ export async function generateMetadata(): Promise<Metadata> {
   title: "سياسة الخصوصية",
   description:
     "ما البيانات التي تجمعها منصة نصيبك، وكيف نستخدمها ونحميها، ومن يطّلع عليها، وكيف تحذف حسابك — بما في ذلك الصور وبيانات ولي الأمر ورسائل المحادثة",
-  alternates: seoAlternates("/privacy", country),
+  alternates: seoAlternates("/privacy", country, await activeCountryCodes()),
   openGraph: {
     title: "سياسة الخصوصية | نصيبك",
     description:

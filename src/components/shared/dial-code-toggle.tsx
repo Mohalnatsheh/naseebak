@@ -1,7 +1,8 @@
 "use client";
 
 import { ChevronDown } from "lucide-react";
-import { COUNTRIES, COUNTRY_CODES, type CountryCode } from "@/lib/countries";
+import { COUNTRIES, type CountryCode } from "@/lib/countries";
+import { useActiveCountries } from "@/components/shared/visitor-country";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { CountryFlag } from "@/components/shared/country-flag";
 import { cn } from "@/lib/utils";
@@ -22,6 +23,21 @@ export function DialCodeToggle({
   className?: string;
 }) {
   const cfg = COUNTRIES[country];
+  const countries = useActiveCountries();
+  // Only one country open: show its code, nothing to choose
+  if (countries.length < 2 && countries.includes(country)) {
+    return (
+      <span
+        aria-label={`رمز الدولة ${cfg.name} +${cfg.dialCode}`}
+        className={cn("inline-flex h-9 items-center gap-1.5 px-1.5 text-sm text-muted-foreground", className)}
+      >
+        <CountryFlag country={country} className="h-[14px] w-5" />
+        <span dir="ltr" className="font-medium">
+          +{cfg.dialCode}
+        </span>
+      </span>
+    );
+  }
   return (
     <DropdownMenu dir="rtl">
       <DropdownMenuTrigger
@@ -40,7 +56,7 @@ export function DialCodeToggle({
         <ChevronDown className="h-3 w-3 opacity-60" aria-hidden />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="min-w-44">
-        {COUNTRY_CODES.map((code) => {
+        {countries.map((code) => {
           const c = COUNTRIES[code];
           return (
             <DropdownMenuItem key={code} onSelect={() => onChange(code)} className="gap-2 text-base">

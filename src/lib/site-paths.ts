@@ -68,10 +68,13 @@ export function absoluteUrl(path: string, country: CountryCode): string {
   return p === "/" ? SITE_URL : `${SITE_URL}${p}`;
 }
 
-/** Metadata `alternates` for a localized page: its own canonical + every country version + x-default */
-export function seoAlternates(path: string, country: CountryCode) {
+/**
+ * Metadata `alternates` for a localized page: its own canonical + every open country's version + x-default.
+ * `countries` = the countries switched on in Admin → Countries (a closed country's URLs are never advertised).
+ */
+export function seoAlternates(path: string, country: CountryCode, countries: readonly CountryCode[] = COUNTRY_CODES) {
   const languages: Record<string, string> = {};
-  for (const c of COUNTRY_CODES) languages[HREFLANG[c]] = absoluteUrl(path, c);
+  for (const c of countries) languages[HREFLANG[c]] = absoluteUrl(path, c);
   languages["x-default"] = absoluteUrl(path, DEFAULT_COUNTRY);
   return { canonical: absoluteUrl(path, country), languages };
 }

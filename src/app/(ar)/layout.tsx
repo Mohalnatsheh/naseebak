@@ -8,6 +8,7 @@ import { auth } from "@/lib/auth";
 import { getMaintenanceState } from "@/lib/settings";
 import { MaintenanceScreen } from "@/components/shared/maintenance-screen";
 import { getGeoCountry, getVisitorCountry, hasCountryChoice } from "@/lib/countries/server";
+import { activeCountryCodes } from "@/lib/countries/settings";
 import { CountrySuggestBanner } from "@/components/shared/country-suggest-banner";
 import { publicCopy } from "@/lib/public-copy";
 import { VisitorCountryProvider } from "@/components/shared/visitor-country";
@@ -123,7 +124,12 @@ export default async function ArabicLayout({
   const maintenance = await getMaintenanceState();
   const isAdmin = maintenance.enabled ? (await auth())?.user?.role === "ADMIN" : false;
   const showMaintenance = maintenance.enabled && !isAdmin;
-  const [country, geoCountry, hasChoice] = await Promise.all([getVisitorCountry(), getGeoCountry(), hasCountryChoice()]);
+  const [country, geoCountry, hasChoice, countries] = await Promise.all([
+    getVisitorCountry(),
+    getGeoCountry(),
+    hasCountryChoice(),
+    activeCountryCodes(),
+  ]);
 
   return (
     <html lang="ar" dir="rtl">
@@ -140,7 +146,7 @@ export default async function ArabicLayout({
         />
         {/* GA4, GTM, Meta Pixel — public pages only (never the dashboard, chats or admin) */}
         <PublicTracking />
-        <VisitorCountryProvider country={country}>
+        <VisitorCountryProvider country={country} countries={countries}>
           {showMaintenance ? (
             <MaintenanceScreen message={maintenance.message} />
           ) : (

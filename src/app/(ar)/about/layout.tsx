@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { getVisitorCountry } from "@/lib/countries/server";
+import { activeCountryCodes } from "@/lib/countries/settings";
 import { publicCopy } from "@/lib/public-copy";
 import { absoluteUrl, seoAlternates } from "@/lib/site-paths";
 
@@ -13,7 +14,7 @@ export async function generateMetadata(): Promise<Metadata> {
       country === "SA"
         ? "تعرّف على قصة نصيبك ورسالتنا في تيسير الزواج بالحلال في المملكة العربية السعودية — تقنية حديثة تحترم عاداتنا وقيمنا، بستر واحترام"
         : "تعرّف على قصة نصيبك ورسالتنا في تيسير الزواج بالحلال في الأردن — تقنية حديثة مع عادات أردنية أصيلة، بسترة واحترام",
-    alternates: seoAlternates("/about", country),
+    alternates: seoAlternates("/about", country, await activeCountryCodes()),
     openGraph: {
       title: "من نحن | نصيبك",
       description: `تعرّف على قصة نصيبك ورسالتنا في تيسير الزواج بالحلال ${copy.inCountry}`,

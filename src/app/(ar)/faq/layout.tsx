@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { getCycleFlags } from "@/lib/settings";
 import { faqsFor } from "./faq-data";
 import { getVisitorCountry } from "@/lib/countries/server";
+import { activeCountryCodes } from "@/lib/countries/settings";
 import { publicCopy } from "@/lib/public-copy";
 import { absoluteUrl, seoAlternates } from "@/lib/site-paths";
 
@@ -12,7 +13,7 @@ export async function generateMetadata(): Promise<Metadata> {
     title: "الأسئلة الشائعة",
     description:
       "إجابات على أكثر الأسئلة شيوعاً حول منصة نصيبك لتيسير الزواج بالحلال — التسجيل، الخصوصية، الباقات، التوافق، والمزيد",
-    alternates: seoAlternates("/faq", country),
+    alternates: seoAlternates("/faq", country, await activeCountryCodes()),
     openGraph: {
       title: "الأسئلة الشائعة | نصيبك",
       description: `إجابات على أكثر الأسئلة شيوعاً حول منصة نصيبك لتيسير الزواج بالحلال ${copy.inCountry}`,

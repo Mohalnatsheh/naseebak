@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { getCycleFlags } from "@/lib/settings";
 import { getVisitorCountry } from "@/lib/countries/server";
-import { getCountrySettings } from "@/lib/countries/settings";
+import { activeCountryCodes, getCountrySettings } from "@/lib/countries/settings";
 import { countryPageDefaults, countryPageText } from "@/lib/countries/content";
 import { DEFAULT_COUNTRY } from "@/lib/countries";
 import { LandingPage } from "@/components/landing/landing-page";
@@ -23,7 +23,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: { absolute: text.seoTitle },
     description: text.seoDescription,
-    alternates: seoAlternates("/", country),
+    alternates: seoAlternates("/", country, await activeCountryCodes()),
     openGraph: { url: absoluteUrl("/", country), locale: copy.ogLocale, description: text.seoDescription },
   };
 }

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { getVisitorCountry } from "@/lib/countries/server";
+import { activeCountryCodes } from "@/lib/countries/settings";
 import { publicCopy } from "@/lib/public-copy";
 import { absoluteUrl, seoAlternates } from "@/lib/site-paths";
 
@@ -10,7 +11,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: "تواصل معنا",
     description: `تواصل مع فريق نصيبك للإجابة على استفساراتك حول منصة تيسير الزواج بالحلال ${copy.inCountry}. نحن هنا لمساعدتك`,
-    alternates: seoAlternates("/contact", country),
+    alternates: seoAlternates("/contact", country, await activeCountryCodes()),
     openGraph: {
       title: "تواصل معنا | نصيبك",
       description: "تواصل مع فريق نصيبك للإجابة على استفساراتك حول منصة تيسير الزواج بالحلال",

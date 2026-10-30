@@ -2,6 +2,7 @@
 import { cookies, headers } from "next/headers";
 import { ADMIN_COUNTRY_COOKIE, COUNTRY_COOKIE, DEFAULT_COUNTRY, isCountryCode, type CountryCode } from "@/lib/countries";
 import { SITE_COUNTRY_HEADER } from "@/lib/site-paths";
+import { activeCountryCodes } from "@/lib/countries/settings";
 
 /**
  * Visitor's country. A localized page (src/lib/site-paths.ts) follows its URL — `/sa/...` = Saudi
@@ -10,20 +11,23 @@ import { SITE_COUNTRY_HEADER } from "@/lib/site-paths";
  * `x-country-code` that Nginx GeoIP can set), else Jordan.
  */
 export async function getVisitorCountry(): Promise<CountryCode> {
+  const active = await activeCountryCodes();
+  const ok = (c: string | undefined): c is CountryCode => isCountryCode(c) && active.includes(c);
   const h = await headers();
   const site = h.get(SITE_COUNTRY_HEADER)?.toUpperCase();
-  if (isCountryCode(site)) return site;
+  // A country switched off in Admin → Countries is never the visitor's country (its URLs, cookie and geo fall back)
+  if (isCountryCode(site)) return ok(site) ? site : DEFAULT_COUNTRY;
   const jar = await cookies();
   const chosen = jar.get(COUNTRY_COOKIE)?.value?.toUpperCase();
-  if (isCountryCode(chosen)) return chosen;
+  if (ok(chosen)) return chosen;
   return (await getGeoCountry()) ?? DEFAULT_COUNTRY;
 }
 
-/** Country from the IP, when the proxy / CDN provides it (null otherwise) */
+/** Country from the IP, when the proxy / CDN provides it and that country is active (null otherwise) */
 export async function getGeoCountry(): Promise<CountryCode | null> {
   const h = await headers();
   const geo = (h.get("cf-ipcountry") || h.get("x-country-code") || "").toUpperCase();
-  return isCountryCode(geo) ? geo : null;
+  return isCountryCode(geo) && (await activeCountryCodes()).includes(geo) ? geo : null;
 }
 
 /** Did the visitor choose a country (switcher, /sa link or ?country=)? */

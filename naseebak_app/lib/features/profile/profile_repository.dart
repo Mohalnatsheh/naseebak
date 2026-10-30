@@ -2,15 +2,22 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
 import '../../core/network/api_client.dart';
+import '../../core/network/api_exception.dart';
 import '../../core/network/json.dart';
 
 /// `GET /api/profile` → `{ user, completeness }`.
 class MyProfile {
-  const MyProfile({required this.user, required this.profile, required this.completeness});
+  const MyProfile({required this.user, required this.profile, required this.completeness, this.sections = const []});
 
   factory MyProfile.fromJson(Map<String, dynamic> j) {
     final user = asMap(j['user']);
-    return MyProfile(user: user, profile: asMapOrNull(user['profile']), completeness: _percent(j['completeness']));
+    final c = asMapOrNull(j['completeness']);
+    return MyProfile(
+      user: user,
+      profile: asMapOrNull(user['profile']),
+      completeness: _percent(j['completeness']),
+      sections: c == null ? const [] : asMapList(c['sections']).map(StrengthSection.fromJson).toList(),
+    );
   }
 
   static int _percent(Object? v) {
@@ -22,6 +29,9 @@ class MyProfile {
   final Map<String, dynamic> user;
   final Map<String, dynamic>? profile;
   final int completeness;
+
+  /// The website's profile-strength sections (basic, preferences, quiz, photos, family)
+  final List<StrengthSection> sections;
 
   String get firstName => asStringOr(user['firstName']);
   String get lastName => asStringOr(user['lastName']);
@@ -210,6 +220,28 @@ class ProfileRepository {
     return asString(j['message']);
   }
 
+  /// My review request still waiting for the team (`GET /api/profile/update-request`, newest first), or null.
+  Future<PendingEdit?> pendingEdit() async {
+    final j = await _api.get('/api/profile/update-request');
+    final pending = asMapList(j['requests']).where((r) => r['status'] == 'PENDING');
+    if (pending.isEmpty) return null;
+    final r = pending.first;
+    return PendingEdit(
+      id: asStringOr(r['id']),
+      fields: asMap(r['changes']).keys.toList(),
+      createdAt: asDate(r['createdAt']),
+    );
+  }
+
+  /// «سحب الطلب» (404 = already reviewed or withdrawn: nothing is pending any more either way)
+  Future<void> withdrawPendingEdit() async {
+    try {
+      await _api.post('/api/profile/update-request/withdraw');
+    } on ApiException catch (e) {
+      if (e.statusCode != 404) rethrow;
+    }
+  }
+
   Future<GuardianInfo?> guardian() async {
     final j = await _api.get('/api/profile/parent-info');
     final p = asMapOrNull(j['parentInfo']);
@@ -245,3 +277,39 @@ class ProfileRepository {
 final profileRepositoryProvider = Provider<ProfileRepository>((ref) => ProfileRepository(ref.watch(apiClientProvider)));
 
 final myProfileProvider = FutureProvider.autoDispose<MyProfile>((ref) => ref.watch(profileRepositoryProvider).load());
+
+class PendingEdit {
+  const PendingEdit({required this.id, required this.fields, this.createdAt});
+  final String id;
+  final List<String> fields;
+  final DateTime? createdAt;
+}
+
+final pendingEditProvider =
+    FutureProvider.autoDispose<PendingEdit?>((ref) => ref.watch(profileRepositoryProvider).pendingEdit());
+
+/// One section of `completeness.sections` (src/lib/profile-completeness.ts).
+class StrengthSection {
+  const StrengthSection({required this.key, required this.label, required this.percentage, this.missing = const []});
+
+  factory StrengthSection.fromJson(Map<String, dynamic> j) => StrengthSection(
+        key: asStringOr(j['key']),
+        label: asStringOr(j['label']),
+        percentage: asInt(j['percentage']) ?? 0,
+        missing: asStringList(j['missingFields']),
+      );
+
+  final String key;
+  final String label;
+  final int percentage;
+  final List<String> missing;
+
+  /// The app screen that fills this section
+  String get route => switch (key) {
+        'preferences' => '/profile/preferences',
+        'quiz' => '/profile/quiz',
+        'photos' => '/profile/photos',
+        'family' when missing.length == 1 && missing.first.contains('ولي الأمر') => '/profile/guardian',
+        _ => '/profile/edit',
+      };
+}

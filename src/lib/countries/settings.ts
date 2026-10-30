@@ -14,7 +14,8 @@ import { COUNTRIES, COUNTRY_CODES, DEFAULT_COUNTRY, countryConfig, countryOfPhon
 import { PRICES_APPROVED, packagesFor } from "@/lib/payments/packages";
 import { localizedPath } from "@/lib/site-paths";
 import { areasFor, citiesFor } from "@/lib/countries/places";
-import { nationalityOptions } from "@/lib/profile-options";
+import { HOUSING_TYPES, OPTION_VALUES, SKIN_COLORS, expenseRangesFor, incomeRangesFor, nationalityOptions, tribeLabel } from "@/lib/profile-options";
+import { EDUCATION_ORDER } from "@/lib/matching/score";
 
 export type CountrySettings = Omit<CountrySetting, "createdAt" | "updatedAt" | "updatedById">;
 export type ResolvedSmsProvider = "BROADNET" | "UNIFONIC" | "MOCK" | "NONE";
@@ -216,6 +217,21 @@ export function publicCountryDetail(s: CountrySettings, content: { heroTitle: st
       cities: citiesFor(code),
       areas: areasFor(code),
       nationalities: { male: nationalityOptions("MALE", code), female: nationalityOptions("FEMALE", code) },
+      incomeRanges: incomeRangesFor(code),
+      expenseRanges: expenseRangesFor(code),
+      tribeLabel: tribeLabel(code),
+    },
+    // Fixed option values of the profile forms (stored as is; the app shows them with its own gendered labels)
+    options: {
+      education: EDUCATION_ORDER,
+      job: OPTION_VALUES.job,
+      maritalStatus: OPTION_VALUES.maritalStatus,
+      religiosity: OPTION_VALUES.religiosity,
+      smokingStatus: OPTION_VALUES.smokingStatus,
+      cookingAbility: OPTION_VALUES.cookingAbility,
+      lifestyle: OPTION_VALUES.lifestyle,
+      skinColor: SKIN_COLORS,
+      housingType: HOUSING_TYPES,
     },
   };
 }

@@ -21,10 +21,13 @@ import '../../features/notifications/notifications_screen.dart';
 import '../../features/onboarding/setup_screen.dart';
 import '../../features/profile/guardian_form.dart';
 import '../../features/profile/photos_screen.dart';
+import '../../features/profile/profile_edit_screen.dart';
 import '../../features/profile/preferences_screen.dart';
 import '../../features/profile/profile_screen.dart';
 import '../../features/profile/quiz_screen.dart';
+import '../../features/referral/referral_screen.dart';
 import '../../features/settings/settings_screen.dart';
+import '../../features/support/support_screen.dart';
 import '../auth/auth_controller.dart';
 
 /// Where the member must be, given the session and the picked country (null = stay).
@@ -129,6 +132,9 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/profile/photos', builder: (_, _) => const PhotosScreen()),
       GoRoute(path: '/profile/preferences', builder: (_, _) => const PreferencesScreen()),
       GoRoute(path: '/profile/quiz', builder: (_, _) => const QuizScreen()),
+      GoRoute(path: '/profile/edit', builder: (_, _) => const ProfileEditScreen()),
+      GoRoute(path: '/support', builder: (_, _) => const SupportScreen()),
+      GoRoute(path: '/referral', builder: (_, _) => const ReferralScreen()),
       GoRoute(path: '/settings/notifications', builder: (_, _) => const NotificationPrefsScreen()),
       GoRoute(path: '/settings/blocks', builder: (_, _) => const BlocksScreen()),
     ],

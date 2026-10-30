@@ -76,8 +76,11 @@ lib/
                        ABLY_API_KEY, else 4 s polling
     notifications      list + routing to screens
     credits            balance, packages, checkout, history
-    profile            my profile, text edits (review rules), guardian, photos (image_picker, ≤ 5, main photo),
+    profile            my profile, «تعديل ملفي» (every website field: empty ones save at once, stored ones go to
+                       review; pending request + «سحب الطلب»), guardian, photos (image_picker, ≤ 5, main photo),
                        partner preferences + «شروطي الأساسية», personality quiz
+    support            tickets (type, subject, details) and the team's reply
+    referral           my invitation code / link (share_plus); sign-up takes an optional invitation code
     settings           account, notification preferences, blocks, pause/delete
 ```
 

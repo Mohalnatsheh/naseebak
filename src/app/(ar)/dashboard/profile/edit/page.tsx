@@ -27,7 +27,7 @@ import {
 import { areasFor, citiesFor } from "@/lib/countries/places";
 import { COUNTRIES, toCountry, type CountryCode } from "@/lib/countries";
 import { OptionalTag, DealbreakerToggle } from "@/components/profile/form-fields";
-import { OPTION_VALUES, selfLabel, describeOption, oppositeGender, defaultNationality, expenseRangesFor, incomeRangesFor, nationalityOptions, tribeLabel } from "@/lib/profile-options";
+import { HOUSING_TYPES, OPTION_VALUES, SKIN_COLORS, selfLabel, describeOption, oppositeGender, defaultNationality, expenseRangesFor, incomeRangesFor, nationalityOptions, tribeLabel } from "@/lib/profile-options";
 import { activeDealbreakers } from "@/lib/matching/dealbreaker-summary";
 import type { DealbreakerKey } from "@/lib/matching/score";
 import { dateOfBirthError, maxDateOfBirth, parentInfoSchemaFor } from "@/lib/validations/profile";
@@ -56,8 +56,8 @@ const cookingLevels = [
   "أطبخ جيداً",
   "أطبخ ممتازاً",
 ];
-const housingTypes = ["ملك", "إيجار", "مع العائلة"];
-const skinColors = ["أبيض", "حنطي", "أسمر", "غامق"];
+const housingTypes = HOUSING_TYPES;
+const skinColors = SKIN_COLORS;
 const jobOptions: readonly string[] = OPTION_VALUES.job;
 const preferenceOptions = ["نعم", "لا", "لا يهم"];
 const guardianRelationships = [

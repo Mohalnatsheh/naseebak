@@ -60,7 +60,12 @@ String appRouteFor(AppNotification n) {
       }
       if (path.startsWith('/dashboard/chats')) return '/chats';
       if (path.startsWith('/dashboard/payments')) return '/credits';
+      if (path.startsWith('/dashboard/profile/edit')) return '/profile/edit';
       if (path.startsWith('/dashboard/profile')) return '/profile';
+      if (path.startsWith('/dashboard/support')) return '/support';
+      if (path.startsWith('/dashboard/referral')) return '/referral';
+      if (path.startsWith('/dashboard/photos')) return '/profile/photos';
+      if (path.startsWith('/dashboard/personality-quiz')) return '/profile/quiz';
     }
   }
   return switch (n.type) {
@@ -68,6 +73,7 @@ String appRouteFor(AppNotification n) {
     'MATCH' || 'VISIT_UPDATE' || 'INTRO_REQUEST' => '/matches',
     'CHAT' => '/chats',
     'PAYMENT' => '/credits',
+    'SUPPORT' => '/support',
     _ => '/home',
   };
 }

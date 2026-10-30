@@ -111,9 +111,19 @@ class ProfileScreen extends ConsumerWidget {
                     ],
                   ),
                 ),
+                const SizedBox(height: 12),
+                LoadingButton(
+                  key: const Key('edit-profile'),
+                  label: 'تعديل ملفي (كل البيانات)',
+                  icon: Icons.edit_note_rounded,
+                  onPressed: () async {
+                    await context.push('/profile/edit');
+                    ref.invalidate(myProfileProvider);
+                  },
+                ),
                 const SizedBox(height: 8),
                 const Text(
-                  'تعديل البيانات الأساسية يُراجع من فريق نصيبك قبل اعتماده، ويمكن طلبه من الموقع.',
+                  'الحقول الفارغة تُحفظ فوراً، وتغيير بيانات محفوظة يُراجع من فريق نصيبك قبل اعتماده.',
                   style: TextStyle(color: AppColors.muted, fontSize: 12.5),
                 ),
                 const SizedBox(height: 16),

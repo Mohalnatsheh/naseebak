@@ -7,6 +7,7 @@ import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/common.dart';
 import 'counts.dart';
 import 'poll_card.dart';
+import 'profile_strength_card.dart';
 
 /// One suggested next step, from the counts.
 class NextStep {
@@ -209,6 +210,8 @@ class HomeScreen extends ConsumerWidget {
                     count: unread,
                     onTap: () => context.push('/notifications'),
                   ),
+                  const SizedBox(height: 16),
+                  const ProfileStrengthCard(),
                   if (me?.country.pollsEnabled ?? true) ...[
                     const SizedBox(height: 16),
                     const PollCard(),

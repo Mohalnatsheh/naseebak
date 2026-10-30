@@ -9,6 +9,7 @@ import '../../core/network/api_exception.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/common.dart';
 import '../country_selection/country_providers.dart';
+import '../referral/referral_screen.dart' show cleanReferralCode;
 import 'pending_auth.dart';
 
 /// Arabic name rule of the backend: Arabic letters and spaces, at least 2 letters, at most 40 chars.
@@ -33,6 +34,7 @@ class RegisterScreen extends ConsumerStatefulWidget {
 class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   final _first = TextEditingController();
   final _last = TextEditingController();
+  final _invite = TextEditingController();
   String? _gender;
   bool _terms = false;
   bool _busy = false;
@@ -43,6 +45,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   void dispose() {
     _first.dispose();
     _last.dispose();
+    _invite.dispose();
     super.dispose();
   }
 
@@ -51,6 +54,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       'first': validateArabicName(_first.text, 'الاسم الأول'),
       'last': validateArabicName(_last.text, 'اسم العائلة'),
       'gender': _gender == null ? 'اختر الجنس' : null,
+      'invite': _invite.text.trim().isEmpty || cleanReferralCode(_invite.text).length == 8 ? null : 'رمز الدعوة يتكون من 8 أحرف وأرقام',
       'terms': _terms ? null : 'يرجى الموافقة على الشروط وسياسة الخصوصية وتأكيد أن عمرك 18 سنة أو أكثر',
     };
     setState(() {
@@ -65,7 +69,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     }
     setState(() => _busy = true);
     final auth = ref.read(authControllerProvider.notifier);
+    final api = ref.read(apiClientProvider);
     try {
+      var created = false;
       try {
         await ref.read(authRepositoryProvider).register(
               firstName: _first.text.trim().replaceAll(RegExp(r'\s+'), ' '),
@@ -75,11 +81,17 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
               otp: code,
               country: pending.countryCode,
             );
+        created = true;
       } on ApiException catch (e) {
         // Already a member: the verified code signs them in
         if (e.code != 'PHONE_EXISTS') rethrow;
       }
       await auth.signInWithCode(phone: pending.phone, code: code);
+      // Invitation code, like the website: best effort, a wrong code never blocks the sign-up
+      final invite = cleanReferralCode(_invite.text);
+      if (created && invite.length == 8) {
+        await api.post('/api/referral/apply', body: {'code': invite}).catchError((_) => <String, dynamic>{});
+      }
     } on ApiException catch (e) {
       if (mounted) setState(() => _error = e.message);
     } catch (_) {
@@ -127,6 +139,14 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
               controller: _last,
               textInputAction: TextInputAction.done,
               decoration: InputDecoration(labelText: 'اسم العائلة', errorText: _fieldErrors['last']),
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              key: const Key('invite-code'),
+              controller: _invite,
+              textCapitalization: TextCapitalization.characters,
+              textDirection: TextDirection.ltr,
+              decoration: InputDecoration(labelText: 'رمز الدعوة (اختياري)', errorText: _fieldErrors['invite']),
             ),
             const SizedBox(height: 22),
             Text('أنا', style: theme.textTheme.titleSmall),

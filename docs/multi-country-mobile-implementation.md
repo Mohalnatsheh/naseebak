@@ -132,11 +132,19 @@ HTTP, an Android debug build, and (where an emulator is available) a run against
   dealbreakers, wrong age range refused, quiz save + retake refused, Ably token 404 without a key); emulator: photo
   picked from the gallery and uploaded, preferences + «شرط أساسي» saved (checked in the database), quiz result.
 
+- ✅ Milestone 9 (2026-10-30) — everything a member does on the website can be done in the app: «تعديل ملفي» with
+  every profile field (same save/review rules as `/dashboard/profile/edit`, pending request + withdraw), support
+  tickets, invitation code at sign-up + «دعوة الأصدقاء», «قوة ملفك» card on home. Backend: country detail returns
+  all form lists/options (`SKIN_COLORS` / `HOUSING_TYPES` now shared in `profile-options.ts`). Checked: 61 Flutter
+  tests, 1219 Vitest, tsc, eslint, build; API run of a new Saudi member (sign-up with invitation code → setup →
+  every field → review request → second request refused → withdraw → support ticket → inviter credited); emulator:
+  editor, review request saved + withdrawn (database), referral, support.
+
 ### Not done / limits
 - iOS build (needs macOS), native push (needs Firebase), English UI.
 - Live chat through Ably is built and unit-tested but **not tried against a real Ably account** (no key locally).
-- The app has no editor for the remaining optional profile fields (height, family, lifestyle…) — the web edit page
-  covers them; the app shows the free-text ones and sends changes to review as before.
+- Legacy-flow screens (admin-arranged visits, per-suggestion credits) are not in the app: production runs the new
+  cycle. The web install guide (`/dashboard/install`) has no app equivalent (not needed in a native app).
 - Arabic typing on the emulator is not possible through adb, so chat text typed in tests was Latin.
 - `src/lib/settings.ts` (global switches) still keeps its 30 s cache per module copy — a switch change can take up to
   30 s per route, as before (unchanged behaviour).

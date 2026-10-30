@@ -12,6 +12,7 @@ import {
   listCountrySettings,
   mockSmsAllowed,
   publicCountry,
+  publicCountryDetail,
   purchasesAvailable,
   resolveSmsProvider,
 } from "@/lib/countries/settings";
@@ -110,5 +111,20 @@ describe("sign-up gate", () => {
     expect(await countrySignupBlock("962791234567", "SA")).toMatchObject({ status: 400, code: "COUNTRY_MISMATCH" });
     expect(await countrySignupBlock("441234567890")).toMatchObject({ status: 400, code: "COUNTRY_UNSUPPORTED" });
     expect(await countrySignupBlock("962791234567", "jo")).toBeNull();
+  });
+});
+
+describe("country detail lists (the app's profile forms)", () => {
+  const content = { heroTitle: "h", heroSubtitle: "s", seoTitle: "t", seoDescription: "d" };
+
+  it("gives each country its own money ranges and tribe word, and the shared option values", () => {
+    const jo = publicCountryDetail(defaultCountrySettings("JO"), content, "https://naseebak.com");
+    const sa = publicCountryDetail(defaultCountrySettings("SA"), content, "https://naseebak.com");
+    expect(jo.lists.incomeRanges.some((r) => r.includes("د.أ"))).toBe(true);
+    expect(sa.lists.expenseRanges.every((r) => r.includes("ر.س"))).toBe(true);
+    expect(jo.lists.tribeLabel).not.toBe(sa.lists.tribeLabel);
+    expect(jo.options.skinColor).toContain("حنطي");
+    expect(jo.options.job).toContain("أخرى");
+    expect(jo.options.education[0]).toBe("ثانوية عامة");
   });
 });

@@ -33,6 +33,10 @@ export const OPTION_VALUES = {
 
 export type OptionField = keyof typeof OPTION_VALUES;
 
+/** Options with one label for everyone (same in every country) */
+export const SKIN_COLORS = ["أبيض", "حنطي", "أسمر", "غامق"] as const;
+export const HOUSING_TYPES = ["ملك", "إيجار", "مع العائلة"] as const;
+
 type Labels = Partial<Record<OptionField, Record<string, string>>>;
 
 /** How a person of that gender describes themself (first-person verbs are the same for both). */

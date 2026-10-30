@@ -105,7 +105,7 @@ class CountryDetails {
         contact: asString(links['contact']),
       ),
       supportEmail: asString(support['email']),
-      lists: CountryLists.fromJson(asMap(c['lists'])),
+      lists: CountryLists.fromJson(asMap(c['lists']), asMap(c['options'])),
     );
   }
 
@@ -124,11 +124,15 @@ class CountryLists {
     this.areas = const {},
     this.nationalitiesMale = const [],
     this.nationalitiesFemale = const [],
+    this.incomeRanges = const [],
+    this.expenseRanges = const [],
+    this.tribeLabel = 'العشيرة',
+    this.options = const {},
   });
 
   static const empty = CountryLists();
 
-  factory CountryLists.fromJson(Map<String, dynamic> j) {
+  factory CountryLists.fromJson(Map<String, dynamic> j, [Map<String, dynamic> options = const {}]) {
     final areas = asMap(j['areas']);
     final nat = asMap(j['nationalities']);
     return CountryLists(
@@ -136,6 +140,10 @@ class CountryLists {
       areas: {for (final e in areas.entries) e.key: asStringList(e.value)},
       nationalitiesMale: asStringList(nat['male']),
       nationalitiesFemale: asStringList(nat['female']),
+      incomeRanges: asStringList(j['incomeRanges']),
+      expenseRanges: asStringList(j['expenseRanges']),
+      tribeLabel: asString(j['tribeLabel']) ?? 'العشيرة',
+      options: {for (final e in options.entries) e.key: asStringList(e.value)},
     );
   }
 
@@ -143,6 +151,14 @@ class CountryLists {
   final Map<String, List<String>> areas;
   final List<String> nationalitiesMale;
   final List<String> nationalitiesFemale;
+  final List<String> incomeRanges;
+  final List<String> expenseRanges;
+  final String tribeLabel;
+
+  /// `options` of the same answer: fixed values of the profile forms (job, skinColor, housingType…)
+  final Map<String, List<String>> options;
+
+  List<String> option(String key) => options[key] ?? const [];
 
   bool get isEmpty => cities.isEmpty;
 

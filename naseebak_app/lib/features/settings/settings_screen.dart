@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../app/providers.dart';
 import '../../core/auth/auth_controller.dart';
 import '../../core/network/api_exception.dart';
+import '../../core/push/push_permission.dart';
 import '../../core/network/json.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/common.dart';
@@ -270,6 +271,7 @@ class _NotificationPrefsScreenState extends ConsumerState<NotificationPrefsScree
               ? const SkeletonList(count: 6, itemHeight: 52)
               : ListView(
                   children: [
+                    const PushOffCard(padding: EdgeInsets.fromLTRB(16, 16, 16, 0)),
                     const Padding(
                       padding: EdgeInsets.all(16),
                       child: Text('اختر الإشعارات التي تصلك. تبقى الإشعارات داخل التطبيق ظاهرة دائماً.',

@@ -86,6 +86,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     // Read before any await: signing in moves the router on and disposes this screen
     final auth = ref.read(authControllerProvider.notifier);
     final api = ref.read(apiClientProvider);
+    final inviteWarning = ref.read(inviteWarningProvider.notifier);
+    inviteWarning.set(null);
     final prefs = ref.read(sharedPreferencesProvider);
     final invite = cleanReferralCode(_invite.text);
     try {
@@ -112,7 +114,11 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       await auth.signInWithCode(phone: pending.phone, code: code);
       // Invitation code, like the website: best effort, a wrong code never blocks the sign-up
       if (applyInvite) {
-        await api.post('/api/referral/apply', body: {'code': invite}).catchError((_) => <String, dynamic>{});
+        try {
+          await api.post('/api/referral/apply', body: {'code': invite});
+        } catch (e) {
+          inviteWarning.set(ApiException.messageOf(e));
+        }
       }
     } on ApiException catch (e) {
       if (mounted) setState(() => _error = e.message);

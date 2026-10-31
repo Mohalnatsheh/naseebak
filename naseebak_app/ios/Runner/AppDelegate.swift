@@ -16,5 +16,18 @@ import UserNotifications
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
+    // «فتح الإعدادات» on the notifications-off card (lib/core/push/push_permission.dart)
+    guard let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "NaseebakSystem") else { return }
+    FlutterMethodChannel(name: "naseebak/system", binaryMessenger: registrar.messenger()).setMethodCallHandler { call, result in
+      guard call.method == "openNotificationSettings" else { return result(FlutterMethodNotImplemented) }
+      let page: String
+      if #available(iOS 16.0, *) {
+        page = UIApplication.openNotificationSettingsURLString
+      } else {
+        page = UIApplication.openSettingsURLString
+      }
+      if let url = URL(string: page) { UIApplication.shared.open(url) }
+      result(nil)
+    }
   }
 }

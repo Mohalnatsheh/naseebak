@@ -180,7 +180,7 @@ describe("outcome failure after the charge", () => {
     const spy = silence();
     db.suggestion.findUnique.mockResolvedValue(suggestion("CHAT", "CHAT"));
     db.introRequest.create.mockRejectedValueOnce(new Error("db down"));
-    expect(await createMutualMatch({ femaleId: "f1", maleId: "u1", suggestionId: "s1" })).toEqual({ matchId: "m1" });
+    expect(await createMutualMatch({ femaleId: "f1", maleId: "u1", suggestionId: "s1" })).toEqual({ matchId: "m1", intro: "NONE" });
     for (const id of ["f1", "u1"]) {
       expect(notificationsFor(id)).toEqual([expect.objectContaining({
         type: "MATCH",
@@ -223,7 +223,7 @@ describe("createMutualMatch with credit_on_interest", () => {
   it("createMutualMatch flag on: openedAt set, no VisitRequest, no credit taken", async () => {
     db.suggestion.findUnique.mockResolvedValue(suggestion("FAMILY", "FAMILY"));
     const res = await createMutualMatch({ femaleId: "f1", maleId: "u1", suggestionId: "s1" });
-    expect(res).toEqual({ matchId: "m1" });
+    expect(res).toEqual({ matchId: "m1", intro: "FAMILY" });
     expect(db.mutualMatch.create.mock.calls[0][0].data.openedAt).toBeInstanceOf(Date);
     expect(db.visitRequest.create).not.toHaveBeenCalled();
     expect(credits.reserveCredits).not.toHaveBeenCalled();
@@ -234,7 +234,9 @@ describe("createMutualMatch with credit_on_interest", () => {
 
   it("one per person, conversation url for CHAT", async () => {
     db.suggestion.findUnique.mockResolvedValue(suggestion("CHAT", "CHAT"));
-    await createMutualMatch({ femaleId: "f1", maleId: "u1", suggestionId: "s1" });
+    // The app's match dialog opens this chat straight away
+    expect(await createMutualMatch({ femaleId: "f1", maleId: "u1", suggestionId: "s1" }))
+      .toEqual({ matchId: "m1", intro: "CHAT", conversationId: "c1" });
     for (const id of ["f1", "u1"]) {
       const mine = notificationsFor(id);
       expect(mine).toHaveLength(1);

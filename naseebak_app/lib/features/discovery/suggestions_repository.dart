@@ -37,6 +37,9 @@ class SuggestionsRepository {
           match: asBool(j['match']) ?? false,
           matchId: asString(j['matchId']),
           creditsLeft: asInt(j['creditsLeft']),
+          intro: asString(j['intro']),
+          conversationId: asString(j['conversationId']),
+          myPreference: interested ? introPreference : null,
         );
       case FeedKind.legacySuggestion:
         final j = await _api.post('/api/suggestions/${item.id}/${interested ? 'like' : 'reject'}');

@@ -7,6 +7,7 @@ import '../../core/localization/digits.dart';
 import '../../core/network/api_client.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/network/json.dart';
+import '../../core/push/push_permission.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/common.dart';
 import '../home/counts.dart';
@@ -107,6 +108,12 @@ class NotificationsRepository {
 
   /// `PUT /api/notifications/read-all`
   Future<void> markAllRead() async => _api.put('/api/notifications/read-all');
+
+  /// `DELETE /api/notifications/{id}/read` (one notice, like the website's bin icon)
+  Future<void> delete(String id) async => _api.delete('/api/notifications/$id/read');
+
+  /// `DELETE /api/notifications` (all of them, «حذف الكل»)
+  Future<void> deleteAll() async => _api.delete('/api/notifications');
 }
 
 /// Appends a further page to the list. The server pages by offset on `createdAt`, and a chat notice's `createdAt` is
@@ -221,13 +228,70 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     }
   }
 
+  /// Swiped away: gone at once, back in place if the server refuses
+  Future<void> _delete(AppNotification n) async {
+    final i = _items.indexWhere((e) => e.id == n.id);
+    if (i < 0) return;
+    setState(() => _items.removeAt(i));
+    try {
+      await _repo.delete(n.id);
+      if (!n.isRead) ref.invalidate(unreadNotificationsProvider);
+    } on ApiException catch (e) {
+      // Already gone (deleted on the website): nothing to put back
+      if (e.statusCode == 404) return;
+      _restore(i, n);
+    } catch (_) {
+      _restore(i, n);
+    }
+  }
+
+  void _restore(int i, AppNotification n) {
+    if (!mounted) return;
+    setState(() => _items.insert(i.clamp(0, _items.length), n));
+    showSnack(context, 'تعذّر حذف الإشعار، حاول مرة أخرى');
+  }
+
+  Future<void> _deleteAll() async {
+    final ok = await confirmDialog(
+      context,
+      title: 'حذف جميع الإشعارات',
+      body: 'ستُحذف كل الإشعارات من هذه الصفحة. لا يمكن التراجع عن ذلك.',
+      confirmLabel: 'حذف الكل',
+      destructive: true,
+    );
+    if (!ok || !mounted) return;
+    try {
+      await _repo.deleteAll();
+      ref.invalidate(unreadNotificationsProvider);
+      if (!mounted) return;
+      _generation++;
+      setState(() {
+        _items.clear();
+        _page = null;
+        _loadingMore = false;
+      });
+    } catch (e) {
+      if (mounted) showSnack(context, ApiException.messageOf(e));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final hasUnread = _items.any((n) => !n.isRead);
     return Scaffold(
       appBar: AppBar(
         title: const Text('الإشعارات'),
-        actions: [if (hasUnread) TextButton(onPressed: _readAll, child: const Text('قراءة الكل'))],
+        actions: [
+          if (hasUnread) TextButton(onPressed: _readAll, child: const Text('قراءة الكل')),
+          PopupMenuButton<String>(
+            key: const Key('notifications-menu'),
+            onSelected: (v) => v == 'delete' ? _deleteAll() : context.push('/settings/notifications'),
+            itemBuilder: (_) => [
+              const PopupMenuItem(value: 'settings', child: Text('إعدادات الإشعارات')),
+              if (_items.isNotEmpty) const PopupMenuItem(value: 'delete', child: Text('حذف الكل')),
+            ],
+          ),
+        ],
       ),
       body: Builder(builder: (context) {
         if (_loading && _items.isEmpty) return const SkeletonList(count: 5, itemHeight: 70);
@@ -236,15 +300,18 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
           onRefresh: _load,
           child: _items.isEmpty
               ? ListView(children: const [
+                  PushOffCard(padding: EdgeInsets.fromLTRB(16, 12, 16, 0)),
                   SizedBox(
                     height: 420,
                     child: MessageView(icon: Icons.notifications_none_rounded, title: 'لا توجد إشعارات'),
                   ),
                 ])
               : ListView.separated(
-                  itemCount: _items.length + 1,
-                  separatorBuilder: (_, _) => const Divider(),
-                  itemBuilder: (context, i) {
+                  itemCount: _items.length + 2,
+                  separatorBuilder: (_, i) => i == 0 ? const SizedBox.shrink() : const Divider(),
+                  itemBuilder: (context, row) {
+                    if (row == 0) return const PushOffCard(padding: EdgeInsets.fromLTRB(16, 12, 16, 8));
+                    final i = row - 1;
                     if (i == _items.length) {
                       if (!(_page?.hasMore ?? false)) return const SizedBox(height: 24);
                       return _loadingMore
@@ -252,7 +319,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                           : TextButton(onPressed: _more, child: const Text('عرض المزيد'));
                     }
                     final n = _items[i];
-                    return ListTile(
+                    final tile = ListTile(
                       tileColor: n.isRead ? null : AppColors.gold.withValues(alpha: 0.06),
                       minVerticalPadding: 12,
                       leading: Icon(_icon(n.type), color: n.isRead ? AppColors.muted : AppColors.navy),
@@ -266,6 +333,14 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                         ],
                       ),
                       onTap: () => _open(i),
+                    );
+                    // Swipe either way to delete (the website's bin icon)
+                    return Dismissible(
+                      key: ValueKey('notification-${n.id}'),
+                      background: const _DeleteBackground(alignment: AlignmentDirectional.centerStart),
+                      secondaryBackground: const _DeleteBackground(alignment: AlignmentDirectional.centerEnd),
+                      onDismissed: (_) => _delete(n),
+                      child: tile,
                     );
                   },
                 ),
@@ -281,6 +356,20 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
         'VISIT_UPDATE' || 'INTRO_REQUEST' => Icons.family_restroom_rounded,
         'CHAT' => Icons.chat_bubble_outline_rounded,
         'PAYMENT' => Icons.account_balance_wallet_outlined,
+        'SUPPORT' => Icons.support_agent_rounded,
         _ => Icons.notifications_none_rounded,
       };
+}
+
+class _DeleteBackground extends StatelessWidget {
+  const _DeleteBackground({required this.alignment});
+  final AlignmentGeometry alignment;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        color: AppColors.dangerBg,
+        alignment: alignment,
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        child: const Icon(Icons.delete_outline_rounded, color: AppColors.danger),
+      );
 }

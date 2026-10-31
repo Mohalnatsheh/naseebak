@@ -49,3 +49,14 @@ class AuthModeNotifier extends Notifier<OtpContext> {
 }
 
 final authModeProvider = NotifierProvider<AuthModeNotifier, OtpContext>(AuthModeNotifier.new);
+
+/// The invitation code entered at sign-up wasn't applied (the server's reason): the setup screen says so and offers
+/// another try, like the website's «لم يُطبَّق رمز الدعوة» (a code can be applied until the profile is complete)
+class InviteWarningNotifier extends Notifier<String?> {
+  @override
+  String? build() => null;
+
+  void set(String? message) => state = message;
+}
+
+final inviteWarningProvider = NotifierProvider<InviteWarningNotifier, String?>(InviteWarningNotifier.new);

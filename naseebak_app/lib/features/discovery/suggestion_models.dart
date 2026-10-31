@@ -116,9 +116,25 @@ class FeedPage {
 
 /// What a «مهتم» / «لا» answer led to.
 class DecisionResult {
-  const DecisionResult({required this.match, this.matchId, this.creditsLeft, this.message});
+  const DecisionResult({
+    required this.match,
+    this.matchId,
+    this.creditsLeft,
+    this.message,
+    this.intro,
+    this.conversationId,
+    this.myPreference,
+  });
   final bool match;
   final String? matchId;
   final int? creditsLeft;
   final String? message;
+
+  /// How the match opened (both chose on «مهتم»): CHAT (the chat is open: [conversationId]), FAMILY or NONE (request
+  /// buttons). Null from servers before this field and on the older flows.
+  final String? intro;
+  final String? conversationId;
+
+  /// What I chose in the sheet (CHAT / FAMILY)
+  final String? myPreference;
 }

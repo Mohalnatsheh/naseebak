@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/providers.dart';
 import '../../core/network/api_client.dart';
 import '../../core/network/json.dart';
+import '../home/counts.dart';
 
 /// `ChatSummary` of src/lib/chat/service.ts.
 class ChatSummary {
@@ -20,6 +21,7 @@ class ChatSummary {
     this.lastMessage,
     this.lastMessageAt,
     this.lastMine = false,
+    this.lastRead = false,
     this.unread = 0,
   });
 
@@ -40,6 +42,7 @@ class ChatSummary {
       lastMessage: last == null ? null : asString(last['body']),
       lastMessageAt: last == null ? null : asDate(last['createdAt']),
       lastMine: last == null ? false : (asBool(last['mine']) ?? false),
+      lastRead: last == null ? false : (asBool(last['read']) ?? false),
       unread: asInt(j['unread']) ?? 0,
     );
   }
@@ -57,7 +60,7 @@ class ChatSummary {
         'matchHidden': matchHidden,
         'lastMessage': lastMessage == null
             ? null
-            : {'body': lastMessage, 'createdAt': lastMessageAt?.toUtc().toIso8601String(), 'mine': lastMine},
+            : {'body': lastMessage, 'createdAt': lastMessageAt?.toUtc().toIso8601String(), 'mine': lastMine, 'read': lastRead},
         'unread': unread,
       };
 
@@ -76,6 +79,8 @@ class ChatSummary {
   final String? lastMessage;
   final DateTime? lastMessageAt;
   final bool lastMine;
+  /// My last message was read by the other person (✓✓ in the list; false from servers before the field)
+  final bool lastRead;
   final int unread;
 
   /// Messages can be sent only in an open chat with no block either way.
@@ -207,6 +212,9 @@ class ChatRepository {
 
 final chatRepositoryProvider = Provider<ChatRepository>((ref) => ChatRepository(ref.watch(apiClientProvider)));
 
-final chatListProvider = FutureProvider.autoDispose<List<ChatSummary>>(
-  (ref) => ref.watch(chatRepositoryProvider).list(),
-);
+final chatListProvider = FutureProvider.autoDispose<List<ChatSummary>>((ref) {
+  // The tab stays alive between visits: a change in unread messages (the counts reload on every tab switch and with the
+  // tab bar's badge) reloads the list too, so its last message and badge match the tab's
+  ref.watch(countsProvider.select((c) => c.valueOrNull?.unreadChats));
+  return ref.watch(chatRepositoryProvider).list();
+});

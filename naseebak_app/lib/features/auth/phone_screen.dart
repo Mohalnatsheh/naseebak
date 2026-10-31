@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../app/providers.dart';
 import '../../core/network/api_exception.dart';
+import '../../core/routing/website_links.dart' show pendingInvitationKey;
 import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/common.dart';
 import '../country_selection/country.dart';
@@ -112,6 +113,7 @@ class _PhoneFormState extends ConsumerState<PhoneForm> {
     final country = widget.country;
     final mode = ref.watch(authModeProvider);
     final register = mode == OtpContext.register;
+    final invitation = ref.read(sharedPreferencesProvider).getString(pendingInvitationKey);
     final focused = _focus.hasFocus;
     final borderColor = _fieldError != null
         ? AppColors.danger
@@ -139,6 +141,16 @@ class _PhoneFormState extends ConsumerState<PhoneForm> {
               const SizedBox(height: 22),
               if (register && !country.registrationOpen) ...[
                 const InfoBanner(text: 'التسجيل مغلق مؤقتاً في هذه الدولة.', tone: BannerTone.warning),
+                const SizedBox(height: 16),
+              ],
+              // Opened from a friend's referral link: the code waits for the sign-up details screen
+              if (register && invitation != null && invitation.isNotEmpty) ...[
+                InfoBanner(
+                  key: const Key('invitation-banner'),
+                  text: 'وصلتك دعوة من صديق. رمز الدعوة $invitation يُضاف تلقائياً عند التسجيل.',
+                  tone: BannerTone.success,
+                  icon: Icons.card_giftcard_rounded,
+                ),
                 const SizedBox(height: 16),
               ],
               FadeSlideIn(

@@ -123,6 +123,25 @@ The app gets push straight from FCM (`src/lib/fcm.ts`); the website stays on One
 - Local only: `POST /api/dev/mock-checkout/{paymentId}` `{ outcome: "paid" | "cancelled" }` → `{ result }` (404 on real servers).
 - `GET /api/payments/history?page=1` → the member's payments (web shape: `amount` is a decimal string; prefer `/api/payments/{id}/status` for one payment).
 
+## Popup alerts
+
+Admin → «Popup Alerts» (`/admin/alerts`, `GET|POST /api/admin/alerts`, `PATCH {action:"stop"}|DELETE /api/admin/alerts/{id}`)
+makes a popup for everyone, men, women or one member, on the app, the website or both, in the admin's selected country,
+between a start and an optional end, with an optional image (≤ 2 MB, Bunny `alerts/`) and button (site path or https).
+
+- `GET /api/alerts/current?platform=app|web` → `{ alert: { id, title, body, imageUrl, buttonLabel, buttonUrl } | null }`
+  (the oldest one waiting). The app checks when the tabs open and on every resume (`lib/features/alerts/alert_gate.dart`).
+- `POST /api/alerts/{id}/dismiss` → closing it or tapping its button: never shown again to this member, on either
+  platform. Tables `alerts`, `alert_dismissals` (additive).
+
+## Sign-up details
+
+- A referral link (`/register?invitationCode=`) opens the phone screen on «حساب جديد» with the code shown; the code is
+  applied after the account is made (`POST /api/referral/apply`). If the server refuses it, the setup screen says why and
+  takes another code (allowed until the profile is complete).
+- Setup saves each finished step with `PATCH /api/profile/draft` (like the website) and remembers the step on the phone
+  (`setup_step_<userId>`), so a restart resumes there; the Android back key goes to the previous step.
+
 ## Member endpoints the app uses (existing, unchanged)
 
 All take the Bearer token. Source of truth for each shape: the route file under `src/app/api/<path>/route.ts`.

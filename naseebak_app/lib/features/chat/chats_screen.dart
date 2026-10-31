@@ -5,7 +5,10 @@ import 'package:go_router/go_router.dart';
 import '../../core/localization/digits.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/common.dart';
+import '../../core/auth/auth_controller.dart';
 import '../home/counts.dart';
+import '../home/gendered_copy.dart';
+import 'chat_format.dart';
 import 'chat_models.dart';
 
 class ChatsScreen extends ConsumerWidget {
@@ -14,6 +17,7 @@ class ChatsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final chats = ref.watch(chatListProvider);
+    final female = ref.watch(authControllerProvider).me?.isFemale ?? false;
     return Scaffold(
       appBar: AppBar(title: const Text('المحادثات')),
       body: chats.when(
@@ -47,6 +51,7 @@ class ChatsScreen extends ConsumerWidget {
                       'EXPIRED' => 'انتهت المدة',
                       _ => c.blocked ? 'للقراءة فقط' : null,
                     };
+                    final left = status == null && c.status == 'ACTIVE' ? chatTimeLeft(c.expiresAt) : null;
                     return ListTile(
                       minVerticalPadding: 12,
                       leading: CircleAvatar(
@@ -68,19 +73,49 @@ class ChatsScreen extends ConsumerWidget {
                                 style: const TextStyle(color: AppColors.muted, fontSize: 12)),
                         ],
                       ),
-                      subtitle: Row(
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Expanded(
-                            child: Text(
-                              c.lastMessage == null
-                                  ? (status ?? 'ابدأ المحادثة بالسلام')
-                                  : '${c.lastMine ? 'أنت: ' : ''}${c.lastMessage}',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
+                          Row(
+                            children: [
+                              if (c.lastMessage != null && c.lastMine) ...[
+                                Icon(
+                                  c.lastRead ? Icons.done_all_rounded : Icons.done_rounded,
+                                  size: 16,
+                                  color: c.lastRead ? AppColors.navy : AppColors.muted,
+                                  semanticLabel: c.lastRead ? 'مقروءة' : 'أُرسلت',
+                                ),
+                                const SizedBox(width: 4),
+                              ],
+                              Expanded(
+                                child: Text(
+                                  c.lastMessage == null
+                                      ? (status ?? 'ابدأ المحادثة بالسلام')
+                                      : '${c.lastMine ? '${forViewer(female, 'أنت', 'أنتِ')}: ' : ''}${c.lastMessage}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: c.unread > 0 ? AppColors.ink : null,
+                                    fontWeight: c.unread > 0 ? FontWeight.w600 : null,
+                                  ),
+                                ),
+                              ),
+                              if (status != null && c.lastMessage != null) Pill(text: status, color: AppColors.muted),
+                              if (c.unread > 0) ...[const SizedBox(width: 6), CountBadge(count: c.unread)],
+                            ],
                           ),
-                          if (status != null && c.lastMessage != null) Pill(text: status, color: AppColors.muted),
-                          if (c.unread > 0) ...[const SizedBox(width: 6), CountBadge(count: c.unread)],
+                          if (left != null)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 3),
+                              child: Text(
+                                left.text,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: left.urgent ? AppColors.warning : AppColors.muted,
+                                  fontWeight: left.urgent ? FontWeight.w700 : null,
+                                ),
+                              ),
+                            ),
                         ],
                       ),
                       onTap: () async {

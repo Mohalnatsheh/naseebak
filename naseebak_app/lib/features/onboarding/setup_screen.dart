@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../app/providers.dart';
 import '../../core/auth/auth_controller.dart';
 import '../../core/localization/digits.dart';
 import '../../core/network/api_exception.dart';
@@ -8,12 +9,15 @@ import '../../core/network/json.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/person.dart';
 import '../../shared/widgets/common.dart';
+import '../auth/pending_auth.dart';
 import '../auth/phone_validation.dart';
 import '../country_selection/country.dart';
 import '../country_selection/country_providers.dart';
 import '../home/counts.dart';
+import '../home/gendered_copy.dart';
 import '../profile/guardian_form.dart';
 import '../profile/profile_repository.dart';
+import '../referral/referral_screen.dart' show cleanReferralCode;
 import 'profile_options.dart';
 
 /// Age in full years on [now].
@@ -143,11 +147,27 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
     return e;
   }
 
-  Map<String, dynamic> _payload() {
+  /// [partial]: only what's filled in (a draft); otherwise everything (all steps validated)
+  Map<String, dynamic> _payload({bool partial = false}) {
     final single = _marital == ProfileOptions.single;
-    final dob = _dob!;
+    final dob = _dob;
+    int? number(TextEditingController c) => int.tryParse(toLatinDigits(c.text.trim()));
+    if (partial) {
+      return {
+        if (dob != null)
+          'dateOfBirth': '${dob.year.toString().padLeft(4, '0')}-${dob.month.toString().padLeft(2, '0')}-${dob.day.toString().padLeft(2, '0')}',
+        'nationality': _nationality,
+        'city': _city,
+        'education': _education,
+        'maritalStatus': _marital,
+        if (_marital != null) 'childrenCount': single ? 0 : number(_children),
+        'religiosity': _religiosity,
+        'prefAgeMin': number(_ageMin),
+        'prefAgeMax': number(_ageMax),
+      };
+    }
     return {
-      'dateOfBirth': '${dob.year.toString().padLeft(4, '0')}-${dob.month.toString().padLeft(2, '0')}-${dob.day.toString().padLeft(2, '0')}',
+      'dateOfBirth': '${dob!.year.toString().padLeft(4, '0')}-${dob.month.toString().padLeft(2, '0')}-${dob.day.toString().padLeft(2, '0')}',
       'nationality': _nationality,
       'city': _city,
       'education': _education,
@@ -167,10 +187,54 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
     });
     if (errors.isNotEmpty) return;
     if (_step < total - 1) {
+      _saveDraft(_step);
       setState(() => _step++);
+      _rememberStep();
       return;
     }
     await _submit(guardianStep);
+  }
+
+  /// Where this member's setup stopped, on this phone (the website's own `setupStep` counts its own steps)
+  String? get _stepKey {
+    final id = ref.read(authControllerProvider).me?.id;
+    return id == null ? null : 'setup_step_$id';
+  }
+
+  void _rememberStep() {
+    final key = _stepKey;
+    if (key != null) ref.read(sharedPreferencesProvider).setInt(key, _step);
+  }
+
+  /// The answers of a finished step, saved as a draft like the website does (`PATCH /api/profile/draft`): closing the
+  /// app mid-setup loses nothing. Best effort: the final save sends everything again.
+  void _saveDraft(int step) {
+    final p = _payload(partial: true);
+    final fields = switch (step) {
+      0 => ['dateOfBirth', 'nationality', 'city', 'education'],
+      1 => ['maritalStatus', 'childrenCount', 'religiosity'],
+      2 => ['prefAgeMin', 'prefAgeMax'],
+      _ => const <String>[],
+    };
+    final body = {for (final f in fields) if (p[f] != null) f: p[f]};
+    if (body.isEmpty) return;
+    ref.read(apiClientProvider).patch('/api/profile/draft', body: body).catchError((Object e) {
+      debugPrint('[setup] draft not saved: $e');
+      return <String, dynamic>{};
+    });
+  }
+
+  /// Back where the member stopped (after the fields came back from the draft): the furthest step whose earlier
+  /// steps are all still valid
+  void _resumeStep(int total) {
+    final key = _stepKey;
+    final saved = key == null ? null : ref.read(sharedPreferencesProvider).getInt(key);
+    if (saved == null || saved <= 0) return;
+    var step = 0;
+    while (step < saved && step < total - 1 && _validate(step).isEmpty) {
+      step++;
+    }
+    _step = step;
   }
 
   Future<void> _submit(bool guardianStep) async {
@@ -189,19 +253,30 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
         );
       }
       await repo.save(_payload());
+      final key = _stepKey;
+      if (key != null) await ref.read(sharedPreferencesProvider).remove(key);
       ref.invalidate(countsProvider);
       // The router leaves the setup once `/api/mobile/me` says the profile is complete
       await ref.read(authControllerProvider.notifier).refreshMe();
     } on ApiException catch (e) {
       if (!mounted) return;
       if (e.code == 'GUARDIAN_REQUIRED' && !guardianStep) {
-        setState(() => _error = '${e.message}. أضفه من الخطوة التالية.');
+        // The guardian became required meanwhile: reload the switches so the guardian step appears after this one
+        ref.invalidate(countsProvider);
+        final female = ref.read(authControllerProvider).me?.isFemale ?? false;
+        setState(() => _error = '${e.message}. ${forViewer(female, 'أضفه', 'أضيفيه')} في الخطوة التالية.');
       } else {
         setState(() => _error = e.message);
       }
     } finally {
       if (mounted) setState(() => _saving = false);
     }
+  }
+
+  void _back() {
+    if (_step == 0) return;
+    setState(() => _step--);
+    _rememberStep();
   }
 
   Future<void> _pickDob() async {
@@ -242,67 +317,79 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
     }
     final lists = details.requireValue.lists;
     final p = profile.valueOrNull;
-    if (p != null) _prefill(p);
     final guardianStep = _guardianStep(counts.valueOrNull);
     final total = guardianStep ? 4 : 3;
     final female = me?.isFemale ?? false;
+    if (p != null && !_prefilled) {
+      _prefill(p);
+      _nationality ??= female ? me?.country.nationalityFemale : me?.country.nationalityMale;
+      _resumeStep(total);
+    }
     _nationality ??= female ? me?.country.nationalityFemale : me?.country.nationalityMale;
-    final titles = ['معلوماتك الأساسية', 'حالتك الاجتماعية', 'من تبحث عنه', 'وليّ الأمر'];
+    final titles = ['معلوماتك الأساسية', 'حالتك الاجتماعية', forViewer(female, 'من تبحث عنه', 'من تبحثين عنه'), 'وليّ الأمر'];
     final theme = Theme.of(context);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('إكمال ملفك'),
-        leading: _step > 0
-            ? IconButton(tooltip: 'السابق', icon: const Icon(Icons.arrow_back_rounded), onPressed: () => setState(() => _step--))
-            : null,
-        actions: [
-          TextButton(
-            onPressed: () => ref.read(authControllerProvider.notifier).logout(),
-            child: const Text('خروج'),
-          ),
-        ],
-      ),
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 4, 20, 32),
-          children: [
-            Row(
-              children: [
-                for (var i = 0; i < total; i++)
-                  Expanded(
-                    child: Container(
-                      height: 5,
-                      margin: const EdgeInsetsDirectional.only(end: 6),
-                      decoration: BoxDecoration(
-                        color: i <= _step ? AppColors.gold : AppColors.line,
-                        borderRadius: BorderRadius.circular(3),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 18),
-            Text('الخطوة ${_step + 1} من $total', style: const TextStyle(color: AppColors.muted)),
-            Text(titles[_step], style: theme.textTheme.headlineSmall),
-            const SizedBox(height: 6),
-            Text(
-              _step == 3
-                  ? 'نطلبها لترتيب التعارف العائلي. لا تظهر لأي عضو إلا بموافقتك بعد تعارف مقبول.'
-                  : 'أسئلة قليلة فقط، وباقي ملفك اختياري يمكنك إكماله لاحقاً.',
-              style: theme.textTheme.bodyMedium?.copyWith(color: AppColors.muted),
-            ),
-            const SizedBox(height: 20),
-            ..._stepFields(_step, female, lists),
-            if (_error != null) ...[const SizedBox(height: 14), InfoBanner(text: _error!, tone: BannerTone.danger)],
-            const SizedBox(height: 24),
-            LoadingButton(
-              key: const Key('setup-next'),
-              label: _step == total - 1 ? 'حفظ والبدء' : 'التالي',
-              loading: _saving,
-              onPressed: () => _next(total, guardianStep),
+    // Android back: the previous step (not out of the app with the answers lost)
+    return PopScope(
+      canPop: _step == 0,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _back();
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('إكمال ملفك'),
+          leading: _step > 0
+              ? IconButton(tooltip: 'السابق', icon: const Icon(Icons.arrow_back_rounded), onPressed: _back)
+              : null,
+          actions: [
+            TextButton(
+              onPressed: () => ref.read(authControllerProvider.notifier).logout(),
+              child: const Text('خروج'),
             ),
           ],
+        ),
+        body: SafeArea(
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 32),
+            children: [
+              Row(
+                children: [
+                  for (var i = 0; i < total; i++)
+                    Expanded(
+                      child: Container(
+                        height: 5,
+                        margin: const EdgeInsetsDirectional.only(end: 6),
+                        decoration: BoxDecoration(
+                          color: i <= _step ? AppColors.gold : AppColors.line,
+                          borderRadius: BorderRadius.circular(3),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              Text('الخطوة ${_step + 1} من $total', style: const TextStyle(color: AppColors.muted)),
+              Text(titles[_step], style: theme.textTheme.headlineSmall),
+              const SizedBox(height: 6),
+              Text(
+                _step == 3
+                    ? 'نطلبها لترتيب التعارف العائلي. لا تظهر لأي عضو إلا بموافقتك بعد تعارف مقبول.'
+                    : 'أسئلة قليلة فقط، وباقي ملفك اختياري يمكنك إكماله لاحقاً.',
+                style: theme.textTheme.bodyMedium?.copyWith(color: AppColors.muted),
+              ),
+              const SizedBox(height: 20),
+              const _InviteRetryBanner(),
+              ..._stepFields(_step, female, lists),
+              if (_error != null) ...[const SizedBox(height: 14), InfoBanner(text: _error!, tone: BannerTone.danger)],
+              const SizedBox(height: 24),
+              LoadingButton(
+                key: const Key('setup-next'),
+                label: _step == total - 1 ? 'حفظ والبدء' : 'التالي',
+                loading: _saving,
+                onPressed: () => _next(total, guardianStep),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -321,7 +408,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
                 errorText: _errors['dob'],
                 suffixIcon: const Icon(Icons.calendar_month_outlined),
               ),
-              child: Text(_dob == null ? 'اختر التاريخ' : formatDate(_dob!),
+              child: Text(_dob == null ? forViewer(female, 'اختر التاريخ', 'اختاري التاريخ') : formatDate(_dob!),
                   style: TextStyle(color: _dob == null ? AppColors.muted : AppColors.ink)),
             ),
           ),
@@ -398,7 +485,8 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
             ],
           ),
           const SizedBox(height: 10),
-          const Text('يمكنك إضافة تفضيلات أخرى لاحقاً من الموقع.', style: TextStyle(color: AppColors.muted, fontSize: 13)),
+          Text('${forViewer(female, 'يمكنك', 'يمكنكِ')} إضافة تفضيلات أخرى لاحقاً من «تفضيلاتي» في حسابك.',
+              style: const TextStyle(color: AppColors.muted, fontSize: 13)),
         ];
       default:
         return [GuardianFieldsView(fields: _guardian, errors: _errors, onChanged: () => setState(() {}))];
@@ -433,6 +521,90 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
             padding: const EdgeInsets.only(top: 6),
             child: Text(error, style: const TextStyle(color: AppColors.danger, fontSize: 13)),
           ),
+      ],
+    );
+  }
+}
+
+/// The invitation code from sign-up wasn't applied: why, and another try (the server takes one until the profile is
+/// complete), like the website's «لم يُطبَّق رمز الدعوة»
+class _InviteRetryBanner extends ConsumerWidget {
+  const _InviteRetryBanner();
+
+  Future<void> _retry(BuildContext context, WidgetRef ref) async {
+    final code = await showDialog<String>(context: context, builder: (_) => const _InviteCodeDialog());
+    final clean = cleanReferralCode(code ?? '');
+    if (code == null) return;
+    if (clean.length != 8) {
+      if (context.mounted) showSnack(context, 'رمز الدعوة يتكون من 8 أحرف وأرقام');
+      return;
+    }
+    try {
+      await ref.read(apiClientProvider).post('/api/referral/apply', body: {'code': clean});
+      ref.read(inviteWarningProvider.notifier).set(null);
+      if (context.mounted) showSnack(context, 'تم تطبيق رمز الدعوة');
+    } catch (e) {
+      ref.read(inviteWarningProvider.notifier).set(ApiException.messageOf(e));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final warning = ref.watch(inviteWarningProvider);
+    if (warning == null) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: InfoBanner(
+        key: const Key('invite-warning'),
+        text: 'لم يُطبَّق رمز الدعوة: $warning',
+        tone: BannerTone.warning,
+        icon: Icons.card_giftcard_rounded,
+        action: Wrap(
+          spacing: 8,
+          children: [
+            TextButton(onPressed: () => _retry(context, ref), child: const Text('إدخال رمز آخر')),
+            TextButton(
+              onPressed: () => ref.read(inviteWarningProvider.notifier).set(null),
+              child: const Text('متابعة بدونه'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Asks for the code; owns its field (disposed with the dialog, after its closing animation)
+class _InviteCodeDialog extends StatefulWidget {
+  const _InviteCodeDialog();
+
+  @override
+  State<_InviteCodeDialog> createState() => _InviteCodeDialogState();
+}
+
+class _InviteCodeDialogState extends State<_InviteCodeDialog> {
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('رمز الدعوة'),
+      content: TextField(
+        key: const Key('invite-retry-code'),
+        controller: _controller,
+        autofocus: true,
+        textCapitalization: TextCapitalization.characters,
+        decoration: const InputDecoration(hintText: '8 أحرف وأرقام'),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('إلغاء')),
+        FilledButton(onPressed: () => Navigator.of(context).pop(_controller.text), child: const Text('تطبيق')),
       ],
     );
   }

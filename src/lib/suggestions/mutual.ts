@@ -18,7 +18,7 @@ import { db } from "@/lib/db";
 import { notifyInterestCreditsExhausted, recordCredit, reserveCredits } from "@/lib/credits";
 import { notify } from "@/lib/notify";
 import { IntroError, noCreditsError } from "@/lib/intro/errors";
-import { createMutualMatch } from "@/lib/intro/match";
+import { createMutualMatch, type MatchOpened } from "@/lib/intro/match";
 import { isUnavailable } from "@/lib/matches/state";
 import { getCycleFlags } from "@/lib/settings";
 import { activeWhere } from "@/lib/activity";
@@ -380,7 +380,7 @@ export async function decideSuggestion(args: {
   interested: boolean;
   introPreference?: IntroPreference;
   guardianConsent?: boolean;
-}): Promise<{ match: boolean; matchId?: string; creditsLeft?: number }> {
+}): Promise<{ match: boolean; matchId?: string; creditsLeft?: number } & Omit<Partial<MatchOpened>, "matchId">> {
   const { suggestionId, userId, interested } = args;
   const now = new Date();
   const flags = await getCycleFlags();
@@ -522,8 +522,8 @@ export async function decideSuggestion(args: {
     // charged again. The decision is saved, so the member sees success (link to the matches page);
     // the daily job (healMissingMatches) creates the match on its next run.
     try {
-      const { matchId } = await createMutualMatch({ femaleId, maleId, suggestionId: s.id });
-      return { match: true, matchId, ...extra };
+      const opened = await createMutualMatch({ femaleId, maleId, suggestionId: s.id });
+      return { match: true, ...opened, ...extra };
     } catch (e) {
       console.error("[suggestions] createMutualMatch failed after ACCEPTED", { suggestionId: s.id, femaleId, maleId }, e);
       return { match: true, ...extra };

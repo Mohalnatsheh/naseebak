@@ -17,6 +17,7 @@ import 'preferences_bar.dart';
 import 'suggestion_card.dart';
 import 'suggestion_models.dart';
 import 'suggestions_repository.dart';
+import '../notifications/notifications_screen.dart';
 
 /// «اقتراحاتي»: new / interested in me / waiting, from `GET /api/suggestions/feed`.
 class SuggestionsScreen extends ConsumerStatefulWidget {
@@ -282,7 +283,7 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
     _removeAndTopUp(item);
     if (!mounted) return;
     if (res.match) {
-      _showMatch(item, res.matchId);
+      _showMatch(item, res);
     } else {
       showSnack(
         context,
@@ -293,29 +294,30 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
     }
   }
 
-  void _showMatch(FeedItem item, String? matchId) {
+  void _showMatch(FeedItem item, DecisionResult res) {
+    final copy = matchDialogCopy(res, item.candidate.firstName, viewerFemale: _viewerFemale);
     showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
         icon: const Icon(Icons.celebration_rounded, color: AppColors.gold, size: 40),
         title: const Text('توافق متبادل!', textAlign: TextAlign.center),
-        content: Text(
-          'أبديتما الاهتمام معاً أنت و${item.candidate.firstName}. يمكنك الآن متابعة الخطوة التالية من صفحة التوافقات.',
-          textAlign: TextAlign.center,
-        ),
+        content: Text(copy.body, textAlign: TextAlign.center),
         actions: [
           TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('لاحقاً')),
           FilledButton(
+            key: const Key('match-dialog-open'),
             onPressed: () {
               Navigator.of(ctx).pop();
-              context.go(matchId != null ? '/matches/$matchId' : '/matches');
+              // Over the suggestions (back returns here), not instead of them
+              openAppRoute(GoRouter.of(context), copy.route);
             },
-            child: const Text('عرض التوافق'),
+            child: Text(copy.action),
           ),
         ],
       ),
     );
   }
+
 
   void _handleError(FeedItem item, Object e) {
     if (!mounted) return;
@@ -576,4 +578,35 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
         );
     }
   }
+}
+
+/// The «توافق متبادل!» dialog after my «مهتم»: what happened, and the one button. Both chose «محادثة» → the chat is
+/// already open (no request to send); I chose «محادثة» but they chose family → share my guardian's contact; otherwise
+/// the match page (family under way, or the request buttons on older flows).
+({String body, String action, String route}) matchDialogCopy(DecisionResult res, String name, {required bool viewerFemale}) {
+  String g(String m, String f) => forViewer(viewerFemale, m, f);
+  final matchRoute = res.matchId != null ? '/matches/${res.matchId}' : '/matches';
+  final together = 'أبديتما الاهتمام معاً ${g('أنت', 'أنتِ')} و$name.';
+  if (res.intro == 'CHAT' && res.conversationId != null) {
+    return (
+      body: '$together اخترتما المحادثة، فهي مفتوحة الآن ${g('ويمكنك', 'ويمكنكِ')} البدء مباشرة.',
+      action: 'فتح المحادثة',
+      route: '/chats/${res.conversationId}',
+    );
+  }
+  if (res.intro == 'FAMILY') {
+    return (
+      body: res.myPreference == 'CHAT'
+          ? '$together ${forPartner(viewerFemale, 'فضّل', 'فضّلت')} $name التعارف العائلي. '
+              '${g('شارك', 'شاركي')} بيانات وليّ أمرك من صفحة التوافق لتتبادل العائلتان بيانات التواصل.'
+          : '$together اتجهتما للتعارف العائلي، والتفاصيل في صفحة التوافق.',
+      action: 'عرض التوافق',
+      route: matchRoute,
+    );
+  }
+  return (
+    body: '$together ${g('يمكنك', 'يمكنكِ')} الآن متابعة الخطوة التالية من صفحة التوافقات.',
+    action: 'عرض التوافق',
+    route: matchRoute,
+  );
 }

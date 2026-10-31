@@ -6,6 +6,8 @@ import '../../app/providers.dart';
 import '../../app/shell.dart';
 import '../../features/auth/otp_screen.dart';
 import '../../features/auth/paused_screen.dart';
+import '../../features/auth/auth_repository.dart' show OtpContext;
+import '../../features/auth/pending_auth.dart';
 import '../../features/auth/phone_screen.dart';
 import '../../features/auth/register_screen.dart';
 import '../../features/auth/suspended_screen.dart';
@@ -128,6 +130,8 @@ final routerProvider = Provider<GoRouter>((ref) {
       if (link != null) {
         if (link.invitationCode != null) {
           ref.read(sharedPreferencesProvider).setString(pendingInvitationKey, link.invitationCode!);
+          // A friend's invitation: the phone screen opens on «حساب جديد» (not during the redirect itself)
+          Future.microtask(() => ref.read(authModeProvider.notifier).set(OtpContext.register));
         }
         final route = link.route;
         if (route == null) return guard('/auth/phone') ?? '/auth/phone';

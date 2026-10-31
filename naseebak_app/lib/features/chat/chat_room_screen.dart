@@ -5,13 +5,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/auth/auth_controller.dart';
-import '../../core/localization/digits.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/common.dart';
+import '../home/gendered_copy.dart';
 import '../matches/match_detail_screen.dart' show ReportSheet;
 import 'chat_bubble.dart';
 import 'chat_cache.dart';
+import 'chat_format.dart';
 import 'chat_live.dart';
 import 'chat_models.dart';
 
@@ -484,19 +485,73 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     }
   }
 
+  void _safetyInfo(bool female) {
+    String g(String m, String f) => forViewer(female, m, f);
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        icon: const Icon(Icons.shield_outlined, color: AppColors.navy),
+        title: Text(g('لحمايتك', 'لحمايتكِ')),
+        content: Text(
+          '${g('لا تُشارك', 'لا تُشاركي')} الأرقام أو الروابط أو حسابات التواصل في المحادثة. '
+          'التواصل العائلي يتم عبر التعارف العائلي من صفحة التوافق، '
+          'وإن ${g('شعرت', 'شعرتِ')} بأي إساءة ${g('استخدم', 'استخدمي')} «إبلاغ» من القائمة.',
+          style: const TextStyle(height: 1.6),
+        ),
+        actions: [TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('حسناً'))],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final chat = _chat;
+    final female = ref.watch(authControllerProvider).me?.isFemale ?? false;
+    final left = chat != null && chat.status == 'ACTIVE' ? chatTimeLeft(chat.expiresAt) : null;
+    final canOpenMatch = chat != null && !chat.matchHidden;
     return Scaffold(
       appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(chat?.partnerName ?? 'المحادثة'),
-            if (chat?.expiresAt != null && chat!.status == 'ACTIVE')
-              Text('حتى ${formatDate(chat.expiresAt!, withYear: false)}',
-                  style: const TextStyle(fontSize: 12, color: AppColors.muted, fontWeight: FontWeight.w500)),
-          ],
+        titleSpacing: 0,
+        title: InkWell(
+          key: const Key('chat-header'),
+          borderRadius: BorderRadius.circular(12),
+          // The match page: the family introduction, the photos, ending the match
+          onTap: canOpenMatch ? () => context.push('/matches/${chat.matchId}') : null,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 20,
+                  backgroundColor: AppColors.gold.withValues(alpha: 0.15),
+                  child: Text(
+                    (chat?.partnerName ?? '').isEmpty ? '؟' : chat!.partnerName.characters.first,
+                    style: const TextStyle(color: AppColors.navy, fontWeight: FontWeight.w700, fontSize: 17),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Flexible(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(chat?.partnerName ?? 'المحادثة', maxLines: 1, overflow: TextOverflow.ellipsis),
+                      if (left != null)
+                        Text(
+                          left.text,
+                          key: const Key('chat-time-left'),
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: left.urgent ? AppColors.warning : AppColors.muted,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
         actions: [
           if (chat != null)
@@ -529,12 +584,29 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
         final items = _messages.reversed.toList();
         return Column(
           children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(16, 4, 16, 4),
-              child: Text(
-                'لحمايتك: لا تُشارك الأرقام أو الروابط أو حسابات التواصل. التواصل العائلي يتم عبر التعارف العائلي.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: AppColors.muted, fontSize: 12),
+            // One line; the full advice behind ⓘ
+            InkWell(
+              key: const Key('chat-safety'),
+              onTap: () => _safetyInfo(female),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.shield_outlined, size: 15, color: AppColors.muted),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        forViewer(female, 'لحمايتك: لا تُشارك أرقاماً أو روابط', 'لحمايتكِ: لا تُشاركي أرقاماً أو روابط'),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: AppColors.muted, fontSize: 12),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    const Icon(Icons.info_outline_rounded, size: 15, color: AppColors.muted),
+                  ],
+                ),
               ),
             ),
             Expanded(
@@ -559,12 +631,21 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
                               );
                             }
                             final m = items[i];
-                            return ChatBubble(
+                            final layout = chatRowLayout(items, i);
+                            final bubble = ChatBubble(
                               key: ValueKey(m.id),
                               message: m,
+                              showTime: layout.showTime,
+                              tightTop: layout.tightTop,
                               onRetry: m.state == SendState.failed
                                   ? () => m.filtered ? _editFailed(m) : _send(m)
                                   : null,
+                            );
+                            if (!layout.daySeparator) return bubble;
+                            return Column(
+                              key: ValueKey('day-${m.id}'),
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [_DaySeparator(label: chatDayLabel(m.createdAt)), bubble],
                             );
                           },
                         ),
@@ -638,6 +719,26 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
               icon: const Icon(Icons.send_rounded, color: Colors.white),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// «اليوم» / «أمس» / a date between the messages of two days
+class _DaySeparator extends StatelessWidget {
+  const _DaySeparator({required this.label});
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 14, bottom: 6),
+      child: Center(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          decoration: BoxDecoration(color: AppColors.line.withValues(alpha: 0.8), borderRadius: BorderRadius.circular(12)),
+          child: Text(label, style: const TextStyle(fontSize: 12, color: AppColors.muted, fontWeight: FontWeight.w600)),
         ),
       ),
     );

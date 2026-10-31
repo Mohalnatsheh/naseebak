@@ -48,7 +48,8 @@ export interface ChatSummary {
   blocked: boolean;
   /** The match page isn't available to me (the other person blocked me): hide links to it */
   matchHidden: boolean;
-  lastMessage: { body: string; createdAt: string; mine: boolean } | null;
+  /** `read`: the other person has read it (the app's ✓✓ on my last message in the chats list) */
+  lastMessage: { body: string; createdAt: string; mine: boolean; read: boolean } | null;
   unread: number;
 }
 
@@ -207,7 +208,7 @@ async function housekeep(c: LoadedConversation): Promise<{ c: LoadedConversation
 function summarise(
   c: LoadedConversation,
   userId: string,
-  last: { body: string; createdAt: Date; senderId: string } | null,
+  last: { body: string; createdAt: Date; senderId: string; readAt: Date | null } | null,
   unread: number,
   blocked = false,
   matchHidden = false
@@ -225,7 +226,7 @@ function summarise(
     blocked,
     matchHidden,
     lastMessage: last
-      ? { body: last.body, createdAt: last.createdAt.toISOString(), mine: last.senderId === userId }
+      ? { body: last.body, createdAt: last.createdAt.toISOString(), mine: last.senderId === userId, read: last.readAt !== null }
       : null,
     unread,
   };
@@ -254,7 +255,7 @@ export async function listConversations(userId: string): Promise<ChatSummary[]> 
     where: { match: { OR: [{ femaleId: userId }, { maleId: userId }] } },
     include: {
       ...conversationInclude,
-      messages: { orderBy: { createdAt: "desc" }, take: 1, select: { body: true, createdAt: true, senderId: true } },
+      messages: { orderBy: { createdAt: "desc" }, take: 1, select: { body: true, createdAt: true, senderId: true, readAt: true } },
       _count: { select: { messages: { where: { readAt: null, senderId: { not: userId } } } } },
     },
   });

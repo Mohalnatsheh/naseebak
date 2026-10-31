@@ -262,6 +262,8 @@ model User {
   messages              Message[]
   creditLedger          CreditLedger[]
   pollVotes             PollVote[]
+  alertsForMe           Alert[]          @relation("AlertTarget")
+  alertDismissals       AlertDismissal[]
   mobileSessions        MobileSession[]
   pushDevices           PushDevice[]
 
@@ -1023,4 +1025,47 @@ model PushDevice {
 
   @@index([userId])
   @@map("push_devices")
+}
+
+/// Popup alert from the admin, shown in the app and/or on the website until the member closes it (src/lib/alerts.ts)
+model Alert {
+  id          String           @id @default(cuid())
+  title       String
+  body        String
+  imageUrl    String?
+  buttonLabel String?
+  /// In-site path ("/dashboard/...") or an https link
+  buttonUrl   String?
+  /// ALL | MEN | WOMEN | USER (one member: userId)
+  audience    String           @default("ALL")
+  userId      String?
+  user        User?            @relation("AlertTarget", fields: [userId], references: [id], onDelete: Cascade)
+  /// ALL | APP | WEB
+  channel     String           @default("ALL")
+  /// Country code, or null for every country (the admin's selected country when it was made)
+  country     String?
+  startsAt    DateTime         @default(now())
+  endsAt      DateTime?
+  /// Stopped early by the admin
+  stoppedAt   DateTime?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  dismissals  AlertDismissal[]
+
+  @@index([startsAt])
+  @@map("alerts")
+}
+
+/// A member closed this alert (or tapped its button): it never shows to them again
+model AlertDismissal {
+  id        String   @id @default(cuid())
+  alertId   String
+  alert     Alert    @relation(fields: [alertId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([alertId, userId])
+  @@index([userId])
+  @@map("alert_dismissals")
 }

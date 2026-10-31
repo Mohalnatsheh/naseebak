@@ -28,7 +28,7 @@ export async function createMutualMatch(args: {
   femaleId: string;
   maleId: string;
   suggestionId: string | null;
-}): Promise<{ matchId: string }> {
+}): Promise<MatchOpened> {
   const { femaleId, maleId, suggestionId } = args;
 
   // A pair can only match once (unique femaleId+maleId)
@@ -61,11 +61,18 @@ export async function createMutualMatch(args: {
   return { matchId: match.id };
 }
 
+/** The new match, and how it opened (credit_on_interest only): the app's «توافق متبادل!» dialog opens the chat itself */
+export interface MatchOpened {
+  matchId: string;
+  intro?: "CHAT" | "FAMILY" | "NONE";
+  conversationId?: string;
+}
+
 /** credit_on_interest: free match that opens straight into the chosen introduction; one notification each. */
 async function openMatch(
   args: { femaleId: string; maleId: string; suggestionId: string | null },
   flags: CycleFlags,
-): Promise<{ matchId: string }> {
+): Promise<MatchOpened> {
   const { femaleId, maleId, suggestionId } = args;
   const match = await db.mutualMatch.create({
     data: { femaleId, maleId, suggestionId, revealedByFemale: false, openedAt: new Date() },
@@ -90,6 +97,7 @@ async function openMatch(
       url: conversation ? `/dashboard/chats/${conversation.id}` : matchUrl,
       metadata: { ...metadata, conversationId: conversation?.id },
     });
+    return { matchId: match.id, intro: outcome, ...(conversation && { conversationId: conversation.id }) };
   } else if (outcome === "FAMILY") {
     // Mixed choice: the side that chose CHAT is told the other preferred a family introduction
     const prefs = await readIntroPreferences(ref);
@@ -115,5 +123,5 @@ async function openMatch(
     await notifyMany([femaleId, maleId], { ...base, body: REQUESTS_BODY, url: matchUrl });
   }
 
-  return { matchId: match.id };
+  return { matchId: match.id, intro: outcome };
 }

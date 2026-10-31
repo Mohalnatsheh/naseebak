@@ -3,12 +3,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/auth/auth_controller.dart';
+import '../../core/push/push_permission.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/common.dart';
+import '../../shared/widgets/person_details_view.dart';
+import '../discovery/suggestion_models.dart';
+import '../discovery/suggestions_repository.dart';
 import 'counts.dart';
 import 'gendered_copy.dart';
 import 'poll_card.dart';
 import 'profile_strength_card.dart';
+import '../notifications/notifications_screen.dart';
 
 /// One suggested next step, from the counts.
 class NextStep {
@@ -52,6 +57,20 @@ NextStep nextStepFor(Counts? c, {bool viewerFemale = false}) {
   );
 }
 
+/// «صباح الخير» before noon, «مساء الخير» after
+String greetingFor(DateTime now, String? name) {
+  final hello = now.hour >= 4 && now.hour < 12 ? 'صباح الخير' : 'مساء الخير';
+  return name == null || name.isEmpty ? hello : '$hello، $name';
+}
+
+/// The first new suggestions, shown on home (without the top-up the suggestions screen runs). Reloads with the counts,
+/// so a decision taken on the suggestions tab (which refreshes them) is reflected here too.
+final homeSuggestionsProvider = FutureProvider<List<FeedItem>>((ref) async {
+  await ref.watch(countsProvider.future);
+  final page = await ref.watch(suggestionsRepositoryProvider).feed(FeedTab.newTab);
+  return page.items.take(8).toList();
+});
+
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
@@ -65,10 +84,13 @@ class HomeScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final me = ref.watch(authControllerProvider).me;
+    final female = me?.isFemale ?? false;
     final counts = ref.watch(countsProvider);
     final unread = ref.watch(unreadNotificationsProvider).valueOrNull ?? 0;
     final c = counts.valueOrNull;
-    final step = nextStepFor(c, viewerFemale: me?.isFemale ?? false);
+    final step = nextStepFor(c, viewerFemale: female);
+    final credits = c?.credits ?? me?.credits;
+    String count(int? n) => counts.isLoading && c == null ? '…' : '${n ?? 0}';
     return Scaffold(
       body: RefreshIndicator(
         onRefresh: () => _refresh(ref),
@@ -76,7 +98,14 @@ class HomeScreen extends ConsumerWidget {
           padding: EdgeInsets.zero,
           children: [
             Container(
-              color: AppColors.navy,
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [AppColors.navyDeep, AppColors.navy],
+                ),
+                borderRadius: BorderRadius.vertical(bottom: Radius.circular(28)),
+              ),
               padding: EdgeInsets.fromLTRB(20, MediaQuery.paddingOf(context).top + 12, 12, 24),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -85,6 +114,7 @@ class HomeScreen extends ConsumerWidget {
                     children: [
                       const BrandLogo(height: 30, onDark: true),
                       const Spacer(),
+                      if (credits != null) _CreditsPill(credits: credits),
                       Stack(
                         clipBehavior: Clip.none,
                         children: [
@@ -104,7 +134,7 @@ class HomeScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 18),
                   Text(
-                    'أهلاً ${me?.firstName ?? ''}',
+                    greetingFor(DateTime.now(), me?.firstName),
                     style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w700),
                   ),
                   const SizedBox(height: 16),
@@ -134,7 +164,7 @@ class HomeScreen extends ConsumerWidget {
                         FilledButton(
                           key: const Key('next-step'),
                           style: FilledButton.styleFrom(backgroundColor: AppColors.gold, minimumSize: const Size(160, 48)),
-                          onPressed: () => context.go(step.route),
+                          onPressed: () => openAppRoute(GoRouter.of(context), step.route),
                           child: Text(step.action),
                         ),
                       ],
@@ -148,6 +178,7 @@ class HomeScreen extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  const PushOffCard(dismissible: true, padding: EdgeInsets.only(bottom: 12)),
                   if (counts.hasError && c == null) ...[
                     InfoBanner(
                       text: 'تعذّر تحميل آخر المستجدات.',
@@ -159,64 +190,48 @@ class HomeScreen extends ConsumerWidget {
                   Row(
                     children: [
                       Expanded(
-                        child: _StatTile(
-                          key: const Key('credits-tile'),
-                          icon: Icons.account_balance_wallet_outlined,
-                          label: 'رصيدك',
-                          value: '${c?.credits ?? me?.credits ?? 0}',
-                          onTap: () => context.push('/credits'),
+                        child: _StatusChip(
+                          key: const Key('status-new'),
+                          icon: Icons.auto_awesome_rounded,
+                          value: count(c?.newSuggestions),
+                          label: 'اقتراحات جديدة',
+                          onTap: () => context.go('/suggestions?tab=new'),
                         ),
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: 10),
                       Expanded(
-                        child: _StatTile(
-                          icon: Icons.chat_bubble_outline_rounded,
-                          label: 'رسائل غير مقروءة',
-                          value: counts.isLoading && c == null ? '…' : '${c?.unreadChats ?? 0}',
-                          onTap: () => context.go('/chats'),
+                        child: _StatusChip(
+                          key: const Key('status-liked'),
+                          icon: Icons.favorite_rounded,
+                          value: count(c?.likedYou),
+                          label: 'مهتمون بك',
+                          highlight: (c?.likedYou ?? 0) > 0,
+                          onTap: () => context.go('/suggestions?tab=interested'),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _StatusChip(
+                          key: const Key('status-matches'),
+                          icon: Icons.handshake_rounded,
+                          value: count(c == null ? null : c.actionableMatches + c.pendingIntros),
+                          label: 'توافقات تنتظرك',
+                          highlight: (c?.pendingIntros ?? 0) > 0,
+                          onTap: () => context.go('/matches'),
                         ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 20),
-                  const SectionTitle('الاقتراحات'),
-                  _EntryTile(
-                    icon: Icons.auto_awesome_outlined,
-                    title: 'اقتراحات جديدة',
-                    count: c?.newSuggestions ?? 0,
-                    onTap: () => context.go('/suggestions?tab=new'),
+                  SectionTitle(
+                    'اقتراحات اليوم',
+                    trailing: TextButton(
+                      key: const Key('all-suggestions'),
+                      onPressed: () => context.go('/suggestions?tab=new'),
+                      child: const Text('عرض الكل'),
+                    ),
                   ),
-                  _EntryTile(
-                    icon: Icons.favorite_border_rounded,
-                    title: 'مهتمون بك',
-                    count: c?.likedYou ?? 0,
-                    onTap: () => context.go('/suggestions?tab=interested'),
-                  ),
-                  _EntryTile(
-                    icon: Icons.hourglass_top_rounded,
-                    title: 'بانتظار الطرف الآخر',
-                    onTap: () => context.go('/suggestions?tab=waiting'),
-                  ),
-                  const SizedBox(height: 12),
-                  const SectionTitle('التعارف'),
-                  _EntryTile(
-                    icon: Icons.handshake_outlined,
-                    title: 'التوافقات',
-                    count: (c?.pendingIntros ?? 0) + (c?.actionableMatches ?? 0),
-                    onTap: () => context.go('/matches'),
-                  ),
-                  _EntryTile(
-                    icon: Icons.forum_outlined,
-                    title: 'المحادثات',
-                    count: c?.unreadChats ?? 0,
-                    onTap: () => context.go('/chats'),
-                  ),
-                  _EntryTile(
-                    icon: Icons.notifications_none_rounded,
-                    title: 'الإشعارات',
-                    count: unread,
-                    onTap: () => context.push('/notifications'),
-                  ),
+                  _SuggestionsStrip(female: female),
                   const SizedBox(height: 16),
                   const ProfileStrengthCard(),
                   if (me?.country.pollsEnabled ?? true) ...[
@@ -233,28 +248,33 @@ class HomeScreen extends ConsumerWidget {
   }
 }
 
-class _StatTile extends StatelessWidget {
-  const _StatTile({super.key, required this.icon, required this.label, required this.value, required this.onTap});
-  final IconData icon;
-  final String label;
-  final String value;
-  final VoidCallback onTap;
+/// Balance in the header (opens «الرصيد»)
+class _CreditsPill extends StatelessWidget {
+  const _CreditsPill({required this.credits});
+  final int credits;
 
   @override
   Widget build(BuildContext context) {
-    return Card(
+    return Semantics(
+      button: true,
+      label: 'رصيدك $credits',
       child: InkWell(
-        borderRadius: BorderRadius.circular(18),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+        key: const Key('credits-pill'),
+        borderRadius: BorderRadius.circular(20),
+        onTap: () => context.push('/credits'),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: AppColors.goldLight.withValues(alpha: 0.6)),
+            color: Colors.white.withValues(alpha: 0.06),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, color: AppColors.gold),
-              const SizedBox(height: 8),
-              Text(value, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: AppColors.navy)),
-              Text(label, style: const TextStyle(color: AppColors.muted, fontSize: 13)),
+              const Icon(Icons.account_balance_wallet_outlined, size: 18, color: AppColors.goldLight),
+              const SizedBox(width: 6),
+              Text('$credits', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
             ],
           ),
         ),
@@ -263,27 +283,170 @@ class _StatTile extends StatelessWidget {
   }
 }
 
-class _EntryTile extends StatelessWidget {
-  const _EntryTile({required this.icon, required this.title, required this.onTap, this.count = 0});
+class _StatusChip extends StatelessWidget {
+  const _StatusChip({
+    super.key,
+    required this.icon,
+    required this.value,
+    required this.label,
+    required this.onTap,
+    this.highlight = false,
+  });
   final IconData icon;
-  final String title;
+  final String value;
+  final String label;
   final VoidCallback onTap;
-  final int count;
+
+  /// Something waits for the member here (gold border)
+  final bool highlight;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Card(
-        child: ListTile(
-          minVerticalPadding: 12,
-          leading: Icon(icon, color: AppColors.navy),
-          title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
-          trailing: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [CountBadge(count: count), const SizedBox(width: 6), const Icon(Icons.chevron_right, color: AppColors.muted)],
+    return Card(
+      margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+        side: BorderSide(color: highlight ? AppColors.gold : AppColors.line, width: highlight ? 1.5 : 1),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+          child: Column(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(color: AppColors.gold.withValues(alpha: 0.13), shape: BoxShape.circle),
+                child: Icon(icon, color: AppColors.gold, size: 20),
+              ),
+              const SizedBox(height: 8),
+              Text(value, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: AppColors.navy)),
+              Text(label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: AppColors.muted, fontSize: 12.5)),
+            ],
           ),
-          onTap: onTap,
+        ),
+      ),
+    );
+  }
+}
+
+/// «اقتراحات اليوم»: a sideways row of the first new suggestions (name, age, city, compatibility; never a photo)
+class _SuggestionsStrip extends ConsumerWidget {
+  const _SuggestionsStrip({required this.female});
+  final bool female;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final items = ref.watch(homeSuggestionsProvider);
+    const height = 188.0;
+    return items.when(
+      loading: () => SizedBox(
+        height: height,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          itemCount: 3,
+          separatorBuilder: (_, _) => const SizedBox(width: 10),
+          itemBuilder: (_, _) => Container(
+            width: 150,
+            decoration: BoxDecoration(color: AppColors.line.withValues(alpha: 0.6), borderRadius: BorderRadius.circular(18)),
+          ),
+        ),
+      ),
+      // The chips above already lead to the suggestions; no second error here
+      error: (_, _) => const SizedBox.shrink(),
+      data: (list) => list.isEmpty
+          ? Card(
+              margin: EdgeInsets.zero,
+              child: ListTile(
+                key: const Key('no-home-suggestions'),
+                minVerticalPadding: 14,
+                leading: const Icon(Icons.hourglass_empty_rounded, color: AppColors.gold),
+                title: const Text('لا اقتراحات جديدة الآن', style: TextStyle(fontWeight: FontWeight.w700)),
+                subtitle: Text(forViewer(female, 'نبحث لك باستمرار، ويمكنك توسيع تفضيلاتك.',
+                    'نبحث لكِ باستمرار، ويمكنكِ توسيع تفضيلاتكِ.')),
+                trailing: const Icon(Icons.chevron_right, color: AppColors.muted),
+                onTap: () => context.push('/profile/preferences'),
+              ),
+            )
+          : SizedBox(
+              height: height,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: list.length,
+                separatorBuilder: (_, _) => const SizedBox(width: 10),
+                itemBuilder: (context, i) => _SuggestionPreview(item: list[i]),
+              ),
+            ),
+    );
+  }
+}
+
+class _SuggestionPreview extends StatelessWidget {
+  const _SuggestionPreview({required this.item});
+  final FeedItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = item.candidate;
+    return SizedBox(
+      width: 150,
+      child: Card(
+        margin: EdgeInsets.zero,
+        child: InkWell(
+          key: Key('home-suggestion-${item.id}'),
+          borderRadius: BorderRadius.circular(18),
+          onTap: () => context.go('/suggestions?tab=new'),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              children: [
+                Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    item.compatibilityScore > 0
+                        ? ScoreRing(score: item.compatibilityScore, size: 64)
+                        : Container(
+                            width: 64,
+                            height: 64,
+                            alignment: Alignment.center,
+                            decoration:
+                                BoxDecoration(color: AppColors.gold.withValues(alpha: 0.15), shape: BoxShape.circle),
+                            child: Text(p.firstName.isEmpty ? '؟' : p.firstName.characters.first,
+                                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700, color: AppColors.navy)),
+                          ),
+                    if (p.isVerified)
+                      const PositionedDirectional(
+                        bottom: -2,
+                        end: -2,
+                        child: Icon(Icons.verified_rounded, size: 20, color: AppColors.success),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  p.age != null ? '${p.firstName}، ${p.age}' : p.firstName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+                ),
+                if (p.city != null)
+                  Text(p.city!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(color: AppColors.muted, fontSize: 12.5)),
+                const Spacer(),
+                if (item.likedYou)
+                  const Pill(text: 'مهتم بك', color: AppColors.success, icon: Icons.favorite_rounded)
+                else
+                  Text('عرض الملف', style: TextStyle(color: AppColors.navy.withValues(alpha: 0.8), fontSize: 12.5)),
+              ],
+            ),
+          ),
         ),
       ),
     );

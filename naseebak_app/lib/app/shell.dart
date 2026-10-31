@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../features/alerts/alert_gate.dart';
 import '../features/home/counts.dart';
 
 /// Bottom navigation: home, suggestions, matches, chats, account.
@@ -18,7 +19,8 @@ class AppShell extends ConsumerWidget {
     final suggestionsBadge = (c?.newSuggestions ?? 0) + (c?.likedYou ?? 0);
     final matchesBadge = c?.pendingIntros ?? 0;
     return Scaffold(
-      body: shell,
+      // The admin's popup alert, over whichever tab is open
+      body: AlertGate(child: shell),
       bottomNavigationBar: NavigationBar(
         selectedIndex: shell.currentIndex,
         onDestinationSelected: (i) {

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../app/providers.dart';
 import '../../app/shell.dart';
 import '../../features/auth/otp_screen.dart';
 import '../../features/auth/paused_screen.dart';
@@ -17,6 +18,7 @@ import '../../features/home/home_screen.dart';
 import '../../features/matches/match_detail_screen.dart';
 import '../../features/matches/match_models.dart';
 import '../../features/matches/matches_screen.dart';
+import '../../features/notifications/mark_page_read.dart';
 import '../../features/notifications/notifications_screen.dart';
 import '../../features/onboarding/setup_screen.dart';
 import '../../features/profile/guardian_form.dart';
@@ -28,6 +30,7 @@ import '../../features/profile/quiz_screen.dart';
 import '../../features/referral/referral_screen.dart';
 import '../../features/settings/settings_screen.dart';
 import '../../features/support/support_screen.dart';
+import 'website_links.dart';
 import '../../features/welcome/intro_screen.dart';
 import '../../features/welcome/splash_screen.dart';
 import '../../features/welcome/welcome_state.dart';
@@ -94,17 +97,45 @@ final routerProvider = Provider<GoRouter>((ref) {
   final refresh = _RouterRefresh(ref);
   ref.onDispose(refresh.dispose);
 
-  return GoRouter(
+  // A naseebak.com link waiting for the home screen: one that opened the app before it could show it (splash,
+  // sign-in), or a detail screen (a chat, a match), which is pushed over home so «رجوع» returns there
+  String? pendingLink;
+  late final GoRouter router;
+  void openPending() {
+    final route = pendingLink;
+    pendingLink = null;
+    if (route == null) return;
+    const tabs = ['/home', '/suggestions', '/matches', '/chats', '/account'];
+    tabs.contains(Uri.parse(route).path) ? router.go(route) : router.push(route);
+  }
+  String? guard(String path) => guardRedirect(
+        location: path,
+        countryCode: ref.read(selectedCountryCodeProvider),
+        auth: ref.read(authControllerProvider),
+        splashDone: ref.read(splashDoneProvider),
+        introSeen: ref.read(introSeenProvider),
+      );
+
+  router = GoRouter(
     navigatorKey: rootNavigatorKey,
     initialLocation: '/splash',
     refreshListenable: refresh,
-    redirect: (context, state) => guardRedirect(
-      location: state.uri.path,
-      countryCode: ref.read(selectedCountryCodeProvider),
-      auth: ref.read(authControllerProvider),
-      splashDone: ref.read(splashDoneProvider),
-      introSeen: ref.read(introSeenProvider),
-    ),
+    redirect: (context, state) {
+      final link = WebsiteLink.parse(state.uri);
+      if (link != null) {
+        if (link.invitationCode != null) {
+          ref.read(sharedPreferencesProvider).setString(pendingInvitationKey, link.invitationCode!);
+        }
+        final route = link.route;
+        if (route == null) return guard('/auth/phone') ?? '/auth/phone';
+        pendingLink = route;
+        return guard('/home') ?? '/home';
+      }
+      final blocked = guard(state.uri.path);
+      if (blocked != null) return blocked;
+      if (pendingLink != null && state.uri.path == '/home') Future.microtask(openPending);
+      return null;
+    },
     routes: [
       GoRoute(path: '/splash', builder: (_, _) => const SplashScreen()),
       GoRoute(path: '/intro', builder: (_, _) => const IntroScreen()),
@@ -121,30 +152,49 @@ final routerProvider = Provider<GoRouter>((ref) {
           StatefulShellBranch(routes: [
             GoRoute(
               path: '/suggestions',
-              builder: (_, state) =>
-                  SuggestionsScreen(initialTab: FeedTabX.parse(state.uri.queryParameters['tab'])),
+              // MarkPageRead: opening a screen clears the notifications that lead to it (like the website)
+              builder: (_, state) => MarkPageRead(
+                path: '/dashboard/suggestions',
+                tab: '/suggestions',
+                child: SuggestionsScreen(initialTab: FeedTabX.parse(state.uri.queryParameters['tab'])),
+              ),
             ),
           ]),
-          StatefulShellBranch(routes: [GoRoute(path: '/matches', builder: (_, _) => const MatchesScreen())]),
-          StatefulShellBranch(routes: [GoRoute(path: '/chats', builder: (_, _) => const ChatsScreen())]),
+          StatefulShellBranch(routes: [GoRoute(
+              path: '/matches',
+              builder: (_, _) => const MarkPageRead(path: '/dashboard/matches', tab: '/matches', child: MatchesScreen()),
+            )]),
+          StatefulShellBranch(routes: [GoRoute(
+              path: '/chats',
+              builder: (_, _) => const MarkPageRead(path: '/dashboard/chats', exact: true, tab: '/chats', child: ChatsScreen()),
+            )]),
           StatefulShellBranch(routes: [GoRoute(path: '/account', builder: (_, _) => const AccountScreen())]),
         ],
       ),
       GoRoute(
         path: '/matches/:id',
         parentNavigatorKey: rootNavigatorKey,
-        builder: (_, state) => MatchDetailScreen(
-          matchId: state.pathParameters['id']!,
-          initial: state.extra is MatchSummary ? state.extra as MatchSummary : null,
+        builder: (_, state) => MarkPageRead(
+          path: '/dashboard/matches',
+          child: MatchDetailScreen(
+            matchId: state.pathParameters['id']!,
+            initial: state.extra is MatchSummary ? state.extra as MatchSummary : null,
+          ),
         ),
       ),
       GoRoute(
         path: '/chats/:id',
         parentNavigatorKey: rootNavigatorKey,
-        builder: (_, state) => ChatRoomScreen(chatId: state.pathParameters['id']!),
+        builder: (_, state) => MarkPageRead(
+          path: '/dashboard/chats/${state.pathParameters['id']!}',
+          child: ChatRoomScreen(chatId: state.pathParameters['id']!),
+        ),
       ),
       GoRoute(path: '/notifications', builder: (_, _) => const NotificationsScreen()),
-      GoRoute(path: '/credits', builder: (_, _) => const CreditsScreen()),
+      GoRoute(
+        path: '/credits',
+        builder: (_, _) => const MarkPageRead(path: '/dashboard/payments', child: CreditsScreen()),
+      ),
       GoRoute(path: '/credits/history', builder: (_, _) => const PaymentHistoryScreen()),
       GoRoute(path: '/profile', builder: (_, _) => const ProfileScreen()),
       GoRoute(path: '/profile/guardian', builder: (_, _) => const GuardianScreen()),
@@ -164,4 +214,5 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
     ),
   );
+  return router;
 });

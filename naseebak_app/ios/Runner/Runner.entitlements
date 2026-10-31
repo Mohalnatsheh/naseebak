@@ -5,5 +5,11 @@
 	<!-- Push (FCM through APNs). Xcode signs App Store builds with "production" automatically -->
 	<key>aps-environment</key>
 	<string>development</string>
+	<!-- Universal Links: naseebak.com member pages and referral links open the app
+	     (https://naseebak.com/.well-known/apple-app-site-association) -->
+	<key>com.apple.developer.associated-domains</key>
+	<array>
+		<string>applinks:naseebak.com</string>
+	</array>
 </dict>
 </plist>

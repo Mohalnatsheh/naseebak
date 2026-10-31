@@ -9,6 +9,7 @@ import '../../core/network/api_exception.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/common.dart';
 import '../country_selection/country_providers.dart';
+import '../../core/routing/website_links.dart';
 import '../referral/referral_screen.dart' show cleanReferralCode;
 import '../welcome/brand_visuals.dart';
 import 'pending_auth.dart';
@@ -41,6 +42,13 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   bool _busy = false;
   String? _error;
   Map<String, String?> _fieldErrors = {};
+
+  @override
+  void initState() {
+    super.initState();
+    // Opened from a friend's referral link (naseebak.com/register?invitationCode=…)
+    _invite.text = ref.read(sharedPreferencesProvider).getString(pendingInvitationKey) ?? '';
+  }
 
   @override
   void dispose() {
@@ -96,6 +104,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       final invite = cleanReferralCode(_invite.text);
       if (created && invite.length == 8) {
         await api.post('/api/referral/apply', body: {'code': invite}).catchError((_) => <String, dynamic>{});
+        await ref.read(sharedPreferencesProvider).remove(pendingInvitationKey);
       }
     } on ApiException catch (e) {
       if (mounted) setState(() => _error = e.message);

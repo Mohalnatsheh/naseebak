@@ -32,6 +32,7 @@ Nothing on branch `feature/multi-country-mobile` is deployed. This is what must 
 | Payments in the app | Owner decision: Stripe's hosted page, not Apple/Google in-app purchase (store-review risk). Admin → Settings → «Mobile app» → «Payments in the app» hides buying in the app at once; test accounts (the review login `0796922292`) never see payments or payment history in the app |
 | Force update | Admin → Settings → «Mobile app»: required / optional version per platform + store links (set the App Store link once listed) |
 | Crash reports | Firebase Crashlytics in release builds; iOS dSYMs uploaded by an Xcode build phase |
+| App Links | After the Play upload: copy the App signing key SHA-256 (Play Console → App integrity) into Admin → Settings → «Mobile app». iOS Universal Links work from the deploy (Associated Domains on the App ID is added by Xcode automatic signing) |
 | Store review account | `0796922292` (code `111111`, in `EXTRA_TEST_PHONES`): test accounts are only suggested to each other — add one or two complete opposite-gender test profiles and credits so reviewers see suggestions, a match and the chat |
 | Real time chat | The app uses the same subscribe-only Ably tokens as the web (SSE, read-only) with polling as the fallback. **Not tested end to end** — no `ABLY_API_KEY` locally; check on a staging server with the key before release |
 | Photos | Production uploads go to Bunny as today; the local `.dev-uploads/` fallback is refused on any server whose address isn’t localhost |

@@ -58,6 +58,20 @@ export async function getMobileConfig(): Promise<Record<MobilePlatform, MobilePl
 }
 
 const PAYMENTS_KEY = "mobile_payments_enabled";
+const ANDROID_CERTS_KEY = "mobile_android_cert_sha256";
+const SHA256_FINGERPRINT = /^([0-9A-F]{2}:){31}[0-9A-F]{2}$/;
+
+/** App Links / Universal Links: naseebak.com member pages (`/dashboard/...`) and `/register` open the app */
+export const ANDROID_PACKAGE = "com.naseebak.naseebak_app";
+export const IOS_APP_ID = "4S958MQTCR.com.naseebak.naseebakApp";
+
+/** SHA-256 fingerprints of the Android signing certificates (Play App Signing key, upload key) for assetlinks.json */
+export async function androidCertFingerprints(): Promise<string[]> {
+  return (await getSetting(ANDROID_CERTS_KEY))
+    .split(/[\s,]+/)
+    .map((f) => f.trim().toUpperCase())
+    .filter((f) => SHA256_FINGERPRINT.test(f));
+}
 
 /** Admin switch: buying credits shown in the app (default on) */
 export async function appPaymentsEnabled(): Promise<boolean> {
@@ -71,13 +85,24 @@ export async function appPaymentsFor(phone: string | null | undefined): Promise<
 
 /** What Admin → Settings → Mobile app shows */
 export async function getMobileAdminSettings() {
-  return { ...(await getMobileConfig()), paymentsEnabled: await appPaymentsEnabled() };
+  return {
+    ...(await getMobileConfig()),
+    paymentsEnabled: await appPaymentsEnabled(),
+    androidCertSha256: (await androidCertFingerprints()).join("\n"),
+  };
 }
 
 /** Validates and saves what the admin sent; returns an error message or null */
 export async function updateMobileConfig(input: unknown): Promise<string | null> {
   if (!input || typeof input !== "object") return "Invalid body";
   const updates: [string, string][] = [];
+  const certs = (input as Record<string, unknown>).androidCertSha256;
+  if (certs !== undefined) {
+    if (typeof certs !== "string") return "androidCertSha256 must be text";
+    const list = certs.split(/[\s,]+/).map((f) => f.trim().toUpperCase()).filter(Boolean);
+    if (list.some((f) => !SHA256_FINGERPRINT.test(f))) return "Each fingerprint looks like AB:CD:…  (32 pairs, SHA-256)";
+    updates.push([ANDROID_CERTS_KEY, list.join(",")]);
+  }
   const payments = (input as Record<string, unknown>).paymentsEnabled;
   if (payments !== undefined) {
     if (typeof payments !== "boolean") return "paymentsEnabled must be true or false";

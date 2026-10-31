@@ -90,6 +90,13 @@ The app gets push straight from FCM (`src/lib/fcm.ts`); the website stays on One
 - `GET /api/mobile/me` → `user.appPayments`: buying shown in the app (the admin switch; always false for test
   accounts). The app checkout (`mode: "hosted"`) answers 403 `APP_PURCHASES_DISABLED` when it is false.
 
+## Website links and the bell
+
+- `GET /.well-known/assetlinks.json`, `GET /.well-known/apple-app-site-association`: App Links / Universal Links for
+  `/dashboard`, `/dashboard/*` and `/register` (the app maps them like notification links).
+- `POST /api/notifications/read-for-page` `{ path: "/dashboard/…", exact? }` → `{ marked }`: called when a screen opens
+  (suggestions, matches and each match, chats list `exact`, each chat, credits = `/dashboard/payments`).
+
 ## Chat paging
 
 - `GET /api/chats/{id}` → the newest 30. Older: `?before=<createdAt>&beforeId=<id>` of the oldest message held (exact

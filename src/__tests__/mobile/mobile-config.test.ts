@@ -68,3 +68,27 @@ describe("payments in the app", () => {
     }
   });
 });
+
+describe("app links (assetlinks.json / apple-app-site-association)", () => {
+  const FP = "D8:64:4E:2A:BD:49:60:18:E9:3C:28:75:55:A6:A7:4D:71:1E:FA:19:42:D1:50:B9:EC:7E:CB:DE:43:48:E4:E5";
+
+  it("no fingerprint yet: an empty (valid) assetlinks list", async () => {
+    const { GET } = await import("@/app/.well-known/assetlinks.json/route");
+    expect(await (await GET()).json()).toEqual([]);
+  });
+
+  it("saved fingerprints go into assetlinks.json; a malformed one is refused", async () => {
+    expect(await updateMobileConfig({ androidCertSha256: "not-a-fingerprint" })).toMatch(/SHA-256/);
+    expect(await updateMobileConfig({ androidCertSha256: `${FP.toLowerCase()}\n` })).toBeNull();
+    const { GET } = await import("@/app/.well-known/assetlinks.json/route");
+    const [entry] = await (await GET()).json();
+    expect(entry.target).toEqual({ namespace: "android_app", package_name: "com.naseebak.naseebak_app", sha256_cert_fingerprints: [FP] });
+  });
+
+  it("iOS: the member pages and /register open the app", async () => {
+    const { GET } = await import("@/app/.well-known/apple-app-site-association/route");
+    const { applinks } = await GET().json();
+    expect(applinks.details[0].appIDs).toEqual(["4S958MQTCR.com.naseebak.naseebakApp"]);
+    expect(applinks.details[0].components.map((c: { "/": string }) => c["/"])).toEqual(["/dashboard", "/dashboard/*", "/register"]);
+  });
+});

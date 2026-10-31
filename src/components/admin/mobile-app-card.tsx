@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { MobilePlatform, MobilePlatformConfig } from "@/lib/mobile-config";
 
-type Config = Record<MobilePlatform, MobilePlatformConfig> & { paymentsEnabled: boolean };
+type Config = Record<MobilePlatform, MobilePlatformConfig> & { paymentsEnabled: boolean; androidCertSha256: string };
 
 const PLATFORMS: { key: MobilePlatform; name: string }[] = [
   { key: "android", name: "Android" },
@@ -23,7 +23,7 @@ const EMPTY: MobilePlatformConfig = { minVersion: "", latestVersion: "", storeUr
  * Payments off = no buying in the app (website unchanged); test accounts never see payments in the app.
  */
 export function MobileAppCard() {
-  const [config, setConfig] = useState<Config>({ android: EMPTY, ios: EMPTY, paymentsEnabled: true });
+  const [config, setConfig] = useState<Config>({ android: EMPTY, ios: EMPTY, paymentsEnabled: true, androidCertSha256: "" });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -145,6 +145,26 @@ export function MobileAppCard() {
               </div>
             </div>
           ))
+        )}
+        {!loading && (
+          <div className="space-y-1.5">
+            <Label htmlFor="android-certs">Android signing fingerprints (SHA-256), one per line</Label>
+            <textarea
+              id="android-certs"
+              dir="ltr"
+              className="w-full min-h-[72px] rounded-lg border border-input bg-background px-3 py-2 font-mono text-xs"
+              placeholder="AB:CD:…  (Play Console → Test and release → App integrity → App signing key certificate)"
+              value={config.androidCertSha256}
+              onChange={(e) => {
+                setSaved(false);
+                setConfig((c) => ({ ...c, androidCertSha256: e.target.value }));
+              }}
+            />
+            <p className="text-xs text-muted-foreground">
+              Lets naseebak.com member links (SMS, notifications, referral links) open the Android app. Add the Play App
+              Signing key, and the upload key for testing. iPhone links work without this.
+            </p>
+          </div>
         )}
         {error && <p className="text-sm text-destructive">{error}</p>}
         <div className="flex items-center gap-3">

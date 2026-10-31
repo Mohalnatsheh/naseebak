@@ -61,6 +61,9 @@ the app polls `GET /api/payments/{id}/status`. Saudi Arabia has `purchasesEnable
 - **iOS:** `flutter run -d <simulator id>` (needs `pod install`; `flutter build ios --simulator` fails on this Flutter
   without an x86_64 engine). Real device: Developer Mode on, team `4S958MQTCR`.
 - **Crashlytics:** release builds only.
+- **Website links:** naseebak.com `/dashboard/…` and `/register` open the app (`lib/core/routing/website_links.dart`).
+  Test without store verification: `adb shell am start -a android.intent.action.VIEW -d "https://naseebak.com/dashboard/chats/<id>" com.naseebak.naseebak_app`.
+- **Bell:** opening a screen marks its notifications read (`MarkPageRead` in the router).
 
 ## Test, analyze, build
 

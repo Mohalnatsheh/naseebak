@@ -31,6 +31,15 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+            <!-- App Links: naseebak.com member pages and referral links open here (verified by
+                 https://naseebak.com/.well-known/assetlinks.json); the rest of the site stays in the browser -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="naseebak.com" android:pathPrefix="/dashboard" />
+                <data android:scheme="https" android:host="naseebak.com" android:path="/register" />
+            </intent-filter>
         </activity>
         <!-- FCM direct send: the device is its Firebase Installation ID (register() / onRegistered) -->
         <meta-data

@@ -109,6 +109,24 @@ class NotificationsRepository {
   Future<void> markAllRead() async => _api.put('/api/notifications/read-all');
 }
 
+/// Appends a further page to the list. The server pages by offset on `createdAt`, and a chat notice's `createdAt` is
+/// bumped when a new message comes in, so a page can repeat rows already shown (or a newer copy of one): a row
+/// already in the list is updated in place, never added twice.
+List<AppNotification> mergeNotificationPage(List<AppNotification> current, List<AppNotification> page) {
+  final merged = [...current];
+  final at = {for (var i = 0; i < merged.length; i++) merged[i].id: i};
+  for (final n in page) {
+    final i = at[n.id];
+    if (i != null) {
+      merged[i] = n;
+    } else {
+      at[n.id] = merged.length;
+      merged.add(n);
+    }
+  }
+  return merged;
+}
+
 final notificationsRepositoryProvider =
     Provider<NotificationsRepository>((ref) => NotificationsRepository(ref.watch(apiClientProvider)));
 
@@ -126,6 +144,9 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
   bool _loadingMore = false;
   Object? _error;
 
+  /// Bumped by every reload from page 1, so a «عرض المزيد» answer for the older list is dropped
+  int _generation = 0;
+
   NotificationsRepository get _repo => ref.read(notificationsRepositoryProvider);
 
   @override
@@ -134,43 +155,50 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     _load();
   }
 
+  /// First page (also pull-to-refresh): replaces the list, so rows that moved since are shown where they are now
   Future<void> _load() async {
+    final generation = ++_generation;
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
       final res = await _repo.list();
-      if (!mounted) return;
+      if (!mounted || generation != _generation) return;
       setState(() {
         _items
           ..clear()
           ..addAll(res.items);
         _page = res.page;
+        _loadingMore = false;
       });
     } catch (e) {
-      if (mounted) setState(() => _error = e);
+      if (mounted && generation == _generation) setState(() => _error = e);
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted && generation == _generation) setState(() => _loading = false);
     }
   }
 
   Future<void> _more() async {
     final p = _page;
     if (p == null || !p.hasMore || _loadingMore) return;
+    final generation = _generation;
     setState(() => _loadingMore = true);
     try {
       final res = await _repo.list(page: p.page + 1);
-      if (mounted) {
+      if (mounted && generation == _generation) {
         setState(() {
-          _items.addAll(res.items);
+          final merged = mergeNotificationPage(_items, res.items);
+          _items
+            ..clear()
+            ..addAll(merged);
           _page = res.page;
         });
       }
     } catch (e) {
-      if (mounted) showSnack(context, ApiException.messageOf(e));
+      if (mounted && generation == _generation) showSnack(context, ApiException.messageOf(e));
     } finally {
-      if (mounted) setState(() => _loadingMore = false);
+      if (mounted && generation == _generation) setState(() => _loadingMore = false);
     }
   }
 

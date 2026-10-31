@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const db = vi.hoisted(() => ({
   conversation: { findUnique: vi.fn(), findMany: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
-  message: { create: vi.fn(), findMany: vi.fn(), updateMany: vi.fn(), count: vi.fn() },
+  message: { create: vi.fn(), findMany: vi.fn(), findFirst: vi.fn(), updateMany: vi.fn(), count: vi.fn() },
   block: { findFirst: vi.fn(), findMany: vi.fn(), create: vi.fn() },
   report: { upsert: vi.fn() },
   introRequest: { updateMany: vi.fn(), findFirst: vi.fn() },
@@ -21,7 +21,9 @@ vi.mock("@/lib/settings", () => settings);
 vi.mock("@/lib/rate-limit", () => rl);
 vi.mock("@/lib/reports", () => reports);
 
-import { endConversation, extendConversation, getConversation, listConversations, sendMessage } from "@/lib/chat/service";
+import {
+  NONCE_TTL_MS, endConversation, extendConversation, getConversation, listConversations, sendMessage,
+} from "@/lib/chat/service";
 import { IntroError } from "@/lib/intro/errors";
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -181,6 +183,68 @@ describe("sendMessage", () => {
     ]);
     await sendMessage({ conversationId: "c", senderId: "u1", body: "تسعة تسعة" });
     expect(db.message.create).toHaveBeenCalled();
+  });
+
+  it("a retry after a restart finds the message saved under its nonce (Message.clientNonce) and saves nothing new", async () => {
+    db.conversation.findUnique.mockResolvedValue(conv());
+    db.message.findFirst.mockResolvedValueOnce({ id: "m-saved", body: "مرحبا", createdAt: new Date(), senderId: "u1", readAt: null });
+    const m = await sendMessage({ conversationId: "c", senderId: "u1", body: "مرحبا", clientNonce: "n-db" });
+    expect(m.id).toBe("m-saved");
+    expect(db.message.findFirst).toHaveBeenCalledWith({ where: { conversationId: "c", senderId: "u1", clientNonce: "n-db" } });
+    expect(db.message.create).not.toHaveBeenCalled();
+  });
+
+  it("a retry with the same nonce returns the saved message instead of a second copy", async () => {
+    const c = conv();
+    db.conversation.findUnique.mockResolvedValue(c);
+    let n = 0;
+    db.message.create.mockImplementation(async ({ data }: { data: { body: string; senderId: string } }) => ({
+      id: `msg${++n}`, ...data, createdAt: new Date(), readAt: null,
+    }));
+    const first = await sendMessage({ conversationId: c.id, senderId: "u1", body: "مرحبا", clientNonce: "app-1" });
+    const retry = await sendMessage({ conversationId: c.id, senderId: "u1", body: "مرحبا", clientNonce: "app-1" });
+    expect(retry).toEqual(first);
+    expect(db.message.create).toHaveBeenCalledTimes(1);
+    expect(ably.publishChatEvent).toHaveBeenCalledTimes(1);
+    // Another nonce, or the same nonce from the other member, is a new message
+    await sendMessage({ conversationId: c.id, senderId: "u1", body: "مرحبا", clientNonce: "app-2" });
+    await sendMessage({ conversationId: c.id, senderId: "f1", body: "مرحبا", clientNonce: "app-1" });
+    expect(db.message.create).toHaveBeenCalledTimes(3);
+  });
+
+  it("two sends with one nonce at the same time save once", async () => {
+    const c = conv();
+    db.conversation.findUnique.mockResolvedValue(c);
+    const [a, b] = await Promise.all([
+      sendMessage({ conversationId: c.id, senderId: "u1", body: "مرحبا", clientNonce: "app-3" }),
+      sendMessage({ conversationId: c.id, senderId: "u1", body: "مرحبا", clientNonce: "app-3" }),
+    ]);
+    expect(a).toEqual(b);
+    expect(db.message.create).toHaveBeenCalledTimes(1);
+  });
+
+  it("a refused send isn't remembered: the retry is tried again", async () => {
+    const c = conv();
+    db.conversation.findUnique.mockResolvedValue(c);
+    rl.rateLimit.mockReturnValueOnce({ success: false, remaining: 0, resetAt: 0 });
+    const send = () => sendMessage({ conversationId: c.id, senderId: "u1", body: "مرحبا", clientNonce: "app-4" });
+    await expectCode(send(), "RATE_LIMITED");
+    await send();
+    expect(db.message.create).toHaveBeenCalledTimes(1);
+  });
+
+  it("a nonce is forgotten after the TTL", async () => {
+    vi.useFakeTimers();
+    try {
+      const c = conv();
+      db.conversation.findUnique.mockResolvedValue(c);
+      await sendMessage({ conversationId: c.id, senderId: "u1", body: "مرحبا", clientNonce: "app-5" });
+      vi.setSystemTime(Date.now() + NONCE_TTL_MS + 1000);
+      await sendMessage({ conversationId: c.id, senderId: "u1", body: "مرحبا", clientNonce: "app-5" });
+      expect(db.message.create).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("chat switch off: sending is disabled but reading still works", async () => {

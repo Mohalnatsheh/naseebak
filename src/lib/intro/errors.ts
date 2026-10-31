@@ -1,3 +1,5 @@
+import { isTestPhone } from "@/lib/test-accounts";
+
 /** Rule violations from intro requests and chat, mapped to an HTTP status and an Arabic message. */
 export type IntroErrorCode =
   | "NOT_FOUND"
@@ -28,6 +30,9 @@ const DEFAULTS: Record<IntroErrorCode, { status: number; message: string }> = {
   PREFERENCE_REQUIRED: { status: 400, message: "اختر طريقة التعارف: محادثة أو تعارف عائلي" },
 };
 
+/** NO_CREDITS for test accounts (the store review login): the app never shows payments to them, so no «اشحن» */
+export const NO_CREDITS_NEUTRAL_MESSAGE = "رصيدك لا يكفي لهذه الخطوة.";
+
 export class IntroError extends Error {
   readonly code: IntroErrorCode;
   readonly status: number;
@@ -38,4 +43,9 @@ export class IntroError extends Error {
     this.code = code;
     this.status = DEFAULTS[code].status;
   }
+}
+
+/** NO_CREDITS worded for the member: website wording, or the neutral one (no recharge) for a test account. */
+export function noCreditsError(phone: string | null | undefined): IntroError {
+  return new IntroError("NO_CREDITS", isTestPhone(phone) ? NO_CREDITS_NEUTRAL_MESSAGE : undefined);
 }

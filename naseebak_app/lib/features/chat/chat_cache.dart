@@ -56,10 +56,19 @@ abstract class ChatCache {
 
 /// JSON files in the app's private cache directory: `chat_cache/<member>/<chat>.json`. A cache directory is never
 /// copied to Google / iCloud backups (private conversations), and the OS may clear it: the chat then just reloads.
+/// Writes to one chat run one after another (each through its own temp file); a sign-out (`clearAll`) waits for them
+/// and makes any still queued give up, so nothing written before it reappears.
 class FileChatCache extends ChatCache {
   FileChatCache({Future<Directory> Function()? root}) : _root = root ?? getApplicationCacheDirectory;
 
   final Future<Directory> Function() _root;
+
+  /// The last queued write / remove per chat file (`<member>/<chat>`)
+  final _queues = <String, Future<void>>{};
+
+  /// Bumped by `clearAll`: a write queued before it doesn't land
+  int _generation = 0;
+  int _tmpSeq = 0;
 
   Future<Directory> _base() async => Directory('${(await _root()).path}/chat_cache');
 
@@ -68,6 +77,17 @@ class FileChatCache extends ChatCache {
 
   Future<File> _file(String memberId, String chatId) async =>
       File('${(await _base()).path}/${_safe(memberId)}/${_safe(chatId)}.json');
+
+  /// Runs [job] after everything already queued for this chat file
+  Future<void> _queue(String memberId, String chatId, Future<void> Function() job) {
+    final key = '${_safe(memberId)}/${_safe(chatId)}';
+    final next = (_queues[key] ?? Future<void>.value()).then((_) => job());
+    _queues[key] = next;
+    next.whenComplete(() {
+      if (identical(_queues[key], next)) _queues.remove(key);
+    });
+    return next;
+  }
 
   @override
   Future<CachedChat?> read(String memberId, String chatId) async {
@@ -82,29 +102,46 @@ class FileChatCache extends ChatCache {
   }
 
   @override
-  Future<void> write(String memberId, String chatId, CachedChat chat) async {
-    try {
-      final f = await _file(memberId, chatId);
-      await f.parent.create(recursive: true);
-      // Write then rename: a crash mid-write never leaves a half file
-      final tmp = File('${f.path}.tmp');
-      await tmp.writeAsString(jsonEncode(ChatCache.encode(chat)), flush: true);
-      await tmp.rename(f.path);
-    } catch (e) {
-      debugPrint('[chat-cache] write failed: $e');
-    }
+  Future<void> write(String memberId, String chatId, CachedChat chat) {
+    // Encoded now: the caller keeps changing its message list while the write waits its turn
+    final json = jsonEncode(ChatCache.encode(chat));
+    final generation = _generation;
+    return _queue(memberId, chatId, () async {
+      File? tmp;
+      try {
+        if (generation != _generation) return;
+        final f = await _file(memberId, chatId);
+        await f.parent.create(recursive: true);
+        // Write then rename: a crash mid-write never leaves a half file
+        tmp = File('${f.path}.${DateTime.now().microsecondsSinceEpoch}-${_tmpSeq++}.tmp');
+        await tmp.writeAsString(json, flush: true);
+        if (generation != _generation) {
+          await tmp.delete();
+          return;
+        }
+        await tmp.rename(f.path);
+      } catch (e) {
+        debugPrint('[chat-cache] write failed: $e');
+        try {
+          if (tmp != null && await tmp.exists()) await tmp.delete();
+        } catch (_) {}
+      }
+    });
   }
 
   @override
-  Future<void> remove(String memberId, String chatId) async {
-    try {
-      final f = await _file(memberId, chatId);
-      if (await f.exists()) await f.delete();
-    } catch (_) {}
-  }
+  Future<void> remove(String memberId, String chatId) => _queue(memberId, chatId, () async {
+        try {
+          final f = await _file(memberId, chatId);
+          if (await f.exists()) await f.delete();
+        } catch (_) {}
+      });
 
   @override
   Future<void> clearAll() async {
+    _generation++;
+    // A write past its last check finishes its rename first; then everything goes
+    await Future.wait(_queues.values.toList());
     try {
       final d = await _base();
       if (await d.exists()) await d.delete(recursive: true);

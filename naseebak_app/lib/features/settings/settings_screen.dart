@@ -9,6 +9,7 @@ import '../../core/network/json.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/common.dart';
 import '../country_selection/country_providers.dart';
+import '../home/counts.dart';
 
 /// «حسابي»: profile, credits, notification settings, safety, legal links and account actions.
 class AccountScreen extends ConsumerWidget {
@@ -31,17 +32,15 @@ class AccountScreen extends ConsumerWidget {
   }
 
   Future<void> _delete(BuildContext context, WidgetRef ref) async {
-    final ok = await confirmDialog(
-      context,
-      title: 'حذف الحساب',
-      body: 'يُوقف حسابك الآن ويُحذف نهائياً بعد 30 يوماً. يمكنك التراجع خلال هذه المدة بإعادة التفعيل.',
-      confirmLabel: 'طلب الحذف',
-      destructive: true,
-    );
-    if (!ok || !context.mounted) return;
+    // null = cancelled; '' = no reason given (optional, like the website)
+    final reason = await showDialog<String>(context: context, builder: (_) => const DeleteAccountDialog());
+    if (reason == null || !context.mounted) return;
     try {
-      final j = await ref.read(apiClientProvider).post('/api/profile/delete');
+      final j = await ref
+          .read(apiClientProvider)
+          .post('/api/profile/delete', body: {if (reason.isNotEmpty) 'reason': reason});
       if (context.mounted) showSnack(context, asStringOr(j['message'], 'تم استلام طلب الحذف'));
+      // The account is paused at once: the router shows the paused page with the deletion date
       await ref.read(authControllerProvider.notifier).refreshMe();
     } catch (e) {
       if (context.mounted) showSnack(context, ApiException.messageOf(e));
@@ -128,6 +127,88 @@ class AccountScreen extends ConsumerWidget {
   }
 }
 
+/// «حذف الحساب»: what happens, and an optional reason (`POST /api/profile/delete` `{ reason }`, like the website).
+/// Pops the trimmed reason ('' for none), or null when cancelled.
+class DeleteAccountDialog extends StatefulWidget {
+  const DeleteAccountDialog({super.key});
+
+  @override
+  State<DeleteAccountDialog> createState() => _DeleteAccountDialogState();
+}
+
+class _DeleteAccountDialogState extends State<DeleteAccountDialog> {
+  final _reason = TextEditingController();
+
+  @override
+  void dispose() {
+    _reason.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text('حذف الحساب', style: Theme.of(context).textTheme.titleMedium),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text('يُوقف حسابك الآن ويُحذف نهائياً بعد 30 يوماً. يمكنك التراجع خلال هذه المدة بإعادة التفعيل.'),
+            const SizedBox(height: 16),
+            TextField(
+              key: const Key('delete-reason'),
+              controller: _reason,
+              maxLength: 500,
+              minLines: 2,
+              maxLines: 4,
+              decoration: const InputDecoration(
+                labelText: 'سبب الحذف (اختياري)',
+                hintText: 'ساعدنا في تحسين المنصة...',
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('إلغاء')),
+        FilledButton(
+          key: const Key('delete-confirm'),
+          style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+          onPressed: () => Navigator.of(context).pop(_reason.text.trim()),
+          child: const Text('طلب الحذف'),
+        ),
+      ],
+    );
+  }
+}
+
+/// The notification kinds a member can get under these switches, like the website's notifications page: interest and
+/// family-visit notices belong to the legacy cycle, intro requests and chat messages to the new one (chat messages
+/// only with chat on).
+List<(String, String)> visibleNotificationPrefs(CycleFlags flags) {
+  const legacy = {'interests', 'visitUpdates'};
+  const newCycle = {'introRequests', 'chatMessages'};
+  return [
+    for (final k in notificationPrefKeys)
+      if (flags.introRequests
+          ? !legacy.contains(k.$1) && (k.$1 != 'chatMessages' || flags.chat)
+          : !newCycle.contains(k.$1))
+        k,
+  ];
+}
+
+const notificationPrefKeys = [
+  ('suggestions', 'الاقتراحات الجديدة'),
+  ('interests', 'الاهتمام بملفي'),
+  ('matches', 'التوافقات'),
+  ('introRequests', 'طلبات التعارف وحالة المحادثات'),
+  ('chatMessages', 'رسائل المحادثات'),
+  ('visitUpdates', 'تحديثات الزيارات العائلية'),
+  ('payments', 'المدفوعات والرصيد'),
+  ('support', 'الدعم'),
+];
+
 /// `GET/PATCH /api/notifications/preferences`
 class NotificationPrefsScreen extends ConsumerStatefulWidget {
   const NotificationPrefsScreen({super.key});
@@ -137,16 +218,6 @@ class NotificationPrefsScreen extends ConsumerStatefulWidget {
 }
 
 class _NotificationPrefsScreenState extends ConsumerState<NotificationPrefsScreen> {
-  static const keys = [
-    ('suggestions', 'الاقتراحات الجديدة'),
-    ('interests', 'الاهتمام بملفي'),
-    ('matches', 'التوافقات'),
-    ('introRequests', 'طلبات التعارف وحالة المحادثات'),
-    ('chatMessages', 'رسائل المحادثات'),
-    ('visitUpdates', 'تحديثات الزيارات العائلية'),
-    ('payments', 'المدفوعات والرصيد'),
-    ('support', 'الدعم'),
-  ];
   Map<String, bool>? _prefs;
   Object? _error;
   final Set<String> _saving = {};
@@ -162,7 +233,7 @@ class _NotificationPrefsScreenState extends ConsumerState<NotificationPrefsScree
     try {
       final j = await ref.read(apiClientProvider).get('/api/notifications/preferences');
       final p = asMap(j['preferences']);
-      setState(() => _prefs = {for (final k in keys) k.$1: asBool(p[k.$1]) ?? true});
+      setState(() => _prefs = {for (final k in notificationPrefKeys) k.$1: asBool(p[k.$1]) ?? true});
     } catch (e) {
       setState(() => _error = e);
     }
@@ -187,11 +258,15 @@ class _NotificationPrefsScreenState extends ConsumerState<NotificationPrefsScree
 
   @override
   Widget build(BuildContext context) {
+    final counts = ref.watch(countsProvider);
+    // Without the switches (counts failed) every kind is shown rather than none
+    final keys =
+        counts.hasError ? notificationPrefKeys : visibleNotificationPrefs(counts.valueOrNull?.flags ?? const CycleFlags());
     return Scaffold(
       appBar: AppBar(title: const Text('إعدادات الإشعارات')),
       body: _error != null
           ? ErrorView(error: _error!, onRetry: _load)
-          : _prefs == null
+          : _prefs == null || (counts.isLoading && !counts.hasValue)
               ? const SkeletonList(count: 6, itemHeight: 52)
               : ListView(
                   children: [

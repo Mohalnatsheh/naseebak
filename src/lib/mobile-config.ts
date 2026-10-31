@@ -6,7 +6,7 @@
  * Also the app-only payments switch: buying credits can be hidden in the app (the website is unaffected), and it is
  * always hidden for test accounts — the logins given to the App Store / Google Play reviewers.
  */
-import { getSetting, setSetting } from "@/lib/settings";
+import { getMaintenanceState, getSetting, setSetting } from "@/lib/settings";
 import { isTestPhone } from "@/lib/test-accounts";
 
 export const MOBILE_PLATFORMS = ["android", "ios"] as const;
@@ -55,6 +55,12 @@ export async function getMobileConfig(): Promise<Record<MobilePlatform, MobilePl
     }),
   );
   return Object.fromEntries(entries) as Record<MobilePlatform, MobilePlatformConfig>;
+}
+
+/** Maintenance mode (Admin → Settings) for the app: members see a full-screen page with the admin's message */
+export async function getMobileMaintenance(): Promise<{ enabled: boolean; message: string }> {
+  const { enabled, message } = await getMaintenanceState();
+  return { enabled, message: enabled ? message.trim() : "" };
 }
 
 const PAYMENTS_KEY = "mobile_payments_enabled";

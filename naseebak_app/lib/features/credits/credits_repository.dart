@@ -118,6 +118,13 @@ class CreditsRepository {
     return PaymentStatus(id: asStringOr(p['id']), status: asStringOr(p['status'], 'PENDING'), credits: asInt(j['credits']) ?? 0);
   }
 
+  /// `POST /api/payments/cancel`: closes the Stripe page and fails the row, or credits it if it was paid meanwhile
+  /// (`paid: true`). Read [status] afterwards for the outcome (a page Stripe could not close stays PENDING).
+  Future<bool> cancel(String paymentId) async {
+    final j = await _api.post('/api/payments/cancel', body: {'paymentId': paymentId});
+    return asBool(j['paid']) ?? false;
+  }
+
   /// Local mock payments only (404 on real servers).
   Future<void> completeMock(String paymentId, {required bool paid}) async {
     await _api.post('/api/dev/mock-checkout/$paymentId', body: {'outcome': paid ? 'paid' : 'cancelled'});
@@ -139,24 +146,27 @@ final plansProvider = FutureProvider.autoDispose<Plans>((ref) => ref.watch(credi
 
 final paymentHistoryProvider = FutureProvider.autoDispose((ref) => ref.watch(creditsRepositoryProvider).history());
 
-/// Polls the payment until it leaves PENDING (every [interval], up to [timeout]); null on timeout.
+/// Polls the payment until it leaves PENDING (every [interval], up to [timeout]); null on timeout or when [cancelled].
+/// The window is counted in polls, so time the app spends frozen in the background doesn't use it up.
 Future<PaymentStatus?> waitForPayment(
   CreditsRepository repo,
   String paymentId, {
   Duration interval = const Duration(milliseconds: 2500),
-  Duration timeout = const Duration(minutes: 2),
+  Duration timeout = const Duration(minutes: 10),
   bool Function()? cancelled,
 }) async {
-  final end = DateTime.now().add(timeout);
-  while (DateTime.now().isBefore(end)) {
+  var waited = Duration.zero;
+  while (waited < timeout) {
     if (cancelled?.call() ?? false) return null;
     try {
       final s = await repo.status(paymentId);
+      if (cancelled?.call() ?? false) return null;
       if (s.status != 'PENDING') return s;
     } catch (_) {
       // Keep polling through a brief network gap
     }
     await Future<void>.delayed(interval);
+    waited += interval;
   }
   return null;
 }

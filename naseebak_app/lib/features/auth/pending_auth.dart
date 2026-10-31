@@ -23,8 +23,12 @@ class PendingAuth {
   /// The verified code (set after `/api/auth/verify-otp`), needed by sign-up and the token call
   final String? code;
 
-  PendingAuth withCode(String code) =>
+  PendingAuth withCode(String? code) =>
       PendingAuth(phone: phone, countryCode: countryCode, mode: mode, userExists: userExists, code: code);
+
+  /// This code was already accepted by `/api/auth/verify-otp` for this number. The server only matches codes not yet
+  /// verified, so verifying again would fail (and use up a try): go straight to the token / sign-up step instead.
+  bool alreadyVerified(String code) => this.code != null && this.code == code;
 }
 
 class PendingAuthNotifier extends Notifier<PendingAuth?> {

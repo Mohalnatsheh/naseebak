@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/auth/auth_controller.dart';
 import '../../core/theme/app_theme.dart';
 import '../home/counts.dart';
+import '../home/gendered_copy.dart';
 import '../profile/preferences_screen.dart';
 
 /// Short names of the «شرط أساسي» keys (the web's DEALBREAKER_KEYS)
@@ -27,6 +29,7 @@ class PreferencesBar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final prefs = ref.watch(partnerPrefsProvider).valueOrNull;
+    final female = ref.watch(authControllerProvider).me?.isFemale ?? false;
     final withDealbreakers = ref.watch(countsProvider).valueOrNull?.flags.mutualSuggestions ?? false;
     final age = prefs?.ageMin != null && prefs?.ageMax != null ? 'العمر ${prefs!.ageMin}–${prefs.ageMax}' : null;
     final active = withDealbreakers
@@ -62,7 +65,7 @@ class PreferencesBar extends ConsumerWidget {
                         ),
                         Text(
                           prefs == null
-                              ? 'الاقتراحات تُختار حسب ما تبحث عنه'
+                              ? 'الاقتراحات تُختار حسب ما ${forViewer(female, 'تبحث', 'تبحثين')} عنه'
                               : [?age, active.isEmpty ? 'لا شروط أساسية' : '${active.length} شروط أساسية'].join(' · '),
                           style: TextStyle(color: Theme.of(context).hintColor, fontSize: 13),
                         ),

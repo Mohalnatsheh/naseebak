@@ -14,6 +14,9 @@ enum AuthStatus {
 
   /// A token is saved but the server could not be reached: offer a retry (never sign out for that)
   restoreFailed,
+
+  /// The team suspended the account (`/api/mobile/me` → 403 `SUSPENDED`): only sign-out or support
+  suspended,
 }
 
 class AuthState {
@@ -29,8 +32,19 @@ class AuthState {
   bool get isSignedIn => status == AuthStatus.signedIn && me != null;
 }
 
+/// `/api/mobile/me` refused the account as suspended (also an older server's 403 without a code: with paused
+/// accounts let through, that route has no other 403).
+bool isSuspendedAnswer(ApiException e) =>
+    e.kind == ApiErrorKind.suspended || (e.kind == ApiErrorKind.forbidden && e.statusCode == 403);
+
 /// The member's session: token in secure storage, the `/api/mobile/me` summary in memory.
 class AuthController extends Notifier<AuthState> {
+  /// Back in the foreground: `me` is re-read at most this often (pause / suspension from elsewhere)
+  static const resumeRefreshGap = Duration(seconds: 60);
+
+  DateTime? _lastMeRead;
+  Future<void>? _refreshing;
+
   @override
   AuthState build() {
     Future.microtask(restore);
@@ -46,12 +60,16 @@ class AuthController extends Notifier<AuthState> {
     }
     try {
       final me = await ref.read(authRepositoryProvider).me();
+      _lastMeRead = DateTime.now();
       await _rememberCountry(me);
       state = AuthState(AuthStatus.signedIn, me: me);
     } on ApiException catch (e) {
       if (e.kind == ApiErrorKind.unauthorized) {
         await store.clear();
         state = const AuthState.signedOut();
+      } else if (isSuspendedAnswer(e)) {
+        // Not a connection problem: retrying would never help
+        state = AuthState(AuthStatus.suspended, error: e.message);
       } else {
         state = AuthState(AuthStatus.restoreFailed, error: e.message);
       }
@@ -65,19 +83,39 @@ class AuthController extends Notifier<AuthState> {
     final res = await ref.read(authRepositoryProvider).issueToken(phone: phone, code: code, device: 'naseebak-app');
     await ref.read(tokenStoreProvider).write(res.token);
     await _rememberCountry(res.me);
+    _lastMeRead = DateTime.now();
     state = AuthState(AuthStatus.signedIn, me: res.me);
     return res.me;
   }
 
-  /// Re-reads `/api/mobile/me` (credits, profile completion, paused state).
-  Future<void> refreshMe() async {
-    if (state.status != AuthStatus.signedIn) return;
+  /// Re-reads `/api/mobile/me` (credits, profile completion, paused / suspended state). Calls made while one is on
+  /// the way share it (a burst of 403 `DEACTIVATED` answers reads `me` once).
+  Future<void> refreshMe() {
+    if (state.status != AuthStatus.signedIn && state.status != AuthStatus.suspended) return Future.value();
+    return _refreshing ??= _readMe().whenComplete(() => _refreshing = null);
+  }
+
+  Future<void> _readMe() async {
     try {
       final me = await ref.read(authRepositoryProvider).me();
+      _lastMeRead = DateTime.now();
+      if (state.status == AuthStatus.signedOut) return;
       state = AuthState(AuthStatus.signedIn, me: me);
     } on ApiException catch (e) {
-      if (e.kind == ApiErrorKind.unauthorized) await _signOutLocally();
+      if (e.kind == ApiErrorKind.unauthorized) {
+        await _signOutLocally();
+      } else if (isSuspendedAnswer(e) && state.status != AuthStatus.signedOut) {
+        _lastMeRead = DateTime.now();
+        state = AuthState(AuthStatus.suspended, error: e.message);
+      }
     }
+  }
+
+  /// The app came back to the foreground: re-read `me` unless it was read in the last [resumeRefreshGap].
+  Future<void> refreshOnResume({DateTime? now}) async {
+    final last = _lastMeRead;
+    if (last != null && (now ?? DateTime.now()).difference(last) < resumeRefreshGap) return;
+    await refreshMe();
   }
 
   /// Shows a newer balance without a round trip (payment status, decide answers).

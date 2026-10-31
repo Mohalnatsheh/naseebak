@@ -6,6 +6,7 @@ import '../../core/network/api_exception.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/common.dart';
 import '../auth/phone_validation.dart';
+import '../country_selection/country.dart';
 import '../home/counts.dart';
 import '../onboarding/profile_options.dart';
 import 'profile_repository.dart';
@@ -18,12 +19,26 @@ class GuardianFields {
   String? relationship;
   bool consent = false;
 
+  /// What the server has (null before the first save)
+  GuardianInfo? stored;
+
   void fill(GuardianInfo g, String dialDigits) {
+    stored = g;
     name.text = g.name;
     phone.text = g.phone.startsWith(dialDigits) ? '0${g.phone.substring(dialDigits.length)}' : g.phone;
     address.text = g.address;
     relationship = g.relationship.isEmpty ? null : g.relationship;
     consent = g.consented;
+  }
+
+  /// The number to send: the stored (normalised, "962…") form while the member left it as it was, so the server's
+  /// "same contact, only the consent changes" shortcut (it compares with what it stored) matches; else the typed one.
+  String phoneToSend(Country country) {
+    final s = stored;
+    if (s != null && s.phone.isNotEmpty && nationalNumber(phone.text, country) == nationalNumber(s.phone, country)) {
+      return s.phone;
+    }
+    return localPhone(phone.text, country);
   }
 
   void dispose() {
@@ -175,7 +190,7 @@ class _GuardianScreenState extends ConsumerState<GuardianScreen> {
     try {
       await ref.read(profileRepositoryProvider).saveGuardian(
             name: _fields.name.text,
-            phone: localPhone(_fields.phone.text, country),
+            phone: _fields.phoneToSend(country),
             relationship: _fields.relationship!,
             address: _fields.address.text,
             shareConsent: _fields.consent,

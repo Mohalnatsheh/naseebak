@@ -40,6 +40,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   String? _gender;
   bool _terms = false;
   bool _busy = false;
+
+  /// The account was created by this screen (a retry after a failed sign-in answers 409 `PHONE_EXISTS`, and the
+  /// invitation code must still be applied)
+  bool _createdHere = false;
   String? _error;
   Map<String, String?> _fieldErrors = {};
 
@@ -79,10 +83,12 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       return;
     }
     setState(() => _busy = true);
+    // Read before any await: signing in moves the router on and disposes this screen
     final auth = ref.read(authControllerProvider.notifier);
     final api = ref.read(apiClientProvider);
+    final prefs = ref.read(sharedPreferencesProvider);
+    final invite = cleanReferralCode(_invite.text);
     try {
-      var created = false;
       try {
         await ref
             .read(authRepositoryProvider)
@@ -94,17 +100,19 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
               otp: code,
               country: pending.countryCode,
             );
-        created = true;
+        _createdHere = true;
       } on ApiException catch (e) {
-        // Already a member: the verified code signs them in
+        // Already a member (or created by an earlier try on this screen whose sign-in failed): the verified code
+        // signs them in
         if (e.code != 'PHONE_EXISTS') rethrow;
       }
+      final applyInvite = _createdHere && invite.length == 8;
+      // The link's code is used now (or never): don't offer it to the next sign-up on this phone
+      if (_createdHere) await prefs.remove(pendingInvitationKey);
       await auth.signInWithCode(phone: pending.phone, code: code);
       // Invitation code, like the website: best effort, a wrong code never blocks the sign-up
-      final invite = cleanReferralCode(_invite.text);
-      if (created && invite.length == 8) {
+      if (applyInvite) {
         await api.post('/api/referral/apply', body: {'code': invite}).catchError((_) => <String, dynamic>{});
-        await ref.read(sharedPreferencesProvider).remove(pendingInvitationKey);
       }
     } on ApiException catch (e) {
       if (mounted) setState(() => _error = e.message);

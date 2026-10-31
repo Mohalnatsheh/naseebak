@@ -116,6 +116,26 @@ class PartnerPrefs {
   final String? children;
   final Set<String> dealbreakers;
 
+  /// Whether the preference behind a «شرط أساسي» key is filled in, so it can work as a filter (the website's
+  /// `dealbreakerSummary` ≠ null). [female] is the member: her lock is on the man's beard, his on the woman's hijab.
+  bool dealbreakerFilled(String key, {required bool female}) => switch (key) {
+        'age' => ageMin != null || ageMax != null,
+        'city' => cities.isNotEmpty,
+        'education' => education.isNotEmpty,
+        'maritalStatus' => maritalStatus.isNotEmpty,
+        'religiosity' => religiosity.isNotEmpty,
+        'smokingStatus' => smoking.isNotEmpty,
+        'hijab' => !female && (hijab == 'نعم' || hijab == 'لا'),
+        'beard' => female && (beard == 'نعم' || beard == 'لا'),
+        'children' => children == 'لا',
+        _ => false,
+      };
+
+  /// The ticked keys whose preference is filled in (the website's `activeDealbreakers`): an emptied preference never
+  /// keeps a lock that would filter on nothing
+  List<String> activeDealbreakers({required bool female}) =>
+      [for (final k in dealbreakers) if (dealbreakerFilled(k, female: female)) k];
+
   /// The `changes` for `POST /api/profile/update-request` (preferences only, so the server saves them at once)
   Map<String, dynamic> toChanges({required bool female}) => {
         'prefAgeMin': ageMin,
@@ -186,7 +206,7 @@ class ProfileRepository {
   Future<void> savePartnerPrefs(PartnerPrefs prefs, {required bool female, required bool withDealbreakers}) async {
     await _api.post('/api/profile/update-request', body: {'changes': prefs.toChanges(female: female)});
     if (withDealbreakers) {
-      await _api.put('/api/profile/dealbreakers', body: {'keys': prefs.dealbreakers.toList()});
+      await _api.put('/api/profile/dealbreakers', body: {'keys': prefs.activeDealbreakers(female: female)});
     }
   }
 

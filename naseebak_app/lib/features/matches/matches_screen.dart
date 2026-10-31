@@ -2,14 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/auth/auth_controller.dart';
 import '../../core/localization/digits.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/network/json.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/common.dart';
 import '../../shared/widgets/person_details_view.dart';
+import '../home/gendered_copy.dart';
 import 'match_models.dart';
 import 'matches_repository.dart';
+import 'safety_actions.dart';
 
 /// «توافقاتي»: mutual matches, newest first.
 class MatchesScreen extends ConsumerStatefulWidget {
@@ -71,8 +74,15 @@ class _MatchesScreenState extends ConsumerState<MatchesScreen> {
     }
   }
 
+  Future<void> _unblock(MatchSummary m) async {
+    if (m.blockId == null) return;
+    if (await confirmAndUnblock(context, ref, blockId: m.blockId!, name: m.partner.firstName) && mounted) _load();
+  }
+
   @override
   Widget build(BuildContext context) {
+    // A match changed elsewhere (detail screen opened from a notification, an outcome, a block): reload
+    ref.listen(matchesListVersionProvider, (_, _) => _load());
     return Scaffold(
       appBar: AppBar(title: const Text('التوافقات')),
       body: Builder(builder: (context) {
@@ -88,7 +98,8 @@ class _MatchesScreenState extends ConsumerState<MatchesScreen> {
                       icon: Icons.handshake_outlined,
                       title: 'لا توجد توافقات بعد',
                       body: 'عندما يبدي الطرفان الاهتمام يظهر التوافق هنا، وتنكشف الصور والتفاصيل.',
-                      actionLabel: 'تصفح الاقتراحات',
+                      actionLabel: forViewer(ref.watch(authControllerProvider).me?.isFemale ?? false,
+                          'تصفح الاقتراحات', 'تصفحي الاقتراحات'),
                       onAction: () => context.go('/suggestions'),
                     ),
                   ),
@@ -113,6 +124,7 @@ class _MatchesScreenState extends ConsumerState<MatchesScreen> {
                         await context.push('/matches/${m.id}', extra: m);
                         if (mounted) _load();
                       },
+                      onUnblock: m.closed == 'blocked' && m.blockId != null ? () => _unblock(m) : null,
                     );
                   },
                 ),
@@ -123,9 +135,12 @@ class _MatchesScreenState extends ConsumerState<MatchesScreen> {
 }
 
 class _MatchTile extends StatelessWidget {
-  const _MatchTile({required this.match, required this.onTap});
+  const _MatchTile({required this.match, required this.onTap, this.onUnblock});
   final MatchSummary match;
   final VoidCallback onTap;
+
+  /// «إلغاء الحظر» on a match I blocked
+  final VoidCallback? onUnblock;
 
   @override
   Widget build(BuildContext context) {
@@ -171,7 +186,19 @@ class _MatchTile extends StatelessWidget {
                       style: const TextStyle(color: AppColors.muted, fontSize: 13.5),
                     ),
                     const SizedBox(height: 6),
-                    if (closed != null)
+                    if (onUnblock != null)
+                      Row(
+                        children: [
+                          Pill(text: closed ?? 'محظور', color: AppColors.muted),
+                          const SizedBox(width: 6),
+                          TextButton(
+                            key: Key('unblock-${match.id}'),
+                            onPressed: onUnblock,
+                            child: const Text('إلغاء الحظر'),
+                          ),
+                        ],
+                      )
+                    else if (closed != null)
                       Pill(text: closed, color: AppColors.muted)
                     else if (match.visitStatus != null)
                       Pill(text: visitStatusLabel(match.visitStatus!), color: AppColors.success, icon: Icons.family_restroom_rounded)

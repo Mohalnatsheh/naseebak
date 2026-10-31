@@ -58,6 +58,29 @@ const _numberLimits = <String, (int, int)>{
   'numberOfSiblings': (0, 20),
 };
 
+/// Single-choice fields the website's edit page requires (`validateStep`): a chip can be changed, never cleared
+const requiredChoices = {'nationality', 'city', 'education', 'maritalStatus', 'religiosity'};
+
+/// The area kept after a city change: only if it is one of the new city's areas (the website's `handleCityChange`)
+String? areaAfterCityChange(String? area, List<String> newCityAreas) =>
+    area != null && newCityAreas.contains(area) ? area : null;
+
+/// The first required field left empty, as the website words it, or null
+String? missingRequiredChoice(Map<String, Object?> values) {
+  const messages = {
+    'nationality': 'يرجى إدخال الجنسية',
+    'city': 'يرجى اختيار المدينة',
+    'education': 'يرجى اختيار المستوى التعليمي',
+    'maritalStatus': 'يرجى اختيار الحالة الاجتماعية',
+    'religiosity': 'يرجى اختيار مستوى التدين',
+  };
+  for (final e in messages.entries) {
+    final v = values[e.key];
+    if (v == null || (v is String && v.trim().isEmpty)) return e.value;
+  }
+  return null;
+}
+
 const _shortTexts = {'fieldOfStudy', 'tribe', 'familyOriginArea'};
 const _longTexts = {'aboutMe', 'partnerExpectations', 'hobbies', 'interests', 'familyValues', 'healthConditions'};
 const _jobOther = 'أخرى';
@@ -175,6 +198,8 @@ class _ProfileEditFormState extends ConsumerState<ProfileEditForm> {
     final dob = asString(out['dateOfBirth']);
     final dobError = dateOfBirthError(dob == null ? null : DateTime.tryParse(dob));
     if (dobError != null) return (null, dobError);
+    final missing = missingRequiredChoice(out);
+    if (missing != null) return (null, missing);
     if (out['maritalStatus'] == ProfileOptions.single) out['childrenCount'] = 0;
     if (out['maritalStatus'] != ProfileOptions.single && out['childrenCount'] == null) {
       return (null, 'عدد الأبناء مطلوب');
@@ -246,6 +271,17 @@ class _ProfileEditFormState extends ConsumerState<ProfileEditForm> {
         child: Text(text ?? profileFieldLabels[key]!, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
       );
 
+  void _pick(String key, String? value) {
+    // A required field is changed by picking another option; tapping the chosen one never clears it
+    if (value == null && requiredChoices.contains(key)) return;
+    setState(() {
+      if (key == 'city' && value != _v['city']) {
+        _v['area'] = areaAfterCityChange(asString(_v['area']), widget.lists.areas[value] ?? const []);
+      }
+      _v[key] = value;
+    });
+  }
+
   Widget _choice(String key, List<String> options, {String Function(String)? labelOf, String? title}) {
     final current = asString(_v[key]);
     return Column(
@@ -261,7 +297,7 @@ class _ProfileEditFormState extends ConsumerState<ProfileEditForm> {
                 key: Key('$key-$o'),
                 label: Text(labelOf?.call(o) ?? o),
                 selected: current == o,
-                onSelected: (on) => setState(() => _v[key] = on ? o : null),
+                onSelected: (on) => _pick(key, on ? o : null),
               ),
           ],
         ),

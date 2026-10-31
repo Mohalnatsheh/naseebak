@@ -8,6 +8,7 @@ import '../../features/auth/otp_screen.dart';
 import '../../features/auth/paused_screen.dart';
 import '../../features/auth/phone_screen.dart';
 import '../../features/auth/register_screen.dart';
+import '../../features/auth/suspended_screen.dart';
 import '../../features/chat/chat_room_screen.dart';
 import '../../features/chat/chats_screen.dart';
 import '../../features/country_selection/country_picker_screen.dart';
@@ -38,8 +39,8 @@ import '../auth/auth_controller.dart';
 
 /// Where the member must be, given the session and the picked country (null = stay).
 ///
-/// Order: splash played → (first launch: intro pages) → country picked → session known → signed in → not paused →
-/// short setup done.
+/// Order: splash played → (suspended account: its own page) → (first launch: intro pages) → country picked →
+/// session known → signed in → not paused → short setup done.
 String? guardRedirect({
   required String location,
   required String? countryCode,
@@ -48,6 +49,7 @@ String? guardRedirect({
   bool introSeen = true,
 }) {
   if (!splashDone) return location == '/splash' ? null : '/splash';
+  if (auth.status == AuthStatus.suspended) return location == '/suspended' ? null : '/suspended';
   final onCountry = location == '/country';
   final onAuth = location.startsWith('/auth/');
   final signedIn = auth.isSignedIn;
@@ -60,6 +62,7 @@ String? guardRedirect({
   switch (auth.status) {
     case AuthStatus.unknown:
     case AuthStatus.restoreFailed:
+    case AuthStatus.suspended:
       return location == '/splash' ? null : '/splash';
     case AuthStatus.signedOut:
       if (onAuth || onCountry) return null;
@@ -70,7 +73,7 @@ String? guardRedirect({
       if (!me.profileComplete) {
         return location == '/onboarding' || location == '/profile/guardian' ? null : '/onboarding';
       }
-      const entry = ['/splash', '/intro', '/country', '/paused', '/onboarding'];
+      const entry = ['/splash', '/intro', '/country', '/paused', '/suspended', '/onboarding'];
       if (onAuth || entry.contains(location)) return '/home';
       return null;
   }
@@ -144,6 +147,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/auth/otp', builder: (_, _) => const OtpScreen()),
       GoRoute(path: '/auth/register', builder: (_, _) => const RegisterScreen()),
       GoRoute(path: '/paused', builder: (_, _) => const PausedScreen()),
+      GoRoute(path: '/suspended', builder: (_, _) => const SuspendedScreen()),
       GoRoute(path: '/onboarding', builder: (_, _) => const SetupScreen()),
       StatefulShellRoute.indexedStack(
         builder: (context, state, shell) => AppShell(shell: shell),

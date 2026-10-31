@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -13,27 +16,98 @@ import '../home/counts.dart';
 import 'credits_repository.dart';
 
 /// Balance, packages and checkout. Credits are added by the server only after the payment is confirmed.
+///
+/// A checkout opens in the browser; the screen keeps its payment id while it lives and checks it when the app comes
+/// back to the foreground, until it is COMPLETED / FAILED or [pollWindow] passes. The waiting dialog can be closed
+/// («إخفاء» or back) — the check goes on and a snack reports the result. Still PENDING a moment after the member
+/// returns ([cancelGrace]) → «إلغاء الدفع» (`POST /api/payments/cancel`; the server credits it if it was paid).
 class CreditsScreen extends ConsumerStatefulWidget {
-  const CreditsScreen({super.key, this.showMockButton});
+  const CreditsScreen({
+    super.key,
+    this.showMockButton,
+    this.openCheckout,
+    this.pollInterval = const Duration(milliseconds: 2500),
+    this.pollWindow = const Duration(minutes: 10),
+    this.cancelGrace = const Duration(seconds: 8),
+  });
 
   /// Defaults to debug builds only
   final bool? showMockButton;
+
+  /// Opens the Stripe page; defaults to the external browser (tests pass a fake)
+  final Future<bool> Function(Uri url)? openCheckout;
+
+  final Duration pollInterval;
+  final Duration pollWindow;
+
+  /// How long after returning to the app a still PENDING payment waits before «إلغاء الدفع» is offered
+  final Duration cancelGrace;
 
   @override
   ConsumerState<CreditsScreen> createState() => _CreditsScreenState();
 }
 
-class _CreditsScreenState extends ConsumerState<CreditsScreen> {
+class _CreditsScreenState extends ConsumerState<CreditsScreen> with WidgetsBindingObserver {
   String? _buying;
 
+  /// The checkout opened from this screen whose result isn't known yet
+  String? _pendingId;
+  bool _polling = false;
+
+  /// Bumped to stop the running poll
+  int _pollRun = 0;
+  Timer? _graceTimer;
+
+  /// The «بانتظار تأكيد الدفع» dialog is open; setting [_dialogDone] closes it (it closes itself, even before its
+  /// first frame)
+  bool _dialogOpen = false;
+  final _dialogDone = ValueNotifier(false);
+
+  /// Set when the screen closes the dialog itself (result or timeout), so no «نتابع…» snack follows
+  bool _closingDialog = false;
+  final _offerCancel = ValueNotifier(false);
+  final _cancelling = ValueNotifier(false);
+
   bool get _mockAllowed => widget.showMockButton ?? Env.showMockPayments;
+
+  CreditsRepository get _repo => ref.read(creditsRepositoryProvider);
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    // Balance and the app payments switch may have changed since `me` was read
+    ref.read(authControllerProvider.notifier).refreshMe();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _pollRun++;
+    _graceTimer?.cancel();
+    _offerCancel.dispose();
+    _dialogDone.dispose();
+    _cancelling.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed || _pendingId == null) return;
+    // Back from the checkout page: keep checking (a new window if the last one ran out), offer cancel if still pending
+    _poll();
+    _graceTimer?.cancel();
+    _graceTimer = Timer(widget.cancelGrace, () {
+      if (mounted && _pendingId != null) _offerCancel.value = true;
+    });
+  }
 
   Future<void> _buy(CreditPackage pkg) async {
     if (_buying != null) return;
     setState(() => _buying = pkg.id);
-    final repo = ref.read(creditsRepositoryProvider);
+    String? paymentId;
     try {
-      final start = await repo.checkout(pkg.id);
+      final start = await _repo.checkout(pkg.id);
       if (!mounted) return;
       if (start.mock) {
         if (!_mockAllowed) {
@@ -42,11 +116,15 @@ class _CreditsScreenState extends ConsumerState<CreditsScreen> {
         }
         final paid = await _mockDialog(pkg);
         if (paid == null || !mounted) return;
-        await repo.completeMock(start.paymentId, paid: paid);
+        await _repo.completeMock(start.paymentId, paid: paid);
       } else if (start.checkoutUrl != null) {
-        final ok = await launchUrl(Uri.parse(start.checkoutUrl!), mode: LaunchMode.externalApplication)
-            .catchError((_) => false);
+        // Tracked before the browser opens: the return to the app (resumed) may come before launch answers
+        _track(start.paymentId);
+        final open = widget.openCheckout ?? (u) => launchUrl(u, mode: LaunchMode.externalApplication);
+        final ok = await open(Uri.parse(start.checkoutUrl!)).catchError((_) => false);
         if (!ok) {
+          _untrack();
+          _repo.cancel(start.paymentId).ignore();
           if (mounted) showSnack(context, 'تعذّر فتح صفحة الدفع');
           return;
         }
@@ -54,39 +132,151 @@ class _CreditsScreenState extends ConsumerState<CreditsScreen> {
         if (mounted) showSnack(context, ApiException.genericMessage);
         return;
       }
-      if (!mounted) return;
-      final result = await showDialog<PaymentStatus?>(
-        context: context,
-        barrierDismissible: false,
-        builder: (_) => _PaymentWaitDialog(repo: repo, paymentId: start.paymentId),
-      );
-      if (!mounted) return;
-      _showResult(result);
+      paymentId = start.paymentId;
     } on ApiException catch (e) {
+      // Payments switched off in the app since `me` was read: re-read it so the packages disappear
+      if (e.code == 'APP_PURCHASES_DISABLED') ref.read(authControllerProvider.notifier).refreshMe();
       if (mounted) showSnack(context, e.message);
     } finally {
       if (mounted) setState(() => _buying = null);
     }
+    if (paymentId == null || !mounted) return;
+    _track(paymentId);
+    _poll();
+    _showWaitDialog();
   }
 
-  void _showResult(PaymentStatus? s) {
-    final auth = ref.read(authControllerProvider.notifier);
+  /// Starts following [paymentId] (replacing an earlier one)
+  void _track(String paymentId) {
+    if (_pendingId == paymentId) return;
+    _stopPolling();
+    _graceTimer?.cancel();
+    setState(() {
+      _pendingId = paymentId;
+      _offerCancel.value = false;
+    });
+  }
+
+  void _untrack() {
+    _stopPolling();
+    _graceTimer?.cancel();
+    if (mounted) {
+      setState(() {
+        _pendingId = null;
+        _offerCancel.value = false;
+      });
+    }
+  }
+
+  void _stopPolling() {
+    _pollRun++;
+    _polling = false;
+  }
+
+  /// Polls the pending payment unless a poll is already running
+  void _poll() {
+    final id = _pendingId;
+    if (id == null || _polling) return;
+    _polling = true;
+    final run = ++_pollRun;
+    waitForPayment(
+      _repo,
+      id,
+      interval: widget.pollInterval,
+      timeout: widget.pollWindow,
+      cancelled: () => run != _pollRun || !mounted,
+    ).then((s) {
+      if (run != _pollRun || !mounted) return;
+      _polling = false;
+      if (s != null) {
+        _finish(s);
+        return;
+      }
+      // Window over: the id is kept, the next return to the app checks again; the server credits it when it lands
+      _closeWaitDialog();
+      showSnack(context, 'لم يصلنا تأكيد الدفع بعد. سيُضاف رصيدك تلقائياً عند التأكيد.');
+      ref.read(authControllerProvider.notifier).refreshMe();
+      ref.invalidate(paymentHistoryProvider);
+    });
+  }
+
+  /// The payment left PENDING (also after the dialog was closed): new balance, history and badges, and a snack.
+  void _finish(PaymentStatus s, {bool cancelled = false}) {
+    _untrack();
+    _closeWaitDialog();
+    ref.read(authControllerProvider.notifier).updateCredits(s.credits);
     ref.invalidate(paymentHistoryProvider);
     ref.invalidate(countsProvider);
-    if (s == null) {
-      showSnack(context, 'لم يصلنا تأكيد الدفع بعد. سيُضاف رصيدك تلقائياً عند التأكيد.');
-      auth.refreshMe();
-      return;
-    }
-    auth.updateCredits(s.credits);
+    _showResult(s, cancelled: cancelled);
+  }
+
+  void _showResult(PaymentStatus s, {bool cancelled = false}) {
     switch (s.status) {
       case 'COMPLETED':
         showSnack(context, 'تم الدفع بنجاح. رصيدك الآن ${s.credits}.');
       case 'FAILED':
-        showSnack(context, 'لم تكتمل عملية الدفع، ولم يُخصم شيء.');
+        showSnack(context, cancelled ? 'تم إلغاء الدفع، ولم يُخصم شيء.' : 'لم تكتمل عملية الدفع، ولم يُخصم شيء.');
       default:
         showSnack(context, 'حالة الدفع: ${s.status}');
     }
+  }
+
+  /// «إلغاء الدفع»: the server closes the Stripe page (or credits it if it was paid meanwhile), then the row is read
+  Future<void> _cancel() async {
+    final id = _pendingId;
+    if (id == null || _cancelling.value) return;
+    _cancelling.value = true;
+    // The cancel decides the outcome; polling resumes if the page stays open
+    _stopPolling();
+    try {
+      await _repo.cancel(id);
+      final s = await _repo.status(id);
+      if (!mounted || _pendingId != id) return;
+      if (s.status == 'PENDING') {
+        // Stripe couldn't close the page yet: keep checking
+        showSnack(context, 'تعذّر إلغاء الدفع الآن، سنتابع حالته.');
+        _poll();
+      } else {
+        _finish(s, cancelled: true);
+      }
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      showSnack(context, e.message);
+      _poll();
+    } finally {
+      if (mounted) _cancelling.value = false;
+    }
+  }
+
+  void _showWaitDialog() {
+    if (_dialogOpen || _pendingId == null) return;
+    setState(() => _dialogOpen = true);
+    _dialogDone.value = false;
+    _closingDialog = false;
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => _PaymentWaitDialog(
+        done: _dialogDone,
+        offerCancel: _offerCancel,
+        cancelling: _cancelling,
+        onCancel: _cancel,
+      ),
+    ).then((_) {
+      if (!mounted) return;
+      final byMember = !_closingDialog;
+      _closingDialog = false;
+      setState(() => _dialogOpen = false);
+      if (_pendingId == null || !byMember) return;
+      // Closed with «إخفاء» or back: the check goes on behind it
+      showSnack(context, 'نتابع تأكيد الدفع، وسنُعلمك هنا عند وصوله.');
+    });
+  }
+
+  void _closeWaitDialog() {
+    if (!_dialogOpen || _dialogDone.value) return;
+    _closingDialog = true;
+    _dialogDone.value = true;
   }
 
   Future<bool?> _mockDialog(CreditPackage pkg) {
@@ -159,6 +349,10 @@ class _CreditsScreenState extends ConsumerState<CreditsScreen> {
               'يُستخدم الرصيد عند إبداء الاهتمام أو طلب التعارف بحسب نظام المنصة. لا يُخصم أي رصيد على «لا».',
               style: TextStyle(color: AppColors.muted, fontSize: 13.5),
             ),
+            if (_pendingId != null && !_dialogOpen) ...[
+              const SizedBox(height: 12),
+              _PendingPaymentCard(offerCancel: _offerCancel, cancelling: _cancelling, onCancel: _cancel),
+            ],
             if (plans != null) ...[
             const SizedBox(height: 16),
             const SectionTitle('الباقات'),
@@ -277,29 +471,80 @@ class _PackageTile extends StatelessWidget {
   }
 }
 
+/// «إلغاء الدفع», shown once [offerCancel] is set (the member came back and the payment is still pending)
+class _CancelPaymentButton extends StatelessWidget {
+  const _CancelPaymentButton({required this.offerCancel, required this.cancelling, required this.onCancel});
+  final ValueListenable<bool> offerCancel;
+  final ValueListenable<bool> cancelling;
+  final VoidCallback onCancel;
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<bool>(
+      valueListenable: offerCancel,
+      builder: (_, offer, _) => !offer
+          ? const SizedBox.shrink()
+          : ValueListenableBuilder<bool>(
+              valueListenable: cancelling,
+              builder: (_, busy, _) => TextButton(
+                key: const Key('cancel-payment'),
+                onPressed: busy ? null : onCancel,
+                style: TextButton.styleFrom(foregroundColor: AppColors.danger),
+                child: Text(busy ? 'جارٍ الإلغاء…' : 'إلغاء الدفع'),
+              ),
+            ),
+    );
+  }
+}
+
+/// Waits for the payment; the screen closes it with the result ([done]). «إخفاء» / back only close it (the check
+/// goes on).
 class _PaymentWaitDialog extends StatefulWidget {
-  const _PaymentWaitDialog({required this.repo, required this.paymentId});
-  final CreditsRepository repo;
-  final String paymentId;
+  const _PaymentWaitDialog({
+    required this.done,
+    required this.offerCancel,
+    required this.cancelling,
+    required this.onCancel,
+  });
+  final ValueListenable<bool> done;
+  final ValueListenable<bool> offerCancel;
+  final ValueListenable<bool> cancelling;
+  final VoidCallback onCancel;
 
   @override
   State<_PaymentWaitDialog> createState() => _PaymentWaitDialogState();
 }
 
 class _PaymentWaitDialogState extends State<_PaymentWaitDialog> {
-  bool _stopped = false;
+  bool _closed = false;
 
   @override
   void initState() {
     super.initState();
-    waitForPayment(widget.repo, widget.paymentId, cancelled: () => _stopped).then((s) {
-      if (mounted && !_stopped) Navigator.of(context).pop(s);
-    });
+    widget.done.addListener(_closeIfDone);
+    // The result may have come before this dialog was built
+    WidgetsBinding.instance.addPostFrameCallback((_) => _closeIfDone());
+  }
+
+  @override
+  void dispose() {
+    widget.done.removeListener(_closeIfDone);
+    super.dispose();
+  }
+
+  void _closeIfDone() {
+    if (!widget.done.value || _closed || !mounted) return;
+    final route = ModalRoute.of(context);
+    if (route == null || !route.isActive) return;
+    _closed = true;
+    // Something may have been pushed over it: remove the dialog itself, never the route on top
+    route.isCurrent ? Navigator.of(context).pop() : Navigator.of(context).removeRoute(route);
   }
 
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
+      key: const Key('payment-wait'),
       content: const Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -313,14 +558,35 @@ class _PaymentWaitDialogState extends State<_PaymentWaitDialog> {
         ],
       ),
       actions: [
-        TextButton(
-          onPressed: () {
-            _stopped = true;
-            Navigator.of(context).pop(null);
-          },
-          child: const Text('إخفاء'),
-        ),
+        _CancelPaymentButton(offerCancel: widget.offerCancel, cancelling: widget.cancelling, onCancel: widget.onCancel),
+        TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('إخفاء')),
       ],
+    );
+  }
+}
+
+/// On the screen while a payment is still being checked and its dialog was closed
+class _PendingPaymentCard extends StatelessWidget {
+  const _PendingPaymentCard({required this.offerCancel, required this.cancelling, required this.onCancel});
+  final ValueListenable<bool> offerCancel;
+  final ValueListenable<bool> cancelling;
+  final VoidCallback onCancel;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      key: const Key('payment-pending'),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
+        child: Row(
+          children: [
+            const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+            const SizedBox(width: 12),
+            const Expanded(child: Text('بانتظار تأكيد الدفع، سيُضاف رصيدك عند التأكيد.')),
+            _CancelPaymentButton(offerCancel: offerCancel, cancelling: cancelling, onCancel: onCancel),
+          ],
+        ),
+      ),
     );
   }
 }

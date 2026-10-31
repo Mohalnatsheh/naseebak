@@ -87,6 +87,10 @@ The app gets push straight from FCM (`src/lib/fcm.ts`); the website stays on One
 - `GET /api/mobile/config` → `{ android: { minVersion, latestVersion, storeUrl }, ios: { … } }` (Admin → Settings →
   «Mobile app»). Below `minVersion` the app shows a full-screen «حدّث التطبيق»; below `latestVersion` a dismissible
   notice; empty = no gate. Read on start and every resume; a failed request never blocks the app.
+- `GET /api/mobile/config` also returns `maintenance: { enabled, message }`: the app shows a full-screen maintenance
+  page while it is on (checked on start, resume and after a 503 `MAINTENANCE`; a plain 503 is a server error).
+- `GET /api/mobile/me` → `user.deletion: { scheduledFor } | null` (the paused screen shows the date); a suspended member
+  gets 403 `SUSPENDED` (the app shows «حسابك موقوف»); 403 `DEACTIVATED` on any call makes the app re-read `me` (→ paused).
 - `GET /api/mobile/me` → `user.appPayments`: buying shown in the app (the admin switch; always false for test
   accounts). The app checkout (`mode: "hosted"`) answers 403 `APP_PURCHASES_DISABLED` when it is false.
 
@@ -98,6 +102,10 @@ The app gets push straight from FCM (`src/lib/fcm.ts`); the website stays on One
   (suggestions, matches and each match, chats list `exact`, each chat, credits = `/dashboard/payments`).
 
 ## Chat paging
+
+- `POST /api/chats/{id}/messages` `{ body, clientNonce }` is idempotent per nonce: a retry gets the saved message back
+  (`Message.clientNonce`, indexed per chat and sender). Chats that can't change (ended, expired, blocked) get no live
+  connection and a 60 s poll.
 
 - `GET /api/chats/{id}` → the newest 30. Older: `?before=<createdAt>&beforeId=<id>` of the oldest message held (exact
   cursor, ordered by time then id). Newer: `?after=<createdAt>` (inclusive — drop messages you already have).

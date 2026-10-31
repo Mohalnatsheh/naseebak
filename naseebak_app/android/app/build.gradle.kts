@@ -1,3 +1,14 @@
+import java.util.Properties
+
+// Release signing: android/key.properties (git-ignored, never committed) points at the upload keystore:
+//   storeFile=/absolute/path/upload-keystore.jks
+//   storePassword=…   keyAlias=upload   keyPassword=…
+// Without it, release builds fall back to the debug key (fine locally, refused by Google Play).
+val keystoreProperties = Properties().apply {
+    val file = rootProject.file("key.properties")
+    if (file.exists()) file.inputStream().use { load(it) }
+}
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
@@ -32,11 +43,20 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        if (keystoreProperties.getProperty("storeFile") != null) {
+            create("upload") {
+                storeFile = file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.findByName("upload") ?: signingConfigs.getByName("debug")
         }
     }
 }

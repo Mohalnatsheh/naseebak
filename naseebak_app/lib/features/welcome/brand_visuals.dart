@@ -150,7 +150,10 @@ class _FadeSlideInState extends State<FadeSlideIn> with SingleTickerProviderStat
 }
 
 /// Navy header of the sign-in screens: back button, logo, title and subtitle, with a curved edge.
-class AuthHero extends StatelessWidget {
+///
+/// While the keyboard is open it folds to the back button and a smaller title, so the field and the button below
+/// stay in view on small phones with large text.
+class AuthHero extends StatefulWidget {
   const AuthHero({super.key, required this.title, this.subtitle, this.showBack = false, this.trailing});
   final String title;
   final String? subtitle;
@@ -158,39 +161,91 @@ class AuthHero extends StatelessWidget {
   final Widget? trailing;
 
   @override
+  State<AuthHero> createState() => _AuthHeroState();
+}
+
+class _AuthHeroState extends State<AuthHero> with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  // The Scaffold hides the keyboard from its body's MediaQuery: follow the window instead
+  @override
+  void didChangeMetrics() => setState(() {});
+
+  @override
   Widget build(BuildContext context) {
+    final compact = View.of(context).viewInsets.bottom > 0;
+    final title = widget.title;
+    final subtitle = widget.subtitle;
     return ClipPath(
       clipper: _CurveClipper(),
       child: NightBackdrop(
-        child: Padding(
-          padding: EdgeInsets.fromLTRB(24, MediaQuery.paddingOf(context).top + 12, 24, 52),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(children: [
-                if (showBack)
-                  IconButton(
-                    tooltip: 'رجوع',
-                    onPressed: () => Navigator.of(context).maybePop(),
-                    icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
+        child: AnimatedSize(
+          duration: const Duration(milliseconds: 200),
+          alignment: Alignment.topCenter,
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(
+              24,
+              MediaQuery.paddingOf(context).top + (compact ? 4 : 12),
+              24,
+              compact ? 44 : 52,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(children: [
+                  if (widget.showBack)
+                    IconButton(
+                      tooltip: 'رجوع',
+                      onPressed: () => Navigator.of(context).maybePop(),
+                      icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
+                    ),
+                  if (compact)
+                    Expanded(
+                      child: Text(
+                        title,
+                        key: const Key('auth-hero-compact'),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: Colors.white, fontSize: 19, fontWeight: FontWeight.w800),
+                      ),
+                    )
+                  else
+                    const Spacer(),
+                  ?widget.trailing,
+                ]),
+                if (!compact) ...[
+                  const FadeSlideIn(child: BrandLogo(height: 46, onDark: true)),
+                  const SizedBox(height: 22),
+                  FadeSlideIn(
+                    delay: const Duration(milliseconds: 120),
+                    child: Text(
+                      title,
+                      style: const TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.w800, height: 1.3),
+                    ),
                   ),
-                const Spacer(),
-                ?trailing,
-              ]),
-              const FadeSlideIn(child: BrandLogo(height: 46, onDark: true)),
-              const SizedBox(height: 22),
-              FadeSlideIn(
-                delay: const Duration(milliseconds: 120),
-                child: Text(title, style: const TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.w800, height: 1.3)),
-              ),
-              if (subtitle != null) ...[
-                const SizedBox(height: 8),
-                FadeSlideIn(
-                  delay: const Duration(milliseconds: 220),
-                  child: Text(subtitle!, style: TextStyle(color: Colors.white.withValues(alpha: 0.82), fontSize: 15, height: 1.65)),
-                ),
+                  if (subtitle != null) ...[
+                    const SizedBox(height: 8),
+                    FadeSlideIn(
+                      delay: const Duration(milliseconds: 220),
+                      child: Text(
+                        subtitle,
+                        style: TextStyle(color: Colors.white.withValues(alpha: 0.82), fontSize: 15, height: 1.65),
+                      ),
+                    ),
+                  ],
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),

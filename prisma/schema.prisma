@@ -840,6 +840,8 @@ model Message {
   senderId       String
   sender         User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
   body           String
+  /// The sender app's id for this send: a retry after a lost answer gets the saved message back (chat/service.ts)
+  clientNonce    String?
   readAt         DateTime?
   /// Unread-message SMS (lib/chat/unread-sms.ts): last attempt and its result (sent, sent_admin, has_push, already_today, opted_out, …)
   smsNoticeAt     DateTime?
@@ -847,6 +849,9 @@ model Message {
   createdAt      DateTime     @default(now())
 
   @@index([conversationId, createdAt])
+  // Not unique: a new unique constraint makes `prisma db push` stop for a data-loss prompt (the deploy runs it
+  // without --accept-data-loss); simultaneous duplicates are caught in memory (single process)
+  @@index([conversationId, senderId, clientNonce])
   @@index([readAt, createdAt])
   @@map("messages")
 }

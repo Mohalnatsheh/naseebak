@@ -4,6 +4,10 @@ const store = vi.hoisted(() => new Map<string, string>());
 vi.mock("@/lib/settings", () => ({
   getSetting: vi.fn(async (k: string) => store.get(k) ?? ""),
   setSetting: vi.fn(async (k: string, v: string) => void store.set(k, v)),
+  getMaintenanceState: vi.fn(async () => ({
+    enabled: store.get("maintenance_mode") === "true",
+    message: store.get("maintenance_message") ?? "",
+  })),
 }));
 
 import { getMobileConfig, isVersion, updateMobileConfig } from "@/lib/mobile-config";
@@ -44,6 +48,23 @@ describe("mobile app version gate", () => {
     store.set("mobile_android_min_version", "latest");
     expect((await getMobileConfig()).android.minVersion).toBe("");
     expect(isVersion("10.0.12")).toBe(true);
+  });
+});
+
+describe("maintenance mode in the app config", () => {
+  it("off by default; on, the public config carries the admin's message", async () => {
+    expect((await (await GET()).json()).maintenance).toEqual({ enabled: false, message: "" });
+    store.set("maintenance_mode", "true");
+    store.set("maintenance_message", "  نعود خلال ساعة  ");
+    const body = await (await GET()).json();
+    expect(body.maintenance).toEqual({ enabled: true, message: "نعود خلال ساعة" });
+    // The version gate is still there next to it
+    expect(body.android).toMatchObject({ minVersion: "" });
+  });
+
+  it("a message left over from an earlier maintenance is not sent while it is off", async () => {
+    store.set("maintenance_message", "قديمة");
+    expect((await (await GET()).json()).maintenance).toEqual({ enabled: false, message: "" });
   });
 });
 

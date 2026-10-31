@@ -26,13 +26,25 @@ final pushServiceProvider = Provider<PushService>((ref) {
 /// each `onRegistered` FID to `POST /api/mobile/push`. The server ties it to this sign-in, so a revoked sign-in gets no
 /// more pushes. Logout → `DELETE /api/mobile/push` first, then `unregister()`.
 /// A push carries `data.url` (the website path); a tap opens the same screen as the in-app list (`appRouteForLink`).
-class PushService {
+/// A start that fails (no network for the registration…) is tried again on the next resume.
+class PushService with WidgetsBindingObserver {
   PushService(this._ref);
 
   final Ref _ref;
   final _local = FlutterLocalNotificationsPlugin();
   final _subs = <StreamSubscription<dynamic>>[];
+
+  /// Signed in: push is wanted (start, and retry on resume until it worked)
+  bool _wanted = false;
+  bool _starting = false;
   bool _started = false;
+  bool _observing = false;
+
+  /// Started at least once (Firebase ready): there may be notifications of this member to take off on sign-out
+  bool _used = false;
+
+  /// The push that opened the app is read once per launch, before (and whatever happens to) the registration
+  bool _initialRead = false;
   bool _localReady = false;
   String? _fid;
 
@@ -48,28 +60,54 @@ class PushService {
 
   /// After sign-in (or a restored session). Safe to call more than once.
   Future<void> start() async {
-    if (!_ready || _started) return;
-    _started = true;
+    if (!_ready) return;
+    _wanted = _used = true;
+    if (!_observing) {
+      WidgetsBinding.instance.addObserver(this);
+      _observing = true;
+    }
+    if (_started || _starting) return;
+    _starting = true;
+    final messaging = FirebaseMessaging.instance;
+    // Opened from a push while the app was closed: whatever happens to the registration below
+    if (!_initialRead) {
+      try {
+        final initial = await messaging.getInitialMessage();
+        _initialRead = true;
+        if (initial != null) _open(initial.data['url'] as String?);
+      } catch (e) {
+        debugPrint('[push] initial message failed: $e');
+      }
+    }
     try {
       await _initLocal();
-      final messaging = FirebaseMessaging.instance;
       // Android 13+ and iOS show the system prompt once; a refusal just means no pushes
       await messaging.requestPermission();
-      await messaging.setForegroundNotificationPresentationOptions(alert: true, badge: true, sound: true);
+      // No system banner while the app is open (on iOS either): `_showForeground` shows one, except for the screen
+      // already open
+      await messaging.setForegroundNotificationPresentationOptions(alert: false, badge: true, sound: false);
 
-      _subs
-        ..add(messaging.onRegistered.listen(_register))
-        ..add(FirebaseMessaging.onMessage.listen(_showForeground))
-        ..add(FirebaseMessaging.onMessageOpenedApp.listen((m) => _open(m.data['url'] as String?)));
+      if (_subs.isEmpty) {
+        _subs
+          ..add(messaging.onRegistered.listen(_register))
+          ..add(FirebaseMessaging.onMessage.listen(_showForeground))
+          ..add(FirebaseMessaging.onMessageOpenedApp.listen((m) => _open(m.data['url'] as String?)));
+      }
       // The FID arrives through onRegistered (now, and again whenever FCM changes it)
       await messaging.register();
-
-      // Opened from a push while the app was closed
-      final initial = await messaging.getInitialMessage();
-      if (initial != null) _open(initial.data['url'] as String?);
+      // Signed out meanwhile: reset() already stopped everything
+      _started = _wanted;
     } catch (e) {
+      // Not started: the next resume (or sign-in) tries again
       debugPrint('[push] start failed: $e');
+    } finally {
+      _starting = false;
     }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && _wanted && !_started) start();
   }
 
   /// Before `/api/mobile/auth/logout` (needs the sign-in still valid): this device gets no more pushes.
@@ -85,14 +123,24 @@ class PushService {
     reset();
   }
 
-  /// Signed out (also after a 401): stop listening; the next sign-in registers again.
+  /// Signed out (also after a 401): stop listening and take the previous member's notifications off the tray (on
+  /// Android this also clears those FCM showed); the next sign-in registers again.
   void reset() {
     for (final s in _subs) {
       s.cancel();
     }
     _subs.clear();
+    _wanted = false;
     _started = false;
     _fid = null;
+    if (_observing) {
+      WidgetsBinding.instance.removeObserver(this);
+      _observing = false;
+    }
+    // Not `_ready`: this also runs when the provider is disposed, when it can no longer be read
+    if (_used) {
+      _local.cancelAll().catchError((Object e) => debugPrint('[push] clearing notifications failed: $e'));
+    }
   }
 
   Future<void> _initLocal() async {
@@ -125,14 +173,16 @@ class PushService {
     }
   }
 
-  /// Android doesn't show a push while the app is open: show it ourselves (iOS does, see the presentation options).
+  /// No system banner while the app is open (Android never shows one, iOS is told not to): show it ourselves, on both.
   /// Not for the screen already open: a message in the chat being read just appears in it, like WhatsApp.
+  /// iOS presents it only while AppDelegate is the notification center delegate (`UNUserNotificationCenter.current()
+  /// .delegate = self`), so that firebase_messaging leaves local notifications to this plugin.
   void _showForeground(RemoteMessage m) {
     final n = m.notification;
-    if (n == null || !Platform.isAndroid) return;
+    if (n == null) return;
     final url = m.data['url'] as String?;
     if (url != null && _ref.read(routerProvider).state.uri.toString() == appRouteForLink(url: url)) return;
-    final tag = n.android?.tag;
+    final tag = n.android?.tag ?? m.collapseKey ?? m.threadId;
     _local.show(
       id: (tag ?? m.messageId ?? '${n.title}${n.body}').hashCode,
       title: n.title,
@@ -148,6 +198,14 @@ class PushService {
           icon: 'ic_stat_notify',
           color: const Color(0xFFC19250),
           tag: tag,
+        ),
+        // Same chat thread as the system's pushes; sound like they would have had
+        iOS: DarwinNotificationDetails(
+          presentAlert: true,
+          presentBanner: true,
+          presentList: true,
+          presentSound: true,
+          threadIdentifier: m.threadId,
         ),
       ),
     );

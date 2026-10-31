@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
 import '../../core/network/api_client.dart';
+import '../../core/network/api_exception.dart';
 import '../../core/network/json.dart';
 import 'match_models.dart';
 
@@ -49,8 +50,29 @@ class MatchesRepository {
     return asMapList(j['photos']).map((p) => asStringOr(p['url'])).where((u) => u.isNotEmpty).toList();
   }
 
+  /// 409 (already blocked) counts as done.
   Future<void> block(String userId) async {
-    await _api.post('/api/blocks', body: {'blockedId': userId});
+    try {
+      await _api.post('/api/blocks', body: {'blockedId': userId});
+    } on ApiException catch (e) {
+      if (e.kind != ApiErrorKind.conflict) rethrow;
+    }
+  }
+
+  /// «إلغاء الحظر»: `blockId` from the blocked match (`MatchSummary.blockId`).
+  Future<void> unblock(String blockId) async {
+    await _api.delete('/api/blocks/$blockId');
+  }
+
+  /// «إبلاغ وحظر» (the website's only report on match and suggestion cards): report, then block.
+  /// A repeat report (409) still goes on to the block.
+  Future<void> reportAndBlock(String userId, String reason, {String? details}) async {
+    try {
+      await report(userId, reason, details: details);
+    } on ApiException catch (e) {
+      if (e.kind != ApiErrorKind.conflict) rethrow;
+    }
+    await block(userId);
   }
 
   Future<void> report(String userId, String reason, {String? details}) async {
@@ -63,3 +85,6 @@ class MatchesRepository {
 }
 
 final matchesRepositoryProvider = Provider<MatchesRepository>((ref) => MatchesRepository(ref.watch(apiClientProvider)));
+
+/// Bumped after anything that changes a match (outcome, block, report, unblock): the matches list reloads.
+final matchesListVersionProvider = StateProvider<int>((ref) => 0);

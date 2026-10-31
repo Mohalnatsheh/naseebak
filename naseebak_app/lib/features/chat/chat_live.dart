@@ -78,26 +78,36 @@ class ChatLive {
   }
 
   /// Emits once per event on `chat:<id>` until the subscription is cancelled. Reconnects with a growing delay
-  /// (and a fresh token); ends quietly when live chat isn't available. [connected] reports the link state.
+  /// (and a fresh token); ends quietly when live chat isn't available. [connected] reports the link state, never
+  /// after the subscription is cancelled.
   Stream<void> events(String chatId, {void Function(bool connected)? connected}) {
     late StreamController<void> controller;
     var active = true;
     CancelToken? cancel;
+
+    void report(bool on) {
+      if (active) connected?.call(on);
+    }
 
     Future<void> run() async {
       var delay = const Duration(seconds: 2);
       while (active) {
         try {
           final token = await this.token();
-          if (token == null) break;
-          cancel = CancelToken();
+          // Cancelled while the token was on its way: no request at all (onCancel had nothing to cancel yet)
+          if (token == null || !active) break;
+          final request = cancel = CancelToken();
           final r = await _ably.get<ResponseBody>(
             '$realtimeHost/sse',
             queryParameters: {'v': '1.2', 'channels': 'chat:$chatId', 'accessToken': token},
             options: Options(responseType: ResponseType.stream, receiveTimeout: const Duration(minutes: 2)),
-            cancelToken: cancel,
+            cancelToken: request,
           );
-          connected?.call(true);
+          if (!active) {
+            request.cancel();
+            break;
+          }
+          report(true);
           delay = const Duration(seconds: 2);
           final parser = SseParser();
           await for (final text in utf8.decoder.bind(r.data!.stream)) {
@@ -109,7 +119,7 @@ class ChatLive {
         } catch (_) {
           // Network trouble or an expired token: fall back to polling and try again later
         }
-        connected?.call(false);
+        report(false);
         if (!active) break;
         await Future<void>.delayed(delay);
         delay = delay * 2 > const Duration(minutes: 2) ? const Duration(minutes: 2) : delay * 2;
@@ -121,6 +131,7 @@ class ChatLive {
       onListen: run,
       onCancel: () {
         active = false;
+        // The request in flight now; one started later sees `active` first (checked right before each request)
         cancel?.cancel();
       },
     );

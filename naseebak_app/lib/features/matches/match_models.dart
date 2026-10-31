@@ -92,11 +92,13 @@ class IntroState {
     this.credits = 0,
     this.familyRequestId,
     this.familyExpiresAt,
+    this.familyDeclinedByMe = false,
     this.familyFree = false,
     this.familyOpenUntil,
     this.contacts,
     this.chatRequestId,
     this.chatExpiresAt,
+    this.chatDeclinedByMe = false,
     this.conversationId,
     this.chatPaused = false,
     this.followUpMine,
@@ -122,12 +124,14 @@ class IntroState {
       familyStatus: asStringOr(family['status'], 'none'),
       familyRequestId: asString(family['requestId']),
       familyExpiresAt: asDate(family['expiresAt']),
+      familyDeclinedByMe: asBool(family['declinedByMe']) ?? false,
       familyFree: asBool(family['free']) ?? false,
       familyOpenUntil: asDate(family['openUntil']),
       contacts: contacts == null ? null : GuardianContact.fromJson(contacts),
       chatStatus: asStringOr(chat['status'], 'none'),
       chatRequestId: asString(chat['requestId']),
       chatExpiresAt: asDate(chat['expiresAt']),
+      chatDeclinedByMe: asBool(chat['declinedByMe']) ?? false,
       conversationId: asString(chat['conversationId']),
       chatPaused: asBool(chat['paused']) ?? false,
       followUpMine: asString(follow['mine']),
@@ -149,7 +153,12 @@ class IntroState {
   final String familyStatus;
   final String? familyRequestId;
   final DateTime? familyExpiresAt;
+
+  /// `declined`: I turned the request down (else the other side did)
+  final bool familyDeclinedByMe;
   final bool familyFree;
+
+  /// After a chat ran out: the (free) move to a family introduction stays open until this date
   final DateTime? familyOpenUntil;
   final GuardianContact? contacts;
 
@@ -157,6 +166,7 @@ class IntroState {
   final String chatStatus;
   final String? chatRequestId;
   final DateTime? chatExpiresAt;
+  final bool chatDeclinedByMe;
   final String? conversationId;
   final bool chatPaused;
 

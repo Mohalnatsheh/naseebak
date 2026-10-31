@@ -3,7 +3,7 @@ import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { createMutualMatch } from "@/lib/intro/match";
 import { notifyInterestCreditsExhausted, recordCredit, reserveCredits } from "@/lib/credits";
-import { IntroError } from "@/lib/intro/errors";
+import { noCreditsError } from "@/lib/intro/errors";
 import { introErrorResponse } from "@/lib/intro/http";
 import { getCycleFlags } from "@/lib/settings";
 
@@ -60,7 +60,7 @@ export async function POST(
       // The balance is read inside the transaction so only the charge that reached 0 sends the notice
       const creditsLeft = await db.$transaction(async (tx) => {
         await tx.like.create({ data: likeData });
-        if (!(await reserveCredits(session.user.id, 1, tx))) throw new IntroError("NO_CREDITS");
+        if (!(await reserveCredits(session.user.id, 1, tx))) throw noCreditsError((await tx.user.findUnique({ where: { id: session.user.id }, select: { phone: true } }))?.phone);
         await recordCredit(
           { userId: session.user.id, delta: -1, reason: "INTEREST", refId: incomingLike.suggestionId ?? incomingLike.id },
           tx

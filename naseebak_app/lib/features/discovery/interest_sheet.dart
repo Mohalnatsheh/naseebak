@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/common.dart';
+import '../home/gendered_copy.dart';
 import 'suggestion_models.dart';
 
 /// «مهتم» on a shared suggestion: choose how to get to know each other, then send.
@@ -18,6 +19,8 @@ class InterestSheet extends StatefulWidget {
     required this.guardianConsented,
     required this.onSubmit,
     this.canRecharge = true,
+    this.viewerFemale = false,
+    this.onNoCredits,
   });
 
   final String firstName;
@@ -31,9 +34,15 @@ class InterestSheet extends StatefulWidget {
   /// My guardian contact is saved and consent was already given (no checkbox needed)
   final bool guardianConsented;
   final Future<DecisionResult> Function(String introPreference, bool guardianConsent) onSubmit;
+  final bool viewerFemale;
 
-  static Future<DecisionResult?> show(BuildContext context, InterestSheet sheet) {
-    return showModalBottomSheet<DecisionResult>(
+  /// NO_CREDITS: the stored balance is 0 now
+  final VoidCallback? onNoCredits;
+
+  /// A [DecisionResult] when sent, the [ApiException] when the card is gone (404: the sheet closes so the
+  /// card can leave the list), null when dismissed.
+  static Future<Object?> show(BuildContext context, InterestSheet sheet) {
+    return showModalBottomSheet<Object>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
@@ -52,9 +61,11 @@ class _InterestSheetState extends State<InterestSheet> {
   String? _error;
   String? _errorCode;
 
+  String _g(String m, String f) => forViewer(widget.viewerFemale, m, f);
+
   Future<void> _send() async {
     if (_pref == null) {
-      setState(() => _error = 'اختر طريقة التعارف: محادثة أو تعارف عائلي');
+      setState(() => _error = '${_g('اختر', 'اختاري')} طريقة التعارف: محادثة أو تعارف عائلي');
       return;
     }
     if (_pref == 'FAMILY' && !widget.guardianConsented && !_consent) {
@@ -70,12 +81,18 @@ class _InterestSheetState extends State<InterestSheet> {
       final res = await widget.onSubmit(_pref!, _pref == 'FAMILY' ? (widget.guardianConsented || _consent) : false);
       if (mounted) Navigator.of(context).pop(res);
     } on ApiException catch (e) {
-      if (mounted) {
-        setState(() {
-          _error = e.message;
-          _errorCode = e.code ?? (e.kind == ApiErrorKind.noCredits ? 'NO_CREDITS' : null);
-        });
+      if (!mounted) return;
+      // Closed meanwhile (expired, the other side said «لا», blocked): nothing to fix here
+      if (e.kind == ApiErrorKind.notFound) {
+        Navigator.of(context).pop(e);
+        return;
       }
+      final code = e.code ?? (e.kind == ApiErrorKind.noCredits ? 'NO_CREDITS' : null);
+      if (code == 'NO_CREDITS') widget.onNoCredits?.call();
+      setState(() {
+        _error = e.message;
+        _errorCode = code;
+      });
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -91,10 +108,11 @@ class _InterestSheetState extends State<InterestSheet> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('مهتم بـ${widget.firstName}', style: theme.textTheme.titleLarge),
+            Text('${_g('مهتم', 'مهتمة')} بـ${widget.firstName}', style: theme.textTheme.titleLarge),
             const SizedBox(height: 6),
             Text(
-              'إذا أبدى الطرف الآخر اهتمامه أيضاً، يتم التوافق ونبدأ بالطريقة التي تختارها.',
+              '${forPartner(widget.viewerFemale, 'إذا أبدى اهتمامه', 'إذا أبدت اهتمامها')} أيضاً، يتم التوافق ونبدأ '
+              'بالطريقة التي ${_g('تختارها', 'تختارينها')}.',
               style: theme.textTheme.bodyMedium?.copyWith(color: AppColors.muted),
             ),
             const SizedBox(height: 18),
@@ -164,7 +182,7 @@ class _InterestSheetState extends State<InterestSheet> {
             Navigator.of(context).pop();
             context.push('/credits');
           },
-          child: const Text('اشحن رصيدك'),
+          child: Text(_g('اشحن رصيدك', 'اشحني رصيدك')),
         );
       case 'GUARDIAN_REQUIRED':
         return TextButton(

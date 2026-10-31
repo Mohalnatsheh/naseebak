@@ -52,12 +52,39 @@ String? ticketError({String? type, required String subject, required String desc
   return null;
 }
 
+/// One page of `GET /api/support?page=` (10 per page, newest first).
+class TicketPage {
+  const TicketPage({required this.tickets, required this.page, required this.totalPages});
+
+  factory TicketPage.fromJson(Map<String, dynamic> j) => TicketPage(
+        tickets: asMapList(j['tickets']).map(SupportTicket.fromJson).toList(),
+        page: asInt(j['page']) ?? 1,
+        totalPages: asInt(j['totalPages']) ?? 1,
+      );
+
+  final List<SupportTicket> tickets;
+  final int page;
+  final int totalPages;
+
+  bool get hasMore => page < totalPages;
+
+  /// This list followed by the [next] page (a ticket that moved between pages is kept once)
+  TicketPage append(TicketPage next) {
+    final seen = tickets.map((t) => t.id).toSet();
+    return TicketPage(
+      tickets: [...tickets, ...next.tickets.where((t) => !seen.contains(t.id))],
+      page: next.page,
+      totalPages: next.totalPages,
+    );
+  }
+}
+
 class SupportRepository {
   SupportRepository(this._api);
   final ApiClient _api;
 
-  Future<List<SupportTicket>> list() async =>
-      asMapList((await _api.get('/api/support', query: {'page': 1}))['tickets']).map(SupportTicket.fromJson).toList();
+  Future<TicketPage> list({int page = 1}) async =>
+      TicketPage.fromJson(await _api.get('/api/support', query: {'page': page}));
 
   Future<void> create({required String type, required String subject, required String description}) async {
     await _api.post('/api/support', body: {'type': type, 'subject': subject.trim(), 'description': description.trim()});
@@ -65,8 +92,28 @@ class SupportRepository {
 }
 
 final supportRepositoryProvider = Provider<SupportRepository>((ref) => SupportRepository(ref.watch(apiClientProvider)));
-final supportTicketsProvider =
-    FutureProvider.autoDispose<List<SupportTicket>>((ref) => ref.watch(supportRepositoryProvider).list());
+/// My tickets, page by page («عرض المزيد» loads the next one).
+class SupportTickets extends AutoDisposeAsyncNotifier<TicketPage> {
+  bool _loadingMore = false;
+
+  @override
+  Future<TicketPage> build() => ref.watch(supportRepositoryProvider).list();
+
+  /// Throws on failure (the screen shows it); the tickets already shown stay.
+  Future<void> loadMore() async {
+    final current = state.valueOrNull;
+    if (current == null || !current.hasMore || _loadingMore) return;
+    _loadingMore = true;
+    try {
+      final next = await ref.read(supportRepositoryProvider).list(page: current.page + 1);
+      state = AsyncData(current.append(next));
+    } finally {
+      _loadingMore = false;
+    }
+  }
+}
+
+final supportTicketsProvider = AsyncNotifierProvider.autoDispose<SupportTickets, TicketPage>(SupportTickets.new);
 
 /// «الدعم الفني»: my tickets (status and the team's reply) and a new ticket (at most 5 open, server rule).
 class SupportScreen extends ConsumerWidget {
@@ -99,7 +146,7 @@ class SupportScreen extends ConsumerWidget {
       body: tickets.when(
         loading: () => const SkeletonList(count: 3, itemHeight: 90),
         error: (e, _) => ErrorView(error: e, onRetry: () => ref.invalidate(supportTicketsProvider)),
-        data: (list) => list.isEmpty
+        data: (list) => list.tickets.isEmpty
             ? const MessageView(
                 icon: Icons.support_agent_rounded,
                 title: 'لا توجد تذاكر بعد',
@@ -109,11 +156,49 @@ class SupportScreen extends ConsumerWidget {
                 onRefresh: () async => ref.invalidate(supportTicketsProvider),
                 child: ListView.separated(
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
-                  itemCount: list.length,
+                  itemCount: list.tickets.length + (list.hasMore ? 1 : 0),
                   separatorBuilder: (_, _) => const SizedBox(height: 10),
-                  itemBuilder: (_, i) => _TicketCard(ticket: list[i]),
+                  itemBuilder: (_, i) =>
+                      i < list.tickets.length ? _TicketCard(ticket: list.tickets[i]) : const _LoadMore(),
                 ),
               ),
+      ),
+    );
+  }
+}
+
+/// «عرض المزيد» under the last ticket while older pages remain.
+class _LoadMore extends ConsumerStatefulWidget {
+  const _LoadMore();
+
+  @override
+  ConsumerState<_LoadMore> createState() => _LoadMoreState();
+}
+
+class _LoadMoreState extends ConsumerState<_LoadMore> {
+  bool _busy = false;
+
+  Future<void> _load() async {
+    setState(() => _busy = true);
+    try {
+      await ref.read(supportTicketsProvider.notifier).loadMore();
+    } catch (e) {
+      if (mounted) showSnack(context, ApiException.messageOf(e));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: TextButton.icon(
+        key: const Key('support-load-more'),
+        onPressed: _busy ? null : _load,
+        icon: _busy
+            ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+            : const Icon(Icons.expand_more_rounded),
+        label: const Text('عرض المزيد'),
       ),
     );
   }
@@ -141,9 +226,19 @@ class _TicketCard extends StatelessWidget {
               Pill(text: ticketStatuses[ticket.status] ?? ticket.status, color: color),
               const SizedBox(width: 6),
               Pill(text: ticketTypes[ticket.type] ?? ticket.type, color: AppColors.gold),
-              const Spacer(),
-              if (ticket.createdAt != null)
-                Text(formatDate(ticket.createdAt!), style: const TextStyle(color: AppColors.muted, fontSize: 12)),
+              const SizedBox(width: 6),
+              // Shrinks before the badges do on a narrow phone
+              Expanded(
+                child: ticket.createdAt == null
+                    ? const SizedBox.shrink()
+                    : Text(
+                        formatDate(ticket.createdAt!),
+                        textAlign: TextAlign.end,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: AppColors.muted, fontSize: 12),
+                      ),
+              ),
             ]),
             const SizedBox(height: 8),
             Text(ticket.subject, style: const TextStyle(fontWeight: FontWeight.w700)),

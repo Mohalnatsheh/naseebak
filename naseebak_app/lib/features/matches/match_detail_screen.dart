@@ -11,8 +11,12 @@ import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/common.dart';
 import '../../shared/widgets/person_details_view.dart';
 import '../home/counts.dart';
+import '../home/gendered_copy.dart';
 import 'match_models.dart';
 import 'matches_repository.dart';
+import 'safety_actions.dart';
+
+export 'safety_actions.dart' show ReportSheet;
 
 final _matchProvider = FutureProvider.autoDispose.family<MatchSummary?, String>(
   (ref, id) => ref.watch(matchesRepositoryProvider).find(id),
@@ -22,7 +26,17 @@ final introStateProvider = FutureProvider.autoDispose.family<IntroState, String>
   (ref, id) => ref.watch(matchesRepositoryProvider).intro(id),
 );
 
+/// After any action on a match: the header (pill, photos, closed state), the next step, the badges and the
+/// matches list all reload.
+void refreshMatch(WidgetRef ref, String matchId) {
+  ref.invalidate(introStateProvider(matchId));
+  ref.invalidate(_matchProvider(matchId));
+  ref.invalidate(countsProvider);
+  ref.read(matchesListVersionProvider.notifier).state++;
+}
+
 /// One match: partner details, photos (revealed after the match), and the next step.
+/// The list's copy (`initial`) only shows while the match itself is fetched: the fetched one always wins.
 class MatchDetailScreen extends ConsumerWidget {
   const MatchDetailScreen({super.key, required this.matchId, this.initial});
   final String matchId;
@@ -30,21 +44,23 @@ class MatchDetailScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    if (initial != null) return _MatchView(match: initial!);
     final match = ref.watch(_matchProvider(matchId));
-    return match.when(
-      loading: () => Scaffold(appBar: AppBar(), body: const SkeletonList(count: 3)),
-      error: (e, _) => Scaffold(
-        appBar: AppBar(),
-        body: ErrorView(error: e, onRetry: () => ref.invalidate(_matchProvider(matchId))),
-      ),
-      data: (m) => m == null
+    if (match.hasValue) {
+      final m = match.value;
+      return m == null
           ? Scaffold(
               appBar: AppBar(),
               body: const MessageView(icon: Icons.search_off_rounded, title: 'التوافق غير موجود'),
             )
-          : _MatchView(match: m),
-    );
+          : _MatchView(match: m);
+    }
+    if (initial != null) return _MatchView(match: initial!);
+    return match.hasError
+        ? Scaffold(
+            appBar: AppBar(),
+            body: ErrorView(error: match.error!, onRetry: () => ref.invalidate(_matchProvider(matchId))),
+          )
+        : Scaffold(appBar: AppBar(), body: const SkeletonList(count: 3));
   }
 }
 
@@ -52,40 +68,36 @@ class _MatchView extends ConsumerWidget {
   const _MatchView({required this.match});
   final MatchSummary match;
 
-  Future<void> _block(BuildContext context, WidgetRef ref) async {
-    final p = match.partner;
-    final ok = await confirmDialog(
-      context,
-      title: 'حظر ${p.firstName}',
-      body: 'يُغلق هذا التوافق ولن يظهر لك ${p.firstName} مجدداً، وتُلغى الطلبات المعلّقة بينكما.',
-      confirmLabel: 'حظر',
-      destructive: true,
-    );
-    if (!ok || !context.mounted) return;
-    try {
-      await ref.read(matchesRepositoryProvider).block(p.id);
-      if (context.mounted) {
-        showSnack(context, 'تم الحظر');
-        context.pop();
-      }
-    } catch (e) {
-      if (context.mounted) showSnack(context, ApiException.messageOf(e));
-    }
+  /// Website wording (matches-view.tsx): what a block on a match ends
+  String _blockBody(bool viewerFemale, bool creditOnInterest) {
+    final name = match.partner.firstName;
+    final see = forViewer(viewerFemale, 'ترى', 'يرى');
+    final reach = forViewer(viewerFemale, 'تتمكن', 'يتمكن');
+    return 'سينتهي هذا التوافق: لن $see $name ملفك ولا $reach من مراسلتك، ولن تتوفر أي خطوات تعارف بينكما. '
+        '${creditOnInterest ? 'تُلغى الطلبات المعلقة بينكما.' : 'تُلغى الطلبات المعلقة بينكما دون استرجاع الرصيد.'} '
+        '${forViewer(viewerFemale, 'يمكنك', 'يمكنكِ')} إلغاء الحظر لاحقاً من صفحة «المحظورون».';
   }
 
-  Future<void> _report(BuildContext context, WidgetRef ref) async {
-    final res = await showModalBottomSheet<(String, String)>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      builder: (_) => const ReportSheet(),
-    );
-    if (res == null || !context.mounted) return;
-    try {
-      await ref.read(matchesRepositoryProvider).report(match.partner.id, res.$1, details: res.$2);
-      if (context.mounted) showSnack(context, 'وصلنا بلاغك وسيراجعه فريق نصيبك. شكراً لك.');
-    } catch (e) {
-      if (context.mounted) showSnack(context, ApiException.messageOf(e));
+  String _reportBody(bool viewerFemale, bool creditOnInterest) =>
+      'سيصل البلاغ لفريق نصيبك، ويُحظر ${match.partner.firstName} فينتهي هذا التوافق ولا '
+      '${forViewer(viewerFemale, 'ترى', 'يرى')} ملفك بعد الآن. '
+      '${creditOnInterest ? 'تُلغى الطلبات المعلقة بينكما.' : 'تُلغى الطلبات المعلقة بينكما دون استرجاع الرصيد.'}';
+
+  Future<void> _safety(BuildContext context, WidgetRef ref, String action) async {
+    final p = match.partner;
+    final female = ref.read(authControllerProvider).me?.isFemale ?? false;
+    final coi = ref.read(countsProvider).valueOrNull?.flags.creditOnInterest ?? false;
+    final run = action == 'block' ? confirmAndBlock : reportAndBlock;
+    final body = action == 'block' ? _blockBody(female, coi) : _reportBody(female, coi);
+    final done = await run(context, ref, userId: p.id, name: p.firstName, viewerFemale: female, body: body);
+    // Stays open on the now blocked match (with «إلغاء الحظر»), like the website's card
+    if (done) refreshMatch(ref, match.id);
+  }
+
+  Future<void> _unblock(BuildContext context, WidgetRef ref) async {
+    if (match.blockId == null) return;
+    if (await confirmAndUnblock(context, ref, blockId: match.blockId!, name: match.partner.firstName)) {
+      refreshMatch(ref, match.id);
     }
   }
 
@@ -98,18 +110,20 @@ class _MatchView extends ConsumerWidget {
       appBar: AppBar(
         title: Text(p.firstName),
         actions: [
-          PopupMenuButton<String>(
-            tooltip: 'خيارات',
-            onSelected: (v) => v == 'block' ? _block(context, ref) : _report(context, ref),
-            itemBuilder: (_) => [
-              const PopupMenuItem(value: 'report', child: Text('إبلاغ')),
-              if (match.closed != 'blocked') const PopupMenuItem(value: 'block', child: Text('حظر')),
-            ],
-          ),
+          if (match.closed != 'blocked')
+            PopupMenuButton<String>(
+              key: const Key('match-menu'),
+              tooltip: 'خيارات',
+              onSelected: (v) => _safety(context, ref, v),
+              itemBuilder: (_) => const [
+                PopupMenuItem(value: 'block', child: Text('حظر')),
+                PopupMenuItem(value: 'report', child: Text('إبلاغ وحظر')),
+              ],
+            ),
         ],
       ),
       body: RefreshIndicator(
-        onRefresh: () async => ref.invalidate(introStateProvider(match.id)),
+        onRefresh: () async => refreshMatch(ref, match.id),
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
           children: [
@@ -151,7 +165,23 @@ class _MatchView extends ConsumerWidget {
               ),
               const SizedBox(height: 16),
             ],
-            if (match.closed != 'blocked' && match.closed != 'inactive') ...[
+            if (match.closed == 'blocked') ...[
+              InfoBanner(
+                text: 'هذا التوافق مغلق بسبب الحظر.',
+                tone: BannerTone.warning,
+                action: match.blockId == null
+                    ? null
+                    : TextButton(
+                        key: const Key('unblock'),
+                        onPressed: () => _unblock(context, ref),
+                        child: const Text('إلغاء الحظر'),
+                      ),
+              ),
+              const SizedBox(height: 16),
+            ] else if (match.closed == 'inactive') ...[
+              const InfoBanner(text: 'حساب الطرف الآخر غير نشط حالياً.', tone: BannerTone.warning),
+              const SizedBox(height: 16),
+            ] else ...[
               const SectionTitle('الخطوة التالية'),
               IntroPanel(matchId: match.id, partnerName: p.firstName),
               const SizedBox(height: 16),
@@ -249,7 +279,7 @@ class _PhotosSectionState extends ConsumerState<_PhotosSection> {
   }
 }
 
-/// The family / chat introduction state of a match and its actions.
+/// The family / chat introduction state of a match and its actions (website match-intro-panel.tsx).
 class IntroPanel extends ConsumerStatefulWidget {
   const IntroPanel({super.key, required this.matchId, required this.partnerName});
   final String matchId;
@@ -262,13 +292,16 @@ class IntroPanel extends ConsumerStatefulWidget {
 class _IntroPanelState extends ConsumerState<IntroPanel> {
   String? _busy;
 
+  bool get _viewerFemale => ref.read(authControllerProvider).me?.isFemale ?? false;
+  String _g(String m, String f) => forViewer(_viewerFemale, m, f);
+  String _p(String m, String f) => forPartner(_viewerFemale, m, f);
+
   Future<void> _run(String key, Future<void> Function() action, {String? success}) async {
     if (_busy != null) return;
     setState(() => _busy = key);
     try {
       await action();
-      ref.invalidate(introStateProvider(widget.matchId));
-      ref.invalidate(countsProvider);
+      refreshMatch(ref, widget.matchId);
       if (success != null && mounted) showSnack(context, success);
     } on ApiException catch (e) {
       if (!mounted) return;
@@ -288,13 +321,37 @@ class _IntroPanelState extends ConsumerState<IntroPanel> {
   Future<bool> _consent(String title) => confirmDialog(
         context,
         title: title,
-        body: 'عند القبول تتبادل العائلتان بيانات التواصل: اسم وليّ أمرك وصلة القرابة ورقمه. هل توافق على مشاركتها؟',
+        body: 'عند القبول تتبادل العائلتان بيانات التواصل: اسم وليّ أمرك وصلة القرابة ورقمه. '
+            'هل ${_g('توافق', 'توافقين')} على مشاركتها؟',
         confirmLabel: 'أوافق',
       );
+
+  /// «تمت الخطبة» / «لم يحصل نصيب» / «إنهاء التوافق» ask first (website wording); «ما زلنا نتعارف» doesn't.
+  Future<void> _outcome(String outcome, IntroState s) async {
+    if (outcome != 'CONTINUING') {
+      final engaged = outcome == 'ENGAGED';
+      final ok = await confirmDialog(
+        context,
+        title: engaged ? 'تأكيد الخطبة' : 'إنهاء التوافق مع ${widget.partnerName}؟',
+        body: engaged
+            ? 'مبارك! سنوقف إرسال اقتراحات جديدة لك، وتُغلق اقتراحاتك المفتوحة وتوافقاتك الأخرى (تنتهي محادثاتها '
+                'المفتوحة ويُبلَّغ أصحابها بلطف). ${_g('يمكنك', 'يمكنكِ')} التراجع لاحقاً من هذه الصفحة لاستئناف '
+                'الاقتراحات.'
+            : 'سينتهي التوافق مع ${widget.partnerName}${s.chatStatus == 'open' ? ' وتُغلق المحادثة' : ''}، '
+                'وسنُعلم الطرف الآخر بلطف. لا يمكن التراجع عن ذلك.',
+        confirmLabel: engaged ? 'نعم، تمت الخطبة' : 'نعم، إنهاء التوافق',
+        destructive: !engaged,
+      );
+      if (!ok || !mounted) return;
+    }
+    await _run('outcome', () async => ref.read(matchesRepositoryProvider).outcome(widget.matchId, outcome),
+        success: outcome == 'NOT_A_MATCH' ? 'انتهى التوافق' : 'شكراً، تم الحفظ');
+  }
 
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(introStateProvider(widget.matchId));
+    ref.watch(authControllerProvider.select((a) => a.me?.isFemale));
     final repo = ref.read(matchesRepositoryProvider);
     return state.when(
       loading: () => const SkeletonBox(height: 120),
@@ -315,9 +372,22 @@ class _IntroPanelState extends ConsumerState<IntroPanel> {
       data: (s) {
         final children = <Widget>[];
         void gap() => children.add(const SizedBox(height: 10));
+        final name = widget.partnerName;
 
         if (s.closed != null) {
-          children.add(InfoBanner(text: _closedText(s.closed!), tone: BannerTone.warning));
+          children.add(InfoBanner(
+            text: _closedText(s.closed!),
+            tone: BannerTone.warning,
+            // «تمت الخطبة» said by mistake (or called off): back to «ما زلنا نتعارف»
+            action: s.closed == 'engaged'
+                ? TextButton(
+                    key: const Key('undo-engaged'),
+                    onPressed: _busy != null ? null : () => _outcome('CONTINUING', s),
+                    child: const Text('تراجع: ما زلنا نتعارف'),
+                  )
+                : null,
+          ));
+          gap();
         }
 
         // Chat
@@ -335,7 +405,7 @@ class _IntroPanelState extends ConsumerState<IntroPanel> {
           gap();
         } else if ((s.chatStatus == 'ended' || s.chatStatus == 'expired') && s.conversationId != null) {
           children.add(LoadingButton(
-            label: 'عرض المحادثة السابقة',
+            label: s.chatPaused ? 'المحادثة متوقفة مؤقتاً للمراجعة' : 'عرض المحادثة السابقة',
             outlined: true,
             icon: Icons.history_rounded,
             onPressed: () => context.push('/chats/${s.conversationId}'),
@@ -357,7 +427,7 @@ class _IntroPanelState extends ConsumerState<IntroPanel> {
             gap();
           case 'pending_sent':
             children.add(InfoBanner(
-              text: 'أرسلت طلب تعارف عائلي، بانتظار رد ${widget.partnerName}'
+              text: 'أرسلت طلب تعارف عائلي، بانتظار رد $name'
                   '${s.familyExpiresAt != null ? ' حتى ${formatDate(s.familyExpiresAt!, withYear: false)}' : ''}.',
               tone: BannerTone.warning,
             ));
@@ -371,7 +441,7 @@ class _IntroPanelState extends ConsumerState<IntroPanel> {
             }
             gap();
           case 'pending_received':
-            children.add(InfoBanner(text: '${widget.partnerName} يطلب تعارفاً عائلياً.', tone: BannerTone.info));
+            children.add(InfoBanner(text: '$name ${_p('يطلب', 'تطلب')} تعارفاً عائلياً.', tone: BannerTone.info));
             gap();
             children.add(_ReplyRow(
               busy: _busy,
@@ -389,7 +459,17 @@ class _IntroPanelState extends ConsumerState<IntroPanel> {
             // An older admin-arranged visit: its status shows above; the team no longer contacts the families
             break;
           case 'declined':
-            children.add(const InfoBanner(text: 'لم يتم قبول التعارف العائلي على هذا التوافق.', tone: BannerTone.warning));
+            children.add(InfoBanner(
+              text: s.familyDeclinedByMe
+                  ? 'تم الاعتذار عن التعارف العائلي من طرفك.'
+                  : 'لم يتم قبول طلب التعارف العائلي على هذا التوافق.',
+              tone: BannerTone.warning,
+            ));
+            gap();
+          case 'closed':
+            // One of the two ended the chat: no family request on this match any more
+            children.add(
+                const InfoBanner(text: 'التعارف العائلي غير متاح بعد إنهاء المحادثة.', tone: BannerTone.warning));
             gap();
           case 'none':
             if (s.flags.introRequests && s.closed == null) {
@@ -403,6 +483,15 @@ class _IntroPanelState extends ConsumerState<IntroPanel> {
                       success: 'تم إرسال طلب التعارف العائلي');
                 },
               ));
+              if (s.familyOpenUntil != null) {
+                gap();
+                children.add(Text(
+                  'انتهت مدة المحادثة. هل تنتقلان لتعارف عائلي؟${s.familyFree ? ' الانتقال مجاني' : ''}'
+                  '${s.familyFree ? ' و' : ' '}متاح حتى ${formatDate(s.familyOpenUntil!, withYear: false)}.',
+                  key: const Key('family-open-until'),
+                  style: const TextStyle(color: AppColors.muted, fontSize: 13),
+                ));
+              }
               gap();
             }
         }
@@ -410,7 +499,7 @@ class _IntroPanelState extends ConsumerState<IntroPanel> {
         // Chat requests
         switch (s.chatStatus) {
           case 'pending_sent':
-            children.add(InfoBanner(text: 'أرسلت طلب محادثة، بانتظار رد ${widget.partnerName}.', tone: BannerTone.warning));
+            children.add(InfoBanner(text: 'أرسلت طلب محادثة، بانتظار رد $name.', tone: BannerTone.warning));
             if (s.chatRequestId != null) {
               children.add(TextButton(
                 onPressed: _busy != null
@@ -421,7 +510,7 @@ class _IntroPanelState extends ConsumerState<IntroPanel> {
             }
             gap();
           case 'pending_received':
-            children.add(InfoBanner(text: '${widget.partnerName} يطلب محادثة قصيرة داخل التطبيق.'));
+            children.add(InfoBanner(text: '$name ${_p('يطلب', 'تطلب')} محادثة قصيرة داخل التطبيق.'));
             gap();
             children.add(_ReplyRow(
               busy: _busy,
@@ -429,6 +518,15 @@ class _IntroPanelState extends ConsumerState<IntroPanel> {
               onAccept: () => _run('c-yes', () => repo.respond(s.chatRequestId!, accept: true), success: 'تم فتح المحادثة'),
               onDecline: () => _run('c-no', () => repo.respond(s.chatRequestId!, accept: false), success: 'تم الرد'),
             ));
+            gap();
+          case 'declined':
+            children.add(InfoBanner(
+              text: s.chatDeclinedByMe ? 'تم الاعتذار عن طلب المحادثة من طرفك.' : 'لم يتم قبول طلب المحادثة.',
+              tone: BannerTone.warning,
+            ));
+            gap();
+          case 'disabled':
+            children.add(const InfoBanner(text: 'المحادثة غير متاحة حالياً.', icon: Icons.schedule_rounded));
             gap();
           case 'none':
             if (s.flags.chat && s.flags.introRequests && s.closed == null) {
@@ -445,15 +543,25 @@ class _IntroPanelState extends ConsumerState<IntroPanel> {
 
         if (s.askShare) {
           children.add(InfoBanner(
-            text: 'اختار ${widget.partnerName} التعارف العائلي. شارك بيانات وليّ أمرك لتظهر بيانات العائلتين.',
-            action: TextButton(
-              onPressed: _busy != null
-                  ? null
-                  : () async {
-                      if (!await _consent('مشاركة بيانات وليّ الأمر')) return;
-                      await _run('share', () async => repo.shareGuardian(widget.matchId), success: 'تمت المشاركة');
-                    },
-              child: const Text('مشاركة الآن'),
+            text: '${_p('اختار', 'اختارت')} $name التعارف العائلي. ${_g('شارك', 'شاركي')} بيانات وليّ أمرك '
+                'لتظهر بيانات العائلتين.',
+            action: Wrap(
+              children: [
+                TextButton(
+                  onPressed: _busy != null
+                      ? null
+                      : () async {
+                          if (!await _consent('مشاركة بيانات وليّ الأمر')) return;
+                          await _run('share', () async => repo.shareGuardian(widget.matchId), success: 'تمت المشاركة');
+                        },
+                  child: const Text('مشاركة الآن'),
+                ),
+                TextButton(
+                  key: const Key('not-continue'),
+                  onPressed: _busy != null ? null : () => _outcome('NOT_A_MATCH', s),
+                  child: const Text('لا أرغب بالمتابعة'),
+                ),
+              ],
             ),
           ));
           gap();
@@ -463,26 +571,32 @@ class _IntroPanelState extends ConsumerState<IntroPanel> {
           children.add(_FollowUp(
             mine: s.followUpMine,
             busy: _busy,
-            onPick: (o) async {
-              if (o != 'CONTINUING') {
-                final ok = await confirmDialog(
-                  context,
-                  title: o == 'ENGAGED' ? 'تمت الخطبة' : 'لم يحصل نصيب',
-                  body: o == 'ENGAGED'
-                      ? 'مبارك! سنغلق اقتراحاتك وتوافقاتك الأخرى ونوقف الاقتراحات الجديدة.'
-                      : 'سيُغلق هذا التوافق للطرفين ويُبلَّغ الطرف الآخر بلطف.',
-                  confirmLabel: 'تأكيد',
-                  destructive: o == 'NOT_A_MATCH',
-                );
-                if (!ok) return;
-              }
-              await _run('outcome', () async => repo.outcome(widget.matchId, o), success: 'شكراً، تم الحفظ');
-            },
+            text: s.followUpPartner == 'ENGAGED' && s.followUpMine != 'ENGAGED'
+                ? 'أخبرنا الطرف الآخر أن التعارف انتهى بالخطبة. ${_g('هل تؤكد ذلك؟', 'هل تؤكدين ذلك؟')}'
+                : s.followUpMine == 'CONTINUING'
+                    ? 'أخبرتنا أنكما ما زلتما تتعارفان. حدّثنا عندما يتغيّر شيء.'
+                    : _g('أخبِرنا بما وصلتم إليه، فهذا يساعدنا على متابعتك وإيقاف الاقتراحات عند الخطبة.',
+                        'أخبِرينا بما وصلتم إليه، فهذا يساعدنا على متابعتكِ وإيقاف الاقتراحات عند الخطبة.'),
+            onPick: (o) => _outcome(o, s),
           ));
+          gap();
         }
 
         if (children.isEmpty) {
           children.add(const InfoBanner(text: 'لا توجد خطوة مطلوبة منك الآن.'));
+        }
+
+        // A polite way out of any open match (no block needed)
+        if (s.closed == null && !s.followUpAsk && !s.askShare) {
+          children.add(Align(
+            alignment: AlignmentDirectional.centerEnd,
+            child: TextButton(
+              key: const Key('end-match'),
+              style: TextButton.styleFrom(foregroundColor: AppColors.muted),
+              onPressed: _busy != null ? null : () => _outcome('NOT_A_MATCH', s),
+              child: const Text('إنهاء التوافق'),
+            ),
+          ));
         }
         return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: children);
       },
@@ -557,9 +671,10 @@ class _GuardianCard extends StatelessWidget {
 }
 
 class _FollowUp extends StatelessWidget {
-  const _FollowUp({required this.mine, required this.busy, required this.onPick});
+  const _FollowUp({required this.mine, required this.busy, required this.text, required this.onPick});
   final String? mine;
   final String? busy;
+  final String text;
   final ValueChanged<String> onPick;
 
   @override
@@ -572,6 +687,8 @@ class _FollowUp extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text('كيف يسير التعارف العائلي؟', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15.5)),
+            const SizedBox(height: 4),
+            Text(text, style: const TextStyle(color: AppColors.muted, fontSize: 13.5, height: 1.5)),
             const SizedBox(height: 8),
             Wrap(
               spacing: 8,
@@ -584,70 +701,6 @@ class _FollowUp extends StatelessWidget {
                     onSelected: busy != null ? null : (_) => onPick(o.$1),
                   ),
               ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Report reasons of `POST /api/reports`.
-class ReportSheet extends StatefulWidget {
-  const ReportSheet({super.key});
-
-  @override
-  State<ReportSheet> createState() => _ReportSheetState();
-}
-
-class _ReportSheetState extends State<ReportSheet> {
-  static const reasons = [
-    ('FAKE_PROFILE', 'حساب غير حقيقي'),
-    ('INAPPROPRIATE_CONTENT', 'محتوى غير لائق'),
-    ('HARASSMENT', 'إزعاج أو تحرش'),
-    ('SPAM', 'رسائل مزعجة'),
-    ('OTHER', 'سبب آخر'),
-  ];
-  String? _reason;
-  final _details = TextEditingController();
-
-  @override
-  void dispose() {
-    _details.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text('إبلاغ', style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 8),
-            RadioGroup<String>(
-              groupValue: _reason,
-              onChanged: (v) => setState(() => _reason = v),
-              child: Column(
-                children: [
-                  for (final r in reasons)
-                    RadioListTile<String>(value: r.$1, title: Text(r.$2), contentPadding: EdgeInsets.zero),
-                ],
-              ),
-            ),
-            TextField(
-              controller: _details,
-              maxLength: 1000,
-              maxLines: 3,
-              decoration: const InputDecoration(hintText: 'تفاصيل (اختياري)'),
-            ),
-            const SizedBox(height: 8),
-            FilledButton(
-              onPressed: _reason == null ? null : () => Navigator.of(context).pop((_reason!, _details.text)),
-              child: const Text('إرسال البلاغ'),
             ),
           ],
         ),

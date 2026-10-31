@@ -96,6 +96,7 @@ class ChatMessage {
     this.error,
     this.nonce,
     this.filtered = false,
+    this.maybeSent = false,
   });
 
   factory ChatMessage.fromJson(Map<String, dynamic> j) => ChatMessage(
@@ -129,7 +130,14 @@ class ChatMessage {
   /// Refused by the chat filter: it must be edited, not resent as is
   final bool filtered;
 
-  ChatMessage copyWith({SendState? state, String? error, bool filtered = false}) => ChatMessage(
+  /// Failed without an answer (offline, timeout): the server may still have saved it (the chat room reconciles)
+  final bool maybeSent;
+
+  /// Same server copy (a newer one differs, e.g. by its read tick)
+  bool sameAs(ChatMessage o) =>
+      id == o.id && body == o.body && mine == o.mine && createdAt == o.createdAt && readAt == o.readAt;
+
+  ChatMessage copyWith({SendState? state, String? error, bool filtered = false, bool maybeSent = false}) => ChatMessage(
         id: id,
         body: body,
         createdAt: createdAt,
@@ -139,6 +147,7 @@ class ChatMessage {
         error: error,
         nonce: nonce,
         filtered: filtered,
+        maybeSent: maybeSent,
       );
 }
 

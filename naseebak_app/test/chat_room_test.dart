@@ -11,12 +11,12 @@ import 'helpers/fake_api.dart';
 
 final _t0 = DateTime.utc(2026, 10, 30, 10);
 
-Map<String, dynamic> msg(int n, {bool mine = false}) => {
+Map<String, dynamic> msg(int n, {bool mine = false, DateTime? readAt}) => {
       'id': 'm${n.toString().padLeft(3, '0')}',
       'body': 'رسالة $n',
       'createdAt': _t0.add(Duration(minutes: n)).toIso8601String(),
       'mine': mine,
-      'readAt': null,
+      'readAt': readAt?.toIso8601String(),
     };
 
 const conv = {
@@ -37,7 +37,8 @@ CachedChat cached(Iterable<int> ns, {bool hasMore = false}) => CachedChat(
     );
 
 /// A signed-in member (id u1) with the chat room open on c1
-Future<ProviderContainer> openRoom(WidgetTester tester, FakeAdapter adapter, MemoryChatCache cache) async {
+Future<ProviderContainer> openRoom(WidgetTester tester, FakeAdapter adapter, MemoryChatCache cache,
+    {Duration pollInterval = const Duration(hours: 1)}) async {
   adapter
     ..on('GET', '/api/mobile/me', FakeResponse(200, {'user': meJson()}))
     ..on('POST', '/api/chats/c1/read', const FakeResponse(200, {'ok': true}))
@@ -54,7 +55,7 @@ Future<ProviderContainer> openRoom(WidgetTester tester, FakeAdapter adapter, Mem
   expect(container.read(authControllerProvider).me?.id, 'u1');
   await tester.pumpWidget(UncontrolledProviderScope(
     container: container,
-    child: rtlApp(const ChatRoomScreen(chatId: 'c1', pollInterval: Duration(hours: 1))),
+    child: rtlApp(ChatRoomScreen(chatId: 'c1', pollInterval: pollInterval)),
   ));
   return container;
 }
@@ -142,6 +143,99 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('رسالة 1'), findsOneWidget);
       expect(adapter.to('GET', '/api/chats/c1').where((r) => r.queryParameters.containsKey('before')), hasLength(1));
+    });
+
+    testWidgets('a read tick on a message already on screen updates and is kept', (tester) async {
+      final cache = MemoryChatCache();
+      DateTime? readAt;
+      final adapter = FakeAdapter()
+        ..handlers['GET /api/chats/c1'] = (_) => FakeResponse(200, {
+              ...page([]),
+              'messages': [msg(1), msg(2, mine: true, readAt: readAt)],
+            });
+      await openRoom(tester, adapter, cache, pollInterval: const Duration(seconds: 4));
+      await tester.pumpAndSettle();
+      expect(find.byIcon(Icons.done_rounded), findsOneWidget);
+      // The partner reads it: the next poll brings the same message with its read time
+      readAt = _t0.add(const Duration(minutes: 5));
+      await tester.pump(const Duration(seconds: 4));
+      await tester.pumpAndSettle();
+      expect(find.byIcon(Icons.done_all_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.done_rounded), findsNothing);
+      expect(find.text('رسالة 2'), findsOneWidget);
+      final saved = (await cache.read('u1', 'c1'))!;
+      expect(saved.messages.map((m) => m.id), ['m001', 'm002']);
+      expect(saved.messages.last.readAt, isNotNull);
+      // While it was unread the poll asked from my unread message, so its tick could come back
+      final polls = adapter.to('GET', '/api/chats/c1').where((r) => r.queryParameters.containsKey('after'));
+      expect(polls.first.queryParameters['after'], _t0.add(const Duration(minutes: 2)).toIso8601String());
+    });
+
+    testWidgets('first load offline, a later poll recovers: older messages can still load', (tester) async {
+      final cache = MemoryChatCache();
+      await cache.write('u1', 'c1', cached([]));
+      var online = false;
+      final adapter = FakeAdapter()
+        ..handlers['GET /api/chats/c1'] = (r) => !online
+            ? const FakeResponse.network()
+            : r.queryParameters.containsKey('before')
+                ? FakeResponse(200, page(List.generate(30, (i) => i + 1)))
+                : FakeResponse(200, page(List.generate(30, (i) => i + 31), hasMore: true));
+      await openRoom(tester, adapter, cache, pollInterval: const Duration(seconds: 4));
+      await tester.pumpAndSettle();
+      online = true;
+      await tester.pump(const Duration(seconds: 4));
+      await tester.pumpAndSettle();
+      expect(find.text('رسالة 60'), findsOneWidget);
+      expect((await cache.read('u1', 'c1'))!.hasMore, isTrue);
+      await tester.drag(find.byType(ListView), const Offset(0, 4000));
+      await tester.pumpAndSettle();
+      expect(adapter.to('GET', '/api/chats/c1').where((r) => r.queryParameters.containsKey('before')), isNotEmpty);
+    });
+
+    testWidgets('a send with no answer that the server saved: the failed bubble goes on the next poll', (tester) async {
+      final cache = MemoryChatCache();
+      Map<String, dynamic>? saved;
+      final adapter = FakeAdapter()
+        ..on('POST', '/api/chats/c1/messages', const FakeResponse.network())
+        ..handlers['GET /api/chats/c1'] = (_) => FakeResponse(200, {
+              ...page([1, 2]),
+              'messages': [msg(1), msg(2), ?saved],
+            });
+      await openRoom(tester, adapter, cache, pollInterval: const Duration(seconds: 4));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byKey(const Key('chat-input')), 'السلام عليكم');
+      await tester.tap(find.byKey(const Key('chat-send')));
+      await tester.pumpAndSettle();
+      expect(find.byIcon(Icons.error_outline_rounded), findsOneWidget);
+      // The request did reach the server: its copy comes with the next poll
+      saved = {
+        'id': 'm900',
+        'body': 'السلام عليكم',
+        'createdAt': DateTime.now().toUtc().toIso8601String(),
+        'mine': true,
+        'readAt': null,
+      };
+      await tester.pump(const Duration(seconds: 4));
+      await tester.pumpAndSettle();
+      expect(find.text('السلام عليكم'), findsOneWidget);
+      expect(find.byIcon(Icons.error_outline_rounded), findsNothing);
+      final retried = adapter.to('POST', '/api/chats/c1/messages');
+      expect(retried, hasLength(1));
+      expect((retried.single.data as Map)['clientNonce'], isNotNull);
+    });
+
+    testWidgets('a chat that can no longer change has no live link', (tester) async {
+      final cache = MemoryChatCache();
+      final adapter = FakeAdapter()
+        ..on('GET', '/api/chats/c1', FakeResponse(200, {...page([1]), 'conversation': {...conv, 'status': 'ENDED'}}));
+      await openRoom(tester, adapter, cache, pollInterval: const Duration(seconds: 4));
+      await tester.pumpAndSettle();
+      expect(find.text('انتهت هذه المحادثة.'), findsOneWidget);
+      await tester.pump(const Duration(seconds: 30));
+      expect(adapter.to('GET', '/api/chats/ably-token'), isEmpty);
+      // Not every 4 s: only the first load in 30 s
+      expect(adapter.to('GET', '/api/chats/c1'), hasLength(1));
     });
 
     test('sign-out wipes every chat kept on the device', () async {

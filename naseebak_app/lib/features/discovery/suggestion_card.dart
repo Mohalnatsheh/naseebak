@@ -17,6 +17,10 @@ class SuggestionCard extends StatelessWidget {
     required this.onDecline,
     this.busy = false,
     this.tribeLabel = 'العائلة',
+    this.interestDisabled = false,
+    this.creditNote,
+    this.onBlock,
+    this.onReport,
   });
 
   final FeedItem item;
@@ -30,6 +34,16 @@ class SuggestionCard extends StatelessWidget {
   /// An answer is in flight: both buttons are disabled
   final bool busy;
   final String tribeLabel;
+
+  /// 0 credits with credit on interest: «مهتم» waits for a recharge, «لا» stays free
+  final bool interestDisabled;
+
+  /// A line above the answers («مهتم» يستخدم رصيداً واحداً)
+  final String? creditNote;
+
+  /// «حظر» / «إبلاغ وحظر» in the card's menu (no menu when both are null)
+  final VoidCallback? onBlock;
+  final VoidCallback? onReport;
 
   @override
   Widget build(BuildContext context) {
@@ -69,6 +83,16 @@ class SuggestionCard extends StatelessWidget {
                   ),
                 ),
                 if (item.compatibilityScore > 0) ScoreRing(score: item.compatibilityScore, size: 52),
+                if (onBlock != null || onReport != null)
+                  PopupMenuButton<String>(
+                    key: Key('card-menu-${item.id}'),
+                    tooltip: 'خيارات إضافية: ${c.firstName}',
+                    onSelected: (v) => v == 'block' ? onBlock?.call() : onReport?.call(),
+                    itemBuilder: (_) => [
+                      if (onReport != null) const PopupMenuItem(value: 'report', child: Text('إبلاغ وحظر')),
+                      if (onBlock != null) const PopupMenuItem(value: 'block', child: Text('حظر')),
+                    ],
+                  ),
               ],
             ),
             if (_status() != null) ...[
@@ -108,13 +132,17 @@ class SuggestionCard extends StatelessWidget {
             ),
             if (actionable) ...[
               const SizedBox(height: 14),
+              if (creditNote != null) ...[
+                Text(creditNote!, style: const TextStyle(color: AppColors.muted, fontSize: 12.5)),
+                const SizedBox(height: 8),
+              ],
               Row(
                 children: [
                   Expanded(
                     flex: 3,
                     child: FilledButton.icon(
                       key: Key('interested-${item.id}'),
-                      onPressed: busy ? null : onInterested,
+                      onPressed: busy || interestDisabled ? null : onInterested,
                       icon: busy
                           ? const SizedBox(
                               width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
@@ -145,7 +173,11 @@ class SuggestionCard extends StatelessWidget {
       return const Pill(text: 'لم يحصل توافق', color: AppColors.muted, icon: Icons.do_not_disturb_on_outlined);
     }
     if (item.likedYou) {
-      return const Pill(text: 'أبدى اهتمامه بك', color: AppColors.success, icon: Icons.favorite_border_rounded);
+      return Pill(
+        text: candidateFemale ? 'أبدت اهتمامها بك' : 'أبدى اهتمامه بك',
+        color: AppColors.success,
+        icon: Icons.favorite_border_rounded,
+      );
     }
     if (tab == FeedTab.waiting || item.kind == FeedKind.legacySent) {
       final until = item.expiresAt;

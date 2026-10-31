@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { notify } from "@/lib/notify";
 import { createMutualMatch } from "@/lib/intro/match";
 import { notifyInterestCreditsExhausted, recordCredit, reserveCredits } from "@/lib/credits";
-import { IntroError } from "@/lib/intro/errors";
+import { noCreditsError } from "@/lib/intro/errors";
 import { introErrorResponse } from "@/lib/intro/http";
 import { getCycleFlags } from "@/lib/settings";
 
@@ -40,7 +40,7 @@ export async function POST(
           data: { status: "ACCEPTED" },
         });
         if (accepted.count === 0) return null;
-        if (!(await reserveCredits(session.user.id, 1, tx))) throw new IntroError("NO_CREDITS");
+        if (!(await reserveCredits(session.user.id, 1, tx))) throw noCreditsError((await tx.user.findUnique({ where: { id: session.user.id }, select: { phone: true } }))?.phone);
         await recordCredit({ userId: session.user.id, delta: -1, reason: "INTEREST", refId: suggestion.id }, tx);
         await tx.like.create({ data: likeData });
         const me = await tx.user.findUniqueOrThrow({ where: { id: session.user.id }, select: { matchCredits: true } });

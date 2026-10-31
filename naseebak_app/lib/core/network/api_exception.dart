@@ -17,6 +17,9 @@ enum ApiErrorKind {
   /// 403 `DEACTIVATED`: the account is paused (only reactivation works)
   deactivated,
 
+  /// 403 `SUSPENDED` (`/api/mobile/me`): the account was stopped by the team; nothing works
+  suspended,
+
   /// 403 (other)
   forbidden,
 
@@ -29,10 +32,10 @@ enum ApiErrorKind {
   /// 429
   rateLimited,
 
-  /// 503 maintenance
+  /// 503 `MAINTENANCE` (a plain 503 is [server]: a proxy or a restart, not the admin's maintenance mode)
   maintenance,
 
-  /// 5xx / 502 provider failure
+  /// 5xx / 502 provider failure / 503 without a code
   server,
 }
 
@@ -65,6 +68,7 @@ class ApiException implements Exception {
 
   static ApiErrorKind kindFor(int status, String? code) {
     if (code == 'DEACTIVATED') return ApiErrorKind.deactivated;
+    if (code == 'SUSPENDED') return ApiErrorKind.suspended;
     if (code == 'NO_CREDITS' || status == 402) return ApiErrorKind.noCredits;
     if (code == 'MAINTENANCE') return ApiErrorKind.maintenance;
     switch (status) {
@@ -83,8 +87,6 @@ class ApiException implements Exception {
         return ApiErrorKind.conflict;
       case 429:
         return ApiErrorKind.rateLimited;
-      case 503:
-        return ApiErrorKind.maintenance;
       default:
         return status >= 500 ? ApiErrorKind.server : ApiErrorKind.invalid;
     }
@@ -116,7 +118,7 @@ class ApiException implements Exception {
     if (status == 401) return 'انتهت الجلسة. سجّل الدخول من جديد.';
     if (status == 404) return 'غير موجود';
     if (status == 429) return 'محاولات كثيرة. حاول مرة أخرى بعد قليل.';
-    if (status == 503) return 'الخدمة تحت الصيانة حالياً. حاول لاحقاً.';
+    if (status == 503) return 'الخدمة غير متاحة مؤقتاً. حاول مرة أخرى بعد قليل.';
     return genericMessage;
   }
 

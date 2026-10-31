@@ -7,13 +7,17 @@ typedef Json = Map<String, dynamic>;
 
 /// Thin wrapper around Dio: base URL, JSON, the Bearer token, and `{ error, code }` → [ApiException].
 ///
-/// A 401 on a request that carried a token calls [onUnauthorized] (the session signs out locally).
+/// A 401 on a request that carried a token calls [onUnauthorized] (the session signs out locally); a 403
+/// `DEACTIVATED` / suspended answer calls [onAccountChanged] (the session re-reads `/api/mobile/me`); a 503
+/// `MAINTENANCE` calls [onMaintenance].
 class ApiClient {
   ApiClient({
     required String baseUrl,
     required this.tokenStore,
     HttpClientAdapter? adapter,
     this.onUnauthorized,
+    this.onAccountChanged,
+    this.onMaintenance,
   }) : dio = Dio(
           BaseOptions(
             baseUrl: baseUrl,
@@ -39,8 +43,15 @@ class ApiClient {
         },
         onError: (error, handler) {
           final sentToken = error.requestOptions.headers.containsKey('Authorization');
-          if (error.response?.statusCode == 401 && sentToken) {
+          final status = error.response?.statusCode;
+          final body = error.response?.data;
+          if (status == 401 && sentToken) {
             onUnauthorized?.call();
+          } else if (status == 403 && sentToken && error.requestOptions.path != mePath && accountBlocked(body)) {
+            // Paused (or suspended) since the last `me`: re-read it so the router shows the right page
+            onAccountChanged?.call();
+          } else if (status == 503 && _code(body) == 'MAINTENANCE') {
+            onMaintenance?.call();
           }
           handler.next(error);
         },
@@ -53,6 +64,23 @@ class ApiClient {
 
   /// Called once per 401 answer to an authenticated request.
   void Function()? onUnauthorized;
+
+  /// Called on a 403 that says the account is paused or suspended (never for `/api/mobile/me` itself).
+  void Function()? onAccountChanged;
+
+  /// Called on a 503 `MAINTENANCE`.
+  void Function()? onMaintenance;
+
+  static const mePath = '/api/mobile/me';
+
+  /// `requireUser()` refusals: 403 `DEACTIVATED`, and a suspension (`SUSPENDED`, or «تم إيقاف حسابك» without a code)
+  static bool accountBlocked(Object? body) {
+    final code = _code(body);
+    if (code == 'DEACTIVATED' || code == 'SUSPENDED') return true;
+    return code == null && body is Map && body['error'] == 'تم إيقاف حسابك';
+  }
+
+  static String? _code(Object? body) => body is Map && body['code'] is String ? body['code'] as String : null;
 
   Future<Json> get(String path, {Map<String, dynamic>? query, bool auth = true}) =>
       _send(() => dio.get<dynamic>(path, queryParameters: query, options: _opts(auth)));

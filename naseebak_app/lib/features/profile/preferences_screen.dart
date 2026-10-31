@@ -87,11 +87,36 @@ class _PreferencesFormState extends ConsumerState<PreferencesForm> {
   late final _smoking = {...widget.initial.smoking};
   late String? _yesNo = widget.female ? widget.initial.beard : widget.initial.hijab;
   late String? _children = widget.initial.children;
-  late final _dealbreakers = {...widget.initial.dealbreakers};
+  // A lock saved earlier on an empty preference (older app versions) shows unticked
+  late final _dealbreakers = {...widget.initial.activeDealbreakers(female: widget.female)};
   String? _ageError;
   bool _saving = false;
 
   bool get _partnerFemale => !widget.female;
+
+  /// The preferences as they are on screen ([min] / [max] from the age fields)
+  PartnerPrefs _current({int? min, int? max}) => PartnerPrefs(
+        ageMin: min,
+        ageMax: max,
+        cities: _cities.toList(),
+        education: ProfileOptions.education.where(_education.contains).toList(),
+        maritalStatus: _marital.toList(),
+        religiosity: _religiosity.toList(),
+        smoking: _smoking.toList(),
+        hijab: widget.female ? null : _yesNo,
+        beard: widget.female ? _yesNo : null,
+        children: _children,
+        dealbreakers: _dealbreakers,
+      );
+
+  /// A change to a preference: a «شرط أساسي» whose preference is now empty is unticked with it
+  void _change(VoidCallback edit) {
+    setState(() {
+      edit();
+      final now = _current(min: 18, max: 18);
+      _dealbreakers.removeWhere((k) => k != 'age' && !now.dealbreakerFilled(k, female: widget.female));
+    });
+  }
 
   @override
   void dispose() {
@@ -106,19 +131,7 @@ class _PreferencesFormState extends ConsumerState<PreferencesForm> {
     final err = prefAgeError(min, max);
     setState(() => _ageError = err);
     if (err != null) return;
-    final prefs = PartnerPrefs(
-      ageMin: min,
-      ageMax: max,
-      cities: _cities.toList(),
-      education: ProfileOptions.education.where(_education.contains).toList(),
-      maritalStatus: _marital.toList(),
-      religiosity: _religiosity.toList(),
-      smoking: _smoking.toList(),
-      hijab: widget.female ? null : _yesNo,
-      beard: widget.female ? _yesNo : null,
-      children: _children,
-      dealbreakers: _dealbreakers,
-    );
+    final prefs = _current(min: min, max: max);
     setState(() => _saving = true);
     try {
       await ref
@@ -167,7 +180,7 @@ class _PreferencesFormState extends ConsumerState<PreferencesForm> {
           FilterChip(
             label: Text(labelOf?.call(o) ?? o),
             selected: selected.contains(o),
-            onSelected: (on) => setState(() => on ? selected.add(o) : selected.remove(o)),
+            onSelected: (on) => _change(() => on ? selected.add(o) : selected.remove(o)),
           ),
       ],
     );
@@ -235,7 +248,7 @@ class _PreferencesFormState extends ConsumerState<PreferencesForm> {
             labelOf: (v) => OptionLabels.describe('maritalStatus', v, female: _partnerFemale)),
         _title(widget.female ? 'هل تفضلين ملتحياً؟' : 'هل تفضل محجبة؟', yesNoKey,
             filled: _yesNo != null && _yesNo != 'لا يهم'),
-        _single(_yesNo, (v) => setState(() => _yesNo = v)),
+        _single(_yesNo, (v) => _change(() => _yesNo = v)),
         _title('مستوى التدين', 'religiosity', filled: _religiosity.isNotEmpty),
         _multi(ProfileOptions.religiosity, _religiosity,
             labelOf: (v) => OptionLabels.describe('religiosity', v, female: _partnerFemale)),
@@ -243,7 +256,7 @@ class _PreferencesFormState extends ConsumerState<PreferencesForm> {
         _multi(ProfileOptions.smokingStatus, _smoking,
             labelOf: (v) => OptionLabels.describe('smokingStatus', v, female: _partnerFemale)),
         _title('قبول وجود أبناء من زواج سابق', 'children', filled: _children == 'لا'),
-        _single(_children, (v) => setState(() => _children = v)),
+        _single(_children, (v) => _change(() => _children = v)),
         const SizedBox(height: 24),
         LoadingButton(key: const Key('save-prefs'), label: 'حفظ التفضيلات', loading: _saving, onPressed: _save),
       ],

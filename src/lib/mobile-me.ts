@@ -19,10 +19,12 @@ export async function mobileMe(userId: string) {
       isDeactivated: true,
       createdAt: true,
       profile: { select: { isComplete: true } },
+      deletionRequest: { select: { scheduledAt: true, cancelledAt: true } },
     },
   });
   if (!u) return null;
   const country = toCountry(u.country);
+  const deletion = u.deletionRequest && !u.deletionRequest.cancelledAt ? u.deletionRequest : null;
   return {
     id: u.id,
     firstName: u.firstName,
@@ -34,6 +36,8 @@ export async function mobileMe(userId: string) {
     status: u.status,
     deactivated: u.isDeactivated,
     profile: { exists: !!u.profile, complete: !!u.profile?.isComplete },
+    /** A pending deletion request (the account is paused until then; reactivating cancels it), or null */
+    deletion: deletion ? { scheduledFor: deletion.scheduledAt } : null,
     /** Buying credits shown in the app (Admin → Settings → Mobile app; never for test accounts) */
     appPayments: await appPaymentsFor(u.phone),
     createdAt: u.createdAt,

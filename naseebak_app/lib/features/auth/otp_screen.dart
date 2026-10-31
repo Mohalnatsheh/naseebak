@@ -69,6 +69,8 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
       await ref
           .read(authRepositoryProvider)
           .sendOtp(phone: pending.phone, context: pending.mode, country: pending.countryCode);
+      // A new code replaces the one verified before
+      ref.read(pendingAuthProvider.notifier).set(pending.withCode(null));
       _controller.clear();
       _startCooldown();
       if (mounted) showSnack(context, 'أرسلنا رمزاً جديداً');
@@ -91,8 +93,11 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
       _error = null;
     });
     try {
-      await ref.read(authRepositoryProvider).verifyOtp(phone: pending.phone, code: code);
-      ref.read(pendingAuthProvider.notifier).set(pending.withCode(code));
+      // A retry after the token step failed (offline, server error): the code is verified already
+      if (!pending.alreadyVerified(code)) {
+        await ref.read(authRepositoryProvider).verifyOtp(phone: pending.phone, code: code);
+        ref.read(pendingAuthProvider.notifier).set(pending.withCode(code));
+      }
       final knownMember = pending.mode == OtpContext.login && pending.userExists == true;
       if (knownMember) {
         // The router moves on once the session is set
@@ -214,8 +219,11 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                             ),
                           ),
                           const SizedBox(width: 8),
-                          Text('يمكنك طلب رمز جديد بعد $_left ثانية',
-                              key: const Key('resend-countdown'), style: const TextStyle(color: AppColors.muted)),
+                          // Wraps on a narrow phone with large text instead of overflowing
+                          Flexible(
+                            child: Text('يمكنك طلب رمز جديد بعد $_left ثانية',
+                                key: const Key('resend-countdown'), style: const TextStyle(color: AppColors.muted)),
+                          ),
                         ])
                       : TextButton.icon(
                           key: const Key('resend'),

@@ -17,7 +17,8 @@ import 'chat_models.dart';
 
 /// One conversation. It opens at once from the messages kept on the device (`ChatCache`), then the newest page from
 /// the API is merged in. With Ably configured on the server, live events (`ChatLive`) trigger a fetch at once and the
-/// `?after=` poll slows to a safety net every 20 s; without it the app polls every 4 s while open.
+/// `?after=` poll slows to a safety net every 20 s; without it the app polls every 4 s while open. A chat that can't
+/// change any more (ended, expired, blocked) has no live link and is only checked every minute.
 class ChatRoomScreen extends ConsumerStatefulWidget {
   const ChatRoomScreen({super.key, required this.chatId, this.pollInterval = const Duration(seconds: 4)});
   final String chatId;
@@ -38,11 +39,22 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
   bool _loadingOlder = false;
   Object? _error;
   Timer? _timer;
+  Duration? _timerEvery;
   bool _polling = false;
   bool _pollAgain = false;
+
+  /// The last poll hit the server's 100-message cap: the next one reads on from the newest message held
+  bool _catchUp = false;
+
+  /// In the background (no polling, no live link until resumed)
+  bool _background = false;
   StreamSubscription<void>? _live;
   bool _liveConnected = false;
   static const _livePollInterval = Duration(seconds: 20);
+  static const _readOnlyPollInterval = Duration(seconds: 60);
+
+  /// A send that got no answer matches a message of mine with the same text this close to it (device vs server clock)
+  static const _reconcileWindow = Duration(minutes: 1);
   int _nonceSeq = 0;
 
   /// Scrolled up to read history (shows «الأحدث» with what arrived meanwhile)
@@ -64,7 +76,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _timer?.cancel();
+    _stopPolling();
     _live?.cancel();
     _input.dispose();
     _scroll.dispose();
@@ -74,22 +86,48 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      _startPolling();
-      _startLive();
+      _background = false;
+      // Not before the chat is known (the first load starts watching itself)
+      if (_chat == null) return;
+      _watch();
       _poll();
     } else if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) {
-      _timer?.cancel();
+      _background = true;
+      _stopPolling();
       _stopLive();
     }
   }
 
+  /// Messages can still arrive or change: an open chat (a closed one only gets an occasional check)
+  bool get _open => (_chat?.canSend ?? false) && _chatEnabled;
+
+  /// Live link and poll for the chat's current state; nothing once closed or in the background.
+  void _watch() {
+    if (!mounted || _background) return;
+    _open ? _startLive() : _stopLive();
+    _startPolling();
+  }
+
   void _startPolling() {
+    if (!mounted || _background) return;
+    final every = !_open
+        ? _readOnlyPollInterval
+        : _liveConnected
+            ? _livePollInterval
+            : widget.pollInterval;
+    if (_timer != null && _timerEvery == every) return;
     _timer?.cancel();
-    _timer = Timer.periodic(_liveConnected ? _livePollInterval : widget.pollInterval, (_) => _poll());
+    _timerEvery = every;
+    _timer = Timer.periodic(every, (_) => _poll());
+  }
+
+  void _stopPolling() {
+    _timer?.cancel();
+    _timer = null;
   }
 
   void _startLive() {
-    if (_live != null) return;
+    if (_live != null || !mounted || _background) return;
     _live = ref.read(chatLiveProvider).events(widget.chatId, connected: (on) {
       if (!mounted || on == _liveConnected) return;
       _liveConnected = on;
@@ -133,8 +171,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
       });
       _saveCache();
       _markRead();
-      _startPolling();
-      _startLive();
+      _watch();
       _fillScreen();
     } catch (e) {
       if (!mounted) return;
@@ -152,7 +189,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
         setState(() => _error = e);
       } else {
         // Offline with a cached copy: keep showing it, the poll retries
-        _startPolling();
+        _watch();
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -193,6 +230,21 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     return null;
   }
 
+  /// `?after=` for the poll: the newest message held, or — while one of my last 30 is still unread — the oldest such,
+  /// so its read tick (and those after it) come back with the page.
+  DateTime? get _pollSince {
+    final last = _lastServerTime;
+    if (last == null || _catchUp) return last;
+    DateTime? since;
+    var seen = 0;
+    for (final m in _messages.reversed) {
+      if (m.state != SendState.sent) continue;
+      if (++seen > 30) break;
+      if (m.mine && m.readAt == null) since = m.createdAt;
+    }
+    return since ?? last;
+  }
+
   Future<void> _poll() async {
     if (_polling) {
       // A live event during a fetch: fetch once more right after it
@@ -202,25 +254,35 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     if (_loading || !mounted) return;
     _polling = true;
     try {
-      final after = _lastServerTime;
+      final after = _pollSince;
+      final catchUp = _catchUp;
       final page = await _repo.load(widget.chatId, after: after);
       if (!mounted) return;
+      _catchUp = false;
       final known = _messages.map((m) => m.id).toSet();
       final fresh = page.messages.where((m) => !known.contains(m.id)).toList();
+      var changed = false;
       setState(() {
         _chat = page.conversation;
         _chatEnabled = page.chatEnabled;
         if (after == null) {
-          // Nothing loaded yet: take the latest page as is
+          // Nothing loaded yet (the first load failed offline): take the latest page as is
           _messages.removeWhere((m) => m.state == SendState.sent);
           _messages.insertAll(0, page.messages);
+          _hasMore = page.hasMore;
         } else {
+          changed = _replaceChanged(page.messages);
           _insertSorted(fresh);
           if (_away) _unseen += fresh.where((m) => !m.mine).length;
+          // Cut at the cap: read the rest from the newest message right away
+          if (page.messages.length >= 100 && !catchUp && after != _lastServerTime) _catchUp = _pollAgain = true;
         }
+        _reconcile(fresh);
       });
-      if (fresh.isNotEmpty) _saveCache();
+      if (fresh.isNotEmpty || changed) _saveCache();
       if (fresh.any((m) => !m.mine)) _markRead();
+      _watch();
+      if (after == null) _fillScreen();
     } catch (_) {
       // Silent: the next tick retries; a 401 signs out through the API client
     } finally {
@@ -230,6 +292,36 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
         _poll();
       }
     }
+  }
+
+  /// Messages already held come back with a newer state (read ticks): take the server copy, same place.
+  bool _replaceChanged(List<ChatMessage> page) {
+    final byId = {for (final m in page) m.id: m};
+    var changed = false;
+    for (var i = 0; i < _messages.length; i++) {
+      final held = _messages[i];
+      final server = held.state == SendState.sent ? byId[held.id] : null;
+      if (server != null && !server.sameAs(held)) {
+        _messages[i] = server;
+        changed = true;
+      }
+    }
+    return changed;
+  }
+
+  /// A send that got no answer (offline, timeout) may have been saved all the same: once a message of mine with the
+  /// same text arrives within a minute of it, that's the one — drop the failed bubble instead of asking for a retry.
+  void _reconcile(Iterable<ChatMessage> arrived) {
+    final candidates = arrived.where((m) => m.mine && m.state == SendState.sent).toList();
+    if (candidates.isEmpty) return;
+    _messages.removeWhere((local) {
+      if (local.state != SendState.failed || !local.maybeSent) return false;
+      final i = candidates.indexWhere(
+          (m) => m.body == local.body && m.createdAt.difference(local.createdAt).abs() <= _reconcileWindow);
+      if (i < 0) return false;
+      candidates.removeAt(i);
+      return true;
+    });
   }
 
   void _insertSorted(List<ChatMessage> fresh) {
@@ -311,6 +403,8 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
       state: SendState.sending,
       nonce: nonce,
     );
+    // What a poll during the send can bring (the copy of this message, if the answer gets lost)
+    final before = _messages.map((m) => m.id).toSet();
     setState(() {
       if (retry != null) _messages.removeWhere((m) => m.nonce == nonce);
       _messages.add(local);
@@ -329,7 +423,12 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
       if (!mounted) return;
       setState(() {
         final i = _messages.indexWhere((m) => m.nonce == nonce);
-        if (i >= 0) _messages[i] = _messages[i].copyWith(state: SendState.failed, error: e.message, filtered: e.code == 'FILTERED');
+        if (i >= 0) {
+          _messages[i] = _messages[i].copyWith(
+              state: SendState.failed, error: e.message, filtered: e.code == 'FILTERED', maybeSent: e.isNetwork);
+        }
+        // Its copy may already be here (a poll during the send); otherwise the next poll reconciles
+        if (e.isNetwork) _reconcile(_messages.where((m) => !before.contains(m.id)));
       });
       if (e.code == 'EXPIRED' || e.code == 'NOT_ALLOWED' || e.code == 'DISABLED') _poll();
     }

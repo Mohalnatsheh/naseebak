@@ -42,7 +42,10 @@ void main() {
       expect(ApiException.kindFor(412, 'GUARDIAN_REQUIRED'), ApiErrorKind.conflict);
       expect(ApiException.kindFor(422, 'FILTERED'), ApiErrorKind.invalid);
       expect(ApiException.kindFor(429, 'RATE_LIMITED'), ApiErrorKind.rateLimited);
-      expect(ApiException.kindFor(503, null), ApiErrorKind.maintenance);
+      // Only the admin's maintenance mode is maintenance; a plain 503 (proxy, restart) is a server failure
+      expect(ApiException.kindFor(503, 'MAINTENANCE'), ApiErrorKind.maintenance);
+      expect(ApiException.kindFor(503, null), ApiErrorKind.server);
+      expect(ApiException.kindFor(403, 'SUSPENDED'), ApiErrorKind.suspended);
       expect(ApiException.kindFor(502, null), ApiErrorKind.server);
       expect(ApiException.kindFor(410, 'EXPIRED'), ApiErrorKind.notFound);
     });

@@ -383,14 +383,48 @@ export async function getConversation(
 // Last push per conversation+recipient, so a burst of messages makes one push (single PM2 process)
 const lastPush = new Map<string, number>();
 
-export async function sendMessage(args: {
+/** How long a send is remembered by its client nonce (a retry after a lost answer comes within seconds) */
+export const NONCE_TTL_MS = 10 * 60 * 1000;
+// conversation:sender:nonce → the send (in flight or done), oldest first, for two identical requests at the same
+// moment (one PM2 process, CLAUDE.md); Message.clientNonce (indexed per chat and sender) covers restarts and later retries
+const sendsByNonce = new Map<string, { at: number; message: Promise<ChatMessage> }>();
+
+type SendArgs = {
   conversationId: string;
   senderId: string;
   body: string;
-  /** Echoed back on the live event so the sender's screen can replace its optimistic copy */
+  /** Echoed back on the live event so the sender's screen can replace its optimistic copy; a retry with the same
+   *  nonce (the answer was lost, the message was saved) gets the saved message back instead of a second copy */
   clientNonce?: string;
-}): Promise<ChatMessage> {
+};
+
+export function sendMessage(args: SendArgs): Promise<ChatMessage> {
+  const { conversationId, senderId, clientNonce } = args;
+  if (!clientNonce) return createMessage(args);
+  const now = Date.now();
+  for (const [k, v] of sendsByNonce) {
+    if (now - v.at < NONCE_TTL_MS) break;
+    sendsByNonce.delete(k);
+  }
+  const key = `${conversationId}:${senderId}:${clientNonce}`;
+  const held = sendsByNonce.get(key);
+  if (held) return held.message;
+  const message = createMessage(args);
+  sendsByNonce.set(key, { at: now, message });
+  // Refused (filter, rate limit, closed chat…): nothing was saved, a retry is a new attempt
+  message.catch(() => {
+    if (sendsByNonce.get(key)?.message === message) sendsByNonce.delete(key);
+  });
+  return message;
+}
+
+async function createMessage(args: SendArgs): Promise<ChatMessage> {
   const { conversationId, senderId, body, clientNonce } = args;
+  // Already saved under this nonce (the answer was lost): the same message, never a second copy
+  if (clientNonce) {
+    const saved = await db.message.findFirst({ where: { conversationId, senderId, clientNonce } });
+    if (saved) return toMessage(saved, senderId);
+  }
   const flags = await getCycleFlags();
   if (!flags.chat) throw new IntroError("DISABLED", "المحادثات متوقفة حالياً");
 
@@ -437,7 +471,9 @@ export async function sendMessage(args: {
     throw new IntroError("RATE_LIMITED", "تمهّل قليلاً قبل إرسال رسالة أخرى");
   }
 
-  const message = await db.message.create({ data: { conversationId, senderId, body: check.text } });
+  const message = await db.message.create({
+    data: { conversationId, senderId, body: check.text, clientNonce: clientNonce ?? null },
+  });
   await publishChatEvent(conversationId, "message", {
     id: message.id,
     senderId,

@@ -329,6 +329,21 @@ describe("decideSuggestion with credit on interest", () => {
     expect(db.creditLedger.create).not.toHaveBeenCalled();
   });
 
+  it("NO_CREDITS for a test account (store review) is worded without «اشحن»", async () => {
+    vi.stubEnv("EXTRA_TEST_PHONES", "962770970971");
+    balance.u1 = 0;
+    const base = db.user.findUnique.getMockImplementation()!;
+    db.user.findUnique.mockImplementation(async (args: { where: { id: string } }) => ({
+      ...(await base(args)),
+      phone: args.where.id === "u1" ? "962770970971" : "962791234567",
+    }));
+    db.suggestion.findUnique.mockResolvedValue(row());
+    const err = await yes().catch((e) => e);
+    vi.unstubAllEnvs();
+    expect((err as IntroError).code).toBe("NO_CREDITS");
+    expect((err as IntroError).message).not.toMatch(/شحن/);
+  });
+
   it("rolls back the claim when the reserve fails inside the transaction", async () => {
     db.suggestion.findUnique.mockResolvedValue(row());
     // balance spent between the pre-check and the reserve (concurrent request)

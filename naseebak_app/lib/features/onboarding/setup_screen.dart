@@ -182,7 +182,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
         final country = ref.read(authControllerProvider).me!.country;
         await repo.saveGuardian(
           name: _guardian.name.text,
-          phone: localPhone(_guardian.phone.text, country),
+          phone: _guardian.phoneToSend(country),
           relationship: _guardian.relationship!,
           address: _guardian.address.text,
           shareConsent: _guardian.consent,

@@ -6,6 +6,7 @@ import '../../core/auth/auth_controller.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/common.dart';
 import 'counts.dart';
+import 'gendered_copy.dart';
 import 'poll_card.dart';
 import 'profile_strength_card.dart';
 
@@ -19,7 +20,8 @@ class NextStep {
   final IconData icon;
 }
 
-NextStep nextStepFor(Counts? c) {
+NextStep nextStepFor(Counts? c, {bool viewerFemale = false}) {
+  String g(String m, String f) => forViewer(viewerFemale, m, f);
   if (c != null && c.pendingIntros > 0) {
     return NextStep(
       'طلب تعارف بانتظار ردك',
@@ -38,11 +40,16 @@ NextStep nextStepFor(Counts? c) {
         Icons.chat_bubble_rounded);
   }
   if (c != null && c.actionableMatches > 0) {
-    return const NextStep('خطوتك التالية مع توافقك', 'اختر طريقة التعارف: عائلياً أو بمحادثة قصيرة.', 'عرض التوافقات',
-        '/matches', Icons.handshake_rounded);
+    return NextStep('خطوتك التالية مع توافقك', '${g('اختر', 'اختاري')} طريقة التعارف: عائلياً أو بمحادثة قصيرة.',
+        'عرض التوافقات', '/matches', Icons.handshake_rounded);
   }
-  return const NextStep('اقتراحاتك بانتظارك', 'اقتراحات مختارة بعناية تناسب ما تبحث عنه. القرار لك، بستر واحترام.',
-      'تصفح الاقتراحات', '/suggestions', Icons.auto_awesome_rounded);
+  return NextStep(
+    'اقتراحاتك بانتظارك',
+    'اقتراحات مختارة بعناية تناسب ما ${g('تبحث', 'تبحثين')} عنه. القرار لك، بستر واحترام.',
+    g('تصفح الاقتراحات', 'تصفحي الاقتراحات'),
+    '/suggestions',
+    Icons.auto_awesome_rounded,
+  );
 }
 
 class HomeScreen extends ConsumerWidget {
@@ -61,7 +68,7 @@ class HomeScreen extends ConsumerWidget {
     final counts = ref.watch(countsProvider);
     final unread = ref.watch(unreadNotificationsProvider).valueOrNull ?? 0;
     final c = counts.valueOrNull;
-    final step = nextStepFor(c);
+    final step = nextStepFor(c, viewerFemale: me?.isFemale ?? false);
     return Scaffold(
       body: RefreshIndicator(
         onRefresh: () => _refresh(ref),

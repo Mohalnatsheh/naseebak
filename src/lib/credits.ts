@@ -10,6 +10,7 @@
 import { db } from "@/lib/db";
 import { notify } from "@/lib/notify";
 import { getCycleFlags } from "@/lib/settings";
+import { isTestPhone } from "@/lib/test-accounts";
 import type { CreditReason } from "@prisma/client";
 
 /** Free credits granted at registration in legacy mode. */
@@ -77,10 +78,21 @@ export async function refundCredits(userId: string, count: number): Promise<void
   await db.user.update({ where: { id: userId }, data: { matchCredits: { increment: count } } });
 }
 
+/**
+ * Test accounts (the store review login) never see payments in the app, so their notices never say «اشحن»:
+ * neutral wording for them, the website wording for everyone else.
+ */
+async function isTestAccount(userId: string): Promise<boolean> {
+  const user = await db.user.findUnique({ where: { id: userId }, select: { phone: true } });
+  return isTestPhone(user?.phone);
+}
+
 /** Tell the user their suggestion credits ran out (in-app notification + push → payments page). */
 export async function notifyCreditsExhausted(userId: string): Promise<void> {
   const title = "انتهى رصيد الاقتراحات";
-  const body = "استخدمت كل رصيد اقتراحاتك. اشحن رصيدك لتستمر باستلام اقتراحات جديدة.";
+  const body = (await isTestAccount(userId))
+    ? "استخدمت كل رصيد اقتراحاتك."
+    : "استخدمت كل رصيد اقتراحاتك. اشحن رصيدك لتستمر باستلام اقتراحات جديدة.";
   await notify({ userId, type: "PAYMENT", title, body, url: "/dashboard/payments" });
 }
 
@@ -90,7 +102,9 @@ export async function notifyRequestCreditsExhausted(userId: string): Promise<voi
     userId,
     type: "PAYMENT",
     title: "انتهى رصيدك",
-    body: "استخدمت كل رصيدك. اشحن رصيدك لإرسال طلبات تعارف أو محادثة جديدة.",
+    body: (await isTestAccount(userId))
+      ? "استخدمت كل رصيدك."
+      : "استخدمت كل رصيدك. اشحن رصيدك لإرسال طلبات تعارف أو محادثة جديدة.",
     url: "/dashboard/payments",
   });
 }
@@ -101,7 +115,7 @@ export async function notifyInterestCreditsExhausted(userId: string): Promise<vo
     userId,
     type: "PAYMENT",
     title: "انتهى رصيدك",
-    body: "انتهى رصيدك — اشحن لتتابع",
+    body: (await isTestAccount(userId)) ? "استخدمت كل رصيدك." : "انتهى رصيدك — اشحن لتتابع",
     url: "/dashboard/payments",
   });
 }

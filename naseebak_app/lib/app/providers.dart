@@ -9,6 +9,7 @@ import '../core/storage/country_store.dart';
 import '../core/storage/token_store.dart';
 import '../features/auth/auth_repository.dart';
 import '../features/country_selection/country_repository.dart';
+import 'maintenance_gate.dart';
 
 /// Overridden in `main()` (and in tests) with a loaded instance.
 final sharedPreferencesProvider = Provider<SharedPreferences>(
@@ -29,6 +30,8 @@ final apiClientProvider = Provider<ApiClient>((ref) {
     adapter: ref.watch(httpAdapterProvider),
     // Read lazily: the session depends on this client, so never during build
     onUnauthorized: () => ref.read(authControllerProvider.notifier).handleUnauthorized(),
+    onAccountChanged: () => ref.read(authControllerProvider.notifier).refreshMe(),
+    onMaintenance: () => ref.read(maintenanceProvider.notifier).check(),
   );
 });
 

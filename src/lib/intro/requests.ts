@@ -35,7 +35,7 @@ import { db } from "@/lib/db";
 import { notify } from "@/lib/notify";
 import { reserveCredits, notifyRequestCreditsExhausted, recordCredit } from "@/lib/credits";
 import { getCycleFlags, type CycleFlags } from "@/lib/settings";
-import { IntroError } from "@/lib/intro/errors";
+import { IntroError, noCreditsError } from "@/lib/intro/errors";
 import { applyIntroOutcome } from "@/lib/intro/outcome";
 import { outcomesFor } from "@/lib/intro/followup";
 import {
@@ -427,7 +427,7 @@ export async function sendIntroRequest(args: {
 
     // Charge and create together: a failed create never costs a credit
     const request = await db.$transaction(async (tx) => {
-      if (charge && !(await reserveCredits(senderId, 1, tx))) throw new IntroError("NO_CREDITS");
+      if (charge && !(await reserveCredits(senderId, 1, tx))) throw noCreditsError((await tx.user.findUnique({ where: { id: senderId }, select: { phone: true } }))?.phone);
       if (recordConsent) await tx.parentInfo.update({ where: { userId: senderId }, data: { shareConsentAt: new Date() } });
       return tx.introRequest.create({
         data: {

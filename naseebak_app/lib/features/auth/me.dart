@@ -16,6 +16,7 @@ class Me {
     required this.profileExists,
     required this.profileComplete,
     this.appPayments = true,
+    this.deletionScheduledFor,
   });
 
   factory Me.fromJson(Map<String, dynamic> j) {
@@ -33,6 +34,7 @@ class Me {
       profileExists: asBool(profile['exists']) ?? false,
       profileComplete: asBool(profile['complete']) ?? false,
       appPayments: asBool(j['appPayments']) ?? true,
+      deletionScheduledFor: asDate(asMap(j['deletion'])['scheduledFor']),
     );
   }
 
@@ -53,6 +55,9 @@ class Me {
   /// Buying credits shown in the app (Admin → Settings → Mobile app; always off for test accounts)
   final bool appPayments;
 
+  /// A pending deletion request: the account is paused until then and deleted for good on this date
+  final DateTime? deletionScheduledFor;
+
   bool get isFemale => gender == 'FEMALE';
 
   Me copyWith({int? credits}) => Me(
@@ -68,5 +73,6 @@ class Me {
         profileExists: profileExists,
         profileComplete: profileComplete,
         appPayments: appPayments,
+        deletionScheduledFor: deletionScheduledFor,
       );
 }

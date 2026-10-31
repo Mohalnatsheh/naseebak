@@ -17,7 +17,7 @@ import type { IntroPreference, Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { notifyInterestCreditsExhausted, recordCredit, reserveCredits } from "@/lib/credits";
 import { notify } from "@/lib/notify";
-import { IntroError } from "@/lib/intro/errors";
+import { IntroError, noCreditsError } from "@/lib/intro/errors";
 import { createMutualMatch } from "@/lib/intro/match";
 import { isUnavailable } from "@/lib/matches/state";
 import { getCycleFlags } from "@/lib/settings";
@@ -416,10 +416,13 @@ export async function decideSuggestion(args: {
 
   const charge = flags.creditOnInterest && interested;
   const preference = charge ? args.introPreference : undefined;
+  // The phone only words NO_CREDITS: a test account (store review) gets no «اشحن» (`noCreditsError`)
+  let myPhone: string | null | undefined;
   if (charge) {
     // At 0 only "مهتم" waits for a recharge ("لا" is free); checked before any consent is stored
-    const me = await db.user.findUnique({ where: { id: userId }, select: { matchCredits: true } });
-    if ((me?.matchCredits ?? 0) < 1) throw new IntroError("NO_CREDITS");
+    const me = await db.user.findUnique({ where: { id: userId }, select: { matchCredits: true, phone: true } });
+    myPhone = me?.phone;
+    if ((me?.matchCredits ?? 0) < 1) throw noCreditsError(myPhone);
   }
   // Validated now, stored only inside the transaction that records and charges the «مهتم» (below)
   const { needsConsent } = charge
@@ -450,7 +453,7 @@ export async function decideSuggestion(args: {
     creditsLeft = await db.$transaction(async (tx) => {
       const recorded = await claim(tx);
       if (recorded.count === 0) throw notFound();
-      if (!(await reserveCredits(userId, 1, tx))) throw new IntroError("NO_CREDITS");
+      if (!(await reserveCredits(userId, 1, tx))) throw noCreditsError(myPhone);
       await recordCredit({ userId, delta: -1, reason: "INTEREST", refId: s.id }, tx);
       if (needsConsent) {
         await tx.parentInfo.updateMany({ where: { userId, shareConsentAt: null }, data: { shareConsentAt: now } });

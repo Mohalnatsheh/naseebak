@@ -9,6 +9,8 @@ import '../../core/network/json.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/common.dart';
 import '../home/counts.dart';
+import '../home/gendered_copy.dart';
+import '../matches/safety_actions.dart';
 import '../profile/preferences_screen.dart';
 import 'interest_sheet.dart';
 import 'preferences_bar.dart';
@@ -29,26 +31,65 @@ class _SuggestionsScreenState extends ConsumerState<SuggestionsScreen> with Sing
   late final TabController _tabs =
       TabController(length: FeedTab.values.length, vsync: this, initialIndex: widget.initialTab.index);
 
-  /// Bumped after the preferences change: every tab reloads (the server rescored and topped up the cards)
-  int _generation = 0;
+  /// Bumped after each top-up: every tab reloads its cards (keeping the ones shown meanwhile)
+  int _reload = 0;
+  Future<void>? _toppingUp;
+  GoRouter? _router;
+  bool _visible = true;
+
+  /// `GET /api/suggestions` only tops up when called (`/feed` never creates cards), so it runs again on
+  /// pull-to-refresh, when this tab is shown again, when a notification/link opens it, after a decision and
+  /// after the preferences change; then every tab reloads. Calls made while one runs share it.
+  Future<void> _topUp() => _toppingUp ??= _runTopUp().whenComplete(() => _toppingUp = null);
+
+  Future<void> _runTopUp() async {
+    ref.invalidate(suggestionsMetaProvider);
+    ref.invalidate(countsProvider);
+    try {
+      await ref.read(suggestionsMetaProvider.future);
+    } catch (_) {
+      // Shown by the screen (ErrorView with a retry)
+    }
+    if (mounted) setState(() => _reload++);
+  }
 
   Future<void> _editPreferences() async {
     await context.push('/profile/preferences');
     if (!mounted) return;
     ref.invalidate(partnerPrefsProvider);
-    ref.invalidate(suggestionsMetaProvider);
-    ref.invalidate(countsProvider);
-    setState(() => _generation++);
+    await _topUp();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final router = GoRouter.maybeOf(context);
+    if (router == _router) return;
+    _router?.routerDelegate.removeListener(_onRoute);
+    _router = router?..routerDelegate.addListener(_onRoute);
+  }
+
+  /// Back on this tab (switched to, or a screen on top closed): top up again
+  void _onRoute() {
+    final visible = _router?.state.uri.path == '/suggestions';
+    if (visible && !_visible) Future.microtask(_topUp);
+    _visible = visible;
   }
 
   @override
   void didUpdateWidget(covariant SuggestionsScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.initialTab != widget.initialTab) _tabs.animateTo(widget.initialTab.index);
+    // Opened from a notification or a link (?tab=…): show that tab with fresh cards
+    if (oldWidget.initialTab != widget.initialTab) {
+      _tabs.animateTo(widget.initialTab.index);
+      // Not during this build: the top-up invalidates providers this screen watches
+      Future.microtask(_topUp);
+    }
   }
 
   @override
   void dispose() {
+    _router?.routerDelegate.removeListener(_onRoute);
     _tabs.dispose();
     super.dispose();
   }
@@ -91,12 +132,20 @@ class _SuggestionsScreenState extends ConsumerState<SuggestionsScreen> with Sing
       ),
       body: meta.when(
         loading: () => const SkeletonList(count: 2, itemHeight: 260),
-        error: (e, _) => ErrorView(error: e, onRetry: () => ref.invalidate(suggestionsMetaProvider)),
+        error: (e, _) => ErrorView(error: e, onRetry: _topUp),
         data: (m) => TabBarView(
           controller: _tabs,
           children: [
             for (final t in FeedTab.values)
-              FeedList(key: PageStorageKey('$t-$_generation'), tab: t, meta: m, onEditPreferences: _editPreferences),
+              FeedList(
+                key: PageStorageKey('$t'),
+                tab: t,
+                meta: m,
+                reload: _reload,
+                onTopUp: _topUp,
+                onShowTab: (t) => _tabs.animateTo(t.index),
+                onEditPreferences: _editPreferences,
+              ),
           ],
         ),
       ),
@@ -106,9 +155,24 @@ class _SuggestionsScreenState extends ConsumerState<SuggestionsScreen> with Sing
 
 /// One paginated tab of the feed.
 class FeedList extends ConsumerStatefulWidget {
-  const FeedList({super.key, required this.tab, required this.meta, this.onEditPreferences});
+  const FeedList({
+    super.key,
+    required this.tab,
+    required this.meta,
+    this.reload = 0,
+    this.onTopUp,
+    this.onShowTab,
+    this.onEditPreferences,
+  });
   final FeedTab tab;
   final SuggestionsMeta meta;
+
+  /// Changes after each top-up: the tab reloads
+  final int reload;
+
+  /// Tops up (`GET /api/suggestions`) and reloads every tab; without it the tab only reloads itself
+  final Future<void> Function()? onTopUp;
+  final ValueChanged<FeedTab>? onShowTab;
 
   /// Shown as the bar at the top of «جديدة» (and the "no one fits" empty state)
   final VoidCallback? onEditPreferences;
@@ -133,6 +197,26 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
     super.initState();
     _load();
   }
+
+  @override
+  void didUpdateWidget(covariant FeedList oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.reload != widget.reload) _load();
+  }
+
+  bool get _viewerFemale => ref.read(authControllerProvider).me?.isFemale ?? false;
+  String _g(String m, String f) => forViewer(_viewerFemale, m, f);
+  String _p(String m, String f) => forPartner(_viewerFemale, m, f);
+
+  /// Credit on interest is on (unknown counts: assume on, the server then just ignores the choice)
+  bool get _creditOnInterest {
+    final counts = ref.read(countsProvider).valueOrNull;
+    return counts == null || counts.flags.creditOnInterest;
+  }
+
+  /// 0 credits under credit on interest: «مهتم» is disabled, «لا» stays free (website outOfCredits)
+  bool _outOfCredits(Counts? counts, int? credits) =>
+      (counts?.flags.creditOnInterest ?? false) && credits != null && credits <= 0;
 
   Future<void> _load() async {
     setState(() {
@@ -175,15 +259,27 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
   }
 
   Future<void> _refresh() async {
+    final topUp = widget.onTopUp;
+    if (topUp != null) return topUp();
     ref.invalidate(countsProvider);
     await _load();
   }
 
-  void _afterAnswer(FeedItem item, DecisionResult res, {required bool interested}) {
+  /// A card left (answered, blocked, gone): a slot is free, so the server may add new cards
+  void _removeAndTopUp(FeedItem item) {
     setState(() => _items.removeWhere((e) => e.id == item.id));
+    final topUp = widget.onTopUp;
+    if (topUp != null) {
+      topUp();
+    } else {
+      ref.invalidate(countsProvider);
+    }
+  }
+
+  void _afterAnswer(FeedItem item, DecisionResult res, {required bool interested}) {
     if (res.creditsLeft != null) ref.read(authControllerProvider.notifier).updateCredits(res.creditsLeft!);
     ref.read(authControllerProvider.notifier).refreshMe();
-    ref.invalidate(countsProvider);
+    _removeAndTopUp(item);
     if (!mounted) return;
     if (res.match) {
       _showMatch(item, res.matchId);
@@ -225,6 +321,7 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
     if (!mounted) return;
     if (e is ApiException) {
       if (e.kind == ApiErrorKind.noCredits) {
+        ref.read(authControllerProvider.notifier).updateCredits(0);
         showSnack(
           context,
           e.message,
@@ -236,7 +333,7 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
       }
       if (e.kind == ApiErrorKind.notFound) {
         // Closed meanwhile (expired, the other side declined, already answered)
-        setState(() => _items.removeWhere((x) => x.id == item.id));
+        _removeAndTopUp(item);
       }
     }
     showSnack(context, ApiException.messageOf(e));
@@ -245,7 +342,9 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
   Future<void> _interested(FeedItem item) async {
     if (_busy.contains(item.id)) return;
     final repo = ref.read(suggestionsRepositoryProvider);
-    if (item.kind == FeedKind.mutual) {
+    // Chat / family is only asked (and charged) under credit on interest; otherwise the server ignores the choice
+    // and «مهتم» goes straight through, like the website
+    if (item.kind == FeedKind.mutual && _creditOnInterest) {
       final counts = ref.read(countsProvider).valueOrNull;
       final me = ref.read(authControllerProvider).me;
       setState(() => _busy.add(item.id));
@@ -259,11 +358,17 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
             credits: me?.credits,
             canRecharge: ref.read(appPaymentsProvider),
             guardianConsented: counts?.guardianConsented ?? false,
+            viewerFemale: me?.isFemale ?? false,
+            onNoCredits: () => ref.read(authControllerProvider.notifier).updateCredits(0),
             onSubmit: (pref, consent) =>
                 repo.answer(item, interested: true, introPreference: pref, guardianConsent: consent),
           ),
         );
-        if (res != null) _afterAnswer(item, res, interested: true);
+        if (res is DecisionResult) {
+          _afterAnswer(item, res, interested: true);
+        } else if (res is ApiException) {
+          _handleError(item, res);
+        }
       } on ApiException catch (e) {
         _handleError(item, e);
       } finally {
@@ -287,7 +392,7 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
     final ok = await confirmDialog(
       context,
       title: 'تأكيد «لا»',
-      body: 'لن يظهر ${item.candidate.firstName} في اقتراحاتك مجدداً. لا يُبلَّغ الطرف الآخر بقرارك.',
+      body: 'لن ${_p('يظهر', 'تظهر')} ${item.candidate.firstName} في اقتراحاتك مجدداً. لا يُبلَّغ الطرف الآخر بقرارك.',
       confirmLabel: 'نعم، لا يناسبني',
     );
     if (!ok || !mounted) return;
@@ -302,15 +407,48 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
     }
   }
 
+  /// «حظر» / «إبلاغ وحظر» from the card's menu (the server allows both for someone I was suggested)
+  Future<void> _safety(FeedItem item, {required bool report}) async {
+    final c = item.candidate;
+    final action = report ? reportAndBlock : confirmAndBlock;
+    final done = await action(context, ref, userId: c.id, name: c.firstName, viewerFemale: _viewerFemale);
+    if (done && mounted) _removeAndTopUp(item);
+  }
+
+  /// 0 credits: everything stays visible and «لا» is free; only «مهتم» waits for a recharge
+  Widget _zeroBalance(BuildContext context) {
+    final canRecharge = ref.watch(appPaymentsProvider);
+    return InfoBanner(
+      key: const Key('zero-balance'),
+      tone: BannerTone.warning,
+      icon: Icons.account_balance_wallet_outlined,
+      text: 'رصيدك صفر. ${_g('يمكنك تصفّح اقتراحاتك', 'يمكنكِ تصفّح اقتراحاتكِ')} والرد بـ«لا» مجاناً، '
+          '${canRecharge ? '${_g('واشحن رصيدك لتختار', 'واشحني رصيدكِ لتختاري')} «مهتم».' : 'و«مهتم» يحتاج رصيداً.'}',
+      action: canRecharge
+          ? TextButton(
+              key: const Key('recharge'),
+              onPressed: () => context.push('/credits'),
+              child: Text(_g('اشحن رصيدك', 'اشحني رصيدك')),
+            )
+          : null,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     super.build(context);
     final me = ref.watch(authControllerProvider).me;
+    final counts = ref.watch(countsProvider).valueOrNull;
     if (_loading && _items.isEmpty) return const SkeletonList(count: 2, itemHeight: 260);
     if (_error != null && _items.isEmpty) return ErrorView(error: _error!, onRetry: _load);
     final onEdit = widget.onEditPreferences;
+    final outOfCredits = _outOfCredits(counts, me?.credits);
+    final creditNote =
+        (counts?.flags.creditOnInterest ?? false) && !outOfCredits ? '«مهتم» يستخدم رصيداً واحداً' : null;
     final bar = widget.tab == FeedTab.newTab && onEdit != null ? PreferencesBar(onEdit: onEdit) : null;
-    final head = bar == null ? 0 : 1;
+    final banner = widget.tab != FeedTab.waiting && outOfCredits && _items.isNotEmpty ? _zeroBalance(context) : null;
+    final headers = [?bar, ?banner];
+    final head = headers.length;
     return RefreshIndicator(
       onRefresh: _refresh,
       child: _items.isEmpty
@@ -328,7 +466,7 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
                 itemCount: head + _items.length + 1,
                 separatorBuilder: (_, _) => const SizedBox(height: 14),
                 itemBuilder: (context, index) {
-                  if (index < head) return bar!;
+                  if (index < head) return headers[index];
                   final i = index - head;
                   if (i == _items.length) {
                     if (_loadingMore) {
@@ -349,8 +487,12 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
                     candidateFemale: !(me?.isFemale ?? false),
                     tribeLabel: me?.country.tribeWord ?? 'العائلة',
                     busy: _busy.contains(item.id),
+                    interestDisabled: outOfCredits,
+                    creditNote: creditNote,
                     onInterested: () => _interested(item),
                     onDecline: () => _decline(item),
+                    onBlock: () => _safety(item, report: false),
+                    onReport: () => _safety(item, report: true),
                   );
                 },
               ),
@@ -358,42 +500,79 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
     );
   }
 
+  /// Empty tabs, worded like the website (mutual-suggestions-view.tsx)
   Widget _empty(BuildContext context) {
+    final counts = ref.watch(countsProvider).valueOrNull;
+    final newCount = counts?.newSuggestions ?? 0;
+    final showNew = widget.onShowTab != null && newCount > 0
+        ? (label: '${_g('اكتشف الجديد', 'اكتشفي الجديد')} ($newCount)', go: () => widget.onShowTab!(FeedTab.newTab))
+        : null;
     switch (widget.tab) {
       case FeedTab.interested:
-        return const MessageView(
+        return MessageView(
           icon: Icons.favorite_border_rounded,
-          title: 'لا أحد هنا بعد',
-          body: 'نُعلمك عندما يبدي أحدهم اهتمامه بك.',
+          title: 'لا توجد اهتمامات جديدة حالياً',
+          body: _g('استمر في استكشاف التوافقات، فقد تتعرّف إلى شخص يناسبك. من يبدي اهتمامه بك يظهر هنا.',
+              'استمري في استكشاف التوافقات، فقد تتعرّفين إلى شخص يناسبكِ. من يبدي اهتمامه بكِ يظهر هنا.'),
+          actionLabel: showNew?.label,
+          onAction: showNew?.go,
         );
       case FeedTab.waiting:
-        return const MessageView(
+        return MessageView(
           icon: Icons.hourglass_empty_rounded,
-          title: 'لا توجد اقتراحات بانتظار الرد',
-          body: 'عندما تختار «مهتم» يظهر الاقتراح هنا حتى يرد الطرف الآخر.',
+          title: _g('لم ترسل أي اهتمام بعد', 'لم ترسلي أي اهتمام بعد'),
+          body: '${_g('ابدأ', 'ابدئي')} باكتشاف التوافقات الجديدة. عندما ${_g('تختار', 'تختارين')} «مهتم» على اقتراح، '
+              'يظهر هنا حتى يقرّر الطرف الآخر أو تنتهي مدته.',
+          actionLabel: showNew?.label,
+          onAction: showNew?.go,
         );
       case FeedTab.newTab:
         final m = widget.meta;
-        if (m.emptyReason == 'weekly_cap' && m.nextSuggestionsAt != null) {
-          return MessageView(
-            icon: Icons.event_available_rounded,
-            title: 'اقتراحاتك القادمة يوم ${formatDate(m.nextSuggestionsAt!, withYear: false)}',
-            body: 'نختار لك اقتراحات جديدة كل أسبوع بعناية.',
-          );
-        }
+        final creditOnInterest = counts?.flags.creditOnInterest ?? false;
         if (m.emptyReason == 'no_candidates') {
           return MessageView(
             icon: Icons.search_off_rounded,
-            title: 'لا يوجد حالياً من يناسب ما تبحث عنه',
-            body: 'نضيف اقتراحات جديدة عند انضمام أعضاء يناسبونك. تخفيف شروطك الأساسية يفتح اقتراحات أكثر.',
+            title: 'لا يوجد حالياً من يطابق شروطك',
+            body: 'لم نجد حالياً أحداً تنطبق عليه شروطك الأساسية وتفضيلاتك. مراجعتها قد توسّع فرصك، ونبحث لك من جديد '
+                'تلقائياً كلما انضم أشخاص جدد.',
             actionLabel: 'تعديل تفضيلاتي',
             onAction: widget.onEditPreferences ?? () => context.push('/profile/preferences'),
           );
         }
-        return const MessageView(
+        if (m.emptyReason == 'weekly_cap' && m.nextSuggestionsAt != null) {
+          return MessageView(
+            icon: Icons.event_available_rounded,
+            title: 'اقتراحاتك القادمة يوم ${formatDate(m.nextSuggestionsAt!, withYear: false)}',
+            body: 'تصلك حتى 3 اقتراحات مجانية كل 7 أيام، وسنرسل لك إشعاراً فور وصولها.',
+          );
+        }
+        if (m.emptyReason == 'pending') {
+          // My open cards are full: the ones waiting for my answer sit in «مهتمون بك», else they wait for the
+          // other side («بانتظار الرد»)
+          final forMe = (counts?.likedYou ?? 0) > 0;
+          return MessageView(
+            key: const Key('empty-pending'),
+            icon: Icons.hourglass_top_rounded,
+            title: forMe ? 'لديك اقتراحات بانتظار قرارك' : 'اقتراحاتك المفتوحة بانتظار الطرف الآخر',
+            body: forMe
+                ? 'عندما ${_g('تقرّر', 'تقرّرين')} في اقتراحاتك الحالية أو تنتهي مدتها، تصلك اقتراحات جديدة وسنرسل لك '
+                    'إشعاراً فور وصولها.'
+                : 'تصلك اقتراحات جديدة عندما يردّ الطرف الآخر على اقتراحاتك المفتوحة أو تنتهي مدتها، وسنرسل لك إشعاراً '
+                    'فور وصولها.',
+            actionLabel: widget.onShowTab == null ? null : (forMe ? 'عرض المهتمين بك' : 'عرض ما ينتظر الرد'),
+            onAction: widget.onShowTab == null
+                ? null
+                : () => widget.onShowTab!(forMe ? FeedTab.interested : FeedTab.waiting),
+          );
+        }
+        return MessageView(
           icon: Icons.inbox_outlined,
-          title: 'لا توجد اقتراحات جديدة الآن',
-          body: 'راجع تبويب «مهتمون بك» و«بانتظار الرد»، أو اسحب للتحديث.',
+          title: 'نبحث لك عن اقتراحات مناسبة',
+          body: creditOnInterest
+              ? 'تصلك اقتراحات مجانية جديدة كلما توفّر من يناسبك، وسنرسل لك إشعاراً فور وصولها. إكمال ملفك واختبار '
+                  'الشخصية يجعلها أدق.'
+              : 'تصلك حتى 3 اقتراحات مجانية كل أسبوع، وسنرسل لك إشعاراً فور وصولها. إكمال ملفك واختبار الشخصية يجعلها '
+                  'أدق.',
         );
     }
   }

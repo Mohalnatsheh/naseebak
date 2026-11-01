@@ -75,7 +75,12 @@ export async function PATCH(request: Request) {
       });
       if (claimed.count !== 1) return null;
       if (Object.keys(updateData).length > 0) {
-        await tx.profile.update({ where: { userId: updateRequest.userId }, data: updateData });
+        // Upsert: a request from a member who had no profile row yet must still apply (an update failed with P2025)
+        await tx.profile.upsert({
+          where: { userId: updateRequest.userId },
+          create: { userId: updateRequest.userId, ...updateData },
+          update: updateData,
+        });
       }
       return tx.profileUpdateRequest.findUnique({ where: { id: requestId } });
     });

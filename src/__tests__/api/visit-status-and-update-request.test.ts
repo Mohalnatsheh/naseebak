@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const db = vi.hoisted(() => ({
   mutualMatch: { findUnique: vi.fn() },
   block: { findFirst: vi.fn() },
-  profile: { update: vi.fn(), findUnique: vi.fn() },
+  profile: { update: vi.fn(), upsert: vi.fn(), findUnique: vi.fn() },
   profileUpdateRequest: { findFirst: vi.fn(), create: vi.fn() },
 }));
 vi.mock("@/lib/db", () => ({ db }));
@@ -61,7 +61,7 @@ describe("POST /api/profile/update-request validation (G68)", () => {
   ])("refuses %s, saving nothing", async (_label, changes) => {
     const res = await post({ changes });
     expect(res.status).toBe(400);
-    expect(db.profile.update).not.toHaveBeenCalled();
+    expect(db.profile.upsert).not.toHaveBeenCalled();
     expect(db.profileUpdateRequest.create).not.toHaveBeenCalled();
   });
 

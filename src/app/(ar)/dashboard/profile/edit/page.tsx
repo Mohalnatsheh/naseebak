@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useDashboardData } from "@/contexts/dashboard-context";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Loader2,
   Send,
@@ -182,6 +183,7 @@ function arraysEqual(a: string[], b: string[]): boolean {
 }
 
 export default function ProfileEditPage() {
+  const router = useRouter();
   const [step, setStep] = useState(1);
   const introMode = useDashboardData().counts.flags.introRequests;
   const [reviewSent, setReviewSent] = useState(false);
@@ -250,6 +252,13 @@ export default function ProfileEditPage() {
         }
 
         const user = profileData.user;
+        // Setup not finished (no profile row yet, or the basics missing): the setup wizard saves each answer
+        // directly. Here the first answers would wait for an admin review — and with no profile row the save
+        // failed outright (P2025 in update-request).
+        if (!user?.profile?.isComplete) {
+          router.replace("/dashboard/profile/setup");
+          return;
+        }
         if (user?.gender) setGender(user.gender);
         const userCountry = toCountry(user?.country);
         setLoadedCountry(userCountry);
@@ -322,7 +331,7 @@ export default function ProfileEditPage() {
       }
     }
     load();
-  }, [reloadKey]);
+  }, [reloadKey, router]);
 
   function update(field: string, value: string | boolean) {
     setForm((prev) => ({ ...prev, [field]: value }));

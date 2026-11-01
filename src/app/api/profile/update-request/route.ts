@@ -90,7 +90,8 @@ export async function POST(request: Request) {
     }
 
     if (Object.keys(prefs).length > 0) {
-      await db.profile.update({ where: { userId }, data: prefs });
+      // Upsert: a member who never saved a setup step has no profile row yet (an update failed with P2025 → 500)
+      await db.profile.upsert({ where: { userId }, create: { userId, ...prefs }, update: prefs });
       // New preferences: rescore the open cards, close those that now break a «شرط أساسي» or fall
       // under the minimum score, then fill the gaps (same as PUT /api/profile and the quiz)
       refreshOpenSuggestionsInBackground(userId);

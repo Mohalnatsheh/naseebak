@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const db = vi.hoisted(() => ({
-  profile: { update: vi.fn(), findUnique: vi.fn() },
+  profile: { update: vi.fn(), upsert: vi.fn(), findUnique: vi.fn() },
   profileUpdateRequest: { findFirst: vi.fn(), create: vi.fn(), updateMany: vi.fn() },
 }));
 const requireUser = vi.hoisted(() => vi.fn());
@@ -31,7 +31,7 @@ describe("POST /api/profile/update-request", () => {
     db.profileUpdateRequest.findFirst.mockResolvedValue({ id: "old" });
     const res = await POST(req({ prefAgeMax: 35, job: "طبيب" }));
     expect(res.status).toBe(409);
-    expect(db.profile.update).not.toHaveBeenCalled();
+    expect(db.profile.upsert).not.toHaveBeenCalled();
     expect(db.profileUpdateRequest.create).not.toHaveBeenCalled();
   });
 
@@ -39,7 +39,11 @@ describe("POST /api/profile/update-request", () => {
     db.profileUpdateRequest.findFirst.mockResolvedValue({ id: "old" });
     const res = await POST(req({ prefAgeMax: 35 }));
     expect(res.status).toBe(200);
-    expect(db.profile.update).toHaveBeenCalledWith({ where: { userId: "u1" }, data: { prefAgeMax: 35 } });
+    expect(db.profile.upsert).toHaveBeenCalledWith({
+      where: { userId: "u1" },
+      create: { userId: "u1", prefAgeMax: 35 },
+      update: { prefAgeMax: 35 },
+    });
   });
 
   it("G63: saved preferences rescore the open cards (refresh: minimum score + dealbreakers, then top-up)", async () => {
@@ -56,7 +60,7 @@ describe("POST /api/profile/update-request", () => {
   it("checks min ≤ max against the stored other end", async () => {
     const res = await POST(req({ prefAgeMin: 40 }));
     expect(res.status).toBe(400);
-    expect(db.profile.update).not.toHaveBeenCalled();
+    expect(db.profile.upsert).not.toHaveBeenCalled();
   });
 
   it("a new review request emails the admins (G27)", async () => {
@@ -93,5 +97,20 @@ describe("POST /api/profile/update-request/withdraw («سحب الطلب»)", ()
   it("404 when nothing is pending", async () => {
     db.profileUpdateRequest.updateMany.mockResolvedValue({ count: 0 });
     expect((await withdraw()).status).toBe(404);
+  });
+});
+
+describe("a member with no profile row yet (signed up, no setup step saved)", () => {
+  it("saves preferences by creating the profile row instead of failing with a server error", async () => {
+    db.profileUpdateRequest.findFirst.mockResolvedValue(null);
+    db.profile.upsert.mockResolvedValue({});
+    const res = await POST(req({ prefAgeMin: 25, prefAgeMax: 35 }));
+    expect(res.status).toBe(200);
+    expect(db.profile.upsert).toHaveBeenCalledWith({
+      where: { userId: "u1" },
+      create: { userId: "u1", prefAgeMin: 25, prefAgeMax: 35 },
+      update: { prefAgeMin: 25, prefAgeMax: 35 },
+    });
+    expect(db.profile.update).not.toHaveBeenCalled();
   });
 });

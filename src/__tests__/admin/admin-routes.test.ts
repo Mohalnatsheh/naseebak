@@ -6,7 +6,7 @@ const tx = vi.hoisted(() => ({
   creditLedger: { create: vi.fn() },
   accountDeletionRequest: { updateMany: vi.fn() },
   profileUpdateRequest: { updateMany: vi.fn(), findUnique: vi.fn() },
-  profile: { update: vi.fn() },
+  profile: { update: vi.fn(), upsert: vi.fn() },
 }));
 const db = vi.hoisted(() => ({
   $transaction: vi.fn(),
@@ -155,9 +155,10 @@ describe("profile request review", () => {
   it("applies the changes and notifies with the admin note", async () => {
     const res = await reviewProfileRequest(jsonReq({ requestId: "r1", action: "APPROVED", adminNote: "تم" }));
     expect(res?.status).toBe(200);
-    expect(tx.profile.update).toHaveBeenCalledWith({
+    expect(tx.profile.upsert).toHaveBeenCalledWith({
       where: { userId: "u1" },
-      data: { willingToRelocate: "نعم", childrenCount: 0 },
+      create: { userId: "u1", willingToRelocate: "نعم", childrenCount: 0 },
+      update: { willingToRelocate: "نعم", childrenCount: 0 },
     });
     expect(notifyMock.notify).toHaveBeenCalledWith(
       expect.objectContaining({ userId: "u1", type: "SYSTEM", title: "تمت الموافقة على تعديل ملفك", body: expect.stringContaining("تم") })
@@ -166,7 +167,7 @@ describe("profile request review", () => {
 
   it("does not touch the profile on reject", async () => {
     await reviewProfileRequest(jsonReq({ requestId: "r1", action: "REJECTED" }));
-    expect(tx.profile.update).not.toHaveBeenCalled();
+    expect(tx.profile.upsert).not.toHaveBeenCalled();
     expect(notifyMock.notify).toHaveBeenCalledWith(expect.objectContaining({ title: "تم رفض تعديل ملفك" }));
   });
 });

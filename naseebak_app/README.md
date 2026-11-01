@@ -62,7 +62,7 @@ the app polls `GET /api/payments/{id}/status`. Saudi Arabia has `purchasesEnable
   without an x86_64 engine). Real device: Developer Mode on, team `4S958MQTCR`.
 - **Crashlytics:** release builds only.
 - **Website links:** naseebak.com `/dashboard/…` and `/register` open the app (`lib/core/routing/website_links.dart`).
-  Test without store verification: `adb shell am start -a android.intent.action.VIEW -d "https://naseebak.com/dashboard/chats/<id>" com.naseebak.naseebak_app`.
+  Test without store verification: `adb shell am start -a android.intent.action.VIEW -d "https://naseebak.com/dashboard/chats/<id>" com.naseebak.naseebakApp`.
 - **Bell:** opening a screen marks its notifications read (`MarkPageRead` in the router).
 
 ## Test, analyze, build
@@ -120,7 +120,7 @@ CSS classes inlined so flutter_svg renders it).
   `curl http://localhost:3020/api/countries` on the PC. The emulator reaches the host at `10.0.2.2`.
 - **"Cleartext HTTP traffic not permitted"** on a phone: add its backend IP to the debug network security config.
 - **429 on «إرسال رمز التحقق»:** 3 codes per number per 5 minutes. Wait, or use another test number.
-- **`INSTALL_FAILED_INSUFFICIENT_STORAGE`:** `adb uninstall com.naseebak.naseebak_app` and reinstall, or wipe the emulator.
+- **`INSTALL_FAILED_INSUFFICIENT_STORAGE`:** `adb uninstall com.naseebak.naseebakApp` and reinstall, or wipe the emulator.
 - **Arabic text via `adb shell input text`** does not work (adb limitation) — type on the emulator keyboard.
 - **Photos on a local backend:** without Bunny keys the server keeps uploads in `.dev-uploads/` and returns
   relative `/api/dev/uploads/...` URLs; the app resolves them against the API base (`core/network/media_url.dart`).

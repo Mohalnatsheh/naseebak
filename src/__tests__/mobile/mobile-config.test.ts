@@ -21,7 +21,7 @@ describe("mobile app version gate", () => {
     expect(c.android).toEqual({
       minVersion: "",
       latestVersion: "",
-      storeUrl: "https://play.google.com/store/apps/details?id=com.naseebak.naseebak_app",
+      storeUrl: "https://play.google.com/store/apps/details?id=com.naseebak.naseebakApp",
     });
     expect(c.ios.storeUrl).toBe("");
   });
@@ -103,7 +103,7 @@ describe("app links (assetlinks.json / apple-app-site-association)", () => {
     expect(await updateMobileConfig({ androidCertSha256: `${FP.toLowerCase()}\n` })).toBeNull();
     const { GET } = await import("@/app/.well-known/assetlinks.json/route");
     const [entry] = await (await GET()).json();
-    expect(entry.target).toEqual({ namespace: "android_app", package_name: "com.naseebak.naseebak_app", sha256_cert_fingerprints: [FP] });
+    expect(entry.target).toEqual({ namespace: "android_app", package_name: "com.naseebak.naseebakApp", sha256_cert_fingerprints: [FP] });
   });
 
   it("iOS: the member pages and /register open the app", async () => {

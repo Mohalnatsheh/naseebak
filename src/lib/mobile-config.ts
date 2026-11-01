@@ -25,7 +25,7 @@ const VERSION = /^\d{1,4}\.\d{1,4}\.\d{1,4}$/;
 
 /** Play Store page by default (same id as the Android build); the App Store link is set once the app is listed */
 const DEFAULT_STORE_URL: Record<MobilePlatform, string> = {
-  android: "https://play.google.com/store/apps/details?id=com.naseebak.naseebak_app",
+  android: "https://play.google.com/store/apps/details?id=com.naseebak.naseebakApp",
   ios: "",
 };
 
@@ -68,7 +68,7 @@ const ANDROID_CERTS_KEY = "mobile_android_cert_sha256";
 const SHA256_FINGERPRINT = /^([0-9A-F]{2}:){31}[0-9A-F]{2}$/;
 
 /** App Links / Universal Links: naseebak.com member pages (`/dashboard/...`) and `/register` open the app */
-export const ANDROID_PACKAGE = "com.naseebak.naseebak_app";
+export const ANDROID_PACKAGE = "com.naseebak.naseebakApp";
 export const IOS_APP_ID = "4S958MQTCR.com.naseebak.naseebakApp";
 
 /** SHA-256 fingerprints of the Android signing certificates (Play App Signing key, upload key) for assetlinks.json */

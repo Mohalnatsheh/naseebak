@@ -29,8 +29,8 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.naseebak.naseebak_app"
+        // The Google Play listing's id (fixed forever), same as the iOS bundle id. The Kotlin namespace keeps the old name.
+        applicationId = "com.naseebak.naseebakApp"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion

@@ -15,7 +15,7 @@ void main() {
 
   test('store links may also use the stores own schemes', () {
     expect(isSafeExternalLink('itms-apps://apps.apple.com/app/id1', extraSchemes: {'itms-apps', 'market'}), isTrue);
-    expect(isSafeExternalLink('market://details?id=com.naseebak.naseebak_app', extraSchemes: {'itms-apps', 'market'}), isTrue);
+    expect(isSafeExternalLink('market://details?id=com.naseebak.naseebakApp', extraSchemes: {'itms-apps', 'market'}), isTrue);
     expect(isSafeExternalLink('market://details?id=x'), isFalse);
   });
 }

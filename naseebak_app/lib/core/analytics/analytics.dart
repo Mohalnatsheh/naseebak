@@ -8,7 +8,7 @@ import '../push/push_service.dart';
 /// Funnel analytics (Firebase / Google Analytics property of the `naseebak-app` project): where members drop off
 /// between sign-up and a family introduction. Never names, phones or messages — only steps, choices and the member id.
 /// Collected from release builds only (debug runs talk to a local server); `--dart-define=ANALYTICS_DEBUG=true` turns it
-/// on for a debug build (with `adb shell setprop debug.firebase.analytics.app com.naseebak.naseebak_app` → DebugView).
+/// on for a debug build (with `adb shell setprop debug.firebase.analytics.app com.naseebak.naseebakApp` → DebugView).
 /// Off when Firebase isn't set up (tests): every call is then a no-op.
 class AppAnalytics {
   AppAnalytics(this._enabled);

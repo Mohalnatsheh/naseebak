@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/providers.dart';
+import '../../core/analytics/analytics.dart';
 import '../../core/auth/auth_controller.dart';
 import '../../core/localization/digits.dart';
 import '../../core/network/api_exception.dart';
@@ -97,11 +98,14 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
       if (!pending.alreadyVerified(code)) {
         await ref.read(authRepositoryProvider).verifyOtp(phone: pending.phone, code: code);
         ref.read(pendingAuthProvider.notifier).set(pending.withCode(code));
+        ref.read(analyticsProvider).otpVerified(pending.mode.name);
       }
       final knownMember = pending.mode == OtpContext.login && pending.userExists == true;
       if (knownMember) {
         // The router moves on once the session is set
+        final analytics = ref.read(analyticsProvider);
         await ref.read(authControllerProvider.notifier).signInWithCode(phone: pending.phone, code: code);
+        analytics.loggedIn();
       } else if (mounted) {
         context.pushReplacement('/auth/register');
       }

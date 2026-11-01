@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/providers.dart';
+import '../../core/analytics/analytics.dart';
 import '../../core/auth/auth_controller.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/theme/app_theme.dart';
@@ -87,6 +88,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     final auth = ref.read(authControllerProvider.notifier);
     final api = ref.read(apiClientProvider);
     final inviteWarning = ref.read(inviteWarningProvider.notifier);
+    final analytics = ref.read(analyticsProvider);
     inviteWarning.set(null);
     final prefs = ref.read(sharedPreferencesProvider);
     final invite = cleanReferralCode(_invite.text);
@@ -112,12 +114,15 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       // The link's code is used now (or never): don't offer it to the next sign-up on this phone
       if (_createdHere) await prefs.remove(pendingInvitationKey);
       await auth.signInWithCode(phone: pending.phone, code: code);
+      _createdHere ? analytics.signedUp(withInvite: applyInvite) : analytics.loggedIn();
       // Invitation code, like the website: best effort, a wrong code never blocks the sign-up
       if (applyInvite) {
         try {
           await api.post('/api/referral/apply', body: {'code': invite});
+          analytics.inviteCode(applied: true);
         } catch (e) {
           inviteWarning.set(ApiException.messageOf(e));
+          analytics.inviteCode(applied: false);
         }
       }
     } on ApiException catch (e) {

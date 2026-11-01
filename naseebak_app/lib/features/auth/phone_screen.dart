@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/providers.dart';
+import '../../core/analytics/analytics.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/routing/website_links.dart' show pendingInvitationKey;
 import '../../core/theme/app_theme.dart';
@@ -86,6 +87,7 @@ class _PhoneFormState extends ConsumerState<PhoneForm> {
     setState(() => _sending = true);
     try {
       final exists = await ref.read(authRepositoryProvider).sendOtp(phone: phone, context: mode, country: country.code);
+      ref.read(analyticsProvider).otpRequested(mode.name);
       ref.read(pendingAuthProvider.notifier).set(
             PendingAuth(phone: phone, countryCode: country.code, mode: mode, userExists: exists),
           );

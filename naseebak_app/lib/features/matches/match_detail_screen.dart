@@ -3,10 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/providers.dart';
+import '../../core/analytics/analytics.dart';
 import '../../core/auth/auth_controller.dart';
 import '../../core/localization/digits.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/network/media_url.dart';
+import '../../core/privacy/screen_privacy.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/common.dart';
 import '../../shared/widgets/person_details_view.dart';
@@ -253,24 +255,28 @@ class _PhotosSectionState extends ConsumerState<_PhotosSection> {
     if (_photos!.isEmpty) {
       return const InfoBanner(text: 'لم تُضف صور بعد.');
     }
-    return SizedBox(
-      height: 220,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: _photos!.length,
-        separatorBuilder: (_, _) => const SizedBox(width: 10),
-        itemBuilder: (_, i) => ClipRRect(
-          borderRadius: BorderRadius.circular(16),
-          child: Image.network(
-            resolveMediaUrl(ref.read(apiBaseUrlProvider), _photos![i]),
-            width: 170,
-            height: 220,
-            fit: BoxFit.cover,
-            errorBuilder: (_, _, _) => Container(
+    // Their photos: no screenshots (Android), hidden during screen recording (iOS)
+    return SecureArea(
+      screenshotNote: 'صور الطرف الآخر أمانة: لا يجوز حفظها أو مشاركتها.',
+      child: SizedBox(
+        height: 220,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          itemCount: _photos!.length,
+          separatorBuilder: (_, _) => const SizedBox(width: 10),
+          itemBuilder: (_, i) => ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: Image.network(
+              resolveMediaUrl(ref.read(apiBaseUrlProvider), _photos![i]),
               width: 170,
-              color: AppColors.line,
-              alignment: Alignment.center,
-              child: const Icon(Icons.broken_image_outlined, color: AppColors.muted),
+              height: 220,
+              fit: BoxFit.cover,
+              errorBuilder: (_, _, _) => Container(
+                width: 170,
+                color: AppColors.line,
+                alignment: Alignment.center,
+                child: const Icon(Icons.broken_image_outlined, color: AppColors.muted),
+              ),
             ),
           ),
         ),
@@ -295,6 +301,9 @@ class _IntroPanelState extends ConsumerState<IntroPanel> {
   bool get _viewerFemale => ref.read(authControllerProvider).me?.isFemale ?? false;
   String _g(String m, String f) => forViewer(_viewerFemale, m, f);
   String _p(String m, String f) => forPartner(_viewerFemale, m, f);
+
+  void _requested(String type) => ref.read(analyticsProvider).introRequestSent(type);
+  void _answered(String type, bool accepted) => ref.read(analyticsProvider).introRequestAnswered(type: type, accepted: accepted);
 
   Future<void> _run(String key, Future<void> Function() action, {String? success}) async {
     if (_busy != null) return;
@@ -449,10 +458,11 @@ class _IntroPanelState extends ConsumerState<IntroPanel> {
               onAccept: () async {
                 final needConsent = !s.guardianConsented;
                 if (needConsent && !await _consent('قبول التعارف العائلي')) return;
-                await _run('f-yes', () => repo.respond(s.familyRequestId!, accept: true, consent: needConsent ? true : null),
+                await _run('f-yes', () => repo.respond(s.familyRequestId!, accept: true, consent: needConsent ? true : null).then((_) => _answered('FAMILY', true)),
                     success: 'تم قبول التعارف العائلي');
               },
-              onDecline: () => _run('f-no', () => repo.respond(s.familyRequestId!, accept: false), success: 'تم الرد'),
+              onDecline: () => _run('f-no', () => repo.respond(s.familyRequestId!, accept: false).then((_) => _answered('FAMILY', false)),
+                  success: 'تم الرد'),
             ));
             gap();
           case 'legacy_admin':
@@ -479,7 +489,7 @@ class _IntroPanelState extends ConsumerState<IntroPanel> {
                 loading: _busy == 'family',
                 onPressed: () async {
                   if (!await _consent('طلب تعارف عائلي')) return;
-                  await _run('family', () => repo.sendIntro(widget.matchId, 'FAMILY', consent: true),
+                  await _run('family', () => repo.sendIntro(widget.matchId, 'FAMILY', consent: true).then((_) => _requested('FAMILY')),
                       success: 'تم إرسال طلب التعارف العائلي');
                 },
               ));
@@ -515,8 +525,10 @@ class _IntroPanelState extends ConsumerState<IntroPanel> {
             children.add(_ReplyRow(
               busy: _busy,
               keyPrefix: 'c',
-              onAccept: () => _run('c-yes', () => repo.respond(s.chatRequestId!, accept: true), success: 'تم فتح المحادثة'),
-              onDecline: () => _run('c-no', () => repo.respond(s.chatRequestId!, accept: false), success: 'تم الرد'),
+              onAccept: () => _run('c-yes', () => repo.respond(s.chatRequestId!, accept: true).then((_) => _answered('CHAT', true)),
+                  success: 'تم فتح المحادثة'),
+              onDecline: () => _run('c-no', () => repo.respond(s.chatRequestId!, accept: false).then((_) => _answered('CHAT', false)),
+                  success: 'تم الرد'),
             ));
             gap();
           case 'declined':
@@ -535,7 +547,8 @@ class _IntroPanelState extends ConsumerState<IntroPanel> {
                 icon: Icons.chat_outlined,
                 outlined: true,
                 loading: _busy == 'chat',
-                onPressed: () => _run('chat', () => repo.sendIntro(widget.matchId, 'CHAT'), success: 'تم إرسال طلب المحادثة'),
+                onPressed: () => _run('chat', () => repo.sendIntro(widget.matchId, 'CHAT').then((_) => _requested('CHAT')),
+                    success: 'تم إرسال طلب المحادثة'),
               ));
               gap();
             }

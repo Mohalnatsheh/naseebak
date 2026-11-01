@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
+import '../../core/analytics/analytics.dart';
 import '../../core/auth/auth_controller.dart';
 import '../../core/localization/digits.dart';
 import '../../core/network/api_exception.dart';
@@ -186,6 +187,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
       _error = null;
     });
     if (errors.isNotEmpty) return;
+    ref.read(analyticsProvider).setupStep(_step + 1);
     if (_step < total - 1) {
       _saveDraft(_step);
       setState(() => _step++);
@@ -255,6 +257,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
       await repo.save(_payload());
       final key = _stepKey;
       if (key != null) await ref.read(sharedPreferencesProvider).remove(key);
+      ref.read(analyticsProvider).setupCompleted();
       ref.invalidate(countsProvider);
       // The router leaves the setup once `/api/mobile/me` says the profile is complete
       await ref.read(authControllerProvider.notifier).refreshMe();

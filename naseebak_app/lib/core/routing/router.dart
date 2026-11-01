@@ -37,6 +37,7 @@ import 'website_links.dart';
 import '../../features/welcome/intro_screen.dart';
 import '../../features/welcome/splash_screen.dart';
 import '../../features/welcome/welcome_state.dart';
+import '../analytics/analytics.dart';
 import '../auth/auth_controller.dart';
 
 /// Where the member must be, given the session and the picked country (null = stay).
@@ -222,5 +223,6 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
     ),
   );
+  trackScreens(router, ref.read(analyticsProvider));
   return router;
 });

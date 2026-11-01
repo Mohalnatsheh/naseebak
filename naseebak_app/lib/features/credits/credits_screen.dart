@@ -6,10 +6,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../core/analytics/analytics.dart';
 import '../../core/auth/auth_controller.dart';
 import '../../core/config/env.dart';
 import '../../core/localization/digits.dart';
 import '../../core/network/api_exception.dart';
+import '../../core/network/json.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/common.dart';
 import '../home/counts.dart';
@@ -108,6 +110,7 @@ class _CreditsScreenState extends ConsumerState<CreditsScreen> with WidgetsBindi
     String? paymentId;
     try {
       final start = await _repo.checkout(pkg.id);
+      ref.read(analyticsProvider).checkoutStarted(pkg.id);
       if (!mounted) return;
       if (start.mock) {
         if (!_mockAllowed) {
@@ -591,45 +594,118 @@ class _PendingPaymentCard extends StatelessWidget {
   }
 }
 
-class PaymentHistoryScreen extends ConsumerWidget {
+/// «سجل المدفوعات», 10 a page like the website: «عرض المزيد» loads older ones, pull-to-refresh starts again.
+class PaymentHistoryScreen extends ConsumerStatefulWidget {
   const PaymentHistoryScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<PaymentHistoryScreen> createState() => _PaymentHistoryScreenState();
+}
+
+class _PaymentHistoryScreenState extends ConsumerState<PaymentHistoryScreen> {
+  /// Pages after the first (the first is [paymentHistoryProvider], reloaded after a payment)
+  final List<PaymentRecord> _older = [];
+  PageInfo? _page;
+  bool _loadingMore = false;
+
+  /// Bumped when the first page reloads, so a «عرض المزيد» answer for the old list is dropped
+  int _generation = 0;
+
+  void _reset() {
+    _generation++;
+    _older.clear();
+    _page = null;
+    _loadingMore = false;
+  }
+
+  Future<void> _more(PageInfo first, List<PaymentRecord> shown) async {
+    final p = _page ?? first;
+    if (!p.hasMore || _loadingMore) return;
+    final generation = _generation;
+    setState(() => _loadingMore = true);
+    try {
+      final res = await ref.read(creditsRepositoryProvider).history(page: p.page + 1);
+      if (!mounted || generation != _generation) return;
+      final seen = shown.map((e) => e.id).toSet();
+      setState(() {
+        _older.addAll(res.items.where((e) => seen.add(e.id)));
+        _page = res.page;
+      });
+    } catch (e) {
+      if (mounted) showSnack(context, ApiException.messageOf(e));
+    } finally {
+      if (mounted && generation == _generation) setState(() => _loadingMore = false);
+    }
+  }
+
+  Future<void> _refresh() async {
+    setState(_reset);
+    ref.invalidate(paymentHistoryProvider);
+    await ref.read(paymentHistoryProvider.future);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // The first page reloaded elsewhere (after a payment): the older pages start again too
+    ref.listen(paymentHistoryProvider, (prev, next) {
+      if (prev?.valueOrNull != null && next.valueOrNull != prev?.valueOrNull) setState(_reset);
+    });
     final history = ref.watch(paymentHistoryProvider);
     return Scaffold(
       appBar: AppBar(title: const Text('سجل المدفوعات')),
       body: history.when(
         loading: () => const SkeletonList(count: 4, itemHeight: 64),
         error: (e, _) => ErrorView(error: e, onRetry: () => ref.invalidate(paymentHistoryProvider)),
-        data: (h) => h.items.isEmpty
-            ? const MessageView(icon: Icons.receipt_long_outlined, title: 'لا توجد مدفوعات بعد')
-            : ListView.separated(
-                itemCount: h.items.length,
-                separatorBuilder: (_, _) => const Divider(),
-                itemBuilder: (_, i) {
-                  final p = h.items[i];
-                  final (label, color) = switch (p.status) {
-                    'COMPLETED' => ('مكتمل', AppColors.success),
-                    'PENDING' => ('قيد الانتظار', AppColors.warning),
-                    'REFUNDED' => ('مسترد', AppColors.navy),
-                    _ => ('لم يكتمل', AppColors.danger),
-                  };
-                  return ListTile(
-                    minVerticalPadding: 12,
-                    title: Text(p.description?.replaceFirst('[MOCK] ', '') ?? 'شراء رصيد'),
-                    subtitle: Text(p.createdAt != null ? formatDate(p.createdAt!) : ''),
-                    trailing: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Text('${formatAmount(p.amount)} ${p.currency}', style: const TextStyle(fontWeight: FontWeight.w700)),
-                        Pill(text: label, color: color),
-                      ],
+        data: (h) {
+          final items = [...h.items, ..._older];
+          final hasMore = (_page ?? h.page).hasMore;
+          return RefreshIndicator(
+            onRefresh: _refresh,
+            child: items.isEmpty
+                ? ListView(children: const [
+                    SizedBox(
+                      height: 420,
+                      child: MessageView(icon: Icons.receipt_long_outlined, title: 'لا توجد مدفوعات بعد'),
                     ),
-                  );
-                },
-              ),
+                  ])
+                : ListView.separated(
+                    itemCount: items.length + 1,
+                    separatorBuilder: (_, _) => const Divider(),
+                    itemBuilder: (_, i) {
+                      if (i == items.length) {
+                        if (!hasMore) return const SizedBox(height: 24);
+                        return _loadingMore
+                            ? const Padding(padding: EdgeInsets.all(16), child: Center(child: CircularProgressIndicator()))
+                            : TextButton(
+                                key: const Key('payments-more'),
+                                onPressed: () => _more(h.page, items),
+                                child: const Text('عرض المزيد'),
+                              );
+                      }
+                      final p = items[i];
+                      final (label, color) = switch (p.status) {
+                        'COMPLETED' => ('مكتمل', AppColors.success),
+                        'PENDING' => ('قيد الانتظار', AppColors.warning),
+                        'REFUNDED' => ('مسترد', AppColors.navy),
+                        _ => ('لم يكتمل', AppColors.danger),
+                      };
+                      return ListTile(
+                        minVerticalPadding: 12,
+                        title: Text(p.description?.replaceFirst('[MOCK] ', '') ?? 'شراء رصيد'),
+                        subtitle: Text(p.createdAt != null ? formatDate(p.createdAt!) : ''),
+                        trailing: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text('${formatAmount(p.amount)} ${p.currency}', style: const TextStyle(fontWeight: FontWeight.w700)),
+                            Pill(text: label, color: color),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+          );
+        },
       ),
     );
   }

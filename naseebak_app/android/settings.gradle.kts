@@ -20,7 +20,7 @@ pluginManagement {
 plugins {
     id("dev.flutter.flutter-plugin-loader") version "1.0.0"
     id("com.android.application") version "8.11.1" apply false
-    id("org.jetbrains.kotlin.android") version "2.2.20" apply false
+    id("org.jetbrains.kotlin.android") version "2.3.21" apply false
     // FCM push: applied by app/build.gradle.kts only when app/google-services.json is present
     id("com.google.gms.google-services") version "4.4.4" apply false
     // Crash reports (Firebase Crashlytics), applied with google-services

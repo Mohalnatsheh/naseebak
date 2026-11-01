@@ -1,5 +1,6 @@
 import 'dart:io' show Platform;
 
+import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/foundation.dart';
@@ -12,6 +13,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app/app.dart';
 import 'app/providers.dart';
+import 'core/analytics/analytics.dart';
 import 'core/push/push_service.dart';
 import 'core/storage/token_store.dart';
 import 'firebase_options.dart';
@@ -35,6 +37,8 @@ Future<void> main() async {
     // Crash reports from release builds only (debug errors stay in the console)
     final crashlytics = FirebaseCrashlytics.instance;
     await crashlytics.setCrashlyticsCollectionEnabled(!kDebugMode);
+    // Funnel analytics from release builds only (core/analytics/analytics.dart)
+    await FirebaseAnalytics.instance.setAnalyticsCollectionEnabled(AppAnalytics.collect);
     FlutterError.onError = crashlytics.recordFlutterFatalError;
     PlatformDispatcher.instance.onError = (error, stack) {
       crashlytics.recordError(error, stack, fatal: true);

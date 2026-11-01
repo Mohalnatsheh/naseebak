@@ -4,8 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/analytics/analytics.dart';
 import '../../core/auth/auth_controller.dart';
 import '../../core/network/api_exception.dart';
+import '../../core/privacy/screen_privacy.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/common.dart';
 import '../home/gendered_copy.dart';
@@ -406,6 +408,8 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     );
     // What a poll during the send can bring (the copy of this message, if the answer gets lost)
     final before = _messages.map((m) => m.id).toSet();
+    // My first message in this chat (the whole history is loaded and none of it is mine)
+    final first = retry == null && !_hasMore && !_messages.any((m) => m.mine);
     setState(() {
       if (retry != null) _messages.removeWhere((m) => m.nonce == nonce);
       _messages.add(local);
@@ -414,6 +418,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     _toNewest();
     try {
       final sent = await _repo.send(widget.chatId, text, nonce: nonce);
+      if (first) ref.read(analyticsProvider).chatStarted();
       if (!mounted) return;
       setState(() {
         _messages.removeWhere((m) => m.nonce == nonce || m.id == sent.id);
@@ -578,95 +583,99 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
             ),
         ],
       ),
-      body: Builder(builder: (context) {
-        if (_loading && chat == null) return const Center(child: CircularProgressIndicator());
-        if (_error != null && chat == null) return ErrorView(error: _error!, onRetry: _load);
-        final items = _messages.reversed.toList();
-        return Column(
-          children: [
-            // One line; the full advice behind ⓘ
-            InkWell(
-              key: const Key('chat-safety'),
-              onTap: () => _safetyInfo(female),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.shield_outlined, size: 15, color: AppColors.muted),
-                    const SizedBox(width: 6),
-                    Flexible(
-                      child: Text(
-                        forViewer(female, 'لحمايتك: لا تُشارك أرقاماً أو روابط', 'لحمايتكِ: لا تُشاركي أرقاماً أو روابط'),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(color: AppColors.muted, fontSize: 12),
+      // The chat: no screenshots (Android), hidden during screen recording (iOS)
+      body: SecureArea(
+        screenshotNote: 'المحادثة خاصة بينكما، ومشاركتها خارج نصيبك مخالفة للشروط.',
+        child: Builder(builder: (context) {
+          if (_loading && chat == null) return const Center(child: CircularProgressIndicator());
+          if (_error != null && chat == null) return ErrorView(error: _error!, onRetry: _load);
+          final items = _messages.reversed.toList();
+          return Column(
+            children: [
+              // One line; the full advice behind ⓘ
+              InkWell(
+                key: const Key('chat-safety'),
+                onTap: () => _safetyInfo(female),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.shield_outlined, size: 15, color: AppColors.muted),
+                      const SizedBox(width: 6),
+                      Flexible(
+                        child: Text(
+                          forViewer(female, 'لحمايتك: لا تُشارك أرقاماً أو روابط', 'لحمايتكِ: لا تُشاركي أرقاماً أو روابط'),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(color: AppColors.muted, fontSize: 12),
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 4),
-                    const Icon(Icons.info_outline_rounded, size: 15, color: AppColors.muted),
-                  ],
+                      const SizedBox(width: 4),
+                      const Icon(Icons.info_outline_rounded, size: 15, color: AppColors.muted),
+                    ],
+                  ),
                 ),
               ),
-            ),
-            Expanded(
-              child: items.isEmpty
-                  ? const MessageView(
-                      icon: Icons.waving_hand_outlined,
-                      title: 'ابدأ المحادثة بالسلام',
-                      body: 'تعرّفا على بعض باحترام: القيم، والطموحات، وتصوّر الحياة الأسرية.',
-                    )
-                  : Stack(
-                      children: [
-                        ListView.builder(
-                          controller: _scroll,
-                          reverse: true,
-                          padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-                          itemCount: items.length + (_loadingOlder ? 1 : 0),
-                          itemBuilder: (context, i) {
-                            if (i == items.length) {
-                              return const Padding(
-                                padding: EdgeInsets.all(12),
-                                child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+              Expanded(
+                child: items.isEmpty
+                    ? const MessageView(
+                        icon: Icons.waving_hand_outlined,
+                        title: 'ابدأ المحادثة بالسلام',
+                        body: 'تعرّفا على بعض باحترام: القيم، والطموحات، وتصوّر الحياة الأسرية.',
+                      )
+                    : Stack(
+                        children: [
+                          ListView.builder(
+                            controller: _scroll,
+                            reverse: true,
+                            padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+                            itemCount: items.length + (_loadingOlder ? 1 : 0),
+                            itemBuilder: (context, i) {
+                              if (i == items.length) {
+                                return const Padding(
+                                  padding: EdgeInsets.all(12),
+                                  child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                                );
+                              }
+                              final m = items[i];
+                              final layout = chatRowLayout(items, i);
+                              final bubble = ChatBubble(
+                                key: ValueKey(m.id),
+                                message: m,
+                                showTime: layout.showTime,
+                                tightTop: layout.tightTop,
+                                onRetry: m.state == SendState.failed
+                                    ? () => m.filtered ? _editFailed(m) : _send(m)
+                                    : null,
                               );
-                            }
-                            final m = items[i];
-                            final layout = chatRowLayout(items, i);
-                            final bubble = ChatBubble(
-                              key: ValueKey(m.id),
-                              message: m,
-                              showTime: layout.showTime,
-                              tightTop: layout.tightTop,
-                              onRetry: m.state == SendState.failed
-                                  ? () => m.filtered ? _editFailed(m) : _send(m)
-                                  : null,
-                            );
-                            if (!layout.daySeparator) return bubble;
-                            return Column(
-                              key: ValueKey('day-${m.id}'),
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [_DaySeparator(label: chatDayLabel(m.createdAt)), bubble],
-                            );
-                          },
-                        ),
-                        if (_away)
-                          PositionedDirectional(
-                            bottom: 12,
-                            start: 12,
-                            child: FilledButton.tonalIcon(
-                              key: const Key('chat-newest'),
-                              onPressed: _toNewest,
-                              icon: const Icon(Icons.arrow_downward_rounded, size: 18),
-                              label: Text(_unseen > 0 ? 'الأحدث ($_unseen)' : 'الأحدث'),
-                            ),
+                              if (!layout.daySeparator) return bubble;
+                              return Column(
+                                key: ValueKey('day-${m.id}'),
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [_DaySeparator(label: chatDayLabel(m.createdAt)), bubble],
+                              );
+                            },
                           ),
-                      ],
-                    ),
-            ),
-            _footer(chat),
-          ],
-        );
-      }),
+                          if (_away)
+                            PositionedDirectional(
+                              bottom: 12,
+                              start: 12,
+                              child: FilledButton.tonalIcon(
+                                key: const Key('chat-newest'),
+                                onPressed: _toNewest,
+                                icon: const Icon(Icons.arrow_downward_rounded, size: 18),
+                                label: Text(_unseen > 0 ? 'الأحدث ($_unseen)' : 'الأحدث'),
+                              ),
+                            ),
+                        ],
+                      ),
+              ),
+              _footer(chat),
+            ],
+          );
+        }),
+      ),
     );
   }
 

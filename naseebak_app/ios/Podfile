@@ -2,6 +2,11 @@
 # Firebase iOS SDK 13 needs iOS 15
 platform :ios, '15.0'
 
+# One Firebase iOS SDK for every Firebase pod (read by the FlutterFire podspecs): firebase_core asks for 12.19.3,
+# but FirebaseAnalytics 12.19.3 was never published (Analytics stops at 12.19.0). Raise it when a newer SDK has
+# every pod.
+$FirebaseSDKVersion = '12.19.0'
+
 # CocoaPods analytics sends network stats synchronously affecting flutter build latency.
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
 

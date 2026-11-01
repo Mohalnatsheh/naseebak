@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/analytics/analytics.dart';
 import '../core/auth/auth_controller.dart';
 import '../core/push/push_service.dart';
 import '../core/routing/router.dart';
@@ -20,6 +21,15 @@ class NaseebakApp extends ConsumerWidget {
     ref.listen(authControllerProvider.select((a) => a.isSignedIn), (_, signedIn) {
       final push = ref.read(pushServiceProvider);
       signedIn ? push.start() : push.reset();
+    });
+    // Analytics reports split by member, gender and country (no name or phone)
+    ref.listen(authControllerProvider.select((a) => a.me?.id), (_, _) {
+      final me = ref.read(authControllerProvider).me;
+      ref.read(analyticsProvider).setMember(
+            id: me?.id,
+            gender: me == null ? null : (me.isFemale ? 'female' : 'male'),
+            country: me?.country.code,
+          );
     });
     return MaterialApp.router(
       title: 'نصيبك',

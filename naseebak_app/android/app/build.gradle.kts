@@ -28,10 +28,6 @@ android {
         isCoreLibraryDesugaringEnabled = true
     }
 
-    kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_17.toString()
-    }
-
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "com.naseebak.naseebak_app"
@@ -58,6 +54,13 @@ android {
         release {
             signingConfig = signingConfigs.findByName("upload") ?: signingConfigs.getByName("debug")
         }
+    }
+}
+
+// Kotlin 2.3 (needed by firebase_analytics' Play services, built with Kotlin 2.4): the compilerOptions DSL
+kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
     }
 }
 

@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/analytics/analytics.dart';
 import '../../core/auth/auth_controller.dart';
 import '../../core/localization/digits.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/network/json.dart';
+import '../../core/review/store_review.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/common.dart';
 import '../home/counts.dart';
@@ -280,6 +282,11 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
   void _afterAnswer(FeedItem item, DecisionResult res, {required bool interested}) {
     if (res.creditsLeft != null) ref.read(authControllerProvider.notifier).updateCredits(res.creditsLeft!);
     ref.read(authControllerProvider.notifier).refreshMe();
+    final analytics = ref.read(analyticsProvider);
+    interested
+        ? analytics.interestSent(introPreference: res.myPreference, likedYou: item.likedYou)
+        : analytics.suggestionDeclined();
+    if (res.match) analytics.matchCreated(res.intro ?? 'NONE');
     _removeAndTopUp(item);
     if (!mounted) return;
     if (res.match) {
@@ -296,6 +303,8 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
 
   void _showMatch(FeedItem item, DecisionResult res) {
     final copy = matchDialogCopy(res, item.candidate.firstName, viewerFemale: _viewerFemale);
+    // A happy moment: once the dialog closes, the store's rating sheet (once per install)
+    final review = ref.read(storeReviewProvider);
     showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -315,7 +324,7 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
           ),
         ],
       ),
-    );
+    ).then((_) => review.afterFirstMatch());
   }
 
 

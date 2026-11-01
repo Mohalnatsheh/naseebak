@@ -334,13 +334,23 @@ Future<bool> confirmDialog(
   return ok ?? false;
 }
 
+/// Links that come from the server open only as a web page, an email or a call: a tampered value can't send the
+/// phone to another app's scheme (`intent:`, `sms:`, a custom app link…). [extraSchemes]: e.g. the stores' own.
+bool isSafeExternalLink(String url, {Set<String> extraSchemes = const {}}) {
+  final uri = Uri.tryParse(url.trim());
+  if (uri == null) return false;
+  final scheme = uri.scheme.toLowerCase();
+  if (scheme == 'https') return uri.host.isNotEmpty;
+  return scheme == 'mailto' || scheme == 'tel' || extraSchemes.contains(scheme);
+}
+
 /// Opens a web page (terms, privacy, hosted checkout) outside the app.
 Future<bool> openExternal(BuildContext context, String? url) async {
-  if (url == null || url.isEmpty) {
+  if (url == null || url.isEmpty || !isSafeExternalLink(url)) {
     showSnack(context, 'الرابط غير متاح حالياً');
     return false;
   }
-  final ok = await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication).catchError((_) => false);
+  final ok = await launchUrl(Uri.parse(url.trim()), mode: LaunchMode.externalApplication).catchError((_) => false);
   if (!ok && context.mounted) showSnack(context, 'تعذّر فتح الرابط');
   return ok;
 }

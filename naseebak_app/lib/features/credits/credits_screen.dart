@@ -120,7 +120,7 @@ class _CreditsScreenState extends ConsumerState<CreditsScreen> with WidgetsBindi
         final paid = await _mockDialog(pkg);
         if (paid == null || !mounted) return;
         await _repo.completeMock(start.paymentId, paid: paid);
-      } else if (start.checkoutUrl != null) {
+      } else if (start.checkoutUrl != null && Uri.tryParse(start.checkoutUrl!)?.scheme == 'https') {
         // Tracked before the browser opens: the return to the app (resumed) may come before launch answers
         _track(start.paymentId);
         final open = widget.openCheckout ?? (u) => launchUrl(u, mode: LaunchMode.externalApplication);

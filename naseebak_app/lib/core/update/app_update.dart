@@ -6,6 +6,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../app/providers.dart';
+import '../../shared/widgets/common.dart' show isSafeExternalLink;
 import '../network/api_client.dart';
 import '../network/json.dart';
 import '../theme/app_theme.dart';
@@ -116,8 +117,8 @@ class _UpdateGateState extends ConsumerState<UpdateGate> with WidgetsBindingObse
   }
 
   Future<void> _openStore(String url) async {
-    if (url.isEmpty) return;
-    await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication).catchError((_) => false);
+    if (url.isEmpty || !isSafeExternalLink(url, extraSchemes: const {'itms-apps', 'market'})) return;
+    await launchUrl(Uri.parse(url.trim()), mode: LaunchMode.externalApplication).catchError((_) => false);
   }
 
   @override

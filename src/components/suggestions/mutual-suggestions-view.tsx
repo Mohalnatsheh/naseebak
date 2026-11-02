@@ -165,7 +165,7 @@ export function MutualSuggestionsView({
           if (!r.ok) throw new Error(`feed ${r.status}`);
           return r.json();
         }),
-        ...others.map((k) => fetch(`/api/suggestions/feed?tab=${k}&page=1`).then((r) => (r.ok ? r.json() : { total: 0 }) as Promise<{ total?: number }>)),
+        ...others.map((k) => fetch(`/api/suggestions/feed?tab=${k}&page=1&count=1`).then((r) => (r.ok ? r.json() : { total: 0 }) as Promise<{ total?: number }>)),
       ]);
       if (seq !== loadSeq.current) return;
       setItems(((cur.items ?? []) as FeedItem[]).filter((i) => !pendingDeclines.current.has(i.id)));

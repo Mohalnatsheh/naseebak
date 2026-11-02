@@ -12,7 +12,9 @@ export async function GET(request: Request) {
     const { page, pageSize } = parsePagination(searchParams, 10);
     const wanted = searchParams.get("tab");
     const tab: FeedTab = wanted === "waiting" || wanted === "interested" ? wanted : "new";
-    return NextResponse.json(await getSuggestionFeed(result.session.user.id, tab, page, pageSize));
+    // count=1: only the totals (the page shows the other two tabs' numbers), no cards built
+    const countOnly = searchParams.get("count") === "1";
+    return NextResponse.json(await getSuggestionFeed(result.session.user.id, tab, page, pageSize, { countOnly }));
   } catch (error) {
     console.error("Suggestion feed error:", error);
     return NextResponse.json({ error: "حدث خطأ في الخادم" }, { status: 500 });

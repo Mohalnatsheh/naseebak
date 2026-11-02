@@ -43,6 +43,9 @@ const personSelect = {
   personalityResult: { select: { vector: true } },
 } as const;
 
+/** countOnly: just enough to apply the feed's filters (blocked, unavailable) */
+const countSelect = { id: true, isDeactivated: true, status: true } as const;
+
 type Person = {
   id: string;
   firstName: string;
@@ -125,8 +128,8 @@ export async function countNewItems(userId: string): Promise<number> {
     return Math.min(fresh + likedYou, SOURCE_LIMIT);
   }
   const [fresh, interested] = await Promise.all([
-    getSuggestionFeed(userId, "new", 1, 1),
-    getSuggestionFeed(userId, "interested", 1, 1),
+    getSuggestionFeed(userId, "new", 1, 1, { countOnly: true }),
+    getSuggestionFeed(userId, "interested", 1, 1, { countOnly: true }),
   ]);
   return fresh.total + interested.total;
 }
@@ -135,12 +138,15 @@ export async function getSuggestionFeed(
   userId: string,
   tab: FeedTab,
   page: number,
-  pageSize = 10
+  pageSize = 10,
+  /** countOnly: the same total without loading profiles or building cards (`items` is empty) */
+  opts: { countOnly?: boolean } = {}
 ): Promise<{ items: FeedItem[]; page: number; totalPages: number; total: number }> {
   await expireMutualSuggestions(userId);
   const now = new Date();
   const flags = await getCycleFlags();
   const order = suggestionOrder(flags);
+  const otherSelect = opts.countOnly ? countSelect : personSelect;
 
   const [viewer, blocked] = await Promise.all([
     db.user.findUnique({ where: { id: userId }, select: { ...personSelect, matchCredits: true } }),
@@ -159,7 +165,7 @@ export async function getSuggestionFeed(
     id: true, compatibilityScore: true, createdAt: true, recipientId: true, expiresAt: true,
     // Read only for the derived likedYou / declined flags; never sent to the client
     recipientDecision: true, candidateDecision: true,
-    recipient: { select: personSelect }, candidate: { select: personSelect },
+    recipient: { select: otherSelect }, candidate: { select: otherSelect },
   } as const;
   const otherOf = (s: { recipientId: string; recipient: Person; candidate: Person }) =>
     s.recipientId === userId ? s.candidate : s.recipient;
@@ -175,13 +181,13 @@ export async function getSuggestionFeed(
       }),
       db.suggestion.findMany({
         where: { flow: "LEGACY", recipientId: userId, status: "PENDING" },
-        select: { id: true, compatibilityScore: true, createdAt: true, candidate: { select: personSelect } },
+        select: { id: true, compatibilityScore: true, createdAt: true, candidate: { select: otherSelect } },
         orderBy: { createdAt: "desc" },
         take: SOURCE_LIMIT,
       }),
       db.like.findMany({
         where: { toUserId: userId, isLiked: true },
-        select: { id: true, createdAt: true, suggestionId: true, fromUser: { select: personSelect } },
+        select: { id: true, createdAt: true, suggestionId: true, fromUser: { select: otherSelect } },
         orderBy: { createdAt: "desc" },
         take: SOURCE_LIMIT,
       }),
@@ -226,7 +232,7 @@ export async function getSuggestionFeed(
       }),
       db.suggestion.findMany({
         where: { flow: "LEGACY", recipientId: userId, status: "ACCEPTED", updatedAt: { gt: since } },
-        select: { id: true, compatibilityScore: true, updatedAt: true, candidate: { select: personSelect } },
+        select: { id: true, compatibilityScore: true, updatedAt: true, candidate: { select: otherSelect } },
         orderBy: { updatedAt: "desc" },
         take: SOURCE_LIMIT,
       }),
@@ -258,6 +264,7 @@ export async function getSuggestionFeed(
         : b.createdAt.getTime() - a.createdAt.getTime()
     );
   const total = visible.length;
+  if (opts.countOnly) return { items: [], page, totalPages: Math.ceil(total / pageSize), total };
   const items = visible.slice((page - 1) * pageSize, page * pageSize).map((r): FeedItem => {
     const v = viewer as unknown as Parameters<typeof suggestionReason>[0];
     const o = r.other as unknown as Parameters<typeof suggestionReason>[1];

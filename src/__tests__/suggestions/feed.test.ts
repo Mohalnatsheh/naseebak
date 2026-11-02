@@ -299,3 +299,13 @@ describe("countNewItems", () => {
     expect(db.suggestion.count).not.toHaveBeenCalled();
   });
 });
+
+describe("getSuggestionFeed — countOnly", () => {
+  it("gives the same total with no cards and without loading profiles", async () => {
+    db.suggestion.findMany.mockResolvedValueOnce([mutualRow("s1"), mutualRow("s2", person("f2", "FEMALE"))]).mockResolvedValueOnce([]);
+    db.block.findMany.mockResolvedValue([{ blockerId: "me", blockedId: "f2" }]);
+    const r = await getSuggestionFeed("me", "new", 1, 10, { countOnly: true });
+    expect(r).toEqual({ items: [], page: 1, totalPages: 1, total: 1 });
+    expect(db.suggestion.findMany.mock.calls[0][0].select.candidate).toEqual({ select: { id: true, isDeactivated: true, status: true } });
+  });
+});

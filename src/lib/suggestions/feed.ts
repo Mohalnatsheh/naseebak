@@ -117,6 +117,13 @@ export async function countMutualTabs(userId: string, now = new Date()): Promise
 
 /** Cards still to decide: the "new" and "interested" tabs together (dashboard card, next step). */
 export async function countNewItems(userId: string): Promise<number> {
+  // Credit on interest: both tabs hold only MUTUAL rows (legacy cards are closed), so the badge
+  // COUNTs give the same total without loading two full feeds. Capped like the feed's source query.
+  if ((await getCycleFlags()).creditOnInterest) {
+    await expireMutualSuggestions(userId);
+    const { fresh, likedYou } = await countMutualTabs(userId);
+    return Math.min(fresh + likedYou, SOURCE_LIMIT);
+  }
   const [fresh, interested] = await Promise.all([
     getSuggestionFeed(userId, "new", 1, 1),
     getSuggestionFeed(userId, "interested", 1, 1),

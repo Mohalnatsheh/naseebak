@@ -401,6 +401,7 @@ model Photo {
 
   createdAt       DateTime @default(now())
 
+  @@index([userId])
   @@map("photos")
 }
 
@@ -437,6 +438,9 @@ model Suggestion {
   updatedAt          DateTime         @updatedAt
 
   @@unique([recipientId, candidateId])
+  // The unique index leads with recipientId: "my cards as candidate" (every feed, badge and slot count)
+  // otherwise scans the whole unique index
+  @@index([candidateId])
   @@map("suggestions")
 }
 
@@ -490,6 +494,7 @@ model MutualMatch {
   createdAt       DateTime     @default(now())
 
   @@unique([femaleId, maleId])
+  @@index([maleId])
   @@map("mutual_matches")
 }
 
@@ -680,6 +685,7 @@ model Block {
   createdAt  DateTime @default(now())
 
   @@unique([blockerId, blockedId])
+  @@index([blockedId])
   @@map("blocks")
 }
 

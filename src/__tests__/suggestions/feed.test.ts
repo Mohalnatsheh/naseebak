@@ -12,7 +12,7 @@ vi.mock("@/lib/intro/match", () => ({ createMutualMatch: vi.fn() }));
 const settings = vi.hoisted(() => ({ getCycleFlags: vi.fn() }));
 vi.mock("@/lib/settings", () => settings);
 
-import { getSuggestionFeed, type OpenFeedItem } from "@/lib/suggestions/feed";
+import { countNewItems, getSuggestionFeed, type OpenFeedItem } from "@/lib/suggestions/feed";
 
 const DAY = 24 * 60 * 60 * 1000;
 const person = (id: string, gender: "MALE" | "FEMALE", profile: object = {}) => ({
@@ -274,5 +274,28 @@ describe("getSuggestionFeed — at 0 credits", () => {
     db.suggestion.findMany.mockResolvedValueOnce([withDecision("w1", null)]).mockResolvedValueOnce([]);
     const waiting = await getSuggestionFeed("me", "waiting", 1);
     expect(waiting.items[0]).toMatchObject({ kind: "mutual", id: "w1", candidate: { id: "f-w1" } });
+  });
+});
+
+describe("countNewItems", () => {
+  it("credit on interest: two COUNTs (new + liked me), no feed load", async () => {
+    settings.getCycleFlags.mockResolvedValue({ introRequests: true, chat: true, mutualSuggestions: true, creditOnInterest: true });
+    db.block.findMany.mockResolvedValue([{ blockerId: "me", blockedId: "f9" }]);
+    db.suggestion.count.mockResolvedValueOnce(3).mockResolvedValueOnce(2);
+    expect(await countNewItems("me")).toBe(5);
+    expect(db.suggestion.findMany).not.toHaveBeenCalled();
+    // expiry runs first, like the feed
+    expect(db.suggestion.updateMany).toHaveBeenCalledTimes(2);
+    const [fresh, liked] = db.suggestion.count.mock.calls.map((c) => c[0].where);
+    expect(fresh.OR[0]).toMatchObject({ recipientId: "me", candidateDecision: null, candidateId: { notIn: ["f9"] } });
+    expect(liked.OR[1]).toMatchObject({ candidateId: "me", recipientDecision: "INTERESTED", recipientId: { notIn: ["f9"] } });
+  });
+
+  it("flag off: counts the two feed tabs (legacy cards included)", async () => {
+    db.suggestion.findMany
+      .mockResolvedValueOnce([mutualRow("s1")])
+      .mockResolvedValueOnce([{ id: "L1", compatibilityScore: 60, createdAt: new Date(), candidate: person("f2", "FEMALE") }]);
+    expect(await countNewItems("me")).toBe(2);
+    expect(db.suggestion.count).not.toHaveBeenCalled();
   });
 });

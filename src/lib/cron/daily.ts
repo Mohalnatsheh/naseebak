@@ -60,11 +60,15 @@ export function summarise(tasks: Record<string, TaskResult>) {
 }
 
 async function runTask(name: string, fn: () => Promise<Counts>): Promise<TaskResult> {
+  const t0 = Date.now();
   try {
     return await fn();
   } catch (error) {
     console.error(`[cron] task ${name} failed:`, error);
     return { error: error instanceof Error ? error.message : String(error) };
+  } finally {
+    // Per-task time in the PM2 log, to see which task makes the run long
+    console.log(`[cron] task ${name}: ${Date.now() - t0}ms`);
   }
 }
 

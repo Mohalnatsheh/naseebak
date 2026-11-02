@@ -484,14 +484,16 @@ async function createMessage(args: SendArgs): Promise<ChatMessage> {
   });
 
   const sender = senderId === c.match.femaleId ? c.match.female : c.match.male;
+  // Bell and push are not awaited: the sender's answer never waits for OneSignal / FCM (both catch their
+  // own errors; one long-running process, so they finish after the response)
   // The bell, for members without a push device (one entry per chat, kept up to date)
-  await upsertChatBell(partner.id, conversationId, sender.firstName);
+  void upsertChatBell(partner.id, conversationId, sender.firstName);
 
   const key = `${conversationId}:${partner.id}`;
   const now = Date.now();
   if (now - (lastPush.get(key) ?? 0) >= PUSH_THROTTLE_MS) {
     lastPush.set(key, now);
-    await notify({
+    void notify({
       userId: partner.id,
       type: "CHAT",
       // Never the message itself: a push shows on the lock screen to whoever holds the phone

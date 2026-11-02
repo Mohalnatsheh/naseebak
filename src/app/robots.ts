@@ -6,7 +6,8 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: "*",
         allow: "/",
-        disallow: ["/dashboard/", "/admin/", "/api/"],
+        // No trailing slash: "/dashboard" itself is private too
+        disallow: ["/dashboard", "/admin", "/api/", "/payments/"],
       },
     ],
     sitemap: "https://naseebak.com/sitemap.xml",

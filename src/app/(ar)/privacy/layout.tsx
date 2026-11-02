@@ -3,6 +3,7 @@ import { getVisitorCountry } from "@/lib/countries/server";
 import { activeCountryCodes } from "@/lib/countries/settings";
 import { publicCopy } from "@/lib/public-copy";
 import { absoluteUrl, seoAlternates } from "@/lib/site-paths";
+import { socialMetadata } from "@/lib/seo";
 
 /** Per country URL (/privacy, /sa/privacy) with hreflang alternates */
 export async function generateMetadata(): Promise<Metadata> {
@@ -13,13 +14,12 @@ export async function generateMetadata(): Promise<Metadata> {
   description:
     "ما البيانات التي تجمعها منصة نصيبك، وكيف نستخدمها ونحميها، ومن يطّلع عليها، وكيف تحذف حسابك — بما في ذلك الصور وبيانات ولي الأمر ورسائل المحادثة",
   alternates: seoAlternates("/privacy", country, await activeCountryCodes()),
-  openGraph: {
+  ...socialMetadata({
     title: "سياسة الخصوصية | نصيبك",
-    description:
-      "كيف نحمي بياناتك الشخصية وخصوصيتك على منصة نصيبك لتيسير الزواج بالحلال",
+    description: "كيف نحمي بياناتك الشخصية وخصوصيتك على منصة نصيبك لتيسير الزواج بالحلال",
     url: absoluteUrl("/privacy", country),
     locale: copy.ogLocale,
-  },
+  }),
   };
 }
 

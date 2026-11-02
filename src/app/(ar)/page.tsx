@@ -8,6 +8,7 @@ import { LandingPage } from "@/components/landing/landing-page";
 import type { Metadata } from "next";
 import { publicCopy } from "@/lib/public-copy";
 import { absoluteUrl, seoAlternates } from "@/lib/site-paths";
+import { socialMetadata } from "@/lib/seo";
 
 async function pageText() {
   const [flags, country] = await Promise.all([getCycleFlags(), getVisitorCountry()]);
@@ -24,7 +25,8 @@ export async function generateMetadata(): Promise<Metadata> {
     title: { absolute: text.seoTitle },
     description: text.seoDescription,
     alternates: seoAlternates("/", country, await activeCountryCodes()),
-    openGraph: { url: absoluteUrl("/", country), locale: copy.ogLocale, description: text.seoDescription },
+    // Same title and text on link previews (admin's SEO override included)
+    ...socialMetadata({ title: text.seoTitle, description: text.seoDescription, url: absoluteUrl("/", country), locale: copy.ogLocale }),
   };
 }
 

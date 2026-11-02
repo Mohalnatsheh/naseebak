@@ -3,6 +3,7 @@ import { getVisitorCountry } from "@/lib/countries/server";
 import { activeCountryCodes } from "@/lib/countries/settings";
 import { publicCopy } from "@/lib/public-copy";
 import { absoluteUrl, seoAlternates } from "@/lib/site-paths";
+import { socialMetadata } from "@/lib/seo";
 
 /** Open Graph text and locale follow the visitor's country */
 export async function generateMetadata(): Promise<Metadata> {
@@ -13,12 +14,12 @@ export async function generateMetadata(): Promise<Metadata> {
     description:
       "اقرأ شروط استخدام منصة نصيبك والتزاماتنا تجاه المستخدمين وحقوقك كمستخدم في منصة تيسير الزواج بالحلال",
     alternates: seoAlternates("/terms", country, await activeCountryCodes()),
-    openGraph: {
+    ...socialMetadata({
       title: "شروط الاستخدام | نصيبك",
       description: `شروط استخدام منصة نصيبك لتيسير الزواج بالحلال ${copy.inCountry}`,
       url: absoluteUrl("/terms", country),
       locale: copy.ogLocale,
-    },
+    }),
   };
 }
 

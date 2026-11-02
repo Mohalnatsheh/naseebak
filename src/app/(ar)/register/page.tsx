@@ -487,11 +487,12 @@ function RegisterPageContent() {
   /* ---------------------------------------------------------------- */
   const stepLabels = ["معلومات الحساب", "تم بنجاح"];
 
-  /* Loading state while checking registration status */
+  /* Loading state while checking registration status (also what the server sends: keep a real heading in it) */
   if (statusChecking) {
     return (
-      <main className="relative flex min-h-screen items-center justify-center p-4 overflow-hidden">
+      <main className="relative flex min-h-screen flex-col items-center justify-center gap-4 p-4 overflow-hidden">
         <div className="fixed inset-0 -z-10 bg-gradient-to-br from-primary/10 via-background to-accent/10" />
+        <h1 className="text-xl font-bold text-primary">إنشاء حساب جديد في نصيبك</h1>
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </main>
     );

@@ -90,28 +90,34 @@ function organizationJsonLd(country: CountryCode) {
   return {
     "@context": "https://schema.org",
     "@type": "Organization",
+    "@id": "https://naseebak.com/#organization",
     name: "نصيبك",
     alternateName: "Naseebak",
     url: "https://naseebak.com",
-    logo: "https://naseebak.com/images/logo.svg",
+    // Raster logo: Google's logo rules don't list SVG
+    logo: "https://naseebak.com/images/icon-512.png",
     description: copy.shortDescription,
     foundingDate: "2025",
     areaServed: copy.areaServed,
-    sameAs: [],
+    // The social accounts that exist (same env vars as the footer icons)
+    sameAs: [
+      process.env.NEXT_PUBLIC_SOCIAL_FACEBOOK,
+      process.env.NEXT_PUBLIC_SOCIAL_X,
+      process.env.NEXT_PUBLIC_SOCIAL_INSTAGRAM,
+      process.env.NEXT_PUBLIC_SOCIAL_YOUTUBE,
+    ].filter(Boolean),
   };
 }
 
 const websiteJsonLd = {
   "@context": "https://schema.org",
   "@type": "WebSite",
+  "@id": "https://naseebak.com/#website",
   name: "نصيبك",
   alternateName: "Naseebak",
   url: "https://naseebak.com",
   inLanguage: "ar",
-  publisher: {
-    "@type": "Organization",
-    name: "نصيبك",
-  },
+  publisher: { "@id": "https://naseebak.com/#organization" },
 };
 
 export default async function ArabicLayout({

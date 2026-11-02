@@ -12,7 +12,10 @@ import { DeactivatedGate } from "./reactivate/deactivated-gate";
 import { SuspendedScreen } from "./suspended-screen";
 
 // Each dashboard section sets its own title in its layout.tsx (pages here are client components)
-export const metadata: Metadata = { title: { default: "لوحة التحكم", template: "%s | نصيبك" } };
+export const metadata: Metadata = {
+  title: { default: "لوحة التحكم", template: "%s | نصيبك" },
+  robots: { index: false, follow: false },
+};
 
 export default async function DashboardLayout({
   children,

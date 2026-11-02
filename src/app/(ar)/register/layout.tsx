@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { getVisitorCountry } from "@/lib/countries/server";
 import { publicCopy } from "@/lib/public-copy";
+import { socialMetadata } from "@/lib/seo";
 
 /** Description and Open Graph locale follow the visitor's country */
 export async function generateMetadata(): Promise<Metadata> {
@@ -10,12 +11,12 @@ export async function generateMetadata(): Promise<Metadata> {
     title: "إنشاء حساب",
     description,
     alternates: { canonical: "https://naseebak.com/register" },
-    openGraph: {
+    ...socialMetadata({
       title: "إنشاء حساب | نصيبك",
       description,
       url: "https://naseebak.com/register",
       locale: publicCopy(country).ogLocale,
-    },
+    }),
   };
 }
 

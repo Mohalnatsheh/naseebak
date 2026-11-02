@@ -18,7 +18,8 @@ export function countryPageDefaults(country: CountryCode, mode: LandingMode): Co
   return {
     heroTitle: hero.title,
     heroSubtitle: hero.lead,
-    seoTitle: country === "SA" ? "نصيبك - منصة زواج جاد في السعودية بالحلال" : "نصيبك - نوصّلك بشريك العمر بالحلال",
+    seoTitle:
+      country === "SA" ? "نصيبك - منصة زواج جاد في السعودية بالحلال" : "نصيبك - منصة زواج بالحلال في الأردن | نوصّلك بشريك العمر",
     seoDescription: publicCopy(country).description,
   };
 }

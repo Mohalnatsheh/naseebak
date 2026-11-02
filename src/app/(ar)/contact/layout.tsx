@@ -3,6 +3,7 @@ import { getVisitorCountry } from "@/lib/countries/server";
 import { activeCountryCodes } from "@/lib/countries/settings";
 import { publicCopy } from "@/lib/public-copy";
 import { absoluteUrl, seoAlternates } from "@/lib/site-paths";
+import { socialMetadata } from "@/lib/seo";
 
 /** Description and Open Graph locale follow the visitor's country */
 export async function generateMetadata(): Promise<Metadata> {
@@ -12,12 +13,12 @@ export async function generateMetadata(): Promise<Metadata> {
     title: "تواصل معنا",
     description: `تواصل مع فريق نصيبك للإجابة على استفساراتك حول منصة تيسير الزواج بالحلال ${copy.inCountry}. نحن هنا لمساعدتك`,
     alternates: seoAlternates("/contact", country, await activeCountryCodes()),
-    openGraph: {
+    ...socialMetadata({
       title: "تواصل معنا | نصيبك",
       description: "تواصل مع فريق نصيبك للإجابة على استفساراتك حول منصة تيسير الزواج بالحلال",
       url: absoluteUrl("/contact", country),
       locale: copy.ogLocale,
-    },
+    }),
   };
 }
 

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { db } from "@/lib/db";
+import { getPublishedPost, postDescription } from "@/lib/blog";
+import { socialMetadata } from "@/lib/seo";
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -14,10 +15,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { slug } = await params;
 
-  const post = await db.blogPost.findUnique({
-    where: { slug, status: "PUBLISHED" },
-    include: { category: true },
-  });
+  const post = await getPublishedPost(slug);
 
   if (!post) {
     return {
@@ -27,34 +25,32 @@ export async function generateMetadata({
   }
 
   const url = `https://naseebak.com/blog/${post.slug}`;
+  const description = postDescription(post);
 
   return {
-    title: post.title,
-    description: post.excerpt || post.content.slice(0, 160),
+    // Absolute: blog/layout's plain title stops the site template here; long titles stay without the suffix
+    title: { absolute: post.title.length <= 50 ? `${post.title} | نصيبك` : post.title },
+    description,
     alternates: { canonical: url },
-    openGraph: {
-      title: `${post.title} | نصيبك`,
-      description: post.excerpt || post.content.slice(0, 160),
-      url,
-      type: "article",
-      publishedTime: post.publishedAt?.toISOString(),
-      section: post.category.nameAr,
-    },
-    twitter: {
-      card: "summary_large_image",
+    ...socialMetadata({
       title: post.title,
-      description: post.excerpt || post.content.slice(0, 160),
-    },
+      description,
+      url,
+      locale: "ar_JO",
+      image: { url: "https://naseebak.com/images/pages/post.webp", width: 1600, height: 900, alt: post.title },
+      article: {
+        publishedTime: post.publishedAt?.toISOString(),
+        modifiedTime: post.updatedAt.toISOString(),
+        section: post.category.nameAr,
+      },
+    }),
   };
 }
 
 export default async function BlogSlugLayout({ params, children }: Props) {
   const { slug } = await params;
 
-  const post = await db.blogPost.findUnique({
-    where: { slug, status: "PUBLISHED" },
-    include: { category: true },
-  });
+  const post = await getPublishedPost(slug);
 
   // A real 404 (not a 200 "not found" page) so search engines drop dead links
   if (!post) notFound();
@@ -65,8 +61,10 @@ export default async function BlogSlugLayout({ params, children }: Props) {
     "@context": "https://schema.org",
     "@type": "BlogPosting",
     headline: post.title,
-    description: post.excerpt || post.content.slice(0, 160),
+    description: postDescription(post),
     url,
+    mainEntityOfPage: { "@type": "WebPage", "@id": url },
+    image: "https://naseebak.com/images/pages/post.webp",
     datePublished: post.publishedAt?.toISOString(),
     dateModified: post.updatedAt.toISOString(),
     author: {
@@ -80,7 +78,7 @@ export default async function BlogSlugLayout({ params, children }: Props) {
       url: "https://naseebak.com",
       logo: {
         "@type": "ImageObject",
-        url: "https://naseebak.com/images/logo.svg",
+        url: "https://naseebak.com/images/icon-512.png",
       },
     },
     articleSection: post.category.nameAr,

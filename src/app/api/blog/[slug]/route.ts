@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { getPublishedPost } from "@/lib/blog";
 
 export async function GET(
   _req: NextRequest,
@@ -8,10 +8,7 @@ export async function GET(
   try {
     const { slug } = await params;
 
-    const post = await db.blogPost.findUnique({
-      where: { slug, status: "PUBLISHED" },
-      include: { category: true },
-    });
+    const post = await getPublishedPost(slug);
 
     if (!post) {
       return NextResponse.json({ error: "المقال غير موجود" }, { status: 404 });

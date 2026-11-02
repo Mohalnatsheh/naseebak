@@ -5,21 +5,22 @@ import { getVisitorCountry } from "@/lib/countries/server";
 import { activeCountryCodes } from "@/lib/countries/settings";
 import { publicCopy } from "@/lib/public-copy";
 import { absoluteUrl, seoAlternates } from "@/lib/site-paths";
+import { socialMetadata } from "@/lib/seo";
 
 export async function generateMetadata(): Promise<Metadata> {
   const country = await getVisitorCountry();
   const copy = publicCopy(country);
   return {
-    title: "الأسئلة الشائعة",
+    title: "الأسئلة الشائعة حول نصيبك",
     description:
       "إجابات على أكثر الأسئلة شيوعاً حول منصة نصيبك لتيسير الزواج بالحلال — التسجيل، الخصوصية، الباقات، التوافق، والمزيد",
     alternates: seoAlternates("/faq", country, await activeCountryCodes()),
-    openGraph: {
+    ...socialMetadata({
       title: "الأسئلة الشائعة | نصيبك",
       description: `إجابات على أكثر الأسئلة شيوعاً حول منصة نصيبك لتيسير الزواج بالحلال ${copy.inCountry}`,
       url: absoluteUrl("/faq", country),
       locale: copy.ogLocale,
-    },
+    }),
   };
 }
 

@@ -1,15 +1,16 @@
 import type { Metadata } from "next";
+import { socialMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = {
   title: "تسجيل الدخول",
   description:
-    "سجّل دخولك لحسابك على منصة نصيبك واستقبل اقتراحات التوافق المبنية على الذكاء الاصطناعي",
+    "سجّل دخولك لحسابك على منصة نصيبك لتيسير الزواج بالحلال وتابع اقتراحاتك وتوافقاتك",
   alternates: { canonical: "https://naseebak.com/login" },
-  openGraph: {
+  ...socialMetadata({
     title: "تسجيل الدخول | نصيبك",
     description: "سجّل دخولك لحسابك على منصة نصيبك لتيسير الزواج بالحلال",
     url: "https://naseebak.com/login",
-  },
+  }),
 };
 
 export default function LoginLayout({

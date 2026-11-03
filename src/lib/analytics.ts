@@ -62,7 +62,7 @@ function isIdSegment(segment: string): boolean {
 }
 
 /**
- * The URL GA4 gets as page_location / page_referrer. Public pages are unchanged (utm tags stay). On signed-in
+ * The URL GA4 gets as page_location / page_referrer. Public pages are unchanged (utm tags stay) but lose `callbackUrl`. On signed-in
  * pages ids become ":id" (`/dashboard/chats/:id`), only `tab` is kept from the query and the hash is dropped.
  * Anything unreadable (another site's referrer stays as is; "" stays "").
  */
@@ -73,7 +73,12 @@ export function analyticsPageLocation(href: string): string {
   } catch {
     return href;
   }
-  if (!isPrivatePath(url.pathname)) return href;
+  if (!isPrivatePath(url.pathname)) {
+    // login/register keep where the member was going (`callbackUrl=/dashboard/chats/<id>`): drop it, the rest stays
+    if (!url.searchParams.has("callbackUrl")) return href;
+    url.searchParams.delete("callbackUrl");
+    return url.toString();
+  }
   const path = url.pathname.split("/").map((seg) => (isIdSegment(seg) ? ":id" : seg)).join("/");
   const query = [...url.searchParams].filter(([k]) => PRIVATE_QUERY_KEEP.has(k));
   const search = query.length ? `?${new URLSearchParams(query)}` : "";

@@ -36,6 +36,10 @@ describe("analyticsPageLocation (what GA4 gets as the page URL)", () => {
     expect(analyticsPageLocation(u)).toBe(u);
     expect(analyticsPageLocation(`${o}/blog/marahel-alzawaj-fi-alordon`)).toBe(`${o}/blog/marahel-alzawaj-fi-alordon`);
   });
+  it("drops the login page's callbackUrl (it holds the dashboard link and its ids)", () => {
+    expect(analyticsPageLocation(`${o}/login?callbackUrl=https%3A%2F%2Fnaseebak.com%2Fdashboard%2Fchats%2Fcmvzs9ojt04dfr48u9waua4e8`)).toBe(`${o}/login`);
+    expect(analyticsPageLocation(`${o}/login?callbackUrl=%2Fdashboard&utm_source=ig`)).toBe(`${o}/login?utm_source=ig`);
+  });
   it("passes through empty and other sites' referrers", () => {
     expect(analyticsPageLocation("")).toBe("");
     expect(analyticsPageLocation("https://l.instagram.com/")).toBe("https://l.instagram.com/");

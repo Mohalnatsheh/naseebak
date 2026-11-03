@@ -5,7 +5,7 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { signOut } from "next-auth/react";
-import { LayoutDashboard, Users, ShieldCheck, Sparkles, CalendarHeart, FileText, Menu, LogOut, Flag, ClipboardEdit, CreditCard, Bell, Ban, Trash2, Settings, LifeBuoy, HeartHandshake, Archive, ChevronDown, Heart, MessagesSquare, Inbox, MessageCircleQuestion, Globe2, Megaphone } from "lucide-react";
+import { LayoutDashboard, Users, ShieldCheck, Sparkles, CalendarHeart, FileText, Menu, LogOut, Flag, ClipboardEdit, CreditCard, Bell, Ban, Trash2, Settings, LifeBuoy, HeartHandshake, Archive, ChevronDown, Heart, MessagesSquare, Inbox, MessageCircleQuestion, Globe2, Megaphone, Gift } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
@@ -30,6 +30,7 @@ const sidebarLinks: SidebarLink[] = [
   { href: "/admin/reports", label: "Reports", icon: Flag },
   { href: "/admin/profile-requests", label: "Profile Requests", icon: ClipboardEdit },
   { href: "/admin/payments", label: "Payments", icon: CreditCard },
+  { href: "/admin/referrals", label: "Referrals", icon: Gift },
   { href: "/admin/notifications", label: "Notifications", icon: Bell },
   { href: "/admin/alerts", label: "Popup Alerts", icon: Megaphone },
   { href: "/admin/blocks", label: "Blocks", icon: Ban },

@@ -48,7 +48,9 @@ interface UserDetail {
     reviewedAt: string | null; createdAt: string;
   } | null;
   photos: { id: string; url: string; isPrimary: boolean; order: number; createdAt: string }[];
+  referralsReceived: { createdAt: string; creditsAwarded: boolean; referrer: { id: string; firstName: string; lastName: string } } | null;
   _count: {
+    referralsGiven: number;
     receivedSuggestions: number; givenSuggestions: number;
     matchesAsFemale: number; matchesAsMale: number;
     payments: number; notifications: number;
@@ -484,6 +486,23 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
             <InfoRow icon={<Calendar className="h-4 w-4" />} label="Joined" value={new Date(user.createdAt).toLocaleDateString()} />
             <InfoRow icon={<ShieldCheck className="h-4 w-4" />} label="Verified" value={user.isVerified ? `Yes (${user.verifiedAt ? new Date(user.verifiedAt).toLocaleDateString() : ""})` : "No"} />
             <InfoRow icon={<CreditCard className="h-4 w-4" />} label="Credits" value={String(user.matchCredits)} />
+            {user.referralsReceived && (
+              <div className="flex items-start gap-2">
+                <span className="text-muted-foreground min-w-[100px] shrink-0">Invited by:</span>
+                <Link href={`/admin/users/${user.referralsReceived.referrer.id}`} className="font-medium hover:underline">
+                  {user.referralsReceived.referrer.firstName} {user.referralsReceived.referrer.lastName}
+                </Link>
+                <span className="text-xs text-muted-foreground">{user.referralsReceived.creditsAwarded ? "(reward paid)" : "(reward after setup)"}</span>
+              </div>
+            )}
+            {user._count.referralsGiven > 0 && (
+              <div className="flex items-start gap-2">
+                <span className="text-muted-foreground min-w-[100px] shrink-0">Invited:</span>
+                <Link href={`/admin/referrals?referrer=${user.id}`} className="font-medium hover:underline">
+                  {user._count.referralsGiven} {user._count.referralsGiven === 1 ? "member" : "members"}
+                </Link>
+              </div>
+            )}
           </CardContent>
         </Card>
 

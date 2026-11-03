@@ -69,8 +69,16 @@ export async function GET(
           select: { id: true, url: true, isPrimary: true, order: true, createdAt: true },
           orderBy: { order: "asc" },
         },
+        referralsReceived: {
+          select: {
+            createdAt: true,
+            creditsAwarded: true,
+            referrer: { select: { id: true, firstName: true, lastName: true } },
+          },
+        },
         _count: {
           select: {
+            referralsGiven: true,
             receivedSuggestions: true,
             givenSuggestions: true,
             matchesAsFemale: true,

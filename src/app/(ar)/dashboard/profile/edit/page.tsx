@@ -31,7 +31,8 @@ import { OptionalTag, DealbreakerToggle } from "@/components/profile/form-fields
 import { HOUSING_TYPES, OPTION_VALUES, SKIN_COLORS, selfLabel, describeOption, oppositeGender, defaultNationality, expenseRangesFor, incomeRangesFor, nationalityOptions, tribeLabel } from "@/lib/profile-options";
 import { activeDealbreakers } from "@/lib/matching/dealbreaker-summary";
 import type { DealbreakerKey } from "@/lib/matching/score";
-import { dateOfBirthError, maxDateOfBirth, parentInfoSchemaFor } from "@/lib/validations/profile";
+import { dateOfBirthError, parentInfoSchemaFor } from "@/lib/validations/profile";
+import { BirthDateSelect } from "@/components/profile/birth-date-select";
 import { normalizePhone } from "@/lib/validations/auth";
 import { splitProfileEdit, buildFillBody } from "@/lib/profile-edit-split";
 import { forViewer } from "@/lib/gendered-copy";
@@ -782,17 +783,10 @@ export default function ProfileEditPage() {
             <CardDescription>البيانات الأساسية عنك</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <RequiredLabel htmlFor="edit-field-1">تاريخ الميلاد</RequiredLabel>
-                <Input
-                  id="edit-field-1"
-                  type="date"
-                  max={maxDateOfBirth()}
-                  value={form.dateOfBirth}
-                  onChange={(e) => update("dateOfBirth", e.target.value)}
-                  dir="ltr"
-                />
+                <BirthDateSelect id="edit-field-1" value={form.dateOfBirth} onChange={(v) => update("dateOfBirth", v)} />
               </div>
               <div className="space-y-2">
                 <RequiredLabel htmlFor="edit-field-2">الجنسية</RequiredLabel>

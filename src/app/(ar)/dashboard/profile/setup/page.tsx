@@ -18,7 +18,8 @@ import { activeDealbreakers } from "@/lib/matching/dealbreaker-summary";
 import type { DealbreakerKey } from "@/lib/matching/score";
 import { arabicCount } from "@/lib/utils";
 import { forViewer } from "@/lib/gendered-copy";
-import { dateOfBirthError, maxDateOfBirth, parentInfoSchemaFor } from "@/lib/validations/profile";
+import { dateOfBirthError, parentInfoSchemaFor } from "@/lib/validations/profile";
+import { BirthDateSelect } from "@/components/profile/birth-date-select";
 import { normalizePhone } from "@/lib/validations/auth";
 
 const asOpts = (values: readonly string[]): Opt[] => values.map((v) => ({ value: v, label: v }));
@@ -607,7 +608,7 @@ export default function ProfileSetupPage() {
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Field id="dateOfBirth" label="تاريخ الميلاد" error={fieldErrors.dateOfBirth}>
-                <Input id="dateOfBirth" type="date" max={maxDateOfBirth()} value={form.dateOfBirth} onChange={(e) => update("dateOfBirth", e.target.value)} dir="ltr" aria-invalid={!!fieldErrors.dateOfBirth} className={inputError(!!fieldErrors.dateOfBirth)} />
+                <BirthDateSelect id="dateOfBirth" value={form.dateOfBirth} onChange={(v) => update("dateOfBirth", v)} invalid={!!fieldErrors.dateOfBirth} />
               </Field>
               <Field id="nationality" label="الجنسية" error={fieldErrors.nationality}>
                 <Input id="nationality" list="nationality-options" value={form.nationality} onChange={(e) => update("nationality", e.target.value)} aria-invalid={!!fieldErrors.nationality} className={inputError(!!fieldErrors.nationality)} />

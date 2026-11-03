@@ -150,7 +150,7 @@ export default async function ArabicLayout({
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd) }}
         />
-        {/* GA4, GTM, Meta Pixel — public pages only (never the dashboard, chats or admin) */}
+        {/* GA4 on public pages + dashboard (ids hidden), GTM + Meta Pixel public pages only, nothing in admin */}
         <PublicTracking />
         <VisitorCountryProvider country={country} countries={countries}>
           {showMaintenance ? (

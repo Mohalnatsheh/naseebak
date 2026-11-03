@@ -249,6 +249,7 @@ export default function AdminNotificationsPage() {
                 <option value="/dashboard/photos">Photos (صوري)</option>
                 <option value="/dashboard/personality-quiz">Personality Quiz (اختبار الشخصية)</option>
                 <option value="/dashboard/payments">Payments (رصيد الاقتراحات)</option>
+                <option value="/dashboard/referral">Invite friends (دعوة الأصدقاء)</option>
                 <option value="/dashboard/support">Support (الدعم والملاحظات)</option>
               </select>
             </div>

@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 
 type Audience = "ALL" | "MEN" | "WOMEN" | "USER";
-type Channel = "ALL" | "APP" | "WEB";
+type Channel = "ALL" | "APP" | "WEB" | "WEB_ANDROID" | "WEB_IPHONE" | "WEB_DESKTOP";
 
 interface AlertItem {
   id: string;
@@ -46,6 +46,9 @@ const CHANNELS: [Channel, string][] = [
   ["ALL", "Website + App"],
   ["APP", "App only"],
   ["WEB", "Website only"],
+  ["WEB_ANDROID", "Website on Android"],
+  ["WEB_IPHONE", "Website on iPhone"],
+  ["WEB_DESKTOP", "Website on computer"],
 ];
 const LINKS: [string, string][] = [
   ["", "No button"],

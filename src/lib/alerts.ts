@@ -1,7 +1,8 @@
 /**
  * Popup alerts from the admin (admin → «Popup Alerts»): shown in the app and/or on the website dashboard, once per
  * member — closing it or tapping its button records an AlertDismissal and it never shows to them again.
- * Audience: everyone, men, women or one member; channel: app, website or both; the admin's selected country
+ * Audience: everyone, men, women or one member; channel: app, website or both, or the website on one kind of device
+ * (Android / iPhone / computer, from the browser's user agent); the admin's selected country
  * (null = every country); between startsAt and endsAt, unless stopped. Members see the oldest one waiting first.
  */
 import type { Prisma } from "@prisma/client";
@@ -9,8 +10,24 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 
 export const ALERT_AUDIENCES = ["ALL", "MEN", "WOMEN", "USER"] as const;
-export const ALERT_CHANNELS = ["ALL", "APP", "WEB"] as const;
+export const ALERT_CHANNELS = ["ALL", "APP", "WEB", "WEB_ANDROID", "WEB_IPHONE", "WEB_DESKTOP"] as const;
 export type AlertPlatform = "app" | "web";
+/** The device a website visit comes from (iPad counts as iPhone; iPadOS Safari that reports a Mac is a computer) */
+export type WebDevice = "android" | "iphone" | "desktop";
+
+export function webDeviceFromUserAgent(ua: string | null | undefined): WebDevice {
+  if (ua && /android/i.test(ua)) return "android";
+  if (ua && /iphone|ipad|ipod/i.test(ua)) return "iphone";
+  return "desktop";
+}
+
+const WEB_DEVICE_CHANNEL = { android: "WEB_ANDROID", iphone: "WEB_IPHONE", desktop: "WEB_DESKTOP" } as const;
+
+/** Channels that reach this platform: the app gets ALL + APP; the website ALL + WEB + its device's channel */
+function channelsFor(platform: AlertPlatform, device?: WebDevice): string[] {
+  if (platform === "app") return ["ALL", "APP"];
+  return device ? ["ALL", "WEB", WEB_DEVICE_CHANNEL[device]] : ["ALL", "WEB"];
+}
 
 /** What a member's popup needs (never the targeting) */
 export interface MemberAlert {
@@ -62,11 +79,12 @@ export const alertInputSchema = z
   });
 export type AlertInput = z.infer<typeof alertInputSchema>;
 
-/** The alerts `user` should see now on `platform`, oldest first, not yet closed */
+/** The alerts `user` should see now on `platform` (website: on `device`), oldest first, not yet closed */
 export function memberAlertsWhere(
   user: { id: string; gender: "MALE" | "FEMALE"; country: string },
   platform: AlertPlatform,
   now = new Date(),
+  device?: WebDevice,
 ): Prisma.AlertWhereInput {
   return {
     stoppedAt: null,
@@ -82,16 +100,21 @@ export function memberAlertsWhere(
         ],
       },
     ],
-    channel: { in: ["ALL", platform === "app" ? "APP" : "WEB"] },
+    channel: { in: channelsFor(platform, device) },
     dismissals: { none: { userId: user.id } },
   };
 }
 
-export async function currentAlertFor(userId: string, platform: AlertPlatform, now = new Date()): Promise<MemberAlert | null> {
+export async function currentAlertFor(
+  userId: string,
+  platform: AlertPlatform,
+  now = new Date(),
+  device?: WebDevice,
+): Promise<MemberAlert | null> {
   const user = await db.user.findUnique({ where: { id: userId }, select: { id: true, gender: true, country: true } });
   if (!user) return null;
   return db.alert.findFirst({
-    where: memberAlertsWhere(user, platform, now),
+    where: memberAlertsWhere(user, platform, now, device),
     orderBy: { createdAt: "asc" },
     select: { id: true, title: true, body: true, imageUrl: true, buttonLabel: true, buttonUrl: true },
   });

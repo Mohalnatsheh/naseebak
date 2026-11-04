@@ -7,7 +7,7 @@ const db = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/db", () => ({ db }));
 
-import { alertInputSchema, currentAlertFor, dismissAlert, isAlertLink, memberAlertsWhere } from "@/lib/alerts";
+import { alertInputSchema, currentAlertFor, dismissAlert, isAlertLink, memberAlertsWhere, webDeviceFromUserAgent } from "@/lib/alerts";
 
 beforeEach(() => vi.clearAllMocks());
 
@@ -33,6 +33,21 @@ describe("which alerts a member sees", () => {
     const where = memberAlertsWhere({ id: "u2", gender: "MALE", country: "SA" }, "web", now);
     expect(where.channel).toEqual({ in: ["ALL", "WEB"] });
     expect(JSON.stringify(where.AND)).toContain('"MEN"');
+  });
+
+  it("the website on a device also gets that device's channel; the app never does", () => {
+    const man = { id: "u2", gender: "MALE" as const, country: "JO" };
+    expect(memberAlertsWhere(man, "web", now, "android").channel).toEqual({ in: ["ALL", "WEB", "WEB_ANDROID"] });
+    expect(memberAlertsWhere(man, "web", now, "iphone").channel).toEqual({ in: ["ALL", "WEB", "WEB_IPHONE"] });
+    expect(memberAlertsWhere(man, "web", now, "desktop").channel).toEqual({ in: ["ALL", "WEB", "WEB_DESKTOP"] });
+    expect(memberAlertsWhere(man, "app", now, "android").channel).toEqual({ in: ["ALL", "APP"] });
+  });
+
+  it("device from the user agent", () => {
+    expect(webDeviceFromUserAgent("Mozilla/5.0 (Linux; Android 14; wv) Instagram 350.0")).toBe("android");
+    expect(webDeviceFromUserAgent("Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)")).toBe("iphone");
+    expect(webDeviceFromUserAgent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Chrome/130.0")).toBe("desktop");
+    expect(webDeviceFromUserAgent(null)).toBe("desktop");
   });
 
   it("the oldest waiting alert, only the fields the popup needs", async () => {

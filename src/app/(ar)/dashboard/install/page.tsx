@@ -10,6 +10,7 @@ import { forViewer } from "@/lib/gendered-copy";
 import { InstallSteps } from "@/components/shared/install-guide";
 import { PushSetupFlow } from "@/components/shared/push-setup";
 import { PageHeader } from "@/components/shared/page-header";
+import { AppDownloadCard } from "@/components/shared/app-download-card";
 
 type Tab = "ios" | "android";
 
@@ -36,6 +37,8 @@ export default function InstallGuidePage() {
           "لتعرفي فوراً بالاقتراحات الجديدة والتوافق والرسائل، حتى والموقع مغلق."
         )}
       />
+
+      <AppDownloadCard />
 
       <Card className="border-primary/10">
         <CardContent className="p-5 sm:p-6">

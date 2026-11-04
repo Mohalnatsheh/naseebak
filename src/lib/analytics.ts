@@ -28,7 +28,9 @@ export type AnalyticsEvent =
   | "interest_response" // { response: "accept" | "reject" }
   | "begin_checkout" // GA4 recommended
   | "payment_success"
-  | "poll_vote"; // { source: "page" | "instagram" } — a visitor answered «سؤال نصيبك» on /poll
+  | "poll_vote" // { source: "page" | "instagram" } — a visitor answered «سؤال نصيبك» on /poll
+  | "app_download_click" // { place: "banner" | "install_page" } — an Android visitor tapped a Play Store button
+  | "app_banner_closed";
 
 export function trackEvent(name: AnalyticsEvent, params?: GtagParams) {
   try {

@@ -4,6 +4,7 @@ import { Cairo } from "next/font/google";
 import "../globals.css";
 import PublicTracking from "@/components/shared/public-tracking";
 import { connection } from "next/server";
+import { cookies, headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { getMaintenanceState } from "@/lib/settings";
 import { MaintenanceScreen } from "@/components/shared/maintenance-screen";
@@ -12,6 +13,9 @@ import { activeCountryCodes } from "@/lib/countries/settings";
 import { CountrySuggestBanner } from "@/components/shared/country-suggest-banner";
 import { publicCopy } from "@/lib/public-copy";
 import { VisitorCountryProvider } from "@/components/shared/visitor-country";
+import { AppDownloadBanner } from "@/components/shared/app-download-banner";
+import { APP_BANNER_COOKIE, isAndroidUserAgent, playStoreHref } from "@/lib/app-download";
+import { getMobileConfig } from "@/lib/mobile-config";
 
 const cairo = Cairo({
   subsets: ["arabic", "latin"],
@@ -130,12 +134,20 @@ export default async function ArabicLayout({
   const maintenance = await getMaintenanceState();
   const isAdmin = maintenance.enabled ? (await auth())?.user?.role === "ADMIN" : false;
   const showMaintenance = maintenance.enabled && !isAdmin;
-  const [country, geoCountry, hasChoice, countries] = await Promise.all([
+  const [country, geoCountry, hasChoice, countries, requestHeaders, cookieStore] = await Promise.all([
     getVisitorCountry(),
     getGeoCountry(),
     hasCountryChoice(),
     activeCountryCodes(),
+    headers(),
+    cookies(),
   ]);
+  // Android visitors get the Play Store bar until they close it (cookie, a week)
+  const ua = requestHeaders.get("user-agent") ?? "";
+  const appBannerHref =
+    !showMaintenance && isAndroidUserAgent(ua) && !cookieStore.has(APP_BANNER_COOKIE)
+      ? playStoreHref((await getMobileConfig()).android.storeUrl, "banner", ua)
+      : null;
 
   return (
     <html lang="ar" dir="rtl">
@@ -162,6 +174,7 @@ export default async function ArabicLayout({
                   وضع الصيانة مفعّل — الزوار يرون صفحة الصيانة، وأنت ترى الموقع لأنك مسؤول
                 </div>
               )}
+              {appBannerHref && <AppDownloadBanner href={appBannerHref} />}
               {children}
               <CountrySuggestBanner siteCountry={country} geoCountry={geoCountry} hasChoice={hasChoice} />
             </>

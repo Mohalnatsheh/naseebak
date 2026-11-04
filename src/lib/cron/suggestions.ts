@@ -17,6 +17,7 @@ import { startOfAmmanDay } from "@/lib/amman-day";
 /** Same titles as the waiting nudge and the hidden-card reveal in suggestions/mutual.ts */
 const WAITING_TITLE = "اقتراح بانتظار قرارك";
 const INTEREST_SHOWN_TITLE = "شخص أبدى اهتمامه بك";
+export const LIKED_WAITING_TITLE = "شخص ينتظر ردّك";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 export const SUGGESTION_REMIND_BEFORE_DAYS = 2;
@@ -76,7 +77,7 @@ export async function remindMutualSuggestions(now = new Date()): Promise<{ sugge
   const toldToday = async (userId: string): Promise<boolean> => {
     if (told.has(userId)) return true;
     const today = await db.notification.findFirst({
-      where: { userId, title: { in: [WAITING_TITLE, INTEREST_SHOWN_TITLE] }, createdAt: { gte: startOfAmmanDay(now) } },
+      where: { userId, title: { in: [WAITING_TITLE, INTEREST_SHOWN_TITLE, LIKED_WAITING_TITLE] }, createdAt: { gte: startOfAmmanDay(now) } },
       select: { id: true },
     });
     if (today) told.add(userId);
@@ -128,6 +129,74 @@ export async function remindMutualSuggestions(now = new Date()): Promise<{ sugge
     }
   }
   return { suggestions, reminded };
+}
+
+/** Away at least this long (and seen within the last month) before «شخص ينتظر ردّك»; also the gap between two */
+export const LIKED_WAITING_IDLE_DAYS = 2;
+
+/**
+ * Evening reminder (owner decision 2026-11-04): a member away LIKED_WAITING_IDLE_DAYS+ days who has an open card
+ * where the other person already said «مهتم» gets one push + bell «شخص ينتظر ردّك» (no SMS, ever). At most once per
+ * LIKED_WAITING_IDLE_DAYS per person, and not when any suggestion notice reached them in that time. On 4 Nov,
+ * 96 women and 78 men away 3+ days had such a card; the 7-day re-engagement push came too late for it.
+ */
+export async function remindWaitingInterest(now = new Date()): Promise<{ members: number; reminded: number }> {
+  const idleSince = new Date(now.getTime() - LIKED_WAITING_IDLE_DAYS * DAY_MS);
+  const seenSince = new Date(now.getTime() - 30 * DAY_MS);
+  const away = { lastActiveAt: { lt: idleSince, gte: seenSince }, isDeactivated: false, status: { not: "SUSPENDED" as const } };
+  const cards = await db.suggestion.findMany({
+    where: {
+      flow: "MUTUAL",
+      status: "PENDING",
+      expiresAt: { gt: now },
+      OR: [
+        { recipientDecision: null, candidateDecision: "INTERESTED", recipient: away },
+        { candidateDecision: null, recipientDecision: "INTERESTED", hiddenFromCandidate: false, candidate: away },
+      ],
+    },
+    select: { recipientId: true, candidateId: true, recipientDecision: true, recipient: partySelect, candidate: partySelect },
+    take: BATCH * 4,
+  });
+
+  // The member who still has to answer, once each (their partner must still be available)
+  const waiting = new Map<string, { gender: string; others: string[] }>();
+  for (const c of cards) {
+    const iAmRecipient = c.recipientDecision === null;
+    const me = iAmRecipient ? c.recipient : c.candidate;
+    const other = iAmRecipient ? c.candidate : c.recipient;
+    if (isUnavailable(other)) continue;
+    const entry = waiting.get(me.id) ?? { gender: me.gender, others: [] };
+    entry.others.push(other.id);
+    waiting.set(me.id, entry);
+  }
+
+  let reminded = 0;
+  for (const [userId, { gender, others }] of waiting) {
+    const blocked = await db.block.findFirst({
+      where: { OR: [{ blockerId: userId, blockedId: { in: others } }, { blockerId: { in: others }, blockedId: userId }] },
+      select: { blockerId: true, blockedId: true },
+    });
+    // Every waiting card is with someone in a block: nothing to answer
+    if (blocked && others.every((o) => o === blocked.blockerId || o === blocked.blockedId)) continue;
+    const recent = await db.notification.findFirst({
+      where: { userId, title: { in: [WAITING_TITLE, INTEREST_SHOWN_TITLE, LIKED_WAITING_TITLE] }, createdAt: { gte: idleSince } },
+      select: { id: true },
+    });
+    if (recent) continue;
+    const female = gender === "FEMALE";
+    await notify({
+      userId,
+      type: "SUGGESTION",
+      title: LIKED_WAITING_TITLE,
+      body: female
+        ? "أحدهم قال «مهتم» لكِ وما زال ينتظر قراركِ. ادخلي وشوفي الاقتراح قبل ما ينتهي."
+        : "أحدهم قال «مهتم» لك وما زال ينتظر قرارك. ادخل وشوف الاقتراح قبل ما ينتهي.",
+      url: "/dashboard/suggestions?tab=interested",
+      sms: false,
+    });
+    reminded++;
+  }
+  return { members: waiting.size, reminded };
 }
 
 /**

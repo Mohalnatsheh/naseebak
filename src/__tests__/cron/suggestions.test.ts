@@ -17,7 +17,7 @@ vi.mock("@/lib/matching/auto-suggest", () => auto);
 const createMutualMatch = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/intro/match", () => ({ createMutualMatch }));
 
-import { expireMutualSuggestionsAll, healMissingMatches, remindMutualSuggestions, runWeeklySuggestions } from "@/lib/cron/suggestions";
+import { expireMutualSuggestionsAll, healMissingMatches, remindMutualSuggestions, remindWaitingInterest, runWeeklySuggestions } from "@/lib/cron/suggestions";
 
 const DAY = 24 * 60 * 60 * 1000;
 const now = new Date("2026-10-16T06:00:00Z");
@@ -155,7 +155,7 @@ describe("remindMutualSuggestions", () => {
     expect(notifyMod.notify).toHaveBeenCalledTimes(1);
     expect(notifyMod.notify.mock.calls[0][0].userId).toBe("f1");
     const where = db.notification.findFirst.mock.calls[0][0].where;
-    expect(where.title).toEqual({ in: ["اقتراح بانتظار قرارك", "شخص أبدى اهتمامه بك"] });
+    expect(where.title).toEqual({ in: ["اقتراح بانتظار قرارك", "شخص أبدى اهتمامه بك", "شخص ينتظر ردّك"] });
     // Midnight in Amman (UTC+3) for 06:00 UTC on 16 Oct
     expect(where.createdAt).toEqual({ gte: new Date("2026-10-15T21:00:00Z") });
   });
@@ -215,5 +215,46 @@ describe("runWeeklySuggestions", () => {
     spy.mockRestore();
     expect(auto.autoSuggestForUser).toHaveBeenCalledTimes(2);
     expect(res).toEqual({ eligible: 3, processed: 2, created: 1, failed: 1 });
+  });
+});
+
+describe("remindWaitingInterest («شخص ينتظر ردّك»)", () => {
+  const now = new Date("2026-11-04T15:00:00Z");
+  const person = (id: string, gender = "FEMALE") => ({ id, gender, isDeactivated: false, status: "VERIFIED" });
+  // She (recipient) hasn't answered; he already said «مهتم»
+  const card = (her = person("w1"), him = person("m1", "MALE")) => ({
+    recipientId: her.id, candidateId: him.id, recipientDecision: null, recipient: her, candidate: him,
+  });
+  beforeEach(() => {
+    db.block.findFirst.mockResolvedValue(null);
+    db.notification.findFirst.mockResolvedValue(null);
+  });
+
+  it("asks only for open cards where the other side said «مهتم» and the member is away 2–30 days", async () => {
+    db.suggestion.findMany.mockResolvedValue([]);
+    await remindWaitingInterest(now);
+    const where = db.suggestion.findMany.mock.calls[0][0].where;
+    expect(where).toMatchObject({ flow: "MUTUAL", status: "PENDING", expiresAt: { gt: now } });
+    expect(where.OR[0]).toMatchObject({ recipientDecision: null, candidateDecision: "INTERESTED" });
+    expect(where.OR[1]).toMatchObject({ candidateDecision: null, recipientDecision: "INTERESTED", hiddenFromCandidate: false });
+    expect(where.OR[0].recipient.lastActiveAt).toEqual({ lt: new Date("2026-11-02T15:00:00Z"), gte: new Date("2026-10-05T15:00:00Z") });
+  });
+
+  it("one push per member however many cards, gendered, no SMS, opens «مهتمون بك»", async () => {
+    db.suggestion.findMany.mockResolvedValue([card(), card(person("w1"), person("m2", "MALE"))]);
+    const res = await remindWaitingInterest(now);
+    expect(res).toEqual({ members: 1, reminded: 1 });
+    const n = notifyMod.notify.mock.calls[0][0];
+    expect(n).toMatchObject({ userId: "w1", title: "شخص ينتظر ردّك", sms: false, url: "/dashboard/suggestions?tab=interested" });
+    expect(n.body).toContain("ادخلي");
+  });
+
+  it("skips members told in the last 2 days, and cards whose partner left", async () => {
+    db.notification.findFirst.mockResolvedValue({ id: "n1" });
+    db.suggestion.findMany.mockResolvedValue([card()]);
+    expect((await remindWaitingInterest(now)).reminded).toBe(0);
+    db.notification.findFirst.mockResolvedValue(null);
+    db.suggestion.findMany.mockResolvedValue([card(person("w1"), { ...person("m1", "MALE"), isDeactivated: true })]);
+    expect(await remindWaitingInterest(now)).toEqual({ members: 0, reminded: 0 });
   });
 });

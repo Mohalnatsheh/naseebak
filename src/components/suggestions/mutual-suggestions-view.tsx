@@ -154,9 +154,10 @@ export function MutualSuggestionsView({
 
   /** Only the latest load may touch the screen (a slower, older answer for another tab is dropped) */
   const loadSeq = useRef(0);
-  const load = useCallback(async (t: FeedTab, p: number) => {
+  /** quiet: refresh in place (after an answer in «جديدة», so the next card in line appears) without the loading state */
+  const load = useCallback(async (t: FeedTab, p: number, opts: { quiet?: boolean } = {}) => {
     const seq = ++loadSeq.current;
-    setLoading(true);
+    if (!opts.quiet) setLoading(true);
     setLoadFailed(false);
     try {
       const others = TAB_KEYS.filter((k) => k !== t);
@@ -343,13 +344,18 @@ export function MutualSuggestionsView({
     }
   }
 
-  /** Drop a decided card; when the page empties, load the next items so the empty state isn't shown by mistake */
+  /**
+   * Drop a decided card; when the page empties, load the next items so the empty state isn't shown by mistake.
+   * «جديدة» shows at most NEW_TAB_LIMIT cards, so any answer there lets the next one in: reload quietly.
+   */
   function removeAndRefill(id: string) {
     setItems((prev) => prev.filter((i) => i.id !== id));
     if (items.length <= 1) {
       const p = page > 1 ? page - 1 : 1;
       if (p !== page) setPage(p);
       else load(tab, p);
+    } else if (tab === "new") {
+      load(tab, page, { quiet: true });
     }
   }
 

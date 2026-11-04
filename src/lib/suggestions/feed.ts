@@ -23,6 +23,12 @@ const LEGACY_SENT_VISIBLE_MS = 14 * 24 * 60 * 60 * 1000;
 export type { FeedCandidate, FeedItem, FeedKind, FeedTab, OpenFeedItem } from "@/lib/suggestions/feed-types";
 
 const SOURCE_LIMIT = 50;
+/**
+ * «جديدة» shows at most this many cards, the best in the feed order (recently active first, then score): on production
+ * (2026-11-04) men held a median of 24 open cards (up to 132) and ~14,000 cards a week expired undecided. Answering one
+ * lets the next in line in. «مهتمون بك» and «بانتظار ردهم» are not limited.
+ */
+export const NEW_TAB_LIMIT = 15;
 
 /**
  * «جديدة» and «مهتمون بك» show people by how recently they used Naseebak first — active in the last 3 days, then
@@ -146,7 +152,7 @@ export async function countMutualTabs(userId: string, now = new Date()): Promise
     db.suggestion.count({ where: where(null) }),
     db.suggestion.count({ where: where("INTERESTED") }),
   ]);
-  return { fresh, likedYou };
+  return { fresh: Math.min(fresh, NEW_TAB_LIMIT), likedYou };
 }
 
 /** Cards still to decide: the "new" and "interested" tabs together (dashboard card, next step). */
@@ -302,6 +308,7 @@ export async function getSuggestionFeed(
         ? (b.score ?? -1) - (a.score ?? -1) || b.createdAt.getTime() - a.createdAt.getTime()
         : b.createdAt.getTime() - a.createdAt.getTime())
     );
+  if (tab === "new") visible.splice(NEW_TAB_LIMIT);
   const total = visible.length;
   if (opts.countOnly) return { items: [], page, totalPages: Math.ceil(total / pageSize), total };
   const items = visible.slice((page - 1) * pageSize, page * pageSize).map((r): FeedItem => {

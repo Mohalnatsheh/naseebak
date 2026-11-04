@@ -12,7 +12,7 @@ vi.mock("@/lib/intro/match", () => ({ createMutualMatch: vi.fn() }));
 const settings = vi.hoisted(() => ({ getCycleFlags: vi.fn() }));
 vi.mock("@/lib/settings", () => settings);
 
-import { activityGroup, countNewItems, getSuggestionFeed, type OpenFeedItem } from "@/lib/suggestions/feed";
+import { activityGroup, countMutualTabs, countNewItems, getSuggestionFeed, NEW_TAB_LIMIT, type OpenFeedItem } from "@/lib/suggestions/feed";
 
 const DAY = 24 * 60 * 60 * 1000;
 const person = (id: string, gender: "MALE" | "FEMALE", profile: object = {}) => ({
@@ -356,5 +356,39 @@ describe("getSuggestionFeed — recent activity first", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("«جديدة» shows the best NEW_TAB_LIMIT cards", () => {
+  const rows = (n: number, theirs: "INTERESTED" | null = null) =>
+    Array.from({ length: n }, (_, i) => ({
+      ...mutualRow(`s${i}`, { ...person(`f${i}`, "FEMALE"), lastActiveAt: new Date() } as never),
+      compatibilityScore: 90 - i,
+      // mutualRow puts me on the candidate side, so the other person's answer is the recipient's
+      recipientDecision: theirs,
+    }));
+
+  it("20 open cards: 15 in «جديدة», the best ones, and the pages follow", async () => {
+    settings.getCycleFlags.mockResolvedValue({ introRequests: true, chat: true, mutualSuggestions: true, creditOnInterest: true });
+    db.suggestion.findMany.mockResolvedValueOnce(rows(20));
+    const page1 = await getSuggestionFeed("me", "new", 1, 10);
+    expect(NEW_TAB_LIMIT).toBe(15);
+    expect(page1.total).toBe(15);
+    expect(page1.totalPages).toBe(2);
+    expect(page1.items[0].id).toBe("s0");
+    db.suggestion.findMany.mockResolvedValueOnce(rows(20));
+    const page2 = await getSuggestionFeed("me", "new", 2, 10);
+    expect(page2.items.map((i) => i.id)).toEqual(["s10", "s11", "s12", "s13", "s14"]);
+  });
+
+  it("«مهتمون بك» is not limited", async () => {
+    settings.getCycleFlags.mockResolvedValue({ introRequests: true, chat: true, mutualSuggestions: true, creditOnInterest: true });
+    db.suggestion.findMany.mockResolvedValueOnce(rows(20, "INTERESTED"));
+    expect((await getSuggestionFeed("me", "interested", 1, 10)).total).toBe(20);
+  });
+
+  it("the «جديدة» badge count is limited the same way", async () => {
+    db.suggestion.count.mockResolvedValueOnce(40).mockResolvedValueOnce(3);
+    expect(await countMutualTabs("me")).toEqual({ fresh: 15, likedYou: 3 });
   });
 });

@@ -24,6 +24,34 @@ export type { FeedCandidate, FeedItem, FeedKind, FeedTab, OpenFeedItem } from "@
 
 const SOURCE_LIMIT = 50;
 
+/**
+ * «جديدة» and «مهتمون بك» show people by how recently they used Naseebak first — active in the last 3 days, then
+ * 3–7 days, then longer (never hidden) — and by the order below inside each group. On production (2026-11-04) a
+ * «مهتم» to someone active within a day became a match 41% of the time, 12% for someone away 7+ days.
+ */
+export const ACTIVITY_GROUP_DAYS = [3, 7] as const;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** 0 = active in the last 3 days, 1 = 3–7 days ago, 2 = longer ago or never seen */
+export function activityGroup(lastActiveAt: Date | null | undefined, now = new Date()): number {
+  if (!lastActiveAt) return ACTIVITY_GROUP_DAYS.length;
+  const days = (now.getTime() - lastActiveAt.getTime()) / DAY_MS;
+  const group = ACTIVITY_GROUP_DAYS.findIndex((d) => days <= d);
+  return group === -1 ? ACTIVITY_GROUP_DAYS.length : group;
+}
+
+/** The other person (whichever side of the card I'm on) was last active in this group */
+function otherInGroupWhere(userId: string, group: number, now: Date): Prisma.SuggestionWhereInput {
+  const at = (days: number) => new Date(now.getTime() - days * DAY_MS);
+  const lastActiveAt: Prisma.UserWhereInput =
+    group === 0
+      ? { lastActiveAt: { gte: at(ACTIVITY_GROUP_DAYS[0]) } }
+      : group < ACTIVITY_GROUP_DAYS.length
+        ? { lastActiveAt: { gte: at(ACTIVITY_GROUP_DAYS[group]), lt: at(ACTIVITY_GROUP_DAYS[group - 1]) } }
+        : { OR: [{ lastActiveAt: null }, { lastActiveAt: { lt: at(ACTIVITY_GROUP_DAYS[ACTIVITY_GROUP_DAYS.length - 1]) } }] };
+  return { OR: [{ recipientId: userId, candidate: lastActiveAt }, { candidateId: userId, recipient: lastActiveAt }] };
+}
+
 /** Order: newest first; credit-on-interest shows the best matches first (newest first among equals). */
 export function suggestionOrder(flags: CycleFlags) {
   return flags.creditOnInterest
@@ -39,12 +67,14 @@ const personSelect = {
   // Only to leave out people who are no longer available; never sent to the client
   isDeactivated: true,
   status: true,
+  // Only to sort by recent activity; never sent to the client
+  lastActiveAt: true,
   profile: true,
   personalityResult: { select: { vector: true } },
 } as const;
 
 /** countOnly: just enough to apply the feed's filters (blocked, unavailable) */
-const countSelect = { id: true, isDeactivated: true, status: true } as const;
+const countSelect = { id: true, isDeactivated: true, status: true, lastActiveAt: true } as const;
 
 type Person = {
   id: string;
@@ -53,6 +83,7 @@ type Person = {
   gender: string;
   isDeactivated?: boolean;
   status?: string;
+  lastActiveAt?: Date | null;
   profile: Record<string, unknown> | null;
   personalityResult: { vector: number[] } | null;
 };
@@ -172,13 +203,18 @@ export async function getSuggestionFeed(
 
   if (tab === "new" || tab === "interested") {
     const interestedTab = tab === "interested";
-    const [mutual, legacy, likes, myResponses] = await Promise.all([
-      db.suggestion.findMany({
-        where: openMutualWhere(userId, now),
-        select: mutualSelect,
-        orderBy: order,
-        take: SOURCE_LIMIT,
-      }),
+    const [mutualGroups, legacy, likes, myResponses] = await Promise.all([
+      // Each activity group on its own, so a member with many cards never loses the active ones past the limit
+      Promise.all(
+        [0, 1, 2].map((group) =>
+          db.suggestion.findMany({
+            where: { AND: [openMutualWhere(userId, now), otherInGroupWhere(userId, group, now)] },
+            select: mutualSelect,
+            orderBy: order,
+            take: SOURCE_LIMIT,
+          })
+        )
+      ),
       db.suggestion.findMany({
         where: { flow: "LEGACY", recipientId: userId, status: "PENDING" },
         select: { id: true, compatibilityScore: true, createdAt: true, candidate: { select: otherSelect } },
@@ -194,7 +230,7 @@ export async function getSuggestionFeed(
       db.like.findMany({ where: { fromUserId: userId }, select: { toUserId: true } }),
     ]);
     const answered = new Set(myResponses.map((r) => r.toUserId));
-    for (const s of mutual) {
+    for (const s of mutualGroups.flat()) {
       const theirDecision = s.recipientId === userId ? s.candidateDecision : s.recipientDecision;
       // (a DECLINED other side never reaches here: a «لا» closes the row as REJECTED at once)
       if ((theirDecision === "INTERESTED") !== interestedTab) continue;
@@ -255,13 +291,16 @@ export async function getSuggestionFeed(
     }
   }
 
+  // My «مهتم» already sent (the third tab) stays in its own order
+  const byActivity = tab === "new" || tab === "interested";
   const visible = rows
     // Blocked either way, or deactivated / suspended since the suggestion was made
     .filter((r) => !blocked.has(r.other.id) && !isUnavailable(r.other))
     .sort((a, b) =>
-      flags.creditOnInterest
+      (byActivity ? activityGroup(a.other.lastActiveAt, now) - activityGroup(b.other.lastActiveAt, now) : 0) ||
+      (flags.creditOnInterest
         ? (b.score ?? -1) - (a.score ?? -1) || b.createdAt.getTime() - a.createdAt.getTime()
-        : b.createdAt.getTime() - a.createdAt.getTime()
+        : b.createdAt.getTime() - a.createdAt.getTime())
     );
   const total = visible.length;
   if (opts.countOnly) return { items: [], page, totalPages: Math.ceil(total / pageSize), total };

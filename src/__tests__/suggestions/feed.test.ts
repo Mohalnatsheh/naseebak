@@ -12,7 +12,7 @@ vi.mock("@/lib/intro/match", () => ({ createMutualMatch: vi.fn() }));
 const settings = vi.hoisted(() => ({ getCycleFlags: vi.fn() }));
 vi.mock("@/lib/settings", () => settings);
 
-import { countNewItems, getSuggestionFeed, type OpenFeedItem } from "@/lib/suggestions/feed";
+import { activityGroup, countNewItems, getSuggestionFeed, type OpenFeedItem } from "@/lib/suggestions/feed";
 
 const DAY = 24 * 60 * 60 * 1000;
 const person = (id: string, gender: "MALE" | "FEMALE", profile: object = {}) => ({
@@ -46,7 +46,8 @@ describe("getSuggestionFeed — new", () => {
     expect(items[0]).toMatchObject({ kind: "mutual", id: "s1", candidate: { id: "f1", city: "عمان" } });
     expect((items[0] as OpenFeedItem).reason).toContain("المدينة");
     // only rows where *I* haven't decided, and not expired
-    const where = db.suggestion.findMany.mock.calls[0][0].where;
+    // (the first of the three activity-group queries; the open-card filter is AND-ed with the group)
+    const where = db.suggestion.findMany.mock.calls[0][0].where.AND[0];
     expect(where).toMatchObject({ flow: "MUTUAL", status: "PENDING" });
     expect(where.OR).toEqual([
       // A partner who left doesn't fill a slot (hidden in the feed anyway)
@@ -67,10 +68,12 @@ describe("getSuggestionFeed — new", () => {
   it("includes legacy suggestions in «new» and unanswered legacy interests in «interested»", async () => {
     db.suggestion.findMany
       .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{ id: "L1", compatibilityScore: 60, createdAt: new Date(), candidate: person("f2", "FEMALE") }]);
     const { items } = await getSuggestionFeed("me", "new", 1);
     expect(items.map((i) => [i.kind, i.id])).toEqual([["legacy_suggestion", "L1"]]);
-    expect(db.suggestion.findMany.mock.calls[1][0].where).toEqual({ flow: "LEGACY", recipientId: "me", status: "PENDING" });
+    expect(db.suggestion.findMany.mock.calls[3][0].where).toEqual({ flow: "LEGACY", recipientId: "me", status: "PENDING" });
     db.like.findMany
       .mockResolvedValueOnce([
         { id: "like1", createdAt: new Date(), suggestionId: "x", fromUser: person("f3", "FEMALE") },
@@ -267,6 +270,8 @@ describe("getSuggestionFeed — at 0 credits", () => {
     db.user.findUnique.mockResolvedValue(broke);
     db.suggestion.findMany
       .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{ id: "L1", compatibilityScore: 60, createdAt: new Date(), candidate: person("f2", "FEMALE") }]);
     const fresh = await getSuggestionFeed("me", "new", 1);
     expect(fresh.items).toEqual([]);
@@ -294,6 +299,8 @@ describe("countNewItems", () => {
   it("flag off: counts the two feed tabs (legacy cards included)", async () => {
     db.suggestion.findMany
       .mockResolvedValueOnce([mutualRow("s1")])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{ id: "L1", compatibilityScore: 60, createdAt: new Date(), candidate: person("f2", "FEMALE") }]);
     expect(await countNewItems("me")).toBe(2);
     expect(db.suggestion.count).not.toHaveBeenCalled();
@@ -306,6 +313,48 @@ describe("getSuggestionFeed — countOnly", () => {
     db.block.findMany.mockResolvedValue([{ blockerId: "me", blockedId: "f2" }]);
     const r = await getSuggestionFeed("me", "new", 1, 10, { countOnly: true });
     expect(r).toEqual({ items: [], page: 1, totalPages: 1, total: 1 });
-    expect(db.suggestion.findMany.mock.calls[0][0].select.candidate).toEqual({ select: { id: true, isDeactivated: true, status: true } });
+    expect(db.suggestion.findMany.mock.calls[0][0].select.candidate).toEqual({ select: { id: true, isDeactivated: true, status: true, lastActiveAt: true } });
+  });
+});
+
+describe("getSuggestionFeed — recent activity first", () => {
+  const now = new Date("2026-11-04T12:00:00Z");
+  const seen = (daysAgo: number | null) => (daysAgo === null ? null : new Date(now.getTime() - daysAgo * DAY));
+
+  it("groups: up to 3 days, 3–7 days, longer or never", () => {
+    expect(activityGroup(seen(0), now)).toBe(0);
+    expect(activityGroup(seen(3), now)).toBe(0);
+    expect(activityGroup(seen(3.5), now)).toBe(1);
+    expect(activityGroup(seen(7), now)).toBe(1);
+    expect(activityGroup(seen(8), now)).toBe(2);
+    expect(activityGroup(null, now)).toBe(2);
+  });
+
+  it("asks for each group separately: the other side's lastActiveAt, whichever side I am on", async () => {
+    await getSuggestionFeed("me", "new", 1);
+    const groups = db.suggestion.findMany.mock.calls.slice(0, 3).map((c) => c[0].where.AND[1].OR);
+    expect(groups[0][0]).toMatchObject({ recipientId: "me", candidate: { lastActiveAt: { gte: expect.any(Date) } } });
+    expect(groups[0][1]).toMatchObject({ candidateId: "me", recipient: { lastActiveAt: { gte: expect.any(Date) } } });
+    expect(groups[1][0].candidate.lastActiveAt).toMatchObject({ gte: expect.any(Date), lt: expect.any(Date) });
+    expect(groups[2][0].candidate.OR).toEqual([{ lastActiveAt: null }, { lastActiveAt: { lt: expect.any(Date) } }]);
+  });
+
+  it("an active person comes before a better score from someone away; the score orders each group", async () => {
+    settings.getCycleFlags.mockResolvedValue({ introRequests: true, chat: true, mutualSuggestions: true, creditOnInterest: true });
+    const row = (id: string, score: number, daysAgo: number | null) => ({
+      ...mutualRow(id, { ...person(id, "FEMALE"), lastActiveAt: seen(daysAgo) } as never),
+      compatibilityScore: score,
+    });
+    db.suggestion.findMany
+      .mockResolvedValueOnce([row("active-70", 70, 1), row("active-65", 65, 0)])
+      .mockResolvedValueOnce([row("week-80", 80, 5)])
+      .mockResolvedValueOnce([row("away-95", 95, 20), row("never-90", 90, null)]);
+    vi.useFakeTimers({ now, toFake: ["Date"] });
+    try {
+      const { items } = await getSuggestionFeed("me", "new", 1);
+      expect(items.map((i) => i.id)).toEqual(["active-70", "active-65", "week-80", "away-95", "never-90"]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

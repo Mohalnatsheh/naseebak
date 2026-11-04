@@ -14,7 +14,8 @@ import { trackEvent } from "@/lib/analytics";
 export function AppDownloadBanner({ href }: { href: string }) {
   const pathname = usePathname() || "/";
   const [hidden, setHidden] = useState(false);
-  if (hidden || pathname.startsWith("/dashboard/chats/") || pathname.startsWith("/dashboard/install")) return null;
+  // Not on the app's own payment return page either: whoever lands there already has the app
+  if (hidden || pathname.startsWith("/dashboard/chats/") || pathname.startsWith("/dashboard/install") || pathname.startsWith("/payments/return")) return null;
 
   function close() {
     document.cookie = `${APP_BANNER_COOKIE}=1; path=/; max-age=${APP_BANNER_HIDE_DAYS * 24 * 60 * 60}; samesite=lax; secure`;

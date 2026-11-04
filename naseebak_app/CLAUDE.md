@@ -96,7 +96,9 @@ Changing one of these on the server must keep old app versions working (members 
   answers: `~/Documents/EvoKey-Projects/naseebak-release-1.0.0/store-listing.md`.
 - **Waiting for the next version:** the `X-App-Platform` header (done in code); planned, not built — women answering a
   man's «مهتم» for free (needs the app to stop locking those cards at 0 credits; design notes in `../CLAUDE.md`), a
-  `purchase` analytics event.
+  `purchase` analytics event, and popup taps: `features/alerts/alert_gate.dart` posts `/api/alerts/{id}/dismiss` with
+  no body, so admin → Popup Alerts can't tell an app tap from a close — send `{ "action": "TAPPED" | "CLOSED" }` like the
+  website does (the server already accepts it; «Seen» is counted on the server and needs nothing from the app).
 
 ## Gotchas
 

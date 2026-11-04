@@ -134,7 +134,7 @@ describe("admin payments", () => {
       .mockResolvedValueOnce([{ currency: "JOD", _sum: { amount: 3 } }]);
     const body = await (await getPayments(req("http://x/api/admin/payments")))!.json();
     expect(db.payment.findMany.mock.calls[0][0].where).toEqual({ OR: [{ user: { country: "JO" } }, { userId: null, currency: "JOD" }] });
-    expect(body.summary).toEqual({ revenue: [{ currency: "JOD", total: 12, monthly: 3, count: 4 }], completedCount: 4 });
+    expect(body.summary).toEqual({ revenue: [{ currency: "JOD", total: 12, monthly: 3, count: 4 }], completedCount: 4, failed30d: [] });
   });
 
   it("All countries: no filter, one total per currency", async () => {

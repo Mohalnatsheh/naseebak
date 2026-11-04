@@ -28,7 +28,9 @@ describe("Stripe webhook", () => {
       expect((await call()).status).toBe(200);
     }
     expect(db.payment.updateMany).toHaveBeenCalledTimes(2);
-    expect(db.payment.updateMany).toHaveBeenCalledWith({ where: { id: "p1", status: "PENDING" }, data: { status: "FAILED" } });
+    // No card was tried (no payment_intent): the reason is how it ended
+    expect(db.payment.updateMany).toHaveBeenCalledWith({ where: { id: "p1", status: "PENDING" }, data: { status: "FAILED", failureReason: "EXPIRED" } });
+    expect(db.payment.updateMany).toHaveBeenCalledWith({ where: { id: "p1", status: "PENDING" }, data: { status: "FAILED", failureReason: "ASYNC_FAILED" } });
   });
 
   it("routes refunds and disputes", async () => {

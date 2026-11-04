@@ -27,7 +27,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (!payment || !payment.stripeSessionId?.startsWith(MOCK_SESSION_PREFIX)) return NextResponse.json({ error: "Not a mock checkout" }, { status: 404 });
 
   if (parsed.data.outcome === "cancelled") {
-    const { count } = await db.payment.updateMany({ where: { id, status: "PENDING" }, data: { status: "FAILED" } });
+    const { count } = await db.payment.updateMany({ where: { id, status: "PENDING" }, data: { status: "FAILED", failureReason: "CANCELLED" } });
     return NextResponse.json({ result: count ? "cancelled" : "unchanged" });
   }
   const pkg = findAnyPackage(payment.planName);

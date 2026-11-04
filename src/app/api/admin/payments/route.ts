@@ -24,7 +24,7 @@ export async function GET(request: Request) {
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-    const [payments, total, totals, monthly] = await Promise.all([
+    const [payments, total, totals, monthly, failedRaw] = await Promise.all([
       db.payment.findMany({
         where,
         skip,
@@ -38,6 +38,7 @@ export async function GET(request: Request) {
           provider: true,
           status: true,
           disputedAt: true,
+          failureReason: true,
           createdAt: true,
           user: {
             select: { id: true, firstName: true, lastName: true, phone: true, country: true },
@@ -57,7 +58,16 @@ export async function GET(request: Request) {
         where: { ...byCountry, status: "COMPLETED", createdAt: { gte: startOfMonth } },
         _sum: { amount: true },
       }),
+      // Why checkouts failed in the last 30 days (owner request 2026-11-04)
+      db.payment.groupBy({
+        by: ["failureReason"],
+        where: { ...byCountry, status: "FAILED", createdAt: { gte: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000) } },
+        _count: true,
+      }),
     ]);
+    const failed30d = failedRaw
+      .map((f) => ({ reason: f.failureReason ?? "UNKNOWN", count: f._count }))
+      .sort((a, b) => b.count - a.count);
 
     const revenue = totals
       .map((t) => ({
@@ -77,6 +87,8 @@ export async function GET(request: Request) {
         /** One entry per currency (a single one when one country is selected) */
         revenue,
         completedCount: revenue.reduce((n, r) => n + r.count, 0),
+        /** FAILED in the last 30 days by reason (DECLINED:<Stripe code> kept apart per code; UNKNOWN = not filled in) */
+        failed30d,
       },
     });
   } catch (error) {

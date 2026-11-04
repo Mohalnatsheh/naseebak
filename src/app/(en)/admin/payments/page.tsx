@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { enumLabel } from "@/lib/admin/enum-labels";
+import { FAILURE_LABELS } from "@/lib/payments/failure-labels";
 
 interface PaymentRow {
   id: string;
@@ -18,12 +19,22 @@ interface PaymentRow {
   /** null when the account was deleted (payment records are kept) */
   user: { id: string; firstName: string; lastName: string; phone: string | null } | null;
   disputedAt?: string | null;
+  failureReason?: string | null;
+}
+
+/** "Card declined · insufficient_funds", "Cancelled by the member", … */
+function failureText(reason: string | null | undefined): string {
+  if (!reason || reason === "UNKNOWN") return "Reason not recorded";
+  const [kind, code] = reason.split(":");
+  const label = FAILURE_LABELS[kind as keyof typeof FAILURE_LABELS] ?? kind;
+  return code ? `${label} · ${code.replace(/_/g, " ")}` : label;
 }
 
 interface Summary {
   /** Completed payments per currency: never added across currencies */
   revenue: { currency: string; total: number; monthly: number; count: number }[];
   completedCount: number;
+  failed30d?: { reason: string; count: number }[];
 }
 
 /** "12.00 JOD · 30.00 SAR" (one amount per currency), or "0.00" when nothing was paid */
@@ -142,6 +153,26 @@ export default function AdminPaymentsPage() {
         </div>
       )}
 
+      {/* Why checkouts failed (last 30 days) */}
+      {summary?.failed30d && summary.failed30d.length > 0 && (
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-sm font-medium">Why payments failed · last 30 days</p>
+            <p className="mb-3 text-xs text-muted-foreground">
+              Recorded since 4 Nov 2026; older ones were filled in from Stripe («Closed without paying» = cancelled or left open).
+            </p>
+            <ul className="space-y-1.5">
+              {summary.failed30d.map((f) => (
+                <li key={f.reason} className="flex items-center justify-between gap-3 text-sm">
+                  <span>{failureText(f.reason)}</span>
+                  <span className="font-semibold tabular-nums">{f.count}</span>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Status filter */}
       <div className="flex flex-wrap gap-2">
         {["", "PENDING", "COMPLETED", "FAILED", "REFUNDED"].map((s) => (
@@ -208,6 +239,9 @@ export default function AdminPaymentsPage() {
                         </Badge>
                         {payment.disputedAt && (
                           <Badge variant="destructive" className="ms-1">Disputed</Badge>
+                        )}
+                        {payment.status === "FAILED" && (
+                          <p className="mt-1 text-xs text-muted-foreground">{failureText(payment.failureReason)}</p>
                         )}
                       </td>
                       <td className="p-3 text-sm">{enumLabel("paymentProvider", payment.provider)}</td>

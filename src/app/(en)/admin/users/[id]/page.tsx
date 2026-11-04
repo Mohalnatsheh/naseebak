@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { enumLabel } from "@/lib/admin/enum-labels";
 import { countryConfig, toCountry } from "@/lib/countries";
 import { CountryFlag } from "@/components/shared/country-flag";
+import { MemberDevicesCard } from "@/components/admin/member-devices-card";
 
 interface UserDetail {
   id: string;
@@ -474,6 +475,9 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
         </Card>
       )}
 
+
+      {/* Where the member uses Naseebak and whether a push can reach them */}
+      <MemberDevicesCard userId={id} />
       {/* Info Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Basic Info */}

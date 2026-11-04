@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { getStripe } from "@/lib/stripe";
 import { fulfilCheckoutSession } from "@/lib/payments/fulfil";
 import { CHECKOUT_TTL_MS } from "@/lib/payments/packages";
+import { failureReasonFor } from "@/lib/payments/failure";
 
 /**
  * «رجوع» / «إلغاء» on a checkout: expires its Stripe session (so it can no longer be paid) and marks
@@ -25,6 +26,7 @@ export async function POST(request: Request) {
       });
       if (!payment) return NextResponse.json({ success: true });
 
+      let failureReason = "CANCELLED";
       if (payment.stripeSessionId && process.env.STRIPE_SECRET_KEY) {
         const stripe = getStripe();
         try {
@@ -43,9 +45,19 @@ export async function POST(request: Request) {
           }
         }
       }
+      if (payment.stripeSessionId?.startsWith("cs_") && process.env.STRIPE_SECRET_KEY) {
+        // A card refused before the member went back is the real reason
+        let cs: Awaited<ReturnType<ReturnType<typeof getStripe>["checkout"]["sessions"]["retrieve"]>> | null = null;
+        try {
+          cs = await getStripe().checkout.sessions.retrieve(payment.stripeSessionId);
+        } catch {
+          // Unknown: it was still a member's cancel
+        }
+        failureReason = await failureReasonFor(cs, "CANCELLED");
+      }
       await db.payment.updateMany({
         where: { id: payment.id, status: "PENDING" },
-        data: { status: "FAILED" },
+        data: { status: "FAILED", failureReason },
       });
     } else {
       // No id (older page): only rows whose checkout is already over
@@ -55,7 +67,7 @@ export async function POST(request: Request) {
           status: "PENDING",
           createdAt: { lt: new Date(Date.now() - CHECKOUT_TTL_MS) },
         },
-        data: { status: "FAILED" },
+        data: { status: "FAILED", failureReason: "EXPIRED" },
       });
     }
 

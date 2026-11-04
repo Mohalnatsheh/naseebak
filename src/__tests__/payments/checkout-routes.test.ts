@@ -64,7 +64,7 @@ describe("POST /api/payments/cancel («رجوع»)", () => {
     db.payment.findFirst.mockResolvedValue({ id: "p1", stripeSessionId: "cs_1" });
     await cancel(post({ paymentId: "p1" }));
     expect(stripe.expire).toHaveBeenCalledWith("cs_1");
-    expect(db.payment.updateMany).toHaveBeenCalledWith({ where: { id: "p1", status: "PENDING" }, data: { status: "FAILED" } });
+    expect(db.payment.updateMany).toHaveBeenCalledWith({ where: { id: "p1", status: "PENDING" }, data: { status: "FAILED", failureReason: "CANCELLED" } });
   });
 
   it("credits a session that was paid meanwhile instead of failing it", async () => {

@@ -32,7 +32,12 @@ export function AlertPopup() {
     const current = alert;
     if (!current) return;
     setAlert(null);
-    await fetch(`/api/alerts/${current.id}/dismiss`, { method: "POST" }).catch(() => {});
+    await fetch(`/api/alerts/${current.id}/dismiss`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      // For the admin's counts: its button, or closed
+      body: JSON.stringify({ action: openLink && current.buttonUrl ? "TAPPED" : "CLOSED" }),
+    }).catch(() => {});
     if (openLink && current.buttonUrl) {
       if (current.buttonUrl.startsWith("/")) router.push(current.buttonUrl);
       else window.open(current.buttonUrl, "_blank", "noopener,noreferrer");

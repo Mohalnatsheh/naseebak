@@ -4,6 +4,8 @@
  * Audience: everyone, men, women or one member; channel: app, website or both, or the website on one kind of device
  * (Android / iPhone / computer, from the browser's user agent); the admin's selected country
  * (null = every country); between startsAt and endsAt, unless stopped. Members see the oldest one waiting first.
+ * Admin counts (2026-11-04): «Seen» = an AlertView row the first time `currentAlertFor` hands it to a member (website or
+ * app, no app change needed); a dismissal records TAPPED / CLOSED when the website says so (the app doesn't: null).
  */
 import type { Prisma } from "@prisma/client";
 import { z } from "zod";
@@ -113,17 +115,30 @@ export async function currentAlertFor(
 ): Promise<MemberAlert | null> {
   const user = await db.user.findUnique({ where: { id: userId }, select: { id: true, gender: true, country: true } });
   if (!user) return null;
-  return db.alert.findFirst({
+  const alert = await db.alert.findFirst({
     where: memberAlertsWhere(user, platform, now, device),
     orderBy: { createdAt: "asc" },
     select: { id: true, title: true, body: true, imageUrl: true, buttonLabel: true, buttonUrl: true },
   });
+  if (alert) {
+    // «Seen»: the first time it is handed out to show (a lost count must never hide the popup)
+    await db.alertView
+      .createMany({ data: [{ alertId: alert.id, userId, platform }], skipDuplicates: true })
+      .catch((e) => console.error("[alerts] view:", e));
+  }
+  return alert;
 }
 
-/** Closed (or its button tapped): never again for this member. Idempotent; false when there is no such alert. */
-export async function dismissAlert(userId: string, alertId: string): Promise<boolean> {
+export const ALERT_ACTIONS = ["TAPPED", "CLOSED"] as const;
+export type AlertAction = (typeof ALERT_ACTIONS)[number];
+
+/**
+ * Closed (or its button tapped): never again for this member. Idempotent; false when there is no such alert.
+ * `action` comes from the website (TAPPED / CLOSED); the app sends none, stored as null.
+ */
+export async function dismissAlert(userId: string, alertId: string, action?: AlertAction | null): Promise<boolean> {
   const alert = await db.alert.findUnique({ where: { id: alertId }, select: { id: true } });
   if (!alert) return false;
-  await db.alertDismissal.createMany({ data: [{ alertId, userId }], skipDuplicates: true });
+  await db.alertDismissal.createMany({ data: [{ alertId, userId, action: action ?? null }], skipDuplicates: true });
   return true;
 }

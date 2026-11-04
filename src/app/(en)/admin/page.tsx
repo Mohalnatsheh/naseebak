@@ -10,6 +10,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { RevenuePanel } from "@/components/admin/revenue-panel";
 import { ActiveDevicesPanel } from "@/components/admin/active-devices-panel";
+import { GrowthPanel } from "@/components/admin/growth-panel";
 import { Badge } from "@/components/ui/badge";
 
 interface Stats {
@@ -222,6 +223,9 @@ export default function AdminDashboardPage() {
         )}
 
         {/* Members per device: website (Android / iPhone / computer) and app (Android / iPhone) */}
+        {/* Are more people coming back: active members, sign-up weeks, «مهتم» → match per week */}
+        <GrowthPanel />
+
         <ActiveDevicesPanel />
 
         {/* New user cycle (switch intro_requests_enabled) */}

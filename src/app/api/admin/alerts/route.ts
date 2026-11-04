@@ -21,10 +21,18 @@ export async function GET(request: Request) {
       take: 50,
       include: {
         user: { select: { id: true, firstName: true, lastName: true, phone: true } },
-        _count: { select: { dismissals: true } },
+        _count: { select: { dismissals: true, views: true } },
       },
     });
-    return NextResponse.json({ alerts });
+    // Seen / tapped / closed per popup (website says which; the app's closes are null)
+    const byAction = alerts.length
+      ? await db.alertDismissal.groupBy({ by: ["alertId", "action"], where: { alertId: { in: alerts.map((a) => a.id) } }, _count: true })
+      : [];
+    const stats = (id: string) => {
+      const n = (action: string | null) => byAction.find((r) => r.alertId === id && r.action === action)?._count ?? 0;
+      return { tapped: n("TAPPED"), closed: n("CLOSED"), appClosedOrTapped: n(null) };
+    };
+    return NextResponse.json({ alerts: alerts.map((a) => ({ ...a, stats: stats(a.id) })) });
   } catch (error) {
     console.error("Admin alerts error:", error);
     return NextResponse.json({ error: "Server error" }, { status: 500 });

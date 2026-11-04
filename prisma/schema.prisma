@@ -269,6 +269,7 @@ model User {
 
   @@index([country, gender])
   activityDays    ActivityDay[]
+  alertViews      AlertView[]
 
   @@map("users")
 }
@@ -536,6 +537,9 @@ model Payment {
   stripeSessionId String?
   /// A Stripe dispute (chargeback) was opened on this payment
   disputedAt      DateTime?
+  /// Why a FAILED payment failed: CANCELLED (member went back) | EXPIRED (checkout left open) |
+  /// DECLINED[:<Stripe decline code>] (a card was tried and refused) | ASYNC_FAILED (delayed method failed)
+  failureReason   String?
 
   subscription    Subscription?
 
@@ -1059,6 +1063,7 @@ model Alert {
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
   dismissals  AlertDismissal[]
+  views       AlertView[]
 
   @@index([startsAt])
   @@map("alerts")
@@ -1071,11 +1076,27 @@ model AlertDismissal {
   alert     Alert    @relation(fields: [alertId], references: [id], onDelete: Cascade)
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// TAPPED (its button) | CLOSED; null = the app (it doesn't say which) or before 2026-11-04
+  action    String?
   createdAt DateTime @default(now())
 
   @@unique([alertId, userId])
   @@index([userId])
   @@map("alert_dismissals")
+}
+
+/// A popup was handed to a member to show (website or app), once per member (admin «Seen» count)
+model AlertView {
+  alertId   String
+  alert     Alert    @relation(fields: [alertId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// "web" | "app": where it was first shown
+  platform  String
+  createdAt DateTime @default(now())
+
+  @@id([alertId, userId])
+  @@map("alert_views")
 }
 
 /// A member used Naseebak on this Amman day from this place (admin dashboard → «Active by device»).

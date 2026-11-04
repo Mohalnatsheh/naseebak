@@ -4,6 +4,7 @@ const db = vi.hoisted(() => ({
   user: { findUnique: vi.fn() },
   alert: { findFirst: vi.fn(), findUnique: vi.fn() },
   alertDismissal: { createMany: vi.fn() },
+  alertView: { createMany: vi.fn(async () => ({ count: 1 })) },
 }));
 vi.mock("@/lib/db", () => ({ db }));
 
@@ -70,7 +71,7 @@ describe("closing", () => {
   it("records it once (a second close changes nothing)", async () => {
     db.alert.findUnique.mockResolvedValue({ id: "a1" });
     expect(await dismissAlert("u1", "a1")).toBe(true);
-    expect(db.alertDismissal.createMany).toHaveBeenCalledWith({ data: [{ alertId: "a1", userId: "u1" }], skipDuplicates: true });
+    expect(db.alertDismissal.createMany).toHaveBeenCalledWith({ data: [{ alertId: "a1", userId: "u1", action: null }], skipDuplicates: true });
   });
 
   it("an unknown alert is refused", async () => {
@@ -108,5 +109,33 @@ describe("what the admin may enter", () => {
     expect(
       alertInputSchema.safeParse({ ...base, startsAt: "2026-11-02T10:00:00Z", endsAt: "2026-11-01T10:00:00Z" }).success,
     ).toBe(false);
+  });
+});
+
+describe("popup counts (seen / tapped / closed)", () => {
+  it("handing a popup out counts it as seen once, on that platform; nothing to show counts nothing", async () => {
+    db.user.findUnique.mockResolvedValue({ id: "u1", gender: "FEMALE", country: "JO" });
+    db.alert.findFirst.mockResolvedValueOnce({ id: "a1", title: "t" });
+    await currentAlertFor("u1", "app");
+    expect(db.alertView.createMany).toHaveBeenCalledWith({ data: [{ alertId: "a1", userId: "u1", platform: "app" }], skipDuplicates: true });
+    db.alertView.createMany.mockClear();
+    db.alert.findFirst.mockResolvedValueOnce(null);
+    await currentAlertFor("u1", "web");
+    expect(db.alertView.createMany).not.toHaveBeenCalled();
+  });
+
+  it("a failing view count never hides the popup", async () => {
+    db.user.findUnique.mockResolvedValue({ id: "u1", gender: "FEMALE", country: "JO" });
+    db.alert.findFirst.mockResolvedValueOnce({ id: "a1", title: "t" });
+    db.alertView.createMany.mockRejectedValueOnce(new Error("db"));
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(await currentAlertFor("u1", "web")).toEqual({ id: "a1", title: "t" });
+    spy.mockRestore();
+  });
+
+  it("the website says tapped or closed", async () => {
+    db.alert.findUnique.mockResolvedValue({ id: "a1" });
+    await dismissAlert("u1", "a1", "TAPPED");
+    expect(db.alertDismissal.createMany).toHaveBeenLastCalledWith({ data: [{ alertId: "a1", userId: "u1", action: "TAPPED" }], skipDuplicates: true });
   });
 });

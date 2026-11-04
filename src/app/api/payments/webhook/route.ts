@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { failureReasonFor } from "@/lib/payments/failure";
 import { getStripe } from "@/lib/stripe";
 import { db } from "@/lib/db";
 import { fulfilCheckoutSession, isOurSession } from "@/lib/payments/fulfil";
@@ -50,11 +51,16 @@ export async function POST(request: Request) {
         const { paymentId } = session.metadata || {};
 
         if (paymentId && isOurSession(session)) {
+          const failureReason = await failureReasonFor(session, event.type === "checkout.session.expired" ? "EXPIRED" : "ASYNC_FAILED");
           // Never undo a payment that was already credited
           await db.payment.updateMany({
             where: { id: paymentId, status: "PENDING" },
-            data: { status: "FAILED" },
+            data: { status: "FAILED", failureReason },
           });
+          // Cancelled in the app/site first: the row is FAILED already; keep CANCELLED unless a card was refused
+          if (failureReason.startsWith("DECLINED")) {
+            await db.payment.updateMany({ where: { id: paymentId, status: "FAILED" }, data: { failureReason } });
+          }
         }
 
         break;

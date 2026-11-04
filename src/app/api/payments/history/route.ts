@@ -21,7 +21,7 @@ export async function GET(request: Request) {
         status: "PENDING",
         createdAt: { lt: new Date(Date.now() - CHECKOUT_TTL_MS) },
       },
-      data: { status: "FAILED" },
+      data: { status: "FAILED", failureReason: "EXPIRED" },
     });
 
     const where = { userId: session.user.id };

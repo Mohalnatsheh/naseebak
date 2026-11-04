@@ -26,7 +26,9 @@ interface AlertItem {
   stoppedAt: string | null;
   createdAt: string;
   user: { id: string; firstName: string; lastName: string; phone: string | null } | null;
-  _count: { dismissals: number };
+  _count: { dismissals: number; views: number };
+  /** tapped / closed on the website; appClosedOrTapped = the app (it doesn't say which) or before 4 Nov 2026 */
+  stats?: { tapped: number; closed: number; appClosedOrTapped: number };
 }
 
 interface UserOption {
@@ -465,7 +467,16 @@ export default function AdminAlertsPage() {
                     <p className="text-xs text-muted-foreground">
                       {who} · {CHANNELS.find(([v]) => v === a.channel)?.[1]} · {a.country ?? "All countries"} ·{" "}
                       {new Date(a.startsAt).toLocaleString()}
-                      {a.endsAt ? ` → ${new Date(a.endsAt).toLocaleString()}` : ""} · closed by {a._count.dismissals}
+                      {a.endsAt ? ` → ${new Date(a.endsAt).toLocaleString()}` : ""}
+                    </p>
+                    <p className="text-xs">
+                      <span className="font-semibold">Seen {a._count.views}</span>
+                      {a.buttonUrl && <> · <span className="font-semibold text-emerald-700">Tapped {a.stats?.tapped ?? 0}</span></>}
+                      {" "}· Closed {a.stats?.closed ?? 0}
+                      {(a.stats?.appClosedOrTapped ?? 0) > 0 && <> · App or earlier (closed or tapped) {a.stats?.appClosedOrTapped}</>}
+                      {a._count.views > 0 && a.buttonUrl && (
+                        <span className="text-muted-foreground"> · {Math.round(((a.stats?.tapped ?? 0) / a._count.views) * 100)}% tapped</span>
+                      )}
                     </p>
                   </div>
                 );

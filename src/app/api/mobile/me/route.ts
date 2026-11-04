@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { mobileMe } from "@/lib/mobile-me";
+import { recordActivityDay } from "@/lib/activity-days";
 
 /**
  * The signed-in member (cookie or Bearer token): account state, country, credits, setup progress, a pending
@@ -16,6 +17,8 @@ export async function GET() {
       }
       return result.error;
     }
+    // The app reads this on every start and resume: counts the day for «Active by device»
+    await recordActivityDay(result.session.user.id);
     const me = await mobileMe(result.session.user.id);
     if (!me) return NextResponse.json({ error: "غير مصرح" }, { status: 401 });
     return NextResponse.json({ user: me });

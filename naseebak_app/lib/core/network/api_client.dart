@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+
 import 'package:dio/dio.dart';
 
 import '../storage/token_store.dart';
@@ -26,7 +28,8 @@ class ApiClient {
             sendTimeout: const Duration(seconds: 30),
             contentType: Headers.jsonContentType,
             responseType: ResponseType.json,
-            headers: {'Accept': 'application/json'},
+            // X-App-Platform: the website's admin counts active members per device («Active by device»)
+            headers: {'Accept': 'application/json', 'X-App-Platform': Platform.operatingSystem},
           ),
         ) {
     if (adapter != null) dio.httpClientAdapter = adapter;

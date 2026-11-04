@@ -5,6 +5,7 @@ import { getCycleFlags } from "@/lib/settings";
 import { chatHousekeepingForUser } from "@/lib/chat/service";
 import { cancelDeadPendingFor, hiddenPartnerIds, loadMatchStates, visibleConversationsWhere } from "@/lib/matches/state";
 import { touchLastActive } from "@/lib/activity";
+import { recordActivityDay } from "@/lib/activity-days";
 import { countMutualTabs } from "@/lib/suggestions/feed";
 
 /**
@@ -21,6 +22,7 @@ export async function GET() {
     const userId = result.session.user.id;
     // Polled by every dashboard page: records "last active" (at most one write per hour)
     await touchLastActive(userId);
+    await recordActivityDay(userId);
 
     const flags = await getCycleFlags();
     // Chats with someone who blocked me are hidden from me, so they never count (badge, "has chats")

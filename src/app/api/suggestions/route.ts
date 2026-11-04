@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { parsePagination } from "@/lib/utils";
 import { autoSuggestWithReason, type SuggestEmptyReason } from "@/lib/matching/auto-suggest";
 import { touchLastActive } from "@/lib/activity";
+import { recordActivityDay } from "@/lib/activity-days";
 import { getCycleFlags } from "@/lib/settings";
 import { countNewItems, hasOpenMutual, suggestionOrder } from "@/lib/suggestions/feed";
 
@@ -18,6 +19,7 @@ export async function GET(request: Request) {
 
     // A returning user counts as active before the run below (idle users get no new suggestions)
     await touchLastActive(session.user.id);
+    await recordActivityDay(session.user.id);
 
     // Users get suggestions automatically once their profile qualifies (no admin run needed).
     // `emptyReason` tells the page why nothing new came: weekly cap, nobody fits, or some still pending

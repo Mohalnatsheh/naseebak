@@ -268,6 +268,8 @@ model User {
   pushDevices           PushDevice[]
 
   @@index([country, gender])
+  activityDays    ActivityDay[]
+
   @@map("users")
 }
 
@@ -1074,4 +1076,18 @@ model AlertDismissal {
   @@unique([alertId, userId])
   @@index([userId])
   @@map("alert_dismissals")
+}
+
+/// A member used Naseebak on this Amman day from this place (admin dashboard → «Active by device»).
+/// source: WEB_ANDROID | WEB_IPHONE | WEB_DESKTOP | APP_ANDROID | APP_IOS. Since 2026-11-04 (no earlier data).
+model ActivityDay {
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  day       DateTime @db.Date
+  source    String
+  createdAt DateTime @default(now())
+
+  @@id([userId, day, source])
+  @@index([day, source])
+  @@map("activity_days")
 }

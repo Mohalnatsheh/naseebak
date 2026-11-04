@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { RevenuePanel } from "@/components/admin/revenue-panel";
+import { ActiveDevicesPanel } from "@/components/admin/active-devices-panel";
 import { Badge } from "@/components/ui/badge";
 
 interface Stats {
@@ -219,6 +220,9 @@ export default function AdminDashboardPage() {
             })}
           </div>
         )}
+
+        {/* Members per device: website (Android / iPhone / computer) and app (Android / iPhone) */}
+        <ActiveDevicesPanel />
 
         {/* New user cycle (switch intro_requests_enabled) */}
         {cycle && <NewCycleSection cycle={cycle} />}

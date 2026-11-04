@@ -16,7 +16,6 @@ import { setSetting } from "@/lib/settings";
 import { chatHousekeepingAll } from "@/lib/chat/service";
 import { expireIntroRequests, remindIntroRequests } from "@/lib/cron/intro-requests";
 import { expireMutualSuggestionsAll, healMissingMatches, remindMutualSuggestions, remindWaitingInterest, runWeeklySuggestions } from "@/lib/cron/suggestions";
-import { notifyRefunds } from "@/lib/cron/refund-notices";
 import { runReengagement } from "@/lib/cron/reengagement";
 import { processAccountDeletions } from "@/lib/cron/deletions";
 import { reconcileStripePayments } from "@/lib/payments/fulfil";
@@ -56,8 +55,7 @@ export function summarise(tasks: Record<string, TaskResult>) {
       num(tasks.suggestionReminders, "reminded") +
       num(tasks.chats, "warned") +
       num(tasks.guardianShareReminders, "reminded") +
-      num(tasks.waitingInterestReminders, "reminded") +
-      num(tasks.refundNotices, "notified"),
+      num(tasks.waitingInterestReminders, "reminded"),
     suggestions: num(tasks.weeklySuggestions, "created"),
     expired:
       num(tasks.introExpiry, "expired") + num(tasks.suggestionExpiry, "expired") + num(tasks.chats, "expired"),
@@ -121,7 +119,6 @@ async function execute(trigger: DailyRunSummary["trigger"], part: DailyPart): Pr
     tasks.introReminders = await runTask("introReminders", () => remindIntroRequests(now()));
     tasks.suggestionReminders = await runTask("suggestionReminders", () => remindMutualSuggestions(now()));
     tasks.waitingInterestReminders = await runTask("waitingInterestReminders", () => remindWaitingInterest(now()));
-    tasks.refundNotices = await runTask("refundNotices", () => notifyRefunds(now()));
     tasks.guardianShareReminders = await runTask("guardianShareReminders", () => remindGuardianShare(now()));
     tasks.familyFollowUps = await runTask("familyFollowUps", () => runFamilyFollowUps(now()));
     tasks.reengagement = await runTask("reengagement", () => runReengagement(now()));

@@ -12,7 +12,6 @@ const tasks = vi.hoisted(() => ({
   chatHousekeepingAll: vi.fn(),
   processAccountDeletions: vi.fn(),
   remindWaitingInterest: vi.fn(),
-  notifyRefunds: vi.fn(),
 }));
 const authMod = vi.hoisted(() => ({ requireAdmin: vi.fn() }));
 const alert = vi.hoisted(() => ({ sendAdminAlert: vi.fn() }));
@@ -33,7 +32,6 @@ vi.mock("@/lib/cron/suggestions", () => ({
   healMissingMatches: vi.fn(async () => ({ healed: 0 })),
   remindWaitingInterest: tasks.remindWaitingInterest,
 }));
-vi.mock("@/lib/cron/refund-notices", () => ({ notifyRefunds: tasks.notifyRefunds }));
 vi.mock("@/lib/cron/reengagement", () => ({ runReengagement: tasks.runReengagement }));
 vi.mock("@/lib/cron/deletions", () => ({ processAccountDeletions: tasks.processAccountDeletions }));
 vi.mock("@/lib/payments/fulfil", () => ({ reconcileStripePayments: vi.fn(async () => ({ checked: 0, fulfilled: 0 })) }));
@@ -60,7 +58,6 @@ beforeEach(() => {
   tasks.runReengagement.mockResolvedValue({ idle: 4, sent: 2 });
   tasks.processAccountDeletions.mockResolvedValue(1);
   tasks.remindWaitingInterest.mockResolvedValue({ members: 0, reminded: 0 });
-  tasks.notifyRefunds.mockResolvedValue({ members: 0, notified: 0 });
   settings.setSetting.mockResolvedValue(undefined);
   authMod.requireAdmin.mockResolvedValue({ session: { user: { id: "admin1", role: "ADMIN" } } });
   process.env.CRON_SECRET = "s3cret";
@@ -108,7 +105,7 @@ describe("runDailyJobs", () => {
     expect(run.part).toBe("morning");
     expect(tasks.expireMutualSuggestionsAll).toHaveBeenCalled();
     expect(tasks.runWeeklySuggestions).toHaveBeenCalled();
-    for (const t of [tasks.remindIntroRequests, tasks.remindMutualSuggestions, tasks.remindWaitingInterest, tasks.notifyRefunds, tasks.runReengagement]) {
+    for (const t of [tasks.remindIntroRequests, tasks.remindMutualSuggestions, tasks.remindWaitingInterest, tasks.runReengagement]) {
       expect(t).not.toHaveBeenCalled();
     }
     expect(settings.setSetting).toHaveBeenCalledWith(LAST_RUN_KEY, expect.any(String));
@@ -116,14 +113,13 @@ describe("runDailyJobs", () => {
 
   it("evening: only the reminders and nudges, stored under its own key", async () => {
     tasks.remindWaitingInterest.mockResolvedValue({ members: 3, reminded: 2 });
-    tasks.notifyRefunds.mockResolvedValue({ members: 4, notified: 4 });
     const run = await runDailyJobs("cron", "evening");
     expect(run.part).toBe("evening");
     for (const t of [tasks.expireIntroRequests, tasks.expireMutualSuggestionsAll, tasks.runWeeklySuggestions, tasks.chatHousekeepingAll, tasks.processAccountDeletions]) {
       expect(t).not.toHaveBeenCalled();
     }
     expect(run.tasks.waitingInterestReminders).toEqual({ members: 3, reminded: 2 });
-    expect(run.totals.reminders).toBe(1 + 2 + 2 + 4);
+    expect(run.totals.reminders).toBe(1 + 2 + 2);
     expect(settings.setSetting).toHaveBeenCalledWith(LAST_EVENING_RUN_KEY, expect.any(String));
   });
 

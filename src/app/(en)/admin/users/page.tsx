@@ -32,6 +32,35 @@ interface UserRow {
   profile: { isComplete: boolean; city: string | null } | null;
   photos: { id: string; url: string; isPrimary: boolean }[];
   _count: { matchesAsFemale: number; matchesAsMale: number; photos: number };
+  /** app: signed in to the app (platform); web: website devices seen since 4 Nov 2026 */
+  uses?: { app: "android" | "ios" | "unknown" | null; web: ("android" | "iphone" | "desktop")[] };
+}
+
+const WEB_LABEL = { android: "Android", iphone: "iPhone", desktop: "Computer" } as const;
+
+/** «App · Android», «Web · iPhone»…; no record of either = the website before 4 Nov (device not known) */
+function UsesBadges({ uses }: { uses?: UserRow["uses"] }) {
+  if (!uses) return <span className="text-xs text-muted-foreground">—</span>;
+  const app = uses.app && (uses.app === "ios" ? "iPhone" : uses.app === "android" ? "Android" : "device unknown");
+  return (
+    <div className="flex flex-wrap gap-1">
+      {app && (
+        <Badge className="text-xs whitespace-nowrap bg-accent/20 text-accent-foreground hover:bg-accent/20" title="Signed in to the app">
+          App · {app}
+        </Badge>
+      )}
+      {uses.web.map((w) => (
+        <Badge key={w} variant="outline" className="text-xs whitespace-nowrap" title="Website, seen since 4 Nov 2026">
+          Web · {WEB_LABEL[w]}
+        </Badge>
+      ))}
+      {!app && uses.web.length === 0 && (
+        <Badge variant="outline" className="text-xs whitespace-nowrap text-muted-foreground" title="Website; device not recorded before 4 Nov 2026">
+          Web
+        </Badge>
+      )}
+    </div>
+  );
 }
 
 const statusStyles: Record<string, string> = {
@@ -51,6 +80,7 @@ export default function AdminUsersPage() {
   const [search, setSearch] = useState("");
   const [gender, setGender] = useState("");
   const [status, setStatus] = useState("");
+  const [uses, setUses] = useState("");
   const [suspendingId, setSuspendingId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkSuspending, setBulkSuspending] = useState(false);
@@ -78,6 +108,7 @@ export default function AdminUsersPage() {
       const params = new URLSearchParams({ page: String(p) });
       if (search) params.set("search", search);
       if (gender) params.set("gender", gender);
+      if (uses) params.set("uses", uses);
       if (status) params.set("status", status);
       const res = await fetch(`/api/admin/users?${params}`);
       const data = await res.json().catch(() => ({}));
@@ -209,6 +240,16 @@ export default function AdminUsersPage() {
             <option key={s} value={s}>{enumLabel("userStatus", s)}</option>
           ))}
         </select>
+        <select
+          value={uses}
+          onChange={(e) => setUses(e.target.value)}
+          aria-label="Website or app"
+          className="rounded-lg border border-input bg-background px-3 py-2 text-sm"
+        >
+          <option value="">Website + app</option>
+          <option value="app">App users</option>
+          <option value="web">Website only</option>
+        </select>
         <Button type="submit">
           <Search className="h-4 w-4 me-2" /> Search
         </Button>
@@ -277,6 +318,7 @@ export default function AdminUsersPage() {
                   <th className="hidden md:table-cell text-left p-3 text-sm font-medium">Gender</th>
                   <th className="hidden md:table-cell text-left p-3 text-sm font-medium">City</th>
                   <th className="text-left p-3 text-sm font-medium">Status</th>
+                  <th className="text-left p-3 text-sm font-medium">Uses</th>
                   <th className="hidden md:table-cell text-left p-3 text-sm font-medium">Credits</th>
                   <th className="hidden md:table-cell text-left p-3 text-sm font-medium">Matches</th>
                   <th className="hidden md:table-cell text-left p-3 text-sm font-medium">Joined</th>
@@ -287,14 +329,14 @@ export default function AdminUsersPage() {
                 {loading ? (
                   Array.from({ length: 5 }).map((_, i) => (
                     <tr key={i} className="border-b">
-                      <td colSpan={12} className="p-3">
+                      <td colSpan={13} className="p-3">
                         <div className="h-6 bg-muted animate-pulse rounded" />
                       </td>
                     </tr>
                   ))
                 ) : users.length === 0 ? (
                   <tr>
-                    <td colSpan={12} className="text-center p-8 text-muted-foreground">
+                    <td colSpan={13} className="text-center p-8 text-muted-foreground">
                       No users found
                     </td>
                   </tr>
@@ -364,6 +406,9 @@ export default function AdminUsersPage() {
                             <Flag className="h-3 w-3 me-1" />Flagged
                           </Badge>
                         )}
+                      </td>
+                      <td className="p-3">
+                        <UsesBadges uses={u.uses} />
                       </td>
                       <td className="hidden md:table-cell p-3 text-sm">
                         <div className="flex items-center gap-1">

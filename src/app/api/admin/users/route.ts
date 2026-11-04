@@ -5,6 +5,37 @@ import { parsePagination } from "@/lib/utils";
 import type { Prisma } from "@prisma/client";
 import { getAdminCountry, userCountryWhere } from "@/lib/countries/server";
 
+/**
+ * Where a member uses Naseebak (admin list «Uses», owner request 2026-11-04): `app` = signed in to the app at least once
+ * (platform from «Active by device», else their push device, else "unknown"); `web` = website devices seen since
+ * 2026-11-04 (`activity_days`). A member with neither used the website before that (everyone could, the app came later).
+ */
+export interface MemberUses {
+  app: "android" | "ios" | "unknown" | null;
+  web: ("android" | "iphone" | "desktop")[];
+}
+
+async function usesOf(ids: string[]): Promise<Record<string, MemberUses>> {
+  if (ids.length === 0) return {};
+  const [sessions, devices, days] = await Promise.all([
+    db.mobileSession.groupBy({ by: ["userId"], where: { userId: { in: ids } } }),
+    db.pushDevice.findMany({ where: { userId: { in: ids } }, select: { userId: true, platform: true }, orderBy: { updatedAt: "desc" } }),
+    db.activityDay.findMany({ where: { userId: { in: ids } }, select: { userId: true, source: true }, distinct: ["userId", "source"] }),
+  ]);
+  const out: Record<string, MemberUses> = Object.fromEntries(ids.map((id) => [id, { app: null, web: [] }]));
+  for (const s of sessions) out[s.userId].app = "unknown";
+  for (const d of devices) if (out[d.userId].app === "unknown") out[d.userId].app = d.platform === "ios" ? "ios" : "android";
+  for (const d of days) {
+    const u = out[d.userId];
+    if (d.source === "APP_ANDROID" || d.source === "APP_IOS") u.app = d.source === "APP_IOS" ? "ios" : "android";
+    else if (d.source === "APP_OTHER") u.app ??= "unknown";
+    else if (d.source === "WEB_ANDROID") u.web.push("android");
+    else if (d.source === "WEB_IPHONE") u.web.push("iphone");
+    else if (d.source === "WEB_DESKTOP") u.web.push("desktop");
+  }
+  return out;
+}
+
 export async function GET(request: Request) {
   try {
     const result = await requireAdmin();
@@ -18,6 +49,7 @@ export async function GET(request: Request) {
     const search = url.searchParams.get("search") || "";
     const gender = url.searchParams.get("gender") || "";
     const status = url.searchParams.get("status") || "";
+    const uses = url.searchParams.get("uses") || "";
 
     // Admin's selected country ("ALL" = every country)
     const where: Prisma.UserWhereInput = { ...userCountryWhere(await getAdminCountry(request)) };
@@ -33,6 +65,10 @@ export async function GET(request: Request) {
     if (gender === "MALE" || gender === "FEMALE") {
       where.gender = gender;
     }
+
+    // App users = signed in to the app at least once; website only = never
+    if (uses === "app") where.mobileSessions = { some: {} };
+    else if (uses === "web") where.mobileSessions = { none: {} };
 
     if (status === "FLAGGED") {
       where.isFlagged = true;
@@ -71,7 +107,13 @@ export async function GET(request: Request) {
       db.user.count({ where }),
     ]);
 
-    return NextResponse.json({ users, total, page, totalPages: Math.ceil(total / pageSize) });
+    const usesById = await usesOf(users.map((u) => u.id));
+    return NextResponse.json({
+      users: users.map((u) => ({ ...u, uses: usesById[u.id] })),
+      total,
+      page,
+      totalPages: Math.ceil(total / pageSize),
+    });
   } catch (error) {
     console.error("Admin users error:", error);
     return NextResponse.json({ error: "حدث خطأ في الخادم" }, { status: 500 });

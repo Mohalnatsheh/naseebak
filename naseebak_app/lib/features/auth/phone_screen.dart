@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -8,6 +7,7 @@ import '../../core/analytics/analytics.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/routing/website_links.dart' show pendingInvitationKey;
 import '../../core/theme/app_theme.dart';
+import '../../core/localization/safe_input_formatter.dart';
 import '../../shared/widgets/common.dart';
 import '../country_selection/country.dart';
 import '../country_selection/country_providers.dart';
@@ -202,10 +202,7 @@ class _PhoneFormState extends ConsumerState<PhoneForm> {
                           keyboardType: TextInputType.phone,
                           textInputAction: TextInputAction.done,
                           autofillHints: const [AutofillHints.telephoneNumberNational],
-                          inputFormatters: [
-                            FilteringTextInputFormatter.allow(RegExp(r'[0-9٠-٩۰-۹+ ]')),
-                            LengthLimitingTextInputFormatter(16),
-                          ],
+                          inputFormatters: [SafeInputFormatter(allowed: RegExp(r'[0-9٠-٩۰-۹+ ]'), maxLength: 16)],
                           style: const TextStyle(fontSize: 20, letterSpacing: 1.5, fontWeight: FontWeight.w600),
                           onSubmitted: (_) => _submit(),
                           decoration: InputDecoration(

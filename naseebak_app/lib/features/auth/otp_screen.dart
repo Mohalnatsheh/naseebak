@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -11,6 +10,7 @@ import '../../core/auth/auth_controller.dart';
 import '../../core/localization/digits.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/localization/safe_input_formatter.dart';
 import '../../shared/widgets/common.dart';
 import '../welcome/brand_visuals.dart';
 import 'auth_repository.dart';
@@ -169,10 +169,8 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                             autofocus: true,
                             keyboardType: TextInputType.number,
                             autofillHints: const [AutofillHints.oneTimeCode],
-                            inputFormatters: [
-                              FilteringTextInputFormatter.allow(RegExp(r'[0-9٠-٩۰-۹]')),
-                              LengthLimitingTextInputFormatter(6),
-                            ],
+                            // One formatter that never leaves the cursor past the end (SMS autofill crash)
+                            inputFormatters: [SafeInputFormatter(allowed: RegExp(r'[0-9٠-٩۰-۹]'), maxLength: 6)],
                             showCursor: false,
                             enableInteractiveSelection: false,
                             style: const TextStyle(color: Colors.transparent, fontSize: 1),

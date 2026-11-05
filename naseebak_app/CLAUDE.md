@@ -94,7 +94,7 @@ Changing one of these on the server must keep old app versions working (members 
   Technology»). Run `flutter clean` (+ `pod install` with `LANG=en_US.UTF-8`) before a store build if the app ran on
   the simulator, or Apple refuses the upload (simulator `objective_c.framework`). Store texts, review login and privacy
   answers: `~/Documents/EvoKey-Projects/naseebak-release-1.0.0/store-listing.md`.
-- **Waiting for the next version:** the `X-App-Platform` header (done in code); planned, not built — women answering a
+- **Waiting for the next version:** the `X-App-Platform` header (done in code); two Crashlytics fixes (done in code, 2026-11-05): a lost connection is no longer reported as a fatal crash (`core/analytics/crash_filter.dart` → `isExpectedError`, used in `main.dart`'s handlers), and the sign-in code and phone fields use `SafeInputFormatter` (`core/localization/safe_input_formatter.dart`) instead of Filtering + LengthLimiting formatters, which crashed on Android SMS code autofill (`invalid selection start: 6`); planned, not built — women answering a
   man's «مهتم» for free (needs the app to stop locking those cards at 0 credits; design notes in `../CLAUDE.md`), a
   `purchase` analytics event, and popup taps: `features/alerts/alert_gate.dart` posts `/api/alerts/{id}/dismiss` with
   no body, so admin → Popup Alerts can't tell an app tap from a close — send `{ "action": "TAPPED" | "CLOSED" }` like the

@@ -73,8 +73,15 @@ describe("flagged users and automatic suggestions", () => {
   it("flagged users are left out of the candidate query", async () => {
     db.user.findUnique.mockResolvedValue(person("ok-recipient", "MALE"));
     await autoSuggestForUser("ok-recipient");
-    expect(db.user.findMany).toHaveBeenCalledOnce();
-    expect(db.user.findMany.mock.calls[0][0].where).toMatchObject({ isFlagged: false });
+    // Mocked empty, so it looks 7 days back, then 14 (mutual flow): neither may include flagged people
+    for (const [query] of db.user.findMany.mock.calls) expect(query.where).toMatchObject({ isFlagged: false });
+  });
+
+  it("nobody seen in 7 days: looks 14 days back once, only then", async () => {
+    db.user.findUnique.mockResolvedValue(person("fresh-member", "MALE"));
+    await autoSuggestForUser("fresh-member");
+    const seen = db.user.findMany.mock.calls.map(([q]) => Math.round((Date.now() - q.where.lastActiveAt.gte.getTime()) / 86400000));
+    expect(seen).toEqual([7, 14]);
   });
 
   it("admin Generate only considers unflagged users (both sides come from that list)", async () => {

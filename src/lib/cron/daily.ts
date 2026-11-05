@@ -18,6 +18,7 @@ import { expireIntroRequests, remindIntroRequests } from "@/lib/cron/intro-reque
 import { expireMutualSuggestionsAll, healMissingMatches, remindMutualSuggestions, remindWaitingInterest, runWeeklySuggestions } from "@/lib/cron/suggestions";
 import { runReengagement } from "@/lib/cron/reengagement";
 import { remindUnpaidPayments } from "@/lib/cron/payment-reminders";
+import { sendFilterTips } from "@/lib/cron/filter-tips";
 import { processAccountDeletions } from "@/lib/cron/deletions";
 import { reconcileStripePayments } from "@/lib/payments/fulfil";
 import { reconcilePaymentIntents } from "@/lib/payments/intent";
@@ -61,6 +62,7 @@ export function summarise(tasks: Record<string, TaskResult>) {
       num(tasks.chats, "warned") +
       num(tasks.guardianShareReminders, "reminded") +
       num(tasks.waitingInterestReminders, "reminded") +
+      num(tasks.filterTips, "sent") +
       num(tasks.paymentReminders, "reminded"),
     suggestions: num(tasks.weeklySuggestions, "created"),
     expired:
@@ -135,6 +137,7 @@ async function execute(trigger: DailyRunSummary["trigger"], part: DailyPart): Pr
     tasks.introReminders = await runTask("introReminders", () => remindIntroRequests(now()));
     tasks.suggestionReminders = await runTask("suggestionReminders", () => remindMutualSuggestions(now()));
     tasks.waitingInterestReminders = await runTask("waitingInterestReminders", () => remindWaitingInterest(now()));
+    tasks.filterTips = await runTask("filterTips", () => sendFilterTips(now()));
     tasks.guardianShareReminders = await runTask("guardianShareReminders", () => remindGuardianShare(now()));
     tasks.familyFollowUps = await runTask("familyFollowUps", () => runFamilyFollowUps(now()));
     tasks.reengagement = await runTask("reengagement", () => runReengagement(now()));

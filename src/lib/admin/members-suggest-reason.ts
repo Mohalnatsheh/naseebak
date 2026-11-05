@@ -5,7 +5,7 @@
  * keep it in step with `generate` in src/lib/matching/auto-suggest.ts.
  */
 import { db } from "@/lib/db";
-import { activeWhere, CANDIDATE_ACTIVE_DAYS, isActive, recentlySeenWhere } from "@/lib/activity";
+import { activeWhere, CANDIDATE_FALLBACK_DAYS, isActive, recentlySeenWhere } from "@/lib/activity";
 import { WEEKLY_FREE_SUGGESTIONS } from "@/lib/credits";
 import { NOT_ENGAGED, isEngaged } from "@/lib/intro/followup";
 import {
@@ -87,7 +87,8 @@ async function suitableCandidates(
       isDeactivated: false,
       status: { not: "SUSPENDED" },
       isFlagged: false,
-      ...(mutual ? recentlySeenWhere(CANDIDATE_ACTIVE_DAYS, now) : activeWhere(undefined, now)),
+      // `generate` tries 7 days, then 14: anyone here would be found by one of the two
+      ...(mutual ? recentlySeenWhere(CANDIDATE_FALLBACK_DAYS, now) : activeWhere(undefined, now)),
       gender: user.gender === "MALE" ? "FEMALE" : "MALE",
       country: user.country,
       profile: { isComplete: true },

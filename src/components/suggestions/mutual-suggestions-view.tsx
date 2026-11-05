@@ -122,6 +122,21 @@ export function MutualSuggestionsView({
     setBalance(credits);
   }
   const outOfCredits = creditOnInterest && balance <= 0;
+  // Nothing left because of my own «شروط أساسية»: which one to ease (never changed for me)
+  const [filterTip, setFilterTip] = useState<string | null>(null);
+  useEffect(() => {
+    if (emptyReason !== "no_candidates") return;
+    let cancelled = false;
+    fetch("/api/suggestions/filter-tip")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!cancelled) setFilterTip(data?.text ?? null);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [emptyReason]);
   // «مهتمون بك» at 0 credits: the smallest package, one tap to buy it (the payments page starts it from ?buy=)
   const [topUp, setTopUp] = useState<{ id: string; name: string; price: number; currencySymbol: string } | null>(null);
   useEffect(() => {
@@ -642,6 +657,11 @@ export function MutualSuggestionsView({
                   عرض ما ينتظر الرد ({totals.waiting})
                 </Button>
               </div>
+            )}
+            {tab === "new" && emptyReason === "no_candidates" && filterTip && (
+              <p role="note" className="mx-auto max-w-md rounded-xl border border-amber-200/60 bg-amber-50/70 px-4 py-3 text-sm font-medium text-amber-900">
+                {filterTip}
+              </p>
             )}
             {tab === "new" && emptyReason === "no_candidates" && (
               <div className="flex flex-wrap items-center justify-center gap-2 pt-1">

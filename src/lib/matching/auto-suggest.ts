@@ -20,7 +20,7 @@ import { notify, notifyMany } from "@/lib/notify";
 import { isTestPhone, testPhones } from "@/lib/test-accounts";
 import { MUTUAL_SUGGESTION_MS, SLOT_IDLE_DAYS, revealHiddenFor, slotMutualWhere } from "@/lib/suggestions/mutual";
 import { NOT_ENGAGED, isEngaged } from "@/lib/intro/followup";
-import { activeWhere, CANDIDATE_ACTIVE_DAYS, isActive, recentlySeenWhere } from "@/lib/activity";
+import { activeWhere, CANDIDATE_ACTIVE_DAYS, CANDIDATE_FALLBACK_DAYS, isActive, recentlySeenWhere } from "@/lib/activity";
 import { arabicCount } from "@/lib/utils";
 import type { SuggestionDecision, SuggestionStatus } from "@prisma/client";
 
@@ -312,7 +312,7 @@ async function generate(userId: string): Promise<SuggestOutcome> {
   ]);
   excluded.delete(userId);
 
-  const candidates = await db.user.findMany({
+  const findCandidates = (days: number) => db.user.findMany({
     where: {
       role: "USER",
       isDeactivated: false,
@@ -320,7 +320,7 @@ async function generate(userId: string): Promise<SuggestOutcome> {
       isFlagged: false,
       // Idle 30+ days (COALESCE(lastActiveAt, updatedAt)): not suggested to anyone until they return.
       // Shared flow: only people seen in the last 7 days, so a «مهتم» reaches someone who will answer
-      ...(mutual ? recentlySeenWhere(CANDIDATE_ACTIVE_DAYS) : activeWhere()),
+      ...(mutual ? recentlySeenWhere(days) : activeWhere()),
       gender: user.gender === "MALE" ? "FEMALE" : "MALE",
       // Same country only (an account's country follows its phone). A future system setting
       // `cross_country_matching` (off) will lift this; existing rows/matches are left as they are.
@@ -334,12 +334,15 @@ async function generate(userId: string): Promise<SuggestOutcome> {
     select: scoringSelect,
   });
 
-  let ranked = candidates
+  const rank = (list: Awaited<ReturnType<typeof findCandidates>>) => list
     .filter((c) => meetsSuggestionGate(c, perRequestCredits))
     .filter((c) => !mutual || mutuallyAcceptable(user, c))
     .map((c) => ({ candidate: c, score: calculateCompatibility(user, c) }))
     .filter(({ score }) => score >= minSuggestionScore(flags))
     .sort((a, b) => b.score - a.score);
+  let ranked = rank(await findCandidates(CANDIDATE_ACTIVE_DAYS));
+  // Nobody among people seen this week: look a little further rather than leave the member with nothing
+  if (mutual && ranked.length === 0) ranked = rank(await findCandidates(CANDIDATE_FALLBACK_DAYS));
   // Credit-on-interest: the candidates' own open counts; a full candidate still gets the card, hidden
   // until I say «مهتم» or they free a slot (never skipped, so a good match never waits for their slots)
   let busy = new Map<string, number>();

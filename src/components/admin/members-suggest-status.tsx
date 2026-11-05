@@ -23,7 +23,7 @@ export const REASON_LABEL: Record<NoSuggestionsReason, string> = {
   setup_unfinished: "Profile setup is not finished",
   no_credits: "0 credits (legacy flow: each suggestion uses a credit)",
   weekly_cap: "Reached the weekly limit of free suggestions",
-  no_candidates: "No suitable person right now (same country, active this week, score, dealbreakers, not met before)",
+  no_candidates: "No suitable person right now (same country, active in the last 2 weeks, score, dealbreakers, not met before)",
   ready: "Suitable people exist: cards are created the next time the member opens the site or app",
 };
 

@@ -12,6 +12,8 @@ export const ACTIVE_WINDOW_DAYS = 30;
 export const TOUCH_INTERVAL_MS = HOUR_MS;
 /** Shared suggestions: only people really seen (lastActiveAt, no updatedAt fallback) this recently are suggested to others */
 export const CANDIDATE_ACTIVE_DAYS = 7;
+/** Nobody suitable among people seen in 7 days: look this far back (owner request 2026-11-05) */
+export const CANDIDATE_FALLBACK_DAYS = 14;
 
 /** Seen on the site in the last `days` days — `lastActiveAt` only (null = not seen since tracking began) */
 export function recentlySeenWhere(days = CANDIDATE_ACTIVE_DAYS, now = new Date()): Prisma.UserWhereInput {

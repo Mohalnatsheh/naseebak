@@ -38,6 +38,7 @@ vi.mock("@/lib/cron/deletions", () => ({ processAccountDeletions: tasks.processA
 vi.mock("@/lib/payments/fulfil", () => ({ reconcileStripePayments: vi.fn(async () => ({ checked: 0, fulfilled: 0 })) }));
 vi.mock("@/lib/auth", () => authMod);
 vi.mock("@/lib/cron/payment-reminders", () => ({ remindUnpaidPayments: tasks.remindUnpaidPayments }));
+vi.mock("@/lib/cron/filter-tips", () => ({ sendFilterTips: vi.fn(async () => ({ members: 0, sent: 0 })) }));
 vi.mock("@/lib/intro/followup", () => ({
   remindGuardianShare: vi.fn(async () => ({ reminded: 0 })),
   runFamilyFollowUps: vi.fn(async () => ({ matches: 0, notified: 0 })),

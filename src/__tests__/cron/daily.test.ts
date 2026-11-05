@@ -12,6 +12,7 @@ const tasks = vi.hoisted(() => ({
   chatHousekeepingAll: vi.fn(),
   processAccountDeletions: vi.fn(),
   remindWaitingInterest: vi.fn(),
+  remindUnpaidPayments: vi.fn(),
 }));
 const authMod = vi.hoisted(() => ({ requireAdmin: vi.fn() }));
 const alert = vi.hoisted(() => ({ sendAdminAlert: vi.fn() }));
@@ -36,6 +37,7 @@ vi.mock("@/lib/cron/reengagement", () => ({ runReengagement: tasks.runReengageme
 vi.mock("@/lib/cron/deletions", () => ({ processAccountDeletions: tasks.processAccountDeletions }));
 vi.mock("@/lib/payments/fulfil", () => ({ reconcileStripePayments: vi.fn(async () => ({ checked: 0, fulfilled: 0 })) }));
 vi.mock("@/lib/auth", () => authMod);
+vi.mock("@/lib/cron/payment-reminders", () => ({ remindUnpaidPayments: tasks.remindUnpaidPayments }));
 vi.mock("@/lib/intro/followup", () => ({
   remindGuardianShare: vi.fn(async () => ({ reminded: 0 })),
   runFamilyFollowUps: vi.fn(async () => ({ matches: 0, notified: 0 })),
@@ -58,6 +60,7 @@ beforeEach(() => {
   tasks.runReengagement.mockResolvedValue({ idle: 4, sent: 2 });
   tasks.processAccountDeletions.mockResolvedValue(1);
   tasks.remindWaitingInterest.mockResolvedValue({ members: 0, reminded: 0 });
+  tasks.remindUnpaidPayments.mockResolvedValue({ payments: 3, reminded: 2 });
   settings.setSetting.mockResolvedValue(undefined);
   authMod.requireAdmin.mockResolvedValue({ session: { user: { id: "admin1", role: "ADMIN" } } });
   process.env.CRON_SECRET = "s3cret";
@@ -184,6 +187,24 @@ describe("/api/admin/cron/run", () => {
     const { lastRun } = await res.json();
     expect(lastRun.trigger).toBe("admin");
     expect(lastRun.totals.deletions).toBe(1);
+  });
+});
+
+describe("frequent part (every 15 minutes)", () => {
+  it("only the unpaid-payment reminder, stored under its own key", async () => {
+    const run = await runDailyJobs("cron", "frequent");
+    expect(run.part).toBe("frequent");
+    expect(tasks.remindUnpaidPayments).toHaveBeenCalled();
+    expect(tasks.runWeeklySuggestions).not.toHaveBeenCalled();
+    expect(tasks.remindWaitingInterest).not.toHaveBeenCalled();
+    expect(run.totals.reminders).toBe(2);
+    expect(settings.setSetting.mock.calls[0][0]).toBe("cron_daily_last_run_frequent");
+  });
+
+  it("all/morning/evening never send it", async () => {
+    await runDailyJobs("cron");
+    await runDailyJobs("cron", "evening");
+    expect(tasks.remindUnpaidPayments).not.toHaveBeenCalled();
   });
 });
 

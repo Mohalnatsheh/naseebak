@@ -17,6 +17,7 @@ import { chatHousekeepingAll } from "@/lib/chat/service";
 import { expireIntroRequests, remindIntroRequests } from "@/lib/cron/intro-requests";
 import { expireMutualSuggestionsAll, healMissingMatches, remindMutualSuggestions, remindWaitingInterest, runWeeklySuggestions } from "@/lib/cron/suggestions";
 import { runReengagement } from "@/lib/cron/reengagement";
+import { remindUnpaidPayments } from "@/lib/cron/payment-reminders";
 import { processAccountDeletions } from "@/lib/cron/deletions";
 import { reconcileStripePayments } from "@/lib/payments/fulfil";
 import { reconcilePaymentIntents } from "@/lib/payments/intent";
@@ -28,7 +29,9 @@ import { runPollRotation } from "@/lib/engagement/polls";
 
 export const LAST_RUN_KEY = "cron_daily_last_run";
 export const LAST_EVENING_RUN_KEY = "cron_daily_last_run_evening";
-export const DAILY_PARTS = ["all", "morning", "evening"] as const;
+export const LAST_FREQUENT_RUN_KEY = "cron_daily_last_run_frequent";
+/** frequent: every 15 minutes (payment reminders); not part of «all» */
+export const DAILY_PARTS = ["all", "morning", "evening", "frequent"] as const;
 export type DailyPart = (typeof DAILY_PARTS)[number];
 
 type Counts = Record<string, number | string>;
@@ -57,7 +60,8 @@ export function summarise(tasks: Record<string, TaskResult>) {
       num(tasks.suggestionReminders, "reminded") +
       num(tasks.chats, "warned") +
       num(tasks.guardianShareReminders, "reminded") +
-      num(tasks.waitingInterestReminders, "reminded"),
+      num(tasks.waitingInterestReminders, "reminded") +
+      num(tasks.paymentReminders, "reminded"),
     suggestions: num(tasks.weeklySuggestions, "created"),
     expired:
       num(tasks.introExpiry, "expired") + num(tasks.suggestionExpiry, "expired") + num(tasks.chats, "expired"),
@@ -100,8 +104,13 @@ async function execute(trigger: DailyRunSummary["trigger"], part: DailyPart): Pr
   const started = new Date();
   const now = () => new Date();
   const tasks: Record<string, TaskResult> = {};
-  const morning = part !== "evening";
-  const evening = part !== "morning";
+  const morning = part === "all" || part === "morning";
+  const evening = part === "all" || part === "evening";
+
+  if (part === "frequent") {
+    // Every 15 minutes: «باقي خطوة لإتمام شحن رصيدك» (push + bell, never at night)
+    tasks.paymentReminders = await runTask("paymentReminders", () => remindUnpaidPayments(now()));
+  }
 
   if (morning) {
     // Expiry first, so reminders and new suggestions see the cleaned-up state
@@ -142,7 +151,7 @@ async function execute(trigger: DailyRunSummary["trigger"], part: DailyPart): Pr
     totals: summarise(tasks),
   };
   try {
-    await setSetting(part === "evening" ? LAST_EVENING_RUN_KEY : LAST_RUN_KEY, JSON.stringify(summary));
+    await setSetting(part === "evening" ? LAST_EVENING_RUN_KEY : part === "frequent" ? LAST_FREQUENT_RUN_KEY : LAST_RUN_KEY, JSON.stringify(summary));
   } catch (error) {
     console.error("[cron] could not store the run summary:", error);
   }

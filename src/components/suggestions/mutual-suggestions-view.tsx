@@ -122,6 +122,23 @@ export function MutualSuggestionsView({
     setBalance(credits);
   }
   const outOfCredits = creditOnInterest && balance <= 0;
+  // «مهتمون بك» at 0 credits: the smallest package, one tap to buy it (the payments page starts it from ?buy=)
+  const [topUp, setTopUp] = useState<{ id: string; name: string; price: number; currencySymbol: string } | null>(null);
+  useEffect(() => {
+    if (!outOfCredits || topUp) return;
+    let cancelled = false;
+    fetch("/api/payments/plans")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (cancelled || !data?.purchasesEnabled) return;
+        const smallest = [...(data.packages ?? [])].sort((a, b) => a.credits - b.credits)[0];
+        if (smallest) setTopUp(smallest);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [outOfCredits, topUp]);
   const guardian = counts.guardian ?? { exists: !!profile?.parentInfo, consented: !!profile?.parentInfo?.shareConsentAt };
   const [interestFor, setInterestFor] = useState<OpenFeedItem | null>(null);
   // Start on the tab in the URL right away (this view only renders in the browser, after the page's own load)
@@ -641,7 +658,20 @@ export function MutualSuggestionsView({
       ) : (
         <div className="space-y-6">
           {/* 0 credits: everything stays visible and «لا» is free; only «مهتم» waits for a recharge */}
-          {tab !== "waiting" && outOfCredits && (
+          {tab === "interested" && outOfCredits && topUp ? (
+            <div role="note" className="flex flex-wrap items-center gap-3 rounded-xl border border-amber-200/60 bg-amber-50/70 p-4 text-sm leading-relaxed text-amber-900">
+              <Heart className="h-4 w-4 shrink-0" aria-hidden="true" />
+              <p className="min-w-0 flex-1">
+                <span className="font-semibold">{g("شخص مهتم بك ينتظر ردّك.", "شخص مهتم بكِ ينتظر ردّكِ.")}</span>{" "}
+                {g("رصيدك صفر، اشحن لتردّ بـ«مهتم».", "رصيدكِ صفر، اشحني لتردّي بـ«مهتم».")}
+              </p>
+              <Button asChild size="sm" className="h-10 rounded-lg">
+                <Link href={`/dashboard/payments?buy=${encodeURIComponent(topUp.id)}`}>
+                  {g("اشحن", "اشحني")} {topUp.name} بـ {topUp.price} {topUp.currencySymbol}
+                </Link>
+              </Button>
+            </div>
+          ) : tab !== "waiting" && outOfCredits && (
             <div role="note" className="flex flex-wrap items-start gap-3 rounded-xl border border-amber-200/60 bg-amber-50/70 p-4 text-sm leading-relaxed text-amber-900">
               <Coins className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
               <p className="min-w-0 flex-1">

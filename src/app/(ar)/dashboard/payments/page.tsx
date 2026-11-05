@@ -73,6 +73,14 @@ interface PaymentRecord {
   createdAt: string;
 }
 
+/** % cheaper per credit than the smallest package (0 for the smallest itself) */
+function savingVsSmallest(pkg: { price: number; credits: number }, all: { price: number; credits: number }[]): number {
+  const smallest = [...all].sort((a, b) => a.credits - b.credits)[0];
+  if (!smallest || smallest.credits === pkg.credits) return 0;
+  const base = smallest.price / smallest.credits;
+  return Math.max(0, Math.round((1 - pkg.price / pkg.credits / base) * 100));
+}
+
 export default function PaymentsPage() {
   return (
     <Suspense
@@ -201,6 +209,18 @@ function PaymentsContent() {
     const timer = setTimeout(() => setToast(null), 5000);
     return () => clearTimeout(timer);
   }, [toast]);
+
+  // One-tap top-up from «مهتمون بك» at 0 credits: /dashboard/payments?buy=<packageId> starts that package's payment
+  const startBuy = useEffectEvent((id: string) => {
+    const pkg = packages.find((p) => p.id === id);
+    router.replace("/dashboard/payments");
+    if (pkg) handlePurchase(pkg.id, pkg.name);
+  });
+  const buyId = searchParams.get("buy");
+  const packagesReady = packages.length > 0;
+  useEffect(() => {
+    if (buyId && packagesReady) startBuy(buyId);
+  }, [buyId, packagesReady]);
 
   async function handlePurchase(packageId: string, packageName: string) {
     setPurchasing(packageId);
@@ -567,9 +587,13 @@ function PaymentsContent() {
                     </div>
                   </div>
 
-                  {/* Per credit */}
+                  {/* Per credit, and the saving against the smallest package (owner request 2026-11-05) */}
                   <p className={`text-center text-xs text-muted-foreground ${pkg.chargeUsd ? "mb-1" : "mb-4 md:mb-6"}`}>
                     {(pkg.price / pkg.credits).toFixed(2)} {currencySymbol(pkg)} لكل رصيد
+                    {(() => {
+                      const save = savingVsSmallest(pkg, packages);
+                      return save > 0 ? <span className="ms-1.5 font-bold text-emerald-700">· الرصيد أرخص {save}٪</span> : null;
+                    })()}
                   </p>
                   {pkg.chargeUsd ? (
                     <div className="flex justify-center mb-4 md:mb-6">

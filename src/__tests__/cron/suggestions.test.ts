@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const db = vi.hoisted(() => ({
   suggestion: { updateMany: vi.fn(), findMany: vi.fn() },
   block: { findFirst: vi.fn(), findMany: vi.fn() },
-  user: { findMany: vi.fn() },
+  user: { findMany: vi.fn(), findUnique: vi.fn() },
   mutualMatch: { findMany: vi.fn() },
   notification: { findFirst: vi.fn() },
 }));
@@ -12,6 +12,8 @@ const settings = vi.hoisted(() => ({ getCycleFlags: vi.fn() }));
 const auto = vi.hoisted(() => ({ autoSuggestForUser: vi.fn(), weeklyCounts: vi.fn(), openCounts: vi.fn(), MAX_OPEN_SUGGESTIONS: 5 }));
 vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/notify", () => notifyMod);
+const topUp = vi.hoisted(() => ({ topUpLine: vi.fn() }));
+vi.mock("@/lib/payments/topup-prompt", () => topUp);
 vi.mock("@/lib/settings", () => settings);
 vi.mock("@/lib/matching/auto-suggest", () => auto);
 const createMutualMatch = vi.hoisted(() => vi.fn());
@@ -228,6 +230,15 @@ describe("remindWaitingInterest («شخص ينتظر ردّك»)", () => {
   beforeEach(() => {
     db.block.findFirst.mockResolvedValue(null);
     db.notification.findFirst.mockResolvedValue(null);
+    db.user.findUnique.mockResolvedValue({ matchCredits: 3, country: "JO", gender: "FEMALE", phone: "962790000009" });
+    topUp.topUpLine.mockResolvedValue(null);
+  });
+
+  it("at 0 credits the notice adds the smallest package (lib/payments/topup-prompt)", async () => {
+    topUp.topUpLine.mockResolvedValue(" رصيدكِ صفر: اشحني 10 أرصدة بـ 3 د.أ لتردّي.");
+    db.suggestion.findMany.mockResolvedValue([card()]);
+    await remindWaitingInterest(now);
+    expect(notifyMod.notify.mock.calls[0][0].body).toMatch(/ما ينتهي\. رصيدكِ صفر: اشحني 10 أرصدة/);
   });
 
   it("asks only for open cards where the other side said «مهتم» and the member is away 2–30 days", async () => {

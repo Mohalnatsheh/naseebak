@@ -23,6 +23,7 @@ import { isUnavailable } from "@/lib/matches/state";
 import { getCycleFlags } from "@/lib/settings";
 import { activeWhere } from "@/lib/activity";
 import { startOfAmmanDay } from "@/lib/amman-day";
+import { topUpLine } from "@/lib/payments/topup-prompt";
 
 /** A MUTUAL suggestion stays open this long; after that "waiting" ends without a word. */
 export const MUTUAL_SUGGESTION_DAYS = 7;
@@ -359,15 +360,18 @@ async function notifyInterestShown(userId: string, suggestionId: string, now: Da
     select: { id: true },
   });
   if (already) return;
-  const person = await db.user.findUnique({ where: { id: userId }, select: { gender: true } });
+  const person = await db.user.findUnique({ where: { id: userId }, select: { gender: true, matchCredits: true, country: true, phone: true } });
   const female = person?.gender === "FEMALE";
+  // At 0 credits: the smallest package, right when it matters (lib/payments/topup-prompt)
+  const topUp = person ? ((await topUpLine(person).catch(() => null)) ?? "") : "";
   await notify({
     userId,
     type: "SUGGESTION",
     title: INTEREST_TITLE,
-    body: female
-      ? "وصلكِ اقتراح توافق من شخص مهتم بكِ. اطّلعي عليه وقرّري قبل أن تنتهي مدته."
-      : "وصلك اقتراح توافق من شخص مهتم بك. اطّلع عليه وقرّر قبل أن تنتهي مدته.",
+    body:
+      (female
+        ? "وصلكِ اقتراح توافق من شخص مهتم بكِ. اطّلعي عليه وقرّري قبل أن تنتهي مدته."
+        : "وصلك اقتراح توافق من شخص مهتم بك. اطّلع عليه وقرّر قبل أن تنتهي مدته.") + topUp,
     url: "/dashboard/suggestions?tab=interested",
     metadata: { suggestionId },
     sms: "interest",

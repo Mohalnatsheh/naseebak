@@ -45,14 +45,42 @@ describe("POST /api/payments/checkout", () => {
   });
 
   it("shows Naseebak on the checkout: name, logo, Arabic price line, statement name, Arabic product", async () => {
-    stripe.create.mockResolvedValue({ id: "cs_1", client_secret: "sec" });
-    await checkout(post({ packageId: "launch_25" }));
+    stripe.create.mockResolvedValue({ id: "cs_1", url: "https://checkout.stripe.com/x" });
+    await checkout(post({ packageId: "launch_25", mode: "hosted" }));
     const args = stripe.create.mock.calls[0][0];
     expect(args.branding_settings).toMatchObject({ display_name: "نصيبك (Naseebak)", logo: { type: "url" }, icon: { type: "url" } });
     expect(args.custom_text.submit.message).toContain("25 رصيداً مقابل 6 د.أ");
     expect(args.custom_text.submit.message).toContain("8.46$");
     expect(args.payment_intent_data.statement_descriptor_suffix).toBe("NASEEBAK");
     expect(args.line_items[0].price_data.product_data.name).toBe("نصيبك · 25 رصيداً");
+  });
+
+  it("website (embedded) form: no logo/name settings — Stripe refuses a logo there — but the Arabic line and statement name", async () => {
+    stripe.create.mockResolvedValue({ id: "cs_1", client_secret: "sec" });
+    await checkout(post({ packageId: "launch_25" }));
+    const args = stripe.create.mock.calls[0][0];
+    expect(args.ui_mode).toBe("embedded");
+    expect(args.branding_settings).toBeUndefined();
+    expect(args.custom_text.submit.message).toContain("25 رصيداً");
+    expect(args.payment_intent_data.statement_descriptor_suffix).toBe("NASEEBAK");
+  });
+
+  it("app (hosted) page: also the Naseebak name, logo and colour", async () => {
+    stripe.create.mockResolvedValue({ id: "cs_1", url: "https://checkout.stripe.com/x" });
+    await checkout(post({ packageId: "launch_25", mode: "hosted" }));
+    expect(stripe.create.mock.calls[0][0].branding_settings).toMatchObject({ display_name: "نصيبك (Naseebak)", logo: { type: "url" } });
+  });
+
+  it("Stripe refuses a request that names no field (the 14:38 embedded-logo error): the plain checkout is created", async () => {
+    stripe.create
+      .mockRejectedValueOnce(Object.assign(new Error("You cannot set `logo` when `ui_mode` is `embedded`."), { type: "StripeInvalidRequestError" }))
+      .mockResolvedValueOnce({ id: "cs_3", client_secret: "sec" });
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const res = await checkout(post({ packageId: "launch_10" }));
+    errSpy.mockRestore();
+    expect(res.status).toBe(200);
+    expect(stripe.create.mock.calls[1][0].custom_text).toBeUndefined();
+    expect(db.payment.create.mock.calls[0][0].data.stripeSessionId).toBe("cs_3");
   });
 
   it("if Stripe refuses one of the extras, the plain checkout is created instead (payments never break)", async () => {

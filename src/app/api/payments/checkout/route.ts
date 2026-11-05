@@ -86,7 +86,7 @@ export async function POST(request: Request) {
         // ever refuses one of those extras, the plain session is created instead: a checkout must never fail for them.
         let checkoutSession: Awaited<ReturnType<ReturnType<typeof getStripe>["checkout"]["sessions"]["create"]>>;
         try {
-          checkoutSession = await getStripe().checkout.sessions.create({ ...base, ...checkoutPresentation(pkg) });
+          checkoutSession = await getStripe().checkout.sessions.create({ ...base, ...checkoutPresentation(pkg, hosted) });
         } catch (error) {
           if (!isPresentationError(error)) throw error;
           console.error("[payments] checkout branding refused, creating a plain session:", stripeErrorInfo(error));

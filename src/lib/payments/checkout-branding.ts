@@ -36,20 +36,28 @@ export function checkoutMessage(pkg: Pick<CreditPackage, "price" | "country" | "
   return `${RLI}أنت تدفع لـ «نصيبك»: ${pkg.name} مقابل ${price}${charged}. يظهر في كشف البنك باسم ${ltr("LOGICCR* NASEEBAK")}.${PDI}`;
 }
 
-/** The extra session fields (spread into checkout.sessions.create) */
+/**
+ * The extra session fields (spread into checkout.sessions.create). `hosted` = the app's Stripe page: it also gets the
+ * name/logo/colour (`branding_settings`). The website's embedded form must not: Stripe refuses a logo there
+ * («You cannot set `logo` when `ui_mode` is `embedded`», 2026-11-05 14:38 — website checkouts failed for a minute
+ * until the rollback), and it sits inside naseebak.com anyway.
+ */
 export function checkoutPresentation(
   pkg: Pick<CreditPackage, "price" | "country" | "chargeCurrency" | "chargeAmount" | "name">,
+  hosted: boolean,
 ): Pick<Stripe.Checkout.SessionCreateParams, "branding_settings" | "custom_text" | "payment_intent_data"> {
   // Payment methods stay as set in the Stripe dashboard. Its «Link» box («Pay securely at LOGIC CENTER FOR WEBSITE
   // DESIGN») is a dashboard setting: limiting the session to cards did not remove it (checked live 2026-11-05)
   return {
-    branding_settings: {
-      display_name: "نصيبك (Naseebak)",
-      button_color: "#22476a",
-      border_style: "rounded",
-      icon: { type: "url", url: `${SITE}/images/icon-512.png` },
-      logo: { type: "url", url: `${SITE}/images/logo-full.png` },
-    },
+    ...(hosted && {
+      branding_settings: {
+        display_name: "نصيبك (Naseebak)",
+        button_color: "#22476a",
+        border_style: "rounded" as const,
+        icon: { type: "url" as const, url: `${SITE}/images/icon-512.png` },
+        logo: { type: "url" as const, url: `${SITE}/images/logo-full.png` },
+      },
+    }),
     custom_text: { submit: { message: checkoutMessage(pkg) } },
     payment_intent_data: {
       statement_descriptor_suffix: STATEMENT_SUFFIX,
@@ -63,12 +71,11 @@ export function productName(pkg: Pick<CreditPackage, "name">): string {
   return `نصيبك · ${pkg.name}`;
 }
 
-/** A Stripe refusal caused by one of the presentation fields: the session is created again without them */
+/**
+ * Any request Stripe refuses while the presentation fields are on: the session is created again without them. Not
+ * limited to errors that name a presentation `param` — the embedded-logo refusal named none, so that check let website
+ * checkouts fail. Network, auth and rate errors are not retried here (they would fail again).
+ */
 export function isPresentationError(error: unknown): boolean {
-  const e = error as { type?: string; param?: string } | null;
-  return (
-    e?.type === "StripeInvalidRequestError" &&
-    typeof e.param === "string" &&
-    /^(branding_settings|custom_text|payment_intent_data\[(statement_descriptor_suffix|description)\])/.test(e.param)
-  );
+  return (error as { type?: string } | null)?.type === "StripeInvalidRequestError";
 }

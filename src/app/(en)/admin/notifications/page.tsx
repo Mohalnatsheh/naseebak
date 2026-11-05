@@ -2,19 +2,21 @@
 
 import { useState, useEffect } from "react";
 import { Bell, Loader2, Send, Users as UsersIcon, User } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { fmtDateTime, PersonLink } from "@/components/admin/admin-list-bits";
 
-interface NotifItem {
-  id: string;
+/** One send: a broadcast or a single notification (src/lib/admin/reach-audience.ts) */
+interface SendItem {
   title: string;
   body: string;
-  isRead: boolean;
-  createdAt: string;
-  user: { id: string; firstName: string; lastName: string };
+  sentAt: string;
+  recipients: number;
+  read: number;
+  user: { id: string; firstName: string; lastName: string } | null;
 }
 
 interface UserOption {
@@ -25,7 +27,7 @@ interface UserOption {
 }
 
 export default function AdminNotificationsPage() {
-  const [notifications, setNotifications] = useState<NotifItem[]>([]);
+  const [sends, setSends] = useState<SendItem[]>([]);
   const [users, setUsers] = useState<UserOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [sendAll, setSendAll] = useState(true);
@@ -42,7 +44,7 @@ export default function AdminNotificationsPage() {
   useEffect(() => {
     fetch("/api/admin/notifications")
       .then((r) => r.json())
-      .then((notifData) => setNotifications(notifData.notifications || []))
+      .then((notifData) => setSends(notifData.sends || []))
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);
@@ -70,12 +72,22 @@ export default function AdminNotificationsPage() {
     };
   }, [userSearch, sendAll]);
 
+  /** Names how many members in which country get it (the count can't be read: says so, still asks) */
+  async function confirmBroadcast() {
+    const via = channel === "app" ? " who have the app" : "";
+    const audience = await fetch(`/api/admin/notifications/audience?channel=${channel}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .catch(() => null);
+    if (!audience) return confirm(`Could not count the recipients. Send this notification to ALL active users${via} of the selected country anyway?`);
+    const where = audience.country ? `in ${audience.country}` : "in all countries";
+    return confirm(`Send this notification to ${audience.count.toLocaleString("en-GB")} active users${via} ${where}?`);
+  }
+
   async function handleSend(e: React.FormEvent) {
     e.preventDefault();
     if (!title || !body) return;
     if (!sendAll && !selectedUser) return;
-    const reach = channel === "app" ? "ALL active users who have the app" : "ALL active users";
-    if (sendAll && !confirm(`Send this notification to ${reach}?`)) return;
+    if (sendAll && !(await confirmBroadcast())) return;
 
     setSending(true);
     setResult(null);
@@ -104,7 +116,7 @@ export default function AdminNotificationsPage() {
       // Refresh list
       const notifRes = await fetch("/api/admin/notifications");
       const notifData = await notifRes.json();
-      setNotifications(notifData.notifications || []);
+      setSends(notifData.sends || []);
     } catch {
       setResult({ ok: false, text: "Failed to send notification" });
     } finally {
@@ -269,32 +281,41 @@ export default function AdminNotificationsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Recent System Notifications</CardTitle>
+          <CardDescription>Last 90 days. Same title and text sent together count as one send.</CardDescription>
         </CardHeader>
         <CardContent>
           {loading ? (
             <div className="flex justify-center py-8">
               <Loader2 className="h-6 w-6 animate-spin text-primary" />
             </div>
-          ) : notifications.length === 0 ? (
+          ) : sends.length === 0 ? (
             <p className="text-center text-muted-foreground py-8">No system notifications sent yet</p>
           ) : (
             <div className="space-y-3">
-              {notifications.map((n) => (
-                <div key={n.id} className="border rounded-lg p-3 text-sm space-y-1">
+              {sends.map((n) => (
+                <div key={`${n.sentAt}-${n.title}`} className="border rounded-lg p-3 text-sm space-y-1">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="font-medium">{n.title}</span>
                     <div className="flex items-center gap-2 shrink-0">
-                      <Badge variant={n.isRead ? "outline" : "default"} className="text-xs">
-                        {n.isRead ? "Read" : "Unread"}
-                      </Badge>
-                      <span className="text-xs text-muted-foreground">
-                        {new Date(n.createdAt).toLocaleDateString()}
-                      </span>
+                      {n.recipients === 1 ? (
+                        <Badge variant={n.read ? "outline" : "default"} className="text-xs">
+                          {n.read ? "Read" : "Unread"}
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-xs">
+                          {n.recipients.toLocaleString("en-GB")} recipients
+                        </Badge>
+                      )}
+                      <span className="text-xs text-muted-foreground">{fmtDateTime(n.sentAt)}</span>
                     </div>
                   </div>
                   <p className="text-muted-foreground break-words">{n.body}</p>
                   <p className="text-xs text-muted-foreground">
-                    To: {n.user.firstName} {n.user.lastName}
+                    {n.recipients === 1 ? (
+                      n.user ? <>To: <PersonLink p={n.user} /></> : "To: one member"
+                    ) : (
+                      <>Read by {n.read.toLocaleString("en-GB")} ({Math.round((n.read / n.recipients) * 100)}%)</>
+                    )}
                   </p>
                 </div>
               ))}

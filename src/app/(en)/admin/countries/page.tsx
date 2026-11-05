@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { AlertTriangle, CheckCircle2, Globe2, Loader2, Send, XCircle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,10 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { CountryFlag } from "@/components/shared/country-flag";
+import { SettingsConfirmDialog } from "@/components/admin/settings-confirm-dialog";
+import { SettingsNote } from "@/components/admin/settings-section";
+import { countryChanges, type ChangeSummary } from "@/lib/admin/settings-changes";
+import { toast } from "sonner";
 import type { CountryCode } from "@/lib/countries";
 
 type Provider = "DEFAULT" | "BROADNET" | "UNIFONIC" | "MOCK" | "NONE";
@@ -129,10 +133,19 @@ function CountryCard({ row, onSaved }: { row: CountryRow; onSaved: () => void })
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [testPhone, setTestPhone] = useState("");
   const [testing, setTesting] = useState(false);
+  const [pending, setPending] = useState<ChangeSummary | null>(null);
   const code = row.settings.code;
   const dirty = JSON.stringify(form) !== JSON.stringify(row.settings);
 
+  /** Always asks first, naming every change (only a cleared-and-retyped field has none to name) */
+  function requestSave() {
+    const changes = countryChanges(row.settings, form, row.display.name.en);
+    if (changes.lines.length === 0) save();
+    else setPending(changes);
+  }
+
   async function save() {
+    setPending(null);
     setSaving(true);
     setMessage(null);
     const body: Partial<Settings> = { ...form };
@@ -142,6 +155,7 @@ function CountryCard({ row, onSaved }: { row: CountryRow; onSaved: () => void })
     setSaving(false);
     if (!res?.ok) {
       setMessage({ ok: false, text: data?.error || "Could not save" });
+      toast.error(data?.error || "Could not save");
       return;
     }
     setMessage({ ok: true, text: "Saved" });
@@ -158,14 +172,17 @@ function CountryCard({ row, onSaved }: { row: CountryRow; onSaved: () => void })
     else setMessage({ ok: !!data.sent, text: data.sent ? `Test SMS accepted by ${data.provider} for ${data.to}` : `${data.provider} did not accept the test SMS (see server log)` });
   }
 
-  const toggle = (key: "active" | "registrationOpen" | "purchasesEnabled" | "pollsEnabled", label: string, hint: string, disabled = false) => (
-    <label className={cn("flex items-start justify-between gap-3 rounded-lg border p-3", disabled && "opacity-60")}>
-      <span>
-        <span className="block text-sm font-medium">{label}</span>
-        <span className="block text-xs text-muted-foreground">{hint}</span>
-      </span>
-      <Switch checked={!!form[key]} disabled={disabled} onCheckedChange={(v) => setForm({ ...form, [key]: v })} />
-    </label>
+  const toggle = (key: "active" | "registrationOpen" | "purchasesEnabled" | "pollsEnabled", label: string, hint: string, disabled = false, note?: ReactNode) => (
+    <div className={cn("space-y-2 rounded-lg border p-3", disabled && "opacity-60")}>
+      <label className="flex items-start justify-between gap-3">
+        <span>
+          <span className="block text-sm font-medium">{label}</span>
+          <span className="block text-xs text-muted-foreground">{hint}</span>
+        </span>
+        <Switch checked={!!form[key]} disabled={disabled} onCheckedChange={(v) => setForm({ ...form, [key]: v })} />
+      </label>
+      {note}
+    </div>
   );
 
   return (
@@ -197,9 +214,15 @@ function CountryCard({ row, onSaved }: { row: CountryRow; onSaved: () => void })
       <CardContent className="space-y-5">
         <div className="grid gap-3 md:grid-cols-2">
           {toggle("active", "Active", "Shown to visitors and in the app; takes sign-ups", row.display.isDefault && form.active)}
-          {toggle("registrationOpen", "Registration open", "New members can sign up (existing members can always sign in)")}
-          {toggle("purchasesEnabled", "Sell credit packages", row.pricesApproved ? "Members can buy this country's packages" : "Prices are not approved in code yet — nothing is sold even if on")}
-          {toggle("pollsEnabled", "«سؤال نصيبك»", "Members of this country see and answer the question")}
+          {toggle("registrationOpen", "Registration open", "New members can sign up (existing members can always sign in)", false,
+            <SettingsNote href="/admin/settings" linkText="Settings → User Registration">Needs the global switch on too; closed there wins for every country:</SettingsNote>,
+          )}
+          {toggle("purchasesEnabled", "Sell credit packages", row.pricesApproved ? "Members can buy this country's packages" : "Prices are not approved in code yet — nothing is sold even if on", false,
+            <SettingsNote href="/admin/settings#mobile-app" linkText="Settings → Payments in the app">Website and app. Off here wins; on here, buying in the app also needs:</SettingsNote>,
+          )}
+          {toggle("pollsEnabled", "«سؤال نصيبك»", "Members of this country see and answer the question", false,
+            <SettingsNote href="/admin/polls" linkText="Polls page">Signed-in members only (visitors on /poll still see it). Needs the global switch on; off there hides it for everyone:</SettingsNote>,
+          )}
         </div>
 
         <div className="space-y-1.5">
@@ -233,7 +256,7 @@ function CountryCard({ row, onSaved }: { row: CountryRow; onSaved: () => void })
         </div>
 
         <div className="flex flex-wrap items-end gap-2">
-          <Button onClick={save} disabled={!dirty || saving}>
+          <Button onClick={requestSave} disabled={!dirty || saving}>
             {saving && <Loader2 className="h-4 w-4 animate-spin" />} Save {row.display.name.en}
           </Button>
           <div className="ms-auto flex items-end gap-2">
@@ -248,6 +271,17 @@ function CountryCard({ row, onSaved }: { row: CountryRow; onSaved: () => void })
         </div>
         {message && <p className={cn("text-sm", message.ok ? "text-emerald-700" : "text-destructive")}>{message.text}</p>}
       </CardContent>
+      <SettingsConfirmDialog
+        open={!!pending}
+        title={`Save ${row.display.name.en}?`}
+        description="Changes apply within 30 seconds."
+        lines={pending?.lines}
+        warnings={pending?.warnings}
+        confirmLabel={pending?.warnings.length ? "Yes, save anyway" : "Save"}
+        destructive={!!pending?.warnings.length}
+        onCancel={() => setPending(null)}
+        onConfirm={save}
+      />
     </Card>
   );
 }

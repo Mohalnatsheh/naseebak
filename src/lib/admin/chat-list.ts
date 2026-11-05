@@ -79,3 +79,72 @@ export function chatSummary(rows: ChatActivity[], now: Date) {
     reported: rows.filter((c) => c.reported).length,
   };
 }
+
+/** Message count per (chat, sender), as `message.groupBy` returns it */
+export interface SenderCountRow {
+  conversationId: string;
+  senderId: string;
+  _count: { _all: number };
+}
+
+/** Latest message per chat (`DISTINCT ON`) */
+export interface LastMessageRow {
+  conversationId: string;
+  senderId: string;
+  createdAt: Date | string;
+}
+
+/**
+ * Activity per chat, for exactly the chats in `chats`. Rows for other chats are ignored, so the
+ * message queries may be limited to these chat ids (the route does that) without changing anything.
+ */
+export function buildChatActivity(
+  chats: { id: string; status: string; createdAt: Date; expiresAt: Date; endedByAdminId: string | null }[],
+  perSender: SenderCountRow[],
+  lastRows: LastMessageRow[],
+  reportedIds: Iterable<string | null>,
+  effectiveStatus: (c: { status: string; expiresAt: Date }) => string,
+): Map<string, ChatActivity> {
+  const reported = new Set(reportedIds);
+  const last = new Map(lastRows.map((r) => [r.conversationId, r]));
+  const senders = new Map<string, Record<string, number>>();
+  for (const r of perSender) {
+    const m = senders.get(r.conversationId) ?? {};
+    m[r.senderId] = r._count._all;
+    senders.set(r.conversationId, m);
+  }
+  return new Map(
+    chats.map((c) => {
+      const bySender = senders.get(c.id) ?? {};
+      const l = last.get(c.id);
+      return [
+        c.id,
+        {
+          id: c.id,
+          createdAt: c.createdAt,
+          expiresAt: c.expiresAt,
+          status: effectiveStatus(c) as ChatActivity["status"],
+          endedByAdminId: c.endedByAdminId,
+          messages: Object.values(bySender).reduce((a, b) => a + b, 0),
+          bySender,
+          lastAt: l ? new Date(l.createdAt) : null,
+          lastSenderId: l?.senderId ?? null,
+          reported: reported.has(c.id),
+        },
+      ];
+    }),
+  );
+}
+
+/** Who ended a chat, as the admin pages show it: «paused» (report review), «system», «admin», the member's first name, or null */
+export function chatEndedBy(
+  c: { endedByAdminId: string | null; endedById: string | null },
+  people: { id: string; firstName: string }[],
+): string | null {
+  if (c.endedByAdminId) {
+    if (c.endedByAdminId === REPORT_PAUSE) return "paused";
+    return c.endedByAdminId.startsWith("system:") ? "system" : "admin";
+  }
+  if (c.endedById) return people.find((p) => p.id === c.endedById)?.firstName ?? "user";
+  return null;
+}

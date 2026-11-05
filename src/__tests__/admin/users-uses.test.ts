@@ -44,3 +44,25 @@ describe("admin users «Uses»", () => {
     expect(db.user.findMany.mock.calls[1][0].where.mobileSessions).toEqual({ none: {} });
   });
 });
+
+describe("admin users list search and sort", () => {
+  it("finds a 07… phone, an email and an exact user id", async () => {
+    await GET(new Request("http://x/api/admin/users?search=0790000001"));
+    const or = db.user.findMany.mock.calls[0][0].where.OR;
+    expect(or).toContainEqual({ phone: { contains: "962790000001" } });
+    expect(or).toContainEqual({ email: { contains: "0790000001", mode: "insensitive" } });
+    expect(or).toContainEqual({ id: "0790000001" });
+  });
+
+  it("sorts by last active (never-seen last) and filters 0 credits", async () => {
+    await GET(new Request("http://x/api/admin/users?sort=lastActive&credits=zero"));
+    const args = db.user.findMany.mock.calls[0][0];
+    expect(args.orderBy[0]).toEqual({ lastActiveAt: { sort: "desc", nulls: "last" } });
+    expect(args.where.matchCredits).toBe(0);
+  });
+
+  it("an unknown sort falls back to newest members", async () => {
+    await GET(new Request("http://x/api/admin/users?sort=nope"));
+    expect(db.user.findMany.mock.calls[0][0].orderBy[0]).toEqual({ createdAt: "desc" });
+  });
+});

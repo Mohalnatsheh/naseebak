@@ -68,6 +68,15 @@ describe("admin list paging", () => {
     );
     expect(body).toMatchObject({ total: 3, page: 1, totalPages: 1 });
   });
+
+  it("profile requests: handled ones by status, latest first; one by id", async () => {
+    await getProfileRequests(new Request("http://x/api/admin/profile-requests?status=APPROVED"));
+    expect(db.profileUpdateRequest.findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({ where: { status: "APPROVED", user: { country: "JO" } }, orderBy: { reviewedAt: "desc" } }),
+    );
+    await getProfileRequests(new Request("http://x/api/admin/profile-requests?id=r9"));
+    expect(db.profileUpdateRequest.findMany.mock.lastCall?.[0].where).toEqual({ id: "r9", user: { country: "JO" } });
+  });
 });
 
 describe("admin lists follow the selected country (admin_country cookie)", () => {

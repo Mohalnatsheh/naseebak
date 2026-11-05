@@ -1,10 +1,13 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { CreditCard, Loader2, ChevronLeft, ChevronRight, DollarSign, TrendingUp, CheckCircle2, RotateCcw } from "lucide-react";
+import { Suspense, useState, useEffect, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
+import { toast } from "sonner";
+import { CreditCard, Loader2, ChevronLeft, ChevronRight, DollarSign, ExternalLink, TrendingUp, CheckCircle2, RotateCcw, X, Download } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { PersonLink, SearchBox, fmtDateTime } from "@/components/admin/admin-list-bits";
 import { enumLabel } from "@/lib/admin/enum-labels";
 import { FAILURE_LABELS } from "@/lib/payments/failure-labels";
 
@@ -13,13 +16,16 @@ interface PaymentRow {
   planName: string | null;
   amount: string;
   currency: string;
-  provider: string;
   status: string;
   createdAt: string;
   /** null when the account was deleted (payment records are kept) */
-  user: { id: string; firstName: string; lastName: string; phone: string | null } | null;
+  user: { id: string; firstName: string; lastName: string; phone: string | null; matchCredits: number } | null;
   disputedAt?: string | null;
   failureReason?: string | null;
+  /** Credits a refund takes back */
+  credits: number;
+  /** pi_…, for the Stripe link; null when not known */
+  stripePaymentIntent: string | null;
 }
 
 /** "Card declined · insufficient_funds", "Cancelled by the member", … */
@@ -50,48 +56,94 @@ const statusStyles: Record<string, string> = {
   REFUNDED: "bg-primary/10 text-primary",
 };
 
+/** "Refund 5.00 JOD…": what the admin is about to do, with a warning when the balance can't cover it */
+function refundQuestion(p: PaymentRow): string {
+  const lines = [`Refund ${Number(p.amount).toFixed(2)} ${p.currency} to ${p.user ? `${p.user.firstName} ${p.user.lastName}` : "this deleted account"}?`];
+  if (p.user) {
+    lines.push(`${p.credits} credit(s) will be taken back. Current balance: ${p.user.matchCredits}.`);
+    if (p.user.matchCredits < p.credits) {
+      lines.push(`Warning: the balance is lower than the credits, so it stops at 0 and ${p.credits - p.user.matchCredits} credit(s) already used stay used.`);
+    }
+  }
+  return lines.join("\n\n");
+}
+
 export default function AdminPaymentsPage() {
+  // useSearchParams needs a Suspense boundary for the build
+  return (
+    <Suspense>
+      <PaymentsView />
+    </Suspense>
+  );
+}
+
+function PaymentsView() {
+  // The member page links here with ?search=<phone>
+  const initialSearch = useSearchParams().get("search") ?? "";
   const [payments, setPayments] = useState<PaymentRow[]>([]);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [filter, setFilter] = useState("");
+  const [reason, setReason] = useState("");
+  const [search, setSearch] = useState(initialSearch);
+  const [query, setQuery] = useState(initialSearch);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [refundingId, setRefundingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadError("");
     try {
       const params = new URLSearchParams({ page: String(page) });
       if (filter) params.set("status", filter);
+      if (reason) params.set("reason", reason);
+      if (query) params.set("search", query);
       const res = await fetch(`/api/admin/payments?${params}`);
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setLoadError(data.error || `Could not load the payments (${res.status})`);
+        return;
+      }
       setPayments(data.payments || []);
       setTotalPages(data.totalPages || 1);
       setSummary(data.summary || null);
     } catch (err) {
       console.error(err);
+      setLoadError("Could not load the payments. Check your connection and try again.");
     } finally {
       setLoading(false);
     }
-  }, [page, filter]);
+  }, [page, filter, reason, query]);
 
   useEffect(() => {
     load();
   }, [load]);
 
-  async function handleRefund(paymentId: string) {
-    if (!confirm("Are you sure you want to refund this payment? Credits will be deducted from the user.")) return;
-    setRefundingId(paymentId);
+  /** Click on a «why failed» line: shows just those payments (a second click clears it) */
+  function filterByReason(value: string | null | undefined) {
+    const next = value ?? "UNKNOWN";
+    setReason(reason === next ? "" : next);
+    setFilter("");
+    setPage(1);
+  }
+
+  async function handleRefund(payment: PaymentRow) {
+    if (!confirm(refundQuestion(payment))) return;
+    setRefundingId(payment.id);
     try {
-      const res = await fetch(`/api/admin/payments/${paymentId}/refund`, { method: "POST" });
-      if (!res.ok) {
+      const res = await fetch(`/api/admin/payments/${payment.id}/refund`, { method: "POST" });
+      if (res.ok) {
+        toast.success("Refund processed");
+      } else {
         const data = await res.json().catch(() => ({}));
-        alert(data.error || `Refund failed (${res.status})`);
+        toast.error(data.error || `Refund failed (${res.status})`);
       }
       await load();
-    } catch {
-      alert("Network error");
+    } catch (err) {
+      console.error(err);
+      toast.error("Network error, the refund may not have gone through: check before trying again");
     } finally {
       setRefundingId(null);
     }
@@ -101,10 +153,17 @@ export default function AdminPaymentsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold flex items-center gap-3">
-          <CreditCard className="h-7 w-7 text-primary" />
-          Payment Management
-        </h1>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-2xl font-bold flex items-center gap-3">
+            <CreditCard className="h-7 w-7 text-primary" />
+            Payment Management
+          </h1>
+          <Button asChild variant="outline" size="sm">
+            <a href={`/api/admin/payments/export?${new URLSearchParams({ ...(filter && { status: filter }), ...(reason && { reason }), ...(query && { search: query }) })}`}>
+              <Download className="me-2 h-4 w-4" /> Download CSV
+            </a>
+          </Button>
+        </div>
         <p className="text-muted-foreground mt-1">Track revenue and payment transactions</p>
       </div>
 
@@ -163,9 +222,16 @@ export default function AdminPaymentsPage() {
             </p>
             <ul className="space-y-1.5">
               {summary.failed30d.map((f) => (
-                <li key={f.reason} className="flex items-center justify-between gap-3 text-sm">
-                  <span>{failureText(f.reason)}</span>
-                  <span className="font-semibold tabular-nums">{f.count}</span>
+                <li key={f.reason}>
+                  <button
+                    type="button"
+                    onClick={() => filterByReason(f.reason)}
+                    title="Show these payments"
+                    className={`flex w-full items-center justify-between gap-3 rounded text-left text-sm hover:underline ${reason === f.reason ? "font-semibold text-primary" : ""}`}
+                  >
+                    <span>{failureText(f.reason)}</span>
+                    <span className="font-semibold tabular-nums">{f.count}</span>
+                  </button>
                 </li>
               ))}
             </ul>
@@ -173,23 +239,35 @@ export default function AdminPaymentsPage() {
         </Card>
       )}
 
-      {/* Status filter */}
-      <div className="flex flex-wrap gap-2">
-        {["", "PENDING", "COMPLETED", "FAILED", "REFUNDED"].map((s) => (
+      {/* Member search + status filter */}
+      <SearchBox value={search} onChange={setSearch} onSubmit={() => { setQuery(search.trim()); setPage(1); }} />
+      <div className="flex flex-wrap items-center gap-2">
+        {["", "PENDING", "COMPLETED", "FAILED", "REFUNDED", "DISPUTED"].map((s) => (
           <Button
             key={s}
-            variant={filter === s ? "default" : "outline"}
+            variant={!reason && filter === s ? "default" : "outline"}
             size="sm"
-            onClick={() => { setFilter(s); setPage(1); }}
+            onClick={() => { setFilter(s); setReason(""); setPage(1); }}
           >
-            {s ? enumLabel("paymentStatus", s) : "All"}
+            {s === "DISPUTED" ? "Disputed" : s ? enumLabel("paymentStatus", s) : "All"}
           </Button>
         ))}
+        {reason && (
+          <Button variant="secondary" size="sm" onClick={() => filterByReason(reason)}>
+            {failureText(reason)} <X className="ms-1 h-3 w-3" />
+          </Button>
+        )}
       </div>
 
       {/* Table */}
       <Card>
         <CardContent className="p-0">
+          {loadError ? (
+            <div className="flex flex-wrap items-center justify-between gap-3 p-4 text-sm text-destructive">
+              <span>{loadError}</span>
+              <Button variant="outline" size="sm" onClick={load}>Try again</Button>
+            </div>
+          ) : (
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
@@ -198,7 +276,6 @@ export default function AdminPaymentsPage() {
                   <th className="text-left p-3 text-sm font-medium">Plan</th>
                   <th className="text-left p-3 text-sm font-medium">Amount</th>
                   <th className="text-left p-3 text-sm font-medium">Status</th>
-                  <th className="text-left p-3 text-sm font-medium">Provider</th>
                   <th className="text-left p-3 text-sm font-medium">Date</th>
                   <th className="text-left p-3 text-sm font-medium">Actions</th>
                 </tr>
@@ -207,24 +284,24 @@ export default function AdminPaymentsPage() {
                 {loading ? (
                   Array.from({ length: 5 }).map((_, i) => (
                     <tr key={i} className="border-b">
-                      <td colSpan={7} className="p-3">
+                      <td colSpan={6} className="p-3">
                         <div className="h-6 bg-muted animate-pulse rounded" />
                       </td>
                     </tr>
                   ))
                 ) : payments.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="text-center p-8 text-muted-foreground">
+                    <td colSpan={6} className="text-center p-8 text-muted-foreground">
                       No payments found
                     </td>
                   </tr>
                 ) : (
                   payments.map((payment) => (
                     <tr key={payment.id} className="border-b hover:bg-muted/30 transition-colors">
-                      <td className="p-3">
+                      <td className="p-3 text-sm">
                         {payment.user ? (
                           <>
-                            <p className="font-medium text-sm">{payment.user.firstName} {payment.user.lastName}</p>
+                            <PersonLink p={payment.user} />
                             <p className="text-xs text-muted-foreground">{payment.user.phone || "—"}</p>
                           </>
                         ) : (
@@ -241,36 +318,47 @@ export default function AdminPaymentsPage() {
                           <Badge variant="destructive" className="ms-1">Disputed</Badge>
                         )}
                         {payment.status === "FAILED" && (
-                          <p className="mt-1 text-xs text-muted-foreground">{failureText(payment.failureReason)}</p>
+                          <button
+                            type="button"
+                            onClick={() => filterByReason(payment.failureReason)}
+                            title="Show payments that failed like this"
+                            className="mt-1 block text-left text-xs text-muted-foreground hover:text-foreground hover:underline"
+                          >
+                            {failureText(payment.failureReason)}
+                          </button>
                         )}
                       </td>
-                      <td className="p-3 text-sm">{enumLabel("paymentProvider", payment.provider)}</td>
                       <td className="p-3 text-sm text-muted-foreground whitespace-nowrap">
-                        {new Date(payment.createdAt).toLocaleString("en-GB", {
-                          timeZone: "Asia/Amman",
-                          year: "numeric",
-                          month: "short",
-                          day: "numeric",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
+                        {fmtDateTime(payment.createdAt)}
                       </td>
                       <td className="p-3">
-                        {payment.status === "COMPLETED" && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="text-xs"
-                            onClick={() => handleRefund(payment.id)}
-                            disabled={refundingId === payment.id}
-                          >
-                            {refundingId === payment.id ? (
-                              <Loader2 className="h-3 w-3 animate-spin" />
-                            ) : (
-                              <><RotateCcw className="h-3 w-3 me-1" />Refund</>
-                            )}
-                          </Button>
-                        )}
+                        <div className="flex items-center gap-2 whitespace-nowrap">
+                          {payment.status === "COMPLETED" && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="text-xs"
+                              onClick={() => handleRefund(payment)}
+                              disabled={refundingId === payment.id}
+                            >
+                              {refundingId === payment.id ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <><RotateCcw className="h-3 w-3 me-1" />Refund</>
+                              )}
+                            </Button>
+                          )}
+                          {payment.stripePaymentIntent && (
+                            <a
+                              href={`https://dashboard.stripe.com/payments/${payment.stripePaymentIntent}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                            >
+                              View in Stripe <ExternalLink className="h-3 w-3" />
+                            </a>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -278,8 +366,9 @@ export default function AdminPaymentsPage() {
               </tbody>
             </table>
           </div>
+          )}
 
-          {totalPages > 1 && (
+          {!loadError && totalPages > 1 && (
             <div className="flex items-center justify-between p-3 border-t">
               <p className="text-sm text-muted-foreground">Page {page} of {totalPages}</p>
               <div className="flex gap-2">

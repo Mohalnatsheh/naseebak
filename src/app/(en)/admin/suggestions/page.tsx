@@ -10,8 +10,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
+import { fmtDate, fmtDateTime, PersonLink, SearchBox, type PersonRef } from "@/components/admin/admin-list-bits";
 import { effectiveRequestStatus } from "@/lib/admin/cycle-stats";
 import { enumLabel } from "@/lib/admin/enum-labels";
+import { fmtLeft } from "@/lib/admin/matching-time";
 
 // --- Types ---
 
@@ -29,6 +32,14 @@ interface CycleFlags {
   introRequests: boolean;
   chat: boolean;
   mutualSuggestions: boolean;
+  creditOnInterest: boolean;
+}
+
+/** Live numbers from the server (src/lib/matching/auto-suggest.ts, src/lib/credits.ts) */
+interface GenerateNumbers {
+  minScore: number;
+  maxOpen: number;
+  weeklyCap: number;
 }
 
 interface SuggestionRow extends SuggestionFlowFields {
@@ -37,8 +48,8 @@ interface SuggestionRow extends SuggestionFlowFields {
   status: string;
   source: string;
   createdAt: string;
-  recipient: { id: string; firstName: string; lastName: string; gender: string };
-  candidate: { id: string; firstName: string; lastName: string; gender: string };
+  recipient: PersonRef & { gender: string };
+  candidate: PersonRef & { gender: string };
 }
 
 interface SearchUser {
@@ -131,6 +142,21 @@ const decisionText: Record<string, { label: string; className: string }> = {
   DECLINED: { label: "Declined", className: "text-destructive" },
 };
 
+const BROWSE_FLOWS: [string, string, string][] = [
+  ["MUTUAL", "New flow", "Shared suggestions: shown to both people at once"],
+  ["LEGACY", "Legacy", "Old one-sided suggestions"],
+  ["", "All flows", ""],
+];
+
+const BROWSE_STATUSES = ["", "PENDING", "ACCEPTED", "REJECTED", "EXPIRED", "EXPIRING_SOON"];
+
+/** On a shared row ACCEPTED means both said «مهتم», so a match exists */
+function statusLabel(status: string, flow: string) {
+  if (status === "EXPIRING_SOON") return "Expiring within 48 h, one side hasn't answered";
+  if (status === "ACCEPTED" && flow === "MUTUAL") return "Matched";
+  return enumLabel("suggestionStatus", status);
+}
+
 function DecisionText({ value }: { value: Decision }) {
   if (!value) return <span className="text-muted-foreground">No answer yet</span>;
   return <span className={decisionText[value].className}>{decisionText[value].label}</span>;
@@ -179,6 +205,10 @@ export default function AdminSuggestionsPage() {
   const [browsePage, setBrowsePage] = useState(1);
   const [browseTotalPages, setBrowseTotalPages] = useState(1);
   const [browseFilter, setBrowseFilter] = useState("");
+  const [browseFlow, setBrowseFlow] = useState("MUTUAL");
+  const [browseQuery, setBrowseQuery] = useState("");
+  const [browseSearch, setBrowseSearch] = useState("");
+  const [browseTotal, setBrowseTotal] = useState(0);
   const [deleting, setDeleting] = useState<string | null>(null);
 
   // ── Manage User state ──
@@ -202,6 +232,7 @@ export default function AdminSuggestionsPage() {
   const [generating, setGenerating] = useState(false);
   const [generateResult, setGenerateResult] = useState("");
   const [flags, setFlags] = useState<CycleFlags | null>(null);
+  const [numbers, setNumbers] = useState<GenerateNumbers | null>(null);
   const [assignError, setAssignError] = useState("");
 
   // ── Browse data ──
@@ -210,17 +241,23 @@ export default function AdminSuggestionsPage() {
     try {
       const params = new URLSearchParams({ page: String(browsePage) });
       if (browseFilter) params.set("status", browseFilter);
+      if (browseFlow) params.set("flow", browseFlow);
+      if (browseSearch) params.set("q", browseSearch);
       const res = await fetch(`/api/admin/suggestions?${params}`);
+      if (!res.ok) throw new Error(String(res.status));
       const data = await res.json();
       setSuggestions(data.suggestions || []);
       if (data.flags) setFlags(data.flags);
+      if (data.rules) setNumbers(data.rules);
       setBrowseTotalPages(data.totalPages || 1);
+      setBrowseTotal(data.total ?? 0);
     } catch (err) {
       console.error(err);
+      toast.error("Could not load suggestions");
     } finally {
       setBrowseLoading(false);
     }
-  }, [browsePage, browseFilter]);
+  }, [browsePage, browseFilter, browseFlow, browseSearch]);
 
   useEffect(() => {
     if (tab === "browse") fetchSuggestions();
@@ -231,10 +268,16 @@ export default function AdminSuggestionsPage() {
     setDeleting(id);
     try {
       const res = await fetch(`/api/admin/suggestions/${id}`, { method: "DELETE" });
-      if (res.ok) setSuggestions((prev) => prev.filter((s) => s.id !== id));
-      else alert((await res.json().catch(() => null))?.error ?? "Could not remove this suggestion");
+      if (res.ok) {
+        setSuggestions((prev) => prev.filter((s) => s.id !== id));
+        setBrowseTotal((n) => Math.max(0, n - 1));
+        toast.success("Suggestion removed");
+      } else {
+        toast.error((await res.json().catch(() => null))?.error ?? "Could not remove this suggestion");
+      }
     } catch (err) {
       console.error(err);
+      toast.error("Could not remove this suggestion");
     } finally {
       setDeleting(null);
     }
@@ -359,10 +402,11 @@ export default function AdminSuggestionsPage() {
           setCandidatesTotal(candData.total || 0);
         }
       } else {
-        alert((await res.json().catch(() => null))?.error ?? "Could not remove this suggestion");
+        toast.error((await res.json().catch(() => null))?.error ?? "Could not remove this suggestion");
       }
     } catch (err) {
       console.error(err);
+      toast.error("Could not remove this suggestion");
     } finally {
       setDeleting(null);
     }
@@ -373,15 +417,20 @@ export default function AdminSuggestionsPage() {
     if (tab !== "generate" || flags) return;
     fetch("/api/admin/suggestions?pageSize=1")
       .then((r) => r.json())
-      .then((d) => d.flags && setFlags(d.flags))
+      .then((d) => {
+        if (d.flags) setFlags(d.flags);
+        if (d.rules) setNumbers(d.rules);
+      })
       .catch(console.error);
   }, [tab, flags]);
 
   // ── Generate ──
   async function handleGenerate() {
-    const what = flags?.introRequests
-      ? "free suggestions for every eligible user (weekly cap applies)"
-      : "suggestions for every eligible user — each one uses 1 of the recipient's credits";
+    const what = flags?.creditOnInterest
+      ? `suggestions for every eligible user, up to ${numbers?.maxOpen ?? 5} open per person (a «مهتم» costs 1 credit)`
+      : flags?.introRequests
+        ? "free suggestions for every eligible user (weekly cap applies)"
+        : "suggestions for every eligible user — each one uses 1 of the recipient's credits";
     if (!confirm(`Generate ${what}? Everyone who gets one is notified.`)) return;
     setGenerating(true);
     setGenerateResult("");
@@ -450,17 +499,52 @@ export default function AdminSuggestionsPage() {
       {/* ═══════════ BROWSE TAB ═══════════ */}
       {tab === "browse" && (
         <>
-          <div className="flex flex-wrap gap-2">
-            {["", "PENDING", "ACCEPTED", "REJECTED", "EXPIRED"].map((s) => (
-              <Button
-                key={s}
-                variant={browseFilter === s ? "default" : "outline"}
-                size="sm"
-                onClick={() => { setBrowseFilter(s); setBrowsePage(1); }}
-              >
-                {s ? enumLabel("suggestionStatus", s) : "All"}
-              </Button>
-            ))}
+          <div className="space-y-3">
+            <SearchBox
+              value={browseQuery}
+              onChange={setBrowseQuery}
+              onSubmit={() => { setBrowseSearch(browseQuery.trim()); setBrowsePage(1); }}
+            />
+            <div className="flex flex-wrap gap-2">
+              {BROWSE_FLOWS.map(([f, label, hint]) => (
+                <Button
+                  key={label}
+                  variant={browseFlow === f ? "default" : "outline"}
+                  size="sm"
+                  title={hint}
+                  onClick={() => { setBrowseFlow(f); setBrowsePage(1); }}
+                >
+                  {label}
+                </Button>
+              ))}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {BROWSE_STATUSES.map((s) => (
+                <Button
+                  key={s}
+                  variant={browseFilter === s ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => { setBrowseFilter(s); setBrowsePage(1); }}
+                >
+                  {s ? statusLabel(s, browseFlow) : "All"}
+                </Button>
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {browseLoading ? "Loading…" : `${browseTotal} suggestion${browseTotal === 1 ? "" : "s"}`}
+              {browseSearch && (
+                <>
+                  {" "}· search «{browseSearch}»{" "}
+                  <button
+                    type="button"
+                    className="text-primary hover:underline"
+                    onClick={() => { setBrowseSearch(""); setBrowseQuery(""); setBrowsePage(1); }}
+                  >
+                    clear
+                  </button>
+                </>
+              )}
+            </p>
           </div>
 
           <Card>
@@ -471,12 +555,12 @@ export default function AdminSuggestionsPage() {
                     <tr className="border-b bg-muted/50">
                       <th className="text-left p-3 text-sm font-medium">Recipient / Person A</th>
                       <th className="text-left p-3 text-sm font-medium">Candidate / Person B</th>
-                      <th className="text-left p-3 text-sm font-medium">Score</th>
-                      <th className="text-left p-3 text-sm font-medium">Flow</th>
+                      <th className="hidden md:table-cell text-left p-3 text-sm font-medium">Score</th>
+                      <th className="hidden md:table-cell text-left p-3 text-sm font-medium">Flow</th>
                       <th className="text-left p-3 text-sm font-medium">Status</th>
-                      <th className="text-left p-3 text-sm font-medium">Source</th>
-                      <th className="text-left p-3 text-sm font-medium">Date</th>
-                      <th className="text-left p-3 text-sm font-medium">Action</th>
+                      <th className="hidden md:table-cell text-left p-3 text-sm font-medium">Source</th>
+                      <th className="hidden md:table-cell text-left p-3 text-sm font-medium">Date</th>
+                      <th className="p-3" aria-label="Action" />
                     </tr>
                   </thead>
                   <tbody>
@@ -492,7 +576,7 @@ export default function AdminSuggestionsPage() {
                       suggestions.map((s) => (
                         <tr key={s.id} className="border-b hover:bg-muted/30 transition-colors">
                           <td className="p-3">
-                            <p className="text-sm font-medium">{s.recipient.firstName} {s.recipient.lastName}</p>
+                            <p className="text-sm"><bdi><PersonLink p={s.recipient} /></bdi></p>
                             <div className="flex flex-wrap items-center gap-1.5">
                               {s.flow === "MUTUAL" && <span className="text-xs font-semibold text-primary">A</span>}
                               <Badge variant={s.recipient.gender === "MALE" ? "default" : "secondary"} className="text-xs">
@@ -502,7 +586,7 @@ export default function AdminSuggestionsPage() {
                             </div>
                           </td>
                           <td className="p-3">
-                            <p className="text-sm font-medium">{s.candidate.firstName} {s.candidate.lastName}</p>
+                            <p className="text-sm"><bdi><PersonLink p={s.candidate} /></bdi></p>
                             <div className="flex flex-wrap items-center gap-1.5">
                               {s.flow === "MUTUAL" && <span className="text-xs font-semibold text-primary">B</span>}
                               <Badge variant={s.candidate.gender === "MALE" ? "default" : "secondary"} className="text-xs">
@@ -511,24 +595,43 @@ export default function AdminSuggestionsPage() {
                               {s.flow === "MUTUAL" && <span className="text-xs"><DecisionText value={s.candidateDecision} /></span>}
                             </div>
                           </td>
-                          <td className="p-3">
+                          <td className="hidden md:table-cell p-3">
                             <span className={`font-bold ${scoreColor(s.compatibilityScore)}`}>
                               {Math.round(s.compatibilityScore)}%
                             </span>
                           </td>
-                          <td className="p-3"><FlowBadge flow={s.flow} /></td>
+                          <td className="hidden md:table-cell p-3"><FlowBadge flow={s.flow} /></td>
                           <td className="p-3">
                             {(() => {
                               const status = effectiveRequestStatus(s);
-                              return <Badge className={statusStyles[status] || ""}>{enumLabel("suggestionStatus", status)}</Badge>;
+                              return (
+                                <>
+                                  <Badge className={statusStyles[status] || ""}>{statusLabel(status, s.flow)}</Badge>
+                                  {status === "PENDING" && s.expiresAt && (
+                                    <p className="mt-1 text-xs text-muted-foreground whitespace-nowrap" title={fmtDateTime(s.expiresAt)}>
+                                      Expires {fmtLeft(s.expiresAt)}
+                                    </p>
+                                  )}
+                                </>
+                              );
                             })()}
                           </td>
-                          <td className="p-3 text-sm">{enumLabel("suggestionSource", s.source)}</td>
-                          <td className="p-3 text-sm text-muted-foreground">{new Date(s.createdAt).toLocaleDateString()}</td>
+                          <td className="hidden md:table-cell p-3 text-sm">{enumLabel("suggestionSource", s.source)}</td>
+                          <td className="hidden md:table-cell p-3 text-sm text-muted-foreground whitespace-nowrap" title={fmtDateTime(s.createdAt)}>{fmtDate(s.createdAt)}</td>
                           <td className="p-3">
-                            <Button variant="destructive" size="sm" onClick={() => handleDeleteBrowse(s.id)} disabled={deleting === s.id}>
-                              {deleting === s.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
-                            </Button>
+                            {effectiveRequestStatus(s) === "PENDING" && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-destructive hover:text-destructive"
+                                aria-label="Remove suggestion"
+                                title="Remove suggestion"
+                                onClick={() => handleDeleteBrowse(s.id)}
+                                disabled={deleting === s.id}
+                              >
+                                {deleting === s.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                              </Button>
+                            )}
                           </td>
                         </tr>
                       ))
@@ -692,7 +795,7 @@ export default function AdminSuggestionsPage() {
                               <td className="p-2"><FlowBadge flow={s.flow} /></td>
                               <td className="p-2"><Badge className={`text-xs ${statusStyles[s.status] || ""}`}>{enumLabel("suggestionStatus", s.status)}</Badge></td>
                               <td className="p-2 text-xs text-muted-foreground">{enumLabel("suggestionSource", s.source)}</td>
-                              <td className="p-2 text-xs text-muted-foreground">{new Date(s.createdAt).toLocaleDateString()}</td>
+                              <td className="p-2 text-xs text-muted-foreground">{fmtDate(s.createdAt)}</td>
                               <td className="p-2">
                                 {s.status === "PENDING" && (
                                   <Button
@@ -938,11 +1041,11 @@ export default function AdminSuggestionsPage() {
             <CardTitle>Auto-Generate Suggestions</CardTitle>
             <CardDescription>
               Automatically generate suggestions for all eligible users using the matching algorithm.
-              This creates up to 3 suggestions per user with scores above 30%.
+              The rules depend on the New user cycle switches in Settings.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {flags && <GenerateRules flags={flags} />}
+            {flags && <GenerateRules flags={flags} numbers={numbers} />}
             {generateResult && (
               <div className={`rounded-lg p-3 text-sm mb-4 ${
                 generateResult.includes("successfully") || generateResult.includes("Generated")
@@ -989,32 +1092,50 @@ function QualityChecklist({ detail }: { detail: QualityDetail }) {
 }
 
 /** What Generate will do with the current "New user cycle" switches. */
-function GenerateRules({ flags }: { flags: CycleFlags }) {
-  const rules: string[] = flags.introRequests
+function GenerateRules({ flags, numbers }: { flags: CycleFlags; numbers: GenerateNumbers | null }) {
+  const minScore = numbers?.minScore ?? (flags.creditOnInterest ? 60 : 30);
+  const maxOpen = numbers?.maxOpen ?? 5;
+  const weeklyCap = numbers?.weeklyCap ?? 3;
+  const shared = [
+    "Shared suggestions: one row shown to both people; each answers once. Both interested → mutual match. No one is told about a “no”.",
+    "A «لا» from either side closes the row at once as Rejected, even if the other side never answered — check each side's decision, Rejected doesn't mean both answered.",
+    "Dealbreakers (شروطي الأساسية) are hard filters both ways — a missing value fails the dealbreaker.",
+    "Skipped: people idle 30+ days, flagged, suspended or deactivated, and people who said they got engaged.",
+  ];
+  const rules: string[] = flags.creditOnInterest
     ? [
-        "Suggestions are free — no credits are taken.",
-        flags.mutualSuggestions
-          ? "Weekly cap: at most 3 new suggestions per person per rolling 7 days, counted on either side (being suggested to someone counts too). People who already have 3 this week are skipped."
-          : "Weekly cap: at most 3 new suggestions per recipient per rolling 7 days.",
-        ...(flags.mutualSuggestions
-          ? [
-              "Shared suggestions: one row shown to both people; each answers once. Both interested → mutual match. No one is told about a “no”.",
-              "A «لا» from either side closes the row at once as Rejected, even if the other side never answered — check each side's decision, Rejected doesn't mean both answered.",
-              "Dealbreakers (شروطي الأساسية) are hard filters both ways — a missing value fails the dealbreaker.",
-              "Shared suggestions expire after 7 days if not both answered (with credit on interest, a «مهتم» is refunded when the other side never answered).",
-            ]
-          : []),
+        "Receiving a suggestion is free. Each «مهتم» costs 1 credit; family and chat requests are free.",
+        `Open cap: each person holds at most ${maxOpen} unanswered suggestions, and Generate tops them up to ${maxOpen}. There is no weekly cap.`,
+        `Minimum score: ${minScore}%.`,
+        `A candidate who already holds ${maxOpen} still gets the card, hidden from them until they have room or the other person says «مهتم».`,
+        ...shared,
+        "Shared suggestions expire after 7 days if not both answered. A «مهتم» is refunded when the other side never answered; a «لا» closes the card and nothing is refunded.",
+        `Admin hand-picked suggestions (Manage User) are free and respect the ${maxOpen}-open cap, but not the minimum score.`,
       ]
-    : [
-        "Legacy mode: each suggestion received uses 1 of the recipient's credits; users with 0 credits get none.",
-        "Admin hand-picked suggestions (Manage User) stay free.",
-      ];
+    : flags.mutualSuggestions
+      ? [
+          "Suggestions are free. Each family or chat request costs the sender 1 credit.",
+          `Weekly cap: at most ${weeklyCap} new suggestions per person per rolling 7 days, counted on either side (being suggested to someone counts too). People who already have ${weeklyCap} this week are skipped.`,
+          `A person only gets new ones when nothing is open. Minimum score: ${minScore}%.`,
+          ...shared,
+          "Shared suggestions expire after 7 days if not both answered.",
+        ]
+      : flags.introRequests
+        ? [
+            "Suggestions are free. Each family or chat request costs the sender 1 credit.",
+            `Weekly cap: at most ${weeklyCap} new suggestions per recipient per rolling 7 days. Minimum score: ${minScore}%.`,
+          ]
+        : [
+            `Legacy mode: up to 3 suggestions per user per run, minimum score ${minScore}%.`,
+            "Each suggestion received uses 1 of the recipient's credits; users with 0 credits get none.",
+            "Admin hand-picked suggestions (Manage User) stay free.",
+          ];
   return (
     <div className="rounded-lg border bg-primary/5 p-4 mb-4 space-y-2">
       <div className="flex flex-wrap items-center gap-2 text-sm font-medium">
         Rules right now
         <Badge className="text-xs bg-primary/10 text-primary">
-          {flags.mutualSuggestions ? "Shared suggestions" : flags.introRequests ? "Per-request credits" : "Legacy"}
+          {flags.creditOnInterest ? "Credit on interest" : flags.mutualSuggestions ? "Shared suggestions" : flags.introRequests ? "Per-request credits" : "Legacy"}
         </Badge>
       </div>
       <ul className="list-disc ps-5 text-sm text-muted-foreground space-y-1">

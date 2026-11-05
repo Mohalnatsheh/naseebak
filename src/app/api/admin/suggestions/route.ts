@@ -8,8 +8,13 @@ import type { Prisma } from "@prisma/client";
 import { notifyMany } from "@/lib/notify";
 import { MUTUAL_SUGGESTION_MS } from "@/lib/suggestions/mutual";
 import { checkSuggestionPair } from "@/lib/admin/suggestion-pair";
-import { MAX_OPEN_SUGGESTIONS, openSuggestionCount } from "@/lib/matching/auto-suggest";
+import { MAX_OPEN_SUGGESTIONS, minSuggestionScore, openSuggestionCount } from "@/lib/matching/auto-suggest";
+import { WEEKLY_FREE_SUGGESTIONS } from "@/lib/credits";
 import { getAdminCountry, userCountryWhere } from "@/lib/countries/server";
+import { personSearch } from "@/lib/admin/search";
+import { enumParam } from "@/lib/admin/query";
+
+const EXPIRING_SOON_MS = 48 * 60 * 60 * 1000;
 
 export async function GET(request: Request) {
   try {
@@ -19,7 +24,9 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     const { page, pageSize, skip } = parsePagination(url.searchParams, 20);
     const rawStatus = url.searchParams.get("status") || "";
-    const status = ["PENDING", "ACCEPTED", "REJECTED", "EXPIRED"].includes(rawStatus) ? rawStatus : "";
+    const status = ["PENDING", "ACCEPTED", "REJECTED", "EXPIRED", "EXPIRING_SOON"].includes(rawStatus) ? rawStatus : "";
+    const flow = enumParam(url.searchParams.get("flow"), ["MUTUAL", "LEGACY"] as const);
+    const who = personSearch(url.searchParams.get("q"));
 
     // Shared (MUTUAL) suggestions expire lazily: a PENDING row past expiresAt is shown as EXPIRED
     const now = new Date();
@@ -28,20 +35,34 @@ export async function GET(request: Request) {
         ? { OR: [{ status: "EXPIRED" }, { status: "PENDING", expiresAt: { lt: now } }] }
         : status === "PENDING"
           ? { status: "PENDING", OR: [{ expiresAt: null }, { expiresAt: { gte: now } }] }
-          : status
-            ? { status: status as "ACCEPTED" | "REJECTED" }
-            : {};
+          : status === "EXPIRING_SOON"
+            ? {
+                status: "PENDING",
+                expiresAt: { gte: now, lte: new Date(now.getTime() + EXPIRING_SOON_MS) },
+                OR: [{ recipientDecision: null }, { candidateDecision: null }],
+              }
+            : status
+              ? { status: status as "ACCEPTED" | "REJECTED" }
+              : {};
     // Admin's selected country (suggestions are always between two members of one country)
     const country = await getAdminCountry(request);
-    const where: Prisma.SuggestionWhereInput =
-      country === "ALL" ? byStatus : { ...byStatus, recipient: userCountryWhere(country) };
+    // AND: the status filters use OR themselves, so the person search can't share their level
+    const where: Prisma.SuggestionWhereInput = {
+      AND: [
+        byStatus,
+        ...(flow ? [{ flow }] : []),
+        ...(country === "ALL" ? [] : [{ recipient: userCountryWhere(country) }]),
+        ...(who ? [{ OR: [{ recipient: who }, { candidate: who }] }] : []),
+      ],
+    };
 
     const [suggestions, total, flags] = await Promise.all([
       db.suggestion.findMany({
         where,
         skip,
         take: pageSize,
-        orderBy: { createdAt: "desc" },
+        // The expiring list reads best with the closest deadline first
+        orderBy: status === "EXPIRING_SOON" ? { expiresAt: "asc" } : { createdAt: "desc" },
         select: {
           id: true,
           compatibilityScore: true,
@@ -53,10 +74,10 @@ export async function GET(request: Request) {
           recipientDecision: true,
           candidateDecision: true,
           recipient: {
-            select: { id: true, firstName: true, lastName: true, gender: true },
+            select: { id: true, firstName: true, lastName: true, gender: true, status: true },
           },
           candidate: {
-            select: { id: true, firstName: true, lastName: true, gender: true },
+            select: { id: true, firstName: true, lastName: true, gender: true, status: true },
           },
         },
       }),
@@ -66,6 +87,8 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       flags,
+      // The numbers behind the rules on the Auto-Generate tab
+      rules: { minScore: minSuggestionScore(flags), maxOpen: MAX_OPEN_SUGGESTIONS, weeklyCap: WEEKLY_FREE_SUGGESTIONS },
       suggestions,
       total,
       page,

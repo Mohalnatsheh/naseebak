@@ -5,6 +5,8 @@ import { CalendarClock, Loader2, Play } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
+import { fmtDateTime } from "@/components/admin/admin-list-bits";
 import type { DailyRunSummary } from "@/lib/cron/daily";
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
@@ -45,10 +47,13 @@ export function DailyJobsCard() {
     try {
       const res = await fetch("/api/admin/cron/run", { method: "POST" });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) setError(data.error || "Run failed");
-      else setRun(data.lastRun ?? null);
+      if (!res.ok) {
+        setError(data.error || "Run failed");
+        toast.error(data.error || "Run failed");
+      } else setRun(data.lastRun ?? null);
     } catch {
       setError("Run failed");
+      toast.error("Run failed");
     } finally {
       setRunning(false);
     }
@@ -77,7 +82,7 @@ export function DailyJobsCard() {
         ) : run ? (
           <>
             <p>
-              <span className="font-medium">Daily jobs: last run {new Date(run.finishedAt).toLocaleString("en-GB")}</span>
+              <span className="font-medium">Daily jobs: last run {fmtDateTime(run.finishedAt)}</span>
               {" — "}
               {line(run)}
             </p>

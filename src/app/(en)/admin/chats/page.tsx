@@ -6,7 +6,8 @@ import { Eye, Flag, Loader2, MessagesSquare, RefreshCw } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { fmtDate, Pager, PersonLink, SearchBox, StateBadge, type PersonRef } from "@/components/admin/admin-list-bits";
+import { toast } from "sonner";
+import { fmtDate, fmtDateTime, Pager, PersonLink, SearchBox, StateBadge, type PersonRef } from "@/components/admin/admin-list-bits";
 import { enumLabel } from "@/lib/admin/enum-labels";
 
 interface ChatRow {
@@ -130,8 +131,8 @@ export default function AdminChatsPage() {
     const res = await fetch(`/api/admin/chats/${c.id}/sms`, { method: "POST" }).catch(() => null);
     const data = await res?.json().catch(() => null);
     setSmsing(null);
-    if (!res?.ok) alert(data?.error === "both_talking" ? "Both members are already talking — no SMS." : "SMS could not be sent.");
-    else alert(`Result: ${(data?.results ?? []).map((r: string) => SMS_LABEL[r] ?? r).join(", ")}`);
+    if (!res?.ok) toast.error(data?.error === "both_talking" ? "Both members are already talking — no SMS." : "SMS could not be sent.");
+    else toast.success(`Result: ${(data?.results ?? []).map((r: string) => SMS_LABEL[r] ?? r).join(", ")}`);
     load();
   }
 
@@ -139,17 +140,18 @@ export default function AdminChatsPage() {
     const names = c.people.map((p) => p.firstName).join(" & ");
     if (!confirm(`End the chat between ${names}? Both are told.`)) return;
     setEnding(c.id);
-    setError("");
     const res = await fetch(`/api/admin/chats/${c.id}/end`, { method: "POST" }).catch(() => null);
-    if (!res?.ok) {
+    if (res?.ok) toast.success("Chat ended");
+    else {
       const d = res ? await res.json().catch(() => ({})) : {};
-      setError(d.error || "Could not end the chat.");
+      toast.error(d.error || "Could not end the chat.");
     }
     setEnding(null);
     load();
   }
 
   const now = loadedAt;
+  const showSms = rows.some(needsSmsHelp);
   const stat = (label: string, value: number | undefined, onClick: () => void, active: boolean, tone = "") => (
     <button
       type="button"
@@ -247,77 +249,76 @@ export default function AdminChatsPage() {
           ) : rows.length === 0 ? (
             <p className="py-10 text-center text-sm text-muted-foreground">No chats match.</p>
           ) : (
-            <div className={cn("overflow-x-auto", loading && "opacity-60")}>
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b text-left text-muted-foreground">
-                    <th className="py-2 pe-4 font-medium">Between</th>
-                    <th className="py-2 pe-4 font-medium">Status</th>
-                    <th className="py-2 pe-4 font-medium">Last message</th>
-                    <th className="py-2 pe-4 text-right font-medium">Messages</th>
-                    <th className="hidden py-2 pe-4 font-medium md:table-cell">Started</th>
-                    <th className="hidden py-2 pe-4 font-medium md:table-cell">Ends / ended</th>
-                    <th className="hidden py-2 pe-4 font-medium lg:table-cell">Not started · SMS</th>
-                    <th className="py-2 font-medium" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((c) => {
-                    const left = daysLeft(c, now);
-                    return (
+            <>
+              {/* Phone: stacked cards */}
+              <div className={cn("space-y-3 md:hidden", loading && "opacity-60")}>
+                {rows.map((c) => (
+                  <div key={c.id} className={cn("space-y-2 rounded-lg border p-3 text-sm", c.reported && "bg-destructive/5")}>
+                    <Between chat={c} />
+                    <div className="flex flex-wrap items-center gap-2">
+                      <StateBadge value={c.status} group="chatStatus" />
+                      {c.endedBy === "paused" && <span className="text-xs text-amber-700">Paused for review</span>}
+                      <span className="ms-auto text-xs tabular-nums text-muted-foreground">
+                        {c.messages} message{c.messages === 1 ? "" : "s"}
+                        {c.unread > 0 && ` · ${c.unread} unread`}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                      <span className="text-muted-foreground">
+                        Last: <LastMessage chat={c} now={now} inline />
+                      </span>
+                      <EndsCell chat={c} now={now} />
+                    </div>
+                    {needsSmsHelp(c) && <SmsCell chat={c} sending={smsing === c.id} onSend={() => sendSms(c)} />}
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="outline" className="flex-1" asChild>
+                        <Link href={`/admin/chats/${c.id}`}><Eye className="me-1 h-3 w-3" />View</Link>
+                      </Button>
+                      {c.status === "ACTIVE" && (
+                        <Button size="sm" variant="outline" className="flex-1" disabled={ending === c.id} onClick={() => endChat(c)}>
+                          {ending === c.id ? <Loader2 className="h-3 w-3 animate-spin" /> : "End chat"}
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Tablet and up: table */}
+              <div className={cn("hidden overflow-x-auto md:block", loading && "opacity-60")}>
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b text-left text-muted-foreground">
+                      <th className="py-2 pe-4 font-medium">Between</th>
+                      <th className="py-2 pe-4 font-medium">Status</th>
+                      <th className="py-2 pe-4 font-medium">Last message</th>
+                      <th className="py-2 pe-4 text-right font-medium">Messages</th>
+                      <th className="py-2 pe-4 font-medium">Started</th>
+                      <th className="py-2 pe-4 font-medium">Ends / ended</th>
+                      {showSms && <th className="hidden py-2 pe-4 font-medium lg:table-cell" title="SMS only for messages unread 2 h+ (no push, max 1 a day)">Not started · SMS</th>}
+                      <th className="py-2 font-medium" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((c) => (
                       <tr key={c.id} className={cn("border-b last:border-0", c.reported && "bg-destructive/5")}>
-                        <td className="py-3 pe-4">
-                          <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
-                            {c.people.map((p, i) => (
-                              <span key={p.id} className="whitespace-nowrap">
-                                {i > 0 && <span className="me-1.5 text-muted-foreground">&amp;</span>}
-                                <bdi><PersonLink p={p} hash={`#chat-${c.id}`} /></bdi>
-                                <span className="ms-1 text-xs tabular-nums text-muted-foreground" title="Messages sent">({p.messages})</span>
-                              </span>
-                            ))}
-                            {c.reported && (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
-                                <Flag className="h-3 w-3" /> Reported
-                              </span>
-                            )}
-                          </div>
-                        </td>
+                        <td className="py-3 pe-4"><Between chat={c} /></td>
                         <td className="py-3 pe-4">
                           <StateBadge value={c.status} group="chatStatus" />
                           {c.endedBy === "paused" && <div className="mt-1 text-xs text-amber-700">Paused for review</div>}
                         </td>
-                        <td className="py-3 pe-4 whitespace-nowrap">
-                          {c.lastAt ? (
-                            <>
-                              <div className="tabular-nums">{ago(c.lastAt, now)}</div>
-                              <div className="text-xs text-muted-foreground">by {c.lastBy ?? "—"}</div>
-                            </>
-                          ) : (
-                            <span className="text-xs text-amber-700">No message yet</span>
-                          )}
-                        </td>
+                        <td className="py-3 pe-4 whitespace-nowrap"><LastMessage chat={c} now={now} /></td>
                         <td className="py-3 pe-4 text-right tabular-nums">
                           {c.messages}
                           {c.unread > 0 && <div className="text-xs text-muted-foreground">{c.unread} unread</div>}
                         </td>
-                        <td className="hidden py-3 pe-4 text-muted-foreground md:table-cell">{fmtDate(c.createdAt)}</td>
-                        <td className="hidden py-3 pe-4 md:table-cell">
-                          {c.endedAt ? (
-                            <span className="text-muted-foreground">
-                              {fmtDate(c.endedAt)} · {c.endedBy === "admin" ? "by admin" : c.endedBy === "paused" ? "paused" : c.endedBy === "system" ? "system" : `by ${c.endedBy}`}
-                            </span>
-                          ) : left !== null ? (
-                            <span className={cn(left <= 3 ? "font-medium text-amber-700" : "text-muted-foreground")}>
-                              {left === 0 ? "today" : `in ${left} d`}
-                              {c.extended && <span className="ms-1 text-xs">(extended)</span>}
-                            </span>
-                          ) : (
-                            <span className="text-muted-foreground">{fmtDate(c.expiresAt)}</span>
-                          )}
-                        </td>
-                        <td className="hidden py-3 pe-4 lg:table-cell">
-                          <SmsCell chat={c} sending={smsing === c.id} onSend={() => sendSms(c)} />
-                        </td>
+                        <td className="py-3 pe-4 text-muted-foreground">{fmtDate(c.createdAt)}</td>
+                        <td className="py-3 pe-4"><EndsCell chat={c} now={now} /></td>
+                        {showSms && (
+                          <td className="hidden py-3 pe-4 lg:table-cell">
+                            {needsSmsHelp(c) ? <SmsCell chat={c} sending={smsing === c.id} onSend={() => sendSms(c)} /> : <span className="text-muted-foreground">—</span>}
+                          </td>
+                        )}
                         <td className="space-x-2 whitespace-nowrap py-3 text-right">
                           <Button size="sm" variant="outline" asChild>
                             <Link href={`/admin/chats/${c.id}`}><Eye className="me-1 h-3 w-3" />View</Link>
@@ -329,17 +330,68 @@ export default function AdminChatsPage() {
                           )}
                         </td>
                       </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
           <Pager page={page} pages={pages} onPage={setPage} />
         </CardContent>
       </Card>
     </div>
   );
+}
+
+/** Names (with messages sent) and the reported tag */
+function Between({ chat }: { chat: ChatRow }) {
+  return (
+    <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
+      {chat.people.map((p, i) => (
+        <span key={p.id} className="whitespace-nowrap">
+          {i > 0 && <span className="me-1.5 text-muted-foreground">&amp;</span>}
+          <bdi><PersonLink p={p} hash={`#chat-${chat.id}`} /></bdi>
+          <span className="ms-1 text-xs tabular-nums text-muted-foreground" title="Messages sent">({p.messages})</span>
+        </span>
+      ))}
+      {chat.reported && (
+        <span className="inline-flex items-center gap-1 rounded-full bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
+          <Flag className="h-3 w-3" /> Reported
+        </span>
+      )}
+    </div>
+  );
+}
+
+function LastMessage({ chat, now, inline }: { chat: ChatRow; now: number; inline?: boolean }) {
+  if (!chat.lastAt) return <span className="text-xs text-amber-700">No message yet</span>;
+  if (inline) return <>{ago(chat.lastAt, now)} by {chat.lastBy ?? "—"}</>;
+  return (
+    <>
+      <div className="tabular-nums" title={fmtDateTime(chat.lastAt)}>{ago(chat.lastAt, now)}</div>
+      <div className="text-xs text-muted-foreground">by {chat.lastBy ?? "—"}</div>
+    </>
+  );
+}
+
+function EndsCell({ chat, now }: { chat: ChatRow; now: number }) {
+  const left = daysLeft(chat, now);
+  if (chat.endedAt) {
+    const by = chat.endedBy === "admin" ? "by admin" : chat.endedBy === "paused" ? "paused" : chat.endedBy === "system" ? "system" : `by ${chat.endedBy}`;
+    return <span className="text-muted-foreground">{fmtDate(chat.endedAt)} · {by}</span>;
+  }
+  if (left === null) return <span className="text-muted-foreground">{fmtDate(chat.expiresAt)}</span>;
+  return (
+    <span className={cn(left <= 3 ? "font-medium text-amber-700" : "text-muted-foreground")}>
+      {left === 0 ? "ends today" : `ends in ${left} d`}
+      {chat.extended && <span className="ms-1 text-xs">(extended)</span>}
+    </span>
+  );
+}
+
+/** The SMS explanation only helps chats where someone hasn't written yet */
+function needsSmsHelp(c: ChatRow): boolean {
+  return !!c.sms && !c.sms.talking && c.sms.members.length > 0;
 }
 
 const SMS_LABEL: Record<string, string> = {
@@ -356,8 +408,7 @@ const SMS_LABEL: Record<string, string> = {
 };
 
 function SmsCell({ chat, sending, onSend }: { chat: ChatRow; sending: boolean; onSend: () => void }) {
-  if (!chat.sms) return <span className="text-muted-foreground">—</span>;
-  if (chat.sms.talking) return <span className="text-xs text-muted-foreground">Both talking · SMS only for messages unread 2 h+ (no push, max 1 a day)</span>;
+  if (!chat.sms) return null;
   const pending = chat.sms.members.filter((m) => m.status !== "sent" && m.status !== "sent_admin");
   return (
     <div className="flex flex-col gap-1 text-xs">

@@ -1,9 +1,13 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { LifeBuoy, Loader2, ChevronLeft, ChevronRight, Eye } from "lucide-react";
+import { LifeBuoy, Loader2, Eye } from "lucide-react";
+import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Pager, PersonLink, fmtDateTime } from "@/components/admin/admin-list-bits";
+import { FocusBanner, LoadError, useFocusId } from "@/components/admin/inbox-focus";
 import { enumLabel } from "@/lib/admin/enum-labels";
 
 interface Ticket {
@@ -17,6 +21,16 @@ interface Ticket {
   createdAt: string;
   user: { id: string; firstName: string; lastName: string; phone: string | null };
 }
+
+/** WAITING = open + in progress, what the Inbox counts */
+const STATUS_FILTERS: [string, string][] = [
+  ["WAITING", "Open & in progress"],
+  ["OPEN", enumLabel("ticketStatus", "OPEN")],
+  ["IN_PROGRESS", enumLabel("ticketStatus", "IN_PROGRESS")],
+  ["RESOLVED", enumLabel("ticketStatus", "RESOLVED")],
+  ["CLOSED", enumLabel("ticketStatus", "CLOSED")],
+  ["", "All"],
+];
 
 const statusStyles: Record<string, string> = {
   OPEN: "bg-amber-100 text-amber-800",
@@ -36,38 +50,51 @@ export default function AdminSupportPage() {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [pages, setPages] = useState(1);
-  const [statusFilter, setStatusFilter] = useState("");
+  const [total, setTotal] = useState(0);
+  const [statusFilter, setStatusFilter] = useState("WAITING");
   const [typeFilter, setTypeFilter] = useState("");
   const [reviewingId, setReviewingId] = useState<string | null>(null);
   const [adminNote, setAdminNote] = useState("");
   const [updating, setUpdating] = useState(false);
-  const [updateError, setUpdateError] = useState("");
+  const [loadError, setLoadError] = useState("");
+  const { ready, focusId, clearFocus } = useFocusId();
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams({ page: String(page) });
-      if (statusFilter) params.set("status", statusFilter);
-      if (typeFilter) params.set("type", typeFilter);
+      if (focusId) params.set("id", focusId);
+      else {
+        if (statusFilter) params.set("status", statusFilter);
+        if (typeFilter) params.set("type", typeFilter);
+      }
       const res = await fetch(`/api/admin/support?${params}`);
+      if (!res.ok) throw new Error(`support ${res.status}`);
       const data = await res.json();
+      // The last ticket of a page was handled: step back instead of showing an empty page
+      if ((data.tickets || []).length === 0 && page > 1) {
+        setPage(page - 1);
+        return;
+      }
       setTickets(data.tickets || []);
       setPages(data.pages || 1);
+      setTotal(data.total ?? 0);
+      setLoadError("");
     } catch (err) {
       console.error(err);
+      setLoadError("Could not load tickets.");
     } finally {
       setLoading(false);
     }
-  }, [page, statusFilter, typeFilter]);
+  }, [page, statusFilter, typeFilter, focusId]);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    if (ready) load();
+  }, [ready, load]);
 
 
   async function handleUpdate(ticketId: string, status: string) {
     setUpdating(true);
-    setUpdateError("");
     try {
       const res = await fetch("/api/admin/support", {
         method: "PATCH",
@@ -77,14 +104,15 @@ export default function AdminSupportPage() {
       if (res.ok) {
         setReviewingId(null);
         setAdminNote("");
+        toast.success("Ticket updated. The member was notified.");
         load();
       } else {
         const data = await res.json().catch(() => ({}));
-        setUpdateError(data.error || `Update failed (${res.status})`);
+        toast.error(data.error || `Update failed (${res.status})`);
       }
     } catch (err) {
       console.error(err);
-      setUpdateError("Network error, please try again");
+      toast.error("Network error, please try again");
     } finally {
       setUpdating(false);
     }
@@ -100,18 +128,21 @@ export default function AdminSupportPage() {
         <p className="text-muted-foreground mt-1">Review and respond to user support tickets</p>
       </div>
 
+      {focusId && <FocusBanner onClear={clearFocus} />}
+      {loadError && <LoadError message={loadError} onRetry={load} />}
+
       {/* Status Filters */}
-      <div className="space-y-3">
+      {!focusId && <div className="space-y-3">
         <div className="flex flex-wrap gap-2">
           <span className="text-sm font-medium text-muted-foreground self-center me-1">Status:</span>
-          {["", "OPEN", "IN_PROGRESS", "RESOLVED", "CLOSED"].map((s) => (
+          {STATUS_FILTERS.map(([s, label]) => (
             <Button
               key={s}
               variant={statusFilter === s ? "default" : "outline"}
               size="sm"
               onClick={() => { setStatusFilter(s); setPage(1); }}
             >
-              {s ? enumLabel("ticketStatus", s) : "All"}
+              {label}
             </Button>
           ))}
         </div>
@@ -128,24 +159,24 @@ export default function AdminSupportPage() {
             </Button>
           ))}
         </div>
-      </div>
+      </div>}
 
       <Card>
         <CardHeader>
-          <CardTitle>Tickets</CardTitle>
+          <CardTitle>Tickets ({total})</CardTitle>
         </CardHeader>
         <CardContent>
           {loading ? (
             <div className="flex justify-center py-8">
               <Loader2 className="h-6 w-6 animate-spin text-primary" />
             </div>
-          ) : tickets.length === 0 ? (
+          ) : loadError ? null : tickets.length === 0 ? (
             <p className="text-center text-muted-foreground py-8">No tickets found</p>
           ) : (
             <div className="space-y-3">
               {tickets.map((ticket) => (
                 <div key={ticket.id} className="border rounded-lg p-4 space-y-2">
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex items-center gap-3">
                       <span className={`text-xs font-medium px-2 py-1 rounded-full ${statusStyles[ticket.status] || ""}`}>
                         {enumLabel("ticketStatus", ticket.status)}
@@ -155,35 +186,42 @@ export default function AdminSupportPage() {
                       </span>
                     </div>
                     <span className="text-xs text-muted-foreground">
-                      {new Date(ticket.createdAt).toLocaleDateString("en-US")}
+                      {fmtDateTime(ticket.createdAt)}
                     </span>
                   </div>
 
                   <h3 className="font-semibold text-foreground">{ticket.subject}</h3>
 
                   <div className="text-sm text-muted-foreground">
-                    From: <span className="font-medium text-foreground">{ticket.user.firstName} {ticket.user.lastName}</span>
+                    From: <PersonLink p={ticket.user} />
                     {ticket.user.phone && <span className="ms-2 text-xs">({ticket.user.phone})</span>}
                   </div>
 
                   <p className="text-sm text-muted-foreground bg-muted/50 rounded p-2">{ticket.description}</p>
 
                   {ticket.adminNote && (
-                    <p className="text-sm text-primary bg-primary/5 rounded p-2">Admin: {ticket.adminNote}</p>
+                    <p className="text-sm text-primary bg-primary/5 rounded p-2">Reply to the member: {ticket.adminNote}</p>
+                  )}
+
+                  {ticket.resolvedAt && (ticket.status === "RESOLVED" || ticket.status === "CLOSED") && (
+                    <p className="text-xs text-muted-foreground">
+                      {enumLabel("ticketStatus", ticket.status)} {fmtDateTime(ticket.resolvedAt)}
+                    </p>
                   )}
 
                   {ticket.status !== "CLOSED" && (
                     <>
                       {reviewingId === ticket.id ? (
                         <div className="space-y-2 pt-2 border-t">
+                          <Label htmlFor={`reply-${ticket.id}`}>Reply to the member (they will see this)</Label>
                           <textarea
+                            id={`reply-${ticket.id}`}
                             className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
-                            placeholder="Admin note / response (optional)"
+                            placeholder="Optional"
                             value={adminNote}
                             onChange={(e) => setAdminNote(e.target.value)}
                             rows={2}
                           />
-                          {updateError && <p className="text-sm text-destructive">{updateError}</p>}
                           <div className="flex flex-wrap gap-2">
                             {ticket.status === "OPEN" && (
                               <Button
@@ -213,7 +251,7 @@ export default function AdminSupportPage() {
                             <Button
                               size="sm"
                               variant="ghost"
-                              onClick={() => { setReviewingId(null); setAdminNote(""); setUpdateError(""); }}
+                              onClick={() => { setReviewingId(null); setAdminNote(""); }}
                             >
                               Cancel
                             </Button>
@@ -226,7 +264,6 @@ export default function AdminSupportPage() {
                           onClick={() => {
                             setReviewingId(ticket.id);
                             setAdminNote(ticket.adminNote || "");
-                            setUpdateError("");
                           }}
                         >
                           <Eye className="h-3 w-3 me-1" />
@@ -240,30 +277,7 @@ export default function AdminSupportPage() {
             </div>
           )}
 
-          {/* Pagination */}
-          {pages > 1 && (
-            <div className="flex items-center justify-center gap-2 mt-4">
-              <Button
-                variant="outline"
-                size="icon"
-                disabled={page <= 1}
-                onClick={() => setPage(page - 1)}
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <span className="text-sm text-muted-foreground">
-                Page {page} of {pages}
-              </span>
-              <Button
-                variant="outline"
-                size="icon"
-                disabled={page >= pages}
-                onClick={() => setPage(page + 1)}
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
-          )}
+          <Pager page={page} pages={pages} onPage={setPage} />
         </CardContent>
       </Card>
     </div>

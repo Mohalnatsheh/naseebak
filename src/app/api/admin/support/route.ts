@@ -8,6 +8,8 @@ import type { TicketStatus, TicketType } from "@prisma/client";
 
 const TICKET_STATUSES: TicketStatus[] = ["OPEN", "IN_PROGRESS", "RESOLVED", "CLOSED"];
 const TICKET_TYPES: TicketType[] = ["ISSUE", "SUGGESTION", "CHANGE_REQUEST"];
+/** `?status=WAITING`: what the Inbox counts as waiting, the page's default */
+const WAITING: TicketStatus[] = ["OPEN", "IN_PROGRESS"];
 
 const statusLabels: Record<string, string> = {
   OPEN: "مفتوحة",
@@ -24,13 +26,19 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const { page, pageSize, skip } = safePagination(searchParams, 20);
     // Unknown filter values are ignored
-    const status = enumParam(searchParams.get("status"), TICKET_STATUSES);
+    const status = enumParam(searchParams.get("status"), [...TICKET_STATUSES, "WAITING"] as const);
     const type = enumParam(searchParams.get("type"), TICKET_TYPES);
+    // `?id=`: one ticket (the Inbox's «Open» link); it replaces the filters
+    const id = searchParams.get("id");
 
     // Admin's selected country ("ALL" = every country)
     const where: Record<string, unknown> = { ...byUserCountry(await getAdminCountry(request), "user") };
-    if (status) where.status = status;
-    if (type) where.type = type;
+    if (id) where.id = id;
+    else {
+      if (status) where.status = status === "WAITING" ? { in: WAITING } : status;
+      if (type) where.type = type;
+    }
+    const waiting = status === "WAITING" || status === "OPEN" || status === "IN_PROGRESS";
 
     const [tickets, total] = await Promise.all([
       db.supportTicket.findMany({
@@ -38,7 +46,8 @@ export async function GET(request: Request) {
         include: {
           user: { select: { id: true, firstName: true, lastName: true, phone: true } },
         },
-        orderBy: { createdAt: "desc" },
+        // Waiting tickets: the one waiting longest comes first
+        orderBy: { createdAt: waiting ? "asc" : "desc" },
         skip,
         take: pageSize,
       }),

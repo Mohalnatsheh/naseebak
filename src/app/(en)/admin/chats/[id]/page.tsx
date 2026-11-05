@@ -1,21 +1,28 @@
 "use client";
 
-import { use, useEffect, useMemo, useState } from "react";
+import { use, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowDown, ArrowLeft, ArrowUp, Check, CheckCheck, Loader2, MessagesSquare, Search } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowUp, Check, CheckCheck, Eye, Flag, Heart, Loader2, MessagesSquare, Search } from "lucide-react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { fmtDate, PersonLink, StateBadge, type PersonRef } from "@/components/admin/admin-list-bits";
+import { fmtDate, fmtDateTime, PersonLink, StateBadge, type PersonRef } from "@/components/admin/admin-list-bits";
+import { enumLabel } from "@/lib/admin/enum-labels";
+import { fmtLeft } from "@/lib/admin/matching-time";
 
 interface ChatDetail {
   id: string;
+  matchId: string;
   people: PersonRef[];
   status: "ACTIVE" | "ENDED" | "EXPIRED";
   createdAt: string;
   expiresAt: string;
   extended: boolean;
   endedAt: string | null;
+  /** "paused" (report review), "system", "admin", the member's first name, or null */
   endedBy: string | null;
+  reports: { id: string; status: string; createdAt: string }[];
 }
 
 interface Msg {
@@ -27,7 +34,14 @@ interface Msg {
 }
 
 function fmtTime(d: string) {
-  return new Date(d).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+  return new Date(d).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Amman" });
+}
+
+/** Same wording as the chats list */
+function endedByLabel(by: string | null) {
+  if (by === "admin") return "by admin";
+  if (by === "system") return "by the system";
+  return by ? `by ${by}` : "";
 }
 
 /** Full message history of one chat, oldest first. The first person is shown on the left. */
@@ -39,18 +53,39 @@ export default function AdminChatPage({ params }: { params: Promise<{ id: string
   const [error, setError] = useState("");
   const [find, setFind] = useState("");
   const [only, setOnly] = useState("");
+  const [ending, setEnding] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/admin/chats/${id}/messages`);
+      if (!res.ok) throw new Error(res.status === 404 ? "Chat not found." : "Could not load the chat.");
+      const d = await res.json();
+      setChat(d.chat);
+      setMessages(d.messages ?? []);
+      setTruncated(!!d.truncated);
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }, [id]);
 
   useEffect(() => {
-    fetch(`/api/admin/chats/${id}/messages`)
-      .then(async (res) => {
-        if (!res.ok) throw new Error(res.status === 404 ? "Chat not found." : "Could not load the chat.");
-        const d = await res.json();
-        setChat(d.chat);
-        setMessages(d.messages ?? []);
-        setTruncated(!!d.truncated);
-      })
-      .catch((e: Error) => setError(e.message));
-  }, [id]);
+    load();
+  }, [load]);
+
+  async function endChat() {
+    if (!chat) return;
+    if (!confirm(`End the chat between ${chat.people.map((p) => p.firstName).join(" & ")}? Both are told.`)) return;
+    setEnding(true);
+    const res = await fetch(`/api/admin/chats/${id}/end`, { method: "POST" }).catch(() => null);
+    if (res?.ok) {
+      toast.success("Chat ended");
+      await load();
+    } else {
+      const d = res ? await res.json().catch(() => ({})) : {};
+      toast.error(d.error || "Could not end the chat.");
+    }
+    setEnding(false);
+  }
 
   const term = find.trim().toLowerCase();
   const shown = useMemo(
@@ -71,9 +106,15 @@ export default function AdminChatPage({ params }: { params: Promise<{ id: string
   const nameOf = (uid: string) => chat.people.find((p) => p.id === uid)?.firstName ?? "?";
   const countOf = (uid: string) => messages.filter((m) => m.senderId === uid).length;
   const filtering = !!term || !!only;
+  const paused = chat.endedBy === "paused";
+  const pendingReports = chat.reports.filter((r) => r.status === "PENDING").length;
 
   return (
     <div className="space-y-6">
+      <p className="flex items-center gap-2 rounded-md bg-amber-100 px-3 py-2 text-sm text-amber-800">
+        <Eye className="h-4 w-4 shrink-0" /> Reading a chat is logged. Open chats only for reports or safety.
+      </p>
+
       <Link href="/admin/chats" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
         <ArrowLeft className="h-4 w-4" /> All chats
       </Link>
@@ -83,12 +124,38 @@ export default function AdminChatPage({ params }: { params: Promise<{ id: string
           <CardTitle className="flex flex-wrap items-center gap-2">
             <MessagesSquare className="h-5 w-5 text-primary" />
             <PersonLink p={left} /> <span className="text-muted-foreground">&amp;</span> <PersonLink p={right} />
-            <StateBadge value={chat.status} group="chatStatus" />
+            {paused ? (
+              <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium whitespace-nowrap text-amber-800">Paused for review</span>
+            ) : (
+              <StateBadge value={chat.status} group="chatStatus" />
+            )}
+            {chat.status === "ACTIVE" && (
+              <Button size="sm" variant="outline" className="ms-auto" disabled={ending} onClick={endChat}>
+                {ending ? <Loader2 className="h-3 w-3 animate-spin" /> : "End chat"}
+              </Button>
+            )}
           </CardTitle>
+          <div className="flex flex-wrap gap-2 text-sm">
+            <Link href={`/admin/matches?q=${chat.matchId}`} className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 hover:bg-muted">
+              <Heart className="h-3.5 w-3.5" /> Match
+            </Link>
+            {chat.reports.length > 0 && (
+              <Link href="/admin/reports" className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-destructive hover:bg-muted">
+                <Flag className="h-3.5 w-3.5" />
+                {chat.reports.length} report{chat.reports.length === 1 ? "" : "s"}
+                {pendingReports > 0 ? ` (${pendingReports} ${enumLabel("reportStatus", "PENDING").toLowerCase()})` : ""}
+              </Link>
+            )}
+          </div>
           <p className="text-sm text-muted-foreground">
-            Started {fmtDate(chat.createdAt)} · Expires {fmtDate(chat.expiresAt)}
+            Started {fmtDate(chat.createdAt)}
+            {chat.status === "ACTIVE"
+              ? ` · Expires ${fmtLeft(chat.expiresAt)} (${fmtDate(chat.expiresAt)})`
+              : !chat.endedAt && ` · Expired ${fmtDate(chat.expiresAt)}`}
             {chat.extended && " (extended)"}
-            {chat.endedAt && ` · Ended ${fmtDate(chat.endedAt)} ${chat.endedBy === "admin" ? "by admin" : `by ${chat.endedBy}`}`}
+            {paused
+              ? ` · Paused ${fmtDateTime(chat.endedAt)} while reports are reviewed (resumes by itself if cleared)`
+              : chat.endedAt && ` · Ended ${fmtDate(chat.endedAt)} ${endedByLabel(chat.endedBy)}`}
             {` · ${messages.length} messages (${left.firstName} ${countOf(left.id)} · ${right.firstName} ${countOf(right.id)})`}
             {messages.length > 0 && ` · last ${fmtDate(messages[messages.length - 1].createdAt)} ${fmtTime(messages[messages.length - 1].createdAt)}`}
           </p>

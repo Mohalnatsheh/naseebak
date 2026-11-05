@@ -16,6 +16,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { enumLabel } from "@/lib/admin/enum-labels";
+import { toast } from "sonner";
 
 /* ──────────────────── Types ──────────────────── */
 
@@ -173,10 +174,16 @@ export default function AdminBlogPage() {
   async function deletePost(id: string) {
     if (!confirm("Are you sure you want to delete this post?")) return;
     try {
-      await fetch(`/api/admin/blog/${id}`, { method: "DELETE" });
+      const res = await fetch(`/api/admin/blog/${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error || "Failed to delete the post");
+        return;
+      }
+      toast.success("Post deleted");
       fetchPosts();
     } catch {
-      console.error("Failed to delete post");
+      toast.error("Network error");
     }
   }
 
@@ -220,14 +227,14 @@ export default function AdminBlogPage() {
         body: JSON.stringify(editCatForm),
       });
       if (!res.ok) {
-        const data = await res.json();
-        alert(data.error || "Failed to update");
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error || "Failed to update");
         return;
       }
       setEditingCat(null);
       fetchCategories();
     } catch {
-      alert("Network error");
+      toast.error("Network error");
     } finally {
       setEditCatSaving(false);
     }
@@ -238,13 +245,14 @@ export default function AdminBlogPage() {
     try {
       const res = await fetch(`/api/admin/blog/categories/${id}`, { method: "DELETE" });
       if (!res.ok) {
-        const data = await res.json();
-        alert(data.error || "Failed to delete");
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error || "Failed to delete");
         return;
       }
+      toast.success("Category deleted");
       fetchCategories();
     } catch {
-      console.error("Failed to delete category");
+      toast.error("Network error");
     }
   }
 

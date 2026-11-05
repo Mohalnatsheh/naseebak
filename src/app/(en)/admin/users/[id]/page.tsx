@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useCallback, use } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import {
-  ArrowLeft, User, Shield, ShieldCheck, Loader2, Ban, CreditCard,
+  ArrowLeft, User, Shield, Loader2, Ban, CreditCard,
   Calendar, MapPin, Heart, GraduationCap, Briefcase, Camera, Brain,
   Users as UsersIcon, Phone, Mail, Flag, Sparkles, HeartHandshake, MessagesSquare, History,
 } from "lucide-react";
@@ -17,6 +18,9 @@ import { enumLabel } from "@/lib/admin/enum-labels";
 import { countryConfig, toCountry } from "@/lib/countries";
 import { CountryFlag } from "@/components/shared/country-flag";
 import { MemberDevicesCard } from "@/components/admin/member-devices-card";
+import { MembersSuggestStatus } from "@/components/admin/members-suggest-status";
+import { PersonLink, fmtDateTime } from "@/components/admin/admin-list-bits";
+import { FAILURE_LABELS } from "@/lib/payments/failure-labels";
 
 interface UserDetail {
   id: string;
@@ -29,16 +33,14 @@ interface UserDetail {
   country: string;
   role: string;
   status: string;
-  isVerified: boolean;
   isDeactivated: boolean;
   isFlagged: boolean;
   flagReason: string | null;
   matchCredits: number;
-  verifiedAt: string | null;
   createdAt: string;
   updatedAt: string;
   profile: Record<string, unknown> | null;
-  personalityResult: { personalityType: string | null; vector: number[]; createdAt: string } | null;
+  personalityResult: { personalityType: string | null; createdAt: string } | null;
   parentInfo: {
     parentName: string; parentPhone: string; relationship: string; address: string | null; notes: string | null;
     shareConsentAt: string | null;
@@ -48,6 +50,8 @@ interface UserDetail {
     status: string; rejectionReason: string | null; reviewNotes: string | null;
     reviewedAt: string | null; createdAt: string;
   } | null;
+  /** Newest 20 */
+  payments: PaymentRow[];
   photos: { id: string; url: string; isPrimary: boolean; order: number; createdAt: string }[];
   referralsReceived: { createdAt: string; creditsAwarded: boolean; referrer: { id: string; firstName: string; lastName: string } } | null;
   _count: {
@@ -56,6 +60,17 @@ interface UserDetail {
     matchesAsFemale: number; matchesAsMale: number;
     payments: number; notifications: number;
   };
+}
+
+interface PaymentRow {
+  id: string;
+  planName: string | null;
+  amount: string;
+  currency: string;
+  status: string;
+  disputedAt: string | null;
+  failureReason: string | null;
+  createdAt: string;
 }
 
 interface SuggestionRow {
@@ -123,6 +138,13 @@ const cycleStatusColors: Record<string, string> = {
   CANCELLED: "bg-muted text-muted-foreground",
 };
 
+const paymentStatusColors: Record<string, string> = {
+  PENDING: "bg-amber-100 text-amber-800",
+  COMPLETED: "bg-green-100 text-green-800",
+  FAILED: "bg-destructive/10 text-destructive",
+  REFUNDED: "bg-primary/10 text-primary",
+};
+
 const decisionLabel: Record<string, { text: string; className: string }> = {
   INTERESTED: { text: "Interested", className: "text-emerald-600" },
   DECLINED: { text: "Declined", className: "text-destructive" },
@@ -143,6 +165,14 @@ const creditReasonLabel: Record<string, string> = {
 
 function formatDate(d: string | null) {
   return d ? new Date(d).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "—";
+}
+
+/** "Card declined · insufficient funds", "Cancelled by the member", … */
+function failureText(reason: string | null): string {
+  if (!reason) return "Reason not recorded";
+  const [kind, code] = reason.split(":");
+  const label = FAILURE_LABELS[kind as keyof typeof FAILURE_LABELS] ?? kind;
+  return code ? `${label} · ${code.replace(/_/g, " ")}` : label;
 }
 
 function Decision({ value }: { value: string | null }) {
@@ -169,8 +199,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
     asRecipient: SuggestionRow[];
     asCandidate: SuggestionRow[];
   } | null>(null);
-  const [sugLoading, setSugLoading] = useState(false);
-  const [sugExpanded, setSugExpanded] = useState(false);
+  const [sugFailed, setSugFailed] = useState(false);
   const [cycle, setCycle] = useState<CycleData | null>(null);
 
   // Links like #chats or #chat-<id> (from the reports page) point into sections that load later
@@ -183,27 +212,43 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
     try {
       const res = await fetch(`/api/admin/users/${id}/cycle`);
       if (res.ok) setCycle(await res.json());
+      else toast.error("Could not load the requests, chats and credit history");
     } catch (err) {
       console.error(err);
+      toast.error("Could not load the requests, chats and credit history");
     }
   }, [id]);
 
   const fetchUser = useCallback(async () => {
     try {
       const res = await fetch(`/api/admin/users/${id}`);
-      const data = await res.json();
-      setUser(data.user);
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) setUser(data.user);
+      else if (res.status !== 404) toast.error(data.error || "Could not load this member");
     } catch (err) {
       console.error(err);
+      toast.error("Could not load this member. Check your connection and try again.");
     } finally {
       setLoading(false);
+    }
+  }, [id]);
+
+  const fetchSuggestions = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/admin/suggestions/user/${id}`);
+      if (!res.ok) throw new Error(String(res.status));
+      setSuggestions(await res.json());
+    } catch (err) {
+      console.error(err);
+      setSugFailed(true);
     }
   }, [id]);
 
   useEffect(() => {
     fetchUser();
     fetchCycle();
-  }, [fetchUser, fetchCycle]);
+    fetchSuggestions();
+  }, [fetchUser, fetchCycle, fetchSuggestions]);
 
   async function handleSuspend() {
     if (!user) return;
@@ -291,26 +336,18 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
     }
   }
 
-  async function fetchSuggestions() {
-    if (suggestions) {
-      setSugExpanded(!sugExpanded);
-      return;
-    }
-    setSugLoading(true);
-    setSugExpanded(true);
-    try {
-      const res = await fetch(`/api/admin/suggestions/user/${id}`);
-      const data = await res.json();
-      setSuggestions(data);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setSugLoading(false);
-    }
-  }
-
   async function handleToggleFlag() {
     if (!user) return;
+    let reason: string | null = null;
+    if (!user.isFlagged) {
+      reason = prompt("Why are you flagging this member? They get no new automatic suggestions until the flag is cleared.");
+      if (reason === null) return;
+      reason = reason.trim();
+      if (!reason) {
+        toast.error("Add a reason to flag this member");
+        return;
+      }
+    }
     setFlagging(true);
     setActionError("");
     try {
@@ -319,7 +356,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           isFlagged: !user.isFlagged,
-          flagReason: !user.isFlagged ? "Manually flagged by admin" : null,
+          flagReason: reason,
         }),
       });
       if (res.ok) {
@@ -367,14 +404,15 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
 
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-        <div className="flex items-center gap-4">
+        <div className="flex min-w-0 items-center gap-4">
           <div className="h-12 w-12 sm:h-16 sm:w-16 shrink-0 rounded-full bg-primary/10 flex items-center justify-center text-xl font-bold text-primary">
             {user.firstName.charAt(0)}{user.lastName.charAt(0)}
           </div>
-          <div>
-            <h1 className="text-2xl font-bold">{user.firstName} {user.lastName}</h1>
+          <div className="min-w-0">
+            <h1 className="text-2xl font-bold [overflow-wrap:anywhere]">{user.firstName} {user.lastName}</h1>
             <div className="flex flex-wrap items-center gap-2 mt-1">
-              <Badge className={userStatusColors[user.status] || ""}>{enumLabel("userStatus", user.status)}</Badge>
+              {/* Verified / Unverified belong to the legacy identity flow: only a suspension is news */}
+              {user.status === "SUSPENDED" && <Badge className={userStatusColors[user.status] || ""}>{enumLabel("userStatus", user.status)}</Badge>}
               <Badge variant={user.gender === "MALE" ? "default" : "secondary"}>
                 {user.gender === "MALE" ? "Male" : "Female"}
               </Badge>
@@ -391,7 +429,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
               )}
             </div>
             {user.isFlagged && user.flagReason && (
-              <p className="text-sm text-destructive mt-1">{user.flagReason}</p>
+              <p className="text-sm text-destructive mt-1 [overflow-wrap:anywhere]">{user.flagReason}</p>
             )}
           </div>
         </div>
@@ -476,10 +514,16 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
       )}
 
 
+      {/* Last active, credits, open cards and why there are none */}
+      <MembersSuggestStatus userId={id} credits={user.matchCredits} />
+
       {/* Where the member uses Naseebak and whether a push can reach them */}
-      <MemberDevicesCard userId={id} />
-      {/* Info Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="min-w-0"><MemberDevicesCard userId={id} /></div>
+
+      <SuggestionsCard suggestions={suggestions} failed={sugFailed} />
+
+      {/* Info Grid: min-w-0 lets a child with long text shrink inside its column on a phone */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 [&>*]:min-w-0">
         {/* Basic Info */}
         <Card>
           <CardHeader><CardTitle className="flex items-center gap-2"><User className="h-5 w-5" /> Basic Info</CardTitle></CardHeader>
@@ -487,8 +531,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
             <InfoRow icon={<Mail className="h-4 w-4" />} label="Email" value={user.email} />
             <InfoRow icon={<Phone className="h-4 w-4" />} label="Phone" value={user.phone || "—"} />
             <InfoRow label="Country" value={countryConfig(user.country).nameEn} />
-            <InfoRow icon={<Calendar className="h-4 w-4" />} label="Joined" value={new Date(user.createdAt).toLocaleDateString()} />
-            <InfoRow icon={<ShieldCheck className="h-4 w-4" />} label="Verified" value={user.isVerified ? `Yes (${user.verifiedAt ? new Date(user.verifiedAt).toLocaleDateString() : ""})` : "No"} />
+            <InfoRow icon={<Calendar className="h-4 w-4" />} label="Joined" value={formatDate(user.createdAt)} />
             <InfoRow icon={<CreditCard className="h-4 w-4" />} label="Credits" value={String(user.matchCredits)} />
             {user.referralsReceived && (
               <div className="flex items-start gap-2">
@@ -516,7 +559,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
           <CardContent className="space-y-2 text-sm">
             {p ? (
               <>
-                <InfoRow icon={<Calendar className="h-4 w-4" />} label="DOB" value={p.dateOfBirth ? new Date(p.dateOfBirth as string).toLocaleDateString() : "—"} />
+                <InfoRow icon={<Calendar className="h-4 w-4" />} label="DOB" value={p.dateOfBirth ? formatDate(p.dateOfBirth as string) : "—"} />
                 <InfoRow icon={<MapPin className="h-4 w-4" />} label="City / Area" value={`${p.city || "—"} / ${p.area || "—"}`} />
                 <InfoRow icon={<GraduationCap className="h-4 w-4" />} label="Education" value={String(p.education || "—")} />
                 <InfoRow icon={<Briefcase className="h-4 w-4" />} label="Job" value={String(p.job || "—")} />
@@ -529,7 +572,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
                 {user.gender === "MALE" && <InfoRow label="Beard" value={p.beard === true ? "Yes" : p.beard === false ? "No" : "—"} />}
                 <InfoRow label="Tribe" value={String(p.tribe || "—")} />
                 <InfoRow label="About" value={String(p.aboutMe || "—")} />
-                <InfoRow label="Setup Step" value={String(p.setupStep)} />
+                {!p.isComplete && <InfoRow label="Setup Step" value={String(p.setupStep)} />}
                 <InfoRow label="Complete" value={p.isComplete ? "Yes" : "No"} />
               </>
             ) : (
@@ -538,49 +581,47 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
           </CardContent>
         </Card>
 
-        {/* Identity Doc */}
+        {/* Identity Doc: legacy, only for members who have one */}
+        {user.identityDoc && (
         <Card>
           <CardHeader><CardTitle className="flex items-center gap-2"><Shield className="h-5 w-5" /> Identity Verification</CardTitle></CardHeader>
           <CardContent>
-            {user.identityDoc ? (
-              <div className="space-y-3">
-                <div className="flex items-center gap-2 text-sm">
-                  <Badge variant="outline">{user.identityDoc.documentType === "selfie" ? "Selfie" : user.identityDoc.documentType === "national_id" ? "National ID (legacy)" : "Passport (legacy)"}</Badge>
-                  <Badge className={statusColors[user.identityDoc.status] || ""}>{enumLabel("identityStatus", user.identityDoc.status)}</Badge>
-                </div>
-                {user.identityDoc.rejectionReason && (
-                  <p className="text-sm text-destructive bg-destructive/10 rounded p-2">Rejection: {user.identityDoc.rejectionReason}</p>
-                )}
-                <div className="grid grid-cols-2 gap-3">
-                  {user.identityDoc.frontImageUrl && (
-                    <div>
-                      <p className="text-xs text-muted-foreground mb-1">{user.identityDoc.documentType === "selfie" ? "Selfie" : "Front"}</p>
-                      {/* eslint-disable-next-line @next/next/no-img-element -- admin review of a stored upload URL, which may be a legacy base64 data: URL rather than a cdn.naseebak.com image */}
-                      <img
-                        src={user.identityDoc.frontImageUrl}
-                        alt={user.identityDoc.documentType === "selfie" ? "Selfie" : "ID Front"}
-                        className="rounded border max-h-40 w-full object-contain bg-muted"
-                      />
-                    </div>
-                  )}
-                  {user.identityDoc.backImageUrl && (
-                    <div>
-                      <p className="text-xs text-muted-foreground mb-1">Back</p>
-                      {/* eslint-disable-next-line @next/next/no-img-element -- admin review of a stored upload URL, which may be a legacy base64 data: URL rather than a cdn.naseebak.com image */}
-                      <img
-                        src={user.identityDoc.backImageUrl}
-                        alt="ID Back"
-                        className="rounded border max-h-40 w-full object-contain bg-muted"
-                      />
-                    </div>
-                  )}
-                </div>
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center gap-2 text-sm">
+                <Badge variant="outline">{user.identityDoc.documentType === "selfie" ? "Selfie" : user.identityDoc.documentType === "national_id" ? "National ID (legacy)" : "Passport (legacy)"}</Badge>
+                <Badge className={statusColors[user.identityDoc.status] || ""}>{enumLabel("identityStatus", user.identityDoc.status)}</Badge>
               </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">No verification selfie uploaded</p>
-            )}
+              {user.identityDoc.rejectionReason && (
+                <p className="text-sm text-destructive bg-destructive/10 rounded p-2">Rejection: {user.identityDoc.rejectionReason}</p>
+              )}
+              <div className="grid grid-cols-2 gap-3">
+                {user.identityDoc.frontImageUrl && (
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">{user.identityDoc.documentType === "selfie" ? "Selfie" : "Front"}</p>
+                    {/* eslint-disable-next-line @next/next/no-img-element -- admin review of a stored upload URL, which may be a legacy base64 data: URL rather than a cdn.naseebak.com image */}
+                    <img
+                      src={user.identityDoc.frontImageUrl}
+                      alt={user.identityDoc.documentType === "selfie" ? "Selfie" : "ID Front"}
+                      className="rounded border max-h-40 w-full object-contain bg-muted"
+                    />
+                  </div>
+                )}
+                {user.identityDoc.backImageUrl && (
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">Back</p>
+                    {/* eslint-disable-next-line @next/next/no-img-element -- admin review of a stored upload URL, which may be a legacy base64 data: URL rather than a cdn.naseebak.com image */}
+                    <img
+                      src={user.identityDoc.backImageUrl}
+                      alt="ID Back"
+                      className="rounded border max-h-40 w-full object-contain bg-muted"
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
           </CardContent>
         </Card>
+        )}
 
         {/* Photos */}
         <Card id="photos" className="scroll-mt-20">
@@ -615,8 +656,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
             {user.personalityResult ? (
               <div className="space-y-2">
                 <InfoRow label="Type" value={user.personalityResult.personalityType || "—"} />
-                <InfoRow label="Taken" value={new Date(user.personalityResult.createdAt).toLocaleDateString()} />
-                <InfoRow label="Vector" value={user.personalityResult.vector.map(v => v.toFixed(2)).join(", ")} />
+                <InfoRow label="Taken" value={formatDate(user.personalityResult.createdAt)} />
               </div>
             ) : (
               <p className="text-muted-foreground">Quiz not taken</p>
@@ -652,121 +692,161 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
           <CardContent>
             <div className="grid grid-cols-2 gap-3 text-sm">
               <StatItem label="Suggestions received" value={user._count.receivedSuggestions} />
-              <StatItem label="Suggested to others" value={user._count.givenSuggestions} />
               <StatItem label="Matches" value={totalMatches} />
               <StatItem label="Payments" value={user._count.payments} />
               <StatItem label="Notifications" value={user._count.notifications} />
             </div>
-            <p className="text-xs text-muted-foreground mt-3">
-              Legacy: &quot;received&quot; = suggested to this user, &quot;suggested to others&quot; = this user was shown to someone. Shared suggestions are seen by both people but counted once, under whichever side this user was stored on.
-            </p>
           </CardContent>
         </Card>
       </div>
 
       {cycle && <CycleSections cycle={cycle} onEndChat={handleEndChat} endingChatId={endingChatId} />}
 
-      {/* Suggestions Section (full width) */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2"><Sparkles className="h-5 w-5" /> Suggestions</CardTitle>
-            <Button variant="outline" size="sm" onClick={fetchSuggestions} disabled={sugLoading}>
-              {sugLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : sugExpanded ? "Hide" : "Show"}
-            </Button>
-          </div>
-        </CardHeader>
-        {sugExpanded && suggestions && (
-          <CardContent className="space-y-4">
-            {/* As Recipient */}
+      <PaymentsCard user={user} />
+    </div>
+  );
+}
+
+function ScoreCell({ score }: { score: number | null }) {
+  return (
+    <span className={score && score >= 70 ? "text-green-600 font-medium" : score && score >= 50 ? "text-amber-600" : "text-destructive"}>
+      {score ? `${Math.round(score)}%` : "—"}
+    </span>
+  );
+}
+
+/** One side of a member's suggestions: `side` = which stored side this member is on */
+function SuggestionTable({ rows, side, otherLabel }: { rows: SuggestionRow[]; side: "recipient" | "candidate"; otherLabel: string }) {
+  const router = useRouter();
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b bg-muted/50">
+            <th className="text-left p-2 font-medium">{otherLabel}</th>
+            <th className="text-left p-2 font-medium">Score</th>
+            <th className="text-left p-2 font-medium hidden md:table-cell">Flow</th>
+            <th className="text-left p-2 font-medium">Status</th>
+            <th className="text-left p-2 font-medium">This user</th>
+            <th className="text-left p-2 font-medium">Other side</th>
+            <th className="text-left p-2 font-medium hidden md:table-cell">Source</th>
+            <th className="text-left p-2 font-medium hidden md:table-cell">Date</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((s) => {
+            const other = side === "recipient" ? s.candidate : s.recipient;
+            const mine = side === "recipient" ? s.recipientDecision : s.candidateDecision;
+            const theirs = side === "recipient" ? s.candidateDecision : s.recipientDecision;
+            return (
+              <tr key={s.id} className="border-b hover:bg-muted/30 cursor-pointer" onClick={() => other && router.push(`/admin/users/${other.id}`)}>
+                <td className="p-2">{other ? <PersonLink p={other} /> : "—"}</td>
+                <td className="p-2"><ScoreCell score={s.compatibilityScore} /></td>
+                <td className="p-2 hidden md:table-cell"><FlowBadge flow={s.flow} /></td>
+                <td className="p-2"><SuggestionStatus s={s} /></td>
+                <td className="p-2">{s.flow === "MUTUAL" ? <Decision value={mine} /> : "—"}</td>
+                <td className="p-2">{s.flow === "MUTUAL" ? <Decision value={theirs} /> : "—"}</td>
+                <td className="p-2 hidden md:table-cell"><Badge variant="outline" className="text-xs">{enumLabel("suggestionSource", s.source)}</Badge></td>
+                <td className="p-2 text-muted-foreground hidden md:table-cell whitespace-nowrap">{formatDate(s.createdAt)}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function SuggestionsCard({
+  suggestions,
+  failed,
+}: {
+  suggestions: { asRecipient: SuggestionRow[]; asCandidate: SuggestionRow[] } | null;
+  failed: boolean;
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2"><Sparkles className="h-5 w-5" /> Suggestions</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {failed ? (
+          <p className="text-sm text-destructive">Could not load the suggestions.</p>
+        ) : !suggestions ? (
+          <div className="h-16 animate-pulse rounded-lg bg-muted" />
+        ) : (
+          <>
             <div>
               <h4 className="text-sm font-semibold mb-2">Received ({suggestions.asRecipient.length})</h4>
               {suggestions.asRecipient.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No suggestions received</p>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b bg-muted/50">
-                        <th className="text-left p-2 font-medium">Candidate</th>
-                        <th className="text-left p-2 font-medium">Score</th>
-                        <th className="text-left p-2 font-medium">Flow</th>
-                        <th className="text-left p-2 font-medium">Status</th>
-                        <th className="text-left p-2 font-medium">This user</th>
-                        <th className="text-left p-2 font-medium">Other side</th>
-                        <th className="text-left p-2 font-medium">Source</th>
-                        <th className="text-left p-2 font-medium">Date</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {suggestions.asRecipient.map((s) => (
-                        <tr key={s.id} className="border-b hover:bg-muted/30 cursor-pointer" onClick={() => s.candidate && router.push(`/admin/users/${s.candidate.id}`)}>
-                          <td className="p-2">{s.candidate?.firstName} {s.candidate?.lastName}</td>
-                          <td className="p-2">
-                            <span className={s.compatibilityScore && s.compatibilityScore >= 70 ? "text-green-600 font-medium" : s.compatibilityScore && s.compatibilityScore >= 50 ? "text-amber-600" : "text-destructive"}>
-                              {s.compatibilityScore ? `${Math.round(s.compatibilityScore)}%` : "—"}
-                            </span>
-                          </td>
-                          <td className="p-2"><FlowBadge flow={s.flow} /></td>
-                          <td className="p-2"><SuggestionStatus s={s} /></td>
-                          <td className="p-2">{s.flow === "MUTUAL" ? <Decision value={s.recipientDecision} /> : "—"}</td>
-                          <td className="p-2">{s.flow === "MUTUAL" ? <Decision value={s.candidateDecision} /> : "—"}</td>
-                          <td className="p-2"><Badge variant="outline" className="text-xs">{enumLabel("suggestionSource", s.source)}</Badge></td>
-                          <td className="p-2 text-muted-foreground">{new Date(s.createdAt).toLocaleDateString()}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <SuggestionTable rows={suggestions.asRecipient} side="recipient" otherLabel="Candidate" />
               )}
             </div>
-
-            {/* As Candidate */}
             <div>
               <h4 className="text-sm font-semibold mb-2">Sent To ({suggestions.asCandidate.length})</h4>
               {suggestions.asCandidate.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Not suggested to anyone</p>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b bg-muted/50">
-                        <th className="text-left p-2 font-medium">Recipient</th>
-                        <th className="text-left p-2 font-medium">Score</th>
-                        <th className="text-left p-2 font-medium">Flow</th>
-                        <th className="text-left p-2 font-medium">Status</th>
-                        <th className="text-left p-2 font-medium">This user</th>
-                        <th className="text-left p-2 font-medium">Other side</th>
-                        <th className="text-left p-2 font-medium">Source</th>
-                        <th className="text-left p-2 font-medium">Date</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {suggestions.asCandidate.map((s) => (
-                        <tr key={s.id} className="border-b hover:bg-muted/30 cursor-pointer" onClick={() => s.recipient && router.push(`/admin/users/${s.recipient.id}`)}>
-                          <td className="p-2">{s.recipient?.firstName} {s.recipient?.lastName}</td>
-                          <td className="p-2">
-                            <span className={s.compatibilityScore && s.compatibilityScore >= 70 ? "text-green-600 font-medium" : s.compatibilityScore && s.compatibilityScore >= 50 ? "text-amber-600" : "text-destructive"}>
-                              {s.compatibilityScore ? `${Math.round(s.compatibilityScore)}%` : "—"}
-                            </span>
-                          </td>
-                          <td className="p-2"><FlowBadge flow={s.flow} /></td>
-                          <td className="p-2"><SuggestionStatus s={s} /></td>
-                          <td className="p-2">{s.flow === "MUTUAL" ? <Decision value={s.candidateDecision} /> : "—"}</td>
-                          <td className="p-2">{s.flow === "MUTUAL" ? <Decision value={s.recipientDecision} /> : "—"}</td>
-                          <td className="p-2"><Badge variant="outline" className="text-xs">{enumLabel("suggestionSource", s.source)}</Badge></td>
-                          <td className="p-2 text-muted-foreground">{new Date(s.createdAt).toLocaleDateString()}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <SuggestionTable rows={suggestions.asCandidate} side="candidate" otherLabel="Recipient" />
               )}
             </div>
-          </CardContent>
+          </>
         )}
-      </Card>
-    </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function PaymentsCard({ user }: { user: UserDetail }) {
+  const { payments } = user;
+  // The list is found by phone; a member always has one, this is only for odd old rows
+  const allHref = `/admin/payments${user.phone ? `?search=${user.phone}` : ""}`;
+  return (
+    <Card id="payments" className="scroll-mt-20">
+      <CardHeader>
+        <div className="flex items-center justify-between gap-3">
+          <CardTitle className="flex items-center gap-2"><CreditCard className="h-5 w-5" /> Payments ({user._count.payments})</CardTitle>
+          <Link href={allHref} className="text-sm text-primary hover:underline whitespace-nowrap">Open in Payments</Link>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {payments.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No payments</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b bg-muted/50">
+                  <th className="text-left p-2 font-medium">Date</th>
+                  <th className="text-left p-2 font-medium">Package</th>
+                  <th className="text-left p-2 font-medium">Amount</th>
+                  <th className="text-left p-2 font-medium">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {payments.map((pay) => (
+                  <tr key={pay.id} className="border-b align-top">
+                    <td className="p-2 text-muted-foreground whitespace-nowrap">{fmtDateTime(pay.createdAt)}</td>
+                    <td className="p-2">{pay.planName || "—"}</td>
+                    <td className="p-2 font-medium whitespace-nowrap">{Number(pay.amount).toFixed(2)} {pay.currency}</td>
+                    <td className="p-2">
+                      <Badge className={`text-xs ${paymentStatusColors[pay.status] || ""}`}>{enumLabel("paymentStatus", pay.status)}</Badge>
+                      {pay.disputedAt && <Badge variant="destructive" className="ms-1 text-xs">Disputed</Badge>}
+                      {pay.status === "FAILED" && <p className="mt-1 text-xs text-muted-foreground">{failureText(pay.failureReason)}</p>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {user._count.payments > payments.length && (
+          <p className="mt-2 text-xs text-muted-foreground">Newest {payments.length} shown.</p>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -886,7 +966,8 @@ function CycleSections({
                     <th className="text-left p-2 font-medium">Expires</th>
                     <th className="text-left p-2 font-medium">Ended</th>
                     <th className="text-right p-2 font-medium">Messages</th>
-                    <th className="p-2"><span className="sr-only">Actions</span></th>
+                    {/* aria-label, not an sr-only span: that is absolutely positioned, escapes the scroller and made the whole page 506px wide on a phone */}
+                    <th className="p-2" aria-label="Actions" />
                   </tr>
                 </thead>
                 <tbody>
@@ -961,7 +1042,7 @@ function CycleSections({
                   {cycle.ledger.map((l) => (
                     <tr key={l.id} className="border-b">
                       <td className="p-2 text-muted-foreground">
-                        {formatDate(l.createdAt)} {new Date(l.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                        {fmtDateTime(l.createdAt)}
                       </td>
                       <td className="p-2">
                         {/* REFUND covers two things: a payment refund takes credits away, an unanswered «مهتم» gives one back */}

@@ -6,12 +6,16 @@ import { parsePagination } from "@/lib/utils";
 import { personSearch } from "@/lib/admin/search";
 import { getAdminCountry, matchCountryWhere } from "@/lib/admin/country-filter";
 import { effectiveConversationStatus, effectiveRequestStatus } from "@/lib/admin/cycle-stats";
+import { enumParam } from "@/lib/admin/query";
 
 const person = { select: { id: true, firstName: true, lastName: true, status: true } } as const;
 
+/** Stalled pairs: `no_request` nothing asked yet · `waiting` a request nobody answered · `not_started` a chat with no message */
+const STALLED = ["no_request", "waiting", "not_started"] as const;
+
 /**
  * Mutual matches with where each one stands: latest family / chat request, the chat and any legacy
- * visit request. Metadata only.
+ * visit request. Metadata only. `q` name/phone or a pasted match id · `stalled` see STALLED.
  */
 export async function GET(request: Request) {
   try {
@@ -20,13 +24,21 @@ export async function GET(request: Request) {
 
     const { searchParams } = new URL(request.url);
     const { page, skip, pageSize: take } = parsePagination(searchParams, 20);
-    const who = personSearch(searchParams.get("q"));
+    const q = searchParams.get("q")?.trim() ?? "";
+    const stalled = enumParam(searchParams.get("stalled"), STALLED);
+    // A pasted match id finds that match directly (the chat page links here this way)
+    const byId = /^c[a-z0-9]{20,30}$/.test(q) ? q : null;
+    const who = byId ? null : personSearch(q);
+    const now = new Date();
     // Admin's selected country (both people of a match are always from one country)
     const where: Prisma.MutualMatchWhereInput = {
       ...matchCountryWhere(await getAdminCountry(request)),
+      ...(byId && { id: byId }),
       ...(who && { OR: [{ female: who }, { male: who }] }),
+      ...(stalled === "no_request" && { introRequests: { none: {} }, conversation: null }),
+      ...(stalled === "waiting" && { introRequests: { some: { status: "PENDING", expiresAt: { gt: now } } } }),
+      ...(stalled === "not_started" && { conversation: { messages: { none: {} } } }),
     };
-    const now = new Date();
 
     const [total, rows] = await Promise.all([
       db.mutualMatch.count({ where }),

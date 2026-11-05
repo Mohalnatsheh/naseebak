@@ -1,10 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Heart, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { fmtDate, Pager, PersonLink, SearchBox, StateBadge, type PersonRef } from "@/components/admin/admin-list-bits";
 import { enumLabel } from "@/lib/admin/enum-labels";
+import { cn } from "@/lib/utils";
 
 interface RequestState {
   status: string;
@@ -27,16 +30,34 @@ interface MatchRow {
   outcome: { female: string | null; male: string | null; followUps: number };
 }
 
-/** Mutual matches and where each one stands (family / chat requests, chat, legacy visit). */
+const STALLED: [string, string, string][] = [
+  ["", "All", ""],
+  ["no_request", "No chat or family request yet", "Matched, but neither person has asked for a chat or a family introduction"],
+  ["waiting", "Request waiting for an answer", "A family or chat request is open and not answered yet"],
+  ["not_started", "Chat never started", "A chat exists but nobody has written"],
+];
+
 export default function AdminMatchesPage() {
+  return (
+    <Suspense>
+      <MatchesList />
+    </Suspense>
+  );
+}
+
+/** Mutual matches and where each one stands (family / chat requests, chat, legacy visit). */
+function MatchesList() {
+  // `?q=` comes from links on other admin pages (a chat links to its match by id)
+  const initialSearch = useSearchParams().get("q")?.trim() ?? "";
   const [rows, setRows] = useState<MatchRow[]>([]);
   const [page, setPage] = useState(1);
   const [pages, setPages] = useState(1);
   const [total, setTotal] = useState(0);
-  const [query, setQuery] = useState("");
-  const [search, setSearch] = useState("");
-  // The list is loading until the request for the current page + search has settled
-  const requestKey = `${page}\n${search}`;
+  const [query, setQuery] = useState(initialSearch);
+  const [search, setSearch] = useState(initialSearch);
+  const [stalled, setStalled] = useState("");
+  // The list is loading until the request for the current page + filters has settled
+  const requestKey = `${page}\n${search}\n${stalled}`;
   const [settled, setSettled] = useState<{ key: string; error: string } | null>(null);
   const loading = settled?.key !== requestKey;
   const error = settled?.key === requestKey ? settled.error : "";
@@ -45,6 +66,7 @@ export default function AdminMatchesPage() {
     let alive = true;
     const params = new URLSearchParams({ page: String(page) });
     if (search) params.set("q", search);
+    if (stalled) params.set("stalled", stalled);
     fetch(`/api/admin/matches?${params}`)
       .then((r) => {
         if (!r.ok) throw new Error(String(r.status));
@@ -61,8 +83,10 @@ export default function AdminMatchesPage() {
     return () => {
       alive = false;
     };
-  }, [page, search, requestKey]);
+  }, [page, search, stalled, requestKey]);
 
+  // The visit column is legacy: only when a row on this page has one
+  const showVisit = rows.some((m) => m.visit);
   const sender = (m: MatchRow, r: RequestState) => m.people.find((p) => p.id === r.senderId)?.firstName ?? "";
 
   return (
@@ -79,6 +103,22 @@ export default function AdminMatchesPage() {
         <CardHeader className="space-y-3">
           <CardTitle>All matches ({total})</CardTitle>
           <SearchBox value={query} onChange={setQuery} onSubmit={() => { setSearch(query.trim()); setPage(1); }} />
+          <div className="flex flex-wrap gap-2">
+            {STALLED.map(([v, l, hint]) => (
+              <button
+                key={l}
+                type="button"
+                title={hint}
+                onClick={() => { setStalled(v); setPage(1); }}
+                className={cn(
+                  "rounded-full border px-3 py-1 text-sm transition-colors",
+                  stalled === v ? "border-primary bg-primary text-primary-foreground" : "border-border hover:bg-muted",
+                )}
+              >
+                {l}
+              </button>
+            ))}
+          </div>
         </CardHeader>
         <CardContent>
           {error && <p className="mb-3 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
@@ -98,7 +138,7 @@ export default function AdminMatchesPage() {
                     <th className="py-2 pe-4 font-medium">Family introduction</th>
                     <th className="py-2 pe-4 font-medium">Chat request</th>
                     <th className="py-2 pe-4 font-medium">Chat</th>
-                    <th className="hidden py-2 pe-4 font-medium md:table-cell">Visit (legacy)</th>
+                    {showVisit && <th className="hidden py-2 pe-4 font-medium md:table-cell">Visit (legacy)</th>}
                     <th className="py-2 font-medium">Outcome</th>
                   </tr>
                 </thead>
@@ -135,11 +175,19 @@ export default function AdminMatchesPage() {
                         )}
                       </td>
                       <td className="py-3 pe-4">
-                        {m.chat ? <StateBadge value={m.chat.status} group="chatStatus" /> : <span className="text-muted-foreground">—</span>}
+                        {m.chat ? (
+                          <Link href={`/admin/chats/${m.chat.id}`} className="hover:opacity-80" title="Open this chat">
+                            <StateBadge value={m.chat.status} group="chatStatus" />
+                          </Link>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
                       </td>
-                      <td className="hidden py-3 pe-4 text-muted-foreground md:table-cell">
-                        {m.visit ? enumLabel("visitStatus", m.visit) : "—"}
-                      </td>
+                      {showVisit && (
+                        <td className="hidden py-3 pe-4 text-muted-foreground md:table-cell">
+                          {m.visit ? enumLabel("visitStatus", m.visit) : "—"}
+                        </td>
+                      )}
                       <td className="py-3 text-xs">
                         {m.outcome.female || m.outcome.male ? (
                           <span className="inline-flex flex-col gap-0.5">

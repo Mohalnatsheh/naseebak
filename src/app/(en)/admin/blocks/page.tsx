@@ -1,15 +1,20 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { toast } from "sonner";
 import { Ban, Loader2, ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { PersonLink, fmtDate } from "@/components/admin/admin-list-bits";
 
 interface BlockRow {
   id: string;
   createdAt: string;
   blocker: { id: string; firstName: string; lastName: string; phone: string | null };
   blocked: { id: string; firstName: string; lastName: string; phone: string | null };
+  /** How many people blocked this member in all */
+  blockedByCount: number;
 }
 
 export default function AdminBlocksPage() {
@@ -17,17 +22,24 @@ export default function AdminBlocksPage() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [removing, setRemoving] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadError("");
     try {
       const res = await fetch(`/api/admin/blocks?page=${page}`);
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setLoadError(data.error || `Could not load the blocks (${res.status})`);
+        return;
+      }
       setBlocks(data.blocks || []);
       setTotalPages(data.totalPages || 1);
     } catch (err) {
       console.error(err);
+      setLoadError("Could not load the blocks. Check your connection and try again.");
     } finally {
       setLoading(false);
     }
@@ -43,10 +55,16 @@ export default function AdminBlocksPage() {
     try {
       const res = await fetch(`/api/admin/blocks/${blockId}`, { method: "DELETE" });
       if (res.ok) {
-        setBlocks((prev) => prev.filter((b) => b.id !== blockId));
+        toast.success("Block removed");
+        // Refetch: the blocked member's count changes on any other row too
+        await load();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error || `Could not remove the block (${res.status})`);
       }
     } catch (err) {
       console.error(err);
+      toast.error("Network error, please try again");
     } finally {
       setRemoving(null);
     }
@@ -64,67 +82,80 @@ export default function AdminBlocksPage() {
 
       <Card>
         <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b bg-muted/50">
-                  <th className="text-left p-3 text-sm font-medium">Blocker</th>
-                  <th className="text-left p-3 text-sm font-medium">Blocked User</th>
-                  <th className="text-left p-3 text-sm font-medium">Date</th>
-                  <th className="text-left p-3 text-sm font-medium">Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  Array.from({ length: 5 }).map((_, i) => (
-                    <tr key={i} className="border-b">
-                      <td colSpan={4} className="p-3">
-                        <div className="h-6 bg-muted animate-pulse rounded" />
-                      </td>
-                    </tr>
-                  ))
-                ) : blocks.length === 0 ? (
-                  <tr>
-                    <td colSpan={4} className="text-center p-8 text-muted-foreground">
-                      No blocks found
-                    </td>
+          {loadError ? (
+            <div className="flex flex-wrap items-center justify-between gap-3 p-4 text-sm text-destructive">
+              <span>{loadError}</span>
+              <Button variant="outline" size="sm" onClick={load}>Try again</Button>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b bg-muted/50">
+                    <th className="text-left p-3 text-sm font-medium">Blocker</th>
+                    <th className="text-left p-3 text-sm font-medium">Blocked User</th>
+                    <th className="text-left p-3 text-sm font-medium">Date</th>
+                    <th className="text-left p-3 text-sm font-medium">Action</th>
                   </tr>
-                ) : (
-                  blocks.map((block) => (
-                    <tr key={block.id} className="border-b hover:bg-muted/30 transition-colors">
-                      <td className="p-3">
-                        <p className="font-medium text-sm">{block.blocker.firstName} {block.blocker.lastName}</p>
-                        <p className="text-xs text-muted-foreground">{block.blocker.phone || "—"}</p>
-                      </td>
-                      <td className="p-3">
-                        <p className="font-medium text-sm">{block.blocked.firstName} {block.blocked.lastName}</p>
-                        <p className="text-xs text-muted-foreground">{block.blocked.phone || "—"}</p>
-                      </td>
-                      <td className="p-3 text-sm text-muted-foreground whitespace-nowrap">
-                        {new Date(block.createdAt).toLocaleDateString()}
-                      </td>
-                      <td className="p-3">
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => handleRemove(block.id)}
-                          disabled={removing === block.id}
-                        >
-                          {removing === block.id ? (
-                            <Loader2 className="h-3 w-3 animate-spin" />
-                          ) : (
-                            <><Trash2 className="h-3 w-3 me-1" />Remove</>
-                          )}
-                        </Button>
+                </thead>
+                <tbody>
+                  {loading ? (
+                    Array.from({ length: 5 }).map((_, i) => (
+                      <tr key={i} className="border-b">
+                        <td colSpan={4} className="p-3">
+                          <div className="h-6 bg-muted animate-pulse rounded" />
+                        </td>
+                      </tr>
+                    ))
+                  ) : blocks.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="text-center p-8 text-muted-foreground">
+                        No blocks found
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+                  ) : (
+                    blocks.map((block) => (
+                      <tr key={block.id} className="border-b hover:bg-muted/30 transition-colors">
+                        <td className="p-3 text-sm">
+                          <PersonLink p={block.blocker} />
+                          <p className="text-xs text-muted-foreground">{block.blocker.phone || "—"}</p>
+                        </td>
+                        <td className="p-3 text-sm">
+                          <PersonLink p={block.blocked} />
+                          <p className="text-xs text-muted-foreground">{block.blocked.phone || "—"}</p>
+                          {block.blockedByCount > 1 && (
+                            <Badge variant="outline" className="mt-1 text-xs text-amber-700 border-amber-300">
+                              Blocked by {block.blockedByCount} people
+                            </Badge>
+                          )}
+                        </td>
+                        <td className="p-3 text-sm text-muted-foreground whitespace-nowrap">
+                          {fmtDate(block.createdAt)}
+                        </td>
+                        <td className="p-3">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-muted-foreground hover:text-destructive"
+                            onClick={() => handleRemove(block.id)}
+                            disabled={removing === block.id}
+                          >
+                            {removing === block.id ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                              <><Trash2 className="h-3 w-3 me-1" />Remove</>
+                            )}
+                          </Button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
 
-          {totalPages > 1 && (
+          {!loadError && totalPages > 1 && (
             <div className="flex items-center justify-between p-3 border-t">
               <p className="text-sm text-muted-foreground">Page {page} of {totalPages}</p>
               <div className="flex gap-2">

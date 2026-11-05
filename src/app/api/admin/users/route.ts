@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { parsePagination } from "@/lib/utils";
-import type { Prisma } from "@prisma/client";
-import { getAdminCountry, userCountryWhere } from "@/lib/countries/server";
+import { getAdminCountry } from "@/lib/countries/server";
+import { USER_SORTS, usersListWhere } from "@/lib/admin/list-filters";
 
 /**
  * Where a member uses Naseebak (admin list «Uses», owner request 2026-11-04): `app` = signed in to the app at least once
@@ -46,42 +46,15 @@ export async function GET(request: Request) {
     const rawPage = url.searchParams.get("page");
     const pageNum = rawPage && /^\d{1,6}$/.test(rawPage) ? rawPage : "1";
     const { page, pageSize, skip } = parsePagination(new URLSearchParams({ page: pageNum }), 20);
-    const search = url.searchParams.get("search") || "";
-    const gender = url.searchParams.get("gender") || "";
-    const status = url.searchParams.get("status") || "";
-    const uses = url.searchParams.get("uses") || "";
-
-    // Admin's selected country ("ALL" = every country)
-    const where: Prisma.UserWhereInput = { ...userCountryWhere(await getAdminCountry(request)) };
-
-    if (search) {
-      where.OR = [
-        { firstName: { contains: search, mode: "insensitive" } },
-        { lastName: { contains: search, mode: "insensitive" } },
-        { phone: { contains: search } },
-      ];
-    }
-
-    if (gender === "MALE" || gender === "FEMALE") {
-      where.gender = gender;
-    }
-
-    // App users = signed in to the app at least once; website only = never
-    if (uses === "app") where.mobileSessions = { some: {} };
-    else if (uses === "web") where.mobileSessions = { none: {} };
-
-    if (status === "FLAGGED") {
-      where.isFlagged = true;
-    } else if (status === "VERIFIED" || status === "PENDING" || status === "SUSPENDED" || status === "REJECTED") {
-      where.status = status;
-    }
+    const orderBy = USER_SORTS[url.searchParams.get("sort") || "joined"] ?? USER_SORTS.joined;
+    const where = usersListWhere(url.searchParams, await getAdminCountry(request));
 
     const [users, total] = await Promise.all([
       db.user.findMany({
         where,
         skip,
         take: pageSize,
-        orderBy: { createdAt: "desc" },
+        orderBy,
         select: {
           id: true,
           firstName: true,
@@ -92,13 +65,11 @@ export async function GET(request: Request) {
           country: true,
           role: true,
           status: true,
-          isVerified: true,
           isDeactivated: true,
           isFlagged: true,
           matchCredits: true,
-          verifiedAt: true,
+          lastActiveAt: true,
           createdAt: true,
-          identityDoc: { select: { status: true } },
           profile: { select: { isComplete: true, city: true } },
           photos: { select: { id: true, url: true, isPrimary: true }, orderBy: { order: "asc" } },
           _count: { select: { matchesAsFemale: true, matchesAsMale: true, photos: true } },

@@ -4,17 +4,23 @@ import { db } from "@/lib/db";
 import { notify } from "@/lib/notify";
 import { refreshOpenSuggestionsInBackground } from "@/lib/suggestions/refresh";
 import { buildProfileUpdate } from "@/lib/admin/profile-changes";
-import { safePagination } from "@/lib/admin/query";
+import { enumParam, safePagination } from "@/lib/admin/query";
 import { byUserCountry, getAdminCountry } from "@/lib/admin/country-filter";
 
+const STATUSES = ["PENDING", "APPROVED", "REJECTED"] as const;
+
+/** Pending requests oldest first; `?status=APPROVED|REJECTED` shows handled ones, latest first; `?id=` one request */
 export async function GET(request: Request) {
   try {
     const result = await requireAdmin();
     if ("error" in result) return result.error;
 
-    const { page, pageSize, skip } = safePagination(new URL(request.url).searchParams, 20);
+    const { searchParams } = new URL(request.url);
+    const { page, pageSize, skip } = safePagination(searchParams, 20);
+    const status = enumParam(searchParams.get("status"), STATUSES) ?? "PENDING";
+    const id = searchParams.get("id");
     // Admin's selected country ("ALL" = every country)
-    const where = { status: "PENDING" as const, ...byUserCountry(await getAdminCountry(request), "user") };
+    const where = { ...(id ? { id } : { status }), ...byUserCountry(await getAdminCountry(request), "user") };
 
     const [requests, total] = await Promise.all([
       db.profileUpdateRequest.findMany({
@@ -29,7 +35,7 @@ export async function GET(request: Request) {
             },
           },
         },
-        orderBy: { createdAt: "asc" },
+        orderBy: status === "PENDING" ? { createdAt: "asc" } : { reviewedAt: "desc" },
       }),
       db.profileUpdateRequest.count({ where }),
     ]);
@@ -37,7 +43,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ requests, total, page, totalPages: Math.ceil(total / pageSize) });
   } catch (error) {
     console.error("Admin profile requests error:", error);
-    return NextResponse.json({ error: "حدث خطأ في الخادم" }, { status: 500 });
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }
 
@@ -47,12 +53,12 @@ export async function PATCH(request: Request) {
     if ("error" in result) return result.error;
     const body = await request.json().catch(() => null);
     if (!body || typeof body !== "object") {
-      return NextResponse.json({ error: "بيانات غير صالحة" }, { status: 400 });
+      return NextResponse.json({ error: "Invalid data" }, { status: 400 });
     }
     const { requestId, action, adminNote } = body;
 
     if (!requestId || typeof requestId !== "string" || !["APPROVED", "REJECTED"].includes(action)) {
-      return NextResponse.json({ error: "بيانات غير صالحة" }, { status: 400 });
+      return NextResponse.json({ error: "Invalid data" }, { status: 400 });
     }
 
     const updateRequest = await db.profileUpdateRequest.findUnique({
@@ -60,7 +66,7 @@ export async function PATCH(request: Request) {
     });
 
     if (!updateRequest || updateRequest.status !== "PENDING") {
-      return NextResponse.json({ error: "الطلب غير موجود أو تمت مراجعته" }, { status: 404 });
+      return NextResponse.json({ error: "Request not found or already reviewed" }, { status: 404 });
     }
 
     const note = typeof adminNote === "string" && adminNote.trim() ? adminNote.trim() : null;
@@ -86,7 +92,7 @@ export async function PATCH(request: Request) {
     });
 
     if (!updated) {
-      return NextResponse.json({ error: "الطلب غير موجود أو تمت مراجعته" }, { status: 409 });
+      return NextResponse.json({ error: "Request not found or already reviewed" }, { status: 409 });
     }
 
     const approved = action === "APPROVED";
@@ -105,11 +111,11 @@ export async function PATCH(request: Request) {
     });
 
     return NextResponse.json({
-      message: action === "APPROVED" ? "تمت الموافقة على التعديل" : "تم رفض التعديل",
+      message: action === "APPROVED" ? "Change approved" : "Change rejected",
       request: updated,
     });
   } catch (error) {
     console.error("Admin profile request review error:", error);
-    return NextResponse.json({ error: "حدث خطأ في الخادم" }, { status: 500 });
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }

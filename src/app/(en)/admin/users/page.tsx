@@ -1,14 +1,15 @@
 "use client";
 
-import { useState, useEffect, useEffectEvent } from "react";
+import { useState, useEffect, useEffectEvent, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { Users, ShieldCheck, ChevronLeft, ChevronRight, Search, Ban, Loader2, CreditCard, Flag, CheckSquare, Square, Images, ExternalLink } from "lucide-react";
+import { toast } from "sonner";
+import { Users, ShieldCheck, ChevronLeft, ChevronRight, Ban, Loader2, CreditCard, Flag, CheckSquare, Square, Images, ExternalLink, Download } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { enumLabel } from "@/lib/admin/enum-labels";
+import { fmtAgo, fmtDate, fmtDateTime } from "@/components/admin/admin-list-bits";
 import { countryConfig, toCountry } from "@/lib/countries";
 import { CountryFlag } from "@/components/shared/country-flag";
 
@@ -23,12 +24,11 @@ interface UserRow {
   country: string;
   role: string;
   status: string;
-  isVerified: boolean;
   isDeactivated: boolean;
   isFlagged: boolean;
   matchCredits: number;
+  lastActiveAt: string | null;
   createdAt: string;
-  identityDoc: { status: string } | null;
   profile: { isComplete: boolean; city: string | null } | null;
   photos: { id: string; url: string; isPrimary: boolean }[];
   _count: { matchesAsFemale: number; matchesAsMale: number; photos: number };
@@ -63,12 +63,39 @@ function UsesBadges({ uses }: { uses?: UserRow["uses"] }) {
   );
 }
 
-const statusStyles: Record<string, string> = {
-  PENDING: "text-muted-foreground border-border",
-  VERIFIED: "text-green-600 border-green-300",
-  REJECTED: "text-destructive border-destructive/30",
-  SUSPENDED: "text-destructive border-destructive/30",
-};
+/** Only what needs attention: a normal account shows no status at all */
+function AccountBadges({ u }: { u: UserRow }) {
+  return (
+    <>
+      {u.role === "ADMIN" && <Badge variant="destructive" className="text-xs">Admin</Badge>}
+      {u.status === "SUSPENDED" && (
+        <Badge variant="outline" className="text-xs text-destructive border-destructive/30">
+          <Ban className="h-3 w-3 me-1" />Suspended
+        </Badge>
+      )}
+      {u.isDeactivated && <Badge variant="outline" className="text-xs text-destructive">Deactivated</Badge>}
+      {u.isFlagged && (
+        <Badge variant="outline" className="text-xs text-destructive border-destructive/30">
+          <Flag className="h-3 w-3 me-1" />Flagged
+        </Badge>
+      )}
+    </>
+  );
+}
+
+function Avatar({ u }: { u: UserRow }) {
+  if (u.photos.length > 0) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={(u.photos.find((p) => p.isPrimary) ?? u.photos[0]).url} alt="" className="h-8 w-8 shrink-0 rounded-full object-cover border" />;
+  }
+  return (
+    <div className="h-8 w-8 shrink-0 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">
+      {u.firstName.charAt(0)}
+    </div>
+  );
+}
+
+const FILTER_CLASS = "rounded-lg border border-input bg-background px-3 py-2 text-sm";
 
 export default function AdminUsersPage() {
   const router = useRouter();
@@ -76,60 +103,76 @@ export default function AdminUsersPage() {
   const [users, setUsers] = useState<UserRow[]>([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  /** The search actually applied: follows `search` after a short pause in typing */
+  const [query, setQuery] = useState("");
   const [gender, setGender] = useState("");
   const [status, setStatus] = useState("");
   const [uses, setUses] = useState("");
+  const [credits, setCredits] = useState("");
+  const [sort, setSort] = useState("joined");
   const [suspendingId, setSuspendingId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkSuspending, setBulkSuspending] = useState(false);
-  const [notice, setNotice] = useState<{ kind: "success" | "error"; text: string } | null>(null);
+  // Only the newest request may fill the list: a slow older one must not overwrite it
+  const lastRequest = useRef(0);
 
-  // Reloads on page change only; the filters apply when the search form is submitted
-  const onPageChange = useEffectEvent(() => {
+  // Reloads when the page, a filter or the applied search changes
+  const onListChange = useEffectEvent(() => {
     // A selection only applies to the rows on screen
     setSelectedIds(new Set());
     fetchUsers();
   });
 
   useEffect(() => {
-    onPageChange();
-  }, [page]);
+    onListChange();
+  }, [page, query, gender, status, uses, credits, sort]);
 
-  async function fetchUsers(resetPage = false) {
-    setLoading(true);
-    const p = resetPage ? 1 : page;
-    if (resetPage) {
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setQuery(search.trim());
       setPage(1);
-      setSelectedIds(new Set());
-    }
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  /** A filter or sort changed: back to the first page */
+  function applied<T>(set: (value: T) => void) {
+    return (value: T) => {
+      set(value);
+      setPage(1);
+    };
+  }
+
+  async function fetchUsers() {
+    const request = ++lastRequest.current;
+    setLoading(true);
     try {
-      const params = new URLSearchParams({ page: String(p) });
-      if (search) params.set("search", search);
+      const params = new URLSearchParams({ page: String(page), sort });
+      if (query) params.set("search", query);
       if (gender) params.set("gender", gender);
       if (uses) params.set("uses", uses);
       if (status) params.set("status", status);
+      if (credits) params.set("credits", credits);
       const res = await fetch(`/api/admin/users?${params}`);
       const data = await res.json().catch(() => ({}));
+      if (request !== lastRequest.current) return;
       if (!res.ok) {
-        setNotice({ kind: "error", text: data.error || "Could not load users" });
+        toast.error(data.error || "Could not load users");
         setUsers([]);
         return;
       }
       setUsers(data.users || []);
       setTotalPages(data.totalPages || 1);
+      setTotal(data.total ?? null);
     } catch (err) {
       console.error(err);
-      setNotice({ kind: "error", text: "Could not load users. Check your connection and try again." });
+      toast.error("Could not load users. Check your connection and try again.");
     } finally {
-      setLoading(false);
+      if (request === lastRequest.current) setLoading(false);
     }
-  }
-
-  function handleSearch(e: React.FormEvent) {
-    e.preventDefault();
-    fetchUsers(true);
   }
 
   function toggleSelect(userId: string) {
@@ -155,7 +198,6 @@ export default function AdminUsersPage() {
     const count = selectedIds.size;
     if (!confirm(`Are you sure you want to ${action} ${count} user(s)?`)) return;
     setBulkSuspending(true);
-    setNotice(null);
     try {
       const res = await fetch("/api/admin/users/bulk-suspend", {
         method: "POST",
@@ -164,109 +206,129 @@ export default function AdminUsersPage() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setNotice({ kind: "error", text: data.error || `Could not ${action} the selected users` });
+        toast.error(data.error || `Could not ${action} the selected users`);
         return;
       }
       const verb = action === "suspend" ? "Suspended" : "Unsuspended";
       const parts = [`${verb} ${data.changed} user(s)`];
       if (data.unchanged) parts.push(`${data.unchanged} already ${action === "suspend" ? "suspended" : "active"}`);
       if (data.failed?.length) parts.push(`${data.failed.length} failed (${data.failed[0].error})`);
-      setNotice({ kind: data.failed?.length ? "error" : "success", text: parts.join(" · ") });
+      if (data.failed?.length) toast.error(parts.join(" · "));
+      else toast.success(parts.join(" · "));
       setSelectedIds(new Set());
       await fetchUsers();
     } catch (err) {
       console.error(err);
-      setNotice({ kind: "error", text: "Network error — please try again" });
+      toast.error("Network error, please try again");
     } finally {
       setBulkSuspending(false);
     }
   }
 
-  async function handleSuspend(e: React.MouseEvent, userId: string) {
+  async function handleSuspend(e: React.MouseEvent, user: UserRow) {
     e.stopPropagation();
-    setSuspendingId(userId);
-    setNotice(null);
+    const suspend = user.status !== "SUSPENDED";
+    if (suspend && !confirm("Suspend this user? Their active chats will be ended and they will be signed out of the app.")) return;
+    setSuspendingId(user.id);
     try {
-      const res = await fetch(`/api/admin/users/${userId}/suspend`, { method: "PUT" });
+      const res = await fetch(`/api/admin/users/${user.id}/suspend`, { method: "PUT" });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        setNotice({ kind: "error", text: data.error || "Could not change the suspension" });
+        toast.error(data.error || "Could not change the suspension");
         return;
       }
       await fetchUsers();
     } catch (err) {
       console.error(err);
-      setNotice({ kind: "error", text: "Network error — please try again" });
+      toast.error("Network error, please try again");
     } finally {
       setSuspendingId(null);
     }
   }
 
+  /** Same button in the table and on the phone cards: quiet, it's on every row */
+  function suspendButton(u: UserRow) {
+    if (u.role === "ADMIN") return null;
+    return (
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={(e) => handleSuspend(e, u)}
+        disabled={suspendingId === u.id}
+        className="text-xs text-muted-foreground hover:text-destructive"
+      >
+        {suspendingId === u.id ? (
+          <Loader2 className="h-3 w-3 animate-spin" />
+        ) : (
+          <><Ban className="h-3 w-3 me-1" />{u.status === "SUSPENDED" ? "Unsuspend" : "Suspend"}</>
+        )}
+      </Button>
+    );
+  }
+
+  function photosButton(u: UserRow) {
+    if (u._count.photos === 0) return <span className="text-xs text-muted-foreground whitespace-nowrap">No photos</span>;
+    return (
+      <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" onClick={(e) => { e.stopPropagation(); setPhotoUser(u); }}>
+        <Images className="h-3.5 w-3.5" />
+        {u._count.photos}
+      </Button>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold flex items-center gap-3">
-          <Users className="h-7 w-7 text-primary" />
-          User Management
-        </h1>
-        <p className="text-muted-foreground mt-1">View and manage all registered users</p>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-2xl font-bold flex items-center gap-3">
+            <Users className="h-7 w-7 text-primary" />
+            User Management
+          </h1>
+          <Button asChild variant="outline" size="sm">
+            <a href={`/api/admin/users/export?${new URLSearchParams({ sort, ...(query && { search: query }), ...(gender && { gender }), ...(uses && { uses }), ...(status && { status }), ...(credits && { credits }) })}`}>
+              <Download className="me-2 h-4 w-4" /> Download CSV
+            </a>
+          </Button>
+        </div>
+        <p className="text-muted-foreground mt-1">
+          {total === null ? "View and manage all registered users" : `${total.toLocaleString("en-US")} member${total === 1 ? "" : "s"}`}
+        </p>
       </div>
 
-      {/* Search + Filters */}
-      <form onSubmit={handleSearch} className="flex flex-wrap gap-3">
+      {/* Search + Filters: apply as soon as they change */}
+      <form onSubmit={(e) => e.preventDefault()} className="flex flex-wrap gap-3">
         <div className="flex-1 min-w-[200px]">
           <Input
-            placeholder="Search by name or phone..."
+            placeholder="Name, phone (07…), email or user id"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <select
-          value={gender}
-          onChange={(e) => setGender(e.target.value)}
-          className="rounded-lg border border-input bg-background px-3 py-2 text-sm"
-        >
+        <select value={gender} onChange={(e) => applied(setGender)(e.target.value)} aria-label="Gender" className={FILTER_CLASS}>
           <option value="">All Genders</option>
           <option value="MALE">Male</option>
           <option value="FEMALE">Female</option>
         </select>
-        <select
-          value={status}
-          onChange={(e) => setStatus(e.target.value)}
-          className="rounded-lg border border-input bg-background px-3 py-2 text-sm"
-        >
-          <option value="">All Status</option>
-          {(["PENDING", "VERIFIED", "SUSPENDED", "REJECTED", "FLAGGED"] as const).map((s) => (
-            <option key={s} value={s}>{enumLabel("userStatus", s)}</option>
-          ))}
+        <select value={status} onChange={(e) => applied(setStatus)(e.target.value)} aria-label="Account" className={FILTER_CLASS}>
+          <option value="">All accounts</option>
+          <option value="SUSPENDED">Suspended</option>
+          <option value="FLAGGED">Flagged</option>
         </select>
-        <select
-          value={uses}
-          onChange={(e) => setUses(e.target.value)}
-          aria-label="Website or app"
-          className="rounded-lg border border-input bg-background px-3 py-2 text-sm"
-        >
+        <select value={credits} onChange={(e) => applied(setCredits)(e.target.value)} aria-label="Credits" className={FILTER_CLASS}>
+          <option value="">Any credits</option>
+          <option value="zero">0 credits</option>
+        </select>
+        <select value={uses} onChange={(e) => applied(setUses)(e.target.value)} aria-label="Website or app" className={FILTER_CLASS}>
           <option value="">Website + app</option>
           <option value="app">App users</option>
           <option value="web">Website only</option>
         </select>
-        <Button type="submit">
-          <Search className="h-4 w-4 me-2" /> Search
-        </Button>
+        <select value={sort} onChange={(e) => applied(setSort)(e.target.value)} aria-label="Sort by" className={FILTER_CLASS}>
+          <option value="joined">Newest members</option>
+          <option value="lastActive">Last active</option>
+          <option value="credits">Most credits</option>
+        </select>
       </form>
-
-      {notice && (
-        <div
-          className={`flex items-start justify-between gap-3 rounded-lg border px-3 py-2 text-sm ${
-            notice.kind === "success"
-              ? "border-green-300 bg-green-50 text-green-800"
-              : "border-destructive/30 bg-destructive/10 text-destructive"
-          }`}
-        >
-          <span>{notice.text}</span>
-          <button onClick={() => setNotice(null)} className="text-xs underline shrink-0">Dismiss</button>
-        </div>
-      )}
 
       {/* Bulk actions bar */}
       {selectedIds.size > 0 && (
@@ -298,12 +360,56 @@ export default function AdminUsersPage() {
 
       <Card>
         <CardContent className="p-0">
-          <div className="overflow-x-auto">
+          {/* Phones: stacked cards instead of a table that scrolls sideways */}
+          <div className="divide-y md:hidden">
+            {loading ? (
+              Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="p-3">
+                  <div className="h-16 bg-muted animate-pulse rounded" />
+                </div>
+              ))
+            ) : users.length === 0 ? (
+              <p className="p-8 text-center text-muted-foreground">No users found</p>
+            ) : (
+              users.map((u) => (
+                <div key={u.id} className="space-y-2 p-3" onClick={() => router.push(`/admin/users/${u.id}`)}>
+                  <div className="flex items-start gap-2">
+                    {u.role !== "ADMIN" && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); toggleSelect(u.id); }}
+                        aria-label="Select"
+                        className="p-2 -m-2 text-muted-foreground"
+                      >
+                        {selectedIds.has(u.id) ? <CheckSquare className="h-4 w-4 text-primary" /> : <Square className="h-4 w-4" />}
+                      </button>
+                    )}
+                    <Avatar u={u} />
+                    <div className="min-w-0 flex-1">
+                      <p className="break-words text-sm font-medium">{u.firstName} {u.lastName}</p>
+                      <p className="text-sm text-muted-foreground">{u.phone || "—"}</p>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-1"><AccountBadges u={u} /></div>
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                    <span className="inline-flex items-center gap-1"><CreditCard className="h-3 w-3" />{u.matchCredits} {u.matchCredits === 1 ? "credit" : "credits"}</span>
+                    <span title={fmtDateTime(u.lastActiveAt)}>{u.lastActiveAt ? `Active ${fmtAgo(u.lastActiveAt)}` : "No activity yet"}</span>
+                  </div>
+                  <UsesBadges uses={u.uses} />
+                  <div className="flex items-center justify-between gap-2">
+                    {photosButton(u)}
+                    {suspendButton(u)}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          <div className="hidden overflow-x-auto md:block">
             <table className="w-full">
               <thead>
                 <tr className="border-b bg-muted/50">
                   <th className="p-3 w-10">
-                    <button onClick={toggleSelectAll} className="text-muted-foreground hover:text-foreground">
+                    <button onClick={toggleSelectAll} aria-label="Select all" className="text-muted-foreground hover:text-foreground">
                       {selectedIds.size > 0 && selectedIds.size === users.filter((u) => u.role !== "ADMIN").length ? (
                         <CheckSquare className="h-4 w-4" />
                       ) : (
@@ -315,13 +421,13 @@ export default function AdminUsersPage() {
                   <th className="text-left p-3 text-sm font-medium">Phone</th>
                   <th className="text-left p-3 text-sm font-medium">Photos</th>
                   <th className="text-left p-3 text-sm font-medium">Country</th>
-                  <th className="hidden md:table-cell text-left p-3 text-sm font-medium">Gender</th>
-                  <th className="hidden md:table-cell text-left p-3 text-sm font-medium">City</th>
-                  <th className="text-left p-3 text-sm font-medium">Status</th>
+                  <th className="text-left p-3 text-sm font-medium">Gender</th>
+                  <th className="text-left p-3 text-sm font-medium">City</th>
                   <th className="text-left p-3 text-sm font-medium">Uses</th>
-                  <th className="hidden md:table-cell text-left p-3 text-sm font-medium">Credits</th>
-                  <th className="hidden md:table-cell text-left p-3 text-sm font-medium">Matches</th>
-                  <th className="hidden md:table-cell text-left p-3 text-sm font-medium">Joined</th>
+                  <th className="text-left p-3 text-sm font-medium">Last active</th>
+                  <th className="text-left p-3 text-sm font-medium">Credits</th>
+                  <th className="text-left p-3 text-sm font-medium">Matches</th>
+                  <th className="text-left p-3 text-sm font-medium">Joined</th>
                   <th className="text-left p-3 text-sm font-medium">Actions</th>
                 </tr>
               </thead>
@@ -349,94 +455,49 @@ export default function AdminUsersPage() {
                     >
                       <td className="p-3" onClick={(e) => e.stopPropagation()}>
                         {u.role !== "ADMIN" && (
-                          <button onClick={() => toggleSelect(u.id)} className="p-2 -m-2 text-muted-foreground hover:text-foreground">
+                          <button onClick={() => toggleSelect(u.id)} aria-label="Select" className="p-2 -m-2 text-muted-foreground hover:text-foreground">
                             {selectedIds.has(u.id) ? <CheckSquare className="h-4 w-4 text-primary" /> : <Square className="h-4 w-4" />}
                           </button>
                         )}
                       </td>
                       <td className="p-3">
                         <div className="flex items-center gap-2">
-                          {u.photos.length > 0 ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img src={(u.photos.find((p) => p.isPrimary) ?? u.photos[0]).url} alt="" className="h-8 w-8 shrink-0 rounded-full object-cover border" />
-                          ) : (
-                            <div className="h-8 w-8 shrink-0 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">
-                              {u.firstName.charAt(0)}
-                            </div>
-                          )}
+                          <Avatar u={u} />
                           <div>
                             <p className="font-medium text-sm whitespace-nowrap">{u.firstName} {u.lastName}</p>
-                            {u.role === "ADMIN" && <Badge variant="destructive" className="text-xs">Admin</Badge>}
+                            <div className="flex flex-wrap gap-1 empty:hidden"><AccountBadges u={u} /></div>
                           </div>
                         </div>
                       </td>
                       <td className="p-3 text-sm text-muted-foreground whitespace-nowrap">{u.phone || "—"}</td>
-                      <td className="p-3" onClick={(e) => e.stopPropagation()}>
-                        {u._count.photos > 0 ? (
-                          <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => setPhotoUser(u)}>
-                            <Images className="h-3.5 w-3.5" />
-                            {u._count.photos}
-                          </Button>
-                        ) : (
-                          <span className="text-xs text-muted-foreground whitespace-nowrap">No photos</span>
-                        )}
-                      </td>
+                      <td className="p-3">{photosButton(u)}</td>
                       <td className="p-3">
                         <Badge variant="outline" className="text-xs whitespace-nowrap" title={countryConfig(u.country).nameEn}>
                           <CountryFlag country={toCountry(u.country)} className="me-1 inline h-3 w-4 align-[-1px]" />
                           {u.country}
                         </Badge>
                       </td>
-                      <td className="hidden md:table-cell p-3">
+                      <td className="p-3">
                         <Badge variant={u.gender === "MALE" ? "default" : "secondary"} className="text-xs">
                           {u.gender === "MALE" ? "Male" : "Female"}
                         </Badge>
                       </td>
-                      <td className="hidden md:table-cell p-3 text-sm">{u.profile?.city || "—"}</td>
-                      <td className="p-3">
-                        <Badge variant="outline" className={`text-xs ${statusStyles[u.status] || ""}`}>
-                          {u.status === "VERIFIED" && <ShieldCheck className="h-3 w-3 me-1" />}
-                          {enumLabel("userStatus", u.status)}
-                        </Badge>
-                        {u.isDeactivated && (
-                          <Badge variant="outline" className="text-xs text-destructive ms-1">Deactivated</Badge>
-                        )}
-                        {u.isFlagged && (
-                          <Badge variant="outline" className="text-xs text-destructive border-destructive/30 ms-1">
-                            <Flag className="h-3 w-3 me-1" />Flagged
-                          </Badge>
-                        )}
-                      </td>
+                      <td className="p-3 text-sm">{u.profile?.city || "—"}</td>
                       <td className="p-3">
                         <UsesBadges uses={u.uses} />
                       </td>
-                      <td className="hidden md:table-cell p-3 text-sm">
+                      <td className="p-3 text-sm text-muted-foreground whitespace-nowrap" title={fmtDateTime(u.lastActiveAt)}>
+                        {fmtAgo(u.lastActiveAt)}
+                      </td>
+                      <td className="p-3 text-sm">
                         <div className="flex items-center gap-1">
                           <CreditCard className="h-3 w-3 text-muted-foreground" />
                           {u.matchCredits}
                         </div>
                       </td>
-                      <td className="hidden md:table-cell p-3 text-sm">{u._count.matchesAsFemale + u._count.matchesAsMale}</td>
-                      <td className="hidden md:table-cell p-3 text-sm text-muted-foreground whitespace-nowrap">
-                        {new Date(u.createdAt).toLocaleDateString()}
-                      </td>
-                      <td className="p-3">
-                        {u.role !== "ADMIN" && (
-                          <Button
-                            variant={u.status === "SUSPENDED" ? "outline" : "destructive"}
-                            size="sm"
-                            onClick={(e) => handleSuspend(e, u.id)}
-                            disabled={suspendingId === u.id}
-                            className="text-xs"
-                          >
-                            {suspendingId === u.id ? (
-                              <Loader2 className="h-3 w-3 animate-spin" />
-                            ) : (
-                              <><Ban className="h-3 w-3 me-1" />{u.status === "SUSPENDED" ? "Unsuspend" : "Suspend"}</>
-                            )}
-                          </Button>
-                        )}
-                      </td>
+                      <td className="p-3 text-sm">{u._count.matchesAsFemale + u._count.matchesAsMale}</td>
+                      <td className="p-3 text-sm text-muted-foreground whitespace-nowrap">{fmtDate(u.createdAt)}</td>
+                      <td className="p-3">{suspendButton(u)}</td>
                     </tr>
                   ))
                 )}

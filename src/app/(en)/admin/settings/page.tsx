@@ -10,6 +10,10 @@ import { Badge } from "@/components/ui/badge";
 import { NewCycleSettingsCard } from "@/components/admin/new-cycle-settings-card";
 import { DailyJobsCard } from "@/components/admin/daily-jobs-card";
 import { MobileAppCard } from "@/components/admin/mobile-app-card";
+import { SettingsConfirmDialog } from "@/components/admin/settings-confirm-dialog";
+import { SettingsNote, SettingsSection } from "@/components/admin/settings-section";
+import { fmtDate } from "@/components/admin/admin-list-bits";
+import { toast } from "sonner";
 
 interface AdminAccount {
   id: string;
@@ -35,6 +39,8 @@ export default function AdminSettingsPage() {
   const [registrationOpen, setRegistrationOpen] = useState(true);
   const [regLoading, setRegLoading] = useState(true);
   const [regToggling, setRegToggling] = useState(false);
+  const [regLoadFailed, setRegLoadFailed] = useState(false);
+  const [confirmRegistration, setConfirmRegistration] = useState(false);
 
   // Maintenance mode state
   const [maintenanceOn, setMaintenanceOn] = useState(false);
@@ -42,6 +48,7 @@ export default function AdminSettingsPage() {
   const [maintLoading, setMaintLoading] = useState(true);
   const [maintSaving, setMaintSaving] = useState(false);
   const [maintSaved, setMaintSaved] = useState(false);
+  const [confirmMaintenance, setConfirmMaintenance] = useState(false);
 
   // Tracking settings state
   const [gtmId, setGtmId] = useState("");
@@ -62,16 +69,21 @@ export default function AdminSettingsPage() {
   async function fetchRegistrationStatus() {
     try {
       const res = await fetch("/api/admin/settings/registration");
+      if (!res.ok) throw new Error(`registration ${res.status}`);
       const data = await res.json();
       setRegistrationOpen(data.registrationOpen ?? true);
     } catch (err) {
+      // Never guess the state of this switch: it stays locked until the page loads it
       console.error(err);
+      setRegLoadFailed(true);
+      toast.error("Could not load the registration setting");
     } finally {
       setRegLoading(false);
     }
   }
 
   async function toggleRegistration() {
+    setConfirmRegistration(false);
     setRegToggling(true);
     try {
       const res = await fetch("/api/admin/settings/registration", {
@@ -82,9 +94,13 @@ export default function AdminSettingsPage() {
       const data = await res.json();
       if (res.ok) {
         setRegistrationOpen(data.registrationOpen);
+        toast.success(data.registrationOpen ? "Registration is open" : "Registration is closed");
+      } else {
+        toast.error(data.error || "Could not change registration");
       }
     } catch (err) {
       console.error(err);
+      toast.error("Could not change registration");
     } finally {
       setRegToggling(false);
     }
@@ -97,9 +113,12 @@ export default function AdminSettingsPage() {
       if (res.ok) {
         setMaintenanceOn(!!data.enabled);
         setMaintenanceMessage(data.message || "");
+      } else {
+        toast.error("Could not load maintenance mode");
       }
     } catch (err) {
       console.error(err);
+      toast.error("Could not load maintenance mode");
     } finally {
       setMaintLoading(false);
     }
@@ -122,9 +141,12 @@ export default function AdminSettingsPage() {
         setMaintenanceOn(!!data.enabled);
         setMaintenanceMessage(data.message || "");
         setMaintSaved(true);
+      } else {
+        toast.error(data.error || "Could not save maintenance mode");
       }
     } catch (err) {
       console.error(err);
+      toast.error("Could not save maintenance mode");
     } finally {
       setMaintSaving(false);
     }
@@ -165,9 +187,11 @@ export default function AdminSettingsPage() {
         setTimeout(() => setTrackingSuccess(""), 3000);
       } else {
         setTrackingError(data.error || "Failed to save tracking settings");
+        toast.error(data.error || "Failed to save tracking settings");
       }
     } catch {
       setTrackingError("An unexpected error occurred");
+      toast.error("Failed to save tracking settings");
     } finally {
       if (isSavingGtm) setGtmSaving(false);
       else setFbSaving(false);
@@ -210,9 +234,11 @@ export default function AdminSettingsPage() {
         await fetchAdmins();
       } else {
         setError(data.error || "Failed to create admin");
+        toast.error(data.error || "Failed to create admin");
       }
     } catch {
       setError("An unexpected error occurred");
+      toast.error("Failed to create admin");
     } finally {
       setCreating(false);
     }
@@ -228,10 +254,6 @@ export default function AdminSettingsPage() {
         <p className="text-muted-foreground mt-1">Manage admin accounts and platform settings</p>
       </div>
 
-      <NewCycleSettingsCard />
-
-      <DailyJobsCard />
-
       {/* Platform Settings */}
       <Card>
         <CardHeader>
@@ -246,21 +268,26 @@ export default function AdminSettingsPage() {
                 {regLoading ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
                 ) : (
-                  <Badge variant={registrationOpen ? "default" : "destructive"}>
-                    {registrationOpen ? "Open" : "Closed"}
+                  <Badge variant={regLoadFailed ? "outline" : registrationOpen ? "default" : "destructive"}>
+                    {regLoadFailed ? "Unknown" : registrationOpen ? "Open" : "Closed"}
                   </Badge>
                 )}
               </div>
               <p className="text-sm text-muted-foreground">
-                {registrationOpen
+                {regLoadFailed
+                  ? "Could not load this setting. Reload the page before changing it."
+                  : registrationOpen
                   ? "New users can create accounts on the platform."
                   : "Registration is closed. Only existing users can log in."}
               </p>
+              <SettingsNote href="/admin/countries" linkText="Countries → Registration open">
+                All countries. Sign-up needs this and the country&apos;s own switch on: closed here wins, and opening here doesn&apos;t reopen a closed country:
+              </SettingsNote>
             </div>
             <button
               type="button"
-              onClick={toggleRegistration}
-              disabled={regLoading || regToggling}
+              onClick={() => setConfirmRegistration(true)}
+              disabled={regLoading || regToggling || regLoadFailed}
               className="relative shrink-0 ms-4"
               aria-label="Toggle registration"
             >
@@ -308,7 +335,7 @@ export default function AdminSettingsPage() {
               </div>
               <button
                 type="button"
-                onClick={() => saveMaintenance({ enabled: !maintenanceOn })}
+                onClick={() => setConfirmMaintenance(true)}
                 disabled={maintLoading || maintSaving}
                 className="relative shrink-0 ms-4"
                 aria-label="Toggle maintenance mode"
@@ -347,186 +374,232 @@ export default function AdminSettingsPage() {
         </CardContent>
       </Card>
 
-      <MobileAppCard />
+      <DailyJobsCard />
+
+      <SettingsSection id="mobile-app" title="Mobile app" hint="Payments in the app, Arabic payment page, required updates">
+        <MobileAppCard />
+      </SettingsSection>
 
       {/* Tracking & Analytics */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <BarChart3 className="h-5 w-5 text-primary" />
-            Tracking & Analytics
-          </CardTitle>
-          <CardDescription>
-            Configure Google Tag Manager and Facebook Pixel for user-facing pages
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {trackingLoading ? (
-            <div className="flex justify-center py-4">
-              <Loader2 className="h-5 w-5 animate-spin text-primary" />
-            </div>
-          ) : (
-            <>
-              {trackingError && (
-                <div className="rounded-lg bg-destructive/10 border border-destructive/20 p-3 text-sm text-destructive">
-                  {trackingError}
-                </div>
-              )}
-              {trackingSuccess && (
-                <div className="rounded-lg bg-green-50 border border-green-200 p-3 text-sm text-green-800 flex items-center gap-2">
-                  <Check className="h-4 w-4" />
-                  {trackingSuccess}
-                </div>
-              )}
-
-              <div className="space-y-2">
-                <Label htmlFor="gtm-id">Google Tag Manager Container ID</Label>
-                <div className="flex gap-2">
-                  <Input
-                    id="gtm-id"
-                    value={gtmId}
-                    onChange={(e) => setGtmId(e.target.value)}
-                    placeholder="GTM-XXXXXXX"
-                    className="max-w-xs"
-                  />
-                  <Button
-                    size="sm"
-                    onClick={() => saveTracking("gtmId")}
-                    disabled={gtmSaving}
-                  >
-                    {gtmSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
-                  </Button>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Format: GTM-XXXXXXX. Leave empty to disable.
-                </p>
+      <SettingsSection id="tracking" title="Tracking & Analytics" hint="Google Tag Manager and Facebook Pixel">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <BarChart3 className="h-5 w-5 text-primary" />
+              Tracking & Analytics
+            </CardTitle>
+            <CardDescription>
+              Configure Google Tag Manager and Facebook Pixel for user-facing pages
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {trackingLoading ? (
+              <div className="flex justify-center py-4">
+                <Loader2 className="h-5 w-5 animate-spin text-primary" />
               </div>
+            ) : (
+              <>
+                {trackingError && (
+                  <div className="rounded-lg bg-destructive/10 border border-destructive/20 p-3 text-sm text-destructive">
+                    {trackingError}
+                  </div>
+                )}
+                {trackingSuccess && (
+                  <div className="rounded-lg bg-green-50 border border-green-200 p-3 text-sm text-green-800 flex items-center gap-2">
+                    <Check className="h-4 w-4" />
+                    {trackingSuccess}
+                  </div>
+                )}
 
-              <div className="space-y-2">
-                <Label htmlFor="fb-pixel-id">Facebook Pixel ID</Label>
-                <div className="flex gap-2">
-                  <Input
-                    id="fb-pixel-id"
-                    value={fbPixelId}
-                    onChange={(e) => setFbPixelId(e.target.value)}
-                    placeholder="123456789012345"
-                    className="max-w-xs"
-                  />
-                  <Button
-                    size="sm"
-                    onClick={() => saveTracking("fbPixelId")}
-                    disabled={fbSaving}
-                  >
-                    {fbSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
-                  </Button>
+                <div className="space-y-2">
+                  <Label htmlFor="gtm-id">Google Tag Manager Container ID</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="gtm-id"
+                      value={gtmId}
+                      onChange={(e) => setGtmId(e.target.value)}
+                      placeholder="GTM-XXXXXXX"
+                      className="max-w-xs"
+                    />
+                    <Button
+                      size="sm"
+                      onClick={() => saveTracking("gtmId")}
+                      disabled={gtmSaving}
+                    >
+                      {gtmSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Format: GTM-XXXXXXX. Leave empty to disable.
+                  </p>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Numeric ID from Facebook Events Manager. Leave empty to disable.
-                </p>
-              </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
+
+                <div className="space-y-2">
+                  <Label htmlFor="fb-pixel-id">Facebook Pixel ID</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="fb-pixel-id"
+                      value={fbPixelId}
+                      onChange={(e) => setFbPixelId(e.target.value)}
+                      placeholder="123456789012345"
+                      className="max-w-xs"
+                    />
+                    <Button
+                      size="sm"
+                      onClick={() => saveTracking("fbPixelId")}
+                      disabled={fbSaving}
+                    >
+                      {fbSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Numeric ID from Facebook Events Manager. Leave empty to disable.
+                  </p>
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      </SettingsSection>
 
       {/* Admin Accounts */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0">
-          <CardTitle>Admin Accounts</CardTitle>
-          <Button size="sm" onClick={() => setShowForm(!showForm)}>
-            <Plus className="h-4 w-4 me-2" />
-            Add Admin
-          </Button>
-        </CardHeader>
-        <CardContent>
-          {success && (
-            <div className="rounded-lg bg-green-50 border border-green-200 p-3 text-sm text-green-800 mb-4">
-              {success}
-            </div>
-          )}
+      <SettingsSection id="admins" title="Admin Accounts" hint={loading ? undefined : `${admins.length} admin${admins.length === 1 ? "" : "s"}`}>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0">
+            <CardTitle>Admin Accounts</CardTitle>
+            <Button size="sm" onClick={() => setShowForm(!showForm)}>
+              <Plus className="h-4 w-4 me-2" />
+              Add Admin
+            </Button>
+          </CardHeader>
+          <CardContent>
+            {success && (
+              <div className="rounded-lg bg-green-50 border border-green-200 p-3 text-sm text-green-800 mb-4">
+                {success}
+              </div>
+            )}
 
-          {/* Create form */}
-          {showForm && (
-            <div className="border rounded-lg p-4 mb-4 space-y-4">
-              <h4 className="font-medium flex items-center gap-2">
-                <UserPlus className="h-4 w-4" /> New Admin Account
-              </h4>
+            {/* Create form */}
+            {showForm && (
+              <div className="border rounded-lg p-4 mb-4 space-y-4">
+                <h4 className="font-medium flex items-center gap-2">
+                  <UserPlus className="h-4 w-4" /> New Admin Account
+                </h4>
 
-              {error && (
-                <div className="rounded-lg bg-destructive/10 border border-destructive/20 p-3 text-sm text-destructive">
-                  {error}
-                </div>
-              )}
+                {error && (
+                  <div className="rounded-lg bg-destructive/10 border border-destructive/20 p-3 text-sm text-destructive">
+                    {error}
+                  </div>
+                )}
 
-              <form onSubmit={handleCreate} className="space-y-3">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <Label>First Name</Label>
-                    <Input value={firstName} onChange={(e) => setFirstName(e.target.value)} required />
+                <form onSubmit={handleCreate} className="space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label>First Name</Label>
+                      <Input value={firstName} onChange={(e) => setFirstName(e.target.value)} required />
+                    </div>
+                    <div className="space-y-1">
+                      <Label>Last Name</Label>
+                      <Input value={lastName} onChange={(e) => setLastName(e.target.value)} required />
+                    </div>
                   </div>
                   <div className="space-y-1">
-                    <Label>Last Name</Label>
-                    <Input value={lastName} onChange={(e) => setLastName(e.target.value)} required />
+                    <Label>Email</Label>
+                    <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
                   </div>
-                </div>
-                <div className="space-y-1">
-                  <Label>Email</Label>
-                  <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-                </div>
-                <div className="space-y-1">
-                  <Label>Password</Label>
-                  <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} minLength={8} required />
-                  <p className="text-xs text-muted-foreground">Minimum 8 characters</p>
-                </div>
-                <div className="flex gap-2">
-                  <Button type="submit" disabled={creating}>
-                    {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : "Create Admin"}
-                  </Button>
-                  <Button type="button" variant="ghost" onClick={() => setShowForm(false)}>Cancel</Button>
-                </div>
-              </form>
-            </div>
-          )}
+                  <div className="space-y-1">
+                    <Label>Password</Label>
+                    <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} minLength={8} required />
+                    <p className="text-xs text-muted-foreground">Minimum 8 characters</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button type="submit" disabled={creating}>
+                      {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : "Create Admin"}
+                    </Button>
+                    <Button type="button" variant="ghost" onClick={() => setShowForm(false)}>Cancel</Button>
+                  </div>
+                </form>
+              </div>
+            )}
 
-          {/* Table */}
-          {loading ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-primary" />
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b bg-muted/50">
-                    <th className="text-left p-3 text-sm font-medium">Name</th>
-                    <th className="text-left p-3 text-sm font-medium">Email</th>
-                    <th className="text-left p-3 text-sm font-medium">Created</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {admins.map((admin) => (
-                    <tr key={admin.id} className="border-b hover:bg-muted/30 transition-colors">
-                      <td className="p-3">
-                        <div className="flex items-center gap-2 whitespace-nowrap">
-                          <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">
-                            {admin.firstName.charAt(0)}
-                          </div>
-                          <span className="font-medium text-sm">{admin.firstName} {admin.lastName}</span>
-                          <Badge variant="destructive" className="text-xs">Admin</Badge>
-                        </div>
-                      </td>
-                      <td className="p-3 text-sm text-muted-foreground whitespace-nowrap">{admin.email}</td>
-                      <td className="p-3 text-sm text-muted-foreground">
-                        {new Date(admin.createdAt).toLocaleDateString()}
-                      </td>
+            {/* Table */}
+            {loading ? (
+              <div className="flex justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-primary" />
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b bg-muted/50">
+                      <th className="text-left p-3 text-sm font-medium">Name</th>
+                      <th className="text-left p-3 text-sm font-medium">Email</th>
+                      <th className="text-left p-3 text-sm font-medium">Created</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                  </thead>
+                  <tbody>
+                    {admins.map((admin) => (
+                      <tr key={admin.id} className="border-b hover:bg-muted/30 transition-colors">
+                        <td className="p-3">
+                          <div className="flex items-center gap-2 whitespace-nowrap">
+                            <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">
+                              {admin.firstName.charAt(0)}
+                            </div>
+                            <span className="font-medium text-sm">{admin.firstName} {admin.lastName}</span>
+                            <Badge variant="destructive" className="text-xs">Admin</Badge>
+                          </div>
+                        </td>
+                        <td className="p-3 text-sm text-muted-foreground whitespace-nowrap">{admin.email}</td>
+                        <td className="p-3 text-sm text-muted-foreground">
+                          {fmtDate(admin.createdAt)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </SettingsSection>
+
+      <SettingsSection
+        id="new-cycle"
+        title="New user cycle"
+        hint="Switches for family and chat requests, chat, simultaneous suggestions and credit on «مهتم»"
+      >
+        <NewCycleSettingsCard />
+      </SettingsSection>
+
+      <SettingsConfirmDialog
+        open={confirmRegistration}
+        title={registrationOpen ? "Close registration for every country?" : "Open registration?"}
+        description={
+          registrationOpen
+            ? "Nobody can create an account in any country until you open it again. Existing members can still sign in."
+            : "New members can sign up again, except in countries whose own registration is closed."
+        }
+        confirmLabel={registrationOpen ? "Close registration" : "Open registration"}
+        destructive={registrationOpen}
+        onCancel={() => setConfirmRegistration(false)}
+        onConfirm={toggleRegistration}
+      />
+      <SettingsConfirmDialog
+        open={confirmMaintenance}
+        title={maintenanceOn ? "Turn maintenance mode off?" : "Put the whole site in maintenance?"}
+        description={
+          maintenanceOn
+            ? "The public site, the member dashboard, sign-in and sign-up work again."
+            : "Every visitor and member sees the maintenance page. Sign-in and sign-up are blocked until you turn it off. The admin panel keeps working."
+        }
+        confirmLabel={maintenanceOn ? "Turn off" : "Turn on maintenance"}
+        destructive={!maintenanceOn}
+        onCancel={() => setConfirmMaintenance(false)}
+        onConfirm={() => {
+          setConfirmMaintenance(false);
+          saveMaintenance({ enabled: !maintenanceOn });
+        }}
+      />
     </div>
   );
 }

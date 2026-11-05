@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { AdminSidebar } from "@/components/shared/admin-sidebar";
+import { Toaster } from "@/components/ui/sonner";
 import { AdminCountrySelect } from "@/components/admin/admin-country-select";
 import { getCycleFlags } from "@/lib/settings";
 import { getAdminCountry } from "@/lib/countries/server";
@@ -27,6 +28,8 @@ export default async function AdminLayout({
         {/* Keyed by country: switching remounts the page, so its client-side fetches run again */}
         <div key={country}>{children}</div>
       </main>
+      {/* Admin pages report saves and failures with toast() from "sonner" */}
+      <Toaster position="top-right" richColors />
     </div>
   );
 }

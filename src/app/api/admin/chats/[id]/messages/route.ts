@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { effectiveConversationStatus } from "@/lib/admin/cycle-stats";
+import { chatEndedBy } from "@/lib/admin/chat-list";
 
 const person = { select: { id: true, firstName: true, lastName: true, status: true } } as const;
 /** There is no daily cap, so very long chats keep their newest messages (`truncated` marks the cut). */
@@ -31,6 +32,12 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 
     console.info(`[admin-chat-view] admin=${result.session.user.id} chat=${id} at=${new Date().toISOString()}`);
 
+    const reports = await db.report.findMany({
+      where: { conversationId: id },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, status: true, createdAt: true },
+    });
+
     const people = [chat.match.female, chat.match.male];
     return NextResponse.json({
       chat: {
@@ -42,11 +49,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
         expiresAt: chat.expiresAt,
         extended: chat.extended,
         endedAt: chat.endedAt,
-        endedBy: chat.endedByAdminId
-          ? "admin"
-          : chat.endedById
-            ? people.find((p) => p.id === chat.endedById)?.firstName ?? "user"
-            : null,
+        endedBy: chatEndedBy(chat, people),
+        reports,
       },
       // newest MAX_MESSAGES, shown oldest first
       messages: [...chat.messages].reverse(),

@@ -116,7 +116,24 @@ describe("support", () => {
     db.supportTicket.count.mockResolvedValue(0);
     const res = await getTickets(new Request("http://x/api/admin/support?page=abc&status=NOPE&type=X"));
     expect(res?.status).toBe(200);
-    expect(db.supportTicket.findMany.mock.calls[0][0]).toMatchObject({ where: {}, skip: 0 });
+    expect(db.supportTicket.findMany.mock.calls[0][0]).toMatchObject({ where: {}, skip: 0, orderBy: { createdAt: "desc" } });
+  });
+
+  it("waiting tickets: open + in progress, oldest first", async () => {
+    db.supportTicket.findMany.mockResolvedValue([]);
+    db.supportTicket.count.mockResolvedValue(0);
+    await getTickets(new Request("http://x/api/admin/support?status=WAITING"));
+    expect(db.supportTicket.findMany.mock.calls[0][0]).toMatchObject({
+      where: { status: { in: ["OPEN", "IN_PROGRESS"] } },
+      orderBy: { createdAt: "asc" },
+    });
+  });
+
+  it("one ticket by id, whatever the filters", async () => {
+    db.supportTicket.findMany.mockResolvedValue([]);
+    db.supportTicket.count.mockResolvedValue(0);
+    await getTickets(new Request("http://x/api/admin/support?id=t1&status=OPEN&type=ISSUE"));
+    expect(db.supportTicket.findMany.mock.calls[0][0].where).toEqual({ user: { country: "JO" }, id: "t1" });
   });
 });
 

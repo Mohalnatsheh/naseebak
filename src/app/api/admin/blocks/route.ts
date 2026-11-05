@@ -35,8 +35,15 @@ export async function GET(request: Request) {
       db.block.count({ where }),
     ]);
 
+    // How many people blocked each member on this page, in any country: a pattern worth a look
+    const ids = [...new Set(blocks.map((b) => b.blocked.id))];
+    const blockedBy = ids.length
+      ? await db.block.groupBy({ by: ["blockedId"], where: { blockedId: { in: ids } }, _count: { _all: true } })
+      : [];
+    const counts = new Map(blockedBy.map((b) => [b.blockedId, b._count._all]));
+
     return NextResponse.json({
-      blocks,
+      blocks: blocks.map((b) => ({ ...b, blockedByCount: counts.get(b.blocked.id) ?? 1 })),
       total,
       page,
       totalPages: Math.ceil(total / pageSize),

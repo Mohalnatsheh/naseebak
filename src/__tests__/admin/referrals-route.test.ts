@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const db = vi.hoisted(() => ({
   referral: { findMany: vi.fn(), count: vi.fn(), groupBy: vi.fn() },
-  user: { findMany: vi.fn() },
+  user: { findMany: vi.fn(), count: vi.fn() },
 }));
 const country = vi.hoisted(() => ({ current: "ALL" as string }));
 
@@ -29,9 +29,8 @@ beforeEach(() => {
     { id: "r2", createdAt: new Date("2026-10-20"), creditsAwarded: false, awardedAt: null, referrer: sara, referee: { ...ali, id: "u3", profile: null } },
   ]);
   db.referral.count.mockImplementation(async ({ where }: { where: { creditsAwarded?: boolean } }) => (where.creditsAwarded ? 1 : 2));
-  db.referral.groupBy.mockImplementation(async (args: { take?: number }) =>
-    args.take ? [{ referrerId: "u1", _count: { _all: 2 } }] : [{ referrerId: "u1" }],
-  );
+  db.referral.groupBy.mockResolvedValue([{ referrerId: "u1", _count: { _all: 2 } }]);
+  db.user.count.mockResolvedValue(1);
   db.user.findMany.mockResolvedValue([sara]);
 });
 
@@ -45,6 +44,9 @@ describe("GET /api/admin/referrals", () => {
     expect(body.referrals[1].referee.setupDone).toBe(false);
     expect(body.topInviters).toEqual([{ ...sara, count: 2 }]);
     expect(db.referral.findMany.mock.calls[0][0].where).toEqual({});
+    // A distinct count, not a groupBy over every inviter
+    expect(db.user.count).toHaveBeenCalledWith({ where: { referralsGiven: { some: {} } } });
+    expect(db.referral.groupBy).toHaveBeenCalledTimes(1);
   });
 
   it("filters by the admin's country (new member) and by inviter", async () => {

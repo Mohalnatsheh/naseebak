@@ -32,7 +32,11 @@ export async function GET(request: Request) {
       const n = (action: string | null) => byAction.find((r) => r.alertId === id && r.action === action)?._count ?? 0;
       return { tapped: n("TAPPED"), closed: n("CLOSED"), appClosedOrTapped: n(null) };
     };
-    return NextResponse.json({ alerts: alerts.map((a) => ({ ...a, stats: stats(a.id) })) });
+    // `country`: where a new alert would go, for the confirmation (null = every country)
+    return NextResponse.json({
+      country: country === "ALL" ? null : country,
+      alerts: alerts.map((a) => ({ ...a, stats: stats(a.id) })),
+    });
   } catch (error) {
     console.error("Admin alerts error:", error);
     return NextResponse.json({ error: "Server error" }, { status: 500 });

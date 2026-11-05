@@ -16,8 +16,32 @@ export interface PersonRef {
   status?: string;
 }
 
-export function fmtDate(d: string | null) {
-  return d ? new Date(d).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "—";
+export function fmtDate(d: string | Date | null | undefined) {
+  return d ? new Date(d).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Amman" }) : "—";
+}
+
+/** «31 Oct 2026, 14:05» in Amman time — the one date-time format of the admin pages */
+export function fmtDateTime(d: string | Date | null | undefined) {
+  if (!d) return "—";
+  return new Date(d).toLocaleString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Asia/Amman",
+  });
+}
+
+/** «3 h ago» / «2 days ago» — for last active, waiting since */
+export function fmtAgo(d: string | Date | null | undefined, now = new Date()) {
+  if (!d) return "—";
+  const min = Math.round((now.getTime() - new Date(d).getTime()) / 60000);
+  if (min < 1) return "just now";
+  if (min < 60) return `${min} min ago`;
+  const h = Math.round(min / 60);
+  if (h < 48) return `${h} h ago`;
+  return `${Math.round(h / 24)} days ago`;
 }
 
 export function PersonLink({ p, hash }: { p: PersonRef; hash?: string }) {

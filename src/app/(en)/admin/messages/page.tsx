@@ -5,7 +5,9 @@ import { Inbox, Loader2, CheckCircle2, RotateCcw, Mail, Phone } from "lucide-rea
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Pager, fmtDate } from "@/components/admin/admin-list-bits";
+import { Pager, PersonLink, fmtDateTime, type PersonRef } from "@/components/admin/admin-list-bits";
+import { FocusBanner, LoadError, useFocusId } from "@/components/admin/inbox-focus";
+import { toast } from "sonner";
 
 /** 962791234567 → 0791234567 */
 function displayPhone(phone: string): string {
@@ -22,6 +24,8 @@ interface ContactMessage {
   subject: string;
   message: string;
   userId: string | null;
+  /** The member, when sent signed in and the account still exists */
+  user: PersonRef | null;
   handledAt: string | null;
   createdAt: string;
 }
@@ -37,15 +41,16 @@ export default function AdminMessagesPage() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const { ready, focusId, clearFocus } = useFocusId();
 
   useEffect(() => {
-    load(page, filter);
-  }, [page, filter]);
+    if (ready) load(page, filter, focusId);
+  }, [ready, page, filter, focusId]);
 
-  async function load(p: number, f: Filter) {
+  async function load(p: number, f: Filter, id: string | null) {
     setLoading(true);
     try {
-      const res = await fetch(`/api/admin/contact-messages?page=${p}&filter=${f}`);
+      const res = await fetch(`/api/admin/contact-messages?page=${p}&filter=${f}${id ? `&id=${encodeURIComponent(id)}` : ""}`);
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setError(data.error || `Failed to load messages (${res.status})`);
@@ -69,7 +74,6 @@ export default function AdminMessagesPage() {
 
   async function setHandled(id: string, handled: boolean) {
     setBusy(id);
-    setError("");
     try {
       const res = await fetch(`/api/admin/contact-messages/${id}`, {
         method: "PATCH",
@@ -78,12 +82,12 @@ export default function AdminMessagesPage() {
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        setError(data.error || `Update failed (${res.status})`);
+        toast.error(data.error || `Update failed (${res.status})`);
         return;
       }
-      await load(page, filter);
+      await load(page, filter, focusId);
     } catch {
-      setError("Network error, please try again");
+      toast.error("Network error, please try again");
     } finally {
       setBusy(null);
     }
@@ -107,23 +111,24 @@ export default function AdminMessagesPage() {
         </p>
       </div>
 
-      <div className="flex gap-2 flex-wrap">
-        {(["open", "handled", "all"] as const).map((f) => (
-          <Button key={f} size="sm" variant={filter === f ? "default" : "outline"} onClick={() => changeFilter(f)}>
-            {f === "open" ? "Open" : f === "handled" ? "Handled" : "All"}
-          </Button>
-        ))}
-      </div>
-
-      {error && (
-        <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{error}</div>
+      {focusId && <FocusBanner onClear={clearFocus} />}
+      {!focusId && (
+        <div className="flex gap-2 flex-wrap">
+          {(["open", "handled", "all"] as const).map((f) => (
+            <Button key={f} size="sm" variant={filter === f ? "default" : "outline"} onClick={() => changeFilter(f)}>
+              {f === "open" ? "Open" : f === "handled" ? "Handled" : "All"}
+            </Button>
+          ))}
+        </div>
       )}
+
+      {error && <LoadError message={error} onRetry={() => load(page, filter, focusId)} />}
 
       {loading ? (
         <div className="flex justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
-      ) : messages.length === 0 ? (
+      ) : error ? null : messages.length === 0 ? (
         <Card>
           <CardContent className="text-center py-12">
             <Inbox className="h-12 w-12 mx-auto text-muted-foreground/30 mb-3" />
@@ -142,7 +147,7 @@ export default function AdminMessagesPage() {
                   <div className="min-w-0">
                     <h3 className="font-semibold" dir="auto">{m.subject}</h3>
                     <p className="text-sm text-muted-foreground" dir="auto">
-                      {m.name} ·{" "}
+                      {m.user ? <PersonLink p={m.user} /> : m.name} ·{" "}
                       {m.email ? (
                         <a href={`mailto:${m.email}?subject=${encodeURIComponent("Re: " + m.subject)}`} className="text-primary hover:underline" dir="ltr">
                           {m.email}
@@ -153,13 +158,14 @@ export default function AdminMessagesPage() {
                           {displayPhone(m.phone)}
                         </a>
                       ) : null}
-                      {m.userId && <span className="ms-2 text-xs">(signed-in user)</span>}
+                      {m.userId && !m.user && <span className="ms-2 text-xs">(signed-in user)</span>}
                     </p>
                   </div>
-                  <span className="text-xs text-muted-foreground shrink-0">{fmtDate(m.createdAt)}</span>
+                  <span className="text-xs text-muted-foreground shrink-0">{fmtDateTime(m.createdAt)}</span>
                 </div>
                 <p className="whitespace-pre-wrap rounded-lg bg-muted/50 p-3 text-sm" dir="auto">{m.message}</p>
                 <div className="flex flex-wrap items-center justify-end gap-2">
+                  {m.handledAt && <span className="me-auto text-xs text-muted-foreground">Handled {fmtDateTime(m.handledAt)}</span>}
                   {m.email ? (
                     <Button asChild size="sm" variant="outline">
                       <a href={`mailto:${m.email}?subject=${encodeURIComponent("Re: " + m.subject)}`}>

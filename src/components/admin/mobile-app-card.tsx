@@ -6,6 +6,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { toast } from "sonner";
+import { SettingsConfirmDialog } from "@/components/admin/settings-confirm-dialog";
+import { SettingsNote } from "@/components/admin/settings-section";
+import { mobileAppChanges, type ChangeSummary } from "@/lib/admin/settings-changes";
 import type { MobilePlatform, MobilePlatformConfig } from "@/lib/mobile-config";
 
 type ArabicCheckout = "off" | "test" | "all";
@@ -31,6 +35,9 @@ const EMPTY: MobilePlatformConfig = { minVersion: "", latestVersion: "", storeUr
  */
 export function MobileAppCard() {
   const [config, setConfig] = useState<Config>({ android: EMPTY, ios: EMPTY, paymentsEnabled: true, androidCertSha256: "" });
+  /** What the server holds: the confirmation compares against this. Null = not loaded, saving is refused. */
+  const [loaded, setLoaded] = useState<Config | null>(null);
+  const [pending, setPending] = useState<ChangeSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -39,7 +46,10 @@ export function MobileAppCard() {
   useEffect(() => {
     fetch("/api/admin/settings/mobile-app")
       .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then((d: Config) => setConfig(d))
+      .then((d: Config) => {
+        setConfig(d);
+        setLoaded(d);
+      })
       .catch(() => setError("Could not load the app versions"))
       .finally(() => setLoading(false));
   }, []);
@@ -49,11 +59,19 @@ export function MobileAppCard() {
     setConfig((c) => ({ ...c, [p]: { ...c[p], [field]: value } }));
   }
 
-  async function save() {
-    const raising = PLATFORMS.filter((p) => config[p.key].minVersion.trim()).map((p) => `${p.name} ${config[p.key].minVersion.trim()}`);
-    if (raising.length && !confirm(`Block every app older than: ${raising.join(", ")}? Those members must update before they can use the app.`)) {
+  /** Asks first, naming every change. Nothing changed = nothing to save. */
+  function requestSave() {
+    if (!loaded) return;
+    const changes = mobileAppChanges(loaded, config);
+    if (changes.lines.length === 0) {
+      toast.info("Nothing changed");
       return;
     }
+    setPending(changes);
+  }
+
+  async function save() {
+    setPending(null);
     setSaving(true);
     setError("");
     try {
@@ -63,13 +81,17 @@ export function MobileAppCard() {
         body: JSON.stringify(config),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) setError(data.error || "Save failed");
-      else {
+      if (!res.ok) {
+        setError(data.error || "Save failed");
+        toast.error(data.error || "Save failed");
+      } else {
         setConfig(data);
+        setLoaded(data);
         setSaved(true);
       }
     } catch {
       setError("Save failed");
+      toast.error("Save failed");
     } finally {
       setSaving(false);
     }
@@ -97,6 +119,9 @@ export function MobileAppCard() {
                   ? "Members can buy credits in the app (Stripe page). Test accounts never see payments in the app."
                   : "Buying is hidden in the app; members keep their balance and buy on the website."}
               </p>
+              <SettingsNote href="/admin/countries" linkText="Countries → Sell credit packages">
+                Only for the app. Buying in the app also needs selling on for the member&apos;s country; off there wins, on the website too:
+              </SettingsNote>
             </div>
             <Button
               type="button"
@@ -203,7 +228,7 @@ export function MobileAppCard() {
         )}
         {error && <p className="text-sm text-destructive">{error}</p>}
         <div className="flex items-center gap-3">
-          <Button onClick={save} disabled={loading || saving}>
+          <Button onClick={requestSave} disabled={loading || saving || !loaded}>
             {saving && <Loader2 className="h-4 w-4 animate-spin" />}
             Save
           </Button>
@@ -214,6 +239,16 @@ export function MobileAppCard() {
           )}
         </div>
       </CardContent>
+      <SettingsConfirmDialog
+        open={!!pending}
+        title="Save these changes?"
+        description="Apps and the website pick them up within 30 seconds."
+        lines={pending?.lines}
+        warnings={pending?.warnings}
+        destructive={!!pending?.warnings.length}
+        onCancel={() => setPending(null)}
+        onConfirm={save}
+      />
     </Card>
   );
 }

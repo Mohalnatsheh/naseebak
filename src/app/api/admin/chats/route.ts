@@ -8,14 +8,18 @@ import { getAdminCountry, matchCountryWhere } from "@/lib/admin/country-filter";
 import { effectiveConversationStatus } from "@/lib/admin/cycle-stats";
 import { chatSmsOverview } from "@/lib/chat/unread-sms";
 import { enumParam } from "@/lib/admin/query";
-import { CHAT_SORTS, CHAT_VIEWS, chatSummary, matchesView, sortChats, type ChatActivity } from "@/lib/admin/chat-list";
+import {
+  CHAT_SORTS, CHAT_VIEWS, buildChatActivity, chatEndedBy, chatSummary, matchesView, sortChats,
+  type ChatActivity, type LastMessageRow,
+} from "@/lib/admin/chat-list";
 
 const person = { select: { id: true, firstName: true, lastName: true, status: true } } as const;
 
 /**
  * All chats: who, dates, status, who ended it, activity (last message, who wrote it, messages per person).
  * `q` name/phone/chat id · `status` ACTIVE|ENDED|EXPIRED · `view` activity filter · `sort` (default last message).
- * Activity is grouped from the messages in one query, then filtered, sorted and paged here. Content is in [id]/messages.
+ * Activity is grouped from the messages of the chats in scope (the selected country: the summary covers
+ * all of them), then filtered, sorted and paged here. Content is in [id]/messages.
  */
 export async function GET(request: Request) {
   try {
@@ -33,7 +37,8 @@ export async function GET(request: Request) {
     // A pasted chat id finds that chat directly
     const byId = /^c[a-z0-9]{20,30}$/.test(q) ? q : null;
     // Admin's selected country (both people of a match are always from one country)
-    const byCountry = matchCountryWhere(await getAdminCountry(request));
+    const country = await getAdminCountry(request);
+    const byCountry = matchCountryWhere(country);
 
     const where: Prisma.ConversationWhereInput = {
       ...(status === "ACTIVE" && { status: "ACTIVE", expiresAt: { gt: now } }),
@@ -44,47 +49,30 @@ export async function GET(request: Request) {
         : { match: { ...byCountry, ...(who && { OR: [{ female: who }, { male: who }] }) } }),
     };
 
-    // Every chat (small table) with its activity, for the summary, the filters and the sort
-    const [all, perSender, lastRows, reportRows] = await Promise.all([
-      db.conversation.findMany({
-        where: { match: byCountry },
-        select: { id: true, status: true, createdAt: true, expiresAt: true, endedByAdminId: true },
-      }),
-      db.message.groupBy({ by: ["conversationId", "senderId"], _count: { _all: true } }),
-      db.$queryRaw<{ conversationId: string; senderId: string; createdAt: Date }[]>`
-        SELECT DISTINCT ON ("conversationId") "conversationId", "senderId", "createdAt"
-        FROM messages ORDER BY "conversationId", "createdAt" DESC`,
+    // Every chat of the country (small table) with its activity, for the summary, the filters and the sort
+    const all = await db.conversation.findMany({
+      where: { match: byCountry },
+      select: { id: true, status: true, createdAt: true, expiresAt: true, endedByAdminId: true },
+    });
+    const ids = all.map((c) => c.id);
+    // Only these chats' messages. No id list for "ALL": that is every message anyway
+    const [perSender, lastRows, reportRows] = await Promise.all([
+      ids.length ? db.message.groupBy({ by: ["conversationId", "senderId"], ...(country !== "ALL" && { where: { conversationId: { in: ids } } }), _count: { _all: true } }) : [],
+      ids.length
+        ? db.$queryRaw<LastMessageRow[]>`
+            SELECT DISTINCT ON ("conversationId") "conversationId", "senderId", "createdAt"
+            FROM messages WHERE "conversationId" = ANY(${ids}::text[])
+            ORDER BY "conversationId", "createdAt" DESC`
+        : [],
       db.report.findMany({ where: { conversationId: { not: null } }, select: { conversationId: true } }),
     ]);
 
-    const reported = new Set(reportRows.map((r) => r.conversationId));
-    const last = new Map(lastRows.map((r) => [r.conversationId, r]));
-    const senders = new Map<string, Record<string, number>>();
-    for (const r of perSender) {
-      const m = senders.get(r.conversationId) ?? {};
-      m[r.senderId] = r._count._all;
-      senders.set(r.conversationId, m);
-    }
-    const activity = new Map<string, ChatActivity>(
-      all.map((c) => {
-        const bySender = senders.get(c.id) ?? {};
-        const l = last.get(c.id);
-        return [
-          c.id,
-          {
-            id: c.id,
-            createdAt: c.createdAt,
-            expiresAt: c.expiresAt,
-            status: effectiveConversationStatus(c, now) as ChatActivity["status"],
-            endedByAdminId: c.endedByAdminId,
-            messages: Object.values(bySender).reduce((a, b) => a + b, 0),
-            bySender,
-            lastAt: l ? new Date(l.createdAt) : null,
-            lastSenderId: l?.senderId ?? null,
-            reported: reported.has(c.id),
-          },
-        ];
-      }),
+    const activity = buildChatActivity(
+      all,
+      perSender,
+      lastRows,
+      reportRows.map((r) => r.conversationId),
+      (c) => effectiveConversationStatus(c, now),
     );
 
     // Status + search narrow the ids, then the activity view, then the sort
@@ -122,15 +110,7 @@ export async function GET(request: Request) {
           expiresAt: c.expiresAt,
           extended: c.extended,
           endedAt: c.endedAt,
-          endedBy: c.endedByAdminId
-            ? c.endedByAdminId === "system:report-review"
-              ? "paused"
-              : c.endedByAdminId.startsWith("system:")
-                ? "system"
-                : "admin"
-            : c.endedById
-              ? people.find((p) => p.id === c.endedById)?.firstName ?? "user"
-              : null,
+          endedBy: chatEndedBy(c, people),
           messages: a.messages,
           unread: c.messages.length,
           lastAt: a.lastAt,

@@ -3,14 +3,16 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { signOut } from "next-auth/react";
-import { LayoutDashboard, Users, ShieldCheck, Sparkles, CalendarHeart, FileText, Menu, LogOut, Flag, ClipboardEdit, CreditCard, Bell, Ban, Trash2, Settings, LifeBuoy, HeartHandshake, Archive, ChevronDown, Heart, MessagesSquare, Inbox, MessageCircleQuestion, Globe2, Megaphone, Gift } from "lucide-react";
+import { BarChart3, LayoutDashboard, Users, ShieldCheck, Sparkles, CalendarHeart, FileText, Menu, LogOut, Flag, ClipboardEdit, CreditCard, Bell, Ban, Trash2, Settings, LifeBuoy, HeartHandshake, Archive, ChevronDown, Heart, MessagesSquare, Inbox, MessageCircleQuestion, Globe2, Megaphone, Gift } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 
-type SidebarLink = { href: string; label: string; icon: typeof LayoutDashboard };
+type SidebarLink = { href: string; label: string; icon: typeof LayoutDashboard; todo?: TodoKey };
+type TodoKey = "reports" | "support" | "profileRequests" | "contactMessages" | "identity" | "all";
+type TodoCounts = Partial<Record<TodoKey, number>>;
 
 /**
  * Legacy-flow pages, grouped under "Legacy" once the new user cycle is on.
@@ -18,43 +20,108 @@ type SidebarLink = { href: string; label: string; icon: typeof LayoutDashboard }
  */
 const LEGACY_HREFS = ["/admin/identity", "/admin/visits"];
 
-const sidebarLinks: SidebarLink[] = [
-  { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/admin/users", label: "Users", icon: Users },
-  { href: "/admin/identity", label: "Identity Review", icon: ShieldCheck },
-  { href: "/admin/suggestions", label: "Suggestions", icon: Sparkles },
-  { href: "/admin/visits", label: "Visit Requests", icon: CalendarHeart },
-  { href: "/admin/matches", label: "Matches", icon: Heart },
-  { href: "/admin/introductions", label: "Introductions", icon: HeartHandshake },
-  { href: "/admin/chats", label: "Chats", icon: MessagesSquare },
-  { href: "/admin/reports", label: "Reports", icon: Flag },
-  { href: "/admin/profile-requests", label: "Profile Requests", icon: ClipboardEdit },
-  { href: "/admin/payments", label: "Payments", icon: CreditCard },
-  { href: "/admin/referrals", label: "Referrals", icon: Gift },
-  { href: "/admin/notifications", label: "Notifications", icon: Bell },
-  { href: "/admin/alerts", label: "Popup Alerts", icon: Megaphone },
-  { href: "/admin/blocks", label: "Blocks", icon: Ban },
-  { href: "/admin/deletions", label: "Deletions", icon: Trash2 },
-  { href: "/admin/support", label: "Support Tickets", icon: LifeBuoy },
-  { href: "/admin/messages", label: "Contact Messages", icon: Inbox },
-  { href: "/admin/polls", label: "Naseebak Question", icon: MessageCircleQuestion },
-  { href: "/admin/blog", label: "Blog", icon: FileText },
-  { href: "/admin/countries", label: "Countries", icon: Globe2 },
-  { href: "/admin/settings", label: "Settings", icon: Settings },
+/** The nav in sections, most-used first (admin page use, Nov 2026). `todo` = badge with what waits (/api/admin/today?todo=1) */
+const sidebarGroups: { title: string | null; links: SidebarLink[] }[] = [
+  {
+    title: null,
+    links: [
+      { href: "/admin", label: "Today", icon: LayoutDashboard },
+      { href: "/admin/insights", label: "Insights", icon: BarChart3 },
+    ],
+  },
+  {
+    title: "Needs action",
+    links: [
+      { href: "/admin/inbox", label: "Inbox (all waiting)", icon: Inbox, todo: "all" },
+      { href: "/admin/reports", label: "Reports", icon: Flag, todo: "reports" },
+      { href: "/admin/support", label: "Support Tickets", icon: LifeBuoy, todo: "support" },
+      { href: "/admin/profile-requests", label: "Profile Requests", icon: ClipboardEdit, todo: "profileRequests" },
+      { href: "/admin/messages", label: "Contact Messages", icon: Inbox, todo: "contactMessages" },
+    ],
+  },
+  {
+    title: "Members & money",
+    links: [
+      { href: "/admin/users", label: "Users", icon: Users },
+      { href: "/admin/payments", label: "Payments", icon: CreditCard },
+      { href: "/admin/deletions", label: "Deletions", icon: Trash2 },
+      { href: "/admin/blocks", label: "Blocks", icon: Ban },
+      { href: "/admin/referrals", label: "Referrals", icon: Gift },
+    ],
+  },
+  {
+    title: "Matching",
+    links: [
+      { href: "/admin/suggestions", label: "Suggestions", icon: Sparkles },
+      { href: "/admin/matches", label: "Matches", icon: Heart },
+      { href: "/admin/introductions", label: "Introductions", icon: HeartHandshake },
+      { href: "/admin/chats", label: "Chats", icon: MessagesSquare },
+    ],
+  },
+  {
+    title: "Reach members",
+    links: [
+      { href: "/admin/notifications", label: "Notifications", icon: Bell },
+      { href: "/admin/alerts", label: "Popup Alerts", icon: Megaphone },
+      { href: "/admin/polls", label: "Naseebak Question", icon: MessageCircleQuestion },
+      { href: "/admin/blog", label: "Blog", icon: FileText },
+    ],
+  },
+  {
+    title: "Setup",
+    links: [
+      { href: "/admin/countries", label: "Countries", icon: Globe2 },
+      { href: "/admin/settings", label: "Settings", icon: Settings },
+    ],
+  },
+  {
+    title: "Legacy",
+    links: [
+      { href: "/admin/identity", label: "Identity Review", icon: ShieldCheck, todo: "identity" },
+      { href: "/admin/visits", label: "Visit Requests", icon: CalendarHeart },
+    ],
+  },
 ];
+const sidebarLinks = sidebarGroups.flatMap((g) => g.links);
+
+/** To-do counts for the badges, refreshed every minute */
+function useTodoCounts(): TodoCounts {
+  const [counts, setCounts] = useState<TodoCounts>({});
+  useEffect(() => {
+    let cancelled = false;
+    const load = () =>
+      fetch("/api/admin/today?todo=1")
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          if (cancelled || !d?.todo) return;
+          const t = d.todo as Record<string, number>;
+          // «Inbox» counts everything waiting (identity is legacy: only counted on its own link)
+          setCounts({ ...t, all: (t.reports ?? 0) + (t.support ?? 0) + (t.profileRequests ?? 0) + (t.contactMessages ?? 0) });
+        })
+        .catch(() => {});
+    load();
+    const timer = setInterval(load, 60_000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, []);
+  return counts;
+}
 
 function isActive(pathname: string, href: string) {
   return pathname === href || (href !== "/admin" && pathname.startsWith(href));
 }
 
-function NavLink({ link, onNavigate, nested }: { link: SidebarLink; onNavigate?: () => void; nested?: boolean }) {
+function NavLink({ link, onNavigate, nested, counts }: { link: SidebarLink; onNavigate?: () => void; nested?: boolean; counts: TodoCounts }) {
+  const n = link.todo ? (counts[link.todo] ?? 0) : 0;
   const pathname = usePathname();
   return (
     <Link
       href={link.href}
       onClick={onNavigate}
       className={cn(
-        "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+        "flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
         nested && "ps-6",
         isActive(pathname, link.href)
           ? "bg-primary text-primary-foreground"
@@ -63,48 +130,52 @@ function NavLink({ link, onNavigate, nested }: { link: SidebarLink; onNavigate?:
     >
       <link.icon className="h-4 w-4" />
       {link.label}
+      {n > 0 && (
+        <span className="ms-auto rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white tabular-nums">{n}</span>
+      )}
     </Link>
   );
 }
 
 function SidebarNav({ onNavigate, legacyGrouped }: { onNavigate?: () => void; legacyGrouped: boolean }) {
   const pathname = usePathname();
+  const counts = useTodoCounts();
   const legacyLinks = sidebarLinks.filter((l) => LEGACY_HREFS.includes(l.href));
   const inLegacy = legacyLinks.some((l) => isActive(pathname, l.href));
   const [legacyOpen, setLegacyOpen] = useState(inLegacy);
   const open = legacyOpen || inLegacy;
 
-  if (!legacyGrouped) {
-    return (
-      <nav className="flex flex-col gap-1">
-        {sidebarLinks.map((link) => (
-          <NavLink key={link.href} link={link} onNavigate={onNavigate} />
-        ))}
-      </nav>
-    );
-  }
-
   return (
-    <nav className="flex flex-col gap-1">
-      {sidebarLinks
-        .filter((l) => !LEGACY_HREFS.includes(l.href))
-        .map((link) => (
-          <NavLink key={link.href} link={link} onNavigate={onNavigate} />
-        ))}
-      <button
-        type="button"
-        onClick={() => setLegacyOpen(!open)}
-        aria-expanded={open}
-        className="mt-2 flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-      >
-        <Archive className="h-4 w-4" />
-        Legacy
-        <ChevronDown className={cn("ms-auto h-4 w-4 transition-transform", open && "rotate-180")} />
-      </button>
-      {open &&
-        legacyLinks.map((link) => (
-          <NavLink key={link.href} link={link} onNavigate={onNavigate} nested />
-        ))}
+    <nav className="flex flex-col gap-1 pb-4">
+      {sidebarGroups.map((group) => {
+        // Legacy pages fold away once the new cycle is on (still opened by a badge or when you're on them)
+        if (group.title === "Legacy" && legacyGrouped) {
+          return (
+            <div key="legacy" className="mt-2">
+              <button
+                type="button"
+                onClick={() => setLegacyOpen(!open)}
+                aria-expanded={open}
+                className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                <Archive className="h-3.5 w-3.5" />
+                Legacy
+                <ChevronDown className={cn("ms-auto h-4 w-4 transition-transform", open && "rotate-180")} />
+              </button>
+              {/* The legacy flows are off: no badge pulling the admin in */}
+              {open && group.links.map((link) => <NavLink key={link.href} link={link} onNavigate={onNavigate} nested counts={{}} />)}
+            </div>
+          );
+        }
+        return (
+          <div key={group.title ?? "home"} className={cn(group.title && "mt-2")}>
+            {group.title && <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/80">{group.title}</p>}
+            {group.links.map((link) => (
+              <NavLink key={link.href} link={link} onNavigate={onNavigate} counts={counts} />
+            ))}
+          </div>
+        );
+      })}
     </nav>
   );
 }
@@ -114,15 +185,14 @@ export function AdminSidebar({ legacyGrouped = false }: { legacyGrouped?: boolea
   return (
     <>
       {/* Desktop sidebar */}
-      <aside className="hidden lg:flex w-64 flex-col border-r bg-card">
-        <div className="p-6">
+      <aside className="hidden lg:flex w-64 flex-col border-r bg-card sticky top-0 h-screen">
+        <div className="px-6 py-4">
           <div className="flex items-center gap-2">
             <Image src="/images/logo.svg" alt="Naseeb" width={100} height={44} className="h-8 w-auto" />
             <span className="text-sm font-semibold text-muted-foreground">Admin</span>
           </div>
-          <p className="text-xs text-muted-foreground mt-1">Management Panel</p>
         </div>
-        <div className="flex-1 px-3">
+        <div className="flex-1 overflow-y-auto px-3">
           <SidebarNav legacyGrouped={legacyGrouped} />
         </div>
         <div className="p-3 border-t">

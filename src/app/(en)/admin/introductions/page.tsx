@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { HeartHandshake, Loader2, ChevronLeft, ChevronRight, Users, MessageCircle, Lock, Search } from "lucide-react";
+import { HeartHandshake, Loader2, ChevronLeft, ChevronRight, Users, MessageCircle, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { enumLabel } from "@/lib/admin/enum-labels";
+import { fmtLeft } from "@/lib/admin/matching-time";
 
 interface Person {
   id: string;
@@ -95,11 +96,10 @@ export default function AdminIntroductionsPage() {
 
   const tiles = stats
     ? [
-        { label: "Waiting for answer", value: stats.pending, tone: "text-amber-700" },
-        { label: "Accepted", value: stats.accepted, tone: "text-emerald-700" },
-        { label: "Declined", value: stats.declined, tone: "text-muted-foreground" },
-        { label: "Expired", value: stats.expired, tone: "text-muted-foreground" },
-        { label: "Active chats", value: stats.activeChats, tone: "text-primary" },
+        { label: "Waiting for answer", value: stats.pending, tone: "text-amber-700", filter: "PENDING" },
+        { label: "Accepted", value: stats.accepted, tone: "text-emerald-700", filter: "ACCEPTED" },
+        { label: "Declined", value: stats.declined, tone: "text-muted-foreground", filter: "DECLINED" },
+        { label: "Expired", value: stats.expired, tone: "text-muted-foreground", filter: "EXPIRED" },
       ]
     : [];
 
@@ -127,8 +127,8 @@ export default function AdminIntroductionsPage() {
         <p className="mt-1 flex items-center gap-1.5 text-muted-foreground">
           Family introduction and chat requests between matched users. Users handle these themselves.
         </p>
-        <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
-          <Lock className="h-3.5 w-3.5" /> Message content is private and isn&apos;t shown here.
+        <p className="mt-1 text-xs text-muted-foreground">
+          This page shows requests only. To read a chat, open it from Chats (reading is logged).
         </p>
         <div className="mt-3 flex flex-wrap gap-2 text-sm">
           <Link href="/admin/matches" className="rounded-md border px-3 py-1.5 hover:bg-muted">Matches</Link>
@@ -138,13 +138,30 @@ export default function AdminIntroductionsPage() {
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         {tiles.map((t) => (
-          <Card key={t.label}>
-            <CardContent className="pt-5">
-              <p className="text-xs text-muted-foreground">{t.label}</p>
-              <p className={cn("mt-1 text-2xl font-bold", t.tone)}>{t.value}</p>
-            </CardContent>
-          </Card>
+          <button
+            key={t.label}
+            type="button"
+            aria-pressed={status === t.filter}
+            title={status === t.filter ? "Show every status" : `Show only: ${t.label}`}
+            onClick={() => {
+              setStatus(status === t.filter ? "" : t.filter);
+              setPage(1);
+            }}
+            className={cn(
+              "rounded-xl border bg-card px-5 py-4 text-left transition-colors hover:bg-muted/60",
+              status === t.filter && "border-primary ring-1 ring-primary"
+            )}
+          >
+            <p className="text-xs text-muted-foreground">{t.label}</p>
+            <p className={cn("mt-1 text-2xl font-bold", t.tone)}>{t.value}</p>
+          </button>
         ))}
+        {stats && (
+          <Link href="/admin/chats" title="Open Chats" className="rounded-xl border bg-card px-5 py-4 transition-colors hover:bg-muted/60">
+            <p className="text-xs text-muted-foreground">Active chats</p>
+            <p className="mt-1 text-2xl font-bold text-primary">{stats.activeChats}</p>
+          </Link>
+        )}
       </div>
 
       <Card>
@@ -198,7 +215,7 @@ export default function AdminIntroductionsPage() {
                     <th className="py-2 pe-4 font-medium">Type</th>
                     <th className="py-2 pe-4 font-medium">Status</th>
                     <th className="hidden py-2 pe-4 font-medium md:table-cell">Sent</th>
-                    <th className="hidden py-2 font-medium md:table-cell">Answered</th>
+                    <th className="hidden py-2 font-medium md:table-cell">Answered / expires</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -217,9 +234,12 @@ export default function AdminIntroductionsPage() {
                         <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-medium", STATUS_STYLE[r.status])}>
                           {enumLabel("requestStatus", r.status)}
                         </span>
+                        {r.status === "PENDING" && <div className="mt-1 text-xs text-amber-700 md:hidden">Expires {fmtLeft(r.expiresAt)}</div>}
                       </td>
                       <td className="hidden py-3 pe-4 text-muted-foreground md:table-cell">{fmt(r.createdAt)}</td>
-                      <td className="hidden py-3 text-muted-foreground md:table-cell">{fmt(r.respondedAt)}</td>
+                      <td className="hidden py-3 text-muted-foreground md:table-cell">
+                        {r.status === "PENDING" ? <span className="text-amber-700">Expires {fmtLeft(r.expiresAt)}</span> : fmt(r.respondedAt)}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

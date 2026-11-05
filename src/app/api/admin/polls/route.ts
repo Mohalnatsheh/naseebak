@@ -4,27 +4,32 @@ import { db } from "@/lib/db";
 import { nextPollSlug, pollRewardCredits, pollRoundDays, pollsEnabled, rotatePollsIfDue, TEST_SOURCE } from "@/lib/engagement/polls";
 import { pollInputSchema } from "@/lib/validations/poll";
 
-/** Every question, newest first, with its counted votes, plus the settings (a due rotation runs first) */
+/**
+ * Every question, newest first, with its counted votes and `allVotes` (test accounts too: any vote at
+ * all blocks deleting a question), plus the settings (a due rotation runs first)
+ */
 export async function GET() {
   try {
     const result = await requireAdmin();
     if ("error" in result) return result.error;
     await rotatePollsIfDue().catch((error) => console.error("[admin polls] rotation failed:", error));
-    const [polls, counts, enabled, roundDays, rewardCredits, rewarded] = await Promise.all([
+    const [polls, counts, allCounts, enabled, roundDays, rewardCredits, rewarded] = await Promise.all([
       db.poll.findMany({ orderBy: { createdAt: "desc" }, take: 100 }),
       db.pollVote.groupBy({ by: ["pollId"], where: { source: { not: TEST_SOURCE } }, _count: { _all: true } }),
+      db.pollVote.groupBy({ by: ["pollId"], _count: { _all: true } }),
       pollsEnabled(),
       pollRoundDays(),
       pollRewardCredits(),
       db.pollVote.aggregate({ _sum: { rewardCredits: true } }),
     ]);
     const votes = new Map(counts.map((c) => [c.pollId, c._count._all]));
+    const allVotes = new Map(allCounts.map((c) => [c.pollId, c._count._all]));
     return NextResponse.json({
       enabled,
       roundDays,
       rewardCredits,
       creditsGiven: rewarded._sum.rewardCredits ?? 0,
-      polls: polls.map((p) => ({ ...p, votes: votes.get(p.id) ?? 0 })),
+      polls: polls.map((p) => ({ ...p, votes: votes.get(p.id) ?? 0, allVotes: allVotes.get(p.id) ?? 0 })),
     });
   } catch (error) {
     console.error("[admin polls] list failed:", error);

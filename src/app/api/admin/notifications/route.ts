@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { notify, notifyMany, type PushChannel } from "@/lib/notify";
-import { byUserCountry, getAdminCountry, userCountryWhere } from "@/lib/admin/country-filter";
+import { getAdminCountry } from "@/lib/admin/country-filter";
+import { broadcastAudienceWhere, recentNotificationSends } from "@/lib/admin/reach-audience";
 import { countryConfig } from "@/lib/countries";
 
 export async function GET(request: Request) {
@@ -10,24 +11,8 @@ export async function GET(request: Request) {
     const result = await requireAdmin();
     if ("error" in result) return result.error;
 
-    const notifications = await db.notification.findMany({
-      // Admin's selected country ("ALL" = every country)
-      where: { type: "SYSTEM", ...byUserCountry(await getAdminCountry(request), "user") },
-      orderBy: { createdAt: "desc" },
-      take: 50,
-      select: {
-        id: true,
-        title: true,
-        body: true,
-        isRead: true,
-        createdAt: true,
-        user: {
-          select: { id: true, firstName: true, lastName: true },
-        },
-      },
-    });
-
-    return NextResponse.json({ notifications });
+    // Admin's selected country ("ALL" = every country), one row per send
+    return NextResponse.json({ sends: await recentNotificationSends(await getAdminCountry(request)) });
   } catch (error) {
     console.error("Admin notifications error:", error);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
@@ -87,21 +72,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "Notification sent to user" });
     }
 
-    // Broadcast: active users only (not suspended, not deactivated), of the selected country; "app" = only members
-    // with the app and a valid sign-in, so website-only members don't get an app message in their list
-    const now = new Date();
-    const users = await db.user.findMany({
-      where: {
-        role: "USER",
-        isDeactivated: false,
-        status: { not: "SUSPENDED" },
-        ...userCountryWhere(country),
-        ...(channel === "app" && {
-          pushDevices: { some: { mobileSession: { revokedAt: null, expiresAt: { gt: now } } } },
-        }),
-      },
-      select: { id: true },
-    });
+    // Broadcast: see broadcastAudienceWhere (same rule as the confirmation's count)
+    const users = await db.user.findMany({ where: broadcastAudienceWhere(country, channel, new Date()), select: { id: true } });
 
     if (users.length === 0) {
       return NextResponse.json({ message: "No users to notify" });

@@ -14,6 +14,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { toast } from "sonner";
+import { fmtDateTime } from "@/components/admin/admin-list-bits";
 
 interface State {
   introRequests: boolean;
@@ -51,7 +53,10 @@ export function NewCycleSettingsCard() {
       body: JSON.stringify({ [key]: value }),
     }).catch(() => null);
     if (res?.ok) setState(await res.json());
-    else setError("Couldn't save. Try again.");
+    else {
+      setError("Couldn't save. Try again.");
+      toast.error("Couldn't save the switch. Try again.");
+    }
     setSaving(null);
   }
 
@@ -77,6 +82,7 @@ export function NewCycleSettingsCard() {
       setState((s) => (s ? { ...s, creditsMigratedAt: data.at ?? new Date().toISOString() } : s));
     } else {
       setError(data.error || "Couldn't run the top-up. Try again.");
+      toast.error(data.error || "Couldn't run the top-up. Try again.");
     }
     setMigration(null);
     setMigrating(false);
@@ -87,7 +93,7 @@ export function NewCycleSettingsCard() {
       key: "introRequests" as const,
       icon: HeartHandshake,
       title: "Family and chat requests",
-      text: "Matches show two buttons: family introduction (shares guardian contacts) and chat request. Suggestions become free (3 per week); each request costs the sender 1 credit. New matches no longer create visit requests for admins.",
+      text: "Matches lead to a family introduction (shares guardian contacts) or a chat, with no admin work: new matches no longer create visit requests. Suggestions are free. While Credit on interest is on, matches open straight into the choice and requests are free; while it is off, members get 3 suggestions a week and each request costs the sender 1 credit.",
       on: state?.introRequests ?? false,
       disabled: false,
     },
@@ -103,7 +109,7 @@ export function NewCycleSettingsCard() {
       key: "mutualSuggestions" as const,
       icon: Users,
       title: "Simultaneous suggestions",
-      text: "Both people see the same suggestion and each taps Interested or No. A match happens only when both say yes; nobody learns the other's answer. Dealbreakers become hard filters and every card says why it was suggested. Suggestions already in progress keep working.",
+      text: "Both people see the same suggestion and each taps Interested or No. A match happens only when both say yes. An 'Interested' is shown to the other person; a 'No' is known only to someone who said Interested. Dealbreakers become hard filters and every card says why it was suggested. Suggestions already in progress keep working.",
       on: !!state?.introRequests && !!state?.mutualSuggestions,
       disabled: !state?.introRequests,
     },
@@ -111,7 +117,7 @@ export function NewCycleSettingsCard() {
       key: "creditOnInterest" as const,
       icon: Coins,
       title: "Credit on interest",
-      text: "Suggestions are free (5 open at a time, score ≥ 60, best first). Each 'Interested' costs the user 1 credit (refunded if the other side never answers within 7 days); matches, requests and chat are free. A mutual match opens straight into chat or family introduction. Turning it on closes older-style suggestions still waiting for a decision. Needs Shared suggestions on.",
+      text: "Suggestions are free (5 open at a time, score ≥ 60, best first). Each 'Interested' costs the user 1 credit (refunded if the other side never answers within 7 days); matches, requests and chat are free. A mutual match opens straight into chat or family introduction. Turning it on closes older-style suggestions still waiting for a decision. Needs Simultaneous suggestions on.",
       on: !!state?.introRequests && !!state?.mutualSuggestions && !!state?.creditOnInterest,
       disabled: !state?.introRequests || !state?.mutualSuggestions,
     },
@@ -175,7 +181,7 @@ export function NewCycleSettingsCard() {
         )}
         {state?.creditsMigratedAt && (
           <p className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Info className="h-3.5 w-3.5" /> Credits were topped up on {new Date(state.creditsMigratedAt).toLocaleString()}.
+            <Info className="h-3.5 w-3.5" /> Credits were topped up on {fmtDateTime(state.creditsMigratedAt)}.
           </p>
         )}
         {error && <p className="text-sm text-destructive">{error}</p>}
@@ -238,10 +244,10 @@ export function NewCycleSettingsCard() {
               {confirmOff === "chat"
                 ? "Users won't be able to send new messages or chat requests. Existing chats stay readable."
                 : confirmOff === "mutualSuggestions"
-                  ? "New suggestions go back to the old one-by-one flow. Users can still answer the simultaneous suggestions they already have."
+                  ? "New suggestions go back to the old one-by-one flow. Users can still answer the simultaneous suggestions they already have. Credit on interest turns off too."
                   : confirmOff === "creditOnInterest"
                   ? "'Interested' becomes free again and family and chat requests cost 1 credit again. Open chats and accepted introductions keep working."
-                  : "Users won't be able to send new requests, and suggestions go back to costing credits. Accepted introductions and existing chats stay visible. Chat pauses too."}
+                  : "Users won't be able to send new requests, and suggestions go back to costing credits. Accepted introductions and existing chats stay visible. Chat pauses too, and Credit on interest turns off."}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

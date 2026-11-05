@@ -77,9 +77,14 @@ export async function GET(request: Request) {
     const { page, pageSize, skip } = parsePagination(searchParams, 20);
     const raw = searchParams.get("status");
     const status = raw === "PENDING" || raw === "REVIEWED" || raw === "DISMISSED" ? raw : undefined;
+    // `?id=`: one report (the Inbox's «Open» link); it replaces the status filter
+    const id = searchParams.get("id");
 
     // Admin's selected country, by the reported member's country (see reportCountryWhere)
-    const where: Prisma.ReportWhereInput = { ...reportCountryWhere(await getAdminCountry(request)), ...(status && { status }) };
+    const where: Prisma.ReportWhereInput = {
+      ...reportCountryWhere(await getAdminCountry(request)),
+      ...(id ? { id } : status && { status }),
+    };
 
     const [reports, total] = await Promise.all([
       db.report.findMany({
@@ -88,7 +93,8 @@ export async function GET(request: Request) {
           reporter: { select: { id: true, firstName: true, lastName: true } },
           reported: { select: { id: true, firstName: true, lastName: true, status: true } },
         },
-        orderBy: { createdAt: "desc" },
+        // Waiting reports: the one waiting longest comes first
+        orderBy: { createdAt: status === "PENDING" ? "asc" : "desc" },
         skip,
         take: pageSize,
       }),

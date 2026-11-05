@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { toast } from "sonner";
 import { fmtDate } from "@/components/admin/admin-list-bits";
 import {
   MIN_POLL_RESULTS,
@@ -36,6 +37,8 @@ interface PollRow {
   closedAt: string | null;
   createdAt: string;
   votes: number;
+  /** Test votes included: the API refuses to delete a question with any vote */
+  allVotes: number;
 }
 
 const STATUS_STYLE: Record<PollStatusValue, string> = {
@@ -90,17 +93,16 @@ export default function AdminPollsPage() {
 
   async function call(key: string, url: string, init: RequestInit) {
     setBusy(key);
-    setError("");
     try {
       const res = await fetch(url, { ...init, headers: { "Content-Type": "application/json" } });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(data.error || `Request failed (${res.status})`);
+        toast.error(data.error || `Request failed (${res.status})`);
         return null;
       }
       return data;
     } catch {
-      setError("Network error");
+      toast.error("Network error");
       return null;
     } finally {
       setBusy(null);
@@ -114,7 +116,10 @@ export default function AdminPollsPage() {
 
   async function saveSettings() {
     const body = { roundDays: Number(roundDays), rewardCredits: Number(reward) };
-    if (await call("settings", "/api/admin/polls/switch", { method: "PATCH", body: JSON.stringify(body) })) load();
+    if (await call("settings", "/api/admin/polls/switch", { method: "PATCH", body: JSON.stringify(body) })) {
+      toast.success("Settings saved");
+      load();
+    }
   }
 
   async function save() {
@@ -123,6 +128,7 @@ export default function AdminPollsPage() {
       ? await call("save", `/api/admin/polls/${editing}`, { method: "PATCH", body: JSON.stringify({ action: "edit", poll: body }) })
       : await call("save", "/api/admin/polls", { method: "POST", body: JSON.stringify(body) });
     if (data) {
+      toast.success("Question saved");
       setForm(emptyForm);
       setEditing(null);
       load();
@@ -140,7 +146,10 @@ export default function AdminPollsPage() {
 
   async function remove(id: string) {
     if (!window.confirm("Delete this question? This can't be undone.")) return;
-    if (await call(id, `/api/admin/polls/${id}`, { method: "DELETE" })) load();
+    if (await call(id, `/api/admin/polls/${id}`, { method: "DELETE" })) {
+      toast.success("Question deleted");
+      load();
+    }
   }
 
   async function showResults(id: string) {
@@ -325,7 +334,7 @@ export default function AdminPollsPage() {
                   <Button size="sm" variant="ghost" onClick={() => edit(p)}>
                     <Pencil className="h-4 w-4" /> Edit
                   </Button>
-                  {p.votes === 0 && (
+                  {p.allVotes === 0 && (
                     <Button size="sm" variant="ghost" className="text-destructive" onClick={() => remove(p.id)} disabled={busy === p.id}>
                       <Trash2 className="h-4 w-4" /> Delete
                     </Button>

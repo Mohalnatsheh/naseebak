@@ -33,6 +33,7 @@ export async function GET(
         verifiedAt: true,
         createdAt: true,
         updatedAt: true,
+        lastActiveAt: true,
         profile: true,
         personalityResult: {
           select: {
@@ -68,6 +69,21 @@ export async function GET(
         photos: {
           select: { id: true, url: true, isPrimary: true, order: true, createdAt: true },
           orderBy: { order: "asc" },
+        },
+        // Newest payments for the member page (all of them are on /admin/payments)
+        payments: {
+          orderBy: { createdAt: "desc" },
+          take: 20,
+          select: {
+            id: true,
+            planName: true,
+            amount: true,
+            currency: true,
+            status: true,
+            disputedAt: true,
+            failureReason: true,
+            createdAt: true,
+          },
         },
         referralsReceived: {
           select: {

@@ -1,11 +1,18 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { enumParam, safePagination } from "@/lib/admin/query";
+import { safePagination } from "@/lib/admin/query";
 import { getAdminCountry, paymentCountryWhere } from "@/lib/admin/country-filter";
-import type { PaymentStatus } from "@prisma/client";
+import { paymentsListWhere } from "@/lib/admin/list-filters";
+import { findAnyPackage } from "@/lib/payments/packages";
+const DAY_MS = 24 * 60 * 60 * 1000;
+const AMMAN_OFFSET_MS = 3 * 60 * 60 * 1000;
 
-const PAYMENT_STATUSES: PaymentStatus[] = ["PENDING", "COMPLETED", "FAILED", "REFUNDED"];
+/** The first of this month at midnight in Amman (UTC+3 all year), as a UTC instant */
+function startOfAmmanMonth(now: Date): Date {
+  const local = new Date(now.getTime() + AMMAN_OFFSET_MS);
+  return new Date(Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), 1) - AMMAN_OFFSET_MS);
+}
 
 export async function GET(request: Request) {
   try {
@@ -14,15 +21,13 @@ export async function GET(request: Request) {
 
     const url = new URL(request.url);
     const { page, pageSize, skip } = safePagination(url.searchParams, 20);
-    // Unknown status values are ignored (all payments) instead of a Prisma 500
-    const status = enumParam(url.searchParams.get("status"), PAYMENT_STATUSES);
-
     // Admin's selected country (a deleted member's payment is placed by its currency)
-    const byCountry = paymentCountryWhere(await getAdminCountry(request));
-    const where = { ...byCountry, ...(status ? { status } : {}) };
-
+    const country = await getAdminCountry(request);
+    const byCountry = paymentCountryWhere(country);
     const now = new Date();
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const where = paymentsListWhere(url.searchParams, country, now);
+
+    const startOfMonth = startOfAmmanMonth(now);
 
     const [payments, total, totals, monthly, failedRaw] = await Promise.all([
       db.payment.findMany({
@@ -35,13 +40,14 @@ export async function GET(request: Request) {
           planName: true,
           amount: true,
           currency: true,
-          provider: true,
           status: true,
           disputedAt: true,
           failureReason: true,
+          providerTxId: true,
+          stripePaymentIntentId: true,
           createdAt: true,
           user: {
-            select: { id: true, firstName: true, lastName: true, phone: true, country: true },
+            select: { id: true, firstName: true, lastName: true, phone: true, country: true, matchCredits: true },
           },
         },
       }),
@@ -61,7 +67,7 @@ export async function GET(request: Request) {
       // Why checkouts failed in the last 30 days (owner request 2026-11-04)
       db.payment.groupBy({
         by: ["failureReason"],
-        where: { ...byCountry, status: "FAILED", createdAt: { gte: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000) } },
+        where: { ...byCountry, status: "FAILED", createdAt: { gte: new Date(now.getTime() - 30 * DAY_MS) } },
         _count: true,
       }),
     ]);
@@ -79,7 +85,13 @@ export async function GET(request: Request) {
       .sort((a, b) => a.currency.localeCompare(b.currency));
 
     return NextResponse.json({
-      payments,
+      payments: payments.map(({ providerTxId, stripePaymentIntentId, ...p }) => ({
+        ...p,
+        /** What a refund takes back: the package's credits (also for packages no longer sold) */
+        credits: findAnyPackage(p.planName)?.credits ?? 0,
+        /** For the «View in Stripe» link: a checkout's providerTxId may be something else in old rows */
+        stripePaymentIntent: stripePaymentIntentId ?? (providerTxId?.startsWith("pi_") ? providerTxId : null),
+      })),
       total,
       page,
       totalPages: Math.ceil(total / pageSize),

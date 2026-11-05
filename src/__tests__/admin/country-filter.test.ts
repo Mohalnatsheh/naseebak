@@ -133,7 +133,7 @@ describe("admin payments", () => {
       .mockResolvedValueOnce([{ currency: "JOD", _sum: { amount: 12 }, _count: 4 }])
       .mockResolvedValueOnce([{ currency: "JOD", _sum: { amount: 3 } }]);
     const body = await (await getPayments(req("http://x/api/admin/payments")))!.json();
-    expect(db.payment.findMany.mock.calls[0][0].where).toEqual({ OR: [{ user: { country: "JO" } }, { userId: null, currency: "JOD" }] });
+    expect(db.payment.findMany.mock.calls[0][0].where).toMatchObject({ OR: [{ user: { country: "JO" } }, { userId: null, currency: "JOD" }] });
     expect(body.summary).toEqual({ revenue: [{ currency: "JOD", total: 12, monthly: 3, count: 4 }], completedCount: 4, failed30d: [] });
   });
 
@@ -142,9 +142,42 @@ describe("admin payments", () => {
       .mockResolvedValueOnce([{ currency: "SAR", _sum: { amount: 30 }, _count: 1 }, { currency: "JOD", _sum: { amount: 12 }, _count: 4 }])
       .mockResolvedValueOnce([]);
     const body = await (await getPayments(req("http://x/api/admin/payments", "ALL")))!.json();
-    expect(db.payment.findMany.mock.calls[0][0].where).toEqual({});
+    expect(db.payment.findMany.mock.calls[0][0].where).toEqual({ NOT: { status: "PENDING", createdAt: { lt: expect.any(Date) } } });
     expect(body.summary.revenue.map((r: { currency: string }) => r.currency)).toEqual(["JOD", "SAR"]);
     expect(body.summary.completedCount).toBe(5);
+  });
+});
+
+describe("admin payments filters", () => {
+  it("«This month» starts at midnight on the 1st in Amman, not server time", async () => {
+    vi.useFakeTimers({ now: new Date("2026-10-31T22:00:00Z") }); // already 1 Nov in Amman
+    try {
+      await getPayments(req("http://x/api/admin/payments", "ALL"));
+    } finally {
+      vi.useRealTimers();
+    }
+    expect(db.payment.groupBy.mock.calls[1][0].where.createdAt.gte).toEqual(new Date("2026-10-31T21:00:00Z"));
+  });
+
+  it("disputed, a failure reason and a member search", async () => {
+    await getPayments(req("http://x/api/admin/payments?status=DISPUTED", "ALL"));
+    expect(db.payment.findMany.mock.calls[0][0].where).toEqual({ disputedAt: { not: null } });
+    await getPayments(req("http://x/api/admin/payments?reason=UNKNOWN", "ALL"));
+    expect(db.payment.findMany.mock.calls[1][0].where).toEqual({ status: "FAILED", failureReason: null });
+    await getPayments(req("http://x/api/admin/payments?status=COMPLETED&search=0790000001", "ALL"));
+    expect(db.payment.findMany.mock.calls[2][0].where).toMatchObject({ status: "COMPLETED", user: { OR: expect.any(Array) } });
+  });
+
+  it("gives each row the credits a refund takes back and the Stripe intent", async () => {
+    db.payment.findMany.mockResolvedValue([
+      { id: "p1", planName: "nope", providerTxId: "pi_1", stripePaymentIntentId: null },
+      { id: "p2", planName: null, providerTxId: "cs_2", stripePaymentIntentId: null },
+    ]);
+    const body = await (await getPayments(req("http://x/api/admin/payments", "ALL")))!.json();
+    expect(body.payments).toEqual([
+      { id: "p1", planName: "nope", credits: 0, stripePaymentIntent: "pi_1" },
+      { id: "p2", planName: null, credits: 0, stripePaymentIntent: null },
+    ]);
   });
 });
 

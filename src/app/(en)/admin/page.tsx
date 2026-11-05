@@ -3,14 +3,13 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import {
-  Users, UserCheck, Heart, Sparkles, ShieldCheck, 
-  TrendingUp, Clock, DollarSign, Flag, ClipboardEdit,
-  ArrowUpRight, ArrowDownRight, LifeBuoy, HeartHandshake, MessagesSquare, Coins,
+  Users, UserCheck, Heart, Sparkles, Clock, DollarSign, Flag, HeartHandshake, MessagesSquare, Coins,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { RevenuePanel } from "@/components/admin/revenue-panel";
 import { ActiveDevicesPanel } from "@/components/admin/active-devices-panel";
 import { GrowthPanel } from "@/components/admin/growth-panel";
+import { TodayPanel } from "@/components/admin/today-panel";
 import { Badge } from "@/components/ui/badge";
 
 interface Stats {
@@ -93,8 +92,11 @@ export default function AdminDashboardPage() {
   const [cycle, setCycle] = useState<CycleStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
+  // All-time totals and the funnel read every member and suggestion: loaded only when opened
+  const [showAllTime, setShowAllTime] = useState(false);
 
   useEffect(() => {
+    if (!showAllTime) return;
     async function load() {
       try {
         const res = await fetch("/api/admin/stats");
@@ -111,7 +113,7 @@ export default function AdminDashboardPage() {
       }
     }
     load();
-  }, []);
+  }, [showAllTime]);
 
   const statCards: StatCard[] = stats
     ? [
@@ -139,27 +141,16 @@ export default function AdminDashboardPage() {
       />
 
       <div className="relative space-y-8 pb-8">
-        {/* Page Header */}
-        <div
-          className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-primary/10 via-primary/5 to-transparent border border-primary/15 p-6 md:p-8"
-          style={{ animation: "fadeSlideIn 0.5s ease-out both" }}
-        >
-          <div className="absolute top-0 right-0 w-40 h-40 bg-primary/10 rounded-full translate-x-16 -translate-y-16 blur-3xl" />
-          <div className="absolute bottom-0 left-0 w-32 h-32 bg-accent/10 rounded-full -translate-x-8 translate-y-8 blur-2xl" />
-          <div className="relative space-y-2">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-lg shadow-primary/20">
-                <TrendingUp className="h-5 w-5 text-white" />
-              </div>
-              <h1 className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-                Analytics Dashboard
-              </h1>
-            </div>
-            <p className="text-muted-foreground text-sm md:text-base ml-[52px]">
-              Platform overview and key metrics
+        <div className="flex flex-wrap items-end justify-between gap-2">
+          <div>
+            <h1 className="text-2xl font-bold">Today</h1>
+            <p className="text-sm text-muted-foreground">
+              {new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", timeZone: "Asia/Amman" })} · what needs you, and how the day is going
             </p>
           </div>
         </div>
+
+        <TodayPanel />
 
         {loadError && (
           <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
@@ -170,6 +161,25 @@ export default function AdminDashboardPage() {
         {/* Revenue: today / yesterday / the day before, trends, latest payments */}
         <RevenuePanel />
 
+        {/* Members per device: website (Android / iPhone / computer) and app (Android / iPhone) */}
+        {/* Are more people coming back: active members, sign-up weeks, «مهتم» → match per week */}
+        <GrowthPanel />
+
+        <ActiveDevicesPanel />
+
+        {/* All-time totals, the new-cycle funnel and recent activity (heavy: loaded on demand) */}
+        <section className="space-y-6">
+          <button
+            type="button"
+            onClick={() => setShowAllTime((v) => !v)}
+            aria-expanded={showAllTime}
+            className="flex w-full items-center justify-between rounded-xl border bg-card px-4 py-3 text-left text-sm font-semibold hover:bg-muted/50"
+          >
+            All-time totals, funnel and recent activity
+            <span className="text-xs font-normal text-muted-foreground">{showAllTime ? "Hide" : "Show (takes a few seconds)"}</span>
+          </button>
+          {showAllTime && (
+            <>
         {/* Stats Grid */}
         {loading ? (
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5">
@@ -222,89 +232,12 @@ export default function AdminDashboardPage() {
           </div>
         )}
 
-        {/* Members per device: website (Android / iPhone / computer) and app (Android / iPhone) */}
-        {/* Are more people coming back: active members, sign-up weeks, «مهتم» → match per week */}
-        <GrowthPanel />
-
-        <ActiveDevicesPanel />
-
         {/* New user cycle (switch intro_requests_enabled) */}
         {cycle && <NewCycleSection cycle={cycle} />}
 
-        {/* Quick Actions + Registration Trend + Activity */}
+        {/* Recent activity */}
         {stats && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Quick Actions */}
-            <Card>
-              <CardHeader><CardTitle className="text-lg">Quick Actions</CardTitle></CardHeader>
-              <CardContent className="space-y-3">
-                <Link href="/admin/identity" className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50 transition-colors">
-                  <div className="flex items-center gap-3">
-                    <ShieldCheck className="h-5 w-5 text-amber-600" />
-                    <span className="text-sm font-medium">Pending Identity Reviews</span>
-                    {cycle && <Badge variant="outline" className="text-[10px] px-1.5 py-0">Legacy</Badge>}
-                  </div>
-                  <Badge variant="secondary">{stats.pendingVerifications}</Badge>
-                </Link>
-                <Link href="/admin/reports" className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50 transition-colors">
-                  <div className="flex items-center gap-3">
-                    <Flag className="h-5 w-5 text-destructive" />
-                    <span className="text-sm font-medium">Pending Reports</span>
-                  </div>
-                  <Badge variant="secondary">{stats.pendingReports}</Badge>
-                </Link>
-                <Link href="/admin/profile-requests" className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50 transition-colors">
-                  <div className="flex items-center gap-3">
-                    <ClipboardEdit className="h-5 w-5 text-primary" />
-                    <span className="text-sm font-medium">Profile Requests</span>
-                  </div>
-                  <Badge variant="secondary">{stats.pendingProfileRequests}</Badge>
-                </Link>
-                <Link href="/admin/support" className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50 transition-colors">
-                  <div className="flex items-center gap-3">
-                    <LifeBuoy className="h-5 w-5 text-secondary" />
-                    <span className="text-sm font-medium">Support Tickets</span>
-                  </div>
-                  <Badge variant="secondary">{stats.pendingSupportTickets}</Badge>
-                </Link>
-              </CardContent>
-            </Card>
-
-            {/* Registration Trend */}
-            <Card>
-              <CardHeader><CardTitle className="text-lg">Registration Trend</CardTitle></CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-muted-foreground">This Week</p>
-                      <p className="text-3xl font-bold">{stats.registrationsThisWeek}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm text-muted-foreground">Last Week</p>
-                      <p className="text-3xl font-bold text-muted-foreground">{stats.registrationsLastWeek}</p>
-                    </div>
-                  </div>
-                  {stats.registrationsLastWeek > 0 && (
-                    <div className="flex items-center gap-2">
-                      {stats.registrationsThisWeek >= stats.registrationsLastWeek ? (
-                        <Badge className="bg-green-100 text-green-800">
-                          <ArrowUpRight className="h-3 w-3 me-1" />
-                          +{Math.round(((stats.registrationsThisWeek - stats.registrationsLastWeek) / stats.registrationsLastWeek) * 100)}%
-                        </Badge>
-                      ) : (
-                        <Badge className="bg-destructive/10 text-destructive">
-                          <ArrowDownRight className="h-3 w-3 me-1" />
-                          {Math.round(((stats.registrationsThisWeek - stats.registrationsLastWeek) / stats.registrationsLastWeek) * 100)}%
-                        </Badge>
-                      )}
-                      <span className="text-xs text-muted-foreground">vs last week</span>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-
+          <div className="grid grid-cols-1 gap-6">
             {/* Recent Activity */}
             <Card>
               <CardHeader><CardTitle className="text-lg">Recent Activity</CardTitle></CardHeader>
@@ -333,6 +266,9 @@ export default function AdminDashboardPage() {
             </Card>
           </div>
         )}
+            </>
+          )}
+        </section>
       </div>
 
       <style jsx global>{`

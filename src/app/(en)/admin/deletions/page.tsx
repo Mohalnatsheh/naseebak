@@ -5,7 +5,7 @@ import { Trash2, Loader2, Undo2, Clock, User } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Pager } from "@/components/admin/admin-list-bits";
+import { Pager, PersonLink } from "@/components/admin/admin-list-bits";
 
 interface DeletionRequest {
   id: string;
@@ -123,7 +123,7 @@ export default function AdminDeletionsPage() {
                         <User className="h-5 w-5 text-destructive" />
                       </div>
                       <div>
-                        <h3 className="font-semibold">{req.user.firstName} {req.user.lastName}</h3>
+                        <h3 className="font-semibold"><PersonLink p={req.user} /></h3>
                         <p className="text-sm text-muted-foreground">{req.user.phone || "—"}</p>
                         <div className="flex gap-2 mt-1">
                           {req.user.isDeactivated && (

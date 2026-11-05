@@ -61,7 +61,7 @@ export async function GET(request: Request) {
     });
     const inviters = referrer
       ? 1
-      : (await db.referral.groupBy({ by: ["referrerId"], where: inCountry })).length;
+      : await db.user.count({ where: { referralsGiven: { some: inCountry } } });
 
     return NextResponse.json({
       referrals: referrals.map(({ referee: { profile, ...referee }, ...r }) => ({

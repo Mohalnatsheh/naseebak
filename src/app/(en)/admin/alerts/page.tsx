@@ -1,12 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ImagePlus, Loader2, Megaphone, Send, Square, Trash2, X } from "lucide-react";
+import { Copy, ImagePlus, Loader2, Megaphone, Send, Square, Trash2, X } from "lucide-react";
+import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { fmtDateTime } from "@/components/admin/admin-list-bits";
+import { countryConfig } from "@/lib/countries";
 
 type Audience = "ALL" | "MEN" | "WOMEN" | "USER";
 type Channel = "ALL" | "APP" | "WEB" | "WEB_ANDROID" | "WEB_IPHONE" | "WEB_DESKTOP";
@@ -67,6 +70,24 @@ const LINKS: [string, string][] = [
   ["custom", "Other link (https://…)"],
 ];
 
+/** «Jordan» / «all countries» (`null` = every country) */
+function countryName(code: string | null) {
+  return code ? countryConfig(code).nameEn : "all countries";
+}
+
+function audienceLabel(a: AlertItem) {
+  if (a.audience === "USER") return a.user ? `${a.user.firstName} ${a.user.lastName}` : "One member";
+  return AUDIENCES.find(([v]) => v === a.audience)?.[1] ?? a.audience;
+}
+
+/** A past alert's image as a data URL, the form's format (the old file can be deleted with its alert) */
+async function imageAsDataUrl(url: string): Promise<string> {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(String(res.status));
+  const blob = await res.blob();
+  return readImage(new File([blob], "image", { type: blob.type }));
+}
+
 function statusOf(a: AlertItem): { label: string; variant: "default" | "secondary" | "outline" | "destructive" } {
   const now = Date.now();
   if (a.stoppedAt) return { label: "Stopped", variant: "outline" };
@@ -103,11 +124,14 @@ export default function AdminAlertsPage() {
   const [endsAt, setEndsAt] = useState("");
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null);
+  // Where a new alert goes (the admin's selected country, null = every country)
+  const [targetCountry, setTargetCountry] = useState<string | null>(null);
 
   async function reload() {
     const res = await fetch("/api/admin/alerts");
     const data = await res.json().catch(() => ({}));
     setAlerts(data.alerts || []);
+    setTargetCountry(data.country ?? null);
   }
 
   useEffect(() => {
@@ -162,7 +186,7 @@ export default function AdminAlertsPage() {
     }
     const who = AUDIENCES.find(([v]) => v === audience)?.[1] ?? audience;
     const where = CHANNELS.find(([v]) => v === channel)?.[1] ?? channel;
-    if (audience !== "USER" && !confirm(`Show this popup to: ${who} (${where})?`)) return;
+    if (audience !== "USER" && !confirm(`Show this popup to: ${who} in ${countryName(targetCountry)} (${where})?`)) return;
 
     setSending(true);
     setResult(null);
@@ -207,19 +231,56 @@ export default function AdminAlertsPage() {
   }
 
   async function stop(a: AlertItem) {
-    if (!confirm(`Stop showing "${a.title}"?`)) return;
-    await fetch(`/api/admin/alerts/${a.id}`, {
+    if (!confirm(`Stop showing "${a.title}" to ${audienceLabel(a)} in ${countryName(a.country)}?`)) return;
+    const res = await fetch(`/api/admin/alerts/${a.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "stop" }),
-    });
+    }).catch(() => null);
+    if (!res?.ok) {
+      toast.error((await res?.json().catch(() => null))?.error ?? "Could not stop the alert");
+      return;
+    }
+    toast.success("Alert stopped");
     await reload();
   }
 
   async function remove(a: AlertItem) {
-    if (!confirm(`Delete "${a.title}"? Members who haven't closed it won't see it.`)) return;
-    await fetch(`/api/admin/alerts/${a.id}`, { method: "DELETE" });
+    if (!confirm(`Delete "${a.title}" (${audienceLabel(a)}, ${countryName(a.country)})? Members who haven't closed it won't see it.`)) return;
+    const res = await fetch(`/api/admin/alerts/${a.id}`, { method: "DELETE" }).catch(() => null);
+    if (!res?.ok) {
+      toast.error((await res?.json().catch(() => null))?.error ?? "Could not delete the alert");
+      return;
+    }
+    toast.success("Alert deleted");
     await reload();
+  }
+
+  /** Prefills the form from a past alert: saving creates a new one, the old alert is left as it is */
+  async function duplicate(a: AlertItem) {
+    setAudience(a.audience);
+    setChannel(a.channel);
+    setSelectedUser(a.audience === "USER" ? a.user?.id ?? "" : "");
+    setUsers(a.audience === "USER" && a.user ? [a.user] : []);
+    setUserSearch(a.audience === "USER" ? a.user?.phone ?? a.user?.firstName ?? "" : "");
+    setTitle(a.title);
+    setBody(a.body);
+    const preset = !a.buttonUrl || LINKS.some(([v]) => v === a.buttonUrl);
+    setLink(preset ? a.buttonUrl ?? "" : "custom");
+    setCustomLink(preset ? "" : a.buttonUrl ?? "");
+    setButtonLabel(a.buttonLabel ?? "");
+    setStartsAt("");
+    setEndsAt("");
+    setImage(null);
+    setResult({ ok: true, text: "Copied into the form. Check it, set the dates, then Create Alert. The old alert isn't changed." });
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    if (a.imageUrl) {
+      try {
+        setImage(await imageAsDataUrl(a.imageUrl));
+      } catch {
+        toast.error("The image couldn't be copied: choose it again");
+      }
+    }
   }
 
   return (
@@ -458,25 +519,36 @@ export default function AdminAlertsPage() {
                             <Square className="h-3 w-3 me-1" /> Stop
                           </Button>
                         ) : null}
-                        <Button size="sm" variant="ghost" onClick={() => remove(a)} aria-label="Delete">
-                          <Trash2 className="h-4 w-4 text-destructive" />
+                        <Button size="sm" variant="outline" onClick={() => duplicate(a)}>
+                          <Copy className="h-3 w-3 me-1" /> Duplicate
                         </Button>
+                        {/* Numbers are kept once anyone saw it: Stop it instead */}
+                        {a._count.views === 0 && a._count.dismissals === 0 && (
+                          <Button size="sm" variant="ghost" onClick={() => remove(a)} aria-label="Delete">
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        )}
                       </div>
                     </div>
                     <p className="text-muted-foreground break-words line-clamp-2" dir="rtl">{a.body}</p>
                     <p className="text-xs text-muted-foreground">
-                      {who} · {CHANNELS.find(([v]) => v === a.channel)?.[1]} · {a.country ?? "All countries"} ·{" "}
-                      {new Date(a.startsAt).toLocaleString()}
-                      {a.endsAt ? ` → ${new Date(a.endsAt).toLocaleString()}` : ""}
+                      {who} · {CHANNELS.find(([v]) => v === a.channel)?.[1]} · {a.country ? countryName(a.country) : "All countries"} ·{" "}
+                      {fmtDateTime(a.startsAt)}
+                      {a.endsAt ? ` → ${fmtDateTime(a.endsAt)}` : ""}
                     </p>
                     <p className="text-xs">
                       <span className="font-semibold">Seen {a._count.views}</span>
-                      {a.buttonUrl && <> · <span className="font-semibold text-emerald-700">Tapped {a.stats?.tapped ?? 0}</span></>}
+                      {a.buttonUrl && (
+                        <>
+                          {" "}· <span className="font-semibold text-emerald-700">Tapped {a.stats?.tapped ?? 0}</span>
+                          {/* Older alerts have taps from before views were counted: no % then */}
+                          {a._count.views >= (a.stats?.tapped ?? 0) && a._count.views > 0 && (
+                            <span className="text-muted-foreground"> ({Math.round(((a.stats?.tapped ?? 0) / a._count.views) * 100)}% of seen)</span>
+                          )}
+                        </>
+                      )}
                       {" "}· Closed {a.stats?.closed ?? 0}
                       {(a.stats?.appClosedOrTapped ?? 0) > 0 && <> · App or earlier (closed or tapped) {a.stats?.appClosedOrTapped}</>}
-                      {a._count.views > 0 && a.buttonUrl && (
-                        <span className="text-muted-foreground"> · {Math.round(((a.stats?.tapped ?? 0) / a._count.views) * 100)}% tapped</span>
-                      )}
                     </p>
                   </div>
                 );

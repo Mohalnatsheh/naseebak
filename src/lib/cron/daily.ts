@@ -19,6 +19,8 @@ import { expireMutualSuggestionsAll, healMissingMatches, remindMutualSuggestions
 import { runReengagement } from "@/lib/cron/reengagement";
 import { processAccountDeletions } from "@/lib/cron/deletions";
 import { reconcileStripePayments } from "@/lib/payments/fulfil";
+import { reconcilePaymentIntents } from "@/lib/payments/intent";
+import { getStripe } from "@/lib/stripe";
 import { cancelClosedLegacyVisits, remindGuardianShare, runFamilyFollowUps } from "@/lib/intro/followup";
 import { sendAdminAlert } from "@/lib/admin-alert";
 import { purgeExpiredRateLimits } from "@/lib/rate-limit-db";
@@ -110,7 +112,12 @@ async function execute(trigger: DailyRunSummary["trigger"], part: DailyPart): Pr
     tasks.legacyVisits = await runTask("legacyVisits", () => cancelClosedLegacyVisits());
     tasks.weeklySuggestions = await runTask("weeklySuggestions", () => runWeeklySuggestions(now()));
     tasks.deletions = await runTask("deletions", async () => ({ deleted: await processAccountDeletions() }));
-    tasks.payments = await runTask("payments", () => reconcileStripePayments(now()));
+    // Checkout sessions, then the Arabic payment page's PaymentIntents
+    tasks.payments = await runTask("payments", async () => {
+      const sessions = await reconcileStripePayments(now());
+      const intents = process.env.STRIPE_SECRET_KEY ? await reconcilePaymentIntents(getStripe(), now()) : { checked: 0, fulfilled: 0 };
+      return { checked: sessions.checked + intents.checked, fulfilled: sessions.fulfilled + intents.fulfilled };
+    });
     tasks.pollRotation = await runTask("pollRotation", () => runPollRotation(now()));
     tasks.rateLimits = await runTask("rateLimits", async () => ({ purged: await purgeExpiredRateLimits(now()) }));
   }

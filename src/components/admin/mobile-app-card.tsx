@@ -8,7 +8,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { MobilePlatform, MobilePlatformConfig } from "@/lib/mobile-config";
 
-type Config = Record<MobilePlatform, MobilePlatformConfig> & { paymentsEnabled: boolean; androidCertSha256: string };
+type ArabicCheckout = "off" | "test" | "all";
+type Config = Record<MobilePlatform, MobilePlatformConfig> & { paymentsEnabled: boolean; androidCertSha256: string; arabicCheckout?: ArabicCheckout };
+
+const ARABIC_OPTIONS: [ArabicCheckout, string][] = [
+  ["off", "Off"],
+  ["test", "Test accounts only"],
+  ["all", "Everyone"],
+];
 
 const PLATFORMS: { key: MobilePlatform; name: string }[] = [
   { key: "android", name: "Android" },
@@ -103,6 +110,34 @@ export function MobileAppCard() {
             >
               {config.paymentsEnabled ? "Shown" : "Hidden"}
             </Button>
+          </div>
+        )}
+        {!loading && (
+          <div className="space-y-3 rounded-lg border p-4">
+            <div className="space-y-1">
+              <p className="font-medium">Arabic payment page</p>
+              <p className="text-sm text-muted-foreground">
+                Pay on naseebak.com/pay (Arabic, Naseebak&apos;s design) instead of Stripe&apos;s English checkout — website and
+                app. «Test accounts only»: try it with a test number on the website first (test accounts never see payments
+                in the app). If Stripe refuses, members get the usual checkout.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {ARABIC_OPTIONS.map(([value, label]) => (
+                <Button
+                  key={value}
+                  type="button"
+                  size="sm"
+                  variant={(config.arabicCheckout ?? "off") === value ? "default" : "outline"}
+                  onClick={() => {
+                    setSaved(false);
+                    setConfig((c) => ({ ...c, arabicCheckout: value }));
+                  }}
+                >
+                  {label}
+                </Button>
+              ))}
+            </div>
           </div>
         )}
         {loading ? (

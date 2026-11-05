@@ -10,6 +10,11 @@ vi.mock("@/lib/payments/fulfil", () => ({
   isOurSession: (s: { metadata?: { app?: string } }) => s.metadata?.app === "naseebak",
 }));
 vi.mock("@/lib/stripe", () => ({ getStripe: () => ({ webhooks: { constructEvent: () => event.current } }) }));
+const intents = vi.hoisted(() => ({ fulfilPaymentIntent: vi.fn() }));
+vi.mock("@/lib/payments/intent", () => ({
+  fulfilPaymentIntent: intents.fulfilPaymentIntent,
+  isOurIntent: (i: { metadata?: { app?: string; paymentId?: string } }) => i.metadata?.app === "naseebak" && !!i.metadata?.paymentId,
+}));
 
 import { POST } from "@/app/api/payments/webhook/route";
 
@@ -48,5 +53,23 @@ describe("Stripe webhook", () => {
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
     expect((await call()).status).toBe(500);
     spy.mockRestore();
+  });
+
+  it("Arabic payment page: a succeeded intent of ours is credited; anyone else's is ignored", async () => {
+    event.current = { type: "payment_intent.succeeded", data: { object: { id: "pi_1", metadata: { app: "naseebak", paymentId: "p1" } } } };
+    await call();
+    expect(intents.fulfilPaymentIntent).toHaveBeenCalledTimes(1);
+    event.current = { type: "payment_intent.succeeded", data: { object: { id: "pi_2", metadata: {} } } };
+    await call();
+    expect(intents.fulfilPaymentIntent).toHaveBeenCalledTimes(1);
+  });
+
+  it("Arabic payment page: a refused card keeps the row open with the reason; a cancelled intent fails it", async () => {
+    event.current = { type: "payment_intent.payment_failed", data: { object: { metadata: { app: "naseebak", paymentId: "p1" }, last_payment_error: { decline_code: "do_not_honor" } } } };
+    await call();
+    expect(db.payment.updateMany).toHaveBeenLastCalledWith({ where: { id: "p1", status: "PENDING" }, data: { failureReason: "DECLINED:do_not_honor" } });
+    event.current = { type: "payment_intent.canceled", data: { object: { metadata: { app: "naseebak", paymentId: "p1" }, last_payment_error: null } } };
+    await call();
+    expect(db.payment.updateMany).toHaveBeenLastCalledWith({ where: { id: "p1", status: "PENDING" }, data: { status: "FAILED", failureReason: "CANCELLED" } });
   });
 });

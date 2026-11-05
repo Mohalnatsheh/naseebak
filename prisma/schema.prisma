@@ -535,6 +535,10 @@ model Payment {
   description     String?
   /// Stripe Checkout session (cs_…) — set when the session is created; used to expire it on «رجوع»
   stripeSessionId String?
+  /// Arabic payment page (2026-11-05): the Stripe PaymentIntent (pi_…) used instead of a Checkout session
+  stripePaymentIntentId String?
+  /// Private part of the /pay/<id>?t=<token> link (the page opens without signing in, e.g. from the app's browser)
+  payToken        String?
   /// A Stripe dispute (chargeback) was opened on this payment
   disputedAt      DateTime?
   /// Why a FAILED payment failed: CANCELLED (member went back) | EXPIRED (checkout left open) |
@@ -547,6 +551,7 @@ model Payment {
   updatedAt       DateTime      @updatedAt
 
   @@index([stripeSessionId])
+  @@index([stripePaymentIntentId])
   @@map("payments")
 }
 

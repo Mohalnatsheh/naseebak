@@ -8,6 +8,7 @@
  */
 import { getMaintenanceState, getSetting, setSetting } from "@/lib/settings";
 import { isTestPhone } from "@/lib/test-accounts";
+import { ARABIC_CHECKOUT_KEY, arabicCheckoutMode } from "@/lib/payments/intent";
 
 export const MOBILE_PLATFORMS = ["android", "ios"] as const;
 export type MobilePlatform = (typeof MOBILE_PLATFORMS)[number];
@@ -94,6 +95,8 @@ export async function getMobileAdminSettings() {
   return {
     ...(await getMobileConfig()),
     paymentsEnabled: await appPaymentsEnabled(),
+    /** Arabic payment page (website + app): off | test | all — lib/payments/intent */
+    arabicCheckout: await arabicCheckoutMode(),
     androidCertSha256: (await androidCertFingerprints()).join("\n"),
   };
 }
@@ -113,6 +116,11 @@ export async function updateMobileConfig(input: unknown): Promise<string | null>
   if (payments !== undefined) {
     if (typeof payments !== "boolean") return "paymentsEnabled must be true or false";
     updates.push([PAYMENTS_KEY, String(payments)]);
+  }
+  const arabic = (input as Record<string, unknown>).arabicCheckout;
+  if (arabic !== undefined) {
+    if (arabic !== "off" && arabic !== "test" && arabic !== "all") return "arabicCheckout must be off, test or all";
+    updates.push([ARABIC_CHECKOUT_KEY, arabic]);
   }
   for (const p of MOBILE_PLATFORMS) {
     const cfg = (input as Record<string, unknown>)[p];

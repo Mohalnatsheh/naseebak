@@ -211,6 +211,12 @@ function PaymentsContent() {
         body: JSON.stringify({ packageId }),
       });
       const result = await res.json();
+      // Arabic payment page (switch `arabic_checkout`): a full page on naseebak.com/pay
+      if (res.ok && result.payUrl) {
+        trackEvent("begin_checkout", { currency: country.currency.code, package_name: packageName });
+        window.location.assign(result.payUrl);
+        return;
+      }
       if (res.ok && result.clientSecret) {
         trackEvent("begin_checkout", { currency: country.currency.code, package_name: packageName });
         setCheckoutSecret(result.clientSecret);

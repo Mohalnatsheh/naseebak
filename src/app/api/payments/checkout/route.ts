@@ -7,6 +7,7 @@ import { getStripe } from "@/lib/stripe";
 import { CHECKOUT_APP } from "@/lib/payments/fulfil";
 import { CHECKOUT_TTL_MS, findPackage } from "@/lib/payments/packages";
 import { checkoutPresentation, isPresentationError, productName } from "@/lib/payments/checkout-branding";
+import { newPayToken, payPagePath, paymentIntentParams, usesArabicCheckout } from "@/lib/payments/intent";
 import { MOCK_SESSION_PREFIX, paymentsMockEnabled } from "@/lib/payments/mock";
 import { toCountry } from "@/lib/countries";
 import { getCountrySettings, purchasesAvailable } from "@/lib/countries/settings";
@@ -55,9 +56,28 @@ export async function POST(request: Request) {
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
     const metadata = { app: CHECKOUT_APP, paymentId, userId: session.user.id, packageId: pkg.id, credits: String(pkg.credits) };
 
-    let sessionId: string;
-    let reply: Record<string, unknown>;
-    if (paymentsMockEnabled()) {
+    let sessionId: string | null = null;
+    let intentId: string | null = null;
+    let payToken: string | null = null;
+    let reply: Record<string, unknown> | null = null;
+    // Arabic payment page (switch `arabic_checkout`, lib/payments/intent): a PaymentIntent paid on /pay/<id>.
+    // If Stripe refuses it, the member gets the usual checkout below instead — never an error.
+    if (!paymentsMockEnabled() && (await usesArabicCheckout(me?.phone))) {
+      try {
+        const intent = await getStripe().paymentIntents.create(paymentIntentParams(pkg, { paymentId, userId: session.user.id }));
+        intentId = intent.id;
+        payToken = newPayToken();
+        const path = payPagePath(paymentId, payToken, hosted ? "app" : "web");
+        reply = hosted ? { checkoutUrl: `${appUrl}${path}`, paymentId } : { payUrl: path, paymentId };
+      } catch (error) {
+        console.error("[payments] Arabic payment page: intent failed, using Stripe Checkout:", stripeErrorInfo(error), { userId: session.user.id });
+        intentId = null;
+        payToken = null;
+      }
+    }
+    if (reply) {
+      // created above
+    } else if (paymentsMockEnabled()) {
       sessionId = `${MOCK_SESSION_PREFIX}${paymentId}`;
       reply = { mock: true, paymentId };
     } else {
@@ -115,11 +135,13 @@ export async function POST(request: Request) {
         provider: "STRIPE",
         status: "PENDING",
         stripeSessionId: sessionId,
-        description: `${sessionId.startsWith(MOCK_SESSION_PREFIX) ? "[MOCK] " : ""}شراء ${pkg.credits} أرصدة في نصيبك`,
+        stripePaymentIntentId: intentId,
+        payToken,
+        description: `${sessionId?.startsWith(MOCK_SESSION_PREFIX) ? "[MOCK] " : ""}شراء ${pkg.credits} أرصدة في نصيبك`,
       },
     });
 
-    return NextResponse.json(reply);
+    return NextResponse.json(reply!);
   } catch (error) {
     console.error("Checkout error:", error);
     return NextResponse.json({ error: "حدث خطأ في الخادم" }, { status: 500 });

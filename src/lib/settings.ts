@@ -13,6 +13,8 @@ const DEFAULTS: Record<string, string> = {
   poll_reward_credits: "1",
   // Notice SMS (match, interest, reminders, chat). Off since 2026-10-29 (owner): SMS only for sign-in codes
   sms_notices_enabled: "false",
+  // Arabic payment page (Stripe Payment Element on naseebak.com/pay) instead of Stripe Checkout: off | test | all
+  arabic_checkout: "off",
 };
 
 const cache = new Map<string, { value: string; expiresAt: number }>();

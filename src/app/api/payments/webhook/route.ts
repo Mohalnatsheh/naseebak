@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { failureReasonFor } from "@/lib/payments/failure";
+import { declineOf, failureReasonFor } from "@/lib/payments/failure";
+import { fulfilPaymentIntent, isOurIntent } from "@/lib/payments/intent";
 import { getStripe } from "@/lib/stripe";
 import { db } from "@/lib/db";
 import { fulfilCheckoutSession, isOurSession } from "@/lib/payments/fulfil";
@@ -36,6 +37,32 @@ export async function POST(request: Request) {
 
   try {
     switch (event.type) {
+      // Arabic payment page (lib/payments/intent): PaymentIntents paid on /pay/<id>. Intents made by Checkout carry
+      // no Naseebak metadata, so these never touch a Checkout payment.
+      case "payment_intent.succeeded": {
+        const intent = event.data.object as Stripe.PaymentIntent;
+        if (isOurIntent(intent)) await fulfilPaymentIntent(intent);
+        break;
+      }
+      // A card was refused: the member may try another on the same page, so the row stays PENDING with the reason
+      case "payment_intent.payment_failed": {
+        const intent = event.data.object as Stripe.PaymentIntent;
+        const reason = declineOf(intent);
+        if (isOurIntent(intent) && reason) {
+          await db.payment.updateMany({ where: { id: intent.metadata.paymentId, status: "PENDING" }, data: { failureReason: reason } });
+        }
+        break;
+      }
+      case "payment_intent.canceled": {
+        const intent = event.data.object as Stripe.PaymentIntent;
+        if (isOurIntent(intent)) {
+          await db.payment.updateMany({
+            where: { id: intent.metadata.paymentId, status: "PENDING" },
+            data: { status: "FAILED", failureReason: declineOf(intent) ?? "CANCELLED" },
+          });
+        }
+        break;
+      }
       case "checkout.session.completed":
       case "checkout.session.async_payment_succeeded": {
         const session = event.data.object as Stripe.Checkout.Session;

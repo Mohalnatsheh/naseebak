@@ -17,6 +17,17 @@ export function ammanDate(ammanMidnight: Date): Date {
   return new Date(Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate()));
 }
 
+/**
+ * First full day of `activity_days` for everyone: the app was counted earlier (a member or two a day) and the website
+ * from the afternoon of 2026-11-04. An average of active members starts here, or it reads far too low.
+ */
+export const FIRST_TRACKED_DAY = new Date("2026-11-05T00:00:00Z");
+
+/** Whole Amman dates in [from, to) on or after the first tracked day */
+export function trackedDays(from: Date, to: Date): number {
+  return Math.max(0, Math.round((to.getTime() - Math.max(from.getTime(), FIRST_TRACKED_DAY.getTime())) / DAY_MS));
+}
+
 /** Members seen on these Amman dates (`activity_days.day` is a DATE), summed per day */
 export async function activeMembers(country: AdminCountry, from: Date, to: Date): Promise<number> {
   const rows = await db.activityDay.findMany({

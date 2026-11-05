@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 import { startOfAmmanDay } from "@/lib/amman-day";
 import { LAST_EVENING_RUN_KEY, LAST_FREQUENT_RUN_KEY, LAST_RUN_KEY, type DailyRunSummary } from "@/lib/cron/daily";
 import { adminTodo } from "@/lib/admin/todo";
-import { activeMembers, ammanDate, DAY_MS, pulseFor } from "@/lib/admin/pulse";
+import { activeMembers, ammanDate, DAY_MS, FIRST_TRACKED_DAY, pulseFor, trackedDays } from "@/lib/admin/pulse";
 import { countryConfig } from "@/lib/countries";
 import { getAdminCountry, type AdminCountry } from "@/lib/admin/country-filter";
 
@@ -16,6 +16,7 @@ const DAY = DAY_MS;
  * are busiest in the evening, so scaling «so far» by the share of the day gone would read every afternoon as a drop.
  */
 async function usualByNow(country: AdminCountry, from: Date, to: Date, clock: string) {
+  const firstDay = FIRST_TRACKED_DAY.toISOString().slice(0, 10);
   // Columns are UTC without a zone: state the instants as UTC whatever the session's time zone is
   const utc = (d: Date) => Prisma.sql`(${d.toISOString()}::timestamptz AT TIME ZONE 'UTC')`;
   const inWeek = (col: string) =>
@@ -26,7 +27,7 @@ async function usualByNow(country: AdminCountry, from: Date, to: Date, clock: st
       ? Prisma.empty
       : Prisma.sql`AND (u.country = ${country} OR (p."userId" IS NULL AND p.currency = ${countryConfig(country).currency.code}))`;
   const count = async (query: Prisma.Sql) => Number((await db.$queryRaw<{ n: bigint }[]>(query))[0]?.n ?? 0);
-  const [signups, interestA, interestB, matches, paid, unpaid, active, activeDays, revenue] = await Promise.all([
+  const [signups, interestA, interestB, matches, paid, unpaid, active, revenue] = await Promise.all([
     count(Prisma.sql`SELECT count(*) n FROM users u WHERE u.role = 'USER' ${userIn} AND ${inWeek('u."createdAt"')}`),
     count(Prisma.sql`SELECT count(*) n FROM suggestions s JOIN users u ON u.id = s."femaleId" WHERE s."recipientDecision" = 'INTERESTED' ${userIn} AND ${inWeek('s."recipientDecidedAt"')}`),
     count(Prisma.sql`SELECT count(*) n FROM suggestions s JOIN users u ON u.id = s."femaleId" WHERE s."candidateDecision" = 'INTERESTED' ${userIn} AND ${inWeek('s."candidateDecidedAt"')}`),
@@ -36,9 +37,8 @@ async function usualByNow(country: AdminCountry, from: Date, to: Date, clock: st
     // A member first seen that day before this time (each place has its own row: the earliest counts)
     count(Prisma.sql`SELECT count(*) n FROM (
       SELECT a."userId", a.day FROM activity_days a JOIN users u ON u.id = a."userId"
-      WHERE u.role = 'USER' ${userIn} AND a."createdAt" >= ${utc(from)} AND a."createdAt" < ${utc(to)}
+      WHERE u.role = 'USER' ${userIn} AND a.day >= ${firstDay}::date AND a."createdAt" >= ${utc(from)} AND a."createdAt" < ${utc(to)}
       GROUP BY 1, 2 HAVING (min(a."createdAt") + interval '3 hours')::time < ${clock}::time) x`),
-    count(Prisma.sql`SELECT count(DISTINCT day) n FROM activity_days WHERE "createdAt" >= ${utc(from)} AND "createdAt" < ${utc(to)}`),
     db.$queryRaw<{ currency: string; amount: Prisma.Decimal }[]>(
       Prisma.sql`SELECT p.currency, sum(p.amount) amount FROM payments p LEFT JOIN users u ON u.id = p."userId" WHERE p.status = 'COMPLETED' ${payIn} AND ${inWeek('p."createdAt"')} GROUP BY 1`
     ),
@@ -51,8 +51,8 @@ async function usualByNow(country: AdminCountry, from: Date, to: Date, clock: st
     paid,
     unpaid,
     revenue: revenue.map((r) => ({ currency: r.currency, amount: Number(r.amount) })),
-    /** Days of activity data in the 7 (tracking began 2026-11-04): the active average divides by this, not 7 */
-    activeDays,
+    /** Full days of activity data in the 7 (`FIRST_TRACKED_DAY`): the active average divides by this, not 7 */
+    activeDays: trackedDays(ammanDate(from), ammanDate(to)),
   };
 }
 
@@ -92,7 +92,7 @@ export async function GET(request: Request) {
       usualByNow(country, weekFrom, today, clock),
       activeMembers(country, todayDate, new Date(todayDate.getTime() + DAY)),
       activeMembers(country, new Date(todayDate.getTime() - DAY), todayDate),
-      activeMembers(country, new Date(todayDate.getTime() - 7 * DAY), todayDate),
+      activeMembers(country, new Date(Math.max(todayDate.getTime() - 7 * DAY, FIRST_TRACKED_DAY.getTime())), todayDate),
       lastRun(LAST_RUN_KEY),
       lastRun(LAST_EVENING_RUN_KEY),
       lastRun(LAST_FREQUENT_RUN_KEY),

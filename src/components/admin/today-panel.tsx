@@ -188,13 +188,13 @@ export function TodayPanel() {
                 <tbody>
                   {ROWS.map((row) => {
                     const so = value(data.pulse.today, row.key, currency);
-                    // Activity tracking began 2026-11-04: divide by the days that have data
-                    const days = row.key === "active" ? Math.max(1, data.pulse.usual.activeDays) : 7;
-                    const usual = value(data.pulse.usual, row.key, currency) / days;
-                    const avg = value(data.pulse.week, row.key, currency) / days;
+                    // Active members: only full days of tracking count; none yet = nothing to compare with
+                    const days = row.key === "active" ? data.pulse.usual.activeDays : 7;
+                    const usual = days > 0 ? value(data.pulse.usual, row.key, currency) / days : null;
+                    const avg = days > 0 ? value(data.pulse.week, row.key, currency) / days : null;
                     const yest = value(data.pulse.yesterday, row.key, currency);
                     // Too few a day for a % to mean anything
-                    const pct = usual >= 3 ? Math.round(((so - usual) / usual) * 100) : null;
+                    const pct = usual !== null && usual >= 3 ? Math.round(((so - usual) / usual) * 100) : null;
                     const fmt = (n: number) => (row.key === "revenueMain" ? `${n.toFixed(n < 100 ? 1 : 0)} ${currency}` : Math.round(n).toLocaleString());
                     return (
                       <tr key={row.key} className="border-b last:border-0">
@@ -203,12 +203,12 @@ export function TodayPanel() {
                           <p className="hidden text-xs text-muted-foreground sm:block">{row.hint}</p>
                         </td>
                         <td className="p-3 text-right text-base font-bold tabular-nums">{fmt(so)}</td>
-                        <td className="p-3 text-right tabular-nums text-muted-foreground">{fmt(usual)}</td>
+                        <td className="p-3 text-right tabular-nums text-muted-foreground">{usual === null ? "—" : fmt(usual)}</td>
                         <td className="p-3 text-right">
                           <Trend pct={pct} lowerIsBetter={row.lowerIsBetter} />
                         </td>
                         <td className="hidden p-3 text-right tabular-nums sm:table-cell">{fmt(yest)}</td>
-                        <td className="hidden p-3 text-right tabular-nums text-muted-foreground sm:table-cell">{fmt(avg)}</td>
+                        <td className="hidden p-3 text-right tabular-nums text-muted-foreground sm:table-cell">{avg === null ? "—" : fmt(avg)}</td>
                       </tr>
                     );
                   })}

@@ -11,7 +11,7 @@ import { isTestPhone } from "@/lib/test-accounts";
 import { isUnavailable } from "@/lib/matches/state";
 import { byUserCountry, matchCountryWhere, paymentCountryWhere, userCountryWhere, type AdminCountry } from "@/lib/admin/country-filter";
 import { memberSuggestStatus, type NoSuggestionsReason } from "@/lib/admin/members-suggest-reason";
-import { activeMembers, ammanDate, DAY_MS, pulseFor } from "@/lib/admin/pulse";
+import { activeMembers, ammanDate, DAY_MS, FIRST_TRACKED_DAY, pulseFor, trackedDays } from "@/lib/admin/pulse";
 
 type Money = { currency: string; amount: number }[];
 
@@ -300,12 +300,14 @@ export async function weeklySummary(country: AdminCountry, now = new Date()) {
     Array.from({ length: 8 }, async (_, i) => {
       const to = new Date(today.getTime() - i * 7 * DAY_MS);
       const from = new Date(to.getTime() - 7 * DAY_MS);
-      const [pulse, women, chats, activeSum, activeDays] = await Promise.all([
+      const fromDate = ammanDate(from);
+      const toDate = ammanDate(to);
+      const activeDays = trackedDays(fromDate, toDate);
+      const [pulse, women, chats, activeSum] = await Promise.all([
         pulseFor(country, { from, to }),
         db.user.count({ where: { role: "USER", gender: "FEMALE", createdAt: { gte: from, lt: to }, ...userCountryWhere(country) } }),
         db.conversation.count({ where: { createdAt: { gte: from, lt: to }, ...(country === "ALL" ? {} : { match: matchCountryWhere(country) }) } }),
-        activeMembers(country, ammanDate(from), ammanDate(to)),
-        db.activityDay.findMany({ where: { day: { gte: ammanDate(from), lt: ammanDate(to) } }, select: { day: true }, distinct: ["day"] }),
+        activeDays > 0 ? activeMembers(country, new Date(Math.max(fromDate.getTime(), FIRST_TRACKED_DAY.getTime())), toDate) : 0,
       ]);
       return {
         from: from.toISOString(),
@@ -313,8 +315,8 @@ export async function weeklySummary(country: AdminCountry, now = new Date()) {
         ...pulse,
         women,
         chats,
-        /** Average members a day; null before activity tracking began (2026-11-04) */
-        activeAvg: activeDays.length > 0 ? Math.round(activeSum / activeDays.length) : null,
+        /** Average members a day; null with no full day of tracking in the week (FIRST_TRACKED_DAY) */
+        activeAvg: activeDays > 0 ? Math.round(activeSum / activeDays) : null,
       };
     }),
   );

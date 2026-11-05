@@ -56,3 +56,12 @@ describe("supplyGaps", () => {
     ]);
   });
 });
+
+describe("trackedDays (active-member averages)", () => {
+  it("counts only full days from the first tracked day", async () => {
+    const { trackedDays } = await import("@/lib/admin/pulse");
+    expect(trackedDays(new Date("2026-10-29T00:00:00Z"), new Date("2026-11-05T00:00:00Z"))).toBe(0);
+    expect(trackedDays(new Date("2026-10-31T00:00:00Z"), new Date("2026-11-07T00:00:00Z"))).toBe(2);
+    expect(trackedDays(new Date("2026-11-07T00:00:00Z"), new Date("2026-11-14T00:00:00Z"))).toBe(7);
+  });
+});

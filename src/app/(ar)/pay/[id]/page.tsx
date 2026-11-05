@@ -16,7 +16,8 @@ function Shell({ children }: { children: React.ReactNode }) {
   return (
     <main dir="rtl" className="mx-auto min-h-[100dvh] max-w-md px-5 py-8">
       <div className="mb-6 flex items-center justify-center">
-        <Image src="/images/logo-full.png" alt="نصيبك" width={140} height={48} className="h-10 w-auto" priority />
+        {/* The site's own logo (navbar): the wordmark with the gold dot */}
+        <Image src="/images/logo.svg" alt="نصيبك" width={138} height={60} className="h-12 w-auto" priority />
       </div>
       {children}
     </main>

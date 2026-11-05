@@ -55,7 +55,8 @@ export function checkoutPresentation(
         button_color: "#22476a",
         border_style: "rounded" as const,
         icon: { type: "url" as const, url: `${SITE}/images/icon-512.png` },
-        logo: { type: "url" as const, url: `${SITE}/images/logo-full.png` },
+        // The current wordmark (public/images/logo-wordmark.png = logo.svg as PNG; Stripe takes no SVG). Not logo-full.png: that is the old logo
+        logo: { type: "url" as const, url: `${SITE}/images/logo-wordmark.png` },
       },
     }),
     custom_text: { submit: { message: checkoutMessage(pkg) } },

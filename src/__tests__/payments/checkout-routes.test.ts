@@ -44,6 +44,30 @@ describe("POST /api/payments/checkout", () => {
     expect(row.id).toBe(args.metadata.paymentId);
   });
 
+  it("shows Naseebak on the checkout: name, logo, Arabic price line, statement name, Arabic product", async () => {
+    stripe.create.mockResolvedValue({ id: "cs_1", client_secret: "sec" });
+    await checkout(post({ packageId: "launch_25" }));
+    const args = stripe.create.mock.calls[0][0];
+    expect(args.branding_settings).toMatchObject({ display_name: "نصيبك (Naseebak)", logo: { type: "url" }, icon: { type: "url" } });
+    expect(args.custom_text.submit.message).toContain("25 رصيداً مقابل 6 د.أ");
+    expect(args.custom_text.submit.message).toContain("8.46$");
+    expect(args.payment_intent_data.statement_descriptor_suffix).toBe("NASEEBAK");
+    expect(args.line_items[0].price_data.product_data.name).toBe("نصيبك · 25 رصيداً");
+  });
+
+  it("if Stripe refuses one of the extras, the plain checkout is created instead (payments never break)", async () => {
+    stripe.create
+      .mockRejectedValueOnce(Object.assign(new Error("bad"), { type: "StripeInvalidRequestError", param: "branding_settings[logo][url]" }))
+      .mockResolvedValueOnce({ id: "cs_2", client_secret: "sec" });
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const res = await checkout(post({ packageId: "launch_25" }));
+    errSpy.mockRestore();
+    expect(res.status).toBe(200);
+    expect(stripe.create).toHaveBeenCalledTimes(2);
+    expect(stripe.create.mock.calls[1][0].branding_settings).toBeUndefined();
+    expect(db.payment.create.mock.calls[0][0].data.stripeSessionId).toBe("cs_2");
+  });
+
   it("leaves no row behind when Stripe fails", async () => {
     stripe.create.mockRejectedValue(Object.assign(new Error("No such key"), { type: "StripeAuthenticationError" }));
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});

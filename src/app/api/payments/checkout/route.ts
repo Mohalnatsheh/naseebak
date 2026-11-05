@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { getStripe } from "@/lib/stripe";
 import { CHECKOUT_APP } from "@/lib/payments/fulfil";
 import { CHECKOUT_TTL_MS, findPackage } from "@/lib/payments/packages";
+import { checkoutPresentation, isPresentationError, productName } from "@/lib/payments/checkout-branding";
 import { MOCK_SESSION_PREFIX, paymentsMockEnabled } from "@/lib/payments/mock";
 import { toCountry } from "@/lib/countries";
 import { getCountrySettings, purchasesAvailable } from "@/lib/countries/settings";
@@ -61,26 +62,36 @@ export async function POST(request: Request) {
       reply = { mock: true, paymentId };
     } else {
       try {
-        const lineItems = [{ price_data: { currency: pkg.chargeCurrency, product_data: { name: pkg.name }, unit_amount: pkg.chargeAmount }, quantity: 1 }];
+        const lineItems = [{ price_data: { currency: pkg.chargeCurrency, product_data: { name: productName(pkg) }, unit_amount: pkg.chargeAmount }, quantity: 1 }];
         const expiresAt = Math.floor((Date.now() + CHECKOUT_TTL_MS) / 1000);
         // Jordan: charged in USD, shown in JOD · Saudi Arabia: SAR (lib/payments/packages)
-        const checkoutSession = hosted
-          ? await getStripe().checkout.sessions.create({
-              mode: "payment",
+        const base = hosted
+          ? {
+              mode: "payment" as const,
               line_items: lineItems,
               metadata,
               success_url: `${appUrl}/payments/return?status=success&session_id={CHECKOUT_SESSION_ID}`,
               cancel_url: `${appUrl}/payments/return?status=cancelled&payment_id=${paymentId}`,
               expires_at: expiresAt,
-            })
-          : await getStripe().checkout.sessions.create({
-              mode: "payment",
-              ui_mode: "embedded",
+            }
+          : {
+              mode: "payment" as const,
+              ui_mode: "embedded" as const,
               line_items: lineItems,
               metadata,
               return_url: `${appUrl}/dashboard/payments?session_id={CHECKOUT_SESSION_ID}`,
               expires_at: expiresAt,
-            });
+            };
+        // Naseebak's name, logo, an Arabic price line and the statement name (lib/payments/checkout-branding). If Stripe
+        // ever refuses one of those extras, the plain session is created instead: a checkout must never fail for them.
+        let checkoutSession: Awaited<ReturnType<ReturnType<typeof getStripe>["checkout"]["sessions"]["create"]>>;
+        try {
+          checkoutSession = await getStripe().checkout.sessions.create({ ...base, ...checkoutPresentation(pkg) });
+        } catch (error) {
+          if (!isPresentationError(error)) throw error;
+          console.error("[payments] checkout branding refused, creating a plain session:", stripeErrorInfo(error));
+          checkoutSession = await getStripe().checkout.sessions.create(base);
+        }
         sessionId = checkoutSession.id;
         reply = hosted ? { checkoutUrl: checkoutSession.url, paymentId } : { clientSecret: checkoutSession.client_secret, paymentId };
       } catch (error) {

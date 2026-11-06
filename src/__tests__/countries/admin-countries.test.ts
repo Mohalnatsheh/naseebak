@@ -36,6 +36,11 @@ describe("admin countries", () => {
     expect(db.countrySetting.upsert.mock.calls[0][0].update).toMatchObject({ packagePrices: { sa_10: 20, sa_25: 35.5 }, pricesApproved: true });
   });
 
+  it("refuses a Saudi price under Stripe's minimum", async () => {
+    expect((await update(req({ packagePrices: { sa_10: 1.5 } }), p("SA"))).status).toBe(400);
+    expect((await update(req({ packagePrices: { launch_10: 1.5 } }), p("JO"))).status).toBe(200);
+  });
+
   it("a first save of a country without a row works with no prices set", async () => {
     await update(req({ active: true }), p("SA"));
     const { create } = db.countrySetting.upsert.mock.calls[0][0];

@@ -27,6 +27,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ co
       return NextResponse.json({ error: "The default country can't be switched off." }, { status: 409 });
     }
 
+    // Stripe's smallest charge in riyals (Jordan is charged in dollars: 1 dinar is above its minimum)
+    if (code === "SA" && Object.values(data.packagePrices ?? {}).some((price) => price < 2)) {
+      return NextResponse.json({ error: "A Saudi package price must be at least 2 SAR" }, { status: 400 });
+    }
     const unknownPackage = Object.keys(data.packagePrices ?? {}).find((id) => !packagesFor(code).some((p) => p.id === id));
     if (unknownPackage) return NextResponse.json({ error: `${unknownPackage} is not a package of this country` }, { status: 400 });
 

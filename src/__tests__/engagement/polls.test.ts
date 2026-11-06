@@ -35,7 +35,7 @@ const OPTIONS = [
   { id: "o2", label: "محادثة أولاً" },
 ];
 type Row = Parameters<typeof publicView>[0];
-const poll = (over: Partial<Row> = {}): Row => ({ id: "p1", slug: "2026-10-27", question: "سؤال؟", options: OPTIONS, note: null, status: "ACTIVE", endsAt: null, ...over });
+const poll = (over: Partial<Row> = {}): Row => ({ id: "p1", slug: "2026-10-27", country: "JO", question: "سؤال؟", options: OPTIONS, note: null, status: "ACTIVE", endsAt: null, ...over });
 const group = (optionId: string, n: number, gender: string | null = null, source = "page") => ({ optionId, gender, source, _count: { _all: n } });
 
 beforeEach(() => {
@@ -179,15 +179,15 @@ describe("rotation every poll_round_days", () => {
 
   it("does nothing before the end time", async () => {
     db.poll.findFirst.mockResolvedValueOnce({ id: "a", endsAt: new Date("2026-10-31T09:00:00Z") });
-    expect(await rotatePollsIfDue(NOW)).toEqual({ rotated: false, queueEmpty: false });
+    expect(await rotatePollsIfDue("JO", NOW)).toEqual({ rotated: false, queueEmpty: false });
     expect(db.poll.updateMany).not.toHaveBeenCalled();
   });
 
   it("closes the due question and starts the oldest draft for 3 days", async () => {
     db.poll.findFirst.mockResolvedValueOnce({ id: "a", endsAt: new Date("2026-10-30T08:00:00Z") }).mockResolvedValueOnce({ id: "b" });
     db.poll.updateMany.mockResolvedValue({ count: 1 });
-    expect(await rotatePollsIfDue(NOW)).toEqual({ rotated: true, queueEmpty: false });
-    expect(db.poll.findFirst).toHaveBeenLastCalledWith({ where: { status: "DRAFT" }, orderBy: { createdAt: "asc" }, select: { id: true } });
+    expect(await rotatePollsIfDue("JO", NOW)).toEqual({ rotated: true, queueEmpty: false });
+    expect(db.poll.findFirst).toHaveBeenLastCalledWith({ where: { status: "DRAFT", country: "JO" }, orderBy: { createdAt: "asc" }, select: { id: true } });
     expect(db.poll.updateMany).toHaveBeenNthCalledWith(1, { where: { id: "a", status: "ACTIVE" }, data: { status: "CLOSED", closedAt: NOW } });
     expect(db.poll.updateMany).toHaveBeenNthCalledWith(2, {
       where: { id: "b", status: "DRAFT" },
@@ -197,7 +197,7 @@ describe("rotation every poll_round_days", () => {
 
   it("keeps the question running when the queue is empty, and the daily job alerts the admins", async () => {
     db.poll.findFirst.mockResolvedValueOnce({ id: "a", endsAt: new Date("2026-10-30T08:00:00Z") }).mockResolvedValueOnce(null);
-    expect(await rotatePollsIfDue(NOW)).toEqual({ rotated: false, queueEmpty: true });
+    expect(await rotatePollsIfDue("JO", NOW)).toEqual({ rotated: false, queueEmpty: true });
     expect(db.poll.updateMany).not.toHaveBeenCalled();
 
     db.poll.findFirst
@@ -211,7 +211,7 @@ describe("rotation every poll_round_days", () => {
   it("a second request at the same moment rotates nothing more", async () => {
     db.poll.findFirst.mockResolvedValueOnce({ id: "a", endsAt: new Date("2026-10-30T08:00:00Z") }).mockResolvedValueOnce({ id: "b" });
     db.poll.updateMany.mockResolvedValueOnce({ count: 0 });
-    expect(await rotatePollsIfDue(NOW)).toEqual({ rotated: false, queueEmpty: false });
+    expect(await rotatePollsIfDue("JO", NOW)).toEqual({ rotated: false, queueEmpty: false });
     expect(db.poll.updateMany).toHaveBeenCalledTimes(1);
   });
 });

@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useTransition } from "react";
+import { createContext, useContext, useEffect, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Check, ChevronDown } from "lucide-react";
 import { COUNTRIES, DEFAULT_COUNTRY, type CountryCode } from "@/lib/countries";
@@ -29,6 +29,15 @@ export function VisitorCountryProvider({
   children: React.ReactNode;
 }) {
   return <VisitorCountryContext.Provider value={{ country, countries }}>{children}</VisitorCountryContext.Provider>;
+}
+
+/** GA4 user property inside the dashboard: the member's own country, not the last public page's */
+export function MemberCountryAnalytics() {
+  const country = useVisitorCountry();
+  useEffect(() => {
+    window.gtag?.("set", "user_properties", { site_country: country } as never);
+  }, [country]);
+  return null;
 }
 
 /** Countries open on the site right now (the default country at least) */

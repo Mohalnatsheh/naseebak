@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const db = vi.hoisted(() => ({ contactMessage: { create: vi.fn() } }));
+const db = vi.hoisted(() => ({ contactMessage: { create: vi.fn() }, countrySetting: { findMany: vi.fn(async () => []) } }));
 const visitor = vi.hoisted(() => ({ country: "SA" as "SA" | "JO" }));
 vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/email", () => ({ sendContactNotification: vi.fn(async () => {}) }));
@@ -34,6 +34,13 @@ describe("POST /api/contact stores the visitor's country", () => {
     expect(res.status).toBe(400);
     expect((await res.json()).field).toBe("phone");
     expect(db.contactMessage.create).not.toHaveBeenCalled();
+  });
+
+  it("the country the page showed wins over an old Saudi cookie", async () => {
+    visitor.country = "SA";
+    const res = await POST(post({ ...msg(), phone: "0791234560", country: "JO" }));
+    expect(res.status).toBe(201);
+    expect(db.contactMessage.create.mock.calls[0][0].data).toMatchObject({ phone: "962791234560", country: "JO" });
   });
 
   it("Jordanian visitor: country JO", async () => {

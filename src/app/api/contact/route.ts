@@ -6,6 +6,8 @@ import { sendContactNotification } from "@/lib/email";
 import { contactSchemaFor } from "@/lib/validations/contact";
 import { normalizePhone } from "@/lib/validations/auth";
 import { getVisitorCountry } from "@/lib/countries/server";
+import { activeCountryCodes } from "@/lib/countries/settings";
+import type { CountryCode } from "@/lib/countries";
 
 /**
  * Public contact form: saved for Admin → Messages (with the visitor's country, the admin filters by it),
@@ -14,7 +16,9 @@ import { getVisitorCountry } from "@/lib/countries/server";
 export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => null);
-    const country = await getVisitorCountry();
+    // The page says which country it showed: the cookie can differ (a Saudi link opened earlier, then /contact)
+    const shown = typeof body?.country === "string" ? body.country : null;
+    const country = shown && (await activeCountryCodes()).includes(shown as CountryCode) ? (shown as CountryCode) : await getVisitorCountry();
     const parsed = contactSchemaFor(country).safeParse(body ?? {});
     if (!parsed.success) {
       const issue = parsed.error.issues[0];

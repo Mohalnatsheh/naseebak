@@ -78,7 +78,7 @@ export function PollCard() {
           </p>
         )}
         <div className="flex flex-wrap items-center justify-between gap-2">
-          {answered ? <SharePollButton slug={poll.slug} className="text-primary" /> : <span />}
+          {answered ? <SharePollButton slug={poll.slug} country={poll.country} className="text-primary" /> : <span />}
           {next && <span className="text-xs text-muted-foreground">{next}</span>}
         </div>
       </div>

@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/shared/site-link";
 import { Compass, Home, LayoutDashboard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Navbar } from "@/components/shared/navbar";

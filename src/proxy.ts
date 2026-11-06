@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { authConfig } from "@/lib/auth.config";
 import { COUNTRY_COOKIE, type CountryCode } from "@/lib/countries";
 import { COUNTRY_COOKIE_OPTIONS, countryQueryRedirect } from "@/lib/visitor-country";
-import { SITE_COUNTRY_HEADER, isLocalizedPath, localizedPath, splitCountryPath } from "@/lib/site-paths";
+import { SITE_COUNTRY_HEADER, isLocalizedPath, localizedPath, splitCountryPath, switchCountryPath } from "@/lib/site-paths";
 
 const { auth } = NextAuth(authConfig);
 
@@ -38,7 +38,11 @@ export default auth(async (req) => {
 
   const switched = countryQueryRedirect(req.nextUrl);
   if (switched) {
-    if (isLocalizedPath(path)) switched.url.pathname = localizedPath(path, switched.country);
+    // A post or question belongs to one country: the other country gets its list
+    if (isLocalizedPath(path)) {
+      const same = switched.country === (urlCountry ?? "JO");
+      switched.url.pathname = (same ? localizedPath(path, switched.country) : switchCountryPath(path, switched.country)) ?? path;
+    }
     return redirectWithCountry(switched.url, switched.country);
   }
 

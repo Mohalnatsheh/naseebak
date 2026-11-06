@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { Check, Loader2, Share2 } from "lucide-react";
 import { arabicCount, cn } from "@/lib/utils";
+import { toCountry } from "@/lib/countries";
+import { localizedPath } from "@/lib/site-paths";
 import { MIN_POLL_RESULTS, type PollSource, type PublicPoll } from "@/lib/engagement/poll-types";
 
 /**
@@ -131,11 +133,11 @@ export function PollWidget({
 const VOTES = { one: "صوت واحد", two: "صوتان", few: "أصوات", many: "صوتاً" };
 
 /** Share the question (native share sheet on phones, else copy the link) */
-export function SharePollButton({ slug, className }: { slug: string; className?: string }) {
+export function SharePollButton({ slug, country, className }: { slug: string; country: string; className?: string }) {
   const [copied, setCopied] = useState(false);
   async function share() {
-    const url = `${window.location.origin}/poll/${slug}`;
-    const data = { title: "سؤال نصيبك", text: "شو رأيك؟ جاوب على سؤال نصيبك:", url };
+    const url = `${window.location.origin}${localizedPath(`/poll/${slug}`, toCountry(country))}`;
+    const data = { title: "سؤال نصيبك", text: country === "SA" ? "ما رأيك؟ أجب عن سؤال نصيبك:" : "شو رأيك؟ جاوب على سؤال نصيبك:", url };
     try {
       if (navigator.share) {
         await navigator.share(data);

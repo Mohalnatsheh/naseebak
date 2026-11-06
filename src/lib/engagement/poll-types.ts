@@ -1,5 +1,7 @@
 // «سؤال نصيبك»: types and pure helpers shared by the server, the public page, the dashboard card and the admin.
 // No database import here: client components import from this file.
+import { localizedPath } from "@/lib/site-paths";
+import type { CountryCode } from "@/lib/countries";
 
 /** Results stay hidden until this many votes (a tiny count reads as an empty site) */
 export const MIN_POLL_RESULTS = 10;
@@ -31,6 +33,7 @@ export interface PollResults {
 export interface PublicPoll {
   id: string;
   slug: string;
+  country: string;
   question: string;
   options: PollOption[];
   note: string | null;
@@ -68,7 +71,7 @@ export function percentsOf(counts: Record<string, number>, optionIds: string[]):
 }
 
 /** Link for an Instagram story sticker or bio, tagged for analytics */
-export function pollShareUrl(base: string, slug?: string, medium: "story" | "bio" | "post" = "story"): string {
-  const path = slug ? `/poll/${slug}` : "/poll";
+export function pollShareUrl(base: string, slug?: string, medium: "story" | "bio" | "post" = "story", country: CountryCode = "JO"): string {
+  const path = localizedPath(slug ? `/poll/${slug}` : "/poll", country);
   return `${base.replace(/\/$/, "")}${path}?utm_source=instagram&utm_medium=${medium}&utm_campaign=naseebak_question`;
 }

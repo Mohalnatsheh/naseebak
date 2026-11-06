@@ -61,6 +61,8 @@ function slugify(text: string) {
 export default function AdminBlogPage() {
   /* ── Posts state ── */
   const [posts, setPosts] = useState<BlogPost[]>([]);
+  // A new post starts on the country in the admin bar, whose list this page shows
+  const [barCountry, setBarCountry] = useState<string>("ALL");
   const [postsPage, setPostsPage] = useState(1);
   const [postsTotalPages, setPostsTotalPages] = useState(1);
   const [postsLoading, setPostsLoading] = useState(true);
@@ -101,6 +103,7 @@ export default function AdminBlogPage() {
       const res = await fetch(`/api/admin/blog?page=${postsPage}`);
       const data = await res.json();
       setPosts(data.posts || []);
+      setBarCountry(data.adminCountry ?? "ALL");
       setPostsTotalPages(data.totalPages || 1);
     } catch {
       console.error("Failed to fetch posts");
@@ -130,7 +133,7 @@ export default function AdminBlogPage() {
 
   function openNewPost() {
     setEditingPost(null);
-    setPostForm({ title: "", slug: "", excerpt: "", content: "", categoryId: categories[0]?.id || "", status: "DRAFT", country: "JO", readTime: "" });
+    setPostForm({ title: "", slug: "", excerpt: "", content: "", categoryId: categories[0]?.id || "", status: "DRAFT", country: barCountry === "SA" ? "SA" : "JO", readTime: "" });
     setPostError("");
     setPostDialogOpen(true);
   }

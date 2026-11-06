@@ -7,7 +7,12 @@ import { AlertPopup } from "@/components/shared/alert-popup";
 import { DashboardDataProvider } from "@/contexts/dashboard-context";
 import { Toaster } from "@/components/ui/sonner";
 import { DashboardFooter } from "@/components/shared/dashboard-footer";
-import { sessionAccountGate } from "@/lib/auth";
+import { MemberCountryAnalytics, VisitorCountryProvider } from "@/components/shared/visitor-country";
+import { currentSession, sessionAccountGate } from "@/lib/auth";
+import { db } from "@/lib/db";
+import { toCountry } from "@/lib/countries";
+import { getVisitorCountry } from "@/lib/countries/server";
+import { activeCountryCodes } from "@/lib/countries/settings";
 import { DeactivatedGate } from "./reactivate/deactivated-gate";
 import { SuspendedScreen } from "./suspended-screen";
 
@@ -17,11 +22,20 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export default async function DashboardLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+/** Inside the dashboard the country is the member's own, whatever public page they saw last */
+export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
+  const session = await currentSession();
+  const user = session?.user?.id ? await db.user.findUnique({ where: { id: session.user.id }, select: { country: true } }) : null;
+  const [visitor, countries] = await Promise.all([getVisitorCountry(), activeCountryCodes()]);
+  return (
+    <VisitorCountryProvider country={user ? toCountry(user.country) : visitor} countries={countries}>
+      <MemberCountryAnalytics />
+      <DashboardShell>{children}</DashboardShell>
+    </VisitorCountryProvider>
+  );
+}
+
+async function DashboardShell({ children }: { children: React.ReactNode }) {
   const gate = await sessionAccountGate();
 
   // Suspended accounts: every user API refuses them, so show one explanation instead of empty pages

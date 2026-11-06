@@ -29,6 +29,7 @@ export async function GET(req: NextRequest) {
     ]);
 
     return NextResponse.json({
+      adminCountry: country,
       posts,
       page,
       totalPages: Math.ceil(total / pageSize),

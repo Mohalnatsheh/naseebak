@@ -925,8 +925,10 @@ enum PollStatus {
 /// the dashboard home, a new one every poll_round_days (queued DRAFTs, oldest first). At most one ACTIVE poll at a time. Results show only from MIN_POLL_RESULTS votes.
 model Poll {
   id        String     @id @default(cuid())
-  /// URL name: /poll/<slug>
+  /// URL name: /poll/<slug>, /sa/poll/<slug>
   slug      String     @unique
+  /// Whose question it is (JO, SA): each country has its own queue, running question and votes
+  country   String     @default("JO")
   question  String
   /// [{ id, label }], 2 to 4 options; ids never change once votes exist
   options   Json
@@ -942,6 +944,7 @@ model Poll {
   votes     PollVote[]
 
   @@index([status])
+  @@index([country, status])
   @@map("polls")
 }
 

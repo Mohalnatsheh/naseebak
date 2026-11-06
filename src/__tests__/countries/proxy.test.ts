@@ -52,7 +52,7 @@ describe("country URLs (SEO)", () => {
   it("next.config routes every Saudi URL to its page, and nothing else", async () => {
     const rewrites = await nextConfig.rewrites!();
     const list = (Array.isArray(rewrites) ? rewrites : rewrites.beforeFiles) ?? [];
-    expect(list.map((r) => r.source).sort()).toEqual([...LOCALIZED_PATHS.map((p) => localizedPath(p, "SA")), "/sa/blog/:slug"].sort());
+    expect(list.map((r) => r.source).sort()).toEqual([...LOCALIZED_PATHS.map((p) => localizedPath(p, "SA")), "/sa/blog/:slug", "/sa/poll/:slug"].sort());
     for (const r of list) expect(`/sa${r.destination === "/" ? "" : r.destination}`).toBe(r.source);
   });
 
@@ -64,6 +64,12 @@ describe("country URLs (SEO)", () => {
     expect(res.headers.get("x-middleware-rewrite")).toBeNull();
     expect(res.headers.get("x-middleware-request-x-site-country")).toBe("SA");
     expect(res.headers.get("set-cookie") ?? "").toContain("naseeb_country=SA");
+  });
+
+  it("?country= on a post or question goes to the other country's list, not a 404", async () => {
+    expect((await call("https://naseebak.com/blog/x?country=sa")).headers.get("location")).toBe("https://naseebak.com/sa/blog");
+    expect((await call("https://naseebak.com/sa/poll/x?country=jo")).headers.get("location")).toBe("https://naseebak.com/poll");
+    expect((await call("https://naseebak.com/blog/x?country=jo")).headers.get("location")).toBe("https://naseebak.com/blog/x");
   });
 
   it("the blog has country URLs too", async () => {

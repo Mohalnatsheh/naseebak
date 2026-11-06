@@ -36,7 +36,7 @@ export async function POST(request: Request) {
 
     const result = await castVote(
       voter.kind === "member"
-        ? { pollId, optionId, userId: voter.userId, gender: voter.gender, source: voter.test ? TEST_SOURCE : source, reward: await pollRewardCredits() }
+        ? { pollId, optionId, userId: voter.userId, gender: voter.gender, source: voter.test ? TEST_SOURCE : source, reward: await pollRewardCredits(), country: voter.country }
         : { pollId, optionId, visitorKey: voter.visitorKey, source },
     );
     return NextResponse.json({ poll: await publicView(result.poll, result.vote), created: result.created });

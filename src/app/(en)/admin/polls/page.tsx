@@ -25,9 +25,13 @@ import {
 } from "@/lib/engagement/poll-types";
 import type { OptionBreakdown } from "@/lib/engagement/poll-admin";
 
+type PollCountry = "JO" | "SA";
+const COUNTRY_NAMES: Record<PollCountry, string> = { JO: "Jordan", SA: "Saudi Arabia" };
+
 interface PollRow {
   id: string;
   slug: string;
+  country: PollCountry;
   question: string;
   options: PollOption[];
   note: string | null;
@@ -53,6 +57,9 @@ const emptyForm = { question: "", options: ["", ""], note: "" };
 
 export default function AdminPollsPage() {
   const [polls, setPolls] = useState<PollRow[]>([]);
+  // New questions start on the country in the admin bar, whose list this page shows
+  const [country, setCountry] = useState<PollCountry>("JO");
+  const [barCountry, setBarCountry] = useState<PollCountry | "ALL">("ALL");
   const [enabled, setEnabled] = useState(false);
   const [roundDays, setRoundDays] = useState("3");
   const [reward, setReward] = useState("1");
@@ -80,6 +87,8 @@ export default function AdminPollsPage() {
       }
       setError("");
       setPolls(data.polls || []);
+      setBarCountry(data.adminCountry ?? "ALL");
+      if (data.adminCountry && data.adminCountry !== "ALL") setCountry(data.adminCountry);
       setEnabled(!!data.enabled);
       setRoundDays(String(data.roundDays ?? 3));
       setReward(String(data.rewardCredits ?? 1));
@@ -126,9 +135,9 @@ export default function AdminPollsPage() {
     const body = { question: form.question, options: form.options.filter((o) => o.trim()), note: form.note };
     const data = editing
       ? await call("save", `/api/admin/polls/${editing}`, { method: "PATCH", body: JSON.stringify({ action: "edit", poll: body }) })
-      : await call("save", "/api/admin/polls", { method: "POST", body: JSON.stringify(body) });
+      : await call("save", "/api/admin/polls", { method: "POST", body: JSON.stringify({ ...body, country }) });
     if (data) {
-      toast.success("Question saved");
+      toast.success(!editing && barCountry !== "ALL" && country !== barCountry ? `Saved for ${COUNTRY_NAMES[country]}. Switch the admin country to see it.` : "Question saved");
       setForm(emptyForm);
       setEditing(null);
       load();
@@ -136,7 +145,8 @@ export default function AdminPollsPage() {
   }
 
   async function act(id: string, action: "activate" | "close") {
-    if (action === "activate" && polls.some((p) => p.status === "ACTIVE" && p.id !== id) && !confirmClose()) return;
+    const country = polls.find((p) => p.id === id)?.country;
+    if (action === "activate" && polls.some((p) => p.status === "ACTIVE" && p.id !== id && p.country === country) && !confirmClose()) return;
     if (await call(id, `/api/admin/polls/${id}`, { method: "PATCH", body: JSON.stringify({ action }) })) load();
   }
 
@@ -171,9 +181,9 @@ export default function AdminPollsPage() {
 
   const active = polls.find((p) => p.status === "ACTIVE");
   // Queue order = oldest draft first (the list itself is newest first)
-  const queue = polls.filter((p) => p.status === "DRAFT").map((p) => ({ id: p.id, at: p.createdAt })).sort((a, b) => a.at.localeCompare(b.at)).map((p) => p.id);
+  const queueOf = (country: PollCountry) => polls.filter((p) => p.status === "DRAFT" && p.country === country).map((p) => ({ id: p.id, at: p.createdAt })).sort((a, b) => a.at.localeCompare(b.at)).map((p) => p.id);
   const origin = useSyncExternalStore(noSubscribe, () => window.location.origin, () => "");
-  const shareLink = origin ? pollShareUrl(origin) : "";
+  const shareLink = origin ? pollShareUrl(origin, undefined, "story", barCountry === "SA" ? "SA" : (active?.country ?? "JO")) : "";
 
   async function copyLink() {
     await navigator.clipboard.writeText(shareLink).catch(() => {});
@@ -189,7 +199,7 @@ export default function AdminPollsPage() {
             <MessageCircleQuestion className="h-6 w-6 text-primary" /> Naseebak Question <span dir="rtl" className="text-base font-medium text-muted-foreground">(سؤال نصيبك)</span>
           </h1>
           <p className="text-sm text-muted-foreground">
-            One question on Instagram, the public page /poll and the members&apos; dashboard. A new one from the queue every {roundDays} days. Results show from {MIN_POLL_RESULTS} votes.
+            Each country has its own questions, queue and votes (the admin bar picks the country). One question on Instagram, the public page /poll or /sa/poll and the members&apos; dashboard. A new one from the queue every {roundDays} days. Results show from {MIN_POLL_RESULTS} votes.
           </p>
         </div>
         <label className="flex items-center gap-3 rounded-lg border bg-card px-3 py-2 text-sm font-medium">
@@ -240,6 +250,15 @@ export default function AdminPollsPage() {
         <CardContent className="space-y-3 p-4">
           <h2 className="font-semibold">{editing ? "Edit question" : "New question"}</h2>
           {!editing && <p className="text-xs text-muted-foreground">Queued questions go live on their own, oldest first, when the running one has had its {roundDays} days.</p>}
+          {!editing && (
+            <div className="space-y-1">
+              <Label htmlFor="poll-country">Country</Label>
+              <select id="poll-country" value={country} onChange={(e) => setCountry(e.target.value as PollCountry)} className="h-9 w-full rounded-md border bg-background px-3 text-sm">
+                <option value="JO">Jordan</option>
+                <option value="SA">Saudi Arabia</option>
+              </select>
+            </div>
+          )}
           <div className="space-y-1">
             <Label htmlFor="q">Question (Arabic)</Label>
             <Input id="q" dir="rtl" maxLength={POLL_QUESTION_MAX} value={form.question} onChange={(e) => setForm({ ...form, question: e.target.value })} placeholder="برأيك، التعارف الأحسن يبدأ…" />
@@ -308,13 +327,13 @@ export default function AdminPollsPage() {
                       {p.question}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      /poll/{p.slug} · created {fmtDate(p.createdAt)}
+                      {COUNTRY_NAMES[p.country]} · {p.country === "SA" ? "/sa" : ""}/poll/{p.slug} · created {fmtDate(p.createdAt)}
                       {p.startedAt && ` · started ${fmtDate(p.startedAt)}`}
                       {p.status === "ACTIVE" && p.endsAt && ` · next question ${fmtDate(p.endsAt)}`}
                       {p.closedAt && ` · closed ${fmtDate(p.closedAt)}`}
                     </p>
                   </div>
-                  <Badge className={STATUS_STYLE[p.status]}>{p.status === "DRAFT" ? (queue.indexOf(p.id) === 0 ? "NEXT" : `QUEUE #${queue.indexOf(p.id) + 1}`) : p.status}</Badge>
+                  <Badge className={STATUS_STYLE[p.status]}>{p.status === "DRAFT" ? (queueOf(p.country).indexOf(p.id) === 0 ? "NEXT" : `QUEUE #${queueOf(p.country).indexOf(p.id) + 1}`) : p.status}</Badge>
                   <Badge variant="outline">{p.votes} votes</Badge>
                 </div>
                 <div className="flex flex-wrap gap-2">

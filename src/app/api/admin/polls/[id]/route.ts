@@ -42,7 +42,7 @@ export async function PATCH(request: Request, { params }: Ctx) {
 
     const body = parsed.data;
     if (body.action === "activate") {
-      await activatePoll(id);
+      await activatePoll(id, poll.country);
     } else if (body.action === "close") {
       if (poll.status !== "ACTIVE") return NextResponse.json({ error: "Only a running question can be closed" }, { status: 409 });
       await db.poll.update({ where: { id }, data: { status: "CLOSED", closedAt: new Date() } });

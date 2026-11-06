@@ -28,7 +28,7 @@ function initGtag() {
  * GTM/Pixel can't be unloaded after a client-side move into the dashboard, so the Pixel's automatic page views
  * on navigation are disabled (tracking-scripts.tsx) and a move to a public page sends its PageView here.
  */
-export default function PublicTracking() {
+export default function PublicTracking({ country }: { country: string }) {
   const pathname = usePathname();
   // GTM/Pixel load only once a public page was shown; GA loads everywhere but admin
   const [publicSeen, setPublicSeen] = useState(!isMarketingOffPath(pathname));
@@ -45,9 +45,11 @@ export default function PublicTracking() {
     if (previous.current && !isMarketingOffPath(pathname)) trackMetaEvent("PageView");
     previous.current = location;
     initGtag();
+    // GA4 user property: reports split by JO / SA also where URLs carry no country (the dashboard sets the member's)
+    window.gtag?.("set", "user_properties", { site_country: country });
     window.gtag?.("set", { page_location: location, page_referrer: referrer } as never);
     window.gtag?.("event", "page_view", { page_location: location, page_referrer: referrer, page_title: document.title });
-  }, [pathname]);
+  }, [pathname, country]);
 
   if (isAnalyticsOffPath(pathname)) return null;
   return (

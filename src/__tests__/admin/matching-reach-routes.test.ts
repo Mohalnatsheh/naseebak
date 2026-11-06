@@ -24,7 +24,7 @@ vi.mock("@/lib/engagement/polls", () => ({
   pollRewardCredits: vi.fn(async () => 1),
   pollRoundDays: vi.fn(async () => 3),
   pollsEnabled: vi.fn(async () => true),
-  rotatePollsIfDue: vi.fn(async () => {}),
+  rotateAllPolls: vi.fn(async () => {}),
   TEST_SOURCE: "test",
 }));
 
@@ -144,7 +144,7 @@ describe("polls list", () => {
       args.where ? [] : [{ pollId: "p1", _count: { _all: 2 } }],
     );
     db.pollVote.aggregate.mockResolvedValue({ _sum: { rewardCredits: 0 } });
-    const { polls } = await (await listPolls()).json();
+    const { polls } = await (await listPolls(new Request("http://x"))).json();
     expect(polls[0]).toMatchObject({ id: "p1", votes: 0, allVotes: 2 });
     expect(polls[1]).toMatchObject({ id: "p2", votes: 0, allVotes: 0 });
   });

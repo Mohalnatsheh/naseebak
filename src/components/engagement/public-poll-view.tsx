@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
+import Link from "@/components/shared/site-link";
+import { useVisitorCountry } from "@/components/shared/visitor-country";
 import { ChevronLeft, MessageCircleQuestion } from "lucide-react";
 import { Navbar } from "@/components/shared/navbar";
 import { Footer } from "@/components/shared/footer";
@@ -16,6 +17,7 @@ import { PollWidget, SharePollButton } from "@/components/engagement/poll-widget
 export function PublicPollView({ poll: initial, member, source }: { poll: PublicPoll | null; member: boolean; source: PollSource }) {
   const [poll, setPoll] = useState(initial);
   const answered = poll?.myVote != null;
+  const sa = useVisitorCountry() === "SA";
 
   return (
     <>
@@ -42,7 +44,7 @@ export function PublicPollView({ poll: initial, member, source }: { poll: Public
                       trackEvent("poll_vote", { source });
                     }}
                   />
-                  {answered && <SharePollButton slug={poll.slug} className="text-accent" />}
+                  {answered && <SharePollButton slug={poll.slug} country={poll.country} className="text-accent" />}
                 </>
               ) : (
                 <>
@@ -64,7 +66,7 @@ export function PublicPollView({ poll: initial, member, source }: { poll: Public
           ) : (
             (answered || !poll) && (
               <section className="space-y-3 rounded-2xl border border-accent/40 bg-card p-5">
-                <h2 className="text-lg font-bold text-foreground">نصيبك منصة زواج جاد، مش تطبيق تعارف</h2>
+                <h2 className="text-lg font-bold text-foreground">{sa ? "نصيبك منصة زواج جاد، وليس تطبيق تعارف" : "نصيبك منصة زواج جاد، مش تطبيق تعارف"}</h2>
                 <ul className="space-y-1.5 text-sm leading-relaxed text-muted-foreground">
                   <li>• الصور مخفية حتى يقول الطرفان «مهتم».</li>
                   <li>• لا تواصل قبل التوافق المتبادل، وقرار «لا» بدون إشعار.</li>
@@ -76,7 +78,7 @@ export function PublicPollView({ poll: initial, member, source }: { poll: Public
                 >
                   سجّل الآن مجاناً
                 </Link>
-                <p className="text-center text-xs text-muted-foreground">وجاوب على سؤال جديد من داخل حسابك كل 3 أيام.</p>
+                <p className="text-center text-xs text-muted-foreground">{sa ? "وأجب على سؤال جديد من داخل حسابك كل 3 أيام." : "وجاوب على سؤال جديد من داخل حسابك كل 3 أيام."}</p>
               </section>
             )
           )}

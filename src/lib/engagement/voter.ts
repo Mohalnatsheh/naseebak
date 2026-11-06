@@ -3,7 +3,7 @@
 import { randomBytes } from "node:crypto";
 import { cookies } from "next/headers";
 import { currentSession } from "@/lib/auth";
-import { toCountry } from "@/lib/countries";
+import { toCountry, type CountryCode } from "@/lib/countries";
 import { getCountrySettings } from "@/lib/countries/settings";
 import { db } from "@/lib/db";
 import { isTestPhone } from "@/lib/test-accounts";
@@ -13,7 +13,7 @@ export const VISITOR_COOKIE = "nsb_pv";
 const YEAR = 60 * 60 * 24 * 365;
 
 export type Voter =
-  | { kind: "member"; userId: string; gender: "MALE" | "FEMALE" | null; test: boolean; pollsOff: boolean }
+  | { kind: "member"; userId: string; gender: "MALE" | "FEMALE" | null; test: boolean; pollsOff: boolean; country: CountryCode }
   | { kind: "visitor"; visitorKey: string | null }
   | { kind: "blocked" };
 
@@ -28,8 +28,9 @@ export async function resolveVoter({ createCookie = false } = {}): Promise<Voter
     if (user) {
       if (user.status === "SUSPENDED" || user.isDeactivated) return { kind: "blocked" };
       // «سؤال نصيبك» can be off for a country (country_settings.pollsEnabled)
-      const pollsOff = !(await getCountrySettings(toCountry(user.country))).pollsEnabled;
-      return { kind: "member", userId: session.user.id, gender: user.gender ?? null, test: isTestPhone(user.phone), pollsOff };
+      const country = toCountry(user.country);
+      const pollsOff = !(await getCountrySettings(country)).pollsEnabled;
+      return { kind: "member", userId: session.user.id, gender: user.gender ?? null, test: isTestPhone(user.phone), pollsOff, country };
     }
   }
   const jar = await cookies();

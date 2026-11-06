@@ -12,7 +12,7 @@ type GtagParams = Record<string, string | number | boolean | undefined>;
 declare global {
   interface Window {
     gtag?: (command: "event" | "config" | "js" | "set", target: string | Date, params?: GtagParams) => void;
-    fbq?: (command: "track", event: MetaEvent) => void;
+    fbq?: (command: "track", event: MetaEvent, params?: { site_country?: string }) => void;
   }
 }
 
@@ -36,9 +36,9 @@ export type AnalyticsEvent =
 export type MetaEvent = "PageView" | "CompleteRegistration";
 
 /** Meta Pixel event, where the Pixel is loaded (`isMarketingOffPath`). Never send personal data. */
-export function trackMetaEvent(name: MetaEvent) {
+export function trackMetaEvent(name: MetaEvent, params?: { site_country?: string }) {
   try {
-    window.fbq?.("track", name);
+    window.fbq?.("track", name, params);
   } catch {
     // Analytics must never break the app
   }

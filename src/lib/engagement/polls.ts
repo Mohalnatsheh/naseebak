@@ -1,4 +1,4 @@
-// «سؤال نصيبك» (switch engagement_polls_enabled): one question asked on Instagram, on the public page /poll and
+// «سؤال نصيبك» (switch engagement_polls_enabled): each country has its own questions, queue and votes. One question asked on Instagram, on the public page /poll and
 // on the dashboard home. A new question every poll_round_days (3): queued drafts go live oldest first, lazily and from
 // the daily job. One vote per member or per visitor browser, final. A member's answer earns poll_reward_credits (1),
 // once per question, in the same transaction as the vote. Test accounts vote and earn but are never counted.
@@ -8,6 +8,8 @@ import { db } from "@/lib/db";
 import { getSetting } from "@/lib/settings";
 import { recordCredit } from "@/lib/credits";
 import { sendAdminAlert } from "@/lib/admin-alert";
+import { COUNTRY_CODES, toCountry, type CountryCode } from "@/lib/countries";
+import { activeCountryCodes, getCountrySettings, listCountrySettings } from "@/lib/countries/settings";
 import {
   MIN_GENDER_RESULTS,
   MIN_POLL_RESULTS,
@@ -39,8 +41,8 @@ export const pollRoundDays = async () => Math.max(1, await intSetting(ROUND_DAYS
 /** Credits a member gets for answering a question (0 = off, at most 5) */
 export const pollRewardCredits = () => intSetting(REWARD_SETTING, 1, 5);
 
-const POLL_SELECT = { id: true, slug: true, question: true, options: true, note: true, status: true, endsAt: true } as const;
-type PollRow = { id: string; slug: string; question: string; options: Prisma.JsonValue; note: string | null; status: PollStatusValue; endsAt: Date | null };
+const POLL_SELECT = { id: true, slug: true, country: true, question: true, options: true, note: true, status: true, endsAt: true } as const;
+type PollRow = { id: string; slug: string; country: string; question: string; options: Prisma.JsonValue; note: string | null; status: PollStatusValue; endsAt: Date | null };
 
 export function parseOptions(json: Prisma.JsonValue): PollOption[] {
   if (!Array.isArray(json)) return [];
@@ -55,22 +57,25 @@ export function visitorKeyOf(cookieValue: string): string {
   return createHash("sha256").update(`poll-visitor:${cookieValue}`).digest("hex");
 }
 
-/** The next question in the queue: the oldest draft */
-export function nextQueuedPoll() {
-  return db.poll.findFirst({ where: { status: "DRAFT" }, orderBy: { createdAt: "asc" }, select: { id: true } });
+/** The next question in a country's queue: the oldest draft */
+export function nextQueuedPoll(country: CountryCode) {
+  return db.poll.findFirst({ where: { status: "DRAFT", country }, orderBy: { createdAt: "asc" }, select: { id: true } });
 }
 
 /**
- * When the running question's time is up and a draft is queued: close it and start the draft (claimed with
- * conditional updates, so two requests at once rotate once). With nothing queued the question keeps running.
+ * When a country's running question's time is up and a draft is queued: close it and start the draft (claimed with
+ * conditional updates, so two requests at once rotate once). With nothing queued the question keeps running. A
+ * country with nothing running (a new country, or the admin closed it) starts its oldest draft.
  */
-export async function rotatePollsIfDue(now = new Date()): Promise<{ rotated: boolean; queueEmpty: boolean }> {
-  const active = await db.poll.findFirst({ where: { status: "ACTIVE" }, select: { id: true, endsAt: true } });
-  if (!active?.endsAt || active.endsAt > now) return { rotated: false, queueEmpty: false };
-  const next = await nextQueuedPoll();
-  if (!next) return { rotated: false, queueEmpty: true };
-  const closed = await db.poll.updateMany({ where: { id: active.id, status: "ACTIVE" }, data: { status: "CLOSED", closedAt: now } });
-  if (closed.count === 0) return { rotated: false, queueEmpty: false };
+export async function rotatePollsIfDue(country: CountryCode, now = new Date()): Promise<{ rotated: boolean; queueEmpty: boolean }> {
+  const active = await db.poll.findFirst({ where: { status: "ACTIVE", country }, select: { id: true, endsAt: true } });
+  if (active && (!active.endsAt || active.endsAt > now)) return { rotated: false, queueEmpty: false };
+  const next = await nextQueuedPoll(country);
+  if (!next) return { rotated: false, queueEmpty: !!active };
+  if (active) {
+    const closed = await db.poll.updateMany({ where: { id: active.id, status: "ACTIVE" }, data: { status: "CLOSED", closedAt: now } });
+    if (closed.count === 0) return { rotated: false, queueEmpty: false };
+  }
   const days = await pollRoundDays();
   await db.poll.updateMany({
     where: { id: next.id, status: "DRAFT" },
@@ -79,15 +84,27 @@ export async function rotatePollsIfDue(now = new Date()): Promise<{ rotated: boo
   return { rotated: true, queueEmpty: false };
 }
 
-export async function getActivePoll(now = new Date()): Promise<PollRow | null> {
-  await rotatePollsIfDue(now).catch((error) => console.error("[polls] rotation failed:", error));
-  return db.poll.findFirst({ where: { status: "ACTIVE" }, orderBy: { startedAt: "desc" }, select: POLL_SELECT });
+/** Open countries with the question switched on and running: the only ones search engines are told about */
+export async function pollCountries(): Promise<CountryCode[]> {
+  const settings = (await listCountrySettings()).filter((s) => s.active && s.pollsEnabled);
+  const running = await db.poll.findMany({ where: { status: "ACTIVE" }, select: { country: true } });
+  return settings.map((s) => s.code as CountryCode).filter((code) => running.some((p) => p.country === code));
 }
 
-/** A question that has been shown (active or closed); drafts are admin-only */
-export async function getPublishedPoll(slug: string): Promise<PollRow | null> {
-  await rotatePollsIfDue().catch((error) => console.error("[polls] rotation failed:", error));
-  return db.poll.findFirst({ where: { slug, status: { in: ["ACTIVE", "CLOSED"] } }, select: POLL_SELECT });
+/** Every country's rotation (admin list) */
+export async function rotateAllPolls(now = new Date()): Promise<void> {
+  await Promise.all(COUNTRY_CODES.map((country) => rotatePollsIfDue(country, now)));
+}
+
+export async function getActivePoll(country: CountryCode, now = new Date()): Promise<PollRow | null> {
+  await rotatePollsIfDue(country, now).catch((error) => console.error("[polls] rotation failed:", error));
+  return db.poll.findFirst({ where: { status: "ACTIVE", country }, orderBy: { startedAt: "desc" }, select: POLL_SELECT });
+}
+
+/** A country's question that has been shown (active or closed); drafts are admin-only */
+export async function getPublishedPoll(slug: string, country: CountryCode): Promise<PollRow | null> {
+  await rotatePollsIfDue(country).catch((error) => console.error("[polls] rotation failed:", error));
+  return db.poll.findFirst({ where: { slug, country, status: { in: ["ACTIVE", "CLOSED"] } }, select: POLL_SELECT });
 }
 
 /** Counted votes per option, and members' votes per option by gender */
@@ -136,6 +153,7 @@ export async function publicView(poll: PollRow, mine: MyVote, offer = 0): Promis
   const base = {
     id: poll.id,
     slug: poll.slug,
+    country: poll.country,
     question: poll.question,
     options,
     note: poll.note,
@@ -178,9 +196,12 @@ export async function castVote(input: {
   visitorKey?: string | null;
   source: PollSource | typeof TEST_SOURCE;
   reward?: number;
+  /** A member's country: their votes stay on their own country's questions */
+  country?: string | null;
 }): Promise<{ poll: PollRow; vote: NonNullable<MyVote>; created: boolean }> {
   const poll = await db.poll.findUnique({ where: { id: input.pollId }, select: POLL_SELECT });
-  if (!poll || poll.status === "DRAFT") throw new PollError("NOT_FOUND");
+  if (!poll || poll.status === "DRAFT" || (input.country && poll.country !== input.country)) throw new PollError("NOT_FOUND");
+  if (!(await getCountrySettings(toCountry(poll.country))).pollsEnabled) throw new PollError("NOT_FOUND");
   const existing = await findMyVote(poll.id, input);
   if (existing) return { poll, vote: existing, created: false };
   if (poll.status !== "ACTIVE") throw new PollError("CLOSED");
@@ -215,11 +236,11 @@ export async function castVote(input: {
   }
 }
 
-/** Activating a question closes the one running before it; it then runs for poll_round_days */
-export async function activatePoll(id: string, now = new Date()): Promise<void> {
+/** Activating a question closes the one running before it in its country; it then runs for poll_round_days */
+export async function activatePoll(id: string, country: string, now = new Date()): Promise<void> {
   const days = await pollRoundDays();
   await db.$transaction([
-    db.poll.updateMany({ where: { status: "ACTIVE", id: { not: id } }, data: { status: "CLOSED", closedAt: now } }),
+    db.poll.updateMany({ where: { status: "ACTIVE", country, id: { not: id } }, data: { status: "CLOSED", closedAt: now } }),
     db.poll.update({ where: { id }, data: { status: "ACTIVE", startedAt: now, endsAt: new Date(now.getTime() + days * DAY), closedAt: null } }),
   ]);
 }
@@ -234,18 +255,25 @@ export async function nextPollSlug(now = new Date()): Promise<string> {
   return `${day}-${n}`;
 }
 
-/** Daily job: rotate if due, and tell the admins when the queue is empty and a new question is due within a day */
+/** Daily job, per open country: rotate if due, and tell its admins when the queue is empty and a new question is due within a day */
 export async function runPollRotation(now = new Date()): Promise<Record<string, number>> {
   if (!(await pollsEnabled())) return { skipped: 1 };
-  const { rotated, queueEmpty } = await rotatePollsIfDue(now);
-  const active = await db.poll.findFirst({ where: { status: "ACTIVE" }, select: { endsAt: true } });
-  const dueSoon = !!active?.endsAt && active.endsAt.getTime() - now.getTime() < DAY;
-  const empty = queueEmpty || (dueSoon && !(await nextQueuedPoll()));
-  if (empty) {
-    await sendAdminAlert(
-      "«سؤال نصيبك»: no question queued",
-      "The running question is due to be replaced, but there is no draft in the queue, so it keeps running.\nAdd the next question in Admin → Naseebak Question («Add to queue»; it goes live on its own).",
-    );
+  let rotatedCount = 0;
+  let emptyCount = 0;
+  for (const country of await activeCountryCodes()) {
+    const { rotated, queueEmpty } = await rotatePollsIfDue(country, now);
+    const active = await db.poll.findFirst({ where: { status: "ACTIVE", country }, select: { endsAt: true } });
+    const dueSoon = !!active?.endsAt && active.endsAt.getTime() - now.getTime() < DAY;
+    const empty = queueEmpty || (dueSoon && !(await nextQueuedPoll(country)));
+    if (rotated) rotatedCount++;
+    if (empty) {
+      emptyCount++;
+      await sendAdminAlert(
+        `«سؤال نصيبك»: no question queued (${country})`,
+        "The running question is due to be replaced, but there is no draft in the queue, so it keeps running.\nAdd the next question in Admin → Naseebak Question.",
+        { country },
+      );
+    }
   }
-  return { rotated: rotated ? 1 : 0, queueEmpty: empty ? 1 : 0 };
+  return { rotated: rotatedCount, queueEmpty: emptyCount };
 }

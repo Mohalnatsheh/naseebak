@@ -1,9 +1,9 @@
 import type { MetadataRoute } from "next";
 import { db } from "@/lib/db";
-import { toCountry } from "@/lib/countries";
+import { toCountry, type CountryCode } from "@/lib/countries";
 import { activeCountryCodes } from "@/lib/countries/settings";
 import { absoluteUrl, seoAlternates } from "@/lib/site-paths";
-import { pollsEnabled } from "@/lib/engagement/polls";
+import { pollCountries, pollsEnabled } from "@/lib/engagement/polls";
 
 /**
  * Pages that exist once per country: every country's URL, each listing the others (hreflang).
@@ -37,9 +37,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     }))
   );
   let blogPages: MetadataRoute.Sitemap = [];
-  let polls = false;
+  let pollPages: CountryCode[] = [];
   try {
-    polls = await pollsEnabled();
+    if (await pollsEnabled()) pollPages = await pollCountries();
   } catch {
     // Settings unavailable: leave the poll page out
   }
@@ -68,7 +68,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   const staticPages: MetadataRoute.Sitemap = [
     ...localizedPages,
-    ...(polls ? [{ url: `${baseUrl}/poll`, changeFrequency: "daily" as const, priority: 0.5 }] : []),
+    ...pollPages.map((c) => ({
+      url: absoluteUrl("/poll", c),
+      changeFrequency: "daily" as const,
+      priority: 0.5,
+      alternates: { languages: seoAlternates("/poll", c, pollPages).languages },
+    })),
     { url: `${baseUrl}/login`, changeFrequency: "yearly", priority: 0.4 },
     { url: `${baseUrl}/register`, changeFrequency: "yearly", priority: 0.6 },
   ];

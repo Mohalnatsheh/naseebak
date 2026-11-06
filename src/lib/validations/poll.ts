@@ -10,6 +10,8 @@ const text = (max: number, label: string) =>
 /** Admin: create or edit a weekly question (options are labels; ids are given by the server) */
 export const pollInputSchema = z.object({
   question: text(POLL_QUESTION_MAX, "Question"),
+  /** Whose question it is; set when created (Jordan when not sent) */
+  country: z.enum(["JO", "SA"]).optional(),
   options: z
     .array(text(POLL_OPTION_MAX, "Option"))
     .min(POLL_OPTIONS_MIN, `At least ${POLL_OPTIONS_MIN} options`)

@@ -434,12 +434,12 @@ function RegisterPageContent() {
         // The account exists now, so pressing «إنشاء الحساب» again would only fail: send the
         // member to the login page (referral code and photo can be added from the dashboard)
         trackEvent("sign_up", { method: "phone" });
-        trackMetaEvent("CompleteRegistration");
+        trackMetaEvent("CompleteRegistration", { site_country: country });
         window.location.href = "/login?exists=true";
         return;
       }
       trackEvent("sign_up", { method: "phone" });
-      trackMetaEvent("CompleteRegistration");
+      trackMetaEvent("CompleteRegistration", { site_country: country });
 
       // Step 3.5: Apply referral code if provided
       const warnings: string[] = [];

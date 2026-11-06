@@ -290,7 +290,7 @@ function RegisterPageContent() {
       trackEvent("otp_requested", { context: "register" });
 
       setOtpSent(true);
-      setOtpNotice(`أرسلنا رمز التحقق برسالة نصية إلى ${form.phone}`);
+      setOtpNotice(`أرسلنا رمز التحقق ${data.channel === "whatsapp" ? "عبر واتساب" : "برسالة نصية"} إلى ${form.phone}`);
       setResendIn(RESEND_SECONDS);
     } catch {
       setError("حدث خطأ غير متوقع. حاول مرة أخرى.");

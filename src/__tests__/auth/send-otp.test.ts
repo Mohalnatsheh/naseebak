@@ -4,7 +4,7 @@ const db = vi.hoisted(() => ({
   user: { findUnique: vi.fn() },
   otp: { deleteMany: vi.fn(), create: vi.fn(async () => ({ id: "o1" })), delete: vi.fn() },
 }));
-const sms = vi.hoisted(() => ({ sendSms: vi.fn(async () => true) }));
+const sms = vi.hoisted(() => ({ sendOtpCode: vi.fn(async () => true), otpChannel: vi.fn(async () => "sms") }));
 const settings = vi.hoisted(() => ({
   getMaintenanceState: vi.fn(async () => ({ enabled: false })),
   isRegistrationOpen: vi.fn(async () => true),
@@ -37,7 +37,7 @@ describe("POST /api/auth/send-otp, sign-up (G58)", () => {
     const b = await fresh.json();
     expect(a).toEqual(b);
     expect(a).not.toHaveProperty("userExists");
-    expect(sms.sendSms).toHaveBeenCalledTimes(2);
+    expect(sms.sendOtpCode).toHaveBeenCalledTimes(2);
   });
 
   it("with registration closed, refuses every number alike", async () => {
@@ -46,7 +46,7 @@ describe("POST /api/auth/send-otp, sign-up (G58)", () => {
     expect((await send({ phone: "0790000001", context: "register" })).status).toBe(403);
     db.user.findUnique.mockResolvedValueOnce(null);
     expect((await send({ phone: "0790000002", context: "register" })).status).toBe(403);
-    expect(sms.sendSms).not.toHaveBeenCalled();
+    expect(sms.sendOtpCode).not.toHaveBeenCalled();
   });
 
   it("sign-in keeps working for a registered number while registration is closed", async () => {
@@ -54,6 +54,6 @@ describe("POST /api/auth/send-otp, sign-up (G58)", () => {
     db.user.findUnique.mockResolvedValue({ id: "u1" });
     const res = await send({ phone: "0790000001" });
     expect(res.status).toBe(200);
-    expect(sms.sendSms).toHaveBeenCalledTimes(1);
+    expect(sms.sendOtpCode).toHaveBeenCalledTimes(1);
   });
 });

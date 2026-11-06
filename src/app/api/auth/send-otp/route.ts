@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { clientIp } from "@/lib/rate-limit";
 import { rateLimitDb } from "@/lib/rate-limit-db";
-import { sendSms } from "@/lib/sms";
+import { otpChannel, sendOtpCode } from "@/lib/sms";
 import { sendOtpSchema, normalizePhone } from "@/lib/validations/auth";
 import { getMaintenanceState, isRegistrationOpen } from "@/lib/settings";
 import { countrySignupBlock } from "@/lib/countries/settings";
@@ -108,10 +108,7 @@ export async function POST(request: Request) {
 
     // Send SMS (skip for test phone)
     if (!isTestPhone) {
-      const sent = await sendSms(
-        phone,
-        `رمز التحقق الخاص بك في نصيبك: ${generatedCode}`
-      );
+      const sent = await sendOtpCode(phone, generatedCode);
       if (!sent) {
         // Don't tell the person a code is on its way when it isn't: they would wait for nothing
         console.warn(`[SMS] Failed to send OTP to ${phone}`);
@@ -123,9 +120,11 @@ export async function POST(request: Request) {
       }
     }
 
-    if (forRegister) return NextResponse.json({ message: "تم إرسال رمز التحقق" });
+    const channel = await otpChannel(phone);
+    if (forRegister) return NextResponse.json({ message: "تم إرسال رمز التحقق", channel });
     return NextResponse.json({
       message: "تم إرسال رمز التحقق",
+      channel,
       userExists: !!existingUserForGate,
     });
   } catch (error) {

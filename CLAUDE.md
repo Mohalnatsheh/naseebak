@@ -185,6 +185,8 @@ One-off SMS campaigns to users (owner approves text and recipients first) run as
 
 **SMS notice fallback** (`src/lib/sms-notice.ts`, owner decision 2026-10-18): `notify()` also texts a member when the event is a mutual match («توافق متبادل!»), the «شخص أبدى اهتمامه بك» reveal, the «اقتراح بانتظار قرارك» expiry reminder or the waiting nudge (`sms: "waiting"`) (matched by type + title; callers can pass `sms: "<event>"` / `sms: false`) — only if OneSignal has no push subscription for them (404 / none enabled; unknown = no SMS), the member allows that notification type, is a real active `USER` (not a test number), and got no SMS notice yet that Amman day (`User.lastSmsNoticeAt`) — the cap covers admin «Send SMS now» too. **No notice SMS 23:00–09:00 Amman** (`isQuietHour`, returns `"quiet"` without claiming the day); `catchUpQuietSms()` (run by `/api/cron/unread-sms` every 15 min) sends the held match/interest/expiring SMS after 09:00 — one per member, the most important, only while the notice is unread. Texts carry no names.
 
+**Saudi sign-in codes go by WhatsApp** (owner 2026-11-06): `sendOtpCode` in `src/lib/sms.ts` uses VerifyWay when `VERIFYWAY_API_KEY` is set (Arabic template, `+966…`; the reply repeats the code, so it is never logged). Jordan keeps Broadnet. In `.env` the key's `$` is written `\$`, or Next expands it. The app's code screens still say «برسالة نصية» until the next version. Saudi notices are unaffected (`sendSms`).
+
 Config via env: `BROADNET_USER`, `BROADNET_PASS`, `BROADNET_SENDER_ID` (`naseebak` since 2026-10-18; was `SRVnaseebak`), `BROADNET_API_URL` (default `https://gwjo1s.broadnet.me:8443/websmpp/websms`). Never hardcode credentials. Provider portal: `http://82.212.81.40:8080/websmpp`
 
 ## Stripe Payments

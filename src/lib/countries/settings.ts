@@ -140,7 +140,9 @@ export function countryWarnings(s: CountrySettings, env: NodeJS.ProcessEnv = pro
   if (s.active && s.registrationOpen && provider === "NONE") {
     out.push({ level: "error", message: "Registration is open but no SMS provider is set: sign-up codes will fail (only test numbers work)." });
   }
-  if (provider !== "NONE" && provider !== "MOCK" && !providerConfigured(provider, env)) {
+  if (code === "SA" && env.VERIFYWAY_API_KEY && provider === "UNIFONIC" && !providerConfigured(provider, env)) {
+    out.push({ level: "warning", message: "Sign-in codes go by WhatsApp (VerifyWay). Unifonic isn't set, so «Send a test SMS» and SMS notices won't work." });
+  } else if (provider !== "NONE" && provider !== "MOCK" && !providerConfigured(provider, env)) {
     out.push({
       level: s.active ? "error" : "warning",
       message: provider === "BROADNET" ? "Broadnet credentials are missing (BROADNET_USER / BROADNET_PASS)." : "Unifonic credentials are missing (UNIFONIC_APP_SID / UNIFONIC_SENDER_ID).",

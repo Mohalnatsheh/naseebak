@@ -9,7 +9,7 @@ vi.mock("@/lib/countries/settings", async (orig) => {
   };
 });
 
-import { sendSms } from "@/lib/sms";
+import { otpChannel, sendOtpCode, sendSms } from "@/lib/sms";
 import { clearMockOutbox, readMockOutbox } from "@/lib/sms-mock";
 
 const fetchMock = vi.fn();
@@ -76,6 +76,46 @@ describe("sendSms routes by the number's country and the country's setting", () 
     const err = vi.spyOn(console, "error").mockImplementation(() => {});
     expect(await sendSms("441234567890", "hi")).toBe(false);
     expect(fetchMock).not.toHaveBeenCalled();
+    err.mockRestore();
+  });
+});
+
+describe("sendOtpCode: Saudi codes by WhatsApp", () => {
+  const ok = { ok: true, status: 200, json: async () => ({ status: "success", message_id: "m1", code: "123456" }) };
+
+  beforeEach(() => {
+    process.env.VERIFYWAY_API_KEY = "key";
+  });
+
+  it("sends a Saudi code through VerifyWay in Arabic", async () => {
+    fetchMock.mockResolvedValue(ok);
+    expect(await sendOtpCode("966551234567", "123456")).toBe(true);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("https://api.verifyway.com/api/v1/");
+    expect(init.headers.Authorization).toBe("Bearer key");
+    expect(JSON.parse(init.body)).toEqual({ recipient: "+966551234567", type: "otp", code: "123456", channel: "whatsapp", lang: "ar" });
+    expect(await otpChannel("966551234567")).toBe("whatsapp");
+  });
+
+  it("keeps Jordan on SMS", async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200, text: async () => "Response: 1" });
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    expect(await sendOtpCode("962791234567", "123456")).toBe(true);
+    expect(String(fetchMock.mock.calls[0][0])).toContain("broadnet");
+    expect(await otpChannel("962791234567")).toBe("sms");
+    log.mockRestore();
+  });
+
+  it("stays on SMS without a key", async () => {
+    process.env.VERIFYWAY_API_KEY = "";
+    expect(await otpChannel("966551234567")).toBe("sms");
+  });
+
+  it("reports a refusal and never logs the code", async () => {
+    fetchMock.mockResolvedValue({ ok: false, status: 400, json: async () => ({ error: "Invalid Phone Number Format" }) });
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(await sendOtpCode("966551234567", "123456")).toBe(false);
+    expect(JSON.stringify(err.mock.calls)).not.toContain("123456");
     err.mockRestore();
   });
 });

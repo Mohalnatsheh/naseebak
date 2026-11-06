@@ -9,6 +9,7 @@
  * (src/lib/sms-mock.ts) and is refused on any real server. Sender ids can be overridden per country.
  * A country with no working provider returns false (send-otp answers 502, notices are skipped).
  * Used for OTP codes (send-otp) and the SMS notice fallback (lib/sms-notice.ts).
+ * Saudi sign-in codes go by WhatsApp through VerifyWay when VERIFYWAY_API_KEY is set (owner 2026-11-06, `sendOtpCode`).
  */
 import { countryOfPhone } from "@/lib/countries";
 import { getCountrySettings, resolveSmsProvider } from "@/lib/countries/settings";
@@ -33,6 +34,41 @@ export async function sendSms(phone: string, text: string): Promise<boolean> {
     case "NONE":
       console.error(`[SMS] SMS are off for ${country} (${maskPhone(phone)})`);
       return false;
+  }
+}
+
+/** How a number's sign-in code travels; `sendOtpCode` follows it, and the sign-up page says so */
+export async function otpChannel(phone: string): Promise<"whatsapp" | "sms"> {
+  const country = countryOfPhone(phone);
+  if (country !== "SA" || !process.env.VERIFYWAY_API_KEY) return "sms";
+  const { smsProvider } = await getCountrySettings(country);
+  return resolveSmsProvider(country, smsProvider) === "MOCK" ? "sms" : "whatsapp";
+}
+
+export async function sendOtpCode(phone: string, code: string): Promise<boolean> {
+  if ((await otpChannel(phone)) === "whatsapp") return sendVerifyWay(phone, code);
+  return sendSms(phone, `رمز التحقق الخاص بك في نصيبك: ${code}`);
+}
+
+/** WhatsApp sign-in code, Arabic template (https://verifyway.com/whatsapp-otp-api/). The reply repeats the code: never log it. */
+async function sendVerifyWay(phone: string, code: string): Promise<boolean> {
+  try {
+    const res = await fetch(process.env.VERIFYWAY_API_URL || "https://api.verifyway.com/api/v1/", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.VERIFYWAY_API_KEY}`,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({ recipient: `+${phone}`, type: "otp", code, channel: "whatsapp", lang: "ar" }),
+    });
+    const body = (await res.json().catch(() => null)) as { status?: string; error?: string } | null;
+    if (res.ok && body?.status === "success") return true;
+    console.error(`[SMS] VerifyWay refused ${maskPhone(phone)}: status=${res.status} error="${String(body?.error ?? "").slice(0, 200)}"`);
+    return false;
+  } catch (err) {
+    console.error("[SMS] VerifyWay send error:", err);
+    return false;
   }
 }
 

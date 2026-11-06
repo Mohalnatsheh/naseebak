@@ -25,6 +25,7 @@ import { arabicCount } from "@/lib/utils";
 import { useVisitorCountry } from "@/components/shared/visitor-country";
 import { DialCodeToggle } from "@/components/shared/dial-code-toggle";
 import { COUNTRIES, type CountryCode } from "@/lib/countries";
+import { publicCopy } from "@/lib/public-copy";
 import { dialCountryFor, isPhoneFor, phoneFormatsError, phoneWord } from "@/lib/phone-field";
 
 function LoginPageContent() {
@@ -33,6 +34,7 @@ function LoginPageContent() {
   const [phone, setPhone] = useState("");
   /** Dial-code toggle (🇯🇴 +962 / 🇸🇦 +966), preselected from the visitor's country */
   const visitorCountry = useVisitorCountry();
+  const { tagline } = publicCopy(visitorCountry);
   const [country, setCountry] = useState<CountryCode>(visitorCountry);
   const [otp, setOtp] = useState("");
   const [otpSent, setOtpSent] = useState(false);
@@ -323,9 +325,9 @@ function LoginPageContent() {
             className="max-w-sm text-xl leading-relaxed opacity-85 font-medium"
             style={{ animation: "fadeSlideUp 1s ease-out 0.4s both" }}
           >
-            نوصّلك بشريك العمر بالحلال
+            {tagline}
             <br />
-            بسترة واحترام
+            بستر واحترام
           </p>
 
           {/* Decorative separator */}
@@ -378,7 +380,7 @@ function LoginPageContent() {
               />
             </Link>
             <p className="mt-2 text-sm text-muted-foreground">
-              نوصّلك بشريك العمر بالحلال
+              {tagline}
             </p>
           </div>
 

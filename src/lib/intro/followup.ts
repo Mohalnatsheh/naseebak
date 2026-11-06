@@ -219,7 +219,7 @@ export async function setMatchOutcome(args: { matchId: string; userId: string; o
         userId: partnerId,
         type: "MATCH",
         title: "مبارك! 🎉",
-        body: "أخبرنا الطرف الآخر أن التعارف انتهى بالخطبة. أكّد ذلك من صفحة التوافق لنتوقف عن إرسال الاقتراحات.",
+        body: "أخبرنا الطرف الآخر أن التعارف انتهى بالخطبة. يمكنك تأكيد ذلك من صفحة التوافق لنتوقف عن إرسال الاقتراحات.",
         url: matchUrl(matchId),
       });
     }
@@ -364,7 +364,7 @@ export async function runFamilyFollowUps(now = new Date()): Promise<{ matches: n
     await notifyMany(ask, {
       type: "MATCH",
       title: "كيف يسير التعارف العائلي؟",
-      body: "أخبرنا بما وصلتم إليه: ما زلنا نتعارف، تمت الخطبة، أو لم يحصل نصيب.",
+      body: "أخبرنا بما وصلتم إليه: ما زلنا نتعارف، تمت الخطبة، أو لم يُكتب نصيب.",
       url: matchUrl(m.id),
     });
     matches++;

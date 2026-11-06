@@ -43,7 +43,7 @@ const points = (phoneWord: string): Record<"FAMILY" | "CHAT", string[]> => ({
   ],
   CHAT: [
     "محادثة نصية خاصة داخل نصيبك لمدة 14 يوماً.",
-    "لا يُسمح بمشاركة أرقام الهواتف أو الروابط أو حسابات التواصل.",
+    "لا يُسمح بمشاركة الأرقام أو الروابط أو حسابات التواصل.",
     "يمكنكما الانتقال لتعارف عائلي في أي وقت.",
   ],
 });
@@ -145,7 +145,7 @@ export function IntroConfirmDialog({
             </div>
           ) : noCredits ? (
             <div className="rounded-xl border border-amber-200/60 bg-amber-50/70 p-3 text-sm text-amber-800">
-              <p className="font-semibold">رصيدك صفر</p>
+              <p className="font-semibold">انتهى رصيدك</p>
               <p className="mt-1">{viewerFemale ? "اشحني رصيدكِ لإرسال هذا الطلب." : "اشحن رصيدك لإرسال هذا الطلب."}</p>
             </div>
           ) : (

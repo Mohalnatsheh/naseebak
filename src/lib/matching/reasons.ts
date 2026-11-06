@@ -16,7 +16,7 @@ const MAX_LABELS = 3;
 const CLOSE_PERSONALITY = 0.75;
 
 export function suggestionReason(viewer: UserForScoring, other: UserForScoring): string {
-  const generic = "اقترحناه لتوافق ملفيكما بشكل عام";
+  const generic = "اقتراح مبني على توافق ملفيكما عموماً";
   if (!viewer.profile || !other.profile) return generic;
 
   const labels = checkPreferenceMatchDetailed(viewer.profile, other.profile, other.gender)

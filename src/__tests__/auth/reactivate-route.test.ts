@@ -45,7 +45,7 @@ describe("POST /api/profile/reactivate", () => {
     expect(db.user.update).toHaveBeenCalledWith({ where: { id: "u1" }, data: { isDeactivated: false } });
     expect(db.accountDeletionRequest.update).not.toHaveBeenCalled();
     expect(notifyMod.notify).toHaveBeenCalledWith(
-      expect.objectContaining({ userId: "u1", type: "SYSTEM", title: "تم إعادة تفعيل حسابك" }),
+      expect.objectContaining({ userId: "u1", type: "SYSTEM", title: "أُعيد تفعيل حسابك" }),
     );
   });
 

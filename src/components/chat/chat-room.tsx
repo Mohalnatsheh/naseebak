@@ -584,7 +584,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
             ? "المحادثة متوقفة مؤقتاً لمراجعة من فريق نصيبك. سنُعلمك عند استئنافها."
             : conversation.status === "ENDED"
             ? conversation.endedByMe
-              ? "تم إنهاء هذه المحادثة من طرفك."
+              ? "أنهيت هذه المحادثة."
               : "أنهى الطرف الآخر هذه المحادثة."
             : conversation.status === "EXPIRED"
               ? family?.status === "none" && intro?.flags.introRequests && !intro.closed

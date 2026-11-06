@@ -179,7 +179,7 @@ export async function POST(request: Request) {
     await notifyMany(mutualSuggestions ? [recipientId, candidateId] : [recipientId], {
       type: "SUGGESTION",
       title: "اقتراح جديد من الإدارة",
-      body: "لديك اقتراح توافق جديد من فريق نصيبك. قم بمراجعته.",
+      body: "لديك اقتراح توافق جديد من فريق نصيبك. يمكنك الاطلاع عليه الآن.",
       url: "/dashboard/suggestions",
     });
 

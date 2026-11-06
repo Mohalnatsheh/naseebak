@@ -27,21 +27,19 @@ const cairo = Cairo({
 /** Description, keywords and Open Graph locale follow the visitor's country (Jordan by default) */
 export async function generateMetadata(): Promise<Metadata> {
   const copy = publicCopy(await getVisitorCountry());
+  const title = `نصيبك - ${copy.tagline}`;
   return {
     ...baseMetadata,
+    title: { default: title, template: "%s | نصيبك" },
     description: copy.description,
     keywords: copy.keywords,
-    openGraph: { ...baseMetadata.openGraph, locale: copy.ogLocale, description: copy.description },
-    twitter: { ...baseMetadata.twitter, description: copy.shortDescription },
+    openGraph: { ...baseMetadata.openGraph, title, locale: copy.ogLocale, description: copy.description },
+    twitter: { ...baseMetadata.twitter, title, description: copy.shortDescription },
   };
 }
 
 const baseMetadata = {
   metadataBase: new URL("https://naseebak.com"),
-  title: {
-    default: "نصيبك - نوصّلك بشريك العمر بالحلال",
-    template: "%s | نصيبك",
-  },
   // No site-wide canonical: every page sets its own (localized pages: src/lib/site-paths.ts seoAlternates)
   authors: [{ name: "نصيبك", url: "https://naseebak.com" }],
   creator: "نصيبك",
@@ -63,11 +61,9 @@ const baseMetadata = {
     type: "website",
     url: "https://naseebak.com",
     siteName: "نصيبك",
-    title: "نصيبك - نوصّلك بشريك العمر بالحلال",
   },
   twitter: {
     card: "summary_large_image",
-    title: "نصيبك - نوصّلك بشريك العمر بالحلال",
   },
   robots: {
     index: true,

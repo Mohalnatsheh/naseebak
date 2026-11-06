@@ -29,12 +29,12 @@ export async function POST(request: Request) {
     }
 
     if (user.referredBy) {
-      return NextResponse.json({ error: "لقد استخدمت رمز إحالة مسبقاً" }, { status: 400 });
+      return NextResponse.json({ error: "لقد استخدمت رمز دعوة مسبقاً" }, { status: 400 });
     }
 
     // Can only apply during setup (profile not yet complete)
     if (user.profile?.isComplete) {
-      return NextResponse.json({ error: "لا يمكن تطبيق رمز الإحالة بعد اكتمال الملف الشخصي" }, { status: 400 });
+      return NextResponse.json({ error: "لا يمكن تطبيق رمز الدعوة بعد اكتمال الملف الشخصي" }, { status: 400 });
     }
 
     // Find referrer by code
@@ -44,12 +44,12 @@ export async function POST(request: Request) {
     });
 
     if (!referrer) {
-      return NextResponse.json({ error: "رمز الإحالة غير صالح" }, { status: 404 });
+      return NextResponse.json({ error: "رمز الدعوة غير صالح" }, { status: 404 });
     }
 
     // Prevent self-referral
     if (referrer.id === session.user.id) {
-      return NextResponse.json({ error: "لا يمكنك استخدام رمز الإحالة الخاص بك" }, { status: 400 });
+      return NextResponse.json({ error: "لا يمكنك استخدام رمز الدعوة الخاص بك" }, { status: 400 });
     }
 
     // Apply referral in a transaction
@@ -66,7 +66,7 @@ export async function POST(request: Request) {
       }),
     ]);
 
-    return NextResponse.json({ message: "تم تطبيق رمز الإحالة بنجاح" });
+    return NextResponse.json({ message: "تم تطبيق رمز الدعوة بنجاح" });
   } catch (error) {
     console.error("Referral apply error:", error);
     return NextResponse.json({ error: "حدث خطأ في الخادم" }, { status: 500 });

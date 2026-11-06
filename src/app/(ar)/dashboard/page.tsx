@@ -156,7 +156,7 @@ export default function DashboardPage() {
           key: "new",
           icon: Sparkles,
           title: fresh === 1 ? "توافق جديد بانتظار قرارك" : `${fresh} توافقات جديدة بانتظار قرارك`,
-          note: "«مهتم» أو «لا»، وقرارك لا يعرفه أحد.",
+          note: "«مهتم» أو «لا»، ولا يعرف «لا» إلا من أبدى اهتمامه.",
           href: "/dashboard/suggestions",
           cta: g("قرّر الآن", "قرّري الآن"),
         }]
@@ -251,7 +251,7 @@ export default function DashboardPage() {
           {outOfCredits && (likedYou > 0 || fresh > 0) && (
             <Link href="/dashboard/payments" className="flex items-center gap-2 border-t border-border/60 bg-amber-50/70 px-4 py-2.5 text-xs font-semibold text-amber-900">
               <Coins className="h-4 w-4 shrink-0" aria-hidden />
-              {g("رصيدك صفر: اشحن رصيدك لتقول «مهتم».", "رصيدكِ صفر: اشحني رصيدكِ لتقولي «مهتم».")}
+              {g("انتهى رصيدك: اشحن رصيدك لتقول «مهتم».", "انتهى رصيدكِ: اشحني رصيدكِ لتقولي «مهتم».")}
             </Link>
           )}
         </section>

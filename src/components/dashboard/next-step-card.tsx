@@ -117,7 +117,7 @@ export function NextStepCard({ qualifies, pendingSuggestions, credits, emptyReas
     step = {
       icon: Sparkles,
       title: "لديك توافقات جديدة",
-      text: g("اكتشف الأشخاص الجدد الذين قد يناسبونك.", "اكتشفي الأشخاص الجدد الذين قد يناسبونكِ."),
+      text: g("اطّلع على الاقتراحات الجديدة.", "اطّلعي على الاقتراحات الجديدة."),
       href: "/dashboard/suggestions",
       cta: g("اكتشف الآن", "اكتشفي الآن"),
       tone: "primary",
@@ -125,7 +125,7 @@ export function NextStepCard({ qualifies, pendingSuggestions, credits, emptyReas
   } else if (newCycle && !creditOnInterest && actionableMatches > 0 && credits === 0) {
     step = {
       icon: Coins,
-      title: "رصيدك صفر",
+      title: "انتهى رصيدك",
       text: g(
         "اشحن رصيدك لإرسال طلب تعارف عائلي أو طلب محادثة لتوافقاتك.",
         "اشحني رصيدك لإرسال طلب تعارف عائلي أو طلب محادثة لتوافقاتك."

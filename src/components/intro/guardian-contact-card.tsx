@@ -56,7 +56,7 @@ export function GuardianContactCard({ contact, partnerName }: { contact?: Guardi
       </div>
 
       <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
-        ننصح أن يتواصل وليّ أمرك مباشرة مع وليّ أمر الطرف الآخر لترتيب موعد الزيارة العائلية.
+        ننصح أن يتواصل وليّ أمرك مباشرة مع وليّ أمر الطرف الآخر لترتيب {country === "SA" ? "موعد الزيارة والنظرة الشرعية" : "موعد الزيارة العائلية"}.
       </p>
     </div>
   );

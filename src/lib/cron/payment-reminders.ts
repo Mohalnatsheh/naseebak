@@ -1,5 +1,5 @@
 /**
- * «باقي خطوة لإتمام شحن رصيدك» (owner request 2026-11-05): most failed payments are members who open the payment and
+ * «بقيت خطوة لإتمام شحن رصيدك» (owner request 2026-11-05): most failed payments are members who open the payment and
  * leave (no card ever tried). A member who started a payment 50 minutes to 12 hours ago, didn't pay it and hasn't paid
  * since gets one push + bell (never SMS), at most once per payment and once per Amman day, never at night (23:00–09:00,
  * the next run after 09:00 sends it). Runs every 15 minutes (`naseebak-daily-job frequent`).
@@ -22,8 +22,8 @@ export function isQuietHour(now: Date): boolean {
 
 export function unpaidBody(female: boolean): string {
   return female
-    ? "اخترتِ باقة ولم يكتمل الدفع. أكملي بثوانٍ، والرصيد يعود لكِ تلقائياً إذا لم يردّ الطرف الآخر."
-    : "اخترت باقة ولم يكتمل الدفع. أكمل بثوانٍ، والرصيد يعود لك تلقائياً إذا لم يردّ الطرف الآخر.";
+    ? "اخترتِ باقة ولم يكتمل الدفع. أكملي الدفع في ثوانٍ، والرصيد يعود لكِ تلقائياً إذا لم يردّ الطرف الآخر."
+    : "اخترت باقة ولم يكتمل الدفع. أكمل الدفع في ثوانٍ، والرصيد يعود لك تلقائياً إذا لم يردّ الطرف الآخر.";
 }
 
 export async function remindUnpaidPayments(now = new Date()): Promise<{ payments: number; reminded: number }> {

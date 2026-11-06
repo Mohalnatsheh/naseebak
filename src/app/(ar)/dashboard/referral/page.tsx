@@ -37,7 +37,9 @@ const MAX_REWARDED_REFERRALS = 10;
 
 export default function ReferralPage() {
   // New cycle: the reward is paid once the friend finishes the short setup; legacy: 100% profile
-  const { counts: { flags }, country } = useDashboardData();
+  const { counts: { flags }, country, profile } = useDashboardData();
+  const female = profile?.gender === "FEMALE";
+  const g = (masculine: string, feminine: string) => (female ? feminine : masculine);
   const newCycle = flags.introRequests;
   const [data, setData] = useState<ReferralData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -122,11 +124,11 @@ export default function ReferralPage() {
     <div className="max-w-2xl mx-auto space-y-8 pb-8">
       <PageHeader
         icon={Gift}
-        title="ادعُ صديقاً"
+        title={g("ادعُ صديقاً", "ادعي صديقة")}
         description={
           newCycle
-            ? "شارك رمز الدعوة مع أصدقائك ليسجّلوا في نصيبك، وستحصل على رصيد مجاني عن كل صديق يُنهي إعداد ملفه"
-            : "شارك رمز الدعوة مع أصدقائك ليسجّلوا في نصيبك، وستحصل على رصيد مجاني عن كل صديق يُكمل ملفه الشخصي"
+            ? g("شارك رمز الدعوة مع أصدقائك ليسجّلوا في نصيبك، وستحصل على رصيد مجاني عن كل صديق يُنهي إعداد ملفه", "شاركي رمز الدعوة مع صديقاتك ليسجّلن في نصيبك، وستحصلين على رصيد مجاني عن كل صديقة تُنهي إعداد ملفها")
+            : g("شارك رمز الدعوة مع أصدقائك ليسجّلوا في نصيبك، وستحصل على رصيد مجاني عن كل صديق يُكمل ملفه الشخصي", "شاركي رمز الدعوة مع صديقاتك ليسجّلن في نصيبك، وستحصلين على رصيد مجاني عن كل صديقة تُكمل ملفها الشخصي")
         }
       />
 
@@ -191,15 +193,15 @@ export default function ReferralPage() {
                 <CreditCard className="h-5 w-5 text-accent-foreground" />
               </div>
               <p className="text-2xl font-bold text-accent-foreground">+1</p>
-              <p className="text-xs text-muted-foreground">رصيد لصديقك (المدعو)</p>
+              <p className="text-xs text-muted-foreground">{g("رصيد لصديقك (المدعو)", "رصيد لصديقتك (المدعوة)")}</p>
             </div>
           </div>
 
           <p className="text-xs text-muted-foreground text-center leading-relaxed">
             {newCycle
-              ? "تحصلان على الرصيد عندما يُنهي صديقك إعداد ملفه الشخصي"
-              : "تحصلان على الرصيد عندما يُكمل صديقك ملفه الشخصي بنسبة 100%"}
-            {` (رصيد الداعي لأول ${MAX_REWARDED_REFERRALS} أصدقاء)`}
+              ? g("تحصلان على الرصيد عندما يُنهي صديقك إعداد ملفه الشخصي", "تحصلان على الرصيد عندما تُنهي صديقتك إعداد ملفها الشخصي")
+              : g("تحصلان على الرصيد عندما يُكمل صديقك ملفه الشخصي بنسبة 100%", "تحصلان على الرصيد عندما تُكمل صديقتك ملفها الشخصي بنسبة 100%")}
+            {g(` (رصيد الداعي لأول ${MAX_REWARDED_REFERRALS} أصدقاء)`, ` (رصيد الداعية لأول ${MAX_REWARDED_REFERRALS} صديقات)`)}
           </p>
         </CardContent>
       </Card>
@@ -287,7 +289,7 @@ export default function ReferralPage() {
             <Users className="h-8 w-8 text-muted-foreground/40" />
           </div>
           <p className="text-sm text-muted-foreground">
-            لم تدعُ أحداً بعد. شارك رمزك مع أصدقائك!
+            {g("لم تدعُ أحداً بعد. شارك رمزك مع أصدقائك!", "لم تدعي أحداً بعد. شاركي رمزك مع صديقاتك!")}
           </p>
         </div>
       )}

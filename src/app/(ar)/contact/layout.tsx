@@ -11,11 +11,11 @@ export async function generateMetadata(): Promise<Metadata> {
   const copy = publicCopy(country);
   return {
     title: "تواصل معنا",
-    description: `تواصل مع فريق نصيبك للإجابة على استفساراتك حول منصة تيسير الزواج بالحلال ${copy.inCountry}. نحن هنا لمساعدتك`,
+    description: `تواصل مع فريق نصيبك للإجابة عن استفساراتك حول منصة تيسير الزواج بالحلال ${copy.inCountry}. نحن هنا لمساعدتك`,
     alternates: seoAlternates("/contact", country, await activeCountryCodes()),
     ...socialMetadata({
       title: "تواصل معنا | نصيبك",
-      description: "تواصل مع فريق نصيبك للإجابة على استفساراتك حول منصة تيسير الزواج بالحلال",
+      description: "تواصل مع فريق نصيبك للإجابة عن استفساراتك حول منصة تيسير الزواج بالحلال",
       url: absoluteUrl("/contact", country),
       locale: copy.ogLocale,
     }),

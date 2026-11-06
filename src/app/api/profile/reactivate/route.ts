@@ -41,7 +41,7 @@ export async function POST() {
     await notify({
       userId,
       type: "SYSTEM",
-      title: "تم إعادة تفعيل حسابك",
+      title: "أُعيد تفعيل حسابك",
       body: hasPendingDeletion
         ? "أُلغي طلب حذف حسابك وعاد حسابك مفعّلاً. يسعدنا وجودك معنا من جديد."
         : "عاد حسابك مفعّلاً ويمكنك متابعة رحلتك على نصيبك.",
@@ -49,7 +49,7 @@ export async function POST() {
     });
 
     return NextResponse.json({
-      message: "تم إعادة تفعيل حسابك",
+      message: "أُعيد تفعيل حسابك",
       reactivated: true,
       cancelledDeletion: hasPendingDeletion,
     });

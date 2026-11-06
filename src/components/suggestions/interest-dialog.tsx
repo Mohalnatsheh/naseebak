@@ -227,7 +227,7 @@ export function InterestDialog({ open, onOpenChange, partnerGender, credits, cha
 
         {noCredits ? (
           <div className="rounded-xl border border-amber-200/60 bg-amber-50/70 p-3 text-sm text-amber-800">
-            <p className="font-semibold">رصيدك صفر</p>
+            <p className="font-semibold">انتهى رصيدك</p>
             <p className="mt-1">{CREDIT_ON_INTEREST_LINE}</p>
           </div>
         ) : (

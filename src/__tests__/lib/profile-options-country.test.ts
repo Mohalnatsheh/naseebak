@@ -30,7 +30,7 @@ describe("profile options per country", () => {
 
   it("tribe label follows the viewer's country", () => {
     expect(tribeLabel("JO")).toBe("العشيرة");
-    expect(tribeLabel("SA")).toBe("القبيلة");
+    expect(tribeLabel("SA")).toBe("القبيلة أو الأسرة");
     expect(tribeLabel(null)).toBe("العشيرة");
   });
 });

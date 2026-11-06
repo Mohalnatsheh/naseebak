@@ -33,12 +33,12 @@ const SITE = "naseebak.com";
 
 /** Short, gender-neutral, no names or details (an SMS can be read by anyone holding the phone) */
 export const SMS_NOTICE_TEXT: Record<SmsNoticeEvent, string> = {
-  match: `نصيبك: لديك توافق متبادل جديد! ادخل إلى حسابك لمعرفة الخطوة التالية: ${SITE}/dashboard/matches`,
+  match: `نصيبك: لديك توافق متبادل جديد! يمكنك معرفة الخطوة التالية من حسابك: ${SITE}/dashboard/matches`,
   interest: `نصيبك: شخص أبدى اهتمامه بك. يمكنك الاطلاع على الاقتراح من حسابك: ${SITE}/dashboard/suggestions`,
   expiring: `نصيبك: لديك اقتراح توافق بانتظار قرارك وينتهي خلال يومين: ${SITE}/dashboard/suggestions`,
   waiting: `نصيبك: لديك اقتراح توافق بانتظار قرارك: ${SITE}/dashboard/suggestions`,
-  message: `نصيبك: لديك رسالة جديدة بانتظارك. افتح محادثاتك: ${SITE}/dashboard/chats`,
-  chat_open: `نصيبك: تم فتح محادثة لك ولم تبدأ بعد. ابدأ الحديث الآن: ${SITE}/dashboard/chats`,
+  message: `نصيبك: لديك رسالة جديدة بانتظارك: ${SITE}/dashboard/chats`,
+  chat_open: `نصيبك: فُتحت محادثتك ولم تبدأ بعد. يمكنكما بدء الحديث الآن: ${SITE}/dashboard/chats`,
 };
 
 /**

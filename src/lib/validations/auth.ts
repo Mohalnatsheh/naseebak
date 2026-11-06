@@ -37,7 +37,7 @@ export function phoneInputCountry(v: string, fallback?: CountryCode): CountryCod
 const phoneSchema = z
   .string()
   .transform((v) => cleanPhone(v))
-  .pipe(z.string().refine((v) => isValidPhone(v), "رقم الهاتف غير صالح. أدخل رقماً أردنياً (07…) أو سعودياً (05…)"));
+  .pipe(z.string().refine((v) => isValidPhone(v), "الرقم غير صالح. تحقّق منه وحاول مرة أخرى."));
 
 const otpCodeSchema = z
   .string()

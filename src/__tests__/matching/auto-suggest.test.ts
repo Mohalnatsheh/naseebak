@@ -526,7 +526,7 @@ describe("credit on interest: open cap 5", () => {
     db.user.findMany.mockResolvedValue([]);
     expect(await autoSuggestForUser("co9d")).toBe(1);
     const notices = notifyMod.notify.mock.calls.map((c) => c[0]).filter((n) => n.type === "SUGGESTION");
-    expect(notices).toEqual([expect.objectContaining({ userId: "co9d", body: "وصلك اقتراح توافق جديد. قم بمراجعته." })]);
+    expect(notices).toEqual([expect.objectContaining({ userId: "co9d", body: "وصلك اقتراح توافق جديد. يمكنك الاطلاع عليه الآن." })]);
   });
 
   it("the new-suggestions notice counts revealed and new cards together", async () => {

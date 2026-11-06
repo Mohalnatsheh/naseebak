@@ -54,7 +54,7 @@ describe("suggestionReason", () => {
   });
 
   it("has a generic fallback", () => {
-    expect(suggestionReason(man({}), woman({}))).toBe("اقترحناه لتوافق ملفيكما بشكل عام");
+    expect(suggestionReason(man({}), woman({}))).toBe("اقتراح مبني على توافق ملفيكما عموماً");
   });
 
   it("never mentions unmatched preferences", () => {

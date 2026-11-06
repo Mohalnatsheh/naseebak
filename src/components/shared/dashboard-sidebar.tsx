@@ -147,7 +147,11 @@ export function DashboardSidebar() {
   // Same name for the balance as the home and payments pages
   const creditsLabel = counts.flags.introRequests ? "رصيدك" : "رصيد الاقتراحات";
   const filteredAccountLinks = filterLinks(
-    accountLinks.map((link) => (link.href === "/dashboard/payments" ? { ...link, label: creditsLabel } : link))
+    accountLinks.map((link) => {
+      if (link.href === "/dashboard/payments") return { ...link, label: creditsLabel };
+      if (link.href === "/dashboard/referral" && userData?.gender === "FEMALE") return { ...link, label: "ادعي صديقة" };
+      return link;
+    })
   );
 
   // Bottom bar: الرئيسية · التوافقات (suggestions + mutual matches) · المحادثات (when on) · حسابي.

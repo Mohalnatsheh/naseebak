@@ -463,7 +463,7 @@ async function createMessage(args: SendArgs): Promise<ChatMessage> {
       mine.push(m.body);
     }
     if (completesSplitNumber(check.text, mine)) {
-      throw new IntroError("FILTERED", "لا يمكن مشاركة أرقام الهواتف أو الروابط أو حسابات التواصل. مشاركة التواصل تتم عبر التعارف العائلي.");
+      throw new IntroError("FILTERED", "لا يمكن مشاركة الأرقام أو الروابط أو حسابات التواصل. مشاركة التواصل تتم عبر التعارف العائلي.");
     }
   }
 

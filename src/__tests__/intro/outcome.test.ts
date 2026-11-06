@@ -273,7 +273,7 @@ describe("createMutualMatch with credit_on_interest", () => {
     expect(her[0].body).not.toContain("تم مشاركة");
     // He chose chat: her contact is visible, and he is asked to share his
     expect(him[0].body).toContain("الطرف الآخر فضّل التعارف العائلي");
-    expect(him[0].body).toContain("شارك بيانات وليّ أمرك");
+    expect(him[0].body).toContain("مشاركة بيانات وليّ أمرك");
     expect(him[0].url).toBe("/dashboard/matches?match=m1");
   });
 

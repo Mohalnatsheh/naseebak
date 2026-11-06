@@ -20,7 +20,7 @@ const FAMILY_SHARED_BODY = "توافق متبادل! تم مشاركة بيان�
  * Mixed choice, to the side that chose chat: neither guardian contact shows until this side shares too
  * (see getMatchIntroState)
  */
-const OTHER_PREFERRED_FAMILY = "توافق متبادل! الطرف الآخر فضّل التعارف العائلي. شارك بيانات وليّ أمرك من صفحة التوافق لتتبادل العائلتان بيانات التواصل";
+const OTHER_PREFERRED_FAMILY = "توافق متبادل! الطرف الآخر فضّل التعارف العائلي. يمكنك مشاركة بيانات وليّ أمرك من صفحة التوافق لتتبادل العائلتان بيانات التواصل";
 /** Mixed choice, to the side that chose family: nothing to see until the other side shares */
 const WAITING_FOR_SHARE = "توافق متبادل! فضّل الطرف الآخر المحادثة أولاً، وطلبنا منه مشاركة بيانات وليّ أمره. سنُعلمك فور مشاركتها";
 

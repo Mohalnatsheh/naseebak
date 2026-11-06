@@ -1,8 +1,8 @@
 {
   "id": "/dashboard",
-  "name": "نصيبك - نوصّلك بشريك العمر بالحلال",
+  "name": "نصيبك - منصة زواج بالحلال",
   "short_name": "نصيبك",
-  "description": "منصة أردنية للزواج بالحلال — بسترة واحترام",
+  "description": "منصة زواج بالحلال، بستر واحترام",
   "start_url": "/dashboard",
   "scope": "/",
   "display": "standalone",

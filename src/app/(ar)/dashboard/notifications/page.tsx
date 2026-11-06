@@ -182,7 +182,8 @@ const NEW_CYCLE_PREFS: (keyof NotificationPrefs)[] = ["introRequests", "chatMess
 
 export default function NotificationsPage() {
   const router = useRouter();
-  const { counts, country } = useDashboardData();
+  const { counts, country, profile } = useDashboardData();
+  const female = profile?.gender === "FEMALE";
   const visiblePrefs = prefLabels.filter(({ key }) =>
     counts.flags.introRequests
       ? !LEGACY_PREFS.includes(key) && (key !== "chatMessages" || counts.flags.chat)
@@ -340,7 +341,7 @@ export default function NotificationsPage() {
         icon={Bell}
         title="الإشعارات"
         count={unreadCount}
-        description="ستجد هنا جميع التحديثات والإشعارات الخاصة بحسابك"
+        description={female ? "ستجدين هنا جميع التحديثات والإشعارات الخاصة بحسابكِ" : "ستجد هنا جميع التحديثات والإشعارات الخاصة بحسابك"}
       >
         <Sheet open={prefsOpen} onOpenChange={(open) => { setPrefsOpen(open); if (open) fetchPrefs(); }}>
           <SheetTrigger asChild>
@@ -363,7 +364,7 @@ export default function NotificationsPage() {
                 </SheetTitle>
               </SheetHeader>
               <p className="text-xs text-muted-foreground mt-2">
-                اختر التنبيهات التي تصل إلى جهازك. تبقى كل الإشعارات محفوظة هنا.
+                {female ? "اختاري التنبيهات التي تصل إلى جهازكِ. تبقى كل الإشعارات محفوظة هنا." : "اختر التنبيهات التي تصل إلى جهازك. تبقى كل الإشعارات محفوظة هنا."}
               </p>
             </div>
 

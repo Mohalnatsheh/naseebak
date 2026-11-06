@@ -324,7 +324,7 @@ export default function SupportPage() {
                 <div className="space-y-2">
                   <h3 className="font-semibold text-lg text-foreground">لا توجد تذاكر</h3>
                   <p className="text-sm text-muted-foreground max-w-xs mx-auto leading-relaxed">
-                    لم ترسل أي تذاكر دعم بعد. يمكنك إرسال تذكرة جديدة من التبويب الأول.
+                    {female ? "لم ترسلي أي تذاكر دعم بعد. يمكنكِ إرسال تذكرة جديدة من التبويب الأول." : "لم ترسل أي تذاكر دعم بعد. يمكنك إرسال تذكرة جديدة من التبويب الأول."}
                   </p>
                 </div>
               </CardContent>

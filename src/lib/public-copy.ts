@@ -10,6 +10,8 @@ export interface PublicCopy {
   description: string;
   /** Same without the closing phrase (Twitter card, Organization JSON-LD) */
   shortDescription: string;
+  /** Tagline: site title, login page */
+  tagline: string;
   keywords: string[];
   ogLocale: "ar_JO" | "ar_SA";
   /** schema.org Organization.areaServed */
@@ -23,13 +25,14 @@ export interface PublicCopy {
 }
 
 const JO: PublicCopy = {
-  description: "منصة أردنية توصّل العائلات بالشريك الأنسب بالحلال — تقنية ذكية مع عادات أردنية أصيلة، بسترة واحترام",
+  description: "منصة أردنية توصّل العائلات بالشريك الأنسب بالحلال — تقنية ذكية مع عادات أردنية أصيلة، بستر واحترام",
   shortDescription: "منصة أردنية توصّل العائلات بالشريك الأنسب بالحلال — تقنية ذكية مع عادات أردنية أصيلة",
+  tagline: "نوصّلك بشريك العمر بالحلال",
   keywords: ["زواج", "زواج بالحلال", "نصيبك", "زواج أردني", "تعارف للزواج", "شريك الحياة", "زواج إسلامي", "خطبة", "الأردن"],
   ogLocale: "ar_JO",
   areaServed: { "@type": "Country", name: "Jordan" },
   inCountry: "في الأردن",
-  footerAbout: "منصة أردنية توصّل العائلات بالشريك الأنسب بالحلال — تقنية ذكية مع عادات أردنية أصيلة، بسترة واحترام.",
+  footerAbout: "منصة أردنية توصّل العائلات بالشريك الأنسب بالحلال — تقنية ذكية مع عادات أردنية أصيلة، بستر واحترام.",
   footerPlace: "عمّان، الأردن",
   footerMadeIn: "في الأردن",
 };
@@ -37,12 +40,14 @@ const JO: PublicCopy = {
 const SA: PublicCopy = {
   description: "منصة سعودية تعين العائلات على إيجاد الشريك الأنسب بالحلال — توافق ذكي يحترم عاداتنا وقيمنا، بستر واحترام",
   shortDescription: "منصة سعودية تعين العائلات على إيجاد الشريك الأنسب بالحلال — توافق ذكي يحترم عاداتنا وقيمنا",
+  tagline: "نعينك على إيجاد شريك العمر بالحلال",
   keywords: [
     "زواج",
     "زواج بالحلال",
     "نصيبك",
     "زواج سعودي",
-    "خطّابة",
+    "خطابة",
+    "خاطبة",
     "تعارف للزواج",
     "شريك الحياة",
     "زواج إسلامي",

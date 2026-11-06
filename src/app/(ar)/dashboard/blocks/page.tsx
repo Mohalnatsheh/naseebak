@@ -71,7 +71,7 @@ export default function BlocksPage() {
       <PageHeader
         icon={Ban}
         title="المحظورون"
-        description="الأشخاص الذين حظرتهم لا يرون ملفك ولا تظهر لهم توافقاتكم، ولا تصلكما اقتراحات لبعضكما."
+        description="من تحظره لا يرى ملفك، ولن يُقترح أحدكما على الآخر."
       />
 
       {loading ? (

@@ -37,7 +37,7 @@ const guardianRelationships: Opt[] = [
   { value: "father", label: "الأب" },
   { value: "mother", label: "الأم" },
   { value: "brother", label: "الأخ" },
-  { value: "guardian", label: "ولي الأمر" },
+  { value: "guardian", label: "قريب آخر" },
 ];
 const YES_NO = [{ value: "yes", label: "نعم" }, { value: "no", label: "لا" }];
 const inputError = (on: boolean | undefined) => (on ? "border-destructive" : "");
@@ -338,7 +338,7 @@ export default function ProfileSetupPage() {
         if (!form.nationality) errors.nationality = "الجنسية مطلوبة";
         if (!form.city) errors.city = "المدينة مطلوبة";
         if (form.height) { const h = parseInt(form.height); if (h < 100 || h > 250) errors.height = "الطول يجب أن يكون بين 100 و 250 سم"; }
-        if (form.weight) { const w = parseInt(form.weight); if (w < 30 || w > 300) errors.weight = "الوزن يجب أن يكون بين 30 و 300 كغ"; }
+        if (form.weight) { const w = parseInt(form.weight); if (w < 30 || w > 300) errors.weight = `الوزن يجب أن يكون بين 30 و 300 ${country.words.kg}`; }
         if (!form.education) errors.education = "المستوى التعليمي مطلوب";
         if (form.job === "أخرى" && !form.jobCustom) errors.jobCustom = "يرجى تحديد الوظيفة";
         break;
@@ -565,7 +565,7 @@ export default function ProfileSetupPage() {
     <div className="max-w-2xl mx-auto space-y-6">
       <div className="space-y-2">
         <h1 className="text-2xl font-bold">إعداد الملف الشخصي</h1>
-        <p className="text-muted-foreground">أكمل بياناتك للحصول على أفضل اقتراحات التوافق</p>
+        <p className="text-muted-foreground">{forViewer(gender, "أكمل بياناتك للحصول على أفضل اقتراحات التوافق", "أكملي بياناتكِ للحصول على أفضل اقتراحات التوافق")}</p>
       </div>
 
       {/* Progress */}
@@ -623,9 +623,9 @@ export default function ProfileSetupPage() {
             </Field>
 
             {form.city && availableAreas.length > 0 && (
-              <Field id="area" label="المنطقة" optional error={fieldErrors.area}>
+              <Field id="area" label={country.words.area} optional error={fieldErrors.area}>
                 <select id="area" value={form.area} onChange={(e) => update("area", e.target.value)} className={selectClass(!!fieldErrors.area)}>
-                  <option value="">اختر المنطقة...</option>
+                  <option value="">اختر {country.words.area}...</option>
                   {availableAreas.map((a) => (
                     <option key={a} value={a}>{a}</option>
                   ))}
@@ -638,7 +638,7 @@ export default function ProfileSetupPage() {
             </Field>
 
             <Field id="fieldOfStudy" label="التخصص" optional error={fieldErrors.fieldOfStudy}>
-              <Input id="fieldOfStudy" value={form.fieldOfStudy} onChange={(e) => update("fieldOfStudy", e.target.value)} placeholder="مثال: هندسة حاسوب، محاسبة، طب..." className={inputError(!!fieldErrors.fieldOfStudy)} />
+              <Input id="fieldOfStudy" value={form.fieldOfStudy} onChange={(e) => update("fieldOfStudy", e.target.value)} placeholder="هندسة، محاسبة، طب..." className={inputError(!!fieldErrors.fieldOfStudy)} />
             </Field>
 
             <Field id="job" label="الوظيفة" optional error={fieldErrors.job}>
@@ -668,7 +668,7 @@ export default function ProfileSetupPage() {
               <Field id="height" label="الطول (سم)" optional error={fieldErrors.height}>
                 <Input id="height" type="number" value={form.height} onChange={(e) => update("height", e.target.value)} placeholder="170" dir="ltr" aria-invalid={!!fieldErrors.height} className={inputError(!!fieldErrors.height)} />
               </Field>
-              <Field id="weight" label="الوزن (كغ)" optional error={fieldErrors.weight}>
+              <Field id="weight" label={`الوزن (${country.words.kg})`} optional error={fieldErrors.weight}>
                 <Input id="weight" type="number" value={form.weight} onChange={(e) => update("weight", e.target.value)} placeholder="70" dir="ltr" aria-invalid={!!fieldErrors.weight} className={inputError(!!fieldErrors.weight)} />
               </Field>
             </div>
@@ -837,7 +837,7 @@ export default function ProfileSetupPage() {
               <ChoiceGroup id="prefReligiosity" cols={2} multiple options={partnerOptions("religiosity", gender)} isSelected={(v) => form.prefReligiosity.includes(v)} onSelect={(v) => toggleArray("prefReligiosity", v)} />
             </Field>
 
-            <Field id="prefSmokingStatus" label="حالة التدخين المفضلة" hint="(يمكن اختيار أكثر من حالة)" optional aside={dealbreaker("smokingStatus", "prefSmokingStatus")}>
+            <Field id="prefSmokingStatus" label="التدخين لدى الشريك" hint="(يمكن اختيار أكثر من حالة)" optional aside={dealbreaker("smokingStatus", "prefSmokingStatus")}>
               <ChoiceGroup id="prefSmokingStatus" cols={2} multiple options={partnerOptions("smokingStatus", gender)} isSelected={(v) => form.prefSmokingStatus.includes(v)} onSelect={(v) => toggleArray("prefSmokingStatus", v)} />
             </Field>
 

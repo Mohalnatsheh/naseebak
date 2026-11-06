@@ -986,7 +986,7 @@ function RegisterPageContent() {
                     onClick={() => setShowReferral(true)}
                     className="text-sm text-primary hover:text-primary/80 hover:underline underline-offset-4 transition-colors duration-300 font-medium"
                   >
-                    عندك رمز دعوة؟
+                    لديك رمز دعوة؟
                   </button>
                 ) : (
                   <div className="space-y-2" style={{ animation: "fadeSlideIn 0.3s ease-out both" }}>
@@ -1009,7 +1009,7 @@ function RegisterPageContent() {
                       className="h-11 rounded-xl border-border/60 bg-muted/30 text-center text-sm tracking-[0.1em] font-mono focus:bg-background transition-colors"
                     />
                     <p className="text-[11px] text-muted-foreground">
-                      إذا دعاك أحد أصحابك، أدخل رمز الدعوة الخاص فيه
+                      إذا دعاك أحد، فأدخل رمز الدعوة هنا
                     </p>
                   </div>
                 )}
@@ -1129,7 +1129,7 @@ function RegisterPageContent() {
                   }}
                   className="w-full h-12 rounded-xl text-base font-bold bg-gradient-to-l from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 shadow-lg shadow-primary/20 transition-all duration-300 hover:shadow-xl hover:shadow-primary/25 hover:-translate-y-0.5"
                 >
-                  ابدأ إعداد ملفك
+                  {form.gender === "FEMALE" ? "ابدئي إعداد ملفكِ" : "ابدأ إعداد ملفك"}
                   <ArrowLeft className="h-5 w-5 ms-2" />
                 </Button>
               </div>

@@ -360,7 +360,7 @@ export function MatchIntroPanel({ matchId, partnerName }: { matchId: string; par
       familyChip = <Chip tone="emerald" icon={CheckCircle2}>تم التعارف العائلي</Chip>;
       break;
     case "declined":
-      familyChip = <Chip tone="muted" icon={Ban}>{family.declinedByMe ? "تم الاعتذار من طرفك" : "لم يتم قبول الطلب"}</Chip>;
+      familyChip = <Chip tone="muted" icon={Ban}>{family.declinedByMe ? "اعتذرت عن الطلب" : "لم يتم قبول الطلب"}</Chip>;
       break;
     case "legacy_admin":
       // An older admin-arranged visit: its status shows on the card; the team no longer contacts the families
@@ -410,7 +410,7 @@ export function MatchIntroPanel({ matchId, partnerName }: { matchId: string; par
       );
       break;
     case "declined":
-      chatChip = <Chip tone="muted" icon={Ban}>{chat.declinedByMe ? "تم الاعتذار من طرفك" : "لم يتم قبول الطلب"}</Chip>;
+      chatChip = <Chip tone="muted" icon={Ban}>{chat.declinedByMe ? "اعتذرت عن الطلب" : "لم يتم قبول الطلب"}</Chip>;
       break;
     case "disabled":
       chatChip = <Chip tone="muted" icon={Clock}>غير متاحة حالياً</Chip>;
@@ -481,7 +481,7 @@ export function MatchIntroPanel({ matchId, partnerName }: { matchId: string; par
         >
           <PartyPopper className="mt-0.5 h-4 w-4 flex-shrink-0" aria-hidden="true" />
           <p className="font-semibold">
-            {outcome === "CHAT" ? "توافق متبادل! المحادثة مفتوحة الآن" : "توافق متبادل! تم مشاركة بيانات التواصل العائلي"}
+            {outcome === "CHAT" ? "توافق متبادل! المحادثة مفتوحة الآن" : "توافق متبادل! تمت مشاركة بيانات التواصل العائلي"}
           </p>
         </div>
       )}
@@ -602,7 +602,7 @@ export function MatchIntroPanel({ matchId, partnerName }: { matchId: string; par
               onClick={() => setOutcomeDialog("NOT_A_MATCH")}
               className="border-destructive/30 text-destructive hover:bg-destructive/5 hover:text-destructive"
             >
-              لم يحصل نصيب
+              لم يُكتب نصيب
             </Button>
           </div>
         </div>

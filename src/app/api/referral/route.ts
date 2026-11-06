@@ -38,7 +38,7 @@ export async function GET() {
       }
 
       if (!referralCode) {
-        return NextResponse.json({ error: "فشل في إنشاء رمز الإحالة" }, { status: 500 });
+        return NextResponse.json({ error: "فشل في إنشاء رمز الدعوة" }, { status: 500 });
       }
     }
 

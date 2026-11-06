@@ -14,7 +14,7 @@ const RELATIONSHIPS: Opt[] = [
   { value: "father", label: "الأب" },
   { value: "mother", label: "الأم" },
   { value: "brother", label: "الأخ" },
-  { value: "guardian", label: "ولي الأمر" },
+  { value: "guardian", label: "قريب آخر" },
 ];
 
 type FormKey = "parentName" | "parentPhone" | "relationship" | "address";

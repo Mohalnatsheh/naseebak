@@ -13,11 +13,11 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: "الأسئلة الشائعة حول نصيبك",
     description:
-      "إجابات على أكثر الأسئلة شيوعاً حول منصة نصيبك لتيسير الزواج بالحلال — التسجيل، الخصوصية، الباقات، التوافق، والمزيد",
+      "إجابات عن أكثر الأسئلة شيوعاً حول منصة نصيبك لتيسير الزواج بالحلال — التسجيل، الخصوصية، الباقات، التوافق، والمزيد",
     alternates: seoAlternates("/faq", country, await activeCountryCodes()),
     ...socialMetadata({
       title: "الأسئلة الشائعة | نصيبك",
-      description: `إجابات على أكثر الأسئلة شيوعاً حول منصة نصيبك لتيسير الزواج بالحلال ${copy.inCountry}`,
+      description: `إجابات عن أكثر الأسئلة شيوعاً حول منصة نصيبك لتيسير الزواج بالحلال ${copy.inCountry}`,
       url: absoluteUrl("/faq", country),
       locale: copy.ogLocale,
     }),

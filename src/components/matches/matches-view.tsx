@@ -61,7 +61,7 @@ import { PersonCard, type PersonCardTone } from "@/components/shared/person-card
 import { describeOption, nationalityLabel, tribeLabel } from "@/lib/profile-options";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useDashboardData } from "@/contexts/dashboard-context";
-import { formatDate } from "@/lib/countries";
+import { countryConfig, formatDate } from "@/lib/countries";
 import { PageHeader } from "@/components/shared/page-header";
 import { markPageNotificationsRead } from "@/lib/notifications-client";
 
@@ -255,6 +255,7 @@ export function MatchesView({ embedded = false }: { embedded?: boolean } = {}) {
   // flashes the legacy / masculine wording first
   const { counts, profile, loading: switchesLoading, country } = useDashboardData();
   const isFemale = profile?.gender === "FEMALE";
+  const { words } = countryConfig(country);
   const introMode = counts.flags.introRequests;
   // Opened from a notification link (?match=<id>): scroll to and highlight that card
   const [focusMatchId, setFocusMatchId] = useState<string | null>(null);
@@ -635,12 +636,12 @@ export function MatchesView({ embedded = false }: { embedded?: boolean } = {}) {
                         <Section title="المعلومات الشخصية" icon={User} defaultOpen={true}>
                           <InfoRow icon={Calendar} label="العمر" value={c.age ? `${c.age} سنة` : null} />
                           <InfoRow icon={MapPin} label="المدينة" value={c.city} />
-                          <InfoRow icon={MapPinned} label="المنطقة" value={c.area} />
+                          <InfoRow icon={MapPinned} label={words.area} value={c.area} />
                           <InfoRow icon={Flag} label="الجنسية" value={nationalityLabel(c.nationality, isFemale ? "MALE" : "FEMALE")} />
                           <InfoRow icon={User} label="الحالة الاجتماعية" value={c.maritalStatus && describeOption("maritalStatus", c.maritalStatus, isFemale ? "MALE" : "FEMALE")} />
                           <InfoRow icon={Baby} label="عدد الأبناء" value={c.childrenCount > 0 ? `${c.childrenCount}` : "لا يوجد"} />
                           <InfoRow icon={Ruler} label="الطول" value={c.height ? `${c.height} سم` : null} />
-                          <InfoRow icon={Weight} label="الوزن" value={c.weight ? `${c.weight} كغ` : null} />
+                          <InfoRow icon={Weight} label="الوزن" value={c.weight ? `${c.weight} ${words.kg}` : null} />
                           <InfoRow icon={Palette} label="لون البشرة" value={c.skinColor} />
                           {/* Show beard when viewing male partner (isFemale means partner is male) */}
                           {isFemale && c.beard !== null && c.beard !== undefined && (

@@ -127,7 +127,7 @@ export function calculateCompleteness(user: UserForCompleteness): CompletenessRe
     ["المستوى التعليمي المفضل", profile?.prefEducation, "prefEducation"],
     ["الحالة الاجتماعية المفضلة", profile?.prefMaritalStatus, "prefMaritalStatus"],
     ["مستوى التدين المفضل", profile?.prefReligiosity, "prefReligiosity"],
-    ["حالة التدخين المفضلة", profile?.prefSmokingStatus, "prefSmokingStatus"],
+    ["التدخين لدى الشريك", profile?.prefSmokingStatus, "prefSmokingStatus"],
   ];
   const prefFilled = prefFields.filter(([, val]) => hasValue(val)).length;
   const prefMissing = prefFields
@@ -168,7 +168,7 @@ export function calculateCompleteness(user: UserForCompleteness): CompletenessRe
   const familyFields: [string, unknown, string][] = [
     ["القبيلة/العائلة", profile?.tribe, "tribe"],
     ["منطقة أصل العائلة", profile?.familyOriginArea, "familyOriginArea"],
-    ["عدد الأخوة", profile?.numberOfSiblings, "numberOfSiblings"],
+    ["عدد الإخوة", profile?.numberOfSiblings, "numberOfSiblings"],
     ["معلومات ولي الأمر", user.parentInfo?.id, "parentInfo"],
   ];
   const familyFilled = familyFields.filter(([, val]) => hasValue(val)).length;

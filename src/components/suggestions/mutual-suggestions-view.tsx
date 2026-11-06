@@ -445,7 +445,7 @@ export function MutualSuggestionsView({
 
   // The four categories: three feed tabs (same rules as before) + the mutual matches
   const tabs: { key: FeedTab | "matches"; label: string; subtitle: string; icon: typeof Sparkles }[] = [
-    { key: "new", label: "الجديد", subtitle: g("اكتشف أشخاصاً جدداً قد يناسبونك.", "اكتشفي أشخاصاً جدداً قد يناسبونكِ."), icon: Sparkles },
+    { key: "new", label: "الجديد", subtitle: g("اطّلع على الاقتراحات الجديدة.", "اطّلعي على الاقتراحات الجديدة."), icon: Sparkles },
     {
       key: "interested",
       label: g("مهتمون بالتحدث معك", "مهتمون بالتحدث معكِ"),
@@ -683,7 +683,7 @@ export function MutualSuggestionsView({
               <Heart className="h-4 w-4 shrink-0" aria-hidden="true" />
               <p className="min-w-0 flex-1">
                 <span className="font-semibold">{g("شخص مهتم بك ينتظر ردّك.", "شخص مهتم بكِ ينتظر ردّكِ.")}</span>{" "}
-                {g("رصيدك صفر، اشحن لتردّ بـ«مهتم».", "رصيدكِ صفر، اشحني لتردّي بـ«مهتم».")}
+                {g("انتهى رصيدك، اشحن لتردّ بـ«مهتم».", "انتهى رصيدكِ، اشحني لتردّي بـ«مهتم».")}
               </p>
               <Button asChild size="sm" className="h-10 rounded-lg">
                 <Link href={`/dashboard/payments?buy=${encodeURIComponent(topUp.id)}`}>
@@ -695,7 +695,7 @@ export function MutualSuggestionsView({
             <div role="note" className="flex flex-wrap items-start gap-3 rounded-xl border border-amber-200/60 bg-amber-50/70 p-4 text-sm leading-relaxed text-amber-900">
               <Coins className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
               <p className="min-w-0 flex-1">
-                <span className="font-semibold">رصيدك صفر.</span>{" "}
+                <span className="font-semibold">{g("انتهى رصيدك.", "انتهى رصيدكِ.")}</span>{" "}
                 {g(
                   "يمكنك تصفّح اقتراحاتك والرد بـ«لا» مجاناً، واشحن رصيدك لتختار «مهتم».",
                   "يمكنكِ تصفّح اقتراحاتكِ والرد بـ«لا» مجاناً، واشحني رصيدكِ لتختاري «مهتم»."
@@ -765,7 +765,7 @@ export function MutualSuggestionsView({
                     <>
                       {declined && (
                         <p className="mb-3 text-xs text-muted-foreground leading-relaxed">
-                          {partnerGender === "FEMALE" ? "اختارت الطرف الآخر «لا» هذه المرة." : "اختار الطرف الآخر «لا» هذه المرة."}{" "}
+                          {partnerGender === "FEMALE" ? "اختارت «لا» هذه المرة." : "اختار «لا» هذه المرة."}{" "}
                           {g("لا يُسترجع الرصيد، وتصلك اقتراحات جديدة تباعاً.", "لا يُسترجع الرصيد، وتصلكِ اقتراحات جديدة تباعاً.")}
                         </p>
                       )}
@@ -804,7 +804,7 @@ export function MutualSuggestionsView({
                               disabled={acting === item.id || outOfCredits}
                               className="flex-1 h-12 bg-gradient-to-l from-primary to-secondary text-primary-foreground shadow-md shadow-primary/20 rounded-xl font-bold text-base"
                             >
-                              {acting === item.id ? <Loader2 className="h-5 w-5 animate-spin" /> : <><HeartHandshake className="h-5 w-5 me-2" />مهتم</>}
+                              {acting === item.id ? <Loader2 className="h-5 w-5 animate-spin" /> : <><HeartHandshake className="h-5 w-5 me-2" />{g("مهتم", "مهتمة")}</>}
                             </Button>
                             <Button
                               variant="outline"

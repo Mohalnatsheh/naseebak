@@ -181,7 +181,7 @@ export async function POST(request: Request) {
           userId: user.id,
           type: "SUGGESTION",
           title: "اقتراح توافق جديد",
-          body: "لديك اقتراح توافق جديد. قم بمراجعته.",
+          body: "لديك اقتراح توافق جديد. يمكنك الاطلاع عليه الآن.",
           url: "/dashboard/suggestions",
         });
 

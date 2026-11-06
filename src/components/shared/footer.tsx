@@ -17,7 +17,8 @@ const SOCIAL_LINKS = (
 ).filter((l): l is typeof l & { href: string } => !!l.href);
 
 export function Footer() {
-  const copy = publicCopy(useVisitorCountry());
+  const country = useVisitorCountry();
+  const copy = publicCopy(country);
   return (
     <footer className="relative overflow-hidden bg-gradient-to-b from-card to-muted/40 border-t">
       {/* Gradient top border */}
@@ -90,7 +91,7 @@ export function Footer() {
                     href={href}
                     target="_blank"
                     rel="noopener noreferrer"
-                    aria-label={label}
+                    aria-label={country === "SA" && label === "انستغرام" ? "إنستقرام" : label}
                     className="h-9 w-9 rounded-xl bg-muted/60 hover:bg-primary/10 hover:text-primary flex items-center justify-center text-muted-foreground transition-all duration-200"
                   >
                     <Icon className="h-4 w-4" aria-hidden="true" />

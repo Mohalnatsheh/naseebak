@@ -58,7 +58,7 @@ export async function fulfilCheckoutSession(session: Stripe.Checkout.Session): P
     userId,
     type: "PAYMENT",
     title: "تم شراء الرصيد بنجاح",
-    body: `تمت إضافة ${creditsNum} رصيد إلى حسابك.`,
+    body: `تمت إضافة الأرصدة إلى حسابك (${creditsNum}).`,
     url: "/dashboard/payments",
   });
   return "fulfilled";

@@ -60,7 +60,7 @@ const relationshipLabels: Record<string, string> = {
   father: "الأب",
   mother: "الأم",
   brother: "الأخ",
-  guardian: "ولي الأمر",
+  guardian: "قريب آخر",
 };
 
 /* ------------------------------------------------------------------ */
@@ -663,7 +663,7 @@ export default function ProfilePage() {
             {p.area && (
               <InfoField
                 icon={MapPin}
-                label="المنطقة"
+                label={country.words.area}
                 value={p.area}
                 gradient="from-accent/10 to-accent/5"
                 iconColor="text-accent-foreground"
@@ -682,7 +682,7 @@ export default function ProfilePage() {
               <InfoField
                 icon={Weight}
                 label="الوزن"
-                value={`${p.weight} كغ`}
+                value={`${p.weight} ${country.words.kg}`}
               />
             )}
             {p.skinColor && (
@@ -720,7 +720,7 @@ export default function ProfilePage() {
             {p.incomeRange && (
               <InfoField
                 icon={Wallet}
-                label="الدخل الشهري"
+                label="مستوى الدخل"
                 value={p.incomeRange}
                 gradient="from-accent/10 to-accent/5"
                 iconColor="text-accent-foreground"
@@ -754,7 +754,7 @@ export default function ProfilePage() {
             {p.childrenCount > 0 && (
               <InfoField
                 icon={Baby}
-                label="عدد الأطفال"
+                label="عدد الأبناء"
                 value={p.childrenCount}
                 gradient="from-secondary/10 to-primary/5"
                 iconColor="text-secondary"
@@ -763,7 +763,7 @@ export default function ProfilePage() {
             {p.religiosity && (
               <InfoField
                 icon={Moon}
-                label="الالتزام الديني"
+                label="مستوى التدين"
                 value={selfLabel("religiosity", p.religiosity, user.gender)}
                 gradient="from-accent/10 to-accent/5"
                 iconColor="text-accent-foreground"
@@ -788,7 +788,7 @@ export default function ProfilePage() {
               <InfoField
                 icon={User}
                 label="اللحية"
-                value={p.beard ? "ملتحي" : "غير ملتحي"}
+                value={p.beard ? "ملتحٍ" : "غير ملتحٍ"}
                 gradient="from-primary/10 to-secondary/5"
               />
             )}
@@ -1042,7 +1042,7 @@ export default function ProfilePage() {
             {p.prefSmokingStatus && p.prefSmokingStatus.length > 0 && (
               <InfoField
                 icon={Cigarette}
-                label="التدخين المفضل"
+                label="التدخين لدى الشريك"
                 value={p.prefSmokingStatus.join("، ")}
                 gradient="from-secondary/10 to-primary/5"
                 iconColor="text-secondary"
@@ -1051,14 +1051,14 @@ export default function ProfilePage() {
             {isMale && p.prefHijab && (
               <InfoField
                 icon={User}
-                label="الحجاب المفضل"
+                label="الحجاب لدى الشريكة"
                 value={p.prefHijab}
               />
             )}
             {!isMale && p.prefBeard && (
               <InfoField
                 icon={User}
-                label="اللحية المفضلة"
+                label="اللحية لدى الشريك"
                 value={p.prefBeard}
                 gradient="from-secondary/10 to-primary/5"
                 iconColor="text-secondary"
@@ -1067,7 +1067,7 @@ export default function ProfilePage() {
             {p.prefChildrenAcceptance && (
               <InfoField
                 icon={Baby}
-                label="قبول وجود أطفال"
+                label="قبول وجود أبناء"
                 value={p.prefChildrenAcceptance}
                 gradient="from-accent/10 to-accent/5"
                 iconColor="text-accent-foreground"

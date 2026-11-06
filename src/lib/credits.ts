@@ -115,7 +115,7 @@ export async function notifyInterestCreditsExhausted(userId: string): Promise<vo
     userId,
     type: "PAYMENT",
     title: "انتهى رصيدك",
-    body: (await isTestAccount(userId)) ? "استخدمت كل رصيدك." : "انتهى رصيدك — اشحن لتتابع",
+    body: (await isTestAccount(userId)) ? "استخدمت كل رصيدك." : "انتهى رصيدك. يمكنك الشحن للمتابعة.",
     url: "/dashboard/payments",
   });
 }

@@ -280,9 +280,9 @@ export async function countrySignupBlock(
   claimed?: string | null,
 ): Promise<{ status: number; error: string; code: string } | null> {
   const country = countryOfPhone(phone);
-  if (!country) return { status: 400, error: "رقم الهاتف غير مدعوم", code: "COUNTRY_UNSUPPORTED" };
+  if (!country) return { status: 400, error: "هذا الرقم غير مدعوم", code: "COUNTRY_UNSUPPORTED" };
   if (claimed && claimed.toUpperCase() !== country) {
-    return { status: 400, error: "رقم الهاتف لا يتبع الدولة المختارة", code: "COUNTRY_MISMATCH" };
+    return { status: 400, error: "هذا الرقم لا يتبع الدولة المختارة", code: "COUNTRY_MISMATCH" };
   }
   const s = await getCountrySettings(country);
   if (!s.active) return { status: 403, error: "نصيبك غير متاح في هذه الدولة حالياً", code: "COUNTRY_INACTIVE" };

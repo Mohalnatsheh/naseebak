@@ -49,7 +49,7 @@ export function PublicPollView({ poll: initial, member, source }: { poll: Public
               ) : (
                 <>
                   <h1 className="font-display text-2xl leading-snug sm:text-3xl">لا يوجد سؤال مفتوح الآن</h1>
-                  <p className="text-sm leading-relaxed text-white/75">ننشر سؤالاً جديداً كل بضعة أيام على انستغرام وهنا. ارجع قريباً.</p>
+                  <p className="text-sm leading-relaxed text-white/75">ننشر سؤالاً جديداً كل بضعة أيام على {sa ? "إنستقرام" : "انستغرام"} وهنا. ارجع قريباً.</p>
                 </>
               )}
             </div>
@@ -66,7 +66,7 @@ export function PublicPollView({ poll: initial, member, source }: { poll: Public
           ) : (
             (answered || !poll) && (
               <section className="space-y-3 rounded-2xl border border-accent/40 bg-card p-5">
-                <h2 className="text-lg font-bold text-foreground">{sa ? "نصيبك منصة زواج جاد، وليس تطبيق تعارف" : "نصيبك منصة زواج جاد، مش تطبيق تعارف"}</h2>
+                <h2 className="text-lg font-bold text-foreground">{sa ? "نصيبك منصة زواج جاد، وليست تطبيق تعارف" : "نصيبك منصة زواج جاد، مش تطبيق تعارف"}</h2>
                 <ul className="space-y-1.5 text-sm leading-relaxed text-muted-foreground">
                   <li>• الصور مخفية حتى يقول الطرفان «مهتم».</li>
                   <li>• لا تواصل قبل التوافق المتبادل، وقرار «لا» بدون إشعار.</li>
@@ -78,7 +78,7 @@ export function PublicPollView({ poll: initial, member, source }: { poll: Public
                 >
                   سجّل الآن مجاناً
                 </Link>
-                <p className="text-center text-xs text-muted-foreground">{sa ? "وأجب على سؤال جديد من داخل حسابك كل 3 أيام." : "وجاوب على سؤال جديد من داخل حسابك كل 3 أيام."}</p>
+                <p className="text-center text-xs text-muted-foreground">{sa ? "وأجب عن سؤال جديد من داخل حسابك كل 3 أيام." : "وجاوب على سؤال جديد من داخل حسابك كل 3 أيام."}</p>
               </section>
             )
           )}

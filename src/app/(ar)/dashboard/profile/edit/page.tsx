@@ -66,7 +66,7 @@ const guardianRelationships = [
   { value: "father", label: "الأب" },
   { value: "mother", label: "الأم" },
   { value: "brother", label: "الأخ" },
-  { value: "guardian", label: "ولي الأمر" },
+  { value: "guardian", label: "قريب آخر" },
 ];
 function RequiredLabel({ children, htmlFor }: { children: React.ReactNode; htmlFor?: string }) {
   return (
@@ -366,7 +366,7 @@ export default function ProfileEditPage() {
       if (!form.nationality) return "يرجى إدخال الجنسية";
       if (!form.city) return "يرجى اختيار المدينة";
       if (form.height && (parseInt(form.height) < 100 || parseInt(form.height) > 250)) return "الطول يجب أن يكون بين 100 و 250 سم";
-      if (form.weight && (parseInt(form.weight) < 30 || parseInt(form.weight) > 300)) return "الوزن يجب أن يكون بين 30 و 300 كغ";
+      if (form.weight && (parseInt(form.weight) < 30 || parseInt(form.weight) > 300)) return `الوزن يجب أن يكون بين 30 و 300 ${country.words.kg}`;
       if (!form.education) return "يرجى اختيار المستوى التعليمي";
       if (form.job === "أخرى" && !form.jobCustom) return "يرجى تحديد الوظيفة";
     }
@@ -721,7 +721,7 @@ export default function ProfileEditPage() {
       <div className="space-y-2">
         <h1 className="text-2xl font-bold">تعديل الملف الشخصي</h1>
         <p className="text-muted-foreground text-sm">
-          عدّل البيانات التي تريد تغييرها.
+          {forViewer(gender, "عدّل البيانات التي تريد تغييرها.", "عدّلي البيانات التي تريدين تغييرها.")}
         </p>
       </div>
 
@@ -820,14 +820,14 @@ export default function ProfileEditPage() {
 
             {form.city && availableAreas.length > 0 && (
               <div className="space-y-2">
-                <Label htmlFor="edit-field-3">المنطقة <OptionalTag /></Label>
+                <Label htmlFor="edit-field-3">{country.words.area} <OptionalTag /></Label>
                 <select
                   id="edit-field-3"
                   value={form.area}
                   onChange={(e) => update("area", e.target.value)}
                   className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                 >
-                  <option value="">اختر المنطقة...</option>
+                  <option value="">اختر {country.words.area}...</option>
                   {availableAreas.map((a) => (
                     <option key={a} value={a}>
                       {a}
@@ -850,7 +850,7 @@ export default function ProfileEditPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="edit-field-5">الوزن (كغ) <OptionalTag /></Label>
+                <Label htmlFor="edit-field-5">الوزن ({country.words.kg}) <OptionalTag /></Label>
                 <Input
                   id="edit-field-5"
                   type="number"
@@ -1110,7 +1110,7 @@ export default function ProfileEditPage() {
           <CardHeader>
             <CardTitle>نبذة عني وتفضيلات الشريك</CardTitle>
             <CardDescription>
-              أخبرنا عنك وعن الشريك المثالي
+              {forViewer(gender, "أخبرنا عنك وعن الشريك المثالي", "أخبرينا عنكِ وعن الشريك المثالي")}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -1324,7 +1324,7 @@ export default function ProfileEditPage() {
 
             <div className="space-y-2">
               <div className="flex items-start justify-between gap-3">
-                <Label className="block min-w-0 flex-1 leading-relaxed">حالة التدخين المفضلة <span className="text-xs text-muted-foreground">(يمكن اختيار أكثر من حالة)</span> <OptionalTag /></Label>
+                <Label className="block min-w-0 flex-1 leading-relaxed">التدخين لدى الشريك <span className="text-xs text-muted-foreground">(يمكن اختيار أكثر من حالة)</span> <OptionalTag /></Label>
                 {dealbreaker("smokingStatus", "prefSmokingStatus")}
               </div>
               <div className="grid grid-cols-2 gap-2">

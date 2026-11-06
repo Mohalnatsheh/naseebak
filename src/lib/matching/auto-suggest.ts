@@ -58,8 +58,8 @@ async function notifyNewForMe(userId: string, count: number): Promise<void> {
   if (count <= 0) return;
   const body =
     count === 1
-      ? "وصلك اقتراح توافق جديد. قم بمراجعته."
-      : `وصلك ${arabicCount(count, { one: "اقتراح توافق جديد", two: "اقتراحا توافق جديدان", few: "اقتراحات توافق جديدة", many: "اقتراح توافق جديد" })}. قم بمراجعتها.`;
+      ? "وصلك اقتراح توافق جديد. يمكنك الاطلاع عليه الآن."
+      : `وصلك ${arabicCount(count, { one: "اقتراح توافق جديد", two: "اقتراحا توافق جديدان", few: "اقتراحات توافق جديدة", many: "اقتراح توافق جديد" })}. يمكنك الاطلاع عليها الآن.`;
   await notify({ userId, type: "SUGGESTION", title: "اقتراحات توافق جديدة", body, url: "/dashboard/suggestions", oncePerDay: NEW_SUGGESTIONS_DAILY });
 }
 
@@ -440,7 +440,7 @@ async function generate(userId: string): Promise<SuggestOutcome> {
       await notifyMany(created.map((c) => c.candidateId), {
         type: "SUGGESTION",
         title: "اقتراح توافق جديد",
-        body: "وصلك اقتراح توافق جديد. قم بمراجعته.",
+        body: "وصلك اقتراح توافق جديد. يمكنك الاطلاع عليه الآن.",
         url: "/dashboard/suggestions",
         oncePerDay: NEW_SUGGESTIONS_DAILY,
       });

@@ -314,7 +314,9 @@ export function PushSetupFlow({
   const [noPrompt, setNoPrompt] = useState(false);
   const v = (m: string, f: string) => forViewer(gender, m, f);
   // «هاتفك» / «جوالك»: the member's country (Jordan outside the dashboard)
-  const handset = countryConfig(useDashboardData().country).words.phone;
+  const { country } = useDashboardData();
+  const handset = countryConfig(country).words.phone;
+  const saudi = country === "SA";
 
   if (!device || !stage || !permission) return null;
 
@@ -342,7 +344,7 @@ export function PushSetupFlow({
     const target = `${INSTALL_GUIDE_URL}?from=app`;
     const href = openInBrowserUrl(device, target);
     const anyBrowser = openInAnyBrowserUrl(device, target);
-    const appName = device.inApp ? IN_APP_NAME[device.inApp] : null;
+    const appName = device.inApp === "instagram" && saudi ? "إنستقرام" : device.inApp ? IN_APP_NAME[device.inApp] : null;
     const menu = inAppMenuLabel(device);
     body = (
       <div className="space-y-4">

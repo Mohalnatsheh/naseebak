@@ -99,7 +99,7 @@ export async function fulfilPaymentIntent(intent: Pick<Stripe.PaymentIntent, "id
     userId,
     type: "PAYMENT",
     title: "تم شراء الرصيد بنجاح",
-    body: `تمت إضافة ${creditsNum} رصيد إلى حسابك.`,
+    body: `تمت إضافة الأرصدة إلى حسابك (${creditsNum}).`,
     url: "/dashboard/payments",
   });
   return "fulfilled";

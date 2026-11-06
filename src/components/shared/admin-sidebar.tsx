@@ -5,7 +5,7 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { signOut } from "next-auth/react";
-import { BarChart3, LayoutDashboard, Users, ShieldCheck, Sparkles, CalendarHeart, FileText, Menu, LogOut, Flag, ClipboardEdit, CreditCard, Bell, Ban, Trash2, Settings, LifeBuoy, HeartHandshake, Archive, ChevronDown, Heart, MessagesSquare, Inbox, MessageCircleQuestion, Globe2, Megaphone, Gift } from "lucide-react";
+import { BarChart3, LayoutDashboard, Users, ShieldCheck, Sparkles, CalendarHeart, FileText, Menu, LogOut, Flag, ClipboardEdit, CreditCard, Bell, BellRing, Ban, Trash2, Settings, LifeBuoy, HeartHandshake, Archive, ChevronDown, Heart, MessagesSquare, Inbox, MessageCircleQuestion, Globe2, Megaphone, Gift } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
@@ -62,6 +62,7 @@ const sidebarGroups: { title: string | null; links: SidebarLink[] }[] = [
     title: "Reach members",
     links: [
       { href: "/admin/notifications", label: "Notifications", icon: Bell },
+      { href: "/admin/notifications/automatic", label: "Automatic messages", icon: BellRing },
       { href: "/admin/alerts", label: "Popup Alerts", icon: Megaphone },
       { href: "/admin/polls", label: "Naseebak Question", icon: MessageCircleQuestion },
       { href: "/admin/blog", label: "Blog", icon: FileText },
@@ -110,6 +111,8 @@ function useTodoCounts(): TodoCounts {
 }
 
 function isActive(pathname: string, href: string) {
+  // «Automatic messages» has its own link under the same path
+  if (href === "/admin/notifications") return pathname === href;
   return pathname === href || (href !== "/admin" && pathname.startsWith(href));
 }
 

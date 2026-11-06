@@ -73,16 +73,16 @@ export async function maybeAwardReferral(userId: string): Promise<void> {
       notify({
         userId,
         type: "SYSTEM",
-        title: "مكافأة الإحالة",
-        body: "تهانينا! حصلت على رصيد إضافي (+1) كمكافأة إحالة لاكتمال ملفك الشخصي.",
+        title: "مكافأة الدعوة",
+        body: "مبارك! أضفنا إلى حسابك رصيداً لأنك أكملت ملفك الشخصي عبر رمز دعوة.",
         url: "/dashboard/payments",
       }),
       outcome.referrerPaid &&
         notify({
           userId: referral.referrerId,
           type: "SYSTEM",
-          title: "مكافأة الإحالة",
-          body: "تهانينا! حصلت على رصيد إضافي (+2) لأن شخصاً دعوته أكمل ملفه الشخصي.",
+          title: "مكافأة الدعوة",
+          body: "مبارك! أضفنا إلى حسابك رصيدين لأن شخصاً دعوته أكمل ملفه الشخصي.",
           url: "/dashboard/payments",
         }),
     ]);

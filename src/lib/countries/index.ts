@@ -43,8 +43,12 @@ export interface CountryConfig {
   words: {
     /** «هاتف» / «جوال» */
     phone: string;
-    /** Label of the `tribe` field: «العشيرة» / «القبيلة» */
+    /** Label of the `tribe` field: «العشيرة» / «القبيلة أو الأسرة» */
     tribe: string;
+    /** Label of the `area` field: «المنطقة» / «الحي» */
+    area: string;
+    /** Weight unit: «كغ» / «كجم» */
+    kg: string;
     nationalityMale: string;
     nationalityFemale: string;
   };
@@ -62,7 +66,7 @@ export const COUNTRIES: Record<CountryCode, CountryConfig> = {
     currency: { code: "JOD", symbol: "د.أ" },
     dateLocale: "ar-JO-u-nu-latn",
     timeZone: "Asia/Amman",
-    words: { phone: "هاتف", tribe: "العشيرة", nationalityMale: "أردني", nationalityFemale: "أردنية" },
+    words: { phone: "هاتف", tribe: "العشيرة", area: "المنطقة", kg: "كغ", nationalityMale: "أردني", nationalityFemale: "أردنية" },
   },
   SA: {
     code: "SA",
@@ -75,7 +79,7 @@ export const COUNTRIES: Record<CountryCode, CountryConfig> = {
     currency: { code: "SAR", symbol: "ر.س" },
     dateLocale: "ar-SA-u-ca-gregory-nu-latn",
     timeZone: "Asia/Riyadh",
-    words: { phone: "جوال", tribe: "القبيلة", nationalityMale: "سعودي", nationalityFemale: "سعودية" },
+    words: { phone: "جوال", tribe: "القبيلة أو الأسرة", area: "الحي", kg: "كجم", nationalityMale: "سعودي", nationalityFemale: "سعودية" },
   },
 };
 

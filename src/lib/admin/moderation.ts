@@ -109,8 +109,8 @@ export async function setSuspended(
   await notify({
     userId,
     type: "SYSTEM",
-    title: "تم إعادة تفعيل حسابك",
-    body: "تم إعادة تفعيل حسابك بنجاح. يمكنك الآن استخدام المنصة.",
+    title: "أُعيد تفعيل حسابك",
+    body: "أُعيد تفعيل حسابك بنجاح. يمكنك الآن استخدام المنصة.",
     url: "/dashboard",
   });
   return { status, changed: true };

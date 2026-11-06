@@ -5,7 +5,7 @@ export const RELATIONSHIP_LABELS: Record<string, string> = {
   father: "الأب",
   mother: "الأم",
   brother: "الأخ",
-  guardian: "وليّ الأمر",
+  guardian: "قريب آخر",
 };
 
 export function daysLeft(iso?: string): number {

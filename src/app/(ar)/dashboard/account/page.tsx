@@ -84,7 +84,7 @@ export default function AccountPage() {
       rows: [
         { href: "/dashboard/install", label: `التطبيق والإشعارات على ${countryConfig(country).words.phone}ك`, icon: Smartphone },
         { href: "/dashboard/support", label: "الدعم والملاحظات", icon: LifeBuoy },
-        { href: "/dashboard/referral", label: "ادعُ صديقاً", icon: Gift },
+        { href: "/dashboard/referral", label: g("ادعُ صديقاً", "ادعي صديقة"), icon: Gift },
       ],
     },
     {

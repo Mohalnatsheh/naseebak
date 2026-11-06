@@ -186,7 +186,7 @@ export default function PhotosPage() {
       <PageHeader
         icon={Camera}
         title="صوري الشخصية"
-        description="أضف صوراً لملفك الشخصي. سيتم عرضها فقط عند التوافق المتبادل"
+        description={female ? "أضيفي صوراً لملفكِ الشخصي. سيتم عرضها فقط عند التوافق المتبادل" : "أضف صوراً لملفك الشخصي. سيتم عرضها فقط عند التوافق المتبادل"}
       >
         <span className="inline-flex h-7 min-w-7 items-center justify-center rounded-full border border-accent/40 bg-accent/10 px-3 text-sm font-bold text-foreground">
           {photos.length} / {MAX_PHOTOS}
@@ -245,7 +245,7 @@ export default function PhotosPage() {
             <div className="space-y-2">
               <h3 className="font-semibold text-lg text-foreground">لا توجد صور بعد</h3>
               <p className="text-sm text-muted-foreground max-w-xs mx-auto leading-relaxed">
-                أضف صوراً لملفك الشخصي لتظهر عند التوافق المتبادل مع شريك محتمل.
+                {female ? "أضيفي صوراً لملفكِ الشخصي لتظهر عند التوافق المتبادل مع شريك محتمل." : "أضف صوراً لملفك الشخصي لتظهر عند التوافق المتبادل مع شريك محتمل."}
               </p>
             </div>
             <Button

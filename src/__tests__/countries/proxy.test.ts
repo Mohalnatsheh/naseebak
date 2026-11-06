@@ -6,6 +6,8 @@ type Handler = (req: NextRequest & { auth: unknown }) => Promise<Response>;
 vi.mock("next-auth", () => ({ default: () => ({ auth: (h: Handler) => h }) }));
 
 import proxy from "@/proxy";
+import nextConfig from "../../../next.config";
+import { LOCALIZED_PATHS, localizedPath } from "@/lib/site-paths";
 
 const call = (url: string, auth: unknown = null) => {
   const req = new NextRequest(url) as NextRequest & { auth: unknown };
@@ -47,17 +49,26 @@ describe("proxy", () => {
 });
 
 describe("country URLs (SEO)", () => {
-  it("renders /sa/faq as the FAQ for Saudi Arabia (rewrite + site-country header + remembered choice)", async () => {
+  it("next.config routes every Saudi URL to its page, and nothing else", async () => {
+    const rewrites = await nextConfig.rewrites!();
+    const list = (Array.isArray(rewrites) ? rewrites : rewrites.beforeFiles) ?? [];
+    expect(list.map((r) => r.source).sort()).toEqual(LOCALIZED_PATHS.map((p) => localizedPath(p, "SA")).sort());
+    for (const r of list) expect(`/sa${r.destination === "/" ? "" : r.destination}`).toBe(r.source);
+  });
+
+  // A rewrite from the proxy carries the public host, which Next treats as another site behind Nginx: it fetched
+  // naseebak.com/ and the page came back as Jordan. next.config.ts routes these paths instead.
+  it("/sa/faq passes on with the site-country header, for next.config to route (and remembers the choice)", async () => {
     const res = await call("https://naseebak.com/sa/faq?x=1");
     expect(res.headers.get("location")).toBeNull();
-    expect(new URL(res.headers.get("x-middleware-rewrite")!).pathname).toBe("/faq");
+    expect(res.headers.get("x-middleware-rewrite")).toBeNull();
     expect(res.headers.get("x-middleware-request-x-site-country")).toBe("SA");
     expect(res.headers.get("set-cookie") ?? "").toContain("naseeb_country=SA");
   });
 
   it("renders /sa as the Saudi home page", async () => {
     const res = await call("https://naseebak.com/sa");
-    expect(new URL(res.headers.get("x-middleware-rewrite")!).pathname).toBe("/");
+    expect(res.headers.get("x-middleware-rewrite")).toBeNull();
   });
 
   it("Jordan's pages stay at the root and are marked JO, whatever the cookie says", async () => {

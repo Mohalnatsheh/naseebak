@@ -71,12 +71,14 @@ export function CountrySwitcher({
   const pathname = usePathname();
   const [pending, startTransition] = useTransition();
 
-  /** A page with country URLs goes to the other country's URL (/faq ↔ /sa/faq); others re-render */
+  /** A page with country URLs loads the other country's URL (/faq ↔ /sa/faq); others re-render */
   function choose(code: CountryCode) {
     if (code === current) return;
     rememberVisitorCountry(code);
     const target = switchCountryPath(pathname || "/", code);
-    startTransition(() => (target ? router.push(target + (typeof window !== "undefined" ? window.location.hash : "")) : router.refresh()));
+    // A full load: /sa and / are one route to the client router, which would keep this country's layout and text
+    if (target) window.location.assign(target + window.location.hash);
+    else startTransition(() => router.refresh());
   }
 
   const cfg = COUNTRIES[current];

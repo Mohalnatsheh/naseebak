@@ -7,14 +7,15 @@ import { SITE_COUNTRY_HEADER, isLocalizedPath, localizedPath, splitCountryPath }
 
 const { auth } = NextAuth(authConfig);
 
-/** Render `path` (same query) for `country`: the page reads the country from SITE_COUNTRY_HEADER */
-function renderFor(req: NextRequest, country: CountryCode, path?: string) {
+/**
+ * Render the page for `country`: the page reads the country from SITE_COUNTRY_HEADER. /sa/... reaches its page through
+ * next.config.ts, never a rewrite here: behind Nginx that one carries the public host, so Next fetches the public site
+ * (`/` without this header, Jordan).
+ */
+function renderFor(req: NextRequest, country: CountryCode) {
   const headers = new Headers(req.headers);
   headers.set(SITE_COUNTRY_HEADER, country);
-  if (!path) return NextResponse.next({ request: { headers } });
-  const url = req.nextUrl.clone();
-  url.pathname = path;
-  return NextResponse.rewrite(url, { request: { headers } });
+  return NextResponse.next({ request: { headers } });
 }
 
 function redirectWithCountry(url: URL, country: CountryCode) {
@@ -43,7 +44,7 @@ export default auth(async (req) => {
 
   if (urlCountry) {
     if (isLocalizedPath(path)) {
-      const res = renderFor(req, urlCountry, path);
+      const res = renderFor(req, urlCountry);
       if (req.cookies.get(COUNTRY_COOKIE)?.value !== urlCountry) res.cookies.set(COUNTRY_COOKIE, urlCountry, COUNTRY_COOKIE_OPTIONS);
       return res;
     }

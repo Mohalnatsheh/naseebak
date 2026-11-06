@@ -3,6 +3,7 @@
  */
 import nodemailer, { type Transporter } from "nodemailer";
 import { COUNTRIES, COUNTRY_CODES, countryConfig, countryOfPhone } from "@/lib/countries";
+import { adminEmailsFor } from "@/lib/countries/settings";
 
 let transporter: Transporter | null = null;
 
@@ -42,12 +43,12 @@ interface NewUserInfo {
   country?: string | null;
 }
 
-/** Notify the admin inbox (ADMIN_NOTIFY_EMAIL) that a new user registered. */
+/** Notify the admins of the member's country that a new user registered. */
 export async function sendNewUserNotification(user: NewUserInfo): Promise<void> {
-  const to = process.env.ADMIN_NOTIFY_EMAIL;
+  const to = await adminEmailsFor(user.country ?? countryOfPhone(user.phone));
   const smtp = getTransporter();
-  if (!to || !smtp) {
-    console.warn("[Email] SMTP or ADMIN_NOTIFY_EMAIL not configured — skipping new user notification");
+  if (to.length === 0 || !smtp) {
+    console.warn("[Email] SMTP or admin emails not configured — skipping new user notification");
     return;
   }
 
@@ -83,9 +84,11 @@ interface ContactMessageInfo {
   phone?: string | null;
   subject: string;
   message: string;
+  /** The visitor's country: its admins get the message */
+  country?: string | null;
 }
 
-/** Tell the admin inbox about a contact-page message (best effort: the message is already saved). */
+/** Tell the admins about a contact-page message (best effort: the message is already saved). */
 /** 962791234567 → 0791234567, 966512345678 → 0512345678 (how people write it locally) */
 function phoneForDisplay(phone: string): string {
   const dial = COUNTRY_CODES.map((c) => COUNTRIES[c].dialCode).find((d) => phone.startsWith(d));
@@ -93,10 +96,10 @@ function phoneForDisplay(phone: string): string {
 }
 
 export async function sendContactNotification(msg: ContactMessageInfo): Promise<void> {
-  const to = process.env.ADMIN_NOTIFY_EMAIL;
+  const to = await adminEmailsFor(msg.country);
   const smtp = getTransporter();
-  if (!to || !smtp) {
-    console.warn("[Email] SMTP or ADMIN_NOTIFY_EMAIL not configured — skipping contact notification");
+  if (to.length === 0 || !smtp) {
+    console.warn("[Email] SMTP or admin emails not configured — skipping contact notification");
     return;
   }
 
@@ -115,11 +118,11 @@ export async function sendContactNotification(msg: ContactMessageInfo): Promise<
   });
 }
 
-/** Plain-text email to the admin inbox (ADMIN_NOTIFY_EMAIL). Returns false when SMTP isn't configured. */
-export async function sendAdminEmail(subject: string, text: string): Promise<boolean> {
-  const to = process.env.ADMIN_NOTIFY_EMAIL;
+/** Plain-text email to a country's admins (Jordan's without one). Returns false when nothing is configured. */
+export async function sendAdminEmail(subject: string, text: string, country?: string | null): Promise<boolean> {
+  const to = await adminEmailsFor(country);
   const smtp = getTransporter();
-  if (!to || !smtp) return false;
+  if (to.length === 0 || !smtp) return false;
   await smtp.sendMail({
     from: process.env.SMTP_FROM || `"نصيبك Naseebak" <${process.env.SMTP_USER}>`,
     to,

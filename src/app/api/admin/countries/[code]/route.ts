@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { DEFAULT_COUNTRY, isCountryCode } from "@/lib/countries";
+import { packagesFor } from "@/lib/payments/packages";
 import { clearCountrySettingsCache, countryWarnings, getCountrySettings } from "@/lib/countries/settings";
 import { countrySettingsSchema } from "@/lib/validations/country-settings";
 
@@ -26,11 +27,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ co
       return NextResponse.json({ error: "The default country can't be switched off." }, { status: 409 });
     }
 
-    const current = await getCountrySettings(code);
+    const unknownPackage = Object.keys(data.packagePrices ?? {}).find((id) => !packagesFor(code).some((p) => p.id === id));
+    if (unknownPackage) return NextResponse.json({ error: `${unknownPackage} is not a package of this country` }, { status: 400 });
+
+    const { packagePrices, ...current } = await getCountrySettings(code);
     await db.countrySetting.upsert({
       where: { code },
       // A first save starts from the code defaults (the row didn't exist yet)
-      create: { ...current, ...data, code, updatedById: result.session.user.id },
+      create: { ...current, ...(packagePrices && { packagePrices }), ...data, code, updatedById: result.session.user.id }, // Json columns take no plain null
       update: { ...data, updatedById: result.session.user.id },
     });
     clearCountrySettingsCache();

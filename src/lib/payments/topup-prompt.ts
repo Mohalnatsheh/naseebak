@@ -7,12 +7,12 @@ import { getCycleFlags } from "@/lib/settings";
 import { getCountrySettings, purchasesAvailable } from "@/lib/countries/settings";
 import { toCountry } from "@/lib/countries";
 import { isTestPhone } from "@/lib/test-accounts";
-import { packagesFor } from "@/lib/payments/packages";
+import { packagesFor, type PackagePrices } from "@/lib/payments/packages";
 import { displayPrice } from "@/lib/payments/checkout-branding";
 
 /** The smallest package of a country (the one-tap top-up) */
-export function smallestPackage(country: unknown) {
-  return [...packagesFor(country)].sort((a, b) => a.credits - b.credits)[0];
+export function smallestPackage(country: unknown, prices?: PackagePrices | null) {
+  return [...packagesFor(country, prices)].sort((a, b) => a.credits - b.credits)[0];
 }
 
 /** « رصيدك صفر: اشحن 10 أرصدة بـ 3 د.أ لتردّ.» or null */
@@ -20,8 +20,9 @@ export async function topUpLine(user: { matchCredits: number; country: string | 
   if (user.matchCredits > 0 || isTestPhone(user.phone)) return null;
   if (!(await getCycleFlags()).creditOnInterest) return null;
   const country = toCountry(user.country);
-  if (!purchasesAvailable(await getCountrySettings(country))) return null;
-  const pkg = smallestPackage(country);
+  const settings = await getCountrySettings(country);
+  if (!purchasesAvailable(settings)) return null;
+  const pkg = smallestPackage(country, settings.packagePrices);
   if (!pkg) return null;
   return user.gender === "FEMALE"
     ? ` رصيدكِ صفر: اشحني ${pkg.name} بـ ${displayPrice(pkg)} لتردّي.`

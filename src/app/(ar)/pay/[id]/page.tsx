@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 import { ShieldCheck } from "lucide-react";
 import { db } from "@/lib/db";
 import { getStripe } from "@/lib/stripe";
-import { findAnyPackage, formatCharge } from "@/lib/payments/packages";
+import { findAnyPackage, formatPaidCharge } from "@/lib/payments/packages";
 import { displayPrice } from "@/lib/payments/checkout-branding";
 import { fulfilPaymentIntent, tokenMatches } from "@/lib/payments/intent";
 import { ArabicPayForm } from "@/components/payments/arabic-pay-form";
@@ -57,7 +57,7 @@ export default async function PayPage({
 
   const payment = await db.payment.findUnique({
     where: { id },
-    select: { id: true, status: true, payToken: true, stripePaymentIntentId: true, planName: true },
+    select: { id: true, status: true, payToken: true, stripePaymentIntentId: true, planName: true, amount: true, currency: true },
   });
   if (!payment || !payment.stripePaymentIntentId || !tokenMatches(payment.payToken, t)) {
     return <Message title="رابط الدفع غير صالح" body="افتح صفحة الرصيد واختر الباقة من جديد." href={back.href} cta={back.cta} />;
@@ -79,8 +79,9 @@ export default async function PayPage({
   }
 
   const pkg = findAnyPackage(payment.planName);
-  const price = pkg ? displayPrice(pkg) : "";
-  const charged = pkg && pkg.chargeCurrency === "usd" ? formatCharge(pkg) : null;
+  // This checkout's own price: the package's may have changed since it started
+  const price = pkg ? displayPrice({ ...pkg, price: Number(payment.amount) }) : "";
+  const charged = pkg && pkg.chargeCurrency === "usd" ? formatPaidCharge(payment) : null;
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://naseebak.com";
   const returnUrl = `${appUrl}/payments/return?status=success&pid=${encodeURIComponent(payment.id)}&from=${from === "app" ? "app" : "web"}`;
 

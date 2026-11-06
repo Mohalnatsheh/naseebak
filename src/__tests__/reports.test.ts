@@ -162,7 +162,7 @@ describe("admin alerts, pause for review and clearing the flag", () => {
     });
     expect(notifyMod.notify).toHaveBeenCalledWith(expect.objectContaining({ userId: "b", title: "المحادثة متوقفة مؤقتاً" }));
     expect(notifyMod.notify).toHaveBeenCalledWith(expect.objectContaining({ userId: "x", title: "المحادثة متوقفة مؤقتاً" }));
-    await vi.waitFor(() => expect(alert.sendAdminAlert).toHaveBeenCalledWith("بلاغ جديد — العضو موقوف مؤقتاً للمراجعة", expect.any(String)));
+    await vi.waitFor(() => expect(alert.sendAdminAlert).toHaveBeenCalledWith("بلاغ جديد — العضو موقوف مؤقتاً للمراجعة", expect.any(String), expect.objectContaining({ userId: expect.any(String) })));
     expect(await pausedForReview(["b"])).toEqual(new Set(["b"]));
   });
 

@@ -117,7 +117,7 @@ async function alertAdmins(r: {
       `Admin → Reports (report ${r.id})`,
     ].filter(Boolean);
     const subject = r.pending >= AUTO_FLAG_REPORTS ? "بلاغ جديد — العضو موقوف مؤقتاً للمراجعة" : "بلاغ جديد";
-    await sendAdminAlert(subject, lines.join("\n"));
+    await sendAdminAlert(subject, lines.join("\n"), { userId: r.reporterId });
   } catch (error) {
     console.error("[reports] admin alert", error);
   }

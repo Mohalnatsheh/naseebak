@@ -42,7 +42,7 @@ export async function POST(request: Request) {
     await db.contactMessage.create({
       data: { name, email: email || null, phone: phone || null, subject, message, userId: session?.user?.id ?? null, country },
     });
-    sendContactNotification({ name, email: email || null, phone: phone || null, subject, message }).catch((err) =>
+    sendContactNotification({ name, email: email || null, phone: phone || null, subject, message, country }).catch((err) =>
       console.error("Contact notification email failed:", err),
     );
 

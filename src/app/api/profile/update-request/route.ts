@@ -116,7 +116,8 @@ export async function POST(request: Request) {
         `الحقول: ${Object.keys(reviewed).join(", ")}`,
         typeof message === "string" && message ? `رسالة العضو: ${message}` : null,
         `Admin → Profile Requests (request ${updateRequest.id})`,
-      ].filter(Boolean).join("\n")
+      ].filter(Boolean).join("\n"),
+      { userId }
     );
 
     return NextResponse.json({ message: "تم إرسال طلب التعديل بنجاح", request: updateRequest, applied: Object.keys(prefs), requested: true });

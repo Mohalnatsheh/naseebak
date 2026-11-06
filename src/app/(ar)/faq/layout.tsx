@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { getCycleFlags } from "@/lib/settings";
 import { faqsFor } from "./faq-data";
 import { getVisitorCountry } from "@/lib/countries/server";
-import { activeCountryCodes } from "@/lib/countries/settings";
+import { activeCountryCodes, getCountrySettings } from "@/lib/countries/settings";
 import { publicCopy } from "@/lib/public-copy";
 import { absoluteUrl, seoAlternates } from "@/lib/site-paths";
 import { socialMetadata } from "@/lib/seo";
@@ -31,10 +31,11 @@ export default async function FaqLayout({
 }) {
   // Same answers as the page, so search engines never index outdated rules
   const [flags, country] = await Promise.all([getCycleFlags(), getVisitorCountry()]);
+  const { packagePrices } = await getCountrySettings(country);
   const faqJsonLd = {
     "@context": "https://schema.org",
     "@type": "FAQPage",
-    mainEntity: faqsFor(flags.introRequests, flags.chat, flags.creditOnInterest, country).map((f) => ({
+    mainEntity: faqsFor(flags.introRequests, flags.chat, flags.creditOnInterest, country, packagePrices).map((f) => ({
       "@type": "Question",
       name: f.q,
       acceptedAnswer: { "@type": "Answer", text: f.a },

@@ -11,13 +11,14 @@
 import type { CountrySetting, SmsProviderKind } from "@prisma/client";
 import { db } from "@/lib/db";
 import { COUNTRIES, COUNTRY_CODES, DEFAULT_COUNTRY, countryConfig, countryOfPhone, isCountryCode, type CountryCode } from "@/lib/countries";
-import { PRICES_APPROVED, packagesFor } from "@/lib/payments/packages";
+import { PRICES_APPROVED, packagesFor, readPackagePrices, type PackagePrices } from "@/lib/payments/packages";
 import { localizedPath } from "@/lib/site-paths";
+import { parseEmailList } from "@/lib/validations/country-settings";
 import { areasFor, citiesFor } from "@/lib/countries/places";
 import { HOUSING_TYPES, OPTION_VALUES, SKIN_COLORS, expenseRangesFor, incomeRangesFor, nationalityOptions, tribeLabel } from "@/lib/profile-options";
 import { EDUCATION_ORDER } from "@/lib/matching/score";
 
-export type CountrySettings = Omit<CountrySetting, "createdAt" | "updatedAt" | "updatedById">;
+export type CountrySettings = Omit<CountrySetting, "createdAt" | "updatedAt" | "updatedById" | "packagePrices"> & { packagePrices: PackagePrices | null };
 export type ResolvedSmsProvider = "BROADNET" | "UNIFONIC" | "MOCK" | "NONE";
 
 const BASE: Omit<CountrySettings, "code" | "active" | "purchasesEnabled"> = {
@@ -32,6 +33,9 @@ const BASE: Omit<CountrySettings, "code" | "active" | "purchasesEnabled"> = {
   heroTitle: null,
   heroSubtitle: null,
   pollsEnabled: true,
+  packagePrices: null,
+  pricesApproved: null,
+  adminEmails: null,
 };
 
 /** What a country without a row behaves like */
@@ -46,7 +50,7 @@ function toSettings(r: CountrySetting): CountrySettings {
     code: r.code, active: r.active, registrationOpen: r.registrationOpen, purchasesEnabled: r.purchasesEnabled,
     smsProvider: r.smsProvider, smsSenderId: r.smsSenderId, supportEmail: r.supportEmail, supportPhone: r.supportPhone,
     supportWhatsapp: r.supportWhatsapp, seoTitle: r.seoTitle, seoDescription: r.seoDescription, heroTitle: r.heroTitle,
-    heroSubtitle: r.heroSubtitle, pollsEnabled: r.pollsEnabled,
+    heroSubtitle: r.heroSubtitle, pollsEnabled: r.pollsEnabled, packagePrices: readPackagePrices(r.packagePrices), pricesApproved: r.pricesApproved, adminEmails: r.adminEmails,
   };
 }
 
@@ -89,6 +93,13 @@ export async function activeCountryCodes(): Promise<CountryCode[]> {
   return (await listCountrySettings()).filter((s) => s.active).map((s) => s.code as CountryCode);
 }
 
+/** Who gets a country's admin emails: its list in Admin → Countries, else ADMIN_NOTIFY_EMAIL. No country = Jordan's */
+export async function adminEmailsFor(country?: string | null): Promise<string[]> {
+  const code = isCountryCode(country) ? country : DEFAULT_COUNTRY;
+  const own = parseEmailList((await getCountrySettings(code)).adminEmails);
+  return own.length > 0 ? own : parseEmailList(process.env.ADMIN_NOTIFY_EMAIL);
+}
+
 /**
  * Mock SMS may be used only in development, or in a local production build (`next start` on this machine): never on
  * a server whose public address is not localhost. Production (naseebak.com) can never reach the mock.
@@ -122,9 +133,30 @@ export function providerConfigured(provider: ResolvedSmsProvider, env: NodeJS.Pr
   }
 }
 
-/** Purchases are on only when the admin enabled them AND the country's prices are approved in code */
+/** Approved in Admin → Countries, or by the default in code when nothing was saved */
+export function pricesAreApproved(s: CountrySettings): boolean {
+  return s.pricesApproved ?? PRICES_APPROVED[s.code as CountryCode] === true;
+}
+
+/** Purchases are on only when the admin enabled them AND the country's prices are approved */
 export function purchasesAvailable(s: CountrySettings): boolean {
-  return s.active && s.purchasesEnabled && PRICES_APPROVED[s.code as CountryCode] === true && packagesFor(s.code).length > 0;
+  return s.active && s.purchasesEnabled && pricesAreApproved(s) && packagesFor(s.code).length > 0;
+}
+
+/** What a country needs before it can open (Admin → Countries). Only what can be checked from here */
+export function goLiveChecklist(s: CountrySettings, env: NodeJS.ProcessEnv = process.env) {
+  const code = s.code as CountryCode;
+  const provider = resolveSmsProvider(code, s.smsProvider, env);
+  const codes = providerConfigured(provider, env) || (code === "SA" && !!env.VERIFYWAY_API_KEY);
+  return [
+    { key: "codes", label: "Sign-in codes can be sent", done: codes },
+    { key: "stripe", label: "Stripe key is set", done: !!env.STRIPE_SECRET_KEY },
+    { key: "pricesApproved", label: "Prices set and approved", done: pricesAreApproved(s) },
+    { key: "support", label: "Support contact added", done: !!(s.supportEmail || s.supportPhone || s.supportWhatsapp) },
+    { key: "registration", label: "Registration open", done: s.registrationOpen },
+    { key: "purchases", label: "Sell credit packages on", done: s.purchasesEnabled },
+    { key: "active", label: "Country active", done: s.active },
+  ];
 }
 
 export interface CountryWarning {
@@ -151,8 +183,8 @@ export function countryWarnings(s: CountrySettings, env: NodeJS.ProcessEnv = pro
   if (s.smsProvider === "MOCK" && env.NODE_ENV === "production" && !mockSmsAllowed(env)) {
     out.push({ level: "error", message: "Mock SMS is set but is refused on this server: no SMS will be sent." });
   }
-  if (s.purchasesEnabled && PRICES_APPROVED[code] !== true) {
-    out.push({ level: "warning", message: `Purchases are switched on but ${countryConfig(code).nameEn} prices are not approved in code (src/lib/payments/packages.ts): nothing is sold.` });
+  if (s.purchasesEnabled && !pricesAreApproved(s)) {
+    out.push({ level: "warning", message: `Purchases are switched on but ${countryConfig(code).nameEn} prices are not approved yet (Packages below): nothing is sold.` });
   }
   if (s.purchasesEnabled && !env.STRIPE_SECRET_KEY) {
     out.push({ level: "warning", message: "STRIPE_SECRET_KEY is not set: checkout cannot start." });

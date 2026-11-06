@@ -74,6 +74,7 @@ export interface CountryValues {
   pollsEnabled: boolean;
   smsProvider: string;
   smsSenderId: string | null;
+  adminEmails?: string | null;
   supportEmail: string | null;
   supportPhone: string | null;
   supportWhatsapp: string | null;
@@ -81,6 +82,8 @@ export interface CountryValues {
   seoDescription: string | null;
   heroTitle: string | null;
   heroSubtitle: string | null;
+  packagePrices?: Record<string, number> | null;
+  pricesApproved?: boolean | null;
 }
 
 const COUNTRY_SWITCHES: [keyof CountryValues, string][] = [
@@ -95,6 +98,7 @@ const COUNTRY_TEXTS: [keyof CountryValues, string][] = [
   ["heroSubtitle", "Landing sub-headline"],
   ["seoTitle", "SEO title"],
   ["seoDescription", "SEO description"],
+  ["adminEmails", "Admin emails"],
   ["supportEmail", "Support email"],
   ["supportPhone", "Support phone"],
   ["supportWhatsapp", "Support WhatsApp"],
@@ -103,7 +107,14 @@ const COUNTRY_TEXTS: [keyof CountryValues, string][] = [
 
 const NO_REAL_SMS = ["NONE", "MOCK"];
 
-export function countryChanges(before: CountryValues, after: CountryValues, country: string): ChangeSummary {
+/** `packages` = the country's packages at their current prices, `approved` = whether those are approved now */
+export function countryChanges(
+  before: CountryValues,
+  after: CountryValues,
+  country: string,
+  packages: { id: string; credits: number; price: number; currency: string }[] = [],
+  approved = false,
+): ChangeSummary {
   const lines: string[] = [];
   const warnings: string[] = [];
 
@@ -117,6 +128,17 @@ export function countryChanges(before: CountryValues, after: CountryValues, coun
     if (!same(b, a)) lines.push(`${label}: ${shown(b)} → ${shown(a)}`);
   }
 
+  for (const p of packages) {
+    const price = after.packagePrices?.[p.id];
+    if (price === undefined || price === p.price) continue;
+    lines.push(`${p.credits} credits: ${p.price} → ${price} ${p.currency}`);
+    if (price >= p.price * 2 || price <= p.price / 2) {
+      warnings.push(`${p.credits} credits in ${country} goes from ${p.price} to ${price} ${p.currency}. Check the amount.`);
+    }
+  }
+  const approvedAfter = after.pricesApproved ?? approved;
+  if (approvedAfter !== approved) lines.push(`Prices approved: ${onOff(approved)} → ${onOff(approvedAfter)}`);
+
   if (before.smsProvider !== after.smsProvider && NO_REAL_SMS.includes(after.smsProvider)) {
     warnings.push(`Nobody in ${country} will be able to sign in: sign-in codes go by SMS, and ${after.smsProvider} sends none to real numbers.`);
   }
@@ -126,7 +148,7 @@ export function countryChanges(before: CountryValues, after: CountryValues, coun
   if (before.registrationOpen && !after.registrationOpen) {
     warnings.push(`New members in ${country} can no longer sign up. Existing members can still sign in.`);
   }
-  if (before.purchasesEnabled && !after.purchasesEnabled) {
+  if ((before.purchasesEnabled && !after.purchasesEnabled) || (approved && !approvedAfter && after.purchasesEnabled)) {
     warnings.push(`Selling stops in ${country}: members there can't buy credits on the website or in the app.`);
   }
   return { lines, warnings };

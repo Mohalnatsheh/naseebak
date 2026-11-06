@@ -1,9 +1,10 @@
 /**
  * Credit packages per country (db-free: the payments page may import it).
  *   Jordan: shown in JOD, Stripe charges the USD amount (owner's choice, Oct 2026; JOD→USD ≈ 1.41).
- *   Saudi Arabia: shown and charged in SAR (prices `[NEEDS INPUT]` owner confirmation; no "was" price —
- *   the Saudi market never had an earlier price).
+ *   Saudi Arabia: shown and charged in SAR (no "was" price — the Saudi market never had an earlier price).
  * A member only ever sees and buys their own country's packages (checkout checks it).
+ * The prices here are defaults: Admin → Countries can set others (`country_settings.packagePrices`), passed in as
+ * `prices`. Which credits a package id gives never changes, because refunds of past purchases read it from here.
  */
 import { toCountry, type CountryCode } from "@/lib/countries";
 
@@ -27,6 +28,31 @@ export interface CreditPackage {
 const OLD_JOD_PER_CREDIT = 0.7;
 const was = (credits: number) => Math.round(credits * OLD_JOD_PER_CREDIT * 10) / 10;
 
+/** Jordan is charged in USD: cents per dinar */
+const USD_CENTS_PER_JOD = 141;
+/** What Stripe charges for a display price */
+const chargeFor = (price: number, currency: CreditPackage["currency"]) =>
+  currency === "JOD"
+    ? { chargeCurrency: "usd" as const, chargeAmount: Math.round(price * USD_CENTS_PER_JOD) }
+    : { chargeCurrency: "sar" as const, chargeAmount: Math.round(price * 100) };
+
+/** Prices set in admin, by package id */
+export type PackagePrices = Record<string, number>;
+
+/** The usable prices in a stored value, or null */
+export function readPackagePrices(value: unknown): PackagePrices | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const entries = Object.entries(value).filter(([, price]) => typeof price === "number" && price > 0);
+  return entries.length > 0 ? Object.fromEntries(entries) : null;
+}
+
+function withPrice(p: CreditPackage, prices?: PackagePrices | null): CreditPackage {
+  const price = prices?.[p.id];
+  if (!price || !(price > 0)) return p;
+  const { wasPrice, ...rest } = p;
+  return { ...rest, price, ...chargeFor(price, p.currency), ...(wasPrice && wasPrice > price && { wasPrice }) };
+}
+
 const jo = (id: string, name: string, credits: number, price: number, usdCents: number, popular = false): CreditPackage => ({
   id, country: "JO", name, credits, price, currency: "JOD", chargeCurrency: "usd", chargeAmount: usdCents, ...(popular && { popular }), wasPrice: was(credits),
 });
@@ -41,8 +67,8 @@ const PACKAGES: Record<CountryCode, readonly CreditPackage[]> = {
 };
 
 /**
- * Prices the owner approved for sale. Saudi prices above are a draft ([NEEDS INPUT] owner + Stripe SAR check): Saudi
- * purchases stay off even if an admin switches them on, until this says true (src/lib/countries/settings.ts).
+ * Whether a country's prices are approved until Admin → Countries says otherwise. Saudi prices above are a draft:
+ * Saudi purchases stay off even if an admin switches them on, until «Prices approved» is on there.
  */
 export const PRICES_APPROVED: Record<CountryCode, boolean> = { JO: true, SA: false };
 
@@ -54,25 +80,26 @@ const RETIRED_PACKAGES: readonly CreditPackage[] = [
 ];
 
 /** Packages on sale in a country */
-export function packagesFor(country: unknown): readonly CreditPackage[] {
-  return PACKAGES[toCountry(country)];
+export function packagesFor(country: unknown, prices?: PackagePrices | null): readonly CreditPackage[] {
+  const list = PACKAGES[toCountry(country)];
+  return prices ? list.map((p) => withPrice(p, prices)) : list;
 }
 
 /** Jordan's list (kept for older callers and tests) */
 export const CREDIT_PACKAGES = PACKAGES.JO;
 
 /** A package on sale; with `country`, only that country's */
-export function findPackage(id: string | null | undefined, country?: CountryCode): CreditPackage | undefined {
+export function findPackage(id: string | null | undefined, country?: CountryCode, prices?: PackagePrices | null): CreditPackage | undefined {
   if (!id) return undefined;
   const lists = country ? [PACKAGES[country]] : Object.values(PACKAGES);
   for (const list of lists) {
     const p = list.find((x) => x.id === id);
-    if (p) return p;
+    if (p) return withPrice(p, prices);
   }
   return undefined;
 }
 
-/** Any package ever sold (refunds) */
+/** Any package ever sold, at its price in code: for its name and credits. A payment's price is on the payment */
 export function findAnyPackage(id: string | null | undefined): CreditPackage | undefined {
   return findPackage(id) ?? (id ? RETIRED_PACKAGES.find((p) => p.id === id) : undefined);
 }
@@ -85,8 +112,8 @@ export function formatPrice(p: Pick<CreditPackage, "price" | "currency">): strin
 }
 
 /** «10 أرصدة بـ 3 د.أ، أو 25 رصيداً بـ 6 د.أ، أو 50 رصيداً بـ 10 د.أ» (FAQ) */
-export function packagesSentence(country: unknown = "JO"): string {
-  return packagesFor(country).map((p) => `${p.name} بـ ${formatPrice(p)}`).join("، أو ");
+export function packagesSentence(country: unknown = "JO", prices?: PackagePrices | null): string {
+  return packagesFor(country, prices).map((p) => `${p.name} بـ ${formatPrice(p)}`).join("، أو ");
 }
 
 /** Percent saved against the «قبل» price, or null */
@@ -102,6 +129,11 @@ export function formatUsd(cents: number): string {
 /** What the card is actually charged: «4.23$» (Jordan) / «15 ر.س» (Saudi Arabia) */
 export function formatCharge(p: Pick<CreditPackage, "chargeCurrency" | "chargeAmount">): string {
   return p.chargeCurrency === "usd" ? formatUsd(p.chargeAmount) : `${(p.chargeAmount / 100).toLocaleString("en-US")} ر.س`;
+}
+
+/** What a past payment was charged, from its stored display price (prices may have changed since) */
+export function formatPaidCharge(payment: { amount: unknown; currency: string }): string {
+  return formatCharge(chargeFor(Number(payment.amount), payment.currency === "SAR" ? "SAR" : "JOD"));
 }
 
 /**

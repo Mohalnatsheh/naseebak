@@ -11,7 +11,7 @@ import { db } from "@/lib/db";
 import { notify } from "@/lib/notify";
 import { recordCredit } from "@/lib/credits";
 import { sendAdminAlert } from "@/lib/admin-alert";
-import { findAnyPackage, formatCharge } from "@/lib/payments/packages";
+import { findAnyPackage, formatPaidCharge } from "@/lib/payments/packages";
 
 export type RefundResult = "refunded" | "already" | "not_found";
 
@@ -22,7 +22,7 @@ export async function applyRefund(args: {
 }): Promise<RefundResult> {
   const payment = await db.payment.findUnique({
     where: { id: args.paymentId },
-    select: { id: true, status: true, userId: true, planName: true },
+    select: { id: true, status: true, userId: true, planName: true, amount: true, currency: true },
   });
   if (!payment) return "not_found";
   if (payment.status === "REFUNDED") return "already";
@@ -72,7 +72,7 @@ export async function applyRefund(args: {
       title: "تم استرداد المبلغ",
       // Charged in USD (shown in JOD): say what actually goes back to the card
       body: pkg
-        ? `تم استرداد ${formatCharge(pkg)} (قيمة باقة ${pkg.name}) إلى بطاقتك، وأُزيل رصيد الباقة من حسابك.`
+        ? `تم استرداد ${formatPaidCharge(payment)} (قيمة باقة ${pkg.name}) إلى بطاقتك، وأُزيل رصيد الباقة من حسابك.`
         : "تم استرداد قيمة عملية الدفع إلى بطاقتك.",
       url: "/dashboard/payments",
       metadata: { paymentId: payment.id },
@@ -87,9 +87,12 @@ export async function findPaymentForCharge(charge: Pick<Stripe.Charge, "payment_
   if (!pi) return null;
   return db.payment.findFirst({
     where: { providerTxId: pi, provider: "STRIPE" },
-    select: { id: true, status: true, userId: true, amount: true, planName: true },
+    select: { id: true, status: true, userId: true, amount: true, currency: true, planName: true },
   });
 }
+
+/** A payment's currency tells its country, also once the account is deleted */
+const alertAbout = (payment: { currency: string }) => ({ country: payment.currency === "SAR" ? "SA" : "JO" });
 
 /** `charge.refunded`: full refund → applyRefund; partial refund → admin alert only */
 export async function handleChargeRefunded(charge: Stripe.Charge): Promise<RefundResult | "partial" | "not_ours"> {
@@ -101,6 +104,7 @@ export async function handleChargeRefunded(charge: Stripe.Charge): Promise<Refun
       `Payment ${payment.id} (user ${payment.userId ?? "deleted"}) was partly refunded in Stripe ` +
         `(${(charge.amount_refunded / 100).toFixed(2)} of ${(charge.amount / 100).toFixed(2)} ${charge.currency.toUpperCase()}). ` +
         "Credits were not changed — adjust them in Admin → Users if needed.",
+      alertAbout(payment),
     );
     return "partial";
   }
@@ -120,6 +124,7 @@ export async function flagDispute(dispute: Stripe.Dispute): Promise<"flagged" | 
     `A dispute (${dispute.reason}, ${(dispute.amount / 100).toFixed(2)} ${dispute.currency.toUpperCase()}) was opened on ` +
       `payment ${payment.id} (user ${payment.userId ?? "deleted"}, package ${payment.planName ?? "?"}). ` +
       "Respond in the Stripe dashboard before the deadline. Credits were not changed.",
+    alertAbout(payment),
   );
   return "flagged";
 }

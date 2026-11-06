@@ -999,6 +999,12 @@ model CountrySetting {
   heroSubtitle     String?
   /// «سؤال نصيبك» for members of this country
   pollsEnabled     Boolean         @default(true)
+  /// Prices set in Admin → Countries, by package id ({"sa_10": 20}). A package not listed keeps its price in code
+  packagePrices    Json?
+  /// Prices approved for sale in admin. Null = the default in code (Jordan approved, Saudi Arabia not)
+  pricesApproved   Boolean?
+  /// Who gets this country's admin emails, comma separated. Empty = ADMIN_NOTIFY_EMAIL
+  adminEmails      String?
   updatedById      String?
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt

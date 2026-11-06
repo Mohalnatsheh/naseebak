@@ -11,7 +11,7 @@ describe("sendAdminAlert", () => {
   it("sends through the admin email with a site prefix", async () => {
     email.sendAdminEmail.mockResolvedValue(true);
     await sendAdminAlert("بلاغ جديد", "نص");
-    expect(email.sendAdminEmail).toHaveBeenCalledWith("[نصيبك] بلاغ جديد", "نص");
+    expect(email.sendAdminEmail).toHaveBeenCalledWith("[نصيبك] بلاغ جديد", "نص", null);
   });
 
   it("never throws: not configured or a failed send is only logged", async () => {

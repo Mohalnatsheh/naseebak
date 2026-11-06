@@ -16,6 +16,38 @@ const phoneLike = z
   .nullable()
   .optional();
 
+const MAX_ADMIN_EMAILS = 10;
+
+/** «a@x.co, b@x.co» → the addresses, without blanks or repeats */
+export function parseEmailList(value: string | null | undefined): string[] {
+  const seen = new Set<string>();
+  return (value ?? "").split(/[,،;]/).map((s) => s.trim()).filter((email) => {
+    const key = email.toLowerCase();
+    if (!email || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+const emailList = z
+  .string()
+  .transform((s, ctx) => {
+    const emails = parseEmailList(s);
+    const bad = emails.find((email) => !z.email().safeParse(email).success);
+    if (bad) ctx.addIssue({ code: "custom", message: `Not a valid email: ${bad}` });
+    if (emails.length > MAX_ADMIN_EMAILS) ctx.addIssue({ code: "custom", message: `At most ${MAX_ADMIN_EMAILS} admin emails` });
+    return emails.join(", ") || null;
+  })
+  .nullable()
+  .optional();
+
+/** A package price: what Stripe can charge, with at most two decimals */
+const packagePrice = z
+  .number("Enter a price for every package")
+  .min(1, "A package price must be at least 1")
+  .max(9999, "A package price must be under 10,000")
+  .refine((n) => Math.abs(n * 100 - Math.round(n * 100)) < 1e-6, "A price can have at most two decimals");
+
 /** Admin → Countries: one country's editable settings (every field optional; unknown fields refused) */
 export const countrySettingsSchema = z
   .object({
@@ -23,6 +55,8 @@ export const countrySettingsSchema = z
     registrationOpen: z.boolean().optional(),
     purchasesEnabled: z.boolean().optional(),
     pollsEnabled: z.boolean().optional(),
+    packagePrices: z.record(z.string(), packagePrice).optional(),
+    pricesApproved: z.boolean().optional(),
     smsProvider: z.enum(["DEFAULT", "BROADNET", "UNIFONIC", "MOCK", "NONE"]).optional(),
     /** SMS sender name: letters, digits, space . _ - (operators allow up to 11) */
     smsSenderId: z
@@ -39,6 +73,7 @@ export const countrySettingsSchema = z
       .transform((s) => s || null)
       .nullable()
       .optional(),
+    adminEmails: emailList,
     supportPhone: phoneLike,
     supportWhatsapp: phoneLike,
     seoTitle: optionalText(70),

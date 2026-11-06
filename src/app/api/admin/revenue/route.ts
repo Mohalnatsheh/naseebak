@@ -80,7 +80,7 @@ export async function GET(request: Request) {
     const d30 = sumDays(last(30)), p30 = sumDays(last(30, 30));
     const label = (id: string | null) => {
       const p = findAnyPackage(id);
-      return p ? `${p.credits} credits · ${p.price} ${p.currency}` : id ?? "—";
+      return p ? `${p.credits} credits · ${p.currency}` : id ?? "—";
     };
 
     return NextResponse.json({

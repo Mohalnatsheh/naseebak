@@ -30,6 +30,27 @@ beforeEach(() => {
 });
 
 describe("admin countries", () => {
+  it("saves a country's prices and their approval", async () => {
+    const res = await update(req({ packagePrices: { sa_10: 20, sa_25: 35.5 }, pricesApproved: true }), p("SA"));
+    expect(res.status).toBe(200);
+    expect(db.countrySetting.upsert.mock.calls[0][0].update).toMatchObject({ packagePrices: { sa_10: 20, sa_25: 35.5 }, pricesApproved: true });
+  });
+
+  it("a first save of a country without a row works with no prices set", async () => {
+    await update(req({ active: true }), p("SA"));
+    const { create } = db.countrySetting.upsert.mock.calls[0][0];
+    expect(create).not.toHaveProperty("packagePrices");
+    expect(create).toMatchObject({ code: "SA", active: true });
+  });
+
+  it("refuses another country's package, and a price Stripe can't take", async () => {
+    expect((await update(req({ packagePrices: { launch_10: 5 } }), p("SA"))).status).toBe(400);
+    for (const price of [0, -1, 0.5, 2.555, 100000, "20"]) {
+      expect((await update(req({ packagePrices: { sa_10: price } }), p("SA"))).status).toBe(400);
+    }
+    expect(db.countrySetting.upsert).not.toHaveBeenCalled();
+  });
+
   it("admins only", async () => {
     admin.ok = false;
     expect((await list()).status).toBe(403);

@@ -18,7 +18,7 @@ import { applyRefund, flagDispute, handleChargeRefunded } from "@/lib/payments/r
 beforeEach(() => {
   vi.clearAllMocks();
   db.$transaction.mockImplementation((fn: (tx: typeof db) => unknown) => fn(db));
-  db.payment.findUnique.mockResolvedValue({ id: "p1", status: "COMPLETED", userId: "u1", planName: "credits_5" });
+  db.payment.findUnique.mockResolvedValue({ id: "p1", status: "COMPLETED", userId: "u1", planName: "credits_5", amount: 4, currency: "JOD" });
   db.payment.findFirst.mockResolvedValue({ id: "p1", status: "COMPLETED", userId: "u1", planName: "credits_5" });
   db.payment.updateMany.mockResolvedValue({ count: 1 });
   db.user.findUnique.mockResolvedValue({ matchCredits: 7 });
@@ -36,6 +36,12 @@ describe("applyRefund", () => {
     const body = notifyMod.notify.mock.calls[0][0].body as string;
     expect(body).toContain("5.64$");
     expect(body).not.toContain("دينار");
+  });
+
+  it("reports what the payment was charged, not today's price", async () => {
+    db.payment.findUnique.mockResolvedValue({ id: "p1", status: "COMPLETED", userId: "u1", planName: "launch_10", amount: 2, currency: "JOD" });
+    await applyRefund({ paymentId: "p1" });
+    expect(notifyMod.notify.mock.calls[0][0].body).toContain("2.82$");
   });
 
   it("floors the balance at 0", async () => {
@@ -83,11 +89,17 @@ describe("Stripe charge events", () => {
     expect(alert.sendAdminAlert).not.toHaveBeenCalled();
   });
 
+  it("a dispute on a riyal payment goes to the Saudi admins", async () => {
+    db.payment.findFirst.mockResolvedValue({ id: "p1", status: "COMPLETED", userId: null, planName: "sa_10", currency: "SAR" });
+    await flagDispute({ payment_intent: "pi_1", reason: "fraudulent", amount: 1500, currency: "sar" } as never);
+    expect(alert.sendAdminAlert).toHaveBeenCalledWith("Stripe dispute opened", expect.any(String), { country: "SA" });
+  });
+
   it("a dispute flags the payment and alerts the admins", async () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const dispute: any = { id: "dp_1", payment_intent: "pi_1", reason: "fraudulent", amount: 564, currency: "usd" };
     expect(await flagDispute(dispute)).toBe("flagged");
     expect(db.payment.updateMany).toHaveBeenCalledWith({ where: { id: "p1", disputedAt: null }, data: { disputedAt: expect.any(Date) } });
-    expect(alert.sendAdminAlert).toHaveBeenCalledWith("Stripe dispute opened", expect.stringContaining("p1"));
+    expect(alert.sendAdminAlert).toHaveBeenCalledWith("Stripe dispute opened", expect.stringContaining("p1"), { country: "JO" });
   });
 });

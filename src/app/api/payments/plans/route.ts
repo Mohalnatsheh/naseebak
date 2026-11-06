@@ -12,12 +12,13 @@ export async function GET() {
   const user = session?.user?.id ? await db.user.findUnique({ where: { id: session.user.id }, select: { country: true } }) : null;
   const country = user?.country ?? (await getVisitorCountry());
   const cfg = countryConfig(country);
-  const purchasesEnabled = purchasesAvailable(await getCountrySettings(cfg.code));
+  const settings = await getCountrySettings(cfg.code);
+  const purchasesEnabled = purchasesAvailable(settings);
   return NextResponse.json({
     country: cfg.code,
     /** False while the country is not selling (not active, switched off, or prices not approved) */
     purchasesEnabled,
-    packages: packagesFor(cfg.code).map((p) => ({
+    packages: packagesFor(cfg.code, settings.packagePrices).map((p) => ({
       id: p.id,
       name: p.name,
       credits: p.credits,

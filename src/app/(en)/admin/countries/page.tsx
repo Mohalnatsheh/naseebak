@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import { AlertTriangle, CheckCircle2, Globe2, Loader2, Send, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Circle, Globe2, Loader2, Send, XCircle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +13,7 @@ import { SettingsConfirmDialog } from "@/components/admin/settings-confirm-dialo
 import { SettingsNote } from "@/components/admin/settings-section";
 import { countryChanges, type ChangeSummary } from "@/lib/admin/settings-changes";
 import { toast } from "sonner";
+import { formatCharge, packagesFor } from "@/lib/payments/packages";
 import type { CountryCode } from "@/lib/countries";
 
 type Provider = "DEFAULT" | "BROADNET" | "UNIFONIC" | "MOCK" | "NONE";
@@ -32,6 +33,9 @@ interface Settings {
   seoDescription: string | null;
   heroTitle: string | null;
   heroSubtitle: string | null;
+  packagePrices: Record<string, number> | null;
+  pricesApproved: boolean | null;
+  adminEmails: string | null;
 }
 
 interface CountryRow {
@@ -41,6 +45,7 @@ interface CountryRow {
   sms: { provider: string; configured: boolean };
   packages: { id: string; credits: number; price: number; currency: string }[];
   pricesApproved: boolean;
+  goLive: { key: string; label: string; done: boolean }[];
   selling: boolean;
   members: { total: number; active7d: number; new7d: number };
 }
@@ -58,6 +63,7 @@ const TEXT_FIELDS: { key: keyof Settings; label: string; max: number; placeholde
   { key: "heroSubtitle", label: "Landing sub-headline", max: 300, placeholder: "Built-in text", dir: "rtl" },
   { key: "seoTitle", label: "SEO title", max: 70, placeholder: "Built-in title", dir: "rtl" },
   { key: "seoDescription", label: "SEO description", max: 170, placeholder: "Built-in description", dir: "rtl" },
+  { key: "adminEmails", label: "Admin emails, comma separated (new members, reports, messages)", max: 500, placeholder: "From the server settings", dir: "ltr" },
   { key: "supportEmail", label: "Support email", max: 120, placeholder: "info@naseebak.com", dir: "ltr" },
   { key: "supportPhone", label: "Support phone", max: 20, placeholder: "+962 …", dir: "ltr" },
   { key: "supportWhatsapp", label: "Support WhatsApp", max: 20, placeholder: "+962 …", dir: "ltr" },
@@ -135,11 +141,13 @@ function CountryCard({ row, onSaved }: { row: CountryRow; onSaved: () => void })
   const [testing, setTesting] = useState(false);
   const [pending, setPending] = useState<ChangeSummary | null>(null);
   const code = row.settings.code;
+  const [priceTexts, setPriceTexts] = useState<Record<string, string>>(() => Object.fromEntries(row.packages.map((p) => [p.id, String(p.price)])));
+  const approved = form.pricesApproved ?? row.pricesApproved;
   const dirty = JSON.stringify(form) !== JSON.stringify(row.settings);
 
   /** Always asks first, naming every change (only a cleared-and-retyped field has none to name) */
   function requestSave() {
-    const changes = countryChanges(row.settings, form, row.display.name.en);
+    const changes = countryChanges(row.settings, form, row.display.name.en, row.packages, row.pricesApproved);
     if (changes.lines.length === 0) save();
     else setPending(changes);
   }
@@ -150,6 +158,8 @@ function CountryCard({ row, onSaved }: { row: CountryRow; onSaved: () => void })
     setMessage(null);
     const body: Partial<Settings> = { ...form };
     delete body.code;
+    if (!body.packagePrices) delete body.packagePrices;
+    if (body.pricesApproved == null) delete body.pricesApproved;
     const res = await fetch(`/api/admin/countries/${code}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).catch(() => null);
     const data = await res?.json().catch(() => ({}));
     setSaving(false);
@@ -160,6 +170,13 @@ function CountryCard({ row, onSaved }: { row: CountryRow; onSaved: () => void })
     }
     setMessage({ ok: true, text: "Saved" });
     onSaved();
+  }
+
+  /** Every package's price goes along in one order, so a saved form reads the same as what comes back */
+  function setPrice(id: string, text: string) {
+    const texts = { ...priceTexts, [id]: text };
+    setPriceTexts(texts);
+    setForm({ ...form, packagePrices: Object.fromEntries(row.packages.map((p) => [p.id, Number(texts[p.id])])) });
   }
 
   async function sendTest() {
@@ -217,7 +234,7 @@ function CountryCard({ row, onSaved }: { row: CountryRow; onSaved: () => void })
           {toggle("registrationOpen", "Registration open", "New members can sign up (existing members can always sign in)", false,
             <SettingsNote href="/admin/settings" linkText="Settings → User Registration">Needs the global switch on too; closed there wins for every country:</SettingsNote>,
           )}
-          {toggle("purchasesEnabled", "Sell credit packages", row.pricesApproved ? "Members can buy this country's packages" : "Prices are not approved in code yet — nothing is sold even if on", false,
+          {toggle("purchasesEnabled", "Sell credit packages", row.pricesApproved ? "Members can buy this country's packages" : "Prices are not approved yet (Packages below) — nothing is sold even if on", false,
             <SettingsNote href="/admin/settings#mobile-app" linkText="Settings → Payments in the app">Website and app. Off here wins; on here, buying in the app also needs:</SettingsNote>,
           )}
           {toggle("pollsEnabled", "«سؤال نصيبك»", "Members of this country see and answer the question", false,
@@ -250,10 +267,38 @@ function CountryCard({ row, onSaved }: { row: CountryRow; onSaved: () => void })
           ))}
         </div>
 
-        <div className="rounded-lg border p-3 text-xs text-muted-foreground">
-          <span className="font-medium text-foreground">Packages ({row.pricesApproved ? "prices approved" : "draft prices — not approved"}):</span>{" "}
-          {row.packages.map((p) => `${p.credits} credits = ${p.price} ${p.currency}`).join(" · ")}. Prices are set in code (src/lib/payments/packages.ts).
+        <div className="space-y-3 rounded-lg border p-3">
+          <label className="flex items-start justify-between gap-3">
+            <span>
+              <span className="block text-sm font-medium">Prices approved</span>
+              <span className="block text-xs text-muted-foreground">Nothing is sold in {row.display.name.en} until this is on. Checkouts already open keep their price.</span>
+            </span>
+            <Switch checked={approved} onCheckedChange={(v) => setForm({ ...form, pricesApproved: v })} />
+          </label>
+          <div className="grid gap-3 sm:grid-cols-3">
+            {packagesFor(code, form.packagePrices).map((p) => (
+              <div key={p.id} className="space-y-1.5">
+                <Label htmlFor={`${p.id}-price`}>{p.credits} credits ({p.currency})</Label>
+                <Input id={`${p.id}-price`} dir="ltr" type="number" min={1} step="any" inputMode="decimal" value={priceTexts[p.id] ?? ""} onChange={(e) => setPrice(p.id, e.target.value)} />
+                {p.chargeCurrency === "usd" && <p className="text-xs text-muted-foreground">Card is charged {formatCharge(p)}</p>}
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-muted-foreground">Used on the website, in the app and in the FAQ. Prices written inside blog posts don&apos;t change by themselves.</p>
         </div>
+
+        {!row.selling && row.goLive.length > 0 && (
+          <div className="space-y-2 rounded-lg border p-3">
+            <p className="text-sm font-medium">To go live in {row.display.name.en}</p>
+            <ul className="grid gap-1 text-xs sm:grid-cols-2">
+              {row.goLive.map((item) => (
+                <li key={item.key} className={cn("flex items-center gap-1.5", item.done ? "text-emerald-700" : "text-muted-foreground")}>
+                  {item.done ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0" /> : <Circle className="h-3.5 w-3.5 shrink-0" />} {item.label}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         <div className="flex flex-wrap items-end gap-2">
           <Button onClick={requestSave} disabled={!dirty || saving}>

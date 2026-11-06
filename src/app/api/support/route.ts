@@ -53,7 +53,8 @@ export async function POST(request: Request) {
         `العنوان: ${parsed.data.subject}`,
         `التفاصيل: ${parsed.data.description}`,
         `Admin → Support (ticket ${ticket.id})`,
-      ].join("\n")
+      ].join("\n"),
+      { userId: session.user.id }
     );
 
     return NextResponse.json({ ticket }, { status: 201 });

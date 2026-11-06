@@ -42,10 +42,11 @@ export async function POST(request: Request) {
     if (hosted && !(await appPaymentsFor(me?.phone))) {
       return NextResponse.json({ error: "الشراء غير متاح في التطبيق حالياً", code: "APP_PURCHASES_DISABLED" }, { status: 403 });
     }
-    if (!purchasesAvailable(await getCountrySettings(country))) {
+    const countrySettings = await getCountrySettings(country);
+    if (!purchasesAvailable(countrySettings)) {
       return NextResponse.json({ error: "الشراء غير متاح في دولتك حالياً", code: "PURCHASES_DISABLED" }, { status: 403 });
     }
-    const pkg = findPackage(body?.packageId, country);
+    const pkg = findPackage(body?.packageId, country, countrySettings.packagePrices);
     if (!pkg) {
       return NextResponse.json({ error: "الباقة غير صالحة", code: "INVALID_PACKAGE" }, { status: 400 });
     }

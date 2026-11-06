@@ -10,6 +10,7 @@ import { ChevronDown, MessageCircle, Shield, CreditCard, Users, HelpCircle } fro
 import { PageHeroPhoto } from "@/components/shared/page-hero-photo";
 import { faqsFor } from "./faq-data";
 import type { CountryCode } from "@/lib/countries";
+import type { PackagePrices } from "@/lib/payments/packages";
 
 /* ──────────────────── DATA ──────────────────── */
 
@@ -26,14 +27,17 @@ export function FaqContent({
   chat,
   creditOnInterest = false,
   country = "JO",
+  prices,
 }: {
   newCycle: boolean;
   chat: boolean;
   creditOnInterest?: boolean;
   /** Visitor's country (answers, phone wording, prices) */
   country?: CountryCode;
+  /** Prices set in Admin → Countries */
+  prices?: PackagePrices | null;
 }) {
-  const faqs = faqsFor(newCycle, chat, creditOnInterest, country);
+  const faqs = faqsFor(newCycle, chat, creditOnInterest, country, prices);
   const [activeCategory, setActiveCategory] = useState("all");
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const { ref: faqRef, inView: faqInView } = useInView(0.1);

@@ -2,8 +2,8 @@
 
 Flutter app (Android + iPhone) for **naseebak.com**. It talks to the **same Next.js API as the website** and shows
 what the server returns: matches, credits, privacy and limits are decided on the server. Setup, run commands, test
-accounts and troubleshooting are in `README.md`; the website/server rules are in `../CLAUDE.md` (read its
-"Countries and the mobile app" section before changing anything that touches the API).
+accounts and troubleshooting are in `README.md`; the website/server rules are in `../CLAUDE.md` (read
+`../docs/reference/countries-and-app.md` before changing anything that touches the API).
 
 ## Where the code lives (two repos — keep them identical)
 
@@ -12,7 +12,8 @@ accounts and troubleshooting are in `README.md`; the website/server rules are in
 - **Mirror:** `~/Documents/EvoKey-Projects/naseebak_app/` = `github.com/Mohalnatsheh/naseebak_app`
   (`main` and `feature/fcm-push`). After an app change, copy the changed files over and push
   (`git push git@github.com:Mohalnatsheh/naseebak_app.git HEAD:main HEAD:feature/fcm-push`; the https remote has no
-  saved login). Both were identical at `naseebak@92260e5` / `naseebak_app@e050875` (2026-11-04).
+  saved login). On 2026-11-06 the mirror (`d94b4b3`) was behind this copy in four files, still to copy over:
+  `otp_screen.dart`, `phone_screen.dart`, `suggestion_card.dart`, `suggestion_models.dart`.
 - `~/Desktop/Evokey-APPS/Naseebak/naseebak` is an old website checkout — never work there.
 
 ## Before you change anything: does it need a store release?
@@ -94,9 +95,9 @@ Changing one of these on the server must keep old app versions working (members 
   Technology»). Run `flutter clean` (+ `pod install` with `LANG=en_US.UTF-8`) before a store build if the app ran on
   the simulator, or Apple refuses the upload (simulator `objective_c.framework`). Store texts, review login and privacy
   answers: `~/Documents/EvoKey-Projects/naseebak-release-1.0.0/store-listing.md`.
-- **Next version, filter tip (owner, 2026-11-05):** the empty «جديدة» page (`suggestions_screen.dart`, `emptyReason == 'no_candidates'`) doesn't show the website's tip («لو خففت شرط «العمر» يظهر لك 43 شخصاً مناسباً.»); app users get it only by push + bell. To add: `GET /api/suggestions/filter-tip` returns `{ text }` (null = nothing to show), show it above «تعديل تفضيلاتي». The route uses `requireUser`: check it accepts the app's sign-in before relying on it.
-- **Waiting for the next version:** the `X-App-Platform` header (done in code); two Crashlytics fixes (done in code, 2026-11-05): a lost connection is no longer reported as a fatal crash (`core/analytics/crash_filter.dart` → `isExpectedError`, used in `main.dart`'s handlers), and the sign-in code and phone fields use `SafeInputFormatter` (`core/localization/safe_input_formatter.dart`) instead of Filtering + LengthLimiting formatters, which crashed on Android SMS code autofill (`invalid selection start: 6`); planned, not built — women answering a
-  man's «مهتم» for free (needs the app to stop locking those cards at 0 credits; design notes in `../CLAUDE.md`), a
+- **Next version, filter tip (owner, 2026-11-05):** the empty «جديدة» page (`suggestions_screen.dart`, `emptyReason == 'no_candidates'`) doesn't show the website's tip («لو خففت شرط «العمر» يظهر لك 43 شخصاً مناسباً.»); app users get it only by push + bell. To add: `GET /api/suggestions/filter-tip` returns `{ text }` (null = nothing to show), show it above «تعديل تفضيلاتي». The route uses `requireUser`, which accepts the app's Bearer sign-in, so the server needs no change.
+- **Waiting for the next version:** the `X-App-Platform` header (done in code); the rough activity label on suggestion cards (done in code); the Saudi sign-in code wording, WhatsApp instead of «برسالة نصية» (done in code); two Crashlytics fixes (done in code, 2026-11-05): a lost connection is no longer reported as a fatal crash (`core/analytics/crash_filter.dart` → `isExpectedError`, used in `main.dart`'s handlers), and the sign-in code and phone fields use `SafeInputFormatter` (`core/localization/safe_input_formatter.dart`) instead of Filtering + LengthLimiting formatters, which crashed on Android SMS code autofill (`invalid selection start: 6`); planned, not built — women answering a
+  man's «مهتم» for free (needs the app to stop locking those cards at 0 credits; design notes in `../docs/reference/suggestions-and-credits.md`), a
   `purchase` analytics event, and popup taps: `features/alerts/alert_gate.dart` posts `/api/alerts/{id}/dismiss` with
   no body, so admin → Popup Alerts can't tell an app tap from a close — send `{ "action": "TAPPED" | "CLOSED" }` like the
   website does (the server already accepts it; «Seen» is counted on the server and needs nothing from the app).

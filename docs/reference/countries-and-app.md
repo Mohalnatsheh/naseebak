@@ -1,0 +1,75 @@
+# Countries and the mobile app
+
+Multi-country rules and how the server serves the app. The app's own rules are in `naseebak_app/CLAUDE.md`.
+
+> Reference detail moved out of `CLAUDE.md` on 2026-11-06. If this file and `CLAUDE.md` differ, `CLAUDE.md` wins.
+
+## Records
+
+Records: `docs/multi-country-mobile-implementation.md`, API: `docs/api-mobile.md`, local runs: `docs/local-testing.md`, before release: `docs/production-readiness.md`.
+
+## Countries
+
+- **Countries:** fixed facts in code (`src/lib/countries/index.ts`: JO, SA — dial code, phone rules, currency, time zone); admin-editable settings in `country_settings` (`src/lib/countries/settings.ts`, 30 s process-wide cache): active, registrationOpen, purchasesEnabled, smsProvider (DEFAULT/BROADNET/UNIFONIC/MOCK/NONE) + sender id, support contacts, hero/SEO overrides, pollsEnabled, packagePrices, pricesApproved, adminEmails.
+  - No row = safe defaults: Jordan as today, every other country inactive and not selling.
+  - Admin → Countries (`/admin/countries`).
+  - A member's country follows the phone number and never changes; members are only paired within one country.
+- **Public API:** `GET /api/countries` (active only), `GET /api/countries/[code]` (+ content, support, legal links, cities/areas/nationalities) — display data only, never provider settings or secrets.
+- **Sign-up gate:** `countrySignupBlock()` in `send-otp` (register / new numbers) and `register`: inactive / closed country or a `country` that isn't the number's → refused; existing members can always sign in.
+- **SMS:** `sendSms` uses the country's provider; `MOCK` keeps messages in a local outbox (`/api/dev/sms-outbox`) and is refused unless NODE_ENV≠production or `SMS_MOCK=true` with a localhost `NEXT_PUBLIC_APP_URL`.
+- **A failed build with `TypeError: Cannot read properties of null (reading '1')` under `nextFontGoogleFontLoader`** is the build's Google Fonts download, seen twice on 2026-11-06: the live site stays untouched, run the deploy again.
+- **Country URLs behind Nginx:** `/sa/...` reaches its page through `rewrites()` in `next.config.ts` while `src/proxy.ts` only sets `x-site-country`. Never `NextResponse.rewrite` there: on production it carries the public host, so Next fetches naseebak.com as an external site and the header is lost (fine on localhost, so test with `Host: naseebak.com` against `next start`). The country switcher does a full page load, because `/sa` and `/` are one route to the client router. A new localized path goes in both `LOCALIZED_PATHS` and `next.config.ts`.
+- **Admin emails:** Admin → Countries → «Admin emails» (`country_settings.adminEmails`, comma separated, up to 10; empty = `ADMIN_NOTIFY_EMAIL`). New members, contact messages, support tickets, reports, profile requests and Stripe disputes go to that country's list (`adminEmailsFor`, `sendAdminAlert(subject, text, { userId | country })`); system alerts (daily job, polls) go to Jordan's. Every address counts against Hostinger's outgoing limit.
+
+## Mobile auth and app
+
+- **Mobile auth:** `mobile_sessions` (SHA-256 of a random `nsb_…` token, 60 days, revoked on logout); `/api/mobile/auth/token` (same check as web sign-in: `authorizePhoneLogin`), `/api/mobile/auth/logout`, `/api/mobile/me`. `requireUser()` / `currentSession()` accept `Authorization: Bearer` (members only; `requireAdmin` never).
+- **App:** `naseebak_app/` — its own rules in **`naseebak_app/CLAUDE.md`** (two repos, what needs a store release, integrations, release steps); mirrored in `github.com/Mohalnatsheh/naseebak_app`. (Flutter 3.41.6, Riverpod, go_router, Dio, secure storage, image_picker, Cairo font, RTL). Debug API `http://10.0.2.2:3020`; see `naseebak_app/README.md`. Live chat: Ably SSE with the web’s subscribe-only token, each event only triggers a fetch; polling fallback.
+- **Local photos:** without Bunny keys `src/lib/bunny.ts` stores uploads in `.dev-uploads/` (git-ignored) and returns `/api/dev/uploads/...` (`localUploadsAllowed()`: dev, or `UPLOADS_LOCAL=true` + localhost app URL; never a real server).
+
+## App work by date
+
+- **App push / chat / release (2026-10-30, deployed 2026-10-31):** FCM push (see Notifications).
+  - Chat: the app keeps the newest 100 messages per chat in its cache directory (`chat_cache.dart`, per member, wiped on sign-out and when a chat 404s/403s, never in backups: `android:allowBackup="false"`) so a chat opens instantly, then merges the newest page; pages are ordered by `(createdAt, id)` and `?before=` takes an optional `beforeId` (exact cursor; a time-only cursor and `?after=` are inclusive, clients merge by id) — two messages in one millisecond were skipped before.
+  - Release: portrait only, Android predictive back, Crashlytics (release builds only; iOS dSYMs uploaded by the «Upload Crashlytics symbols» build phase with `--app-id`), iPhone only, `ITSAppUsesNonExemptEncryption = NO`, `ios/Runner/PrivacyInfo.xcprivacy`. iOS: min 15 (Podfile forces 15.0 on every pod for Xcode 27), bundle `com.naseebak.naseebakApp`, team `4S958MQTCR`; Android applicationId is the same `com.naseebak.naseebakApp` since 2026-11-01 (the Play listing's fixed id; Kotlin namespace and Firebase's first Android app `com.naseebak.naseebak_app` are left over, google-services.json holds both clients), Firebase options in `lib/firebase_options.dart` (no GoogleService-Info.plist); FID push needs `firebase_messaging_installation_id_enabled` (AndroidManifest) / `FirebaseMessagingInstallationIdEnabled` (Info.plist).
+  - Run iOS with `flutter run -d <simulator>` (`flutter build ios --simulator` fails: no x86_64 engine).
+- **App audit fixes (2026-10-31):** chat sends are idempotent per `clientNonce` (new `Message.clientNonce`, indexed per chat+sender, not unique so `--db-push` stays prompt-free — needs `--db-push`); read ticks update in an open chat; maintenance page in the app (`/api/mobile/config` → `maintenance`); `/api/mobile/me` → `deletion`, 403 `SUSPENDED`; a 403 `DEACTIVATED` re-reads `me`; first launch after install clears a keychain token (iOS keeps it after deletion); NO_CREDITS and the «انتهى رصيدك» notices use neutral wording (no «اشحن») for test accounts (`noCreditsError`); the app's payment check follows the checkout across app resumes and can cancel it (`POST /api/payments/cancel`); suggestions top up on refresh/return; match «إبلاغ» = report + block, «إنهاء التوافق», engagement undo, unblock, gendered copy (`home/gendered_copy.dart`).
+  - Android release signing reads `android/key.properties` (git-ignored).
+- **Popup alerts + app polish (2026-10-31):** admin → «Popup Alerts» (`src/lib/alerts.ts`, tables `alerts` + `alert_dismissals`, needs `--db-push`): everyone/men/women/one member, app/web/both or the website on one device («Website on Android / iPhone / computer», channels `WEB_ANDROID` / `WEB_IPHONE` / `WEB_DESKTOP`, from the user agent in `/api/alerts/current`; iPad = iPhone), admin's country, start/end, image (Bunny `alerts/`) and button; shown once per member until closed (website `AlertPopup` in the dashboard layout, app `AlertGate` over the tabs).
+  - Match outcome: `decide` also returns `intro` (CHAT/FAMILY/NONE) and `conversationId`, so the app's match dialog opens the open chat; chat summaries' `lastMessage.read` (✓✓ in the app's list).
+  - App: new home (status chips, «اقتراحات اليوم»), notifications-off card with steps, swipe-delete notices, chat redesign (day separators, grouping, time left), referral link opens «حساب جديد», setup saves drafts per step (`PATCH /api/profile/draft`) and resumes.
+  - The app defaults to production: local runs need `--dart-define=API_BASE_URL=http://10.0.2.2:3020`.
+- **App analytics, rating prompt, screen privacy (2026-11-01):** Firebase Analytics (`core/analytics/analytics.dart`, GA property 558342209 linked to both apps): screen views by route pattern (`/chats/:id`, never ids), member id + gender + country, and the funnel `otp_requested` → `otp_verified` → `sign_up`/`login` → `invite_code_*` → `setup_step_completed`/`setup_completed` → `interest_sent`/`suggestion_declined` → `match_created` → `chat_request_sent`/`family_request_sent`/`intro_request_answered` → `chat_started`, `begin_checkout`; release builds only (`--dart-define=ANALYTICS_DEBUG=true` + `adb shell setprop debug.firebase.analytics.app com.naseebak.naseebakApp` for DebugView).
+  - Store rating sheet once per install after the first match (`core/review/store_review.dart`).
+  - Chats and a match's photos are `SecureArea`s (`core/privacy/screen_privacy.dart`): Android `FLAG_SECURE`, iOS blur during recording + a note after a screenshot.
+  - Android needs Kotlin 2.3 (`settings.gradle.kts`, `compilerOptions` DSL) for Play services built with Kotlin 2.4; iOS Podfile pins `$FirebaseSDKVersion = '12.19.0'` (FirebaseAnalytics 12.19.3 was never published) — run `pod install` with `LANG=en_US.UTF-8`, and note Firebase stops publishing CocoaPods after Oct 2026 (move to Swift Package Manager later).
+  - Payment history pages with «عرض المزيد».
+- **Profile edit + link hardening (2026-11-01):** members with no profile row (signed up, no setup step saved — 66 on production) got a 500 saving the edit page (`update-request` wrote preferences with `profile.update` → P2025; logged 23 and 30 Oct, reported as a birth-date problem).
+  - Now `update-request` and the admin approval `upsert` the profile, and the edit page sends an unfinished profile (`!isComplete`) to `/dashboard/profile/setup`.
+  - Birth dates are stored as plain dates at 00:00 UTC everywhere (checked: all 1,276).
+  - The app opens server links only as https / mailto / tel (`isSafeExternalLink` in `shared/widgets/common.dart`; store links also `itms-apps` / `market`; checkout only https).
+
+## Mobile config and links
+
+- **Admin → Settings → «Mobile app» (`src/lib/mobile-config.ts`):** per platform a required update (`mobile_<android|ios>_min_version`: older apps get a full-screen «حدّث التطبيق»), an optional one (`…_latest_version`: a dismissible card) and the store link (`…_store_url`), read by the app from public `GET /api/mobile/config` on start and every resume (a failed check never blocks).
+  - «Payments in the app» (`mobile_payments_enabled`, default on): off hides packages, payment history and every «شحن» in the app (website unchanged) and the app checkout (`mode: "hosted"`) answers 403 `APP_PURCHASES_DISABLED`; **test accounts (`isTestPhone`, i.e. `EXTRA_TEST_PHONES` on production, including the store review login) never see payments in the app**.
+  - `/api/mobile/me` → `appPayments`.
+  - The owner keeps Stripe for app payments (not Apple/Google in-app purchase) — a known store-review risk.
+- **App Links / Universal Links (2026-10-31):** naseebak.com `/dashboard`, `/dashboard/*` and `/register` open the app when installed (SMS notices, shared links, referral links); everything else stays in the browser.
+  - Server: `/.well-known/assetlinks.json` (package `com.naseebak.naseebakApp` + SHA-256 fingerprints from Admin → Settings → «Mobile app»; empty list until set; the Play App Signing key `32:56:9C…E4:75` and the upload key are both set since 2026-11-04) and `/.well-known/apple-app-site-association` (`4S958MQTCR.com.naseebak.naseebakApp`).
+  - App: `website_links.dart` maps a link like a notification link; a link that arrives before home (splash, sign-in) waits and opens after; detail screens are pushed over home so «رجوع» returns there; `/register?invitationCode=` pre-fills the sign-up code.
+  - Play App Signing SHA-256 `32:56:9C…E4:75` added next to the upload key on 2026-11-04 (Google's check verified).
+  - **Get-the-app bar (2026-11-04):** Android visitors see «تطبيق نصيبك · مجاني على Google Play» on top of every Arabic page (`AppDownloadBanner`, decided in `(ar)/layout.tsx` from the user agent + cookie `naseeb_app_banner_hidden`, 7 days after ✕; not on an open chat or `/dashboard/install`); `/dashboard/install` leads with `AppDownloadCard` on Android.
+  - Links from `playStoreHref` (`src/lib/app-download.ts`): Play URL with `referrer=utm_source=naseebak_web&utm_medium=banner|install_page`, a `market` intent inside in-app browsers; GA events `app_download_click`, `app_banner_closed`. iPhone version once the App Store approves.
+  - Opening a screen marks its notices read (`MarkPageRead`, `POST /api/notifications/read-for-page`, same paths as the website; tab screens mark again on every return).
+- **App parity (2026-10-30):** the app covers every member page of the website (setup, full profile edit with review requests, photos, preferences + dealbreakers, quiz, guardian, suggestions, matches, chat, notifications, credits, support, referral, blocks, pause/delete). Profile form lists come from `GET /api/countries/{code}` (`lists` + `options`); add a new option there, never only in the app.
+
+## Store release
+
+- **Store release 1.0.0 (1) (2026-10-31):** builds in `~/Documents/EvoKey-Projects/naseebak-release-1.0.0/` (`.aab`, `.ipa`, test `.apk`, `store-listing.md` with every store text, review login and privacy answers).
+  - Android upload key: `~/.naseebak-keys/naseebak-upload.jks` (alias `upload`, passwords in `~/.naseebak-keys/key.properties`, copied to the git-ignored `naseebak_app/android/key.properties`; never commit it, keep a backup off the Mac). iOS: `flutter build ipa` signs with «Apple Distribution: Evolution Key for Information Technology» through Xcode's signed-in account (automatic signing).
+  - Every new upload needs a higher build number (`version: 1.0.0+N` in `pubspec.yaml`).
+  - Play Console's app is fixed to `com.naseebak.naseebakApp` (the Android id since 2026-11-01); its account-deletion URL is https://naseebak.com/privacy (owner's choice, no separate page). 1.0.0 (1) was uploaded to App Store Connect / TestFlight on 2026-11-01 (`xcodebuild -exportArchive` with `method app-store-connect`, `destination upload`, `-allowProvisioningUpdates` through Xcode's account).
+  - Run `flutter clean` (+ `pod install` with `LANG=en_US.UTF-8`) before a store build if the app ran on the iOS simulator: Flutter's native-asset cache otherwise ships the simulator `objective_c.framework` (from `path_provider_foundation`) and Apple refuses the upload («unsupported platform»).
+  - After the first Play upload, add Play's app-signing SHA-256 in Admin → Settings → «Mobile app» (done 2026-11-04 — Android App Links verified by Google at 16:05).
+  - Apple guideline 3.1.1: credits bought through Stripe in the app risk rejection — this older advice said to turn «Payments in the app» off before an App Store submission (the switch covers both platforms); since 2026-11-04 the owner keeps it on, so ask before the next submission.

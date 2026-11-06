@@ -56,6 +56,9 @@ export function landingContent(mode: LandingMode, country: CountryCode = DEFAULT
       : ["التسجيل مجاني ومعه اقتراحان", "الصور مخفية حتى التوافق", "لا أحد يعرف بقرارك"],
   };
 
+  /** Real screens of each country: Saudi ones show Saudi details («الرياض», «سعودي», 05…) */
+  const screen = (name: string) => `/images/landing/product/${sa ? "sa/" : ""}${name}.webp`;
+
   const tour: TourStep[] = newCycle
     ? [
         {
@@ -65,7 +68,7 @@ export function landingContent(mode: LandingMode, country: CountryCode = DEFAULT
           text: coi
             ? "تصلك اقتراحات مجانية باستمرار تناسب معاييرك: العمر والمدينة والتعليم والالتزام، مع نسبة التوافق وسبب الاقتراح. الطرفان يريان الاقتراح نفسه، وكلٌّ يقرّر وحده."
             : "تصلك اقتراحات أسبوعية مجانية تناسب معاييرك، مع نسبة التوافق وسبب الاقتراح. الطرفان يريان الاقتراح نفسه، وكلٌّ يقرّر وحده.",
-          image: "/images/landing/product/suggestion.webp",
+          image: screen("suggestion"),
           alt: "بطاقة اقتراح في نصيبك: الاسم الأول والعمر والمدينة ونسبة توافق 91٪، بدون صورة، مع زرّي «مهتم» و«لا»",
         },
         ...(coi
@@ -77,7 +80,7 @@ export function landingContent(mode: LandingMode, country: CountryCode = DEFAULT
                 text: chat
                   ? `محادثة هنا أولاً، أو تعارف عائلي مباشرة. «لا» مجانية ولا ${noKnown}. ` + CREDIT_ON_INTEREST_LINE
                   : `التعارف العائلي يبدأ مباشرة عند التوافق. «لا» مجانية ولا ${noKnown}. ` + CREDIT_ON_INTEREST_LINE,
-                image: "/images/landing/product/choose.webp",
+                image: screen("choose"),
                 alt: "نافذة «كيف تحبين أن يبدأ التعارف؟» مع خيارَي «محادثة هنا أولاً» و«تعارف عائلي مباشرة»",
               },
             ]
@@ -89,7 +92,7 @@ export function landingContent(mode: LandingMode, country: CountryCode = DEFAULT
           text: sa
             ? "يظهر الاقتراح بعلامة «أبدى اهتمامه بك» فتقرّر وأنت مطمئن. أما «لا» فلا يعرفها إلا من أبدى اهتمامه، ولا يُكشف شيء قبل أن يقول الطرفان «مهتم»."
             : "يظهر الاقتراح بعلامة «أبدى اهتمامه بك» فتقرّر وأنت مطمئن. أما «لا» فلا تصل لأحد، ولا يُكشف شيء قبل أن يقول الطرفان «مهتم».",
-          image: "/images/landing/product/interested.webp",
+          image: screen("interested"),
           alt: "بطاقة اقتراح عليها علامة «أبدت اهتمامها بك»",
         },
         {
@@ -99,7 +102,7 @@ export function landingContent(mode: LandingMode, country: CountryCode = DEFAULT
           text: coi
             ? "عندما يبدي الطرفان اهتمامهما تظهر الصور والتفاصيل الكاملة، ويبدأ التعارف الذي اخترتماه فوراً، مع خطوات التعارف أمامك."
             : "عندما يبدي الطرفان اهتمامهما تظهر الصور والتفاصيل الكاملة، وتختاران من صفحة التوافق طريقة التعارف.",
-          image: "/images/landing/product/match.webp",
+          image: screen("match"),
           alt: "صفحة التوافقات المتبادلة: بطاقة توافق بنسبة 91٪ وخطوات التعارف",
         },
         ...(chat
@@ -109,7 +112,7 @@ export function landingContent(mode: LandingMode, country: CountryCode = DEFAULT
                 label: "المحادثة",
                 title: "محادثة محمية لمدة 14 يوماً",
                 text: "نصّ فقط داخل نصيبك. تُحجب الأرقام والروابط وحسابات التواصل تلقائياً، وتنتقلان للتعارف العائلي متى شئتما.",
-                image: "/images/landing/product/chat.webp",
+                image: screen("chat"),
                 alt: `محادثة داخل نصيبك يظهر فيها تنبيه بأن مشاركة أرقام ${sa ? "الجوال" : "الهواتف"} غير ممكنة`,
               },
             ]
@@ -121,7 +124,7 @@ export function landingContent(mode: LandingMode, country: CountryCode = DEFAULT
           label: "الاقتراح",
           title: "اقتراحات مدروسة مع نسبة التوافق",
           text: `تصلك اقتراحات تناسب معاييرك مع نسبة التوافق، بدون صور. تقبل أو تعتذر، ${sa ? "دون" : "بدون"} أن يعرف الطرف الآخر.`,
-          image: "/images/landing/product/suggestion.webp",
+          image: screen("suggestion"),
           alt: "بطاقة اقتراح في نصيبك مع نسبة التوافق، بدون صورة",
         },
         {
@@ -129,7 +132,7 @@ export function landingContent(mode: LandingMode, country: CountryCode = DEFAULT
           label: "التوافق",
           title: "توافق متبادل ثم زيارة عائلية",
           text: "عندما يقبل الطرفان تظهر الصور، ويتواصل فريق نصيبك مع أولياء الأمور لتنسيق الزيارة.",
-          image: "/images/landing/product/match.webp",
+          image: screen("match"),
           alt: "صفحة التوافقات المتبادلة في نصيبك",
         },
       ];

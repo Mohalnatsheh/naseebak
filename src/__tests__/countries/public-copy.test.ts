@@ -64,3 +64,18 @@ describe("site metadata copy", () => {
     expect(publicCopy("SA").description).not.toMatch(/أردن/);
   });
 });
+
+describe("home page screens", () => {
+  const mode = { introRequests: true, chat: true, creditOnInterest: true };
+  const images = (country: "JO" | "SA") => landingContent(mode, country).tour.map((t) => t.image);
+
+  it("Saudi Arabia shows its own screens, none with Jordanian details", () => {
+    expect(images("SA").length).toBe(5);
+    for (const image of images("SA")) expect(image).toMatch(/^\/images\/landing\/product\/sa\//);
+  });
+
+  it("Jordan keeps its screens", () => {
+    for (const image of images("JO")) expect(image).not.toContain("/sa/");
+  });
+});
+

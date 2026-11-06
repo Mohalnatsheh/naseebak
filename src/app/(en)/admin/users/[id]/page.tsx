@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, use } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
-  ArrowLeft, User, Shield, Loader2, Ban, CreditCard,
+  ArrowLeft, User, Shield, Loader2, Ban, CreditCard, Pencil,
   Calendar, MapPin, Heart, GraduationCap, Briefcase, Camera, Brain,
   Users as UsersIcon, Phone, Mail, Flag, Sparkles, HeartHandshake, MessagesSquare, History,
 } from "lucide-react";
@@ -192,6 +192,11 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
   const [creditsNote, setCreditsNote] = useState("");
   const [creditsError, setCreditsError] = useState("");
   const [savingCredits, setSavingCredits] = useState(false);
+  const [nameEditorOpen, setNameEditorOpen] = useState(false);
+  const [firstNameDraft, setFirstNameDraft] = useState("");
+  const [lastNameDraft, setLastNameDraft] = useState("");
+  const [nameError, setNameError] = useState("");
+  const [savingName, setSavingName] = useState(false);
   const [flagging, setFlagging] = useState(false);
   const [actionError, setActionError] = useState("");
   const [endingChatId, setEndingChatId] = useState<string | null>(null);
@@ -314,6 +319,39 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
       setCreditsError("Network error — please try again");
     } finally {
       setSavingCredits(false);
+    }
+  }
+
+  function openNameEditor() {
+    if (!user) return;
+    setFirstNameDraft(user.firstName);
+    setLastNameDraft(user.lastName);
+    setNameError("");
+    setNameEditorOpen(!nameEditorOpen);
+  }
+
+  async function handleSaveName() {
+    setSavingName(true);
+    setNameError("");
+    try {
+      const res = await fetch(`/api/admin/users/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ firstName: firstNameDraft, lastName: lastNameDraft }),
+      });
+      if (res.ok) {
+        setNameEditorOpen(false);
+        await fetchUser();
+        toast.success("Name updated");
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setNameError(data.error || "Could not save the name");
+      }
+    } catch (err) {
+      console.error(err);
+      setNameError("Network error — please try again");
+    } finally {
+      setSavingName(false);
     }
   }
 
@@ -459,6 +497,9 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
               )}
             </Button>
           )}
+          <Button variant="outline" size="sm" onClick={openNameEditor}>
+            <Pencil className="h-4 w-4 me-2" /> Edit name
+          </Button>
           <Button
             variant="outline"
             size="sm"
@@ -474,6 +515,40 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
           <span>{actionError}</span>
           <button onClick={() => setActionError("")} className="text-xs underline shrink-0">Dismiss</button>
         </div>
+      )}
+
+      {/* Name inline editor: the same rule as sign-up, Arabic letters */}
+      {nameEditorOpen && (
+        <Card>
+          <CardContent className="pt-6 space-y-3">
+            <div className="flex flex-wrap items-center gap-3">
+              <Input
+                aria-label="First name"
+                placeholder="First name"
+                dir="rtl"
+                maxLength={40}
+                value={firstNameDraft}
+                onChange={(e) => setFirstNameDraft(e.target.value)}
+                className="flex-1 min-w-[160px]"
+              />
+              <Input
+                aria-label="Last name"
+                placeholder="Last name"
+                dir="rtl"
+                maxLength={40}
+                value={lastNameDraft}
+                onChange={(e) => setLastNameDraft(e.target.value)}
+                className="flex-1 min-w-[160px]"
+              />
+              <Button size="sm" onClick={handleSaveName} disabled={savingName}>
+                {savingName ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setNameEditorOpen(false)}>Cancel</Button>
+            </div>
+            <p className="text-xs text-muted-foreground">Arabic letters, as at sign-up. The member sees the new name straight away, and so does anyone they are matched with.</p>
+            {nameError && <p className="text-sm text-destructive">{nameError}</p>}
+          </CardContent>
+        </Card>
       )}
 
       {/* Credits inline editor: add or remove, with a reason (kept in the credit history) */}

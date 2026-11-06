@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { recordCredit } from "@/lib/credits";
+import { memberNameSchema } from "@/lib/validations/auth";
 
 export async function GET(
   request: Request,
@@ -125,6 +126,7 @@ const MAX_NOTE = 200;
  * - credits: `{ creditsDelta, note }` adds/removes credits atomically (never below 0) and writes
  *   an ADMIN_ADJUST ledger row with the note
  * - flag: `{ isFlagged, flagReason }`
+ * - name: `{ firstName, lastName }`, the same rule as sign-up (Arabic letters)
  */
 export async function PATCH(
   request: Request,
@@ -140,12 +142,18 @@ export async function PATCH(
     if (!body || typeof body !== "object") {
       return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
     }
-    const { creditsDelta, note, isFlagged, flagReason } = body as Record<string, unknown>;
+    const { creditsDelta, note, isFlagged, flagReason, firstName, lastName } = body as Record<string, unknown>;
 
     const hasCredits = creditsDelta !== undefined;
     const hasFlag = typeof isFlagged === "boolean";
-    if (!hasCredits && !hasFlag) {
+    const hasName = firstName !== undefined || lastName !== undefined;
+    if (!hasCredits && !hasFlag && !hasName) {
       return NextResponse.json({ error: "No valid fields to update" }, { status: 400 });
+    }
+
+    const name = hasName ? memberNameSchema.safeParse({ firstName, lastName }) : null;
+    if (name && !name.success) {
+      return NextResponse.json({ error: name.error.issues[0]?.message ?? "Invalid name" }, { status: 400 });
     }
 
     let trimmedNote = "";
@@ -198,6 +206,10 @@ export async function PATCH(
           flagReason: isFlagged === true && typeof flagReason === "string" && flagReason.trim() ? flagReason.trim() : null,
         },
       });
+    }
+
+    if (name?.success) {
+      await db.user.update({ where: { id }, data: name.data });
     }
 
     const user = await db.user.findUnique({

@@ -11,7 +11,8 @@
  * (`refundUnansweredInterests`). A "لا" closes the row as REJECTED at once (owner decision 2026-10-18):
  * the other side's card disappears as if it expired (no notice, no way to pay for it), the slot frees,
  * and a card hidden from a full candidate is never revealed. A "لا" is never refunded; the owner
- * accepted that this lets people infer a "لا" (no refund) from silence (refund).
+ * accepted that this lets people infer a "لا" (no refund) from silence (refund). Whoever blocks the person they
+ * are waiting for ended the card themselves, so their credit stays spent (owner decision 2026-11-06).
  */
 import type { IntroPreference, Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
@@ -120,27 +121,41 @@ export async function revealHiddenFor(
 
 /**
  * A block closes the open shared suggestions between the two right away (they're hidden from both
- * anyway), so the slots free up; an unanswered «مهتم» on them is refunded like any other closing.
+ * anyway), so the slots free up. The blocker's own unanswered «مهتم» is not refunded: the stamp keeps
+ * the refund off the row, even after an unblock. A card whose 7 days already ran out earned its refund
+ * first, and an unanswered «مهتم» of the blocked person is refunded like any other closing.
  */
-export async function closeSuggestionsBetween(a: string, b: string): Promise<void> {
+export async function closeSuggestionsBetween(blockerId: string, blockedId: string): Promise<void> {
   const now = new Date();
+  await db.suggestion.updateMany({
+    where: {
+      flow: "MUTUAL",
+      status: "PENDING",
+      expiresAt: { gt: now },
+      OR: [
+        { recipientId: blockerId, candidateId: blockedId, recipientDecision: "INTERESTED", candidateDecision: null },
+        { recipientId: blockedId, candidateId: blockerId, candidateDecision: "INTERESTED", recipientDecision: null },
+      ],
+    },
+    data: { status: "EXPIRED", expiresAt: now, interestRefundedAt: now },
+  });
   const { count } = await db.suggestion.updateMany({
     where: {
       flow: "MUTUAL",
       status: "PENDING",
       OR: [
-        { recipientId: a, candidateId: b },
-        { recipientId: b, candidateId: a },
+        { recipientId: blockerId, candidateId: blockedId },
+        { recipientId: blockedId, candidateId: blockerId },
       ],
     },
     data: { status: "EXPIRED", expiresAt: now },
   });
-  if (count > 0) await refundUnansweredInterests({ userId: a, now });
+  if (count > 0) await refundUnansweredInterests({ userId: blockerId, now });
 }
 
 /**
- * The «مهتم» credit came back. Neutral wording: it is sent for every early close (expiry, block,
- * dealbreaker, profile change, engagement, a match lost at the last moment), never says why.
+ * The «مهتم» credit came back. Neutral wording: it is sent for every early close (expiry, being
+ * blocked, dealbreaker, profile change, engagement, a match lost at the last moment), never says why.
  */
 async function sendRefundNotice(userId: string, gender: string | null | undefined, suggestionId: string): Promise<void> {
   try {

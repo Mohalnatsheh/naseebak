@@ -88,6 +88,12 @@ function arabicNameField(label: string) {
     );
 }
 
+/** A member's name, the same rule as sign-up (Admin → member → Edit name) */
+export const memberNameSchema = z.object({
+  firstName: arabicNameField("الاسم الأول"),
+  lastName: arabicNameField("اسم العائلة"),
+});
+
 export const TERMS_REQUIRED_MESSAGE = "يرجى الموافقة على الشروط وسياسة الخصوصية وتأكيد أن عمرك 18 سنة أو أكثر";
 
 export const registerSchema = z.object({

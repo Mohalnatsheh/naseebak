@@ -30,6 +30,11 @@ export async function listPublishedPosts({ category, page = 1, pageSize = BLOG_P
   return { posts, page, totalPages: Math.ceil(total / pageSize), total };
 }
 
+/** Slug and title of every published post, to link mentions of one post in another */
+export function listPublishedPostTitles() {
+  return db.blogPost.findMany({ where: { status: "PUBLISHED" }, select: { slug: true, title: true } });
+}
+
 /** Every category (shown even with no published post) with its published-post count */
 export function listBlogCategories() {
   return db.blogCategory.findMany({

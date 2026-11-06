@@ -5,7 +5,8 @@ import { Footer } from "@/components/shared/footer";
 import { Badge } from "@/components/ui/badge";
 import { PageHeroPhoto } from "@/components/shared/page-hero-photo";
 import { ArrowRight, Calendar, Clock } from "lucide-react";
-import { getPublishedPost } from "@/lib/blog";
+import { PostContent } from "@/components/blog/post-content";
+import { getPublishedPost, listPublishedPostTitles } from "@/lib/blog";
 
 /* ──────────────────── Gradient Map ──────────────────── */
 
@@ -39,6 +40,7 @@ export default async function BlogDetailPage({ params }: { params: Promise<{ slu
   const { slug } = await params;
   const post = await getPublishedPost(slug);
   if (!post) notFound();
+  const otherPosts = (await listPublishedPostTitles()).filter((other) => other.slug !== post.slug);
 
   return (
     <>
@@ -87,9 +89,7 @@ export default async function BlogDetailPage({ params }: { params: Promise<{ slu
         {/* ═══════════════ CONTENT ═══════════════ */}
         <section className="py-12">
           <div className="container mx-auto max-w-3xl px-4">
-            <div className="prose prose-lg max-w-none text-foreground leading-relaxed whitespace-pre-wrap">
-              {post.content}
-            </div>
+            <PostContent title={post.title} content={post.content} otherPosts={otherPosts} />
           </div>
         </section>
 

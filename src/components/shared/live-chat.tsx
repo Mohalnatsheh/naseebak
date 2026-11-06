@@ -2,16 +2,26 @@
 
 import { useEffect } from "react";
 import { usePathname } from "next/navigation";
-import { TAWK_SRC, TAWK_STYLE, isLiveChatOffPath } from "@/lib/live-chat";
+import { TAWK_SRC, isLiveChatOffPath, tawkStyle } from "@/lib/live-chat";
 
 interface TawkApi {
-  customStyle?: typeof TAWK_STYLE;
+  customStyle?: ReturnType<typeof tawkStyle>;
   onLoad?: () => void;
   hideWidget?: () => void;
   showWidget?: () => void;
 }
 
 type TawkWindow = { Tawk_API?: TawkApi; Tawk_LoadStart?: Date };
+
+/** Set on <body> while a modal menu or popup (Sheet, Dialog) is open */
+const SCROLL_LOCK = "data-scroll-locked";
+
+/** Hidden on some pages and while a menu or popup is open: Tawk sits above everything, so it would cover their buttons */
+function syncBubble() {
+  const api = (window as unknown as TawkWindow).Tawk_API;
+  if (isLiveChatOffPath(window.location.pathname) || document.body.hasAttribute(SCROLL_LOCK)) api?.hideWidget?.();
+  else api?.showWidget?.();
+}
 
 /**
  * Tawk.to bubble. Loads on the first page that may show it, once: it can't be unloaded, so a client-side move to a
@@ -22,19 +32,12 @@ export function LiveChat() {
 
   useEffect(() => {
     const w = window as unknown as TawkWindow;
-    const off = isLiveChatOffPath(pathname);
     if (w.Tawk_API) {
-      if (off) w.Tawk_API.hideWidget?.();
-      else w.Tawk_API.showWidget?.();
+      syncBubble();
       return;
     }
-    if (off) return;
-    w.Tawk_API = {
-      customStyle: TAWK_STYLE,
-      onLoad: () => {
-        if (isLiveChatOffPath(window.location.pathname)) w.Tawk_API?.hideWidget?.();
-      },
-    };
+    if (isLiveChatOffPath(pathname)) return;
+    w.Tawk_API = { customStyle: tawkStyle(window.innerWidth), onLoad: syncBubble };
     w.Tawk_LoadStart = new Date();
     const script = document.createElement("script");
     script.async = true;
@@ -43,6 +46,12 @@ export function LiveChat() {
     script.setAttribute("crossorigin", "*");
     document.body.appendChild(script);
   }, [pathname]);
+
+  useEffect(() => {
+    const observer = new MutationObserver(syncBubble);
+    observer.observe(document.body, { attributes: true, attributeFilter: [SCROLL_LOCK] });
+    return () => observer.disconnect();
+  }, []);
 
   return null;
 }

@@ -6,10 +6,14 @@ export function isLiveChatOffPath(pathname: string): boolean {
   return ["/admin", "/pay", "/payments", "/dashboard/chats"].some((p) => pathname === p || pathname.startsWith(`${p}/`));
 }
 
-/** Above the phone bars (dashboard tabs, the landing start bar) */
-export const TAWK_STYLE = {
-  visibility: {
-    desktop: { position: "br", xOffset: 20, yOffset: 20 },
-    mobile: { position: "br", xOffset: 12, yOffset: 84 },
-  },
-};
+/** Tawk reads this once, at load. Phones sit above the bottom bars: 64px + the iPhone home-indicator area (up to 34px) */
+export function tawkStyle(viewportWidth: number) {
+  const above = { position: "br", xOffset: 12, yOffset: 104 };
+  return {
+    visibility: {
+      // A narrow desktop window gets Tawk's desktop style, but the site's phone layout
+      desktop: viewportWidth < 768 ? above : { position: "br", xOffset: 20, yOffset: 20 },
+      mobile: above,
+    },
+  };
+}

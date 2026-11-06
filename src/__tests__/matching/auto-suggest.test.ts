@@ -26,7 +26,7 @@ vi.mock("@/lib/matching/score", async (importOriginal) => {
   };
 });
 
-import { autoSuggestForUser, autoSuggestWithReason, minSuggestionScore, nextSuggestionsAtFor, openCounts } from "@/lib/matching/auto-suggest";
+import { autoSuggestForUser, autoSuggestWithReason, clearSuggestCooldown, minSuggestionScore, nextSuggestionsAtFor, openCounts } from "@/lib/matching/auto-suggest";
 
 // Profile with every basic + preference field filled → 60% completeness (above the 50% threshold)
 const fullProfile = (gender: "MALE" | "FEMALE") => ({
@@ -391,6 +391,18 @@ describe("autoSuggestWithReason", () => {
     expect(res.reason).toBe("weekly_cap");
     expect(res.nextSuggestionsAt).toEqual(new Date(oldest.getTime() + 7 * DAY));
     expect(db.suggestion.findFirst.mock.calls[0][0].orderBy).toEqual({ createdAt: "asc" });
+  });
+
+  it("searches again straight after the member changes their conditions, despite the retry wait", async () => {
+    db.user.findUnique.mockResolvedValue(person("why-cleared", "MALE"));
+    db.user.findMany.mockResolvedValue([]);
+    await autoSuggestWithReason("why-cleared");
+    const scans = db.user.findMany.mock.calls.length;
+    await autoSuggestWithReason("why-cleared");
+    expect(db.user.findMany.mock.calls.length).toBe(scans);
+    clearSuggestCooldown("why-cleared");
+    await autoSuggestWithReason("why-cleared");
+    expect(db.user.findMany.mock.calls.length).toBeGreaterThan(scans);
   });
 
   it("says 'no_candidates' when nobody fits (and again during the retry cooldown)", async () => {

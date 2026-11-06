@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const db = vi.hoisted(() => ({ user: { findUnique: vi.fn() }, suggestion: { findMany: vi.fn(), updateMany: vi.fn() } }));
 const score = vi.hoisted(() => ({ calculateCompatibility: vi.fn(), mutuallyAcceptable: vi.fn() }));
-const auto = vi.hoisted(() => ({ autoSuggestForUser: vi.fn(), minSuggestionScore: vi.fn(() => 50), scoringSelect: {} }));
+const auto = vi.hoisted(() => ({ autoSuggestForUser: vi.fn(), clearSuggestCooldown: vi.fn(), minSuggestionScore: vi.fn(() => 50), scoringSelect: {} }));
 const flags = vi.hoisted(() => ({ value: { mutualSuggestions: true, creditOnInterest: true } }));
 vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/matching/score", () => score);
@@ -119,5 +119,10 @@ describe("refreshOpenSuggestions", () => {
     expect(await refreshOpenSuggestions("u1")).toEqual({ rescored: 0, closed: 0 });
     expect(db.suggestion.findMany).not.toHaveBeenCalled();
     expect(auto.autoSuggestForUser).toHaveBeenCalledWith("u1");
+  });
+
+  it("searches for new people right away after a change, even after an empty search", async () => {
+    await refreshOpenSuggestions("u1");
+    expect(auto.clearSuggestCooldown).toHaveBeenCalledWith("u1");
   });
 });

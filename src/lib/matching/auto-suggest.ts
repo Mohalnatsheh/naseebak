@@ -36,7 +36,14 @@ const NEW_SUGGESTIONS_DAILY = "new-suggestions";
 const MIN_SCORE_CREDIT_ON_INTEREST = 60;
 // When a run finds no suitable candidate, wait before scanning again (per user, per server process)
 const RETRY_COOLDOWN_MS = 30 * 60 * 1000;
-const lastEmptyRun = new Map<string, number>();
+// One map per server process, shared by every route (Next.js may give each route its own copy of this module)
+const store = globalThis as unknown as { __naseebakEmptyRuns?: Map<string, number> };
+const lastEmptyRun = (store.__naseebakEmptyRuns ??= new Map<string, number>());
+
+/** The member changed what they look for: the next run searches at once, whatever the last search found */
+export function clearSuggestCooldown(userId: string): void {
+  lastEmptyRun.delete(userId);
+}
 const inFlight = new Map<string, Promise<SuggestOutcome>>();
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 

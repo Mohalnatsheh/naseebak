@@ -4,7 +4,7 @@ import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { DEALBREAKER_KEYS } from "@/lib/matching/score";
 import { closeSuggestionsBreakingDealbreakers } from "@/lib/suggestions/dealbreaker-sweep";
-import { autoSuggestForUser } from "@/lib/matching/auto-suggest";
+import { autoSuggestForUser, clearSuggestCooldown } from "@/lib/matching/auto-suggest";
 
 /**
  * "شروطي الأساسية": preferences the user marked as hard filters for suggestions.
@@ -42,10 +42,12 @@ export async function PUT(request: Request) {
       data: { dealbreakers: [...new Set(parsed.data.keys)] },
     });
     if (updated.count === 0) return NextResponse.json({ error: "أكمل ملفك الشخصي أولاً" }, { status: 404 });
-    // Open suggestions that now break a condition are closed, then the gaps are filled with ones that pass
+    // Open suggestions that now break a condition are closed, then the list is filled with ones that pass:
+    // also after a condition was removed, which closes nothing but can bring new people
     const userId = result.session.user.id;
+    clearSuggestCooldown(userId);
     await closeSuggestionsBreakingDealbreakers(userId)
-      .then((closed) => (closed > 0 ? autoSuggestForUser(userId) : 0))
+      .then(() => autoSuggestForUser(userId))
       .catch((e) => console.error("Dealbreaker sweep error:", e));
     return NextResponse.json({ message: "تم حفظ شروطك الأساسية", keys: [...new Set(parsed.data.keys)] });
   } catch (error) {

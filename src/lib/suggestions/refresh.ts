@@ -12,7 +12,7 @@
  */
 import { db } from "@/lib/db";
 import { calculateCompatibility, mutuallyAcceptable, type UserForScoring } from "@/lib/matching/score";
-import { autoSuggestForUser, minSuggestionScore, scoringSelect } from "@/lib/matching/auto-suggest";
+import { autoSuggestForUser, clearSuggestCooldown, minSuggestionScore, scoringSelect } from "@/lib/matching/auto-suggest";
 import { getCycleFlags } from "@/lib/settings";
 import { refundUnansweredInterests } from "@/lib/suggestions/mutual";
 
@@ -26,6 +26,7 @@ export async function refreshOpenSuggestions(userId: string, now = new Date()): 
   const flags = await getCycleFlags();
   // Older flow: nothing shared to refresh, only the usual top-up
   if (!flags.mutualSuggestions) {
+    clearSuggestCooldown(userId);
     await autoSuggestForUser(userId);
     return result;
   }
@@ -98,7 +99,8 @@ export async function refreshOpenSuggestions(userId: string, now = new Date()): 
     if (count > 0) await refundUnansweredInterests({ userId, now }).catch((e) => console.error("[suggestions] refresh refunds:", e));
   }
 
-  // Fills the freed slots (and any that were already free)
+  // Fills the freed slots (and any that were already free). New data can bring new people
+  clearSuggestCooldown(userId);
   await autoSuggestForUser(userId);
   return result;
 }

@@ -32,3 +32,19 @@ describe("country URLs", () => {
     expect(absoluteUrl("/", "SA")).toBe("https://naseebak.com/sa");
   });
 });
+
+describe("the blog per country", () => {
+  it("has Saudi URLs for the list and for posts", () => {
+    expect(localizedPath("/blog", "SA")).toBe("/sa/blog");
+    expect(localizedPath("/blog/a-post", "SA")).toBe("/sa/blog/a-post");
+    expect(localizedPath("/sa/blog/a-post", "JO")).toBe("/blog/a-post");
+    expect(absoluteUrl("/blog/a-post", "SA")).toBe("https://naseebak.com/sa/blog/a-post");
+    expect(splitCountryPath("/sa/blog/a-post")).toEqual({ country: "SA", path: "/blog/a-post" });
+  });
+
+  it("the switcher goes to the other country's blog: a post belongs to one country", () => {
+    expect(switchCountryPath("/blog", "SA")).toBe("/sa/blog");
+    expect(switchCountryPath("/blog/a-post", "SA")).toBe("/sa/blog");
+    expect(switchCountryPath("/sa/blog/a-post", "JO")).toBe("/blog");
+  });
+});

@@ -12,12 +12,12 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [{ source: "/dashboard/identity", destination: "/dashboard", permanent: false }];
   },
-  // Saudi URLs (src/lib/site-paths.ts LOCALIZED_PATHS): src/proxy.ts tells the page the country, this finds the page
+  // Saudi URLs (src/lib/site-paths.ts LOCALIZED_PATHS and blog posts): src/proxy.ts tells the page the country, this finds the page
   async rewrites() {
     return {
       beforeFiles: [
         { source: "/sa", destination: "/" },
-        ...["/faq", "/about", "/contact", "/terms", "/privacy", "/refund-policy"].map((path) => ({ source: `/sa${path}`, destination: path })),
+        ...["/faq", "/about", "/contact", "/terms", "/privacy", "/refund-policy", "/blog", "/blog/:slug"].map((path) => ({ source: `/sa${path}`, destination: path })),
       ],
       afterFiles: [],
       fallback: [],

@@ -20,6 +20,8 @@ import { toast } from "sonner";
 
 /* ──────────────────── Types ──────────────────── */
 
+type PostCountry = "JO" | "SA";
+
 interface Category {
   id: string;
   slug: string;
@@ -37,6 +39,7 @@ interface BlogPost {
   status: "DRAFT" | "PUBLISHED";
   categoryId: string;
   readTime: string | null;
+  country: PostCountry;
   publishedAt: string | null;
   createdAt: string;
   category: { id: string; nameEn: string; nameAr: string; slug: string };
@@ -77,6 +80,7 @@ export default function AdminBlogPage() {
     categoryId: "",
     status: "DRAFT" as "DRAFT" | "PUBLISHED",
     readTime: "",
+    country: "JO" as PostCountry,
   });
   const [postSaving, setPostSaving] = useState(false);
   const [postError, setPostError] = useState("");
@@ -126,7 +130,7 @@ export default function AdminBlogPage() {
 
   function openNewPost() {
     setEditingPost(null);
-    setPostForm({ title: "", slug: "", excerpt: "", content: "", categoryId: categories[0]?.id || "", status: "DRAFT", readTime: "" });
+    setPostForm({ title: "", slug: "", excerpt: "", content: "", categoryId: categories[0]?.id || "", status: "DRAFT", country: "JO", readTime: "" });
     setPostError("");
     setPostDialogOpen(true);
   }
@@ -141,6 +145,7 @@ export default function AdminBlogPage() {
       categoryId: post.categoryId,
       status: post.status,
       readTime: post.readTime || "",
+      country: post.country,
     });
     setPostError("");
     setPostDialogOpen(true);
@@ -297,6 +302,7 @@ export default function AdminBlogPage() {
                   <thead>
                     <tr className="border-b bg-muted/50">
                       <th className="text-left p-3 text-sm font-medium">Title</th>
+                      <th className="text-left p-3 text-sm font-medium">Country</th>
                       <th className="text-left p-3 text-sm font-medium">Category</th>
                       <th className="text-left p-3 text-sm font-medium">Status</th>
                       <th className="text-left p-3 text-sm font-medium">Published</th>
@@ -307,14 +313,14 @@ export default function AdminBlogPage() {
                     {postsLoading ? (
                       Array.from({ length: 5 }).map((_, i) => (
                         <tr key={i} className="border-b">
-                          <td colSpan={5} className="p-3">
+                          <td colSpan={6} className="p-3">
                             <div className="h-6 bg-muted animate-pulse rounded" />
                           </td>
                         </tr>
                       ))
                     ) : posts.length === 0 ? (
                       <tr>
-                        <td colSpan={5} className="text-center p-8 text-muted-foreground">
+                        <td colSpan={6} className="text-center p-8 text-muted-foreground">
                           No posts yet
                         </td>
                       </tr>
@@ -325,6 +331,7 @@ export default function AdminBlogPage() {
                             <p className="font-medium text-sm">{post.title}</p>
                             <p className="text-xs text-muted-foreground mt-0.5 break-all">/{post.slug}</p>
                           </td>
+                          <td className="p-3 text-sm">{post.country === "SA" ? "Saudi Arabia" : "Jordan"}</td>
                           <td className="p-3">
                             <Badge variant="secondary" className="text-xs">
                               {post.category.nameEn}
@@ -442,14 +449,14 @@ export default function AdminBlogPage() {
                     {catsLoading ? (
                       Array.from({ length: 3 }).map((_, i) => (
                         <tr key={i} className="border-b">
-                          <td colSpan={5} className="p-3">
+                          <td colSpan={6} className="p-3">
                             <div className="h-6 bg-muted animate-pulse rounded" />
                           </td>
                         </tr>
                       ))
                     ) : categories.length === 0 ? (
                       <tr>
-                        <td colSpan={5} className="text-center p-8 text-muted-foreground">
+                        <td colSpan={6} className="text-center p-8 text-muted-foreground">
                           No categories yet
                         </td>
                       </tr>
@@ -604,6 +611,19 @@ export default function AdminBlogPage() {
                   {categories.map((cat) => (
                     <option key={cat.id} value={cat.id}>{cat.nameEn}</option>
                   ))}
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="post-country">Country</Label>
+                <select
+                  id="post-country"
+                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs"
+                  value={postForm.country}
+                  onChange={(e) => setPostForm({ ...postForm, country: e.target.value as PostCountry })}
+                >
+                  <option value="JO">Jordan (/blog)</option>
+                  <option value="SA">Saudi Arabia (/sa/blog)</option>
                 </select>
               </div>
 

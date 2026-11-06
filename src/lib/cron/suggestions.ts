@@ -193,8 +193,8 @@ export async function remindWaitingInterest(now = new Date()): Promise<{ members
       title: LIKED_WAITING_TITLE,
       body:
         (female
-          ? "أحدهم قال «مهتم» لكِ وما زال ينتظر قراركِ. ادخلي وشوفي الاقتراح قبل ما ينتهي."
-          : "أحدهم قال «مهتم» لك وما زال ينتظر قرارك. ادخل وشوف الاقتراح قبل ما ينتهي.") + topUp,
+          ? "أحدهم قال «مهتم» لكِ وما زال ينتظر قراركِ. ادخلي وشاهدي الاقتراح قبل انتهاء مدته."
+          : "أحدهم قال «مهتم» لك وما زال ينتظر قرارك. ادخل وشاهد الاقتراح قبل انتهاء مدته.") + topUp,
       url: "/dashboard/suggestions?tab=interested",
       sms: false,
     });

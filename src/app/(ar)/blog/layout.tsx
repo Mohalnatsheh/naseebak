@@ -1,17 +1,26 @@
 import type { Metadata } from "next";
 import { socialMetadata } from "@/lib/seo";
+import { getVisitorCountry } from "@/lib/countries/server";
+import { activeCountryCodes } from "@/lib/countries/settings";
+import { publicCopy } from "@/lib/public-copy";
+import { absoluteUrl, seoAlternates } from "@/lib/site-paths";
 
-export const metadata: Metadata = {
+/** One blog per country: /blog and /sa/blog */
+export async function generateMetadata(): Promise<Metadata> {
+  const country = await getVisitorCountry();
+  return {
   title: "المدونة: نصائح للزواج بالحلال والحياة الزوجية",
   description:
     "نصائح عملية وقصص نجاح ملهمة حول الحياة الزوجية والبحث عن شريك الحياة بالحلال — مقالات من فريق نصيبك",
-  alternates: { canonical: "https://naseebak.com/blog" },
+  alternates: seoAlternates("/blog", country, await activeCountryCodes()),
   ...socialMetadata({
     title: "المدونة | نصيبك",
     description: "نصائح عملية وقصص نجاح ملهمة حول الحياة الزوجية والبحث عن شريك الحياة بالحلال",
-    url: "https://naseebak.com/blog",
+    url: absoluteUrl("/blog", country),
+    locale: publicCopy(country).ogLocale,
   }),
-};
+  };
+}
 
 export default function BlogLayout({
   children,

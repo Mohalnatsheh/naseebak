@@ -4,7 +4,8 @@
  * `/sa` (`/sa`, `/sa/faq`, …). The proxy rewrites `/sa/...` to the same page and tells it the country
  * through the SITE_COUNTRY_HEADER request header. Every localized page declares both versions to
  * search engines (hreflang ar-JO / ar-SA, x-default = Jordan) and its own canonical URL.
- * Pages that follow the account or are shared (dashboard, login, register, blog) have no country URL.
+ * The blog has one too, with its own posts per country (`/blog/...`, `/sa/blog/...`).
+ * Pages that follow the account or are shared (dashboard, login, register) have no country URL.
  */
 import { COUNTRY_CODES, DEFAULT_COUNTRY, type CountryCode } from "@/lib/countries";
 
@@ -20,10 +21,10 @@ const PREFIX: Record<CountryCode, string> = { JO: "", SA: "/sa" };
 export const HREFLANG: Record<CountryCode, string> = { JO: "ar-JO", SA: "ar-SA" };
 
 /** Public pages that exist once per country */
-export const LOCALIZED_PATHS = ["/", "/faq", "/about", "/contact", "/terms", "/privacy", "/refund-policy"] as const;
+export const LOCALIZED_PATHS = ["/", "/faq", "/about", "/contact", "/terms", "/privacy", "/refund-policy", "/blog"] as const;
 
 export function isLocalizedPath(path: string): boolean {
-  return (LOCALIZED_PATHS as readonly string[]).includes(path === "" ? "/" : path);
+  return (LOCALIZED_PATHS as readonly string[]).includes(path === "" ? "/" : path) || path.startsWith("/blog/");
 }
 
 /**
@@ -59,6 +60,8 @@ export function localizedPath(href: string, country: CountryCode): string {
 /** The same page in another country (switcher), or null when the page has no country version */
 export function switchCountryPath(pathname: string, to: CountryCode): string | null {
   const { path } = splitCountryPath(pathname);
+  // A post belongs to one country: the other country gets its blog
+  if (path.startsWith("/blog/")) return localizedPath("/blog", to);
   return isLocalizedPath(path) ? localizedPath(path, to) : null;
 }
 

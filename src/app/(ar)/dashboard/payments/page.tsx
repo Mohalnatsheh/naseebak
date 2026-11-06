@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useEffectEvent, useCallback, Suspense } from "react";
-import Link from "next/link";
+import Link from "@/components/shared/site-link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { loadStripe } from "@stripe/stripe-js";
 import {
@@ -666,7 +666,7 @@ function PaymentsContent() {
       <p className="text-center text-xs leading-relaxed text-muted-foreground">
         {country.code === "SA" ? (
           // [NEEDS INPUT] statement descriptor and seller name for the Saudi Stripe account
-          <>الأسعار بالريال السعودي شاملة، ويتم الدفع بالريال عبر Stripe ·{" "}</>
+          <>الأسعار بالريال السعودي، ويتم الدفع بالريال عبر Stripe ·{" "}</>
         ) : (
           <>الأسعار بالدينار الأردني، ويتم الخصم بما يعادلها بالدولار الأمريكي (يظهر في كشف الحساب باسم LOGICCR). البائع: LOGIC CENTER FOR WEBSITE DESIGN ·{" "}</>
         )}

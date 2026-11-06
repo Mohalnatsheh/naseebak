@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import {
-  BIRTH_MONTHS,
+  birthMonths,
   birthYearOptions,
   changeDobPart,
   daysInMonth,
@@ -11,6 +11,7 @@ import {
   splitDob,
   type DobParts,
 } from "@/lib/birth-date";
+import { useVisitorCountry } from "@/components/shared/visitor-country";
 
 /**
  * Birth date as day / month / year lists (src/lib/birth-date.ts says why not `type="date"`).
@@ -30,6 +31,7 @@ export function BirthDateSelect({
   invalid?: boolean;
   selectClassName?: string;
 }) {
+  const country = useVisitorCountry();
   const [parts, setParts] = useState<DobParts>(() => splitDob(value));
 
   // A value set from outside (profile loaded, draft restored) replaces the lists; our own "" for a partial date doesn't
@@ -62,7 +64,7 @@ export function BirthDateSelect({
         </select>
         <select aria-label="الشهر" aria-invalid={invalid || undefined} value={parts.month} onChange={(e) => pick("month", e.target.value)} className={cls}>
           <option value="">شهر</option>
-          {BIRTH_MONTHS.map((name, i) => (
+          {birthMonths(country).map((name, i) => (
             <option key={name} value={String(i + 1)}>{`${i + 1} - ${name}`}</option>
           ))}
         </select>

@@ -32,7 +32,7 @@ export async function PUT(
       }
     }
 
-    const { title, slug, excerpt, content, categoryId, status, readTime } = parsed.data;
+    const { title, slug, excerpt, content, categoryId, status, readTime, country } = parsed.data;
 
     // Set publishedAt when first published
     let publishedAt = existing.publishedAt;
@@ -42,7 +42,7 @@ export async function PUT(
 
     const post = await db.blogPost.update({
       where: { id },
-      data: { title, slug, excerpt, content, categoryId, status, readTime, publishedAt },
+      data: { title, slug, excerpt, content, categoryId, status, readTime, country, publishedAt },
       include: { category: true },
     });
 

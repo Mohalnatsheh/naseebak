@@ -8,6 +8,8 @@ export const createBlogPostSchema = z.object({
   categoryId: z.string().min(1, "Category is required"),
   status: z.enum(["DRAFT", "PUBLISHED"]).default("DRAFT"),
   readTime: z.string().optional(),
+  /** Which country's blog shows the post. Not sent: a new post is Jordan's, an edit keeps its country */
+  country: z.enum(["JO", "SA"]).optional(),
 });
 
 export const createCategorySchema = z.object({

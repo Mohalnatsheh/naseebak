@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "@/components/shared/site-link";
 import { usePathname } from "next/navigation";
+import { splitCountryPath } from "@/lib/site-paths";
 import Image from "next/image";
 import { Menu, ArrowLeft, X, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -26,7 +27,8 @@ const pageLinks = [
 ];
 
 export function Navbar() {
-  const pathname = usePathname();
+  // Without the country part: /sa is the home page too
+  const { path: pathname } = splitCountryPath(usePathname());
   const isHome = pathname === "/";
   const [scrolled, setScrolled] = useState(false);
   const [activeSection, setActiveSection] = useState("");

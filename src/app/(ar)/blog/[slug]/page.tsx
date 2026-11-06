@@ -6,6 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { PageHeroPhoto } from "@/components/shared/page-hero-photo";
 import { ArrowRight, Calendar, Clock } from "lucide-react";
 import { PostContent } from "@/components/blog/post-content";
+import { formatDate, type CountryCode } from "@/lib/countries";
+import { getVisitorCountry } from "@/lib/countries/server";
 import { getPublishedPost, listPublishedPostTitles } from "@/lib/blog";
 
 /* ──────────────────── Gradient Map ──────────────────── */
@@ -21,15 +23,8 @@ const defaultGradient = "from-primary/20 via-secondary/10 to-primary/5";
 
 /* ──────────────────── Helpers ──────────────────── */
 
-function formatDate(date: Date | null) {
-  if (!date) return "";
-  return date.toLocaleDateString("ar-JO-u-nu-latn", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-    timeZone: "Asia/Amman",
-  });
-}
+const postDate = (date: Date | null, country: CountryCode) =>
+  date ? formatDate(date, country, { year: "numeric", month: "long", day: "numeric" }) : "";
 
 /* ══════════════════════════════════════════════════════ */
 /*                   BLOG DETAIL PAGE                     */
@@ -38,9 +33,10 @@ function formatDate(date: Date | null) {
 /** Rendered on the server so the article text is in the HTML search engines and link previews read */
 export default async function BlogDetailPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const post = await getPublishedPost(slug);
+  const country = await getVisitorCountry();
+  const post = await getPublishedPost(slug, country);
   if (!post) notFound();
-  const otherPosts = (await listPublishedPostTitles()).filter((other) => other.slug !== post.slug);
+  const otherPosts = (await listPublishedPostTitles(country)).filter((other) => other.slug !== post.slug);
 
   return (
     <>
@@ -74,7 +70,7 @@ export default async function BlogDetailPage({ params }: { params: Promise<{ slu
             <div className="flex items-center gap-4 text-sm text-muted-foreground">
               <span className="inline-flex items-center gap-1.5">
                 <Calendar className="size-4" />
-                {formatDate(post.publishedAt)}
+                {postDate(post.publishedAt, country)}
               </span>
               {post.readTime && (
                 <span className="inline-flex items-center gap-1.5">

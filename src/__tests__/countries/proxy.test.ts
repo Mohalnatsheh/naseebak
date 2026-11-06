@@ -52,7 +52,7 @@ describe("country URLs (SEO)", () => {
   it("next.config routes every Saudi URL to its page, and nothing else", async () => {
     const rewrites = await nextConfig.rewrites!();
     const list = (Array.isArray(rewrites) ? rewrites : rewrites.beforeFiles) ?? [];
-    expect(list.map((r) => r.source).sort()).toEqual(LOCALIZED_PATHS.map((p) => localizedPath(p, "SA")).sort());
+    expect(list.map((r) => r.source).sort()).toEqual([...LOCALIZED_PATHS.map((p) => localizedPath(p, "SA")), "/sa/blog/:slug"].sort());
     for (const r of list) expect(`/sa${r.destination === "/" ? "" : r.destination}`).toBe(r.source);
   });
 
@@ -64,6 +64,11 @@ describe("country URLs (SEO)", () => {
     expect(res.headers.get("x-middleware-rewrite")).toBeNull();
     expect(res.headers.get("x-middleware-request-x-site-country")).toBe("SA");
     expect(res.headers.get("set-cookie") ?? "").toContain("naseeb_country=SA");
+  });
+
+  it("the blog has country URLs too", async () => {
+    expect((await call("https://naseebak.com/sa/blog/x")).headers.get("x-middleware-request-x-site-country")).toBe("SA");
+    expect((await call("https://naseebak.com/blog/x")).headers.get("x-middleware-request-x-site-country")).toBe("JO");
   });
 
   it("renders /sa as the Saudi home page", async () => {

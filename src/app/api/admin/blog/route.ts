@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { isUniqueViolation } from "@/lib/admin/query";
 import { createBlogPostSchema } from "@/lib/validations/blog";
 import { parsePagination } from "@/lib/utils";
+import { getAdminCountry } from "@/lib/admin/country-filter";
 
 export async function GET(req: NextRequest) {
   try {
@@ -13,14 +14,18 @@ export async function GET(req: NextRequest) {
     const { searchParams } = req.nextUrl;
     const { page, pageSize, skip } = parsePagination(searchParams, 10);
 
+    const country = await getAdminCountry(req);
+    const where = country === "ALL" ? {} : { country };
+
     const [posts, total] = await Promise.all([
       db.blogPost.findMany({
+        where,
         include: { category: true },
         orderBy: { createdAt: "desc" },
         skip,
         take: pageSize,
       }),
-      db.blogPost.count(),
+      db.blogPost.count({ where }),
     ]);
 
     return NextResponse.json({
@@ -50,7 +55,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "بيانات غير صالحة", details: parsed.error.issues }, { status: 400 });
     }
 
-    const { title, slug, excerpt, content, categoryId, status, readTime } = parsed.data;
+    const { title, slug, excerpt, content, categoryId, status, readTime, country } = parsed.data;
 
     // Check slug uniqueness
     const existing = await db.blogPost.findUnique({ where: { slug } });
@@ -67,6 +72,7 @@ export async function POST(req: NextRequest) {
         categoryId,
         status,
         readTime,
+        country: country ?? "JO",
         authorId: session.user.id,
         publishedAt: status === "PUBLISHED" ? new Date() : null,
       },

@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "@/components/shared/site-link";
+import { useVisitorCountry } from "@/components/shared/visitor-country";
+import { formatDate, type CountryCode } from "@/lib/countries";
 import { Navbar } from "@/components/shared/navbar";
 import { Footer } from "@/components/shared/footer";
 import { useInView } from "@/hooks/use-in-view";
@@ -60,20 +62,15 @@ const defaultGradient = "from-primary/20 to-secondary/20";
 
 /* ──────────────────── Helpers ──────────────────── */
 
-function formatDate(dateStr: string | null) {
-  if (!dateStr) return "";
-  return new Date(dateStr).toLocaleDateString("ar-JO-u-nu-latn", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
-}
+const postDate = (dateStr: string | null, country: CountryCode) =>
+  dateStr ? formatDate(dateStr, country, { year: "numeric", month: "long", day: "numeric" }) : "";
 
 /* ══════════════════════════════════════════════════════ */
 /*                     BLOG PAGE                         */
 /* ══════════════════════════════════════════════════════ */
 
 export default function BlogView({ initial }: { initial: BlogInitial }) {
+  const country = useVisitorCountry();
   const [activeCategory, setActiveCategory] = useState("all");
   const [categories, setCategories] = useState<Category[]>(initial.categories);
   const [posts, setPosts] = useState<BlogPost[]>(initial.posts);
@@ -89,17 +86,17 @@ export default function BlogView({ initial }: { initial: BlogInitial }) {
   // Categories come from the server; fetch only if that read failed
   useEffect(() => {
     if (initial.categories.length > 0) return;
-    fetch("/api/blog/categories")
+    fetch(`/api/blog/categories?country=${country}`)
       .then((r) => r.json())
       .then((data) => setCategories(data.categories || []))
       .catch(() => {});
-  }, [initial.categories.length]);
+  }, [initial.categories.length, country]);
 
   // Fetch posts when category or page changes
   const fetchPosts = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({ page: String(page) });
+      const params = new URLSearchParams({ page: String(page), country });
       if (activeCategory !== "all") params.set("category", activeCategory);
       const res = await fetch(`/api/blog?${params}`);
       const data = await res.json();
@@ -110,7 +107,7 @@ export default function BlogView({ initial }: { initial: BlogInitial }) {
     } finally {
       setLoading(false);
     }
-  }, [activeCategory, page]);
+  }, [activeCategory, page, country]);
 
   useEffect(() => {
     if (skipFirstFetch.current) {
@@ -283,7 +280,7 @@ export default function BlogView({ initial }: { initial: BlogInitial }) {
                         <div className="mb-3 flex items-center gap-4 text-xs text-muted-foreground">
                           <span className="inline-flex items-center gap-1.5">
                             <Calendar className="size-3.5" />
-                            {formatDate(post.publishedAt)}
+                            {postDate(post.publishedAt, country)}
                           </span>
                           {post.readTime && (
                             <span className="inline-flex items-center gap-1.5">

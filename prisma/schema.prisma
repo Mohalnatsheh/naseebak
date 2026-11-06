@@ -652,6 +652,8 @@ model BlogPost {
   status      BlogPostStatus @default(DRAFT)
   categoryId  String
   category    BlogCategory   @relation(fields: [categoryId], references: [id])
+  /// The country whose blog shows this post (JO, SA): /blog/<slug> or /sa/blog/<slug>
+  country     String         @default("JO")
   authorId    String?
   readTime    String?
   publishedAt DateTime?
@@ -659,6 +661,7 @@ model BlogPost {
   updatedAt   DateTime       @updatedAt
 
   @@index([status, publishedAt])
+  @@index([country, status, publishedAt])
   @@index([categoryId])
   @@map("blog_posts")
 }

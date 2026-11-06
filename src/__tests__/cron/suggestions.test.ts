@@ -238,7 +238,7 @@ describe("remindWaitingInterest («شخص ينتظر ردّك»)", () => {
     topUp.topUpLine.mockResolvedValue(" رصيدكِ صفر: اشحني 10 أرصدة بـ 3 د.أ لتردّي.");
     db.suggestion.findMany.mockResolvedValue([card()]);
     await remindWaitingInterest(now);
-    expect(notifyMod.notify.mock.calls[0][0].body).toMatch(/ما ينتهي\. رصيدكِ صفر: اشحني 10 أرصدة/);
+    expect(notifyMod.notify.mock.calls[0][0].body).toMatch(/انتهاء مدته\. رصيدكِ صفر: اشحني 10 أرصدة/);
   });
 
   it("asks only for open cards where the other side said «مهتم» and the member is away 2–30 days", async () => {

@@ -83,7 +83,7 @@ export default async function Image() {
             letterSpacing: "-0.02em",
           }}
         >
-          Jordanian Marriage Platform
+          Halal Marriage Platform
         </div>
 
         {/* Bottom bar */}

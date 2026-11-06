@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 import { db } from "@/lib/db";
+import { toCountry } from "@/lib/countries";
 import { activeCountryCodes } from "@/lib/countries/settings";
 import { absoluteUrl, seoAlternates } from "@/lib/site-paths";
 import { pollsEnabled } from "@/lib/engagement/polls";
@@ -16,6 +17,7 @@ const LOCALIZED: { path: string; changeFrequency: "weekly" | "monthly" | "yearly
   { path: "/privacy", changeFrequency: "yearly", priority: 0.3 },
   { path: "/terms", changeFrequency: "yearly", priority: 0.3 },
   { path: "/refund-policy", changeFrequency: "yearly", priority: 0.3 },
+  { path: "/blog", changeFrequency: "weekly", priority: 0.8 },
 ];
 
 // Rebuilt hourly: built only once at deploy before, so new blog posts and countries were missing until the next deploy
@@ -35,7 +37,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     }))
   );
   let blogPages: MetadataRoute.Sitemap = [];
-  let blogUpdated: Date | undefined;
   let polls = false;
   try {
     polls = await pollsEnabled();
@@ -44,25 +45,29 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   }
   try {
     const posts = await db.blogPost.findMany({
-      where: { status: "PUBLISHED" },
-      select: { slug: true, updatedAt: true },
+      where: { status: "PUBLISHED", country: { in: countries } },
+      select: { slug: true, country: true, updatedAt: true },
       orderBy: { publishedAt: "desc" },
     });
 
     blogPages = posts.map((post) => ({
-      url: `${baseUrl}/blog/${post.slug}`,
+      url: absoluteUrl(`/blog/${post.slug}`, toCountry(post.country)),
       lastModified: post.updatedAt,
       changeFrequency: "monthly" as const,
       priority: 0.6,
     }));
-    blogUpdated = posts.reduce<Date | undefined>((max, p) => (!max || p.updatedAt > max ? p.updatedAt : max), undefined);
+    // Each country's blog list changes with its own posts
+    for (const page of localizedPages) {
+      const list = countries.find((c) => page.url === absoluteUrl("/blog", c));
+      const updated = list && posts.filter((p) => p.country === list).reduce<Date | undefined>((max, p) => (!max || p.updatedAt > max ? p.updatedAt : max), undefined);
+      if (updated) page.lastModified = updated;
+    }
   } catch {
     // If DB is unavailable during build, return static pages only
   }
 
   const staticPages: MetadataRoute.Sitemap = [
     ...localizedPages,
-    { url: `${baseUrl}/blog`, ...(blogUpdated && { lastModified: blogUpdated }), changeFrequency: "weekly", priority: 0.8 },
     ...(polls ? [{ url: `${baseUrl}/poll`, changeFrequency: "daily" as const, priority: 0.5 }] : []),
     { url: `${baseUrl}/login`, changeFrequency: "yearly", priority: 0.4 },
     { url: `${baseUrl}/register`, changeFrequency: "yearly", priority: 0.6 },

@@ -21,6 +21,13 @@ export const BIRTH_MONTHS = [
   "كانون الأول",
 ] as const;
 
+const SAUDI_MONTHS = ["يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"] as const;
+
+/** The month names a country uses */
+export function birthMonths(country: unknown): readonly string[] {
+  return country === "SA" ? SAUDI_MONTHS : BIRTH_MONTHS;
+}
+
 export interface DobParts {
   /** "" while not chosen, else the number as text ("1".."31", "1".."12", "1990") */
   day: string;

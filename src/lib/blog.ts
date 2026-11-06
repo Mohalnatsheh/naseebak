@@ -4,19 +4,20 @@
  */
 import { cache } from "react";
 import { db } from "@/lib/db";
+import type { CountryCode } from "@/lib/countries";
 
 export const BLOG_PAGE_SIZE = 9;
 
-/** One published post with its category (cached per request: metadata, layout and page share it) */
-export const getPublishedPost = cache((slug: string) =>
+/** One published post with its category; with `country`, only in that country's blog (cached per request: metadata, layout and page share it) */
+export const getPublishedPost = cache((slug: string, country?: CountryCode) =>
   db.blogPost.findUnique({
-    where: { slug, status: "PUBLISHED" },
+    where: { slug, status: "PUBLISHED", ...(country && { country }) },
     include: { category: true },
   })
 );
 
-export async function listPublishedPosts({ category, page = 1, pageSize = BLOG_PAGE_SIZE }: { category?: string | null; page?: number; pageSize?: number }) {
-  const where = { status: "PUBLISHED" as const, ...(category ? { category: { slug: category } } : {}) };
+export async function listPublishedPosts({ country = "JO", category, page = 1, pageSize = BLOG_PAGE_SIZE }: { country?: CountryCode; category?: string | null; page?: number; pageSize?: number }) {
+  const where = { status: "PUBLISHED" as const, country, ...(category ? { category: { slug: category } } : {}) };
   const [posts, total] = await Promise.all([
     db.blogPost.findMany({
       where,
@@ -30,15 +31,15 @@ export async function listPublishedPosts({ category, page = 1, pageSize = BLOG_P
   return { posts, page, totalPages: Math.ceil(total / pageSize), total };
 }
 
-/** Slug and title of every published post, to link mentions of one post in another */
-export function listPublishedPostTitles() {
-  return db.blogPost.findMany({ where: { status: "PUBLISHED" }, select: { slug: true, title: true } });
+/** Slug and title of a country's published posts, to link mentions of one post in another */
+export function listPublishedPostTitles(country: CountryCode) {
+  return db.blogPost.findMany({ where: { status: "PUBLISHED", country }, select: { slug: true, title: true } });
 }
 
-/** Every category (shown even with no published post) with its published-post count */
-export function listBlogCategories() {
+/** Every category (shown even with no published post) with its published-post count in a country */
+export function listBlogCategories(country: CountryCode = "JO") {
   return db.blogCategory.findMany({
-    include: { _count: { select: { posts: { where: { status: "PUBLISHED" } } } } },
+    include: { _count: { select: { posts: { where: { status: "PUBLISHED", country } } } } },
     orderBy: { createdAt: "asc" },
   });
 }

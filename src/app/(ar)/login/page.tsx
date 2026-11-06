@@ -50,6 +50,7 @@ function LoginPageContent() {
   const [mounted, setMounted] = useState(false);
   const [shake, setShake] = useState(false);
   const [userExists, setUserExists] = useState(false);
+  const [otpByWhatsapp, setOtpByWhatsapp] = useState(false);
   const [showExistsBanner, setShowExistsBanner] = useState(false);
   const otpInputRef = useRef<HTMLInputElement>(null);
 
@@ -116,6 +117,7 @@ function LoginPageContent() {
       setOtpSent(true);
       setResendIn(60);
       setUserExists(!!data.userExists);
+      setOtpByWhatsapp(data.channel === "whatsapp");
       trackEvent("otp_requested", { context: "login" });
     } catch {
       setError("حدث خطأ غير متوقع. حاول مرة أخرى.");
@@ -534,6 +536,7 @@ function LoginPageContent() {
                       <Label htmlFor="otp" className="text-sm font-semibold">
                         رمز التحقق
                       </Label>
+                      {otpByWhatsapp && <p className="text-xs text-muted-foreground">أرسلنا الرمز عبر واتساب إلى رقمك.</p>}
                       <div className="relative group">
                         <Input
                           ref={otpInputRef}

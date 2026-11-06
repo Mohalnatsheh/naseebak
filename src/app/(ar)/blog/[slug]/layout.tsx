@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getPublishedPost, postDescription } from "@/lib/blog";
 import { socialMetadata } from "@/lib/seo";
+import { getVisitorCountry } from "@/lib/countries/server";
+import { publicCopy } from "@/lib/public-copy";
+import { absoluteUrl } from "@/lib/site-paths";
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -15,7 +18,8 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { slug } = await params;
 
-  const post = await getPublishedPost(slug);
+  const country = await getVisitorCountry();
+  const post = await getPublishedPost(slug, country);
 
   if (!post) {
     return {
@@ -24,7 +28,7 @@ export async function generateMetadata({
     };
   }
 
-  const url = `https://naseebak.com/blog/${post.slug}`;
+  const url = absoluteUrl(`/blog/${post.slug}`, country);
   const description = postDescription(post);
 
   return {
@@ -36,7 +40,7 @@ export async function generateMetadata({
       title: post.title,
       description,
       url,
-      locale: "ar_JO",
+      locale: publicCopy(country).ogLocale,
       image: { url: "https://naseebak.com/images/pages/post.webp", width: 1600, height: 900, alt: post.title },
       article: {
         publishedTime: post.publishedAt?.toISOString(),
@@ -50,12 +54,13 @@ export async function generateMetadata({
 export default async function BlogSlugLayout({ params, children }: Props) {
   const { slug } = await params;
 
-  const post = await getPublishedPost(slug);
+  const country = await getVisitorCountry();
+  const post = await getPublishedPost(slug, country);
 
   // A real 404 (not a 200 "not found" page) so search engines drop dead links
   if (!post) notFound();
 
-  const url = `https://naseebak.com/blog/${post.slug}`;
+  const url = absoluteUrl(`/blog/${post.slug}`, country);
 
   const articleJsonLd = {
     "@context": "https://schema.org",
@@ -94,13 +99,13 @@ export default async function BlogSlugLayout({ params, children }: Props) {
         "@type": "ListItem",
         position: 1,
         name: "الرئيسية",
-        item: "https://naseebak.com",
+        item: absoluteUrl("/", country),
       },
       {
         "@type": "ListItem",
         position: 2,
         name: "المدونة",
-        item: "https://naseebak.com/blog",
+        item: absoluteUrl("/blog", country),
       },
       {
         "@type": "ListItem",

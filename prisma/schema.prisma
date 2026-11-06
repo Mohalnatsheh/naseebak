@@ -436,6 +436,8 @@ model Suggestion {
   /// Made while the candidate already held 5 open cards: hidden from the candidate (and not taking a
   /// slot) until the recipient says «مهتم» or the candidate frees a slot (revealHiddenFor)
   hiddenFromCandidate      Boolean @default(false)
+  /// Closed because a member changed their conditions or data: if nobody answered, the pair can meet again at once
+  closedByChange           Boolean @default(false)
 
   createdAt          DateTime         @default(now())
   updatedAt          DateTime         @updatedAt

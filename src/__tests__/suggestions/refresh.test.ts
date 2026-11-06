@@ -63,7 +63,7 @@ describe("refreshOpenSuggestions", () => {
     expect(r.closed).toBe(2);
     const close = db.suggestion.updateMany.mock.calls.find((c) => c[0].data.status === "EXPIRED")![0];
     expect(close.where.id).toEqual({ in: ["low", "db"] });
-    expect(close.data).toEqual({ status: "EXPIRED", expiresAt: expect.any(Date) });
+    expect(close.data).toEqual({ status: "EXPIRED", expiresAt: expect.any(Date), closedByChange: true });
     expect(auto.autoSuggestForUser).toHaveBeenCalledWith("u1");
   });
 

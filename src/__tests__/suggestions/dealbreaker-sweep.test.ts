@@ -32,7 +32,7 @@ describe("closeSuggestionsBreakingDealbreakers", () => {
           { candidateId: "u1", candidateDecision: null },
         ],
       },
-      data: { status: "EXPIRED", expiresAt: expect.any(Date) },
+      data: { status: "EXPIRED", expiresAt: expect.any(Date), closedByChange: true },
     });
     expect(refunds.refundUnansweredInterests).toHaveBeenCalledWith(expect.objectContaining({ userId: "u1" }));
     // Undecided rows only: the query skips rows I already answered

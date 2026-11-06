@@ -58,7 +58,7 @@ async function suitableCandidates(
 ): Promise<number> {
   const { introRequests: perRequestCredits, mutualSuggestions: mutual, creditOnInterest } = flags;
   const pastSelect = {
-    recipientId: true, candidateId: true, status: true, recipientDecision: true, candidateDecision: true, expiresAt: true, updatedAt: true,
+    recipientId: true, candidateId: true, status: true, recipientDecision: true, candidateDecision: true, expiresAt: true, updatedAt: true, closedByChange: true,
   } as const;
   const [suggested, matches, blocks, hidden] = await Promise.all([
     db.suggestion.findMany({ where: { OR: [{ recipientId: user.id }, { candidateId: user.id }] }, select: pastSelect }),

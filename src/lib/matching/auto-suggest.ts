@@ -178,6 +178,7 @@ export async function nextSuggestionsAtFor(userId: string, now = new Date()): Pr
 
 /** A past row between two people, as far as "may they be suggested again?" is concerned */
 export interface PastRow {
+  id?: string;
   recipientId: string;
   candidateId: string;
   status: SuggestionStatus;
@@ -185,11 +186,16 @@ export interface PastRow {
   candidateDecision: SuggestionDecision | null;
   expiresAt: Date | null;
   updatedAt: Date;
+  closedByChange?: boolean;
 }
 
-/** Closed with neither side answering, more than RESUGGEST_AFTER_DAYS ago: they never really met. */
+/**
+ * Closed with neither side answering, more than RESUGGEST_AFTER_DAYS ago, or at once when a member's own change
+ * closed it: they never really met.
+ */
 export function isResuggestable(row: PastRow, now = new Date()): boolean {
   if (row.status !== "EXPIRED" || row.recipientDecision || row.candidateDecision) return false;
+  if (row.closedByChange) return true;
   const closedAt = row.expiresAt ?? row.updatedAt;
   return closedAt.getTime() <= now.getTime() - RESUGGEST_AFTER_DAYS * 24 * 60 * 60 * 1000;
 }
@@ -201,7 +207,9 @@ export function isResuggestable(row: PastRow, now = new Date()): boolean {
  */
 export function pairAvailability(userId: string, rows: PastRow[], now = new Date()): Map<string, "reverse" | "no"> {
   const byPartner = new Map<string, PastRow[]>();
+  // A card closed by a change is given back as it is (`generate`), so it takes up neither direction
   for (const r of rows) {
+    if (r.closedByChange && isResuggestable(r, now)) continue;
     const other = r.recipientId === userId ? r.candidateId : r.recipientId;
     byPartner.set(other, [...(byPartner.get(other) ?? []), r]);
   }
@@ -292,7 +300,7 @@ async function generate(userId: string): Promise<SuggestOutcome> {
 
   const runStart = new Date();
   const pastSelect = {
-    recipientId: true, candidateId: true, status: true, recipientDecision: true, candidateDecision: true, expiresAt: true, updatedAt: true,
+    id: true, recipientId: true, candidateId: true, status: true, recipientDecision: true, candidateDecision: true, expiresAt: true, updatedAt: true, closedByChange: true,
   } as const;
   const [suggested, matches, blocks] = await Promise.all([
     db.suggestion.findMany({
@@ -377,6 +385,8 @@ async function generate(userId: string): Promise<SuggestOutcome> {
   const reserved = top.map((r) => pairKey(r.candidate.id));
   // Pairs met before through an old unanswered row userId → them: the new row goes them → userId
   let reverse = new Set<string>();
+  // Cards closed by a member's change: the pair's own row comes back rather than a second card
+  const returning = new Map<string, PastRow>();
   const isFull = (id: string) => creditOnInterest && (busy.get(id) ?? 0) >= MAX_OPEN_SUGGESTIONS;
   try {
     if (top.length > 0) {
@@ -386,6 +396,7 @@ async function generate(userId: string): Promise<SuggestOutcome> {
         select: pastSelect,
       });
       if (mutual) {
+        for (const t of taken) if (t.closedByChange && isResuggestable(t)) returning.set(t.recipientId === userId ? t.candidateId : t.recipientId, t);
         const now = pairAvailability(userId, taken);
         reverse = new Set([...now].filter(([, a]) => a === "reverse").map(([id]) => id));
         // A reversed row would hide me, not them: a full partner is skipped in that rare case
@@ -409,8 +420,26 @@ async function generate(userId: string): Promise<SuggestOutcome> {
     // Take the credits first (atomic), then create; unused credits are given back
     if (!perRequestCredits && !(await reserveCredits(userId, top.length))) return outcome(0);
 
-    const created = await db.suggestion.createMany({
-      data: top.map(({ candidate, score }) => ({
+    const given = await Promise.all(
+      top.flatMap(({ candidate, score }) => {
+        const row = returning.get(candidate.id);
+        if (!row?.id) return [];
+        return db.suggestion.updateMany({
+          where: { id: row.id, status: "EXPIRED", closedByChange: true, recipientDecision: null, candidateDecision: null },
+          data: {
+            status: "PENDING",
+            closedByChange: false,
+            compatibilityScore: score,
+            expiresAt: new Date(Date.now() + MUTUAL_SUGGESTION_MS),
+            hiddenFromCandidate: row.recipientId === userId && isFull(candidate.id),
+            createdAt: new Date(),
+          },
+        });
+      }),
+    );
+    const fresh = top.filter(({ candidate }) => !returning.has(candidate.id));
+    const inserted = fresh.length === 0 ? { count: 0 } : await db.suggestion.createMany({
+      data: fresh.map(({ candidate, score }) => ({
         ...(reverse.has(candidate.id)
           ? { recipientId: candidate.id, candidateId: userId, compatibilityScore: calculateCompatibility(candidate, user) }
           : { recipientId: userId, candidateId: candidate.id, compatibilityScore: score, hiddenFromCandidate: isFull(candidate.id) }),
@@ -419,6 +448,7 @@ async function generate(userId: string): Promise<SuggestOutcome> {
       })),
       skipDuplicates: true,
     });
+    const created = { count: inserted.count + given.reduce((sum, g) => sum + g.count, 0) };
     if (!perRequestCredits) {
       await refundCredits(userId, top.length - created.count);
       await recordCredit({ userId, delta: -created.count, reason: "SUGGESTION", note: "Automatic suggestions" });

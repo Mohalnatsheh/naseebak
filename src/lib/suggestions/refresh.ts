@@ -93,7 +93,7 @@ export async function refreshOpenSuggestions(userId: string, now = new Date()): 
           { candidateId: userId, candidateDecision: null },
         ],
       },
-      data: { status: "EXPIRED", expiresAt: now },
+      data: { status: "EXPIRED", expiresAt: now, closedByChange: true },
     });
     result.closed = count;
     if (count > 0) await refundUnansweredInterests({ userId, now }).catch((e) => console.error("[suggestions] refresh refunds:", e));

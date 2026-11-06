@@ -46,7 +46,7 @@ export async function closeSuggestionsBreakingDealbreakers(userId: string, now =
         { candidateId: userId, candidateDecision: null },
       ],
     },
-    data: { status: "EXPIRED", expiresAt: now },
+    data: { status: "EXPIRED", expiresAt: now, closedByChange: true },
   });
   await refundUnansweredInterests({ userId, now });
   return count;

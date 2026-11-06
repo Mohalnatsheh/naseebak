@@ -26,7 +26,7 @@ vi.mock("@/lib/matching/score", async (importOriginal) => {
   };
 });
 
-import { autoSuggestForUser, autoSuggestWithReason, clearSuggestCooldown, minSuggestionScore, nextSuggestionsAtFor, openCounts } from "@/lib/matching/auto-suggest";
+import { autoSuggestForUser, autoSuggestWithReason, clearSuggestCooldown, isResuggestable, minSuggestionScore, pairAvailability, type PastRow, nextSuggestionsAtFor, openCounts } from "@/lib/matching/auto-suggest";
 
 // Profile with every basic + preference field filled → 60% completeness (above the 50% threshold)
 const fullProfile = (gender: "MALE" | "FEMALE") => ({
@@ -665,5 +665,40 @@ describe("same country only (multi-country)", () => {
     await autoSuggestForUser("sa-f");
     const reveal = db.suggestion.findMany.mock.calls.map((c) => c[0].where).find((w) => w.hiddenFromCandidate === true);
     expect(reveal.recipient).toMatchObject({ country: "SA", isDeactivated: false });
+  });
+});
+
+describe("cards closed by a member's own change", () => {
+  const past = (over: Partial<PastRow>): PastRow => ({
+    recipientId: "me", candidateId: "other", status: "EXPIRED", recipientDecision: null, candidateDecision: null,
+    expiresAt: new Date(), updatedAt: new Date(), closedByChange: true, ...over,
+  });
+
+  it("frees the pair at once when nobody answered", () => {
+    expect(isResuggestable(past({}))).toBe(true);
+    expect(pairAvailability("me", [past({})]).has("other")).toBe(false);
+  });
+
+  it("keeps the wait when either side answered", () => {
+    expect(isResuggestable(past({ candidateDecision: "INTERESTED" }))).toBe(false);
+    expect(pairAvailability("me", [past({ recipientDecision: "DECLINED" })]).get("other")).toBe("no");
+  });
+
+  it("keeps the 30-day wait for a card that expired on its own", () => {
+    expect(isResuggestable(past({ closedByChange: false }))).toBe(false);
+  });
+
+  it("gives a closed card back rather than a second card for the pair", async () => {
+    flags.getCycleFlags.mockResolvedValue({ introRequests: true, mutualSuggestions: true, chat: true, creditOnInterest: true });
+    const closed = past({ recipientId: "back1", candidateId: "c1" });
+    db.user.findUnique.mockResolvedValue(person("back1", "MALE"));
+    db.user.findMany.mockResolvedValue([person("c1", "FEMALE")]);
+    db.suggestion.findMany.mockResolvedValue([{ ...closed, id: "row1" }]);
+    db.suggestion.updateMany.mockResolvedValue({ count: 1 });
+    await autoSuggestForUser("back1");
+    const data = db.suggestion.updateMany.mock.calls.find(([a]) => a.where?.id === "row1" && a.data?.status === "PENDING")?.[0].data;
+    expect(data).toMatchObject({ status: "PENDING", closedByChange: false });
+    expect(data.expiresAt.getTime()).toBeGreaterThan(Date.now());
+    expect(db.suggestion.createMany).not.toHaveBeenCalled();
   });
 });

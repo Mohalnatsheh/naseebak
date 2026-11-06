@@ -421,7 +421,7 @@ describe("autoSuggestWithReason", () => {
   });
 });
 
-describe("credit on interest: open cap 5", () => {
+describe("credit on interest: open cap 10", () => {
   const on = { introRequests: true, chat: true, mutualSuggestions: true, creditOnInterest: true };
   const females = (n: number) => Array.from({ length: n }, (_, i) => person(`cf${i}`, "FEMALE"));
   /** count() answers: MUTUAL open rows first, then LEGACY pending */
@@ -435,27 +435,27 @@ describe("credit on interest: open cap 5", () => {
     db.suggestion.findMany.mockImplementation(async ({ where }: { where: { flow?: string; hiddenFromCandidate?: boolean; status?: string } }) =>
       where.flow === "MUTUAL" && !where.hiddenFromCandidate && where.status !== "EXPIRED" ? females(6).map((f) => ({ recipientId: "x", candidateId: f.id })) : []
     );
-    // Good but not "very good" fits: the 5-open cap applies as usual (85%+ may go above it)
-    for (const id of [...females(7).map((f) => f.id), "busy", "free"]) scoring.scoreFor.set(id, 70);
+    // Good but not "very good" fits: the 10-open cap applies as usual (85%+ may go above it)
+    for (const id of [...females(12).map((f) => f.id), "busy", "free"]) scoring.scoreFor.set(id, 70);
   });
 
-  it("tops up to 5 when 0 open", async () => {
+  it("tops up to 10 when 0 open", async () => {
     openRows(0);
     db.user.findUnique.mockResolvedValue(person("co1", "MALE"));
-    db.user.findMany.mockResolvedValue(females(7));
-    expect(await autoSuggestForUser("co1")).toBe(5);
-    expect(db.suggestion.createMany.mock.calls[0][0].data).toHaveLength(5);
+    db.user.findMany.mockResolvedValue(females(12));
+    expect(await autoSuggestForUser("co1")).toBe(10);
+    expect(db.suggestion.createMany.mock.calls[0][0].data).toHaveLength(10);
   });
 
-  it("tops up 2 when 3 open (legacy pending counts too)", async () => {
-    openRows(2, 1);
+  it("tops up 2 when 8 open (legacy pending counts too)", async () => {
+    openRows(7, 1);
     db.user.findUnique.mockResolvedValue(person("co2", "MALE"));
     db.user.findMany.mockResolvedValue(females(7));
     expect(await autoSuggestForUser("co2")).toBe(2);
   });
 
-  it('creates nothing and says reason "pending" when 5 open', async () => {
-    openRows(5);
+  it('creates nothing and says reason "pending" when 10 open', async () => {
+    openRows(10);
     db.user.findUnique.mockResolvedValue(person("co3", "MALE"));
     expect(await autoSuggestWithReason("co3")).toEqual({ created: 0, reason: "pending", nextSuggestionsAt: null });
     expect(db.user.findMany).not.toHaveBeenCalled();
@@ -466,7 +466,7 @@ describe("credit on interest: open cap 5", () => {
     db.user.findUnique.mockResolvedValue(person("co4b", "MALE"));
     db.user.findMany.mockResolvedValue([person("busy", "FEMALE"), person("free", "FEMALE")]);
     db.suggestion.groupBy
-      .mockResolvedValueOnce([{ recipientId: "busy", _count: 5 }])
+      .mockResolvedValueOnce([{ recipientId: "busy", _count: 10 }])
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([]);
     db.suggestion.findMany.mockImplementation(async ({ where }: { where: { flow?: string; hiddenFromCandidate?: boolean; status?: string } }) =>
@@ -482,11 +482,11 @@ describe("credit on interest: open cap 5", () => {
   });
 
   it("G53: candidates with a free slot come before full ones (score order within each group)", async () => {
-    openRows(3); // room for 2
+    openRows(8); // room for 2
     db.user.findUnique.mockResolvedValue(person("co4c", "MALE"));
     db.user.findMany.mockResolvedValue([person("busy1", "FEMALE"), person("busy2", "FEMALE"), person("free1", "FEMALE")]);
     db.suggestion.groupBy
-      .mockResolvedValueOnce([{ recipientId: "busy1", _count: 5 }, { recipientId: "busy2", _count: 5 }])
+      .mockResolvedValueOnce([{ recipientId: "busy1", _count: 10 }, { recipientId: "busy2", _count: 10 }])
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([]);
     await autoSuggestForUser("co4c");
@@ -501,6 +501,13 @@ describe("credit on interest: open cap 5", () => {
     expect(recipientQuery.where).not.toHaveProperty("hiddenFromCandidate");
   });
 
+  it("a card in «مهتمون بك» takes no slot, on either side", async () => {
+    await openCounts(["r1"]);
+    const flows = db.suggestion.groupBy.mock.calls.filter((c) => c[0].where.flow === "MUTUAL");
+    expect(flows.find((c) => c[0].by[0] === "recipientId")![0].where.candidateDecision).toBeNull();
+    expect(flows.find((c) => c[0].by[0] === "candidateId")![0].where.recipientDecision).toBeNull();
+  });
+
   describe("a «مهتم» the other person never saw comes back once", () => {
     const DAY = 24 * 60 * 60 * 1000;
     const closed = (over: Record<string, unknown> = {}) => ({
@@ -513,8 +520,9 @@ describe("credit on interest: open cap 5", () => {
     const reopenCalls = () => db.suggestion.updateMany.mock.calls.filter((c) => c[0].where.status === "EXPIRED");
 
     beforeEach(() => {
-      openRows(4);
+      openRows(9);
       db.user.findUnique.mockResolvedValue(person("back1", "MALE"));
+      db.user.findMany.mockResolvedValue([]);
       db.suggestion.updateMany.mockResolvedValue({ count: 1 });
       db.notification.findFirst.mockResolvedValue(null);
       scoring.scoreFor.set("them", 70);
@@ -568,14 +576,14 @@ describe("credit on interest: open cap 5", () => {
       expect(reopenCalls()).toHaveLength(0);
     });
 
-    it("waits while the member's 5 slots are full", async () => {
-      openRows(5);
+    it("waits while the member's «جديدة» is full", async () => {
+      openRows(10);
       closedCards([closed()]);
       await autoSuggestForUser("back1");
       expect(reopenCalls()).toHaveLength(0);
     });
 
-    it("takes up a slot: only as many come back as there is room for", async () => {
+    it("a run brings back at most as many as there is room for", async () => {
       closedCards([closed(), closed({ id: "w2" })]);
       await autoSuggestForUser("back1");
       expect(reopenCalls().map((c) => c[0].where.id)).toEqual(["w1"]);
@@ -600,7 +608,7 @@ describe("credit on interest: open cap 5", () => {
   });
 
   it("with room again, shows cards made while full before adding anyone new", async () => {
-    openRows(3);
+    openRows(8);
     db.user.findUnique.mockResolvedValue(person("co9", "FEMALE"));
     db.suggestion.findMany.mockImplementation(async ({ where }: { where: { hiddenFromCandidate?: boolean } }) =>
       where.hiddenFromCandidate ? [{ id: "h1", expiresAt: new Date(Date.now() + 86400000) }, { id: "h2", expiresAt: null }] : []
@@ -614,7 +622,7 @@ describe("credit on interest: open cap 5", () => {
   });
 
   it("never reveals a hidden card the recipient refused (the reveal query and update both check)", async () => {
-    openRows(3);
+    openRows(8);
     db.user.findUnique.mockResolvedValue(person("co9c", "FEMALE"));
     db.suggestion.findMany.mockImplementation(async ({ where }: { where: { hiddenFromCandidate?: boolean } }) =>
       where.hiddenFromCandidate ? [{ id: "h1", expiresAt: null }] : []
@@ -629,7 +637,7 @@ describe("credit on interest: open cap 5", () => {
   });
 
   it("a card shown again is announced even when nobody new is added", async () => {
-    openRows(3);
+    openRows(8);
     db.user.findUnique.mockResolvedValue(person("co9d", "FEMALE"));
     db.suggestion.findMany.mockImplementation(async ({ where }: { where: { hiddenFromCandidate?: boolean } }) =>
       where.hiddenFromCandidate ? [{ id: "h1", expiresAt: null }] : []
@@ -642,7 +650,7 @@ describe("credit on interest: open cap 5", () => {
   });
 
   it("the new-suggestions notice counts revealed and new cards together", async () => {
-    openRows(2);
+    openRows(7);
     db.user.findUnique.mockResolvedValue(person("co9e", "FEMALE"));
     db.suggestion.findMany.mockImplementation(async ({ where }: { where: { hiddenFromCandidate?: boolean } }) =>
       where.hiddenFromCandidate ? [{ id: "h1", expiresAt: null }] : []
@@ -791,6 +799,8 @@ describe("cards closed by a member's own change", () => {
   it("gives a closed card back rather than a second card for the pair", async () => {
     flags.getCycleFlags.mockResolvedValue({ introRequests: true, mutualSuggestions: true, chat: true, creditOnInterest: true });
     const closed = past({ recipientId: "back1", candidateId: "c1" });
+    db.suggestion.count.mockResolvedValue(0);
+    clearSuggestCooldown("back1");
     db.user.findUnique.mockResolvedValue(person("back1", "MALE"));
     db.user.findMany.mockResolvedValue([person("c1", "FEMALE")]);
     db.suggestion.findMany.mockImplementation(async ({ where }: { where: { reopenedAt?: null } }) =>

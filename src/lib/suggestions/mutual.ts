@@ -63,7 +63,8 @@ export const SLOT_IDLE_DAYS = 2;
  * The open rows that count toward `userId`'s MAX_OPEN_SUGGESTIONS: openMutualWhere minus cards
  * older than SLOT_IDLE_DAYS whose other person hasn't been seen for SLOT_IDLE_DAYS. A hidden card fills
  * the recipient's slot (they see it and it waits on them), never the candidate's: leaving it out let
- * each top-up add 5 more (production 2026-11-06: 19,044 of 22,338 open cards were hidden).
+ * each top-up add 5 more (production 2026-11-06: 19,044 of 22,338 open cards were hidden). Only
+ * «جديدة» counts: a card where the other already said «مهتم» sits in «مهتمون بك» and takes no slot.
  */
 export function slotMutualWhere(userId: string, now = new Date()): Prisma.SuggestionWhereInput {
   const fresh = new Date(now.getTime() - SLOT_IDLE_DAYS * 24 * 60 * 60 * 1000);
@@ -73,8 +74,8 @@ export function slotMutualWhere(userId: string, now = new Date()): Prisma.Sugges
     status: "PENDING",
     expiresAt: { gt: now },
     OR: [
-      { recipientId: userId, recipientDecision: null, candidate: activePerson, OR: [{ createdAt: { gte: fresh } }, { candidate: partnerHere }] },
-      { candidateId: userId, candidateDecision: null, recipient: activePerson, hiddenFromCandidate: false, OR: [{ createdAt: { gte: fresh } }, { recipient: partnerHere }] },
+      { recipientId: userId, recipientDecision: null, candidateDecision: null, candidate: activePerson, OR: [{ createdAt: { gte: fresh } }, { candidate: partnerHere }] },
+      { candidateId: userId, candidateDecision: null, recipientDecision: null, recipient: activePerson, hiddenFromCandidate: false, OR: [{ createdAt: { gte: fresh } }, { recipient: partnerHere }] },
     ],
   };
 }
@@ -488,7 +489,7 @@ export async function decideSuggestion(args: {
     const recorded = await claim(db);
     if (recorded.count === 0) throw notFound();
   }
-  // Made while the other was full: their card appears now, above their 5, with a full window
+  // Made while the other was full: their card appears now, whatever their «جديدة» holds, with a full window
   if (interested && side === "recipient" && s.hiddenFromCandidate) {
     const { count } = await db.suggestion.updateMany({
       where: { id: s.id, hiddenFromCandidate: true, status: "PENDING" },

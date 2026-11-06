@@ -105,7 +105,7 @@ describe("suggestions: browse", () => {
 
   it("states the live numbers for the Generate help", async () => {
     const { d } = await list();
-    expect(d.rules).toEqual({ minScore: 60, maxOpen: 5, weeklyCap: 3 });
+    expect(d.rules).toEqual({ minScore: 60, maxOpen: 10, weeklyCap: 3 });
   });
 });
 

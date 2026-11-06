@@ -5,7 +5,7 @@
  *
  * Limits per mode: legacy tops up to 3 only when nothing is pending (score >= 30); per-request mode
  * adds the weekly cap (WEEKLY_FREE_SUGGESTIONS per rolling 7 days). Credit-on-interest (switch
- * `credit_on_interest`) has no weekly cap: a person holds at most MAX_OPEN_SUGGESTIONS (5) undecided
+ * `credit_on_interest`) has no weekly cap: a person holds at most MAX_OPEN_SUGGESTIONS (10) undecided
  * suggestions (a MUTUAL row counts for both sides), topped up on page open / profile save, after a
  * decision and when a suggestion expires; candidates already holding 5 are skipped; minimum score is
  * `minSuggestionScore()` (60, 30 otherwise); `emptyReason` is `pending` (5 open) or
@@ -27,7 +27,7 @@ import type { SuggestionDecision, SuggestionStatus } from "@prisma/client";
 const MAX_NEW_SUGGESTIONS = 3;
 const MIN_SCORE = 30;
 /** Credit-on-interest: a person holds at most this many undecided suggestions (replaces the weekly cap) */
-export const MAX_OPEN_SUGGESTIONS = 5;
+export const MAX_OPEN_SUGGESTIONS = 10;
 /** A pair whose card closed with neither side answering may be suggested again after this long */
 export const RESUGGEST_AFTER_DAYS = 30;
 /** `notify` once-per-day key shared by every "new suggestions" notice */
@@ -102,13 +102,14 @@ export async function openCounts(userIds: string[]): Promise<Map<string, number>
   const [asRecipient, asCandidate, legacy] = await Promise.all([
     db.suggestion.groupBy({
       by: ["recipientId"],
-      // Same as openMutualWhere: a partner who left doesn't fill a slot; a hidden card still does (slotMutualWhere)
-      where: { ...open, recipientId: { in: userIds }, recipientDecision: null, candidate: { isDeactivated: false, status: { not: "SUSPENDED" } }, OR: [fresh, { candidate: here }] },
+      // Same as openMutualWhere: a partner who left doesn't fill a slot; a hidden card still does, and a
+      // card in «مهتمون بك» doesn't (slotMutualWhere)
+      where: { ...open, recipientId: { in: userIds }, recipientDecision: null, candidateDecision: null, candidate: { isDeactivated: false, status: { not: "SUSPENDED" } }, OR: [fresh, { candidate: here }] },
       _count: true,
     }),
     db.suggestion.groupBy({
       by: ["candidateId"],
-      where: { ...open, candidateId: { in: userIds }, candidateDecision: null, hiddenFromCandidate: false, recipient: { isDeactivated: false, status: { not: "SUSPENDED" } }, OR: [fresh, { recipient: here }] },
+      where: { ...open, candidateId: { in: userIds }, candidateDecision: null, recipientDecision: null, hiddenFromCandidate: false, recipient: { isDeactivated: false, status: { not: "SUSPENDED" } }, OR: [fresh, { recipient: here }] },
       _count: true,
     }),
     db.suggestion.groupBy({
@@ -375,8 +376,8 @@ async function generate(userId: string): Promise<SuggestOutcome> {
     const open = await openSuggestionCount(userId);
     limit = MAX_OPEN_SUGGESTIONS - open;
     if (limit <= 0) return outcome(0, "pending");
+    // Back in «مهتمون بك», so it takes no slot from what follows
     reopened = await reopenSecondChances(user, flags, limit);
-    limit -= reopened;
     const shown = limit > 0 ? await revealHiddenFor(userId, limit, new Date(), user.country) : 0;
     revealed = reopened + shown;
     limit -= shown;

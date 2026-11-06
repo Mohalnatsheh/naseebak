@@ -79,6 +79,20 @@ class SuggestionCard extends StatelessWidget {
                       ),
                       if (c.city != null)
                         Text(c.city!, style: const TextStyle(color: AppColors.muted, fontSize: 14)),
+                      if (item.activity != null && !item.declined) ...[
+                        const SizedBox(height: 2),
+                        Row(
+                          children: [
+                            Container(
+                              width: 7,
+                              height: 7,
+                              decoration: const BoxDecoration(color: Color(0xFF10B981), shape: BoxShape.circle),
+                            ),
+                            const SizedBox(width: 5),
+                            Text(item.activity!, style: const TextStyle(color: Color(0xFF047857), fontSize: 12)),
+                          ],
+                        ),
+                      ],
                     ],
                   ),
                 ),

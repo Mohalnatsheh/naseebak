@@ -40,6 +40,8 @@ export interface FeedCandidate {
 }
 
 export interface OpenFeedItem {
+  /** «نشط اليوم» / «نشطة هذا الأسبوع», absent for older activity */
+  activity?: string;
   kind: FeedKind;
   /** Suggestion id, or the Like id for legacy_interest */
   id: string;

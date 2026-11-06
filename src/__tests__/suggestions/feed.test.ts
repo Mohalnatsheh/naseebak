@@ -12,7 +12,7 @@ vi.mock("@/lib/intro/match", () => ({ createMutualMatch: vi.fn() }));
 const settings = vi.hoisted(() => ({ getCycleFlags: vi.fn() }));
 vi.mock("@/lib/settings", () => settings);
 
-import { activityGroup, countMutualTabs, countNewItems, getSuggestionFeed, NEW_TAB_LIMIT, type OpenFeedItem } from "@/lib/suggestions/feed";
+import { activityGroup, activityLabel, countMutualTabs, countNewItems, getSuggestionFeed, NEW_TAB_LIMIT, type OpenFeedItem } from "@/lib/suggestions/feed";
 
 const DAY = 24 * 60 * 60 * 1000;
 const person = (id: string, gender: "MALE" | "FEMALE", profile: object = {}) => ({
@@ -390,5 +390,25 @@ describe("«جديدة» shows the best NEW_TAB_LIMIT cards", () => {
   it("the «جديدة» badge count is limited the same way", async () => {
     db.suggestion.count.mockResolvedValueOnce(40).mockResolvedValueOnce(3);
     expect(await countMutualTabs("me")).toEqual({ fresh: 15, likedYou: 3 });
+  });
+});
+
+describe("activityLabel", () => {
+  const now = new Date("2026-11-07T12:00:00Z");
+  const hoursAgo = (h: number) => new Date(now.getTime() - h * 60 * 60 * 1000);
+
+  it("says today within a day, in the person's gender", () => {
+    expect(activityLabel(hoursAgo(2), "MALE", now)).toBe("نشط اليوم");
+    expect(activityLabel(hoursAgo(23), "FEMALE", now)).toBe("نشطة اليوم");
+  });
+
+  it("says this week up to 7 days", () => {
+    expect(activityLabel(hoursAgo(30), "MALE", now)).toBe("نشط هذا الأسبوع");
+    expect(activityLabel(hoursAgo(167), "FEMALE", now)).toBe("نشطة هذا الأسبوع");
+  });
+
+  it("says nothing for older or unknown activity", () => {
+    expect(activityLabel(hoursAgo(169), "MALE", now)).toBeNull();
+    expect(activityLabel(null, "MALE", now)).toBeNull();
   });
 });

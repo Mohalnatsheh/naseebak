@@ -45,6 +45,7 @@ class FeedItem {
     required this.candidate,
     this.createdAt,
     this.expiresAt,
+    this.activity,
     this.likedYou = false,
     this.declined = false,
   });
@@ -56,6 +57,7 @@ class FeedItem {
         reason: asStringOr(j['reason']),
         createdAt: asDate(j['createdAt']),
         expiresAt: asDate(j['expiresAt']),
+        activity: asString(j['activity']),
         candidate: PersonDetails.fromJson(asMap(j['candidate'])),
         likedYou: asBool(j['likedYou']) ?? false,
         declined: asBool(j['declined']) ?? false,
@@ -69,6 +71,9 @@ class FeedItem {
   final String reason;
   final DateTime? createdAt;
   final DateTime? expiresAt;
+
+  /// «نشط اليوم» / «نشطة هذا الأسبوع»; null for older activity
+  final String? activity;
   final PersonDetails candidate;
   final bool likedYou;
   final bool declined;

@@ -38,6 +38,18 @@ export const NEW_TAB_LIMIT = 15;
 export const ACTIVITY_GROUP_DAYS = [3, 7] as const;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+/**
+ * What a card says about the other person's activity: only these two rough labels, never a time (nobody can watch
+ * when someone is online, and `lastActiveAt` only updates hourly). Older activity says nothing rather than something negative.
+ */
+export function activityLabel(lastActiveAt: Date | null | undefined, gender: string, now = new Date()): string | null {
+  if (!lastActiveAt) return null;
+  const days = (now.getTime() - lastActiveAt.getTime()) / DAY_MS;
+  const active = gender === "FEMALE" ? "نشطة" : "نشط";
+  if (days <= 1) return `${active} اليوم`;
+  return days <= 7 ? `${active} هذا الأسبوع` : null;
+}
+
 /** 0 = active in the last 3 days, 1 = 3–7 days ago, 2 = longer ago or never seen */
 export function activityGroup(lastActiveAt: Date | null | undefined, now = new Date()): number {
   if (!lastActiveAt) return ACTIVITY_GROUP_DAYS.length;
@@ -73,7 +85,7 @@ const personSelect = {
   // Only to leave out people who are no longer available; never sent to the client
   isDeactivated: true,
   status: true,
-  // Only to sort by recent activity; never sent to the client
+  // To sort by recent activity and for the rough label; the time itself is never sent to the client
   lastActiveAt: true,
   profile: true,
   personalityResult: { select: { vector: true } },
@@ -314,6 +326,7 @@ export async function getSuggestionFeed(
   const items = visible.slice((page - 1) * pageSize, page * pageSize).map((r): FeedItem => {
     const v = viewer as unknown as Parameters<typeof suggestionReason>[0];
     const o = r.other as unknown as Parameters<typeof suggestionReason>[1];
+    const activity = activityLabel(r.other.lastActiveAt, r.other.gender, now);
     return {
       kind: r.kind,
       id: r.id,
@@ -321,6 +334,7 @@ export async function getSuggestionFeed(
       reason: suggestionReason(v, o),
       createdAt: r.createdAt.toISOString(),
       candidate: toFeedCandidate(r.other),
+      ...(activity && { activity }),
       ...(r.expiresAt && { expiresAt: r.expiresAt.toISOString() }),
       ...(r.likedYou && { likedYou: true as const }),
       ...(r.declined && { declined: true as const }),

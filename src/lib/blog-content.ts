@@ -6,8 +6,10 @@
  */
 
 export type PostLink = { text: string; slug: string };
-/** Text with links: plain strings and, between them, mentions of other posts */
-export type PostInline = (string | PostLink)[];
+/** A web address in the text (a post's sources), shown as the site's name */
+export type PostSource = { text: string; url: string };
+/** Text with links: plain strings and, between them, mentions of other posts and sources */
+export type PostInline = (string | PostLink | PostSource)[];
 
 export type PostBlock =
   | { type: "h2" | "h3"; text: string }
@@ -24,6 +26,8 @@ const LIST_MARK = /^[•-]\s+/;
 /** Ends like a sentence or a line introducing a list, also just before a closing quote */
 const SENTENCE_END = /[.!،,:؛;…]["»)]*$/;
 const ARABIC_LETTER = /\p{Script=Arabic}/u;
+/** A full stop or bracket right after an address isn't part of it */
+const WEB_ADDRESS = /https:\/\/[^\s«»]+[^\s«».,،؛)]/g;
 
 function isTitleLine(line: string): boolean {
   return (
@@ -57,8 +61,21 @@ export function parsePostContent(
   const matcher = titleMatcher(otherPosts);
   const linked = new Set<string>();
 
-  /** Only a post's first mention becomes a link */
+  /** Web addresses become links; the text around them goes on to `mentions` */
   const inline = (text: string): PostInline => {
+    const parts: PostInline = [];
+    let last = 0;
+    for (const match of text.matchAll(WEB_ADDRESS)) {
+      if (match.index > last) parts.push(...mentions(text.slice(last, match.index)));
+      parts.push({ text: new URL(match[0]).hostname.replace(/^www\./, ""), url: match[0] });
+      last = match.index + match[0].length;
+    }
+    if (last < text.length) parts.push(...mentions(text.slice(last)));
+    return parts;
+  };
+
+  /** Only a post's first mention becomes a link */
+  const mentions = (text: string): PostInline => {
     if (!matcher) return [text];
     const parts: PostInline = [];
     let last = 0;
@@ -115,4 +132,9 @@ export function parsePostContent(
     flush();
   });
   return blocks;
+}
+
+/** What to read next: up to three other posts of the country */
+export function relatedPosts<T extends PostRef>(posts: T[], slug: string): T[] {
+  return posts.filter((p) => p.slug !== slug).slice(0, 3);
 }

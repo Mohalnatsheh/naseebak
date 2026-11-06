@@ -9,7 +9,7 @@ import { auth } from "@/lib/auth";
 import { getMaintenanceState } from "@/lib/settings";
 import { MaintenanceScreen } from "@/components/shared/maintenance-screen";
 import { getGeoCountry, getVisitorCountry, hasCountryChoice } from "@/lib/countries/server";
-import { activeCountryCodes } from "@/lib/countries/settings";
+import { activeCountryCodes, getCountrySettings } from "@/lib/countries/settings";
 import { CountrySuggestBanner } from "@/components/shared/country-suggest-banner";
 import { publicCopy } from "@/lib/public-copy";
 import { VisitorCountryProvider } from "@/components/shared/visitor-country";
@@ -86,7 +86,7 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-function organizationJsonLd(country: CountryCode) {
+function organizationJsonLd(country: CountryCode, supportEmail: string | null) {
   const copy = publicCopy(country);
   return {
     "@context": "https://schema.org",
@@ -99,7 +99,10 @@ function organizationJsonLd(country: CountryCode) {
     logo: "https://naseebak.com/images/icon-512.png",
     description: copy.shortDescription,
     foundingDate: "2025",
+    slogan: copy.tagline,
     areaServed: copy.areaServed,
+    knowsAbout: ["الزواج بالحلال", "التعارف بقصد الزواج", "دور العائلة في الزواج"],
+    ...(supportEmail && { contactPoint: { "@type": "ContactPoint", contactType: "customer support", email: supportEmail, availableLanguage: "ar" } }),
     // The social accounts that exist (same as the footer icons)
     sameAs: [
       process.env.NEXT_PUBLIC_SOCIAL_FACEBOOK,
@@ -139,6 +142,7 @@ export default async function ArabicLayout({
     headers(),
     cookies(),
   ]);
+  const supportEmail = (await getCountrySettings(country)).supportEmail ?? "info@naseebak.com";
   // Android visitors get the Play Store bar until they close it (cookie, a week)
   const ua = requestHeaders.get("user-agent") ?? "";
   const appBannerHref =
@@ -147,12 +151,12 @@ export default async function ArabicLayout({
       : null;
 
   return (
-    <html lang="ar" dir="rtl">
+    <html lang={country === "SA" ? "ar-SA" : "ar-JO"} dir="rtl">
       <body className={`${cairo.className} antialiased`}>
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
-            __html: JSON.stringify(organizationJsonLd(country)),
+            __html: JSON.stringify(organizationJsonLd(country, supportEmail)),
           }}
         />
         <script

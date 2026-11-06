@@ -9,6 +9,7 @@ import { PostContent } from "@/components/blog/post-content";
 import { formatDate, type CountryCode } from "@/lib/countries";
 import { getVisitorCountry } from "@/lib/countries/server";
 import { getPublishedPost, listPublishedPostTitles } from "@/lib/blog";
+import { relatedPosts } from "@/lib/blog-content";
 
 /* ──────────────────── Gradient Map ──────────────────── */
 
@@ -36,7 +37,11 @@ export default async function BlogDetailPage({ params }: { params: Promise<{ slu
   const country = await getVisitorCountry();
   const post = await getPublishedPost(slug, country);
   if (!post) notFound();
-  const otherPosts = (await listPublishedPostTitles(country)).filter((other) => other.slug !== post.slug);
+  const allPosts = await listPublishedPostTitles(country);
+  const otherPosts = allPosts.filter((other) => other.slug !== post.slug);
+  const related = relatedPosts(allPosts, post.slug);
+  // Worth showing once the text really changed after publishing
+  const updated = post.publishedAt && post.updatedAt.getTime() - post.publishedAt.getTime() > 24 * 60 * 60 * 1000 ? post.updatedAt : null;
 
   return (
     <>
@@ -67,11 +72,13 @@ export default async function BlogDetailPage({ params }: { params: Promise<{ slu
             </h1>
 
             {/* Meta info */}
-            <div className="flex items-center gap-4 text-sm text-muted-foreground">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
+              <span>فريق نصيبك</span>
               <span className="inline-flex items-center gap-1.5">
                 <Calendar className="size-4" />
                 {postDate(post.publishedAt, country)}
               </span>
+              {updated && <span>آخر تحديث: {postDate(updated, country)}</span>}
               {post.readTime && (
                 <span className="inline-flex items-center gap-1.5">
                   <Clock className="size-4" />
@@ -86,6 +93,20 @@ export default async function BlogDetailPage({ params }: { params: Promise<{ slu
         <section className="py-12">
           <div className="container mx-auto max-w-3xl px-4">
             <PostContent title={post.title} content={post.content} otherPosts={otherPosts} />
+            {related.length > 0 && (
+              <nav aria-label="مقالات أخرى" className="mt-12 border-t pt-8">
+                <h2 className="mb-4 text-xl font-bold">اقرأ أيضاً</h2>
+                <ul className="space-y-3">
+                  {related.map((p) => (
+                    <li key={p.slug}>
+                      <Link href={`/blog/${p.slug}`} className="font-medium text-primary hover:underline">
+                        {p.title}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </nav>
+            )}
           </div>
         </section>
 

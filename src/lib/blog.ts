@@ -33,7 +33,7 @@ export async function listPublishedPosts({ country = "JO", category, page = 1, p
 
 /** Slug and title of a country's published posts, to link mentions of one post in another */
 export function listPublishedPostTitles(country: CountryCode) {
-  return db.blogPost.findMany({ where: { status: "PUBLISHED", country }, select: { slug: true, title: true } });
+  return db.blogPost.findMany({ where: { status: "PUBLISHED", country }, orderBy: { publishedAt: "desc" }, select: { slug: true, title: true } });
 }
 
 /** Every category (shown even with no published post) with its published-post count in a country */

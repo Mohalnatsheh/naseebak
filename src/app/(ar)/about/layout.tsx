@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { getVisitorCountry } from "@/lib/countries/server";
 import { activeCountryCodes } from "@/lib/countries/settings";
 import { publicCopy } from "@/lib/public-copy";
+import { countryConfig } from "@/lib/countries";
 import { absoluteUrl, seoAlternates } from "@/lib/site-paths";
 import { socialMetadata } from "@/lib/seo";
 
@@ -10,7 +11,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const country = await getVisitorCountry();
   const copy = publicCopy(country);
   return {
-    title: "من نحن: قصة نصيبك ورسالتنا",
+    title: `من نحن: قصة نصيبك ورسالتنا ${countryConfig(country).inName}`,
     description:
       country === "SA"
         ? "تعرّف على قصة نصيبك ورسالتنا في تيسير الزواج بالحلال في المملكة العربية السعودية — تقنية حديثة تحترم عاداتنا وقيمنا، بستر واحترام"

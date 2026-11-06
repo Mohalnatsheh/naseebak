@@ -23,7 +23,7 @@ const headings = (blocks: PostBlock[], type: "h2" | "h3") =>
 const links = (blocks: PostBlock[]) =>
   blocks.flatMap((b) => {
     const lines = b.type === "p" ? [b.parts] : b.type === "ul" ? b.items : [];
-    return lines.flat().flatMap((part) => (typeof part === "string" ? [] : [part]));
+    return lines.flat().flatMap((part) => (typeof part === "string" || "url" in part ? [] : [part]));
   });
 
 /** All the words of the post back out of its blocks, whatever kind of block they landed in */
@@ -32,7 +32,7 @@ const words = (blocks: PostBlock[]) =>
     .flatMap((b) => {
       if ("text" in b) return [b.text];
       const lines = b.type === "p" ? [b.parts] : b.items;
-      return lines.map((line) => line.map((part) => (typeof part === "string" ? part : part.text)).join(""));
+      return lines.map((line) => line.map((part) => (typeof part === "string" ? part : "url" in part ? part.url : part.text)).join(""));
     })
     .join(" ")
     .split(/\s+/)

@@ -8,7 +8,8 @@ import { LandingPage } from "@/components/landing/landing-page";
 import type { Metadata } from "next";
 import { publicCopy } from "@/lib/public-copy";
 import { absoluteUrl, seoAlternates } from "@/lib/site-paths";
-import { socialMetadata } from "@/lib/seo";
+import { faqJsonLd, socialMetadata } from "@/lib/seo";
+import { contentFor } from "@/components/landing/content";
 
 async function pageText() {
   const [flags, country] = await Promise.all([getCycleFlags(), getVisitorCountry()]);
@@ -37,5 +38,10 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function HomePage() {
   const { mode, country, settings, text } = await pageText();
   if (!settings.active && country !== DEFAULT_COUNTRY) redirect("/?country=jo");
-  return <LandingPage mode={mode} country={country} hero={{ title: text.heroTitle, lead: text.heroSubtitle }} />;
+  return (
+    <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd(contentFor(mode, country).faqs)) }} />
+      <LandingPage mode={mode} country={country} hero={{ title: text.heroTitle, lead: text.heroSubtitle }} />
+    </>
+  );
 }

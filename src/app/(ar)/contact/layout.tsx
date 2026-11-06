@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { getVisitorCountry } from "@/lib/countries/server";
 import { activeCountryCodes } from "@/lib/countries/settings";
 import { publicCopy } from "@/lib/public-copy";
+import { countryConfig } from "@/lib/countries";
 import { absoluteUrl, seoAlternates } from "@/lib/site-paths";
 import { socialMetadata } from "@/lib/seo";
 
@@ -10,7 +11,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const country = await getVisitorCountry();
   const copy = publicCopy(country);
   return {
-    title: "تواصل معنا",
+    title: `تواصل معنا ${countryConfig(country).inName}`,
     description: `تواصل مع فريق نصيبك للإجابة عن استفساراتك حول منصة تيسير الزواج بالحلال ${copy.inCountry}. نحن هنا لمساعدتك`,
     alternates: seoAlternates("/contact", country, await activeCountryCodes()),
     ...socialMetadata({

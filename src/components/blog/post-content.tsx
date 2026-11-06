@@ -6,6 +6,10 @@ function Inline({ parts }: { parts: PostInline }) {
   return parts.map((part, i) =>
     typeof part === "string" ? (
       <Fragment key={i}>{part}</Fragment>
+    ) : "url" in part ? (
+      <a key={i} href={part.url} target="_blank" rel="noopener noreferrer" className="font-medium text-primary underline underline-offset-4 hover:text-primary/80">
+        {part.text}
+      </a>
     ) : (
       <Link key={i} href={`/blog/${part.slug}`} className="font-medium text-primary underline underline-offset-4 hover:text-primary/80">
         {part.text}

@@ -14,7 +14,8 @@
  *   the team arranged the old way), then every 14 days while someone hasn't answered or is still
  *   CONTINUING, at most 3 times.
  * - Mixed choice (one chose family, the other chat): the chat-chooser is reminded once, 2 days on,
- *   to share their guardian contact; the family-chooser is told the moment it is shared.
+ *   to share their guardian contact; the family-chooser is told the moment it is shared. Day 5 is the
+ *   last call and 2 days later the match closes for both, so nobody waits forever.
  */
 import type { MatchOutcome, Prisma, VisitStatus } from "@prisma/client";
 import { db } from "@/lib/db";
@@ -30,6 +31,8 @@ export const FOLLOW_UP_FIRST_DAYS = 7;
 export const FOLLOW_UP_REPEAT_DAYS = 14;
 export const FOLLOW_UP_MAX = 3;
 export const SHARE_REMIND_AFTER_DAYS = 2;
+export const SHARE_LAST_CALL_DAYS = 5;
+export const SHARE_CLOSE_AFTER_CALL_DAYS = 2;
 const BATCH = 300;
 /** Pages of BATCH rows a daily task walks through at most (so nothing is starved by rows that stay) */
 const MAX_PAGES = 10;
@@ -282,6 +285,100 @@ export async function remindGuardianShare(now = new Date()): Promise<{ reminded:
     reminded++;
   }
   return { reminded };
+}
+
+/**
+ * Mixed choice nobody settled: a last call on day 5, then the match closes 2 days later. There's no
+ * chat here, and opening one would go against the family-chooser's choice, so closing is the only way
+ * out. The side that didn't share carries the outcome, as if they had said «لم يحصل نصيب»; a match is
+ * never refunded.
+ */
+export async function closeUnsharedMatches(now = new Date()): Promise<{ warned: number; closed: number }> {
+  const unshared: Prisma.MutualMatchWhereInput = {
+    ...BOTH_AVAILABLE,
+    femaleOutcome: null,
+    maleOutcome: null,
+    OR: [
+      { femaleGuardianShareAt: null, maleGuardianShareAt: { not: null } },
+      { maleGuardianShareAt: null, femaleGuardianShareAt: { not: null } },
+    ],
+    introRequests: { some: { type: "FAMILY", status: "ACCEPTED" } },
+  };
+  const select = { id: true, femaleId: true, maleId: true, femaleGuardianShareAt: true } as const;
+  const lastCalls = await db.mutualMatch.findMany({
+    where: {
+      ...unshared,
+      openedAt: { not: null, lte: new Date(now.getTime() - SHARE_LAST_CALL_DAYS * DAY_MS) },
+      guardianShareLastCallAt: null,
+    },
+    select,
+    orderBy: { openedAt: "asc" },
+    take: BATCH,
+  });
+  const closing = await db.mutualMatch.findMany({
+    where: { ...unshared, guardianShareLastCallAt: { lte: new Date(now.getTime() - SHARE_CLOSE_AFTER_CALL_DAYS * DAY_MS) } },
+    select,
+    orderBy: { openedAt: "asc" },
+    take: BATCH,
+  });
+  const blocked = (m: { femaleId: string; maleId: string }) =>
+    db.block.findFirst({
+      where: { OR: [{ blockerId: m.femaleId, blockedId: m.maleId }, { blockerId: m.maleId, blockedId: m.femaleId }] },
+      select: { id: true },
+    });
+
+  let warned = 0;
+  for (const m of lastCalls) {
+    const claimed = await db.mutualMatch.updateMany({
+      where: { id: m.id, guardianShareLastCallAt: null },
+      data: { guardianShareLastCallAt: now },
+    });
+    if (claimed.count !== 1 || (await blocked(m))) continue;
+    await notify({
+      userId: m.femaleGuardianShareAt ? m.maleId : m.femaleId,
+      type: "MATCH",
+      title: "آخر فرصة لهذا التوافق",
+      body: "الطرف الآخر ما زال ينتظر مشاركة بيانات وليّ أمرك. إذا لم تتم المشاركة خلال يومين سيُغلق هذا التوافق.",
+      url: matchUrl(m.id),
+    });
+    warned++;
+  }
+
+  let closed = 0;
+  for (const m of closing) {
+    if (await blocked(m)) continue;
+    const silentIsMale = !!m.femaleGuardianShareAt;
+    const silent = silentIsMale ? m.maleId : m.femaleId;
+    const waiter = silentIsMale ? m.femaleId : m.maleId;
+    // A share at the last moment leaves the row as it is
+    const done = await db.mutualMatch.updateMany({
+      where: {
+        id: m.id,
+        femaleOutcome: null,
+        maleOutcome: null,
+        ...(silentIsMale ? { maleGuardianShareAt: null } : { femaleGuardianShareAt: null }),
+      },
+      data: silentIsMale ? { maleOutcome: "NOT_A_MATCH", maleOutcomeAt: now } : { femaleOutcome: "NOT_A_MATCH", femaleOutcomeAt: now },
+    });
+    if (done.count !== 1) continue;
+    await cancelPendingBetween(silent, waiter);
+    await notify({
+      userId: waiter,
+      type: "MATCH",
+      title: "انتهى هذا التوافق",
+      body: "لم يشارك الطرف الآخر بيانات وليّ أمره خلال المدة، فأغلقنا هذا التوافق. نتمنى لك التوفيق في اقتراحاتك القادمة.",
+      url: matchUrl(m.id),
+    });
+    await notify({
+      userId: silent,
+      type: "MATCH",
+      title: "انتهى هذا التوافق",
+      body: "انتهت مدة مشاركة بيانات وليّ أمرك، فأغلقنا هذا التوافق.",
+      url: matchUrl(m.id),
+    });
+    closed++;
+  }
+  return { warned, closed };
 }
 
 /**

@@ -438,6 +438,8 @@ model Suggestion {
   hiddenFromCandidate      Boolean @default(false)
   /// Closed because a member changed their conditions or data: if nobody answered, the pair can meet again at once
   closedByChange           Boolean @default(false)
+  /// Came back once for the person who never saw the other's «مهتم» (no second time)
+  reopenedAt               DateTime?
 
   createdAt          DateTime         @default(now())
   updatedAt          DateTime         @updatedAt
@@ -487,6 +489,8 @@ model MutualMatch {
   maleGuardianShareAt   DateTime?
   /// Mixed choice: the side that chose chat was reminded once to share its guardian contact
   guardianShareRemindedAt DateTime?
+  /// Mixed choice: last call sent on day 5; the match closes 2 days later if nothing was shared
+  guardianShareLastCallAt DateTime?
   /// How the introduction went, per side (null = not told us yet); see src/lib/intro/followup.ts
   femaleOutcome         MatchOutcome?
   maleOutcome           MatchOutcome?
@@ -846,6 +850,8 @@ model Conversation {
   expiryWarnedAt DateTime?
   /// Day-7 "ready for a family introduction?" nudge sent (once)
   familyNudgeAt  DateTime?
+  /// 48-hour "this chat hasn't started / a message waits" nudge sent (once)
+  quietNudgeAt   DateTime?
   endedById      String?
   /// Set when an admin ended the chat (endedById stays null)
   endedByAdminId String?

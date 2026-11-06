@@ -370,7 +370,7 @@ export const INTEREST_TITLE = "شخص أبدى اهتمامه بك";
  * is shown openly, in the «مهتمون بك» tab): tell them, at most once per Amman day. Never sent for a
  * «لا». Push + SMS fallback (event "interest") through notify().
  */
-async function notifyInterestShown(userId: string, suggestionId: string, now: Date): Promise<void> {
+export async function notifyInterestShown(userId: string, suggestionId: string, now: Date): Promise<void> {
   const already = await db.notification.findFirst({
     where: { userId, type: "SUGGESTION", title: INTEREST_TITLE, createdAt: { gte: startOfAmmanDay(now) } },
     select: { id: true },

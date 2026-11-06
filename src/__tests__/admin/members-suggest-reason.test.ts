@@ -5,6 +5,7 @@ const db = vi.hoisted(() => ({
   suggestion: { count: vi.fn(), findMany: vi.fn(), create: vi.fn(), createMany: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
   mutualMatch: { count: vi.fn(), findMany: vi.fn() },
   block: { findMany: vi.fn() },
+  activityDay: { findMany: vi.fn(async () => []) },
 }));
 const flags = vi.hoisted(() => ({
   getCycleFlags: vi.fn(async () => ({ introRequests: true, chat: true, mutualSuggestions: true, creditOnInterest: true })),
@@ -66,6 +67,19 @@ describe("memberSuggestStatus", () => {
     expect(await memberSuggestStatus("u1")).toMatchObject({ reason: "ready", candidates: 2 });
     db.user.findMany.mockResolvedValue([]);
     expect(await memberSuggestStatus("u1")).toMatchObject({ reason: "no_candidates", candidates: 0 });
+  });
+
+  it("counts a «مهتم» waiting to come back as something to show", async () => {
+    db.user.findMany.mockResolvedValue([]);
+    db.suggestion.findMany.mockImplementation(async ({ where }: { where: { status?: string } }) =>
+      where.status === "EXPIRED"
+        ? [{
+            id: "w1", recipientId: "them", candidateId: "u1", recipientDecidedAt: new Date(), candidateDecidedAt: null,
+            expiresAt: new Date(), recipient: { id: "them" }, candidate: { id: "u1" },
+          }]
+        : [],
+    );
+    expect(await memberSuggestStatus("u1")).toMatchObject({ reason: "ready", candidates: 1 });
   });
 
   it("is read-only: never writes a card or a notification", async () => {

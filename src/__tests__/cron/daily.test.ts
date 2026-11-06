@@ -10,6 +10,7 @@ const tasks = vi.hoisted(() => ({
   runWeeklySuggestions: vi.fn(),
   runReengagement: vi.fn(),
   chatHousekeepingAll: vi.fn(),
+  nudgeQuietChats: vi.fn(async () => ({ nudged: 0 })),
   processAccountDeletions: vi.fn(),
   remindWaitingInterest: vi.fn(),
   remindUnpaidPayments: vi.fn(),
@@ -21,7 +22,7 @@ vi.mock("@/lib/rate-limit-db", () => ({ purgeExpiredRateLimits: vi.fn(async () =
 vi.mock("@/lib/engagement/polls", () => ({ runPollRotation: vi.fn(async () => ({ rotated: 0, queueEmpty: 0 })) }));
 vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/settings", () => settings);
-vi.mock("@/lib/chat/service", () => ({ chatHousekeepingAll: tasks.chatHousekeepingAll }));
+vi.mock("@/lib/chat/service", () => ({ chatHousekeepingAll: tasks.chatHousekeepingAll, nudgeQuietChats: tasks.nudgeQuietChats }));
 vi.mock("@/lib/cron/intro-requests", () => ({
   expireIntroRequests: tasks.expireIntroRequests,
   remindIntroRequests: tasks.remindIntroRequests,
@@ -41,6 +42,7 @@ vi.mock("@/lib/cron/payment-reminders", () => ({ remindUnpaidPayments: tasks.rem
 vi.mock("@/lib/cron/filter-tips", () => ({ sendFilterTips: vi.fn(async () => ({ members: 0, sent: 0 })) }));
 vi.mock("@/lib/intro/followup", () => ({
   remindGuardianShare: vi.fn(async () => ({ reminded: 0 })),
+  closeUnsharedMatches: vi.fn(async () => ({ warned: 0, closed: 0 })),
   runFamilyFollowUps: vi.fn(async () => ({ matches: 0, notified: 0 })),
   cancelClosedLegacyVisits: vi.fn(async () => ({ cancelled: 0 })),
 }));
@@ -57,6 +59,7 @@ beforeEach(() => {
   tasks.expireMutualSuggestionsAll.mockResolvedValue({ expired: 3 });
   tasks.remindMutualSuggestions.mockResolvedValue({ suggestions: 1, reminded: 2 });
   tasks.chatHousekeepingAll.mockResolvedValue({ expired: 1, warned: 1 });
+  tasks.nudgeQuietChats.mockResolvedValue({ nudged: 0 });
   tasks.runWeeklySuggestions.mockResolvedValue({ eligible: 5, processed: 5, created: 6, failed: 0 });
   tasks.runReengagement.mockResolvedValue({ idle: 4, sent: 2 });
   tasks.processAccountDeletions.mockResolvedValue(1);

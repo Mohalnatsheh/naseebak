@@ -5,8 +5,9 @@ const db = vi.hoisted(() => ({
   suggestion: { count: vi.fn(), findMany: vi.fn(), findFirst: vi.fn(), createMany: vi.fn(), groupBy: vi.fn(), updateMany: vi.fn() },
   mutualMatch: { findMany: vi.fn() },
   block: { findMany: vi.fn() },
-  notification: { create: vi.fn() },
+  notification: { create: vi.fn(), findFirst: vi.fn() },
   creditLedger: { create: vi.fn() },
+  activityDay: { findMany: vi.fn() },
 }));
 vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/onesignal", () => ({ sendPushNotification: vi.fn() }));
@@ -72,6 +73,7 @@ beforeEach(() => {
   db.suggestion.findMany.mockResolvedValue([]);
   db.mutualMatch.findMany.mockResolvedValue([]);
   db.block.findMany.mockResolvedValue([]);
+  db.activityDay.findMany.mockResolvedValue([]);
   db.suggestion.createMany.mockImplementation(async ({ data }: { data: unknown[] }) => ({ count: data.length }));
   db.notification.create.mockResolvedValue({});
   db.user.updateMany.mockResolvedValue({ count: 1 });
@@ -430,8 +432,8 @@ describe("credit on interest: open cap 5", () => {
   };
   beforeEach(() => {
     flags.getCycleFlags.mockResolvedValue(on);
-    db.suggestion.findMany.mockImplementation(async ({ where }: { where: { flow?: string; hiddenFromCandidate?: boolean } }) =>
-      where.flow === "MUTUAL" && !where.hiddenFromCandidate ? females(6).map((f) => ({ recipientId: "x", candidateId: f.id })) : []
+    db.suggestion.findMany.mockImplementation(async ({ where }: { where: { flow?: string; hiddenFromCandidate?: boolean; status?: string } }) =>
+      where.flow === "MUTUAL" && !where.hiddenFromCandidate && where.status !== "EXPIRED" ? females(6).map((f) => ({ recipientId: "x", candidateId: f.id })) : []
     );
     // Good but not "very good" fits: the 5-open cap applies as usual (85%+ may go above it)
     for (const id of [...females(7).map((f) => f.id), "busy", "free"]) scoring.scoreFor.set(id, 70);
@@ -467,8 +469,8 @@ describe("credit on interest: open cap 5", () => {
       .mockResolvedValueOnce([{ recipientId: "busy", _count: 5 }])
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([]);
-    db.suggestion.findMany.mockImplementation(async ({ where }: { where: { flow?: string; hiddenFromCandidate?: boolean } }) =>
-      where.flow === "MUTUAL" && where.hiddenFromCandidate === undefined
+    db.suggestion.findMany.mockImplementation(async ({ where }: { where: { flow?: string; hiddenFromCandidate?: boolean; status?: string } }) =>
+      where.flow === "MUTUAL" && where.hiddenFromCandidate === undefined && where.status !== "EXPIRED"
         ? [{ recipientId: "co4b", candidateId: "busy", hiddenFromCandidate: true }, { recipientId: "co4b", candidateId: "free", hiddenFromCandidate: false }]
         : []
     );
@@ -497,6 +499,87 @@ describe("credit on interest: open cap 5", () => {
     await openCounts(["r1"]);
     const recipientQuery = db.suggestion.groupBy.mock.calls.find((c) => c[0].by[0] === "recipientId" && c[0].where.flow === "MUTUAL")![0];
     expect(recipientQuery.where).not.toHaveProperty("hiddenFromCandidate");
+  });
+
+  describe("a «مهتم» the other person never saw comes back once", () => {
+    const DAY = 24 * 60 * 60 * 1000;
+    const closed = (over: Record<string, unknown> = {}) => ({
+      id: "w1", recipientId: "them", candidateId: "back1", recipientDecision: "INTERESTED", candidateDecision: null,
+      recipientDecidedAt: new Date(Date.now() - 12 * DAY), candidateDecidedAt: null, expiresAt: new Date(Date.now() - 6 * DAY),
+      recipient: person("them", "FEMALE"), candidate: person("back1", "MALE"), ...over,
+    });
+    const closedCards = (rows: unknown[]) =>
+      db.suggestion.findMany.mockImplementation(async ({ where }: { where: { status?: string } }) => (where.status === "EXPIRED" ? rows : []));
+    const reopenCalls = () => db.suggestion.updateMany.mock.calls.filter((c) => c[0].where.status === "EXPIRED");
+
+    beforeEach(() => {
+      openRows(4);
+      db.user.findUnique.mockResolvedValue(person("back1", "MALE"));
+      db.suggestion.updateMany.mockResolvedValue({ count: 1 });
+      db.notification.findFirst.mockResolvedValue(null);
+      scoring.scoreFor.set("them", 70);
+      scoring.scoreFor.set("back1", 70);
+    });
+
+    it("reopens it for 7 days and tells them someone is waiting", async () => {
+      closedCards([closed()]);
+      expect(await autoSuggestForUser("back1")).toBe(1);
+      const [{ where, data }] = reopenCalls()[0];
+      expect(where).toMatchObject({ id: "w1", reopenedAt: null });
+      expect(data).toMatchObject({ status: "PENDING", hiddenFromCandidate: false, reminderSentAt: null });
+      expect(data.reopenedAt).toBeInstanceOf(Date);
+      expect(data.expiresAt.getTime()).toBeGreaterThan(Date.now() + 6.9 * DAY);
+      expect(notifyMod.notify).toHaveBeenCalledWith(expect.objectContaining({ url: "/dashboard/suggestions?tab=interested" }));
+    });
+
+    it("only looks at unanswered cards closed by time in the last 30 days, never twice", async () => {
+      closedCards([]);
+      await autoSuggestForUser("back1");
+      const { where } = db.suggestion.findMany.mock.calls.find((c) => c[0].where.status === "EXPIRED")![0];
+      expect(where).toMatchObject({ closedByChange: false, reopenedAt: null });
+      expect(where.expiresAt.gt.getTime()).toBeLessThanOrEqual(Date.now() - 29.9 * DAY);
+    });
+
+    it("leaves a card they could have answered: they were here during the wait", async () => {
+      closedCards([closed()]);
+      db.activityDay.findMany.mockResolvedValue([{ day: new Date(Date.now() - 8 * DAY) }]);
+      await autoSuggestForUser("back1");
+      expect(reopenCalls()).toHaveLength(0);
+    });
+
+    it("leaves it when the pair no longer fits", async () => {
+      closedCards([closed()]);
+      scoring.scoreFor.set("them", 50);
+      await autoSuggestForUser("back1");
+      expect(reopenCalls()).toHaveLength(0);
+    });
+
+    it("leaves it when one has blocked the other", async () => {
+      closedCards([closed()]);
+      db.block.findMany.mockResolvedValue([{ blockerId: "them", blockedId: "back1" }]);
+      await autoSuggestForUser("back1");
+      expect(reopenCalls()).toHaveLength(0);
+    });
+
+    it("leaves it when they are already matched", async () => {
+      closedCards([closed()]);
+      db.mutualMatch.findMany.mockResolvedValue([{ femaleId: "them", maleId: "back1" }]);
+      await autoSuggestForUser("back1");
+      expect(reopenCalls()).toHaveLength(0);
+    });
+
+    it("waits while the member's 5 slots are full", async () => {
+      openRows(5);
+      closedCards([closed()]);
+      await autoSuggestForUser("back1");
+      expect(reopenCalls()).toHaveLength(0);
+    });
+
+    it("takes up a slot: only as many come back as there is room for", async () => {
+      closedCards([closed(), closed({ id: "w2" })]);
+      await autoSuggestForUser("back1");
+      expect(reopenCalls().map((c) => c[0].where.id)).toEqual(["w1"]);
+    });
   });
 
   it("makes no new cards for a member away 7+ days, and shows them none until they return", async () => {
@@ -710,7 +793,9 @@ describe("cards closed by a member's own change", () => {
     const closed = past({ recipientId: "back1", candidateId: "c1" });
     db.user.findUnique.mockResolvedValue(person("back1", "MALE"));
     db.user.findMany.mockResolvedValue([person("c1", "FEMALE")]);
-    db.suggestion.findMany.mockResolvedValue([{ ...closed, id: "row1" }]);
+    db.suggestion.findMany.mockImplementation(async ({ where }: { where: { reopenedAt?: null } }) =>
+      where.reopenedAt === null ? [] : [{ ...closed, id: "row1" }]
+    );
     db.suggestion.updateMany.mockResolvedValue({ count: 1 });
     await autoSuggestForUser("back1");
     const data = db.suggestion.updateMany.mock.calls.find(([a]) => a.where?.id === "row1" && a.data?.status === "PENDING")?.[0].data;

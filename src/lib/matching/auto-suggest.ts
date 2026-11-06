@@ -18,7 +18,7 @@ import { notifyCreditsExhausted, recordCredit, refundCredits, reserveCredits, WE
 import { getCycleFlags, type CycleFlags } from "@/lib/settings";
 import { notify, notifyMany } from "@/lib/notify";
 import { isTestPhone, testPhones } from "@/lib/test-accounts";
-import { MUTUAL_SUGGESTION_MS, SLOT_IDLE_DAYS, revealHiddenFor, slotMutualWhere } from "@/lib/suggestions/mutual";
+import { MUTUAL_SUGGESTION_MS, SLOT_IDLE_DAYS, notifyInterestShown, revealHiddenFor, slotMutualWhere } from "@/lib/suggestions/mutual";
 import { NOT_ENGAGED, isEngaged } from "@/lib/intro/followup";
 import { activeWhere, CANDIDATE_ACTIVE_DAYS, CANDIDATE_FALLBACK_DAYS, isActive, recentlySeenWhere } from "@/lib/activity";
 import { arabicCount } from "@/lib/utils";
@@ -237,6 +237,96 @@ export function pairAvailability(userId: string, rows: PastRow[], now = new Date
   return result;
 }
 
+/** A «مهتم» can still come back this long after its card closed */
+export const SECOND_CHANCE_DAYS = 30;
+
+/** On the site between the other's «مهتم» and the card closing: they could have answered it. */
+export function seenDuringWait(days: Date[], saidAt: Date | null, closedAt: Date | null): boolean {
+  if (!saidAt || !closedAt) return true;
+  return days.some((d) => d > saidAt && d <= closedAt);
+}
+
+/**
+ * Cards closed by time with the other's «مهتم» never answered because this member was away. A silent
+ * «مهتم» would otherwise end the pair for good (`isResuggestable`). Best match first; each comes back
+ * once, and only if the pair still fits and neither has moved on.
+ */
+export async function secondChanceCards(
+  user: Parameters<typeof calculateCompatibility>[0] & { id: string; country: string },
+  flags: CycleFlags,
+  now = new Date(),
+): Promise<string[]> {
+  const partner = { isDeactivated: false, status: { not: "SUSPENDED" as const }, isFlagged: false, country: user.country, ...NOT_ENGAGED };
+  const rows = await db.suggestion.findMany({
+    where: {
+      flow: "MUTUAL",
+      status: "EXPIRED",
+      closedByChange: false,
+      reopenedAt: null,
+      expiresAt: { gt: new Date(now.getTime() - SECOND_CHANCE_DAYS * 24 * 60 * 60 * 1000), lte: now },
+      OR: [
+        { recipientId: user.id, recipientDecision: null, candidateDecision: "INTERESTED", candidate: partner },
+        { candidateId: user.id, candidateDecision: null, recipientDecision: "INTERESTED", recipient: partner },
+      ],
+    },
+    select: {
+      id: true, recipientId: true, candidateId: true, recipientDecidedAt: true, candidateDecidedAt: true, expiresAt: true,
+      recipient: { select: scoringSelect }, candidate: { select: scoringSelect },
+    },
+    orderBy: { compatibilityScore: "desc" },
+  });
+  if (rows.length === 0) return [];
+  const [days, blocks, matches] = await Promise.all([
+    db.activityDay.findMany({
+      where: { userId: user.id, day: { gte: new Date(now.getTime() - (SECOND_CHANCE_DAYS + 7) * 24 * 60 * 60 * 1000) } },
+      select: { day: true },
+    }),
+    db.block.findMany({
+      where: { OR: [{ blockerId: user.id }, { blockedId: user.id }] },
+      select: { blockerId: true, blockedId: true },
+    }),
+    db.mutualMatch.findMany({
+      where: { OR: [{ femaleId: user.id }, { maleId: user.id }] },
+      select: { femaleId: true, maleId: true },
+    }),
+  ]);
+  const seen = days.map((d) => d.day);
+  const gone = new Set([...blocks.flatMap((b) => [b.blockerId, b.blockedId]), ...matches.flatMap((m) => [m.femaleId, m.maleId])]);
+  return rows
+    .filter((r) => {
+      const mine = r.recipientId === user.id;
+      const other = mine ? r.candidate : r.recipient;
+      return !gone.has(other.id)
+        && !seenDuringWait(seen, mine ? r.candidateDecidedAt : r.recipientDecidedAt, r.expiresAt)
+        && meetsSuggestionGate(other, flags.introRequests)
+        && mutuallyAcceptable(user, other)
+        && calculateCompatibility(user, other) >= minSuggestionScore(flags);
+    })
+    .map((r) => r.id);
+}
+
+/** Bring up to `room` of them back for a full 7 days. The first person's refund stands: they aren't charged again. */
+async function reopenSecondChances(user: Parameters<typeof secondChanceCards>[0], flags: CycleFlags, room: number): Promise<number> {
+  const now = new Date();
+  const ids = (await secondChanceCards(user, flags, now)).slice(0, room);
+  let reopened = 0;
+  for (const id of ids) {
+    const { count } = await db.suggestion.updateMany({
+      where: { id, status: "EXPIRED", reopenedAt: null },
+      data: {
+        status: "PENDING",
+        reopenedAt: now,
+        expiresAt: new Date(now.getTime() + MUTUAL_SUGGESTION_MS),
+        hiddenFromCandidate: false,
+        reminderSentAt: null,
+      },
+    });
+    reopened += count;
+  }
+  if (reopened > 0) await notifyInterestShown(user.id, ids[0], now).catch((e) => console.error("[suggestions] second chance notice:", e));
+  return reopened;
+}
+
 async function generate(userId: string): Promise<SuggestOutcome> {
 
   const user = await db.user.findUnique({
@@ -279,14 +369,19 @@ async function generate(userId: string): Promise<SuggestOutcome> {
   let limit = Math.min(MAX_NEW_SUGGESTIONS, user.matchCredits);
   // Cards made for others while I was full, shown now that I have room (before anyone new)
   let revealed = 0;
+  // A «مهتم» I missed while away: first of all, and with its own notice rather than "new suggestions"
+  let reopened = 0;
   if (creditOnInterest) {
     const open = await openSuggestionCount(userId);
     limit = MAX_OPEN_SUGGESTIONS - open;
     if (limit <= 0) return outcome(0, "pending");
-    revealed = await revealHiddenFor(userId, limit, new Date(), user.country);
-    limit -= revealed;
+    reopened = await reopenSecondChances(user, flags, limit);
+    limit -= reopened;
+    const shown = limit > 0 ? await revealHiddenFor(userId, limit, new Date(), user.country) : 0;
+    revealed = reopened + shown;
+    limit -= shown;
     if (limit <= 0) {
-      await notifyNewForMe(userId, revealed);
+      await notifyNewForMe(userId, shown);
       return outcome(revealed);
     }
   } else {
@@ -310,7 +405,7 @@ async function generate(userId: string): Promise<SuggestOutcome> {
   const last = lastEmptyRun.get(userId);
   if (last && Date.now() - last < RETRY_COOLDOWN_MS) {
     if (revealed === 0) return outcome(0, "no_candidates");
-    await notifyNewForMe(userId, revealed);
+    await notifyNewForMe(userId, revealed - reopened);
     return outcome(revealed);
   }
 
@@ -425,7 +520,7 @@ async function generate(userId: string): Promise<SuggestOutcome> {
 
     if (top.length === 0) {
       if (revealed > 0) {
-        await notifyNewForMe(userId, revealed);
+        await notifyNewForMe(userId, revealed - reopened);
         return outcome(revealed);
       }
       lastEmptyRun.set(userId, Date.now());
@@ -472,7 +567,7 @@ async function generate(userId: string): Promise<SuggestOutcome> {
     // Top-ups run many times a day (after each decision, on expiry, on page open): one
     // "new suggestions" notice per person per day is enough, the rest wait in the list.
     // Cards shown again from hidden count as new for me.
-    await notifyNewForMe(userId, created.count + revealed);
+    await notifyNewForMe(userId, created.count + revealed - reopened);
     if (created.count === 0) return outcome(revealed);
 
     if (mutual) {

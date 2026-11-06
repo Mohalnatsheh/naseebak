@@ -26,7 +26,7 @@ vi.mock("@/lib/ably", () => ({ publishChatEvent: vi.fn(async () => {}) }));
 vi.mock("@/lib/settings", () => ({ getCycleFlags: vi.fn(async () => ({ introRequests: true, chat: true })) }));
 
 import {
-  setMatchOutcome, runFamilyFollowUps, remindGuardianShare, FollowUpError, cancelClosedLegacyVisits, isEngaged, NOT_ENGAGED,
+  setMatchOutcome, runFamilyFollowUps, remindGuardianShare, closeUnsharedMatches, FollowUpError, cancelClosedLegacyVisits, isEngaged, NOT_ENGAGED,
 } from "@/lib/intro/followup";
 
 const match = (over: Record<string, unknown> = {}) => ({
@@ -146,6 +146,51 @@ describe("remindGuardianShare", () => {
     ]);
     expect(await remindGuardianShare(new Date())).toEqual({ reminded: 1 });
     expect(notifyMod.notify).toHaveBeenCalledWith(expect.objectContaining({ userId: "u1", title: "بانتظار مشاركة بيانات وليّ أمرك" }));
+  });
+});
+
+describe("closeUnsharedMatches: mixed choice can't wait forever", () => {
+  const DAY = 86_400_000;
+  const now = new Date("2026-11-20T15:00:00Z");
+  const row = (over: Record<string, unknown> = {}) => ({
+    id: "m1", femaleId: "f1", maleId: "u1", femaleGuardianShareAt: now, maleGuardianShareAt: null,
+    guardianShareLastCallAt: null, female: awake, male: awake, ...over,
+  });
+  const rows = (lastCall: unknown[], closing: unknown[]) =>
+    db.mutualMatch.findMany.mockResolvedValueOnce(lastCall).mockResolvedValueOnce(closing);
+
+  it("warns the side that hasn't shared on day 5, once", async () => {
+    rows([row()], []);
+    expect(await closeUnsharedMatches(now)).toEqual({ warned: 1, closed: 0 });
+    const where = db.mutualMatch.findMany.mock.calls[0][0].where;
+    expect(where.openedAt.lte).toEqual(new Date(now.getTime() - 5 * DAY));
+    expect(where.guardianShareLastCallAt).toBeNull();
+    expect(notifyMod.notify).toHaveBeenCalledTimes(1);
+    expect(notifyMod.notify).toHaveBeenCalledWith(expect.objectContaining({ userId: "u1", title: "آخر فرصة لهذا التوافق" }));
+  });
+
+  it("closes 2 days after the warning: both are told, the silent side carries the outcome", async () => {
+    rows([], [row({ guardianShareLastCallAt: new Date(now.getTime() - 2 * DAY) })]);
+    expect(await closeUnsharedMatches(now)).toEqual({ warned: 0, closed: 1 });
+    expect(db.mutualMatch.findMany.mock.calls[1][0].where.guardianShareLastCallAt.lte).toEqual(new Date(now.getTime() - 2 * DAY));
+    const { where, data } = db.mutualMatch.updateMany.mock.calls[0][0];
+    expect(where).toMatchObject({ id: "m1", femaleOutcome: null, maleOutcome: null, maleGuardianShareAt: null });
+    expect(data).toMatchObject({ maleOutcome: "NOT_A_MATCH" });
+    expect(notifyMod.notify.mock.calls.map((c) => c[0].userId).sort()).toEqual(["f1", "u1"]);
+  });
+
+  it("does nothing if they shared at the last moment", async () => {
+    rows([], [row({ guardianShareLastCallAt: new Date(now.getTime() - 2 * DAY) })]);
+    db.mutualMatch.updateMany.mockResolvedValue({ count: 0 });
+    expect(await closeUnsharedMatches(now)).toEqual({ warned: 0, closed: 0 });
+    expect(notifyMod.notify).not.toHaveBeenCalled();
+  });
+
+  it("says nothing on a blocked pair", async () => {
+    rows([row()], []);
+    db.block.findFirst.mockResolvedValue({ id: "b" });
+    expect((await closeUnsharedMatches(now)).warned).toBe(0);
+    expect(notifyMod.notify).not.toHaveBeenCalled();
   });
 });
 

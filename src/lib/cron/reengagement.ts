@@ -3,13 +3,15 @@
  * something waiting for them (a suggestion to decide, a request to answer, unread chat messages) get
  * one push "لديك ما ينتظرك في نصيبك", at most once per 7 days (`User.reengagedAt`).
  * The push uses the type of what waits, so the user's notification preferences apply.
+ * With nothing waiting (no cards reach someone away 7+ days) it is an invitation back instead.
  */
-import type { NotificationType } from "@prisma/client";
+import type { Gender, NotificationType } from "@prisma/client";
 import { db } from "@/lib/db";
 import { notify } from "@/lib/notify";
 import { idleBetweenWhere } from "@/lib/activity";
 import { openMutualWhere } from "@/lib/suggestions/mutual";
 import { hiddenPartnerIds, visibleConversationsWhere } from "@/lib/matches/state";
+import { isEngaged } from "@/lib/intro/followup";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 export const REENGAGE_MIN_IDLE_DAYS = 7;
@@ -67,6 +69,22 @@ export function reengagementMessage(w: Waiting): { type: NotificationType; body:
   return { type: "CHAT", body, url: "/dashboard/chats" };
 }
 
+/** Nothing waits, but new cards start the moment they return. Not for those who couldn't get any. */
+async function winBackMessage(u: {
+  id: string;
+  gender: Gender | null;
+  isFlagged: boolean;
+  profile: { isComplete: boolean } | null;
+}): Promise<{ type: NotificationType; title: string; body: string; url: string } | null> {
+  if (!u.profile?.isComplete || u.isFlagged || (await isEngaged(u.id))) return null;
+  return {
+    type: "SUGGESTION",
+    title: "فرص جديدة في نصيبك",
+    body: u.gender === "FEMALE" ? "افتحي حسابكِ لتصلكِ اقتراحات جديدة تناسب شروطكِ." : "افتح حسابك لتصلك اقتراحات جديدة تناسب شروطك.",
+    url: "/dashboard/suggestions",
+  };
+}
+
 /** Pages of BATCH idle users walked per run at most */
 const MAX_PAGES = 10;
 
@@ -88,7 +106,7 @@ export async function runReengagement(now = new Date()): Promise<{ idle: number;
           { OR: [{ reengagedAt: null }, { reengagedAt: { lt: notSince } }] },
         ],
       },
-      select: { id: true, lastActiveAt: true, updatedAt: true },
+      select: { id: true, gender: true, isFlagged: true, profile: { select: { isComplete: true } }, lastActiveAt: true, updatedAt: true },
       orderBy: { id: "asc" },
       take: BATCH,
       ...(cursor && { cursor: { id: cursor }, skip: 1 }),
@@ -97,7 +115,8 @@ export async function runReengagement(now = new Date()): Promise<{ idle: number;
 
     for (const u of users) {
       try {
-        const message = reengagementMessage(await waitingFor(u.id, now));
+        const waiting = reengagementMessage(await waitingFor(u.id, now));
+        const message = waiting ? { ...waiting, title: "لديك ما ينتظرك في نصيبك" } : await winBackMessage(u);
         if (!message) continue;
         // Claim first: a second run (or a parallel one) can't send it again within 7 days
         const claimed = await db.user.updateMany({
@@ -109,7 +128,7 @@ export async function runReengagement(now = new Date()): Promise<{ idle: number;
         await notify({
           userId: u.id,
           type: message.type,
-          title: "لديك ما ينتظرك في نصيبك",
+          title: message.title,
           body: message.body,
           url: message.url,
           pushOnly: true,

@@ -13,7 +13,7 @@
  */
 import { db } from "@/lib/db";
 import { setSetting } from "@/lib/settings";
-import { chatHousekeepingAll } from "@/lib/chat/service";
+import { chatHousekeepingAll, nudgeQuietChats } from "@/lib/chat/service";
 import { expireIntroRequests, remindIntroRequests } from "@/lib/cron/intro-requests";
 import { expireMutualSuggestionsAll, healMissingMatches, remindMutualSuggestions, remindWaitingInterest, runWeeklySuggestions } from "@/lib/cron/suggestions";
 import { runReengagement } from "@/lib/cron/reengagement";
@@ -23,7 +23,7 @@ import { processAccountDeletions } from "@/lib/cron/deletions";
 import { reconcileStripePayments } from "@/lib/payments/fulfil";
 import { reconcilePaymentIntents } from "@/lib/payments/intent";
 import { getStripe } from "@/lib/stripe";
-import { cancelClosedLegacyVisits, remindGuardianShare, runFamilyFollowUps } from "@/lib/intro/followup";
+import { cancelClosedLegacyVisits, closeUnsharedMatches, remindGuardianShare, runFamilyFollowUps } from "@/lib/intro/followup";
 import { sendAdminAlert } from "@/lib/admin-alert";
 import { purgeExpiredRateLimits } from "@/lib/rate-limit-db";
 import { runPollRotation } from "@/lib/engagement/polls";
@@ -139,6 +139,8 @@ async function execute(trigger: DailyRunSummary["trigger"], part: DailyPart): Pr
     tasks.waitingInterestReminders = await runTask("waitingInterestReminders", () => remindWaitingInterest(now()));
     tasks.filterTips = await runTask("filterTips", () => sendFilterTips(now()));
     tasks.guardianShareReminders = await runTask("guardianShareReminders", () => remindGuardianShare(now()));
+    tasks.unsharedMatches = await runTask("unsharedMatches", () => closeUnsharedMatches(now()));
+    tasks.quietChats = await runTask("quietChats", () => nudgeQuietChats(now()));
     tasks.familyFollowUps = await runTask("familyFollowUps", () => runFamilyFollowUps(now()));
     tasks.reengagement = await runTask("reengagement", () => runReengagement(now()));
   }

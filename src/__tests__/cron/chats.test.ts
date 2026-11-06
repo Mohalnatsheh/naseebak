@@ -14,7 +14,7 @@ vi.mock("@/lib/notify", () => notifyMod);
 vi.mock("@/lib/settings", () => ({ getCycleFlags: vi.fn() }));
 vi.mock("@/lib/rate-limit", () => ({ rateLimit: vi.fn() }));
 
-import { chatHousekeepingAll } from "@/lib/chat/service";
+import { chatHousekeepingAll, nudgeQuietChats } from "@/lib/chat/service";
 
 const DAY = 24 * 60 * 60 * 1000;
 const conv = (id: string, expiresIn: number, over: object = {}) => ({
@@ -119,5 +119,56 @@ describe("chatHousekeepingAll", () => {
     const res = await chatHousekeepingAll();
     expect(res).toMatchObject({ expired: 1, nudged: 0 });
     expect(notifyMod.notifyMany).not.toHaveBeenCalled();
+  });
+});
+
+describe("nudgeQuietChats", () => {
+  const now = new Date("2026-11-20T15:00:00Z");
+  const quiet = (messages: object[], over: object = {}) =>
+    conv("c1", 10 * DAY, { createdAt: new Date(now.getTime() - 3 * DAY), quietNudgeAt: null, messages, ...over });
+  const msg = (senderId: string, readAt: Date | null = null) => ({ senderId, readAt, createdAt: new Date(now.getTime() - 2 * DAY) });
+
+  it("looks only at open chats between 48 hours and 7 days old, not nudged yet", async () => {
+    db.conversation.findMany.mockResolvedValue([]);
+    await nudgeQuietChats(now);
+    const { where } = db.conversation.findMany.mock.calls[0][0];
+    expect(where).toMatchObject({ status: "ACTIVE", quietNudgeAt: null });
+    expect(where.createdAt.lte).toEqual(new Date(now.getTime() - 2 * DAY));
+    expect(where.createdAt.gt).toEqual(new Date(now.getTime() - 7 * DAY));
+  });
+
+  it("nobody wrote: both are told, once", async () => {
+    db.conversation.findMany.mockResolvedValue([quiet([])]);
+    expect(await nudgeQuietChats(now)).toEqual({ nudged: 1 });
+    expect(notifyMod.notify.mock.calls.map((c) => c[0].userId)).toEqual(["f1", "u1"]);
+    expect(notifyMod.notify.mock.calls[0][0]).toMatchObject({ title: "محادثتك لم تبدأ بعد", url: "/dashboard/chats/c1" });
+    expect(notifyMod.notify.mock.calls[0][0].sms).toBeUndefined();
+  });
+
+  it("one wrote: only the silent person is told", async () => {
+    db.conversation.findMany.mockResolvedValue([quiet([msg("f1")])]);
+    await nudgeQuietChats(now);
+    expect(notifyMod.notify.mock.calls.map((c) => c[0].userId)).toEqual(["u1"]);
+    expect(notifyMod.notify.mock.calls[0][0].title).toBe("رسالة بانتظار ردك");
+  });
+
+  it("leaves chats where both write, or the other already read it", async () => {
+    db.conversation.findMany.mockResolvedValue([quiet([msg("f1"), msg("u1")]), quiet([msg("f1", now)])]);
+    expect(await nudgeQuietChats(now)).toEqual({ nudged: 0 });
+    expect(db.conversation.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("a second run at the same time sends nothing", async () => {
+    db.conversation.findMany.mockResolvedValue([quiet([])]);
+    db.conversation.updateMany.mockResolvedValue({ count: 0 });
+    expect(await nudgeQuietChats(now)).toEqual({ nudged: 0 });
+    expect(notifyMod.notify).not.toHaveBeenCalled();
+  });
+
+  it("stays quiet when one has blocked the other", async () => {
+    db.conversation.findMany.mockResolvedValue([quiet([])]);
+    db.block.findFirst.mockResolvedValue({ id: "b" });
+    expect(await nudgeQuietChats(now)).toEqual({ nudged: 0 });
+    expect(notifyMod.notify).not.toHaveBeenCalled();
   });
 });

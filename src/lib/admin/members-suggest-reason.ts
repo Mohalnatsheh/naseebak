@@ -14,6 +14,7 @@ import {
   openSuggestionCount,
   pairAvailability,
   scoringSelect,
+  secondChanceCards,
   weeklyCounts,
 } from "@/lib/matching/auto-suggest";
 import { calculateCompatibility, mutuallyAcceptable } from "@/lib/matching/score";
@@ -107,7 +108,8 @@ async function suitableCandidates(
     const busy = await weeklyCounts(ranked.map((c) => c.id), new Date(now.getTime() - WEEK_MS));
     ranked = ranked.filter((c) => (busy.get(c.id) ?? 0) < WEEKLY_FREE_SUGGESTIONS);
   }
-  return ranked.length + hidden;
+  const waiting = creditOnInterest ? await secondChanceCards(user, flags, now) : [];
+  return ranked.length + hidden + waiting.length;
 }
 
 export async function memberSuggestStatus(userId: string, now = new Date()): Promise<MemberSuggestStatus | null> {

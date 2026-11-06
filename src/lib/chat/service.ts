@@ -10,6 +10,7 @@ import { formatDate } from "@/lib/countries";
 import { notify, notifyMany } from "@/lib/notify";
 import { clearChatBell, upsertChatBell } from "@/lib/chat/bell";
 import { CHAT_NOTICE_PREFERENCE } from "@/lib/notification-prefs";
+import { chatSmsTargets } from "@/lib/chat/unread-sms";
 import { rateLimit } from "@/lib/rate-limit";
 import { getCycleFlags } from "@/lib/settings";
 import { publishChatEvent } from "@/lib/ably";
@@ -288,6 +289,61 @@ export async function chatHousekeepingForUser(userId: string): Promise<void> {
     include: conversationInclude,
   });
   for (const row of rows) await housekeeping(row);
+}
+
+/** A chat that hasn't got going is nudged this long after it opened, while nudging can still help */
+export const QUIET_NUDGE_AFTER_DAYS = 2;
+const QUIET_NUDGE_UNTIL_DAYS = 7;
+
+/**
+ * Chats 48 hours old that never got going: nobody wrote (both told), or one wrote and the other hasn't
+ * read it (only they are told). Push and bell, once per chat; never an SMS. The first notice used to
+ * come on day 7, half way through the chat's 14 days.
+ */
+export async function nudgeQuietChats(now = new Date()): Promise<{ nudged: number }> {
+  const rows = await db.conversation.findMany({
+    where: {
+      status: "ACTIVE",
+      quietNudgeAt: null,
+      expiresAt: { gt: now },
+      createdAt: {
+        lte: new Date(now.getTime() - QUIET_NUDGE_AFTER_DAYS * DAY_MS),
+        gt: new Date(now.getTime() - QUIET_NUDGE_UNTIL_DAYS * DAY_MS),
+      },
+    },
+    include: { ...conversationInclude, messages: { select: { senderId: true, readAt: true, createdAt: true } } },
+  });
+  let nudged = 0;
+  for (const row of rows) {
+    try {
+      const { femaleId, maleId } = row.match;
+      const targets = chatSmsTargets({ createdAt: row.createdAt, femaleId, maleId, messages: row.messages }, now);
+      if (targets.length === 0) continue;
+      const { count } = await db.conversation.updateMany({
+        where: { id: row.id, quietNudgeAt: null },
+        data: { quietNudgeAt: now },
+      });
+      if (count !== 1 || !(await bothCanTalk(row))) continue;
+      for (const { userId, event } of targets) {
+        await notify({
+          userId,
+          type: "CHAT",
+          title: event === "chat_open" ? "محادثتك لم تبدأ بعد" : "رسالة بانتظار ردك",
+          body:
+            event === "chat_open"
+              ? "فُتحت محادثتك قبل يومين ولم يكتب فيها أحد بعد، ومدتها محدودة."
+              : "لديك رسالة لم تُقرأ في محادثتك، ومدة المحادثة محدودة.",
+          url: `/dashboard/chats/${row.id}`,
+          metadata: { conversationId: row.id },
+          preference: CHAT_NOTICE_PREFERENCE,
+        });
+      }
+      nudged++;
+    } catch (error) {
+      console.error(`[cron] quiet chat ${row.id}:`, error);
+    }
+  }
+  return { nudged };
 }
 
 /**

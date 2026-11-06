@@ -6,6 +6,7 @@ const db = vi.hoisted(() => ({
   introRequest: { findFirst: vi.fn(), count: vi.fn() },
   message: { count: vi.fn() },
   block: { findMany: vi.fn(async () => []) },
+  mutualMatch: { count: vi.fn(async () => 0) },
 }));
 const notifyMod = vi.hoisted(() => ({ notify: vi.fn(), notifyMany: vi.fn() }));
 vi.mock("@/lib/db", () => ({ db }));
@@ -89,5 +90,26 @@ describe("runReengagement", () => {
     expect(db.user.findMany).toHaveBeenCalledTimes(2);
     expect(db.user.findMany.mock.calls[1][0]).toMatchObject({ cursor: { id: "a499" }, skip: 1, orderBy: { id: "asc" } });
     expect(res).toEqual({ idle: 501, sent: 1 });
+  });
+});
+
+describe("win-back with nothing waiting", () => {
+  const away = (over: Record<string, unknown> = {}) => ({
+    id: "u1", gender: "MALE", isFlagged: false, profile: { isComplete: true }, lastActiveAt: new Date(now.getTime() - 20 * DAY), updatedAt: now, ...over,
+  });
+
+  it("invites a member with a finished profile back, in their own gender", async () => {
+    db.user.findMany.mockResolvedValue([away({ gender: "FEMALE" })]);
+    expect((await runReengagement(now)).sent).toBe(1);
+    expect(notifyMod.notify).toHaveBeenCalledWith(expect.objectContaining({
+      title: "فرص جديدة في نصيبك", body: "افتحي حسابكِ لتصلكِ اقتراحات جديدة تناسب شروطكِ.", url: "/dashboard/suggestions", pushOnly: true,
+    }));
+  });
+
+  it("skips an unfinished profile, a flagged member and an engaged one", async () => {
+    db.mutualMatch.count.mockResolvedValueOnce(1);
+    db.user.findMany.mockResolvedValue([away({ id: "e" }), away({ id: "p", profile: { isComplete: false } }), away({ id: "f", isFlagged: true })]);
+    expect((await runReengagement(now)).sent).toBe(0);
+    expect(notifyMod.notify).not.toHaveBeenCalled();
   });
 });

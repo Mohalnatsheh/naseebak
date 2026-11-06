@@ -324,6 +324,45 @@ export const AUTOMATIC_NOTIFICATIONS: AutomaticNotification[] = [
     ]
   },
   {
+    "key": "match-guardian-share-last-call",
+    "group": "matches",
+    "when": "Evening job, once, 5 days after a mixed-choice match if the chat-chooser still has not shared.",
+    "who": "The side that has not shared",
+    "channels": [
+      "bell",
+      "push"
+    ],
+    "texts": [
+      {
+        "variant": "default",
+        "title": "آخر فرصة لهذا التوافق",
+        "body": "الطرف الآخر ما زال ينتظر مشاركة بيانات وليّ أمرك. إذا لم تتم المشاركة خلال يومين سيُغلق هذا التوافق."
+      }
+    ]
+  },
+  {
+    "key": "match-guardian-share-closed",
+    "group": "matches",
+    "when": "Evening job, 2 days after the last call, when the mixed-choice match closes.",
+    "who": "Both people",
+    "channels": [
+      "bell",
+      "push"
+    ],
+    "texts": [
+      {
+        "variant": "the side that was waiting",
+        "title": "انتهى هذا التوافق",
+        "body": "لم يشارك الطرف الآخر بيانات وليّ أمره خلال المدة، فأغلقنا هذا التوافق. نتمنى لك التوفيق في اقتراحاتك القادمة."
+      },
+      {
+        "variant": "the side that did not share",
+        "title": "انتهى هذا التوافق",
+        "body": "انتهت مدة مشاركة بيانات وليّ أمرك، فأغلقنا هذا التوافق."
+      }
+    ]
+  },
+  {
     "key": "match-guardian-consent-withdrawn",
     "group": "matches",
     "when": "A member withdraws guardian-sharing consent while they have accepted family introductions.",
@@ -693,6 +732,28 @@ export const AUTOMATIC_NOTIFICATIONS: AutomaticNotification[] = [
         "variant": "default",
         "title": "أسبوع على محادثتكما",
         "body": "إن شعرتما بالارتياح يمكنكما الانتقال لتعارف عائلي الآن، والانتقال مجاني."
+      }
+    ]
+  },
+  {
+    "key": "chat-quiet-nudge",
+    "group": "chat",
+    "when": "Evening job, once, 2 to 7 days after a chat opens, if nobody wrote or one person's message is still unread.",
+    "who": "Both people if nobody wrote; otherwise the person who hasn't read the message",
+    "channels": [
+      "bell",
+      "push"
+    ],
+    "texts": [
+      {
+        "variant": "nobody wrote",
+        "title": "محادثتك لم تبدأ بعد",
+        "body": "فُتحت محادثتك قبل يومين ولم يكتب فيها أحد بعد، ومدتها محدودة."
+      },
+      {
+        "variant": "a message is unread",
+        "title": "رسالة بانتظار ردك",
+        "body": "لديك رسالة لم تُقرأ في محادثتك، ومدة المحادثة محدودة."
       }
     ]
   },
@@ -1154,6 +1215,27 @@ export const AUTOMATIC_NOTIFICATIONS: AutomaticNotification[] = [
         "variant": "default",
         "title": "استُؤنفت المحادثة",
         "body": "انتهت المراجعة ويمكنكما متابعة المحادثة."
+      }
+    ]
+  },
+  {
+    "key": "engagement-win-back",
+    "group": "engagement",
+    "when": "Evening job, at most once a week, for members away 7 to 30 days with nothing waiting.",
+    "who": "Finished profiles, not flagged and not engaged",
+    "channels": [
+      "push"
+    ],
+    "texts": [
+      {
+        "variant": "male",
+        "title": "فرص جديدة في نصيبك",
+        "body": "افتح حسابك لتصلك اقتراحات جديدة تناسب شروطك."
+      },
+      {
+        "variant": "female",
+        "title": "فرص جديدة في نصيبك",
+        "body": "افتحي حسابكِ لتصلكِ اقتراحات جديدة تناسب شروطكِ."
       }
     ]
   },

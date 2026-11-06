@@ -79,3 +79,10 @@ describe("home page screens", () => {
   });
 });
 
+describe("Instagram per country", () => {
+  it("each country has its own account", () => {
+    expect(publicCopy("JO").instagram).toBe("https://www.instagram.com/naseebakjo/");
+    expect(publicCopy("SA").instagram).toBe("https://www.instagram.com/naseebaksa");
+  });
+});
+

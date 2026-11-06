@@ -100,11 +100,11 @@ function organizationJsonLd(country: CountryCode) {
     description: copy.shortDescription,
     foundingDate: "2025",
     areaServed: copy.areaServed,
-    // The social accounts that exist (same env vars as the footer icons)
+    // The social accounts that exist (same as the footer icons)
     sameAs: [
       process.env.NEXT_PUBLIC_SOCIAL_FACEBOOK,
       process.env.NEXT_PUBLIC_SOCIAL_X,
-      process.env.NEXT_PUBLIC_SOCIAL_INSTAGRAM,
+      copy.instagram,
       process.env.NEXT_PUBLIC_SOCIAL_YOUTUBE,
     ].filter(Boolean),
   };

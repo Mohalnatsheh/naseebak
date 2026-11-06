@@ -6,19 +6,19 @@ import { Heart, Facebook, Twitter, Instagram, Youtube } from "lucide-react";
 import { useVisitorCountry } from "@/components/shared/visitor-country";
 import { publicCopy } from "@/lib/public-copy";
 
-// Inlined at build time (NEXT_PUBLIC_*); an empty value hides that icon
-const SOCIAL_LINKS = (
+// Inlined at build time (NEXT_PUBLIC_*); an empty value hides that icon. Instagram is per country (publicCopy)
+const socialLinks = (instagram: string) =>
   [
     { Icon: Facebook, label: "فيسبوك", href: process.env.NEXT_PUBLIC_SOCIAL_FACEBOOK },
     { Icon: Twitter, label: "إكس (تويتر)", href: process.env.NEXT_PUBLIC_SOCIAL_X },
-    { Icon: Instagram, label: "انستغرام", href: process.env.NEXT_PUBLIC_SOCIAL_INSTAGRAM },
+    { Icon: Instagram, label: "انستغرام", href: instagram },
     { Icon: Youtube, label: "يوتيوب", href: process.env.NEXT_PUBLIC_SOCIAL_YOUTUBE },
-  ] as const
-).filter((l): l is typeof l & { href: string } => !!l.href);
+  ].filter((l): l is typeof l & { href: string } => !!l.href);
 
 export function Footer() {
   const country = useVisitorCountry();
   const copy = publicCopy(country);
+  const links = socialLinks(copy.instagram);
   return (
     <footer className="relative overflow-hidden bg-gradient-to-b from-card to-muted/40 border-t">
       {/* Gradient top border */}
@@ -82,10 +82,10 @@ export function Footer() {
               </li>
               <li>{copy.footerPlace}</li>
             </ul>
-            {/* Social icons: only the accounts that exist (set in NEXT_PUBLIC_SOCIAL_*) */}
-            {SOCIAL_LINKS.length > 0 && (
+            {/* Social icons: only the accounts that exist */}
+            {links.length > 0 && (
               <div className="flex gap-2 pt-2">
-                {SOCIAL_LINKS.map(({ Icon, label, href }) => (
+                {links.map(({ Icon, label, href }) => (
                   <a
                     key={label}
                     href={href}

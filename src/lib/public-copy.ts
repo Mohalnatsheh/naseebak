@@ -22,6 +22,8 @@ export interface PublicCopy {
   footerAbout: string;
   footerPlace: string;
   footerMadeIn: string;
+  /** The country's Instagram account: footer icon and Organization JSON-LD */
+  instagram: string;
 }
 
 const JO: PublicCopy = {
@@ -30,6 +32,7 @@ const JO: PublicCopy = {
   tagline: "نوصّلك بشريك العمر بالحلال",
   keywords: ["زواج", "زواج بالحلال", "نصيبك", "زواج أردني", "تعارف للزواج", "شريك الحياة", "زواج إسلامي", "خطبة", "الأردن"],
   ogLocale: "ar_JO",
+  instagram: "https://www.instagram.com/naseebakjo/",
   areaServed: { "@type": "Country", name: "Jordan" },
   inCountry: "في الأردن",
   footerAbout: "منصة أردنية توصّل العائلات بالشريك الأنسب بالحلال — تقنية ذكية مع عادات أردنية أصيلة، بستر واحترام.",
@@ -57,6 +60,7 @@ const SA: PublicCopy = {
     "جدة",
   ],
   ogLocale: "ar_SA",
+  instagram: "https://www.instagram.com/naseebaksa",
   areaServed: { "@type": "Country", name: "Saudi Arabia", identifier: "SA" },
   inCountry: "في المملكة العربية السعودية",
   footerAbout: "منصة سعودية تعين العائلات على إيجاد الشريك الأنسب بالحلال — توافق ذكي يحترم عاداتنا وقيمنا، بستر واحترام.",

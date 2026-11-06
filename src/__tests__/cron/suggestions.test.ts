@@ -111,6 +111,21 @@ describe("healMissingMatches (G40)", () => {
 });
 
 describe("remindMutualSuggestions", () => {
+  it("goes through every due card, not just the first 500", async () => {
+    const full = Array.from({ length: 500 }, (_, i) => row({ id: `s${i}` }));
+    db.suggestion.findMany.mockResolvedValueOnce(full).mockResolvedValueOnce([row({ id: "last" })]);
+    const res = await remindMutualSuggestions(now);
+    expect(db.suggestion.findMany).toHaveBeenCalledTimes(2);
+    expect(db.suggestion.updateMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ id: "last" }) }));
+    expect(res.suggestions).toBe(501);
+  });
+
+  it("still tells a person only once in a run with many cards", async () => {
+    db.suggestion.findMany.mockResolvedValueOnce(Array.from({ length: 500 }, (_, i) => row({ id: `s${i}` }))).mockResolvedValueOnce([]);
+    await remindMutualSuggestions(now);
+    expect(notifyMod.notify).toHaveBeenCalledTimes(2);
+  });
+
   it("reminds both sides once when neither decided and ≤2 days are left", async () => {
     db.suggestion.findMany.mockResolvedValue([row()]);
     const res = await remindMutualSuggestions(now);
@@ -207,6 +222,14 @@ describe("runWeeklySuggestions", () => {
     expect(auto.weeklyCounts).not.toHaveBeenCalled();
     expect(auto.autoSuggestForUser.mock.calls.map((c) => c[0])).toEqual(["a", "c"]);
     expect(res.eligible).toBe(2);
+  });
+
+  it("credit-on-interest: only members seen in the last 7 days are topped up", async () => {
+    settings.getCycleFlags.mockResolvedValue({ introRequests: true, chat: true, mutualSuggestions: true, creditOnInterest: true });
+    db.user.findMany.mockResolvedValue([]);
+    await runWeeklySuggestions(now);
+    const { where } = db.user.findMany.mock.calls[0][0];
+    expect(where.OR[0].lastActiveAt.gte).toEqual(new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000));
   });
 
   it("respects the per-run limit and keeps going after a failure", async () => {

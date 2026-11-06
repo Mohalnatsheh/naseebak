@@ -34,6 +34,11 @@ export const RESUGGEST_AFTER_DAYS = 30;
 const NEW_SUGGESTIONS_DAILY = "new-suggestions";
 // 60 since 2026-10-19 (owner, on production data: 50–54% cards got «مهتم» 5% of the time, no match below 60)
 const MIN_SCORE_CREDIT_ON_INTEREST = 60;
+/**
+ * Cards from here go first; 60–69 only fill what's left (30 days to 6 Nov 2026: 60–69 was 48% of cards and 9% of
+ * matches, 0.2% became a match against 3.2% at 80+). 60 stays the floor so small pools aren't left empty.
+ */
+export const PREFERRED_SCORE = 70;
 // When a run finds no suitable candidate, wait before scanning again (per user, per server process)
 const RETRY_COOLDOWN_MS = 30 * 60 * 1000;
 // One map per server process, shared by every route (Next.js may give each route its own copy of this module)
@@ -97,9 +102,8 @@ export async function openCounts(userIds: string[]): Promise<Map<string, number>
   const [asRecipient, asCandidate, legacy] = await Promise.all([
     db.suggestion.groupBy({
       by: ["recipientId"],
-      // Same as openMutualWhere: a partner who left doesn't fill a slot; nor does a card hidden from
-      // the candidate (slotMutualWhere)
-      where: { ...open, recipientId: { in: userIds }, recipientDecision: null, hiddenFromCandidate: false, candidate: { isDeactivated: false, status: { not: "SUSPENDED" } }, OR: [fresh, { candidate: here }] },
+      // Same as openMutualWhere: a partner who left doesn't fill a slot; a hidden card still does (slotMutualWhere)
+      where: { ...open, recipientId: { in: userIds }, recipientDecision: null, candidate: { isDeactivated: false, status: { not: "SUSPENDED" } }, OR: [fresh, { candidate: here }] },
       _count: true,
     }),
     db.suggestion.groupBy({
@@ -174,6 +178,15 @@ export async function nextSuggestionsAtFor(userId: string, now = new Date()): Pr
     select: { createdAt: true },
   });
   return oldest ? new Date(oldest.createdAt.getTime() + WEEK_MS) : null;
+}
+
+/**
+ * Order to hand out free slots: 70%+ first, then the rest; within each, people with a free slot (a card they can see
+ * at once), then by score. A full candidate still gets the card, hidden until they have room.
+ */
+export function orderForSlots<T extends { score: number }>(list: T[], isFull: (id: string) => boolean, idOf: (item: T) => string): T[] {
+  const weak = (r: T) => Number(r.score < PREFERRED_SCORE);
+  return [...list].sort((a, b) => weak(a) - weak(b) || Number(isFull(idOf(a))) - Number(isFull(idOf(b))) || b.score - a.score);
 }
 
 /** A past row between two people, as far as "may they be suggested again?" is concerned */
@@ -256,6 +269,9 @@ async function generate(userId: string): Promise<SuggestOutcome> {
   const { introRequests: perRequestCredits, mutualSuggestions: mutual, creditOnInterest } = flags;
   if (!perRequestCredits && user.matchCredits <= 0) return outcome(0);
   if (!meetsSuggestionGate(user, perRequestCredits)) return outcome(0);
+  // Away 7+ days: no new cards pile up for them, nor are hidden ones shown. Opening the page marks them
+  // active first, so everything resumes the moment they return
+  if (creditOnInterest && !isActive(user, CANDIDATE_ACTIVE_DAYS)) return outcome(0);
 
   // Only top up when the user has nothing waiting
   // (credit-on-interest: top up to MAX_OPEN_SUGGESTIONS instead, with no weekly cap)
@@ -366,10 +382,10 @@ async function generate(userId: string): Promise<SuggestOutcome> {
     const ids = ranked.map((r) => r.candidate.id);
     if (creditOnInterest) {
       busy = await openCounts(ids);
-      // People with a free slot first (score order within each group): a card they can see at once
-      // beats a slightly better one hidden behind their full list (G53, production: 300 of 698 hidden)
+      // Within a score level, a card they can see at once beats a slightly better one hidden behind their
+      // full list (G53, production: 300 of 698 hidden)
       const full = (id: string) => (busy.get(id) ?? 0) >= MAX_OPEN_SUGGESTIONS;
-      ranked = [...ranked].sort((a, b) => Number(full(a.candidate.id)) - Number(full(b.candidate.id)) || b.score - a.score);
+      ranked = orderForSlots(ranked, full, (r) => r.candidate.id);
     } else {
       const busy = await weeklyCounts(ids, weekAgo);
       ranked = ranked.filter((r) => (busy.get(r.candidate.id) ?? 0) < WEEKLY_FREE_SUGGESTIONS);

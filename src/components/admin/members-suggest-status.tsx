@@ -19,7 +19,7 @@ export const REASON_LABEL: Record<NoSuggestionsReason, string> = {
   suspended: "The account is suspended",
   flagged: "Flagged: no new automatic suggestions until the flag is cleared",
   engaged: "Told us an introduction ended in an engagement",
-  idle: "Away 30+ days: suggestions resume when they come back",
+  idle: "Away 7+ days: suggestions resume when they come back",
   setup_unfinished: "Profile setup is not finished",
   no_credits: "0 credits (legacy flow: each suggestion uses a credit)",
   weekly_cap: "Reached the weekly limit of free suggestions",

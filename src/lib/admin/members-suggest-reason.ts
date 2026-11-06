@@ -5,7 +5,7 @@
  * keep it in step with `generate` in src/lib/matching/auto-suggest.ts.
  */
 import { db } from "@/lib/db";
-import { activeWhere, CANDIDATE_FALLBACK_DAYS, isActive, recentlySeenWhere } from "@/lib/activity";
+import { activeWhere, CANDIDATE_ACTIVE_DAYS, CANDIDATE_FALLBACK_DAYS, isActive, recentlySeenWhere } from "@/lib/activity";
 import { WEEKLY_FREE_SUGGESTIONS } from "@/lib/credits";
 import { NOT_ENGAGED, isEngaged } from "@/lib/intro/followup";
 import {
@@ -164,6 +164,7 @@ export async function memberSuggestStatus(userId: string, now = new Date()): Pro
   const { introRequests: perRequestCredits, mutualSuggestions: mutual, creditOnInterest } = flags;
   if (!perRequestCredits && user.matchCredits <= 0) return stop("no_credits");
   if (!meetsSuggestionGate(user, perRequestCredits)) return stop("setup_unfinished");
+  if (creditOnInterest && !isActive(user, CANDIDATE_ACTIVE_DAYS, now)) return stop("idle");
 
   if (perRequestCredits && !creditOnInterest) {
     const weekAgo = new Date(now.getTime() - WEEK_MS);

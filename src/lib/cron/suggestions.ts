@@ -8,7 +8,7 @@ import { db } from "@/lib/db";
 import { notify } from "@/lib/notify";
 import { getCycleFlags } from "@/lib/settings";
 import { isUnavailable } from "@/lib/matches/state";
-import { activeWhere } from "@/lib/activity";
+import { CANDIDATE_ACTIVE_DAYS, activeWhere } from "@/lib/activity";
 import { MAX_OPEN_SUGGESTIONS, autoSuggestForUser, openCounts, weeklyCounts } from "@/lib/matching/auto-suggest";
 import { WEEKLY_FREE_SUGGESTIONS } from "@/lib/credits";
 import { refundUnansweredInterests } from "@/lib/suggestions/mutual";
@@ -25,6 +25,8 @@ export const SUGGESTION_REMIND_BEFORE_DAYS = 2;
 /** Users handed to autoSuggestForUser per run (sequential; the rest are picked up the next day or lazily) */
 export const WEEKLY_SUGGEST_LIMIT = 150;
 const BATCH = 500;
+/** One run of the expiry reminder: about 2,000 cards a day expire, this leaves room for a backlog */
+const MAX_REMINDER_PAGES = 20;
 
 const partySelect = { select: { id: true, gender: true, isDeactivated: true, status: true } } as const;
 
@@ -54,7 +56,7 @@ export async function expireMutualSuggestionsAll(
 
 /** One reminder per suggestion, to each side that hasn't decided, when ≤2 days are left. */
 export async function remindMutualSuggestions(now = new Date()): Promise<{ suggestions: number; reminded: number }> {
-  const due = await db.suggestion.findMany({
+  const nextPage = () => db.suggestion.findMany({
     where: {
       flow: "MUTUAL",
       status: "PENDING",
@@ -84,50 +86,55 @@ export async function remindMutualSuggestions(now = new Date()): Promise<{ sugge
     if (today) told.add(userId);
     return !!today;
   };
-  for (const s of due) {
-    const claimed = await db.suggestion.updateMany({
-      where: { id: s.id, status: "PENDING", reminderSentAt: null },
-      data: { reminderSentAt: now },
-    });
-    if (claimed.count !== 1) continue;
-    // The feed hides rows with someone inactive or blocked: nothing to remind about
-    if (isUnavailable(s.recipient) || isUnavailable(s.candidate)) continue;
-    const block = await db.block.findFirst({
-      where: {
-        OR: [
-          { blockerId: s.recipientId, blockedId: s.candidateId },
-          { blockerId: s.candidateId, blockedId: s.recipientId },
-        ],
-      },
-      select: { id: true },
-    });
-    if (block) continue;
-    // One side already said «لا»: it can't become a match, so don't push the other to spend a credit on it
-    if (s.recipientDecision === "DECLINED" || s.candidateDecision === "DECLINED") continue;
-
-    suggestions++;
-    const undecided = [
-      ...(s.recipientDecision === null ? [s.recipient] : []),
-      // A card the candidate can't see yet (made while they were full) is never reminded to them
-      ...(s.candidateDecision === null && !s.hiddenFromCandidate ? [s.candidate] : []),
-    ];
-    for (const person of undecided) {
-      if (await toldToday(person.id)) continue;
-      told.add(person.id);
-      const female = person.gender === "FEMALE";
-      await notify({
-        userId: person.id,
-        type: "SUGGESTION",
-        title: WAITING_TITLE,
-        oncePerDay: "waiting-decision",
-        body: female
-          ? "بقي يومان أو أقل على انتهاء اقتراح توافق لم تقرّري فيه بعد. اطّلعي عليه الآن."
-          : "بقي يومان أو أقل على انتهاء اقتراح توافق لم تقرّر فيه بعد. اطّلع عليه الآن.",
-        url: "/dashboard/suggestions",
-        metadata: { suggestionId: s.id },
+  // Every due card, page by page: each one is stamped below, so the next page moves on
+  for (let page = 0; page < MAX_REMINDER_PAGES; page++) {
+    const due = await nextPage();
+    for (const s of due) {
+      const claimed = await db.suggestion.updateMany({
+        where: { id: s.id, status: "PENDING", reminderSentAt: null },
+        data: { reminderSentAt: now },
       });
-      reminded++;
+      if (claimed.count !== 1) continue;
+      // The feed hides rows with someone inactive or blocked: nothing to remind about
+      if (isUnavailable(s.recipient) || isUnavailable(s.candidate)) continue;
+      const block = await db.block.findFirst({
+        where: {
+          OR: [
+            { blockerId: s.recipientId, blockedId: s.candidateId },
+            { blockerId: s.candidateId, blockedId: s.recipientId },
+          ],
+        },
+        select: { id: true },
+      });
+      if (block) continue;
+      // One side already said «لا»: it can't become a match, so don't push the other to spend a credit on it
+      if (s.recipientDecision === "DECLINED" || s.candidateDecision === "DECLINED") continue;
+
+      suggestions++;
+      const undecided = [
+        ...(s.recipientDecision === null ? [s.recipient] : []),
+        // A card the candidate can't see yet (made while they were full) is never reminded to them
+        ...(s.candidateDecision === null && !s.hiddenFromCandidate ? [s.candidate] : []),
+      ];
+      for (const person of undecided) {
+        if (await toldToday(person.id)) continue;
+        told.add(person.id);
+        const female = person.gender === "FEMALE";
+        await notify({
+          userId: person.id,
+          type: "SUGGESTION",
+          title: WAITING_TITLE,
+          oncePerDay: "waiting-decision",
+          body: female
+            ? "بقي يومان أو أقل على انتهاء اقتراح توافق لم تقرّري فيه بعد. اطّلعي عليه الآن."
+            : "بقي يومان أو أقل على انتهاء اقتراح توافق لم تقرّر فيه بعد. اطّلع عليه الآن.",
+          url: "/dashboard/suggestions",
+          metadata: { suggestionId: s.id },
+        });
+        reminded++;
+      }
     }
+    if (due.length < BATCH) break;
   }
   return { suggestions, reminded };
 }
@@ -223,7 +230,8 @@ export async function runWeeklySuggestions(
       status: { not: "SUSPENDED" },
       isFlagged: false,
       profile: { isComplete: true },
-      ...activeWhere(30, now),
+      // Credit on interest: `generate` skips anyone away 7+ days, so they must not use up the run's limit
+      ...activeWhere(flags.creditOnInterest ? CANDIDATE_ACTIVE_DAYS : 30, now),
     },
     select: { id: true },
     orderBy: { lastActiveAt: { sort: "desc", nulls: "last" } },

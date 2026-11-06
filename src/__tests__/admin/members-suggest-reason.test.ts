@@ -57,6 +57,11 @@ describe("memberSuggestStatus", () => {
     expect((await memberSuggestStatus("u1"))?.reason).toBe("flagged");
   });
 
+  it("idle once away 7+ days, as the card run stops there", async () => {
+    db.user.findUnique.mockResolvedValue({ ...member, lastActiveAt: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000) });
+    expect((await memberSuggestStatus("u1"))?.reason).toBe("idle");
+  });
+
   it("no_candidates when nobody suitable is left, ready with the count when some are", async () => {
     expect(await memberSuggestStatus("u1")).toMatchObject({ reason: "ready", candidates: 2 });
     db.user.findMany.mockResolvedValue([]);

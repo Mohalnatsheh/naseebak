@@ -26,7 +26,7 @@ vi.mock("@/lib/matching/score", async (importOriginal) => {
   };
 });
 
-import { autoSuggestForUser, autoSuggestWithReason, clearSuggestCooldown, isResuggestable, minSuggestionScore, pairAvailability, type PastRow, nextSuggestionsAtFor, openCounts } from "@/lib/matching/auto-suggest";
+import { autoSuggestForUser, autoSuggestWithReason, clearSuggestCooldown, isResuggestable, minSuggestionScore, orderForSlots, pairAvailability, type PastRow, nextSuggestionsAtFor, openCounts } from "@/lib/matching/auto-suggest";
 
 // Profile with every basic + preference field filled → 60% completeness (above the 50% threshold)
 const fullProfile = (gender: "MALE" | "FEMALE") => ({
@@ -493,10 +493,27 @@ describe("credit on interest: open cap 5", () => {
     expect(data.map((d) => d.hiddenFromCandidate)).toEqual([false, true]);
   });
 
-  it("G53: a card hidden from the candidate doesn't fill the recipient's slots", async () => {
+  it("a card hidden from the candidate still fills the recipient's slots, so hidden cards can't pile up", async () => {
     await openCounts(["r1"]);
     const recipientQuery = db.suggestion.groupBy.mock.calls.find((c) => c[0].by[0] === "recipientId" && c[0].where.flow === "MUTUAL")![0];
-    expect(recipientQuery.where.hiddenFromCandidate).toBe(false);
+    expect(recipientQuery.where).not.toHaveProperty("hiddenFromCandidate");
+  });
+
+  it("makes no new cards for a member away 7+ days, and shows them none until they return", async () => {
+    openRows(0);
+    db.user.findUnique.mockResolvedValue({ ...person("away1", "FEMALE"), lastActiveAt: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000) });
+    expect(await autoSuggestForUser("away1")).toBe(0);
+    expect(db.user.findMany).not.toHaveBeenCalled();
+    expect(db.suggestion.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("still tops up a member seen 6 days ago", async () => {
+    openRows(0);
+    db.user.findUnique.mockResolvedValue({ ...person("here1", "FEMALE"), lastActiveAt: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000) });
+    db.user.findMany.mockResolvedValue([person("m1", "MALE")]);
+    scoring.scoreFor.set("m1", 70);
+    await autoSuggestForUser("here1");
+    expect(db.user.findMany).toHaveBeenCalled();
   });
 
   it("with room again, shows cards made while full before adding anyone new", async () => {
@@ -702,3 +719,28 @@ describe("cards closed by a member's own change", () => {
     expect(db.suggestion.createMany).not.toHaveBeenCalled();
   });
 });
+
+describe("which cards go first", () => {
+  const free = () => false;
+
+  it("puts 70%+ ahead of 60–69, whatever the order they came in", () => {
+    const list = [{ id: "low", score: 65 }, { id: "good", score: 71 }, { id: "top", score: 85 }];
+    expect(orderForSlots(list, free, (c) => c.id).map((c) => c.id)).toEqual(["top", "good", "low"]);
+  });
+
+  it("uses 60–69 when there aren't enough good cards", () => {
+    const list = [{ id: "a", score: 62 }, { id: "b", score: 66 }];
+    expect(orderForSlots(list, free, (c) => c.id).map((c) => c.id)).toEqual(["b", "a"]);
+  });
+
+  it("a good card behind a full list still beats a weak free one", () => {
+    const list = [{ id: "weak-free", score: 66 }, { id: "good-full", score: 75 }];
+    expect(orderForSlots(list, (id) => id === "good-full", (c) => c.id)[0].id).toBe("good-full");
+  });
+
+  it("within the same level, someone with a free slot goes first", () => {
+    const list = [{ id: "full", score: 90 }, { id: "free", score: 72 }];
+    expect(orderForSlots(list, (id) => id === "full", (c) => c.id)[0].id).toBe("free");
+  });
+});
+

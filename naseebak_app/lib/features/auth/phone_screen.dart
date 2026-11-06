@@ -247,7 +247,7 @@ class _PhoneFormState extends ConsumerState<PhoneForm> {
                   const Icon(Icons.sms_outlined, size: 16, color: AppColors.muted),
                   const SizedBox(width: 6),
                   Expanded(
-                    child: Text('سنرسل رمز تحقق من 6 أرقام برسالة نصية.',
+                    child: Text('سنرسل رمز تحقق من 6 أرقام ${widget.country.code == 'SA' ? 'عبر واتساب' : 'برسالة نصية'}.',
                         style: TextStyle(color: AppColors.muted.withValues(alpha: 0.9), fontSize: 13)),
                   ),
                 ]),

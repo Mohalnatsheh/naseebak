@@ -141,7 +141,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
           AuthHero(
             showBack: true,
             title: 'أدخل رمز التحقق',
-            subtitle: 'أرسلنا رمزاً من 6 أرقام برسالة نصية إلى \u2066${pending.phone}\u2069',
+            subtitle: 'أرسلنا رمزاً من 6 أرقام ${pending.countryCode == 'SA' ? 'عبر واتساب' : 'برسالة نصية'} إلى \u2066${pending.phone}\u2069',
           ),
           Expanded(
             child: ListView(

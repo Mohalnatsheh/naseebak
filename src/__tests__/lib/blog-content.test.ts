@@ -150,7 +150,7 @@ describe("parsePostContent — links to other posts", () => {
   });
 });
 
-describe("parsePostContent — the five posts in docs/blog", () => {
+describe("parsePostContent — the posts in docs/blog", () => {
   it.each(posts.map((p) => [p.slug, p] as const))("%s has sections and keeps every word", (_slug, p) => {
     const blocks = parsePostContent(p.content, { title: p.title, otherPosts: others(p.slug) });
     // Every section in these posts opens after two blank lines; the parser doesn't rely on that, so it checks it

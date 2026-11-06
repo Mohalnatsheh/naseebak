@@ -16,6 +16,7 @@ import { VisitorCountryProvider } from "@/components/shared/visitor-country";
 import { AppDownloadBanner } from "@/components/shared/app-download-banner";
 import { APP_BANNER_COOKIE, isAndroidUserAgent, playStoreHref } from "@/lib/app-download";
 import { getMobileConfig } from "@/lib/mobile-config";
+import { LiveChat } from "@/components/shared/live-chat";
 
 const cairo = Cairo({
   subsets: ["arabic", "latin"],
@@ -177,6 +178,7 @@ export default async function ArabicLayout({
               {appBannerHref && <AppDownloadBanner href={appBannerHref} />}
               {children}
               <CountrySuggestBanner siteCountry={country} geoCountry={geoCountry} hasChoice={hasChoice} />
+              <LiveChat />
             </>
           )}
         </VisitorCountryProvider>

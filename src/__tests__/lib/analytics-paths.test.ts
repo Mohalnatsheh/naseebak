@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { analyticsPageLocation, isAnalyticsOffPath, isPrivatePath } from "@/lib/analytics";
+import { analyticsPageLocation, isAnalyticsOffPath, isMarketingOffPath, isPrivatePath } from "@/lib/analytics";
 
 describe("isPrivatePath (no GTM / Meta Pixel there)", () => {
   it("covers the dashboard, chats and admin", () => {
@@ -17,6 +17,15 @@ describe("isAnalyticsOffPath (no GA4 at all)", () => {
   });
 });
 
+describe("isMarketingOffPath (GTM / Meta Pixel never start there)", () => {
+  it("covers signed-in areas and public pages with a key or a member's link in the URL", () => {
+    for (const p of ["/dashboard", "/admin/users", "/pay/p1", "/payments/return", "/login", "/reset-password"]) expect(isMarketingOffPath(p)).toBe(true);
+  });
+  it("leaves the pages visitors arrive on", () => {
+    for (const p of ["/", "/register", "/about", "/blog/x", "/faq", "/payment-terms", "/poll"]) expect(isMarketingOffPath(p)).toBe(false);
+  });
+});
+
 describe("analyticsPageLocation (what GA4 gets as the page URL)", () => {
   const o = "https://naseebak.com";
   it("hides record ids in signed-in URLs", () => {
@@ -26,6 +35,10 @@ describe("analyticsPageLocation (what GA4 gets as the page URL)", () => {
   it("keeps only the tab from a signed-in query and drops the hash", () => {
     expect(analyticsPageLocation(`${o}/dashboard/suggestions?tab=matches&match=cmvvl2ul406u07k8umksotxcx#x`)).toBe(`${o}/dashboard/suggestions?tab=matches`);
     expect(analyticsPageLocation(`${o}/dashboard/payments?session_id=cs_live_123`)).toBe(`${o}/dashboard/payments`);
+  });
+  it("drops the key from a payment link", () => {
+    expect(analyticsPageLocation(`${o}/pay/cmvzs9ojt04dfr48u9waua4e8?t=secret&from=app`)).toBe(`${o}/pay/:id`);
+    expect(analyticsPageLocation(`${o}/payments/return?status=success&pid=cmvzs9ojt04dfr48u9waua4e8`)).toBe(`${o}/payments/return`);
   });
   it("keeps page names", () => {
     expect(analyticsPageLocation(`${o}/dashboard/profile/setup`)).toBe(`${o}/dashboard/profile/setup`);

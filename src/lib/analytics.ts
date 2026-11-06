@@ -12,6 +12,7 @@ type GtagParams = Record<string, string | number | boolean | undefined>;
 declare global {
   interface Window {
     gtag?: (command: "event" | "config" | "js" | "set", target: string | Date, params?: GtagParams) => void;
+    fbq?: (command: "track", event: MetaEvent) => void;
   }
 }
 
@@ -32,6 +33,17 @@ export type AnalyticsEvent =
   | "app_download_click" // { place: "banner" | "install_page" } — an Android visitor tapped a Play Store button
   | "app_banner_closed";
 
+export type MetaEvent = "PageView" | "CompleteRegistration";
+
+/** Meta Pixel event, where the Pixel is loaded (`isMarketingOffPath`). Never send personal data. */
+export function trackMetaEvent(name: MetaEvent) {
+  try {
+    window.fbq?.("track", name);
+  } catch {
+    // Analytics must never break the app
+  }
+}
+
 export function trackEvent(name: AnalyticsEvent, params?: GtagParams) {
   try {
     if (typeof window !== "undefined" && typeof window.gtag === "function") {
@@ -48,6 +60,14 @@ export function trackEvent(name: AnalyticsEvent, params?: GtagParams) {
  */
 export function isPrivatePath(pathname: string | null | undefined): boolean {
   return /^\/(dashboard|chat|chats|admin)(\/|$)/.test(pathname ?? "");
+}
+
+/**
+ * No GTM or Meta Pixel: signed-in areas, and public pages whose URL they would receive with a key or a member's
+ * link in it (`/pay/<id>?t=<token>`, `/login?callbackUrl=<dashboard link>`). The Pixel can't clean a URL as GA4 can.
+ */
+export function isMarketingOffPath(pathname: string | null | undefined): boolean {
+  return isPrivatePath(pathname) || /^\/(pay|payments|login|forgot-password|reset-password)(\/|$)/.test(pathname ?? "");
 }
 
 /** Admin pages: no analytics at all */
@@ -75,7 +95,8 @@ export function analyticsPageLocation(href: string): string {
   } catch {
     return href;
   }
-  if (!isPrivatePath(url.pathname)) {
+  // The payment pages are public, but `t` in their link is the key to the payment
+  if (!isPrivatePath(url.pathname) && !/^\/(pay|payments)(\/|$)/.test(url.pathname)) {
     // login/register keep where the member was going (`callbackUrl=/dashboard/chats/<id>`): drop it, the rest stays
     if (!url.searchParams.has("callbackUrl")) return href;
     url.searchParams.delete("callbackUrl");

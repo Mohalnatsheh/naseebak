@@ -28,7 +28,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { trackEvent } from "@/lib/analytics";
+import { trackEvent, trackMetaEvent } from "@/lib/analytics";
 import { toLatinDigits } from "@/lib/digits";
 import { takeLandingStart } from "@/lib/landing-start";
 import { useVisitorCountry } from "@/components/shared/visitor-country";
@@ -434,10 +434,12 @@ function RegisterPageContent() {
         // The account exists now, so pressing «إنشاء الحساب» again would only fail: send the
         // member to the login page (referral code and photo can be added from the dashboard)
         trackEvent("sign_up", { method: "phone" });
+        trackMetaEvent("CompleteRegistration");
         window.location.href = "/login?exists=true";
         return;
       }
       trackEvent("sign_up", { method: "phone" });
+      trackMetaEvent("CompleteRegistration");
 
       // Step 3.5: Apply referral code if provided
       const warnings: string[] = [];

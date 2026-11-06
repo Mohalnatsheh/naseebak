@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import Script from "next/script";
 import TrackingScripts from "@/components/shared/tracking-scripts";
-import { GA_MEASUREMENT_ID, analyticsPageLocation, isAnalyticsOffPath, isPrivatePath } from "@/lib/analytics";
+import { GA_MEASUREMENT_ID, analyticsPageLocation, isAnalyticsOffPath, isMarketingOffPath, trackMetaEvent } from "@/lib/analytics";
 
 /** gtag stub + config, once: calls queue in dataLayer until gtag.js (loaded below) runs them in order */
 function initGtag() {
@@ -21,18 +21,18 @@ function initGtag() {
 }
 
 /**
- * GA4 on public pages and the member dashboard; GTM + Meta Pixel on public pages only (`isPrivatePath`).
+ * GA4 on public pages and the member dashboard; GTM + Meta Pixel on public pages only (`isMarketingOffPath`).
  * GA's own page views are off (`send_page_view: false`): one is sent per route change with the URL cleaned by
  * `analyticsPageLocation()` (no chat/match ids, no query but `tab`), and `page_location` is set so custom
  * events carry the cleaned URL too. Admin pages get nothing (`isAnalyticsOffPath`, via `ga-disable-<id>`).
  * GTM/Pixel can't be unloaded after a client-side move into the dashboard, so the Pixel's automatic page views
- * on navigation are disabled (tracking-scripts.tsx).
+ * on navigation are disabled (tracking-scripts.tsx) and a move to a public page sends its PageView here.
  */
 export default function PublicTracking() {
   const pathname = usePathname();
   // GTM/Pixel load only once a public page was shown; GA loads everywhere but admin
-  const [publicSeen, setPublicSeen] = useState(!isPrivatePath(pathname));
-  if (!isPrivatePath(pathname) && !publicSeen) setPublicSeen(true);
+  const [publicSeen, setPublicSeen] = useState(!isMarketingOffPath(pathname));
+  if (!isMarketingOffPath(pathname) && !publicSeen) setPublicSeen(true);
   const previous = useRef<string>("");
 
   useEffect(() => {
@@ -41,6 +41,8 @@ export default function PublicTracking() {
     if (off) return;
     const location = analyticsPageLocation(window.location.href);
     const referrer = previous.current || analyticsPageLocation(document.referrer);
+    // The first page's PageView is sent when the Pixel starts
+    if (previous.current && !isMarketingOffPath(pathname)) trackMetaEvent("PageView");
     previous.current = location;
     initGtag();
     window.gtag?.("set", { page_location: location, page_referrer: referrer } as never);

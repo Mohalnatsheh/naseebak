@@ -95,12 +95,15 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
     });
     try {
       // A retry after the token step failed (offline, server error): the code is verified already
+      // Whether the number has an account comes with the verified code (send-otp's answer is going away)
+      var exists = pending.userExists;
       if (!pending.alreadyVerified(code)) {
-        await ref.read(authRepositoryProvider).verifyOtp(phone: pending.phone, code: code);
-        ref.read(pendingAuthProvider.notifier).set(pending.withCode(code));
+        final verifiedExists = await ref.read(authRepositoryProvider).verifyOtp(phone: pending.phone, code: code);
+        exists = verifiedExists ?? exists;
+        ref.read(pendingAuthProvider.notifier).set(pending.withCode(code, userExists: exists));
         ref.read(analyticsProvider).otpVerified(pending.mode.name);
       }
-      final knownMember = pending.mode == OtpContext.login && pending.userExists == true;
+      final knownMember = pending.mode == OtpContext.login && exists == true;
       if (knownMember) {
         // The router moves on once the session is set
         final analytics = ref.read(analyticsProvider);

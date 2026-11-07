@@ -561,6 +561,14 @@ describe("per-match guardian consent (openedAt matches)", () => {
     expect(outcomeMod.applyIntroOutcome).not.toHaveBeenCalled();
   });
 
+  it("someone who withdrew their own consent no longer sees the other family's contact", async () => {
+    db.mutualMatch.findUnique.mockResolvedValue(opened({ femaleGuardianShareAt: OPENED, maleGuardianShareAt: OPENED }));
+    db.introRequest.findMany.mockResolvedValue([outcomeRow("FAMILY")]);
+    // u1 withdrew; f1 still consents
+    db.parentInfo.findUnique.mockImplementation(async ({ where }: { where: { userId: string } }) => guardian(where.userId === "f1"));
+    expect((await getMatchIntroState("m1", "u1")).family.contacts).toBeUndefined();
+  });
+
   it("withdrawn global consent hides contacts even when stamped", async () => {
     db.mutualMatch.findUnique.mockResolvedValue(opened({ femaleGuardianShareAt: OPENED, maleGuardianShareAt: OPENED }));
     db.introRequest.findMany.mockResolvedValue([outcomeRow("FAMILY")]);

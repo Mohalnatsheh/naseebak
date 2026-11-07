@@ -67,6 +67,18 @@ describe("POST /api/auth/verify-otp", () => {
     expect(db.otp.deleteMany).toHaveBeenCalledWith({ where: { phone: "962790000003", verified: false } });
   });
 
+  it("tells whether the number has an account only after a correct code", async () => {
+    db.otp.findFirst.mockResolvedValue({ id: "o1" });
+    db.otp.update.mockResolvedValue({});
+    expect(await (await verify("0790000004", "123456", "2.2.2.2")).json()).toEqual({ verified: true, userExists: true });
+    db.user.findUnique.mockResolvedValue(null);
+    expect(await (await verify("0790000005", "123456", "2.2.2.2")).json()).toEqual({ verified: true, userExists: false });
+    // A wrong code says nothing about the number
+    db.otp.findFirst.mockResolvedValue(null);
+    const wrong = await (await verify("0790000006", "000000", "2.2.2.2")).json();
+    expect(wrong).not.toHaveProperty("userExists");
+  });
+
   it("stops one device guessing across many phones", async () => {
     db.otp.findFirst.mockResolvedValue(null);
     for (let i = 0; i < 30; i++) await verify(`07900001${String(i).padStart(2, "0")}`, "000000", "9.9.9.9");

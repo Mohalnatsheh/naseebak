@@ -122,6 +122,9 @@ export async function POST(request: Request) {
 
     const channel = await otpChannel(phone);
     if (forRegister) return NextResponse.json({ message: "تم إرسال رمز التحقق", channel });
+    // Kept only for app builds made before 2026-11-07, which decide «sign in» or «sign up» from it before the code is
+    // checked. The website and newer app builds read it from /api/auth/verify-otp instead. Remove it (closing the
+    // "is this number registered?" check) once the force-update switch requires the newer app.
     return NextResponse.json({
       message: "تم إرسال رمز التحقق",
       channel,

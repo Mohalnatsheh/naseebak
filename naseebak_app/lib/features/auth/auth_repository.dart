@@ -20,9 +20,11 @@ class AuthRepository {
     return asBool(j['userExists']);
   }
 
-  /// `POST /api/auth/verify-otp`
-  Future<void> verifyOtp({required String phone, required String code}) async {
-    await _api.post('/api/auth/verify-otp', auth: false, body: {'phone': phone, 'code': code});
+  /// `POST /api/auth/verify-otp`. Returns whether the number has an account: the server tells it only once the code
+  /// is verified (null from servers before 2026-11-07, where the app falls back to send-otp's `userExists`).
+  Future<bool?> verifyOtp({required String phone, required String code}) async {
+    final j = await _api.post('/api/auth/verify-otp', auth: false, body: {'phone': phone, 'code': code});
+    return asBool(j['userExists']);
   }
 
   /// `POST /api/auth/register` (new members). Throws 409 `PHONE_EXISTS` for a registered number.

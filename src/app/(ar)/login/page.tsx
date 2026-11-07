@@ -51,7 +51,6 @@ function LoginPageContent() {
   const [sendingOtp, setSendingOtp] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [shake, setShake] = useState(false);
-  const [userExists, setUserExists] = useState(false);
   const [otpByWhatsapp, setOtpByWhatsapp] = useState(false);
   const [showExistsBanner, setShowExistsBanner] = useState(false);
   const otpInputRef = useRef<HTMLInputElement>(null);
@@ -118,7 +117,6 @@ function LoginPageContent() {
 
       setOtpSent(true);
       setResendIn(60);
-      setUserExists(!!data.userExists);
       setOtpByWhatsapp(data.channel === "whatsapp");
       trackEvent("otp_requested", { context: "login" });
     } catch {
@@ -128,6 +126,16 @@ function LoginPageContent() {
     } finally {
       setSendingOtp(false);
     }
+  }
+
+  /** Phone not registered: hand the verified phone + code to the register page privately (never in the URL / analytics) */
+  function goToRegister(normalizedPhone: string) {
+    try {
+      sessionStorage.setItem("naseeb:register-handoff", JSON.stringify({ phone: normalizedPhone, otp, at: Date.now() }));
+    } catch {
+      // private mode: the user re-enters the code on the register page
+    }
+    router.push("/register?from=login");
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -168,6 +176,12 @@ function LoginPageContent() {
         setTimeout(() => setShake(false), 600);
         return;
       }
+      // Known only now that the code is verified (send-otp's answer isn't used: it will be removed)
+      const knownMember = !!verifyData.userExists;
+      if (!knownMember) {
+        goToRegister(normalizedPhone);
+        return;
+      }
 
       const result = await signIn("credentials", {
         phone: normalizedPhone,
@@ -181,20 +195,6 @@ function LoginPageContent() {
           setError(`محاولات دخول كثيرة غير ناجحة. حاول مرة أخرى بعد ${arabicCount(waitMinutes, { one: "دقيقة", two: "دقيقتين", few: "دقائق", many: "دقيقة" })}.`);
           setShake(true);
           setTimeout(() => setShake(false), 600);
-          return;
-        }
-        if (!userExists) {
-          // Phone not registered → redirect to register
-          // Hand the verified phone + code over privately (never in the URL / analytics)
-          try {
-            sessionStorage.setItem(
-              "naseeb:register-handoff",
-              JSON.stringify({ phone: normalizedPhone, otp, at: Date.now() })
-            );
-          } catch {
-            // private mode: the user re-enters the code on the register page
-          }
-          router.push("/register?from=login");
           return;
         }
         // User exists but login failed (suspended, or the code was used up)

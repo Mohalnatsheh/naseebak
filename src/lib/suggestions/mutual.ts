@@ -335,6 +335,9 @@ async function checkIntroPreference(
 async function refundLostMatch(userId: string, suggestionId: string): Promise<boolean> {
   const charged = await db.creditLedger.findFirst({ where: { userId, reason: "INTEREST", refId: suggestionId }, select: { id: true } });
   if (!charged) return false;
+  // A second-chance card keeps the first «مهتم»'s refund: never give the same charge back twice
+  const refunded = await db.creditLedger.findFirst({ where: { userId, reason: "REFUND", refId: suggestionId }, select: { id: true } });
+  if (refunded) return false;
   try {
     await db.$transaction(async (tx) => {
       await tx.user.update({ where: { id: userId }, data: { matchCredits: { increment: 1 } } });

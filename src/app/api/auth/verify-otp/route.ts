@@ -61,7 +61,10 @@ export async function POST(request: Request) {
       data: { verified: true },
     });
 
-    return NextResponse.json({ verified: true });
+    // Whether the number has an account is told only here, to someone who just proved the number is theirs
+    // (send-otp still says it for app builds before this change; drop it there once they are updated)
+    const member = await db.user.findUnique({ where: { phone }, select: { id: true } });
+    return NextResponse.json({ verified: true, userExists: !!member });
   } catch (error) {
     console.error("Verify OTP error:", error);
     return NextResponse.json(

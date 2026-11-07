@@ -179,6 +179,28 @@ describe("closeUnsharedMatches: mixed choice can't wait forever", () => {
     expect(notifyMod.notify.mock.calls.map((c) => c[0].userId).sort()).toEqual(["f1", "u1"]);
   });
 
+  it("ends a chat they had opened on the mixed match, and any chat paused for a report", async () => {
+    rows([], [row({ guardianShareLastCallAt: new Date(now.getTime() - 2 * DAY) })]);
+    db.mutualMatch.updateMany.mockResolvedValue({ count: 1 });
+    db.conversation.findUnique.mockResolvedValue({ id: "c1", status: "ACTIVE" });
+    db.conversation.updateMany.mockResolvedValue({ count: 1 });
+    await closeUnsharedMatches(now);
+    expect(db.conversation.findUnique).toHaveBeenCalledWith(expect.objectContaining({ where: { matchId: "m1" } }));
+    expect(db.conversation.updateMany).toHaveBeenCalledWith({
+      where: { id: "c1", status: "ACTIVE" },
+      data: { status: "ENDED", endedById: "u1", endedAt: now },
+    });
+    expect(reports.endPausedChats).toHaveBeenCalledWith({ id: "m1" }, { endedById: "u1" });
+  });
+
+  it("leaves a chat alone when there is none or it already ended", async () => {
+    rows([], [row({ guardianShareLastCallAt: new Date(now.getTime() - 2 * DAY) })]);
+    db.mutualMatch.updateMany.mockResolvedValue({ count: 1 });
+    db.conversation.findUnique.mockResolvedValue({ id: "c1", status: "EXPIRED" });
+    await closeUnsharedMatches(now);
+    expect(db.conversation.updateMany).not.toHaveBeenCalled();
+  });
+
   it("does nothing if they shared at the last moment", async () => {
     rows([], [row({ guardianShareLastCallAt: new Date(now.getTime() - 2 * DAY) })]);
     db.mutualMatch.updateMany.mockResolvedValue({ count: 0 });

@@ -288,10 +288,10 @@ export async function remindGuardianShare(now = new Date()): Promise<{ reminded:
 }
 
 /**
- * Mixed choice nobody settled: a last call on day 5, then the match closes 2 days later. There's no
- * chat here, and opening one would go against the family-chooser's choice, so closing is the only way
- * out. The side that didn't share carries the outcome, as if they had said «لم يحصل نصيب»; a match is
- * never refunded.
+ * Mixed choice nobody settled: a last call on day 5, then the match closes 2 days later. The side that didn't share
+ * carries the outcome, as if they had said «لم يحصل نصيب»; a match is never refunded. A mixed match opens with no
+ * chat, but either side may still have asked for one and been accepted: closing ends that chat too, like any
+ * «لم يحصل نصيب» (until 2026-11-07 it stayed open on a closed match).
  */
 export async function closeUnsharedMatches(now = new Date()): Promise<{ warned: number; closed: number }> {
   const unshared: Prisma.MutualMatchWhereInput = {
@@ -362,6 +362,15 @@ export async function closeUnsharedMatches(now = new Date()): Promise<{ warned: 
     });
     if (done.count !== 1) continue;
     await cancelPendingBetween(silent, waiter);
+    const chat = await db.conversation.findUnique({ where: { matchId: m.id }, select: { id: true, status: true } });
+    if (chat?.status === "ACTIVE") {
+      const ended = await db.conversation.updateMany({
+        where: { id: chat.id, status: "ACTIVE" },
+        data: { status: "ENDED", endedById: silent, endedAt: now },
+      });
+      if (ended.count === 1) await publishChatEvent(chat.id, "status", { status: "ENDED" }).catch(() => {});
+    }
+    await endPausedChats({ id: m.id }, { endedById: silent });
     await notify({
       userId: waiter,
       type: "MATCH",

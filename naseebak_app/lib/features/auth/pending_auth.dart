@@ -17,14 +17,20 @@ class PendingAuth {
   final String countryCode;
   final OtpContext mode;
 
-  /// Login context only: whether the number is already a member
+  /// Whether the number is already a member: from `/api/auth/verify-otp` once the code is verified (older servers: from
+  /// send-otp in the login context)
   final bool? userExists;
 
   /// The verified code (set after `/api/auth/verify-otp`), needed by sign-up and the token call
   final String? code;
 
-  PendingAuth withCode(String? code) =>
-      PendingAuth(phone: phone, countryCode: countryCode, mode: mode, userExists: userExists, code: code);
+  PendingAuth withCode(String? code, {bool? userExists}) => PendingAuth(
+    phone: phone,
+    countryCode: countryCode,
+    mode: mode,
+    userExists: userExists ?? this.userExists,
+    code: code,
+  );
 
   /// This code was already accepted by `/api/auth/verify-otp` for this number. The server only matches codes not yet
   /// verified, so verifying again would fail (and use up a try): go straight to the token / sign-up step instead.

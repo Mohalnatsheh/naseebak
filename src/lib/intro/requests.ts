@@ -294,7 +294,10 @@ export async function getMatchIntroState(matchId: string, userId: string): Promi
     // openedAt matches need both per-match share stamps: in a mixed match nobody's contact goes out
     // before the other side shares too. A closed match never returns contacts.
     const bothShare = !openedMatch || (!!match.femaleGuardianShareAt && !!match.maleGuardianShareAt);
-    const partnerGuardian = !closed && bothShare ? await db.parentInfo.findUnique({ where: { userId: partnerId } }) : null;
+    // Sharing goes both ways: someone who withdrew their own consent stops seeing the other family's contact too
+    // (until 2026-11-07 they kept it while theirs was hidden)
+    const iStillShare = !!myGuardian?.shareConsentAt;
+    const partnerGuardian = !closed && bothShare && iStillShare ? await db.parentInfo.findUnique({ where: { userId: partnerId } }) : null;
     if (partnerGuardian?.shareConsentAt) {
       family.contacts = {
         name: partnerGuardian.parentName,

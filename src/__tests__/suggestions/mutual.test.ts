@@ -5,7 +5,7 @@ const db = vi.hoisted(() => {
     suggestion: { findUnique: vi.fn(), updateMany: vi.fn() },
     block: { findFirst: vi.fn() },
     user: { findUnique: vi.fn(), findUniqueOrThrow: vi.fn(), updateMany: vi.fn(), update: vi.fn() },
-    creditLedger: { create: vi.fn(), findFirst: vi.fn(async (): Promise<{ id: string } | null> => null) },
+    creditLedger: { create: vi.fn(), findFirst: vi.fn() },
     parentInfo: { findUnique: vi.fn(), updateMany: vi.fn() },
     mutualMatch: { findFirst: vi.fn() },
     notification: { findFirst: vi.fn() },
@@ -62,6 +62,7 @@ beforeEach(() => {
     return { count: 1 };
   });
   db.creditLedger.create.mockResolvedValue({});
+  db.creditLedger.findFirst.mockResolvedValue(null);
   db.parentInfo.findUnique.mockResolvedValue({ userId: "u1", shareConsentAt: new Date() });
   matchMod.createMutualMatch.mockResolvedValue({ matchId: "m1" });
   db.mutualMatch.findFirst.mockResolvedValue({ id: "m1" });
@@ -165,7 +166,7 @@ describe("decideSuggestion", () => {
     db.user.findUnique
       .mockResolvedValueOnce({ isDeactivated: false, status: "VERIFIED" })
       .mockResolvedValueOnce({ isDeactivated: true, status: "VERIFIED" });
-    db.creditLedger.findFirst.mockResolvedValue({ id: "charge" });
+    db.creditLedger.findFirst.mockImplementation(async ({ where }: { where: { reason: string } }) => (where.reason === "INTEREST" ? { id: "charge" } : null));
     await decideSuggestion({ suggestionId: "s1", userId: "u1", interested: true });
     const entries = (db.creditLedger.create.mock.calls as unknown as [{ data: { reason: string; userId: string } }][]).map((c) => c[0].data);
     expect(entries.filter((e) => e.reason === "REFUND").map((e) => e.userId).sort()).toEqual(["f1", "u1"]);
@@ -174,6 +175,22 @@ describe("decideSuggestion", () => {
     expect(notices.map((n) => n.userId).sort()).toEqual(["f1", "u1"]);
     expect(notices.find((n) => n.userId === "f1")!.body).toContain("أبديتِ اهتمامكِ");
     expect(notices.every((n) => n.body.includes("قبل أن يكتمل التوافق"))).toBe(true);
+  });
+
+  it("a lost match never refunds a «مهتم» that was already refunded (second-chance card)", async () => {
+    db.suggestion.findUnique
+      .mockResolvedValueOnce(row({ candidateDecision: "INTERESTED" }))
+      .mockResolvedValueOnce(row({ candidateDecision: "INTERESTED", recipientDecision: "INTERESTED" }));
+    db.user.findUnique
+      .mockResolvedValueOnce({ isDeactivated: false, status: "VERIFIED" })
+      .mockResolvedValueOnce({ isDeactivated: true, status: "VERIFIED" });
+    // f1's «مهتم» was charged and refunded when the card first expired; u1 was just charged
+    db.creditLedger.findFirst.mockImplementation(async ({ where }: { where: { reason: string; userId: string } }) =>
+      where.reason === "INTEREST" || (where.reason === "REFUND" && where.userId === "f1") ? { id: "x" } : null
+    );
+    await decideSuggestion({ suggestionId: "s1", userId: "u1", interested: true });
+    const entries = (db.creditLedger.create.mock.calls as unknown as [{ data: { reason: string; userId: string } }][]).map((c) => c[0].data);
+    expect(entries.filter((e) => e.reason === "REFUND").map((e) => e.userId)).toEqual(["u1"]);
   });
 
   it("refuses a second decision by the same person", async () => {

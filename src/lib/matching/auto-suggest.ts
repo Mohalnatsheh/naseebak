@@ -22,6 +22,7 @@ import { MUTUAL_SUGGESTION_MS, SLOT_IDLE_DAYS, notifyInterestShown, revealHidden
 import { NOT_ENGAGED, isEngaged } from "@/lib/intro/followup";
 import { activeWhere, CANDIDATE_ACTIVE_DAYS, CANDIDATE_FALLBACK_DAYS, isActive, recentlySeenWhere } from "@/lib/activity";
 import { arabicCount } from "@/lib/utils";
+import { startOfAmmanDay } from "@/lib/amman-day";
 import type { SuggestionDecision, SuggestionStatus } from "@prisma/client";
 
 const MAX_NEW_SUGGESTIONS = 3;
@@ -240,6 +241,26 @@ export function pairAvailability(userId: string, rows: PastRow[], now = new Date
 
 /** A «مهتم» can still come back this long after its card closed */
 export const SECOND_CHANCE_DAYS = 30;
+/**
+ * At most this many second-chance cards come back to one member per Amman day. They land in «مهتمون بك», which
+ * takes no «جديدة» slot, so they no longer wait for room there (2026-11-07: 120 of 165 were blocked by a full «جديدة»).
+ */
+export const SECOND_CHANCE_PER_DAY = 3;
+
+/** How many more second-chance cards may come back to `userId` today (the other side's «مهتم» is from before today) */
+async function secondChanceRoomToday(userId: string, now: Date): Promise<number> {
+  const today = startOfAmmanDay(now);
+  const done = await db.suggestion.count({
+    where: {
+      reopenedAt: { gte: today },
+      OR: [
+        { recipientId: userId, candidateDecision: "INTERESTED", candidateDecidedAt: { lt: today } },
+        { candidateId: userId, recipientDecision: "INTERESTED", recipientDecidedAt: { lt: today } },
+      ],
+    },
+  });
+  return Math.max(0, SECOND_CHANCE_PER_DAY - done);
+}
 
 /** On the site between the other's «مهتم» and the card closing: they could have answered it. */
 export function seenDuringWait(days: Date[], saidAt: Date | null, closedAt: Date | null): boolean {
@@ -308,6 +329,7 @@ export async function secondChanceCards(
 
 /** Bring up to `room` of them back for a full 7 days. The first person's refund stands: they aren't charged again. */
 async function reopenSecondChances(user: Parameters<typeof secondChanceCards>[0], flags: CycleFlags, room: number): Promise<number> {
+  if (room <= 0) return 0;
   const now = new Date();
   const ids = (await secondChanceCards(user, flags, now)).slice(0, room);
   let reopened = 0;
@@ -373,11 +395,11 @@ async function generate(userId: string): Promise<SuggestOutcome> {
   // A «مهتم» I missed while away: first of all, and with its own notice rather than "new suggestions"
   let reopened = 0;
   if (creditOnInterest) {
+    // Back in «مهتمون بك», so it takes no «جديدة» slot: it comes back whatever «جديدة» holds (a few a day)
+    reopened = await reopenSecondChances(user, flags, await secondChanceRoomToday(userId, new Date()));
     const open = await openSuggestionCount(userId);
     limit = MAX_OPEN_SUGGESTIONS - open;
-    if (limit <= 0) return outcome(0, "pending");
-    // Back in «مهتمون بك», so it takes no slot from what follows
-    reopened = await reopenSecondChances(user, flags, limit);
+    if (limit <= 0) return outcome(reopened, reopened > 0 ? null : "pending");
     const shown = limit > 0 ? await revealHiddenFor(userId, limit, new Date(), user.country) : 0;
     revealed = reopened + shown;
     limit -= shown;

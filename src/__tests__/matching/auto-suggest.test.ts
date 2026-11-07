@@ -425,9 +425,9 @@ describe("credit on interest: open cap 10", () => {
   const on = { introRequests: true, chat: true, mutualSuggestions: true, creditOnInterest: true };
   const females = (n: number) => Array.from({ length: n }, (_, i) => person(`cf${i}`, "FEMALE"));
   /** count() answers: MUTUAL open rows first, then LEGACY pending */
-  const openRows = (mutual: number, legacy = 0) => {
-    db.suggestion.count.mockImplementation(async ({ where }: { where: { flow?: string } }) =>
-      where.flow === "LEGACY" ? legacy : mutual
+  const openRows = (mutual: number, legacy = 0, reopenedToday = 0) => {
+    db.suggestion.count.mockImplementation(async ({ where }: { where: { flow?: string; reopenedAt?: unknown } }) =>
+      where.reopenedAt ? reopenedToday : where.flow === "LEGACY" ? legacy : mutual
     );
   };
   beforeEach(() => {
@@ -576,17 +576,35 @@ describe("credit on interest: open cap 10", () => {
       expect(reopenCalls()).toHaveLength(0);
     });
 
-    it("waits while the member's «جديدة» is full", async () => {
+    it("comes back even while the member's «جديدة» is full (it goes to «مهتمون بك», no slot)", async () => {
       openRows(10);
       closedCards([closed()]);
-      await autoSuggestForUser("back1");
-      expect(reopenCalls()).toHaveLength(0);
+      expect(await autoSuggestForUser("back1")).toBe(1);
+      expect(reopenCalls().map((c) => c[0].where.id)).toEqual(["w1"]);
     });
 
-    it("a run brings back at most as many as there is room for", async () => {
+    it("at most 3 a day, best first, whatever «جديدة» holds", async () => {
+      openRows(10);
+      closedCards(["w1", "w2", "w3", "w4"].map((id) => closed({ id })));
+      await autoSuggestForUser("back1");
+      expect(reopenCalls().map((c) => c[0].where.id)).toEqual(["w1", "w2", "w3"]);
+    });
+
+    it("counts the ones already back today: 2 back leaves room for 1, 3 back for none", async () => {
       closedCards([closed(), closed({ id: "w2" })]);
+      openRows(9, 0, 2);
       await autoSuggestForUser("back1");
       expect(reopenCalls().map((c) => c[0].where.id)).toEqual(["w1"]);
+      db.suggestion.updateMany.mockClear();
+      openRows(9, 0, 3);
+      await autoSuggestForUser("back1");
+      expect(reopenCalls()).toHaveLength(0);
+      // Today's count is of cards whose other side said «مهتم» before today, on either side
+      const today = db.suggestion.count.mock.calls.map((c) => c[0].where).find((w) => w.reopenedAt)!;
+      expect(today.OR).toEqual([
+        { recipientId: "back1", candidateDecision: "INTERESTED", candidateDecidedAt: { lt: expect.any(Date) } },
+        { candidateId: "back1", recipientDecision: "INTERESTED", recipientDecidedAt: { lt: expect.any(Date) } },
+      ]);
     });
   });
 

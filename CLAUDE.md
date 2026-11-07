@@ -306,7 +306,7 @@ Detail: [docs/reference/suggestions-and-credits.md](docs/reference/suggestions-a
 
 ## Deployment
 
-**Production: `5650d89` (open card limit 10, only «جديدة» counts), deployed 2026-11-06, slot a.**
+**Production: `a607f6b` (reports never act automatically; a settings change keeps cards with a «مهتم»), deployed 2026-11-07, slot b.**
 
 Update that one line after each deploy. Don't list past versions. The live revision is in `/var/www/naseebak/REVISION`.
 

@@ -307,7 +307,7 @@ Detail: [docs/reference/suggestions-and-credits.md](docs/reference/suggestions-a
 
 ## Deployment
 
-**Production: `a607f6b` (reports never act automatically; a settings change keeps cards with a «مهتم»), deployed 2026-11-07, slot b.**
+**Production: `6d2b81c` («جديدة»: active today first, busy people last; switch `feed_active_first` on), deployed 2026-11-07, slot a.**
 
 Update that one line after each deploy. Don't list past versions. The live revision is in `/var/www/naseebak/REVISION`.
 

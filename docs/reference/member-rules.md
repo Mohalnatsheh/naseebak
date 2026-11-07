@@ -56,7 +56,7 @@ Dual auth: phone+OTP for users, email+password for admins. Providers in `src/lib
 - `Suggestion` uses `recipientId`/`candidateId` (mapped to `femaleId`/`maleId` DB columns via `@map`)
 - `MutualMatch` `femaleId`/`maleId` — assigned dynamically based on actual genders
 - `SystemSetting` — key-value store, read via `src/lib/settings.ts` (30s cache)
-- `ProfileUpdateRequest` — user profile edits require admin review (steps 1-4) except partner preferences (`pref*`), which `/api/profile/update-request` saves directly (then `refreshOpenSuggestionsInBackground`: rescore, close cards that break a dealbreaker or fall under the minimum, top up), and filling a still-empty field (`splitProfileEdit()` in `src/lib/profile-edit-split.ts` → `PUT /api/profile`).
+- `ProfileUpdateRequest` — user profile edits require admin review (steps 1-4) except partner preferences (`pref*`), which `/api/profile/update-request` saves directly (then `refreshOpenSuggestionsInBackground`: rescore, close unanswered cards that break a dealbreaker or fall under the minimum, keep cards the other side said «مهتم» on, top up), and filling a still-empty field (`splitProfileEdit()` in `src/lib/profile-edit-split.ts` → `PUT /api/profile`).
   - Preferences, fills and step 5 guardian info stay editable while a review is pending; only another change to a stored value is refused (409 `REQUEST_PENDING`, checked before anything is written).
   - «سحب الطلب» = `POST /api/profile/update-request/withdraw` (status `WITHDRAWN`).
   - Every new request emails the admins (`sendAdminAlert`, best effort), like new support tickets

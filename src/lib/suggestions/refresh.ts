@@ -4,8 +4,9 @@
  *
  * - Every such row gets the match % recalculated with the new data.
  * - A row that no longer fits (fails either side's «شروط أساسية», or drops under the minimum score)
- *   is closed, also when the other person already said «مهتم» on it: their credit comes back
- *   (`refundUnansweredInterests`, same rule as the dealbreaker sweep). Closing tells nobody why, like an expiry.
+ *   is closed, only while nobody has answered it. Closing tells nobody why, like an expiry.
+ * - A row the other person already said «مهتم» on stays open whatever I change (owner, 2026-11-07):
+ *   it waits in my «مهتمون بك» until I answer or it expires, so their paid «مهتم» keeps its chance.
  * - Admin hand-picks are never closed for the score (an admin may pick a lower pair on purpose).
  * - Freed slots are topped up right away.
  * Rows the person already answered are left alone.
@@ -47,6 +48,8 @@ export async function refreshOpenSuggestions(userId: string, now = new Date()): 
     select: {
       id: true,
       source: true,
+      recipientDecision: true,
+      candidateDecision: true,
       compatibilityScore: true,
       recipientId: true,
       recipient: { select: scoringSelect },
@@ -66,7 +69,9 @@ export async function refreshOpenSuggestions(userId: string, now = new Date()): 
 
     const fits =
       mutuallyAcceptable(me as UserForScoring, other) && (row.source === "ADMIN" || score >= minScore);
-    if (!fits) {
+    // The other side already said «مهتم»: the card stays, only its % follows my new data
+    const otherAnswered = (iAmRecipient ? row.candidateDecision : row.recipientDecision) !== null;
+    if (!fits && !otherAnswered) {
       toClose.push(row.id);
       continue;
     }
@@ -82,17 +87,9 @@ export async function refreshOpenSuggestions(userId: string, now = new Date()): 
   }
 
   if (toClose.length > 0) {
-    // Re-checked in the update: a row I decided on a moment ago is left as it is
-    // expiresAt = now so the refund pass (closed, past-expiry rows) gives back the other side's «مهتم»
+    // Re-checked in the update: a row either side answered a moment ago is left as it is
     const { count } = await db.suggestion.updateMany({
-      where: {
-        id: { in: toClose },
-        status: "PENDING",
-        OR: [
-          { recipientId: userId, recipientDecision: null },
-          { candidateId: userId, candidateDecision: null },
-        ],
-      },
+      where: { id: { in: toClose }, status: "PENDING", recipientDecision: null, candidateDecision: null },
       data: { status: "EXPIRED", expiresAt: now, closedByChange: true },
     });
     result.closed = count;

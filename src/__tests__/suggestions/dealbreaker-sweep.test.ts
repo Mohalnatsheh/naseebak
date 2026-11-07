@@ -18,20 +18,13 @@ beforeEach(() => {
 describe("closeSuggestionsBreakingDealbreakers", () => {
   it("closes only undecided open rows that now fail, refunds, and returns the count", async () => {
     db.suggestion.findMany.mockResolvedValue([
-      { id: "s1", recipientId: "u1", recipient: { id: "u1" }, candidate: { id: "a" } },
-      { id: "s2", recipientId: "b", recipient: { id: "b" }, candidate: { id: "u1" } },
+      { id: "s1", recipientId: "u1", recipientDecision: null, candidateDecision: null, recipient: { id: "u1" }, candidate: { id: "a" } },
+      { id: "s2", recipientId: "b", recipientDecision: null, candidateDecision: null, recipient: { id: "b" }, candidate: { id: "u1" } },
     ]);
     score.mutuallyAcceptable.mockImplementation((_me: unknown, other: { id: string }) => other.id !== "a");
     expect(await closeSuggestionsBreakingDealbreakers("u1")).toBe(1);
     expect(db.suggestion.updateMany).toHaveBeenCalledWith({
-      where: {
-        id: { in: ["s1"] },
-        status: "PENDING",
-        OR: [
-          { recipientId: "u1", recipientDecision: null },
-          { candidateId: "u1", candidateDecision: null },
-        ],
-      },
+      where: { id: { in: ["s1"] }, status: "PENDING", recipientDecision: null, candidateDecision: null },
       data: { status: "EXPIRED", expiresAt: expect.any(Date), closedByChange: true },
     });
     expect(refunds.refundUnansweredInterests).toHaveBeenCalledWith(expect.objectContaining({ userId: "u1" }));
@@ -40,6 +33,16 @@ describe("closeSuggestionsBreakingDealbreakers", () => {
       { recipientId: "u1", recipientDecision: null },
       { candidateId: "u1", candidateDecision: null },
     ]);
+  });
+
+  it("keeps a card the other side already said «مهتم» on, even if it now breaks my conditions (owner, 2026-11-07)", async () => {
+    db.suggestion.findMany.mockResolvedValue([
+      { id: "s1", recipientId: "u1", recipientDecision: null, candidateDecision: "INTERESTED", recipient: { id: "u1" }, candidate: { id: "a" } },
+    ]);
+    score.mutuallyAcceptable.mockReturnValue(false);
+    expect(await closeSuggestionsBreakingDealbreakers("u1")).toBe(0);
+    expect(db.suggestion.updateMany).not.toHaveBeenCalled();
+    expect(refunds.refundUnansweredInterests).not.toHaveBeenCalled();
   });
 
   it("does nothing when every open row still passes", async () => {

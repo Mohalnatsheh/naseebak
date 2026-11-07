@@ -278,7 +278,7 @@ Current notes:
 - **Second chance:** a «مهتم» left unanswered because the other person was away (no `activity_days` row during the wait) comes back to them once (`secondChanceCards`, `reopenedAt`): full 7 days, in «مهتمون بك» so it takes no slot, only while they have room in «جديدة», with the «مهتم» notice. Both must still fit, with neither blocked, matched, engaged or gone. The first person keeps their refund and pays nothing more if it matches. Cards closed by a change never come back this way (`closedByChange`).
 - **After the match (evening job, push + bell, never SMS):** `nudgeQuietChats` nudges a chat once, 48 hours on, if nobody wrote (both) or a message is unread (the silent one). `closeUnsharedMatches`: a mixed choice gets a last call on day 5 and closes 2 days later; the side that didn't share carries `NOT_A_MATCH`, no refund, no chat. Win-back: `runReengagement` invites members away 7–30 days with nothing waiting (finished profile, not flagged, not engaged), same weekly limit.
 - **Empty search wait:** after a run finds nobody, `generate` waits 30 minutes. Any change to a member's data, preferences or «شروط أساسية» clears it (`clearSuggestCooldown`).
-- **Cards closed by a member's change:** `closedByChange`. If nobody answered, the pair can meet again at once on the same row. Answered cards and natural expiries keep the 30 days.
+- **Cards closed by a member's change:** a change closes only cards nobody answered (`closedByChange`); the pair can meet again at once on the same row. A card either side said «مهتم» on stays open whatever either changes (owner, 2026-11-07). Natural expiries keep the 30 days.
 
 Detail: [docs/reference/suggestions-and-credits.md](docs/reference/suggestions-and-credits.md).
 

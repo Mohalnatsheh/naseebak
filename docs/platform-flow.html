@@ -364,7 +364,7 @@ flowchart LR
     <div class="entry"><span><b>Page</b> <code>/dashboard/profile/edit</code> (always 5 steps)</span><span><b>APIs</b> profile/update-request · profile/parent-info · profile/dealbreakers</span></div>
     <ol class="steps">
       <li><span class="st">Submit validates steps 1–5.</span> <span class="dt">Step 5 is the guardian and requires name, phone, relationship and address.</span></li>
-      <li><span class="st"><code>pref*</code> fields</span> <span class="dt">save directly, then a dealbreaker sweep closes cards that no longer fit, then a top-up.</span></li>
+      <li><span class="st"><code>pref*</code> fields</span> <span class="dt">save directly, then a dealbreaker sweep closes unanswered cards that no longer fit (cards with a «مهتم» stay), then a top-up.</span></li>
       <li><span class="st">Everything else in steps 1–4</span> <span class="dt">becomes one <code>ProfileUpdateRequest</code> (one pending at a time). The form locks except step 5 until an admin decides.</span></li>
       <li><span class="st">Admin approves or rejects</span> <span class="dt">in Admin → Profile Requests. Member gets a SYSTEM notice; suggestions refresh.</span></li>
       <li><span class="st">Guardian change</span> <span class="dt">saves directly. Withdrawing consent notifies partners on accepted family intros.</span></li>

@@ -67,25 +67,35 @@ describe("refreshOpenSuggestions", () => {
     expect(auto.autoSuggestForUser).toHaveBeenCalledWith("u1");
   });
 
-  it("closes a row the other side already said «مهتم» on too, and refunds their credit (same rule as the sweep)", async () => {
+  it("keeps a row the other side already said «مهتم» on, whatever I change (owner, 2026-11-07)", async () => {
     db.suggestion.findMany.mockResolvedValue([row("paid", "a", { candidateDecision: "INTERESTED" })]);
     score.calculateCompatibility.mockReturnValue(30);
+    score.mutuallyAcceptable.mockReturnValue(false);
     const r = await refreshOpenSuggestions("u1");
-    expect(r.closed).toBe(1);
-    const close = db.suggestion.updateMany.mock.calls.find((c) => c[0].data.status === "EXPIRED")![0];
-    expect(close.where.id).toEqual({ in: ["paid"] });
-    expect(refunds.refundUnansweredInterests).toHaveBeenCalledWith(expect.objectContaining({ userId: "u1" }));
+    expect(r).toEqual({ rescored: 1, closed: 0 });
+    expect(db.suggestion.updateMany.mock.calls.some((c) => c[0].data.status === "EXPIRED")).toBe(false);
+    expect(db.suggestion.updateMany).toHaveBeenCalledWith({
+      where: { id: "paid", status: "PENDING", recipientDecision: null },
+      data: { compatibilityScore: 30 },
+    });
+    expect(refunds.refundUnansweredInterests).not.toHaveBeenCalled();
   });
 
-  it("the close re-checks that I haven't decided meanwhile", async () => {
+  it("keeps it when I am the candidate and the recipient said «مهتم»", async () => {
+    db.suggestion.findMany.mockResolvedValue([
+      { ...row("paid", "x"), recipientId: "b", recipient: person("b"), candidate: me, recipientDecision: "INTERESTED" },
+    ]);
+    score.calculateCompatibility.mockReturnValue(70);
+    score.mutuallyAcceptable.mockReturnValue(false);
+    expect((await refreshOpenSuggestions("u1")).closed).toBe(0);
+  });
+
+  it("the close re-checks that nobody answered meanwhile", async () => {
     db.suggestion.findMany.mockResolvedValue([row("low", "a")]);
     score.calculateCompatibility.mockReturnValue(10);
     await refreshOpenSuggestions("u1");
     const close = db.suggestion.updateMany.mock.calls.find((c) => c[0].data.status === "EXPIRED")![0];
-    expect(close.where.OR).toEqual([
-      { recipientId: "u1", recipientDecision: null },
-      { candidateId: "u1", candidateDecision: null },
-    ]);
+    expect(close.where).toEqual({ id: { in: ["low"] }, status: "PENDING", recipientDecision: null, candidateDecision: null });
   });
 
   it("no refund pass when nothing closed", async () => {

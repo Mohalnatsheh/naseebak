@@ -28,6 +28,7 @@ Rules for working on Naseebak (نصيبك). This file holds what you need in eve
 - Each «مهتم» costs 1 credit. The match, requests and chat are free.
 - Four switches run it, all **on** in production since 2026-10-17: `intro_requests_enabled`, `chat_enabled`, `new_suggestions_flow`, `credit_on_interest`.
 - All four default to off. Off = the [legacy flow](#legacy-flow).
+- Two more switches, both **on** in production since 2026-11-07, both off by default: `feed_active_first` (the «جديدة» order, Admin → Settings) and `sms_notices_enabled` (notice SMS, set in `system_settings`: no admin button yet, Admin → Notifications → Automatic only shows it).
 
 ## Commands
 
@@ -237,7 +238,7 @@ src/
 - Always use `notify()` / `notifyMany()` (`src/lib/notify.ts`). It writes the bell row, respects preferences and pushes to OneSignal and FCM.
 - **Guard test:** the list of automatic messages is `src/lib/notifications/automatic.ts`, and the texts stay at their call sites. `src/__tests__/lib/automatic-notifications.test.ts` fails when they differ, so change both.
 - Keep `UNPAID_TITLE` and the «صفر: اشح» top-up line. Admin Insights count them by text.
-- **Notice SMS, narrowed** (owner, 2026-11-07; off 2026-10-29 to 11-07): with `sms_notices_enabled` on, only a match or a «مهتم» (`SMS_NOTICE_EVENTS`), only to members with no push seen in the last 14 days, one per day, each text one Arabic SMS (≤ 70 characters). No automatic chat or expiry SMS. Admin «send now» is not narrowed.
+- **Notice SMS, narrowed** (owner, 2026-11-07; off 2026-10-29 to 11-07). `sms_notices_enabled` is **on** in production since 2026-11-07: only a match or a «مهتم» (`SMS_NOTICE_EVENTS`), only to members with no push seen in the last 14 days, one per day, each text one Arabic SMS (≤ 70 characters). No automatic chat or expiry SMS. Admin «send now» is not narrowed.
 - Saudi sign-in codes go by WhatsApp (`sendOtpCode`, VerifyWay). The reply repeats the code, so it is never logged.
 - A chat push reads «رسالة جديدة من <name>», never the message text.
 - Ask push permission with `requestPushPermission()` and sign out with `signOutAndUnlinkPush()`, never the bare browser prompt or `signOut()`.
@@ -268,12 +269,12 @@ Feed tabs: `new` = «جديدة» (website «الجديد»), `interested` = «�
 - Every «مهتم» on an undecided visible card tells the other person «شخص أبدى اهتمامه بك» (`notifyInterestShown`, once per Amman day).
 - `lastActiveAt` is used for sorting and never sent to clients. `activityLabel` sends only «نشط اليوم» or «نشط هذا الأسبوع».
 - **`memberSuggestStatus`** (`src/lib/admin/members-suggest-reason.ts`) is read-only and **must mirror `generate`** (`src/lib/matching/auto-suggest.ts`). Change one, change the other.
-- Cards top up on page open, on save, after a decision, on expiry and in the daily job.
+- Cards top up on page open, on save, after a decision, on expiry and in the daily job. The morning job handles up to `WEEKLY_SUGGEST_LIMIT` (600, `cron/suggestions.ts`) members, most recently active first; the top-up also reveals their hidden cards.
 
 Current notes:
 
 - **Which cards go first:** `orderForSlots`: `PREFERRED_SCORE` (70) and up first, 60–69 only fill what's left, then people with a free slot, then score. The floor stays 60.
-- **«جديدة» order:** activity groups (3 days, 7 days, older), then score. Switch `feed_active_first` (Admin → Settings, off by default) makes it 1 day, 3, 7, older, and puts someone with `BUSY_WAITING` (5) «مهتم» waiting on them last in their group. Order only: nobody is hidden, nothing sent to clients (`src/lib/suggestions/feed.ts`).
+- **«جديدة» order:** activity groups (3 days, 7 days, older), then score. Switch `feed_active_first` (Admin → Settings, off by default, **on** in production since 2026-11-07) makes it 1 day, 3, 7, older, and puts someone with `BUSY_WAITING` (5) «مهتم» waiting on them last in their group. Order only: nobody is hidden, nothing sent to clients (`src/lib/suggestions/feed.ts`).
 - **Expiry reminders:** `remindMutualSuggestions` walks every due card in pages (`MAX_REMINDER_PAGES`), still one notice per person per day.
 - **Card buildup:** a hidden card fills the recipient's slot (`slotMutualWhere`, `openCounts`), never the candidate's. Members away 7 days get no new cards and no reveals until they return. The 14-day candidate fallback stays, so active members aren't left empty. Old piles shrink by expiry only: no bulk closing.
 - **Second chance:** a «مهتم» left unanswered because the other person was away (no `activity_days` row during the wait) comes back to them once (`secondChanceCards`, `reopenedAt`): full 7 days, in «مهتمون بك» so it takes no slot, only while they have room in «جديدة», with the «مهتم» notice. Both must still fit, with neither blocked, matched, engaged or gone. The first person keeps their refund and pays nothing more if it matches. Cards closed by a change never come back this way (`closedByChange`).
@@ -304,10 +305,14 @@ Detail: [docs/reference/suggestions-and-credits.md](docs/reference/suggestions-a
 - Morning 06:00 Amman: expiry, refunds, new suggestions, chats, deletions, payments, clean-up. No pushes.
 - Evening 18:00, the online peak: reminders, filter tips, follow-ups, re-engagement.
 - Frequent, every 15 minutes: the unpaid-checkout reminder.
+- Also every 15 minutes, `/api/cron/unread-sms`: sends SMS held overnight (match and «مهتم» only). Its chat SMS stop at once (`chat_sms_off`).
+- 03:30: database backup, local plus an encrypted copy off the server (`/var/log/naseebak/backup.log`).
+- Schedule: `/etc/cron.d/naseebak` (Amman time). Results: `/var/log/naseebak/cron.log`.
+- The scheduler's request times out at 5 minutes (curl and Nginx). The first evening run with every expiry reminder (2026-11-07, about 4,500 cards) took 2.5 minutes. To run a part by hand, call the live slot's port directly with `Host: naseebak.com`, so the timeout doesn't apply.
 
 ## Deployment
 
-**Production: `d4cd85d` (daily top-up reaches every active member; narrowed notice SMS in code, `sms_notices_enabled` still off), deployed 2026-11-07, slot b.**
+**Production: `d4cd85d` (daily top-up reaches every active member; narrowed notice SMS, `sms_notices_enabled` on), deployed 2026-11-07, slot b.**
 
 Update that one line after each deploy. Don't list past versions. The live revision is in `/var/www/naseebak/REVISION`.
 
@@ -350,7 +355,7 @@ ssh -i ~/.ssh/naseebak_vps_ed25519 -o IdentitiesOnly=yes root@146.103.57.224 nas
 - Guardian is asked for only when needed. Sign-up stays short.
 - Referral pays after the short setup.
 - Two people alternating can still pass a number through chat: accepted, stricter would block normal messages.
-- Notices are push + bell only.
+- Notices are push + bell. SMS only for a match or a «مهتم», to members with no push active in the last 14 days (2026-11-07).
 - Stripe stays in the app, with the known Play and Apple billing risk.
 - Old card piles shrink by expiry only.
 - Public pages never mention poll credits. Visitors never earn.
@@ -362,6 +367,7 @@ Parked, or waiting for the owner:
 - A woman's free «مهتم» reply to a man's «مهتم»: needs an app version.
 - The cap on hidden cards per recipient (G53) and a popular member at 0 credits holding many paid «مهتم» cards (G57).
 - Comparing «مهتم» → match by feed order on or after 2026-11-18, and by score band.
+- About 2026-11-14, measure `feed_active_first` and the SMS: «مهتم» → match by how many «مهتم» already waited on the other side (before, 24 Oct – 4 Nov: 32% with none, 12% with 1–4, 6% with 5–9, 3% with 20+), and the answer rate for members without push (before: 25%, 44% with push). 64% of «مهتم» went unanswered.
 - Everything else open: [docs/platform-review-2026-11-06.md](docs/platform-review-2026-11-06.md).
 
 ## What needs an app version

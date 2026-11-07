@@ -227,7 +227,7 @@ src/
 - Only `role: USER` accounts get or receive suggestions.
 - Test accounts (`src/lib/test-accounts.ts`) meet only each other. On production only `EXTRA_TEST_PHONES` count.
 - Never put a real or review phone number in a doc, and never send personal data in analytics params. Dashboard page titles stay fixed labels.
-- Sign-up never reveals whether a number is registered.
+- Sign-up never reveals whether a number is registered. Sign-in learns it from `verify-otp` (after the code). `send-otp` still returns `userExists` only for app builds before 2026-11-07: remove it once the force update requires the newer app.
 - GA runs on public pages and the dashboard with ids stripped, never in `/admin`. GTM and the Pixel are off the dashboard, admin, `/pay`, `/payments` and login.
 - Identity verification is removed for members. `VerifiedBadge` is hidden while `intro_requests_enabled` is on.
 - Profile edits after setup go through review, except partner preferences and filling an empty field.
@@ -312,7 +312,7 @@ Detail: [docs/reference/suggestions-and-credits.md](docs/reference/suggestions-a
 
 ## Deployment
 
-**Production: `d4cd85d` (daily top-up reaches every active member; narrowed notice SMS, `sms_notices_enabled` on), deployed 2026-11-07, slot b.**
+**Production: `638af35` (four gap fixes: double refund, «registered?» after the code, mixed-match chat, one-way guardian), deployed 2026-11-07, slot b.**
 
 Update that one line after each deploy. Don't list past versions. The live revision is in `/var/www/naseebak/REVISION`.
 

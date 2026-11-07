@@ -44,3 +44,17 @@ describe("getCycleFlags.creditOnInterest", () => {
     expect((await flagsWith({})).creditOnInterest).toBe(false);
   });
 });
+
+describe("getCycleFlags.activeFirstFeed", () => {
+  it("is off by default", async () => {
+    expect((await flagsWith(allOn)).activeFirstFeed).toBe(false);
+  });
+
+  it("is on with feed_active_first and shared suggestions", async () => {
+    expect((await flagsWith({ ...allOn, feed_active_first: "true" })).activeFirstFeed).toBe(true);
+  });
+
+  it("is off while shared suggestions are off", async () => {
+    expect((await flagsWith({ ...allOn, feed_active_first: "true", new_suggestions_flow: "false" })).activeFirstFeed).toBe(false);
+  });
+});

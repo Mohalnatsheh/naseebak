@@ -8,6 +8,8 @@ const DEFAULTS: Record<string, string> = {
   chat_enabled: "false",
   new_suggestions_flow: "false",
   credit_on_interest: "false",
+  // «جديدة» order: people active today first, people with 5+ «مهتم» waiting on them last (2026-11-07)
+  feed_active_first: "false",
   engagement_polls_enabled: "false",
   poll_round_days: "3",
   poll_reward_credits: "1",
@@ -69,15 +71,18 @@ export interface CycleFlags {
   mutualSuggestions: boolean;
   /** "Interested" costs 1 credit, suggestions and requests are free — only on when simultaneous suggestions are on too */
   creditOnInterest: boolean;
+  /** Finer activity groups (today first) and busy people last in «جديدة» — only on when simultaneous suggestions are on too */
+  activeFirstFeed?: boolean;
 }
 
 /** New user cycle switches (Admin → Settings). Both default to off. */
 export async function getCycleFlags(): Promise<CycleFlags> {
-  const [intro, chat, mutual, creditOnInterest] = await Promise.all([
+  const [intro, chat, mutual, creditOnInterest, activeFirst] = await Promise.all([
     getSetting("intro_requests_enabled"),
     getSetting("chat_enabled"),
     getSetting("new_suggestions_flow"),
     getSetting("credit_on_interest"),
+    getSetting("feed_active_first"),
   ]);
   const introRequests = intro === "true";
   const mutualSuggestions = introRequests && mutual === "true";
@@ -86,5 +91,6 @@ export async function getCycleFlags(): Promise<CycleFlags> {
     chat: introRequests && chat === "true",
     mutualSuggestions,
     creditOnInterest: mutualSuggestions && creditOnInterest === "true",
+    activeFirstFeed: mutualSuggestions && activeFirst === "true",
   };
 }

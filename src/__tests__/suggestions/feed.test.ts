@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const db = vi.hoisted(() => ({
-  suggestion: { findMany: vi.fn(), updateMany: vi.fn(), count: vi.fn() },
+  suggestion: { findMany: vi.fn(), updateMany: vi.fn(), count: vi.fn(), groupBy: vi.fn() },
   user: { findUnique: vi.fn() },
   block: { findMany: vi.fn() },
   like: { findMany: vi.fn() },
@@ -12,7 +12,7 @@ vi.mock("@/lib/intro/match", () => ({ createMutualMatch: vi.fn() }));
 const settings = vi.hoisted(() => ({ getCycleFlags: vi.fn() }));
 vi.mock("@/lib/settings", () => settings);
 
-import { activityGroup, activityLabel, countMutualTabs, countNewItems, getSuggestionFeed, NEW_TAB_LIMIT, type OpenFeedItem } from "@/lib/suggestions/feed";
+import { ACTIVE_FIRST_GROUP_DAYS, activityGroup, activityLabel, countMutualTabs, countNewItems, getSuggestionFeed, NEW_TAB_LIMIT, type OpenFeedItem } from "@/lib/suggestions/feed";
 
 const DAY = 24 * 60 * 60 * 1000;
 const person = (id: string, gender: "MALE" | "FEMALE", profile: object = {}) => ({
@@ -34,6 +34,7 @@ beforeEach(() => {
   db.block.findMany.mockResolvedValue([]);
   db.suggestion.updateMany.mockResolvedValue({ count: 0 });
   db.suggestion.findMany.mockResolvedValue([]);
+  db.suggestion.groupBy.mockResolvedValue([]);
   db.like.findMany.mockResolvedValue([]);
   db.mutualMatch.findMany.mockResolvedValue([]);
 });
@@ -356,6 +357,88 @@ describe("getSuggestionFeed — recent activity first", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("getSuggestionFeed — active first, busy last (feed_active_first)", () => {
+  const now = new Date("2026-11-07T12:00:00Z");
+  const seen = (daysAgo: number | null) => (daysAgo === null ? null : new Date(now.getTime() - daysAgo * DAY));
+  const on = { introRequests: true, chat: true, mutualSuggestions: true, creditOnInterest: true, activeFirstFeed: true };
+  const row = (id: string, score: number, daysAgo: number | null) => ({
+    ...mutualRow(id, { ...person(id, "FEMALE"), lastActiveAt: seen(daysAgo) } as never),
+    compatibilityScore: score,
+  });
+  // `id` holds `n` «مهتم» waiting for her answer (she is the candidate on those cards)
+  const waitingOn = (counts: Record<string, number>) =>
+    db.suggestion.groupBy.mockImplementation(async (args: { by: string[] }) =>
+      args.by[0] === "candidateId" ? Object.entries(counts).map(([candidateId, n]) => ({ candidateId, _count: { _all: n } })) : []
+    );
+  const run = async (tab: "new" | "interested", opts?: { countOnly?: boolean }) => {
+    vi.useFakeTimers({ now, toFake: ["Date"] });
+    try {
+      return await getSuggestionFeed("me", tab, 1, 10, opts);
+    } finally {
+      vi.useRealTimers();
+    }
+  };
+
+  it("groups: up to 1 day, 1–3 days, 3–7 days, longer or never", () => {
+    const g = (d: number | null) => activityGroup(seen(d), now, ACTIVE_FIRST_GROUP_DAYS);
+    expect([g(0), g(1), g(2), g(3), g(5), g(7), g(8), g(null)]).toEqual([0, 0, 1, 1, 2, 2, 3, 3]);
+  });
+
+  it("asks for the four groups separately, the first one the last day", async () => {
+    settings.getCycleFlags.mockResolvedValue(on);
+    await run("new");
+    const groups = db.suggestion.findMany.mock.calls.slice(0, 4).map((c) => c[0].where.AND[1].OR[0].candidate);
+    expect(groups[0].lastActiveAt.gte.getTime()).toBe(now.getTime() - DAY);
+    expect(groups[1].lastActiveAt).toEqual({ gte: new Date(now.getTime() - 3 * DAY), lt: new Date(now.getTime() - DAY) });
+    expect(groups[3].OR).toEqual([{ lastActiveAt: null }, { lastActiveAt: { lt: new Date(now.getTime() - 7 * DAY) } }]);
+    // the legacy query follows the four groups
+    expect(db.suggestion.findMany.mock.calls[4][0].where).toMatchObject({ flow: "LEGACY" });
+  });
+
+  it("today first; inside a group someone with 5+ «مهتم» waiting goes after the rest, whatever the score", async () => {
+    settings.getCycleFlags.mockResolvedValue(on);
+    db.suggestion.findMany
+      .mockResolvedValueOnce([row("today-busy-95", 95, 0.2), row("today-free-70", 70, 0.5), row("today-four-80", 80, 0.1)])
+      .mockResolvedValueOnce([row("twodays-free-90", 90, 2)])
+      .mockResolvedValueOnce([row("week-busy-99", 99, 5), row("week-free-60", 60, 6)])
+      .mockResolvedValueOnce([]);
+    waitingOn({ "today-busy-95": 5, "today-four-80": 4, "week-busy-99": 30 });
+    const { items } = await run("new");
+    expect(items.map((i) => i.id)).toEqual([
+      "today-four-80", "today-free-70", "today-busy-95", "twodays-free-90", "week-free-60", "week-busy-99",
+    ]);
+    // Only the waiting «مهتم» on open cards of the people shown are counted
+    const [asCandidate, asRecipient] = db.suggestion.groupBy.mock.calls.map((c) => c[0]);
+    expect(asCandidate.where).toMatchObject({
+      flow: "MUTUAL", status: "PENDING", recipientDecision: "INTERESTED", candidateDecision: null,
+      candidateId: { in: expect.arrayContaining(["today-busy-95", "week-busy-99"]) },
+    });
+    expect(asRecipient.where).toMatchObject({ candidateDecision: "INTERESTED", recipientDecision: null });
+  });
+
+  it("the busy count never reaches the client", async () => {
+    settings.getCycleFlags.mockResolvedValue(on);
+    db.suggestion.findMany.mockResolvedValueOnce([row("busy", 70, 0)]);
+    waitingOn({ busy: 7777 });
+    const { items } = await run("new");
+    expect(JSON.stringify(items)).not.toContain("7777");
+  });
+
+  it("«مهتمون بك» and the badge count don't look up waiting «مهتم»", async () => {
+    settings.getCycleFlags.mockResolvedValue(on);
+    await run("interested");
+    await run("new", { countOnly: true });
+    expect(db.suggestion.groupBy).not.toHaveBeenCalled();
+  });
+
+  it("switch off: three groups as before and no waiting lookup", async () => {
+    settings.getCycleFlags.mockResolvedValue({ ...on, activeFirstFeed: false });
+    await run("new");
+    expect(db.suggestion.groupBy).not.toHaveBeenCalled();
+    expect(db.suggestion.findMany.mock.calls[3][0].where).toMatchObject({ flow: "LEGACY" });
   });
 });
 

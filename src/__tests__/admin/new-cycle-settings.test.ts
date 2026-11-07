@@ -64,4 +64,19 @@ describe("new-cycle settings PATCH", () => {
     expect(store.value.credit_on_interest).toBe("true");
     expect(settings.setSetting).not.toHaveBeenCalledWith("credit_on_interest", expect.anything());
   });
+
+  it("saves and reports the «جديدة» order switch, off by default, without touching the others", async () => {
+    expect((await (await patch({})).json()).activeFirstFeed).toBe(false);
+    const res = await patch({ activeFirstFeed: true });
+    expect(store.value.feed_active_first).toBe("true");
+    expect((await res.json()).activeFirstFeed).toBe(true);
+    await patch({ activeFirstFeed: false });
+    expect(store.value.feed_active_first).toBe("false");
+    expect(settings.setSetting.mock.calls.map((c) => c[0])).toEqual(["feed_active_first", "feed_active_first"]);
+    expect(mutualMod.closeLegacyInFlight).not.toHaveBeenCalled();
+  });
+
+  it("refuses a non-boolean order switch", async () => {
+    expect((await patch({ activeFirstFeed: "yes" })).status).toBe(400);
+  });
 });

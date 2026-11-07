@@ -273,6 +273,7 @@ Feed tabs: `new` = «جديدة» (website «الجديد»), `interested` = «�
 Current notes:
 
 - **Which cards go first:** `orderForSlots`: `PREFERRED_SCORE` (70) and up first, 60–69 only fill what's left, then people with a free slot, then score. The floor stays 60.
+- **«جديدة» order:** activity groups (3 days, 7 days, older), then score. Switch `feed_active_first` (Admin → Settings, off by default) makes it 1 day, 3, 7, older, and puts someone with `BUSY_WAITING` (5) «مهتم» waiting on them last in their group. Order only: nobody is hidden, nothing sent to clients (`src/lib/suggestions/feed.ts`).
 - **Expiry reminders:** `remindMutualSuggestions` walks every due card in pages (`MAX_REMINDER_PAGES`), still one notice per person per day.
 - **Card buildup:** a hidden card fills the recipient's slot (`slotMutualWhere`, `openCounts`), never the candidate's. Members away 7 days get no new cards and no reveals until they return. The 14-day candidate fallback stays, so active members aren't left empty. Old piles shrink by expiry only: no bulk closing.
 - **Second chance:** a «مهتم» left unanswered because the other person was away (no `activity_days` row during the wait) comes back to them once (`secondChanceCards`, `reopenedAt`): full 7 days, in «مهتمون بك» so it takes no slot, only while they have room in «جديدة», with the «مهتم» notice. Both must still fit, with neither blocked, matched, engaged or gone. The first person keeps their refund and pays nothing more if it matches. Cards closed by a change never come back this way (`closedByChange`).

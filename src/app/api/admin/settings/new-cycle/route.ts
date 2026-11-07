@@ -6,11 +6,12 @@ import { db } from "@/lib/db";
 import { closeLegacyInFlight } from "@/lib/suggestions/mutual";
 
 async function state() {
-  const [flags, chatRaw, mutualRaw, creditRaw, migration] = await Promise.all([
+  const [flags, chatRaw, mutualRaw, creditRaw, activeFirstRaw, migration] = await Promise.all([
     getCycleFlags(),
     getSetting("chat_enabled"),
     getSetting("new_suggestions_flow"),
     getSetting("credit_on_interest"),
+    getSetting("feed_active_first"),
     db.systemSetting.findUnique({ where: { key: "migration_new_cycle_v1" } }),
   ]);
   return {
@@ -18,6 +19,7 @@ async function state() {
     chat: chatRaw === "true",
     mutualSuggestions: mutualRaw === "true",
     creditOnInterest: creditRaw === "true",
+    activeFirstFeed: activeFirstRaw === "true",
     creditsMigratedAt: migration?.value ?? null,
   };
 }
@@ -38,6 +40,7 @@ const schema = z.object({
   chat: z.boolean().optional(),
   mutualSuggestions: z.boolean().optional(),
   creditOnInterest: z.boolean().optional(),
+  activeFirstFeed: z.boolean().optional(),
 });
 
 export async function PATCH(request: Request) {
@@ -60,6 +63,9 @@ export async function PATCH(request: Request) {
       await setSetting("credit_on_interest", String(parsed.data.creditOnInterest));
       // Going live: older-style suggestions in flight are closed (owner decision), shared flow only
       if (parsed.data.creditOnInterest) await closeLegacyInFlight();
+    }
+    if (parsed.data.activeFirstFeed !== undefined) {
+      await setSetting("feed_active_first", String(parsed.data.activeFirstFeed));
     }
     // Credit on interest depends on both: turning either off turns it off too, so switching
     // them back on later never silently re-enables it

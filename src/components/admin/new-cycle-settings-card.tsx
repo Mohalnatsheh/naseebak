@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2, HeartHandshake, MessageCircle, Info, TriangleAlert, Users, Coins } from "lucide-react";
+import { Loader2, HeartHandshake, MessageCircle, Info, TriangleAlert, Users, Coins, ListOrdered } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
@@ -22,10 +22,11 @@ interface State {
   chat: boolean;
   mutualSuggestions: boolean;
   creditOnInterest: boolean;
+  activeFirstFeed: boolean;
   creditsMigratedAt: string | null;
 }
 
-type Key = "introRequests" | "chat" | "mutualSuggestions" | "creditOnInterest";
+type Key = "introRequests" | "chat" | "mutualSuggestions" | "creditOnInterest" | "activeFirstFeed";
 
 /** Admin → Settings: the switches for the new user cycle, in plain words. */
 export function NewCycleSettingsCard() {
@@ -61,7 +62,8 @@ export function NewCycleSettingsCard() {
   }
 
   function toggle(key: Key, value: boolean) {
-    if (!value) setConfirmOff(key);
+    // The feed order is safe to turn off at once: nothing in flight depends on it
+    if (!value && key !== "activeFirstFeed") setConfirmOff(key);
     else if (key === "introRequests") setConfirmIntroOn(true);
     else save(key, true);
   }
@@ -121,6 +123,14 @@ export function NewCycleSettingsCard() {
       on: !!state?.introRequests && !!state?.mutualSuggestions && !!state?.creditOnInterest,
       disabled: !state?.introRequests || !state?.mutualSuggestions,
     },
+    {
+      key: "activeFirstFeed" as const,
+      icon: ListOrdered,
+      title: "Active first, busy last",
+      text: "Orders the 'New' tab: people active in the last day first, then 1–3 days, 3–7 days and older. Inside each group, someone who already has 5 or more 'Interested' waiting for their answer goes last. Nobody is hidden or told; only the order changes, in the app too. Needs Simultaneous suggestions on.",
+      on: !!state?.introRequests && !!state?.mutualSuggestions && !!state?.activeFirstFeed,
+      disabled: !state?.introRequests || !state?.mutualSuggestions,
+    },
   ];
 
   return (
@@ -148,7 +158,7 @@ export function NewCycleSettingsCard() {
                 <p className="text-sm text-muted-foreground leading-relaxed">{r.text}</p>
                 {r.disabled && (
                   <p className="text-xs font-medium text-amber-700">
-                    {r.key === "creditOnInterest" ? "Turn on simultaneous suggestions first." : "Turn on family and chat requests first."}
+                    {r.key === "creditOnInterest" || r.key === "activeFirstFeed" ? "Turn on simultaneous suggestions first." : "Turn on family and chat requests first."}
                   </p>
                 )}
               </div>

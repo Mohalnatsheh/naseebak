@@ -36,6 +36,18 @@ export const NEW_TAB_LIMIT = 15;
  * «مهتم» to someone active within a day became a match 41% of the time, 12% for someone away 7+ days.
  */
 export const ACTIVITY_GROUP_DAYS = [3, 7] as const;
+/**
+ * Switch `feed_active_first` (2026-11-07): a finer top group, active in the last day. On production a «مهتم» given
+ * 3–7 Nov to someone active that same day was answered 35% of the time so far, 5% when they were last seen 1–2 days before.
+ */
+export const ACTIVE_FIRST_GROUP_DAYS = [1, 3, 7] as const;
+type GroupDays = readonly number[];
+/**
+ * Switch `feed_active_first`: in «جديدة», someone with this many «مهتم» already waiting for their answer goes after
+ * everyone else in their activity group (never hidden). On production (24 Oct – 4 Nov) a man's «مهتم» became a match
+ * 32% of the time when nothing waited on her, 12% with 1–4 waiting, 6% with 5–9 and 3% with 20+.
+ */
+export const BUSY_WAITING = 5;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
@@ -50,24 +62,49 @@ export function activityLabel(lastActiveAt: Date | null | undefined, gender: str
   return days <= 7 ? `${active} هذا الأسبوع` : null;
 }
 
-/** 0 = active in the last 3 days, 1 = 3–7 days ago, 2 = longer ago or never seen */
-export function activityGroup(lastActiveAt: Date | null | undefined, now = new Date()): number {
-  if (!lastActiveAt) return ACTIVITY_GROUP_DAYS.length;
+/** 0 = active in the last 3 days, 1 = 3–7 days ago, 2 = longer ago or never seen (with the default groups) */
+export function activityGroup(lastActiveAt: Date | null | undefined, now = new Date(), groupDays: GroupDays = ACTIVITY_GROUP_DAYS): number {
+  if (!lastActiveAt) return groupDays.length;
   const days = (now.getTime() - lastActiveAt.getTime()) / DAY_MS;
-  const group = ACTIVITY_GROUP_DAYS.findIndex((d) => days <= d);
-  return group === -1 ? ACTIVITY_GROUP_DAYS.length : group;
+  const group = groupDays.findIndex((d) => days <= d);
+  return group === -1 ? groupDays.length : group;
 }
 
 /** The other person (whichever side of the card I'm on) was last active in this group */
-function otherInGroupWhere(userId: string, group: number, now: Date): Prisma.SuggestionWhereInput {
+function otherInGroupWhere(userId: string, group: number, now: Date, groupDays: GroupDays): Prisma.SuggestionWhereInput {
   const at = (days: number) => new Date(now.getTime() - days * DAY_MS);
   const lastActiveAt: Prisma.UserWhereInput =
     group === 0
-      ? { lastActiveAt: { gte: at(ACTIVITY_GROUP_DAYS[0]) } }
-      : group < ACTIVITY_GROUP_DAYS.length
-        ? { lastActiveAt: { gte: at(ACTIVITY_GROUP_DAYS[group]), lt: at(ACTIVITY_GROUP_DAYS[group - 1]) } }
-        : { OR: [{ lastActiveAt: null }, { lastActiveAt: { lt: at(ACTIVITY_GROUP_DAYS[ACTIVITY_GROUP_DAYS.length - 1]) } }] };
+      ? { lastActiveAt: { gte: at(groupDays[0]) } }
+      : group < groupDays.length
+        ? { lastActiveAt: { gte: at(groupDays[group]), lt: at(groupDays[group - 1]) } }
+        : { OR: [{ lastActiveAt: null }, { lastActiveAt: { lt: at(groupDays[groupDays.length - 1]) } }] };
   return { OR: [{ recipientId: userId, candidate: lastActiveAt }, { candidateId: userId, recipient: lastActiveAt }] };
+}
+
+/**
+ * How many «مهتم» wait for each of these people's answer: open shared cards where the other side said «مهتم» and
+ * they haven't decided. Read only for ordering; never sent to a client.
+ */
+async function waitingInterests(ids: string[], now: Date): Promise<Map<string, number>> {
+  const counts = new Map<string, number>();
+  if (ids.length === 0) return counts;
+  const open = { flow: "MUTUAL" as const, status: "PENDING" as const, expiresAt: { gt: now } };
+  const [asCandidate, asRecipient] = await Promise.all([
+    db.suggestion.groupBy({
+      by: ["candidateId"],
+      where: { ...open, candidateId: { in: ids }, recipientDecision: "INTERESTED", candidateDecision: null },
+      _count: { _all: true },
+    }),
+    db.suggestion.groupBy({
+      by: ["recipientId"],
+      where: { ...open, recipientId: { in: ids }, candidateDecision: "INTERESTED", recipientDecision: null },
+      _count: { _all: true },
+    }),
+  ]);
+  for (const g of asCandidate) counts.set(g.candidateId, (counts.get(g.candidateId) ?? 0) + g._count._all);
+  for (const g of asRecipient) counts.set(g.recipientId, (counts.get(g.recipientId) ?? 0) + g._count._all);
+  return counts;
 }
 
 /** Order: newest first; credit-on-interest shows the best matches first (newest first among equals). */
@@ -195,6 +232,7 @@ export async function getSuggestionFeed(
   const now = new Date();
   const flags = await getCycleFlags();
   const order = suggestionOrder(flags);
+  const groupDays: GroupDays = flags.activeFirstFeed ? ACTIVE_FIRST_GROUP_DAYS : ACTIVITY_GROUP_DAYS;
   const otherSelect = opts.countOnly ? countSelect : personSelect;
 
   const [viewer, blocked] = await Promise.all([
@@ -224,9 +262,9 @@ export async function getSuggestionFeed(
     const [mutualGroups, legacy, likes, myResponses] = await Promise.all([
       // Each activity group on its own, so a member with many cards never loses the active ones past the limit
       Promise.all(
-        [0, 1, 2].map((group) =>
+        Array.from({ length: groupDays.length + 1 }, (_, group) => group).map((group) =>
           db.suggestion.findMany({
-            where: { AND: [openMutualWhere(userId, now), otherInGroupWhere(userId, group, now)] },
+            where: { AND: [openMutualWhere(userId, now), otherInGroupWhere(userId, group, now, groupDays)] },
             select: mutualSelect,
             orderBy: order,
             take: SOURCE_LIMIT,
@@ -311,11 +349,19 @@ export async function getSuggestionFeed(
 
   // My «مهتم» already sent (the third tab) stays in its own order
   const byActivity = tab === "new" || tab === "interested";
+  // «جديدة» with `feed_active_first`: people already holding BUSY_WAITING+ «مهتم» go last in their activity group.
+  // Not for countOnly: the order never changes how many cards show.
+  const waiting =
+    tab === "new" && flags.activeFirstFeed && !opts.countOnly
+      ? await waitingInterests([...new Set(rows.filter((r) => r.kind === "mutual").map((r) => r.other.id))], now)
+      : null;
+  const busy = (r: Row) => (waiting && (waiting.get(r.other.id) ?? 0) >= BUSY_WAITING ? 1 : 0);
   const visible = rows
     // Blocked either way, or deactivated / suspended since the suggestion was made
     .filter((r) => !blocked.has(r.other.id) && !isUnavailable(r.other))
     .sort((a, b) =>
-      (byActivity ? activityGroup(a.other.lastActiveAt, now) - activityGroup(b.other.lastActiveAt, now) : 0) ||
+      (byActivity ? activityGroup(a.other.lastActiveAt, now, groupDays) - activityGroup(b.other.lastActiveAt, now, groupDays) : 0) ||
+      busy(a) - busy(b) ||
       (flags.creditOnInterest
         ? (b.score ?? -1) - (a.score ?? -1) || b.createdAt.getTime() - a.createdAt.getTime()
         : b.createdAt.getTime() - a.createdAt.getTime())

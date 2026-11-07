@@ -237,7 +237,7 @@ src/
 - Always use `notify()` / `notifyMany()` (`src/lib/notify.ts`). It writes the bell row, respects preferences and pushes to OneSignal and FCM.
 - **Guard test:** the list of automatic messages is `src/lib/notifications/automatic.ts`, and the texts stay at their call sites. `src/__tests__/lib/automatic-notifications.test.ts` fails when they differ, so change both.
 - Keep `UNPAID_TITLE` and the «صفر: اشح» top-up line. Admin Insights count them by text.
-- **No SMS for notices** (owner, since 2026-10-29): `sms_notices_enabled` stays off. SMS is for sign-in codes only.
+- **Notice SMS, narrowed** (owner, 2026-11-07; off 2026-10-29 to 11-07): with `sms_notices_enabled` on, only a match or a «مهتم» (`SMS_NOTICE_EVENTS`), only to members with no push seen in the last 14 days, one per day, each text one Arabic SMS (≤ 70 characters). No automatic chat or expiry SMS. Admin «send now» is not narrowed.
 - Saudi sign-in codes go by WhatsApp (`sendOtpCode`, VerifyWay). The reply repeats the code, so it is never logged.
 - A chat push reads «رسالة جديدة من <name>», never the message text.
 - Ask push permission with `requestPushPermission()` and sign out with `signOutAndUnlinkPush()`, never the bare browser prompt or `signOut()`.

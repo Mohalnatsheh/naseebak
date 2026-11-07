@@ -196,7 +196,7 @@ export const AUTOMATIC_NOTIFICATIONS: AutomaticNotification[] = [
   {
     "key": "sms-interest",
     "group": "suggestions",
-    "when": "SMS fallback for «شخص أبدى اهتمامه بك», for a member with no push device; at most one notice SMS per Amman day, held overnight.",
+    "when": "SMS fallback for «شخص أبدى اهتمامه بك», for a member with no push device seen in the last 14 days; at most one notice SMS per Amman day, held overnight. Only while sms_notices_enabled is on.",
     "who": "The undecided member without push",
     "channels": [
       "sms"
@@ -205,14 +205,14 @@ export const AUTOMATIC_NOTIFICATIONS: AutomaticNotification[] = [
       {
         "variant": "default",
         "title": "",
-        "body": "نصيبك: شخص أبدى اهتمامه بك. يمكنك الاطلاع على الاقتراح من حسابك: naseebak.com/dashboard/suggestions"
+        "body": "نصيبك: شخص أبدى اهتمامه بك. naseebak.com/dashboard/suggestions"
       }
     ]
   },
   {
     "key": "sms-expiring",
     "group": "suggestions",
-    "when": "SMS fallback for «اقتراح بانتظار قرارك», for a member with no push device; at most one notice SMS per Amman day, held overnight.",
+    "when": "Not sent automatically since 2026-11-07 (SMS go only for a match or a «مهتم»). Text kept for an admin «send now».",
     "who": "The undecided member without push",
     "channels": [
       "sms"
@@ -221,7 +221,7 @@ export const AUTOMATIC_NOTIFICATIONS: AutomaticNotification[] = [
       {
         "variant": "default",
         "title": "",
-        "body": "نصيبك: لديك اقتراح توافق بانتظار قرارك وينتهي خلال يومين: naseebak.com/dashboard/suggestions"
+        "body": "نصيبك: اقتراح ينتهي خلال يومين. naseebak.com/dashboard/suggestions"
       }
     ]
   },
@@ -467,7 +467,7 @@ export const AUTOMATIC_NOTIFICATIONS: AutomaticNotification[] = [
   {
     "key": "sms-match",
     "group": "matches",
-    "when": "SMS fallback for any «توافق متبادل!» notice, for a member with no push device; at most one notice SMS per Amman day, held overnight.",
+    "when": "SMS fallback for any «توافق متبادل!» notice, for a member with no push device seen in the last 14 days; at most one notice SMS per Amman day, held overnight. Only while sms_notices_enabled is on.",
     "who": "The matched member without push",
     "channels": [
       "sms"
@@ -476,7 +476,7 @@ export const AUTOMATIC_NOTIFICATIONS: AutomaticNotification[] = [
       {
         "variant": "default",
         "title": "",
-        "body": "نصيبك: لديك توافق متبادل جديد! يمكنك معرفة الخطوة التالية من حسابك: naseebak.com/dashboard/matches"
+        "body": "نصيبك: لديك توافق متبادل جديد! naseebak.com/dashboard/matches"
       }
     ]
   },
@@ -833,7 +833,7 @@ export const AUTOMATIC_NOTIFICATIONS: AutomaticNotification[] = [
   {
     "key": "sms-chat-message",
     "group": "chat",
-    "when": "15-minute job: a partner's message stays unread 2+ hours for a member with no push device; at most one notice SMS per Amman day.",
+    "when": "Admin «send now» only since 2026-11-07: the 15-minute job no longer sends chat SMS (SMS go only for a match or a «مهتم»).",
     "who": "The member with the unread message",
     "channels": [
       "sms"
@@ -842,14 +842,14 @@ export const AUTOMATIC_NOTIFICATIONS: AutomaticNotification[] = [
       {
         "variant": "default",
         "title": "",
-        "body": "نصيبك: لديك رسالة جديدة بانتظارك: naseebak.com/dashboard/chats"
+        "body": "نصيبك: لديك رسالة جديدة. naseebak.com/dashboard/chats"
       }
     ]
   },
   {
     "key": "sms-chat-not-started",
     "group": "chat",
-    "when": "15-minute job: a chat under 7 days old has had no message for 2+ hours; once per chat and member.",
+    "when": "Admin «send now» only since 2026-11-07: the 15-minute job no longer sends chat SMS (SMS go only for a match or a «مهتم»).",
     "who": "Both members, if they have no push device",
     "channels": [
       "sms"
@@ -858,7 +858,7 @@ export const AUTOMATIC_NOTIFICATIONS: AutomaticNotification[] = [
       {
         "variant": "default",
         "title": "",
-        "body": "نصيبك: فُتحت محادثتك ولم تبدأ بعد. يمكنكما بدء الحديث الآن: naseebak.com/dashboard/chats"
+        "body": "نصيبك: محادثتك مفتوحة ولم تبدأ بعد. naseebak.com/dashboard/chats"
       }
     ]
   },

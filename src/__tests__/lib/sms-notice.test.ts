@@ -13,7 +13,7 @@ vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/sms", () => sms);
 vi.mock("@/lib/settings", () => settings);
 
-import { catchUpQuietSms, hasPushDevice, isQuietHour, sendSmsNotice, SMS_NOTICE_TEXT } from "@/lib/sms-notice";
+import { catchUpQuietSms, hasPushDevice, isQuietHour, sendSmsNotice, SMS_NOTICE_TEXT, SMS_SINGLE_PART } from "@/lib/sms-notice";
 
 const fetchMock = vi.fn();
 const member = (over: Record<string, unknown> = {}) => ({
@@ -22,7 +22,8 @@ const member = (over: Record<string, unknown> = {}) => ({
   status: "ACTIVE",
   isDeactivated: false,
   lastSmsNoticeAt: null,
-  lastActiveAt: new Date("2026-10-17T10:00:00Z"),
+  // Seen an hour ago: automatic SMS go only to members seen in the last 14 days
+  lastActiveAt: new Date(Date.now() - 60 * 60 * 1000),
   updatedAt: new Date("2026-10-17T10:00:00Z"),
   ...over,
 });
@@ -85,11 +86,11 @@ describe("sendSmsNotice", () => {
     expect(data).toEqual({ lastSmsNoticeAt: expect.any(Date) });
   });
 
-  it("keeps updatedAt as last seen for members with no lastActiveAt", async () => {
+  it("keeps updatedAt as last seen for members with no lastActiveAt (admin «send now»)", async () => {
     noDevice();
     const updatedAt = new Date("2026-09-01T00:00:00Z");
     db.user.findUnique.mockResolvedValue(member({ lastActiveAt: null, updatedAt }));
-    await sendSmsNotice("u1", "interest");
+    await sendSmsNotice("u1", "interest", new Date(), { skipPushCheck: true });
     expect(db.user.updateMany.mock.calls[0][0].data.lastActiveAt).toBe(updatedAt);
   });
 
@@ -138,12 +139,36 @@ describe("sendSmsNotice", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("the texts carry no names or message content", () => {
+  it("the texts carry no names or message content, and each fits one Arabic SMS", () => {
     for (const text of Object.values(SMS_NOTICE_TEXT)) {
       expect(text.startsWith("نصيبك:")).toBe(true);
       expect(text).toContain("naseebak.com/dashboard/");
-      expect(text.length).toBeLessThan(140);
+      expect(text.length).toBeLessThanOrEqual(SMS_SINGLE_PART);
     }
+  });
+
+  it("automatic SMS only for a match or a «مهتم»; admin «send now» keeps every text", async () => {
+    noDevice();
+    for (const event of ["expiring", "waiting", "message", "chat_open"] as const) {
+      expect(await sendSmsNotice("u1", event)).toBe("not_sms_event");
+    }
+    expect(db.user.updateMany).not.toHaveBeenCalled();
+    expect(sms.sendSms).not.toHaveBeenCalled();
+    expect(await sendSmsNotice("u1", "expiring", new Date(), { skipPushCheck: true })).toBe("sent");
+  });
+
+  it("automatic SMS only to members seen in the last 14 days, nothing claimed otherwise", async () => {
+    noDevice();
+    const now = new Date("2026-11-07T12:00:00Z");
+    const day = 24 * 60 * 60 * 1000;
+    for (const lastActiveAt of [null, new Date(now.getTime() - 15 * day)]) {
+      db.user.findUnique.mockResolvedValue(member({ lastActiveAt }));
+      expect(await sendSmsNotice("u1", "interest", now)).toBe("inactive");
+    }
+    expect(db.user.updateMany).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+    db.user.findUnique.mockResolvedValue(member({ lastActiveAt: new Date(now.getTime() - 13 * day) }));
+    expect(await sendSmsNotice("u1", "interest", now)).toBe("sent");
   });
 
   it("the waiting text is neutral (never says someone is interested)", () => {
@@ -175,6 +200,15 @@ describe("quiet hours (23:00–09:00 Amman)", () => {
     expect(counts).toEqual({ sent: 1 });
     expect(sms.sendSms).toHaveBeenCalledTimes(1);
     expect(sms.sendSms).toHaveBeenCalledWith("962791234567", SMS_NOTICE_TEXT.match);
+  });
+
+  it("a held «about to expire» alone sends nothing (not an SMS event any more)", async () => {
+    noDevice();
+    db.notification.findMany.mockResolvedValue([
+      { userId: "u1", type: "SUGGESTION", title: "اقتراح بانتظار قرارك", createdAt: new Date("2026-10-19T03:00:00Z") },
+    ]);
+    expect(await catchUpQuietSms(new Date("2026-10-19T06:15:00Z"))).toEqual({});
+    expect(sms.sendSms).not.toHaveBeenCalled();
   });
 
   it("respects a turned-off notice type and does nothing at night", async () => {

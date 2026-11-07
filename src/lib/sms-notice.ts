@@ -31,15 +31,31 @@ export type SmsNoticeEvent = "match" | "interest" | "expiring" | "waiting" | "me
 
 const SITE = "naseebak.com";
 
-/** Short, gender-neutral, no names or details (an SMS can be read by anyone holding the phone) */
+/**
+ * Short, gender-neutral, no names or details (an SMS can be read by anyone holding the phone). Each fits one Arabic
+ * SMS: at most `SMS_SINGLE_PART` characters (UCS-2), link included (owner 2026-11-07).
+ */
 export const SMS_NOTICE_TEXT: Record<SmsNoticeEvent, string> = {
-  match: `نصيبك: لديك توافق متبادل جديد! يمكنك معرفة الخطوة التالية من حسابك: ${SITE}/dashboard/matches`,
-  interest: `نصيبك: شخص أبدى اهتمامه بك. يمكنك الاطلاع على الاقتراح من حسابك: ${SITE}/dashboard/suggestions`,
-  expiring: `نصيبك: لديك اقتراح توافق بانتظار قرارك وينتهي خلال يومين: ${SITE}/dashboard/suggestions`,
-  waiting: `نصيبك: لديك اقتراح توافق بانتظار قرارك: ${SITE}/dashboard/suggestions`,
-  message: `نصيبك: لديك رسالة جديدة بانتظارك: ${SITE}/dashboard/chats`,
-  chat_open: `نصيبك: فُتحت محادثتك ولم تبدأ بعد. يمكنكما بدء الحديث الآن: ${SITE}/dashboard/chats`,
+  match: `نصيبك: لديك توافق متبادل جديد! ${SITE}/dashboard/matches`,
+  interest: `نصيبك: شخص أبدى اهتمامه بك. ${SITE}/dashboard/suggestions`,
+  expiring: `نصيبك: اقتراح ينتهي خلال يومين. ${SITE}/dashboard/suggestions`,
+  waiting: `نصيبك: اقتراح بانتظار قرارك. ${SITE}/dashboard/suggestions`,
+  message: `نصيبك: لديك رسالة جديدة. ${SITE}/dashboard/chats`,
+  chat_open: `نصيبك: محادثتك مفتوحة ولم تبدأ بعد. ${SITE}/dashboard/chats`,
 };
+
+/** One Arabic (UCS-2) SMS part */
+export const SMS_SINGLE_PART = 70;
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Narrowed notice SMS (owner 2026-11-07): the automatic SMS go only for these events, and only to members seen in
+ * the last `SMS_ACTIVE_DAYS` days. On production a «مهتم» to someone with no push was answered 25% of the time,
+ * 44% with push. An admin «send now» is limited by neither rule.
+ */
+export const SMS_NOTICE_EVENTS: readonly SmsNoticeEvent[] = ["match", "interest"];
+export const SMS_ACTIVE_DAYS = 14;
 
 /**
  * The notices that get the SMS fallback without the caller asking (their call sites live in
@@ -88,7 +104,10 @@ export async function hasPushDevice(userId: string): Promise<boolean | null> {
   }
 }
 
-export type SmsNoticeResult = "sent" | "skipped" | "has_push" | "unknown_push" | "already_today" | "quiet" | "failed" | "disabled";
+export type SmsNoticeResult =
+  | "sent" | "skipped" | "has_push" | "unknown_push" | "already_today" | "quiet" | "failed" | "disabled"
+  /** Automatic sends only: an event that no longer gets an SMS, or a member away longer than SMS_ACTIVE_DAYS */
+  | "not_sms_event" | "inactive";
 
 /** Pure: Amman hour (UTC+3 all year) — no notice SMS 23:00–08:59 (owner decision 2026-10-23, all notices). */
 export function isQuietHour(now: Date): boolean {
@@ -107,6 +126,7 @@ export async function sendSmsNotice(
   try {
     // Notice SMS switched off (owner): nothing is sent or claimed
     if (!(await smsNoticesEnabled())) return "disabled";
+    if (!opts.skipPushCheck && !SMS_NOTICE_EVENTS.includes(event)) return "not_sms_event";
     // Night: nothing is sent or claimed; catchUpQuietSms sends it after 09:00 (chat SMS retry on their own)
     if (isQuietHour(now)) return "quiet";
     const user = await db.user.findUnique({
@@ -123,6 +143,8 @@ export async function sendSmsNotice(
     });
     if (!user?.phone || user.role !== "USER" || user.status === "SUSPENDED" || user.isDeactivated) return "skipped";
     if (isTestPhone(user.phone)) return "skipped";
+    const away = !user.lastActiveAt || user.lastActiveAt.getTime() < now.getTime() - SMS_ACTIVE_DAYS * DAY_MS;
+    if (!opts.skipPushCheck && away) return "inactive";
     const dayStart = startOfAmmanDay(now);
     if (user.lastSmsNoticeAt && user.lastSmsNoticeAt >= dayStart) return "already_today";
 
@@ -186,7 +208,7 @@ export async function catchUpQuietSms(now = new Date()): Promise<Record<string, 
   for (const r of rows) {
     if (!isQuietHour(r.createdAt)) continue;
     const event = smsEventFor(r.type, r.title);
-    if (!event) continue;
+    if (!event || !SMS_NOTICE_EVENTS.includes(event)) continue;
     const prev = best.get(r.userId);
     if (!prev || EVENT_RANK.indexOf(event) < EVENT_RANK.indexOf(prev.event)) best.set(r.userId, { event, type: r.type });
   }

@@ -21,7 +21,6 @@ const notifyMod = vi.hoisted(() => ({ notify: vi.fn(), notifyMany: vi.fn() }));
 const settings = vi.hoisted(() => ({ getCycleFlags: vi.fn() }));
 const outcomeMod = vi.hoisted(() => ({ applyIntroOutcome: vi.fn() }));
 const reports = vi.hoisted(() => ({
-  pausedForReview: vi.fn(async (): Promise<Set<string>> => new Set()),
   isPausedForReview: (c: { status: string; endedByAdminId?: string | null } | null) =>
     !!c && c.status === "ENDED" && c.endedByAdminId === "system:report-review",
 }));
@@ -74,7 +73,6 @@ beforeEach(() => {
   db.mutualMatch.updateMany.mockResolvedValue({ count: 1 });
   outcomeMod.applyIntroOutcome.mockResolvedValue("NONE");
   db.mutualMatch.findMany.mockResolvedValue([]);
-  reports.pausedForReview.mockResolvedValue(new Set());
 });
 
 describe("sendIntroRequest", () => {
@@ -684,15 +682,6 @@ describe("closed matches (follow-up answers, engagements, report reviews)", () =
       { id: "other", femaleId: "x9", maleId: "u1", femaleOutcome: null, maleOutcome: "ENGAGED" },
     ]);
     expect((await getMatchIntroState("m1", "u1")).closed).toBe("engaged");
-  });
-
-  it("nothing can be sent or accepted while one of the two is paused for a report review", async () => {
-    reports.pausedForReview.mockResolvedValue(new Set(["f1"]));
-    await expectCode(sendIntroRequest({ matchId: "m1", senderId: "u1", type: "CHAT" }), "NOT_ALLOWED");
-    db.introRequest.findUnique.mockResolvedValue(pending({ senderId: "f1", receiverId: "u1" }));
-    await expectCode(respondToIntroRequest({ requestId: "r1", userId: "u1", accept: true }), "NOT_ALLOWED");
-    expect(db.introRequest.create).not.toHaveBeenCalled();
-    expect(db.conversation.create).not.toHaveBeenCalled();
   });
 
   it("a paused chat is reported as paused", async () => {

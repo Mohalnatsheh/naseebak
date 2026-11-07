@@ -177,10 +177,11 @@ export async function PATCH(request: Request) {
       },
     });
 
-    // Dismissals can clear an automatic flag; once fewer than 3 reports wait, paused chats resume
+    // Undo what the old automatic rules left: chats paused for review resume, an old auto-flag clears
     if (existing.reportedId) {
       const after = await refreshReportFlag(existing.reportedId);
       if (after.resumed > 0) actions.push(`${after.resumed} paused chat(s) resumed`);
+      if (after.unflagged) actions.push("automatic flag cleared");
     }
 
     return NextResponse.json({ message: "Report updated", report, actions });

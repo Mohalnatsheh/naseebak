@@ -1,33 +1,33 @@
 /**
  * One way to file a report, used by the match card (POST /api/reports) and by «إنهاء وإبلاغ» in a
  * chat: a repeat report about the same person reopens the earlier one and keeps both accounts of what
- * happened, and every report counts toward the automatic flag (3+ different people).
+ * happened.
  *
  * - Every report is emailed to the admin inbox (best effort, `sendAdminAlert`).
- * - While 3+ different people have a PENDING report about a member, that member is "paused for review":
- *   their open chats are paused (ENDED with `endedByAdminId = REPORT_PAUSE_MARKER`, so nobody can write)
- *   and intro requests / guardian sharing involving them are refused (src/lib/intro/requests.ts).
- *   Once an admin has reviewed enough of them (fewer than 3 still pending), `refreshReportFlag` resumes
- *   the paused chats (the paused days are added back to their clock).
- * - The flag (`isFlagged`, no new suggestions) follows PENDING + REVIEWED reports and is cleared again
- *   when dismissals bring an auto-flagged member under 3.
+ * - Reports never act on their own (owner, 2026-11-07): no automatic flag and no automatic pause of
+ *   chats or requests. An admin decides: flag the member (Admin → Users), end the chat or suspend the
+ *   member from Admin → Reports.
+ * - Before that decision, 3 PENDING reports paused a member's chats (ENDED with
+ *   `endedByAdminId = REPORT_PAUSE_MARKER`) and flagged them ("Auto-flagged…"). Those rows are still
+ *   handled: the next admin review of a report about the member resumes paused chats (the paused days
+ *   are added back) and clears an old automatic flag once fewer than 3 open reports remain.
  */
 import { Prisma, type ReportReason } from "@prisma/client";
 import { db } from "@/lib/db";
 import { notify } from "@/lib/notify";
 import { CHAT_NOTICE_PREFERENCE } from "@/lib/notification-prefs";
-import { publishChatEvent } from "@/lib/ably";
 import { sendAdminAlert } from "@/lib/admin-alert";
 import { isUnavailable, loadEngagements } from "@/lib/matches/state";
 
-/** Reports from this many different people flag an account (no new suggestions, admin attention) */
-export const AUTO_FLAG_REPORTS = 3;
+/** From this many pending reports (different people) the admin email says so in its subject */
+export const MANY_REPORTS = 3;
 /** Stored details are capped so a long run of repeat reports can't grow without limit */
 const MAX_STORED_DETAILS = 5000;
 /** `Conversation.endedByAdminId` of a chat paused while its member's reports are reviewed (not an admin id) */
 export const REPORT_PAUSE_MARKER = "system:report-review";
 /** `endedByAdminId` of a paused chat that ended for good because its match closed while it was paused */
 export const PAUSED_MATCH_CLOSED_MARKER = "system:match-closed";
+/** `flagReason` of a flag set automatically before 2026-11-07 */
 const AUTO_FLAG_PREFIX = "Auto-flagged";
 
 const REASON_LABEL: Record<ReportReason, string> = {
@@ -47,7 +47,7 @@ export interface FileReportInput {
   conversationId?: string | null;
 }
 
-export async function fileReport(input: FileReportInput): Promise<{ id: string; reopened: boolean; flagged: boolean }> {
+export async function fileReport(input: FileReportInput): Promise<{ id: string; reopened: boolean }> {
   const { reporterId, reportedId, reason, conversationId } = input;
   const details = input.details?.trim() || null;
 
@@ -81,19 +81,15 @@ export async function fileReport(input: FileReportInput): Promise<{ id: string; 
     id = report.id;
   }
 
-  const flagged = await recountFlag(reportedId);
-  // This report just became pending (new, or reopened after a review): may start the pause
-  const newlyPending = existing?.status !== "PENDING";
+  // Nothing happens to the member automatically: the admins are told and decide
   const pending = await pendingReportCount(reportedId);
-  const pausedNow = newlyPending && pending === AUTO_FLAG_REPORTS ? await pauseChatsFor(reportedId) : 0;
-
-  void alertAdmins({ id, reporterId, reportedId, reason, details, reopened: !!existing, pending, pausedNow, fromChat: !!conversationId });
-  return { id, reopened: !!existing, flagged };
+  void alertAdmins({ id, reporterId, reportedId, reason, details, reopened: !!existing, pending, fromChat: !!conversationId });
+  return { id, reopened: !!existing };
 }
 
 async function alertAdmins(r: {
   id: string; reporterId: string; reportedId: string; reason: ReportReason; details: string | null;
-  reopened: boolean; pending: number; pausedNow: number; fromChat: boolean;
+  reopened: boolean; pending: number; fromChat: boolean;
 }): Promise<void> {
   try {
     const people = await db.user.findMany({
@@ -111,12 +107,10 @@ async function alertAdmins(r: {
       `السبب: ${REASON_LABEL[r.reason] ?? r.reason}${r.fromChat ? " · من المحادثة" : ""}`,
       r.details ? `التفاصيل: ${r.details}` : null,
       `بلاغات قيد المراجعة عن هذا العضو: ${r.pending}`,
-      r.pending >= AUTO_FLAG_REPORTS
-        ? `تم إيقاف محادثاته مؤقتاً${r.pausedNow ? ` (${r.pausedNow})` : ""} وطلباته حتى تتم مراجعة البلاغات.`
-        : null,
+      "لم يُتخذ أي إجراء تلقائي. القرار للإدارة: تعليم العضو، إنهاء المحادثة أو إيقاف الحساب.",
       `Admin → Reports (report ${r.id})`,
     ].filter(Boolean);
-    const subject = r.pending >= AUTO_FLAG_REPORTS ? "بلاغ جديد — العضو موقوف مؤقتاً للمراجعة" : "بلاغ جديد";
+    const subject = r.pending >= MANY_REPORTS ? `بلاغ جديد — ${r.pending} بلاغات بانتظار المراجعة عن نفس العضو` : "بلاغ جديد";
     await sendAdminAlert(subject, lines.join("\n"), { userId: r.reporterId });
   } catch (error) {
     console.error("[reports] admin alert", error);
@@ -128,21 +122,10 @@ async function pendingReportCount(reportedId: string): Promise<number> {
   return db.report.count({ where: { reportedId, status: "PENDING" } });
 }
 
-/** Members (of `userIds`) whose chats and requests are paused until an admin reviews their reports. */
-export async function pausedForReview(userIds: string[]): Promise<Set<string>> {
-  const out = new Set<string>();
-  for (const id of new Set(userIds)) {
-    if ((await pendingReportCount(id)) >= AUTO_FLAG_REPORTS) out.add(id);
-  }
-  return out;
-}
-
-/** Was this chat paused for a report review (rather than ended)? */
+/** Was this chat paused for a report review (before 2026-11-07) rather than ended? */
 export function isPausedForReview(c: { status: string; endedByAdminId?: string | null } | null | undefined): boolean {
   return !!c && c.status === "ENDED" && c.endedByAdminId === REPORT_PAUSE_MARKER;
 }
-
-const PAUSED_BODY = "أوقفنا هذه المحادثة مؤقتاً لمراجعة من فريق نصيبك. سنُعلمك عند استئنافها.";
 
 /** Tell both people in a chat (best effort). */
 async function tellBoth(c: { id: string; match: { femaleId: string; maleId: string } }, title: string, body: string): Promise<void> {
@@ -153,27 +136,6 @@ async function tellBoth(c: { id: string; match: { femaleId: string; maleId: stri
       console.error("[reports] chat notice", e);
     }
   }
-}
-
-/** Pause the member's open chats (both sides are told). Returns how many were paused. */
-async function pauseChatsFor(userId: string): Promise<number> {
-  const now = new Date();
-  const chats = await db.conversation.findMany({
-    where: { status: "ACTIVE", match: { OR: [{ femaleId: userId }, { maleId: userId }] } },
-    select: { id: true, match: { select: { femaleId: true, maleId: true } } },
-  });
-  let paused = 0;
-  for (const c of chats) {
-    const { count } = await db.conversation.updateMany({
-      where: { id: c.id, status: "ACTIVE" },
-      data: { status: "ENDED", endedAt: now, endedByAdminId: REPORT_PAUSE_MARKER },
-    });
-    if (count !== 1) continue;
-    paused++;
-    await publishChatEvent(c.id, "status", { status: "ENDED" }).catch(() => {});
-    await tellBoth(c, "المحادثة متوقفة مؤقتاً", PAUSED_BODY);
-  }
-  return paused;
 }
 
 /**
@@ -193,7 +155,7 @@ export async function endPausedChats(
 }
 
 /**
- * Resume the member's paused chats once they are no longer under review (and neither is the partner).
+ * Resume the member's chats paused before 2026-11-07 (and paused again by nothing since).
  * A chat whose match died while it was paused (a block between the two, «لم يحصل نصيب» / «تمت الخطبة»
  * on it, either side engaged on another match, or a partner who left / was suspended) is not resumed:
  * it ends for good (PAUSED_MATCH_CLOSED_MARKER).
@@ -215,8 +177,6 @@ async function resumeChatsFor(userId: string): Promise<number> {
   });
   let resumed = 0;
   for (const c of chats) {
-    const partner = c.match.femaleId === userId ? c.match.maleId : c.match.femaleId;
-    if ((await pausedForReview([partner])).size > 0) continue;
     if (await matchClosedForChat(c.match)) {
       await db.conversation.updateMany({
         where: { id: c.id, status: "ENDED", endedByAdminId: REPORT_PAUSE_MARKER },
@@ -271,32 +231,21 @@ export async function endPausedChat(conversationId: string, adminId: string): Pr
   return count === 1;
 }
 
-/** Flag the account once reports from enough different people are open or upheld. */
-async function recountFlag(reportedId: string): Promise<boolean> {
-  const count = await db.report.count({ where: { reportedId, status: { in: ["PENDING", "REVIEWED"] } } });
-  if (count < AUTO_FLAG_REPORTS) return false;
-  await db.user.updateMany({
-    where: { id: reportedId, isFlagged: false },
-    data: { isFlagged: true, flagReason: `${AUTO_FLAG_PREFIX}: ${count} reports from different users` },
-  });
-  return true;
-}
-
 /**
- * After an admin reviews a report: recount the flag (an automatic flag is cleared when dismissals
- * bring the member under 3; a flag set by hand stays) and resume paused chats once fewer than 3
- * reports are still waiting.
+ * After an admin reviews a report: undo what the old automatic rules left on this member. Chats paused
+ * for review resume, and an old automatic flag is cleared once fewer than 3 open (PENDING + REVIEWED)
+ * reports remain. A flag an admin set by hand is never touched, and nothing new is flagged or paused.
  */
-export async function refreshReportFlag(reportedId: string): Promise<{ flagged: boolean; resumed: number }> {
-  const flagged = await recountFlag(reportedId);
-  if (!flagged) {
-    await db.user.updateMany({
-      where: { id: reportedId, isFlagged: true, flagReason: { startsWith: AUTO_FLAG_PREFIX } },
-      data: { isFlagged: false, flagReason: null },
-    });
-  }
-  const resumed = (await pendingReportCount(reportedId)) < AUTO_FLAG_REPORTS ? await resumeChatsFor(reportedId) : 0;
-  return { flagged, resumed };
+export async function refreshReportFlag(reportedId: string): Promise<{ unflagged: boolean; resumed: number }> {
+  const open = await db.report.count({ where: { reportedId, status: { in: ["PENDING", "REVIEWED"] } } });
+  const unflagged = open < MANY_REPORTS
+    ? (await db.user.updateMany({
+        where: { id: reportedId, isFlagged: true, flagReason: { startsWith: AUTO_FLAG_PREFIX } },
+        data: { isFlagged: false, flagReason: null },
+      })).count > 0
+    : false;
+  const resumed = await resumeChatsFor(reportedId);
+  return { unflagged, resumed };
 }
 
 /** Messages kept per reported chat (the latest ones, if there are more) */

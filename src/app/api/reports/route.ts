@@ -43,7 +43,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "لا يمكنك الإبلاغ عن هذا المستخدم" }, { status: 403 });
     }
 
-    // A repeat report reopens the earlier one (both accounts kept) and counts toward the auto-flag
+    // A repeat report reopens the earlier one (both accounts kept) and emails the admins; nothing happens to the member automatically
     // A chat is attached only if it is really between these two (admins open it from the report)
     const askedChat = typeof body.conversationId === "string" ? body.conversationId : null;
     const chat = askedChat

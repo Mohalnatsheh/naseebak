@@ -49,7 +49,7 @@ import {
   loadEngagements,
   type MatchClosure,
 } from "@/lib/matches/state";
-import { isPausedForReview, pausedForReview } from "@/lib/reports";
+import { isPausedForReview } from "@/lib/reports";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 export const REQUEST_TTL_DAYS = 7;
@@ -167,11 +167,10 @@ const INACTIVE_MESSAGE = "هذا الحساب غير نشط حالياً";
 const MATCH_CLOSED_MESSAGE = "انتهى هذا التوافق";
 const UNAVAILABLE_MESSAGE = "لم يعد هذا التوافق متاحاً";
 const PARTNER_NOT_SHARING_MESSAGE = "لا يمكن إتمام التعارف العائلي حالياً لأن الطرف الآخر لم يعد يشارك بيانات وليّ الأمر";
-const PAUSED_MESSAGE = "هذا التوافق متوقف مؤقتاً لمراجعة من فريق نصيبك، حاول لاحقاً";
 
 /**
- * Refuse any new step on a match that is over for good or on hold: «لم يحصل نصيب» / «تمت الخطبة»
- * on this match, either person engaged on another match, or one of them paused for a report review.
+ * Refuse any new step on a match that is over for good: «لم يحصل نصيب» / «تمت الخطبة» on this match,
+ * or either person engaged on another match. Reports never put a match on hold by themselves.
  */
 async function assertMatchOpen(
   match: { id: string; femaleId: string; maleId: string; femaleOutcome: MatchOutcome | null; maleOutcome: MatchOutcome | null },
@@ -181,7 +180,6 @@ async function assertMatchOpen(
   const people = [match.femaleId, match.maleId];
   const engaged = await loadEngagements(people);
   if (people.some((id) => engaged.elsewhere(id, match.id))) throw new IntroError("NOT_ALLOWED", UNAVAILABLE_MESSAGE);
-  if ((await pausedForReview(people)).size > 0) throw new IntroError("NOT_ALLOWED", PAUSED_MESSAGE);
 }
 const CHAT_ENDED_MESSAGE = "انتهت المحادثة على هذا التوافق، لذلك لم يعد طلب التعارف العائلي متاحاً";
 

@@ -12,7 +12,7 @@ const ably = vi.hoisted(() => ({ publishChatEvent: vi.fn() }));
 const notifyMod = vi.hoisted(() => ({ notify: vi.fn(), notifyMany: vi.fn() }));
 const settings = vi.hoisted(() => ({ getCycleFlags: vi.fn() }));
 const rl = vi.hoisted(() => ({ rateLimit: vi.fn() }));
-const reports = vi.hoisted(() => ({ fileReport: vi.fn(), pausedForReview: vi.fn(async (): Promise<Set<string>> => new Set()) }));
+const reports = vi.hoisted(() => ({ fileReport: vi.fn() }));
 vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/ably", () => ably);
 vi.mock("@/lib/notify", () => notifyMod);
@@ -66,7 +66,6 @@ beforeEach(() => {
   db.conversation.updateMany.mockResolvedValue({ count: 1 });
   db.introRequest.updateMany.mockResolvedValue({ count: 0 });
   db.block.findMany.mockResolvedValue([]);
-  reports.pausedForReview.mockResolvedValue(new Set());
 });
 
 /** u1 blocked f1: the blocker keeps a read-only chat (a block the other way hides it, see listConversations) */
@@ -101,15 +100,6 @@ describe("sendMessage", () => {
     expect(err).toBeInstanceOf(IntroError);
     expect(err.code).toBe("NOT_ALLOWED");
     expect(err.message).toContain("غير نشط");
-    expect(db.message.create).not.toHaveBeenCalled();
-  });
-
-  it("G60: refuses while either side is paused for a report review", async () => {
-    const c = conv();
-    db.conversation.findUnique.mockResolvedValue(c);
-    reports.pausedForReview.mockResolvedValue(new Set(["f1"]));
-    await expectCode(sendMessage({ conversationId: c.id, senderId: "u1", body: "مرحبا" }), "NOT_ALLOWED");
-    expect(reports.pausedForReview).toHaveBeenCalledWith(["u1", "f1"]);
     expect(db.message.create).not.toHaveBeenCalled();
   });
 

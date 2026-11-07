@@ -346,7 +346,7 @@ async function generate(userId: string): Promise<SuggestOutcome> {
   });
   if (!user || user.role !== "USER" || user.isDeactivated || !user.profile?.isComplete) return outcome(0);
   if (user.status === "SUSPENDED") return outcome(0);
-  // Flagged (3+ reports, or by an admin): no new automatic suggestions until an admin clears the flag.
+  // Flagged by an admin (or by the old automatic rule before 2026-11-07): no new automatic suggestions until an admin clears the flag.
   // Existing suggestions and matches are left as they are.
   if (user.isFlagged) return outcome(0);
   // Told us an introduction ended in an engagement: no new suggestions (undo on the match card)

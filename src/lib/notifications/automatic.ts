@@ -1185,26 +1185,9 @@ export const AUTOMATIC_NOTIFICATIONS: AutomaticNotification[] = [
     ]
   },
   {
-    "key": "moderation-chat-paused",
-    "group": "moderation",
-    "when": "A member reaches 3 pending reports, which pauses their open chats.",
-    "who": "Both people in each paused chat",
-    "channels": [
-      "bell",
-      "push"
-    ],
-    "texts": [
-      {
-        "variant": "default",
-        "title": "المحادثة متوقفة مؤقتاً",
-        "body": "أوقفنا هذه المحادثة مؤقتاً لمراجعة من فريق نصيبك. سنُعلمك عند استئنافها."
-      }
-    ]
-  },
-  {
     "key": "moderation-chat-resumed",
     "group": "moderation",
-    "when": "An admin review drops the member below 3 pending reports and a paused chat reopens.",
+    "when": "An admin reviews a report about a member whose chat was paused under the old automatic rule (before 2026-11-07), and the chat reopens.",
     "who": "Both people in each resumed chat",
     "channels": [
       "bell",

@@ -293,7 +293,7 @@ Detail: [docs/reference/suggestions-and-credits.md](docs/reference/suggestions-a
 - Only the server publishes to Ably `chat:<id>`. Browsers get subscribe-only tokens.
 - Admin chat views are logged (`[admin-chat-view]`).
 - A block ends the chat for good and keeps it read-only for the blocked person, so reports stay possible.
-- 3 PENDING reports pause a member's chats and requests. Report evidence survives account deletion.
+- Reports never act on their own (owner, 2026-11-07): no automatic flag, no automatic chat pause. Every report emails the admins, who flag, end the chat or suspend by hand. Report evidence survives account deletion.
 - Detail: [docs/reference/matches-and-safety.md](docs/reference/matches-and-safety.md).
 
 ## Scheduler

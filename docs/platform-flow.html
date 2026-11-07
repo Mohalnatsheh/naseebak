@@ -278,7 +278,7 @@ flowchart LR
       <tr><td>Intro request expiry / reminder</td><td class="num">7 d / 2 d left</td><td class="path">intro/requests.ts · REQUEST_TTL_DAYS</td></tr>
       <tr><td>Guardian-share reminder (mixed match)</td><td class="num">day 2</td><td class="path">intro/followup.ts · remindGuardianShare</td></tr>
       <tr><td>Family follow-up asks</td><td class="num">7 · 21 · 35</td><td class="path">intro/followup.ts · FOLLOW_UP_MAX = 3</td></tr>
-      <tr><td>Reports before auto-flag</td><td class="num">3 people</td><td class="path">reports.ts · AUTO_FLAG_REPORTS</td></tr>
+      <tr><td>Pending reports before the admin email says so in its subject</td><td class="num">3 people</td><td class="path">reports.ts · MANY_REPORTS</td></tr>
       <tr><td>Active user (gets and is given suggestions)</td><td class="num">seen ≤ 30 d</td><td class="path">activity.ts · activeWhere</td></tr>
       <tr><td>Re-engagement push</td><td class="num">idle 7–30 d, once / 7 d</td><td class="path">cron/reengagement.ts</td></tr>
       <tr><td>Deletion grace</td><td class="num">30 d</td><td class="path">api/profile/delete</td></tr>
@@ -560,7 +560,7 @@ flowchart LR
       <thead><tr><th>Action</th><th>Effect</th><th>Who is told</th></tr></thead>
       <tbody>
         <tr><td>Block (<code>POST /api/blocks</code>)</td><td>Pending requests cancelled, chat ENDED for good, open shared suggestions closed (refund rule applies). Blocked person loses the match (404) but keeps the chat read-only to report.</td><td>Nobody</td></tr>
-        <tr><td>Report (match card or chat)</td><td>One report per pair; a repeat reopens it. Needs a prior suggestion or match. 3+ reporters → <code>isFlagged</code> (no new suggestions, nothing else).</td><td>Nobody (admin sees it in the panel)</td></tr>
+        <tr><td>Report (match card or chat)</td><td>One report per pair; a repeat reopens it. Needs a prior suggestion or match. Emails the admins. Nothing automatic since 2026-11-07: an admin flags, ends the chat or suspends.</td><td>Nobody (admin sees it in the panel)</td></tr>
         <tr><td>End and report (chat)</td><td>Report + block + chat ended</td><td>Partner: chat ended</td></tr>
         <tr><td>«إنهاء التوافق»</td><td>Same as NOT_A_MATCH</td><td>Partner</td></tr>
         <tr><td>Unblock (<code>/dashboard/blocks</code>)</td><td>Deletes the block row. The chat stays ended.</td><td>Nobody</td></tr>

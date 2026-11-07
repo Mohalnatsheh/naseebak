@@ -272,3 +272,31 @@ export function missingSetupSteps(user: { profile?: Record<string, unknown> | nu
   if (!["prefAgeMin", "prefAgeMax"].every(has)) missing.push({ step: 3, label: "العمر المناسب للشريك" });
   return missing;
 }
+
+/** An optional field of my own that other members can make a «شرط أساسي». */
+export interface EmptyFilterField {
+  key: "smokingStatus" | "religiosity" | "hijab" | "beard";
+  label: string;
+  /** Profile edit step that holds the field */
+  step: number;
+}
+
+/**
+ * My own fields that are empty while someone else's «شرط أساسي» needs them. An empty value fails
+ * every dealbreaker on that field (`dealbreakerHolds` in matching/score.ts), so the member is hidden
+ * from those people without knowing. Filling an empty field saves at once, without review.
+ * Db-free: client pages import it.
+ */
+export function emptyFilterFields(
+  profile: { smokingStatus?: string | null; religiosity?: string | null; hijab?: boolean | null; beard?: boolean | null } | null | undefined,
+  gender: string | null | undefined,
+): EmptyFilterField[] {
+  if (!profile) return [];
+  const blank = (v: unknown) => v === null || v === undefined || v === "";
+  const out: EmptyFilterField[] = [];
+  if (gender === "FEMALE" && blank(profile.hijab)) out.push({ key: "hijab", label: "الحجاب", step: 2 });
+  if (gender === "MALE" && blank(profile.beard)) out.push({ key: "beard", label: "اللحية", step: 2 });
+  if (blank(profile.smokingStatus)) out.push({ key: "smokingStatus", label: "التدخين", step: 2 });
+  if (blank(profile.religiosity)) out.push({ key: "religiosity", label: "مستوى التدين", step: 2 });
+  return out;
+}

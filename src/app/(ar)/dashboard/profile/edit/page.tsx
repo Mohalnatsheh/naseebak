@@ -97,8 +97,9 @@ interface ProfileForm {
   willingToRelocate: string;
   maritalStatus: string;
   religiosity: string;
-  hijab: boolean;
-  beard: boolean;
+  /** null = never answered (only «نعم» / «لا» fill it) */
+  hijab: boolean | null;
+  beard: boolean | null;
   smokingStatus: string;
   cookingAbility: string;
   drivingLicense: boolean;
@@ -145,8 +146,8 @@ const emptyForm: ProfileForm = {
   willingToRelocate: "",
   maritalStatus: "",
   religiosity: "",
-  hijab: false,
-  beard: false,
+  hijab: null,
+  beard: null,
   smokingStatus: "",
   cookingAbility: "",
   drivingLicense: false,
@@ -286,8 +287,8 @@ export default function ProfileEditPage() {
             willingToRelocate: p.willingToRelocate || "",
             maritalStatus: p.maritalStatus || "",
             religiosity: p.religiosity || "",
-            hijab: p.hijab || false,
-            beard: p.beard || false,
+            hijab: typeof p.hijab === "boolean" ? p.hijab : null,
+            beard: typeof p.beard === "boolean" ? p.beard : null,
             smokingStatus: p.smokingStatus || "",
             cookingAbility: p.cookingAbility || "",
             drivingLicense: p.drivingLicense || false,
@@ -1021,45 +1022,39 @@ export default function ProfileEditPage() {
 
             {gender === "FEMALE" && (
               <div className="space-y-2">
-                <Label>الحجاب</Label>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={!!form.hijab}
-                  onClick={() => update("hijab", !form.hijab)}
-                  className={`w-full rounded-xl border px-4 py-3 text-sm transition-all flex items-center justify-between ${form.hijab ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
-                >
-                  <span>محجبة</span>
-                  {/* Logical alignment: the knob sits at the start when off and moves to the end when on (RTL-safe) */}
-                  <div
-                    aria-hidden="true"
-                    className={`flex w-10 h-5 shrink-0 rounded-full p-0.5 transition-colors ${form.hijab ? "bg-primary justify-end" : "bg-muted justify-start"}`}
-                  >
-                    <div className="w-4 h-4 rounded-full bg-white shadow-sm" />
-                  </div>
-                </button>
+                <Label>الحجاب <OptionalTag /></Label>
+                <div className="grid grid-cols-2 gap-2">
+                  {([true, false] as const).map((v) => (
+                    <button
+                      key={String(v)}
+                      aria-pressed={form.hijab === v}
+                      type="button"
+                      onClick={() => update("hijab", v)}
+                      className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.hijab === v ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
+                    >
+                      {v ? "محجبة" : "غير محجبة"}
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
 
             {gender === "MALE" && (
               <div className="space-y-2">
-                <Label>اللحية</Label>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={!!form.beard}
-                  onClick={() => update("beard", !form.beard)}
-                  className={`w-full rounded-xl border px-4 py-3 text-sm transition-all flex items-center justify-between ${form.beard ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
-                >
-                  <span>ملتحٍ</span>
-                  {/* Logical alignment: the knob sits at the start when off and moves to the end when on (RTL-safe) */}
-                  <div
-                    aria-hidden="true"
-                    className={`flex w-10 h-5 shrink-0 rounded-full p-0.5 transition-colors ${form.beard ? "bg-primary justify-end" : "bg-muted justify-start"}`}
-                  >
-                    <div className="w-4 h-4 rounded-full bg-white shadow-sm" />
-                  </div>
-                </button>
+                <Label>اللحية <OptionalTag /></Label>
+                <div className="grid grid-cols-2 gap-2">
+                  {([true, false] as const).map((v) => (
+                    <button
+                      key={String(v)}
+                      aria-pressed={form.beard === v}
+                      type="button"
+                      onClick={() => update("beard", v)}
+                      className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.beard === v ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
+                    >
+                      {v ? "ملتحٍ" : "غير ملتحٍ"}
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
 

@@ -8,6 +8,7 @@ import { selfLabel, tribeLabel } from "@/lib/profile-options";
 import { formatDate } from "@/lib/countries";
 import { compressImage } from "@/lib/image-compress";
 import { arabicCount } from "@/lib/utils";
+import { emptyFilterFields } from "@/lib/profile-completeness";
 import Link from "next/link";
 import {
   Loader2,
@@ -203,7 +204,8 @@ function SectionCard({
 }
 
 export default function ProfilePage() {
-  const introMode = useDashboardData().counts.flags.introRequests;
+  const { flags } = useDashboardData().counts;
+  const introMode = flags.introRequests;
   // Dates and wording follow the member's country
   const country = useCountry();
   const [user, setUser] = useState<any>(null);
@@ -371,6 +373,8 @@ export default function ProfilePage() {
   const totalMatches =
     user._count.matchesAsFemale + user._count.matchesAsMale;
   const isMale = user.gender === "MALE";
+  // «شروط أساسية» exist only in the mutual flow; an empty field there hides me from those who set one
+  const emptyFilters = flags.mutualSuggestions && p?.isComplete ? emptyFilterFields(p, user.gender) : [];
 
   // Calculate age from date of birth
   const getAge = (dob: string) => {
@@ -515,6 +519,34 @@ export default function ProfilePage() {
           صورة الملف الشخصي تظهر لك فقط ولن يراها أي مستخدم آخر
         </span>
       </div>
+
+      {emptyFilters.length > 0 && (
+        <Card className="border-accent/30 bg-accent/5 shadow-sm">
+          <CardContent className="pt-5 pb-5 space-y-3">
+            <div className="flex items-start gap-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent/15">
+                <Users className="h-5 w-5 text-accent-foreground" />
+              </div>
+              <div className="flex-1 space-y-1">
+                <h3 className="font-bold text-foreground text-base">
+                  {isMale ? "أجب عن هذه الأسئلة ليظهر ملفك لعدد أكبر" : "أجيبي عن هذه الأسئلة ليظهر ملفكِ لعدد أكبر"}
+                </h3>
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                  بعض الأعضاء جعلوا هذه المعلومات شرطاً أساسياً، فلا تُقترح عليهم إلا الملفات التي أجابت عنها:{" "}
+                  <span className="font-medium text-foreground">{emptyFilters.map((f) => f.label).join("، ")}</span>.
+                  تُحفظ الإجابة مباشرة دون مراجعة.
+                </p>
+              </div>
+            </div>
+            <Button asChild className="h-11 w-full rounded-xl sm:w-auto">
+              <Link href={`/dashboard/profile/edit?step=${emptyFilters[0].step}`}>
+                {isMale ? "أجب الآن" : "أجيبي الآن"}
+                <ChevronLeft className="h-4 w-4" />
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {/* ============================================ */}
       {/*  Completion Section                          */}

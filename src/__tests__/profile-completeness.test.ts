@@ -305,3 +305,28 @@ describe("calculateCompleteness", () => {
     expect(result.sections.length).toBe(5);
   });
 });
+
+describe("emptyFilterFields", () => {
+  it("lists a woman's empty hijab, smoking and religiosity, never beard", async () => {
+    const { emptyFilterFields } = await import("@/lib/profile-completeness");
+    const keys = emptyFilterFields({ hijab: null, beard: null, smokingStatus: "", religiosity: null }, "FEMALE").map((f) => f.key);
+    expect(keys).toEqual(["hijab", "smokingStatus", "religiosity"]);
+  });
+
+  it("lists a man's empty beard, never hijab", async () => {
+    const { emptyFilterFields } = await import("@/lib/profile-completeness");
+    const keys = emptyFilterFields({ hijab: null, beard: undefined, smokingStatus: "غير مدخن", religiosity: "ملتزم" }, "MALE").map((f) => f.key);
+    expect(keys).toEqual(["beard"]);
+  });
+
+  it("treats false as an answer, not empty", async () => {
+    const { emptyFilterFields } = await import("@/lib/profile-completeness");
+    expect(emptyFilterFields({ hijab: false, smokingStatus: "مدخن", religiosity: "متوسط" }, "FEMALE")).toEqual([]);
+    expect(emptyFilterFields({ beard: false, smokingStatus: "مدخن", religiosity: "متوسط" }, "MALE")).toEqual([]);
+  });
+
+  it("returns nothing without a profile", async () => {
+    const { emptyFilterFields } = await import("@/lib/profile-completeness");
+    expect(emptyFilterFields(null, "MALE")).toEqual([]);
+  });
+});

@@ -46,3 +46,13 @@ describe("buildFillBody", () => {
     expect(buildFillBody({ ...stored, city: null }, { tribe: "x" })).toBeNull();
   });
 });
+
+describe("empty hijab / beard answered «لا»", () => {
+  it("is a direct fill, and the fill body keeps false", () => {
+    const blank = { ...stored, hijab: null, beard: null };
+    const r = splitProfileEdit({ hijab: false, beard: false }, blank);
+    expect(r.fills).toEqual({ hijab: false, beard: false });
+    expect(r.reviewed).toEqual({});
+    expect(buildFillBody(blank, r.fills)).toMatchObject({ hijab: false, beard: false });
+  });
+});

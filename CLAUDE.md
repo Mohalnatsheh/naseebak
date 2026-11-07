@@ -312,7 +312,7 @@ Detail: [docs/reference/suggestions-and-credits.md](docs/reference/suggestions-a
 
 ## Deployment
 
-**Production: `638af35` (four gap fixes: double refund, «registered?» after the code, mixed-match chat, one-way guardian), deployed 2026-11-07, slot b.**
+**Production: `e7c9b3c` (profile hint for empty fields others use as «شروط أساسية», hijab/beard as «نعم / لا»), deployed 2026-11-07, slot a.**
 
 Update that one line after each deploy. Don't list past versions. The live revision is in `/var/www/naseebak/REVISION`.
 

@@ -307,7 +307,7 @@ Detail: [docs/reference/suggestions-and-credits.md](docs/reference/suggestions-a
 
 ## Deployment
 
-**Production: `6d2b81c` («جديدة»: active today first, busy people last; switch `feed_active_first` on), deployed 2026-11-07, slot a.**
+**Production: `d4cd85d` (daily top-up reaches every active member; narrowed notice SMS in code, `sms_notices_enabled` still off), deployed 2026-11-07, slot b.**
 
 Update that one line after each deploy. Don't list past versions. The live revision is in `/var/www/naseebak/REVISION`.
 

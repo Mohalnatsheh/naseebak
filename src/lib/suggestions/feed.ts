@@ -90,15 +90,17 @@ async function waitingInterests(ids: string[], now: Date): Promise<Map<string, n
   const counts = new Map<string, number>();
   if (ids.length === 0) return counts;
   const open = { flow: "MUTUAL" as const, status: "PENDING" as const, expiresAt: { gt: now } };
+  // A «مهتم» from someone who has since left or was suspended is hidden from them, so it doesn't make them busy
+  const stillHere = { isDeactivated: false, status: { not: "SUSPENDED" as const } };
   const [asCandidate, asRecipient] = await Promise.all([
     db.suggestion.groupBy({
       by: ["candidateId"],
-      where: { ...open, candidateId: { in: ids }, recipientDecision: "INTERESTED", candidateDecision: null },
+      where: { ...open, candidateId: { in: ids }, recipientDecision: "INTERESTED", candidateDecision: null, recipient: stillHere },
       _count: { _all: true },
     }),
     db.suggestion.groupBy({
       by: ["recipientId"],
-      where: { ...open, recipientId: { in: ids }, candidateDecision: "INTERESTED", recipientDecision: null },
+      where: { ...open, recipientId: { in: ids }, candidateDecision: "INTERESTED", recipientDecision: null, candidate: stillHere },
       _count: { _all: true },
     }),
   ]);

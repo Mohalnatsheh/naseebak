@@ -417,6 +417,9 @@ describe("getSuggestionFeed — active first, busy last (feed_active_first)", ()
       candidateId: { in: expect.arrayContaining(["today-busy-95", "week-busy-99"]) },
     });
     expect(asRecipient.where).toMatchObject({ candidateDecision: "INTERESTED", recipientDecision: null });
+    // Only «مهتم» from people still here count
+    expect(asCandidate.where.recipient).toEqual({ isDeactivated: false, status: { not: "SUSPENDED" } });
+    expect(asRecipient.where.candidate).toEqual({ isDeactivated: false, status: { not: "SUSPENDED" } });
   });
 
   it("the busy count never reaches the client", async () => {

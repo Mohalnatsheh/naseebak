@@ -22,8 +22,12 @@ export const LIKED_WAITING_TITLE = "شخص ينتظر ردّك";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 export const SUGGESTION_REMIND_BEFORE_DAYS = 2;
-/** Users handed to autoSuggestForUser per run (sequential; the rest are picked up the next day or lazily) */
-export const WEEKLY_SUGGEST_LIMIT = 150;
+/**
+ * Users handed to autoSuggestForUser per run (sequential, most recently active first; the rest are picked up the next
+ * day or lazily). 150 until 2026-11-07, when it left 129 of 279 active members un-topped-up, and their hidden cards
+ * unrevealed, every morning. About 0.14 s each on production, so 600 stays well inside the 5-minute request.
+ */
+export const WEEKLY_SUGGEST_LIMIT = 600;
 const BATCH = 500;
 /** One run of the expiry reminder: about 2,000 cards a day expire, this leaves room for a backlog */
 const MAX_REMINDER_PAGES = 20;

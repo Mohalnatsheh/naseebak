@@ -313,7 +313,7 @@ Detail: [docs/reference/suggestions-and-credits.md](docs/reference/suggestions-a
 
 ## Deployment
 
-**Production: `8b3a659` (Saudi relaxed matching switch `sa_relaxed_matching`, off), deployed 2026-11-08, slot b.**
+**Production: `dc18947` (mobile header no longer hidden under the Android app bar; menu scrolls), deployed 2026-11-08, slot a.**
 
 Update that one line after each deploy. Don't list past versions. The live revision is in `/var/www/naseebak/REVISION`.
 

@@ -24,10 +24,11 @@ interface State {
   creditOnInterest: boolean;
   activeFirstFeed: boolean;
   saRelaxedMatching: boolean;
+  freeInterestReply: boolean;
   creditsMigratedAt: string | null;
 }
 
-type Key = "introRequests" | "chat" | "mutualSuggestions" | "creditOnInterest" | "activeFirstFeed" | "saRelaxedMatching";
+type Key = "introRequests" | "chat" | "mutualSuggestions" | "creditOnInterest" | "activeFirstFeed" | "saRelaxedMatching" | "freeInterestReply";
 
 /** Admin → Settings: the switches for the new user cycle, in plain words. */
 export function NewCycleSettingsCard() {
@@ -63,10 +64,11 @@ export function NewCycleSettingsCard() {
   }
 
   function toggle(key: Key, value: boolean) {
-    // The feed order is safe to turn off at once: nothing in flight depends on it
-    if (!value && key !== "activeFirstFeed" && key !== "saRelaxedMatching") setConfirmOff(key);
-    else if (key === "introRequests") setConfirmIntroOn(true);
-    else save(key, true);
+    // The feed order, Saudi matching and the free reply are safe to turn off at once: nothing in flight depends on them
+    const quickOff = key === "activeFirstFeed" || key === "saRelaxedMatching" || key === "freeInterestReply";
+    if (!value && !quickOff) setConfirmOff(key);
+    else if (value && key === "introRequests") setConfirmIntroOn(true);
+    else save(key, value);
   }
 
   async function openMigration() {
@@ -125,6 +127,14 @@ export function NewCycleSettingsCard() {
       disabled: !state?.introRequests || !state?.mutualSuggestions,
     },
     {
+      key: "freeInterestReply" as const,
+      icon: Coins,
+      title: "Free «مهتم» reply",
+      text: "Answering «مهتم» to someone who already said «مهتم» costs no credit, also at 0 credits, so a match costs 1 credit instead of 2. The first «مهتم» still costs 1. Members are told the reply is free on the card, in the notices and in the FAQ. Older app versions at 0 credits still show «مهتم» locked until they update. Needs Credit on interest on.",
+      on: !!state?.introRequests && !!state?.mutualSuggestions && !!state?.creditOnInterest && !!state?.freeInterestReply,
+      disabled: !state?.introRequests || !state?.mutualSuggestions || !state?.creditOnInterest,
+    },
+    {
       key: "activeFirstFeed" as const,
       icon: ListOrdered,
       title: "Active first, busy last",
@@ -167,7 +177,11 @@ export function NewCycleSettingsCard() {
                 <p className="text-sm text-muted-foreground leading-relaxed">{r.text}</p>
                 {r.disabled && (
                   <p className="text-xs font-medium text-amber-700">
-                    {r.key === "creditOnInterest" || r.key === "activeFirstFeed" || r.key === "saRelaxedMatching" ? "Turn on simultaneous suggestions first." : "Turn on family and chat requests first."}
+                    {r.key === "freeInterestReply"
+                      ? "Turn on credit on interest first."
+                      : r.key === "creditOnInterest" || r.key === "activeFirstFeed" || r.key === "saRelaxedMatching"
+                        ? "Turn on simultaneous suggestions first."
+                        : "Turn on family and chat requests first."}
                   </p>
                 )}
               </div>

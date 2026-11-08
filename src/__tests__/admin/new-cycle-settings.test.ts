@@ -84,6 +84,15 @@ describe("new-cycle settings PATCH", () => {
     expect(settings.setSetting.mock.calls.map((c) => c[0])).toEqual(["sa_relaxed_matching"]);
   });
 
+  it("saves and reports the free «مهتم» reply switch, off by default", async () => {
+    expect((await (await patch({})).json()).freeInterestReply).toBe(false);
+    const res = await patch({ freeInterestReply: true });
+    expect(store.value.free_interest_reply).toBe("true");
+    expect((await res.json()).freeInterestReply).toBe(true);
+    expect(settings.setSetting.mock.calls.map((c) => c[0])).toEqual(["free_interest_reply"]);
+    expect(mutualMod.closeLegacyInFlight).not.toHaveBeenCalled();
+  });
+
   it("refuses a non-boolean order switch", async () => {
     expect((await patch({ activeFirstFeed: "yes" })).status).toBe(400);
   });

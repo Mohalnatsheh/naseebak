@@ -438,8 +438,13 @@ export async function decideSuggestion(args: {
   const other = await db.user.findUnique({ where: { id: otherId }, select: { isDeactivated: true, status: true } });
   if (isUnavailable(other)) throw notFound();
 
-  const charge = flags.creditOnInterest && interested;
-  const preference = charge ? args.introPreference : undefined;
+  // Under credit on interest every «مهتم» picks chat/family (and guardian consent). It costs 1 credit,
+  // except a reply to someone who already said «مهتم» while `free_interest_reply` is on
+  const introChoice = flags.creditOnInterest && interested;
+  const otherDecision = side === "recipient" ? s.candidateDecision : s.recipientDecision;
+  const freeReply = introChoice && !!flags.freeInterestReply && otherDecision === "INTERESTED";
+  const charge = introChoice && !freeReply;
+  const preference = introChoice ? args.introPreference : undefined;
   // The phone only words NO_CREDITS: a test account (store review) gets no «اشحن» (`noCreditsError`)
   let myPhone: string | null | undefined;
   if (charge) {
@@ -449,7 +454,7 @@ export async function decideSuggestion(args: {
     if ((me?.matchCredits ?? 0) < 1) throw noCreditsError(myPhone);
   }
   // Validated now, stored only inside the transaction that records and charges the «مهتم» (below)
-  const { needsConsent } = charge
+  const { needsConsent } = introChoice
     ? await checkIntroPreference(userId, preference, flags.chat, args.guardianConsent)
     : { needsConsent: false };
 
@@ -461,8 +466,8 @@ export async function decideSuggestion(args: {
     client.suggestion.updateMany({
       where:
         side === "recipient"
-          ? { id: s.id, flow: "MUTUAL", status: "PENDING", expiresAt: { gt: now }, recipientDecision: null }
-          : { id: s.id, flow: "MUTUAL", status: "PENDING", expiresAt: { gt: now }, candidateDecision: null },
+          ? { id: s.id, flow: "MUTUAL", status: "PENDING", expiresAt: { gt: now }, recipientDecision: null, ...(freeReply && { candidateDecision: "INTERESTED" as const }) }
+          : { id: s.id, flow: "MUTUAL", status: "PENDING", expiresAt: { gt: now }, candidateDecision: null, ...(freeReply && { recipientDecision: "INTERESTED" as const }) },
       data:
         side === "recipient"
           ? { recipientDecision: decision, recipientDecidedAt: now, ...close, ...(preference && { recipientIntroPreference: preference }) }
@@ -488,6 +493,18 @@ export async function decideSuggestion(args: {
     if (creditsLeft <= 0) {
       await notifyInterestCreditsExhausted(userId).catch((e) => console.error("[suggestions] exhausted notice:", e));
     }
+  } else if (freeReply) {
+    // Free reply: claim (only while the other «مهتم» is still there) + consent together, no charge.
+    // The unchanged balance goes back so clients never take a credit off on their own
+    creditsLeft = await db.$transaction(async (tx) => {
+      const recorded = await claim(tx);
+      if (recorded.count === 0) throw notFound();
+      if (needsConsent) {
+        await tx.parentInfo.updateMany({ where: { userId, shareConsentAt: null }, data: { shareConsentAt: now } });
+      }
+      const left = await tx.user.findUniqueOrThrow({ where: { id: userId }, select: { matchCredits: true } });
+      return left.matchCredits;
+    });
   } else {
     const recorded = await claim(db);
     if (recorded.count === 0) throw notFound();

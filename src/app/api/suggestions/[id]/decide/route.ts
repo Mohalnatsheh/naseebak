@@ -13,6 +13,7 @@ const schema = z.object({
 /**
  * "مهتم" / "لا" on a simultaneous suggestion. Works even after the switch is turned off, so nothing in flight is lost.
  * With `credit_on_interest` on, "مهتم" costs 1 credit and needs `introPreference` (FAMILY: guardian consent).
+ * With `free_interest_reply` on too, answering someone who already said "مهتم" is free (`creditsLeft` = unchanged balance).
  */
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {

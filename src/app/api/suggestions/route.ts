@@ -49,6 +49,8 @@ export async function GET(request: Request) {
         credits: me?.matchCredits ?? 0,
         // Credit on interest: "مهتم" opens the chat/family dialog and costs 1 credit (CHAT hidden with chat off)
         creditOnInterest: flags.creditOnInterest,
+        // Answering a card that already says «أبدى اهتمامه بك» is free (switch `free_interest_reply`)
+        freeInterestReply: !!flags.freeInterestReply,
         chatEnabled: flags.chat,
         emptyReason,
         nextSuggestionsAt,

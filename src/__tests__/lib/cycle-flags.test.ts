@@ -68,3 +68,17 @@ describe("getCycleFlags.relaxedCountries", () => {
     expect((await flagsWith({ ...allOn, sa_relaxed_matching: "true" })).relaxedCountries).toEqual(["SA"]);
   });
 });
+
+describe("getCycleFlags.freeInterestReply", () => {
+  it("is off by default", async () => {
+    expect((await flagsWith(allOn)).freeInterestReply).toBe(false);
+  });
+
+  it("is on with free_interest_reply and credit on interest", async () => {
+    expect((await flagsWith({ ...allOn, free_interest_reply: "true" })).freeInterestReply).toBe(true);
+  });
+
+  it("is off while credit on interest is off", async () => {
+    expect((await flagsWith({ ...allOn, free_interest_reply: "true", credit_on_interest: "false" })).freeInterestReply).toBe(false);
+  });
+});

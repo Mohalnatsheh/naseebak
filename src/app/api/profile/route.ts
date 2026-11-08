@@ -8,6 +8,22 @@ import { DEALBREAKER_KEYS, type DealbreakerKey } from "@/lib/matching/score";
 import { maybeAwardReferral } from "@/lib/referral";
 import { needsReviewBody, reviewedChanges } from "@/lib/profile-review";
 import { getCycleFlags } from "@/lib/settings";
+import { arabicIssueMessage } from "@/lib/validations/issue-message";
+
+/** The fields `profileSchema` requires (the short setup). */
+const REQUIRED_BASICS = [
+  "dateOfBirth", "city", "nationality", "education", "maritalStatus", "religiosity", "prefAgeMin", "prefAgeMax",
+] as const;
+
+/** Puts the stored value in for each required basic the body leaves out (absent, not null). */
+function fillMissingBasics(body: Record<string, unknown>, stored: Record<string, unknown>): void {
+  for (const key of REQUIRED_BASICS) {
+    if (body[key] !== undefined) continue;
+    const value = stored[key];
+    if (value == null) continue;
+    body[key] = value instanceof Date ? value.toISOString().slice(0, 10) : value;
+  }
+}
 
 export async function GET() {
   try {
@@ -74,11 +90,19 @@ export async function PUT(request: Request) {
     const { session } = result;
 
     const body = await request.json();
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
+      return NextResponse.json({ error: "بيانات غير صالحة" }, { status: 400 });
+    }
+
+    const existing = await db.profile.findUnique({ where: { userId: session.user.id } });
+    // Finished profile: a required basic the save leaves out stays as stored. The app keeps the
+    // profile it loaded at the start of the setup, so its «تعديل ملفي» fills arrive without the
+    // basics saved since (partner ages, or all of them) and failed with Zod's English message.
+    if (existing?.isComplete) fillMissingBasics(body as Record<string, unknown>, existing as unknown as Record<string, unknown>);
 
     const validation = profileSchema.safeParse(body);
     if (!validation.success) {
-      const firstError = validation.error.issues[0]?.message || "بيانات غير صالحة";
-      return NextResponse.json({ error: firstError }, { status: 400 });
+      return NextResponse.json({ error: arabicIssueMessage(validation.error.issues[0]) }, { status: 400 });
     }
 
     const {
@@ -133,7 +157,6 @@ export async function PUT(request: Request) {
     // After the setup is finished, steps 1–4 changes go through /api/profile/update-request
     // (admin review). This save stays open for a retry of the setup submit and for filling in
     // optional fields that are still empty — see reviewedChanges().
-    const existing = await db.profile.findUnique({ where: { userId: session.user.id } });
     if (existing?.isComplete) {
       const changed = reviewedChanges(existing as unknown as Record<string, unknown>, updateData);
       if (changed.length > 0) return NextResponse.json(needsReviewBody(changed), { status: 409 });

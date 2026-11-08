@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { PREF_AGE_MAX, profileUpdateRequestSchema } from "@/lib/validations/profile";
 import { refreshOpenSuggestionsInBackground } from "@/lib/suggestions/refresh";
 import { sendAdminAlert } from "@/lib/admin-alert";
+import { arabicIssueMessage } from "@/lib/validations/issue-message";
 
 /**
  * Partner preferences are a private matching filter (like «شروط أساسية»): they save directly, no
@@ -42,7 +43,7 @@ export async function POST(request: Request) {
       const issue = parsed.error.issues[0];
       const unknownKey = issue?.code === "unrecognized_keys";
       return NextResponse.json(
-        { error: unknownKey ? "تعديل غير معروف في الطلب" : issue?.message || "بيانات غير صالحة" },
+        { error: unknownKey ? "تعديل غير معروف في الطلب" : arabicIssueMessage(issue) },
         { status: 400 },
       );
     }

@@ -28,6 +28,7 @@ async function tellPartnersConsentWithdrawn(userId: string): Promise<void> {
   });
 }
 import { normalizePhone } from "@/lib/validations/auth";
+import { arabicIssueMessage } from "@/lib/validations/issue-message";
 
 export async function GET() {
   try {
@@ -89,7 +90,7 @@ export async function POST(request: Request) {
     const country = toCountry(me?.country);
     const parsed = parentInfoSchemaFor(country).safeParse(body);
     if (!parsed.success) {
-      return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "بيانات غير صالحة" }, { status: 400 });
+      return NextResponse.json({ error: arabicIssueMessage(parsed.error.issues[0]) }, { status: 400 });
     }
     const { parentName, relationship, address, notes } = parsed.data;
     const parentPhone = normalizePhone(parsed.data.parentPhone, country);

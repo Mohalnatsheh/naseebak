@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { profileDraftSchema } from "@/lib/validations/profile";
 import { needsReviewBody, reviewedChanges } from "@/lib/profile-review";
+import { arabicIssueMessage } from "@/lib/validations/issue-message";
 
 export async function PATCH(request: Request) {
   try {
@@ -14,7 +15,7 @@ export async function PATCH(request: Request) {
 
     const validation = profileDraftSchema.safeParse(body);
     if (!validation.success) {
-      const firstError = validation.error.issues[0]?.message || "بيانات غير صالحة";
+      const firstError = arabicIssueMessage(validation.error.issues[0]);
       return NextResponse.json({ error: firstError }, { status: 400 });
     }
 

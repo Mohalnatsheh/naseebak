@@ -259,6 +259,9 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
       if (key != null) await ref.read(sharedPreferencesProvider).remove(key);
       ref.read(analyticsProvider).setupCompleted();
       ref.invalidate(countsProvider);
+      // The profile loaded at the start of the setup is stale now. The home card keeps the provider
+      // alive, so without this «تعديل ملفي» showed the saved fields as empty until a restart.
+      ref.invalidate(myProfileProvider);
       // The router leaves the setup once `/api/mobile/me` says the profile is complete
       await ref.read(authControllerProvider.notifier).refreshMe();
     } on ApiException catch (e) {

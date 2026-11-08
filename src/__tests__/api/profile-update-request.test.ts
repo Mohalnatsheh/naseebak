@@ -78,6 +78,14 @@ describe("POST /api/profile/update-request", () => {
     expect(sendAdminAlert).not.toHaveBeenCalled();
   });
 
+  it("a value of the wrong kind is refused in Arabic, never Zod's English \"Invalid input\"", async () => {
+    for (const changes of [{ childrenCount: 1.5 }, { height: true }, { hijab: "نعم" }]) {
+      const res = await POST(req(changes));
+      expect(res.status).toBe(400);
+      expect((await res.json()).error).not.toMatch(/[A-Za-z]/);
+    }
+  });
+
   it("uses the same partner age maximum as the wizards (70)", async () => {
     expect((await POST(req({ prefAgeMax: 75 }))).status).toBe(400);
   });

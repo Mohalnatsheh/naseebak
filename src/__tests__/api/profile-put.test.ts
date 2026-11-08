@@ -136,4 +136,44 @@ describe("PUT /api/profile", () => {
     expect((await put({ ...payload, dateOfBirth: "1996-05-05" })).status).toBe(409);
     expect((await put({ ...payload, dateOfBirth: "1995-01-01" })).status).toBe(200);
   });
+
+  // The app (store builds since launch) keeps the profile it loaded at the start of the setup. Its
+  // «تعديل ملفي» then fills "empty" fields with the required basics from that stale copy, so they
+  // arrive missing (no partner ages, or nothing at all) and the save failed with Zod's English
+  // "Invalid input: expected number, received undefined". Missing basics = unchanged.
+  it("finished profile: a fill that leaves out the required basics keeps the stored ones", async () => {
+    db.profile.findUnique.mockResolvedValue(storedProfile);
+    const stale = { dateOfBirth: "1995-01-01", city: "عمان", nationality: "أردني", education: "بكالوريوس",
+      maritalStatus: "أعزب/عزباء", religiosity: "ملتزم", childrenCount: 0, height: 175 };
+    const res = await put(stale);
+    expect(res.status).toBe(200);
+    const update = db.profile.upsert.mock.calls[0][0].update;
+    expect(update).toMatchObject({ height: 175, prefAgeMin: 22, prefAgeMax: 30, isComplete: true });
+  });
+
+  it("finished profile: a fill with no basics at all (cached before any draft) still saves", async () => {
+    db.profile.findUnique.mockResolvedValue(storedProfile);
+    const res = await put({ childrenCount: 0, job: "مهندس" });
+    expect(res.status).toBe(200);
+    expect(db.profile.upsert.mock.calls[0][0].update).toMatchObject({ job: "مهندس", city: "عمان", prefAgeMin: 22 });
+  });
+
+  it("finished profile: a stale fill that changes a stored value is still a reviewed edit (409)", async () => {
+    db.profile.findUnique.mockResolvedValue(storedProfile);
+    const res = await put({ childrenCount: 0, city: "الزرقاء" });
+    expect(res.status).toBe(409);
+    expect(db.profile.upsert).not.toHaveBeenCalled();
+  });
+
+  it("setup not finished: a missing required field is refused in Arabic, never Zod's English", async () => {
+    flags.introRequests = true;
+    db.profile.findUnique.mockResolvedValue(null);
+    for (const body of [{ ...payload, prefAgeMin: undefined }, { ...payload, height: null }, { childrenCount: 0 }]) {
+      const res = await put(body);
+      expect(res.status).toBe(400);
+      const { error } = await res.json();
+      expect(error).not.toMatch(/[A-Za-z]/);
+    }
+    expect(db.profile.upsert).not.toHaveBeenCalled();
+  });
 });

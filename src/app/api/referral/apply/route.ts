@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { applyReferralSchema } from "@/lib/validations/referral";
+import { arabicIssueMessage } from "@/lib/validations/issue-message";
 
 export async function POST(request: Request) {
   try {
@@ -12,7 +13,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     const validation = applyReferralSchema.safeParse(body);
     if (!validation.success) {
-      const firstError = validation.error.issues[0]?.message || "بيانات غير صالحة";
+      const firstError = arabicIssueMessage(validation.error.issues[0]);
       return NextResponse.json({ error: firstError }, { status: 400 });
     }
 

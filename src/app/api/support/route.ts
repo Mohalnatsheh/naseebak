@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { createTicketSchema } from "@/lib/validations/support";
 import { parsePagination } from "@/lib/utils";
 import { sendAdminAlert } from "@/lib/admin-alert";
+import { arabicIssueMessage } from "@/lib/validations/issue-message";
 
 export async function POST(request: Request) {
   try {
@@ -15,7 +16,7 @@ export async function POST(request: Request) {
     const parsed = createTicketSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(
-        { error: parsed.error.issues[0]?.message || "بيانات غير صالحة" },
+        { error: arabicIssueMessage(parsed.error.issues[0]) },
         { status: 400 }
       );
     }

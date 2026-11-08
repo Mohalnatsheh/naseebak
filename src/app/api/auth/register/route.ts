@@ -6,6 +6,7 @@ import { getMaintenanceState, isRegistrationOpen } from "@/lib/settings";
 import { countrySignupBlock } from "@/lib/countries/settings";
 import { getRegistrationCredits, recordCredit } from "@/lib/credits";
 import { sendNewUserNotification } from "@/lib/email";
+import { arabicIssueMessage } from "@/lib/validations/issue-message";
 
 export async function POST(request: Request) {
   try {
@@ -27,7 +28,7 @@ export async function POST(request: Request) {
 
     if (!result.success) {
       return NextResponse.json(
-        { error: result.error.issues[0]?.message || "بيانات غير صالحة", details: result.error.issues },
+        { error: arabicIssueMessage(result.error.issues[0]), details: result.error.issues },
         { status: 400 }
       );
     }

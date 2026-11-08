@@ -8,6 +8,7 @@ import { normalizePhone } from "@/lib/validations/auth";
 import { getVisitorCountry } from "@/lib/countries/server";
 import { activeCountryCodes } from "@/lib/countries/settings";
 import type { CountryCode } from "@/lib/countries";
+import { arabicIssueMessage } from "@/lib/validations/issue-message";
 
 /**
  * Public contact form: saved for Admin → Messages (with the visitor's country, the admin filters by it),
@@ -25,7 +26,7 @@ export async function POST(request: Request) {
       // A filled honeypot: answer like a success so the bot learns nothing
       if (issue?.path[0] === "website") return NextResponse.json({ ok: true }, { status: 201 });
       return NextResponse.json(
-        { error: issue?.message ?? "بيانات غير صالحة", field: issue?.path[0] ?? null },
+        { error: arabicIssueMessage(issue), field: issue?.path[0] ?? null },
         { status: 400 },
       );
     }

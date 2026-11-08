@@ -16,6 +16,7 @@ import { qualifiesForSuggestions as qualifiesForSuggestionsGate } from "@/lib/pr
 import { matchesHref } from "@/lib/matches/links";
 import type { ChatSummary } from "@/lib/chat/service";
 import type { FeedItem } from "@/lib/suggestions/feed-types";
+import { homeZeroCreditLine } from "@/lib/suggestions/copy";
 
 /** Local time in Jordan and Saudi Arabia (both UTC+3 all year), whatever the device clock says */
 function ammanHour(): number {
@@ -132,6 +133,7 @@ export default function DashboardPage() {
   const outOfCredits = !!counts.flags.creditOnInterest && credits <= 0;
   // free_interest_reply: answering «مهتم» to someone who already said it costs nothing
   const freeReply = !!counts.flags.freeInterestReply;
+  const zeroLine = homeZeroCreditLine({ freeReply, likedYou, fresh, female });
   const waiting: { key: string; icon: typeof Heart; title: string; note: string; href: string; cta: string }[] = [
     ...(counts.pendingIntros > 0
       ? [{
@@ -252,10 +254,10 @@ export default function DashboardPage() {
             ))}
           </ul>
           {/* «مهتم» needs a credit: say so here, before the member taps through */}
-          {outOfCredits && ((likedYou > 0 && !freeReply) || fresh > 0) && (
+          {outOfCredits && zeroLine && (
             <Link href="/dashboard/payments" className="flex items-center gap-2 border-t border-border/60 bg-amber-50/70 px-4 py-2.5 text-xs font-semibold text-amber-900">
               <Coins className="h-4 w-4 shrink-0" aria-hidden />
-              {g("انتهى رصيدك: اشحن رصيدك لتقول «مهتم».", "انتهى رصيدكِ: اشحني رصيدكِ لتقولي «مهتم».")}
+              {zeroLine}
             </Link>
           )}
         </section>

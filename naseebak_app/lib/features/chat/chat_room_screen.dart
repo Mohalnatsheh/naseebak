@@ -425,6 +425,8 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
         _insertSorted([sent]);
       });
       _saveCache();
+      // «المحادثات» shows the last message and orders by it: my own message changes no unread count, so reload it here
+      ref.invalidate(chatListProvider);
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() {
@@ -629,6 +631,8 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
                           ListView.builder(
                             controller: _scroll,
                             reverse: true,
+                            // Scrolling the messages closes the keyboard
+                            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                             padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
                             itemCount: items.length + (_loadingOlder ? 1 : 0),
                             itemBuilder: (context, i) {
@@ -715,6 +719,8 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
                 maxLines: 5,
                 maxLength: 2000,
                 textInputAction: TextInputAction.newline,
+                // A tap anywhere else (the messages, the header) closes the keyboard
+                onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
                 style: const TextStyle(fontSize: 16),
                 decoration: const InputDecoration(hintText: 'اكتب رسالتك…', counterText: ''),
               ),

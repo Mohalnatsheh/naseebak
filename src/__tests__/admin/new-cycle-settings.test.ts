@@ -93,6 +93,14 @@ describe("new-cycle settings PATCH", () => {
     expect(mutualMod.closeLegacyInFlight).not.toHaveBeenCalled();
   });
 
+  it("turning credit on interest (or a parent) off also turns the free reply off, so it never comes back silently", async () => {
+    for (const off of [{ creditOnInterest: false }, { mutualSuggestions: false }, { introRequests: false }]) {
+      store.value = { ...store.value, intro_requests_enabled: "true", new_suggestions_flow: "true", credit_on_interest: "true", free_interest_reply: "true" };
+      await patch(off);
+      expect(store.value.free_interest_reply).toBe("false");
+    }
+  });
+
   it("refuses a non-boolean order switch", async () => {
     expect((await patch({ activeFirstFeed: "yes" })).status).toBe(400);
   });

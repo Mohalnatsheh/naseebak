@@ -256,4 +256,41 @@ void main() {
       expect(cache.data, isEmpty);
     });
   });
+
+  group('keyboard and the chats list', () {
+    testWidgets('a tap outside the input closes the keyboard', (tester) async {
+      final adapter = FakeAdapter()..on('GET', '/api/chats/c1', FakeResponse(200, page([1, 2])));
+      await openRoom(tester, adapter, MemoryChatCache());
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('chat-input')));
+      await tester.pump();
+      expect(tester.testTextInput.isVisible, isTrue);
+      await tester.tapAt(const Offset(200, 200));
+      await tester.pump();
+      expect(tester.testTextInput.isVisible, isFalse);
+    });
+
+    testWidgets('a sent message reloads the chats list (its last message and order)', (tester) async {
+      final adapter = FakeAdapter()
+        ..on('GET', '/api/chats/c1', FakeResponse(200, page([1, 2])))
+        ..on('GET', '/api/chats', const FakeResponse(200, {'conversations': []}))
+        ..on('POST', '/api/chats/c1/messages', FakeResponse(201, {
+          'message': {'id': 'm900', 'body': 'السلام عليكم', 'createdAt': DateTime.utc(2026, 10, 30, 12).toIso8601String(), 'mine': true, 'readAt': null},
+        }));
+      final c = await openRoom(tester, adapter, MemoryChatCache());
+      await tester.pumpAndSettle();
+      // The Chats tab has its list loaded and kept alive
+      final sub = c.listen(chatListProvider, (_, _) {});
+      addTearDown(sub.close);
+      await tester.pump(const Duration(milliseconds: 50));
+      final before = adapter.to('GET', '/api/chats').length;
+      expect(before, 1);
+      await tester.enterText(find.byKey(const Key('chat-input')), 'السلام عليكم');
+      await tester.tap(find.byKey(const Key('chat-send')));
+      for (var i = 0; i < 10; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+      expect(adapter.to('GET', '/api/chats').length, greaterThan(before));
+    });
+  });
 }

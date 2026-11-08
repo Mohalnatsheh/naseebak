@@ -84,6 +84,10 @@ export async function PATCH(request: Request) {
     if (parsed.data.mutualSuggestions === false || parsed.data.introRequests === false) {
       await setSetting("credit_on_interest", "false");
     }
+    // The free reply depends on credit on interest: off with it, so turning that back on never revives it silently
+    if (parsed.data.creditOnInterest === false || parsed.data.mutualSuggestions === false || parsed.data.introRequests === false) {
+      await setSetting("free_interest_reply", "false");
+    }
     return NextResponse.json(await state());
   } catch (error) {
     console.error("Update new cycle settings error:", error);

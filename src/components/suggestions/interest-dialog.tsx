@@ -13,7 +13,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { CREDIT_ON_INTEREST_LINE } from "@/lib/suggestions/copy";
+import { CREDIT_ON_INTEREST_LINE, FREE_REPLY_SHORT } from "@/lib/suggestions/copy";
 import { GuardianQuickForm } from "@/components/intro/guardian-quick-form";
 
 export type IntroPreferenceChoice = "CHAT" | "FAMILY";
@@ -40,6 +40,8 @@ interface Props {
    * credit, and `onConfirm` gets no preference.
    */
   costOnly?: boolean;
+  /** A reply to someone who already said «مهتم» while `free_interest_reply` is on: no credit, also at 0 */
+  free?: boolean;
   /**
    * Sends the «مهتم». The dialog stays open (busy) until it answers:
    * a string = an error to show here, the dialog stays open to try again or cancel;
@@ -53,7 +55,7 @@ interface Props {
  * Credit on interest: "مهتم" on a shared suggestion asks how the introduction should start if the
  * interest is mutual — chat here first, or a family introduction straight away (needs guardian consent).
  */
-export function InterestDialog({ open, onOpenChange, partnerGender, credits, chatEnabled, guardian: guardianProp, costOnly = false, onConfirm }: Props) {
+export function InterestDialog({ open, onOpenChange, partnerGender, credits, chatEnabled, guardian: guardianProp, costOnly = false, free = false, onConfirm }: Props) {
   const [choice, setChoice] = useState<IntroPreferenceChoice | null>(null);
   // Added here through GuardianQuickForm before the shared data catches up. The form saves only the
   // contact (no share consent): saving it is the consent, sent with the «مهتم» itself and stored by the
@@ -81,7 +83,7 @@ export function InterestDialog({ open, onOpenChange, partnerGender, credits, cha
   // A contact saved here was saved for this purpose (the form says so): no second checkbox
   const needsConsent = family && guardian.exists && !guardian.consented && !guardianSaved;
   const sendConsent = family && !guardian.consented && (guardianSaved || consent);
-  const noCredits = credits <= 0;
+  const noCredits = !free && credits <= 0;
   const canConfirm = costOnly ? !busy : !busy && !!choice && !missingGuardian && (!needsConsent || consent);
   // Why «تأكيد» is still disabled: never leave a greyed-out button without a reason
   const blockedHint =
@@ -225,7 +227,17 @@ export function InterestDialog({ open, onOpenChange, partnerGender, credits, cha
           </div>
         )}
 
-        {noCredits ? (
+        {free ? (
+          <div className="flex items-start gap-3 rounded-xl border border-emerald-200/60 bg-emerald-50/70 p-3 text-sm">
+            <Coins className="mt-0.5 h-4 w-4 flex-shrink-0 text-emerald-700" aria-hidden="true" />
+            <div className="space-y-1">
+              <p className="font-semibold text-foreground">{FREE_REPLY_SHORT}</p>
+              <p className="text-muted-foreground">
+                {g("لن يُخصم شيء من رصيدك، والتوافق والطلبات والمحادثة بعده مجانية.", "لن يُخصم شيء من رصيدكِ، والتوافق والطلبات والمحادثة بعده مجانية.")}
+              </p>
+            </div>
+          </div>
+        ) : noCredits ? (
           <div className="rounded-xl border border-amber-200/60 bg-amber-50/70 p-3 text-sm text-amber-800">
             <p className="font-semibold">انتهى رصيدك</p>
             <p className="mt-1">{CREDIT_ON_INTEREST_LINE}</p>

@@ -14,7 +14,7 @@ import { contentFor } from "@/components/landing/content";
 async function pageText() {
   const [flags, country] = await Promise.all([getCycleFlags(), getVisitorCountry()]);
   const settings = await getCountrySettings(country);
-  const mode = { introRequests: flags.introRequests, chat: flags.chat, creditOnInterest: flags.creditOnInterest };
+  const mode = { introRequests: flags.introRequests, chat: flags.chat, creditOnInterest: flags.creditOnInterest, freeInterestReply: !!flags.freeInterestReply };
   return { mode, country, settings, text: countryPageText(countryPageDefaults(country, mode), settings) };
 }
 

@@ -3,7 +3,7 @@
  * a feature that is switched off. Every claim here must match what the product does.
  * Per visitor country: JO = the original Jordanian copy, SA = the reviewed Saudi copy (naseebak-ksa).
  */
-import { CREDIT_ON_INTEREST_LINE } from "@/lib/suggestions/copy";
+import { creditLine } from "@/lib/suggestions/copy";
 import { DEFAULT_COUNTRY, type CountryCode } from "@/lib/countries";
 
 export interface LandingMode {
@@ -13,6 +13,8 @@ export interface LandingMode {
   chat: boolean;
   /** "مهتم" costs 1 credit and picks the introduction; match, requests and chat are free */
   creditOnInterest?: boolean;
+  /** Switch free_interest_reply: answering someone who already said «مهتم» is free */
+  freeInterestReply?: boolean;
 }
 
 export interface FaqItem {
@@ -78,8 +80,8 @@ export function landingContent(mode: LandingMode, country: CountryCode = DEFAULT
                 label: "«مهتم»",
                 title: "مع «مهتم» تختار كيف يبدأ التعارف",
                 text: chat
-                  ? `محادثة هنا أولاً، أو تعارف عائلي مباشرة. «لا» مجانية ولا ${noKnown}. ` + CREDIT_ON_INTEREST_LINE
-                  : `التعارف العائلي يبدأ مباشرة عند التوافق. «لا» مجانية ولا ${noKnown}. ` + CREDIT_ON_INTEREST_LINE,
+                  ? `محادثة هنا أولاً، أو تعارف عائلي مباشرة. «لا» مجانية ولا ${noKnown}. ` + creditLine(!!mode.freeInterestReply)
+                  : `التعارف العائلي يبدأ مباشرة عند التوافق. «لا» مجانية ولا ${noKnown}. ` + creditLine(!!mode.freeInterestReply),
                 image: screen("choose"),
                 alt: "نافذة «كيف تحبين أن يبدأ التعارف؟» مع خيارَي «محادثة هنا أولاً» و«تعارف عائلي مباشرة»",
               },
@@ -219,7 +221,7 @@ export function landingContent(mode: LandingMode, country: CountryCode = DEFAULT
         {
           q: "هل المنصة مجانية؟",
           a: coi
-            ? `التسجيل والاقتراحات مجانية، وتحصل على 3 أرصدة عند التسجيل. ${CREDIT_ON_INTEREST_LINE} ويمكنك شحن رصيدك من لوحة التحكم.`
+            ? `التسجيل والاقتراحات مجانية، وتحصل على 3 أرصدة عند التسجيل. ${creditLine(!!mode.freeInterestReply)} ويمكنك شحن رصيدك من لوحة التحكم.`
             : "التسجيل والاقتراحات مجانية، وتحصل على 3 أرصدة عند التسجيل. كل طلب تعارف عائلي أو محادثة يستخدم رصيداً واحداً من المُرسِل، ويمكنك شحن رصيدك من لوحة التحكم.",
         },
         {

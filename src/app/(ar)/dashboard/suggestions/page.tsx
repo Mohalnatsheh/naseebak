@@ -174,7 +174,7 @@ export default function SuggestionsPage() {
   // Simultaneous suggestions flow: the API says so, and the page shows the two-tab view instead
   const [mutualView, setMutualView] = useState(false);
   // Credit on interest (from /api/suggestions): "مهتم" costs 1 credit; chat switch for the dialog
-  const [cycleInfo, setCycleInfo] = useState({ creditOnInterest: false, chatEnabled: true });
+  const [cycleInfo, setCycleInfo] = useState({ creditOnInterest: false, freeInterestReply: false, chatEnabled: true });
   // Legacy like / accept are the "مهتم" here: 1 credit each with credit on interest on
   const creditGate = !!cycleCounts.flags.creditOnInterest;
   const interestLocked = creditGate && credits === 0;
@@ -315,7 +315,7 @@ export default function SuggestionsPage() {
       if (!res.ok) throw new Error(`suggestions ${res.status}`);
       const data = await res.json();
       if (data.mutualView) {
-        setCycleInfo({ creditOnInterest: !!data.creditOnInterest, chatEnabled: data.chatEnabled !== false });
+        setCycleInfo({ creditOnInterest: !!data.creditOnInterest, freeInterestReply: !!data.freeInterestReply, chatEnabled: data.chatEnabled !== false });
         setMutualView(true);
       }
       if (p === 1) setEmptyInfo({ reason: data.emptyReason ?? null, nextAt: data.nextSuggestionsAt ?? null });
@@ -525,6 +525,7 @@ toast.success("تهانينا! لديك توافق متبادل!", {
         emptyReason={emptyInfo.reason}
         nextSuggestionsAt={emptyInfo.nextAt}
         creditOnInterest={cycleInfo.creditOnInterest}
+        freeInterestReply={cycleInfo.freeInterestReply}
         chatEnabled={cycleInfo.chatEnabled}
         credits={credits ?? 0}
       />

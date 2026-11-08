@@ -32,7 +32,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { trackEvent } from "@/lib/analytics";
 import { useDashboardData } from "@/contexts/dashboard-context";
-import { CREDIT_ON_INTEREST_LINE } from "@/lib/suggestions/copy";
+import { creditLine } from "@/lib/suggestions/copy";
 import { arabicCount } from "@/lib/utils";
 import { LoadError } from "@/components/shared/load-error";
 import { PageHeader } from "@/components/shared/page-header";
@@ -441,7 +441,7 @@ function PaymentsContent() {
         title={perRequest ? "رصيدك" : "رصيد الاقتراحات"}
         description={
           creditOnInterest
-            ? `الاقتراحات مجانية. ${CREDIT_ON_INTEREST_LINE}`
+            ? `الاقتراحات مجانية. ${creditLine(!!flags.freeInterestReply)}`
             : perRequest
             ? "الاقتراحات مجانية. كل طلب تعارف عائلي أو محادثة يستخدم رصيداً واحداً."
             : "يمكنك شحن رصيدك لتصلك اقتراحات أكثر"

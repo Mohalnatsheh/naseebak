@@ -44,6 +44,8 @@ export function NextStepCard({ qualifies, pendingSuggestions, credits, emptyReas
   const actionableMatches = counts.actionableMatches ?? 0;
   // Credit on interest: "مهتم" costs 1 credit; requests are free
   const creditOnInterest = !!counts.flags.creditOnInterest;
+  // With free_interest_reply on, answering someone who already said «مهتم» needs no credit
+  const freeReplyWaiting = !!counts.flags.freeInterestReply && (counts.likedYou ?? 0) > 0;
   const balance = counts.credits ?? credits;
   // Imperatives addressed to the viewer: feminine for women
   const female = profile?.gender === "FEMALE";
@@ -93,7 +95,7 @@ export function NextStepCard({ qualifies, pendingSuggestions, credits, emptyReas
       cta: g("اشحن رصيدك", "اشحني رصيدك"),
       tone: "accent",
     };
-  } else if (creditOnInterest && (pendingSuggestions ?? 0) > 0 && balance <= 0) {
+  } else if (creditOnInterest && (pendingSuggestions ?? 0) > 0 && balance <= 0 && !freeReplyWaiting) {
     step = {
       icon: Coins,
       title: g("اشحن رصيدك لتُبدي اهتمامك", "اشحني رصيدك لتُبدي اهتمامك"),
@@ -102,7 +104,7 @@ export function NextStepCard({ qualifies, pendingSuggestions, credits, emptyReas
       cta: g("اشحن رصيدك", "اشحني رصيدك"),
       tone: "accent",
     };
-  } else if ((counts.likedYou ?? 0) > 0 && !(creditOnInterest && balance <= 0)) {
+  } else if ((counts.likedYou ?? 0) > 0 && (!(creditOnInterest && balance <= 0) || freeReplyWaiting)) {
     // Someone already said «مهتم»: one «مهتم» back is a mutual match
     const n = counts.likedYou ?? 0;
     step = {

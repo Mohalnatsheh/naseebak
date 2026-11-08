@@ -130,6 +130,8 @@ export default function DashboardPage() {
   const likedYou = counts.likedYou ?? 0;
   const fresh = counts.newSuggestions ?? 0;
   const outOfCredits = !!counts.flags.creditOnInterest && credits <= 0;
+  // free_interest_reply: answering «مهتم» to someone who already said it costs nothing
+  const freeReply = !!counts.flags.freeInterestReply;
   const waiting: { key: string; icon: typeof Heart; title: string; note: string; href: string; cta: string }[] = [
     ...(counts.pendingIntros > 0
       ? [{
@@ -146,7 +148,9 @@ export default function DashboardPage() {
           key: "liked",
           icon: Heart,
           title: likedYou === 1 ? g("شخص مهتم بالتحدث معك", "شخص مهتم بالتحدث معكِ") : g(`${likedYou} أشخاص مهتمون بالتحدث معك`, `${likedYou} أشخاص مهتمون بالتحدث معكِ`),
-          note: g("«مهتم» منك يعني توافقاً فورياً.", "«مهتم» منكِ يعني توافقاً فورياً."),
+          note: freeReply
+            ? g("«مهتم» منك يعني توافقاً فورياً، والرد مجاني.", "«مهتم» منكِ يعني توافقاً فورياً، والرد مجاني.")
+            : g("«مهتم» منك يعني توافقاً فورياً.", "«مهتم» منكِ يعني توافقاً فورياً."),
           href: "/dashboard/suggestions?tab=interested",
           cta: g("ردّ الآن", "ردّي الآن"),
         }]
@@ -248,7 +252,7 @@ export default function DashboardPage() {
             ))}
           </ul>
           {/* «مهتم» needs a credit: say so here, before the member taps through */}
-          {outOfCredits && (likedYou > 0 || fresh > 0) && (
+          {outOfCredits && ((likedYou > 0 && !freeReply) || fresh > 0) && (
             <Link href="/dashboard/payments" className="flex items-center gap-2 border-t border-border/60 bg-amber-50/70 px-4 py-2.5 text-xs font-semibold text-amber-900">
               <Coins className="h-4 w-4 shrink-0" aria-hidden />
               {g("انتهى رصيدك: اشحن رصيدك لتقول «مهتم».", "انتهى رصيدكِ: اشحني رصيدكِ لتقولي «مهتم».")}

@@ -26,18 +26,20 @@ export function FaqContent({
   newCycle,
   chat,
   creditOnInterest = false,
+  freeInterestReply = false,
   country = "JO",
   prices,
 }: {
   newCycle: boolean;
   chat: boolean;
   creditOnInterest?: boolean;
+  freeInterestReply?: boolean;
   /** Visitor's country (answers, phone wording, prices) */
   country?: CountryCode;
   /** Prices set in Admin → Countries */
   prices?: PackagePrices | null;
 }) {
-  const faqs = faqsFor(newCycle, chat, creditOnInterest, country, prices);
+  const faqs = faqsFor(newCycle, chat, creditOnInterest, country, prices, freeInterestReply);
   const [activeCategory, setActiveCategory] = useState("all");
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const { ref: faqRef, inView: faqInView } = useInView(0.1);

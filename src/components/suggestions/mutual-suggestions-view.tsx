@@ -26,6 +26,7 @@ import { CandidateDetails } from "@/components/suggestions/candidate-details";
 import { DealbreakersCard } from "@/components/suggestions/dealbreakers-card";
 import { MatchesView } from "@/components/matches/matches-view";
 import { InterestDialog, rechargeToContinue, type IntroPreferenceChoice } from "@/components/suggestions/interest-dialog";
+import { FREE_REPLY_SHORT } from "@/lib/suggestions/copy";
 import { trackEvent } from "@/lib/analytics";
 import { useDashboardData } from "@/contexts/dashboard-context";
 import { formatDate } from "@/lib/countries";
@@ -89,6 +90,7 @@ export function MutualSuggestionsView({
   emptyReason = null,
   nextSuggestionsAt = null,
   creditOnInterest = false,
+  freeInterestReply = false,
   chatEnabled = true,
   credits = 0,
 }: {
@@ -98,6 +100,8 @@ export function MutualSuggestionsView({
   nextSuggestionsAt?: string | null;
   /** Switch credit_on_interest (from /api/suggestions): "مهتم" costs 1 credit and opens the chat/family dialog */
   creditOnInterest?: boolean;
+  /** Switch free_interest_reply: «مهتم» on a card that already says «أبدى اهتمامه بك» is free, also at 0 credits */
+  freeInterestReply?: boolean;
   /** Chat switch: the dialog hides the chat choice when off */
   chatEnabled?: boolean;
   /** Balance when the page loaded (from /api/suggestions) */
@@ -122,6 +126,8 @@ export function MutualSuggestionsView({
     setBalance(credits);
   }
   const outOfCredits = creditOnInterest && balance <= 0;
+  // A reply to someone who already said «مهتم» costs nothing with free_interest_reply on
+  const isFreeReply = (item: OpenFeedItem) => creditOnInterest && freeInterestReply && item.kind === "mutual" && !!item.likedYou;
   // Nothing left because of my own «شروط أساسية»: which one to ease (never changed for me)
   const [filterTip, setFilterTip] = useState<string | null>(null);
   useEffect(() => {
@@ -353,7 +359,8 @@ export function MutualSuggestionsView({
         return { ok: false };
       }
       if (creditOnInterest && interested) {
-        const left = typeof data.creditsLeft === "number" ? data.creditsLeft : Math.max(0, balance - 1);
+        // A free reply keeps the balance (the server sends it back); never take a credit off on our own then
+        const left = typeof data.creditsLeft === "number" ? data.creditsLeft : isFreeReply(item) ? balance : Math.max(0, balance - 1);
         setBalance(left);
         refreshUnread();
         if (choice?.guardianConsent) refreshProfile();
@@ -678,7 +685,15 @@ export function MutualSuggestionsView({
       ) : (
         <div className="space-y-6">
           {/* 0 credits: everything stays visible and «لا» is free; only «مهتم» waits for a recharge */}
-          {tab === "interested" && outOfCredits && topUp ? (
+          {tab === "interested" && outOfCredits && freeInterestReply ? (
+            <div role="note" className="flex flex-wrap items-center gap-3 rounded-xl border border-emerald-200/60 bg-emerald-50/70 p-4 text-sm leading-relaxed text-emerald-900">
+              <Heart className="h-4 w-4 shrink-0" aria-hidden="true" />
+              <p className="min-w-0 flex-1">
+                <span className="font-semibold">{g("شخص مهتم بك ينتظر ردّك.", "شخص مهتم بكِ ينتظر ردّكِ.")}</span>{" "}
+                {g("الرد بـ«مهتم» مجاني حتى برصيد صفر.", "الرد بـ«مهتم» مجاني حتى برصيد صفر.")}
+              </p>
+            </div>
+          ) : tab === "interested" && outOfCredits && topUp ? (
             <div role="note" className="flex flex-wrap items-center gap-3 rounded-xl border border-amber-200/60 bg-amber-50/70 p-4 text-sm leading-relaxed text-amber-900">
               <Heart className="h-4 w-4 shrink-0" aria-hidden="true" />
               <p className="min-w-0 flex-1">
@@ -780,14 +795,19 @@ export function MutualSuggestionsView({
                           {item.expiresAt && ` يُغلق الاقتراح تلقائياً يوم ${formatNextDate(item.expiresAt, country)} إن لم يكتمل.`}
                         </p>
                       )}
-                      {tab === "interested" && !outOfCredits && (
+                      {tab === "interested" && (!outOfCredits || isFreeReply(item)) && (
                         <p className="mb-3 flex items-center gap-1.5 text-xs font-medium text-foreground/85">
                           <Heart className="h-3.5 w-3.5 text-accent" aria-hidden="true" />
                           {g("«مهتم» الآن توافق فوري", "«مهتم» الآن توافق فوري")}
                         </p>
                       )}
                       {!waiting && creditOnInterest && (
-                        outOfCredits ? (
+                        isFreeReply(item) ? (
+                          <p className="mb-3 flex items-center gap-1.5 text-xs font-medium text-emerald-700">
+                            <Coins className="h-3.5 w-3.5" aria-hidden="true" />
+                            {FREE_REPLY_SHORT}
+                          </p>
+                        ) : outOfCredits ? (
                           <p className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-amber-800">
                             <Coins className="h-3.5 w-3.5" aria-hidden="true" />
                             <Link href="/dashboard/payments" className="font-semibold underline underline-offset-4">
@@ -806,7 +826,7 @@ export function MutualSuggestionsView({
                           <>
                             <Button
                               onClick={() => onInterested(item)}
-                              disabled={acting === item.id || outOfCredits}
+                              disabled={acting === item.id || (outOfCredits && !isFreeReply(item))}
                               className="flex-1 h-12 bg-gradient-to-l from-primary to-secondary text-primary-foreground shadow-md shadow-primary/20 rounded-xl font-bold text-base"
                             >
                               {acting === item.id ? <Loader2 className="h-5 w-5 animate-spin" /> : <><HeartHandshake className="h-5 w-5 me-2" />{g("مهتم", "مهتمة")}</>}
@@ -881,6 +901,7 @@ export function MutualSuggestionsView({
           chatEnabled={chatEnabled}
           guardian={guardian}
           costOnly={!!interestFor && interestFor.kind !== "mutual"}
+          free={!!interestFor && isFreeReply(interestFor)}
           onConfirm={async (choice) => {
             const item = interestFor;
             if (!item) return false;

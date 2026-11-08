@@ -23,6 +23,7 @@ import { useInView } from "@/hooks/use-in-view";
 import { PageHeroPhoto } from "@/components/shared/page-hero-photo";
 import { IslamicPatternBg } from "@/components/shared/islamic-pattern";
 import { useVisitorCountry } from "@/components/shared/visitor-country";
+import { FREE_REPLY_LINE } from "@/lib/suggestions/copy";
 
 /* ──────────────────── DATA ──────────────────── */
 
@@ -31,7 +32,7 @@ import { useVisitorCountry } from "@/components/shared/visitor-country";
  * free, up to 5 open suggestions, refund on no answer) the suggestion, request, chat and credit
  * items read differently from the per-request mode.
  */
-function buildSections(coi: boolean) {
+function buildSections(coi: boolean, freeReply = false) {
   return [
   {
     icon: UserCheck,
@@ -114,6 +115,7 @@ function buildSections(coi: boolean) {
         ? [
             "يحصل كل مستخدم جديد على 3 أرصدة مجانية عند التسجيل، والاقتراحات مجانية.",
             "يُخصم رصيد واحد عند اختيار «مهتم» على اقتراح، أما «لا» والتوافق والطلبات والمحادثة بعده فمجانية.",
+            ...(freeReply ? [FREE_REPLY_LINE] : []),
             "يعود الرصيد إذا انتهت مدة الاقتراح (7 أيام) دون ردّ من الطرف الآخر، ولا يعود إذا كان ردّه بالرفض.",
           ]
         : [
@@ -163,7 +165,7 @@ function buildSections(coi: boolean) {
 }
 
 /** Saudi version (reviewed copy from naseebak-ksa) */
-function buildSaSections(coi: boolean) {
+function buildSaSections(coi: boolean, freeReply = false) {
   return [
   {
     icon: UserCheck,
@@ -248,6 +250,7 @@ function buildSaSections(coi: boolean) {
         ? [
             "يحصل كل مستخدم جديد على 3 أرصدة مجانية عند التسجيل، والاقتراحات مجانية.",
             "يُخصم رصيد واحد عند اختيار «مهتم» على اقتراح، أما «لا» والتوافق والطلبات والمحادثة بعده فمجانية.",
+            ...(freeReply ? [FREE_REPLY_LINE] : []),
             "يعود الرصيد إذا انتهت مدة الاقتراح (7 أيام) دون ردّ من الطرف الآخر، ولا يعود إذا كان ردّه بالرفض.",
           ]
         : [
@@ -304,9 +307,9 @@ function buildSaSections(coi: boolean) {
 /*            TERMS & CONDITIONS PAGE                    */
 /* ══════════════════════════════════════════════════════ */
 
-export function TermsView({ creditOnInterest }: { creditOnInterest: boolean }) {
+export function TermsView({ creditOnInterest, freeInterestReply = false }: { creditOnInterest: boolean; freeInterestReply?: boolean }) {
   const sa = useVisitorCountry() === "SA";
-  const sections = sa ? buildSaSections(creditOnInterest) : buildSections(creditOnInterest);
+  const sections = sa ? buildSaSections(creditOnInterest, freeInterestReply) : buildSections(creditOnInterest, freeInterestReply);
   const { ref: introRef, inView: introInView } = useInView(0.15);
   const { ref: sectionsRef, inView: sectionsInView } = useInView(0.1);
   const { ref: contactRef, inView: contactInView } = useInView(0.15);

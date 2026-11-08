@@ -26,3 +26,20 @@ describe("credit-on-interest copy", () => {
     );
   });
 });
+
+describe("free «مهتم» reply copy (free_interest_reply)", () => {
+  it("FAQ (both countries) and landing add the free-reply line only when the switch is on", async () => {
+    const { FREE_REPLY_LINE } = await import("@/lib/suggestions/copy");
+    for (const country of ["JO", "SA"] as const) {
+      const on = JSON.stringify(faqsFor(true, true, true, country, null, true));
+      const off = JSON.stringify(faqsFor(true, true, true, country, null, false));
+      expect(on).toContain(FREE_REPLY_LINE);
+      expect(off).not.toContain(FREE_REPLY_LINE);
+    }
+    // needs credit on interest
+    expect(JSON.stringify(faqsFor(true, true, false, "JO", null, true))).not.toContain(FREE_REPLY_LINE);
+    const landingOn = JSON.stringify(landingContent({ introRequests: true, chat: true, creditOnInterest: true, freeInterestReply: true }));
+    expect(landingOn).toContain(FREE_REPLY_LINE);
+    expect(JSON.stringify(landingContent({ introRequests: true, chat: true, creditOnInterest: true }))).not.toContain(FREE_REPLY_LINE);
+  });
+});

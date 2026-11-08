@@ -3,7 +3,7 @@
  * New-cycle answers replace legacy ones when the switches are on. Per visitor country:
  * JO = the original answers, SA = the reviewed Saudi copy (naseebak-ksa).
  */
-import { CREDIT_ON_INTEREST_LINE } from "@/lib/suggestions/copy";
+import { CREDIT_ON_INTEREST_LINE, creditLine } from "@/lib/suggestions/copy";
 import { packagesSentence, type PackagePrices } from "@/lib/payments/packages";
 import type { CountryCode } from "@/lib/countries";
 
@@ -273,12 +273,15 @@ function saCreditOnInterestAnswers(chat: boolean, prices?: PackagePrices | null)
 }
 
 /** FAQ for the visitor's country (Jordan = the original answers) */
-export function faqsFor(newCycle: boolean, chat: boolean, creditOnInterest = false, country: CountryCode = "JO", prices?: PackagePrices | null) {
+/** `freeReply`: switch `free_interest_reply` (only with credit on interest) adds the free-reply line */
+export function faqsFor(newCycle: boolean, chat: boolean, creditOnInterest = false, country: CountryCode = "JO", prices?: PackagePrices | null, freeReply = false) {
   const sa = country === "SA";
   const overrides = newCycle
     ? sa
       ? { ...saNewCycleAnswers(chat, prices), ...(creditOnInterest ? saCreditOnInterestAnswers(chat, prices) : {}) }
       : { ...newCycleAnswers(chat, prices), ...(creditOnInterest ? creditOnInterestAnswers(chat, prices) : {}) }
     : {};
-  return (sa ? saBaseFaqs : baseFaqs).map((f) => (overrides[f.id] ? { ...f, a: overrides[f.id] } : f));
+  const withFree = (a: string) =>
+    creditOnInterest && freeReply ? a.replace(CREDIT_ON_INTEREST_LINE, creditLine(true)) : a;
+  return (sa ? saBaseFaqs : baseFaqs).map((f) => (overrides[f.id] ? { ...f, a: withFree(overrides[f.id]) } : f));
 }

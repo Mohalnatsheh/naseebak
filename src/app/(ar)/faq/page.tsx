@@ -7,5 +7,5 @@ import { FaqContent } from "./faq-content";
 export default async function FaqPage() {
   const [flags, country] = await Promise.all([getCycleFlags(), getVisitorCountry()]);
   const { packagePrices } = await getCountrySettings(country);
-  return <FaqContent newCycle={flags.introRequests} chat={flags.chat} creditOnInterest={flags.creditOnInterest} country={country} prices={packagePrices} />;
+  return <FaqContent newCycle={flags.introRequests} chat={flags.chat} creditOnInterest={flags.creditOnInterest} freeInterestReply={!!flags.freeInterestReply} country={country} prices={packagePrices} />;
 }

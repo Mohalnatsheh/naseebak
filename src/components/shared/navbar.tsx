@@ -72,7 +72,8 @@ export function Navbar() {
   return (
     <header
       className={cn(
-        "fixed top-0 right-0 left-0 z-50 transition-all duration-500",
+        // Below the Android «تطبيق نصيبك» bar while it is on screen (AppDownloadBanner sets the variable)
+        "fixed top-[var(--app-banner-offset,0px)] right-0 left-0 z-50 transition-[background-color,border-color,box-shadow] duration-500",
         scrolled
           ? "bg-background/60 backdrop-blur-xl border-b border-border/40 shadow-sm shadow-primary/5"
           : "bg-transparent"
@@ -186,7 +187,8 @@ export function Navbar() {
                 <Menu className="h-5 w-5" />
               </Button>
             </SheetTrigger>
-            <SheetContent side="right" className="w-80 border-r-0" showCloseButton={false}>
+            {/* Scrolls on short phones, so «تسجيل الدخول» at the bottom is always reachable */}
+            <SheetContent side="right" className="w-80 border-r-0 overflow-y-auto overscroll-contain" showCloseButton={false}>
               {/* Mobile menu header */}
               <div className="flex items-center justify-between mb-8">
                 <div className="flex items-center gap-2">
@@ -276,8 +278,8 @@ export function Navbar() {
                 </Button>
               </div>
 
-              {/* Bottom decoration */}
-              <div className="absolute bottom-8 left-0 right-0 flex justify-center">
+              {/* Bottom decoration: in the flow, so it never sits on top of the buttons */}
+              <div className="mt-auto flex shrink-0 justify-center pb-8 pt-4">
                 <p className="text-xs text-muted-foreground/40">
                   الزواج بالحلال
                 </p>

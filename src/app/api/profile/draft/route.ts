@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { profileDraftSchema } from "@/lib/validations/profile";
 import { needsReviewBody, reviewedChanges } from "@/lib/profile-review";
 import { arabicIssueMessage } from "@/lib/validations/issue-message";
+import { applyNiqabRule } from "@/lib/profile-veil";
 
 export async function PATCH(request: Request) {
   try {
@@ -45,6 +46,11 @@ export async function PATCH(request: Request) {
     if (data.interests !== undefined) updateData.interests = data.interests || null;
     if (data.lifestyle !== undefined) updateData.lifestyle = data.lifestyle || null;
     if (data.hijab !== undefined) updateData.hijab = data.hijab;
+    if (data.niqab !== undefined) updateData.niqab = data.niqab;
+    // niqab ⇒ hijab; hijab false ⇒ no niqab; leaving niqab out never clears it
+    Object.assign(updateData, applyNiqabRule({ hijab: updateData.hijab, niqab: updateData.niqab }));
+    if (updateData.hijab === undefined) delete updateData.hijab;
+    if (updateData.niqab === undefined) delete updateData.niqab;
     if (data.smokingStatus !== undefined) updateData.smokingStatus = data.smokingStatus || null;
     if (data.aboutMe !== undefined) updateData.aboutMe = data.aboutMe || null;
     if (data.area !== undefined) updateData.area = data.area || null;

@@ -52,6 +52,7 @@ export interface ProfileForScoring {
   religiosity?: string | null;
   smokingStatus?: string | null;
   hijab?: boolean | null;
+  niqab?: boolean | null;
   beard?: boolean | null;
   childrenCount?: number;
   isComplete?: boolean;
@@ -108,9 +109,21 @@ export function cosineSimilarity(vecA: number[], vecB: number[]): number {
  * older rows and tests use "yes" / "no". null = no preference.
  */
 export function prefYesNo(v: string | null | undefined): "yes" | "no" | null {
-  if (v === "yes" || v === "نعم") return "yes";
+  if (v === "yes" || v === "نعم" || wantsNiqab(v)) return "yes";
   if (v === "no" || v === "لا") return "no";
   return null;
+}
+
+/** prefHijab «منتقبة»: wants a woman with niqab (also counts as "yes" for hijab in prefYesNo). */
+export function wantsNiqab(v: string | null | undefined): boolean {
+  return v === "منتقبة";
+}
+
+/** Whether a woman's hijab answer meets the hijab preference; null when she hasn't answered. */
+function hijabMatches(pref: string | null | undefined, other: ProfileForScoring): boolean | null {
+  if (other.hijab === null || other.hijab === undefined) return null;
+  if (wantsNiqab(pref)) return other.niqab === true;
+  return other.hijab === (prefYesNo(pref) === "yes");
 }
 
 /** prefChildrenAcceptance: "no_children" (older rows) or "لا" from the wizards. */
@@ -220,8 +233,7 @@ export function checkPreferenceMatchDetailed(
   // Hijab preference
   const hijabPref = prefYesNo(profile.prefHijab);
   if (hijabPref && otherGender === "FEMALE" && otherProfile.hijab !== null && otherProfile.hijab !== undefined) {
-    const prefBool = hijabPref === "yes";
-    details.push({ field: "hijab", label: "Hijab", matched: otherProfile.hijab === prefBool, weight: 1, userPref: profile.prefHijab ?? null, candidateValue: otherProfile.hijab ? "yes" : "no" });
+    details.push({ field: "hijab", label: "Hijab", matched: hijabMatches(profile.prefHijab, otherProfile) === true, weight: 1, userPref: profile.prefHijab ?? null, candidateValue: otherProfile.niqab ? "niqab" : otherProfile.hijab ? "yes" : "no" });
   }
 
   // Beard preference
@@ -411,7 +423,7 @@ function dealbreakerHolds(key: DealbreakerKey, owner: ProfileForScoring, other: 
     case "smokingStatus": return inList(owner.prefSmokingStatus, other.smokingStatus);
     case "hijab":
       if (!prefYesNo(owner.prefHijab) || otherGender !== "FEMALE") return null;
-      return other.hijab === null || other.hijab === undefined ? false : other.hijab === (prefYesNo(owner.prefHijab) === "yes");
+      return hijabMatches(owner.prefHijab, other) ?? false;
     case "beard":
       if (!prefYesNo(owner.prefBeard) || otherGender !== "MALE") return null;
       return other.beard === null || other.beard === undefined ? false : other.beard === (prefYesNo(owner.prefBeard) === "yes");

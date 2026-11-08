@@ -122,3 +122,23 @@ describe("a member with no profile row yet (signed up, no setup step saved)", ()
     expect(db.profile.update).not.toHaveBeenCalled();
   });
 });
+
+describe("POST /api/profile/update-request — niqab", () => {
+  it("accepts niqab and adds hijab true to the reviewed changes", async () => {
+    const res = await POST(req({ niqab: true }));
+    expect(res.status).toBe(200);
+    expect(db.profileUpdateRequest.create.mock.calls[0][0].data.changes).toEqual({ niqab: true, hijab: true });
+  });
+
+  it("hijab false (app 1.0.0) also asks to clear niqab", async () => {
+    const res = await POST(req({ hijab: false }));
+    expect(res.status).toBe(200);
+    expect(db.profileUpdateRequest.create.mock.calls[0][0].data.changes).toEqual({ hijab: false, niqab: false });
+  });
+
+  it("saves the «منتقبة» partner preference directly", async () => {
+    const res = await POST(req({ prefHijab: "منتقبة" }));
+    expect(res.status).toBe(200);
+    expect(db.profile.upsert.mock.calls[0][0].update).toEqual({ prefHijab: "منتقبة" });
+  });
+});

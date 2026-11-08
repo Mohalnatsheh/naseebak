@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useDashboardData } from "@/contexts/dashboard-context";
 import { countryConfig } from "@/lib/countries";
 import { describeOption, nationalityLabel, oppositeGender, tribeLabel } from "@/lib/profile-options";
+import { veilLabel } from "@/lib/profile-veil";
 import {
   User, Calendar, MapPin, MapPinned, Flag, Baby, Ruler, Weight, Palette, GraduationCap, BookOpen,
   Briefcase, Wallet, Moon, Cigarette, Activity, UtensilsCrossed, Car, Users, Gem, Home, Heart,
@@ -32,6 +33,7 @@ export interface CandidateDetailsData {
   lifestyle: string | null;
   beard: boolean | null;
   hijab: boolean | null;
+  niqab?: boolean | null;
   tribe: string | null;
   familyOriginArea: string | null;
   numberOfSiblings: number | null;
@@ -124,7 +126,7 @@ export function CandidateDetails({ c }: { c: CandidateDetailsData }) {
         <InfoRow icon={Weight} label="الوزن" value={c.weight ? `${c.weight} ${words.kg}` : null} />
         <InfoRow icon={Palette} label="لون البشرة" value={c.skinColor} />
         {c.hijab !== null && c.hijab !== undefined && (
-          <InfoRow icon={User} label="الحجاب" value={c.hijab ? "نعم" : "لا"} />
+          <InfoRow icon={User} label="الحجاب" value={veilLabel(c.hijab, c.niqab)} />
         )}
         {c.beard !== null && c.beard !== undefined && (
           <InfoRow icon={User} label="اللحية" value={c.beard ? "نعم" : "لا"} />

@@ -64,6 +64,7 @@ import { useDashboardData } from "@/contexts/dashboard-context";
 import { countryConfig, formatDate } from "@/lib/countries";
 import { PageHeader } from "@/components/shared/page-header";
 import { markPageNotificationsRead } from "@/lib/notifications-client";
+import { veilLabel } from "@/lib/profile-veil";
 
 interface Match {
   id: string;
@@ -103,6 +104,7 @@ interface Match {
     lifestyle: string | null;
     beard: boolean | null;
     hijab: boolean | null;
+    niqab?: boolean | null;
     tribe: string | null;
     familyOriginArea: string | null;
     numberOfSiblings: number | null;
@@ -649,7 +651,7 @@ export function MatchesView({ embedded = false }: { embedded?: boolean } = {}) {
                           )}
                           {/* Show hijab when viewing female partner (!isFemale means partner is female) */}
                           {!isFemale && c.hijab !== null && c.hijab !== undefined && (
-                            <InfoRow icon={User} label="الحجاب" value={c.hijab ? "نعم" : "لا"} />
+                            <InfoRow icon={User} label="الحجاب" value={veilLabel(c.hijab, c.niqab)} />
                           )}
                         </Section>
 

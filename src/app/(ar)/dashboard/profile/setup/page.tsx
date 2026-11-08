@@ -21,6 +21,7 @@ import { forViewer } from "@/lib/gendered-copy";
 import { dateOfBirthError, parentInfoSchemaFor } from "@/lib/validations/profile";
 import { BirthDateSelect } from "@/components/profile/birth-date-select";
 import { normalizePhone } from "@/lib/validations/auth";
+import { VEIL_CHOICES, veilChoice, veilFromChoice, type VeilChoice } from "@/lib/profile-veil";
 
 const asOpts = (values: readonly string[]): Opt[] => values.map((v) => ({ value: v, label: v }));
 const educationLevels = asOpts(["ثانوية عامة", "دبلوم", "بكالوريوس", "ماجستير", "دكتوراه"]);
@@ -33,6 +34,9 @@ const relocateOptions: Opt[] = [
 ];
 const jobValues: readonly string[] = OPTION_VALUES.job;
 const preferenceOptions = asOpts(["نعم", "لا", "لا يهم"]);
+/** prefHijab: the stored values stay «نعم» / «لا» / «لا يهم»; «منتقبة» = wants niqab */
+const hijabPrefOptions = asOpts(["نعم", "منتقبة", "لا", "لا يهم"]);
+const veilOptions = asOpts(VEIL_CHOICES);
 const guardianRelationships: Opt[] = [
   { value: "father", label: "الأب" },
   { value: "mother", label: "الأم" },
@@ -78,6 +82,8 @@ export default function ProfileSetupPage() {
     religiosity: "",
     // null = not answered yet (never stored as a "no", which would count against a «prefHijab» dealbreaker)
     hijab: null as boolean | null,
+    // null = not answered; true only with hijab true (one question «الحجاب», three answers)
+    niqab: null as boolean | null,
     beard: null as boolean | null,
     smokingStatus: "",
     cookingAbility: "",
@@ -205,6 +211,7 @@ export default function ProfileSetupPage() {
           maritalStatus: p.maritalStatus || "",
           religiosity: p.religiosity || "",
           hijab: typeof p.hijab === "boolean" ? p.hijab : null,
+          niqab: typeof p.niqab === "boolean" ? p.niqab : null,
           beard: typeof p.beard === "boolean" ? p.beard : null,
           smokingStatus: p.smokingStatus || "",
           cookingAbility: p.cookingAbility || "",
@@ -418,6 +425,7 @@ export default function ProfileSetupPage() {
     if (form.willingToRelocate) payload.willingToRelocate = form.willingToRelocate;
     if (form.religiosity) payload.religiosity = form.religiosity;
     if (form.hijab !== null) payload.hijab = form.hijab;
+    if (form.niqab != null) payload.niqab = form.niqab;
     if (form.beard !== null) payload.beard = form.beard;
     if (form.smokingStatus) payload.smokingStatus = form.smokingStatus;
     if (form.cookingAbility) payload.cookingAbility = form.cookingAbility;
@@ -722,8 +730,8 @@ export default function ProfileSetupPage() {
 
             {/* Gender-specific: hijab for women, beard for men */}
             {gender === "FEMALE" && (
-              <Field id="hijab" label="هل أنتِ محجبة؟" optional>
-                <ChoiceGroup id="hijab" cols={2} options={YES_NO} isSelected={(v) => form.hijab === (v === "yes")} onSelect={(v) => update("hijab", v === "yes")} />
+              <Field id="hijab" label="الحجاب" optional>
+                <ChoiceGroup id="hijab" options={veilOptions} isSelected={(v) => veilChoice(form.hijab, form.niqab) === v} onSelect={(v) => setForm((prev) => ({ ...prev, ...veilFromChoice(v as VeilChoice) }))} />
               </Field>
             )}
 
@@ -823,7 +831,7 @@ export default function ProfileSetupPage() {
 
             {gender === "MALE" && (
               <Field id="prefHijab" label="هل تفضل محجبة؟" optional aside={dealbreaker("hijab", "prefHijab")}>
-                <ChoiceGroup id="prefHijab" options={preferenceOptions} isSelected={(v) => form.prefHijab === v} onSelect={(v) => update("prefHijab", v)} />
+                <ChoiceGroup id="prefHijab" cols={4} options={hijabPrefOptions} isSelected={(v) => form.prefHijab === v} onSelect={(v) => update("prefHijab", v)} />
               </Field>
             )}
 

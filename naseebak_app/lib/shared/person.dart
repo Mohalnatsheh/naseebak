@@ -28,6 +28,7 @@ class PersonDetails {
     this.lifestyle,
     this.beard,
     this.hijab,
+    this.niqab,
     this.tribe,
     this.familyOriginArea,
     this.numberOfSiblings,
@@ -63,6 +64,7 @@ class PersonDetails {
         lifestyle: asString(j['lifestyle']),
         beard: asBool(j['beard']),
         hijab: asBool(j['hijab']),
+        niqab: asBool(j['niqab']),
         tribe: asString(j['tribe']),
         familyOriginArea: asString(j['familyOriginArea']),
         numberOfSiblings: asInt(j['numberOfSiblings']),
@@ -97,6 +99,9 @@ class PersonDetails {
   final String? lifestyle;
   final bool? beard;
   final bool? hijab;
+
+  /// Women only, null = not answered (older rows, app 1.0.0). True implies [hijab].
+  final bool? niqab;
   final String? tribe;
   final String? familyOriginArea;
   final int? numberOfSiblings;
@@ -105,6 +110,13 @@ class PersonDetails {
   final bool? drivingLicense;
   final String? willingToRelocate;
   final String? familyValues;
+}
+
+/// Her answer to «الحجاب»: «منتقبة» when niqab, else «محجبة» / «غير محجبة»; null when not answered.
+String? hijabLabel(bool? hijab, bool? niqab) {
+  if (niqab == true) return 'منتقبة';
+  if (hijab == null) return null;
+  return hijab ? 'محجبة' : 'غير محجبة';
 }
 
 /// Stored option values described in the third person for a man / a woman (mirrors the web's

@@ -13,6 +13,10 @@ class ProfileOptions {
   /// Yes / no partner preferences (stored as is; score.ts `prefYesNo`, `wantsNoChildren`)
   static const yesNo = ['نعم', 'لا', 'لا يهم'];
 
+  /// His hijab preference: the yes / no choices plus «منتقبة» (score.ts `wantsNiqab`; `prefYesNo` reads it as yes)
+  static const niqab = 'منتقبة';
+  static const prefHijab = ['نعم', niqab, 'لا', 'لا يهم'];
+
   /// «شروطي الأساسية» keys (score.ts DEALBREAKER_KEYS)
   static const dealbreakerKeys = [
     'age', 'city', 'education', 'maritalStatus', 'religiosity', 'smokingStatus', 'hijab', 'beard', 'children',

@@ -51,7 +51,7 @@ class _PersonDetailsViewState extends State<PersonDetailsView> {
       if (p.weight != null) _Fact(Icons.monitor_weight_outlined, 'الوزن', '${p.weight} كغ'),
       if (p.skinColor != null) _Fact(Icons.palette_outlined, 'لون البشرة', p.skinColor!),
       if (p.smokingStatus != null) _Fact(Icons.smoke_free_rounded, 'التدخين', _d('smokingStatus', p.smokingStatus)),
-      if (f && p.hijab != null) _Fact(Icons.checkroom_outlined, 'الحجاب', p.hijab! ? 'محجبة' : 'غير محجبة'),
+      if (f && hijabLabel(p.hijab, p.niqab) != null) _Fact(Icons.checkroom_outlined, 'الحجاب', hijabLabel(p.hijab, p.niqab)!),
       if (!f && p.beard != null) _Fact(Icons.face_outlined, 'اللحية', p.beard! ? 'ملتحٍ' : 'غير ملتحٍ'),
       if (p.incomeRange != null) _Fact(Icons.payments_outlined, 'الدخل الشهري', p.incomeRange!),
       if (p.lifestyle != null) _Fact(Icons.self_improvement_rounded, 'نمط الحياة', _d('lifestyle', p.lifestyle)),

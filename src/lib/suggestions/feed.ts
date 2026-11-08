@@ -149,7 +149,7 @@ type Person = {
 const CARD_FIELDS = [
   "city", "area", "nationality", "education", "fieldOfStudy", "job", "incomeRange", "height", "weight",
   "skinColor", "maritalStatus", "religiosity", "smokingStatus", "aboutMe", "hobbies", "interests", "lifestyle",
-  "beard", "hijab", "tribe", "familyOriginArea", "numberOfSiblings", "housingType", "cookingAbility",
+  "beard", "hijab", "niqab", "tribe", "familyOriginArea", "numberOfSiblings", "housingType", "cookingAbility",
   "drivingLicense", "willingToRelocate", "familyValues",
 ] as const;
 

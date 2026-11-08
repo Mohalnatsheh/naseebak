@@ -90,7 +90,7 @@ Changing one of these on the server must keep old app versions working (members 
 - **Status (2026-11-04):** Google Play live with 1.0.0; App Store 1.0.0 (1) in review. Once Apple approves: set the iOS
   store link in Admin → Settings → «Mobile app», check Universal Links on an iPhone, remove the review numbers from
   `EXTRA_TEST_PHONES` on the server.
-- **1.0.1+2 (2026-11-08, Play):** free «مهتم» reply, setup refreshes the cached profile, plus everything listed under
+- **1.0.1+2 (2026-11-08, Play):** free «مهتم» reply, the niqab answer («الحجاب»: محجبة / منتقبة / غير محجبة) and the «منتقبة» partner preference, setup refreshes the cached profile, plus everything listed under
   "Waiting for the next version" below. Bundle: `~/Documents/EvoKey-Projects/naseebak-release-1.0.1/naseebak-1.0.1-2.aab`.
 - **Builds:** bump `version: 1.0.x+N` in `pubspec.yaml` for every upload. Android signing reads
   `android/key.properties` (git-ignored; key `~/.naseebak-keys/naseebak-upload.jks`, alias `upload` — never commit it).

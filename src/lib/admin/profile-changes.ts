@@ -1,3 +1,5 @@
+import { applyNiqabRule } from "@/lib/profile-veil";
+
 /**
  * Turns the `changes` of a ProfileUpdateRequest (sent by the user's profile edit form)
  * into Prisma `profile.update` data. Only fields the edit form can change are applied;
@@ -14,7 +16,7 @@ const STRING_FIELDS = [
 
 const INT_FIELDS = ["height", "weight", "numberOfSiblings", "childrenCount", "prefAgeMin", "prefAgeMax"] as const;
 const FLOAT_FIELDS = ["latitude", "longitude"] as const;
-const BOOL_FIELDS = ["hijab", "beard", "drivingLicense", "wantsPhoto"] as const;
+const BOOL_FIELDS = ["hijab", "niqab", "beard", "drivingLicense", "wantsPhoto"] as const;
 const ARRAY_FIELDS = [
   "prefCity", "prefEducation", "prefMaritalStatus", "prefReligiosity", "prefSmokingStatus",
 ] as const;
@@ -52,5 +54,6 @@ export function buildProfileUpdate(changes: Record<string, unknown>): Record<str
       if (!Number.isNaN(d.getTime())) data[key] = d;
     }
   }
-  return data;
+  // niqab ⇒ hijab, no hijab ⇒ no niqab (a request from app 1.0.0 carries only hijab)
+  return applyNiqabRule(data);
 }

@@ -9,6 +9,7 @@ import { maybeAwardReferral } from "@/lib/referral";
 import { needsReviewBody, reviewedChanges } from "@/lib/profile-review";
 import { getCycleFlags } from "@/lib/settings";
 import { arabicIssueMessage } from "@/lib/validations/issue-message";
+import { applyNiqabRule } from "@/lib/profile-veil";
 
 /** The fields `profileSchema` requires (the short setup). */
 const REQUIRED_BASICS = [
@@ -109,12 +110,15 @@ export async function PUT(request: Request) {
       dateOfBirth, city, nationality, education, fieldOfStudy, job, incomeRange,
       height, weight, skinColor, childrenCount, willingToRelocate, maritalStatus, religiosity,
       familyValues, partnerExpectations, hobbies, interests, lifestyle,
-      hijab, smokingStatus, aboutMe,
+      smokingStatus, aboutMe,
       area, latitude, longitude, tribe, familyOriginArea, numberOfSiblings, housingType,
       beard, cookingAbility, drivingLicense, healthConditions, monthlyExpenses, wantsPhoto,
       prefAgeMin, prefAgeMax, prefCity, prefEducation, prefMaritalStatus,
       prefHijab, prefBeard, prefReligiosity, prefSmokingStatus, prefChildrenAcceptance,
     } = body;
+
+    // niqab ⇒ hijab; hijab false ⇒ no niqab; a body without niqab (app 1.0.0) leaves it as stored
+    const { hijab, niqab } = applyNiqabRule({ hijab: body.hijab as boolean | null | undefined, niqab: body.niqab as boolean | null | undefined });
 
     // «شروط أساسية» sent with the setup, so the very first suggestions already respect them
     const dealbreakers = Array.isArray(body.dealbreakers)
@@ -131,7 +135,7 @@ export async function PUT(request: Request) {
       skinColor, childrenCount: childrenCount != null ? parseInt(childrenCount) : undefined,
       willingToRelocate, maritalStatus, religiosity,
       familyValues, partnerExpectations, hobbies, interests, lifestyle,
-      hijab, smokingStatus, aboutMe,
+      hijab, niqab, smokingStatus, aboutMe,
       area,
       latitude: latitude ? parseFloat(latitude) : undefined,
       longitude: longitude ? parseFloat(longitude) : undefined,
@@ -180,7 +184,7 @@ export async function PUT(request: Request) {
         skinColor, childrenCount: childrenCount != null ? parseInt(childrenCount) : 0,
         willingToRelocate, maritalStatus, religiosity,
         familyValues, partnerExpectations, hobbies, interests, lifestyle,
-        hijab, smokingStatus, aboutMe,
+        hijab, niqab, smokingStatus, aboutMe,
         area,
         latitude: latitude ? parseFloat(latitude) : null,
         longitude: longitude ? parseFloat(longitude) : null,

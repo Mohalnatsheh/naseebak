@@ -33,6 +33,7 @@ const profileFieldLabels = <String, String>{
   'incomeRange': 'مستوى الدخل',
   'smokingStatus': 'التدخين',
   'hijab': 'الحجاب',
+  'niqab': 'النقاب',
   'beard': 'اللحية',
   'cookingAbility': 'مهارة الطبخ',
   'lifestyle': 'نمط الحياة',
@@ -205,7 +206,13 @@ class _ProfileEditFormState extends ConsumerState<ProfileEditForm> {
       return (null, 'عدد الأبناء مطلوب');
     }
     // The other gender's question is never sent
-    out.remove(_female ? 'beard' : 'hijab');
+    if (_female) {
+      out.remove('beard');
+    } else {
+      out
+        ..remove('hijab')
+        ..remove('niqab');
+    }
     return (out, null);
   }
 
@@ -213,7 +220,7 @@ class _ProfileEditFormState extends ConsumerState<ProfileEditForm> {
     final (values, err) = _collect();
     setState(() => _error = err);
     if (values == null) return;
-    final plan = planProfileEdit(_stored, values);
+    final plan = keepHijabPairTogether(planProfileEdit(_stored, values));
     if (plan.isEmpty) {
       showSnack(context, 'لا توجد تغييرات');
       return;
@@ -318,6 +325,36 @@ class _ProfileEditFormState extends ConsumerState<ProfileEditForm> {
               label: Text(text),
               selected: current == value,
               onSelected: (on) => setState(() => _v[key] = on ? value : null),
+            ),
+        ]),
+      ],
+    );
+  }
+
+  /// Her «الحجاب»: one question, three answers stored as `hijab` + `niqab` (both always sent together)
+  Widget _hijab() {
+    final current = switch ((_v['hijab'], _v['niqab'])) {
+      (_, true) => 'niqab',
+      (true, _) => 'hijab',
+      (false, _) => 'none',
+      _ => null,
+    };
+    const choices = [('hijab', 'محجبة', true, false), ('niqab', 'منتقبة', true, true), ('none', 'غير محجبة', false, false)];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _label('hijab'),
+        Wrap(spacing: 8, runSpacing: 8, children: [
+          for (final (id, text, hijab, niqab) in choices)
+            ChoiceChip(
+              key: Key('hijab-$id'),
+              label: Text(text),
+              selected: current == id,
+              onSelected: (on) => setState(() {
+                // Tapping the chosen answer clears it, like the other yes / no questions
+                _v['hijab'] = on ? hijab : null;
+                _v['niqab'] = on ? niqab : null;
+              }),
             ),
         ]),
       ],
@@ -449,7 +486,7 @@ class _ProfileEditFormState extends ConsumerState<ProfileEditForm> {
         ]),
         _section('نمط الحياة', [
           _choice('smokingStatus', lists.option('smokingStatus')),
-          if (_female) _yesNo('hijab', 'هل أنتِ محجبة؟') else _yesNo('beard', 'هل أنت ملتحٍ؟'),
+          if (_female) _hijab() else _yesNo('beard', 'هل أنت ملتحٍ؟'),
           _choice('cookingAbility', lists.option('cookingAbility')),
           _choice('lifestyle', lists.option('lifestyle'), labelOf: (v) => self('lifestyle', v)),
           _yesNo('drivingLicense', _female ? 'هل لديكِ رخصة قيادة؟' : 'هل لديك رخصة قيادة؟'),

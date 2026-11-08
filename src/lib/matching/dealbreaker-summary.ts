@@ -2,7 +2,7 @@
  * "شرط أساسي" helpers shared by the suggestions panel and the profile wizards:
  * which preferences can be a dealbreaker and how to say them in words.
  */
-import { DEALBREAKER_KEYS, EDUCATION_ORDER, minEducation, prefYesNo, wantsNoChildren, type DealbreakerKey } from "@/lib/matching/score";
+import { DEALBREAKER_KEYS, EDUCATION_ORDER, minEducation, prefYesNo, wantsNiqab, wantsNoChildren, type DealbreakerKey } from "@/lib/matching/score";
 import { describeOption, oppositeGender, type OptionField } from "@/lib/profile-options";
 
 export interface DealbreakerPrefs {
@@ -41,6 +41,7 @@ export function dealbreakerSummary(key: DealbreakerKey, p: DealbreakerPrefs, myG
     case "smokingStatus": return list(p.prefSmokingStatus, "smokingStatus");
     case "hijab": {
       if (myGender && partner !== "FEMALE") return null;
+      if (wantsNiqab(p.prefHijab)) return "منتقبة";
       const v = prefYesNo(p.prefHijab);
       return v ? (v === "yes" ? "محجبة" : "غير محجبة") : null;
     }

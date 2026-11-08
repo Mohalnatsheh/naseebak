@@ -4,6 +4,7 @@ import '../../app/providers.dart';
 import '../../core/network/api_client.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/network/json.dart';
+import '../onboarding/profile_options.dart';
 
 /// `GET /api/profile` → `{ user, completeness }`.
 class MyProfile {
@@ -88,7 +89,7 @@ class PartnerPrefs {
         maritalStatus: asStringList(p['prefMaritalStatus']),
         religiosity: asStringList(p['prefReligiosity']),
         smoking: asStringList(p['prefSmokingStatus']),
-        hijab: _yesNo(p['prefHijab']),
+        hijab: p['prefHijab'] == ProfileOptions.niqab ? ProfileOptions.niqab : _yesNo(p['prefHijab']),
         beard: _yesNo(p['prefBeard']),
         children: _children(p['prefChildrenAcceptance']),
         dealbreakers: asStringList(p['dealbreakers']).toSet(),
@@ -125,7 +126,7 @@ class PartnerPrefs {
         'maritalStatus' => maritalStatus.isNotEmpty,
         'religiosity' => religiosity.isNotEmpty,
         'smokingStatus' => smoking.isNotEmpty,
-        'hijab' => !female && (hijab == 'نعم' || hijab == 'لا'),
+        'hijab' => !female && (hijab == 'نعم' || hijab == 'لا' || hijab == ProfileOptions.niqab),
         'beard' => female && (beard == 'نعم' || beard == 'لا'),
         'children' => children == 'لا',
         _ => false,

@@ -299,6 +299,7 @@ model Profile {
   childrenCount       Int       @default(0)
   willingToRelocate   String?
   hijab               Boolean?
+  niqab               Boolean?
   smokingStatus       String?
   aboutMe             String?
 

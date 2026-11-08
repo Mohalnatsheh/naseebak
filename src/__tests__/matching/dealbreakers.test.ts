@@ -76,3 +76,17 @@ describe("wizard spellings of yes/no preferences", () => {
     expect(passesDealbreakers({ prefChildrenAcceptance: "نعم", dealbreakers: ["children"] }, { childrenCount: 2 }, "MALE")).toBe(true);
   });
 });
+
+describe("niqab dealbreaker", () => {
+  const owner = { prefHijab: "منتقبة", dealbreakers: ["hijab"] };
+  it("passes only a woman with niqab; unknown niqab fails", () => {
+    expect(passesDealbreakers(owner, { hijab: true, niqab: true }, "FEMALE")).toBe(true);
+    expect(passesDealbreakers(owner, { hijab: true, niqab: false }, "FEMALE")).toBe(false);
+    expect(passesDealbreakers(owner, { hijab: true, niqab: null }, "FEMALE")).toBe(false);
+    expect(passesDealbreakers(owner, { hijab: true }, "FEMALE")).toBe(false);
+    expect(passesDealbreakers(owner, { hijab: false, niqab: false }, "FEMALE")).toBe(false);
+  });
+  it("does not apply to men", () => {
+    expect(passesDealbreakers(owner, { beard: true }, "MALE")).toBe(true);
+  });
+});

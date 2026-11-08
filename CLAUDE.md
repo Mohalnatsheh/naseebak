@@ -159,6 +159,7 @@ src/
 - Copy follows gender: `forViewer()`, `forPartner()` (`src/lib/gendered-copy.ts`). The partner is the opposite gender of the viewer.
 - Shared messages use no masculine commands: say «يمكنك …».
 - Counted nouns use `arabicCount()`.
+- Hijab is one question «الحجاب»: محجبة / منتقبة / غير محجبة, stored as `hijab` + `niqab` (2026-11-08). `applyNiqabRule` (`src/lib/profile-veil.ts`) runs in every write path: niqab ⇒ hijab, no hijab ⇒ no niqab, a missing `niqab` never clears it (app 1.0.0). `prefHijab` «منتقبة» needs `niqab` true (score and «شروط أساسية»).
 - Stored option values never change (`"ملتزم"`). Show `selfLabel()` for my own profile and `describeOption()` / `partnerOptions()` for someone else (`src/lib/profile-options.ts`).
 - Text inputs must be ≥ 16px on phones, so iPhone doesn't zoom. Tap targets ≥ 44px.
 - Dialog close ✕ sits at `end-2`.
@@ -382,7 +383,6 @@ Needs a new app version:
 - A `purchase` event, popup tap actions.
 - The filter tip on the app's empty «جديدة» page.
 - The website's «الرصيد أرخص» saving line. A live chat widget in the app.
-- A niqab profile option in the app.
 
 In `naseebak_app/` code, waiting for the next store build: `X-App-Platform`, two Crashlytics fixes, the activity label on cards, the WhatsApp wording for Saudi codes. Details: [naseebak_app/CLAUDE.md](naseebak_app/CLAUDE.md).
 

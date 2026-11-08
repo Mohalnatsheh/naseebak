@@ -643,7 +643,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
                 <InfoRow label="Height / Weight" value={`${p.height || "—"} cm / ${p.weight || "—"} kg`} />
                 <InfoRow label="Religiosity" value={String(p.religiosity || "—")} />
                 <InfoRow label="Smoking" value={String(p.smokingStatus || "—")} />
-                {user.gender === "FEMALE" && <InfoRow label="Hijab" value={p.hijab === true ? "Yes" : p.hijab === false ? "No" : "—"} />}
+                {user.gender === "FEMALE" && <InfoRow label="Hijab" value={p.niqab === true ? "Niqab" : p.hijab === true ? "Yes" : p.hijab === false ? "No" : "—"} />}
                 {user.gender === "MALE" && <InfoRow label="Beard" value={p.beard === true ? "Yes" : p.beard === false ? "No" : "—"} />}
                 <InfoRow label="Tribe" value={String(p.tribe || "—")} />
                 <InfoRow label="About" value={String(p.aboutMe || "—")} />

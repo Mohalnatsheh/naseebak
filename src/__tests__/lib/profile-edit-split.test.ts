@@ -56,3 +56,17 @@ describe("empty hijab / beard answered «لا»", () => {
     expect(buildFillBody(blank, r.fills)).toMatchObject({ hijab: false, beard: false });
   });
 });
+
+describe("hijab and niqab move together", () => {
+  it("an empty niqab next to a stored hijab true is a direct fill", () => {
+    const r = splitProfileEdit({ niqab: true }, { ...stored, hijab: true, niqab: null });
+    expect(r.fills).toEqual({ niqab: true });
+    expect(r.reviewed).toEqual({});
+  });
+
+  it("«غير محجبة» → «منتقبة» goes to review as one change (hijab and niqab)", () => {
+    const r = splitProfileEdit({ hijab: true, niqab: true }, { ...stored, hijab: false, niqab: null });
+    expect(r.reviewed).toEqual({ hijab: true, niqab: true });
+    expect(r.fills).toEqual({});
+  });
+});

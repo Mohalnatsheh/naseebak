@@ -39,3 +39,17 @@ ProfileEditPlan planProfileEdit(Map<String, Object?> stored, Map<String, Object?
   }
   return ProfileEditPlan(fills: fills, reviewed: reviewed);
 }
+
+/// «الحجاب» is one answer stored in two fields (`hijab` + `niqab`, server invariant: niqab ⇒ hijab). When one of
+/// them goes to review, the other changed one goes with it, so a direct save of `niqab` can never flip a reviewed
+/// `hijab` early (or show a half-applied answer).
+ProfileEditPlan keepHijabPairTogether(ProfileEditPlan plan) {
+  const pair = {'hijab', 'niqab'};
+  if (!plan.reviewed.keys.any(pair.contains)) return plan;
+  final fills = {...plan.fills};
+  final reviewed = {...plan.reviewed};
+  for (final k in pair) {
+    if (fills.containsKey(k)) reviewed[k] = fills.remove(k);
+  }
+  return ProfileEditPlan(fills: fills, reviewed: reviewed);
+}

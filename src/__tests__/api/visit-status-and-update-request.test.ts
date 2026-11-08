@@ -78,7 +78,8 @@ describe("POST /api/profile/update-request validation (G68)", () => {
     expect(db.profileUpdateRequest.create).toHaveBeenCalledWith({
       data: {
         userId: "u1",
-        changes: { height: "175", childrenCount: 2, job: "طبيب", skinColor: "", hijab: null, maritalStatus: "مطلق/مطلقة" },
+        // A cleared hijab clears niqab too (applyNiqabRule)
+        changes: { height: "175", childrenCount: 2, job: "طبيب", skinColor: "", hijab: null, niqab: null, maritalStatus: "مطلق/مطلقة" },
         message: "تحديث",
       },
     });

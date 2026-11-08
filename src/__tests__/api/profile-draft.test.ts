@@ -88,3 +88,21 @@ describe("reviewedChanges", () => {
     ).toEqual(["hijab"]);
   });
 });
+
+describe("PATCH /api/profile/draft — niqab", () => {
+  it("saves niqab with hijab true, and hijab false clears it", async () => {
+    db.profile.findUnique.mockResolvedValue({ ...stored, isComplete: false });
+    let res = await patch({ niqab: true });
+    expect(res.status).toBe(200);
+    expect(db.profile.upsert.mock.calls[0][0].update).toMatchObject({ hijab: true, niqab: true });
+    res = await patch({ hijab: false });
+    expect(res.status).toBe(200);
+    expect(db.profile.upsert.mock.calls[1][0].update).toMatchObject({ hijab: false, niqab: false });
+  });
+
+  it("hijab alone never touches niqab", async () => {
+    db.profile.findUnique.mockResolvedValue({ ...stored, isComplete: false });
+    await patch({ hijab: true });
+    expect("niqab" in db.profile.upsert.mock.calls[0][0].update).toBe(false);
+  });
+});

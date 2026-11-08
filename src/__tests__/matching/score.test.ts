@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
   cosineSimilarity,
+  prefYesNo,
+  wantsNiqab,
   checkPreferenceMatch,
   profileQualityScore,
   calculateCompatibility,
@@ -284,5 +286,26 @@ describe("calculateCompatibility", () => {
     });
     const score = calculateCompatibility(userA, userB);
     expect(score).toBeGreaterThan(0);
+  });
+});
+
+describe("niqab preference", () => {
+  it("«منتقبة» counts as wanting a hijab and as wanting niqab", () => {
+    expect(prefYesNo("منتقبة")).toBe("yes");
+    expect(wantsNiqab("منتقبة")).toBe(true);
+    expect(wantsNiqab("نعم")).toBe(false);
+    expect(wantsNiqab(null)).toBe(false);
+  });
+
+  it("matches the hijab detail only for a woman with niqab", () => {
+    const man = { prefHijab: "منتقبة" };
+    expect(checkPreferenceMatch(man, { hijab: true, niqab: true }, "FEMALE")).toBe(1);
+    expect(checkPreferenceMatch(man, { hijab: true, niqab: false }, "FEMALE")).toBe(0);
+    expect(checkPreferenceMatch(man, { hijab: true, niqab: null }, "FEMALE")).toBe(0);
+    expect(checkPreferenceMatch(man, { hijab: false }, "FEMALE")).toBe(0);
+  });
+
+  it("«نعم» still matches a woman with niqab (she wears hijab)", () => {
+    expect(checkPreferenceMatch({ prefHijab: "نعم" }, { hijab: true, niqab: true }, "FEMALE")).toBe(1);
   });
 });

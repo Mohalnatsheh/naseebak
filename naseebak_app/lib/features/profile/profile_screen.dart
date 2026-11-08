@@ -46,6 +46,7 @@ class ProfileScreen extends ConsumerWidget {
             ('التعليم', v('education')),
             ('الحالة الاجتماعية', v('maritalStatus') == null ? null : OptionLabels.self('maritalStatus', v('maritalStatus')!, female: female)),
             ('التدين', v('religiosity') == null ? null : OptionLabels.self('religiosity', v('religiosity')!, female: female)),
+            if (female) ('الحجاب', hijabLabel(asBool(p.field('hijab')), asBool(p.field('niqab')))),
             ('العمر المناسب للشريك',
                 p.field('prefAgeMin') == null ? null : '${asInt(p.field('prefAgeMin'))} – ${asInt(p.field('prefAgeMax'))}'),
           ];

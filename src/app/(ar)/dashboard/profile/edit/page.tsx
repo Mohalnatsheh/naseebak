@@ -36,6 +36,7 @@ import { BirthDateSelect } from "@/components/profile/birth-date-select";
 import { normalizePhone } from "@/lib/validations/auth";
 import { splitProfileEdit, buildFillBody } from "@/lib/profile-edit-split";
 import { forViewer } from "@/lib/gendered-copy";
+import { VEIL_CHOICES, veilChoice, veilFromChoice } from "@/lib/profile-veil";
 
 const educationLevels = [
   "ثانوية عامة",
@@ -62,6 +63,8 @@ const housingTypes = HOUSING_TYPES;
 const skinColors = SKIN_COLORS;
 const jobOptions: readonly string[] = OPTION_VALUES.job;
 const preferenceOptions = ["نعم", "لا", "لا يهم"];
+/** prefHijab: the stored values stay «نعم» / «لا» / «لا يهم»; «منتقبة» = wants niqab */
+const hijabPrefOptions = ["نعم", "منتقبة", "لا", "لا يهم"];
 const guardianRelationships = [
   { value: "father", label: "الأب" },
   { value: "mother", label: "الأم" },
@@ -99,6 +102,8 @@ interface ProfileForm {
   religiosity: string;
   /** null = never answered (only «نعم» / «لا» fill it) */
   hijab: boolean | null;
+  /** null = never answered; true only with hijab true (one question «الحجاب», three answers) */
+  niqab: boolean | null;
   beard: boolean | null;
   smokingStatus: string;
   cookingAbility: string;
@@ -147,6 +152,7 @@ const emptyForm: ProfileForm = {
   maritalStatus: "",
   religiosity: "",
   hijab: null,
+  niqab: null,
   beard: null,
   smokingStatus: "",
   cookingAbility: "",
@@ -288,6 +294,7 @@ export default function ProfileEditPage() {
             maritalStatus: p.maritalStatus || "",
             religiosity: p.religiosity || "",
             hijab: typeof p.hijab === "boolean" ? p.hijab : null,
+            niqab: typeof p.niqab === "boolean" ? p.niqab : null,
             beard: typeof p.beard === "boolean" ? p.beard : null,
             smokingStatus: p.smokingStatus || "",
             cookingAbility: p.cookingAbility || "",
@@ -1023,18 +1030,31 @@ export default function ProfileEditPage() {
             {gender === "FEMALE" && (
               <div className="space-y-2">
                 <Label>الحجاب <OptionalTag /></Label>
-                <div className="grid grid-cols-2 gap-2">
-                  {([true, false] as const).map((v) => (
-                    <button
-                      key={String(v)}
-                      aria-pressed={form.hijab === v}
-                      type="button"
-                      onClick={() => update("hijab", v)}
-                      className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.hijab === v ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
-                    >
-                      {v ? "محجبة" : "غير محجبة"}
-                    </button>
-                  ))}
+                <div className="grid grid-cols-3 gap-2">
+                  {VEIL_CHOICES.map((v) => {
+                    const on = veilChoice(form.hijab, form.niqab) === v;
+                    return (
+                      <button
+                        key={v}
+                        aria-pressed={on}
+                        type="button"
+                        // Only the columns whose meaning changes, so an empty niqab next to a stored
+                        // hijab stays a direct fill (see splitProfileEdit)
+                        onClick={() => {
+                          if (on) return;
+                          const next = veilFromChoice(v);
+                          setForm((prev) => ({
+                            ...prev,
+                            hijab: next.hijab,
+                            niqab: next.niqab || prev.niqab !== null || !next.hijab ? next.niqab : prev.niqab,
+                          }));
+                        }}
+                        className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${on ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
+                      >
+                        {v}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -1277,8 +1297,8 @@ export default function ProfileEditPage() {
                 <Label className="block min-w-0 flex-1 leading-relaxed">هل تفضل محجبة؟ <OptionalTag /></Label>
                 {dealbreaker("hijab", "prefHijab")}
               </div>
-                <div className="grid grid-cols-3 gap-2">
-                  {preferenceOptions.map((o) => (
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  {hijabPrefOptions.map((o) => (
                     <button key={o} type="button" onClick={() => update("prefHijab", o)}
                       className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.prefHijab === o ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
                     >{o}</button>

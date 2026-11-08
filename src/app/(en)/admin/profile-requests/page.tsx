@@ -36,7 +36,7 @@ const fieldLabels: Record<string, string> = {
   familyOriginArea: "Family Origin", housingType: "Housing", monthlyExpenses: "Monthly Expenses",
   healthConditions: "Health Conditions", cookingAbility: "Cooking",
   height: "Height", weight: "Weight", numberOfSiblings: "Siblings",
-  hijab: "Hijab", beard: "Beard", drivingLicense: "Driving License",
+  hijab: "Hijab", niqab: "Niqab", beard: "Beard", drivingLicense: "Driving License",
   prefCity: "Pref City", prefEducation: "Pref Education", prefMaritalStatus: "Pref Marital Status",
   prefAgeMin: "Pref Age Min", prefAgeMax: "Pref Age Max",
   prefReligiosity: "Pref Religiosity", prefSmokingStatus: "Pref Smoking",

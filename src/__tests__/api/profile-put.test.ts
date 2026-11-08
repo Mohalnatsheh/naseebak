@@ -177,3 +177,45 @@ describe("PUT /api/profile", () => {
     expect(db.profile.upsert).not.toHaveBeenCalled();
   });
 });
+
+describe("PUT /api/profile — niqab", () => {
+  const woman = { ...storedProfile, hijab: true, niqab: null };
+  const body = { ...payload, hijab: true };
+
+  it("fills an empty niqab directly on a finished profile and keeps hijab true", async () => {
+    db.profile.findUnique.mockResolvedValue(woman);
+    const res = await put({ ...body, niqab: true });
+    expect(res.status).toBe(200);
+    expect(db.profile.upsert.mock.calls[0][0].update).toMatchObject({ hijab: true, niqab: true });
+  });
+
+  it("niqab alone stores hijab true (first setup)", async () => {
+    db.profile.findUnique.mockResolvedValue(null);
+    const res = await put({ ...payload, hijab: undefined, niqab: true });
+    expect(res.status).toBe(200);
+    const call = db.profile.upsert.mock.calls[0][0];
+    expect(call.create).toMatchObject({ hijab: true, niqab: true });
+    expect(call.update).toMatchObject({ hijab: true, niqab: true });
+  });
+
+  it("a body without niqab (app 1.0.0) leaves the stored niqab untouched", async () => {
+    db.profile.findUnique.mockResolvedValue({ ...woman, niqab: true });
+    const res = await put(body);
+    expect(res.status).toBe(200);
+    expect(db.profile.upsert.mock.calls[0][0].update.niqab).toBeUndefined();
+  });
+
+  it("hijab false clears niqab (draft profile)", async () => {
+    db.profile.findUnique.mockResolvedValue({ ...woman, niqab: true, isComplete: false });
+    const res = await put({ ...payload, hijab: false });
+    expect(res.status).toBe(200);
+    expect(db.profile.upsert.mock.calls[0][0].update).toMatchObject({ hijab: false, niqab: false });
+  });
+
+  it("changing a stored niqab after completion needs review", async () => {
+    db.profile.findUnique.mockResolvedValue({ ...woman, niqab: true });
+    const res = await put({ ...body, niqab: false });
+    expect(res.status).toBe(409);
+    expect((await res.json()).fields).toEqual(["niqab"]);
+  });
+});

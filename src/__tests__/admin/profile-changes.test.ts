@@ -37,6 +37,15 @@ describe("buildProfileUpdate", () => {
   });
 });
 
+describe("buildProfileUpdate — niqab", () => {
+  it("applies niqab and keeps the hijab invariant", () => {
+    expect(buildProfileUpdate({ niqab: true })).toEqual({ niqab: true, hijab: true });
+    expect(buildProfileUpdate({ hijab: false })).toEqual({ hijab: false, niqab: false });
+    expect(buildProfileUpdate({ niqab: false })).toEqual({ niqab: false });
+    expect(buildProfileUpdate({ hijab: true })).toEqual({ hijab: true });
+  });
+});
+
 describe("query helpers", () => {
   it("falls back to page 1 on bad values", () => {
     expect(safePagination(new URLSearchParams("page=abc"), 20)).toEqual({ page: 1, pageSize: 20, skip: 0 });

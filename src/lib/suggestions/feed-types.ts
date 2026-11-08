@@ -29,6 +29,7 @@ export interface FeedCandidate {
   lifestyle: string | null;
   beard: boolean | null;
   hijab: boolean | null;
+  niqab: boolean | null;
   tribe: string | null;
   familyOriginArea: string | null;
   numberOfSiblings: number | null;

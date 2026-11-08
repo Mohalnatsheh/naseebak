@@ -40,6 +40,7 @@ describe("dealbreaker summaries", () => {
   it("offers hijab to men only and describes smoking about the partner", () => {
     expect(dealbreakerSummary("hijab", { prefHijab: "نعم" }, "MALE")).toBe("محجبة");
     expect(dealbreakerSummary("hijab", { prefHijab: "نعم" }, "FEMALE")).toBeNull();
+    expect(dealbreakerSummary("hijab", { prefHijab: "منتقبة" }, "MALE")).toBe("منتقبة");
     expect(dealbreakerSummary("smokingStatus", { prefSmokingStatus: ["لا أدخن"] }, "FEMALE")).toBe("غير مدخن");
   });
 });

@@ -9,6 +9,7 @@ import { formatDate } from "@/lib/countries";
 import { compressImage } from "@/lib/image-compress";
 import { arabicCount } from "@/lib/utils";
 import { emptyFilterFields } from "@/lib/profile-completeness";
+import { veilLabel } from "@/lib/profile-veil";
 import Link from "next/link";
 import {
   Loader2,
@@ -812,7 +813,7 @@ export default function ProfilePage() {
               <InfoField
                 icon={User}
                 label="الحجاب"
-                value={p.hijab ? "محجبة" : "غير محجبة"}
+                value={veilLabel(p.hijab, p.niqab) ?? ""}
                 gradient="from-primary/10 to-secondary/5"
               />
             )}

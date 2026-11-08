@@ -5,6 +5,7 @@ import { PREF_AGE_MAX, profileUpdateRequestSchema } from "@/lib/validations/prof
 import { refreshOpenSuggestionsInBackground } from "@/lib/suggestions/refresh";
 import { sendAdminAlert } from "@/lib/admin-alert";
 import { arabicIssueMessage } from "@/lib/validations/issue-message";
+import { applyNiqabRule } from "@/lib/profile-veil";
 
 /**
  * Partner preferences are a private matching filter (like «شروط أساسية»): they save directly, no
@@ -51,7 +52,7 @@ export async function POST(request: Request) {
 
     const userId = session.user.id;
     const prefs: Record<string, unknown> = {};
-    const reviewed: Record<string, unknown> = {};
+    let reviewed: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(changes as Record<string, unknown>)) {
       if ((PREF_KEYS as readonly string[]).includes(k)) {
         const clean = prefValue(k, v);
@@ -61,6 +62,8 @@ export async function POST(request: Request) {
         reviewed[k] = v;
       }
     }
+    // niqab ⇒ hijab; hijab false ⇒ no niqab (also re-applied at the admin approval)
+    reviewed = applyNiqabRule(reviewed);
     // min ≤ max, also when only one end changes (compare with the stored other end)
     if ("prefAgeMin" in prefs || "prefAgeMax" in prefs) {
       let min = prefs.prefAgeMin as number | null | undefined;

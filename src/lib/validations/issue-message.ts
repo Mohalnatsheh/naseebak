@@ -35,6 +35,7 @@ const FIELD_LABELS: Record<string, string> = {
   interests: "الاهتمامات",
   lifestyle: "نمط الحياة",
   hijab: "الحجاب",
+  niqab: "النقاب",
   smokingStatus: "التدخين",
   aboutMe: "نبذة عني",
   area: "المنطقة",

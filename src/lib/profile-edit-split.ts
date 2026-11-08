@@ -23,6 +23,13 @@ export function splitProfileEdit(
     else if (isEmptyStored(stored[key]) && !isEmptyStored(value)) fills[key] = value;
     else reviewed[key] = value;
   }
+  // «الحجاب» is one answer stored in two columns: when either needs review, both go to review
+  // (a fill of niqab: true next to a reviewed hijab change would be refused by PUT /api/profile)
+  if ("hijab" in reviewed || "niqab" in reviewed) {
+    for (const key of ["hijab", "niqab"]) {
+      if (key in fills) { reviewed[key] = fills[key]; delete fills[key]; }
+    }
+  }
   return { fills, prefs, reviewed };
 }
 

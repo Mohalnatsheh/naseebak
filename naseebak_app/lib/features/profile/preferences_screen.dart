@@ -186,12 +186,18 @@ class _PreferencesFormState extends ConsumerState<PreferencesForm> {
     );
   }
 
-  Widget _single(String? value, ValueChanged<String?> onPick) {
+  Widget _single(String? value, ValueChanged<String?> onPick, {List<String> options = ProfileOptions.yesNo, String? keyPrefix}) {
     return Wrap(
       spacing: 8,
+      runSpacing: 8,
       children: [
-        for (final o in ProfileOptions.yesNo)
-          ChoiceChip(label: Text(o), selected: value == o, onSelected: (on) => onPick(on ? o : null)),
+        for (final o in options)
+          ChoiceChip(
+            key: keyPrefix == null ? null : Key('$keyPrefix-$o'),
+            label: Text(o),
+            selected: value == o,
+            onSelected: (on) => onPick(on ? o : null),
+          ),
       ],
     );
   }
@@ -248,7 +254,8 @@ class _PreferencesFormState extends ConsumerState<PreferencesForm> {
             labelOf: (v) => OptionLabels.describe('maritalStatus', v, female: _partnerFemale)),
         _title(widget.female ? 'هل تفضلين ملتحياً؟' : 'هل تفضل محجبة؟', yesNoKey,
             filled: _yesNo != null && _yesNo != 'لا يهم'),
-        _single(_yesNo, (v) => _change(() => _yesNo = v)),
+        _single(_yesNo, (v) => _change(() => _yesNo = v),
+            options: widget.female ? ProfileOptions.yesNo : ProfileOptions.prefHijab, keyPrefix: 'pref-$yesNoKey'),
         _title('مستوى التدين', 'religiosity', filled: _religiosity.isNotEmpty),
         _multi(ProfileOptions.religiosity, _religiosity,
             labelOf: (v) => OptionLabels.describe('religiosity', v, female: _partnerFemale)),

@@ -313,7 +313,7 @@ Detail: [docs/reference/suggestions-and-credits.md](docs/reference/suggestions-a
 
 ## Deployment
 
-**Production: `e7c9b3c` (profile hint for empty fields others use as «شروط أساسية», hijab/beard as «نعم / لا»), deployed 2026-11-07, slot a.**
+**Production: `8b3a659` (Saudi relaxed matching switch `sa_relaxed_matching`, off), deployed 2026-11-08, slot b.**
 
 Update that one line after each deploy. Don't list past versions. The live revision is in `/var/www/naseebak/REVISION`.
 

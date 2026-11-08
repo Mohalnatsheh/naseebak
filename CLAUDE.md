@@ -313,7 +313,7 @@ Detail: [docs/reference/suggestions-and-credits.md](docs/reference/suggestions-a
 
 ## Deployment
 
-**Production: `dc18947` (mobile header no longer hidden under the Android app bar; menu scrolls), deployed 2026-11-08, slot a.**
+**Production: `498628e` (app profile edit: stored basics kept on a finished profile; Arabic validation errors), deployed 2026-11-08, slot b.**
 
 Update that one line after each deploy. Don't list past versions. The live revision is in `/var/www/naseebak/REVISION`.
 

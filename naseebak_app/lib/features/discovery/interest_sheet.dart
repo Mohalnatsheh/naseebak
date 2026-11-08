@@ -21,6 +21,7 @@ class InterestSheet extends StatefulWidget {
     this.canRecharge = true,
     this.viewerFemale = false,
     this.onNoCredits,
+    this.free = false,
   });
 
   final String firstName;
@@ -38,6 +39,9 @@ class InterestSheet extends StatefulWidget {
 
   /// NO_CREDITS: the stored balance is 0 now
   final VoidCallback? onNoCredits;
+
+  /// A reply to someone who already said «مهتم» with free_interest_reply on: no credit is taken
+  final bool free;
 
   /// A [DecisionResult] when sent, the [ApiException] when the card is gone (404: the sheet closes so the
   /// card can leave the list), null when dismissed.
@@ -148,7 +152,15 @@ class _InterestSheetState extends State<InterestSheet> {
                 ),
               ),
             ],
-            if (widget.creditOnInterest) ...[
+            if (widget.creditOnInterest && widget.free) ...[
+              const SizedBox(height: 12),
+              InfoBanner(
+                key: const Key('free-reply-note'),
+                tone: BannerTone.success,
+                text: 'الرد بـ«مهتم» مجاني، ولن يُخصم شيء من ${widget.viewerFemale ? 'رصيدكِ' : 'رصيدك'}.',
+                icon: Icons.favorite_outline,
+              ),
+            ] else if (widget.creditOnInterest) ...[
               const SizedBox(height: 12),
               InfoBanner(
                 text: 'يُخصم رصيد واحد عند إرسال «مهتم»${widget.credits != null ? ' · رصيدك الحالي ${widget.credits}' : ''}.',

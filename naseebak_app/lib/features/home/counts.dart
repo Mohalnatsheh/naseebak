@@ -4,13 +4,14 @@ import '../../app/providers.dart';
 import '../../core/auth/auth_controller.dart';
 import '../../core/network/json.dart';
 
-/// The four new-cycle switches (`flags` of `/api/me/counts`).
+/// The new-cycle switches (`flags` of `/api/me/counts`).
 class CycleFlags {
   const CycleFlags({
     this.introRequests = false,
     this.chat = false,
     this.mutualSuggestions = false,
     this.creditOnInterest = false,
+    this.freeInterestReply = false,
   });
 
   factory CycleFlags.fromJson(Map<String, dynamic> j) => CycleFlags(
@@ -18,12 +19,16 @@ class CycleFlags {
         chat: asBool(j['chat']) ?? false,
         mutualSuggestions: asBool(j['mutualSuggestions']) ?? false,
         creditOnInterest: asBool(j['creditOnInterest']) ?? false,
+        freeInterestReply: asBool(j['freeInterestReply']) ?? false,
       );
 
   final bool introRequests;
   final bool chat;
   final bool mutualSuggestions;
   final bool creditOnInterest;
+
+  /// Switch free_interest_reply: «مهتم» on a card that already says «أبدى اهتمامه بك» costs nothing, also at 0
+  final bool freeInterestReply;
 }
 
 /// `GET /api/me/counts`

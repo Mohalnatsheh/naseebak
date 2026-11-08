@@ -221,6 +221,12 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
   bool _outOfCredits(Counts? counts, int? credits) =>
       (counts?.flags.creditOnInterest ?? false) && credits != null && credits <= 0;
 
+  /// A reply to someone who already said «مهتم» (free_interest_reply): no credit, so never locked at 0
+  bool _freeReply(Counts? counts, FeedItem item) =>
+      (counts?.flags.freeInterestReply ?? false) && item.kind == FeedKind.mutual && item.likedYou;
+
+  static const _freeReplyNote = 'الرد بـ«مهتم» مجاني';
+
   Future<void> _load() async {
     setState(() {
       _loading = true;
@@ -366,6 +372,7 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
             firstName: item.candidate.firstName,
             chatAvailable: (counts?.flags.chat ?? false) && (me?.country.chatEnabled ?? true),
             creditOnInterest: counts?.flags.creditOnInterest ?? false,
+            free: _freeReply(counts, item),
             credits: me?.credits,
             canRecharge: ref.read(appPaymentsProvider),
             guardianConsented: counts?.guardianConsented ?? false,
@@ -426,6 +433,14 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
     if (done && mounted) _removeAndTopUp(item);
   }
 
+  /// «مهتمون بك» at 0 credits with free_interest_reply on: the reply needs no credit
+  Widget _freeReplyBanner() => InfoBanner(
+        key: const Key('free-reply'),
+        tone: BannerTone.success,
+        icon: Icons.favorite_outline,
+        text: '${_g('شخص مهتم بك ينتظر ردّك.', 'شخص مهتم بكِ ينتظر ردّكِ.')} الرد بـ«مهتم» مجاني حتى برصيد صفر.',
+      );
+
   /// 0 credits: everything stays visible and «لا» is free; only «مهتم» waits for a recharge
   Widget _zeroBalance(BuildContext context) {
     final canRecharge = ref.watch(appPaymentsProvider);
@@ -457,7 +472,11 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
     final creditNote =
         (counts?.flags.creditOnInterest ?? false) && !outOfCredits ? '«مهتم» يستخدم رصيداً واحداً' : null;
     final bar = widget.tab == FeedTab.newTab && onEdit != null ? PreferencesBar(onEdit: onEdit) : null;
-    final banner = widget.tab != FeedTab.waiting && outOfCredits && _items.isNotEmpty ? _zeroBalance(context) : null;
+    // «مهتمون بك» with the free reply on: every card here can be answered, so no recharge banner
+    final freeTab = widget.tab == FeedTab.interested && (counts?.flags.freeInterestReply ?? false);
+    final banner = widget.tab != FeedTab.waiting && outOfCredits && _items.isNotEmpty
+        ? (freeTab ? _freeReplyBanner() : _zeroBalance(context))
+        : null;
     final headers = [?bar, ?banner];
     final head = headers.length;
     return RefreshIndicator(
@@ -498,8 +517,8 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
                     candidateFemale: !(me?.isFemale ?? false),
                     tribeLabel: me?.country.tribeWord ?? 'العائلة',
                     busy: _busy.contains(item.id),
-                    interestDisabled: outOfCredits,
-                    creditNote: creditNote,
+                    interestDisabled: outOfCredits && !_freeReply(counts, item),
+                    creditNote: _freeReply(counts, item) ? _freeReplyNote : creditNote,
                     onInterested: () => _interested(item),
                     onDecline: () => _decline(item),
                     onBlock: () => _safety(item, report: false),

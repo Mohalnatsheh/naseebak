@@ -25,8 +25,14 @@ Map<String, dynamic> card(String id, {bool likedYou = false}) => {
       'candidate': {'id': 'c-$id', 'firstName': 'أحمد', 'age': 30, 'city': 'عمّان'},
     };
 
-Map<String, dynamic> counts({bool creditOnInterest = true, int credits = 5, int likedYou = 0}) => {
-      'flags': {'introRequests': true, 'chat': true, 'mutualSuggestions': true, 'creditOnInterest': creditOnInterest},
+Map<String, dynamic> counts({bool creditOnInterest = true, int credits = 5, int likedYou = 0, bool freeReply = false}) => {
+      'flags': {
+        'introRequests': true,
+        'chat': true,
+        'mutualSuggestions': true,
+        'creditOnInterest': creditOnInterest,
+        'freeInterestReply': creditOnInterest && freeReply,
+      },
       'credits': credits,
       'newSuggestions': 1,
       'likedYou': likedYou,
@@ -43,7 +49,15 @@ class Harness {
     List<Map<String, dynamic>>? items,
     this.emptyReason,
     this.likedYou = 0,
+    this.freeReply = false,
+    this.itemsTab = 'new',
   }) : items = items ?? [card('s1')];
+
+  /// Switch free_interest_reply
+  final bool freeReply;
+
+  /// The feed tab that holds [items]
+  final String itemsTab;
 
   final bool creditOnInterest;
   final int credits;
@@ -62,7 +76,7 @@ class Harness {
       ..on('GET', '/api/mobile/me',
           FakeResponse(200, {'user': {...meJson(credits: credits), 'gender': gender, 'appPayments': appPayments}}))
       ..on('GET', '/api/me/counts',
-          FakeResponse(200, counts(creditOnInterest: creditOnInterest, credits: credits, likedYou: likedYou)))
+          FakeResponse(200, counts(creditOnInterest: creditOnInterest, credits: credits, likedYou: likedYou, freeReply: freeReply)))
       ..on('GET', '/api/profile/dealbreakers', const FakeResponse(200, {'profile': {'dealbreakers': []}}))
       ..on('POST', '/api/reports', const FakeResponse(201, {'ok': true}));
     // Like the server: a blocked or answered card is no longer in the feed
@@ -73,7 +87,7 @@ class Harness {
     adapter.handlers['GET /api/suggestions'] =
         (_) => FakeResponse(200, {'mutualView': true, 'emptyReason': emptyReason});
     adapter.handlers['GET /api/suggestions/feed'] = (r) => FakeResponse(200, {
-          'items': r.queryParameters['tab'] == 'new' ? items : <Map<String, dynamic>>[],
+          'items': r.queryParameters['tab'] == itemsTab ? items : <Map<String, dynamic>>[],
           'page': 1,
           'total': 1,
           'totalPages': 1,
@@ -204,6 +218,42 @@ void main() {
       await h.pump(tester);
       expect(tester.widget<FilledButton>(find.byKey(const Key('interested-s1'))).onPressed, isNotNull);
       expect(find.byKey(const Key('zero-balance')), findsNothing);
+    });
+  });
+
+  group('free «مهتم» reply (free_interest_reply) at 0 credits', () {
+    Harness liked() => Harness(credits: 0, freeReply: true, itemsTab: 'interested', items: [card('s1', likedYou: true)], likedYou: 1);
+
+    testWidgets('a card that liked you: «مهتمة» enabled, says the reply is free, no recharge banner', (tester) async {
+      final h = liked();
+      await h.pump(tester, tab: FeedTab.interested);
+      expect(tester.widget<FilledButton>(find.byKey(const Key('interested-s1'))).onPressed, isNotNull);
+      expect(find.textContaining('الرد بـ«مهتم» مجاني'), findsWidgets);
+      expect(find.byKey(const Key('zero-balance')), findsNothing);
+      expect(find.byKey(const Key('recharge')), findsNothing);
+      expect(find.text('«مهتم» يستخدم رصيداً واحداً'), findsNothing);
+    });
+
+    testWidgets('the sheet says the reply is free, not that a credit is taken', (tester) async {
+      final h = liked();
+      await h.pump(tester, tab: FeedTab.interested);
+      await tester.tap(find.byKey(const Key('interested-s1')));
+      await pumpFor(tester);
+      expect(find.textContaining('يُخصم رصيد واحد'), findsNothing);
+      expect(find.textContaining('الرد بـ«مهتم» مجاني'), findsWidgets);
+    });
+
+    testWidgets('a card that did not like you stays locked at 0 credits', (tester) async {
+      final h = Harness(credits: 0, freeReply: true);
+      await h.pump(tester);
+      expect(tester.widget<FilledButton>(find.byKey(const Key('interested-s1'))).onPressed, isNull);
+      expect(find.byKey(const Key('zero-balance')), findsOneWidget);
+    });
+
+    testWidgets('switch off: the liked card stays locked at 0 credits', (tester) async {
+      final h = Harness(credits: 0, itemsTab: 'interested', items: [card('s1', likedYou: true)], likedYou: 1);
+      await h.pump(tester, tab: FeedTab.interested);
+      expect(tester.widget<FilledButton>(find.byKey(const Key('interested-s1'))).onPressed, isNull);
     });
   });
 

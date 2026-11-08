@@ -27,7 +27,7 @@ How cards are made, ordered, charged and closed.
 - Answering one lets the next in: the app reloads the tab after every answer (`_reload++`), the website reloads «جديدة» quietly (`load(tab, page, { quiet: true })` in `removeAndRefill`).
 - Why: men held a median of 24 open cards (up to 132) and ~14,000 cards a week expired undecided.
 - Cards past 15 still exist and expire.
-- Also parked (needs an app version, owner said not now): a woman's «مهتم» answering a man's «مهتم» for free (242 cards held by 48 women at 0 credits).
+- Done 2026-11-08 for everyone, behind `free_interest_reply` (off by default): answering a «مهتم» is free. Design: `docs/superpowers/specs/2026-11-08-free-interest-reply-design.md`.
 - **To watch:** overall «مهتم» → match was 25.7% (2,048 «مهتم» given 28 Oct–4 Nov 17:34, read on 4 Nov; 38.1% answered).
 - Compare the week after the change (4–11 Nov) with that week, both read on or after 2026-11-18 when every card from both weeks has closed (cards stay open 7 days).
 
@@ -57,7 +57,7 @@ Spec: `docs/superpowers/specs/2026-10-16-credit-on-interest-design.md`. `CycleFl
 - **Refresh after a profile change** (`refreshOpenSuggestions` in `src/lib/suggestions/refresh.ts`, fire-and-forget): an admin-approved profile edit, `PUT /api/profile`, saved partner preferences (`update-request`) and the personality quiz recalculate the match % on the person's shared suggestions they haven't answered, close the ones nobody has answered that no longer fit (either side's dealbreakers, or under the minimum score; admin hand-picks only for dealbreakers), then top up. A card the other side already said «مهتم» on stays open (only its % is updated) until the person answers or it expires (owner decision 2026-11-07; before, it was closed and their credit refunded). The «شروط أساسية» sweep (`dealbreaker-sweep.ts`) follows the same rule.
   - Answered rows are untouched; with shared suggestions off it is only the usual top-up
 - **Admin hand-picks** respect the 10-open cap for both people while credit on interest is on (409), but not the minimum score (an admin may pick a lower-scoring pair on purpose)
-- **Interest is shown, a «لا» only to someone who said «مهتم»** (owner decisions 2026-10-19, replacing the earlier secrecy rule): the feed has three tabs — `new` (nobody answered), `interested` (`likedYou`: the other side already said «مهتم»; a «مهتم» there is an instant match and still costs 1 credit) and `waiting` (my «مهتم»; a row the other side declined carries `declined` and shows «لم يحصل توافق» until its window ends, no refund).
+- **Interest is shown, a «لا» only to someone who said «مهتم»** (owner decisions 2026-10-19, replacing the earlier secrecy rule): the feed has three tabs — `new` (nobody answered), `interested` (`likedYou`: the other side already said «مهتم»; a «مهتم» there is an instant match; it costs 1 credit, or nothing while `free_interest_reply` is on) and `waiting` (my «مهتم»; a row the other side declined carries `declined` and shows «لم يحصل توافق» until its window ends, no refund).
   - Every «مهتم» on an undecided visible card sends «شخص أبدى اهتمامه بك» (`notifyInterestShown`, once per Amman day, url `?tab=interested`, SMS event `interest`); the old neutral «اقتراح بانتظار قرارك» nudge is gone (the cron 2-day reminder keeps that title).
   - Copy everywhere: "نُعلمك عندما يبدي أحدهم اهتمامه بك، أما قرار «لا» فلا يعرفه إلا من أبدى اهتمامه".
   - `countNewItems` = new + interested.

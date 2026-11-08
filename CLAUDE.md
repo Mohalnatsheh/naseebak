@@ -29,6 +29,7 @@ Rules for working on Naseebak (نصيبك). This file holds what you need in eve
 - Four switches run it, all **on** in production since 2026-10-17: `intro_requests_enabled`, `chat_enabled`, `new_suggestions_flow`, `credit_on_interest`.
 - All four default to off. Off = the [legacy flow](#legacy-flow).
 - Two more switches, both **on** in production since 2026-11-07, both off by default: `feed_active_first` (the «جديدة» order, Admin → Settings) and `sms_notices_enabled` (notice SMS, set in `system_settings`: no admin button yet, Admin → Notifications → Automatic only shows it).
+- `free_interest_reply` (Admin → Settings, off by default, needs `credit_on_interest`, 2026-11-08): answering «مهتم» on a card the other side already said «مهتم» on (`likedYou`) costs no credit, also at 0 credits; the first «مهتم» still costs 1. The chat/family choice and guardian consent still apply (`decideSuggestion`: `introChoice` vs `charge`). The notices say the reply is free (`replyNoticeLine`). App 1.0.1+ handles it; 1.0.0 at 0 credits still locks «مهتم» (owner turns on the force update to 1.0.1 once it is live).
 - `sa_relaxed_matching` (Admin → Settings, off by default, 2026-11-08): Saudi members get suggestions with no score minimum (`minSuggestionScore(flags, country)` = 0), best score first. «شروط أساسية», same country and test-account separation still apply. Jordan unchanged.
 
 ## Commands
@@ -197,7 +198,7 @@ src/
 ## Money and credits
 
 - New members get 3 credits (`getRegistrationCredits()`).
-- Only «مهتم» costs: 1 credit (ledger `INTEREST`). «لا» is free. The match, requests, chat and chat → family are free.
+- Only «مهتم» costs: 1 credit (ledger `INTEREST`). «لا» is free. The match, requests, chat and chat → family are free. With `free_interest_reply` on, a reply to someone who already said «مهتم» is free too (no `INTEREST` row, so never refunded).
 - Refund only when the other side never answered and the card closed. A «لا» is never refunded.
 - `refundUnansweredInterests` refunds once, stamped by `Suggestion.interestRefundedAt`.
 - A blocker's own unanswered «مهتم» on an open card stays spent. The person blocked gets theirs back.
@@ -365,7 +366,6 @@ ssh -i ~/.ssh/naseebak_vps_ed25519 -o IdentitiesOnly=yes root@146.103.57.224 nas
 
 Parked, or waiting for the owner:
 
-- A woman's free «مهتم» reply to a man's «مهتم»: needs an app version.
 - The cap on hidden cards per recipient (G53) and a popular member at 0 credits holding many paid «مهتم» cards (G57).
 - Comparing «مهتم» → match by feed order on or after 2026-11-18, and by score band.
 - About 2026-11-14, measure `feed_active_first` and the SMS: «مهتم» → match by how many «مهتم» already waited on the other side (before, 24 Oct – 4 Nov: 32% with none, 12% with 1–4, 6% with 5–9, 3% with 20+), and the answer rate for members without push (before: 25%, 44% with push). 64% of «مهتم» went unanswered.
@@ -379,7 +379,7 @@ Needs a new app version:
 
 - Anything the app decides itself, such as the «مهتم» lock at 0 credits.
 - New screens, new fields the app sends, analytics events, push channels, deep links.
-- Free «مهتم» reply for women, a `purchase` event, popup tap actions.
+- A `purchase` event, popup tap actions.
 - The filter tip on the app's empty «جديدة» page.
 - The website's «الرصيد أرخص» saving line. A live chat widget in the app.
 - A niqab profile option in the app.

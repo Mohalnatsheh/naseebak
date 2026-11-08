@@ -9,6 +9,7 @@ import { UNPAID_TITLE } from "@/lib/cron/payment-reminders";
 import { findAnyPackage } from "@/lib/payments/packages";
 import { isTestPhone } from "@/lib/test-accounts";
 import { isUnavailable } from "@/lib/matches/state";
+import { getCycleFlags } from "@/lib/settings";
 import { byUserCountry, matchCountryWhere, paymentCountryWhere, userCountryWhere, type AdminCountry } from "@/lib/admin/country-filter";
 import { memberSuggestStatus, type NoSuggestionsReason } from "@/lib/admin/members-suggest-reason";
 import { activeMembers, ammanDate, DAY_MS, FIRST_TRACKED_DAY, pulseFor, trackedDays } from "@/lib/admin/pulse";
@@ -182,7 +183,10 @@ export async function stuckMembers(country: AdminCountry, now = new Date()) {
     })
     .sort((a, b) => b.money[0].amount - a.money[0].amount);
 
+  // free_interest_reply on: these members can answer for free (only older app versions still lock «مهتم» at 0)
+  const freeReplyOn = !!(await getCycleFlags()).freeInterestReply;
   return {
+    freeReplyOn,
     limit: LIST_LIMIT,
     goneDays: GONE_DAYS,
     zeroCredit: {

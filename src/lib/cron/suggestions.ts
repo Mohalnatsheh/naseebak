@@ -13,7 +13,7 @@ import { MAX_OPEN_SUGGESTIONS, autoSuggestForUser, openCounts, weeklyCounts } fr
 import { WEEKLY_FREE_SUGGESTIONS } from "@/lib/credits";
 import { refundUnansweredInterests } from "@/lib/suggestions/mutual";
 import { startOfAmmanDay } from "@/lib/amman-day";
-import { topUpLine } from "@/lib/payments/topup-prompt";
+import { replyNoticeLine } from "@/lib/payments/topup-prompt";
 
 /** Same titles as the waiting nudge and the hidden-card reveal in suggestions/mutual.ts */
 const WAITING_TITLE = "اقتراح بانتظار قرارك";
@@ -197,7 +197,7 @@ export async function remindWaitingInterest(now = new Date()): Promise<{ members
     if (recent) continue;
     const female = gender === "FEMALE";
     const member = await db.user.findUnique({ where: { id: userId }, select: { matchCredits: true, country: true, gender: true, phone: true } });
-    const topUp = member ? ((await topUpLine(member).catch(() => null)) ?? "") : "";
+    const topUp = member ? ((await replyNoticeLine(member).catch(() => null)) ?? "") : "";
     await notify({
       userId,
       type: "SUGGESTION",

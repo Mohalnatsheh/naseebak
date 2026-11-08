@@ -22,6 +22,8 @@ type Payments = {
   weeks: { week: string; joined: number; buyers: number; money: Money }[];
 };
 type Stuck = {
+  /** Switch free_interest_reply: the reply is free, so these members are only stuck on older app versions */
+  freeReplyOn?: boolean;
   limit: number;
   goneDays: number;
   zeroCredit: { total: number; women: number; men: number; held: number; rows: (Person & { waiting: number; soonest: string })[] };
@@ -226,7 +228,9 @@ function StuckTab() {
       </div>
       <MemberList
         title="0 credits with a «مهتم» waiting"
-        about="Available members who can't reply to someone's «مهتم». Most waiting first."
+        about={data.freeReplyOn
+          ? "Free «مهتم» reply is on: these members can answer for free on the website and the new app; only older app versions still lock «مهتم» at 0 credits. Most waiting first."
+          : "Available members who can't reply to someone's «مهتم». Most waiting first."}
         total={z.total}
         limit={data.limit}
         head={["Member", "Waiting", "First card ends", "Last active"]}

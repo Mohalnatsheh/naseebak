@@ -12,7 +12,12 @@ const settings = vi.hoisted(() => ({ getCycleFlags: vi.fn() }));
 const auto = vi.hoisted(() => ({ autoSuggestForUser: vi.fn(), weeklyCounts: vi.fn(), openCounts: vi.fn(), MAX_OPEN_SUGGESTIONS: 5 }));
 vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/notify", () => notifyMod);
-const topUp = vi.hoisted(() => ({ topUpLine: vi.fn() }));
+const topUp = vi.hoisted(() => {
+  const t = { topUpLine: vi.fn(), replyNoticeLine: vi.fn() };
+  // The real replyNoticeLine falls back to topUpLine while the free reply is off
+  t.replyNoticeLine.mockImplementation(async (u: unknown) => (await t.topUpLine(u)) ?? "");
+  return t;
+});
 vi.mock("@/lib/payments/topup-prompt", () => topUp);
 vi.mock("@/lib/settings", () => settings);
 vi.mock("@/lib/matching/auto-suggest", () => auto);

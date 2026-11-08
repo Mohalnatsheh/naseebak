@@ -28,3 +28,13 @@ export async function topUpLine(user: { matchCredits: number; country: string | 
     ? ` رصيدكِ صفر: اشحني ${pkg.name} بـ ${displayPrice(pkg)} لتردّي.`
     : ` رصيدك صفر: اشحن ${pkg.name} بـ ${displayPrice(pkg)} لتردّ.`;
 }
+
+/**
+ * The line added to «شخص أبدى اهتمامه بك» and «شخص ينتظر ردّك». With `free_interest_reply` on, replying «مهتم»
+ * costs nothing, so everyone is told it is free and nobody is asked to recharge; otherwise the 0-credit top-up line.
+ */
+export async function replyNoticeLine(user: { matchCredits: number; country: string | null; gender: string | null; phone: string | null }): Promise<string> {
+  // Spelled out (FREE_REPLY_SHORT + "."): the automatic-notifications list matches the sent text word for word
+  if ((await getCycleFlags()).freeInterestReply) return " الرد بـ«مهتم» مجاني.";
+  return (await topUpLine(user)) ?? "";
+}

@@ -24,7 +24,7 @@ import { isUnavailable } from "@/lib/matches/state";
 import { getCycleFlags } from "@/lib/settings";
 import { activeWhere } from "@/lib/activity";
 import { startOfAmmanDay } from "@/lib/amman-day";
-import { topUpLine } from "@/lib/payments/topup-prompt";
+import { replyNoticeLine } from "@/lib/payments/topup-prompt";
 
 /** A MUTUAL suggestion stays open this long; after that "waiting" ends without a word. */
 export const MUTUAL_SUGGESTION_DAYS = 7;
@@ -382,8 +382,8 @@ export async function notifyInterestShown(userId: string, suggestionId: string, 
   if (already) return;
   const person = await db.user.findUnique({ where: { id: userId }, select: { gender: true, matchCredits: true, country: true, phone: true } });
   const female = person?.gender === "FEMALE";
-  // At 0 credits: the smallest package, right when it matters (lib/payments/topup-prompt)
-  const topUp = person ? ((await topUpLine(person).catch(() => null)) ?? "") : "";
+  // Free reply on: "the reply is free"; else at 0 credits the smallest package (lib/payments/topup-prompt)
+  const topUp = person ? ((await replyNoticeLine(person).catch(() => null)) ?? "") : "";
   await notify({
     userId,
     type: "SUGGESTION",

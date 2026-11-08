@@ -10,6 +10,8 @@ const DEFAULTS: Record<string, string> = {
   credit_on_interest: "false",
   // «جديدة» order: people active today first, people with 5+ «مهتم» waiting on them last (2026-11-07)
   feed_active_first: "false",
+  // Saudi Arabia while it is small (2026-11-08): no score minimum for Saudi members. «شروط أساسية» still apply
+  sa_relaxed_matching: "false",
   engagement_polls_enabled: "false",
   poll_round_days: "3",
   poll_reward_credits: "1",
@@ -73,16 +75,19 @@ export interface CycleFlags {
   creditOnInterest: boolean;
   /** Finer activity groups (today first) and busy people last in «جديدة» — only on when simultaneous suggestions are on too */
   activeFirstFeed?: boolean;
+  /** Countries whose members are suggested without the score minimum (switch `sa_relaxed_matching`). «شروط أساسية» still apply */
+  relaxedCountries?: string[];
 }
 
 /** New user cycle switches (Admin → Settings). Both default to off. */
 export async function getCycleFlags(): Promise<CycleFlags> {
-  const [intro, chat, mutual, creditOnInterest, activeFirst] = await Promise.all([
+  const [intro, chat, mutual, creditOnInterest, activeFirst, saRelaxed] = await Promise.all([
     getSetting("intro_requests_enabled"),
     getSetting("chat_enabled"),
     getSetting("new_suggestions_flow"),
     getSetting("credit_on_interest"),
     getSetting("feed_active_first"),
+    getSetting("sa_relaxed_matching"),
   ]);
   const introRequests = intro === "true";
   const mutualSuggestions = introRequests && mutual === "true";
@@ -92,5 +97,6 @@ export async function getCycleFlags(): Promise<CycleFlags> {
     mutualSuggestions,
     creditOnInterest: mutualSuggestions && creditOnInterest === "true",
     activeFirstFeed: mutualSuggestions && activeFirst === "true",
+    relaxedCountries: saRelaxed === "true" ? ["SA"] : [],
   };
 }

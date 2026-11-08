@@ -76,8 +76,13 @@ async function notifyNewForMe(userId: string, count: number): Promise<void> {
   await notify({ userId, type: "SUGGESTION", title: "اقتراحات توافق جديدة", body, url: "/dashboard/suggestions", oncePerDay: NEW_SUGGESTIONS_DAILY });
 }
 
-/** Lowest compatibility score that may be suggested (credit-on-interest raises it, since an "interested" costs a credit). */
-export function minSuggestionScore(flags: CycleFlags): number {
+/**
+ * Lowest compatibility score that may be suggested (credit-on-interest raises it, since an "interested" costs a credit).
+ * A country under relaxed matching (`sa_relaxed_matching`) has none: everyone who passes «شروط أساسية» may be suggested,
+ * still best score first.
+ */
+export function minSuggestionScore(flags: CycleFlags, country?: string | null): number {
+  if (country && flags.relaxedCountries?.includes(country)) return 0;
   return flags.creditOnInterest ? MIN_SCORE_CREDIT_ON_INTEREST : MIN_SCORE;
 }
 
@@ -322,7 +327,7 @@ export async function secondChanceCards(
         && !seenDuringWait(seen, mine ? r.candidateDecidedAt : r.recipientDecidedAt, r.expiresAt)
         && meetsSuggestionGate(other, flags.introRequests)
         && mutuallyAcceptable(user, other)
-        && calculateCompatibility(user, other) >= minSuggestionScore(flags);
+        && calculateCompatibility(user, other) >= minSuggestionScore(flags, user.country);
     })
     .map((r) => r.id);
 }
@@ -487,7 +492,7 @@ async function generate(userId: string): Promise<SuggestOutcome> {
     .filter((c) => meetsSuggestionGate(c, perRequestCredits))
     .filter((c) => !mutual || mutuallyAcceptable(user, c))
     .map((c) => ({ candidate: c, score: calculateCompatibility(user, c) }))
-    .filter(({ score }) => score >= minSuggestionScore(flags))
+    .filter(({ score }) => score >= minSuggestionScore(flags, user.country))
     .sort((a, b) => b.score - a.score);
   let ranked = rank(await findCandidates(CANDIDATE_ACTIVE_DAYS));
   // Nobody among people seen this week: look a little further rather than leave the member with nothing

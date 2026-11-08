@@ -29,6 +29,7 @@ Rules for working on Naseebak (نصيبك). This file holds what you need in eve
 - Four switches run it, all **on** in production since 2026-10-17: `intro_requests_enabled`, `chat_enabled`, `new_suggestions_flow`, `credit_on_interest`.
 - All four default to off. Off = the [legacy flow](#legacy-flow).
 - Two more switches, both **on** in production since 2026-11-07, both off by default: `feed_active_first` (the «جديدة» order, Admin → Settings) and `sms_notices_enabled` (notice SMS, set in `system_settings`: no admin button yet, Admin → Notifications → Automatic only shows it).
+- `sa_relaxed_matching` (Admin → Settings, off by default, 2026-11-08): Saudi members get suggestions with no score minimum (`minSuggestionScore(flags, country)` = 0), best score first. «شروط أساسية», same country and test-account separation still apply. Jordan unchanged.
 
 ## Commands
 

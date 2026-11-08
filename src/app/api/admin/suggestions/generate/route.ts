@@ -162,7 +162,7 @@ export async function POST(request: Request) {
       let createdForUser = 0;
 
       for (const { candidate, score } of topCandidates) {
-        if (score < minSuggestionScore(flags)) continue; // Skip very low scores
+        if (score < minSuggestionScore(flags, user.country)) continue; // Skip very low scores
         if (!perRequestCredits && !(await reserveCredits(user.id, 1))) break;
 
         await db.suggestion.create({

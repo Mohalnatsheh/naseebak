@@ -57,7 +57,7 @@ export async function refreshOpenSuggestions(userId: string, now = new Date()): 
     },
   });
 
-  const minScore = minSuggestionScore(flags);
+  const minScore = minSuggestionScore(flags, me.country);
   const toClose: string[] = [];
   for (const row of rows) {
     const iAmRecipient = row.recipientId === userId;

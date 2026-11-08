@@ -102,7 +102,7 @@ async function suitableCandidates(
   let ranked = candidates
     .filter((c) => meetsSuggestionGate(c, perRequestCredits))
     .filter((c) => !mutual || mutuallyAcceptable(user, c))
-    .filter((c) => calculateCompatibility(user, c) >= minSuggestionScore(flags));
+    .filter((c) => calculateCompatibility(user, c) >= minSuggestionScore(flags, user.country));
   // Per-request mode skips people who already got their weekly share; credit on interest never skips
   if (mutual && !creditOnInterest && ranked.length > 0) {
     const busy = await weeklyCounts(ranked.map((c) => c.id), new Date(now.getTime() - WEEK_MS));

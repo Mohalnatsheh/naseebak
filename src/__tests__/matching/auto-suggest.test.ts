@@ -731,6 +731,31 @@ describe("credit on interest: open cap 10", () => {
     expect(db.suggestion.createMany.mock.calls[0][0].data.map((d: { candidateId: string }) => d.candidateId)).toEqual(["hi"]);
   });
 
+  it("sa_relaxed_matching: Saudi members get every candidate, best score first; Jordan keeps 60", async () => {
+    expect(minSuggestionScore({ ...on, relaxedCountries: ["SA"] }, "SA")).toBe(0);
+    expect(minSuggestionScore({ ...on, relaxedCountries: ["SA"] }, "JO")).toBe(60);
+    expect(minSuggestionScore({ ...on, relaxedCountries: [] }, "SA")).toBe(60);
+    flags.getCycleFlags.mockResolvedValue({ ...on, relaxedCountries: ["SA"] });
+    scoring.scoreFor.set("sa-lo", 20);
+    scoring.scoreFor.set("sa-hi", 65);
+    openRows(0);
+    db.user.findUnique.mockResolvedValue({ ...person("sa1", "MALE"), country: "SA" });
+    db.user.findMany.mockResolvedValue([{ ...person("sa-lo", "FEMALE"), country: "SA" }, { ...person("sa-hi", "FEMALE"), country: "SA" }]);
+    await autoSuggestForUser("sa1");
+    expect(db.suggestion.createMany.mock.calls[0][0].data.map((d: { candidateId: string }) => d.candidateId)).toEqual(["sa-hi", "sa-lo"]);
+  });
+
+  it("sa_relaxed_matching still honours «شروط أساسية»", async () => {
+    flags.getCycleFlags.mockResolvedValue({ ...on, relaxedCountries: ["SA"] });
+    openRows(0);
+    const me = { ...person("sa2", "MALE"), country: "SA" };
+    me.profile = { ...fullProfile("MALE"), dealbreakers: ["smokingStatus"] } as never;
+    const smoker = { ...person("sa-smoker", "FEMALE", { ...fullProfile("FEMALE"), smokingStatus: "مدخنة" }), country: "SA" };
+    db.user.findUnique.mockResolvedValue(me);
+    db.user.findMany.mockResolvedValue([smoker]);
+    expect(await autoSuggestForUser("sa2")).toBe(0);
+  });
+
   it("flag off keeps candidates scoring 30-49", async () => {
     flags.getCycleFlags.mockResolvedValue({ ...on, creditOnInterest: false });
     scoring.scoreFor.set("lo2", 40);

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2, HeartHandshake, MessageCircle, Info, TriangleAlert, Users, Coins, ListOrdered } from "lucide-react";
+import { Loader2, HeartHandshake, MessageCircle, Info, TriangleAlert, Users, Coins, ListOrdered, Globe } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
@@ -23,10 +23,11 @@ interface State {
   mutualSuggestions: boolean;
   creditOnInterest: boolean;
   activeFirstFeed: boolean;
+  saRelaxedMatching: boolean;
   creditsMigratedAt: string | null;
 }
 
-type Key = "introRequests" | "chat" | "mutualSuggestions" | "creditOnInterest" | "activeFirstFeed";
+type Key = "introRequests" | "chat" | "mutualSuggestions" | "creditOnInterest" | "activeFirstFeed" | "saRelaxedMatching";
 
 /** Admin → Settings: the switches for the new user cycle, in plain words. */
 export function NewCycleSettingsCard() {
@@ -63,7 +64,7 @@ export function NewCycleSettingsCard() {
 
   function toggle(key: Key, value: boolean) {
     // The feed order is safe to turn off at once: nothing in flight depends on it
-    if (!value && key !== "activeFirstFeed") setConfirmOff(key);
+    if (!value && key !== "activeFirstFeed" && key !== "saRelaxedMatching") setConfirmOff(key);
     else if (key === "introRequests") setConfirmIntroOn(true);
     else save(key, true);
   }
@@ -131,6 +132,14 @@ export function NewCycleSettingsCard() {
       on: !!state?.introRequests && !!state?.mutualSuggestions && !!state?.activeFirstFeed,
       disabled: !state?.introRequests || !state?.mutualSuggestions,
     },
+    {
+      key: "saRelaxedMatching" as const,
+      icon: Globe,
+      title: "Saudi Arabia: suggest everyone",
+      text: "While Saudi Arabia is small: Saudi members get suggestions without the minimum score, so preferences only set the order (best match first). Their «شروط أساسية» still apply, and members still meet only within Saudi Arabia. Jordan is unchanged. Turning it off makes no new low-score cards; ones already made run their 7 days.",
+      on: !!state?.introRequests && !!state?.mutualSuggestions && !!state?.saRelaxedMatching,
+      disabled: !state?.introRequests || !state?.mutualSuggestions,
+    },
   ];
 
   return (
@@ -158,7 +167,7 @@ export function NewCycleSettingsCard() {
                 <p className="text-sm text-muted-foreground leading-relaxed">{r.text}</p>
                 {r.disabled && (
                   <p className="text-xs font-medium text-amber-700">
-                    {r.key === "creditOnInterest" || r.key === "activeFirstFeed" ? "Turn on simultaneous suggestions first." : "Turn on family and chat requests first."}
+                    {r.key === "creditOnInterest" || r.key === "activeFirstFeed" || r.key === "saRelaxedMatching" ? "Turn on simultaneous suggestions first." : "Turn on family and chat requests first."}
                   </p>
                 )}
               </div>

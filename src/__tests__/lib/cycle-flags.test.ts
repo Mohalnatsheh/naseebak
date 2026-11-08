@@ -58,3 +58,13 @@ describe("getCycleFlags.activeFirstFeed", () => {
     expect((await flagsWith({ ...allOn, feed_active_first: "true", new_suggestions_flow: "false" })).activeFirstFeed).toBe(false);
   });
 });
+
+describe("getCycleFlags.relaxedCountries", () => {
+  it("is empty by default", async () => {
+    expect((await flagsWith(allOn)).relaxedCountries).toEqual([]);
+  });
+
+  it("is Saudi Arabia with sa_relaxed_matching on", async () => {
+    expect((await flagsWith({ ...allOn, sa_relaxed_matching: "true" })).relaxedCountries).toEqual(["SA"]);
+  });
+});

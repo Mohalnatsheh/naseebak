@@ -76,6 +76,14 @@ describe("new-cycle settings PATCH", () => {
     expect(mutualMod.closeLegacyInFlight).not.toHaveBeenCalled();
   });
 
+  it("saves and reports the Saudi relaxed matching switch, off by default", async () => {
+    expect((await (await patch({})).json()).saRelaxedMatching).toBe(false);
+    const res = await patch({ saRelaxedMatching: true });
+    expect(store.value.sa_relaxed_matching).toBe("true");
+    expect((await res.json()).saRelaxedMatching).toBe(true);
+    expect(settings.setSetting.mock.calls.map((c) => c[0])).toEqual(["sa_relaxed_matching"]);
+  });
+
   it("refuses a non-boolean order switch", async () => {
     expect((await patch({ activeFirstFeed: "yes" })).status).toBe(400);
   });

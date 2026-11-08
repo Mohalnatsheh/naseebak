@@ -70,7 +70,7 @@ export async function filterTip(userId: string, now = new Date()): Promise<Filte
     select: scoringSelect,
   });
   // Only people the score would let through: easing a filter must really bring cards
-  const min = minSuggestionScore(flags);
+  const min = minSuggestionScore(flags, user.country);
   const shutOut = pool
     .filter((c) => meetsSuggestionGate(c, flags.introRequests))
     .filter((c) => !mutuallyAcceptable(user, c) && calculateCompatibility(user, c) >= min);

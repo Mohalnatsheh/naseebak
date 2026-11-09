@@ -25,12 +25,16 @@ export async function GET() {
     await touchLastActive(userId);
     await recordActivityDay(userId);
 
-    const flags = await getCycleFlags();
-    // Badge only: a failure just hides it
-    const proSub = await currentProSubscription(userId).catch(() => null);
+    // The Pro badge lookup runs alongside the switches and the hidden-partner lookup, adding no wait to the poll
+    const [flags, proSub, hidden] = await Promise.all([
+      getCycleFlags(),
+      // Badge only: a failure just hides it
+      currentProSubscription(userId).catch(() => null),
+      hiddenPartnerIds(userId),
+    ]);
     const pro = { isPro: !!proSub, cancelAtPeriodEnd: !!proSub?.cancelAtPeriodEnd };
     // Chats with someone who blocked me are hidden from me, so they never count (badge, "has chats")
-    const mine = visibleConversationsWhere(userId, await hiddenPartnerIds(userId));
+    const mine = visibleConversationsWhere(userId, hidden);
     if (!flags.introRequests) {
       // Switch off: existing chats stay readable, so keep the chats link for people who have one
       const hasChats = (await db.conversation.count({ where: mine })) > 0;

@@ -130,7 +130,8 @@ export async function deleteFromBunny(path: string): Promise<void> {
       console.warn(`Bunny delete warning (${res.status}) for ${pathForLog(path)}`);
     }
   } catch (err) {
-    console.warn("Bunny delete error:", err);
+    // The message only (a fetch error's cause may carry the url, which holds the path)
+    console.warn(`Bunny delete error for ${pathForLog(path)}:`, String((err as Error)?.message ?? err).split(":")[0]);
   }
 }
 

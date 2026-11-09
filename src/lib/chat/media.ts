@@ -25,6 +25,8 @@ const IMAGE_MAX_INPUT_PIXELS = 100_000_000;
 /** The wasm HEIC decode is slower and heavier: 50 MP at most, 20 s at most */
 const HEIC_MAX_PIXELS = 50_000_000;
 const HEIC_TIMEOUT_MS = 20_000;
+/** HEIC decodes waiting or running at once: more are refused at once («حاول مرة أخرى»), so a burst can't queue past the proxy timeout */
+const HEIC_QUEUE_MAX = 3;
 
 /** `body` of a media message: what app 1.0.x (text only) shows as a normal bubble */
 export const IMAGE_FALLBACK_BODY = "📷 صورة — حدّث التطبيق لعرضها";
@@ -34,6 +36,7 @@ export const IMAGE_PREVIEW = "📷 صورة";
 export const VOICE_PREVIEW = "🎤 رسالة صوتية";
 
 export const UNSUPPORTED_IMAGE_MESSAGE = "صيغة الصورة غير مدعومة، جرّب صورة JPG أو PNG";
+export const IMAGE_BUSY_MESSAGE = "تعذّر تجهيز الصورة الآن، حاول مرة أخرى";
 
 const VOICE_EXT: Record<(typeof VOICE_TYPES)[number], string> = {
   "audio/webm": "webm",
@@ -63,6 +66,26 @@ export function previewBody(m: { body: string; kind?: string | null }): string {
 /** The only address clients ever get for a media message */
 export function mediaUrl(conversationId: string, messageId: string): string {
   return `/api/chats/${conversationId}/media/${messageId}`;
+}
+
+/** The `media` of a message as clients get it (member chat and admin view alike): its route url, never the path */
+export function messageMedia(m: {
+  id: string;
+  conversationId: string;
+  kind?: string | null;
+  mediaType?: string | null;
+  mediaDurationSec?: number | null;
+  mediaWidth?: number | null;
+  mediaHeight?: number | null;
+}): { url: string; type: string; durationSec: number | null; width: number | null; height: number | null } | null {
+  if (m.kind !== "IMAGE" && m.kind !== "VOICE") return null;
+  return {
+    url: mediaUrl(m.conversationId, m.id),
+    type: m.mediaType ?? "",
+    durationSec: m.mediaDurationSec ?? null,
+    width: m.mediaWidth ?? null,
+    height: m.mediaHeight ?? null,
+  };
 }
 
 /** A new unguessable storage path: 32 random bytes, base64url (43 characters) */
@@ -117,20 +140,32 @@ export function validateVoice(type: string, size: number, durationSec: number): 
 }
 
 let heicQueue: Promise<unknown> = Promise.resolve();
+let heicPending = 0;
 
-/** One decode at a time: each waits for the one before it, so there is never more than one worker */
-function runHeicWorker(buf: Buffer): Promise<Buffer> {
+/** The HEIC queue is full: refused at once, never queued */
+export class MediaBusyError extends Error {}
+
+/**
+ * One decode at a time: each waits for the one before it, so there is never more than one worker. At most
+ * HEIC_QUEUE_MAX waiting or running; the time limit runs from the decode's own start. `timeoutMs` and `script` are
+ * for tests.
+ */
+export function runHeicWorker(buf: Buffer, opts: { timeoutMs?: number; script?: string } = {}): Promise<Buffer> {
+  if (heicPending >= HEIC_QUEUE_MAX) return Promise.reject(new MediaBusyError("heic queue full"));
+  heicPending += 1;
+  const timeoutMs = opts.timeoutMs ?? HEIC_TIMEOUT_MS;
+  // A plain .mjs outside the bundle, found from the app root (the slot's directory in production)
+  const script = opts.script ?? path.join(process.cwd(), "src/lib/chat/heic-worker.mjs");
   const job = heicQueue.then(
     () =>
       new Promise<Buffer>((resolve, reject) => {
-        // A plain .mjs outside the bundle, found from the app root (the slot's directory in production)
-        const worker = new Worker(path.join(process.cwd(), "src/lib/chat/heic-worker.mjs"), {
+        const worker = new Worker(script, {
           workerData: { buffer: buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) },
         });
         const timer = setTimeout(() => {
           void worker.terminate();
           reject(new Error("heic decode timed out"));
-        }, HEIC_TIMEOUT_MS);
+        }, timeoutMs);
         const done = () => clearTimeout(timer);
         worker.once("message", (m: { ok: boolean; buffer?: ArrayBuffer; message?: string }) => {
           done();
@@ -148,8 +183,11 @@ function runHeicWorker(buf: Buffer): Promise<Buffer> {
         });
       })
   );
-  heicQueue = job.catch(() => undefined);
-  return job;
+  const settled = job.finally(() => {
+    heicPending -= 1;
+  });
+  heicQueue = settled.catch(() => undefined);
+  return settled;
 }
 
 /** sharp first; when this libvips has no HEVC decoder, the wasm decoder (in a worker) turns HEIC into a JPEG for it */
@@ -184,8 +222,8 @@ export async function processImage(buf: Buffer): Promise<{ buffer: Buffer; width
       out = await run(await decodeHeicToJpeg(buf, sharp));
     }
     return { buffer: out.data, width: out.info.width, height: out.info.height };
-  } catch {
-    throw new IntroError("MEDIA_INVALID", UNSUPPORTED_IMAGE_MESSAGE);
+  } catch (e) {
+    throw new IntroError("MEDIA_INVALID", e instanceof MediaBusyError ? IMAGE_BUSY_MESSAGE : UNSUPPORTED_IMAGE_MESSAGE);
   }
 }
 

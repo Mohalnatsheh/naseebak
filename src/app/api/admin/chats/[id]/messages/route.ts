@@ -3,7 +3,7 @@ import { requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { effectiveConversationStatus } from "@/lib/admin/cycle-stats";
 import { chatEndedBy } from "@/lib/admin/chat-list";
-import { mediaUrl } from "@/lib/chat/media";
+import { messageMedia } from "@/lib/chat/media";
 
 const person = { select: { id: true, firstName: true, lastName: true, status: true } } as const;
 /** There is no daily cap, so very long chats keep their newest messages (`truncated` marks the cut). */
@@ -61,10 +61,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       messages: [...chat.messages].reverse().map(({ mediaType, mediaDurationSec, mediaWidth, mediaHeight, ...m }) => ({
         ...m,
         kind: m.kind ?? "TEXT",
-        media:
-          m.kind === "IMAGE" || m.kind === "VOICE"
-            ? { url: mediaUrl(chat.id, m.id), type: mediaType ?? "", durationSec: mediaDurationSec, width: mediaWidth, height: mediaHeight }
-            : null,
+        // The same shape as the member chat (lib/chat/media messageMedia)
+        media: messageMedia({ id: m.id, conversationId: chat.id, kind: m.kind, mediaType, mediaDurationSec, mediaWidth, mediaHeight }),
       })),
       truncated: chat.messages.length === MAX_MESSAGES,
     });

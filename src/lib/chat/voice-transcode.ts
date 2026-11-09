@@ -4,7 +4,7 @@
  * as `audio/mp4` (an MP4 is never trusted to hold AAC).
  *
  * ffmpeg runs as a child process (the `ffmpeg-static` binary, nothing installed on the server), off the event loop,
- * one at a time, killed after 30 s, with no shell. The input never touches the disk and never picks its own parser:
+ * one at a time (at most VOICE_QUEUE_MAX waiting), killed after 30 s, with no shell. The input never touches the disk and never picks its own parser:
  * - the demuxer is pinned from the validated MIME (`-f webm|ogg|mp4|aac|mp3`), so content can't switch ffmpeg to a
  *   playlist (HLS) or any other demuxer that opens further URLs;
  * - the bytes go in on stdin (`pipe:0`) with `-protocol_whitelist pipe` (MP4: `cache,pipe`, because a file with
@@ -22,6 +22,8 @@ import { IntroError } from "@/lib/intro/errors";
 import { VOICE_MAX_SEC, baseMime } from "@/lib/chat/media";
 
 export const VOICE_TRANSCODE_TIMEOUT_MS = 30_000;
+/** Transcodes waiting or running at once: more are refused at once («حاول مرة أخرى»), so a burst can't queue past the proxy timeout */
+export const VOICE_QUEUE_MAX = 4;
 export const VOICE_PROCESS_FAILED_MESSAGE = "تعذّر تجهيز الرسالة الصوتية، حاول مرة أخرى";
 
 /** The ffmpeg demuxer for each accepted voice MIME (lib/chat/media VOICE_TYPES). Anything else is refused */
@@ -59,17 +61,23 @@ function runFfmpeg(bin: string, args: string[], input: Buffer, timeoutMs: number
     child.stderr?.on("data", (d: Buffer) => {
       if (stderr.length < 2000) stderr += d.toString();
     });
+    let timedOut = false;
+    // Killed on time out; the promise settles only once the process has exited, so the temp dir is removed after it
     const timer = setTimeout(() => {
+      timedOut = true;
       child.kill("SIGKILL");
-      reject(new Error("voice transcode timed out"));
     }, timeoutMs);
     child.once("error", (e) => {
       clearTimeout(timer);
       reject(e);
     });
+    child.once("exit", () => {
+      if (timedOut) reject(new Error("voice transcode timed out"));
+    });
     child.once("close", (code, signal) => {
       clearTimeout(timer);
-      if (code === 0) resolve();
+      if (timedOut) reject(new Error("voice transcode timed out"));
+      else if (code === 0) resolve();
       else reject(new Error(`ffmpeg exited ${code ?? signal}: ${stderr.split("\n")[0]}`));
     });
     // ffmpeg may stop reading early (bad input, timeout): its exit code decides, never a broken pipe
@@ -79,6 +87,7 @@ function runFfmpeg(bin: string, args: string[], input: Buffer, timeoutMs: number
 }
 
 let queue: Promise<unknown> = Promise.resolve();
+let pending = 0;
 
 /**
  * A voice note of the given (validated) type → AAC 64 kb/s in an MP4 (.m4a), `moov` first, no metadata, at most
@@ -87,6 +96,11 @@ let queue: Promise<unknown> = Promise.resolve();
 export function transcodeVoiceToM4a(buf: Buffer, type: string, opts: { timeoutMs?: number } = {}): Promise<Buffer> {
   const timeoutMs = opts.timeoutMs ?? VOICE_TRANSCODE_TIMEOUT_MS;
   const input = voiceInput(type);
+  if (pending >= VOICE_QUEUE_MAX) {
+    console.warn("[chat-media] voice transcode queue full, refused");
+    return Promise.reject(new IntroError("MEDIA_INVALID", VOICE_PROCESS_FAILED_MESSAGE));
+  }
+  pending += 1;
   const job = queue.then(async () => {
     if (!input) throw new Error(`not a voice type: ${baseMime(type).slice(0, 40)}`);
     const dir = await mkdtemp(path.join(tmpdir(), "naseebak-voice-"));
@@ -107,8 +121,11 @@ export function transcodeVoiceToM4a(buf: Buffer, type: string, opts: { timeoutMs
       await rm(dir, { recursive: true, force: true }).catch(() => {});
     }
   });
-  queue = job.catch(() => undefined);
-  return job.catch((e) => {
+  const settled = job.finally(() => {
+    pending -= 1;
+  });
+  queue = settled.catch(() => undefined);
+  return settled.catch((e) => {
     // Never the file's content or a storage path: only what ffmpeg said
     console.error("[chat-media] voice transcode failed:", String((e as Error)?.message ?? e).slice(0, 300));
     throw new IntroError("MEDIA_INVALID", VOICE_PROCESS_FAILED_MESSAGE);

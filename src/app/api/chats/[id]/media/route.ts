@@ -21,6 +21,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const declared = Number(request.headers.get("content-length") ?? 0);
     if (declared > MAX_BODY_BYTES) return NextResponse.json({ error: "حجم الملف أكبر من المسموح", code: "MEDIA_INVALID" }, { status: 413 });
 
+    // A chunked upload has no Content-Length: formData() buffers it before the size checks below, so the real memory cap
+    // is Nginx's client_max_body_size (11m, see the deploy notes). The checks here still refuse anything over the limit
     const form = await request.formData().catch(() => null);
     const file = form?.get("file");
     const kind = form?.get("kind");

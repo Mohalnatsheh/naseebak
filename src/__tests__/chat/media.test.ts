@@ -32,13 +32,15 @@ vi.mock("@/lib/auth", () => auth);
 vi.mock("@/lib/admin-alert", () => ({ sendAdminAlert: vi.fn() }));
 
 import { getConversation, listConversations, sendMediaMessage, sendMessage } from "@/lib/chat/service";
-import { IMAGE_FALLBACK_BODY, VOICE_FALLBACK_BODY, detectImageType, hasHeicMagic, processImage, validateImage, validateVoice } from "@/lib/chat/media";
-import { readFileSync } from "fs";
+import { IMAGE_FALLBACK_BODY, VOICE_FALLBACK_BODY, MediaBusyError, detectImageType, hasHeicMagic, processImage, runHeicWorker, validateImage, validateVoice } from "@/lib/chat/media";
+import { mkdtempSync, readFileSync, writeFileSync } from "fs";
+import { tmpdir } from "os";
 import { execFileSync } from "child_process";
 import ffmpegPath from "ffmpeg-static";
 import { join } from "path";
 import { IntroError } from "@/lib/intro/errors";
 import { GET as getMedia } from "@/app/api/chats/[id]/media/[messageId]/route";
+import { clearMediaCache, readMediaCached, MEDIA_CACHE_TTL_MS, MEDIA_CACHE_MAX_BYTES } from "@/lib/chat/media-cache";
 
 const DAY = 24 * 60 * 60 * 1000;
 const conv = (over: object = {}) => ({
@@ -419,6 +421,15 @@ describe("reading chats with media", () => {
     expect(pro.proUserIds).toHaveBeenCalledTimes(1);
   });
 
+  it("the chat room marks a Pro partner (looked up with the other reads; a failed lookup just hides the badge)", async () => {
+    db.message.findMany.mockResolvedValue([]);
+    pro.isPro.mockImplementation(async (id: string) => id === "f1");
+    expect((await getConversation("c1", "u1")).conversation.partner.isPro).toBe(true);
+    expect(pro.isPro).toHaveBeenCalledWith("f1");
+    pro.isPro.mockRejectedValue(new Error("db down"));
+    expect((await getConversation("c1", "u1")).conversation.partner.isPro).toBe(false);
+  });
+
   it("messages carry kind + the media route, never the stored path", async () => {
     db.message.findMany.mockResolvedValue([
       {
@@ -447,6 +458,7 @@ describe("GET /api/chats/[id]/media/[messageId]", () => {
   const forbidden = () => ({ error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) });
 
   beforeEach(() => {
+    clearMediaCache();
     db.message.findUnique.mockResolvedValue(row());
     bunny.readFromBunny.mockResolvedValue(AUDIO);
     auth.requireAdmin.mockResolvedValue(forbidden());
@@ -469,9 +481,18 @@ describe("GET /api/chats/[id]/media/[messageId]", () => {
     expect(bunny.readFromBunny).not.toHaveBeenCalled();
   });
 
-  it("404s when nobody is signed in", async () => {
-    auth.requireUser.mockResolvedValue(forbidden());
-    expect((await call()).status).toBe(404);
+  it("401s when nobody is signed in (the app signs in again), before anything is looked up", async () => {
+    auth.requireUser.mockResolvedValue({ error: NextResponse.json({ error: "غير مصرح" }, { status: 401 }) });
+    expect((await call()).status).toBe(401);
+    expect(db.message.findUnique).not.toHaveBeenCalled();
+  });
+
+  it("several Range requests of one note read the file from storage once", async () => {
+    signedIn("u1");
+    await call({ Range: "bytes=0-1" });
+    await call({ Range: "bytes=0-999" });
+    await call();
+    expect(bunny.readFromBunny).toHaveBeenCalledTimes(1);
   });
 
   it("404s for a text message, and for a message of another chat", async () => {
@@ -560,5 +581,64 @@ describe("report evidence keeps media references", () => {
     expect(out.chat.messages[1]).toMatchObject({ body: "مرحبا", hasMedia: false });
     expect(evidenceForAdmin(null)).toBeNull();
     expect(evidenceForAdmin({ capturedAt: "x", people: {}, chat: null })).toEqual({ capturedAt: "x", people: {}, chat: null });
+  });
+});
+
+describe("HEIC worker: time limit and queue cap", () => {
+  const hanging = () => {
+    const dir = mkdtempSync(join(tmpdir(), "heic-worker-test-"));
+    const script = join(dir, "hang.mjs");
+    // A decoder that never answers
+    writeFileSync(script, "setInterval(() => {}, 1000);\n");
+    return script;
+  };
+
+  it("a decode that never finishes is stopped after the time limit", async () => {
+    const started = Date.now();
+    const e = await runHeicWorker(Buffer.from("x"), { timeoutMs: 100, script: hanging() }).then(() => null, (err) => err);
+    expect((e as Error).message).toBe("heic decode timed out");
+    expect(Date.now() - started).toBeLessThan(3000);
+  });
+
+  it("a full queue is refused at once, and the queue frees up afterwards", async () => {
+    const script = hanging();
+    const waiting = [1, 2, 3].map(() => runHeicWorker(Buffer.from("x"), { timeoutMs: 100, script }).catch((e) => e));
+    await expect(runHeicWorker(Buffer.from("x"), { timeoutMs: 100, script })).rejects.toBeInstanceOf(MediaBusyError);
+    await Promise.all(waiting);
+    const again = await runHeicWorker(Buffer.from("x"), { timeoutMs: 100, script }).then(() => null, (err) => err);
+    expect((again as Error).message).toBe("heic decode timed out");
+  });
+});
+
+describe("media cache", () => {
+  beforeEach(() => clearMediaCache());
+
+  it("serves a fresh entry from memory, reads again after the TTL, and never caches a miss", async () => {
+    const read = vi.fn(async () => Buffer.from("abc"));
+    await readMediaCached("m1", read, 0);
+    await readMediaCached("m1", read, MEDIA_CACHE_TTL_MS - 1);
+    expect(read).toHaveBeenCalledTimes(1);
+    await readMediaCached("m1", read, MEDIA_CACHE_TTL_MS + 1);
+    expect(read).toHaveBeenCalledTimes(2);
+    const missing = vi.fn(async () => null);
+    await readMediaCached("m2", missing, 0);
+    await readMediaCached("m2", missing, 1);
+    expect(missing).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps at most MEDIA_CACHE_MAX_BYTES, dropping the least recently used", async () => {
+    const big = (n: number) => vi.fn(async () => Buffer.alloc(n));
+    const half = Math.floor(MEDIA_CACHE_MAX_BYTES / 2);
+    const a = big(half);
+    const b = big(half);
+    const c = big(half);
+    await readMediaCached("a", a, 0);
+    await readMediaCached("b", b, 1);
+    await readMediaCached("a", a, 2); // a is now the most recent
+    await readMediaCached("c", c, 3); // b goes
+    await readMediaCached("a", a, 4);
+    await readMediaCached("b", b, 5);
+    expect(a).toHaveBeenCalledTimes(1);
+    expect(b).toHaveBeenCalledTimes(2);
   });
 });

@@ -21,7 +21,7 @@ import { LEGACY_ADMIN_VISIT, cancelPendingBetween, familyMoveOpenUntil, isUnavai
 import { isPro, proUserIds } from "@/lib/pro/status";
 import { deleteFromBunny, uploadToBunny } from "@/lib/bunny";
 import {
-  type MediaKind, type MessageKindValue, fallbackBody, mediaUrl, newMediaPath, previewBody, processImage,
+  type MediaKind, type MessageKindValue, fallbackBody, messageMedia, newMediaPath, previewBody, processImage,
   validateImage, validateVoice,
 } from "@/lib/chat/media";
 import { prepareVoice } from "@/lib/chat/voice-transcode";
@@ -269,14 +269,7 @@ function summarise(
 }
 
 function toMedia(m: MessageRow): ChatMedia | null {
-  if (m.kind !== "IMAGE" && m.kind !== "VOICE") return null;
-  return {
-    url: mediaUrl(m.conversationId, m.id),
-    type: m.mediaType ?? "",
-    durationSec: m.mediaDurationSec ?? null,
-    width: m.mediaWidth ?? null,
-    height: m.mediaHeight ?? null,
-  };
+  return messageMedia(m);
 }
 
 function toMessage(m: MessageRow, userId: string): ChatMessage {
@@ -474,14 +467,16 @@ export async function getConversation(
   }
 
   const partnerId = partnerOf(c, userId).id;
-  const [unread, blocked, blockedMe] = await Promise.all([
+  const [unread, blocked, blockedMe, partnerPro] = await Promise.all([
     db.message.count({ where: { conversationId: id, readAt: null, senderId: { not: userId } } }),
     isBlocked(userId, partnerId),
     db.block.findFirst({ where: { blockerId: partnerId, blockedId: userId }, select: { id: true } }),
+    // Badge only: a failure just hides it
+    isPro(partnerId).catch(() => false),
   ]);
   const last = messages.length ? messages[messages.length - 1] : null;
   return {
-    conversation: summarise(c, userId, last, unread, blocked, !!blockedMe, await isPro(partnerId).catch(() => false)),
+    conversation: summarise(c, userId, last, unread, blocked, !!blockedMe, partnerPro),
     messages: messages.map((m) => toMessage(m, userId)),
     hasMore,
   };
@@ -765,8 +760,10 @@ export async function extendConversation(conversationId: string, userId: string)
     where: { id: conversationId },
     data: { expiresAt, extended: true, expiryWarnedAt: null },
   });
-  await publishChatEvent(conversationId, "status", { status: "ACTIVE", expiresAt: expiresAt.toISOString() });
   const partner = partnerOf(c, userId);
+  // Badge only, looked up alongside the event and the notice
+  const partnerProLookup = isPro(partner.id).catch(() => false);
+  await publishChatEvent(conversationId, "status", { status: "ACTIVE", expiresAt: expiresAt.toISOString() });
   await notify({
     userId: partner.id,
     type: "CHAT",
@@ -776,7 +773,7 @@ export async function extendConversation(conversationId: string, userId: string)
     metadata: { conversationId },
     preference: CHAT_NOTICE_PREFERENCE,
   });
-  return summarise({ ...c, expiresAt, extended: true, expiryWarnedAt: null }, userId, null, 0, false, false, await isPro(partner.id).catch(() => false));
+  return summarise({ ...c, expiresAt, extended: true, expiryWarnedAt: null }, userId, null, 0, false, false, await partnerProLookup);
 }
 
 export async function endConversation(args: {

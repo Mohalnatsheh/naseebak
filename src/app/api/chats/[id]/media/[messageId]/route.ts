@@ -3,17 +3,27 @@ import { requireAdmin, requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { readFromBunny } from "@/lib/bunny";
 import { parseRange } from "@/lib/chat/media";
+import { readMediaCached } from "@/lib/chat/media-cache";
 
 /**
  * A chat photo or voice note, streamed to one of the two members (web session or app Bearer) or to an
- * admin's web session (never Bearer; every admin fetch is logged). Anyone else gets 404, as does a text
- * message. Media stays readable after a chat ends, like text, and across a block (reports stay possible).
+ * admin's web session (never Bearer; every admin fetch is logged). Signed out: 401. A signed-in member of another
+ * chat gets 404, as does a text message. Media stays readable after a chat ends, like text, and across a block (reports stay possible).
  * The storage path never leaves the server: not in a header, not in a log.
  */
 export async function GET(request: Request, { params }: { params: Promise<{ id: string; messageId: string }> }) {
   const notFound = () => NextResponse.json({ error: "غير موجود" }, { status: 404 });
   try {
     const { id, messageId } = await params;
+    // Signed out (and no admin web session): 401 before anything is looked up, so the app knows to sign in again
+    const member = await requireUser();
+    let adminId: string | null = null;
+    if ("error" in member) {
+      const admin = await requireAdmin();
+      if ("error" in admin) return member.error;
+      adminId = admin.session.user.id;
+    }
+
     const message = await db.message.findUnique({
       where: { id: messageId },
       select: {
@@ -23,15 +33,17 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     });
     if (!message || message.conversationId !== id || message.kind === "TEXT" || !message.mediaPath) return notFound();
 
-    const member = await requireUser();
     const members = [message.conversation.match.femaleId, message.conversation.match.maleId];
-    if ("error" in member || !members.includes(member.session.user.id)) {
+    if (!adminId && !("error" in member) && !members.includes(member.session.user.id)) {
       const admin = await requireAdmin();
       if ("error" in admin) return notFound();
-      console.info(`[admin-chat-view] admin=${admin.session.user.id} chat=${id} media=${messageId} at=${new Date().toISOString()}`);
+      adminId = admin.session.user.id;
     }
+    if (adminId) console.info(`[admin-chat-view] admin=${adminId} chat=${id} media=${messageId} at=${new Date().toISOString()}`);
 
-    const file = await readFromBunny(message.mediaPath);
+    // Several Range requests per play: the bytes are read from Bunny once and kept for a minute
+    const mediaPath = message.mediaPath;
+    const file = await readMediaCached(message.id, () => readFromBunny(mediaPath));
     if (!file) {
       console.error(`chat media read failed: message=${messageId} (missing)`);
       return notFound();

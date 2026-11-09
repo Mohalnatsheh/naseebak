@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterEach } from "vitest";
+import { describe, it, expect, beforeAll, afterEach, vi } from "vitest";
 import { execFileSync } from "node:child_process";
 import { chmodSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -7,6 +7,7 @@ import ffmpegPath from "ffmpeg-static";
 import { IntroError } from "@/lib/intro/errors";
 import {
   VOICE_PROCESS_FAILED_MESSAGE,
+  VOICE_QUEUE_MAX,
   prepareVoice,
   transcodeVoiceToM4a,
   voiceInput,
@@ -144,6 +145,24 @@ describe("transcodeVoiceToM4a: the child process", () => {
     const outs = await Promise.all([transcodeVoiceToM4a(clip.webm, "audio/webm"), transcodeVoiceToM4a(clip.webm, "audio/webm"), transcodeVoiceToM4a(clip.webm, "audio/webm")]);
     expect(outs.map((b) => b.toString())).toEqual(["fake", "fake", "fake"]);
     expect(readFileSync(log, "utf8").trim().split("\n")).toEqual(["start", "end", "start", "end", "start", "end"]);
+  });
+
+  it("a full queue refuses at once with the Arabic «حاول مرة أخرى» error, and frees up when the queue drains", async () => {
+    const slow = join(dir, "slow-queue-ffmpeg.sh");
+    writeFileSync(slow, "#!/bin/sh\nsleep 5\n");
+    chmodSync(slow, 0o755);
+    process.env.FFMPEG_PATH = slow;
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    const queued = Array.from({ length: VOICE_QUEUE_MAX }, () => transcodeVoiceToM4a(clip.webm, "audio/webm", { timeoutMs: 100 }).catch((e) => e));
+    const started = Date.now();
+    await expectMediaInvalid(transcodeVoiceToM4a(clip.webm, "audio/webm"));
+    expect(Date.now() - started).toBeLessThan(50);
+    await Promise.all(queued);
+    delete process.env.FFMPEG_PATH;
+    expectFaststartAacMp4(await transcodeVoiceToM4a(clip.webm, "audio/webm"));
+    warn.mockRestore();
+    err.mockRestore();
   });
 
   it("a failed job doesn't stop the queue", async () => {

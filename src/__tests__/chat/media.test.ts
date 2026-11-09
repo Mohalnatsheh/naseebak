@@ -203,6 +203,21 @@ describe("sendMediaMessage: a photo", () => {
     expect(bunny.deleteFromBunny).toHaveBeenCalledWith(path);
   });
 
+  it("a failed save never lets the storage path reach a log: the Prisma error is replaced", async () => {
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    // Prisma's validation errors quote the data they were given, mediaPath included
+    db.message.create.mockImplementation(async ({ data }: { data: { mediaPath: string } }) => {
+      throw Object.assign(new Error(`Invalid \`db.message.create()\` invocation: { mediaPath: "${data.mediaPath}" }`), { code: "P2000" });
+    });
+    const thrown = await sendMediaMessage({ conversationId: "c1", senderId: "u1", kind: "IMAGE", file: await gpsJpeg(), type: "image/jpeg" }).catch((e) => e);
+    const path = bunny.uploadToBunny.mock.calls[0][1] as string;
+    expect((thrown as Error).message).toBe("chat media save failed");
+    expect(String((thrown as Error).message)).not.toContain(path);
+    expect(JSON.stringify(err.mock.calls)).not.toContain(path);
+    expect(JSON.stringify(err.mock.calls)).toContain("P2000");
+    err.mockRestore();
+  });
+
   it("a retry with the same nonce gets the saved message back, without a second upload", async () => {
     db.message.findFirst.mockResolvedValue({
       id: "saved", conversationId: "c1", senderId: "u1", body: IMAGE_FALLBACK_BODY, kind: "IMAGE",
@@ -231,13 +246,22 @@ describe("sendMediaMessage: a voice note", () => {
     expect(msg.media).toMatchObject({ type: "audio/mp4", durationSec: 42, width: null, height: null });
   });
 
-  it("an MP4 note is stored as sent, keeping only the base type", async () => {
-    const file = Buffer.alloc(2000);
+  it("an MP4 note is transcoded too (Chrome may put Opus in MP4): a fresh AAC .m4a, never the bytes as sent", async () => {
+    const file = execFileSync(ffmpegPath as unknown as string, ["-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", "sine=d=2", "-c:a", "aac", "-f", "mp4", "-movflags", "frag_keyframe+empty_moov", "pipe:1"]);
     await sendMediaMessage({ conversationId: "c1", senderId: "u1", kind: "VOICE", file, type: "audio/mp4;codecs=mp4a.40.2", durationSec: 12 });
     const [buf, path, mime] = bunny.uploadToBunny.mock.calls[0];
-    expect(buf).toBe(file);
+    expect(buf).not.toBe(file);
+    expect((buf as Buffer).toString("latin1", 4, 8)).toBe("ftyp");
     expect(path).toMatch(/\.m4a$/);
     expect(mime).toBe("audio/mp4");
+  });
+
+  it("an MP4 that isn't audio: the Arabic 422 error, nothing uploaded", async () => {
+    await expectCode(
+      sendMediaMessage({ conversationId: "c1", senderId: "u1", kind: "VOICE", file: Buffer.alloc(2000), type: "audio/mp4", durationSec: 5 }),
+      "MEDIA_INVALID"
+    );
+    expect(bunny.uploadToBunny).not.toHaveBeenCalled();
   });
 
   it("a voice note ffmpeg can't read: the Arabic 422 error, nothing uploaded", async () => {

@@ -693,7 +693,7 @@ async function createMediaMessage(args: MediaSendArgs): Promise<ChatMessage> {
     const durationSec = Math.round(args.durationSec ?? Number.NaN);
     const check = validateVoice(args.type, file.length, durationSec);
     if (!check.ok) throw new IntroError("MEDIA_INVALID", check.message);
-    // WebM / Ogg / MP3 → AAC in an .m4a (iPhone plays nothing else); MP4/AAC as sent. The declared duration is kept
+    // Every voice note → AAC in an .m4a (iPhone plays nothing else; an MP4 may hold Opus). The declared duration is kept
     const voice = await prepareVoice(file, args.type);
     upload = { buffer: voice.buffer, path: newMediaPath(conversationId, voice.ext), type: voice.type };
     media = { mediaDurationSec: durationSec, mediaWidth: null, mediaHeight: null };
@@ -723,7 +723,9 @@ async function createMediaMessage(args: MediaSendArgs): Promise<ChatMessage> {
     });
   } catch (error) {
     await deleteFromBunny(upload.path).catch(() => {});
-    throw error;
+    // A Prisma error quotes the data it was given (mediaPath): only its code is logged, never the error itself
+    console.error(`[chat-media] save failed chat=${conversationId}:`, (error as { code?: string })?.code ?? "unknown");
+    throw new Error("chat media save failed");
   }
   return delivered(message, ctx, clientNonce);
 }

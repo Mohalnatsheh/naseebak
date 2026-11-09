@@ -60,7 +60,7 @@ import { MatchClosedNote, MatchIntroPanel } from "@/components/intro/match-intro
 import { ConfirmActionDialog } from "@/components/intro/confirm-action-dialog";
 import { ProBadge } from "@/components/shared/pro-badge";
 import { PersonCard, type PersonCardTone } from "@/components/shared/person-card";
-import { describeOption, nationalityLabel, tribeLabel } from "@/lib/profile-options";
+import { describeOption, nationalityLabel, skinColorLabel, tribeLabel } from "@/lib/profile-options";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useDashboardData } from "@/contexts/dashboard-context";
 import { countryConfig, formatDate } from "@/lib/countries";
@@ -650,7 +650,7 @@ export function MatchesView({ embedded = false }: { embedded?: boolean } = {}) {
                           <InfoRow icon={Baby} label="عدد الأبناء" value={c.childrenCount > 0 ? `${c.childrenCount}` : "لا يوجد"} />
                           <InfoRow icon={Ruler} label="الطول" value={c.height ? `${c.height} سم` : null} />
                           <InfoRow icon={Weight} label="الوزن" value={c.weight ? `${c.weight} ${words.kg}` : null} />
-                          <InfoRow icon={Palette} label="لون البشرة" value={c.skinColor} />
+                          <InfoRow icon={Palette} label="لون البشرة" value={c.skinColor && skinColorLabel(c.skinColor, isFemale ? "MALE" : "FEMALE")} />
                           {/* Show beard when viewing male partner (isFemale means partner is male) */}
                           {isFemale && c.beard !== null && c.beard !== undefined && (
                             <InfoRow icon={User} label="اللحية" value={c.beard ? "نعم" : "لا"} />

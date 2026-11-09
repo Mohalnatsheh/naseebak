@@ -29,7 +29,7 @@ import {
 import { areasFor, citiesFor } from "@/lib/countries/places";
 import { COUNTRIES, toCountry, type CountryCode } from "@/lib/countries";
 import { OptionalTag, DealbreakerToggle } from "@/components/profile/form-fields";
-import { HOUSING_TYPES, OPTION_VALUES, SKIN_COLORS, selfLabel, describeOption, oppositeGender, defaultNationality, expenseRangesFor, incomeRangesFor, nationalityOptions, tribeLabel } from "@/lib/profile-options";
+import { HOUSING_TYPES, OPTION_VALUES, SKIN_COLORS, jobValuesFor, skinColorLabel, selfLabel, describeOption, oppositeGender, defaultNationality, expenseRangesFor, incomeRangesFor, nationalityOptions, tribeLabel } from "@/lib/profile-options";
 import { activeDealbreakers } from "@/lib/matching/dealbreaker-summary";
 import type { DealbreakerKey } from "@/lib/matching/score";
 import { dateOfBirthError, parentInfoSchemaFor } from "@/lib/validations/profile";
@@ -816,7 +816,7 @@ export default function ProfileEditPage() {
                     onClick={() => handleCityChange(c)}
                     className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.city === c ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
                   >
-                    {c}
+                    {skinColorLabel(c, gender)}
                   </button>
                 ))}
               </div>
@@ -908,7 +908,7 @@ export default function ProfileEditPage() {
                 className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
               >
                 <option value="">اختر الوظيفة...</option>
-                {jobOptions.map((j) => (
+                {jobValuesFor(gender).concat(form.job && jobOptions.includes(form.job) && !jobValuesFor(gender).includes(form.job) ? [form.job] : []).map((j) => (
                   <option key={j} value={j}>{selfLabel("job", j, gender)}</option>
                 ))}
               </select>

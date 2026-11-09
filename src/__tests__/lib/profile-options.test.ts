@@ -44,3 +44,18 @@ describe("dealbreaker summaries", () => {
     expect(dealbreakerSummary("smokingStatus", { prefSmokingStatus: ["لا أدخن"] }, "FEMALE")).toBe("غير مدخن");
   });
 });
+
+describe("options follow gender (QA WA-13)", () => {
+  it("«ربة منزل» is offered to women only", async () => {
+    const { ownOptions, jobValuesFor } = await import("@/lib/profile-options");
+    expect(jobValuesFor("MALE")).not.toContain("ربة منزل");
+    expect(jobValuesFor("FEMALE")).toContain("ربة منزل");
+    expect(ownOptions("job", "MALE").map((o) => o.value)).not.toContain("ربة منزل");
+  });
+  it("skin colours read in the feminine for women; the stored value never changes", async () => {
+    const { skinColorLabel, skinColorOptions } = await import("@/lib/profile-options");
+    expect(skinColorLabel("أسمر", "FEMALE")).toBe("سمراء");
+    expect(skinColorLabel("أسمر", "MALE")).toBe("أسمر");
+    expect(skinColorOptions("FEMALE").map((o) => o.value)).toEqual(["أبيض", "حنطي", "أسمر", "غامق"]);
+  });
+});

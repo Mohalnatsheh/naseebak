@@ -4,7 +4,7 @@ import { useState } from "react";
 import { hasShownRows } from "@/components/shared/section-rows";
 import { useDashboardData } from "@/contexts/dashboard-context";
 import { countryConfig } from "@/lib/countries";
-import { describeOption, nationalityLabel, oppositeGender, tribeLabel } from "@/lib/profile-options";
+import { describeOption, nationalityLabel, oppositeGender, skinColorLabel, tribeLabel } from "@/lib/profile-options";
 import { veilLabel } from "@/lib/profile-veil";
 import {
   User, Calendar, MapPin, MapPinned, Flag, Baby, Ruler, Weight, Palette, GraduationCap, BookOpen,
@@ -127,7 +127,7 @@ export function CandidateDetails({ c }: { c: CandidateDetailsData }) {
         <InfoRow icon={Baby} label="عدد الأبناء" value={c.childrenCount > 0 ? `${c.childrenCount}` : "لا يوجد"} />
         <InfoRow icon={Ruler} label="الطول" value={c.height ? `${c.height} سم` : null} />
         <InfoRow icon={Weight} label="الوزن" value={c.weight ? `${c.weight} ${words.kg}` : null} />
-        <InfoRow icon={Palette} label="لون البشرة" value={c.skinColor} />
+        <InfoRow icon={Palette} label="لون البشرة" value={c.skinColor && skinColorLabel(c.skinColor, partnerGender)} />
         {c.hijab !== null && c.hijab !== undefined && (
           <InfoRow icon={User} label="الحجاب" value={veilLabel(c.hijab, c.niqab)} />
         )}

@@ -14,7 +14,7 @@ import { COUNTRIES, toCountry, type CountryCode } from "@/lib/countries";
 import { trackEvent } from "@/lib/analytics";
 import { useDashboardData, type CycleCounts } from "@/contexts/dashboard-context";
 import { Field, ChoiceGroup, DealbreakerToggle } from "@/components/profile/form-fields";
-import { HOUSING_TYPES, OPTION_VALUES, SKIN_COLORS, defaultNationality, expenseRangesFor, incomeRangesFor, nationalityOptions, ownOptions, partnerOptions, tribeLabel, type Opt } from "@/lib/profile-options";
+import { HOUSING_TYPES, OPTION_VALUES, skinColorOptions, defaultNationality, expenseRangesFor, incomeRangesFor, nationalityOptions, ownOptions, partnerOptions, tribeLabel, type Opt } from "@/lib/profile-options";
 import { activeDealbreakers } from "@/lib/matching/dealbreaker-summary";
 import type { DealbreakerKey } from "@/lib/matching/score";
 import { arabicCount } from "@/lib/utils";
@@ -29,7 +29,6 @@ import { sharedGet } from "@/lib/shared-get";
 const asOpts = (values: readonly string[]): Opt[] => values.map((v) => ({ value: v, label: v }));
 const educationLevels = asOpts(["ثانوية عامة", "دبلوم", "بكالوريوس", "ماجستير", "دكتوراه"]);
 const housingTypes = asOpts(HOUSING_TYPES);
-const skinColors = asOpts(SKIN_COLORS);
 const relocateOptions: Opt[] = [
   { value: "yes", label: "نعم" },
   { value: "no", label: "لا" },
@@ -681,7 +680,7 @@ export default function ProfileSetupPage() {
             </div>
 
             <Field id="skinColor" label="لون البشرة" optional>
-              <ChoiceGroup id="skinColor" cols={4} options={skinColors} isSelected={(v) => form.skinColor === v} onSelect={(v) => update("skinColor", v)} />
+              <ChoiceGroup id="skinColor" cols={4} options={skinColorOptions(gender)} isSelected={(v) => form.skinColor === v} onSelect={(v) => update("skinColor", v)} />
             </Field>
 
             <Field id="incomeRange" label="مستوى الدخل" optional>

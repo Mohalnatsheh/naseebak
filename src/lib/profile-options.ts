@@ -35,6 +35,25 @@ export type OptionField = keyof typeof OPTION_VALUES;
 
 /** Options with one label for everyone (same in every country) */
 export const SKIN_COLORS = ["أبيض", "حنطي", "أسمر", "غامق"] as const;
+
+/** Skin colour in the person's gender (stored values stay masculine; QA WA-13) */
+const SKIN_FEMALE: Record<string, string> = { "أبيض": "بيضاء", "حنطي": "حنطية", "أسمر": "سمراء", "غامق": "غامقة" };
+export function skinColorLabel(value: string, gender: string | null | undefined): string {
+  return norm(gender) === "FEMALE" ? (SKIN_FEMALE[value] ?? value) : value;
+}
+
+/** Skin colour choices for a person of this gender describing themself */
+export function skinColorOptions(gender: string | null | undefined): Opt[] {
+  return SKIN_COLORS.map((value) => ({ value, label: skinColorLabel(value, gender) }));
+}
+
+/** Jobs only one gender picks: «ربة منزل» is not offered to men (a stored value still shows) */
+const FEMALE_ONLY_JOBS: ReadonlySet<string> = new Set(["ربة منزل"]);
+
+/** The job values offered to a person of this gender */
+export function jobValuesFor(gender: string | null | undefined): string[] {
+  return OPTION_VALUES.job.filter((j) => norm(gender) === "FEMALE" || !FEMALE_ONLY_JOBS.has(j));
+}
 export const HOUSING_TYPES = ["ملك", "إيجار", "مع العائلة"] as const;
 
 type Labels = Partial<Record<OptionField, Record<string, string>>>;
@@ -150,7 +169,8 @@ export function nationalityLabel(value: string | null | undefined, gender: strin
 
 /** Options for my own profile. */
 export function ownOptions(field: OptionField, gender: string | null | undefined): Opt[] {
-  return OPTION_VALUES[field].map((value) => ({ value, label: selfLabel(field, value, gender) }));
+  const values: readonly string[] = field === "job" ? jobValuesFor(gender) : OPTION_VALUES[field];
+  return values.map((value) => ({ value, label: selfLabel(field, value, gender) }));
 }
 
 /** Options for a partner preference, written about the partner (the other gender). */

@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { sendOtpSchema, verifyOtpSchema, loginSchema, registerSchema, normalizePhone } from "@/lib/validations/auth";
+import { isArabicName } from "@/lib/phone";
 import { toLatinDigits } from "@/lib/digits";
 
 describe("sendOtpSchema", () => {
@@ -155,6 +156,14 @@ describe("registerSchema", () => {
     void _t;
     expect(registerSchema.safeParse(noTerms).success).toBe(false);
     expect(registerSchema.safeParse({ ...validData, termsAccepted: false }).success).toBe(false);
+  });
+
+  it("refuses digits in names, Arabic-Indic or not (QA WA-12)", () => {
+    for (const firstName of ["محمد٣", "محمد۳", "محمد3"]) {
+      expect(registerSchema.safeParse({ ...validData, firstName }).success).toBe(false);
+      expect(isArabicName(firstName)).toBe(false);
+    }
+    expect(isArabicName("عبد الله")).toBe(true);
   });
 
   it("trims names, refuses spaces-only or 1-letter names and caps the length", () => {

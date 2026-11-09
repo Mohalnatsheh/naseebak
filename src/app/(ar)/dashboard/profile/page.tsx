@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { useState, useEffect, useRef } from "react";
 import { useCountry, useDashboardData } from "@/contexts/dashboard-context";
 import { ProBadge } from "@/components/shared/pro-badge";
-import { selfLabel, tribeLabel } from "@/lib/profile-options";
+import { selfLabel, skinColorLabel, tribeLabel } from "@/lib/profile-options";
 import { formatDate } from "@/lib/countries";
 import { compressImage } from "@/lib/image-compress";
 import { arabicCount } from "@/lib/utils";
@@ -720,7 +720,7 @@ export default function ProfilePage() {
               <InfoField
                 icon={Palette}
                 label="لون البشرة"
-                value={p.skinColor}
+                value={skinColorLabel(p.skinColor, user.gender)}
                 gradient="from-accent/10 to-accent/5"
                 iconColor="text-accent-foreground"
               />

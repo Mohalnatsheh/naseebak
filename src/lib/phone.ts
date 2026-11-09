@@ -59,7 +59,14 @@ export function localPhone(phone: string, country?: CountryCode): string {
   return `0${intl.slice(COUNTRIES[c].dialCode.length)}`;
 }
 
-export const arabicNameRegex = /^[\u0600-\u06FF\s]+$/;
+/** Arabic letters and spaces; digits of any kind (٣, ۳, 3) are refused (QA WA-12) */
+export const arabicNameRegex = /^(?:(?![\u0660-\u0669\u06F0-\u06F9])[\u0600-\u06FF\s])+$/;
+
+/** A sign-up name as the server accepts it: Arabic only (no digits), at least 2 letters */
+export function isArabicName(v: string): boolean {
+  const t = v.replace(/\s+/g, " ").trim();
+  return arabicNameRegex.test(t) && arabicLetterCount(t) >= 2;
+}
 /** Longest first / family name accepted at sign-up */
 export const NAME_MAX_LENGTH = 40;
 

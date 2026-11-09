@@ -21,7 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { normalizePhone, localPhone, arabicLetterCount, NAME_MAX_LENGTH, TERMS_REQUIRED_MESSAGE } from "@/lib/phone";
+import { normalizePhone, localPhone, arabicLetterCount, isArabicName, NAME_MAX_LENGTH, TERMS_REQUIRED_MESSAGE } from "@/lib/phone";
 import {
   Card,
   CardContent,
@@ -323,8 +323,16 @@ function RegisterPageContent() {
       setError(form.firstName.trim() ? "الاسم الأول يجب أن يكون حرفين على الأقل" : "الاسم الأول مطلوب");
       return false;
     }
+    if (!isArabicName(form.firstName)) {
+      setError("الاسم الأول يجب أن يكون بالعربية فقط، بلا أرقام أو رموز");
+      return false;
+    }
     if (arabicLetterCount(form.lastName) < 2) {
       setError(form.lastName.trim() ? "اسم العائلة يجب أن يكون حرفين على الأقل" : "اسم العائلة مطلوب");
+      return false;
+    }
+    if (!isArabicName(form.lastName)) {
+      setError("اسم العائلة يجب أن يكون بالعربية فقط، بلا أرقام أو رموز");
       return false;
     }
     if (!form.gender) {

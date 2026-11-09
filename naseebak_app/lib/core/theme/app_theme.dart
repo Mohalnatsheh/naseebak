@@ -8,6 +8,9 @@ class AppColors {
   static const navyDeep = Color(0xFF15304A);
   static const gold = Color(0xFFC19250);
   static const goldLight = Color(0xFFDDB97F);
+
+  /// Gold text on a light gold background (the «Pro» badge)
+  static const goldText = Color(0xFF7A5420);
   static const offWhite = Color(0xFFF7F9FB);
   static const ink = Color(0xFF1A2230);
   static const muted = Color(0xFF5E6B7D);

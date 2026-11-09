@@ -27,7 +27,7 @@ class ProBadge extends StatelessWidget {
             fontSize: 11,
             height: 1.3,
             fontWeight: FontWeight.w800,
-            color: onDark ? AppColors.navyDeep : const Color(0xFF7A5420),
+            color: onDark ? AppColors.navyDeep : AppColors.goldText,
           ),
         ),
       ),

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../pro/pro_badge.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -11,6 +10,7 @@ import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/common.dart';
 import '../../shared/widgets/person_details_view.dart';
 import '../home/gendered_copy.dart';
+import '../pro/pro_badge.dart';
 import 'match_models.dart';
 import 'matches_repository.dart';
 import 'safety_actions.dart';

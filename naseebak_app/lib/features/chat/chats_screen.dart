@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import '../pro/pro_badge.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -11,6 +10,7 @@ import '../../shared/widgets/common.dart';
 import '../../core/auth/auth_controller.dart';
 import '../home/counts.dart';
 import '../home/gendered_copy.dart';
+import '../pro/pro_badge.dart';
 import 'chat_format.dart';
 import 'chat_models.dart';
 

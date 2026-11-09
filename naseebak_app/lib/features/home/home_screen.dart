@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../pro/pro_badge.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -15,6 +14,7 @@ import 'gendered_copy.dart';
 import 'poll_card.dart';
 import 'profile_strength_card.dart';
 import '../notifications/notifications_screen.dart';
+import '../pro/pro_badge.dart';
 
 /// One suggested next step, from the counts.
 class NextStep {

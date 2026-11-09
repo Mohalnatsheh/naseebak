@@ -100,9 +100,16 @@ needed a release.
   Everyone sees and hears media sent to them. Media (`media.url`, relative) loads with the Bearer token, sent only to
   the API's own origin; voice plays through `just_audio` with `useProxyForRequestHeaders: false` (headers go straight
   to AVPlayer / ExoPlayer). **The server media route `GET /api/chats/{id}/media/{mid}` must never redirect** (players
-  may re-send the Bearer header to the redirect target). **Test and review accounts never see Pro:** `/api/pro`
-  returns `canBuy: false` for them in the app (`EXTRA_TEST_PHONES`, and the built-in test numbers wherever
-  `ALLOW_BUILTIN_TEST_PHONES` is on), so neither the plans nor the greyed buttons show.
+  may re-send the Bearer header to the redirect target). The server's `canBuy: false` for test accounts
+  (`EXTRA_TEST_PHONES`, and the built-in test numbers wherever `ALLOW_BUILTIN_TEST_PHONES` is on) is only a second
+  layer: the rule above (`appPaymentsProvider`) is what hides Pro in the app.
+  **Voice playback** (`features/chat/voice_playback.dart`): `VoicePlayback` owns the players, one note at a time, so a
+  note keeps playing when its bubble scrolls away; the chat room pauses it when the app leaves the foreground, pauses
+  and blocks it while recording, and closes every player when the chat is left. On iPhone each play first sets the
+  audio session to playback / spoken audio (`audio_session`), so notes play with the silent switch on and after a
+  recording (which leaves `playAndRecord`). **Pro state freshness:** `/pro` re-reads a state another screen kept alive
+  (spinner, never stale plans) and on resume; the chat re-reads it on resume and when the counts poll's `pro.isPro`
+  disagrees with it.
 - **Config gate:** `GET /api/mobile/config` on start and every resume → force update / optional update / store links /
   maintenance (`core/update/app_update.dart`). Popup alerts: `GET /api/alerts/current?platform=app`.
 - **Crashlytics:** release builds only.

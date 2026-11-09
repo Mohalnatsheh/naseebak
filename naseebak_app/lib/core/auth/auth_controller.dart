@@ -145,15 +145,21 @@ class AuthController extends Notifier<AuthState> {
   }
 
   Future<void> _signOutLocally() async {
-    await ref.read(tokenStoreProvider).clear();
-    // Private conversations never stay on a phone after sign-out
-    await ref.read(chatCacheProvider).clearAll();
-    // Photos of the last member's matches never stay in memory for the next sign-in
-    WidgetsFlutterBinding.ensureInitialized();
-    PaintingBinding.instance.imageCache
-      ..clear()
-      ..clearLiveImages();
-    state = const AuthState.signedOut();
+    // Photos of the last member's matches never stay in memory for the next sign-in (first: nothing below can skip it)
+    try {
+      PaintingBinding.instance.imageCache
+        ..clear()
+        ..clearLiveImages();
+    } catch (_) {
+      // No painting binding (pure unit tests): no image cache to clear
+    }
+    try {
+      await ref.read(tokenStoreProvider).clear();
+      // Private conversations never stay on a phone after sign-out
+      await ref.read(chatCacheProvider).clearAll();
+    } finally {
+      state = const AuthState.signedOut();
+    }
   }
 
   /// The member's country is fixed by their number; keep the picker in step for the next sign-in.

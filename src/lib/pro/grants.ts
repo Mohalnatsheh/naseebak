@@ -4,23 +4,13 @@ import { recordCredit } from "@/lib/credits";
 import { notify } from "@/lib/notify";
 import { arabicCount } from "@/lib/utils";
 import { liveProWhere } from "@/lib/pro/status";
+import { addMonth } from "@/lib/pro/dates";
 
 const MAX_YEARLY_GRANTS_PER_RUN = 500;
 const YEARLY_GRANT_MONTHS = 12;
 
 function isUniqueViolation(e: unknown): boolean {
   return e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002";
-}
-
-/** One calendar month later, clamped to the month's last day (31 Jan -> 28 Feb) */
-function addMonth(d: Date): Date {
-  const out = new Date(d.getTime());
-  const day = out.getUTCDate();
-  out.setUTCDate(1);
-  out.setUTCMonth(out.getUTCMonth() + 1);
-  const last = new Date(Date.UTC(out.getUTCFullYear(), out.getUTCMonth() + 1, 0)).getUTCDate();
-  out.setUTCDate(Math.min(day, last));
-  return out;
 }
 
 /**

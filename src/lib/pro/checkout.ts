@@ -30,7 +30,7 @@ export class ProError extends Error {
  * Starts a Pro subscription checkout (Stripe-hosted page, mode «subscription»). The Payment row is written only after
  * Stripe returned a session, so a failed call leaves nothing pending. The row id travels in the metadata.
  * Local mock (`PAYMENTS_MOCK=true`): no Stripe call, a `mock_pro_<uuid>` session id and a return url with `mockPro`.
- * Granting happens only in the webhook handlers (lib/pro/webhook), never here.
+ * Granting happens only in the webhook handlers (lib/pro/stripe-events), never here.
  */
 export async function startProCheckout(userId: string, plan: ProPlanId): Promise<{ url: string; paymentId: string }> {
   if (!(await getProEnabled())) throw new ProError("DISABLED");

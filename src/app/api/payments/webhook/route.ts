@@ -5,6 +5,7 @@ import { getStripe } from "@/lib/stripe";
 import { db } from "@/lib/db";
 import { fulfilCheckoutSession, isOurSession } from "@/lib/payments/fulfil";
 import { flagDispute, handleChargeRefunded } from "@/lib/payments/refund";
+import { handleProCheckoutCompleted, handleProInvoiceFailed, handleProInvoicePaid, handleProSubscriptionChanged } from "@/lib/pro/stripe-events";
 import type Stripe from "stripe";
 
 export async function POST(request: Request) {
@@ -66,6 +67,11 @@ export async function POST(request: Request) {
       case "checkout.session.completed":
       case "checkout.session.async_payment_succeeded": {
         const session = event.data.object as Stripe.Checkout.Session;
+        // A subscription (Pro) never goes into the credit-package path; another site's one is ignored there too
+        if (session.mode === "subscription") {
+          await handleProCheckoutCompleted(session);
+          break;
+        }
         const outcome = await fulfilCheckoutSession(session);
         if (outcome === "not_paid") console.warn("Webhook: checkout not paid yet", session.id, session.payment_status);
         break;
@@ -97,6 +103,25 @@ export async function POST(request: Request) {
       case "charge.refunded": {
         const outcome = await handleChargeRefunded(event.data.object as Stripe.Charge);
         if (outcome !== "not_ours") console.log("[payments] charge.refunded:", event.data.object.id, outcome);
+        break;
+      }
+
+      // Pro membership (lib/pro/stripe-events): each handler ignores anything without our Pro marker
+      case "invoice.paid": {
+        const outcome = await handleProInvoicePaid(event.data.object as Stripe.Invoice);
+        if (outcome !== "not_ours") console.log("[pro] invoice.paid:", event.data.object.id, outcome);
+        break;
+      }
+      case "invoice.payment_failed": {
+        const outcome = await handleProInvoiceFailed(event.data.object as Stripe.Invoice);
+        if (outcome !== "not_ours") console.log("[pro] invoice.payment_failed:", event.data.object.id, outcome);
+        break;
+      }
+      case "customer.subscription.updated":
+      case "customer.subscription.deleted": {
+        const kind = event.type === "customer.subscription.deleted" ? "deleted" : "updated";
+        const outcome = await handleProSubscriptionChanged(event.data.object as Stripe.Subscription, kind);
+        if (outcome !== "not_ours") console.log(`[pro] subscription ${kind}:`, event.data.object.id, outcome);
         break;
       }
 

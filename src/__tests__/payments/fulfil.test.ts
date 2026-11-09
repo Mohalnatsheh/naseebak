@@ -84,6 +84,24 @@ describe("reconcileStripePayments", () => {
     expect(stripe.list).toHaveBeenCalledWith({ created: { gte: since }, limit: 100 });
   });
 
+  it("ignores Pro subscription sessions (their PENDING pro_monthly row is the webhook's)", async () => {
+    stripe.list.mockReturnValue(
+      (async function* () {
+        yield session({ id: "cs_pro", mode: "subscription", metadata: { app: "naseebak", kind: "pro", paymentId: "p9", userId: "u1", plan: "monthly" } });
+      })()
+    );
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(await reconcileStripePayments()).toEqual({ checked: 0, fulfilled: 0 });
+    expect(err).not.toHaveBeenCalled();
+    err.mockRestore();
+    expect(db.payment.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("fulfilCheckoutSession refuses a Pro session from any caller (return page, cancel, status)", async () => {
+    expect(await fulfilCheckoutSession(session({ mode: "subscription", metadata: { app: "naseebak", kind: "pro", paymentId: "p9", userId: "u1" } }))).toBe("not_ours");
+    expect(db.$transaction).not.toHaveBeenCalled();
+  });
+
   it("counts already-credited sessions as checked, not fulfilled", async () => {
     db.payment.updateMany.mockResolvedValue({ count: 0 });
     stripe.list.mockReturnValue((async function* () { yield session(); })());

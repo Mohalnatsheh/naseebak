@@ -24,9 +24,14 @@ export function isOurSession(session: Stripe.Checkout.Session): boolean {
   return m.app === CHECKOUT_APP || (!!m.paymentId && !!m.userId && !!m.credits);
 }
 
+/** A Pro membership checkout (lib/pro/stripe-events): never a credit package */
+function isSubscriptionSession(session: Stripe.Checkout.Session): boolean {
+  return session.mode === "subscription" || session.metadata?.kind === "pro";
+}
+
 export async function fulfilCheckoutSession(session: Stripe.Checkout.Session): Promise<FulfilResult> {
-  // Another site's checkout on the same Stripe account: not ours to touch
-  if (!isOurSession(session)) return "not_ours";
+  // Another site's checkout on the same Stripe account: not ours to touch. A Pro subscription is the Pro handlers' job
+  if (!isOurSession(session) || isSubscriptionSession(session)) return "not_ours";
   // "completed" also fires for payments still being processed: credits only once the money is in
   if (session.payment_status !== "paid") return "not_paid";
   const { paymentId, userId, credits } = session.metadata || {};
@@ -77,7 +82,8 @@ export async function reconcileStripePayments(now = new Date()): Promise<{ check
   let checked = 0;
   let fulfilled = 0;
   for await (const session of getStripe().checkout.sessions.list({ created: { gte: since }, limit: 100 })) {
-    if (session.payment_status !== "paid" || !isOurSession(session)) continue;
+    // Pro sessions (their PENDING pro_* rows) are settled by the subscription webhooks, never here
+    if (session.payment_status !== "paid" || !isOurSession(session) || isSubscriptionSession(session)) continue;
     checked++;
     try {
       if ((await fulfilCheckoutSession(session)) === "fulfilled") {

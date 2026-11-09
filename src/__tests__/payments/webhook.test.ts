@@ -5,8 +5,16 @@ const refund = vi.hoisted(() => ({ handleChargeRefunded: vi.fn(), flagDispute: v
 const event = vi.hoisted(() => ({ current: null as unknown }));
 vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/payments/refund", () => refund);
+const fulfil = vi.hoisted(() => ({ fulfilCheckoutSession: vi.fn() }));
+const pro = vi.hoisted(() => ({
+  handleProCheckoutCompleted: vi.fn(),
+  handleProInvoicePaid: vi.fn(),
+  handleProInvoiceFailed: vi.fn(),
+  handleProSubscriptionChanged: vi.fn(),
+}));
+vi.mock("@/lib/pro/stripe-events", () => pro);
 vi.mock("@/lib/payments/fulfil", () => ({
-  fulfilCheckoutSession: vi.fn(),
+  fulfilCheckoutSession: fulfil.fulfilCheckoutSession,
   isOurSession: (s: { metadata?: { app?: string } }) => s.metadata?.app === "naseebak",
 }));
 vi.mock("@/lib/stripe", () => ({ getStripe: () => ({ webhooks: { constructEvent: () => event.current } }) }));
@@ -71,5 +79,48 @@ describe("Stripe webhook", () => {
     event.current = { type: "payment_intent.canceled", data: { object: { metadata: { app: "naseebak", paymentId: "p1" }, last_payment_error: null } } };
     await call();
     expect(db.payment.updateMany).toHaveBeenLastCalledWith({ where: { id: "p1", status: "PENDING" }, data: { status: "FAILED", failureReason: "CANCELLED" } });
+  });
+
+  it("Pro: a subscription-mode session goes to the Pro handler and never reaches fulfilCheckoutSession", async () => {
+    pro.handleProCheckoutCompleted.mockResolvedValue("ok");
+    for (const type of ["checkout.session.completed", "checkout.session.async_payment_succeeded"]) {
+      event.current = { type, data: { object: { id: "cs_1", mode: "subscription", metadata: { app: "naseebak", kind: "pro" } } } };
+      expect((await call()).status).toBe(200);
+    }
+    // Another site's subscription session: neither handler credits anything
+    event.current = { type: "checkout.session.completed", data: { object: { id: "cs_2", mode: "subscription", metadata: { app: "other" } } } };
+    await call();
+    expect(pro.handleProCheckoutCompleted).toHaveBeenCalledTimes(3);
+    expect(fulfil.fulfilCheckoutSession).not.toHaveBeenCalled();
+    // A package checkout still goes to the package path
+    event.current = { type: "checkout.session.completed", data: { object: { id: "cs_3", mode: "payment", metadata: { app: "naseebak" } } } };
+    await call();
+    expect(fulfil.fulfilCheckoutSession).toHaveBeenCalledTimes(1);
+    expect(pro.handleProCheckoutCompleted).toHaveBeenCalledTimes(3);
+  });
+
+  it("Pro: routes invoice and subscription events", async () => {
+    const inv = { id: "in_1" };
+    const sub = { id: "sub_1" };
+    event.current = { type: "invoice.paid", data: { object: inv } };
+    await call();
+    expect(pro.handleProInvoicePaid).toHaveBeenCalledWith(inv);
+    event.current = { type: "invoice.payment_failed", data: { object: inv } };
+    await call();
+    expect(pro.handleProInvoiceFailed).toHaveBeenCalledWith(inv);
+    event.current = { type: "customer.subscription.updated", data: { object: sub } };
+    await call();
+    expect(pro.handleProSubscriptionChanged).toHaveBeenLastCalledWith(sub, "updated");
+    event.current = { type: "customer.subscription.deleted", data: { object: sub } };
+    await call();
+    expect(pro.handleProSubscriptionChanged).toHaveBeenLastCalledWith(sub, "deleted");
+  });
+
+  it("Pro: a handler error answers 500 so Stripe retries", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    pro.handleProInvoicePaid.mockRejectedValueOnce(new Error("db down"));
+    event.current = { type: "invoice.paid", id: "evt_1", data: { object: { id: "in_1" } } };
+    expect((await call()).status).toBe(500);
+    spy.mockRestore();
   });
 });

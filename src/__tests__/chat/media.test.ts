@@ -32,7 +32,7 @@ vi.mock("@/lib/auth", () => auth);
 vi.mock("@/lib/admin-alert", () => ({ sendAdminAlert: vi.fn() }));
 
 import { getConversation, listConversations, sendMediaMessage, sendMessage } from "@/lib/chat/service";
-import { IMAGE_FALLBACK_BODY, VOICE_FALLBACK_BODY, MediaBusyError, detectImageType, hasHeicMagic, processImage, runHeicWorker, validateImage, validateVoice } from "@/lib/chat/media";
+import { IMAGE_BUSY_MESSAGE, IMAGE_FALLBACK_BODY, VOICE_FALLBACK_BODY, MediaBusyError, detectImageType, hasHeicMagic, processImage, runHeicWorker, validateImage, validateVoice } from "@/lib/chat/media";
 import { mkdtempSync, readFileSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { execFileSync } from "child_process";
@@ -608,6 +608,15 @@ describe("HEIC worker: time limit and queue cap", () => {
     const again = await runHeicWorker(Buffer.from("x"), { timeoutMs: 100, script }).then(() => null, (err) => err);
     expect((again as Error).message).toBe("heic decode timed out");
   });
+
+  it("a photo refused because the queue is full says «حاول مرة أخرى», not «unsupported»", async () => {
+    const script = hanging();
+    const waiting = [1, 2, 3].map(() => runHeicWorker(Buffer.from("x"), { timeoutMs: 300, script }).catch((e) => e));
+    const err = await processImage(readFileSync(join(__dirname, "../fixtures/small.heic"))).catch((e) => e);
+    expect(err).toBeInstanceOf(IntroError);
+    expect(err.message).toBe(IMAGE_BUSY_MESSAGE);
+    await Promise.all(waiting);
+  });
 });
 
 describe("media cache", () => {
@@ -640,5 +649,30 @@ describe("media cache", () => {
     await readMediaCached("b", b, 5);
     expect(a).toHaveBeenCalledTimes(1);
     expect(b).toHaveBeenCalledTimes(2);
+  });
+
+  it("parallel requests for one file share one read (a player's two Range requests)", async () => {
+    let finish!: (b: Buffer) => void;
+    const read = vi.fn(() => new Promise<Buffer | null>((r) => (finish = r)));
+    const both = Promise.all([readMediaCached("m1", read, 0), readMediaCached("m1", read, 0)]);
+    finish(Buffer.from("abc"));
+    const [x, y] = await both;
+    expect(read).toHaveBeenCalledTimes(1);
+    expect(x?.toString()).toBe("abc");
+    expect(y?.toString()).toBe("abc");
+    // Cached afterwards as usual
+    await readMediaCached("m1", read, 1);
+    expect(read).toHaveBeenCalledTimes(1);
+  });
+
+  it("a failed or missing shared read is not kept: the next request reads again", async () => {
+    const failing = vi.fn(async () => {
+      throw new Error("bunny down");
+    });
+    await expect(Promise.all([readMediaCached("m1", failing, 0), readMediaCached("m1", failing, 0)])).rejects.toThrow("bunny down");
+    expect(failing).toHaveBeenCalledTimes(1);
+    const ok = vi.fn(async () => Buffer.from("ok"));
+    expect((await readMediaCached("m1", ok, 1))?.toString()).toBe("ok");
+    expect(ok).toHaveBeenCalledTimes(1);
   });
 });

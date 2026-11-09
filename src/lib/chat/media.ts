@@ -9,6 +9,7 @@ import { randomBytes } from "crypto";
 import path from "path";
 import { Worker } from "worker_threads";
 import { IntroError } from "@/lib/intro/errors";
+import { UNSUPPORTED_IMAGE_MESSAGE } from "@/lib/chat/media-messages";
 
 export type MediaKind = "IMAGE" | "VOICE";
 export type MessageKindValue = "TEXT" | MediaKind;
@@ -35,7 +36,6 @@ export const VOICE_FALLBACK_BODY = "🎤 رسالة صوتية — حدّث ال
 export const IMAGE_PREVIEW = "📷 صورة";
 export const VOICE_PREVIEW = "🎤 رسالة صوتية";
 
-import { UNSUPPORTED_IMAGE_MESSAGE } from "@/lib/chat/media-messages";
 export { UNSUPPORTED_IMAGE_MESSAGE };
 export const IMAGE_BUSY_MESSAGE = "تعذّر تجهيز الصورة الآن، حاول مرة أخرى";
 

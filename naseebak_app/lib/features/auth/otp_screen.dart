@@ -13,7 +13,6 @@ import '../../core/theme/app_theme.dart';
 import '../../core/localization/safe_input_formatter.dart';
 import '../../shared/widgets/common.dart';
 import '../welcome/brand_visuals.dart';
-import 'auth_repository.dart';
 import 'pending_auth.dart';
 import 'phone_validation.dart';
 
@@ -106,7 +105,9 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
         ref.read(pendingAuthProvider.notifier).set(pending.withCode(code, userExists: exists));
         ref.read(analyticsProvider).otpVerified(pending.mode.name);
       }
-      final knownMember = pending.mode == OtpContext.login && exists == true;
+      // A member signs in, whichever tab they started from: the verified code proves the number, so «حساب جديد»
+      // with a registered number doesn't ask for the sign-up form first
+      final knownMember = exists == true;
       if (knownMember) {
         // The router moves on once the session is set
         final analytics = ref.read(analyticsProvider);

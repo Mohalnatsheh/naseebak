@@ -60,6 +60,10 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
   final _ageMax = TextEditingController();
   final _guardian = GuardianFields();
   Map<String, String?> _errors = {};
+
+  /// This step was checked and had errors: from then on the errors follow the answers, so an answered question
+  /// loses its error at once instead of at the next «التالي»
+  bool _checked = false;
   String? _error;
   bool _saving = false;
   bool _prefilled = false;
@@ -184,6 +188,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
     final errors = _validate(_step);
     setState(() {
       _errors = errors;
+      _checked = errors.isNotEmpty;
       _error = null;
     });
     if (errors.isNotEmpty) return;
@@ -283,7 +288,11 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
 
   void _back() {
     if (_step == 0) return;
-    setState(() => _step--);
+    setState(() {
+      _step--;
+      _checked = false;
+      _errors = {};
+    });
     _rememberStep();
   }
 
@@ -303,6 +312,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_checked) _errors = _validate(_step);
     final me = ref.watch(authControllerProvider).me;
     final counts = ref.watch(countsProvider);
     final profile = ref.watch(myProfileProvider);
@@ -455,6 +465,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
             TextField(
               controller: _children,
               keyboardType: TextInputType.number,
+              onChanged: (_) => setState(() {}),
               decoration: InputDecoration(hintText: '0', errorText: _errors['children']),
             ),
           ],
@@ -478,6 +489,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
                   key: const Key('age-min'),
                   controller: _ageMin,
                   keyboardType: TextInputType.number,
+                  onChanged: (_) => setState(() {}),
                   decoration: InputDecoration(labelText: 'من', errorText: _errors['ageMin'], errorMaxLines: 2),
                 ),
               ),
@@ -487,6 +499,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
                   key: const Key('age-max'),
                   controller: _ageMax,
                   keyboardType: TextInputType.number,
+                  onChanged: (_) => setState(() {}),
                   decoration: InputDecoration(labelText: 'إلى', errorText: _errors['ageMax'], errorMaxLines: 2),
                 ),
               ),

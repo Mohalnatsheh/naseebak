@@ -83,6 +83,26 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('تعذّر تحميل قائمة المدن. حاول مرة أخرى.'), findsOneWidget);
   });
+
+  testWidgets('an answered setup question loses its error at once', (tester) async {
+    tester.view.physicalSize = const Size(1179, 2556);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    final adapter = FakeAdapter()..on('GET', '/api/countries/SA', FakeResponse(200, saDetails()));
+    await tester.pumpWidget(scopedApp(await signedInSa(adapter), const SetupScreen()));
+    await tester.pumpAndSettle();
+    final next = find.byKey(const Key('setup-next'));
+    await tester.scrollUntilVisible(next, 300, scrollable: find.byType(Scrollable).first);
+    await tester.pumpAndSettle();
+    await tester.tap(next);
+    await tester.pumpAndSettle();
+    expect(find.text('المدينة مطلوبة'), findsOneWidget);
+
+    await tester.ensureVisible(find.text('جدة'));
+    await tester.tap(find.text('جدة'));
+    await tester.pumpAndSettle();
+    expect(find.text('المدينة مطلوبة'), findsNothing);
+  });
 }
 
 Widget scopedApp(List<Override> overrides, Widget child) => ProviderScope(overrides: overrides, child: rtlApp(child));

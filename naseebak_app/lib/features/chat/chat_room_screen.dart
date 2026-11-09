@@ -69,6 +69,9 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
   static const _mediaReconcileWindow = Duration(minutes: 3);
   int _nonceSeq = 0;
 
+  /// Server copies of my own sends that succeeded here: never the copy of another, failed send
+  final Set<String> _confirmedIds = {};
+
   /// The gallery is open (a second tap does nothing)
   bool _picking = false;
 
@@ -78,8 +81,11 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
   Timer? _voiceTimer;
   Duration _voiceElapsed = Duration.zero;
 
-  /// Stopped at the limit: the file waiting for «إرسال» or «إلغاء»
+  /// Stopped (the limit, or the app went to the background): the file waiting for «إرسال» or «إلغاء»
   String? _voicePath;
+
+  /// The stop came from the 3-minute limit (the bar says so); otherwise the app left the foreground
+  bool _voiceAtLimit = false;
 
   /// Scrolled up to read history (shows «الأحدث» with what arrived meanwhile)
   bool _away = false;
@@ -111,6 +117,13 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Backgrounded or locked mid-recording: Android would record silence and iOS cuts the microphone, so stop now,
+    // keep what was really recorded and wait for «إرسال» or «إلغاء»
+    if ((state == AppLifecycleState.inactive || state == AppLifecycleState.paused || state == AppLifecycleState.hidden) &&
+        _voice == _Voice.recording) {
+      final rec = _recorder;
+      if (rec != null) _stopRecording(rec, limit: false);
+    }
     if (state == AppLifecycleState.resumed) {
       _background = false;
       // Not before the chat is known (the first load starts watching itself)
@@ -340,8 +353,11 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
   /// A photo or voice note has no text of its own (the server copy carries the old-app fallback «📷 صورة», and the GET
   /// returns no nonce): it matches a message of mine of the same kind within the upload window.
   void _reconcile(Iterable<ChatMessage> arrived) {
-    final candidates = arrived.where((m) => m.mine && m.state == SendState.sent).toList();
+    final candidates =
+        arrived.where((m) => m.mine && m.state == SendState.sent && !_confirmedIds.contains(m.id)).toList();
     if (candidates.isEmpty) return;
+    // A copy that arrives while another photo / voice note of that kind is still uploading may be that one's
+    bool uploading(MessageKind k) => _messages.any((x) => x.state == SendState.sending && x.kind == k);
     bool same(ChatMessage m, ChatMessage local) {
       final gap = m.createdAt.difference(local.createdAt).abs();
       if (local.kind != MessageKind.text) return m.kind == local.kind && gap <= _mediaReconcileWindow;
@@ -350,6 +366,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
 
     _messages.removeWhere((local) {
       if (local.state != SendState.failed || !local.maybeSent) return false;
+      if (local.kind != MessageKind.text && uploading(local.kind)) return false;
       final i = candidates.indexWhere((m) => same(m, local));
       if (i < 0) return false;
       candidates.removeAt(i);
@@ -448,6 +465,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     _toNewest();
     try {
       final sent = await _repo.send(widget.chatId, text, nonce: nonce);
+      _confirmedIds.add(sent.id);
       if (first) ref.read(analyticsProvider).chatStarted();
       if (!mounted) return;
       setState(() {
@@ -538,6 +556,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
         durationSec: voice ? seconds : null,
         nonce: nonce,
       );
+      _confirmedIds.add(sent.id);
       if (first) container.read(analyticsProvider).chatStarted();
       container.invalidate(chatListProvider);
       // The voice note's temporary file is no longer needed (the server copy plays from now on)
@@ -622,6 +641,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     if (_recorder != rec || !mounted || !_voiceAllowed) return _drop(rec);
     setState(() {
       _voice = _Voice.recording;
+      _voiceAtLimit = false;
       _voiceElapsed = Duration.zero;
     });
     _voiceTimer = Timer.periodic(const Duration(milliseconds: 250), (_) => _tickVoice());
@@ -653,19 +673,22 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     if (!mounted || rec == null || _voice != _Voice.recording) return;
     final elapsed = _elapsedOf(rec);
     if (elapsed >= maxVoiceDuration) {
-      _stopAtLimit(rec);
+      _stopRecording(rec, limit: true);
       return;
     }
     if (elapsed.inSeconds != _voiceElapsed.inSeconds) setState(() => _voiceElapsed = elapsed);
   }
 
-  /// The limit: the recorder stops and the bar waits for «إرسال» or «إلغاء» (never sent on its own)
-  Future<void> _stopAtLimit(VoiceRecorder rec) async {
+  /// The limit, or the app leaving the foreground: the recorder stops, the real time recorded is frozen and the bar
+  /// waits for «إرسال» or «إلغاء» (never sent on its own)
+  Future<void> _stopRecording(VoiceRecorder rec, {required bool limit}) async {
     _voiceTimer?.cancel();
     _voiceTimer = null;
+    final elapsed = limit ? maxVoiceDuration : _elapsedOf(rec);
     setState(() {
       _voice = _Voice.stopping;
-      _voiceElapsed = maxVoiceDuration;
+      _voiceAtLimit = limit;
+      _voiceElapsed = elapsed;
     });
     String? path;
     try {
@@ -691,7 +714,8 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     Duration elapsed;
     if (_voice == _Voice.stopped) {
       path = _voicePath;
-      elapsed = maxVoiceDuration;
+      // Frozen when it stopped (the limit or the app going to the background)
+      elapsed = _voiceElapsed;
     } else if (_voice == _Voice.recording) {
       _voiceTimer?.cancel();
       _voiceTimer = null;
@@ -781,13 +805,13 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
                       ),
                     ],
                   ),
-                  if (_voiceElapsed >= maxVoiceDuration)
-                    const Padding(
-                      padding: EdgeInsets.only(top: 2),
+                  if (stopped || busy)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
                       child: Text(
-                        'بلغ التسجيل الحد الأقصى',
+                        _voiceAtLimit ? 'بلغ التسجيل الحد الأقصى' : 'توقف التسجيل',
                         textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 12, color: AppColors.muted),
+                        style: const TextStyle(fontSize: 12, color: AppColors.muted),
                       ),
                     ),
                 ],

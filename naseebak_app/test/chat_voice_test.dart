@@ -430,4 +430,105 @@ void main() {
     expect(find.text('إعادة الإرسال'), findsOneWidget);
     await h.leave(tester);
   });
+
+  testWidgets('the app goes to the background at 12.4 s: recording stops and waits; send → durationSec 13',
+      (tester) async {
+    final h = _Harness();
+    await h.open(tester);
+    await tester.tap(_mic);
+    await tester.pump();
+    await tester.pump();
+    h.rec.now = const Duration(milliseconds: 12400);
+    await _tick(tester);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    await tester.pump();
+    await tester.pump();
+    expect(h.rec.stopped, isTrue);
+    expect(find.text('توقف التسجيل'), findsOneWidget);
+    expect(find.text('بلغ التسجيل الحد الأقصى'), findsNothing);
+    // The real clock would keep going: what was recorded stays frozen
+    h.rec.now = const Duration(seconds: 90);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump(const Duration(seconds: 5));
+    expect(find.descendant(of: _clock, matching: find.text('0:12')), findsOneWidget);
+    expect(h.uploads, isEmpty);
+    expect(h.rec.cancelled, isFalse);
+    await tester.tap(_send);
+    await tester.pumpAndSettle();
+    expect(h.uploads, hasLength(1));
+    final fields = Map.fromEntries((h.uploads.single.data as FormData).fields);
+    expect(fields['kind'], 'VOICE');
+    expect(fields['durationSec'], '13');
+  });
+
+  testWidgets('two photos, one sent and one failed with no answer: the failed one keeps its retry until its own copy arrives',
+      (tester) async {
+    // Tall enough that every bubble is built
+    tester.view.physicalSize = const Size(800, 3000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final h = _Harness(pollInterval: const Duration(seconds: 1));
+    final gate = Completer<void>();
+    var handled = 0;
+    Map<String, dynamic>? sentCopy;
+    h.adapter.handlers['POST /api/chats/c1/media'] = (r) {
+      handled++;
+      // The second photo goes through first; the first one (held) then gets no answer
+      if (handled == 2) return const FakeResponse.network();
+      final nonce = Map.fromEntries((r.data as FormData).fields)['clientNonce'];
+      sentCopy = {
+        'id': 'srv-$nonce',
+        'body': '📷 صورة',
+        'createdAt': DateTime.now().toUtc().toIso8601String(),
+        'mine': true,
+        'kind': 'IMAGE',
+        'media': {'url': '/api/chats/c1/media/srv-$nonce', 'type': 'image/jpeg', 'width': 1, 'height': 1},
+      };
+      return FakeResponse(200, {'message': sentCopy});
+    };
+    await h.open(tester);
+    h.adapter.hold('POST', '/api/chats/c1/media', gate.future);
+    await tester.tap(find.byKey(const Key('chat-photo')));
+    for (var i = 0; i < 5 && h.uploads.isEmpty; i++) {
+      await tester.pump(const Duration(milliseconds: 20));
+    }
+    expect(h.uploads, hasLength(1));
+    h.adapter.holds.clear();
+    await tester.tap(find.byKey(const Key('chat-photo')));
+    for (var i = 0; i < 5; i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+    expect(sentCopy, isNotNull);
+    gate.complete();
+    for (var i = 0; i < 5; i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+    expect(find.text('إعادة الإرسال'), findsOneWidget);
+    expect(find.byType(ChatBubble), findsNWidgets(3));
+    // The server holds only the photo that was sent: the failed one keeps its retry
+    h.serverExtra = [sentCopy!];
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('إعادة الإرسال'), findsOneWidget);
+    expect(find.byType(ChatBubble), findsNWidgets(3));
+    // Its own copy turns up after all: shown once
+    h.serverExtra = [
+      sentCopy!,
+      {
+        'id': 'zz-late',
+        'body': '📷 صورة',
+        'createdAt': DateTime.now().toUtc().toIso8601String(),
+        'mine': true,
+        'kind': 'IMAGE',
+        'media': {'url': '/api/chats/c1/media/zz-late', 'type': 'image/jpeg', 'width': 1, 'height': 1},
+      },
+    ];
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('إعادة الإرسال'), findsNothing);
+    expect(find.byType(ChatBubble), findsNWidgets(3));
+    await h.leave(tester);
+  });
 }

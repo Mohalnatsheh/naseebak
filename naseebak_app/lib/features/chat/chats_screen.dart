@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/localization/digits.dart';
+import '../../core/privacy/screen_privacy.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/common.dart';
 import '../../core/auth/auth_controller.dart';
@@ -107,7 +108,9 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> with WidgetsBindingOb
         title: const Text('المحادثات'),
         bottom: TabBar(controller: _tabs, tabs: [tab('النشطة', unread(active)), tab('المنتهية', unread(ended))]),
       ),
-      body: chats.when(
+      // The last messages show here: private like the chat itself, but only while this tab is the one on screen (the
+      // tab bar keeps it alive behind the others, with its tickers off)
+      body: SecureArea(onlyWhileShown: true, child: chats.when(
         loading: () => const SkeletonList(count: 4, itemHeight: 72),
         error: (e, _) => ErrorView(error: e, onRetry: () => ref.invalidate(chatListProvider)),
         data: (_) => TabBarView(
@@ -129,7 +132,7 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> with WidgetsBindingOb
             ),
           ],
         ),
-      ),
+      )),
     );
   }
 

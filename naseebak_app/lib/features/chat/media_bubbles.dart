@@ -154,11 +154,16 @@ class PhotoViewer extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: Colors.black,
         foregroundColor: Colors.white,
-        leading: IconButton(
-          icon: const Icon(Icons.close_rounded),
-          tooltip: 'إغلاق',
-          onPressed: () => Navigator.of(context).maybePop(),
-        ),
+        // ✕ at the end side (left in Arabic), like every dialog of the app
+        automaticallyImplyLeading: false,
+        actions: [
+          IconButton(
+            key: const Key('photo-viewer-close'),
+            icon: const Icon(Icons.close_rounded),
+            tooltip: 'إغلاق',
+            onPressed: () => Navigator.of(context).maybePop(),
+          ),
+        ],
       ),
       body: SecureArea(
         child: SizedBox.expand(
@@ -326,9 +331,11 @@ class _VoiceBubbleState extends ConsumerState<VoiceBubble> {
         // The progress bar runs against the player's real length once loaded (it ends exactly at 100 %)
         final shown = _shownTotal(s);
         final total = s.realDuration ?? shown;
-        final started = s.playing || s.position > Duration.zero;
+        // Played to the end (or a stray position at the end): shown reset, with its length
+        final atEnd = !s.playing && total > Duration.zero && s.position >= total;
+        final started = !atEnd && (s.playing || s.position > Duration.zero);
         final progress =
-            total.inMilliseconds > 0 ? (s.position.inMilliseconds / total.inMilliseconds).clamp(0.0, 1.0) : 0.0;
+            started && total.inMilliseconds > 0 ? (s.position.inMilliseconds / total.inMilliseconds).clamp(0.0, 1.0) : 0.0;
         return SizedBox(
           width: 210,
           child: Row(
@@ -355,14 +362,13 @@ class _VoiceBubbleState extends ConsumerState<VoiceBubble> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    ClipRRect(
+                    LinearProgressIndicator(
+                      value: progress,
+                      minHeight: 4,
+                      color: c,
+                      backgroundColor: c.withValues(alpha: 0.25),
+                      // Rounded by the indicator itself: no clip layer per bubble (scroll cost)
                       borderRadius: BorderRadius.circular(2),
-                      child: LinearProgressIndicator(
-                        value: progress,
-                        minHeight: 4,
-                        color: c,
-                        backgroundColor: c.withValues(alpha: 0.25),
-                      ),
                     ),
                     const SizedBox(height: 4),
                     Text(

@@ -8,6 +8,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../app/providers.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/network/media_url.dart';
+import '../../core/storage/picker_files.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/common.dart';
 import 'profile_repository.dart';
@@ -51,7 +52,11 @@ class _PhotosScreenState extends ConsumerState<PhotosScreen> {
     if (widget.picker != null) return widget.picker!();
     // Re-encoded smaller on the device, like the website's compressImage()
     final file = await ImagePicker().pickImage(source: ImageSource.gallery, maxWidth: 1600, maxHeight: 1600, imageQuality: 82);
-    return file?.readAsBytes();
+    if (file == null) return null;
+    final bytes = await file.readAsBytes();
+    // Read into memory: the picker's copy of the photo isn't left on the phone
+    deletePickedFile(file.path);
+    return bytes;
   }
 
   Future<void> _run(Future<void> Function() action, String done) async {

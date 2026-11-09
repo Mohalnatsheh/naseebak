@@ -1,3 +1,5 @@
+import 'package:flutter/widgets.dart' show TextDirection;
+
 import '../../core/localization/digits.dart';
 import 'chat_models.dart';
 
@@ -51,3 +53,21 @@ bool _grouped(ChatMessage a, ChatMessage b) =>
     tightTop: older != null && _grouped(m, older),
   );
 }
+
+/// A message's own direction, from its first strong letter: Arabic (and other right-to-left scripts) → RTL, a Latin
+/// letter → LTR. Nothing strong (a number, emoji, punctuation) → LTR, so `07 9 12 34 567` reads in its own order and
+/// isn't reversed group by group inside the Arabic layout.
+TextDirection messageDirection(String text) {
+  for (final r in text.runes) {
+    if (_rtl(r)) return TextDirection.rtl;
+    if (_ltrLetter(r)) return TextDirection.ltr;
+  }
+  return TextDirection.ltr;
+}
+
+/// Arabic-Indic digits are numbers, not letters: they don't decide the direction
+bool _rtl(int r) =>
+    !(r >= 0x0660 && r <= 0x0669) && !(r >= 0x06F0 && r <= 0x06F9) && (r >= 0x0590 && r <= 0x08FF) || (r >= 0xFB1D && r <= 0xFDFF) || (r >= 0xFE70 && r <= 0xFEFF);
+
+bool _ltrLetter(int r) =>
+    (r >= 0x41 && r <= 0x5A) || (r >= 0x61 && r <= 0x7A) || (r >= 0xC0 && r <= 0x24F) || (r >= 0x370 && r <= 0x52F);

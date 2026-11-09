@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:ui';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -64,8 +65,12 @@ class ScreenPrivacy {
 
 /// Wrap a private area (a chat, a match's photos): protected while it is on screen.
 class SecureArea extends StatefulWidget {
-  const SecureArea({super.key, required this.child, this.screenshotNote});
+  const SecureArea({super.key, required this.child, this.screenshotNote, this.onlyWhileShown = false});
   final Widget child;
+
+  /// For a tab kept alive behind the others (the chats list): protected only while its tickers run, i.e. while it is
+  /// the tab on screen
+  final bool onlyWhileShown;
 
   /// Shown after a screenshot (iOS); null for no note
   final String? screenshotNote;
@@ -76,11 +81,33 @@ class SecureArea extends StatefulWidget {
 
 class _SecureAreaState extends State<SecureArea> {
   StreamSubscription<void>? _shots;
+  bool _entered = false;
+  ValueListenable<TickerModeData>? _ticker;
+
+  void _follow(bool on) {
+    if (on == _entered) return;
+    _entered = on;
+    on ? ScreenPrivacy.enter() : ScreenPrivacy.leave();
+  }
+
+  void _tickerChanged() => _follow(_ticker!.value.enabled);
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!widget.onlyWhileShown) return;
+    final t = TickerMode.getValuesNotifier(context);
+    if (!identical(t, _ticker)) {
+      _ticker?.removeListener(_tickerChanged);
+      _ticker = t..addListener(_tickerChanged);
+    }
+    _tickerChanged();
+  }
 
   @override
   void initState() {
     super.initState();
-    ScreenPrivacy.enter();
+    if (!widget.onlyWhileShown) _follow(true);
     final note = widget.screenshotNote;
     if (note != null) {
       _shots = ScreenPrivacy.screenshots.listen((_) {
@@ -95,7 +122,8 @@ class _SecureAreaState extends State<SecureArea> {
   @override
   void dispose() {
     _shots?.cancel();
-    ScreenPrivacy.leave();
+    _ticker?.removeListener(_tickerChanged);
+    _follow(false);
     super.dispose();
   }
 

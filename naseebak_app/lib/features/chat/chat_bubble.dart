@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/localization/digits.dart';
 import '../../core/theme/app_theme.dart';
+import 'chat_format.dart';
 import 'chat_models.dart';
 import 'media_bubbles.dart';
 
@@ -14,6 +15,7 @@ class ChatBubble extends StatelessWidget {
     required this.message,
     this.onRetry,
     this.onOpenPro,
+    this.onDelete,
     this.showTime = true,
     this.tightTop = false,
   });
@@ -22,6 +24,9 @@ class ChatBubble extends StatelessWidget {
 
   /// Under a `PRO_REQUIRED` failure: opens «عضوية Pro» (null where the member can't buy: the message alone)
   final VoidCallback? onOpenPro;
+
+  /// «حذف» under a failed or refused message (it was never sent: it only leaves this phone)
+  final VoidCallback? onDelete;
   final bool showTime;
   final bool tightTop;
 
@@ -62,7 +67,12 @@ class ChatBubble extends StatelessWidget {
                   switch (message.kind) {
                     MessageKind.image => PhotoBubble(message: message),
                     MessageKind.voice => VoiceBubble(message: message, color: fg),
-                    MessageKind.text => Text(message.body, style: TextStyle(color: fg, fontSize: 16, height: 1.5)),
+                    MessageKind.text => Text(
+                        message.body,
+                        // Each message in its own direction (an English line, a number) within the Arabic chat
+                        textDirection: messageDirection(message.body),
+                        style: TextStyle(color: fg, fontSize: 16, height: 1.5),
+                      ),
                   },
                   if (showTime) ...[
                     const SizedBox(height: 2),
@@ -107,20 +117,33 @@ class ChatBubble extends StatelessWidget {
                   children: [
                     if (message.error != null)
                       Text(message.error!, style: const TextStyle(color: AppColors.danger, fontSize: 12.5)),
-                    if (message.proRequired) ...[
-                      if (onOpenPro != null)
-                        TextButton.icon(
-                          key: const Key('chat-failed-pro'),
-                          onPressed: onOpenPro,
-                          icon: const Icon(Icons.workspace_premium_rounded, size: 18),
-                          label: const Text('عضوية Pro'),
-                        ),
-                    ] else if (onRetry != null)
-                      TextButton.icon(
-                        onPressed: onRetry,
-                        icon: Icon(message.filtered ? Icons.edit_outlined : Icons.refresh_rounded, size: 18),
-                        label: Text(message.filtered ? 'تعديل الرسالة' : 'إعادة الإرسال'),
-                      ),
+                    Wrap(
+                      spacing: 4,
+                      children: [
+                        if (message.proRequired) ...[
+                          if (onOpenPro != null)
+                            TextButton.icon(
+                              key: const Key('chat-failed-pro'),
+                              onPressed: onOpenPro,
+                              icon: const Icon(Icons.workspace_premium_rounded, size: 18),
+                              label: const Text('عضوية Pro'),
+                            ),
+                        ] else if (onRetry != null)
+                          TextButton.icon(
+                            onPressed: onRetry,
+                            icon: Icon(message.filtered ? Icons.edit_outlined : Icons.refresh_rounded, size: 18),
+                            label: Text(message.filtered ? 'تعديل الرسالة' : 'إعادة الإرسال'),
+                          ),
+                        if (onDelete != null)
+                          TextButton.icon(
+                            key: const Key('chat-failed-delete'),
+                            onPressed: onDelete,
+                            style: TextButton.styleFrom(foregroundColor: AppColors.muted),
+                            icon: const Icon(Icons.delete_outline_rounded, size: 18),
+                            label: const Text('حذف'),
+                          ),
+                      ],
+                    ),
                   ],
                 ),
               ),

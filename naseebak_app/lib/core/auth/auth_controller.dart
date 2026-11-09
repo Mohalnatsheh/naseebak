@@ -4,8 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/providers.dart';
 import '../../features/auth/me.dart';
 import '../../features/chat/chat_cache.dart';
+import '../../features/chat/chat_drafts.dart';
 import '../network/api_exception.dart';
 import '../push/push_service.dart';
+import '../storage/picker_files.dart';
 
 enum AuthStatus {
   /// Restoring the saved session
@@ -155,8 +157,10 @@ class AuthController extends Notifier<AuthState> {
     }
     try {
       await ref.read(tokenStoreProvider).clear();
-      // Private conversations never stay on a phone after sign-out
+      // Private conversations never stay on a phone after sign-out (nor drafts, nor the photo picker's copies)
       await ref.read(chatCacheProvider).clearAll();
+      await ref.read(chatDraftsProvider).clearAll();
+      await ref.read(pickerFilesCleanerProvider)();
     } finally {
       state = const AuthState.signedOut();
     }

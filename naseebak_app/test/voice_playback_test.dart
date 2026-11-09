@@ -157,6 +157,27 @@ void main() {
       expect(s.value.position, Duration.zero);
     });
 
+    test('a note played to the end shows reset: a late position from the player is ignored until it plays again',
+        () async {
+      final s = playback.attach('a');
+      await playback.toggle('a', _src);
+      players.single.moveTo(const Duration(seconds: 4));
+      await Future<void>.delayed(Duration.zero);
+      expect(s.value.position, const Duration(seconds: 4));
+      players.single.complete();
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+      // The player reports where it stopped after the seek: the bar stays at the start
+      players.single.moveTo(const Duration(seconds: 9));
+      await Future<void>.delayed(Duration.zero);
+      expect(s.value.position, Duration.zero);
+      expect(s.value.playing, isFalse);
+      await playback.toggle('a', _src);
+      players.single.moveTo(const Duration(seconds: 1));
+      await Future<void>.delayed(Duration.zero);
+      expect(s.value.position, const Duration(seconds: 1));
+    });
+
     test('a pause during the load wins: the note never starts', () async {
       playback.attach('a');
       final f = playback.toggle('a', _src);

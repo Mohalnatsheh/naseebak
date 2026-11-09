@@ -10,6 +10,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:naseebak_app/core/auth/auth_controller.dart';
 import 'package:naseebak_app/core/storage/token_store.dart';
+import 'package:naseebak_app/core/system/app_settings.dart';
 import 'package:naseebak_app/core/theme/app_theme.dart';
 import 'package:naseebak_app/features/chat/chat_bubble.dart';
 import 'package:naseebak_app/features/chat/chat_cache.dart';
@@ -102,6 +103,10 @@ class _Harness {
   final recorders = <FakeRecorder>[];
   FakeRecorder get rec => recorders.single;
   final players = <FakeVoicePlayer>[];
+  int settingsOpened = 0;
+
+  /// The chat sits on top of a first page, so back has somewhere to go
+  bool withBack = false;
 
   late final Directory dir = () {
     final d = Directory.systemTemp.createTempSync('chat_voice_test');
@@ -169,6 +174,7 @@ class _Harness {
         return p;
       }),
       voiceAudioSessionProvider.overrideWithValue(() async {}),
+      openAppSettingsProvider.overrideWithValue(() async => settingsOpened++),
     ]);
     addTearDown(container.dispose);
     container.read(authControllerProvider);
@@ -177,8 +183,9 @@ class _Harness {
       await tester.pump(const Duration(milliseconds: 10));
     }
     router = GoRouter(
-      initialLocation: '/chats/c1',
+      initialLocation: withBack ? '/' : '/chats/c1',
       routes: [
+        GoRoute(path: '/', builder: (_, _) => const Scaffold(body: Text('chats-list'))),
         GoRoute(
           path: '/chats/:id',
           builder: (_, s) => ChatRoomScreen(chatId: s.pathParameters['id']!, pollInterval: pollInterval),
@@ -201,6 +208,10 @@ class _Harness {
       ),
     ));
     await tester.pump();
+    if (withBack) {
+      router.push('/chats/c1');
+      await tester.pump();
+    }
     await tester.pump(const Duration(milliseconds: 50));
     await tester.pump(const Duration(milliseconds: 50));
   }
@@ -241,13 +252,62 @@ void main() {
     await tester.tap(_mic);
     await tester.pump();
     await tester.pump();
-    expect(find.text('يمكنك السماح باستخدام الميكروفون من إعدادات الهاتف لإرسال رسالة صوتية'), findsOneWidget);
+    // The first refusal: a reason, with the way to the settings
+    expect(find.text(micRefusedText), findsOneWidget);
     expect(h.rec.asked, isTrue);
     expect(h.rec.started, isFalse);
     expect(h.rec.disposed, isTrue);
     expect(_clock, findsNothing);
     expect(find.byKey(const Key('chat-input')), findsOneWidget);
     await tester.pump(const Duration(seconds: 5));
+    expect(h.uploads, isEmpty);
+  });
+
+  testWidgets('refused again (the phone no longer asks): «الإعدادات» opens the app settings', (tester) async {
+    final h = _Harness()..permission = () async => false;
+    await h.open(tester);
+    await tester.tap(_mic);
+    await tester.pump();
+    await tester.pump();
+    // The SnackBar goes by itself (it never stays over the composer)
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pumpAndSettle();
+    expect(find.byType(SnackBar), findsNothing);
+    await tester.tap(_mic);
+    await tester.pump();
+    await tester.pump();
+    expect(find.text(micBlockedText), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.tap(find.text('الإعدادات'));
+    await tester.pump();
+    expect(h.settingsOpened, 1);
+    expect(h.recorders.every((r) => !r.started), isTrue);
+    await tester.pump(const Duration(seconds: 5));
+  });
+
+  testWidgets('back while recording asks first: «إلغاء» keeps the recording, «حذف والخروج» deletes it and leaves',
+      (tester) async {
+    final h = _Harness()..withBack = true;
+    await h.open(tester);
+    await tester.tap(_mic);
+    await tester.pump();
+    await tester.pump();
+    expect(h.rec.started, isTrue);
+    await h.router.routerDelegate.popRoute();
+    await tester.pumpAndSettle();
+    expect(find.text('حذف الرسالة الصوتية؟'), findsOneWidget);
+    // Stay: the recording goes on
+    await tester.tap(find.widgetWithText(TextButton, 'إلغاء').last);
+    await tester.pumpAndSettle();
+    expect(_clock, findsOneWidget);
+    expect(h.rec.cancelled, isFalse);
+    await h.router.routerDelegate.popRoute();
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('حذف والخروج'));
+    await tester.pumpAndSettle();
+    expect(find.text('chats-list'), findsOneWidget);
+    expect(h.rec.cancelled, isTrue);
     expect(h.uploads, isEmpty);
   });
 

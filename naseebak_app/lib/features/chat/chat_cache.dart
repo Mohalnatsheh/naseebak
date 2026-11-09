@@ -34,11 +34,26 @@ abstract class ChatCache {
     return sent.length > keep ? sent.sublist(sent.length - keep) : sent;
   }
 
+  /// My texts that failed to send (offline, refused by the filter): kept, so leaving the chat never loses one. A photo
+  /// or voice note isn't (its file is temporary).
+  static List<ChatMessage> failedTexts(List<ChatMessage> messages) =>
+      messages.where((m) => m.state == SendState.failed && m.kind == MessageKind.text && m.nonce != null).toList();
+
   static Map<String, dynamic> encode(CachedChat c) => {
         'v': 2,
         'conversation': c.conversation.toJson(),
         'messages': [for (final m in trim(c.messages)) m.toJson()],
         'hasMore': c.hasMore || c.messages.where((m) => m.state == SendState.sent).length > keep,
+        'failed': [
+          for (final m in failedTexts(c.messages))
+            {
+              ...m.toJson(),
+              'nonce': m.nonce,
+              'error': m.error,
+              'filtered': m.filtered,
+              'maybeSent': m.maybeSent,
+            },
+        ],
       };
 
   static CachedChat? decode(Object? j) {
@@ -46,12 +61,43 @@ abstract class ChatCache {
     final messages = j['messages'];
     final conversation = j['conversation'];
     if (messages is! List || conversation is! Map<String, dynamic>) return null;
+    final failed = j['failed'];
+    final kept = [for (final m in messages.whereType<Map<String, dynamic>>()) ChatMessage.fromJson(m)];
+    if (failed is List) {
+      for (final f in failed.whereType<Map<String, dynamic>>()) {
+        final nonce = f['nonce'];
+        if (nonce is! String) continue;
+        final m = ChatMessage.fromJson(f);
+        kept.add(ChatMessage(
+          id: 'local-$nonce',
+          body: m.body,
+          createdAt: m.createdAt,
+          mine: true,
+          state: SendState.failed,
+          nonce: nonce,
+          error: f['error'] is String ? f['error'] as String : null,
+          filtered: f['filtered'] == true,
+          maybeSent: f['maybeSent'] == true,
+        ));
+      }
+    }
     return CachedChat(
       conversation: ChatSummary.fromJson(conversation),
-      messages: [for (final m in messages.whereType<Map<String, dynamic>>()) ChatMessage.fromJson(m)],
+      messages: sortedForChat(kept),
       hasMore: j['hasMore'] == true,
     );
   }
+}
+
+/// The chat's order: by time (then id, two messages can share a millisecond), a failed or refused message at the time
+/// it was written; only what is still sending stays at the end, under everything.
+List<ChatMessage> sortedForChat(Iterable<ChatMessage> messages) {
+  final settled = messages.where((m) => m.state != SendState.sending).toList()
+    ..sort((a, b) {
+      final t = a.createdAt.compareTo(b.createdAt);
+      return t != 0 ? t : a.id.compareTo(b.id);
+    });
+  return [...settled, ...messages.where((m) => m.state == SendState.sending)];
 }
 
 /// JSON files in the app's private cache directory: `chat_cache/<member>/<chat>.json`. A cache directory is never

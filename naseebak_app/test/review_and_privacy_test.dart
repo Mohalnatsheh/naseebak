@@ -79,4 +79,31 @@ void main() {
     await tester.pump();
     expect(calls, [true, false]);
   });
+
+  testWidgets('the chats list (a tab kept alive) is private only while it is the tab on screen', (tester) async {
+    final calls = <Object?>[];
+    const channel = MethodChannel('naseebak/system');
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (call) async {
+      if (call.method == 'setSecure') calls.add(call.arguments);
+      return false;
+    });
+    addTearDown(() => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, null));
+    Widget page(bool shown) => rtlApp(TickerMode(
+          enabled: shown,
+          child: const SecureArea(onlyWhileShown: true, child: Text('آخر رسالة')),
+        ));
+    await tester.pumpWidget(page(true));
+    await tester.pump();
+    expect(calls, [true]);
+    // Another tab in front: protection off, the list kept
+    await tester.pumpWidget(page(false));
+    await tester.pump();
+    expect(calls, [true, false]);
+    await tester.pumpWidget(page(true));
+    await tester.pump();
+    expect(calls, [true, false, true]);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump();
+    expect(calls, [true, false, true, false]);
+  });
 }

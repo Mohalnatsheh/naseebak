@@ -36,6 +36,10 @@ import UserNotifications
         }
         if let url = URL(string: page) { UIApplication.shared.open(url) }
         result(nil)
+      // «الإعدادات» after the microphone was refused (lib/core/system/app_settings.dart)
+      case "openAppSettings":
+        if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
+        result(nil)
       case "setSecure":
         self?.secure = (call.arguments as? Bool) ?? false
         // The current state, so a screen opened during a recording hides at once

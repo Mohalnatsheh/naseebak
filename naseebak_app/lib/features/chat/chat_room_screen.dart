@@ -5,10 +5,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../app/providers.dart';
 import '../../core/analytics/analytics.dart';
 import '../../core/auth/auth_controller.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/privacy/screen_privacy.dart';
+import '../../core/storage/picker_files.dart';
+import '../../core/system/app_settings.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/common.dart';
 import '../home/counts.dart';
@@ -18,6 +21,7 @@ import '../pro/pro_badge.dart';
 import '../pro/pro_repository.dart';
 import 'chat_bubble.dart';
 import 'chat_cache.dart';
+import 'chat_drafts.dart';
 import 'chat_format.dart';
 import 'chat_live.dart';
 import 'chat_media_picker.dart';
@@ -41,6 +45,13 @@ class ChatRoomScreen extends ConsumerStatefulWidget {
 
 /// A failed photo or voice note whose file the phone has since removed
 const mediaFileGoneText = 'لم يعد الملف موجوداً على الهاتف، يمكنك إرساله من جديد';
+
+/// The microphone refused: the first time, and once the phone no longer asks (refused before)
+const micRefusedText = 'لإرسال رسالة صوتية يلزم السماح باستخدام الميكروفون.';
+const micBlockedText = 'الميكروفون غير مسموح لنصيبك. يمكنك السماح به من إعدادات الهاتف.';
+
+/// Shared preferences: the microphone was refused once on this phone (the next refusal points to the settings)
+const micRefusedKey = 'mic_refused_once';
 
 class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBindingObserver {
   final _input = TextEditingController();
@@ -108,6 +119,15 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
   final List<String> _filesInUse = [];
   ProviderSubscription<bool?>? _countsPro;
 
+  /// Read once: used again in dispose (no ref there)
+  late final ChatDrafts _drafts;
+  late final String? _draftOwner;
+
+  /// While the media buttons are locked (no Pro), `/api/pro` is re-read now and then: Pro bought in the browser or on
+  /// another phone unlocks them without leaving the chat
+  Timer? _proCheck;
+  static const _proCheckEvery = Duration(seconds: 60);
+
   @override
   void initState() {
     super.initState();
@@ -123,19 +143,38 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
       if (ref.read(proStateProvider).valueOrNull?.isPro != next) ref.invalidate(proStateProvider);
     });
     _scroll.addListener(_onScroll);
+    // What was typed here before (back, or the app killed in the background)
+    _drafts = ref.read(chatDraftsProvider);
+    _draftOwner = _memberId;
+    final draft = _draftOwner == null ? null : _drafts.read(_draftOwner, widget.chatId);
+    if (draft != null) _input.text = draft;
+    _proCheck = Timer.periodic(_proCheckEvery, (_) {
+      if (!mounted || _background || !ref.read(appPaymentsProvider)) return;
+      final chat = _chat;
+      if (chat != null && _mediaModeNow(chat) == MediaButtons.locked) ref.invalidate(proStateProvider);
+    });
     _load();
+  }
+
+  void _saveDraft() {
+    final owner = _draftOwner;
+    if (owner != null) unawaited(_drafts.write(owner, widget.chatId, _input.text));
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _saveDraft();
+    _proCheck?.cancel();
     _stopPolling();
     _live?.cancel();
     // Leaving mid-recording (or during the microphone prompt): release the microphone, send nothing
     _releaseVoice();
-    // A failed voice note is not kept after leaving (never cached): its temporary file goes with it
+    // A failed photo or voice note is not kept after leaving (never cached): its temporary file goes with it
     for (final m in _messages) {
-      if (m.state == SendState.failed && m.kind == MessageKind.voice && m.localPath != null) _deleteQuietly(m.localPath!);
+      if (m.state == SendState.failed && m.kind != MessageKind.text && m.localPath != null) {
+        m.kind == MessageKind.image ? deletePickedFile(m.localPath!) : _deleteQuietly(m.localPath!);
+      }
     }
     _countsPro?.close();
     _playback
@@ -152,7 +191,11 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     // A private note never plays on outside the app (Android keeps playing in the background otherwise)
-    if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) _playback.pauseCurrent();
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) {
+      _playback.pauseCurrent();
+      // Android may kill the app in the background: what was typed stays
+      _saveDraft();
+    }
     // Backgrounded or locked mid-recording: Android would record silence and iOS cuts the microphone, so stop now,
     // keep what was really recorded and wait for «إرسال» or «إلغاء»
     if ((state == AppLifecycleState.inactive || state == AppLifecycleState.paused || state == AppLifecycleState.hidden) &&
@@ -245,6 +288,8 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
         _chat = page.conversation;
         _chatEnabled = page.chatEnabled;
         _mergeLatest(page);
+        // A text kept as failed (offline) that the server saved after all
+        _reconcile(page.messages);
       });
       _saveCache();
       _markRead();
@@ -285,11 +330,14 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
         ? cached.takeWhile((m) => m.id != oldestNew.id).toList()
         : <ChatMessage>[];
     final pageIds = page.messages.map((m) => m.id).toSet();
+    final merged = sortedForChat([
+      ...older.where((m) => !pageIds.contains(m.id)),
+      ...page.messages,
+      ...pending.where((m) => !pageIds.contains(m.id)),
+    ]);
     _messages
       ..clear()
-      ..addAll(older.where((m) => !pageIds.contains(m.id)))
-      ..addAll(page.messages)
-      ..addAll(pending.where((m) => !pageIds.contains(m.id)));
+      ..addAll(merged);
     _hasMore = older.isEmpty ? page.hasMore : (_hasMore || page.hasMore);
   }
 
@@ -412,17 +460,22 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     });
   }
 
+  /// Same order as the server (time, then id); a failed or refused bubble stays at its own time, only what is still
+  /// sending stays under everything
   void _insertSorted(List<ChatMessage> fresh) {
     if (fresh.isEmpty) return;
-    final pending = _messages.where((m) => m.state != SendState.sent).toList();
-    _messages.removeWhere((m) => m.state != SendState.sent);
-    _messages.addAll(fresh);
-    // Same order as the server: time, then id (two messages can share a millisecond)
-    _messages.sort((a, b) {
-      final t = a.createdAt.compareTo(b.createdAt);
-      return t != 0 ? t : a.id.compareTo(b.id);
-    });
-    _messages.addAll(pending);
+    final all = sortedForChat([..._messages, ...fresh]);
+    _messages
+      ..clear()
+      ..addAll(all);
+  }
+
+  /// «حذف» on a failed or refused message: it never reached the other person, it only leaves this phone
+  void _deleteFailed(ChatMessage m) {
+    setState(() => _messages.removeWhere((x) => x.nonce == m.nonce));
+    final file = m.localPath;
+    if (file != null) m.kind == MessageKind.image ? deletePickedFile(file) : _deleteQuietly(file);
+    _saveCache();
   }
 
   void _onScroll() {
@@ -500,6 +553,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
       _messages.add(local);
       if (retry == null) _input.clear();
     });
+    if (retry == null) _saveDraft();
     _toNewest();
     try {
       final sent = await _repo.send(widget.chatId, text, nonce: nonce);
@@ -524,6 +578,8 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
         // Its copy may already be here (a poll during the send); otherwise the next poll reconciles
         if (e.isNetwork) _reconcile(_messages.where((m) => !before.contains(m.id)));
       });
+      // Kept on the phone: leaving the chat doesn't lose it
+      _saveCache();
       if (e.code == 'EXPIRED' || e.code == 'NOT_ALLOWED' || e.code == 'DISABLED') _poll();
     }
   }
@@ -612,6 +668,8 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
           _deleteQuietly(file);
         }
       }
+      // The picker's copy of a photo: the server copy shows from now on
+      if (!voice) deletePickedFile(file);
       if (!mounted) return;
       setState(() {
         _messages.removeWhere((m) => m.nonce == nonce || m.id == sent.id);
@@ -654,19 +712,23 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     );
   }
 
-  /// Voice notes are still allowed right now (Pro, chat open). Read, not watched: used after an await.
-  bool get _voiceAllowed {
-    final chat = _chat;
-    if (chat == null || !chat.canSend || !_chatEnabled) return false;
+  /// The media buttons right now (read, not watched: used after an await and from a timer)
+  MediaButtons _mediaModeNow(ChatSummary chat) {
     final pro = ref.read(proStateProvider).valueOrNull;
     final countsPro = ref.read(countsProvider).valueOrNull?.isPro;
-    final mode = mediaButtonsMode(
+    return mediaButtonsMode(
       isPro: pro?.isPro ?? countsPro ?? false,
       appPayments: ref.read(appPaymentsProvider),
       canBuy: pro?.canBuy ?? false,
       chatActive: chat.status == 'ACTIVE',
     );
-    return mode == MediaButtons.enabled;
+  }
+
+  /// Voice notes are still allowed right now (Pro, chat open). Read, not watched: used after an await.
+  bool get _voiceAllowed {
+    final chat = _chat;
+    if (chat == null || !chat.canSend || !_chatEnabled) return false;
+    return _mediaModeNow(chat) == MediaButtons.enabled;
   }
 
   /// The mic: ask for the microphone (the system asks only the first time), then record until «إرسال», «إلغاء» or
@@ -685,7 +747,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     if (_recorder != rec || !mounted || !_voiceAllowed) return _drop(rec);
     if (!allowed) {
       _drop(rec);
-      showSnack(context, 'يمكنك السماح باستخدام الميكروفون من إعدادات الهاتف لإرسال رسالة صوتية');
+      _micRefused();
       return;
     }
     try {
@@ -702,6 +764,20 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
       _voiceElapsed = Duration.zero;
     });
     _voiceTimer = Timer.periodic(const Duration(milliseconds: 250), (_) => _tickVoice());
+  }
+
+  /// The microphone refused: the first time a short reason; after that (the phone no longer asks) the way to the
+  /// phone's settings. Both carry «الإعدادات».
+  void _micRefused() {
+    final prefs = ref.read(sharedPreferencesProvider);
+    final before = prefs.getBool(micRefusedKey) ?? false;
+    unawaited(prefs.setBool(micRefusedKey, true));
+    final open = ref.read(openAppSettingsProvider);
+    showSnack(
+      context,
+      before ? micBlockedText : micRefusedText,
+      action: SnackBarAction(label: 'الإعدادات', onPressed: () => open()),
+    );
   }
 
   /// A recorder let go during an await (prompt, start, stop) or refused: cancel it (deleting its file) and dispose it.
@@ -958,10 +1034,34 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     );
   }
 
+  /// A voice note is being recorded or waits for «إرسال»: back asks before it is thrown away
+  bool get _voiceUnsent => _voice == _Voice.recording || _voice == _Voice.stopping || _voice == _Voice.stopped;
+
+  Future<void> _backWhileRecording() async {
+    final ok = await confirmDialog(
+      context,
+      title: 'حذف الرسالة الصوتية؟',
+      body: 'لم تُرسل الرسالة الصوتية بعد. إذا خرجت من المحادثة تُحذف.',
+      confirmLabel: 'حذف والخروج',
+      destructive: true,
+    );
+    if (!ok || !mounted) return;
+    _releaseVoice();
+    setState(() => _voice = _Voice.idle);
+    // pop, not maybePop: the PopScope above still holds the old answer until the next frame
+    if (mounted && Navigator.of(context).canPop()) Navigator.of(context).pop();
+  }
+
   @override
   Widget build(BuildContext context) => ProviderScope(
     overrides: [voicePlaybackProvider.overrideWithValue(_playback)],
-    child: _screen(context),
+    child: PopScope(
+      canPop: !_voiceUnsent,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _backWhileRecording();
+      },
+      child: _screen(context),
+    ),
   );
 
   Widget _screen(BuildContext context) {
@@ -972,9 +1072,12 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     // Under a PRO_REQUIRED failure, a link to «عضوية Pro» only where the member could buy it (never a test account)
     final proPurchasable =
         ref.watch(appPaymentsProvider) && (ref.watch(proStateProvider).valueOrNull?.canBuy ?? false);
+    // Larger system text: the header grows with it, so «تبقّى 14 يوماً» isn't cut under the name
+    final textScale = MediaQuery.textScalerOf(context).scale(14) / 14;
     return Scaffold(
       appBar: AppBar(
         titleSpacing: 0,
+        toolbarHeight: kToolbarHeight * (textScale < 1 ? 1 : textScale),
         title: InkWell(
           key: const Key('chat-header'),
           borderRadius: BorderRadius.circular(12),
@@ -1053,8 +1156,8 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
           final items = _messages.reversed.toList();
           return Column(
             children: [
-              // One line; the full advice behind ⓘ
-              InkWell(
+              // One line (two with large text); the full advice behind ⓘ. Not in a chat that can't be written in
+              if (_open) InkWell(
                 key: const Key('chat-safety'),
                 onTap: () => _safetyInfo(female),
                 child: Padding(
@@ -1067,7 +1170,8 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
                       Flexible(
                         child: Text(
                           forViewer(female, 'لحمايتك: لا تُشارك أرقاماً أو روابط', 'لحمايتكِ: لا تُشاركي أرقاماً أو روابط'),
-                          maxLines: 1,
+                          maxLines: 2,
+                          textAlign: TextAlign.center,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(color: AppColors.muted, fontSize: 12),
                         ),
@@ -1111,6 +1215,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
                                 showTime: layout.showTime,
                                 tightTop: layout.tightTop,
                                 onOpenPro: m.proRequired && proPurchasable ? _openPro : null,
+                                onDelete: m.state == SendState.failed ? () => _deleteFailed(m) : null,
                                 onRetry: m.state == SendState.failed && !m.proRequired
                                     ? () => m.kind != MessageKind.text
                                         ? _sendMedia(retry: m)

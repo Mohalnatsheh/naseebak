@@ -136,6 +136,9 @@ class VoiceSession extends ValueNotifier<VoiceNoteState> {
 
   /// The member asked for play and hasn't paused since (a pause during the load wins)
   bool _wantPlay = false;
+
+  /// Played to the end and not started again: shown at its full length, ready to play from the start
+  bool _ended = false;
   bool _closed = false;
 
   bool get closed => _closed;
@@ -151,7 +154,11 @@ class VoiceSession extends ValueNotifier<VoiceNoteState> {
     _player = p;
     _subs
       ..add(p.playingStream.listen((v) => _set(value.copyWith(playing: v))))
-      ..add(p.positionStream.listen((v) => _set(value.copyWith(position: v))))
+      // After the end, a late position (the player reporting where it stopped) never moves the bar back to full
+      ..add(p.positionStream.listen((v) {
+        if (_ended && v > Duration.zero) return;
+        _set(value.copyWith(position: v));
+      }))
       ..add(
         p.completedStream.listen((_) async {
           // The player may be disposed meanwhile: an error here would reach Crashlytics as fatal
@@ -160,6 +167,7 @@ class VoiceSession extends ValueNotifier<VoiceNoteState> {
             await p.seek(Duration.zero);
           } catch (_) {}
           _wantPlay = false;
+          _ended = true;
           _set(value.copyWith(position: Duration.zero, playing: false));
         }),
       );
@@ -276,6 +284,7 @@ class VoicePlayback {
     if (!(canPlay?.call() ?? true)) return true;
     _claim(key);
     s._wantPlay = true;
+    s._ended = false;
     if (!s.value.loaded) {
       final player = s._playerFrom(_create);
       s._set(s.value.copyWith(loading: true));

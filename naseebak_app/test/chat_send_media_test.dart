@@ -162,6 +162,8 @@ void main() {
     // One bubble: the optimistic one was replaced by the server's
     final cached = (await h.container.read(chatCacheProvider).read('u1', 'c1'))!;
     expect(cached.messages.map((m) => m.id), ['m001', 'srv-$nonce']);
+    // The picker's copy is deleted once the server has the photo
+    expect(h.photo.existsSync(), isFalse);
   });
 
   testWidgets('a photo over 10 MB is refused in the app and nothing is sent', (tester) async {
@@ -315,5 +317,11 @@ void main() {
     await tester.pumpAndSettle();
     final full = tester.widget<Image>(find.descendant(of: find.byType(PhotoViewer), matching: find.byType(Image)));
     expect(full.image, isNot(isA<ResizeImage>()));
+    // ✕ at the end side: the left half in Arabic
+    final close = tester.getCenter(find.byKey(const Key('photo-viewer-close')));
+    expect(close.dx, lessThan(tester.getSize(find.byType(PhotoViewer)).width / 2));
+    await tester.tap(find.byKey(const Key('photo-viewer-close')));
+    await tester.pumpAndSettle();
+    expect(find.byType(PhotoViewer), findsNothing);
   });
 }

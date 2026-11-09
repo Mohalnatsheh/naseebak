@@ -710,3 +710,41 @@ describe("decideSuggestion with credit on interest off", () => {
     expect(autoMod.autoSuggestForUser).not.toHaveBeenCalled();
   });
 });
+
+describe("the same answer twice (QA WC-17: double tap)", () => {
+  it("a repeated «مهتم» returns the current state, charges nothing more", async () => {
+    flags.value = { ...flags.value, creditOnInterest: true };
+    db.suggestion.findUnique.mockResolvedValue(row({ recipientDecision: "INTERESTED" }));
+    const res = await decideSuggestion({ suggestionId: "s1", userId: "u1", interested: true, introPreference: "CHAT" });
+    expect(res).toEqual({ match: false, creditsLeft: 3, repeated: true });
+    expect(db.suggestion.updateMany).not.toHaveBeenCalled();
+    expect(db.creditLedger.create).not.toHaveBeenCalled();
+  });
+
+  it("a repeated «مهتم» on a card that became a match links to it", async () => {
+    db.suggestion.findUnique.mockResolvedValue(row({ status: "ACCEPTED", recipientDecision: "INTERESTED", candidateDecision: "INTERESTED" }));
+    const res = await decideSuggestion({ suggestionId: "s1", userId: "u1", interested: true });
+    expect(res).toMatchObject({ match: true, matchId: "m1", repeated: true });
+  });
+
+  it("a repeated «لا» on the closed card is fine too", async () => {
+    db.suggestion.findUnique.mockResolvedValue(row({ status: "REJECTED", recipientDecision: "DECLINED" }));
+    expect(await decideSuggestion({ suggestionId: "s1", userId: "u1", interested: false })).toEqual({ match: false, repeated: true });
+  });
+
+  it("two taps at once: the one that loses the claim gets the winner's state, not 404", async () => {
+    flags.value = { ...flags.value, creditOnInterest: true };
+    db.suggestion.findUnique
+      .mockResolvedValueOnce(row())
+      .mockResolvedValueOnce(row({ recipientDecision: "INTERESTED" }));
+    db.suggestion.updateMany.mockResolvedValueOnce({ count: 0 });
+    const res = await decideSuggestion({ suggestionId: "s1", userId: "u1", interested: true, introPreference: "CHAT" });
+    expect(res).toMatchObject({ match: false, repeated: true });
+    expect(db.creditLedger.create).not.toHaveBeenCalled();
+  });
+
+  it("a different answer than the one recorded is still refused", async () => {
+    db.suggestion.findUnique.mockResolvedValue(row({ recipientDecision: "INTERESTED" }));
+    await expectNotFound(decideSuggestion({ suggestionId: "s1", userId: "u1", interested: false }));
+  });
+});

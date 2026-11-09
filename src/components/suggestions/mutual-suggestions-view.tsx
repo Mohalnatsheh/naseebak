@@ -47,7 +47,7 @@ type IntroChoice = { introPreference: IntroPreferenceChoice; guardianConsent?: b
 
 /** Errors answered inside the «مهتم» dialog (the member fixes them there); anything else closes it */
 const DIALOG_ERRORS = new Set(["GUARDIAN_REQUIRED", "CONSENT_REQUIRED", "PREFERENCE_REQUIRED", "DISABLED", "NO_CREDITS"]);
-const DECIDE_FAILED = "تعذّر حفظ قرارك، حاول مرة أخرى";
+const DECIDE_FAILED = "تعذّر حفظ قرارك، يمكنك المحاولة مرة أخرى";
 
 /** What a decision came to: saved, or not (with an error to show in the dialog when it is one of those) */
 type DecideResult = { ok: true } | { ok: false; dialogError?: string };
@@ -189,7 +189,7 @@ export function MutualSuggestionsView({
   const [reportDetails, setReportDetails] = useState("");
   const [reportSubmitting, setReportSubmitting] = useState(false);
   /** «لا» waiting out its undo window: hidden from the list, sent when the timer ends (or the page closes) */
-  const pendingDeclines = useRef(new Map<string, { item: OpenFeedItem; timer: ReturnType<typeof setTimeout> }>());
+  const pendingDeclines = useRef(new Map<string, { item: OpenFeedItem; from: FeedTab; timer: ReturnType<typeof setTimeout> }>());
 
   /** Only the latest load may touch the screen (a slower, older answer for another tab is dropped) */
   const loadSeq = useRef(0);
@@ -213,6 +213,8 @@ export function MutualSuggestionsView({
       const next = { new: 0, interested: 0, waiting: 0 } as Record<FeedTab, number>;
       next[t] = cur.total ?? 0;
       others.forEach((k, i) => { next[k] = rest[i]?.total ?? 0; });
+      // A «لا» still in its undo window isn't sent yet, so the server still counts its card: not on screen
+      for (const { from } of pendingDeclines.current.values()) next[from] = Math.max(0, next[from] - 1);
       setTotals(next);
     } catch {
       // Shown in place of the list (with a retry), never as an empty state
@@ -284,11 +286,11 @@ export function MutualSuggestionsView({
         // Bottom bar / home badges follow the confirmed decision
         refreshUnread();
       } else {
-        toast.error("تعذّر حفظ قرارك، حاول مرة أخرى");
+        toast.error("تعذّر حفظ قرارك، يمكنك المحاولة مرة أخرى");
         load(tab, page);
       }
     }, DECLINE_UNDO_MS);
-    pendingDeclines.current.set(item.id, { item, timer });
+    pendingDeclines.current.set(item.id, { item, from, timer });
     toast(declineToast(item, g), {
       duration: DECLINE_UNDO_MS,
       action: {
@@ -412,40 +414,47 @@ export function MutualSuggestionsView({
       toast.success("تم الحظر");
       setBlockFor(null);
     } else {
-      toast.error("تعذّر الحظر، حاول مرة أخرى");
+      toast.error("تعذّر الحظر، يمكنك المحاولة مرة أخرى");
     }
     setBlocking(false);
   }
 
-  /** Report always comes with a block, as on the matches page: the card leaves the list */
+  /**
+   * Report always comes with a block, as on the matches page: the card leaves the list. The block goes
+   * first, so a report never stands without it; a report that then fails keeps the dialog open, and a
+   * retry blocks again harmlessly (409 = already blocked).
+   */
   async function submitReport() {
     if (!report) return;
     setReportSubmitting(true);
-    const res = await fetch("/api/reports", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ reportedId: report.userId, reason: reportReason, details: reportDetails || undefined }),
-    }).catch(() => null);
-    if (!res?.ok) {
-      setReportSubmitting(false);
-      const data = await res?.json().catch(() => ({}));
-      toast.error(data?.error || "تعذّر إرسال البلاغ");
-      return;
-    }
     const blocked = await fetch("/api/blocks", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ blockedId: report.userId }),
     }).catch(() => null);
-    setReportSubmitting(false);
+    if (!blocked || (!blocked.ok && blocked.status !== 409)) {
+      setReportSubmitting(false);
+      const data = await blocked?.json().catch(() => ({}));
+      toast.error(data?.error || "تعذّر الحظر والإبلاغ، يمكنك المحاولة مرة أخرى");
+      return;
+    }
     const item = items.find((i) => i.candidate.id === report.userId);
-    if (item && blocked?.ok) {
+    if (item) {
       removeAndRefill(item.id);
       setTotals((t) => ({ ...t, [tab]: Math.max(0, t[tab] - 1) }));
     }
-    toast.success(
-      blocked?.ok ? "تم الإبلاغ والحظر. سيراجع فريق نصيبك البلاغ." : "تم إرسال البلاغ. سيراجعه فريق نصيبك.",
-    );
+    const res = await fetch("/api/reports", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reportedId: report.userId, reason: reportReason, details: reportDetails || undefined }),
+    }).catch(() => null);
+    setReportSubmitting(false);
+    if (!res?.ok) {
+      const data = await res?.json().catch(() => ({}));
+      toast.error(data?.error || "تم الحظر، وتعذّر إرسال البلاغ. يمكنك المحاولة مرة أخرى");
+      return;
+    }
+    toast.success("تم الإبلاغ والحظر. سيراجع فريق نصيبك البلاغ.");
     setReport(null);
     setReportReason("FAKE_PROFILE");
     setReportDetails("");
@@ -480,7 +489,9 @@ export function MutualSuggestionsView({
   const activeTab = tabs.find((t) => t.key === activeKey) ?? tabs[0];
   const matchesCount = (profile?._count?.matchesAsFemale ?? 0) + (profile?._count?.matchesAsMale ?? 0);
   // Badge per category: what waits (red for requests to answer on a match), else how many
-  const badgeFor = (key: FeedTab | "matches") => (key === "matches" ? counts.pendingIntros || matchesCount : totals[key]);
+  // Closed matches (blocked, ended, finished) don't count in «توافق متبادل»
+  const badgeFor = (key: FeedTab | "matches") =>
+    key === "matches" ? counts.pendingIntros || (counts.openMatches ?? matchesCount) : totals[key];
 
   /** «عرض التوافق» after a match: the matches tab, focused on that match */
   function openMatch(matchId?: string) {
@@ -604,7 +615,7 @@ export function MutualSuggestionsView({
           <p className="text-sm text-muted-foreground">جاري التحميل...</p>
         </div>
       ) : loadFailed && items.length === 0 ? (
-        <LoadError message="تعذّر تحميل الاقتراحات. تحقّق من الاتصال وحاول مرة أخرى." onRetry={() => load(tab, page)} />
+        <LoadError message="تعذّر تحميل الاقتراحات. يمكنك التحقق من الاتصال والمحاولة مرة أخرى." onRetry={() => load(tab, page)} />
       ) : items.length === 0 ? (
         <Card className="border-dashed border-2 border-muted-foreground/20 bg-gradient-to-b from-card to-muted/30">
           <CardContent className="text-center py-14 space-y-4">
@@ -819,7 +830,7 @@ export function MutualSuggestionsView({
                         ) : (
                           <p className="mb-3 flex items-center gap-1.5 text-xs text-muted-foreground">
                             <Coins className="h-3.5 w-3.5 text-accent" aria-hidden="true" />
-                            «مهتم» يستخدم رصيداً واحداً
+                            «{g("مهتم", "مهتمة")}» يستخدم رصيداً واحداً
                           </p>
                         )
                       )}
@@ -904,6 +915,7 @@ export function MutualSuggestionsView({
           guardian={guardian}
           costOnly={!!interestFor && interestFor.kind !== "mutual"}
           free={!!interestFor && isFreeReply(interestFor)}
+          likedYou={!!interestFor?.likedYou}
           onConfirm={async (choice) => {
             const item = interestFor;
             if (!item) return false;

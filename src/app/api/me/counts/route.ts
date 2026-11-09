@@ -82,6 +82,8 @@ export async function GET(request: Request) {
         : null,
     ]);
     const actionableMatches = [...states.values()].filter((s) => s.actionable).length;
+    // «توافق متبادل» badge: matches still open (closed ones — blocked, ended, finished — don't count)
+    const openMatches = [...states.values()].filter((s) => !s.closed).length;
 
     return NextResponse.json({
       flags,
@@ -91,6 +93,7 @@ export async function GET(request: Request) {
       hasChats: chatCount > 0,
       guardian: { exists: !!guardian, consented: !!guardian?.shareConsentAt },
       actionableMatches,
+      openMatches,
       pro,
       // Credit on interest: the balance gates "مهتم" (dashboard next step)
       ...(flags.creditOnInterest && { credits: me?.matchCredits ?? 0 }),

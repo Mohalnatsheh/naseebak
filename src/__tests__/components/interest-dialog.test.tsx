@@ -151,7 +151,7 @@ describe("InterestDialog", () => {
 
   it("shows the balance hint", () => {
     setup({ credits: 4 });
-    expect(screen.getByText("مهتم يستخدم رصيداً واحداً — رصيدك 4")).toBeInTheDocument();
+    expect(screen.getByText("«مهتم» يستخدم رصيداً واحداً — رصيدك 4")).toBeInTheDocument();
   });
 
   it("at 0 credits offers a recharge link instead of confirm", () => {
@@ -170,9 +170,19 @@ describe("InterestDialog cost only (older suggestions / received interests)", ()
   it("skips the introduction choice and confirms the credit with no preference", async () => {
     const { onConfirm, confirm } = setup({ costOnly: true });
     expect(screen.queryByRole("radio")).not.toBeInTheDocument();
-    expect(screen.getByText(/مهتم يستخدم رصيداً واحداً/)).toBeInTheDocument();
+    expect(screen.getByText(/«مهتم» يستخدم رصيداً واحداً/)).toBeInTheDocument();
     expect(confirm()).toBeEnabled();
     fireEvent.click(confirm());
     await waitFor(() => expect(onConfirm).toHaveBeenCalledWith());
+  });
+});
+
+describe("InterestDialog when the other side already said «مهتم» (QA WC-05)", () => {
+  it("says it becomes a match, not «إذا أبدت اهتمامها أيضاً»", () => {
+    render(
+      <InterestDialog open onOpenChange={vi.fn()} partnerGender="FEMALE" credits={3} chatEnabled guardian={{ exists: true, consented: true }} likedYou onConfirm={vi.fn()} />,
+    );
+    expect(screen.getByText(/أبدت اهتمامها بك، فبتأكيدك يصبح توافقاً متبادلاً/)).toBeInTheDocument();
+    expect(screen.queryByText(/إذا أبدت اهتمامها أيضاً/)).not.toBeInTheDocument();
   });
 });

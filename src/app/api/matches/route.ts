@@ -170,6 +170,8 @@ export async function GET(request: Request) {
       };
     });
 
+    // Open matches first, closed ones after them (on this page; the order is otherwise newest first)
+    formatted.sort((a, b) => Number(!!a.closed) - Number(!!b.closed));
     return NextResponse.json({ matches: formatted, page, totalPages: Math.ceil(total / pageSize), total });
   } catch (error) {
     console.error("Matches error:", error);

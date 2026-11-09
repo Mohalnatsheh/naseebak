@@ -125,7 +125,11 @@ export async function revealHiddenFor(
  * A block closes the open shared suggestions between the two right away (they're hidden from both
  * anyway), so the slots free up. The blocker's own unanswered «مهتم» is not refunded: the stamp keeps
  * the refund off the row, even after an unblock. A card whose 7 days already ran out earned its refund
- * first, and an unanswered «مهتم» of the blocked person is refunded like any other closing.
+ * first, and an unanswered «مهتم» of the blocked person is refunded like any other closing — but by the
+ * morning job (06:00, `refundUnansweredInterests` with its 7-day look-back), together with the day's
+ * natural expiries, never seconds after the block: a refund notice right after a tap would tell them
+ * they were blocked (QA WC-14). Their own next visit that closes a card of theirs may refund it earlier,
+ * also unconnected to the moment of the block.
  */
 export async function closeSuggestionsBetween(blockerId: string, blockedId: string): Promise<void> {
   const now = new Date();
@@ -141,7 +145,7 @@ export async function closeSuggestionsBetween(blockerId: string, blockedId: stri
     },
     data: { status: "EXPIRED", expiresAt: now, interestRefundedAt: now },
   });
-  const { count } = await db.suggestion.updateMany({
+  await db.suggestion.updateMany({
     where: {
       flow: "MUTUAL",
       status: "PENDING",
@@ -152,7 +156,6 @@ export async function closeSuggestionsBetween(blockerId: string, blockedId: stri
     },
     data: { status: "EXPIRED", expiresAt: now },
   });
-  if (count > 0) await refundUnansweredInterests({ userId: blockerId, now });
 }
 
 /**
@@ -398,18 +401,53 @@ export async function notifyInterestShown(userId: string, suggestionId: string, 
   });
 }
 
+/** My claim on the row was lost to a concurrent request (the other tap of a double tap, usually) */
+class LostClaim extends Error {}
+
+/**
+ * The same answer sent twice (a double tap, a retry after a lost response): the first one stands, the
+ * second gets the card's current state instead of «الاقتراح غير موجود» (QA WC-17). null = not a repeat
+ * of my own answer (the caller refuses it as before).
+ */
+async function repeatedAnswer(
+  row: { id: string; flow: string; status: string; recipientId: string; candidateId: string; recipientDecision: string | null; candidateDecision: string | null },
+  userId: string,
+  interested: boolean,
+  creditOnInterest: boolean,
+): Promise<{ match: boolean; matchId?: string; creditsLeft?: number; repeated: true } | null> {
+  if (row.flow !== "MUTUAL") return null;
+  const side = row.recipientId === userId ? "recipient" : row.candidateId === userId ? "candidate" : null;
+  if (!side) return null;
+  const mine = side === "recipient" ? row.recipientDecision : row.candidateDecision;
+  if (mine !== (interested ? "INTERESTED" : "DECLINED")) return null;
+  let creditsLeft: number | undefined;
+  if (creditOnInterest && interested) {
+    const me = await db.user.findUnique({ where: { id: userId }, select: { matchCredits: true } });
+    creditsLeft = me?.matchCredits ?? 0;
+  }
+  const extra = creditsLeft === undefined ? {} : { creditsLeft };
+  if (interested && row.status === "ACCEPTED") {
+    const matchId = await findMatchId(userId, side === "recipient" ? row.candidateId : row.recipientId);
+    return { match: true, ...(matchId && { matchId }), ...extra, repeated: true };
+  }
+  return { match: false, ...extra, repeated: true };
+}
+
 export async function decideSuggestion(args: {
   suggestionId: string;
   userId: string;
   interested: boolean;
   introPreference?: IntroPreference;
   guardianConsent?: boolean;
-}): Promise<{ match: boolean; matchId?: string; creditsLeft?: number } & Omit<Partial<MatchOpened>, "matchId">> {
+}): Promise<{ match: boolean; matchId?: string; creditsLeft?: number; repeated?: true } & Omit<Partial<MatchOpened>, "matchId">> {
   const { suggestionId, userId, interested } = args;
   const now = new Date();
   const flags = await getCycleFlags();
 
   const s = await db.suggestion.findUnique({ where: { id: suggestionId } });
+  // My own answer again: nothing new happens, the current state comes back
+  const repeat = s ? await repeatedAnswer(s, userId, interested, !!flags.creditOnInterest) : null;
+  if (repeat) return repeat;
   if (!s || s.flow !== "MUTUAL" || s.status !== "PENDING") throw notFound();
   if (!s.expiresAt || s.expiresAt <= now) throw notFound();
   const side = s.recipientId === userId ? "recipient" : s.candidateId === userId ? "candidate" : null;
@@ -475,39 +513,48 @@ export async function decideSuggestion(args: {
     });
 
   let creditsLeft: number | undefined;
-  if (charge) {
-    // Claim + charge + consent together: a lost claim charges nothing and stores no consent, a failed
-    // reserve rolls the claim back. The balance is read inside the transaction (row locked by the
-    // decrement), so of two concurrent charges only the one that really reached 0 sends the exhausted notice
-    creditsLeft = await db.$transaction(async (tx) => {
-      const recorded = await claim(tx);
-      if (recorded.count === 0) throw notFound();
-      if (!(await reserveCredits(userId, 1, tx))) throw noCreditsError(myPhone);
-      await recordCredit({ userId, delta: -1, reason: "INTEREST", refId: s.id }, tx);
-      if (needsConsent) {
-        await tx.parentInfo.updateMany({ where: { userId, shareConsentAt: null }, data: { shareConsentAt: now } });
+  try {
+    if (charge) {
+      // Claim + charge + consent together: a lost claim charges nothing and stores no consent, a failed
+      // reserve rolls the claim back. The balance is read inside the transaction (row locked by the
+      // decrement), so of two concurrent charges only the one that really reached 0 sends the exhausted notice
+      creditsLeft = await db.$transaction(async (tx) => {
+        const recorded = await claim(tx);
+        if (recorded.count === 0) throw new LostClaim();
+        if (!(await reserveCredits(userId, 1, tx))) throw noCreditsError(myPhone);
+        await recordCredit({ userId, delta: -1, reason: "INTEREST", refId: s.id }, tx);
+        if (needsConsent) {
+          await tx.parentInfo.updateMany({ where: { userId, shareConsentAt: null }, data: { shareConsentAt: now } });
+        }
+        const left = await tx.user.findUniqueOrThrow({ where: { id: userId }, select: { matchCredits: true } });
+        return left.matchCredits;
+      });
+      if (creditsLeft <= 0) {
+        await notifyInterestCreditsExhausted(userId).catch((e) => console.error("[suggestions] exhausted notice:", e));
       }
-      const left = await tx.user.findUniqueOrThrow({ where: { id: userId }, select: { matchCredits: true } });
-      return left.matchCredits;
-    });
-    if (creditsLeft <= 0) {
-      await notifyInterestCreditsExhausted(userId).catch((e) => console.error("[suggestions] exhausted notice:", e));
+    } else if (freeReply) {
+      // Free reply: claim (only while the other «مهتم» is still there) + consent together, no charge.
+      // The unchanged balance goes back so clients never take a credit off on their own
+      creditsLeft = await db.$transaction(async (tx) => {
+        const recorded = await claim(tx);
+        if (recorded.count === 0) throw new LostClaim();
+        if (needsConsent) {
+          await tx.parentInfo.updateMany({ where: { userId, shareConsentAt: null }, data: { shareConsentAt: now } });
+        }
+        const left = await tx.user.findUniqueOrThrow({ where: { id: userId }, select: { matchCredits: true } });
+        return left.matchCredits;
+      });
+    } else {
+      const recorded = await claim(db);
+      if (recorded.count === 0) throw new LostClaim();
     }
-  } else if (freeReply) {
-    // Free reply: claim (only while the other «مهتم» is still there) + consent together, no charge.
-    // The unchanged balance goes back so clients never take a credit off on their own
-    creditsLeft = await db.$transaction(async (tx) => {
-      const recorded = await claim(tx);
-      if (recorded.count === 0) throw notFound();
-      if (needsConsent) {
-        await tx.parentInfo.updateMany({ where: { userId, shareConsentAt: null }, data: { shareConsentAt: now } });
-      }
-      const left = await tx.user.findUniqueOrThrow({ where: { id: userId }, select: { matchCredits: true } });
-      return left.matchCredits;
-    });
-  } else {
-    const recorded = await claim(db);
-    if (recorded.count === 0) throw notFound();
+  } catch (error) {
+    if (!(error instanceof LostClaim)) throw error;
+    // Lost to a concurrent request: my own same answer won (a double tap) → its state; anything else → gone
+    const latest = await db.suggestion.findUnique({ where: { id: s.id } });
+    const repeated = latest ? await repeatedAnswer(latest, userId, interested, !!flags.creditOnInterest) : null;
+    if (repeated) return repeated;
+    throw notFound();
   }
   // Made while the other was full: their card appears now, whatever their «جديدة» holds, with a full window
   if (interested && side === "recipient" && s.hiddenFromCandidate) {

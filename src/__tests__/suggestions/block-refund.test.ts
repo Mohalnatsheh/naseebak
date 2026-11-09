@@ -38,7 +38,7 @@ describe("closeSuggestionsBetween", () => {
     expect(first.where.expiresAt.gt).toBeInstanceOf(Date);
   });
 
-  it("closes the other open cards without the stamp, then runs the refund for the person blocked", async () => {
+  it("closes the other open cards without the stamp; the blocked person's refund is left to the morning job (QA WC-14)", async () => {
     await closeSuggestionsBetween("me", "them");
     const second = db.suggestion.updateMany.mock.calls[1][0];
     expect(second.where.OR).toEqual([
@@ -46,12 +46,18 @@ describe("closeSuggestionsBetween", () => {
       { recipientId: "them", candidateId: "me" },
     ]);
     expect(second.data).not.toHaveProperty("interestRefundedAt");
-    expect(db.suggestion.findMany).toHaveBeenCalledTimes(1);
+    // No refund (and so no «أعدنا لك رصيداً» notice) seconds after the block
+    expect(db.suggestion.findMany).not.toHaveBeenCalled();
+    expect(db.$transaction).not.toHaveBeenCalled();
   });
 
-  it("skips the refund run when nothing else was open", async () => {
-    db.suggestion.updateMany.mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({ count: 0 });
-    await closeSuggestionsBetween("me", "them");
-    expect(db.suggestion.findMany).not.toHaveBeenCalled();
+  it("the morning job then refunds the closed card (status EXPIRED, expiresAt = block time, within the look-back)", async () => {
+    const { refundUnansweredInterests } = await import("@/lib/suggestions/mutual");
+    const now = new Date();
+    await refundUnansweredInterests({ now });
+    const where = db.suggestion.findMany.mock.calls[0][0].where;
+    expect(where.status).toBe("EXPIRED");
+    expect(where.interestRefundedAt).toBeNull();
+    expect(where.expiresAt.gt.getTime()).toBeLessThan(now.getTime());
   });
 });

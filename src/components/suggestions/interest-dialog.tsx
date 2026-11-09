@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Coins, HeartHandshake, Loader2, MessageCircle, Users } from "lucide-react";
+import { Coins, HeartHandshake, Info, Loader2, MessageCircle, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -25,7 +25,7 @@ export function rechargeToContinue(viewerFemale: boolean): string {
 }
 
 const CONSENT_LABEL = "أوافق على مشاركة اسم ورقم ولي الأمر";
-const CONFIRM_FAILED = "تعذّر حفظ قرارك، حاول مرة أخرى";
+const CONFIRM_FAILED = "تعذّر حفظ قرارك، يمكنك المحاولة مرة أخرى";
 
 interface Props {
   open: boolean;
@@ -42,6 +42,8 @@ interface Props {
   costOnly?: boolean;
   /** A reply to someone who already said «مهتم» while `free_interest_reply` is on: no credit, also at 0 */
   free?: boolean;
+  /** The other person already said «مهتم»: confirming makes it a match (no "if they're interested too") */
+  likedYou?: boolean;
   /**
    * Sends the «مهتم». The dialog stays open (busy) until it answers:
    * a string = an error to show here, the dialog stays open to try again or cancel;
@@ -55,7 +57,7 @@ interface Props {
  * Credit on interest: "مهتم" on a shared suggestion asks how the introduction should start if the
  * interest is mutual — chat here first, or a family introduction straight away (needs guardian consent).
  */
-export function InterestDialog({ open, onOpenChange, partnerGender, credits, chatEnabled, guardian: guardianProp, costOnly = false, free = false, onConfirm }: Props) {
+export function InterestDialog({ open, onOpenChange, partnerGender, credits, chatEnabled, guardian: guardianProp, costOnly = false, free = false, likedYou = false, onConfirm }: Props) {
   const [choice, setChoice] = useState<IntroPreferenceChoice | null>(null);
   // Added here through GuardianQuickForm before the shared data catches up. The form saves only the
   // contact (no share consent): saving it is the consent, sent with the «مهتم» itself and stored by the
@@ -152,8 +154,17 @@ export function InterestDialog({ open, onOpenChange, partnerGender, credits, cha
             <>
               <DialogTitle className="text-lg">{g("كيف تحب أن يبدأ التعارف؟", "كيف تحبين أن يبدأ التعارف؟")}</DialogTitle>
               <DialogDescription className="text-right leading-relaxed">
-                {partnerFemale ? "إذا أبدت اهتمامها أيضاً" : "إذا أبدى اهتمامه أيضاً"} يصبح توافقاً متبادلاً
-                {g(" ويبدأ التعارف الذي تختاره مباشرة.", " ويبدأ التعارف الذي تختارينه مباشرة.")}
+                {likedYou ? (
+                  <>
+                    {partnerFemale ? "أبدت اهتمامها" : "أبدى اهتمامه"} {g("بك، فبتأكيدك", "بكِ، فبتأكيدكِ")} يصبح توافقاً متبادلاً
+                    {g(" ويبدأ التعارف الذي تختاره مباشرة.", " ويبدأ التعارف الذي تختارينه مباشرة.")}
+                  </>
+                ) : (
+                  <>
+                    {partnerFemale ? "إذا أبدت اهتمامها أيضاً" : "إذا أبدى اهتمامه أيضاً"} يصبح توافقاً متبادلاً
+                    {g(" ويبدأ التعارف الذي تختاره مباشرة.", " ويبدأ التعارف الذي تختارينه مباشرة.")}
+                  </>
+                )}
               </DialogDescription>
             </>
           )}
@@ -246,7 +257,7 @@ export function InterestDialog({ open, onOpenChange, partnerGender, credits, cha
           <div className="flex items-start gap-3 rounded-xl border border-accent/30 bg-accent/10 p-3 text-sm">
             <Coins className="mt-0.5 h-4 w-4 flex-shrink-0 text-accent-foreground" aria-hidden="true" />
             <div className="space-y-1">
-              <p className="font-semibold text-foreground">مهتم يستخدم رصيداً واحداً — رصيدك {credits}</p>
+              <p className="font-semibold text-foreground">{`«مهتم» يستخدم رصيداً واحداً — ${g("رصيدك", "رصيدكِ")} ${credits}`}</p>
               <p className="text-muted-foreground">
                 {/* Older suggestions / received interests have no 7-day window, so no refund applies to them */}
                 {costOnly
@@ -264,12 +275,14 @@ export function InterestDialog({ open, onOpenChange, partnerGender, credits, cha
         )}
 
         {blockedHint && (
-          <p id="interest-confirm-hint" className="text-xs text-muted-foreground">
+          <p id="interest-confirm-hint" role="status" className="flex items-center gap-1.5 text-sm font-medium text-amber-800">
+            <Info className="h-4 w-4 shrink-0" aria-hidden="true" />
             {blockedHint}
           </p>
         )}
 
-        <DialogFooter className="gap-2 sm:flex-row-reverse sm:justify-start">
+        {/* Phones: «تأكيد» first (right under the hint), «إلغاء» below it */}
+        <DialogFooter className="gap-2 max-sm:flex-col sm:flex-row-reverse sm:justify-start">
           {noCredits ? (
             <Button asChild className="flex-1 sm:flex-none">
               <Link href="/dashboard/payments">{rechargeToContinue(viewerFemale)}</Link>

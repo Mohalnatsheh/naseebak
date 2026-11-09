@@ -309,11 +309,11 @@ export function MatchesView({ embedded = false }: { embedded?: boolean } = {}) {
         setFeedbackRating(5);
         setFeedbackReason("");
       } else {
-        toast.error("تعذّر إرسال التقييم، حاول مرة أخرى");
+        toast.error("تعذّر إرسال التقييم، يمكنك المحاولة مرة أخرى");
       }
     } catch (err) {
       console.error(err);
-      toast.error("تعذّر إرسال التقييم، تحقّق من الاتصال وحاول مرة أخرى");
+      toast.error("تعذّر إرسال التقييم، يمكنك التحقق من الاتصال والمحاولة مرة أخرى");
     } finally {
       setFeedbackSubmitting(false);
     }
@@ -349,7 +349,7 @@ export function MatchesView({ embedded = false }: { embedded?: boolean } = {}) {
       const data = await res.json().catch(() => ({}));
       return { ok: res.ok, status: res.status, error: data.error };
     } catch {
-      return { ok: false, status: 0, error: "تعذّر الاتصال. تحقق من الإنترنت وحاول مرة أخرى." };
+      return { ok: false, status: 0, error: "تعذّر الاتصال. يمكنك التحقق من الإنترنت والمحاولة مرة أخرى." };
     }
   }
 
@@ -357,7 +357,7 @@ export function MatchesView({ embedded = false }: { embedded?: boolean } = {}) {
   async function blockUser(userId: string): Promise<boolean> {
     const res = await callApi("/api/blocks", "POST", { blockedId: userId });
     if (!res.ok && res.status !== 409) {
-      toast.error(res.error ?? "تعذّر الحظر، حاول مرة أخرى");
+      toast.error(res.error ?? "تعذّر الحظر، يمكنك المحاولة مرة أخرى");
       return false;
     }
     return true;
@@ -367,17 +367,19 @@ export function MatchesView({ embedded = false }: { embedded?: boolean } = {}) {
     if (!reportDialog) return;
     setReportSubmitting(true);
     try {
+      // The block first: a report never stands without its block. If the report then fails, the dialog
+      // stays open and a retry blocks again harmlessly (409 = already blocked)
+      if (!(await blockUser(reportDialog.userId))) return;
       const report = await callApi("/api/reports", "POST", {
         reportedId: reportDialog.userId,
         reason: reportReason,
         details: reportDetails || undefined,
       });
-      // 409 = already reported earlier: still go on and block
+      // 409 = already reported earlier: done
       if (!report.ok && report.status !== 409) {
-        toast.error(report.error ?? "تعذّر إرسال البلاغ، حاول مرة أخرى");
+        toast.error(report.error ?? "تم الحظر، وتعذّر إرسال البلاغ. يمكنك المحاولة مرة أخرى");
         return;
       }
-      if (!(await blockUser(reportDialog.userId))) return;
       toast.success("تم إرسال البلاغ وحظر المستخدم", { description: "سيراجع فريق نصيبك البلاغ." });
       setReportDialog(null);
       setReportReason("FAKE_PROFILE");
@@ -405,7 +407,7 @@ export function MatchesView({ embedded = false }: { embedded?: boolean } = {}) {
     const res = await callApi(`/api/blocks/${unblockDialog.blockId}`, "DELETE");
     setSafetyBusy(false);
     if (!res.ok) {
-      toast.error(res.error ?? "تعذّر إلغاء الحظر، حاول مرة أخرى");
+      toast.error(res.error ?? "تعذّر إلغاء الحظر، يمكنك المحاولة مرة أخرى");
       return;
     }
     toast.success("تم إلغاء الحظر");
@@ -429,7 +431,7 @@ export function MatchesView({ embedded = false }: { embedded?: boolean } = {}) {
         console.error("Failed to fetch photos", err);
         // Close the panel again (a retry is one tap away) instead of claiming there are no photos
         setShowPhotos((prev) => ({ ...prev, [matchId]: false }));
-        toast.error("تعذّر تحميل الصور، حاول مرة أخرى");
+        toast.error("تعذّر تحميل الصور، يمكنك المحاولة مرة أخرى");
       } finally {
         setLoadingPhotos((prev) => ({ ...prev, [matchId]: false }));
       }
@@ -520,7 +522,7 @@ export function MatchesView({ embedded = false }: { embedded?: boolean } = {}) {
             </div>
             <div className="space-y-1">
               <h3 className="text-lg font-bold text-foreground">تعذّر تحميل التوافقات</h3>
-              <p className="text-sm text-muted-foreground">تحقق من اتصالك ثم حاول مرة أخرى.</p>
+              <p className="text-sm text-muted-foreground">يمكنك التحقق من اتصالك والمحاولة مرة أخرى.</p>
             </div>
             <Button
               onClick={() => {
@@ -619,7 +621,8 @@ export function MatchesView({ embedded = false }: { embedded?: boolean } = {}) {
                   badges={m.partner.isPro ? <ProBadge /> : undefined}
                   score={score}
                   photoUrl={!locked && m.photosRevealed ? matchPhotos[m.id]?.[0]?.url : undefined}
-                  photoLocked={!locked && !m.photosRevealed}
+                  // «الصور تظهر بعد الاهتمام المتبادل» only on an open match: a closed one never shows photos
+                  photoLocked={!m.closed && !m.photosRevealed}
                   tone={showVisitBanner && m.visitStatus ? visitStatusTone[m.visitStatus] ?? "default" : "default"}
                   meta={<>توافق بتاريخ {formatDate(m.createdAt, country)}</>}
                   status={

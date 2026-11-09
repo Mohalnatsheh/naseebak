@@ -45,6 +45,8 @@ export interface CycleCounts {
   guardian: { exists: boolean; consented: boolean } | null;
   /** Matches where a family or chat request can still be sent (not blocked, partner active, not finished) */
   actionableMatches: number;
+  /** Matches not closed (blocked, ended, finished, engaged); absent while the intro switch is off */
+  openMatches?: number;
   /** credit_on_interest only: my balance ("مهتم" costs 1) */
   credits?: number;
   /** Shared suggestions only: cards nobody answered yet («الجديد») */

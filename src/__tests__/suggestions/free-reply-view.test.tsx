@@ -79,6 +79,6 @@ describe("InterestDialog free mode", () => {
 
   it("not free: unchanged cost line", () => {
     render(<InterestDialog {...props} credits={2} />);
-    expect(screen.getByText(/مهتم يستخدم رصيداً واحداً — رصيدك 2/)).toBeInTheDocument();
+    expect(screen.getByText(/«مهتم» يستخدم رصيداً واحداً — رصيدكِ 2/)).toBeInTheDocument();
   });
 });

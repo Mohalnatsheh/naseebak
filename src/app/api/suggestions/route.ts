@@ -52,7 +52,8 @@ export async function GET(request: Request) {
         // Answering a card that already says «أبدى اهتمامه بك» is free (switch `free_interest_reply`)
         freeInterestReply: !!flags.freeInterestReply,
         chatEnabled: flags.chat,
-        emptyReason,
+        // Why nothing new came, only when there is nothing to show (never "no_candidates" next to open cards)
+        emptyReason: total > 0 ? null : emptyReason,
         nextSuggestionsAt,
         suggestions: [],
         page,
@@ -191,7 +192,7 @@ export async function GET(request: Request) {
     return NextResponse.json({
       mutualView: false,
       credits: me?.matchCredits ?? 0,
-      emptyReason,
+      emptyReason: total > 0 ? null : emptyReason,
       nextSuggestionsAt,
       suggestions: formattedSuggestions,
       page,

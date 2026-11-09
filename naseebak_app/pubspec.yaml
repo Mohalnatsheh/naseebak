@@ -56,6 +56,7 @@ dependencies:
   in_app_review: ^2.0.12
   record: ^6.2.1
   just_audio: ^0.10.6
+  audio_session: ^0.2.4
 
 dev_dependencies:
   flutter_test:

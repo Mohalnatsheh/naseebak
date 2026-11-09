@@ -12,6 +12,7 @@ import 'package:naseebak_app/features/chat/chat_models.dart';
 import 'package:naseebak_app/features/chat/media_bubbles.dart';
 
 import 'helpers/fake_api.dart';
+import 'helpers/fake_voice_player.dart';
 
 final _t0 = DateTime.utc(2026, 11, 10, 10);
 
@@ -56,55 +57,6 @@ class _PendingImage extends ImageProvider<_PendingImage> {
   @override
   ImageStreamCompleter loadImage(_PendingImage key, ImageDecoderCallback decode) =>
       OneFrameImageStreamCompleter(Completer<ImageInfo>().future);
-}
-
-class FakeVoicePlayer implements VoicePlayer {
-  FakeVoicePlayer({this.failLoad = false, this.realDuration});
-  final bool failLoad;
-
-  /// What the platform player reports once loaded (null = unknown)
-  final Duration? realDuration;
-  Uri? loadedUri;
-  Map<String, String>? loadedHeaders;
-  int plays = 0;
-  int pauses = 0;
-  bool disposed = false;
-  final _playing = StreamController<bool>.broadcast();
-  final _position = StreamController<Duration>.broadcast();
-  final _completed = StreamController<void>.broadcast();
-
-  @override
-  Stream<bool> get playingStream => _playing.stream;
-  @override
-  Stream<Duration> get positionStream => _position.stream;
-  @override
-  Stream<void> get completedStream => _completed.stream;
-
-  @override
-  Future<Duration?> load(Uri uri, {Map<String, String>? headers}) async {
-    loadedUri = uri;
-    loadedHeaders = headers;
-    if (failLoad) throw Exception('Source error');
-    return realDuration;
-  }
-
-  @override
-  void play() {
-    plays++;
-    _playing.add(true);
-  }
-
-  @override
-  Future<void> pause() async {
-    pauses++;
-    _playing.add(false);
-  }
-
-  @override
-  Future<void> seek(Duration position) async {}
-
-  @override
-  Future<void> dispose() async => disposed = true;
 }
 
 class _Harness {
@@ -210,7 +162,7 @@ void main() {
       };
     await _pump(tester, h, ChatBubble(message: _image(localPath: '/tmp/photo.jpg')));
     final img = tester.widget<Image>(find.descendant(of: find.byType(PhotoBubble), matching: find.byType(Image)));
-    expect(img.image, isA<FileImage>());
+    expect((img.image as ResizeImage).imageProvider, isA<FileImage>());
     expect(networkLoads, 0);
   });
 

@@ -3,12 +3,14 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:just_audio/just_audio.dart';
 
 import '../../core/network/authed_media.dart';
 import '../../core/privacy/screen_privacy.dart';
 import '../../core/theme/app_theme.dart';
 import 'chat_models.dart';
+import 'voice_playback.dart';
+
+export 'voice_playback.dart';
 
 const photoErrorText = 'تعذّر عرض الصورة';
 const voiceErrorText = 'تعذّر تشغيل الرسالة';
@@ -111,7 +113,11 @@ class _PhotoBubbleState extends ConsumerState<PhotoBubble> {
                       label: 'صورة',
                       button: true,
                       child: Image(
-                        image: provider,
+                        // Decoded at the bubble's size (a 2048 px photo would take ~16 MB); full size only in the viewer
+                        image: ResizeImage(
+                          provider,
+                          width: (size.width * MediaQuery.devicePixelRatioOf(context)).round(),
+                        ),
                         fit: BoxFit.cover,
                         width: size.width,
                         height: size.height,
@@ -211,90 +217,15 @@ class _MediaPlaceholder extends StatelessWidget {
 // ---------------------------------------------------------------------------------------------------------------------
 // Voice
 
-/// What a voice bubble needs from a player; [JustAudioVoicePlayer] in the app, a fake in tests.
-abstract class VoicePlayer {
-  Stream<bool> get playingStream;
-  Stream<Duration> get positionStream;
-
-  /// Fires when playback reaches the end
-  Stream<void> get completedStream;
-
-  /// Returns the real duration when the player knows it
-  Future<Duration?> load(Uri uri, {Map<String, String>? headers});
-
-  /// Starts playing (doesn't wait for the end)
-  void play();
-  Future<void> pause();
-  Future<void> seek(Duration position);
-  Future<void> dispose();
-}
-
-class JustAudioVoicePlayer implements VoicePlayer {
-  // Headers go straight to AVPlayer / ExoPlayer: just_audio's default local proxy is cleartext HTTP on 127.0.0.1,
-  // which needs ATS / cleartext exceptions the app doesn't have.
-  final _player = AudioPlayer(useProxyForRequestHeaders: false);
-
-  @override
-  Stream<bool> get playingStream =>
-      _player.playerStateStream.map((s) => s.playing && s.processingState != ProcessingState.completed).distinct();
-
-  @override
-  Stream<Duration> get positionStream => _player.positionStream;
-
-  @override
-  Stream<void> get completedStream =>
-      _player.processingStateStream.where((s) => s == ProcessingState.completed).map((_) {});
-
-  @override
-  Future<Duration?> load(Uri uri, {Map<String, String>? headers}) =>
-      _player.setAudioSource(AudioSource.uri(uri, headers: headers));
-
-  @override
-  void play() {
-    // just_audio's play() completes only when playback stops; errors surface through load / the state stream
-    unawaited(_player.play().catchError((Object _) {}));
-  }
-
-  @override
-  Future<void> pause() => _player.pause();
-
-  @override
-  Future<void> seek(Duration position) => _player.seek(position);
-
-  @override
-  Future<void> dispose() => _player.dispose();
-}
-
-final voicePlayerFactoryProvider = Provider<VoicePlayer Function()>((ref) => JustAudioVoicePlayer.new);
-
-/// Only one voice note plays at a time: starting one pauses the one before.
-class VoicePlayback {
-  Object? _owner;
-  VoidCallback? _pause;
-
-  void claim(Object owner, VoidCallback pause) {
-    if (_owner != null && !identical(_owner, owner)) _pause?.call();
-    _owner = owner;
-    _pause = pause;
-  }
-
-  void release(Object owner) {
-    if (!identical(_owner, owner)) return;
-    _owner = null;
-    _pause = null;
-  }
-}
-
-final voicePlaybackProvider = Provider<VoicePlayback>((ref) => VoicePlayback());
-
 /// `m:ss`, Western digits
 String formatVoiceDuration(Duration d) {
   final s = d.inSeconds < 0 ? 0 : d.inSeconds;
   return '${s ~/ 60}:${(s % 60).toString().padLeft(2, '0')}';
 }
 
-/// A voice message: play/pause, progress and `m:ss`. The player is made on the first play and disposed with the
-/// bubble. A failed load shows «تعذّر تشغيل الرسالة»; a 401 also goes through the app's sign-out path.
+/// A voice message: play/pause, progress and `m:ss`. The player lives in [VoicePlayback] (made on the first play), so
+/// the note keeps playing when its bubble scrolls out of view. A failed load shows «تعذّر تشغيل الرسالة», which a tap
+/// tries again; a 401 also goes through the app's sign-out path.
 class VoiceBubble extends ConsumerStatefulWidget {
   const VoiceBubble({super.key, required this.message, this.color = AppColors.ink});
   final ChatMessage message;
@@ -302,186 +233,146 @@ class VoiceBubble extends ConsumerStatefulWidget {
   /// Icon and text colour (white on my navy bubble)
   final Color color;
 
+  /// The playback key: my local file while sending, the message id after
+  static String keyOf(ChatMessage m) => m.localPath ?? m.id;
+
   @override
   ConsumerState<VoiceBubble> createState() => _VoiceBubbleState();
 }
 
 class _VoiceBubbleState extends ConsumerState<VoiceBubble> {
-  VoicePlayer? _player;
-  final _subs = <StreamSubscription<Object?>>[];
   late final VoicePlayback _playback;
-  bool _loading = false;
-  bool _loaded = false;
-  bool _playing = false;
-  bool _failed = false;
-  Duration _position = Duration.zero;
-  Duration? _realDuration;
+  late String _key;
+  late VoiceSession _session;
 
   @override
   void initState() {
     super.initState();
     _playback = ref.read(voicePlaybackProvider);
+    _key = VoiceBubble.keyOf(widget.message);
+    _session = _playback.attach(_key);
   }
 
-  /// The length shown: the server's `durationSec` (what the sender saw, rounded up), so the label doesn't drop a
-  /// second once the player reports the real, slightly shorter length
-  Duration get _shownTotal {
-    final sec = widget.message.media?.durationSec;
-    if (sec != null && sec > 0) return Duration(seconds: sec);
-    return _realDuration ?? Duration.zero;
-  }
-
-  /// The length the progress bar runs against: the player's real length once loaded (it ends exactly at 100 %)
-  Duration get _total => _realDuration ?? _shownTotal;
-
-  Future<void> _toggle() async {
-    if (_loading || _failed) return;
-    if (_playing) {
-      await _player?.pause();
-      return;
-    }
-    _playback.claim(this, () => _player?.pause());
-    if (!_loaded) {
-      final ok = await _load();
-      if (!ok || !mounted) return;
-    }
-    _player!.play();
-  }
-
-  Future<bool> _load() async {
-    final local = widget.message.localPath;
-    final url = widget.message.media?.url;
-    if (local == null && url == null) {
-      setState(() => _failed = true);
-      return false;
-    }
-    final player = _player ??= _createPlayer();
-    setState(() => _loading = true);
-    try {
-      final Duration? real;
-      if (local != null) {
-        real = await player.load(Uri.file(local));
-      } else {
-        final m = await authedMedia(ref, url!);
-        if (!mounted) return false;
-        real = await player.load(m.uri, headers: m.headers);
-      }
-      if (!mounted) return false;
-      setState(() {
-        _loading = false;
-        _loaded = true;
-        if (real != null && real > Duration.zero) _realDuration = real;
-      });
-      return true;
-    } catch (_) {
-      if (!mounted) return false;
-      setState(() {
-        _loading = false;
-        _failed = true;
-      });
-      _playback.release(this);
-      // Signed out (401) → the API client's sign-out path; gone (404) stays a placeholder
-      if (local == null) unawaited(probeMediaAccess(ref, url!));
-      return false;
-    }
-  }
-
-  VoicePlayer _createPlayer() {
-    final p = ref.read(voicePlayerFactoryProvider)();
-    _subs
-      ..add(
-        p.playingStream.listen((v) {
-          if (mounted) setState(() => _playing = v);
-        }),
-      )
-      ..add(
-        p.positionStream.listen((v) {
-          if (mounted) setState(() => _position = v);
-        }),
-      )
-      ..add(
-        p.completedStream.listen((_) async {
-          await p.pause();
-          await p.seek(Duration.zero);
-          if (mounted) setState(() => _position = Duration.zero);
-        }),
-      );
-    return p;
+  @override
+  void didUpdateWidget(VoiceBubble old) {
+    super.didUpdateWidget(old);
+    final key = VoiceBubble.keyOf(widget.message);
+    if (key == _key) return;
+    _playback.detach(_key);
+    _key = key;
+    _session = _playback.attach(key);
   }
 
   @override
   void dispose() {
-    for (final s in _subs) {
-      s.cancel();
-    }
-    _playback.release(this);
-    _player?.dispose();
+    _playback.detach(_key);
     super.dispose();
   }
+
+  /// The length shown: the server's `durationSec` (what the sender saw, rounded up), so the label doesn't drop a
+  /// second once the player reports the real, slightly shorter length
+  Duration _shownTotal(VoiceNoteState s) {
+    final sec = widget.message.media?.durationSec;
+    if (sec != null && sec > 0) return Duration(seconds: sec);
+    return s.realDuration ?? Duration.zero;
+  }
+
+  Future<void> _toggle() async {
+    final local = widget.message.localPath;
+    final url = widget.message.media?.url;
+    if (local == null && url == null) {
+      _session.value = _session.value.copyWith(failed: true);
+      return;
+    }
+    // Providers are read now: the note may finish loading after this bubble has scrolled away
+    final Future<VoiceSource> Function() source = local != null
+        ? () async => (uri: Uri.file(local), headers: null)
+        : () => authedMedia(ref, url!).then((m) => (uri: m.uri, headers: m.headers));
+    final ok = await _playback.toggle(_key, source);
+    // Signed out (401) → the API client's sign-out path; gone (404) stays a placeholder
+    if (!ok && mounted && local == null) unawaited(probeMediaAccess(ref, url!));
+  }
+
+  void _retry() => setState(() => _session = _playback.reset(_key));
 
   @override
   Widget build(BuildContext context) {
     final c = widget.color;
-    if (_failed) {
-      return Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.error_outline_rounded, color: c.withValues(alpha: 0.8), size: 20),
-          const SizedBox(width: 6),
-          Flexible(
-            child: Text(voiceErrorText, style: TextStyle(color: c, fontSize: 14)),
-          ),
-        ],
-      );
-    }
-    final total = _total;
-    final started = _playing || _position > Duration.zero;
-    final progress = total.inMilliseconds > 0 ? (_position.inMilliseconds / total.inMilliseconds).clamp(0.0, 1.0) : 0.0;
-    return SizedBox(
-      width: 210,
-      child: Row(
-        children: [
-          SizedBox(
-            width: 44,
-            height: 44,
-            child: _loading
-                ? Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: CircularProgressIndicator(strokeWidth: 2, color: c),
-                  )
-                : IconButton(
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
-                    tooltip: _playing ? 'إيقاف مؤقت' : 'تشغيل',
-                    icon: Icon(_playing ? Icons.pause_rounded : Icons.play_arrow_rounded, color: c, size: 30),
-                    onPressed: _toggle,
+    return ValueListenableBuilder<VoiceNoteState>(
+      valueListenable: _session,
+      builder: (context, s, _) {
+        if (s.failed) {
+          return InkWell(
+            key: const Key('voice-retry'),
+            onTap: _retry,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 44),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.refresh_rounded, color: c.withValues(alpha: 0.8), size: 20),
+                  const SizedBox(width: 6),
+                  Flexible(
+                    child: Text(voiceErrorText, style: TextStyle(color: c, fontSize: 14)),
                   ),
-          ),
-          const SizedBox(width: 6),
-          Expanded(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(2),
-                  child: LinearProgressIndicator(
-                    value: progress,
-                    minHeight: 4,
-                    color: c,
-                    backgroundColor: c.withValues(alpha: 0.25),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  formatVoiceDuration(started ? _position : _shownTotal),
-                  style: TextStyle(color: c.withValues(alpha: 0.8), fontSize: 12),
-                ),
-              ],
+                ],
+              ),
             ),
+          );
+        }
+        // The progress bar runs against the player's real length once loaded (it ends exactly at 100 %)
+        final shown = _shownTotal(s);
+        final total = s.realDuration ?? shown;
+        final started = s.playing || s.position > Duration.zero;
+        final progress =
+            total.inMilliseconds > 0 ? (s.position.inMilliseconds / total.inMilliseconds).clamp(0.0, 1.0) : 0.0;
+        return SizedBox(
+          width: 210,
+          child: Row(
+            children: [
+              SizedBox(
+                width: 44,
+                height: 44,
+                child: s.loading
+                    ? Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: CircularProgressIndicator(strokeWidth: 2, color: c),
+                      )
+                    : IconButton(
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+                        tooltip: s.playing ? 'إيقاف مؤقت' : 'تشغيل',
+                        icon: Icon(s.playing ? Icons.pause_rounded : Icons.play_arrow_rounded, color: c, size: 30),
+                        onPressed: _toggle,
+                      ),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(2),
+                      child: LinearProgressIndicator(
+                        value: progress,
+                        minHeight: 4,
+                        color: c,
+                        backgroundColor: c.withValues(alpha: 0.25),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      formatVoiceDuration(started ? s.position : shown),
+                      style: TextStyle(color: c.withValues(alpha: 0.8), fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

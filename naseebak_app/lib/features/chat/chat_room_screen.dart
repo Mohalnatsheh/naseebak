@@ -1,5 +1,4 @@
 import 'dart:async';
-import '../pro/pro_badge.dart';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -15,6 +14,7 @@ import '../../shared/widgets/common.dart';
 import '../home/counts.dart';
 import '../home/gendered_copy.dart';
 import '../matches/match_detail_screen.dart' show ReportSheet;
+import '../pro/pro_badge.dart';
 import '../pro/pro_repository.dart';
 import 'chat_bubble.dart';
 import 'chat_cache.dart';
@@ -23,6 +23,7 @@ import 'chat_live.dart';
 import 'chat_media_picker.dart';
 import 'chat_models.dart';
 import 'media_bubbles.dart' show formatVoiceDuration;
+import 'voice_playback.dart';
 import 'voice_recorder.dart';
 
 /// One conversation. It opens at once from the messages kept on the device (`ChatCache`), then the newest page from
@@ -37,6 +38,9 @@ class ChatRoomScreen extends ConsumerStatefulWidget {
   @override
   ConsumerState<ChatRoomScreen> createState() => _ChatRoomScreenState();
 }
+
+/// A failed photo or voice note whose file the phone has since removed
+const mediaFileGoneText = 'لم يعد الملف موجوداً على الهاتف، يمكنك إرساله من جديد';
 
 class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBindingObserver {
   final _input = TextEditingController();
@@ -96,10 +100,20 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
   ChatCache get _cache => ref.read(chatCacheProvider);
   String? get _memberId => ref.read(authControllerProvider).me?.id;
 
+  /// The chat's voice notes (players outlive their bubbles; all closed when the chat is left)
+  late final VoicePlayback _playback;
+  ProviderSubscription<bool?>? _countsPro;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _playback = ref.read(voicePlaybackProvider)..canPlay = () => _voice == _Voice.idle || _voice == _Voice.stopped;
+    // Pro bought or lapsed elsewhere: the counts poll sees it first, then the buttons follow `/api/pro`
+    _countsPro = ref.listenManual(countsProvider.select((c) => c.valueOrNull?.isPro), (prev, next) {
+      if (next == null || prev == next) return;
+      if (ref.read(proStateProvider).valueOrNull?.isPro != next) ref.invalidate(proStateProvider);
+    });
     _scroll.addListener(_onScroll);
     _load();
   }
@@ -111,6 +125,14 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     _live?.cancel();
     // Leaving mid-recording (or during the microphone prompt): release the microphone, send nothing
     _releaseVoice();
+    // A failed voice note is not kept after leaving (never cached): its temporary file goes with it
+    for (final m in _messages) {
+      if (m.state == SendState.failed && m.kind == MessageKind.voice && m.localPath != null) _deleteQuietly(m.localPath!);
+    }
+    _countsPro?.close();
+    _playback
+      ..canPlay = null
+      ..closeAll();
     _input.dispose();
     _scroll.dispose();
     super.dispose();
@@ -118,6 +140,8 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    // A private note never plays on outside the app (Android keeps playing in the background otherwise)
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) _playback.pauseCurrent();
     // Backgrounded or locked mid-recording: Android would record silence and iOS cuts the microphone, so stop now,
     // keep what was really recorded and wait for «إرسال» or «إلغاء»
     if ((state == AppLifecycleState.inactive || state == AppLifecycleState.paused || state == AppLifecycleState.hidden) &&
@@ -127,6 +151,8 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     }
     if (state == AppLifecycleState.resumed) {
       _background = false;
+      // Pro may have changed elsewhere meanwhile (the buttons follow it)
+      if (ref.read(appPaymentsProvider)) ref.invalidate(proStateProvider);
       // Not before the chat is known (the first load starts watching itself)
       if (_chat == null) return;
       _watch();
@@ -523,6 +549,12 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     final k = retry?.kind ?? kind ?? MessageKind.image;
     final file = retry?.localPath ?? path;
     if (file == null || k == MessageKind.text) return;
+    // The phone cleared its temporary files meanwhile: the retry could never work, so the bubble goes
+    if (retry != null && !File(file).existsSync()) {
+      setState(() => _messages.removeWhere((m) => m.nonce == retry.nonce));
+      showSnack(context, mediaFileGoneText);
+      return;
+    }
     final seconds = retry?.media?.durationSec ?? durationSec;
     final voice = k == MessageKind.voice;
     final mime = voice ? 'audio/mp4' : 'image/jpeg';
@@ -625,6 +657,8 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     if (_voice != _Voice.idle || _recorder != null) return;
     final rec = ref.read(voiceRecorderProvider)();
     _recorder = rec;
+    // Recording and playback never overlap (they share the phone's audio session)
+    _playback.pauseCurrent();
     setState(() => _voice = _Voice.starting);
     var allowed = false;
     try {

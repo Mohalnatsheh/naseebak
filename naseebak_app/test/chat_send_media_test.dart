@@ -13,6 +13,7 @@ import 'package:naseebak_app/core/theme/app_theme.dart';
 import 'package:naseebak_app/features/chat/chat_cache.dart';
 import 'package:naseebak_app/features/chat/chat_room_screen.dart';
 import 'package:naseebak_app/features/chat/chat_media_picker.dart';
+import 'package:naseebak_app/features/chat/media_bubbles.dart';
 
 import 'helpers/fake_api.dart';
 
@@ -285,5 +286,34 @@ void main() {
     gate.complete();
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('a retry whose file the phone has removed drops the bubble with a line, and sends nothing', (tester) async {
+    final h = _Harness();
+    h.adapter.handlers['POST /api/chats/c1/media'] = (_) => const FakeResponse.network();
+    await h.open(tester);
+    await tester.tap(_photo);
+    await tester.pumpAndSettle();
+    expect(find.text('إعادة الإرسال'), findsOneWidget);
+    h.photo.deleteSync();
+    await tester.tap(find.text('إعادة الإرسال'));
+    await tester.pumpAndSettle();
+    expect(h.uploads, hasLength(1));
+    expect(find.text('إعادة الإرسال'), findsNothing);
+    expect(find.text(mediaFileGoneText), findsOneWidget);
+  });
+
+  testWidgets('a chat photo is decoded at the bubble size; the full-screen viewer gets the full image', (tester) async {
+    final h = _Harness();
+    await h.open(tester);
+    await tester.tap(_photo);
+    await tester.pumpAndSettle();
+    final bubble = tester.widget<Image>(find.descendant(of: find.byType(PhotoBubble), matching: find.byType(Image)));
+    expect(bubble.image, isA<ResizeImage>());
+    expect((bubble.image as ResizeImage).width, lessThanOrEqualTo(240 * 3));
+    await tester.tap(find.byType(PhotoBubble));
+    await tester.pumpAndSettle();
+    final full = tester.widget<Image>(find.descendant(of: find.byType(PhotoViewer), matching: find.byType(Image)));
+    expect(full.image, isNot(isA<ResizeImage>()));
   });
 }

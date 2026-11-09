@@ -17,9 +17,11 @@ import 'package:naseebak_app/features/chat/chat_media_picker.dart';
 import 'package:naseebak_app/features/chat/chat_room_screen.dart';
 import 'package:naseebak_app/features/chat/media_bubbles.dart';
 import 'package:naseebak_app/features/chat/voice_recorder.dart';
+import 'package:naseebak_app/features/home/counts.dart';
 import 'package:record/record.dart' show AudioEncoder;
 
 import 'helpers/fake_api.dart';
+import 'helpers/fake_voice_player.dart';
 
 /// The microphone in tests: a real temp file, a clock the test sets, and a record of what the screen asked for.
 class FakeRecorder implements VoiceRecorder {
@@ -99,6 +101,7 @@ class _Harness {
   Future<bool> Function() permission = () async => true;
   final recorders = <FakeRecorder>[];
   FakeRecorder get rec => recorders.single;
+  final players = <FakeVoicePlayer>[];
 
   late final Directory dir = () {
     final d = Directory.systemTemp.createTempSync('chat_voice_test');
@@ -159,6 +162,12 @@ class _Harness {
         recorders.add(r);
         return r;
       }),
+      voicePlayerFactoryProvider.overrideWithValue(() {
+        final p = FakeVoicePlayer();
+        players.add(p);
+        return p;
+      }),
+      voiceAudioSessionProvider.overrideWithValue(() async {}),
     ]);
     addTearDown(container.dispose);
     container.read(authControllerProvider);
@@ -538,5 +547,137 @@ void main() {
     expect(find.text('إعادة الإرسال'), findsNothing);
     expect(find.byType(ChatBubble), findsNWidgets(3));
     await h.leave(tester);
+  });
+
+  group('voice playback in the chat', () {
+    const note = {
+      'id': 'v001',
+      'body': 'رسالة صوتية',
+      'createdAt': '2026-10-30T10:01:00.000Z',
+      'mine': false,
+      'kind': 'VOICE',
+      'media': {'url': '/api/chats/c1/media/v001', 'type': 'audio/mp4', 'durationSec': 7},
+    };
+
+    Future<void> play(WidgetTester tester) async {
+      await tester.tap(find.byTooltip('تشغيل'));
+      for (var i = 0; i < 5; i++) {
+        await tester.pump(const Duration(milliseconds: 10));
+      }
+    }
+
+    void background(WidgetTester tester) {
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    }
+
+    void foreground(WidgetTester tester) {
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    }
+
+    testWidgets('a note playing pauses when the app goes to the background; leaving the chat disposes its player',
+        (tester) async {
+      final h = _Harness()..serverExtra = [note];
+      await h.open(tester);
+      await play(tester);
+      expect(h.players.single.plays, 1);
+      expect(find.byTooltip('إيقاف مؤقت'), findsOneWidget);
+      background(tester);
+      await tester.pump();
+      expect(h.players.single.pauses, 1);
+      expect(find.byTooltip('تشغيل'), findsOneWidget);
+      foreground(tester);
+      await tester.pump();
+      expect(h.players.single.plays, 1, reason: 'never resumes on its own');
+      await h.leave(tester);
+      await tester.pumpAndSettle();
+      expect(h.players.single.disposed, isTrue);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('starting a recording pauses the note playing, and nothing plays while recording', (tester) async {
+      final h = _Harness()..serverExtra = [note];
+      await h.open(tester);
+      await play(tester);
+      await tester.tap(_mic);
+      await tester.pump();
+      await tester.pump();
+      expect(h.rec.started, isTrue);
+      expect(h.players.single.pauses, 1);
+      await tester.tap(find.byTooltip('تشغيل'));
+      await tester.pump();
+      expect(h.players.single.plays, 1);
+      await tester.tap(_cancel);
+      await tester.pump();
+      await h.leave(tester);
+    });
+
+    testWidgets('Pro bought elsewhere: the counts poll sees it and the mic unlocks without leaving the chat',
+        (tester) async {
+      final h = _Harness(isPro: false);
+      await h.open(tester);
+      await tester.pumpAndSettle();
+      final before = h.adapter.to('GET', '/api/pro').length;
+      h.isPro = true;
+      // The counts poll
+      h.container.invalidate(countsProvider);
+      for (var i = 0; i < 10; i++) {
+        await tester.pump(const Duration(milliseconds: 10));
+      }
+      expect(h.adapter.to('GET', '/api/pro').length, greaterThan(before));
+      await tester.tap(_mic);
+      await tester.pump();
+      await tester.pump();
+      expect(h.recorders, hasLength(1), reason: 'the mic records now, no plans page');
+      expect(find.text('pro-screen'), findsNothing);
+      await tester.tap(_cancel);
+      await tester.pump();
+      await h.leave(tester);
+    });
+
+    testWidgets('back in the foreground the chat re-reads Pro once', (tester) async {
+      final h = _Harness(isPro: false);
+      await h.open(tester);
+      await tester.pumpAndSettle();
+      final before = h.adapter.to('GET', '/api/pro').length;
+      h.isPro = true;
+      background(tester);
+      foreground(tester);
+      for (var i = 0; i < 10; i++) {
+        await tester.pump(const Duration(milliseconds: 10));
+      }
+      expect(h.adapter.to('GET', '/api/pro').length, before + 1);
+      await tester.tap(_mic);
+      await tester.pump();
+      await tester.pump();
+      expect(h.recorders, hasLength(1));
+      await tester.tap(_cancel);
+      await tester.pump();
+      await h.leave(tester);
+    });
+  });
+
+  testWidgets('a failed voice note\'s temporary file is deleted when the chat is left', (tester) async {
+    final h = _Harness();
+    h.adapter.handlers['POST /api/chats/c1/media'] = (_) => const FakeResponse(500, {'error': 'خطأ'});
+    await h.open(tester);
+    await tester.tap(_mic);
+    await tester.pump();
+    await tester.pump();
+    h.rec.now = const Duration(seconds: 3);
+    await _tick(tester);
+    final file = h.rec.file!;
+    await tester.tap(_send);
+    for (var i = 0; i < 10; i++) {
+      await tester.pump(const Duration(milliseconds: 20));
+    }
+    expect(find.text('إعادة الإرسال'), findsOneWidget);
+    expect(file.existsSync(), isTrue, reason: 'kept for the retry while the chat is open');
+    await h.leave(tester);
+    await tester.pumpAndSettle();
+    expect(file.existsSync(), isFalse);
   });
 }

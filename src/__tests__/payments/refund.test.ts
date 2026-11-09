@@ -118,6 +118,19 @@ describe("Stripe charge events", () => {
     expect(alert.sendAdminAlert).not.toHaveBeenCalled();
   });
 
+  it("another site's charge whose invoice lookup fails (Stripe error, restricted key): not ours, logged, nothing changed", async () => {
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    db.payment.findFirst.mockResolvedValue(null);
+    invoices.invoiceIdForPaymentIntent.mockRejectedValue(Object.assign(new Error("restricted key"), { type: "StripePermissionError" }));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    expect(await handleChargeRefunded({ payment_intent: "pi_other", refunded: true } as any)).toBe("not_ours");
+    expect(await flagDispute({ payment_intent: "pi_other", reason: "fraudulent", amount: 100, currency: "usd" } as never)).toBe("not_ours");
+    expect(db.payment.updateMany).not.toHaveBeenCalled();
+    expect(alert.sendAdminAlert).not.toHaveBeenCalled();
+    expect(err).toHaveBeenCalledWith(expect.stringContaining("treated as not ours"), "pi_other", "restricted key");
+    err.mockRestore();
+  });
+
   it("a dispute on a riyal payment goes to the Saudi admins", async () => {
     db.payment.findFirst.mockResolvedValue({ id: "p1", status: "COMPLETED", userId: null, planName: "sa_10", currency: "SAR" });
     await flagDispute({ payment_intent: "pi_1", reason: "fraudulent", amount: 1500, currency: "sar" } as never);

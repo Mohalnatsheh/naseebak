@@ -128,6 +128,15 @@ describe("cancelProNow", () => {
     expect(s().subs[0].status).toBe("ENDED");
   });
 
+  it("a subscription Stripe no longer knows (resource_missing) counts as cancelled: deletion and admin cancel go through", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    addSub();
+    stripe.subscriptions.cancel.mockRejectedValueOnce(Object.assign(new Error("No such subscription"), { code: "resource_missing" }));
+    expect(await cancelProNow("ps1", { reason: "deletion" })).toBe("ended");
+    expect(s().subs[0].status).toBe("ENDED");
+    expect(stripe.subscriptions.retrieve).not.toHaveBeenCalled();
+  });
+
   it("any other Stripe failure throws and keeps the membership", async () => {
     addSub();
     stripe.subscriptions.cancel.mockRejectedValueOnce(new Error("stripe down"));

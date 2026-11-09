@@ -36,11 +36,18 @@ export function resumePro(userId: string): Promise<"ok" | "none"> {
   return setCancelAtPeriodEnd(userId, false);
 }
 
-/** Cancels on Stripe now, with no proration and no final invoice. One Stripe already cancelled counts as done */
+/**
+ * Cancels on Stripe now, with no proration and no final invoice. One Stripe already cancelled, or no longer knows
+ * (`resource_missing`: it can never charge again), counts as done
+ */
 export async function cancelOnStripe(stripeId: string): Promise<void> {
   try {
     await getStripe().subscriptions.cancel(stripeId, { invoice_now: false, prorate: false });
   } catch (e) {
+    if ((e as { code?: string })?.code === "resource_missing") {
+      console.warn("[pro] Stripe no longer knows subscription, counted as cancelled:", stripeId);
+      return;
+    }
     const current = await getStripe().subscriptions.retrieve(stripeId).catch(() => null);
     if (current?.status !== "canceled") throw e;
   }

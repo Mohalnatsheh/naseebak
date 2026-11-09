@@ -17,7 +17,9 @@ import { getCountrySettings } from "@/lib/countries/settings";
 import { grantProCredits } from "@/lib/pro/grants";
 import { PRO_ENDED_BODY, PRO_ENDED_TITLE } from "@/lib/pro/notices";
 import { liveProWhere } from "@/lib/pro/status";
-import { settleDuplicateProSubscription } from "@/lib/pro/duplicate";
+import { settleNotLiveProInvoice } from "@/lib/pro/duplicate";
+import { cancelOnStripe } from "@/lib/pro/manage";
+import { sendAdminAlert } from "@/lib/admin-alert";
 import { addMonth, addPlanPeriod } from "@/lib/pro/dates";
 import { PRO_PLAN_IDS, PRO_PLAN_LABELS, proOffersFor, proPlanName, type ProPlanId } from "@/lib/pro/plans";
 import {
@@ -161,15 +163,15 @@ export async function handleProInvoicePaid(invoice: Stripe.Invoice): Promise<Pro
       (await findRow(tx, stripeSubscriptionId)) ??
       (await createRow(tx, { stripeSubscriptionId, customerId: idOf(invoice.customer), meta: meta!, plan, periodEnd: period.end }));
 
-    // The member already has a live membership on another subscription: this one ends here, granting nothing
-    // (creditsPerGrant 0 keeps any later delivery from granting too); it is cancelled and refunded after the commit
+    // The member already has a live membership on another subscription: this one is never live (ENDED here, cancelled
+    // at Stripe after the commit). Its invoice still grants its credits: the money was taken, and only an admin refunds
     const keep = sub.userId ? await otherLiveRow(tx, sub.userId, stripeSubscriptionId) : null;
-    if (keep && (sub.status !== "ENDED" || sub.creditsPerGrant !== 0)) {
-      sub = await tx.proSubscription.update({
-        where: { id: sub.id },
-        data: { status: "ENDED", endedAt: sub.endedAt ?? new Date(), creditsPerGrant: 0 },
-      });
+    if (keep && sub.status !== "ENDED") {
+      sub = await tx.proSubscription.update({ where: { id: sub.id }, data: { status: "ENDED", endedAt: sub.endedAt ?? new Date() } });
     }
+    // This membership already ended here (ENDED or CANCELED): a paid invoice never revives it. Its credits are granted,
+    // the subscription is cancelled at Stripe so it stops charging, and the admins decide on a refund by hand
+    const endedHere = !keep && (sub.status === "ENDED" || sub.status === "CANCELED");
 
     // One invoice, one Payment: a repeat finds the one it made
     let paymentId: string;
@@ -212,7 +214,19 @@ export async function handleProInvoicePaid(invoice: Stripe.Invoice): Promise<Pro
       }
     }
 
-    if (keep) return { sub, paymentId, paymentNew, keptStripeSubscriptionId: keep.stripeSubscriptionId ?? null, duplicate: true };
+    if (keep) {
+      // The kept membership's latest payment, named in the admins' email next to this one
+      const kept = await tx.payment.findFirst({
+        where: { proSubscriptionId: keep.id, status: "COMPLETED" },
+        orderBy: { createdAt: "desc" },
+        select: { id: true },
+      });
+      return {
+        sub, paymentId, paymentNew, notLive: "duplicate" as const,
+        kept: { stripeSubscriptionId: keep.stripeSubscriptionId ?? null, paymentId: kept?.id ?? null },
+      };
+    }
+    if (endedHere) return { sub, paymentId, paymentNew, notLive: "ended" as const, kept: null };
 
     const data: Prisma.ProSubscriptionUpdateInput = {};
     // Never back in time: an older invoice delivered late
@@ -223,21 +237,28 @@ export async function handleProInvoicePaid(invoice: Stripe.Invoice): Promise<Pro
     if (!sub.stripeCustomerId && customerId) data.stripeCustomerId = customerId;
     if (Object.keys(data).length > 0) await tx.proSubscription.update({ where: { id: sub.id }, data });
 
-    return { sub, paymentId, paymentNew, keptStripeSubscriptionId: null, duplicate: false };
+    return { sub, paymentId, paymentNew, notLive: null, kept: null };
   });
 
   const { sub, paymentId, paymentNew } = step;
-  if (step.duplicate) {
-    await settleDuplicateProSubscription({
-      userId: sub.userId!,
+  if (step.notLive) {
+    // Credits only, keyed by the invoice (once whatever repeats); no yearly drip and no «started»: Pro is not live
+    let granted = false;
+    if ((invoice.amount_paid ?? 0) > 0) {
+      granted = (await grantProCredits({ subscriptionId: sub.id, paymentId, key: `invoice:${invoice.id}`, credits: sub.creditsPerGrant })) === "granted";
+    }
+    await settleNotLiveProInvoice({
+      reason: step.notLive,
+      userId: sub.userId,
       stripeSubscriptionId,
-      keptStripeSubscriptionId: step.keptStripeSubscriptionId,
+      previousStatus: sub.status,
+      kept: step.kept,
       paymentId,
       invoiceId: invoice.id,
-      amountPaid: invoice.amount_paid ?? 0,
+      credits: granted ? sub.creditsPerGrant : 0,
       firstSeen: paymentNew,
     });
-    return paymentNew ? "ok" : "already";
+    return paymentNew || granted ? "ok" : "already";
   }
   let granted = false;
   if ((invoice.amount_paid ?? 0) > 0) {
@@ -304,7 +325,8 @@ export async function handleProInvoiceFailed(invoice: Stripe.Invoice): Promise<P
 /**
  * Only `active` (and `trialing`, unused) and `past_due` (Stripe still retrying) are live. `unpaid` and `paused` mean
  * Stripe stopped collecting, and depending on the shared account's Billing settings no deletion may ever follow, so
- * they end Pro here; `canceled` and `incomplete_expired` are final at Stripe.
+ * they end Pro here and the subscription is cancelled at Stripe too (STOP_AT_STRIPE: paying its open invoice later
+ * would otherwise revive the billing without Pro); `canceled` and `incomplete_expired` are final at Stripe.
  */
 const STATUS_FROM_STRIPE: Partial<Record<Stripe.Subscription.Status, ProSubscription["status"]>> = {
   active: "ACTIVE",
@@ -316,15 +338,21 @@ const STATUS_FROM_STRIPE: Partial<Record<Stripe.Subscription.Status, ProSubscrip
   incomplete_expired: "CANCELED",
 };
 
+/** Stripe statuses that end Pro here while the subscription still exists at Stripe: cancelled there at once */
+const STOP_AT_STRIPE: readonly Stripe.Subscription.Status[] = ["unpaid", "paused"];
+
 /**
  * customer.subscription.updated / deleted. Updated: syncs cancelAtPeriodEnd, the period end and the status; a status
- * that isn't live stamps endedAt. Deleted: ENDED with endedAt, and Pro ends at once. A local ENDED or CANCELED row
+ * that isn't live stamps endedAt, and `unpaid`/`paused` are also cancelled at Stripe. Deleted: ENDED with endedAt, and Pro ends at once. A local ENDED or CANCELED row
  * never comes back. The member is told once, when a live membership first gets its endedAt (never for a first payment
  * that never went through).
  */
 export async function handleProSubscriptionChanged(sub: Stripe.Subscription, kind: "updated" | "deleted" = "updated"): Promise<ProEventResult> {
   if (!isOurProMetadata(sub.metadata)) return "not_ours";
   const periodEnd = subscriptionPeriodEnd(sub);
+
+  // A real subscription Stripe keeps although Pro ended here (also on a repeat: an earlier cancel may have failed)
+  const stopAtStripe = kind === "updated" && STOP_AT_STRIPE.includes(sub.status) && !sub.id.startsWith("mock_");
 
   const step = await withSubscriptionLock(sub.id, async (tx) => {
     const row = await findRow(tx, sub.id);
@@ -346,13 +374,28 @@ export async function handleProSubscriptionChanged(sub: Stripe.Subscription, kin
         ends = true;
       }
     }
-    if (Object.keys(data).length === 0) return null;
+    if (Object.keys(data).length === 0) return stopAtStripe ? { userId: row.userId, tell: false, changed: false } : null;
     await tx.proSubscription.update({ where: { id: row.id }, data });
     const wasLive = row.status === "ACTIVE" || row.status === "PAST_DUE";
     const tell = ends && wasLive && !row.endedAt && sub.status !== "incomplete_expired";
-    return { userId: row.userId, tell };
+    return { userId: row.userId, tell, changed: true };
   });
   if (!step) return "already";
+
+  if (stopAtStripe) {
+    try {
+      await cancelOnStripe(sub.id);
+      console.log("[pro] cancelled at Stripe after", sub.status, sub.id);
+    } catch (e) {
+      console.error("[pro] cancel at Stripe failed after", sub.status, sub.id, (e as Error)?.message ?? e);
+      await sendAdminAlert(
+        "Pro subscription: cancel it in Stripe",
+        `Stripe marked Pro subscription ${sub.id} ${sub.status}, so Pro ended here, but cancelling it in Stripe failed ` +
+          `(${(e as Error)?.message ?? e}). Cancel it in the Stripe dashboard, or paying its open invoice would restart billing without Pro.`,
+        { userId: step.userId },
+      );
+    }
+  }
 
   if (step.tell && step.userId) {
     try {
@@ -361,5 +404,5 @@ export async function handleProSubscriptionChanged(sub: Stripe.Subscription, kin
       console.error("[pro] ended notice failed", sub.id, e);
     }
   }
-  return "ok";
+  return step.changed ? "ok" : "already";
 }

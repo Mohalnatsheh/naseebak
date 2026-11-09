@@ -72,12 +72,14 @@ export async function applyRefund(args: {
       creditsToDeduct = grants.reduce((sum, g) => sum + g.credits, 0);
     }
 
+    let deducted = false;
     if (userId && creditsToDeduct > 0) {
       const user = await tx.user.findUnique({ where: { id: userId }, select: { matchCredits: true } });
       if (user) {
         const before = user.matchCredits;
         const after = Math.max(0, before - creditsToDeduct); // floor at 0
         if (after !== before) {
+          deducted = true;
           await tx.user.update({ where: { id: userId }, data: { matchCredits: after } });
           await recordCredit(
             {
@@ -93,7 +95,7 @@ export async function applyRefund(args: {
         }
       }
     }
-    return { endsPro: !!latest && latest.id === payment.id };
+    return { endsPro: !!latest && latest.id === payment.id, deducted };
   });
   if (!refunded) return "already";
 
@@ -106,7 +108,10 @@ export async function applyRefund(args: {
       title: "تم استرداد المبلغ",
       // Charged in USD (shown in JOD): say what actually goes back to the card
       body: proPlan
-        ? `تم استرداد ${formatPaidCharge(payment)} من اشتراك Pro إلى بطاقتك، وأُزيل رصيده من حسابك.`
+        ? refunded.deducted
+          ? `تم استرداد ${formatPaidCharge(payment)} من اشتراك Pro إلى بطاقتك، وأُزيل رصيده من حسابك.`
+          : // Nothing was taken back (the payment granted nothing, or the balance was already 0)
+            `تم استرداد ${formatPaidCharge(payment)} من اشتراك Pro إلى بطاقتك.`
         : pkg
           ? `تم استرداد ${formatPaidCharge(payment)} (قيمة باقة ${pkg.name}) إلى بطاقتك، وأُزيل رصيد الباقة من حسابك.`
           : "تم استرداد قيمة عملية الدفع إلى بطاقتك.",
@@ -148,7 +153,17 @@ export async function findPaymentForCharge(charge: Pick<Stripe.Charge, "payment_
   const select = { id: true, status: true, userId: true, amount: true, currency: true, planName: true } as const;
   const byIntent = await db.payment.findFirst({ where: { providerTxId: pi, provider: "STRIPE" }, select });
   if (byIntent) return byIntent;
-  const invoiceId = chargeInvoiceId(charge) ?? (await invoiceIdForPaymentIntent(pi));
+  let invoiceId = chargeInvoiceId(charge);
+  if (!invoiceId) {
+    try {
+      invoiceId = await invoiceIdForPaymentIntent(pi);
+    } catch (e) {
+      // The account is shared: most charges here are another site's. A failed lookup (Stripe down, a restricted key)
+      // must not turn their events into 500s and retries; it is logged and treated as not ours
+      console.error("[stripe] invoice lookup for a charge failed, treated as not ours:", pi, (e as Error)?.message ?? e);
+      return null;
+    }
+  }
   if (!invoiceId) return null;
   return db.payment.findFirst({ where: { providerTxId: invoiceId, provider: "STRIPE" }, select });
 }

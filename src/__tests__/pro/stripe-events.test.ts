@@ -48,6 +48,10 @@ vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/notify", () => notifyMock);
 vi.mock("@/lib/countries/settings", () => settings);
 vi.mock("@/lib/pro/grants", () => ({ grantProCredits: grants.grantProCredits }));
+const stripeMock = vi.hoisted(() => ({ subscriptions: { cancel: vi.fn(async () => ({ status: "canceled" })), retrieve: vi.fn() }, refunds: { create: vi.fn() } }));
+const alertMock = vi.hoisted(() => ({ sendAdminAlert: vi.fn() }));
+vi.mock("@/lib/stripe", () => ({ getStripe: () => stripeMock }));
+vi.mock("@/lib/admin-alert", () => alertMock);
 
 import {
   handleProCheckoutCompleted,
@@ -216,6 +220,10 @@ describe("handleProInvoicePaid", () => {
     store.subs[0].status = "ENDED";
     await handleProInvoicePaid(firstInvoice({ id: "in_3", periodStart: T2, periodEnd: T2 + 1000 }));
     expect(store.subs[0].status).toBe("ENDED");
+    // Not revived, cancelled at Stripe, admins asked to decide on a refund by hand; never refunded automatically
+    expect(stripeMock.subscriptions.cancel).toHaveBeenCalledWith("sub_1", expect.anything());
+    expect(stripeMock.refunds.create).not.toHaveBeenCalled();
+    expect(alertMock.sendAdminAlert).toHaveBeenCalledWith("Pro renewal paid after Pro ended: refund decision needed", expect.any(String), { userId: "u1" });
   });
 
   it("yearly: the first invoice grants month 1 and sets the next grant one month on", async () => {
@@ -319,6 +327,9 @@ describe("handleProSubscriptionChanged", () => {
     expect(await handleProSubscriptionChanged(fakeProSubscription({ id: "sub_1", metadata: META, status, periodEnd: T2 }))).toBe("ok");
     expect(store.subs[0].status).toBe("CANCELED");
     expect(store.subs[0].endedAt).toBeInstanceOf(Date);
+    // Stripe keeps an unpaid/paused subscription: it is cancelled there too, so a late payment can't restart billing
+    expect(stripeMock.subscriptions.cancel).toHaveBeenCalledWith("sub_1", { invoice_now: false, prorate: false });
+    expect(stripeMock.refunds.create).not.toHaveBeenCalled();
     expect(notifyMock.notify).toHaveBeenCalledTimes(1);
     expect(notifyMock.notify).toHaveBeenCalledWith(expect.objectContaining({ userId: "u1", title: "انتهت عضوية Pro", sms: false }));
     // Never live again from a later update, and no repeated notice

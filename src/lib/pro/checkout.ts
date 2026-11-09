@@ -33,7 +33,7 @@ const STRIPE_SESSION_MAX_MS = 24 * 60 * 60 * 1000;
 /**
  * Best effort: expires the member's other open Pro checkouts, so two tabs (or the website and the app) can't both be
  * paid into two subscriptions. A session Stripe won't expire (already expired, or paid meanwhile) is left to its
- * webhook; a paid one that turns into a second subscription is cancelled and refunded there (lib/pro/duplicate).
+ * webhook; a paid one that turns into a second subscription is cancelled there and left to an admin to refund (lib/pro/duplicate).
  */
 async function expireOpenProCheckouts(userId: string): Promise<void> {
   let open: { id: string; stripeSessionId: string | null }[];

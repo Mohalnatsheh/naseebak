@@ -1419,7 +1419,7 @@ export const AUTOMATIC_NOTIFICATIONS: AutomaticNotification[] = [
   {
     "key": "pro-refund",
     "group": "pro",
-    "when": "An admin refunds a Pro payment.",
+    "when": "An admin refunds a Pro payment (Admin → Payments, or in the Stripe dashboard). Refunds are never automatic.",
     "who": "The subscriber",
     "channels": [
       "bell",
@@ -1430,6 +1430,11 @@ export const AUTOMATIC_NOTIFICATIONS: AutomaticNotification[] = [
         "variant": "default",
         "title": "تم استرداد المبلغ",
         "body": "تم استرداد {amount} من اشتراك Pro إلى بطاقتك، وأُزيل رصيده من حسابك."
+      },
+      {
+        "variant": "no credits taken back",
+        "title": "تم استرداد المبلغ",
+        "body": "تم استرداد {amount} من اشتراك Pro إلى بطاقتك."
       }
     ]
   }

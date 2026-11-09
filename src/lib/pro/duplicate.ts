@@ -1,40 +1,36 @@
 /**
- * A second Pro subscription of a member who already has a live one (two checkouts paid, e.g. the website and the
- * app, or two tabs). The webhook (lib/pro/stripe-events) keeps it from ever being live or granting credits; this
- * settles it at Stripe: cancels it at once (real subscriptions only), refunds its invoice through the same steps as
- * the admin refund (Stripe refund with the same idempotency key, then `applyRefund`) and emails the admins.
+ * A paid Pro invoice that must not make Pro live:
+ * - "duplicate": a second subscription of a member who already has a live one (two checkouts paid, e.g. the website
+ *   and the app, or two tabs). The older one stays the member's Pro;
+ * - "ended": a renewal of a subscription that already ended here (ENDED or CANCELED: a refund whose Stripe cancel
+ *   failed, or Stripe `unpaid`/`paused` whose open invoice was paid later). Pro does not come back.
+ *
+ * Refunds are made only by an admin, by hand (owner, 2026-11-09): nothing here refunds. The webhook
+ * (lib/pro/stripe-events) grants the invoice's credits as for any paid invoice (an admin refund of that payment takes
+ * them back through `applyRefund`); this cancels the subscription at Stripe at once so it never charges again (real
+ * subscriptions only, never a local mock) and emails the admins naming the payments, to decide on a refund.
  * Never throws: whatever fails is in the admins' email, to finish by hand.
  */
-import { db } from "@/lib/db";
-import { getStripe } from "@/lib/stripe";
 import { sendAdminAlert } from "@/lib/admin-alert";
-import { applyRefund } from "@/lib/payments/refund";
 import { cancelOnStripe } from "@/lib/pro/manage";
-import { paymentIntentForInvoice } from "@/lib/pro/invoice-payments";
 
 const isMock = (id: string) => id.startsWith("mock_");
 
-/** Refunds the payment intent that paid this invoice; a retry returns the same refund (key shared with the admin route) */
-async function refundInvoiceInStripe(paymentId: string, invoiceId: string): Promise<void> {
-  const paymentIntent = await paymentIntentForInvoice(invoiceId);
-  if (!paymentIntent) throw new Error(`no payment intent found for invoice ${invoiceId}`);
-  try {
-    await getStripe().refunds.create({ payment_intent: paymentIntent }, { idempotencyKey: `refund-${paymentId}` });
-  } catch (err) {
-    if ((err as { code?: string })?.code !== "charge_already_refunded") throw err;
-  }
-}
-
 const errText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
-export async function settleDuplicateProSubscription(a: {
-  userId: string;
+export async function settleNotLiveProInvoice(a: {
+  reason: "duplicate" | "ended";
+  userId: string | null;
   stripeSubscriptionId: string;
-  keptStripeSubscriptionId: string | null;
+  /** The row's status when the invoice arrived (ENDED / CANCELED for "ended") */
+  previousStatus: string;
+  /** "duplicate": the membership the member keeps, and its latest payment */
+  kept: { stripeSubscriptionId: string | null; paymentId: string | null } | null;
   paymentId: string;
   invoiceId: string;
-  amountPaid: number;
-  /** The first time this invoice is seen: the admins hear about it even when nothing had to be refunded */
+  /** Credits granted now from this invoice (0 when it was granted before, or nothing to grant) */
+  credits: number;
+  /** The first time this invoice is seen: only then are the admins emailed (unless something failed) */
   firstSeen: boolean;
 }): Promise<void> {
   const problems: string[] = [];
@@ -42,32 +38,30 @@ export async function settleDuplicateProSubscription(a: {
 
   if (!mock) {
     try {
+      // Also on a repeat: a cancel that failed before is tried again; one already cancelled counts as done
       await cancelOnStripe(a.stripeSubscriptionId);
     } catch (e) {
-      problems.push(`Cancelling subscription ${a.stripeSubscriptionId} in Stripe failed (${errText(e)}): cancel it in the Stripe dashboard.`);
+      problems.push(`Cancelling subscription ${a.stripeSubscriptionId} in Stripe failed (${errText(e)}): cancel it in the Stripe dashboard so it does not charge again.`);
     }
   }
 
-  let refunded = false;
-  try {
-    const payment = await db.payment.findUnique({ where: { id: a.paymentId }, select: { status: true } });
-    if (payment?.status === "COMPLETED" && a.amountPaid > 0) {
-      if (!mock) await refundInvoiceInStripe(a.paymentId, a.invoiceId);
-      refunded = (await applyRefund({ paymentId: a.paymentId, note: "Duplicate Pro subscription" })) === "refunded";
-    }
-  } catch (e) {
-    problems.push(`Refunding payment ${a.paymentId} (invoice ${a.invoiceId}) failed (${errText(e)}): refund it in Admin → Payments.`);
-  }
+  const ended = a.reason === "ended";
+  console.warn(`[pro] ${ended ? "renewal of an ended" : "duplicate"} subscription cancelled:`, a.stripeSubscriptionId, problems.length ? "with problems" : "");
+  if (problems.length === 0 && !a.firstSeen) return;
 
-  console.warn("[pro] duplicate subscription settled:", a.stripeSubscriptionId, refunded ? "refunded" : "not refunded", problems.length ? "with problems" : "");
-  if (!refunded && problems.length === 0 && !a.firstSeen) return;
-
+  const member = a.userId ?? "(deleted account)";
+  const what = ended ? "Pro renewal paid after Pro ended" : "Duplicate Pro subscription";
   await sendAdminAlert(
-    problems.length ? "Duplicate Pro subscription: action needed" : "Duplicate Pro subscription cancelled and refunded",
+    problems.length ? `${what}: action needed` : `${what}: refund decision needed`,
     [
-      `Member ${a.userId} paid a second Pro subscription (${a.stripeSubscriptionId}) while ${a.keptStripeSubscriptionId ?? "another one"} was live.`,
-      `The second one was never made live and granted no credits${mock ? " (local mock: nothing sent to Stripe)" : ""}.`,
-      refunded ? `Its payment ${a.paymentId} (invoice ${a.invoiceId}) was refunded.` : `Payment ${a.paymentId} (invoice ${a.invoiceId}) was not refunded now.`,
+      ended
+        ? `Stripe charged invoice ${a.invoiceId} (payment ${a.paymentId}) of member ${member}'s Pro subscription ${a.stripeSubscriptionId}, which had already ended here (${a.previousStatus}). Pro did not come back.`
+        : `Member ${member} paid a second Pro subscription ${a.stripeSubscriptionId} (payment ${a.paymentId}, invoice ${a.invoiceId}) while ${a.kept?.stripeSubscriptionId ?? "another one"} (latest payment ${a.kept?.paymentId ?? "?"}) was live. The older one stays the member's Pro.`,
+      mock
+        ? "Local mock: nothing was sent to Stripe."
+        : `Subscription ${a.stripeSubscriptionId} was ${problems.length ? "NOT " : ""}cancelled in Stripe, so it does not charge again.`,
+      a.credits > 0 ? `The payment's ${a.credits} credits were granted, as for any paid invoice.` : "No credits were granted now.",
+      `Nothing was refunded. To refund, use Admin → Payments on payment ${a.paymentId}: it takes back that payment's credits.`,
       ...problems,
     ].join("\n"),
     { userId: a.userId },

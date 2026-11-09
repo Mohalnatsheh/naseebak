@@ -27,7 +27,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, {
   const [sending, setSending] = useState(false);
   const area = useRef<HTMLTextAreaElement>(null);
   const voice = useVoiceRecording(media);
-  const recording = voice.state.phase === "recording";
+  const recording = voice.state.phase === "recording" || voice.state.phase === "stopping" || voice.state.phase === "stopped";
   // The mic takes the send button's place while the box is empty (one round button at the end)
   const showMic = !!media && !text.trim();
 
@@ -64,8 +64,14 @@ export const ChatComposer = forwardRef<ChatComposerHandle, {
     >
       {error && <p className="mb-2 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
       <div className="flex items-end gap-2">
-        {voice.state.phase === "recording" ? (
-          <RecordingBar elapsed={voice.state.elapsed} onSend={voice.send} onCancel={voice.cancel} />
+        {voice.state.phase === "recording" || voice.state.phase === "stopping" || voice.state.phase === "stopped" ? (
+          <RecordingBar
+            elapsed={voice.state.elapsed}
+            stopped={voice.state.phase !== "recording"}
+            sendDisabled={voice.state.phase === "stopping"}
+            onSend={() => void voice.send()}
+            onCancel={voice.cancel}
+          />
         ) : (
           <>
             {media && <PhotoButton media={media} />}

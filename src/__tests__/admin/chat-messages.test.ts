@@ -106,4 +106,22 @@ describe("GET /api/admin/chats/[id]/messages", () => {
       media: { url: "/api/chats/c1/media/p1", type: "image/webp", durationSec: null, width: 1600, height: 900 },
     });
   });
+
+  it("shows replies (same chat only) and who reacted with what, read-only", async () => {
+    vi.spyOn(console, "info").mockImplementation(() => {});
+    const base = { readAt: null, createdAt: new Date(), kind: "TEXT", mediaType: null, mediaDurationSec: null, mediaWidth: null, mediaHeight: null };
+    db.conversation.findUnique.mockResolvedValue({
+      ...ended("admin1"),
+      messages: [
+        { ...base, id: "x", senderId: "m1", body: "سؤال", replyTo: { id: "y", conversationId: "other", senderId: "f9", kind: "TEXT", body: "سر" }, reactions: [] },
+        { ...base, id: "r", senderId: "m1", body: "نعم", replyTo: { id: "q", conversationId: "c1", senderId: "f1", kind: "VOICE", body: "x" }, reactions: [{ emoji: "❤️", userId: "f1" }] },
+      ],
+    });
+    const d = await (await call()).json();
+    const [r, x] = d.messages;
+    expect(r.replyTo).toEqual({ id: "q", senderId: "f1", kind: "VOICE", snippet: "🎤 رسالة صوتية" });
+    expect(r.reactions).toEqual([{ emoji: "❤️", userId: "f1" }]);
+    expect(x.replyTo).toBeNull();
+    expect(JSON.stringify(d)).not.toContain("سر");
+  });
 });

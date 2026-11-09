@@ -285,6 +285,7 @@ model User {
   sentIntroRequests     IntroRequest[] @relation("IntroSender")
   receivedIntroRequests IntroRequest[] @relation("IntroReceiver")
   messages              Message[]
+  messageReactions      MessageReaction[]
   creditLedger          CreditLedger[]
   pollVotes             PollVote[]
   alertsForMe           Alert[]          @relation("AlertTarget")
@@ -915,14 +916,35 @@ model Message {
   mediaDurationSec Int?
   mediaWidth     Int?
   mediaHeight    Int?
+  /// The message this one replies to (same conversation, checked in chat/service.ts); null if it was deleted
+  replyToId      String?
+  replyTo        Message?     @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies        Message[]    @relation("MessageReplies")
+  reactions      MessageReaction[]
   createdAt      DateTime     @default(now())
 
   @@index([conversationId, createdAt])
+  @@index([replyToId])
   // Not unique: a new unique constraint makes `prisma db push` stop for a data-loss prompt (the deploy runs it
   // without --accept-data-loss); simultaneous duplicates are caught in memory (single process)
   @@index([conversationId, senderId, clientNonce])
   @@index([readAt, createdAt])
   @@map("messages")
+}
+
+/// One reaction per member per message (❤️ 👍 😊 🤲, lib/chat/reactions.ts). No push, no unread count.
+model MessageReaction {
+  id        String   @id @default(cuid())
+  messageId String
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  emoji     String
+  createdAt DateTime @default(now())
+
+  @@unique([messageId, userId])
+  @@index([userId])
+  @@map("message_reactions")
 }
 
 // ─── Credit history ─────────────────────────────────────────────────────────

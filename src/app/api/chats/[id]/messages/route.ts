@@ -4,7 +4,12 @@ import { requireUser } from "@/lib/auth";
 import { sendMessage } from "@/lib/chat/service";
 import { introErrorResponse } from "@/lib/intro/http";
 
-const schema = z.object({ body: z.string().max(2000), clientNonce: z.string().max(64).optional() });
+const schema = z.object({
+  body: z.string().max(2000),
+  clientNonce: z.string().max(64).optional(),
+  /** Reply to a message of this chat (another chat's message: 400) */
+  replyToId: z.string().min(1).max(64).optional(),
+});
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {

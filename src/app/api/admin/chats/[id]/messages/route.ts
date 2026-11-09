@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { effectiveConversationStatus } from "@/lib/admin/cycle-stats";
 import { chatEndedBy } from "@/lib/admin/chat-list";
 import { messageMedia } from "@/lib/chat/media";
+import { replySnippet } from "@/lib/chat/reply";
 
 const person = { select: { id: true, firstName: true, lastName: true, status: true } } as const;
 /** There is no daily cap, so very long chats keep their newest messages (`truncated` marks the cut). */
@@ -29,6 +30,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
           select: {
             id: true, senderId: true, body: true, readAt: true, createdAt: true,
             kind: true, mediaType: true, mediaDurationSec: true, mediaWidth: true, mediaHeight: true,
+            replyTo: { select: { id: true, conversationId: true, senderId: true, kind: true, body: true } },
+            reactions: { select: { emoji: true, userId: true }, orderBy: { createdAt: "asc" } },
           },
         },
       },
@@ -58,9 +61,14 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
         reports,
       },
       // newest MAX_MESSAGES, shown oldest first
-      messages: [...chat.messages].reverse().map(({ mediaType, mediaDurationSec, mediaWidth, mediaHeight, ...m }) => ({
+      messages: [...chat.messages].reverse().map(({ mediaType, mediaDurationSec, mediaWidth, mediaHeight, replyTo, reactions, ...m }) => ({
         ...m,
         kind: m.kind ?? "TEXT",
+        // Read-only: the quote (same chat only, as members see it) and who reacted with what
+        replyTo: replyTo && replyTo.conversationId === chat.id
+          ? { id: replyTo.id, senderId: replyTo.senderId, kind: replyTo.kind ?? "TEXT", snippet: replySnippet(replyTo) }
+          : null,
+        reactions: reactions ?? [],
         // The same shape as the member chat (lib/chat/media messageMedia)
         media: messageMedia({ id: m.id, conversationId: chat.id, kind: m.kind, mediaType, mediaDurationSec, mediaWidth, mediaHeight }),
       })),

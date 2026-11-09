@@ -23,7 +23,8 @@ export function chatChannelName(conversationId: string): string {
   return `chat:${conversationId}`;
 }
 
-export type ChatEventName = "message" | "read" | "status";
+/** `reaction` {messageId, reactions: {emoji, userId}[]} and `typing` {userId} are additive: old apps ignore them */
+export type ChatEventName = "message" | "read" | "status" | "reaction" | "typing";
 
 export async function publishChatEvent(conversationId: string, name: ChatEventName, data: unknown): Promise<void> {
   const ably = client();

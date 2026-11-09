@@ -9,7 +9,7 @@ const MAX_BODY_BYTES = IMAGE_MAX_BYTES + 512 * 1024;
 
 /**
  * Send a photo or a voice note (Pro), multipart: `file`, `kind` (IMAGE | VOICE), `durationSec` (voice),
- * `clientNonce`. Answers `{ message }` like a text send; the message's `media.url` is the only address
+ * `clientNonce`, optional `replyToId`. Answers `{ message }` like a text send; the message's `media.url` is the only address
  * of the file a client ever gets.
  */
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -28,10 +28,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const kind = form?.get("kind");
     const nonce = form?.get("clientNonce");
     const duration = form?.get("durationSec");
+    const replyTo = form?.get("replyToId");
     if (!form || !(file instanceof Blob) || (kind !== "IMAGE" && kind !== "VOICE")) {
       return NextResponse.json({ error: "بيانات غير صالحة" }, { status: 400 });
     }
-    if (nonce != null && (typeof nonce !== "string" || nonce.length > 64)) {
+    if ((nonce != null && (typeof nonce !== "string" || nonce.length > 64)) || (replyTo != null && (typeof replyTo !== "string" || replyTo.length > 64))) {
       return NextResponse.json({ error: "بيانات غير صالحة" }, { status: 400 });
     }
     if (file.size > MAX_BODY_BYTES) return NextResponse.json({ error: "حجم الملف أكبر من المسموح", code: "MEDIA_INVALID" }, { status: 413 });
@@ -46,6 +47,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       type: kind === "IMAGE" ? detectImageType(file.type, file instanceof File ? file.name : null, bytes) : file.type,
       durationSec: typeof duration === "string" && duration.trim() !== "" ? Number(duration) : undefined,
       clientNonce: typeof nonce === "string" && nonce ? nonce : undefined,
+      replyToId: typeof replyTo === "string" && replyTo ? replyTo : undefined,
     });
     return NextResponse.json({ message });
   } catch (error) {

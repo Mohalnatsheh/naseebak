@@ -112,6 +112,20 @@ describe("snapshotReportEvidence", () => {
     });
   });
 
+  it("a reply in the evidence keeps its quote (same chat only)", async () => {
+    db.report.findMany.mockResolvedValue([{ id: "r1", reporterId: "a", reportedId: "b", conversationId: "c1" }]);
+    db.user.findMany.mockResolvedValue([]);
+    db.conversation.findUnique.mockResolvedValue({ id: "c1" });
+    db.message.findMany.mockResolvedValue([
+      { senderId: "b", body: "رد", createdAt: new Date("2026-10-02T10:00:00Z"), replyTo: { conversationId: "c1", senderId: "a", kind: "TEXT", body: "سؤال" } },
+      { senderId: "b", body: "آخر", createdAt: new Date("2026-10-03T10:00:00Z"), replyTo: { conversationId: "zz", senderId: "a", kind: "TEXT", body: "سر" } },
+    ]);
+    await snapshotReportEvidence("b");
+    const msgs = db.report.updateMany.mock.calls[0][0].data.evidence.chat.messages;
+    expect(msgs.find((m: { body: string }) => m.body === "رد").replyTo).toEqual({ from: "reporter", snippet: "سؤال" });
+    expect(JSON.stringify(msgs)).not.toContain("سر");
+  });
+
   it("finds the pair's chat when the report didn't come from one, and works with no chat", async () => {
     db.report.findMany.mockResolvedValue([{ id: "r1", reporterId: "a", reportedId: "b", conversationId: null }]);
     db.user.findMany.mockResolvedValue([]);

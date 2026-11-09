@@ -35,6 +35,9 @@ interface Msg {
   createdAt: string;
   kind?: "TEXT" | "IMAGE" | "VOICE";
   media?: { url: string; type: string; durationSec: number | null; width: number | null; height: number | null } | null;
+  /** The quoted message (read-only) */
+  replyTo?: { id: string; senderId: string; kind: string; snippet: string } | null;
+  reactions?: { emoji: string; userId: string }[];
 }
 
 /** A photo (opens full size in a new tab) or a voice note (native player); every fetch is logged server-side */
@@ -226,7 +229,7 @@ export default function AdminChatPage({ params }: { params: Promise<{ id: string
                 const showDay = i === 0 || day !== fmtDate(shown[i - 1].createdAt);
                 const mine = m.senderId === left.id;
                 return (
-                  <div key={m.id}>
+                  <div key={m.id} id={`msg-${m.id}`}>
                     {showDay && <p className="py-2 text-center text-xs font-medium text-muted-foreground">{day}</p>}
                     <div className={cn("flex", mine ? "justify-start" : "justify-end")}>
                       <div
@@ -236,6 +239,18 @@ export default function AdminChatPage({ params }: { params: Promise<{ id: string
                         )}
                       >
                         <p className={cn("text-xs font-semibold", mine ? "text-primary" : "text-primary-foreground/80")}>{nameOf(m.senderId)}</p>
+                        {m.replyTo && (
+                          <a
+                            href={`#msg-${m.replyTo.id}`}
+                            className={cn(
+                              "mt-1 block rounded-md border-s-2 px-2 py-1 text-xs",
+                              mine ? "border-primary bg-muted" : "border-primary-foreground/60 bg-primary-foreground/10"
+                            )}
+                          >
+                            <span className="font-semibold">Reply to {nameOf(m.replyTo.senderId)}: </span>
+                            <span dir="auto">{m.replyTo.snippet}</span>
+                          </a>
+                        )}
                         {m.media && (m.kind === "IMAGE" || m.kind === "VOICE") ? (
                           <AdminMedia m={m} />
                         ) : (
@@ -245,6 +260,15 @@ export default function AdminChatPage({ params }: { params: Promise<{ id: string
                           {fmtTime(m.createdAt)}
                           {m.readAt ? <CheckCheck className="h-3 w-3" aria-label="Read" /> : <Check className="h-3 w-3" aria-label="Sent" />}
                         </p>
+                        {m.reactions && m.reactions.length > 0 && (
+                          <p className={cn("mt-1 flex flex-wrap gap-1 text-[11px]", mine ? "text-muted-foreground" : "text-primary-foreground/80")}>
+                            {m.reactions.map((r) => (
+                              <span key={r.userId} className="rounded-full bg-background/80 px-1.5 py-0.5 text-foreground">
+                                {r.emoji} {nameOf(r.userId)}
+                              </span>
+                            ))}
+                          </p>
+                        )}
                       </div>
                     </div>
                   </div>

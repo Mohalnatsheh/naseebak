@@ -17,6 +17,7 @@ import { db } from "@/lib/db";
 import { notify } from "@/lib/notify";
 import { CHAT_NOTICE_PREFERENCE } from "@/lib/notification-prefs";
 import { sendAdminAlert } from "@/lib/admin-alert";
+import { replySnippet } from "@/lib/chat/reply";
 import { isUnavailable, loadEngagements } from "@/lib/matches/state";
 
 /** From this many pending reports (different people) the admin email says so in its subject */
@@ -255,6 +256,8 @@ type EvidenceMessage = {
   body: string;
   kind?: string;
   mediaPath?: string | null;
+  /** The message this one replied to: who wrote it and its one-line snippet (same chat only) */
+  replyTo?: { from: "reporter" | "reported"; snippet: string };
 };
 
 /**
@@ -322,7 +325,10 @@ export async function snapshotReportEvidence(userId: string): Promise<number> {
         where: { conversationId: chat.id },
         orderBy: { createdAt: "desc" },
         take: EVIDENCE_MAX_MESSAGES + 1,
-        select: { senderId: true, body: true, kind: true, mediaPath: true, createdAt: true },
+        select: {
+          senderId: true, body: true, kind: true, mediaPath: true, createdAt: true,
+          replyTo: { select: { conversationId: true, senderId: true, kind: true, body: true } },
+        },
       });
       transcript = {
         id: chat.id,
@@ -336,6 +342,9 @@ export async function snapshotReportEvidence(userId: string): Promise<number> {
             body: m.body,
             // A photo or voice note keeps its file: account deletion skips paths referenced here (cron/deletions.ts)
             ...(m.kind && m.kind !== "TEXT" && { kind: m.kind, mediaPath: m.mediaPath ?? null }),
+            ...(m.replyTo && m.replyTo.conversationId === chat.id && {
+              replyTo: { from: m.replyTo.senderId === r.reporterId ? "reporter" : "reported", snippet: replySnippet(m.replyTo) },
+            }),
           })),
       };
     }

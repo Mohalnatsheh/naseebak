@@ -32,6 +32,11 @@ import {
   validateImage, validateVoice,
 } from "@/lib/chat/media";
 import { prepareVoice } from "@/lib/chat/voice-transcode";
+import { type ChatReaction, type ReactionEmoji, reactionsFor } from "@/lib/chat/reactions";
+import { type ReplyQuote, replySnippet } from "@/lib/chat/reply";
+import { TYPING_SHOW_MS, clearTyping, isTyping, noteTyping } from "@/lib/chat/typing";
+import { chatStarters } from "@/lib/chat/starters";
+import { activityLabel } from "@/lib/suggestions/feed";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 export const EXTENSION_DAYS = 7;
@@ -53,7 +58,15 @@ export type ConversationState = "ACTIVE" | "ENDED" | "EXPIRED";
 export interface ChatSummary {
   id: string;
   matchId: string;
-  partner: { id: string; firstName: string; isVerified: boolean; /** Display only (badge) */ isPro: boolean };
+  partner: {
+    id: string;
+    firstName: string;
+    isVerified: boolean;
+    /** Display only (badge) */
+    isPro: boolean;
+    /** «نشط اليوم» / «نشط هذا الأسبوع» (gendered), else null; never a time. Null across a block */
+    activityLabel: string | null;
+  };
   status: ConversationState;
   expiresAt: string;
   canExtend: boolean;
@@ -86,7 +99,14 @@ export interface ChatMessage {
   readAt: string | null;
   kind: MessageKindValue;
   media: ChatMedia | null;
+  /** The quoted message (same chat), or null: old apps ignore it and show `body` */
+  replyTo: ReplyQuote | null;
+  /** One per member at most; `mine` only, never who else reacted */
+  reactions: ChatReaction[];
 }
+
+/** The quoted message as loaded with a message (body is already filtered; never mediaPath) */
+type QuotedRow = { id: string; conversationId: string; senderId: string; kind?: MessageKindValue | null; body: string };
 
 /** The message fields toMessage() reads (mediaPath is never read here, so it can't leak) */
 type MessageRow = {
@@ -101,9 +121,19 @@ type MessageRow = {
   mediaDurationSec?: number | null;
   mediaWidth?: number | null;
   mediaHeight?: number | null;
+  replyTo?: QuotedRow | null;
+  reactions?: { emoji: string; userId: string }[];
 };
 
-const partyUser = { select: { id: true, firstName: true, isVerified: true, status: true, isDeactivated: true, country: true } } as const;
+/** Loaded with every message sent to a client: the quote and the reactions (in the order they were made) */
+const messageInclude = {
+  replyTo: { select: { id: true, conversationId: true, senderId: true, kind: true, body: true } },
+  reactions: { select: { emoji: true, userId: true }, orderBy: { createdAt: "asc" } },
+} as const;
+
+const partyUser = {
+  select: { id: true, firstName: true, isVerified: true, status: true, isDeactivated: true, country: true, lastActiveAt: true },
+} as const;
 const conversationInclude = {
   match: { select: { id: true, femaleId: true, maleId: true, female: partyUser, male: partyUser } },
 } as const;
@@ -258,10 +288,13 @@ function summarise(
 ): ChatSummary {
   const left = c.expiresAt.getTime() - Date.now();
   const partner = partnerOf(c, userId);
+  // The partner is the opposite gender; no activity across a block either way
+  const partnerGender = partner.id === c.match.femaleId ? "FEMALE" : "MALE";
+  const activity = blocked || matchHidden ? null : activityLabel(partner.lastActiveAt, partnerGender);
   return {
     id: c.id,
     matchId: c.matchId,
-    partner: { id: partner.id, firstName: partner.firstName, isVerified: partner.isVerified, isPro: partnerPro },
+    partner: { id: partner.id, firstName: partner.firstName, isVerified: partner.isVerified, isPro: partnerPro, activityLabel: activity },
     status: c.status,
     expiresAt: c.expiresAt.toISOString(),
     canExtend: c.status === "ACTIVE" && !c.extended && left <= EXTEND_WINDOW_DAYS * DAY_MS,
@@ -279,6 +312,13 @@ function toMedia(m: MessageRow): ChatMedia | null {
   return messageMedia(m);
 }
 
+/** The quote of a reply, only from the same chat (checked again here, so another chat's text can never show) */
+function toReplyQuote(m: MessageRow, userId: string): ReplyQuote | null {
+  const q = m.replyTo;
+  if (!q || q.conversationId !== m.conversationId) return null;
+  return { id: q.id, mine: q.senderId === userId, kind: q.kind ?? "TEXT", snippet: replySnippet(q) };
+}
+
 function toMessage(m: MessageRow, userId: string): ChatMessage {
   return {
     id: m.id,
@@ -288,6 +328,8 @@ function toMessage(m: MessageRow, userId: string): ChatMessage {
     readAt: m.readAt ? m.readAt.toISOString() : null,
     kind: m.kind ?? "TEXT",
     media: toMedia(m),
+    replyTo: toReplyQuote(m, userId),
+    reactions: reactionsFor(m.reactions, userId),
   };
 }
 
@@ -448,6 +490,10 @@ export async function getConversation(
   hasMore: boolean;
   /** Polls (?after=) only: my newest message the partner has read, so read ticks on older messages still update */
   readUpTo?: { createdAt: string; readAt: string } | null;
+  /** The partner signalled typing in the last few seconds (open, unblocked chat only): the polling fallback for Ably `typing` */
+  partnerTyping: boolean;
+  /** Conversation starters while I haven't written anything in an open chat, else [] */
+  starters: string[];
 }> {
   const c = await loadForUser(id, userId, { readOnly: true });
   const limit = Math.min(Math.max(opts.limit ?? 30, 1), 100);
@@ -461,6 +507,7 @@ export async function getConversation(
       where: { conversationId: id, createdAt: { gte: new Date(opts.after) } },
       orderBy: [{ createdAt: "asc" }, { id: "asc" }],
       take: 100,
+      include: messageInclude,
     });
   } else {
     const before = opts.before ? new Date(opts.before) : null;
@@ -474,13 +521,14 @@ export async function getConversation(
       },
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       take: limit + 1,
+      include: messageInclude,
     });
     hasMore = page.length > limit;
     messages = page.slice(0, limit).reverse();
   }
 
   const partnerId = partnerOf(c, userId).id;
-  const [unread, blocked, blockedMe, partnerPro, lastRead] = await Promise.all([
+  const [unread, blocked, blockedMe, partnerPro, lastRead, sentByMe] = await Promise.all([
     db.message.count({ where: { conversationId: id, readAt: null, senderId: { not: userId } } }),
     isBlocked(userId, partnerId),
     db.block.findFirst({ where: { blockerId: partnerId, blockedId: userId }, select: { id: true } }),
@@ -493,12 +541,16 @@ export async function getConversation(
           select: { createdAt: true, readAt: true },
         })
       : null,
+    db.message.count({ where: { conversationId: id, senderId: userId }, take: 1 }),
   ]);
   const last = messages.length ? messages[messages.length - 1] : null;
+  const open = c.status === "ACTIVE" && !blocked && !blockedMe;
   return {
     conversation: summarise(c, userId, last, unread, blocked, !!blockedMe, partnerPro),
     messages: messages.map((m) => toMessage(m, userId)),
     hasMore,
+    partnerTyping: open && isTyping(id, partnerId),
+    starters: open && sentByMe === 0 ? chatStarters(userId === c.match.femaleId ? "FEMALE" : "MALE") : [],
     ...(opts.after && {
       readUpTo: lastRead?.readAt ? { createdAt: lastRead.createdAt.toISOString(), readAt: lastRead.readAt.toISOString() } : null,
     }),
@@ -521,6 +573,8 @@ type SendArgs = {
   /** Echoed back on the live event so the sender's screen can replace its optimistic copy; a retry with the same
    *  nonce (the answer was lost, the message was saved) gets the saved message back instead of a second copy */
   clientNonce?: string;
+  /** Reply to this message: it must belong to the same chat (else INVALID, 400) */
+  replyToId?: string;
 };
 
 export function sendMessage(args: SendArgs): Promise<ChatMessage> {
@@ -554,7 +608,7 @@ function onceByNonce(
 /** The message already saved under this nonce (the answer was lost): returned again, never a second copy */
 async function savedByNonce(conversationId: string, senderId: string, clientNonce?: string): Promise<ChatMessage | null> {
   if (!clientNonce) return null;
-  const saved = await db.message.findFirst({ where: { conversationId, senderId, clientNonce } });
+  const saved = await db.message.findFirst({ where: { conversationId, senderId, clientNonce }, include: messageInclude });
   return saved ? toMessage(saved, senderId) : null;
 }
 
@@ -586,6 +640,14 @@ export async function assertCanSend(conversationId: string, senderId: string): P
   return { c, partner, sender: me };
 }
 
+/** A reply's target: a message of this same chat. Missing or from another chat → INVALID (400), its text never read */
+async function assertReplyTarget(conversationId: string, replyToId: string | undefined): Promise<string | null> {
+  if (!replyToId) return null;
+  const target = await db.message.findUnique({ where: { id: replyToId }, select: { id: true, conversationId: true } });
+  if (!target || target.conversationId !== conversationId) throw new IntroError("INVALID", "لا يمكن الرد على هذه الرسالة");
+  return target.id;
+}
+
 /** ~1 message per second on average, short bursts allowed (no daily cap); text and media share it */
 function assertSendRate(senderId: string): void {
   if (!rateLimit(`chat-burst:${senderId}`, { maxAttempts: 5, windowMs: 5000 }).success) {
@@ -598,6 +660,7 @@ async function createMessage(args: SendArgs): Promise<ChatMessage> {
   const saved = await savedByNonce(conversationId, senderId, clientNonce);
   if (saved) return saved;
   const { c, partner, sender } = await assertCanSend(conversationId, senderId);
+  const replyToId = await assertReplyTarget(conversationId, args.replyToId);
 
   // Filter first: a blocked attempt is never saved and doesn't use up the sending allowance
   const check = checkMessage(body);
@@ -619,7 +682,8 @@ async function createMessage(args: SendArgs): Promise<ChatMessage> {
   assertSendRate(senderId);
 
   const message = await db.message.create({
-    data: { conversationId, senderId, body: check.text, clientNonce: clientNonce ?? null },
+    data: { conversationId, senderId, body: check.text, clientNonce: clientNonce ?? null, ...(replyToId && { replyToId }) },
+    include: messageInclude,
   });
   return delivered(message, { c, partner, sender }, clientNonce);
 }
@@ -629,7 +693,9 @@ async function delivered(message: MessageRow, ctx: SendContext, clientNonce?: st
   const { partner, sender } = ctx;
   const { conversationId, senderId } = message;
   const out = toMessage(message, senderId);
-  // `kind` and `media` are additive: old apps read `body` (the fallback text for media)
+  clearTyping(conversationId, senderId);
+  // `kind`, `media` and `replyTo` are additive: old apps read `body` (the fallback text for media). The quote carries
+  // its sender's id instead of `mine` (both sides get this event); a new message has no reactions yet
   await publishChatEvent(conversationId, "message", {
     id: message.id,
     senderId,
@@ -638,6 +704,9 @@ async function delivered(message: MessageRow, ctx: SendContext, clientNonce?: st
     clientNonce,
     kind: out.kind,
     media: out.media,
+    replyTo: out.replyTo && message.replyTo
+      ? { id: out.replyTo.id, senderId: message.replyTo.senderId, kind: out.replyTo.kind, snippet: out.replyTo.snippet }
+      : null,
   });
 
   // Bell and push are not awaited: the sender's answer never waits for OneSignal / FCM (both catch their
@@ -674,6 +743,8 @@ type MediaSendArgs = {
   /** Voice: the recorder's duration in seconds */
   durationSec?: number;
   clientNonce?: string;
+  /** Reply to this message of the same chat */
+  replyToId?: string;
 };
 
 /**
@@ -690,6 +761,7 @@ async function createMediaMessage(args: MediaSendArgs): Promise<ChatMessage> {
   const saved = await savedByNonce(conversationId, senderId, clientNonce);
   if (saved) return saved;
   const ctx = await assertCanSend(conversationId, senderId);
+  const replyToId = await assertReplyTarget(conversationId, args.replyToId);
   // Pro, not `pro_enabled`: the switch gates sales, a paying member keeps the features
   if (!(await isPro(senderId))) throw new IntroError("PRO_REQUIRED", "إرسال الصور والرسائل الصوتية متاح لأعضاء Pro");
   assertSendRate(senderId);
@@ -732,7 +804,9 @@ async function createMediaMessage(args: MediaSendArgs): Promise<ChatMessage> {
         mediaPath: upload.path,
         mediaType: upload.type,
         ...media,
+        ...(replyToId && { replyToId }),
       },
+      include: messageInclude,
     });
   } catch (error) {
     await deleteFromBunny(upload.path).catch(() => {});
@@ -742,6 +816,55 @@ async function createMediaMessage(args: MediaSendArgs): Promise<ChatMessage> {
   }
   return delivered(message, ctx, clientNonce);
 }
+
+/** Reactions: at most one burst per member (they make no push, but each one is a live event) */
+function assertReactionRate(userId: string): void {
+  if (!rateLimit(`chat-react:${userId}`, { maxAttempts: 20, windowMs: 10_000 }).success) {
+    throw new IntroError("RATE_LIMITED", "تمهّل قليلاً");
+  }
+}
+
+/**
+ * React to a message (❤️ 👍 😊 🤲): one per member, the same emoji again (or null) removes it. Only in an open chat
+ * between two active, unblocked members (the same checks as sending). No push, no bell, no unread count.
+ */
+export async function setReaction(args: {
+  conversationId: string;
+  messageId: string;
+  userId: string;
+  emoji: ReactionEmoji | null;
+}): Promise<{ reactions: ChatReaction[] }> {
+  const { conversationId, messageId, userId, emoji } = args;
+  await assertCanSend(conversationId, userId);
+  const message = await db.message.findUnique({ where: { id: messageId }, select: { id: true, conversationId: true } });
+  if (!message || message.conversationId !== conversationId) throw new IntroError("NOT_FOUND", "الرسالة غير موجودة");
+  assertReactionRate(userId);
+
+  const where = { messageId_userId: { messageId, userId } };
+  const current = emoji ? await db.messageReaction.findUnique({ where, select: { emoji: true } }) : null;
+  if (!emoji || current?.emoji === emoji) {
+    await db.messageReaction.deleteMany({ where: { messageId, userId } });
+  } else {
+    await db.messageReaction.upsert({ where, create: { messageId, userId, emoji }, update: { emoji } });
+  }
+  const rows = await db.messageReaction.findMany({
+    where: { messageId },
+    select: { emoji: true, userId: true },
+    orderBy: { createdAt: "asc" },
+  });
+  await publishChatEvent(conversationId, "reaction", { messageId, reactions: rows });
+  return { reactions: reactionsFor(rows, userId) };
+}
+
+/**
+ * «يكتب الآن…»: kept in memory for TYPING_SHOW_MS (the chat GET's `partnerTyping`) and published live as `typing`
+ * at most every couple of seconds. Only in an open chat between two active, unblocked members.
+ */
+export async function signalTyping(conversationId: string, userId: string): Promise<void> {
+  await assertCanSend(conversationId, userId);
+  if (noteTyping(conversationId, userId)) await publishChatEvent(conversationId, "typing", { userId });
+}
+export { TYPING_SHOW_MS };
 
 /** Mark the partner's messages read — only those up to `upTo` (what was actually on screen). */
 export async function markRead(conversationId: string, userId: string, upTo?: string): Promise<number> {

@@ -197,7 +197,7 @@ describe("sendMessage", () => {
     db.message.findFirst.mockResolvedValueOnce({ id: "m-saved", body: "مرحبا", createdAt: new Date(), senderId: "u1", readAt: null });
     const m = await sendMessage({ conversationId: "c", senderId: "u1", body: "مرحبا", clientNonce: "n-db" });
     expect(m.id).toBe("m-saved");
-    expect(db.message.findFirst).toHaveBeenCalledWith({ where: { conversationId: "c", senderId: "u1", clientNonce: "n-db" } });
+    expect(db.message.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { conversationId: "c", senderId: "u1", clientNonce: "n-db" } }));
     expect(db.message.create).not.toHaveBeenCalled();
   });
 

@@ -15,7 +15,8 @@ export type IntroErrorCode =
   | "FILTERED"
   | "PREFERENCE_REQUIRED"
   | "PRO_REQUIRED"
-  | "MEDIA_INVALID";
+  | "MEDIA_INVALID"
+  | "INVALID";
 
 const DEFAULTS: Record<IntroErrorCode, { status: number; message: string }> = {
   NOT_FOUND: { status: 404, message: "غير موجود" },
@@ -32,6 +33,7 @@ const DEFAULTS: Record<IntroErrorCode, { status: number; message: string }> = {
   PREFERENCE_REQUIRED: { status: 400, message: "يلزم اختيار طريقة التعارف: محادثة أو تعارف عائلي" },
   PRO_REQUIRED: { status: 403, message: "إرسال الصور والرسائل الصوتية متاح لأعضاء Pro" },
   MEDIA_INVALID: { status: 422, message: "لا يمكن إرسال هذا الملف" },
+  INVALID: { status: 400, message: "بيانات غير صالحة" },
 };
 
 /** NO_CREDITS for test accounts (the store review login): the app never shows payments to them, so no «اشحن» */

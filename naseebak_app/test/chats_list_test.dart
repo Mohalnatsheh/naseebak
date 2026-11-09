@@ -51,6 +51,42 @@ void main() {
     expect(find.text('السلام عليكم'), findsOneWidget);
   });
 
+  testWidgets('coming back to the Chats tab reloads the list at once', (tester) async {
+    final adapter = FakeAdapter()..on('GET', '/api/chats', FakeResponse(200, {'conversations': [chat()]}));
+    adapter.on('GET', '/api/mobile/me', FakeResponse(200, {'user': meJson()}));
+    final overrides = await testOverrides(adapter, store: MemoryTokenStore('t1'));
+    final container = ProviderContainer(overrides: overrides);
+    addTearDown(container.dispose);
+    container.read(authControllerProvider);
+    await tester.pumpWidget(const SizedBox());
+    for (var i = 0; i < 50 && !container.read(authControllerProvider).isSignedIn; i++) {
+      await tester.pump(const Duration(milliseconds: 10));
+    }
+    // The shell keeps the tab alive and switches its tickers off while another tab is shown
+    final shown = ValueNotifier(true);
+    addTearDown(shown.dispose);
+    await tester.pumpWidget(UncontrolledProviderScope(
+      container: container,
+      child: rtlApp(ValueListenableBuilder<bool>(
+        valueListenable: shown,
+        builder: (_, on, child) => TickerMode(enabled: on, child: child!),
+        child: const ChatsScreen(),
+      )),
+    ));
+    for (var i = 0; i < 10; i++) {
+      await tester.pump(const Duration(milliseconds: 20));
+    }
+    shown.value = false;
+    await tester.pump(const Duration(seconds: 2));
+    final before = adapter.to('GET', '/api/chats').length;
+
+    shown.value = true;
+    for (var i = 0; i < 10; i++) {
+      await tester.pump(const Duration(milliseconds: 20));
+    }
+    expect(adapter.to('GET', '/api/chats').length, greaterThan(before));
+  });
+
   testWidgets('an empty chat invites her with the feminine form', (tester) async {
     final adapter = FakeAdapter()..on('GET', '/api/chats', FakeResponse(200, {'conversations': [chat()]}));
     await openList(tester, adapter);

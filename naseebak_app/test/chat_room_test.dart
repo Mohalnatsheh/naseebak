@@ -270,6 +270,15 @@ void main() {
       expect(tester.testTextInput.isVisible, isFalse);
     });
 
+    testWidgets('an empty room speaks to her in the feminine', (tester) async {
+      // meJson is a woman
+      final adapter = FakeAdapter()..on('GET', '/api/chats/c1', FakeResponse(200, page([])));
+      await openRoom(tester, adapter, MemoryChatCache());
+      await tester.pumpAndSettle();
+      expect(find.text('ابدئي المحادثة بالسلام'), findsOneWidget);
+      expect(find.text('اكتبي رسالتكِ…'), findsOneWidget);
+    });
+
     testWidgets('tapping send keeps the keyboard open for the next message', (tester) async {
       final adapter = FakeAdapter()
         ..on('GET', '/api/chats/c1', FakeResponse(200, page([1, 2])))

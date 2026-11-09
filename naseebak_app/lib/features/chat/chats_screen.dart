@@ -41,6 +41,18 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> with WidgetsBindingOb
     super.dispose();
   }
 
+  /// The shell keeps this tab alive with its tickers off while another tab is shown: coming back
+  /// to it reloads the list at once instead of showing what it had when the member left.
+  bool? _shown;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final shown = TickerMode.valuesOf(context).enabled;
+    if (_shown == false && shown) WidgetsBinding.instance.addPostFrameCallback((_) => _refresh());
+    _shown = shown;
+  }
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) _refresh();

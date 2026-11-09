@@ -621,9 +621,9 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
               ),
               Expanded(
                 child: items.isEmpty
-                    ? const MessageView(
+                    ? MessageView(
                         icon: Icons.waving_hand_outlined,
-                        title: 'ابدأ المحادثة بالسلام',
+                        title: forViewer(female, 'ابدأ المحادثة بالسلام', 'ابدئي المحادثة بالسلام'),
                         body: 'تعرّفا على بعض باحترام: القيم، والطموحات، وتصوّر الحياة الأسرية.',
                       )
                     : Stack(
@@ -685,6 +685,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
 
   Widget _footer(ChatSummary? chat) {
     if (chat == null) return const SizedBox.shrink();
+    final female = ref.watch(authControllerProvider).me?.isFemale ?? false;
     if (!chat.canSend || !_chatEnabled) {
       final text = !_chatEnabled
           ? 'المحادثات متوقفة حالياً.'
@@ -722,7 +723,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
                 // A tap anywhere else (the messages, the header) closes the keyboard
                 onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
                 style: const TextStyle(fontSize: 16),
-                decoration: const InputDecoration(hintText: 'اكتب رسالتك…', counterText: ''),
+                decoration: InputDecoration(hintText: forViewer(female, 'اكتب رسالتك…', 'اكتبي رسالتكِ…'), counterText: ''),
               ),
             ),
             const SizedBox(width: 6),

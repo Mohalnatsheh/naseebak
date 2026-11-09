@@ -77,6 +77,19 @@ needed a release.
   back; Stripe returns to `naseebak.com/payments/return` («العودة إلى التطبيق» on Android opens `/dashboard/payments`).
   «Payments in the app» (`mobile_payments_enabled`) is ON since 2026-11-04; review/test accounts (`EXTRA_TEST_PHONES`)
   never see payments.
+- **Pro membership (1.1.0):** `lib/features/pro/` (repository, plans section on the credits screen, badge). Plans are
+  bought with Stripe in the phone's browser like credits (https only, `LaunchMode.externalApplication`); on the return
+  the app re-reads `/api/pro` + counts for up to 10 s, then shows «سيتم تفعيل العضوية خلال لحظات». Cancel stops the
+  renewal only (no refund button: refunds are admin-only); «متابعة الاشتراك» resumes. The plans section shows only when
+  (`appPayments` && `canBuy`) or `isPro`. Pro members send photos (`image_picker`, ≤ 2048 px, JPEG q85, ≤ 10 MB) and
+  voice notes (`record`, AAC-LC 64 kbps `.m4a`, stops at 180 s and waits, never auto-sent) in an ACTIVE chat; non-Pro
+  members who can buy see the buttons greyed with a «Pro» tag that opens the plans; everyone else doesn't see them.
+  Everyone sees and hears media sent to them. Media (`media.url`, relative) loads with the Bearer token, sent only to
+  the API's own origin; voice plays through `just_audio` with `useProxyForRequestHeaders: false` (headers go straight
+  to AVPlayer / ExoPlayer). **The server media route `GET /api/chats/{id}/media/{mid}` must never redirect** (players
+  may re-send the Bearer header to the redirect target). **Test and review accounts never see Pro:** `/api/pro`
+  returns `canBuy: false` for them in the app (`EXTRA_TEST_PHONES`, and the built-in test numbers wherever
+  `ALLOW_BUILTIN_TEST_PHONES` is on), so neither the plans nor the greyed buttons show.
 - **Config gate:** `GET /api/mobile/config` on start and every resume → force update / optional update / store links /
   maintenance (`core/update/app_update.dart`). Popup alerts: `GET /api/alerts/current?platform=app`.
 - **Crashlytics:** release builds only.
@@ -86,7 +99,9 @@ needed a release.
 `/api/mobile/{auth/token, auth/logout, me, config, push}`, `/api/auth/{send-otp, verify-otp, register}`, `/api/countries`,
 `/api/profile/*` (draft, update-request, photos, parent-info, dealbreakers, personality-quiz, deactivate/reactivate,
 delete), `/api/suggestions` (top-up) and `/api/suggestions/feed?tab=new|interested|waiting`,
-`/api/suggestions/{id}/decide`, `/api/matches/*`, `/api/intro-requests/*`, `/api/chats/*` (+ `ably-token`),
+`/api/suggestions/{id}/decide`, `/api/matches/*`, `/api/intro-requests/*`, `/api/chats/*` (+ `ably-token`; since
+1.1.0 `POST /api/chats/{id}/media` multipart `file` + `kind` IMAGE|VOICE + `durationSec` + `clientNonce`, and
+`GET /api/chats/{id}/media/{mid}` with Bearer + Range), `/api/pro`, `/api/pro/{checkout, cancel, resume}` (1.1.0),
 `/api/notifications/*` (incl. `read-for-page`), `/api/me/counts`, `/api/payments/{plans, checkout, {id}/status, cancel,
 history}`, `/api/alerts/*`, `/api/polls/*`, `/api/referral/*`, `/api/blocks/*`, `/api/reports`, `/api/support`.
 Changing one of these on the server must keep old app versions working (members update slowly).
@@ -120,6 +135,19 @@ Changing one of these on the server must keep old app versions working (members 
   (not uploaded yet). iOS: uploaded to App Store Connect / TestFlight the same day with `xcodebuild -exportArchive`
   (ExportOptions from `flutter build ipa`, `destination` = `upload`, `manageAppVersionAndBuildNumber` = false; uses
   the Xcode account, no API key). The 1.0.1 notes above say Play has 1.0.1 live; the App Store had only 1.0.0 then.
+- **1.1.0+4 (Pro, branch `feature/pro-membership`, not built for the stores yet):** Pro plans and «اشتراكي» on the
+  credits screen, photos and voice notes in chat (Pro to send, everyone to view and play), the Pro badge on cards,
+  chats and home, `ChatCache` v2 (drops 1.0.x caches), image cache cleared on sign-out. New packages `record` and
+  `just_audio`; new permissions: iOS `NSMicrophoneUsageDescription` («لتسجيل رسالة صوتية في المحادثة»), the photo text
+  now covers chat, Android `RECORD_AUDIO`; privacy manifest adds `AudioData`. **Before upload, update the store privacy
+  answers** (Play Data safety and App Store privacy labels): audio (voice notes) and photos are now collected in chat,
+  linked to the user, for app functionality, not tracking. Give the review account no Pro: it never sees Pro (above).
+  Ships only once the server's Pro branch is live (`pro_enabled` off: `canBuy` false and nobody is Pro, so nothing Pro
+  shows). QA'd on the iOS Simulator (iOS 17.5) and an Android emulator against a local backend on 2026-11-09. Local
+  QA note: the built-in test numbers count as test accounts locally, so start `next start` with
+  `ALLOW_BUILTIN_TEST_PHONES=false` to see Pro in the app (codes then come from `/api/dev/sms-outbox`), and the mock
+  Pro checkout returns a relative url the app refuses (https only), so finish it with
+  `POST /api/dev/mock-checkout/<paymentId> {"outcome":"paid"}`.
 - **Planned, not built (next version):** a `purchase` analytics event, and popup taps:
   `features/alerts/alert_gate.dart` posts `/api/alerts/{id}/dismiss` with no body, so admin → Popup Alerts can't tell an
   app tap from a close — send `{ "action": "TAPPED" | "CLOSED" }` like the website does (the server already accepts it;

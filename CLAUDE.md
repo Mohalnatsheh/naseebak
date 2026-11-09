@@ -316,7 +316,7 @@ Detail: [docs/reference/suggestions-and-credits.md](docs/reference/suggestions-a
 
 ## Deployment
 
-**Production: `f523654` (niqab answer + «منتقبة» preference with `--db-push`, `free_interest_reply` switch, dashboard test fixes: number fields take Arabic-Indic digits, payments notice when a country isn't selling, neutral tips and guardian texts), deployed 2026-11-09, slot a.**
+**Production: `dba0a4e` (sign-up terms links follow the chosen country, «الاسم الأول مطلوب»; app 1.0.2 notes), deployed 2026-11-09, slot b.**
 
 Update that one line after each deploy. Don't list past versions. The live revision is in `/var/www/naseebak/REVISION`.
 

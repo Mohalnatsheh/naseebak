@@ -25,6 +25,9 @@ abstract class VoiceRecorder {
   /// Time recorded so far (frozen once stopped)
   Duration get elapsed;
 
+  /// The microphone's level right now, 0 (silence) to 1, for the live bars while the mic is held
+  Future<double> level();
+
   /// Stops and returns the file (null when nothing was recorded)
   Future<String?> stop();
 
@@ -64,6 +67,13 @@ class RecordVoiceRecorder implements VoiceRecorder {
 
   @override
   Duration get elapsed => _clock.elapsed;
+
+  /// dBFS from the recorder (−160…0), shown from −50 dB (a quiet room) to 0
+  @override
+  Future<double> level() async {
+    final a = await _rec.getAmplitude();
+    return ((a.current + 50) / 50).clamp(0.0, 1.0).toDouble();
+  }
 
   @override
   Future<String?> stop() async {

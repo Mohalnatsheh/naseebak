@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -9,6 +10,7 @@ import '../../app/providers.dart';
 import '../../core/analytics/analytics.dart';
 import '../../core/auth/auth_controller.dart';
 import '../../core/network/api_exception.dart';
+import '../../core/network/json.dart';
 import '../../core/privacy/screen_privacy.dart';
 import '../../core/push/push_permission.dart';
 import '../../core/review/store_review.dart';
@@ -31,7 +33,13 @@ import 'chat_live.dart';
 import 'chat_media_picker.dart';
 import 'chat_models.dart';
 import 'chat_status_bar.dart';
+import 'hold_to_record.dart';
 import 'media_bubbles.dart' show ChatPhotoGallery, formatVoiceDuration;
+import 'message_menu.dart';
+import 'photo_preview_screen.dart';
+import 'reply_strip.dart';
+import 'starter_chips.dart';
+import 'typing_signal.dart';
 import 'voice_playback.dart';
 import 'voice_recorder.dart';
 
@@ -60,6 +68,32 @@ const micRefusedKey = 'mic_refused_once';
 
 class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBindingObserver {
   final _input = TextEditingController();
+  final _inputFocus = FocusNode();
+
+  /// The message my next send answers (the strip above the composer); null for none
+  ReplyQuote? _replyTo;
+
+  /// Conversation starters from the server (only while I haven't written anything)
+  List<String> _starters = const [];
+
+  /// «يكتب الآن…» in the header until then (live `typing` event or the poll's `partnerTyping`)
+  DateTime? _partnerTypingUntil;
+  Timer? _typingTimer;
+  final _typingThrottle = TypingThrottle();
+
+  /// The mic is held down (release sends, slide cancels or locks); false once locked, cancelled or stopped
+  bool _holding = false;
+  Offset _holdDrag = Offset.zero;
+
+  /// The live level bars while the mic is held (newest last)
+  List<double> _levels = const [];
+
+  /// The original of a tapped quote, tinted for a moment
+  String? _highlightId;
+  Timer? _highlightTimer;
+
+  /// Message rows on screen by message id (scrolling to a quote's original or to «رسائل جديدة»)
+  final Map<String, BuildContext> _rowsById = {};
   final _scroll = ScrollController();
   ChatSummary? _chat;
   bool _chatEnabled = true;
@@ -247,7 +281,10 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
       _deleteQuietly(f);
     }
     _stickyHide?.cancel();
+    _typingTimer?.cancel();
+    _highlightTimer?.cancel();
     _input.dispose();
+    _inputFocus.dispose();
     _scroll.dispose();
     super.dispose();
   }
@@ -317,7 +354,51 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
       _liveConnected = on;
       _startPolling();
       if (on) _poll();
-    }).listen((_) => _poll(), onDone: () => _live = null);
+    }).listen(_onLive, onDone: () => _live = null);
+  }
+
+  /// A live event: typing and reactions carry what changed; anything else (a message, a read tick) fetches
+  void _onLive(ChatLiveEvent e) {
+    if (!mounted) return;
+    switch (e.name) {
+      case 'typing':
+        final who = asString(e.data?['userId']);
+        if (who != null && who != _memberId) _notePartnerTyping(true);
+      case 'reaction':
+        final id = asString(e.data?['messageId']);
+        final i = id == null ? -1 : _messages.indexWhere((m) => m.id == id && m.state == SendState.sent);
+        if (i < 0) return;
+        setState(() => _messages[i] = _messages[i].withReactions(reactionsFromLive(e.data?['reactions'], _memberId)));
+        _saveCache();
+      default:
+        _poll();
+    }
+  }
+
+  /// The other person is typing: shown for 5 s from now, only in an open chat
+  void _notePartnerTyping(bool typing) {
+    if (!typing || !mounted || !_open) return;
+    _typingTimer?.cancel();
+    setState(() => _partnerTypingUntil = DateTime.now().add(typingShowFor));
+    _typingTimer = Timer(typingShowFor, () {
+      if (mounted) setState(() => _partnerTypingUntil = null);
+    });
+  }
+
+  void _clearPartnerTyping() {
+    _typingTimer?.cancel();
+    _partnerTypingUntil = null;
+  }
+
+  bool get _partnerTyping {
+    final until = _partnerTypingUntil;
+    return until != null && _open && DateTime.now().isBefore(until);
+  }
+
+  /// I typed: tell the other person, at most every 3 s (quiet on failure)
+  void _onTyped(String text) {
+    if (text.trim().isEmpty || !_open || !_typingThrottle.tryNow()) return;
+    unawaited(_repo.typing(widget.chatId).catchError((_) {}));
   }
 
   void _stopLive() {
@@ -351,13 +432,17 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
       setState(() {
         _chat = page.conversation;
         _chatEnabled = page.chatEnabled;
+        _starters = page.starters;
         _mergeLatest(page);
         // A text kept as failed (offline) that the server saved after all
         _reconcile(page.messages);
       });
+      _notePartnerTyping(page.partnerTyping);
       if (!_unreadFixed) {
         _unreadFixed = true;
         _unreadFromId = firstUnreadId(page.messages);
+        // Opened on unread messages: «رسائل جديدة» in view, not only the newest
+        if (_unreadFromId != null) WidgetsBinding.instance.addPostFrameCallback((_) => _revealUnread());
       }
       _dropVoiceIfNotAllowed();
       _saveCache();
@@ -460,6 +545,9 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
       setState(() {
         _chat = page.conversation;
         _chatEnabled = page.chatEnabled;
+        _starters = page.starters;
+        // A message from them ends their «يكتب الآن…»
+        if (fresh.any((m) => !m.mine)) _clearPartnerTyping();
         if (after == null) {
           // Nothing loaded yet (the first load failed offline): take the latest page as is
           _messages.removeWhere((m) => m.state == SendState.sent);
@@ -474,6 +562,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
         }
         _reconcile(fresh);
       });
+      _notePartnerTyping(page.partnerTyping);
       _dropVoiceIfNotAllowed();
       if (fresh.isNotEmpty || changed) _saveCache();
       if (fresh.any((m) => !m.mine)) _markRead();
@@ -676,6 +765,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     final text = retry?.body ?? _input.text.trim();
     if (text.isEmpty) return;
     final nonce = retry?.nonce ?? _newNonce();
+    final reply = retry != null ? retry.replyTo : _replyTo;
     final local = ChatMessage(
       id: 'local-$nonce',
       body: text,
@@ -683,6 +773,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
       mine: true,
       state: SendState.sending,
       nonce: nonce,
+      replyTo: reply,
     );
     // What a poll during the send can bring (the copy of this message, if the answer gets lost)
     final before = _messages.map((m) => m.id).toSet();
@@ -691,14 +782,19 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     setState(() {
       if (retry != null) _messages.removeWhere((m) => m.nonce == nonce);
       _messages.add(local);
-      if (retry == null) _input.clear();
+      if (retry == null) {
+        _input.clear();
+        _replyTo = null;
+      }
       // I answered: what was new has been read
       _unreadFromId = null;
     });
     if (retry == null) _saveDraft();
+    // The next keystroke tells the other person again at once
+    _typingThrottle.reset();
     _toNewest();
     try {
-      final sent = await _repo.send(widget.chatId, text, nonce: nonce);
+      final sent = await _repo.send(widget.chatId, text, nonce: nonce, replyToId: reply?.id);
       _confirmedIds.add(sent.id);
       if (first) ref.read(analyticsProvider).chatStarted();
       if (!mounted) return;
@@ -742,10 +838,24 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     }
     if (!mounted || photo == null) return;
     if (photo.bytes > maxChatPhotoBytes) {
+      deletePickedFile(photo.path);
       showSnack(context, 'الصورة كبيرة جداً');
       return;
     }
-    await _sendMedia(kind: MessageKind.image, path: photo.path);
+    // Seen full screen before anything is uploaded: «إرسال» or «إلغاء»
+    final send = await PhotoPreviewScreen.confirm(context, photo.path);
+    if (!mounted || !send || !_open) {
+      deletePickedFile(photo.path);
+      return;
+    }
+    await _sendMedia(kind: MessageKind.image, path: photo.path, reply: _takeReply());
+  }
+
+  /// The reply being written goes with this send (the strip closes)
+  ReplyQuote? _takeReply() {
+    final r = _replyTo;
+    if (r != null) setState(() => _replyTo = null);
+    return r;
   }
 
   /// A greyed media button (and the link under a PRO_REQUIRED failure): the Pro screen
@@ -754,7 +864,13 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
   /// A photo or voice note: a bubble from the local file at once, replaced by the server copy. A retry passes the
   /// failed bubble and resends its file with the same nonce. `PRO_REQUIRED` (Pro lapsed while the chat was open)
   /// fails the bubble with the server's text and reloads the Pro state, so the buttons follow.
-  Future<void> _sendMedia({MessageKind? kind, String? path, int? durationSec, ChatMessage? retry}) async {
+  Future<void> _sendMedia({
+    MessageKind? kind,
+    String? path,
+    int? durationSec,
+    ChatMessage? retry,
+    ReplyQuote? reply,
+  }) async {
     final k = retry?.kind ?? kind ?? MessageKind.image;
     final file = retry?.localPath ?? path;
     if (file == null || k == MessageKind.text) return;
@@ -770,6 +886,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     // included); the server also checks the bytes. Keep the two together if the picker changes.
     final mime = voice ? 'audio/mp4' : 'image/jpeg';
     final nonce = retry?.nonce ?? _newNonce();
+    final quote = retry != null ? retry.replyTo : reply;
     final local = ChatMessage(
       id: 'local-$nonce',
       body: '',
@@ -780,6 +897,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
       kind: k,
       localPath: file,
       media: seconds == null ? null : ChatMedia(url: '', type: mime, durationSec: seconds),
+      replyTo: quote,
     );
     // Refreshes that must happen even if the member leaves the chat meanwhile
     final container = ProviderScope.containerOf(context, listen: false);
@@ -799,6 +917,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
         mime: mime,
         durationSec: voice ? seconds : null,
         nonce: nonce,
+        replyToId: quote?.id,
       );
       _confirmedIds.add(sent.id);
       if (first) container.read(analyticsProvider).chatStarted();
@@ -875,7 +994,10 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     Future.microtask(() {
       if (!mounted || _voice == _Voice.idle || _voiceAllowed) return;
       _releaseVoice();
-      setState(() => _voice = _Voice.idle);
+      setState(() {
+        _voice = _Voice.idle;
+        _holding = false;
+      });
     });
   }
 
@@ -965,6 +1087,13 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
       return;
     }
     if (elapsed.inSeconds != _voiceElapsed.inSeconds) setState(() => _voiceElapsed = elapsed);
+    // The live bars beside the held mic
+    if (_holding) {
+      rec.level().then((l) {
+        if (!mounted || _recorder != rec || _voice != _Voice.recording || !_holding) return;
+        setState(() => _levels = [..._levels.length >= 60 ? _levels.skip(1) : _levels, l]);
+      }).catchError((_) {});
+    }
   }
 
   /// The limit, or the app leaving the foreground: the recorder stops, the real time recorded is frozen and the bar
@@ -977,6 +1106,8 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
       _voice = _Voice.stopping;
       _voiceAtLimit = limit;
       _voiceElapsed = elapsed;
+      // A held mic stops holding: the bar waits for «إرسال» or «إلغاء» whatever the finger does next
+      _holding = false;
     });
     String? path;
     try {
@@ -1025,7 +1156,85 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
       showSnack(context, 'تعذّر حفظ التسجيل');
       return;
     }
-    await _sendMedia(kind: MessageKind.voice, path: path, durationSec: voiceDurationSec(elapsed));
+    await _sendMedia(kind: MessageKind.voice, path: path, durationSec: voiceDurationSec(elapsed), reply: _takeReply());
+  }
+
+  // Hold to record: press and hold the mic, release to send, slide towards the start edge to cancel, slide up to
+  // lock (the bar then has stop, cancel and send). A tap records hands-free at once (the same locked bar), which also
+  // serves screen readers. Whatever ends a hold other than a plain release (a cancelled pointer, a second finger, a
+  // finger that wandered off, the app leaving, the limit) stops and waits: a held note is never sent silently.
+
+  void _onHoldStart() {
+    if (_voice != _Voice.idle || _recorder != null) return;
+    unawaited(HapticFeedback.mediumImpact());
+    setState(() {
+      _holding = true;
+      _holdDrag = Offset.zero;
+      _levels = const [];
+    });
+    _startVoice();
+  }
+
+  void _onHoldMove(Offset delta) {
+    if (!_holding || !mounted) return;
+    switch (holdSlideFor(delta, Directionality.of(context))) {
+      case HoldSlide.cancel:
+        unawaited(HapticFeedback.heavyImpact());
+        _releaseVoice();
+        setState(() {
+          _holding = false;
+          _voice = _Voice.idle;
+        });
+      case HoldSlide.lock:
+        unawaited(HapticFeedback.selectionClick());
+        // Hands-free from here: the locked bar (stop, cancel, send)
+        setState(() => _holding = false);
+      case HoldSlide.none:
+        setState(() => _holdDrag = delta);
+    }
+  }
+
+  void _onHoldRelease(Offset delta) {
+    if (!_holding || !mounted) return;
+    _holding = false;
+    final rec = _recorder;
+    if (_voice == _Voice.starting || rec == null) {
+      // Let go during the microphone prompt or before the recorder started: nothing is recorded
+      _releaseVoice();
+      setState(() => _voice = _Voice.idle);
+      return;
+    }
+    if (_voice != _Voice.recording) {
+      // Already stopped (the limit, the app leaving): it waits for «إرسال» or «إلغاء»
+      setState(() {});
+      return;
+    }
+    if (!holdReleaseSends(delta)) {
+      _stopRecording(rec, limit: false);
+      return;
+    }
+    if (rec.elapsed < holdMinDuration) {
+      _releaseVoice();
+      setState(() => _voice = _Voice.idle);
+      showSnack(context, holdTooShortText);
+      return;
+    }
+    unawaited(HapticFeedback.lightImpact());
+    _sendVoice();
+  }
+
+  void _onHoldInterrupted() {
+    if (!_holding || !mounted) return;
+    _holding = false;
+    final rec = _recorder;
+    if (_voice == _Voice.recording && rec != null) {
+      _stopRecording(rec, limit: false);
+    } else if (_voice == _Voice.starting) {
+      _releaseVoice();
+      setState(() => _voice = _Voice.idle);
+    } else {
+      setState(() {});
+    }
   }
 
   /// «إلغاء»: stop and delete the file
@@ -1067,6 +1276,17 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
         decoration: const BoxDecoration(color: Colors.white, border: Border(top: BorderSide(color: AppColors.line))),
         child: Row(
           children: [
+            if (_voice == _Voice.recording)
+              IconButton(
+                key: const Key('voice-stop'),
+                tooltip: 'إيقاف التسجيل',
+                onPressed: () {
+                  final rec = _recorder;
+                  if (rec != null && _voice == _Voice.recording) _stopRecording(rec, limit: false);
+                },
+                style: IconButton.styleFrom(minimumSize: const Size(48, 48)),
+                icon: Icon(Icons.stop_circle_rounded, color: Theme.of(context).colorScheme.error, size: 28),
+              ),
             TextButton(
               key: const Key('voice-cancel'),
               onPressed: busy ? null : _cancelVoice,
@@ -1123,10 +1343,11 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     setState(() {
       _messages.removeWhere((x) => x.nonce == m.nonce);
       _input.text = m.body;
+      _replyTo = m.replyTo;
     });
   }
 
-  Future<void> _end({bool report = false}) async {
+  Future<void> _end({bool report = false, ChatMessage? message}) async {
     String? reason;
     String? details;
     if (report) {
@@ -1134,9 +1355,12 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
         context: context,
         isScrollControlled: true,
         useSafeArea: true,
-        builder: (_) => const ReportSheet(
+        builder: (_) => ReportSheet(
+          title: message == null ? 'إبلاغ' : 'إبلاغ عن الرسالة',
           description: 'يصل البلاغ إلى فريق نصيبك، وتنتهي المحادثة للطرفين ولا يمكن فتحها مرة أخرى.',
           submitLabel: 'إبلاغ وإنهاء المحادثة',
+          // The message reported, named in the details (still editable); the team sees the chat with the report
+          initialDetails: message == null ? null : 'بخصوص الرسالة: «${replySnippetOf(message)}»',
         ),
       );
       if (res == null) return;
@@ -1170,6 +1394,122 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     } catch (e) {
       if (mounted) showSnack(context, ApiException.messageOf(e));
     }
+  }
+
+  /// Long-press on a sent message: reply, react, copy (text), report (theirs)
+  Future<void> _openMenu(ChatMessage m) async {
+    if (m.state != SendState.sent) return;
+    FocusManager.instance.primaryFocus?.unfocus();
+    final choice = await showMessageMenu(context, message: m, canInteract: _open);
+    if (!mounted || choice == null) return;
+    switch (choice) {
+      case MenuReply():
+        _startReply(m);
+      case MenuReact(:final emoji):
+        _react(m.id, emoji);
+      case MenuCopy():
+        await Clipboard.setData(ClipboardData(text: m.body));
+        if (mounted) showSnack(context, 'تم نسخ الرسالة');
+      case MenuReport():
+        _end(report: true, message: m);
+    }
+  }
+
+  void _startReply(ChatMessage m) {
+    if (!_open || m.state != SendState.sent) return;
+    unawaited(HapticFeedback.selectionClick());
+    setState(() => _replyTo = quoteOf(m));
+    _inputFocus.requestFocus();
+  }
+
+  /// My reaction on a message: shown at once, then the server's list (reverted with its message on failure).
+  /// [emoji] null removes mine.
+  Future<void> _react(String messageId, String? emoji) async {
+    if (!_open) return;
+    final i = _messages.indexWhere((m) => m.id == messageId && m.state == SendState.sent);
+    if (i < 0) return;
+    final before = _messages[i].reactions;
+    void set(List<ChatReaction> r) {
+      final j = _messages.indexWhere((m) => m.id == messageId);
+      if (j >= 0) _messages[j] = _messages[j].withReactions(r);
+    }
+
+    setState(() => set(toggledReactions(before, emoji)));
+    try {
+      final next = await _repo.react(widget.chatId, messageId, emoji);
+      if (!mounted) return;
+      setState(() => set(next));
+      _saveCache();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => set(before));
+      showSnack(context, ApiException.messageOf(e));
+    }
+  }
+
+  /// A tapped quote: the original, loading older pages if needed, scrolled into view and tinted for a moment
+  Future<void> _goToQuoted(String id) async {
+    for (var i = 0; i < 5 && _hasMore && !_messages.any((m) => m.id == id); i++) {
+      await _loadOlder();
+      if (!mounted) return;
+    }
+    if (!_messages.any((m) => m.id == id)) {
+      showSnack(context, 'الرسالة الأصلية غير متاحة');
+      return;
+    }
+    final found = await _scrollToRow(id, alignment: 0.5);
+    if (!mounted || !found) return;
+    _highlightTimer?.cancel();
+    setState(() => _highlightId = id);
+    _highlightTimer = Timer(const Duration(milliseconds: 1600), () {
+      if (mounted) setState(() => _highlightId = null);
+    });
+  }
+
+  /// «رسائل جديدة» when the chat opens on unread messages: brought into view near the top unless already on screen
+  Future<void> _revealUnread() async {
+    final id = _unreadFromId;
+    if (!mounted || id == null) return;
+    final ctx = _rowsById[id];
+    if (ctx != null && ctx.mounted && _rowOnScreen(ctx)) return;
+    await _scrollToRow(id, alignment: 1);
+  }
+
+  bool _rowOnScreen(BuildContext ctx) {
+    final list = _listKey.currentContext?.findRenderObject();
+    final row = ctx.findRenderObject();
+    if (list is! RenderBox || row is! RenderBox || !list.hasSize || !row.hasSize || !row.attached) return false;
+    final top = list.localToGlobal(Offset.zero).dy;
+    final y = row.localToGlobal(Offset.zero).dy;
+    return y >= top && y + row.size.height <= top + list.size.height;
+  }
+
+  /// Scrolls towards older messages until the row of [id] is built, then brings it into view. [alignment] 1 puts it
+  /// at the top of the screen (the list runs upwards), 0.5 in the middle.
+  Future<bool> _scrollToRow(String id, {required double alignment}) async {
+    for (var tries = 0; tries < 40; tries++) {
+      if (!mounted || !_scroll.hasClients) return false;
+      final ctx = _rowsById[id];
+      if (ctx != null && ctx.mounted) {
+        await Scrollable.ensureVisible(
+          ctx,
+          alignment: alignment,
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOutCubic,
+        );
+        return true;
+      }
+      final pos = _scroll.position;
+      if (pos.pixels >= pos.maxScrollExtent) return false;
+      _scroll.jumpTo((pos.pixels + pos.viewportDimension * 0.8).clamp(0.0, pos.maxScrollExtent));
+      await WidgetsBinding.instance.endOfFrame;
+    }
+    return false;
+  }
+
+  void _pickStarter(String text) {
+    _input.value = TextEditingValue(text: text, selection: TextSelection.collapsed(offset: text.length));
+    _inputFocus.requestFocus();
   }
 
   void _safetyInfo(bool female) {
@@ -1230,7 +1570,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
         ref.watch(appPaymentsProvider) && (ref.watch(proStateProvider).valueOrNull?.canBuy ?? false);
     // Larger system text: the header grows with it, so the status line isn't cut under the name
     final textScale = MediaQuery.textScalerOf(context).scale(14) / 14;
-    final status = _statusLine(chat, left);
+    final status = _statusLine(chat, left, female);
     return Scaffold(
       appBar: AppBar(
         titleSpacing: 0,
@@ -1336,10 +1676,19 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     );
   }
 
-  /// Under the name: the activity label («نشط اليوم») when the server sends one, else the time left while it isn't
-  /// urgent yet (an urgent one is the status bar). Task 6 puts «يكتب الآن…» here first.
-  Widget? _statusLine(ChatSummary? chat, ({String text, bool urgent})? left) {
+  /// Under the name: «يكتب الآن…» while the other person types, else the activity label («نشط اليوم») when the
+  /// server sends one, else the time left while it isn't urgent yet (an urgent one is the status bar).
+  Widget? _statusLine(ChatSummary? chat, ({String text, bool urgent})? left, bool female) {
     if (chat == null) return null;
+    if (_partnerTyping) {
+      return Text(
+        forPartner(female, 'يكتب الآن…', 'تكتب الآن…'),
+        key: const Key('chat-typing'),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.success),
+      );
+    }
     final activity = chat.partnerActivity;
     if (activity != null && activity.isNotEmpty && _open) {
       return Text(
@@ -1500,11 +1849,15 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
                 }
                 final m = items[i];
                 final layout = chatRowLayout(items, i, unreadFromId: _unreadFromId);
+                final sent = m.state == SendState.sent;
                 final bubble = ChatBubble(
                   key: ValueKey(m.id),
                   message: m,
                   tail: layout.tail,
                   tightTop: layout.tightTop,
+                  partnerName: _chat?.partnerName ?? '',
+                  onQuoteTap: _goToQuoted,
+                  onReactionTap: _open && m.myReaction != null ? () => _react(m.id, null) : null,
                   onOpenPro: m.proRequired && proPurchasable ? _openPro : null,
                   onDelete: m.state == SendState.failed ? () => _deleteFailed(m) : null,
                   onRetry: m.state == SendState.failed && !m.proRequired
@@ -1515,18 +1868,33 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
                           : _send(m)
                       : null,
                 );
+                // Long-press: the menu; swipe towards the end side: reply. A tapped quote's original is tinted briefly.
+                final row = AnimatedContainer(
+                  duration: const Duration(milliseconds: 250),
+                  color: _highlightId == m.id ? AppColors.gold.withValues(alpha: 0.22) : Colors.transparent,
+                  child: SwipeToReply(
+                    enabled: _open && sent,
+                    onReply: () => _startReply(m),
+                    child: GestureDetector(
+                      onLongPress: sent ? () => _openMenu(m) : null,
+                      child: bubble,
+                    ),
+                  ),
+                );
                 return _RowProbe(
                   key: ValueKey('row-${m.id}'),
                   index: i,
+                  id: m.id,
                   rows: _rows,
+                  rowsById: _rowsById,
                   child: !layout.daySeparator && !layout.unreadDivider
-                      ? bubble
+                      ? row
                       : Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             if (layout.daySeparator) _DayChip(label: chatDayLabel(m.createdAt)),
                             if (layout.unreadDivider) const _UnreadDivider(),
-                            bubble,
+                            row,
                           ],
                         ),
                 );
@@ -1588,68 +1956,176 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
         ),
       );
     }
-    if (_voice == _Voice.recording || _voice == _Voice.stopping || _voice == _Voice.stopped) return _recordingBar();
+    final holdUi = _holding && (_voice == _Voice.starting || _voice == _Voice.recording);
+    if (!holdUi && (_voice == _Voice.recording || _voice == _Voice.stopping || _voice == _Voice.stopped)) {
+      return _recordingBar();
+    }
     final locked = media == MediaButtons.locked;
+    // Starters while I haven't written anything (the server stops sending them after my first message)
+    final starters = !holdUi && _replyTo == null && !_messages.any((m) => m.mine) ? _starters : const <String>[];
     return SafeArea(
       top: false,
       child: Container(
-        padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
         decoration: const BoxDecoration(color: Colors.white, border: Border(top: BorderSide(color: AppColors.line))),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            if (media != MediaButtons.hidden) ...[
-              TextFieldTapRegion(
-                child: _MediaButton(
-                  key: const Key('chat-photo'),
-                  tagKey: const Key('chat-media-pro-tag'),
-                  icon: Icons.photo_outlined,
-                  tooltip: locked ? 'إرسال الصور مع Pro' : 'إرسال صورة',
-                  locked: locked,
-                  onPressed: locked ? _openPro : _pickPhoto,
+        child: ValueListenableBuilder<TextEditingValue>(
+          valueListenable: _input,
+          builder: (context, value, _) {
+            final hasText = value.text.trim().isNotEmpty;
+            final reply = _replyTo;
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (starters.isNotEmpty && !hasText) StarterChips(starters: starters, onPick: _pickStarter),
+                if (reply != null && !holdUi)
+                  ReplyStrip(
+                    quote: reply,
+                    partnerName: chat.partnerName,
+                    onClose: () => setState(() => _replyTo = null),
+                  ),
+                Padding(
+                  key: const ValueKey('composer-row'),
+                  padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Expanded(
+                        child: holdUi
+                            ? HoldRecordBar(
+                                elapsed: _voiceElapsed,
+                                levels: _levels,
+                                slide: (Directionality.of(context) == TextDirection.rtl ? _holdDrag.dx : -_holdDrag.dx)
+                                    .clamp(0.0, holdCancelDistance),
+                              )
+                            : _pill(female, media, locked),
+                      ),
+                      const SizedBox(width: 6),
+                      // Part of the input's tap region: sending keeps the keyboard open for the next message
+                      TextFieldTapRegion(child: _roundButton(hasText, media, locked, holdUi)),
+                    ],
+                  ),
                 ),
-              ),
-              TextFieldTapRegion(
-                child: _MediaButton(
-                  key: const Key('chat-mic'),
-                  tagKey: const Key('chat-mic-pro-tag'),
-                  icon: Icons.mic_none_rounded,
-                  tooltip: locked ? 'الرسائل الصوتية مع Pro' : 'رسالة صوتية',
-                  locked: locked,
-                  // The microphone prompt or the recorder starting: a spinner, not a dead tap
-                  busy: _voice == _Voice.starting,
-                  onPressed: locked ? _openPro : _startVoice,
-                ),
-              ),
-              const SizedBox(width: 2),
-            ],
-            Expanded(
-              child: TextField(
-                key: const Key('chat-input'),
-                controller: _input,
-                minLines: 1,
-                maxLines: 5,
-                maxLength: 2000,
-                textInputAction: TextInputAction.newline,
-                // A tap anywhere else (the messages, the header) closes the keyboard
-                onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
-                style: const TextStyle(fontSize: 16),
-                decoration: InputDecoration(hintText: forViewer(female, 'اكتب رسالتك…', 'اكتبي رسالتكِ…'), counterText: ''),
-              ),
-            ),
-            const SizedBox(width: 6),
-            // Part of the input's tap region: sending keeps the keyboard open for the next message
-            TextFieldTapRegion(
-              child: IconButton.filled(
-                key: const Key('chat-send'),
-                tooltip: 'إرسال',
-                style: IconButton.styleFrom(backgroundColor: AppColors.navy, minimumSize: const Size(52, 52)),
-                onPressed: () => _send(),
-                icon: const Icon(Icons.send_rounded, color: Colors.white),
-              ),
-            ),
-          ],
+              ],
+            );
+          },
         ),
+      ),
+    );
+  }
+
+  /// The pill: the text box, with the photo button inside at its end (Pro; greyed with «Pro» where it can be bought;
+  /// else hidden)
+  Widget _pill(bool female, MediaButtons media, bool locked) {
+    const none = OutlineInputBorder(borderSide: BorderSide.none);
+    return Container(
+      constraints: const BoxConstraints(minHeight: 48),
+      decoration: BoxDecoration(
+        color: AppColors.offWhite,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: AppColors.line),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Expanded(
+            child: TextField(
+              key: const Key('chat-input'),
+              controller: _input,
+              focusNode: _inputFocus,
+              minLines: 1,
+              maxLines: 5,
+              maxLength: 2000,
+              textInputAction: TextInputAction.newline,
+              onChanged: _onTyped,
+              // A tap anywhere else (the messages, the header) closes the keyboard
+              onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
+              style: const TextStyle(fontSize: 16),
+              decoration: InputDecoration(
+                hintText: forViewer(female, 'اكتب رسالتك…', 'اكتبي رسالتكِ…'),
+                counterText: '',
+                filled: false,
+                isDense: true,
+                border: none,
+                enabledBorder: none,
+                focusedBorder: none,
+                contentPadding: const EdgeInsetsDirectional.fromSTEB(16, 13, 8, 13),
+              ),
+            ),
+          ),
+          if (media != MediaButtons.hidden)
+            TextFieldTapRegion(
+              child: _MediaButton(
+                key: const Key('chat-photo'),
+                tagKey: const Key('chat-media-pro-tag'),
+                icon: Icons.photo_camera_back_outlined,
+                tooltip: locked ? 'إرسال الصور مع Pro' : 'إرسال صورة',
+                locked: locked,
+                onPressed: locked ? _openPro : _pickPhoto,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// One round button: send while there is text, else the mic (hold to record, tap for hands-free); greyed with
+  /// «Pro» where voice notes can be bought; send alone when media is hidden
+  Widget _roundButton(bool hasText, MediaButtons media, bool locked, bool holdUi) {
+    if (hasText || media == MediaButtons.hidden) {
+      return IconButton.filled(
+        key: const Key('chat-send'),
+        tooltip: 'إرسال',
+        style: IconButton.styleFrom(backgroundColor: AppColors.navy, minimumSize: const Size(52, 52)),
+        onPressed: () => _send(),
+        icon: const Icon(Icons.send_rounded, color: Colors.white),
+      );
+    }
+    if (locked) {
+      return _MediaButton(
+        key: const Key('chat-mic'),
+        tagKey: const Key('chat-mic-pro-tag'),
+        icon: Icons.mic_none_rounded,
+        tooltip: 'الرسائل الصوتية مع Pro',
+        locked: true,
+        onPressed: _openPro,
+      );
+    }
+    final busy = _voice == _Voice.starting;
+    final rise = (-_holdDrag.dy).clamp(0.0, holdLockDistance);
+    return HoldToRecordDetector(
+      key: const Key('chat-mic'),
+      label: 'رسالة صوتية',
+      onTap: _startVoice,
+      onHoldStart: _onHoldStart,
+      onHoldMove: _onHoldMove,
+      onHoldRelease: _onHoldRelease,
+      onHoldInterrupted: _onHoldInterrupted,
+      child: Stack(
+        clipBehavior: Clip.none,
+        alignment: Alignment.center,
+        children: [
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            width: 52,
+            height: 52,
+            transform: Matrix4.diagonal3Values(holdUi ? 1.15 : 1, holdUi ? 1.15 : 1, 1),
+            transformAlignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: holdUi ? Theme.of(context).colorScheme.error : AppColors.navy,
+              shape: BoxShape.circle,
+            ),
+            child: Center(
+              child: busy && !holdUi
+                  ? const SizedBox(
+                      key: Key('chat-media-busy'),
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Icon(Icons.mic_rounded, color: Colors.white),
+            ),
+          ),
+          if (holdUi) Positioned(bottom: 64 + rise * 0.3, child: HoldLockHint(rise: rise)),
+        ],
       ),
     );
   }
@@ -1668,10 +2144,8 @@ class _MediaButton extends StatelessWidget {
     required this.tooltip,
     required this.locked,
     required this.onPressed,
-    this.busy = false,
   });
 
-  final bool busy;
   final Key tagKey;
   final IconData icon;
   final String tooltip;
@@ -1686,15 +2160,7 @@ class _MediaButton extends StatelessWidget {
       child: Stack(
         alignment: Alignment.center,
         children: [
-          if (busy)
-            const SizedBox(
-              key: Key('chat-media-busy'),
-              width: 22,
-              height: 22,
-              child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.navy),
-            )
-          else
-            IconButton(
+          IconButton(
               tooltip: tooltip,
               onPressed: onPressed,
               style: IconButton.styleFrom(minimumSize: const Size(48, 52)),
@@ -1774,9 +2240,18 @@ class _UnreadDivider extends StatelessWidget {
 
 /// Registers a message row while it is built, so the sticky date chip can find the topmost one on screen
 class _RowProbe extends StatefulWidget {
-  const _RowProbe({super.key, required this.index, required this.rows, required this.child});
+  const _RowProbe({
+    super.key,
+    required this.index,
+    required this.id,
+    required this.rows,
+    required this.rowsById,
+    required this.child,
+  });
   final int index;
+  final String id;
   final Map<int, BuildContext> rows;
+  final Map<String, BuildContext> rowsById;
   final Widget child;
 
   @override
@@ -1787,12 +2262,14 @@ class _RowProbeState extends State<_RowProbe> {
   @override
   Widget build(BuildContext context) {
     widget.rows[widget.index] = context;
+    widget.rowsById[widget.id] = context;
     return widget.child;
   }
 
   @override
   void dispose() {
     if (identical(widget.rows[widget.index], context)) widget.rows.remove(widget.index);
+    if (identical(widget.rowsById[widget.id], context)) widget.rowsById.remove(widget.id);
     super.dispose();
   }
 }

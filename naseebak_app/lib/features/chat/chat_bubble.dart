@@ -7,6 +7,7 @@ import '../../core/theme/app_theme.dart';
 import 'chat_format.dart';
 import 'chat_models.dart';
 import 'media_bubbles.dart';
+import 'reply_strip.dart';
 
 /// One message, WhatsApp-style: mine at the start side (right in Arabic) in navy, the other person's at the end side
 /// in white. The first bubble of a run from one sender has a tail at its top outer corner ([tail]); the next ones in
@@ -24,8 +25,20 @@ class ChatBubble extends StatelessWidget {
     this.onDelete,
     this.tail = true,
     this.tightTop = false,
+    this.partnerName = '',
+    this.onQuoteTap,
+    this.onReactionTap,
   });
   final ChatMessage message;
+
+  /// For the quote's author line («أنت» or this name)
+  final String partnerName;
+
+  /// A tap on the quote of a reply: scrolls to the original (its id)
+  final ValueChanged<String>? onQuoteTap;
+
+  /// A tap on the reactions chip while one of them is mine: removes it (null when it can't change)
+  final VoidCallback? onReactionTap;
   final VoidCallback? onRetry;
 
   /// Under a `PRO_REQUIRED` failure: opens «عضوية Pro» (null where the member can't buy: the message alone)
@@ -73,16 +86,83 @@ class ChatBubble extends StatelessWidget {
                       : kind == MessageKind.voice
                           ? const EdgeInsets.fromLTRB(8, 4, 10, 5)
                           : const EdgeInsets.fromLTRB(10, 6, 10, 6),
-                  child: switch (kind) {
-                    MessageKind.image => _photo(),
-                    MessageKind.voice => _voice(fg),
-                    MessageKind.text => _text(context, fg),
-                  },
+                  child: _withQuote(
+                    mine && !failed,
+                    switch (kind) {
+                      MessageKind.image => _photo(),
+                      MessageKind.voice => _voice(fg),
+                      MessageKind.text => _text(context, fg),
+                    },
+                  ),
                 ),
               ),
             ),
+            if (message.reactions.isNotEmpty) _reactions(tailRight),
             if (failed) _failedActions(),
           ],
+        ),
+      ),
+    );
+  }
+
+  /// A reply: the quote above the content (a photo's quote keeps a little room from the picture)
+  Widget _withQuote(bool onMine, Widget content) {
+    final q = message.replyTo;
+    if (q == null) return content;
+    final quote = QuoteInBubble(
+      quote: q,
+      partnerName: partnerName,
+      onMine: onMine,
+      onTap: onQuoteTap == null ? null : () => onQuoteTap!(q.id),
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        message.kind == MessageKind.image ? Padding(padding: const EdgeInsets.all(3), child: quote) : quote,
+        content,
+      ],
+    );
+  }
+
+  /// The reactions under the bubble's inner corner: each emoji once (with 2 when both chose it); a tap removes mine
+  Widget _reactions(bool tailRight) {
+    final counts = <String, int>{};
+    for (final r in message.reactions) {
+      counts[r.emoji] = (counts[r.emoji] ?? 0) + 1;
+    }
+    final mine = message.myReaction;
+    final label = [for (final e in counts.entries) e.value > 1 ? '${e.key} ${e.value}' : e.key].join(' ');
+    return Transform.translate(
+      offset: const Offset(0, -6),
+      child: Padding(
+        padding: EdgeInsets.only(left: tailRight ? 10 : ChatBubble.tailWidth + 10, right: tailRight ? ChatBubble.tailWidth + 10 : 10),
+        child: Semantics(
+          button: mine != null && onReactionTap != null,
+          label: mine != null ? 'التفاعلات $label، اضغط لإزالة تفاعلك' : 'التفاعلات $label',
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: mine != null ? onReactionTap : null,
+            child: ConstrainedBox(
+              // The chip is small; its tap area reaches 44 px tall around it
+              constraints: const BoxConstraints(minHeight: 30, minWidth: 44),
+              child: Center(
+                widthFactor: 1,
+                child: DecoratedBox(
+                  key: Key('chat-reactions-${message.id}'),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: mine != null ? AppColors.gold : AppColors.line),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                    child: Text(label, textDirection: TextDirection.ltr, style: const TextStyle(fontSize: 14, height: 1.3)),
+                  ),
+                ),
+              ),
+            ),
+          ),
         ),
       ),
     );

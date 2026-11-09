@@ -136,6 +136,23 @@ class _Harness {
 final _photo = find.byKey(const Key('chat-photo'));
 final _proTag = find.byKey(const Key('chat-media-pro-tag'));
 
+/// The photo button, then «إرسال» on the preview (nothing is uploaded before it)
+Future<void> pickAndSendPhoto(WidgetTester tester) async {
+  await tester.tap(find.byKey(const Key('chat-photo')));
+  final send = find.byKey(const Key('photo-preview-send'));
+  for (var i = 0; i < 20 && send.evaluate().isEmpty; i++) {
+    await tester.pump(const Duration(milliseconds: 20));
+  }
+  await tester.pump(const Duration(milliseconds: 400));
+  await tester.tap(send);
+  await tester.pump();
+  // Until the preview has fully gone (its route no longer blocks taps)
+  for (var i = 0; i < 40 && find.byKey(const Key('photo-preview-image'), skipOffstage: false).evaluate().isNotEmpty; i++) {
+    await tester.pump(const Duration(milliseconds: 50));
+  }
+  await tester.pump(const Duration(milliseconds: 50));
+}
+
 void main() {
   testWidgets('Pro in an active chat: the photo goes up as multipart IMAGE with the nonce, then the server copy shows',
       (tester) async {
@@ -143,7 +160,7 @@ void main() {
     await h.open(tester);
     expect(_photo, findsOneWidget);
     expect(_proTag, findsNothing);
-    await tester.tap(_photo);
+    await pickAndSendPhoto(tester);
     await tester.pumpAndSettle();
     expect(h.uploads, hasLength(1));
     final req = h.uploads.single;
@@ -206,7 +223,7 @@ void main() {
     await h.open(tester);
     expect(_photo, findsOneWidget);
     expect(_proTag, findsNothing);
-    await tester.tap(_photo);
+    await pickAndSendPhoto(tester);
     await tester.pumpAndSettle();
     expect(h.uploads, hasLength(1));
   });
@@ -223,7 +240,7 @@ void main() {
     final ok = h.adapter.handlers['POST /api/chats/c1/media']!;
     h.adapter.handlers['POST /api/chats/c1/media'] = (_) => const FakeResponse.network();
     await h.open(tester);
-    await tester.tap(_photo);
+    await pickAndSendPhoto(tester);
     await tester.pumpAndSettle();
     expect(find.text('إعادة الإرسال'), findsOneWidget);
     h.adapter.handlers['POST /api/chats/c1/media'] = ok;
@@ -246,7 +263,7 @@ void main() {
     };
     final proReads = h.adapter.to('GET', '/api/pro').length;
     final countReads = h.adapter.to('GET', '/api/me/counts').length;
-    await tester.tap(_photo);
+    await pickAndSendPhoto(tester);
     await tester.pumpAndSettle();
     expect(find.text('إرسال الصور متاح لأعضاء Pro'), findsOneWidget);
     expect(h.adapter.to('GET', '/api/pro').length, greaterThan(proReads));
@@ -267,7 +284,7 @@ void main() {
       h.isPro = false;
       return const FakeResponse(403, {'error': 'إرسال الصور متاح لأعضاء Pro', 'code': 'PRO_REQUIRED'});
     };
-    await tester.tap(_photo);
+    await pickAndSendPhoto(tester);
     await tester.pumpAndSettle();
     expect(find.text('إرسال الصور متاح لأعضاء Pro'), findsOneWidget);
     expect(find.text('إعادة الإرسال'), findsNothing);
@@ -279,7 +296,7 @@ void main() {
     final gate = Completer<void>();
     h.adapter.hold('POST', '/api/chats/c1/media', gate.future);
     await h.open(tester);
-    await tester.tap(_photo);
+    await pickAndSendPhoto(tester);
     for (var i = 0; i < 10 && h.uploads.isEmpty; i++) {
       await tester.pump(const Duration(milliseconds: 10));
     }
@@ -294,7 +311,7 @@ void main() {
     final h = _Harness();
     h.adapter.handlers['POST /api/chats/c1/media'] = (_) => const FakeResponse.network();
     await h.open(tester);
-    await tester.tap(_photo);
+    await pickAndSendPhoto(tester);
     await tester.pumpAndSettle();
     expect(find.text('إعادة الإرسال'), findsOneWidget);
     h.photo.deleteSync();
@@ -308,7 +325,7 @@ void main() {
   testWidgets('a chat photo is decoded at the bubble size; the full-screen viewer gets the full image', (tester) async {
     final h = _Harness();
     await h.open(tester);
-    await tester.tap(_photo);
+    await pickAndSendPhoto(tester);
     await tester.pumpAndSettle();
     final bubble = tester.widget<Image>(find.descendant(of: find.byType(PhotoBubble), matching: find.byType(Image)));
     expect(bubble.image, isA<ResizeImage>());

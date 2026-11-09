@@ -56,6 +56,11 @@ class FakeRecorder implements VoiceRecorder {
   @override
   Duration get elapsed => now;
 
+  double levelNow = 0.5;
+
+  @override
+  Future<double> level() async => levelNow;
+
   @override
   Future<String?> stop() async {
     stopped = true;
@@ -235,6 +240,23 @@ final _clock = find.byKey(const Key('voice-clock'));
 
 /// The recording bar's clock ticks every 250 ms
 Future<void> _tick(WidgetTester tester) => tester.pump(const Duration(milliseconds: 300));
+
+/// The photo button, then «إرسال» on the preview (nothing is uploaded before it)
+Future<void> pickAndSendPhoto(WidgetTester tester) async {
+  await tester.tap(find.byKey(const Key('chat-photo')));
+  final send = find.byKey(const Key('photo-preview-send'));
+  for (var i = 0; i < 20 && send.evaluate().isEmpty; i++) {
+    await tester.pump(const Duration(milliseconds: 20));
+  }
+  await tester.pump(const Duration(milliseconds: 400));
+  await tester.tap(send);
+  await tester.pump();
+  // Until the preview has fully gone (its route no longer blocks taps)
+  for (var i = 0; i < 40 && find.byKey(const Key('photo-preview-image'), skipOffstage: false).evaluate().isNotEmpty; i++) {
+    await tester.pump(const Duration(milliseconds: 50));
+  }
+  await tester.pump(const Duration(milliseconds: 50));
+}
 
 void main() {
   test('durationSec: rounded up, at least 1', () {
@@ -513,7 +535,7 @@ void main() {
     final h = _Harness(pollInterval: const Duration(seconds: 1));
     h.adapter.handlers['POST /api/chats/c1/media'] = (_) => const FakeResponse.network();
     await h.open(tester);
-    await tester.tap(find.byKey(const Key('chat-photo')));
+    await pickAndSendPhoto(tester);
     for (var i = 0; i < 5; i++) {
       await tester.pump(const Duration(milliseconds: 50));
     }
@@ -541,7 +563,7 @@ void main() {
     final h = _Harness(pollInterval: const Duration(seconds: 1));
     h.adapter.handlers['POST /api/chats/c1/media'] = (_) => const FakeResponse.network();
     await h.open(tester);
-    await tester.tap(find.byKey(const Key('chat-photo')));
+    await pickAndSendPhoto(tester);
     for (var i = 0; i < 5; i++) {
       await tester.pump(const Duration(milliseconds: 50));
     }
@@ -622,13 +644,13 @@ void main() {
     };
     await h.open(tester);
     h.adapter.hold('POST', '/api/chats/c1/media', gate.future);
-    await tester.tap(find.byKey(const Key('chat-photo')));
+    await pickAndSendPhoto(tester);
     for (var i = 0; i < 5 && h.uploads.isEmpty; i++) {
       await tester.pump(const Duration(milliseconds: 20));
     }
     expect(h.uploads, hasLength(1));
     h.adapter.holds.clear();
-    await tester.tap(find.byKey(const Key('chat-photo')));
+    await pickAndSendPhoto(tester);
     for (var i = 0; i < 5; i++) {
       await tester.pump(const Duration(milliseconds: 50));
     }

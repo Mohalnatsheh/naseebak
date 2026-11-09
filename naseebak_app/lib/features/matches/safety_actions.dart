@@ -90,9 +90,18 @@ Future<bool> confirmAndUnblock(
 
 /// Report reasons of `POST /api/reports`.
 class ReportSheet extends StatefulWidget {
-  const ReportSheet({super.key, this.title = 'إبلاغ', this.description, this.submitLabel = 'إرسال البلاغ'});
+  const ReportSheet({
+    super.key,
+    this.title = 'إبلاغ',
+    this.description,
+    this.submitLabel = 'إرسال البلاغ',
+    this.initialDetails,
+  });
 
   final String title;
+
+  /// Prefilled details (e.g. the chat message being reported), still editable
+  final String? initialDetails;
 
   /// What happens after sending (e.g. the block that comes with it)
   final String? description;
@@ -111,7 +120,7 @@ class _ReportSheetState extends State<ReportSheet> {
     ('OTHER', 'سبب آخر'),
   ];
   String? _reason;
-  final _details = TextEditingController();
+  late final _details = TextEditingController(text: widget.initialDetails ?? '');
 
   @override
   void dispose() {

@@ -96,6 +96,10 @@ void main() {
       await tester.pump();
       expect(find.text('رسالة 40'), findsOneWidget); // from the cache, before the network
       await tester.pumpAndSettle();
+      // Opened on 30 unread messages: «رسائل جديدة» is brought into view; «الأحدث» goes back down
+      expect(find.byKey(const Key('chat-unread-divider')), findsOneWidget);
+      await tester.tap(find.byKey(const Key('chat-newest')));
+      await tester.pumpAndSettle();
       expect(find.text('رسالة 42'), findsOneWidget);
       final saved = (await cache.read('u1', 'c1'))!;
       expect(saved.messages.map((m) => m.id).take(2), ['m001', 'm002']); // older cached messages kept

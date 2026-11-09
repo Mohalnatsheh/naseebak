@@ -25,7 +25,7 @@ import { Footer } from "@/components/shared/footer";
 import { useInView } from "@/hooks/use-in-view";
 import { IslamicPatternBg } from "@/components/shared/islamic-pattern";
 import { PageHeroPhoto } from "@/components/shared/page-hero-photo";
-import { contactSchemaFor } from "@/lib/validations/contact";
+import { contactFormIssue } from "@/lib/validations/form-checks";
 import { useVisitorCountry } from "@/components/shared/visitor-country";
 
 /* ──────────────────── DATA ──────────────────── */
@@ -86,11 +86,11 @@ export default function ContactPage() {
     e.preventDefault();
     if (status === "sending") return;
     // Same rules as the API, checked here first so the message points at the field
-    const check = contactSchemaFor(country).safeParse({ ...formData, website });
-    if (!check.success) {
-      const issue = check.error.issues[0];
-      setError({ message: issue?.message ?? "بيانات غير صالحة", field: issue ? String(issue.path[0]) : null });
-      if (issue) document.getElementById(String(issue.path[0]))?.focus();
+    // (a zod-free copy of the server's rules: the zod chunk stays off this public page)
+    const issue = contactFormIssue({ ...formData, website }, country);
+    if (issue) {
+      setError({ message: issue.message, field: issue.field });
+      document.getElementById(issue.field)?.focus();
       return;
     }
     setStatus("sending");

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field, ChoiceGroup } from "@/components/profile/form-fields";
 import { useCountry, useDashboardData } from "@/contexts/dashboard-context";
-import { parentInfoSchemaFor } from "@/lib/validations/profile";
+import { guardianFormIssues } from "@/lib/validations/form-checks";
 import { normalizePhone } from "@/lib/phone";
 import type { Opt } from "@/lib/profile-options";
 
@@ -52,14 +52,8 @@ export function GuardianQuickForm({
   async function save() {
     if (busy) return;
     // Same rules as the API (the other family sees this contact)
-    const parsed = parentInfoSchemaFor(country.code).safeParse(form);
-    const next: Partial<Record<FormKey, string>> = {};
-    if (!parsed.success) {
-      for (const issue of parsed.error.issues) {
-        const key = String(issue.path[0]) as FormKey;
-        if (!next[key]) next[key] = issue.message;
-      }
-    }
+    // (a zod-free copy of the API's rules: the zod chunk stays off the pages that show this form)
+    const next: Partial<Record<FormKey, string>> = guardianFormIssues(form, country.code);
     if (!next.parentPhone && profile?.phone && normalizePhone(form.parentPhone, country.code) === profile.phone) {
       next.parentPhone = `رقم وليّ الأمر يجب أن يختلف عن رقم ${country.words.phone}ك`;
     }

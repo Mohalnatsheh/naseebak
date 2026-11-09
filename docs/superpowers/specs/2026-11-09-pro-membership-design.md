@@ -165,7 +165,7 @@ Handled in `src/app/api/payments/webhook/route.ts`, new cases:
 
 ### 8. Pages
 
-- **Website:** a Pro section at the top of `/dashboard/payments`: three plan cards (price per period, credits, the three features), the «اشتراكي» block for subscribers, and the Saudi "not available yet" state when purchases are off. No pricing on the landing page (existing rule). A Pro offer dialog is reused from the chat's greyed buttons.
+- **Website:** a Pro section at the top of `/dashboard/payments`: three plan cards (price per period, credits, the three features), the «اشتراكي» block for subscribers, and the Saudi "not available yet" state when purchases are off. No pricing on the landing page (existing rule). A Pro offer dialog is reused from the chat's greyed buttons. (Update 2026-11-10, owner: Pro moved to its own page `/dashboard/pro`; the payments page keeps one small link card to it.)
 - **App (next version):** a plans screen reached from the credits/payments area and from the chat's greyed media buttons, a media picker and recorder in the chat, photo and voice bubbles, the badge.
 - **Admin:**
   - Settings: the `pro_enabled` switch.

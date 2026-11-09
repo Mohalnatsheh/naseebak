@@ -5,6 +5,7 @@ import { parsePagination } from "@/lib/utils";
 import { MATCHES_ORDER, pageForMatch, visibleMatchesWhere } from "@/lib/matches/focus";
 import { hiddenPartnerIds, loadMatchStates } from "@/lib/matches/state";
 import { getCycleFlags } from "@/lib/settings";
+import { proUserIds } from "@/lib/pro/status";
 
 export async function GET(request: Request) {
   try {
@@ -101,6 +102,9 @@ export async function GET(request: Request) {
     // Closed matches (I blocked them / their account is inactive / nothing left to do)
     const states = await loadMatchStates(session.user.id, await getCycleFlags(), matches.map((m) => m.id));
 
+    // Badge only: one query for the page, a failure just hides it
+    const pros = await proUserIds(matches.map((m) => (m.femaleId === session.user.id ? m.maleId : m.femaleId))).catch(() => new Set<string>());
+
     const formatted = matches.map((m) => {
       const otherUser = m.femaleId === session.user.id ? m.male : m.female;
       const profile = otherUser.profile;
@@ -131,6 +135,7 @@ export async function GET(request: Request) {
           id: otherUser.id,
           firstName: otherUser.firstName,
           isVerified: otherUser.isVerified,
+          isPro: pros.has(otherUser.id),
           age,
           city: profile?.city ?? null,
           area: detail(profile?.area ?? null),

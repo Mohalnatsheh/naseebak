@@ -16,7 +16,7 @@ const notifyMod = vi.hoisted(() => ({ notify: vi.fn(), notifyMany: vi.fn() }));
 const settings = vi.hoisted(() => ({ getCycleFlags: vi.fn() }));
 const rl = vi.hoisted(() => ({ rateLimit: vi.fn() }));
 const reports = vi.hoisted(() => ({ fileReport: vi.fn() }));
-const pro = vi.hoisted(() => ({ isPro: vi.fn() }));
+const pro = vi.hoisted(() => ({ isPro: vi.fn(), proUserIds: vi.fn() }));
 const bunny = vi.hoisted(() => ({ uploadToBunny: vi.fn(), deleteFromBunny: vi.fn(), readFromBunny: vi.fn() }));
 const auth = vi.hoisted(() => ({ requireUser: vi.fn(), requireAdmin: vi.fn() }));
 vi.mock("@/lib/db", () => ({ db }));
@@ -75,6 +75,7 @@ beforeEach(() => {
   settings.getCycleFlags.mockResolvedValue({ introRequests: true, chat: true });
   rl.rateLimit.mockReturnValue({ success: true, remaining: 1, resetAt: 0 });
   pro.isPro.mockResolvedValue(true);
+  pro.proUserIds.mockResolvedValue(new Set());
   db.conversation.findUnique.mockResolvedValue(conv());
   db.block.findFirst.mockResolvedValue(null);
   db.block.findMany.mockResolvedValue([]);
@@ -288,6 +289,14 @@ describe("reading chats with media", () => {
     ]);
     const [s] = await listConversations("u1");
     expect(s.lastMessage?.body).toBe("📷 صورة");
+  });
+
+  it("the chat list marks a Pro partner for the badge, with one lookup", async () => {
+    pro.proUserIds.mockResolvedValue(new Set(["f1"]));
+    db.conversation.findMany.mockResolvedValue([{ ...conv(), messages: [], _count: { messages: 0 } }]);
+    const [s] = await listConversations("u1");
+    expect(s.partner.isPro).toBe(true);
+    expect(pro.proUserIds).toHaveBeenCalledTimes(1);
   });
 
   it("messages carry kind + the media route, never the stored path", async () => {

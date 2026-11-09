@@ -52,6 +52,8 @@ export interface OpenFeedItem {
   /** Shared suggestions only: when the card closes if it isn't a match by then */
   expiresAt?: string;
   candidate: FeedCandidate;
+  /** The other person is a Pro member (badge only; never affects who is shown or in what order) */
+  isPro?: true;
   /** "interested" tab (and legacy interests): the other side already said «مهتم» */
   likedYou?: true;
   /** "waiting" tab: the other side said «لا» (owner decision 2026-10-19: shown, no refund) */

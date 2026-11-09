@@ -16,6 +16,7 @@ import { calculateCompatibility } from "@/lib/matching/score";
 import { suggestionReason } from "@/lib/matching/reasons";
 import { expireMutualSuggestions, openMutualWhere } from "@/lib/suggestions/mutual";
 import { isUnavailable } from "@/lib/matches/state";
+import { proUserIds } from "@/lib/pro/status";
 import { getCycleFlags, type CycleFlags } from "@/lib/settings";
 import type { FeedCandidate, FeedItem, FeedKind, FeedTab } from "@/lib/suggestions/feed-types";
 
@@ -371,7 +372,10 @@ export async function getSuggestionFeed(
   if (tab === "new") visible.splice(NEW_TAB_LIMIT);
   const total = visible.length;
   if (opts.countOnly) return { items: [], page, totalPages: Math.ceil(total / pageSize), total };
-  const items = visible.slice((page - 1) * pageSize, page * pageSize).map((r): FeedItem => {
+  const pageRows = visible.slice((page - 1) * pageSize, page * pageSize);
+  // Badge only, added after the order is fixed: one query for the page, a failure just hides the badge
+  const pros = await proUserIds([...new Set(pageRows.map((r) => r.other.id))]).catch(() => new Set<string>());
+  const items = pageRows.map((r): FeedItem => {
     const v = viewer as unknown as Parameters<typeof suggestionReason>[0];
     const o = r.other as unknown as Parameters<typeof suggestionReason>[1];
     const activity = activityLabel(r.other.lastActiveAt, r.other.gender, now);
@@ -382,6 +386,7 @@ export async function getSuggestionFeed(
       reason: suggestionReason(v, o),
       createdAt: r.createdAt.toISOString(),
       candidate: toFeedCandidate(r.other),
+      ...(pros.has(r.other.id) && { isPro: true as const }),
       ...(activity && { activity }),
       ...(r.expiresAt && { expiresAt: r.expiresAt.toISOString() }),
       ...(r.likedYou && { likedYou: true as const }),

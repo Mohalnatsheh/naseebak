@@ -1,5 +1,6 @@
 "use client";
 
+import { ProBadge } from "@/components/shared/pro-badge";
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -405,6 +406,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
                 <div className="flex min-w-0 items-center gap-2">
                   <h1 className="truncate font-bold leading-tight text-foreground">{conversation.partner.firstName}</h1>
                   <VerifiedBadge verified={conversation.partner.isVerified} />
+                  {conversation.partner.isPro && <ProBadge />}
                 </div>
                 <p className={cn("mt-0.5 flex items-center gap-1 text-xs", open && left <= 3 ? "font-semibold text-amber-700" : "text-muted-foreground")}>
                   {open ? <Clock className="h-3.5 w-3.5" aria-hidden /> : <Lock className="h-3.5 w-3.5" aria-hidden />}

@@ -7,6 +7,7 @@ import { cancelDeadPendingFor, hiddenPartnerIds, loadMatchStates, visibleConvers
 import { touchLastActive } from "@/lib/activity";
 import { recordActivityDay } from "@/lib/activity-days";
 import { countMutualTabs } from "@/lib/suggestions/feed";
+import { currentProSubscription } from "@/lib/pro/status";
 
 /**
  * Dashboard badges for the new cycle, polled with the unread-notification count:
@@ -25,12 +26,15 @@ export async function GET() {
     await recordActivityDay(userId);
 
     const flags = await getCycleFlags();
+    // Badge only: a failure just hides it
+    const proSub = await currentProSubscription(userId).catch(() => null);
+    const pro = { isPro: !!proSub, cancelAtPeriodEnd: !!proSub?.cancelAtPeriodEnd };
     // Chats with someone who blocked me are hidden from me, so they never count (badge, "has chats")
     const mine = visibleConversationsWhere(userId, await hiddenPartnerIds(userId));
     if (!flags.introRequests) {
       // Switch off: existing chats stay readable, so keep the chats link for people who have one
       const hasChats = (await db.conversation.count({ where: mine })) > 0;
-      return NextResponse.json({ flags, pendingIntros: 0, pendingIntroMatchId: null, unreadChats: 0, hasChats, guardian: null, actionableMatches: 0 });
+      return NextResponse.json({ flags, pendingIntros: 0, pendingIntroMatchId: null, unreadChats: 0, hasChats, guardian: null, actionableMatches: 0, pro });
     }
 
     // Expire overdue chats and send "2 days left" warnings (no scheduler needed)
@@ -74,6 +78,7 @@ export async function GET() {
       hasChats: chatCount > 0,
       guardian: { exists: !!guardian, consented: !!guardian?.shareConsentAt },
       actionableMatches,
+      pro,
       ...(flags.creditOnInterest && { credits: me?.matchCredits ?? 0 }),
       ...(tabs && { newSuggestions: tabs.fresh, likedYou: tabs.likedYou }),
     });

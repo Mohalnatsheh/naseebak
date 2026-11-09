@@ -1,5 +1,6 @@
 "use client";
 
+import { ProBadge } from "@/components/shared/pro-badge";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { MessageCircle, Loader2, Clock, Lock, Heart } from "lucide-react";
@@ -119,6 +120,7 @@ export function ChatList() {
                       <span className="flex min-w-0 items-center gap-2">
                         <span className="truncate font-bold text-foreground">{c.partner.firstName}</span>
                         <VerifiedBadge verified={c.partner.isVerified} />
+                        {c.partner.isPro && <ProBadge />}
                       </span>
                       {c.lastMessage && (
                         <span className={cn("flex-shrink-0 text-xs", c.unread > 0 ? "font-semibold text-primary" : "text-muted-foreground")}>

@@ -18,7 +18,7 @@ import { checkMessage, completesSplitNumber, mayBePartOfNumber, SPLIT_NUMBER_WIN
 import { IntroError } from "@/lib/intro/errors";
 import { fileReport } from "@/lib/reports";
 import { LEGACY_ADMIN_VISIT, cancelPendingBetween, familyMoveOpenUntil, isUnavailable } from "@/lib/matches/state";
-import { isPro } from "@/lib/pro/status";
+import { isPro, proUserIds } from "@/lib/pro/status";
 import { deleteFromBunny, uploadToBunny } from "@/lib/bunny";
 import {
   type MediaKind, type MessageKindValue, baseMime, fallbackBody, mediaUrl, newMediaPath, previewBody, processImage,
@@ -45,7 +45,7 @@ export type ConversationState = "ACTIVE" | "ENDED" | "EXPIRED";
 export interface ChatSummary {
   id: string;
   matchId: string;
-  partner: { id: string; firstName: string; isVerified: boolean };
+  partner: { id: string; firstName: string; isVerified: boolean; /** Display only (badge) */ isPro: boolean };
   status: ConversationState;
   expiresAt: string;
   canExtend: boolean;
@@ -245,14 +245,15 @@ function summarise(
   last: { body: string; kind?: string | null; createdAt: Date; senderId: string; readAt: Date | null } | null,
   unread: number,
   blocked = false,
-  matchHidden = false
+  matchHidden = false,
+  partnerPro = false
 ): ChatSummary {
   const left = c.expiresAt.getTime() - Date.now();
   const partner = partnerOf(c, userId);
   return {
     id: c.id,
     matchId: c.matchId,
-    partner: { id: partner.id, firstName: partner.firstName, isVerified: partner.isVerified },
+    partner: { id: partner.id, firstName: partner.firstName, isVerified: partner.isVerified, isPro: partnerPro },
     status: c.status,
     expiresAt: c.expiresAt.toISOString(),
     canExtend: c.status === "ACTIVE" && !c.extended && left <= EXTEND_WINDOW_DAYS * DAY_MS,
@@ -316,12 +317,14 @@ export async function listConversations(userId: string): Promise<ChatSummary[]> 
   const blockedWith = new Set(blocks.map((b) => (b.blockerId === userId ? b.blockedId : b.blockerId)));
   // A partner who blocked me: the chat stays listed (read-only, can be reported), the match doesn't
   const blockedMeBy = new Set(blocks.filter((b) => b.blockedId === userId).map((b) => b.blockerId));
+  // One query for every partner (badge only: a failure just hides the badge)
+  const pros = await proUserIds(rows.map((r) => partnerOf(r, userId).id)).catch(() => new Set<string>());
   const summaries: ChatSummary[] = [];
   for (const row of rows) {
     const c = await housekeeping(row);
     const partnerId = partnerOf(c, userId).id;
     summaries.push(
-      summarise(c, userId, row.messages[0] ?? null, row._count.messages, blockedWith.has(partnerId), blockedMeBy.has(partnerId))
+      summarise(c, userId, row.messages[0] ?? null, row._count.messages, blockedWith.has(partnerId), blockedMeBy.has(partnerId), pros.has(partnerId))
     );
   }
   const activity = (s: ChatSummary) => new Date(s.lastMessage?.createdAt ?? 0).getTime();
@@ -477,7 +480,7 @@ export async function getConversation(
   ]);
   const last = messages.length ? messages[messages.length - 1] : null;
   return {
-    conversation: summarise(c, userId, last, unread, blocked, !!blockedMe),
+    conversation: summarise(c, userId, last, unread, blocked, !!blockedMe, await isPro(partnerId).catch(() => false)),
     messages: messages.map((m) => toMessage(m, userId)),
     hasMore,
   };
@@ -769,7 +772,7 @@ export async function extendConversation(conversationId: string, userId: string)
     metadata: { conversationId },
     preference: CHAT_NOTICE_PREFERENCE,
   });
-  return summarise({ ...c, expiresAt, extended: true, expiryWarnedAt: null }, userId, null, 0);
+  return summarise({ ...c, expiresAt, extended: true, expiryWarnedAt: null }, userId, null, 0, false, false, await isPro(partner.id).catch(() => false));
 }
 
 export async function endConversation(args: {

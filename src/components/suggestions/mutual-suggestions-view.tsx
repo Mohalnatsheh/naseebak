@@ -1,5 +1,6 @@
 "use client";
 
+import { ProBadge } from "@/components/shared/pro-badge";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -740,6 +741,7 @@ export function MutualSuggestionsView({
                   photoLocked
                   badges={
                     <>
+                      {item.isPro && <ProBadge />}
                       {item.activity && !declined && (
                         <Badge className="bg-emerald-50 text-emerald-800 border border-emerald-200/60 text-[11px] gap-1">
                           <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden /> {item.activity}

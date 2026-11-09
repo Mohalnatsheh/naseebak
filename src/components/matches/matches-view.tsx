@@ -58,6 +58,7 @@ import { Badge } from "@/components/ui/badge";
 import { ImageLightbox } from "@/components/shared/image-lightbox";
 import { MatchClosedNote, MatchIntroPanel } from "@/components/intro/match-intro-panel";
 import { ConfirmActionDialog } from "@/components/intro/confirm-action-dialog";
+import { ProBadge } from "@/components/shared/pro-badge";
 import { PersonCard, type PersonCardTone } from "@/components/shared/person-card";
 import { describeOption, nationalityLabel, tribeLabel } from "@/lib/profile-options";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -84,6 +85,7 @@ interface Match {
     id: string;
     firstName: string;
     isVerified?: boolean;
+    isPro?: boolean;
     age: number | null;
     city: string | null;
     area: string | null;
@@ -614,6 +616,7 @@ export function MatchesView({ embedded = false }: { embedded?: boolean } = {}) {
                   city={c.city}
                   area={c.area}
                   job={c.job && describeOption("job", c.job, isFemale ? "MALE" : "FEMALE")}
+                  badges={m.partner.isPro ? <ProBadge /> : undefined}
                   score={score}
                   photoUrl={!locked && m.photosRevealed ? matchPhotos[m.id]?.[0]?.url : undefined}
                   photoLocked={!locked && !m.photosRevealed}

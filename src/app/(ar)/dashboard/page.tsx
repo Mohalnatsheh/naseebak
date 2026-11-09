@@ -1,5 +1,6 @@
 "use client";
 
+import { ProBadge } from "@/components/shared/pro-badge";
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Loader2, Sparkles, Heart, Bell, ChevronLeft, Zap, Inbox, Coins } from "lucide-react";
@@ -186,6 +187,7 @@ export default function DashboardPage() {
         <div className="relative min-w-0 flex-1">
           <h1 className="font-display truncate text-xl leading-tight">
             {getGreeting()}، {profile.firstName}
+            {counts.pro?.isPro && <ProBadge size="md" className="ms-2 align-middle" />}
           </h1>
           <p className="mt-0.5 text-xs text-white/65">{getArabicDate(country)}</p>
         </div>
@@ -291,6 +293,7 @@ export default function DashboardPage() {
                     <span className="min-w-0 flex-1">
                       <span className="flex items-center justify-between gap-2">
                         <span className="truncate font-bold text-foreground">{c.partner.firstName}</span>
+                        {c.partner.isPro && <ProBadge />}
                         {c.lastMessage && <span className="shrink-0 text-xs text-muted-foreground">{listTimeLabel(c.lastMessage.createdAt, country)}</span>}
                       </span>
                       <span className={cn("block truncate text-sm", c.unread > 0 ? "font-semibold text-foreground" : "text-muted-foreground")}>

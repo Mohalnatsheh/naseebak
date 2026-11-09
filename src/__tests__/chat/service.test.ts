@@ -470,3 +470,22 @@ describe("getConversation paging (two messages in one millisecond)", () => {
     );
   });
 });
+
+describe("getConversation polls with ?after= (QA chat WC-06)", () => {
+  it("returns only newer messages and my newest read message, so read ticks still update", async () => {
+    db.conversation.findUnique.mockResolvedValue(conv());
+    db.message.findMany.mockResolvedValue([]);
+    const T = "2026-11-10T10:00:00.000Z";
+    db.message.findFirst.mockResolvedValueOnce({ createdAt: new Date(T), readAt: new Date("2026-11-10T10:05:00.000Z") });
+    const res = await getConversation("c", "u1", { after: T });
+    expect(db.message.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { conversationId: "c", createdAt: { gte: new Date(T) } } }));
+    expect(res.readUpTo).toEqual({ createdAt: T, readAt: "2026-11-10T10:05:00.000Z" });
+  });
+
+  it("a full page carries no readUpTo (the messages have their own readAt)", async () => {
+    db.conversation.findUnique.mockResolvedValue(conv());
+    db.message.findMany.mockResolvedValue([]);
+    const res = await getConversation("c", "u1");
+    expect(res).not.toHaveProperty("readUpTo");
+  });
+});

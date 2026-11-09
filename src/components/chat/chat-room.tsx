@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -18,6 +18,7 @@ import {
   CheckCircle2,
   ArrowLeft,
   ChevronDown,
+  WifiOff,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -53,10 +54,19 @@ import { preparePhoto } from "./photo-prepare";
 import { UNSUPPORTED_IMAGE_MESSAGE } from "@/lib/chat/media-messages";
 import type { PendingUpload } from "./chat-utils";
 
-/** Id for an optimistic message until the server answers (also its clientNonce); only called from send() / sendMedia(). */
+/** Id for an optimistic message until the server answers (also its clientNonce); only called from send() / sendMedia().
+ *  Random, so two sends in the same millisecond (or two tabs) never share a nonce. */
 function tempMessageId() {
-  return `tmp-${Date.now()}`;
+  const random =
+    typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID()
+      : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`;
+  return `tmp-${random}`;
 }
+
+/** Same pace as the server's burst limit (5 messages in 5 s): queued sends wait instead of being refused */
+const SEND_BURST = 5;
+const SEND_WINDOW_MS = 5000;
 
 /** Same limit as the server (photos are usually far smaller after preparePhoto) */
 const PHOTO_MAX_BYTES = 10 * 1024 * 1024;
@@ -83,13 +93,16 @@ interface ChatResponse {
   messages: ChatMessage[];
   hasMore: boolean;
   chatEnabled: boolean;
+  /** Polls only: my newest message the partner has read */
+  readUpTo?: { createdAt: string; readAt: string } | null;
 }
 
 type LatestResult = { kind: "ok"; data: ChatResponse } | { kind: "notFound" } | { kind: "error" };
 
-/** The newest page of the chat (applied by the component; network errors count as "error"). */
-async function requestLatest(conversationId: string): Promise<LatestResult> {
-  const res = await fetch(`/api/chats/${conversationId}`).catch(() => null);
+/** The newest page of the chat, or with `after` only what came since (applied by the component; network errors count as "error"). */
+async function requestLatest(conversationId: string, after?: string): Promise<LatestResult> {
+  const query = after ? `?after=${encodeURIComponent(after)}` : "";
+  const res = await fetch(`/api/chats/${conversationId}${query}`).catch(() => null);
   if (res?.status === 404) return { kind: "notFound" };
   if (res?.ok) return { kind: "ok", data: await res.json() };
   return { kind: "error" };
@@ -121,6 +134,12 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
   const myGender = me?.gender as string | undefined;
   const [conversation, setConversation] = useState<ChatSummary | null>(null);
   const [messages, setMessages] = useState<UiMessage[]>([]);
+  // The latest list for callbacks that outlive a render (polls, the send queue, coming back online)
+  const messagesRef = useRef<UiMessage[]>([]);
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+  const online = useOnline();
   const [hasMore, setHasMore] = useState(false);
   const [chatEnabled, setChatEnabled] = useState(true);
   const [notFound, setNotFound] = useState(false);
@@ -208,6 +227,31 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
     [conversationId, applyLatest]
   );
 
+  /** A poll: only what came after the newest saved message (plus read ticks); true when something new arrived */
+  const fetchNewer = useCallback(async (): Promise<boolean> => {
+    const newest = messagesRef.current.findLast((m) => !m.pending);
+    if (!newest) {
+      const before = messagesRef.current.length;
+      await fetchLatest("merge");
+      return messagesRef.current.length !== before;
+    }
+    const result = await requestLatest(conversationId, newest.createdAt);
+    if (result.kind !== "ok") {
+      applyLatest(result, "merge");
+      return false;
+    }
+    const known = new Set(messagesRef.current.map((m) => m.id));
+    const fresh = result.data.messages.some((m) => !known.has(m.id));
+    const read = result.data.readUpTo;
+    applyLatest(result, "merge");
+    if (read) {
+      setMessages((prev) =>
+        prev.map((m) => (m.mine && !m.readAt && !m.pending && m.createdAt <= read.createdAt ? { ...m, readAt: read.readAt } : m))
+      );
+    }
+    return fresh;
+  }, [conversationId, applyLatest, fetchLatest]);
+
   const loadIntro = useCallback(async (matchId: string) => {
     const data = await requestIntro(matchId);
     if (data) setIntro(data);
@@ -237,7 +281,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
   }, [matchId]);
 
   const partnerId = conversation?.partner.id;
-  const mode = useChatChannel(conversationId, {
+  const { mode, wake } = useChatChannel(conversationId, {
     onMessage: (m) => {
       if (!partnerId) return; // not loaded yet — the next poll/load picks it up
       const mine = m.senderId !== partnerId;
@@ -256,7 +300,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
     onStatus: (e) => {
       setConversation((c) => (c ? { ...c, status: e.status as ChatSummary["status"], expiresAt: e.expiresAt ?? c.expiresAt } : c));
     },
-    poll: () => fetchLatest("merge"),
+    poll: fetchNewer,
   });
 
   // Mark the partner's messages read while the chat is on screen — only those shown, so a
@@ -314,6 +358,8 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
     stickToBottom.current = distance < 120;
     setAway(distance > 160);
     if (distance < 120) setSeenUpTo(messages.at(-1)?.createdAt ?? "");
+    // Reading back to the top loads the older messages by itself (the button stays for keyboards and short chats)
+    if (el.scrollTop < 120 && hasMore && !loadingOlder) void loadOlder();
   }
 
   async function loadOlder() {
@@ -335,6 +381,22 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
     setLoadingOlder(false);
   }
 
+  // Text sends go out one at a time, in order, at the server's pace: a quick burst waits instead of being refused
+  const sendQueue = useRef<Promise<void>>(Promise.resolve());
+  const sentAt = useRef<number[]>([]);
+  async function paced() {
+    const now = Date.now();
+    sentAt.current = sentAt.current.filter((t) => now - t < SEND_WINDOW_MS);
+    if (sentAt.current.length >= SEND_BURST) {
+      await new Promise((r) => setTimeout(r, SEND_WINDOW_MS - (now - sentAt.current[0]) + 50));
+    }
+    sentAt.current.push(Date.now());
+  }
+
+  /**
+   * Shows the message at once and queues it. Returns false only when the instant check refuses it (the text
+   * stays in the box); a message the server refuses later goes back into an empty box with the reason.
+   */
   async function send(text: string, retryId?: string): Promise<boolean> {
     setComposerError(null);
     // Same rules as the server, for instant feedback (the server still checks every message)
@@ -349,24 +411,33 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
     };
     stickToBottom.current = true;
     setMessages((prev) => (retryId ? prev.map((m) => (m.id === retryId ? optimistic : m)) : [...prev, optimistic]));
+    sendQueue.current = sendQueue.current.then(() => deliver(text, tempId)).catch(() => {});
+    return true;
+  }
 
+  async function deliver(text: string, tempId: string) {
+    await paced();
     const res = await postJson<{ message: ChatMessage }>(`/api/chats/${conversationId}/messages`, {
       body: text,
       clientNonce: tempId,
     });
     if (res.ok) {
       setMessages((prev) => mergeMessages(prev.filter((m) => m.id !== tempId), [res.data.message]));
-      return true;
+      wake();
+      return;
     }
-    // Filtered / limited messages are not kept on screen; network errors stay with a retry button
-    if (res.status === 0 || res.status >= 500) {
+    // Network trouble, a server error or the burst limit: the bubble stays with «إعادة المحاولة» (sent again
+    // by itself when the connection comes back)
+    if (res.status === 0 || res.status >= 500 || res.status === 429) {
       setMessages((prev) => prev.map((m) => (m.id === tempId ? { ...m, pending: "failed" } : m)));
-      return true;
+      if (res.status === 429 && res.data.error) setComposerError(res.data.error);
+      return;
     }
+    // Refused (filter, closed chat …): not kept on screen; the text goes back into the box to edit
     setMessages((prev) => prev.filter((m) => m.id !== tempId));
     setComposerError(res.data.error ?? "تعذّر إرسال الرسالة");
+    composer.current?.fill(text, { onlyIfEmpty: true });
     if (res.data.code === "EXPIRED" || res.data.code === "NOT_ALLOWED" || res.data.code === "DISABLED") fetchLatest("merge");
-    return false;
   }
 
   /** A photo or voice note: shown at once from this device, uploaded, then swapped for the saved copy. */
@@ -424,6 +495,28 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
     if (photo.blob.size > PHOTO_MAX_BYTES) return setComposerError("حجم الصورة أكبر من 10 ميغابايت");
     sendMedia({ kind: "IMAGE", blob: photo.blob, width: photo.width, height: photo.height });
   }
+
+  // Back online: failed messages go out again by themselves, oldest first, and the chat catches up
+  const retryFailed = useRef<() => void>(() => {});
+  useEffect(() => {
+    retryFailed.current = () => {
+      for (const m of messagesRef.current.filter((x) => x.pending === "failed")) {
+        if (m.upload) void sendMedia(m.upload, m.id);
+        else void send(m.body, m.id);
+      }
+      void fetchNewer();
+    };
+  });
+  const wasOffline = useRef(false);
+  useEffect(() => {
+    if (!online) {
+      wasOffline.current = true;
+      return;
+    }
+    if (!wasOffline.current) return;
+    wasOffline.current = false;
+    retryFailed.current();
+  }, [online]);
 
   async function extend() {
     setExtendConfirm(false);
@@ -600,6 +693,12 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
       </header>
 
       {/* Notifications off on this device: a slim line with the guided setup, while the chat is open */}
+      {!online && (
+        <p role="status" className="flex min-h-9 items-center justify-center gap-1.5 border-b border-amber-200 bg-amber-50 px-3 py-1.5 text-center text-xs font-semibold text-amber-800">
+          <WifiOff className="h-3.5 w-3.5 shrink-0" aria-hidden />
+          لا يوجد اتصال بالإنترنت. تُرسل رسائلك عند عودة الاتصال.
+        </p>
+      )}
       {open && !conversation.blocked && <ChatPushBanner viewerGender={myGender} partnerName={conversation.partner.firstName} />}
 
       {/* One slim bar, only when there is something to do: extend near the end, the family step */}
@@ -815,4 +914,18 @@ function useMobileViewport(): { height: number; top: number; keyboard: boolean }
     };
   }, [mobile]);
   return vp;
+}
+
+function subscribeOnline(onChange: () => void) {
+  window.addEventListener("online", onChange);
+  window.addEventListener("offline", onChange);
+  return () => {
+    window.removeEventListener("online", onChange);
+    window.removeEventListener("offline", onChange);
+  };
+}
+
+/** The browser's connection state (true on the server and when unknown) */
+function useOnline(): boolean {
+  return useSyncExternalStore(subscribeOnline, () => navigator.onLine, () => true);
 }

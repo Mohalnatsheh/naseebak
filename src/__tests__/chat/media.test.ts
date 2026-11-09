@@ -469,7 +469,7 @@ describe("GET /api/chats/[id]/media/[messageId]", () => {
     const res = await call();
     expect(res.status).toBe(200);
     expect(res.headers.get("Content-Type")).toBe("audio/mp4");
-    expect(res.headers.get("Cache-Control")).toBe("private, max-age=86400");
+    expect(res.headers.get("Cache-Control")).toBe("private, no-store");
     expect(res.headers.get("Accept-Ranges")).toBe("bytes");
     expect(Buffer.from(await res.arrayBuffer()).equals(AUDIO)).toBe(true);
     expect(bunny.readFromBunny).toHaveBeenCalledWith("chat/c1/secret.m4a");

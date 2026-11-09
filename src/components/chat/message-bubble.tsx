@@ -41,7 +41,8 @@ export function MessageBubble({
           ) : media ? (
             <VoiceBubble media={media} mine={mine} />
           ) : (
-            message.body
+            // Its own direction from its first letter: a Latin or mixed message keeps its punctuation in place
+            <span dir="auto">{message.body}</span>
           )}
           <span
             className={cn(

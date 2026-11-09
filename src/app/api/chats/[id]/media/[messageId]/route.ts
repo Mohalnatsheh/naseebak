@@ -52,7 +52,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     const size = file.length;
     const headers: Record<string, string> = {
       "Content-Type": message.mediaType || "application/octet-stream",
-      "Cache-Control": "private, max-age=86400",
+      // Never kept on the device or a shared proxy: a photo or voice note stays only behind this check (the server
+      // keeps the bytes for a minute for the Range requests of one play)
+      "Cache-Control": "private, no-store",
       "Accept-Ranges": "bytes",
       "X-Content-Type-Options": "nosniff",
     };

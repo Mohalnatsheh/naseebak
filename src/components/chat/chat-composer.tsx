@@ -8,7 +8,8 @@ import { MicButton, PhotoButton, RecordingBar, useVoiceRecording, type ComposerM
 const MAX = 1000;
 
 export interface ChatComposerHandle {
-  fill: (text: string) => void;
+  /** Put text in the box; `onlyIfEmpty` leaves whatever the member is already typing alone */
+  fill: (text: string, opts?: { onlyIfEmpty?: boolean }) => void;
 }
 
 /** Auto-growing message box. Enter sends, Shift+Enter adds a line. */
@@ -32,8 +33,8 @@ export const ChatComposer = forwardRef<ChatComposerHandle, {
   const showMic = !!media && !text.trim();
 
   useImperativeHandle(ref, () => ({
-    fill: (t: string) => {
-      setText(t);
+    fill: (t: string, opts?: { onlyIfEmpty?: boolean }) => {
+      setText((current) => (opts?.onlyIfEmpty && current.trim() ? current : t));
       requestAnimationFrame(() => area.current?.focus());
     },
   }));

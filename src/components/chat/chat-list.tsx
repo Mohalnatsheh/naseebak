@@ -130,9 +130,16 @@ export function ChatList() {
                     </span>
                     <span className="mt-0.5 flex items-center gap-2">
                       <span className={cn("min-w-0 flex-1 truncate text-sm", c.unread > 0 ? "font-semibold text-foreground" : "text-muted-foreground")}>
-                        {c.lastMessage
-                          ? `${c.lastMessage.mine ? (female ? "أنتِ: " : "أنت: ") : ""}${c.lastMessage.body}`
-                          : female ? "ابدئي المحادثة" : "ابدأ المحادثة"}
+                        {c.lastMessage ? (
+                          <>
+                            {c.lastMessage.mine ? (female ? "أنتِ: " : "أنت: ") : ""}
+                            <bdi>{c.lastMessage.body}</bdi>
+                          </>
+                        ) : female ? (
+                          "ابدئي المحادثة"
+                        ) : (
+                          "ابدأ المحادثة"
+                        )}
                       </span>
                       {c.unread > 0 && (
                         <span className="flex h-5 min-w-5 flex-shrink-0 items-center justify-center rounded-full bg-accent px-1.5 text-[11px] font-bold text-accent-foreground" aria-hidden>
@@ -159,8 +166,9 @@ export function ChatList() {
         </ul>
       )}
 
-      {/* After the list: the chats come first on a phone */}
-      {chats !== null && chats.length > 0 && <InstallAppCard context="chats" />}
+      {/* After the list (the chats come first on a phone). The only notifications prompt on this page: the
+          dashboard's notification bar stays off here */}
+      {chats !== null && <InstallAppCard context="chats" />}
     </div>
   );
 }

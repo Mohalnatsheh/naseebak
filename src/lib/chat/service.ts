@@ -442,7 +442,13 @@ export async function getConversation(
   id: string,
   userId: string,
   opts: { before?: string; beforeId?: string; after?: string; limit?: number } = {}
-): Promise<{ conversation: ChatSummary; messages: ChatMessage[]; hasMore: boolean }> {
+): Promise<{
+  conversation: ChatSummary;
+  messages: ChatMessage[];
+  hasMore: boolean;
+  /** Polls (?after=) only: my newest message the partner has read, so read ticks on older messages still update */
+  readUpTo?: { createdAt: string; readAt: string } | null;
+}> {
   const c = await loadForUser(id, userId, { readOnly: true });
   const limit = Math.min(Math.max(opts.limit ?? 30, 1), 100);
 
@@ -474,18 +480,28 @@ export async function getConversation(
   }
 
   const partnerId = partnerOf(c, userId).id;
-  const [unread, blocked, blockedMe, partnerPro] = await Promise.all([
+  const [unread, blocked, blockedMe, partnerPro, lastRead] = await Promise.all([
     db.message.count({ where: { conversationId: id, readAt: null, senderId: { not: userId } } }),
     isBlocked(userId, partnerId),
     db.block.findFirst({ where: { blockerId: partnerId, blockedId: userId }, select: { id: true } }),
     // Badge only: a failure just hides it
     isPro(partnerId).catch(() => false),
+    opts.after
+      ? db.message.findFirst({
+          where: { conversationId: id, senderId: userId, readAt: { not: null } },
+          orderBy: { createdAt: "desc" },
+          select: { createdAt: true, readAt: true },
+        })
+      : null,
   ]);
   const last = messages.length ? messages[messages.length - 1] : null;
   return {
     conversation: summarise(c, userId, last, unread, blocked, !!blockedMe, partnerPro),
     messages: messages.map((m) => toMessage(m, userId)),
     hasMore,
+    ...(opts.after && {
+      readUpTo: lastRead?.readAt ? { createdAt: lastRead.createdAt.toISOString(), readAt: lastRead.readAt.toISOString() } : null,
+    }),
   };
 }
 

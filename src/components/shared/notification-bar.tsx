@@ -34,8 +34,8 @@ function readHidden(): boolean {
 }
 
 /**
- * Notifications, until they are on for this device: a short bar on dashboard pages (not home, which
- * has its own install/notifications card; not in a chat room, the guide or the setup) whose one button
+ * Notifications, until they are on for this device: a short bar on dashboard pages (not home or the chats
+ * list, which have their own install/notifications card; not in a chat room, the guide or the setup) whose one button
  * opens the guided setup sheet (PushSetupSheet). The sheet no longer opens by itself on the home page
  * (it stacked on top of the home card): it opens only when the member asks. «لاحقاً» hides the bar for
  * 3 days.
@@ -61,6 +61,8 @@ export function NotificationBar() {
     stage === "done" ||
     stage === "none" ||
     pathname === "/dashboard" ||
+    // The chats list has its own card (InstallAppCard): one prompt per page
+    pathname === "/dashboard/chats" ||
     /^\/dashboard\/chats\/[^/]+/.test(pathname) ||
     pathname.startsWith("/dashboard/install") ||
     pathname.startsWith("/dashboard/profile/setup");

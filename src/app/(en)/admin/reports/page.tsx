@@ -235,7 +235,7 @@ export default function AdminReportsPage() {
                             <span className={m.from === "reported" ? "font-semibold text-destructive" : "font-semibold text-primary"}>
                               {m.from === "reported" ? "Reported" : "Reporter"}
                             </span>{" "}
-                            <span className="text-muted-foreground" dir="ltr">{fmtDateTime(m.at)}</span>: {m.body}
+                            <span className="text-muted-foreground" dir="ltr">{fmtDateTime(m.at)}</span>: <bdi>{m.body}</bdi>
                           </p>
                         ))}
                       </div>

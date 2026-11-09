@@ -89,6 +89,9 @@ const MONTH_CLAMP_SLACK_MS = 3 * 24 * 60 * 60 * 1000;
  * after the planned date if the period end can't anchor it (never earlier than that planned date), and never more
  * than a month (plus the short-month clamp) after it: if the morning job fell behind until the renewal moved the
  * period end a year on, the owed month still comes next month, not a year later.
+ * Known trade-off (Pro review minor 6): when a fallback is taken, the date is one month after the planned one, so it
+ * can lose the anchor day by a day or two (31 Dec planned from 30 Nov comes out 30 Dec). Only in that rare fell-behind
+ * case; the next yearly invoice re-anchors the schedule.
  */
 export function nextYearlyGrantDate(planned: Date, periodEnd: Date | null | undefined, month: number): Date {
   const oneMonthOn = addMonth(planned);

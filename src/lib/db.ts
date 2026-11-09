@@ -12,4 +12,6 @@ const globalForPrisma = globalThis as unknown as {
 
 export const db = globalForPrisma.prisma ?? createPrismaClient();
 
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = db;
+// One client per process, also in production: the proxy (src/proxy.ts, session revocation) and the routes are bundled
+// apart, and would otherwise each open their own pool
+globalForPrisma.prisma = db;

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isLiveChatOffPath, tawkStyle } from "@/lib/live-chat";
+import { bubbleMisplaced, isLiveChatOffPath, tawkStyle } from "@/lib/live-chat";
 
 describe("isLiveChatOffPath", () => {
   it.each(["/admin", "/admin/users/1", "/pay/p1", "/payments/return", "/dashboard/chats", "/dashboard/chats/c1"])("hides on %s", (p) => {
@@ -22,5 +22,15 @@ describe("tawkStyle", () => {
 
   it("stays in the corner on a wide screen", () => {
     expect(tawkStyle(1280).visibility.desktop.yOffset).toBe(20);
+  });
+});
+
+describe("bubbleMisplaced (QA WC-08)", () => {
+  it("hides a bubble loaded in a wide window once the window narrows to the phone layout", () => {
+    expect(bubbleMisplaced(1280, 600)).toBe(true);
+    expect(bubbleMisplaced(1280, 1000)).toBe(false);
+    // Loaded narrow: already above the bars
+    expect(bubbleMisplaced(390, 390)).toBe(false);
+    expect(bubbleMisplaced(500, 1280)).toBe(false);
   });
 });

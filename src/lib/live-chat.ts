@@ -17,3 +17,12 @@ export function tawkStyle(viewportWidth: number) {
     },
   };
 }
+
+/**
+ * Tawk can't move its bubble after load: a window loaded wide (bubble 20px from the bottom) and then
+ * narrowed to the phone layout would cover the bottom bar («الرئيسية»), so the bubble hides until the
+ * window is wide again (QA WC-08). A window loaded narrow already sits above the bars at every width.
+ */
+export function bubbleMisplaced(loadedWidth: number, viewportWidth: number): boolean {
+  return loadedWidth >= 768 && viewportWidth < 768;
+}

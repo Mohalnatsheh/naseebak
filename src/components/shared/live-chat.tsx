@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { usePathname } from "next/navigation";
-import { TAWK_SRC, isLiveChatOffPath, tawkStyle } from "@/lib/live-chat";
+import { TAWK_SRC, bubbleMisplaced, isLiveChatOffPath, tawkStyle } from "@/lib/live-chat";
 
 interface TawkApi {
   customStyle?: ReturnType<typeof tawkStyle>;
@@ -11,15 +11,21 @@ interface TawkApi {
   showWidget?: () => void;
 }
 
-type TawkWindow = { Tawk_API?: TawkApi; Tawk_LoadStart?: Date };
+type TawkWindow = { Tawk_API?: TawkApi; Tawk_LoadStart?: Date; naseebTawkWidth?: number };
 
 /** Set on <body> while a modal menu or popup (Sheet, Dialog) is open */
 const SCROLL_LOCK = "data-scroll-locked";
 
 /** Hidden on some pages and while a menu or popup is open: Tawk sits above everything, so it would cover their buttons */
 function syncBubble() {
-  const api = (window as unknown as TawkWindow).Tawk_API;
-  if (isLiveChatOffPath(window.location.pathname) || document.body.hasAttribute(SCROLL_LOCK)) api?.hideWidget?.();
+  const w = window as unknown as TawkWindow;
+  const api = w.Tawk_API;
+  if (
+    isLiveChatOffPath(window.location.pathname) ||
+    document.body.hasAttribute(SCROLL_LOCK) ||
+    bubbleMisplaced(w.naseebTawkWidth ?? window.innerWidth, window.innerWidth)
+  )
+    api?.hideWidget?.();
   else api?.showWidget?.();
 }
 
@@ -37,6 +43,7 @@ export function LiveChat() {
       return;
     }
     if (isLiveChatOffPath(pathname)) return;
+    w.naseebTawkWidth = window.innerWidth;
     w.Tawk_API = { customStyle: tawkStyle(window.innerWidth), onLoad: syncBubble };
     w.Tawk_LoadStart = new Date();
     const script = document.createElement("script");
@@ -50,7 +57,12 @@ export function LiveChat() {
   useEffect(() => {
     const observer = new MutationObserver(syncBubble);
     observer.observe(document.body, { attributes: true, attributeFilter: [SCROLL_LOCK] });
-    return () => observer.disconnect();
+    // Narrowing a desktop window: the bubble placed for desktop would cover the phone layout's bottom bar
+    window.addEventListener("resize", syncBubble);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", syncBubble);
+    };
   }, []);
 
   return null;

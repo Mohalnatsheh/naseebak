@@ -124,10 +124,10 @@ describe("InterestDialog", () => {
 
   it("an error from the server is shown inside the dialog, which stays open", async () => {
     const onOpenChange = vi.fn();
-    const { confirm } = setup({ onConfirm: vi.fn(async () => "أضف بيانات وليّ الأمر في ملفك الشخصي أولاً"), onOpenChange });
+    const { confirm } = setup({ onConfirm: vi.fn(async () => "يلزم إضافة بيانات وليّ الأمر في ملفك الشخصي أولاً"), onOpenChange });
     fireEvent.click(screen.getByRole("radio", { name: /محادثة هنا أولاً/ }));
     fireEvent.click(confirm());
-    expect(await screen.findByRole("alert")).toHaveTextContent("أضف بيانات وليّ الأمر");
+    expect(await screen.findByRole("alert")).toHaveTextContent("يلزم إضافة بيانات وليّ الأمر");
     expect(onOpenChange).not.toHaveBeenCalled();
     expect(confirm()).toBeEnabled();
   });

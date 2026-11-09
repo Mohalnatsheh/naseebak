@@ -22,7 +22,7 @@ const DEFAULTS: Record<IntroErrorCode, { status: number; message: string }> = {
   NO_CREDITS: { status: 402, message: "رصيدك غير كافٍ. اشحن رصيدك للمتابعة." },
   DUPLICATE: { status: 409, message: "لديك طلب قيد الانتظار بالفعل" },
   NOT_ALLOWED: { status: 409, message: "لا يمكن إرسال هذا الطلب الآن" },
-  GUARDIAN_REQUIRED: { status: 412, message: "أضف بيانات وليّ الأمر في ملفك الشخصي أولاً" },
+  GUARDIAN_REQUIRED: { status: 412, message: "يلزم إضافة بيانات وليّ الأمر في ملفك الشخصي أولاً" },
   CONSENT_REQUIRED: { status: 412, message: "يلزم موافقتك على مشاركة بيانات وليّ الأمر" },
   EXPIRED: { status: 410, message: "انتهت صلاحية هذا الطلب" },
   RATE_LIMITED: { status: 429, message: "أرسلت رسائل كثيرة. حاول بعد قليل." },

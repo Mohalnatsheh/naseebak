@@ -91,7 +91,7 @@ void main() {
     test('Jordan: wrong prefix or length is refused with the example', () {
       expect(validatePhone('0766922292', jo), contains('0791234567'));
       expect(validatePhone('07969222', jo), isNotNull);
-      expect(validatePhone('', jo), 'أدخل رقم هاتفك');
+      expect(validatePhone('', jo), 'رقم الهاتف مطلوب');
       // A Saudi number in the Jordan field
       expect(validatePhone('0500000771', jo), isNotNull);
     });

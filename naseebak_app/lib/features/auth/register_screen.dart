@@ -63,11 +63,16 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     super.dispose();
   }
 
+  /// An answer being given clears its error at once, not at the next submit.
+  void _clearError(String field) {
+    if (_fieldErrors[field] != null) setState(() => _fieldErrors[field] = null);
+  }
+
   Future<void> _submit(PendingAuth pending) async {
     final errors = <String, String?>{
       'first': validateArabicName(_first.text, 'الاسم الأول'),
       'last': validateArabicName(_last.text, 'اسم العائلة'),
-      'gender': _gender == null ? 'اختر الجنس' : null,
+      'gender': _gender == null ? 'الجنس مطلوب' : null,
       'invite': _invite.text.trim().isEmpty || cleanReferralCode(_invite.text).length == 8
           ? null
           : 'رمز الدعوة يتكون من 8 أحرف وأرقام',
@@ -167,6 +172,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 TextField(
                   key: const Key('first-name'),
                   controller: _first,
+                  onChanged: (_) => _clearError('first'),
                   textInputAction: TextInputAction.next,
                   decoration: InputDecoration(labelText: 'الاسم الأول', errorText: _fieldErrors['first']),
                 ),
@@ -174,6 +180,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 TextField(
                   key: const Key('last-name'),
                   controller: _last,
+                  onChanged: (_) => _clearError('last'),
                   textInputAction: TextInputAction.done,
                   decoration: InputDecoration(labelText: 'اسم العائلة', errorText: _fieldErrors['last']),
                 ),
@@ -181,6 +188,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 TextField(
                   key: const Key('invite-code'),
                   controller: _invite,
+                  onChanged: (_) => _clearError('invite'),
                   textCapitalization: TextCapitalization.characters,
                   textDirection: TextDirection.ltr,
                   decoration: InputDecoration(labelText: 'رمز الدعوة (اختياري)', errorText: _fieldErrors['invite']),
@@ -203,14 +211,20 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 const SizedBox(height: 20),
                 InkWell(
                   borderRadius: BorderRadius.circular(12),
-                  onTap: () => setState(() => _terms = !_terms),
+                  onTap: () => setState(() {
+                    _terms = !_terms;
+                    _fieldErrors['terms'] = null;
+                  }),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Checkbox(
                         key: const Key('terms'),
                         value: _terms,
-                        onChanged: (v) => setState(() => _terms = v ?? false),
+                        onChanged: (v) => setState(() {
+                          _terms = v ?? false;
+                          _fieldErrors['terms'] = null;
+                        }),
                       ),
                       Expanded(
                         child: Padding(
@@ -281,7 +295,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
-        onTap: () => setState(() => _gender = value),
+        onTap: () => setState(() {
+          _gender = value;
+          _fieldErrors['gender'] = null;
+        }),
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
           child: Column(

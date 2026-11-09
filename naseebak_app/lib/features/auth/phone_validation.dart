@@ -23,7 +23,7 @@ String nationalNumber(String input, Country country) {
 /// null when fine, else the Arabic message to show under the field.
 String? validatePhone(String input, Country country) {
   final national = nationalNumber(input, country);
-  if (national.isEmpty) return 'أدخل رقم ${country.phoneWord}ك';
+  if (national.isEmpty) return 'رقم ال${country.phoneWord} مطلوب';
   final RegExp pattern;
   try {
     pattern = RegExp(country.nationalPattern);

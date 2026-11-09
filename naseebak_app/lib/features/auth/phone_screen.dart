@@ -31,7 +31,7 @@ class PhoneScreen extends ConsumerWidget {
         data: (c) => c == null
             ? MessageView(
                 icon: Icons.public_rounded,
-                title: 'اختر دولتك أولاً',
+                title: 'يُرجى اختيار دولتك أولاً',
                 actionLabel: 'اختيار الدولة',
                 onAction: () => context.push('/country'),
               )

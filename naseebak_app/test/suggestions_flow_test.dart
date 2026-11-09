@@ -165,6 +165,20 @@ void main() {
       expect(find.text('لم يعد هذا الاقتراح متاحاً'), findsOneWidget);
     });
 
+    testWidgets('the «choose a way» hint goes away once a way is chosen', (tester) async {
+      final h = Harness();
+      await h.pump(tester);
+      await tester.tap(find.byKey(const Key('interested-s1')));
+      await pumpFor(tester);
+      await tester.tap(find.byKey(const Key('send-interest')));
+      await pumpFor(tester);
+      expect(find.textContaining('طريقة التعارف: محادثة أو تعارف عائلي'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('pref-chat')));
+      await pumpFor(tester);
+      expect(find.textContaining('طريقة التعارف: محادثة أو تعارف عائلي'), findsNothing);
+    });
+
     testWidgets('NO_CREDITS: the stored balance becomes 0', (tester) async {
       final h = Harness();
       h.adapter.on('POST', '/api/suggestions/s1/decide',

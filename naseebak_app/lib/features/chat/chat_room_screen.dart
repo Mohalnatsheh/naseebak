@@ -458,7 +458,10 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
         context: context,
         isScrollControlled: true,
         useSafeArea: true,
-        builder: (_) => const ReportSheet(),
+        builder: (_) => const ReportSheet(
+          description: 'يصل البلاغ إلى فريق نصيبك، وتنتهي المحادثة للطرفين ولا يمكن فتحها مرة أخرى.',
+          submitLabel: 'إبلاغ وإنهاء المحادثة',
+        ),
       );
       if (res == null) return;
       reason = res.$1;
@@ -620,7 +623,9 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
                 ),
               ),
               Expanded(
-                child: items.isEmpty
+                child: items.isEmpty && !_open
+                    ? const MessageView(icon: Icons.forum_outlined, title: 'لا توجد رسائل في هذه المحادثة')
+                    : items.isEmpty
                     ? MessageView(
                         icon: Icons.waving_hand_outlined,
                         title: forViewer(female, 'ابدأ المحادثة بالسلام', 'ابدئي المحادثة بالسلام'),

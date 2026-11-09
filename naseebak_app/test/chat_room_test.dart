@@ -279,6 +279,27 @@ void main() {
       expect(find.text('اكتبي رسالتكِ…'), findsOneWidget);
     });
 
+    testWidgets('an empty room that was ended invites nobody to start it', (tester) async {
+      final adapter = FakeAdapter()
+        ..on('GET', '/api/chats/c1', FakeResponse(200, {...page([]), 'conversation': {...conv, 'status': 'ENDED'}}));
+      await openRoom(tester, adapter, MemoryChatCache());
+      await tester.pumpAndSettle();
+      expect(find.text('ابدئي المحادثة بالسلام'), findsNothing);
+      expect(find.text('لا توجد رسائل في هذه المحادثة'), findsOneWidget);
+    });
+
+    testWidgets('«إبلاغ» says that sending the report also ends the chat', (tester) async {
+      final adapter = FakeAdapter()..on('GET', '/api/chats/c1', FakeResponse(200, page([1])));
+      await openRoom(tester, adapter, MemoryChatCache());
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('خيارات'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('إبلاغ').last);
+      await tester.pumpAndSettle();
+      expect(find.textContaining('تنتهي المحادثة للطرفين'), findsOneWidget);
+      expect(find.text('إبلاغ وإنهاء المحادثة'), findsOneWidget);
+    });
+
     testWidgets('tapping send keeps the keyboard open for the next message', (tester) async {
       final adapter = FakeAdapter()
         ..on('GET', '/api/chats/c1', FakeResponse(200, page([1, 2])))

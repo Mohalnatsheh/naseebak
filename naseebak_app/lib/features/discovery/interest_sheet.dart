@@ -102,6 +102,16 @@ class _InterestSheetState extends State<InterestSheet> {
     }
   }
 
+  /// A hint the sheet showed itself (no server code) goes once the member acts on it.
+  void _clearHint() {
+    if (_errorCode == null) _error = null;
+  }
+
+  void _pick(String pref) {
+    _pref = pref;
+    _clearHint();
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -127,7 +137,7 @@ class _InterestSheetState extends State<InterestSheet> {
                 icon: Icons.chat_bubble_outline_rounded,
                 title: 'محادثة قصيرة داخل التطبيق',
                 body: 'نصية فقط ومراقبة، لمدة 14 يوماً، ويمكن الانتقال للتعارف العائلي لاحقاً.',
-                onTap: _busy ? null : () => setState(() => _pref = 'CHAT'),
+                onTap: _busy ? null : () => setState(() => _pick('CHAT')),
               ),
             if (widget.chatAvailable) const SizedBox(height: 10),
             _Option(
@@ -136,14 +146,17 @@ class _InterestSheetState extends State<InterestSheet> {
               icon: Icons.family_restroom_rounded,
               title: 'تعارف عائلي',
               body: 'عند التوافق تتبادل العائلتان بيانات التواصل لوليّ الأمر.',
-              onTap: _busy ? null : () => setState(() => _pref = 'FAMILY'),
+              onTap: _busy ? null : () => setState(() => _pick('FAMILY')),
             ),
             if (_pref == 'FAMILY' && !widget.guardianConsented) ...[
               const SizedBox(height: 12),
               CheckboxListTile(
                 key: const Key('guardian-consent'),
                 value: _consent,
-                onChanged: _busy ? null : (v) => setState(() => _consent = v ?? false),
+                onChanged: _busy ? null : (v) => setState(() {
+                  _consent = v ?? false;
+                  _clearHint();
+                }),
                 controlAffinity: ListTileControlAffinity.leading,
                 contentPadding: EdgeInsets.zero,
                 title: const Text(

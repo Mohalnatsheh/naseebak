@@ -169,7 +169,7 @@ export async function PUT(request: Request) {
       // New cycle: no guardian at setup; every family step asks for it (GUARDIAN_REQUIRED in intro/*).
       const guardian = await db.parentInfo.findUnique({ where: { userId: session.user.id }, select: { id: true } });
       if (!guardian) {
-        return NextResponse.json({ error: "أكمل بيانات وليّ الأمر أولاً", code: "GUARDIAN_REQUIRED" }, { status: 400 });
+        return NextResponse.json({ error: "يلزم إكمال بيانات وليّ الأمر أولاً", code: "GUARDIAN_REQUIRED" }, { status: 400 });
       }
     }
 

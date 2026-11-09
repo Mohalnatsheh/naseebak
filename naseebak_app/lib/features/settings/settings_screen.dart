@@ -116,7 +116,7 @@ class AccountScreen extends ConsumerWidget {
             icon: Icons.logout_rounded,
             outlined: true,
             onPressed: () async {
-              final ok = await confirmDialog(context, title: 'تسجيل الخروج', body: 'هل تريد تسجيل الخروج من هذا الجهاز؟', confirmLabel: 'خروج');
+              final ok = await confirmDialog(context, title: 'تسجيل الخروج', body: 'تسجيل الخروج من هذا الجهاز؟', confirmLabel: 'خروج');
               if (ok) await ref.read(authControllerProvider.notifier).logout();
             },
           ),
@@ -274,7 +274,7 @@ class _NotificationPrefsScreenState extends ConsumerState<NotificationPrefsScree
                     const PushOffCard(padding: EdgeInsets.fromLTRB(16, 16, 16, 0)),
                     const Padding(
                       padding: EdgeInsets.all(16),
-                      child: Text('اختر الإشعارات التي تصلك. تبقى الإشعارات داخل التطبيق ظاهرة دائماً.',
+                      child: Text('يمكنك اختيار الإشعارات التي تصلك. تبقى الإشعارات داخل التطبيق ظاهرة دائماً.',
                           style: TextStyle(color: AppColors.muted)),
                     ),
                     for (final k in keys)
@@ -343,7 +343,7 @@ class _BlocksScreenState extends ConsumerState<BlocksScreen> {
           : _blocks == null
               ? const SkeletonList(count: 3, itemHeight: 56)
               : _blocks!.isEmpty
-                  ? const MessageView(icon: Icons.block_rounded, title: 'لم تحظر أحداً')
+                  ? const MessageView(icon: Icons.block_rounded, title: 'لا يوجد أحد في قائمة الحظر')
                   : ListView.separated(
                       itemCount: _blocks!.length,
                       separatorBuilder: (_, _) => const Divider(),

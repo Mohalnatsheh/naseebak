@@ -54,7 +54,7 @@ class _CountryPickerScreenState extends ConsumerState<CountryPickerScreen> {
           AuthHero(
             showBack: Navigator.of(context).canPop(),
             title: 'أهلاً بك في نصيبك',
-            subtitle: 'اختر دولتك لنعرض لك ما يناسبك. يُحدَّد حسابك برقم هاتفك، ولا ترى إلا أعضاء دولتك.',
+            subtitle: 'يمكنك اختيار دولتك لنعرض لك ما يناسبك. يُحدَّد حسابك برقم هاتفك، ولا يظهر لك إلا أعضاء دولتك.',
           ),
           Expanded(
             child: countries.when(

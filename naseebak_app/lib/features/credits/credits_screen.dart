@@ -553,7 +553,7 @@ class _PaymentWaitDialogState extends State<_PaymentWaitDialog> {
           SizedBox(height: 18),
           Text('بانتظار تأكيد الدفع…', textAlign: TextAlign.center),
           SizedBox(height: 4),
-          Text('أكمل الدفع في الصفحة المفتوحة ثم عد إلى التطبيق.',
+          Text('يمكنك إكمال الدفع في الصفحة المفتوحة ثم العودة إلى التطبيق.',
               textAlign: TextAlign.center, style: TextStyle(color: AppColors.muted, fontSize: 13)),
         ],
       ),

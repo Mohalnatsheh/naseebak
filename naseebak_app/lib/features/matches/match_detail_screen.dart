@@ -426,7 +426,7 @@ class _IntroPanelState extends ConsumerState<IntroPanel> {
         switch (s.familyStatus) {
           case 'accepted':
             if (s.contacts != null) {
-              children.add(_GuardianCard(contact: s.contacts!));
+              children.add(_GuardianCard(contact: s.contacts!, dialCode: ref.read(authControllerProvider).me?.country.dialDigits));
             } else {
               children.add(const InfoBanner(
                 text: 'تم قبول التعارف العائلي. تظهر بيانات التواصل عندما يشاركها الطرفان.',
@@ -658,8 +658,9 @@ class _ReplyRow extends StatelessWidget {
 }
 
 class _GuardianCard extends StatelessWidget {
-  const _GuardianCard({required this.contact});
+  const _GuardianCard({required this.contact, this.dialCode});
   final GuardianContact contact;
+  final String? dialCode;
 
   @override
   Widget build(BuildContext context) {
@@ -675,7 +676,7 @@ class _GuardianCard extends StatelessWidget {
           const SizedBox(height: 4),
           Directionality(
             textDirection: TextDirection.ltr,
-            child: SelectableText(contact.phone, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+            child: SelectableText(formatGuardianPhone(contact.phone, dialCode: (dialCode ?? '').isEmpty ? '962' : dialCode!), style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
           ),
         ],
       ),

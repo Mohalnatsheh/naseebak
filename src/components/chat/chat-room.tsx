@@ -46,10 +46,33 @@ import { useDashboardData } from "@/contexts/dashboard-context";
 import { formatDate } from "@/lib/countries";
 import { checkMessage } from "@/lib/chat/filter";
 import { markPageNotificationsRead } from "@/lib/notifications-client";
+import { ProOfferDialog } from "@/components/payments/pro-offer-dialog";
+import type { MyProState } from "@/lib/pro/pro-types";
+import type { ComposerMedia, MediaMode } from "./media-buttons";
+import { preparePhoto } from "./voice-recorder";
+import type { PendingUpload } from "./chat-utils";
 
-/** Id for an optimistic message until the server answers (also its clientNonce); only called from send(). */
+/** Id for an optimistic message until the server answers (also its clientNonce); only called from send() / sendMedia(). */
 function tempMessageId() {
   return `tmp-${Date.now()}`;
+}
+
+/** Same limit as the server (photos are usually far smaller after preparePhoto) */
+const PHOTO_MAX_BYTES = 10 * 1024 * 1024;
+/** The server's wording for a photo it can't read (src/lib/chat/media.ts, which client code can't import) */
+const UNSUPPORTED_PHOTO = "صيغة الصورة غير مدعومة، جرّب صورة JPG أو PNG";
+
+/** A file name for the multipart upload (the server goes by the type, the name only helps logs and proxies) */
+function uploadName(upload: PendingUpload): string {
+  const type = upload.blob.type;
+  if (upload.kind === "IMAGE") return type === "image/png" ? "photo.png" : type === "image/webp" ? "photo.webp" : "photo.jpg";
+  return type.startsWith("audio/mp4") ? "voice.m4a" : type.startsWith("audio/ogg") ? "voice.ogg" : "voice.webm";
+}
+
+/** The local preview URL of an optimistic photo / voice note, if it has one */
+function localUrl(m: UiMessage | undefined): string | null {
+  const url = m?.media?.url;
+  return url?.startsWith("blob:") ? url : null;
 }
 
 interface ChatResponse {
@@ -82,7 +105,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
   }, [conversationId]);
 
   const router = useRouter();
-  const { profile: me, country } = useDashboardData();
+  const { profile: me, country, counts } = useDashboardData();
   const myGender = me?.gender as string | undefined;
   const [conversation, setConversation] = useState<ChatSummary | null>(null);
   const [messages, setMessages] = useState<UiMessage[]>([]);
@@ -116,6 +139,43 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
     return () => ro.disconnect();
   }, [loaded]);
   const markingRead = useRef(false);
+
+  // Photo / voice previews made on this device: released when the saved copy replaces them, or on leaving
+  const blobUrls = useRef(new Set<string>());
+  useEffect(() => {
+    const urls = blobUrls.current;
+    return () => {
+      urls.forEach((u) => URL.revokeObjectURL(u));
+      urls.clear();
+    };
+  }, []);
+  const dropLocal = useCallback((list: UiMessage[], id: string): UiMessage[] => {
+    const url = localUrl(list.find((m) => m.id === id));
+    if (url && blobUrls.current.delete(url)) URL.revokeObjectURL(url);
+    return list.filter((m) => m.id !== id);
+  }, []);
+
+  // Pro (photos and voice) and whether it is on sale (greyed buttons that open the offer)
+  const [pro, setPro] = useState<Pick<MyProState, "enabled" | "isPro"> | null>(null);
+  const [offerOpen, setOfferOpen] = useState(false);
+  const loadPro = useCallback(async () => {
+    const res = await fetch("/api/pro").catch(() => null);
+    if (!res?.ok) return;
+    const data: MyProState = await res.json().catch(() => null);
+    if (data) setPro({ enabled: !!data.enabled, isPro: !!data.isPro });
+  }, []);
+  useEffect(() => {
+    let active = true;
+    fetch("/api/pro")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: MyProState | null) => {
+        if (active && data) setPro({ enabled: !!data.enabled, isPro: !!data.isPro });
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const applyResponse = useCallback((data: ChatResponse, mode: "replace" | "merge") => {
     setConversation(data.conversation);
@@ -178,7 +238,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
       setMessages((prev) =>
         mergeMessages(
           // My own echo replaces exactly the optimistic copy it came from
-          mine && m.clientNonce ? prev.filter((p) => p.id !== m.clientNonce) : prev,
+          mine && m.clientNonce ? dropLocal(prev, m.clientNonce) : prev,
           [{ id: m.id, body: m.body, createdAt: m.createdAt, mine, readAt: null, kind: m.kind ?? "TEXT", media: m.media ?? null }]
         )
       );
@@ -303,6 +363,62 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
     return false;
   }
 
+  /** A photo or voice note: shown at once from this device, uploaded, then swapped for the saved copy. */
+  async function sendMedia(upload: PendingUpload, retryId?: string) {
+    setComposerError(null);
+    const tempId = retryId ?? tempMessageId();
+    let url = localUrl(messages.find((m) => m.id === retryId));
+    if (!url) {
+      url = URL.createObjectURL(upload.blob);
+      blobUrls.current.add(url);
+    }
+    const optimistic: UiMessage = {
+      id: tempId,
+      body: "",
+      createdAt: new Date().toISOString(),
+      mine: true,
+      readAt: null,
+      kind: upload.kind,
+      media: { url, type: upload.blob.type, durationSec: upload.durationSec ?? null, width: upload.width ?? null, height: upload.height ?? null },
+      pending: "sending",
+      upload,
+    };
+    stickToBottom.current = true;
+    setMessages((prev) => (retryId ? prev.map((m) => (m.id === retryId ? optimistic : m)) : [...prev, optimistic]));
+
+    const form = new FormData();
+    form.append("file", upload.blob, uploadName(upload));
+    form.append("kind", upload.kind);
+    if (upload.kind === "VOICE" && upload.durationSec) form.append("durationSec", String(upload.durationSec));
+    form.append("clientNonce", tempId); // the same nonce on retry: the server never saves it twice
+    const res = await fetch(`/api/chats/${conversationId}/media`, { method: "POST", body: form }).catch(() => null);
+    const data: { message?: ChatMessage; error?: string; code?: string } = res ? await res.json().catch(() => ({})) : {};
+
+    if (res?.ok && data.message) {
+      const saved = data.message;
+      setMessages((prev) => mergeMessages(dropLocal(prev, tempId), [saved]));
+      return;
+    }
+    // Network trouble, a server error or the burst limit: keep it with a retry button (the recording isn't lost)
+    if (!res || res.status >= 500 || res.status === 429) {
+      setMessages((prev) => prev.map((m) => (m.id === tempId ? { ...m, pending: "failed" } : m)));
+      if (res?.status === 429 && data.error) setComposerError(data.error);
+      return;
+    }
+    setMessages((prev) => dropLocal(prev, tempId));
+    setComposerError(data.error ?? (upload.kind === "IMAGE" ? "تعذّر إرسال الصورة" : "تعذّر إرسال الرسالة الصوتية"));
+    if (data.code === "PRO_REQUIRED") loadPro();
+    if (data.code === "EXPIRED" || data.code === "NOT_ALLOWED" || data.code === "DISABLED") fetchLatest("merge");
+  }
+
+  async function sendPhoto(file: File) {
+    setComposerError(null);
+    const photo = await preparePhoto(file).catch(() => null);
+    if (!photo) return setComposerError(UNSUPPORTED_PHOTO);
+    if (photo.blob.size > PHOTO_MAX_BYTES) return setComposerError("حجم الصورة أكبر من 10 ميغابايت");
+    sendMedia({ kind: "IMAGE", blob: photo.blob, width: photo.width, height: photo.height });
+  }
+
   async function extend() {
     setExtendConfirm(false);
     setBusy(true);
@@ -379,6 +495,19 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
   // Credit on interest: every request is free, also after an earlier family request expired
   const familyFree = !!intro?.flags.creditOnInterest || !!family?.free;
   /** The free move to family stays open until the match fades (CHAT_STALE_DAYS after the chat ran out) */
+  // Photos / voice: Pro members in an open chat; greyed (opens the offer) while Pro is on sale; else hidden.
+  // Media already in the chat always shows, whatever the switch
+  const myPro = !!pro?.isPro || !!counts.pro?.isPro;
+  const mediaMode: MediaMode | null = !canSend ? null : myPro ? "enabled" : pro?.enabled ? "locked" : null;
+  const composerMedia: ComposerMedia | undefined = mediaMode
+    ? {
+        mode: mediaMode,
+        onPhoto: (file) => void sendPhoto(file),
+        onVoice: (r) => void sendMedia({ kind: "VOICE", blob: r.blob, durationSec: r.durationSec }),
+        onLocked: () => setOfferOpen(true),
+        onError: setComposerError,
+      }
+    : undefined;
   const familyOpenUntil = family?.openUntil
     ? formatDate(family.openUntil, country, { day: "numeric", month: "long" })
     : null;
@@ -550,7 +679,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
               <MessageBubble
                 message={m}
                 grouped={!newDay && !!prev && prev.mine === m.mine}
-                onRetry={() => send(m.body, m.id)}
+                onRetry={() => (m.upload ? sendMedia(m.upload, m.id) : send(m.body, m.id))}
               />
             </Fragment>
           );
@@ -579,7 +708,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
 
       {/* Composer or read-only notice */}
       {canSend ? (
-        <ChatComposer ref={composer} female={myGender === "FEMALE"} keyboardOpen={!!viewport?.keyboard} onSend={(t) => send(t)} error={composerError} onTyping={() => composerError && setComposerError(null)} />
+        <ChatComposer ref={composer} female={myGender === "FEMALE"} keyboardOpen={!!viewport?.keyboard} onSend={(t) => send(t)} error={composerError} onTyping={() => composerError && setComposerError(null)} media={composerMedia} />
       ) : (
         <div className="border-t border-border/60 bg-muted/30 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] text-center text-sm text-muted-foreground">
           {conversation.blocked
@@ -606,6 +735,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
         </div>
       )}
 
+      <ProOfferDialog open={offerOpen} onOpenChange={setOfferOpen} />
       <IntroConfirmDialog
         open={familyDialog}
         onOpenChange={setFamilyDialog}

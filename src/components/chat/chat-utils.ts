@@ -1,9 +1,20 @@
 import type { ChatMessage } from "@/lib/chat/service";
 import { countryConfig } from "@/lib/countries";
 
+/** A photo or voice note still on this device: kept until the server has it, so «إعادة المحاولة» can send it again */
+export interface PendingUpload {
+  kind: "IMAGE" | "VOICE";
+  blob: Blob;
+  /** Voice: the recorder's length in whole seconds */
+  durationSec?: number;
+  width?: number | null;
+  height?: number | null;
+}
+
 /** A message on screen: saved, or still sending / failed (optimistic). */
 export interface UiMessage extends ChatMessage {
   pending?: "sending" | "failed";
+  upload?: PendingUpload;
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;

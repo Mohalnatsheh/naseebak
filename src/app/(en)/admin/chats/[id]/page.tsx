@@ -2,6 +2,7 @@
 
 import { use, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { ArrowDown, ArrowLeft, ArrowUp, Check, CheckCheck, Eye, Flag, Heart, Loader2, MessagesSquare, Search } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -28,9 +29,37 @@ interface ChatDetail {
 interface Msg {
   id: string;
   senderId: string;
+  /** For a photo / voice note: the fallback text old apps show */
   body: string;
   readAt: string | null;
   createdAt: string;
+  kind?: "TEXT" | "IMAGE" | "VOICE";
+  media?: { url: string; type: string; durationSec: number | null; width: number | null; height: number | null } | null;
+}
+
+/** A photo (opens full size in a new tab) or a voice note (native player); every fetch is logged server-side */
+function AdminMedia({ m }: { m: Msg }) {
+  if (!m.media) return null;
+  if (m.kind === "IMAGE") {
+    return (
+      <a href={m.media.url} target="_blank" rel="noreferrer" className="mt-1 block" aria-label="Open photo full size">
+        <Image
+          src={m.media.url}
+          alt="Chat photo"
+          width={m.media.width ?? 240}
+          height={m.media.height ?? 240}
+          unoptimized
+          className="h-auto max-h-72 w-auto max-w-60 rounded-lg object-contain"
+        />
+      </a>
+    );
+  }
+  return (
+    <div className="mt-1">
+      <audio controls preload="none" src={m.media.url} className="h-10 w-60 max-w-full" />
+      {m.media.durationSec != null && <p className="text-[11px] opacity-70">Voice note · {m.media.durationSec}s</p>}
+    </div>
+  );
 }
 
 function fmtTime(d: string) {
@@ -207,7 +236,11 @@ export default function AdminChatPage({ params }: { params: Promise<{ id: string
                         )}
                       >
                         <p className={cn("text-xs font-semibold", mine ? "text-primary" : "text-primary-foreground/80")}>{nameOf(m.senderId)}</p>
-                        <p dir="auto" className="whitespace-pre-wrap break-words text-sm leading-relaxed"><Highlight text={m.body} term={term} /></p>
+                        {m.media && (m.kind === "IMAGE" || m.kind === "VOICE") ? (
+                          <AdminMedia m={m} />
+                        ) : (
+                          <p dir="auto" className="whitespace-pre-wrap break-words text-sm leading-relaxed"><Highlight text={m.body} term={term} /></p>
+                        )}
                         <p className={cn("mt-1 flex items-center justify-end gap-1 text-[11px]", mine ? "text-muted-foreground" : "text-primary-foreground/70")}>
                           {fmtTime(m.createdAt)}
                           {m.readAt ? <CheckCheck className="h-3 w-3" aria-label="Read" /> : <Check className="h-3 w-3" aria-label="Sent" />}

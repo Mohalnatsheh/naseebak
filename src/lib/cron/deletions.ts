@@ -8,6 +8,45 @@ import { closeActivityForLeaving } from "@/lib/matches/leave";
 import { snapshotReportEvidence } from "@/lib/reports";
 import { cancelProForDeletion } from "@/lib/pro/manage";
 
+/**
+ * Chat photo and voice files that disappear with this account: every media message in the member's
+ * chats (the match cascades, so the partner's messages go too) and any the member sent. Files a report's
+ * saved evidence refers to are kept. Read after snapshotReportEvidence(), before the rows go.
+ */
+async function chatMediaToDelete(userId: string): Promise<string[]> {
+  const rows = await db.message.findMany({
+    where: {
+      mediaPath: { not: null },
+      OR: [
+        { senderId: userId },
+        { conversation: { match: { OR: [{ femaleId: userId }, { maleId: userId }] } } },
+      ],
+    },
+    select: { mediaPath: true },
+  });
+  const paths = [...new Set(rows.flatMap((r) => (r.mediaPath ? [r.mediaPath] : [])))];
+  if (paths.length === 0) return [];
+  // strpos, not LIKE: "_" in a path is a LIKE wildcard
+  const kept = await db.$queryRaw<{ path: string }[]>`
+    SELECT p AS path FROM unnest(${paths}::text[]) AS p
+    WHERE EXISTS (SELECT 1 FROM reports r WHERE r.evidence IS NOT NULL AND strpos(r.evidence::text, p) > 0)`;
+  const keep = new Set(kept.map((k) => k.path));
+  return paths.filter((p) => !keep.has(p));
+}
+
+/** Best effort, one by one; a failure is logged without the private path */
+async function deleteChatMedia(userId: string, paths: string[]): Promise<void> {
+  let failed = 0;
+  for (const path of paths) {
+    try {
+      await deleteFromBunny(path);
+    } catch {
+      failed++;
+    }
+  }
+  if (failed) console.warn(`Chat media cleanup warning for user ${userId}: ${failed} of ${paths.length} files not deleted`);
+}
+
 export async function processAccountDeletions(): Promise<number> {
   // Find all requests that are past the scheduled date and not cancelled
   const expiredRequests = await db.accountDeletionRequest.findMany({
@@ -90,6 +129,10 @@ export async function processAccountDeletions(): Promise<number> {
       // A failed snapshot stops this deletion (retried tomorrow) rather than lose the evidence.
       await snapshotReportEvidence(req.userId);
 
+      // Listed now (the rows go with the account), deleted once the account is really gone, so a failed
+      // deletion never leaves messages pointing at missing files. A failed list stops this deletion.
+      const chatMedia = await chatMediaToDelete(req.userId);
+
       // Delete all user data (cascade will handle most relations)
       // But we need to clean up manual relations first
       await db.$transaction([
@@ -101,6 +144,7 @@ export async function processAccountDeletions(): Promise<number> {
         db.user.delete({ where: { id: req.userId } }),
       ]);
       deletedCount++;
+      await deleteChatMedia(req.userId, chatMedia);
     } catch (err) {
       console.error(`Failed to delete user ${req.userId}:`, err);
     }

@@ -11,7 +11,9 @@ const db = vi.hoisted(() => ({
   like: { deleteMany: vi.fn() },
   suggestion: { deleteMany: vi.fn() },
   user: { delete: vi.fn() },
+  message: { findMany: vi.fn() },
   $transaction: vi.fn(),
+  $queryRaw: vi.fn(),
 }));
 const bunny = vi.hoisted(() => ({ deleteFromBunny: vi.fn(), getBunnyPathFromUrl: vi.fn((u: string) => u) }));
 const reports = vi.hoisted(() => ({ snapshotReportEvidence: vi.fn() }));
@@ -41,6 +43,8 @@ beforeEach(() => {
   reports.snapshotReportEvidence.mockResolvedValue(0);
   leave.closeActivityForLeaving.mockResolvedValue(undefined);
   pro.cancelProForDeletion.mockResolvedValue(0);
+  db.message.findMany.mockResolvedValue([]);
+  db.$queryRaw.mockResolvedValue([]);
 });
 
 describe("processAccountDeletions", () => {
@@ -107,5 +111,53 @@ describe("processAccountDeletions", () => {
     expect(bunny.deleteFromBunny).not.toHaveBeenCalled();
     expect(db.$transaction).not.toHaveBeenCalled();
     spy.mockRestore();
+  });
+
+  describe("chat photos and voice notes", () => {
+    it("deletes the media of every message that goes with the account, after the rows are gone", async () => {
+      db.message.findMany.mockResolvedValue([{ mediaPath: "chat/c1/a.webp" }, { mediaPath: "chat/c1/b.m4a" }]);
+      await processAccountDeletions();
+      // Every message in the member's chats goes (the match cascades), the partner's too
+      const where = db.message.findMany.mock.calls[0][0].where;
+      expect(where).toEqual({
+        mediaPath: { not: null },
+        OR: [
+          { senderId: "u1" },
+          { conversation: { match: { OR: [{ femaleId: "u1" }, { maleId: "u1" }] } } },
+        ],
+      });
+      expect(bunny.deleteFromBunny).toHaveBeenCalledWith("chat/c1/a.webp");
+      expect(bunny.deleteFromBunny).toHaveBeenCalledWith("chat/c1/b.m4a");
+      const lastDelete = Math.max(...bunny.deleteFromBunny.mock.invocationCallOrder);
+      expect(db.$transaction.mock.invocationCallOrder[0]).toBeLessThan(lastDelete);
+      // The list is read after the evidence snapshot, so the snapshot's references count
+      expect(reports.snapshotReportEvidence.mock.invocationCallOrder[0]).toBeLessThan(db.message.findMany.mock.invocationCallOrder[0]);
+    });
+
+    it("keeps files referenced in a report's evidence", async () => {
+      db.message.findMany.mockResolvedValue([{ mediaPath: "chat/c1/kept.webp" }, { mediaPath: "chat/c1/gone.webp" }]);
+      db.$queryRaw.mockResolvedValue([{ path: "chat/c1/kept.webp" }]);
+      await processAccountDeletions();
+      expect(bunny.deleteFromBunny).toHaveBeenCalledWith("chat/c1/gone.webp");
+      expect(bunny.deleteFromBunny).not.toHaveBeenCalledWith("chat/c1/kept.webp");
+    });
+
+    it("a failed file delete is logged, not fatal; nothing is deleted when the account stays", async () => {
+      db.message.findMany.mockResolvedValue([{ mediaPath: "chat/c1/a.webp" }]);
+      bunny.deleteFromBunny.mockRejectedValue(new Error("bunny"));
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      expect(await processAccountDeletions()).toBe(1);
+      expect(JSON.stringify(warn.mock.calls)).not.toContain("chat/c1/a.webp");
+      warn.mockRestore();
+
+      vi.clearAllMocks();
+      db.$transaction.mockRejectedValueOnce(new Error("fk"));
+      db.message.findMany.mockResolvedValue([{ mediaPath: "chat/c1/a.webp" }]);
+      db.$queryRaw.mockResolvedValue([]);
+      const err = vi.spyOn(console, "error").mockImplementation(() => {});
+      expect(await processAccountDeletions()).toBe(0);
+      expect(bunny.deleteFromBunny).not.toHaveBeenCalledWith("chat/c1/a.webp");
+      err.mockRestore();
+    });
   });
 });

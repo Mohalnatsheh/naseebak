@@ -1,9 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import type { ChatMessage } from "@/lib/chat/service";
 
 export interface ChannelHandlers {
-  onMessage: (m: { id: string; senderId: string; body: string; createdAt: string; clientNonce?: string }) => void;
+  /** `kind` / `media` are additive (absent from events published before media existed) */
+  onMessage: (m: {
+    id: string; senderId: string; body: string; createdAt: string; clientNonce?: string;
+    kind?: ChatMessage["kind"]; media?: ChatMessage["media"];
+  }) => void;
   onRead: (e: { by: string; at: string }) => void;
   onStatus: (e: { status: string; expiresAt?: string }) => void;
   /** Called every few seconds when real-time isn't available */

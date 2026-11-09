@@ -178,7 +178,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
         mergeMessages(
           // My own echo replaces exactly the optimistic copy it came from
           mine && m.clientNonce ? prev.filter((p) => p.id !== m.clientNonce) : prev,
-          [{ id: m.id, body: m.body, createdAt: m.createdAt, mine, readAt: null }]
+          [{ id: m.id, body: m.body, createdAt: m.createdAt, mine, readAt: null, kind: m.kind ?? "TEXT", media: m.media ?? null }]
         )
       );
     },
@@ -277,7 +277,9 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
       return false;
     }
     const tempId = retryId ?? tempMessageId();
-    const optimistic: UiMessage = { id: tempId, body: text, createdAt: new Date().toISOString(), mine: true, readAt: null, pending: "sending" };
+    const optimistic: UiMessage = {
+      id: tempId, body: text, createdAt: new Date().toISOString(), mine: true, readAt: null, kind: "TEXT", media: null, pending: "sending",
+    };
     stickToBottom.current = true;
     setMessages((prev) => (retryId ? prev.map((m) => (m.id === retryId ? optimistic : m)) : [...prev, optimistic]));
 

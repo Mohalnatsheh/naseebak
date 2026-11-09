@@ -1,0 +1,435 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import sharp from "sharp";
+import { NextResponse } from "next/server";
+
+const db = vi.hoisted(() => ({
+  conversation: { findUnique: vi.fn(), findMany: vi.fn(), findFirst: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
+  message: { create: vi.fn(), findMany: vi.fn(), findFirst: vi.fn(), findUnique: vi.fn(), updateMany: vi.fn(), count: vi.fn() },
+  block: { findFirst: vi.fn(), findMany: vi.fn(), create: vi.fn() },
+  report: { findMany: vi.fn(), updateMany: vi.fn() },
+  user: { findMany: vi.fn() },
+  introRequest: { updateMany: vi.fn(), findFirst: vi.fn() },
+  visitRequest: { findUnique: vi.fn() },
+}));
+const ably = vi.hoisted(() => ({ publishChatEvent: vi.fn() }));
+const notifyMod = vi.hoisted(() => ({ notify: vi.fn(), notifyMany: vi.fn() }));
+const settings = vi.hoisted(() => ({ getCycleFlags: vi.fn() }));
+const rl = vi.hoisted(() => ({ rateLimit: vi.fn() }));
+const reports = vi.hoisted(() => ({ fileReport: vi.fn() }));
+const pro = vi.hoisted(() => ({ isPro: vi.fn() }));
+const bunny = vi.hoisted(() => ({ uploadToBunny: vi.fn(), deleteFromBunny: vi.fn(), readFromBunny: vi.fn() }));
+const auth = vi.hoisted(() => ({ requireUser: vi.fn(), requireAdmin: vi.fn() }));
+vi.mock("@/lib/db", () => ({ db }));
+vi.mock("@/lib/ably", () => ably);
+vi.mock("@/lib/notify", () => notifyMod);
+vi.mock("@/lib/chat/bell", () => ({ upsertChatBell: vi.fn(), clearChatBell: vi.fn() }));
+vi.mock("@/lib/settings", () => settings);
+vi.mock("@/lib/rate-limit", () => rl);
+vi.mock("@/lib/reports", () => reports);
+vi.mock("@/lib/pro/status", () => pro);
+vi.mock("@/lib/bunny", () => bunny);
+vi.mock("@/lib/auth", () => auth);
+vi.mock("@/lib/admin-alert", () => ({ sendAdminAlert: vi.fn() }));
+
+import { getConversation, listConversations, sendMediaMessage, sendMessage } from "@/lib/chat/service";
+import { IMAGE_FALLBACK_BODY, VOICE_FALLBACK_BODY, processImage, validateVoice } from "@/lib/chat/media";
+import { IntroError } from "@/lib/intro/errors";
+import { GET as getMedia } from "@/app/api/chats/[id]/media/[messageId]/route";
+
+const DAY = 24 * 60 * 60 * 1000;
+const conv = (over: object = {}) => ({
+  id: "c1",
+  matchId: "m1",
+  status: "ACTIVE",
+  expiresAt: new Date(Date.now() + 10 * DAY),
+  createdAt: new Date(Date.now() - 4 * DAY),
+  extended: false,
+  expiryWarnedAt: null,
+  familyNudgeAt: null,
+  endedById: null,
+  match: {
+    id: "m1", femaleId: "f1", maleId: "u1",
+    female: { id: "f1", firstName: "هديل", isVerified: true },
+    male: { id: "u1", firstName: "يزن", isVerified: true },
+  },
+  ...over,
+});
+
+async function expectCode(p: Promise<unknown>, code: string) {
+  const err = await p.catch((e) => e);
+  expect(err).toBeInstanceOf(IntroError);
+  expect((err as IntroError).code).toBe(code);
+}
+
+async function gpsJpeg(width = 2400, height = 1200): Promise<Buffer> {
+  return sharp({ create: { width, height, channels: 3, background: { r: 34, g: 71, b: 106 } } })
+    .jpeg()
+    .withExif({ IFD0: { Make: "TestCam" }, IFD3: { GPSLatitudeRef: "N", GPSLatitude: "31/1 57/1 0/1" } })
+    .toBuffer();
+}
+
+const PATH_RE = /^chat\/c1\/[A-Za-z0-9_-]{43}\.webp$/;
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  settings.getCycleFlags.mockResolvedValue({ introRequests: true, chat: true });
+  rl.rateLimit.mockReturnValue({ success: true, remaining: 1, resetAt: 0 });
+  pro.isPro.mockResolvedValue(true);
+  db.conversation.findUnique.mockResolvedValue(conv());
+  db.block.findFirst.mockResolvedValue(null);
+  db.block.findMany.mockResolvedValue([]);
+  db.message.findFirst.mockResolvedValue(null);
+  db.message.findMany.mockResolvedValue([]);
+  db.message.count.mockResolvedValue(0);
+  db.message.create.mockImplementation(async ({ data }: { data: Record<string, unknown> }) => ({
+    id: "msg1", ...data, createdAt: new Date(), readAt: null,
+  }));
+  bunny.uploadToBunny.mockImplementation(async (_b: Buffer, path: string) => `https://cdn.example/${path}`);
+  bunny.deleteFromBunny.mockResolvedValue(undefined);
+});
+
+describe("sendMediaMessage: checks before any upload", () => {
+  it("refuses a non-Pro sender with PRO_REQUIRED and uploads nothing", async () => {
+    pro.isPro.mockResolvedValue(false);
+    await expectCode(
+      sendMediaMessage({ conversationId: "c1", senderId: "u1", kind: "IMAGE", file: await gpsJpeg(), type: "image/jpeg" }),
+      "PRO_REQUIRED"
+    );
+    expect(bunny.uploadToBunny).not.toHaveBeenCalled();
+    expect(db.message.create).not.toHaveBeenCalled();
+  });
+
+  it("refuses an ENDED chat with NOT_ALLOWED and uploads nothing", async () => {
+    db.conversation.findUnique.mockResolvedValue(conv({ status: "ENDED" }));
+    await expectCode(
+      sendMediaMessage({ conversationId: "c1", senderId: "u1", kind: "VOICE", file: Buffer.alloc(100), type: "audio/mp4", durationSec: 10 }),
+      "NOT_ALLOWED"
+    );
+    expect(bunny.uploadToBunny).not.toHaveBeenCalled();
+  });
+
+  it("refuses across a block and uploads nothing", async () => {
+    db.block.findFirst.mockImplementation(async ({ where }: { where: { OR?: unknown } }) => (where.OR ? { id: "b" } : null));
+    await expectCode(
+      sendMediaMessage({ conversationId: "c1", senderId: "u1", kind: "IMAGE", file: await gpsJpeg(), type: "image/jpeg" }),
+      "BLOCKED"
+    );
+    expect(bunny.uploadToBunny).not.toHaveBeenCalled();
+  });
+
+  it("refuses when the chat switch is off", async () => {
+    settings.getCycleFlags.mockResolvedValue({ introRequests: true, chat: false });
+    await expectCode(
+      sendMediaMessage({ conversationId: "c1", senderId: "u1", kind: "VOICE", file: Buffer.alloc(100), type: "audio/mp4", durationSec: 10 }),
+      "DISABLED"
+    );
+    expect(bunny.uploadToBunny).not.toHaveBeenCalled();
+  });
+
+  it("applies the chat-burst rate limit before uploading", async () => {
+    rl.rateLimit.mockReturnValue({ success: false, remaining: 0, resetAt: 0 });
+    await expectCode(
+      sendMediaMessage({ conversationId: "c1", senderId: "u1", kind: "VOICE", file: Buffer.alloc(100), type: "audio/mp4", durationSec: 10 }),
+      "RATE_LIMITED"
+    );
+    expect(rl.rateLimit).toHaveBeenCalledWith("chat-burst:u1", expect.anything());
+    expect(bunny.uploadToBunny).not.toHaveBeenCalled();
+  });
+
+  it("refuses an undecodable photo with a clear message and uploads nothing", async () => {
+    const err = await sendMediaMessage({
+      conversationId: "c1", senderId: "u1", kind: "IMAGE", file: Buffer.from("not an image"), type: "image/heic",
+    }).catch((e) => e);
+    expect(err).toBeInstanceOf(IntroError);
+    expect(err.message).toBe("صيغة الصورة غير مدعومة، جرّب صورة JPG أو PNG");
+    expect(bunny.uploadToBunny).not.toHaveBeenCalled();
+  });
+
+  it("refuses a photo over 10 MB", async () => {
+    await expectCode(
+      sendMediaMessage({ conversationId: "c1", senderId: "u1", kind: "IMAGE", file: Buffer.alloc(10 * 1024 * 1024 + 1), type: "image/jpeg" }),
+      "MEDIA_INVALID"
+    );
+    expect(bunny.uploadToBunny).not.toHaveBeenCalled();
+  });
+});
+
+describe("sendMediaMessage: a photo", () => {
+  it("stores a metadata-free WebP at a private random path and returns only the media route", async () => {
+    const msg = await sendMediaMessage({ conversationId: "c1", senderId: "u1", kind: "IMAGE", file: await gpsJpeg(), type: "image/jpeg" });
+    expect(bunny.uploadToBunny).toHaveBeenCalledTimes(1);
+    const [buf, path, mime] = bunny.uploadToBunny.mock.calls[0];
+    expect(path).toMatch(PATH_RE);
+    expect(mime).toBe("image/webp");
+    const meta = await sharp(buf).metadata();
+    expect(meta.format).toBe("webp");
+    expect(meta.exif).toBeUndefined();
+    expect(Math.max(meta.width!, meta.height!)).toBeLessThanOrEqual(1600);
+
+    const data = db.message.create.mock.calls[0][0].data;
+    expect(data).toMatchObject({ kind: "IMAGE", mediaPath: path, mediaType: "image/webp", mediaWidth: 1600, mediaHeight: 800, body: IMAGE_FALLBACK_BODY });
+
+    expect(msg.kind).toBe("IMAGE");
+    expect(msg.body).toBe(IMAGE_FALLBACK_BODY);
+    expect(msg.media).toEqual({ url: "/api/chats/c1/media/msg1", type: "image/webp", durationSec: null, width: 1600, height: 800 });
+    expect(JSON.stringify(msg)).not.toContain("chat/");
+  });
+
+  it("never puts the storage path in the Ably event or the push", async () => {
+    // Its own chat, so the push throttle of the other tests doesn't hold this push back
+    db.conversation.findUnique.mockResolvedValue(conv({ id: "c9" }));
+    await sendMediaMessage({ conversationId: "c9", senderId: "u1", kind: "IMAGE", file: await gpsJpeg(), type: "image/jpeg" });
+    const path = bunny.uploadToBunny.mock.calls[0][1] as string;
+    const event = ably.publishChatEvent.mock.calls.find((c) => c[1] === "message")![2];
+    expect(event).toMatchObject({ kind: "IMAGE", body: IMAGE_FALLBACK_BODY, media: { url: "/api/chats/c9/media/msg1" } });
+    expect(JSON.stringify(event)).not.toContain(path);
+    expect(JSON.stringify(event)).not.toContain("chat/");
+    const pushed = notifyMod.notify.mock.calls[0][0];
+    expect(pushed.body).toBe("رسالة جديدة من يزن");
+    expect(JSON.stringify(pushed)).not.toContain("chat/");
+  });
+
+  it("deletes the uploaded file when the row can't be saved", async () => {
+    db.message.create.mockRejectedValue(new Error("db down"));
+    await expect(
+      sendMediaMessage({ conversationId: "c1", senderId: "u1", kind: "IMAGE", file: await gpsJpeg(), type: "image/jpeg" })
+    ).rejects.toThrow();
+    const path = bunny.uploadToBunny.mock.calls[0][1];
+    expect(bunny.deleteFromBunny).toHaveBeenCalledWith(path);
+  });
+
+  it("a retry with the same nonce gets the saved message back, without a second upload", async () => {
+    db.message.findFirst.mockResolvedValue({
+      id: "saved", conversationId: "c1", senderId: "u1", body: IMAGE_FALLBACK_BODY, kind: "IMAGE",
+      mediaPath: "chat/c1/x.webp", mediaType: "image/webp", mediaWidth: 10, mediaHeight: 10, mediaDurationSec: null,
+      createdAt: new Date(), readAt: null,
+    });
+    const msg = await sendMediaMessage({
+      conversationId: "c1", senderId: "u1", kind: "IMAGE", file: await gpsJpeg(), type: "image/jpeg", clientNonce: "n1",
+    });
+    expect(msg.id).toBe("saved");
+    expect(bunny.uploadToBunny).not.toHaveBeenCalled();
+  });
+});
+
+describe("sendMediaMessage: a voice note", () => {
+  it("stores audio as sent, keeping only the base type", async () => {
+    const msg = await sendMediaMessage({
+      conversationId: "c1", senderId: "u1", kind: "VOICE", file: Buffer.alloc(2000), type: "audio/webm;codecs=opus", durationSec: 42,
+    });
+    const [, path, mime] = bunny.uploadToBunny.mock.calls[0];
+    expect(path).toMatch(/^chat\/c1\/[A-Za-z0-9_-]{43}\.webm$/);
+    expect(mime).toBe("audio/webm");
+    expect(db.message.create.mock.calls[0][0].data).toMatchObject({ kind: "VOICE", mediaType: "audio/webm", mediaDurationSec: 42, body: VOICE_FALLBACK_BODY });
+    expect(msg.media).toMatchObject({ type: "audio/webm", durationSec: 42, width: null, height: null });
+  });
+
+  it("refuses a 200 s voice note before uploading", async () => {
+    await expectCode(
+      sendMediaMessage({ conversationId: "c1", senderId: "u1", kind: "VOICE", file: Buffer.alloc(2000), type: "audio/mp4", durationSec: 200 }),
+      "MEDIA_INVALID"
+    );
+    expect(bunny.uploadToBunny).not.toHaveBeenCalled();
+  });
+});
+
+describe("validateVoice", () => {
+  it("accepts audio/mp4 for 120 s", () => {
+    expect(validateVoice("audio/mp4", 1_000_000, 120)).toEqual({ ok: true });
+  });
+  it("refuses 200 s", () => {
+    expect(validateVoice("audio/mp4", 1_000_000, 200).ok).toBe(false);
+  });
+  it("refuses video/mp4", () => {
+    expect(validateVoice("video/mp4", 1_000, 10).ok).toBe(false);
+  });
+  it("refuses over 6 MB, zero seconds and a missing duration", () => {
+    expect(validateVoice("audio/aac", 6 * 1024 * 1024 + 1, 10).ok).toBe(false);
+    expect(validateVoice("audio/aac", 1000, 0).ok).toBe(false);
+    expect(validateVoice("audio/aac", 1000, Number.NaN).ok).toBe(false);
+  });
+  it("accepts codec parameters and upper case", () => {
+    expect(validateVoice("Audio/Ogg; codecs=opus", 1000, 5)).toEqual({ ok: true });
+  });
+});
+
+describe("processImage", () => {
+  it("strips EXIF/GPS and caps the long side at 1600", async () => {
+    const input = await gpsJpeg(1200, 3000);
+    expect((await sharp(input).metadata()).exif).toBeDefined();
+    const out = await processImage(input);
+    const meta = await sharp(out.buffer).metadata();
+    expect(meta.format).toBe("webp");
+    expect(meta.exif).toBeUndefined();
+    expect(out.height).toBe(1600);
+    expect(out.width).toBe(640);
+  });
+  it("never enlarges a small photo", async () => {
+    const out = await processImage(await gpsJpeg(300, 200));
+    expect([out.width, out.height]).toEqual([300, 200]);
+  });
+});
+
+describe("text messages keep their behaviour", () => {
+  it("the filter still runs on text", async () => {
+    await expectCode(sendMessage({ conversationId: "c1", senderId: "u1", body: "رقمي 0791234567" }), "FILTERED");
+    expect(db.message.create).not.toHaveBeenCalled();
+  });
+  it("a text message comes back with kind TEXT and no media", async () => {
+    const msg = await sendMessage({ conversationId: "c1", senderId: "u1", body: "مرحبا" });
+    expect(msg).toMatchObject({ kind: "TEXT", media: null, body: "مرحبا" });
+  });
+});
+
+describe("reading chats with media", () => {
+  it("the chat list previews a photo with the short text", async () => {
+    db.conversation.findMany.mockResolvedValue([
+      { ...conv(), messages: [{ body: IMAGE_FALLBACK_BODY, kind: "IMAGE", createdAt: new Date(), senderId: "f1", readAt: null }], _count: { messages: 1 } },
+    ]);
+    const [s] = await listConversations("u1");
+    expect(s.lastMessage?.body).toBe("📷 صورة");
+  });
+
+  it("messages carry kind + the media route, never the stored path", async () => {
+    db.message.findMany.mockResolvedValue([
+      {
+        id: "v1", conversationId: "c1", senderId: "f1", body: VOICE_FALLBACK_BODY, kind: "VOICE",
+        mediaPath: "chat/c1/secret.m4a", mediaType: "audio/mp4", mediaDurationSec: 30, mediaWidth: null, mediaHeight: null,
+        createdAt: new Date(), readAt: null,
+      },
+    ]);
+    const { messages, conversation } = await getConversation("c1", "u1");
+    expect(messages[0]).toMatchObject({ kind: "VOICE", body: VOICE_FALLBACK_BODY, media: { url: "/api/chats/c1/media/v1", durationSec: 30 } });
+    expect(conversation.lastMessage?.body).toBe("🎤 رسالة صوتية");
+    expect(JSON.stringify({ messages, conversation })).not.toContain("secret");
+  });
+});
+
+describe("GET /api/chats/[id]/media/[messageId]", () => {
+  const AUDIO = Buffer.from(Array.from({ length: 1000 }, (_, i) => i % 256));
+  const row = (over: object = {}) => ({
+    id: "v1", conversationId: "c1", kind: "VOICE", mediaPath: "chat/c1/secret.m4a", mediaType: "audio/mp4",
+    conversation: { match: { femaleId: "f1", maleId: "u1" } },
+    ...over,
+  });
+  const call = (headers: Record<string, string> = {}, id = "c1", messageId = "v1") =>
+    getMedia(new Request("http://x/api/chats/c1/media/v1", { headers }), { params: Promise.resolve({ id, messageId }) }) as Promise<Response>;
+  const signedIn = (id: string) => auth.requireUser.mockResolvedValue({ session: { user: { id } } });
+  const forbidden = () => ({ error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) });
+
+  beforeEach(() => {
+    db.message.findUnique.mockResolvedValue(row());
+    bunny.readFromBunny.mockResolvedValue(AUDIO);
+    auth.requireAdmin.mockResolvedValue(forbidden());
+  });
+
+  it("serves the whole file to a member with private caching", async () => {
+    signedIn("u1");
+    const res = await call();
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Content-Type")).toBe("audio/mp4");
+    expect(res.headers.get("Cache-Control")).toBe("private, max-age=86400");
+    expect(res.headers.get("Accept-Ranges")).toBe("bytes");
+    expect(Buffer.from(await res.arrayBuffer()).equals(AUDIO)).toBe(true);
+    expect(bunny.readFromBunny).toHaveBeenCalledWith("chat/c1/secret.m4a");
+  });
+
+  it("404s for a stranger and never reads the file", async () => {
+    signedIn("stranger");
+    expect((await call()).status).toBe(404);
+    expect(bunny.readFromBunny).not.toHaveBeenCalled();
+  });
+
+  it("404s when nobody is signed in", async () => {
+    auth.requireUser.mockResolvedValue(forbidden());
+    expect((await call()).status).toBe(404);
+  });
+
+  it("404s for a text message, and for a message of another chat", async () => {
+    signedIn("u1");
+    db.message.findUnique.mockResolvedValue(row({ kind: "TEXT", mediaPath: null }));
+    expect((await call()).status).toBe(404);
+    db.message.findUnique.mockResolvedValue(row({ conversationId: "other" }));
+    expect((await call()).status).toBe(404);
+    expect(bunny.readFromBunny).not.toHaveBeenCalled();
+  });
+
+  it("answers Range: bytes=0-99 with 206 and the first 100 bytes", async () => {
+    signedIn("f1");
+    const res = await call({ Range: "bytes=0-99" });
+    expect(res.status).toBe(206);
+    expect(res.headers.get("Content-Range")).toBe("bytes 0-99/1000");
+    expect(res.headers.get("Content-Length")).toBe("100");
+    expect(Buffer.from(await res.arrayBuffer()).equals(AUDIO.subarray(0, 100))).toBe(true);
+  });
+
+  it("answers an open range and refuses an unsatisfiable one", async () => {
+    signedIn("f1");
+    const open = await call({ Range: "bytes=900-" });
+    expect(open.status).toBe(206);
+    expect(open.headers.get("Content-Range")).toBe("bytes 900-999/1000");
+    const bad = await call({ Range: "bytes=5000-6000" });
+    expect(bad.status).toBe(416);
+    expect(bad.headers.get("Content-Range")).toBe("bytes */1000");
+  });
+
+  it("lets an admin web session in and logs the view", async () => {
+    const log = vi.spyOn(console, "info").mockImplementation(() => {});
+    signedIn("admin1");
+    auth.requireAdmin.mockResolvedValue({ session: { user: { id: "admin1", role: "ADMIN" } } });
+    const res = await call();
+    expect(res.status).toBe(200);
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("[admin-chat-view] admin=admin1 chat=c1 media=v1"));
+    expect(JSON.stringify(log.mock.calls)).not.toContain("secret");
+  });
+
+  it("404s when the file can't be read, without logging the path", async () => {
+    signedIn("u1");
+    bunny.readFromBunny.mockResolvedValue(null);
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect((await call()).status).toBe(404);
+    expect(JSON.stringify(err.mock.calls)).not.toContain("secret");
+  });
+});
+
+describe("report evidence keeps media references", () => {
+  it("transcript entries carry kind and mediaPath", async () => {
+    const { snapshotReportEvidence } = await vi.importActual<typeof import("@/lib/reports")>("@/lib/reports");
+    db.report.findMany.mockResolvedValue([{ id: "r1", reporterId: "f1", reportedId: "u1", conversationId: "c1" }]);
+    db.user.findMany.mockResolvedValue([]);
+    db.conversation.findUnique.mockResolvedValue({ id: "c1" });
+    db.message.findMany.mockResolvedValue([
+      { senderId: "u1", body: IMAGE_FALLBACK_BODY, kind: "IMAGE", mediaPath: "chat/c1/p.webp", createdAt: new Date() },
+      { senderId: "f1", body: "مرحبا", kind: "TEXT", mediaPath: null, createdAt: new Date(Date.now() - 1000) },
+    ]);
+    db.report.updateMany.mockResolvedValue({ count: 1 });
+    await snapshotReportEvidence("u1");
+    const saved = db.report.updateMany.mock.calls[0][0].data.evidence.chat.messages;
+    expect(saved).toEqual([
+      // A text entry keeps its earlier shape
+      { at: expect.any(String), from: "reporter", body: "مرحبا" },
+      expect.objectContaining({ from: "reported", kind: "IMAGE", mediaPath: "chat/c1/p.webp" }),
+    ]);
+  });
+
+  it("the admin page gets the evidence without the storage path", async () => {
+    const { evidenceForAdmin } = await vi.importActual<typeof import("@/lib/reports")>("@/lib/reports");
+    const evidence = {
+      capturedAt: "2026-11-09T00:00:00.000Z",
+      people: { reporter: null, reported: null },
+      chat: {
+        id: "c1", truncated: false,
+        messages: [
+          { at: "x", from: "reported", body: IMAGE_FALLBACK_BODY, kind: "IMAGE", mediaPath: "chat/c1/p.webp" },
+          { at: "y", from: "reporter", body: "مرحبا" },
+        ],
+      },
+    };
+    const out = evidenceForAdmin(evidence) as typeof evidence;
+    expect(JSON.stringify(out)).not.toContain("chat/c1/p.webp");
+    expect(out.chat.messages[0]).toMatchObject({ kind: "IMAGE", hasMedia: true });
+    expect(out.chat.messages[1]).toMatchObject({ body: "مرحبا", hasMedia: false });
+    expect(evidenceForAdmin(null)).toBeNull();
+    expect(evidenceForAdmin({ capturedAt: "x", people: {}, chat: null })).toEqual({ capturedAt: "x", people: {}, chat: null });
+  });
+});

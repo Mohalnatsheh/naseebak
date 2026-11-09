@@ -5,7 +5,7 @@ import { parsePagination } from "@/lib/utils";
 import type { Prisma } from "@prisma/client";
 import { effectiveConversationStatus } from "@/lib/admin/cycle-stats";
 import { adminEndConversation, setSuspended } from "@/lib/admin/moderation";
-import { endPausedChat, refreshReportFlag } from "@/lib/reports";
+import { endPausedChat, evidenceForAdmin, refreshReportFlag } from "@/lib/reports";
 import { getAdminCountry, reportCountryWhere } from "@/lib/admin/country-filter";
 
 /**
@@ -110,6 +110,8 @@ export async function GET(request: Request) {
     return NextResponse.json({
       reports: (await withChats(reports)).map((r) => ({
         ...r,
+        // A saved photo or voice note's storage path stays on the server
+        evidence: evidenceForAdmin(r.evidence),
         reviewedBy: r.reviewedById ? reviewerEmail.get(r.reviewedById) ?? null : null,
       })),
       total,

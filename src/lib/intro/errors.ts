@@ -13,7 +13,9 @@ export type IntroErrorCode =
   | "EXPIRED"
   | "RATE_LIMITED"
   | "FILTERED"
-  | "PREFERENCE_REQUIRED";
+  | "PREFERENCE_REQUIRED"
+  | "PRO_REQUIRED"
+  | "MEDIA_INVALID";
 
 const DEFAULTS: Record<IntroErrorCode, { status: number; message: string }> = {
   NOT_FOUND: { status: 404, message: "غير موجود" },
@@ -28,6 +30,8 @@ const DEFAULTS: Record<IntroErrorCode, { status: number; message: string }> = {
   RATE_LIMITED: { status: 429, message: "أرسلت رسائل كثيرة. حاول بعد قليل." },
   FILTERED: { status: 422, message: "لا يمكن إرسال هذه الرسالة" },
   PREFERENCE_REQUIRED: { status: 400, message: "اختر طريقة التعارف: محادثة أو تعارف عائلي" },
+  PRO_REQUIRED: { status: 403, message: "إرسال الصور والرسائل الصوتية متاح لأعضاء Pro" },
+  MEDIA_INVALID: { status: 422, message: "لا يمكن إرسال هذا الملف" },
 };
 
 /** NO_CREDITS for test accounts (the store review login): the app never shows payments to them, so no «اشحن» */

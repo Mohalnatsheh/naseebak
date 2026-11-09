@@ -92,6 +92,24 @@ export async function uploadToBunny(buffer: Buffer, path: string, mimeType?: str
   return `${cdnUrl}/${path}`;
 }
 
+/** A chat media path is private (its random name is the only lock on the CDN): never written to a log */
+function pathForLog(path: string): string {
+  return path.startsWith("chat/") ? "chat media file" : path;
+}
+
+/**
+ * Read a file back through the Storage API (with the storage key), never the public CDN. null when the
+ * file doesn't exist. Local runs read `.dev-uploads/`. Errors never quote the path.
+ */
+export async function readFromBunny(path: string): Promise<Buffer | null> {
+  if (localUploadsAllowed()) return readLocalUpload(path);
+  const { apiKey, zone, endpoint } = getConfig();
+  const res = await fetch(`https://${endpoint}/${zone}/${path}`, { headers: { AccessKey: apiKey } });
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`Bunny read failed (${res.status})`);
+  return Buffer.from(await res.arrayBuffer());
+}
+
 /** Delete a file from Bunny Storage. Fails silently (logs warning). */
 export async function deleteFromBunny(path: string): Promise<void> {
   if (localUploadsAllowed()) {
@@ -109,7 +127,7 @@ export async function deleteFromBunny(path: string): Promise<void> {
     });
 
     if (!res.ok && res.status !== 404) {
-      console.warn(`Bunny delete warning (${res.status}) for ${path}`);
+      console.warn(`Bunny delete warning (${res.status}) for ${pathForLog(path)}`);
     }
   } catch (err) {
     console.warn("Bunny delete error:", err);

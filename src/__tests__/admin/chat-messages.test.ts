@@ -83,4 +83,27 @@ describe("GET /api/admin/chats/[id]/messages", () => {
     expect(d.chat.reports.map((r: { id: string }) => r.id)).toEqual(["r1"]);
     expect(db.report.findMany.mock.calls[0][0].where).toEqual({ conversationId: "c1" });
   });
+
+  it("returns each message's kind and the members-only media route, never the storage path", async () => {
+    vi.spyOn(console, "info").mockImplementation(() => {});
+    db.conversation.findUnique.mockResolvedValue({
+      ...ended("admin1"),
+      messages: [
+        {
+          id: "p1", senderId: "f1", body: "📷 صورة — حدّث التطبيق لعرضها", readAt: null, createdAt: new Date(),
+          kind: "IMAGE", mediaType: "image/webp", mediaDurationSec: null, mediaWidth: 1600, mediaHeight: 900,
+        },
+        { id: "t1", senderId: "m1", body: "مرحبا", readAt: null, createdAt: new Date(), kind: "TEXT", mediaType: null, mediaDurationSec: null, mediaWidth: null, mediaHeight: null },
+      ],
+    });
+    const d = await (await call()).json();
+    const select = db.conversation.findUnique.mock.calls[0][0].select.messages.select;
+    expect(select.mediaPath).toBeUndefined();
+    const [t, p] = d.messages;
+    expect(t).toMatchObject({ id: "t1", kind: "TEXT", media: null });
+    expect(p).toMatchObject({
+      id: "p1", kind: "IMAGE",
+      media: { url: "/api/chats/c1/media/p1", type: "image/webp", durationSec: null, width: 1600, height: 900 },
+    });
+  });
 });

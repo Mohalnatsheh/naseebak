@@ -248,6 +248,32 @@ export async function refreshReportFlag(reportedId: string): Promise<{ unflagged
   return { unflagged, resumed };
 }
 
+/** One saved chat message. `mediaPath` is private: admins get the evidence through evidenceForAdmin() */
+type EvidenceMessage = {
+  at: string;
+  from: "reporter" | "reported";
+  body: string;
+  kind?: string;
+  mediaPath?: string | null;
+};
+
+/**
+ * Report evidence as sent to the admin page: a media message's storage path is replaced by
+ * `hasMedia`, so the path never leaves the server.
+ */
+export function evidenceForAdmin(evidence: Prisma.JsonValue | null): Prisma.JsonValue | null {
+  if (!evidence || typeof evidence !== "object" || Array.isArray(evidence)) return evidence;
+  const chat = (evidence as { chat?: { messages?: EvidenceMessage[] } | null }).chat;
+  if (!chat || !Array.isArray(chat.messages)) return evidence;
+  return {
+    ...evidence,
+    chat: {
+      ...chat,
+      messages: chat.messages.map(({ mediaPath, ...m }) => ({ ...m, hasMedia: !!mediaPath })),
+    },
+  } as Prisma.JsonValue;
+}
+
 /** Messages kept per reported chat (the latest ones, if there are more) */
 const EVIDENCE_MAX_MESSAGES = 1000;
 
@@ -290,13 +316,13 @@ export async function snapshotReportEvidence(userId: string): Promise<number> {
             select: { id: true },
           })
         : null);
-    let transcript: { id: string; messages: { at: string; from: "reporter" | "reported"; body: string }[]; truncated: boolean } | null = null;
+    let transcript: { id: string; messages: EvidenceMessage[]; truncated: boolean } | null = null;
     if (chat) {
       const latest = await db.message.findMany({
         where: { conversationId: chat.id },
         orderBy: { createdAt: "desc" },
         take: EVIDENCE_MAX_MESSAGES + 1,
-        select: { senderId: true, body: true, createdAt: true },
+        select: { senderId: true, body: true, kind: true, mediaPath: true, createdAt: true },
       });
       transcript = {
         id: chat.id,
@@ -304,7 +330,13 @@ export async function snapshotReportEvidence(userId: string): Promise<number> {
         messages: latest
           .slice(0, EVIDENCE_MAX_MESSAGES)
           .reverse()
-          .map((m) => ({ at: m.createdAt.toISOString(), from: m.senderId === r.reporterId ? "reporter" : "reported", body: m.body })),
+          .map((m) => ({
+            at: m.createdAt.toISOString(),
+            from: m.senderId === r.reporterId ? "reporter" : "reported",
+            body: m.body,
+            // A photo or voice note keeps its file: account deletion skips paths referenced here (cron/deletions.ts)
+            ...(m.kind && m.kind !== "TEXT" && { kind: m.kind, mediaPath: m.mediaPath ?? null }),
+          })),
       };
     }
 

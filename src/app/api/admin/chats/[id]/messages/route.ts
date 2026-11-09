@@ -3,6 +3,7 @@ import { requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { effectiveConversationStatus } from "@/lib/admin/cycle-stats";
 import { chatEndedBy } from "@/lib/admin/chat-list";
+import { mediaUrl } from "@/lib/chat/media";
 
 const person = { select: { id: true, firstName: true, lastName: true, status: true } } as const;
 /** There is no daily cap, so very long chats keep their newest messages (`truncated` marks the cut). */
@@ -24,7 +25,11 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
         messages: {
           orderBy: { createdAt: "desc" },
           take: MAX_MESSAGES,
-          select: { id: true, senderId: true, body: true, readAt: true, createdAt: true },
+          // Never mediaPath: a photo or voice note is fetched through the members-only route (admins pass by web session)
+          select: {
+            id: true, senderId: true, body: true, readAt: true, createdAt: true,
+            kind: true, mediaType: true, mediaDurationSec: true, mediaWidth: true, mediaHeight: true,
+          },
         },
       },
     });
@@ -53,7 +58,14 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
         reports,
       },
       // newest MAX_MESSAGES, shown oldest first
-      messages: [...chat.messages].reverse(),
+      messages: [...chat.messages].reverse().map(({ mediaType, mediaDurationSec, mediaWidth, mediaHeight, ...m }) => ({
+        ...m,
+        kind: m.kind ?? "TEXT",
+        media:
+          m.kind === "IMAGE" || m.kind === "VOICE"
+            ? { url: mediaUrl(chat.id, m.id), type: mediaType ?? "", durationSec: mediaDurationSec, width: mediaWidth, height: mediaHeight }
+            : null,
+      })),
       truncated: chat.messages.length === MAX_MESSAGES,
     });
   } catch (error) {

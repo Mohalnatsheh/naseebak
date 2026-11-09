@@ -1,6 +1,6 @@
 /**
  * In-app chat between two matched users after an accepted chat request.
- * Text only, 14 days (+7 once in the last 3 days), filtered, rate-limited.
+ * Text, plus photos and voice notes for Pro members (src/lib/chat/media.ts); 14 days (+7 once in the last 3 days), filtered, rate-limited.
  * Expiry, the day-7 family nudge and the "2 days left" warning are applied lazily whenever a
  * conversation is read, and by the daily job (chatHousekeepingAll) for chats nobody opens.
  */
@@ -18,6 +18,12 @@ import { checkMessage, completesSplitNumber, mayBePartOfNumber, SPLIT_NUMBER_WIN
 import { IntroError } from "@/lib/intro/errors";
 import { fileReport } from "@/lib/reports";
 import { LEGACY_ADMIN_VISIT, cancelPendingBetween, familyMoveOpenUntil, isUnavailable } from "@/lib/matches/state";
+import { isPro } from "@/lib/pro/status";
+import { deleteFromBunny, uploadToBunny } from "@/lib/bunny";
+import {
+  type MediaKind, type MessageKindValue, baseMime, fallbackBody, mediaUrl, newMediaPath, previewBody, processImage,
+  validateImage, validateVoice, voiceExtension,
+} from "@/lib/chat/media";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 export const EXTENSION_DAYS = 7;
@@ -54,13 +60,40 @@ export interface ChatSummary {
   unread: number;
 }
 
+export interface ChatMedia {
+  /** The members-only route (`/api/chats/<cid>/media/<mid>`), never the storage path */
+  url: string;
+  type: string;
+  durationSec: number | null;
+  width: number | null;
+  height: number | null;
+}
+
 export interface ChatMessage {
   id: string;
+  /** For a photo or voice note: the fallback text that app 1.0.x shows as a normal bubble */
   body: string;
   createdAt: string;
   mine: boolean;
   readAt: string | null;
+  kind: MessageKindValue;
+  media: ChatMedia | null;
 }
+
+/** The message fields toMessage() reads (mediaPath is never read here, so it can't leak) */
+type MessageRow = {
+  id: string;
+  conversationId: string;
+  body: string;
+  createdAt: Date;
+  senderId: string;
+  readAt: Date | null;
+  kind?: MessageKindValue | null;
+  mediaType?: string | null;
+  mediaDurationSec?: number | null;
+  mediaWidth?: number | null;
+  mediaHeight?: number | null;
+};
 
 const partyUser = { select: { id: true, firstName: true, isVerified: true, status: true, isDeactivated: true, country: true } } as const;
 const conversationInclude = {
@@ -209,7 +242,7 @@ async function housekeep(c: LoadedConversation): Promise<{ c: LoadedConversation
 function summarise(
   c: LoadedConversation,
   userId: string,
-  last: { body: string; createdAt: Date; senderId: string; readAt: Date | null } | null,
+  last: { body: string; kind?: string | null; createdAt: Date; senderId: string; readAt: Date | null } | null,
   unread: number,
   blocked = false,
   matchHidden = false
@@ -227,19 +260,32 @@ function summarise(
     blocked,
     matchHidden,
     lastMessage: last
-      ? { body: last.body, createdAt: last.createdAt.toISOString(), mine: last.senderId === userId, read: last.readAt !== null }
+      ? { body: previewBody(last), createdAt: last.createdAt.toISOString(), mine: last.senderId === userId, read: last.readAt !== null }
       : null,
     unread,
   };
 }
 
-function toMessage(m: { id: string; body: string; createdAt: Date; senderId: string; readAt: Date | null }, userId: string): ChatMessage {
+function toMedia(m: MessageRow): ChatMedia | null {
+  if (m.kind !== "IMAGE" && m.kind !== "VOICE") return null;
+  return {
+    url: mediaUrl(m.conversationId, m.id),
+    type: m.mediaType ?? "",
+    durationSec: m.mediaDurationSec ?? null,
+    width: m.mediaWidth ?? null,
+    height: m.mediaHeight ?? null,
+  };
+}
+
+function toMessage(m: MessageRow, userId: string): ChatMessage {
   return {
     id: m.id,
     body: m.body,
     createdAt: m.createdAt.toISOString(),
     mine: m.senderId === userId,
     readAt: m.readAt ? m.readAt.toISOString() : null,
+    kind: m.kind ?? "TEXT",
+    media: toMedia(m),
   };
 }
 
@@ -256,7 +302,7 @@ export async function listConversations(userId: string): Promise<ChatSummary[]> 
     where: { match: { OR: [{ femaleId: userId }, { maleId: userId }] } },
     include: {
       ...conversationInclude,
-      messages: { orderBy: { createdAt: "desc" }, take: 1, select: { body: true, createdAt: true, senderId: true, readAt: true } },
+      messages: { orderBy: { createdAt: "desc" }, take: 1, select: { body: true, kind: true, createdAt: true, senderId: true, readAt: true } },
       _count: { select: { messages: { where: { readAt: null, senderId: { not: userId } } } } },
     },
   });
@@ -456,8 +502,16 @@ type SendArgs = {
 };
 
 export function sendMessage(args: SendArgs): Promise<ChatMessage> {
+  return onceByNonce(args, () => createMessage(args));
+}
+
+/** One send per client nonce: two identical requests at the same moment share one result */
+function onceByNonce(
+  args: { conversationId: string; senderId: string; clientNonce?: string },
+  create: () => Promise<ChatMessage>
+): Promise<ChatMessage> {
   const { conversationId, senderId, clientNonce } = args;
-  if (!clientNonce) return createMessage(args);
+  if (!clientNonce) return create();
   const now = Date.now();
   for (const [k, v] of sendsByNonce) {
     if (now - v.at < NONCE_TTL_MS) break;
@@ -466,7 +520,7 @@ export function sendMessage(args: SendArgs): Promise<ChatMessage> {
   const key = `${conversationId}:${senderId}:${clientNonce}`;
   const held = sendsByNonce.get(key);
   if (held) return held.message;
-  const message = createMessage(args);
+  const message = create();
   sendsByNonce.set(key, { at: now, message });
   // Refused (filter, rate limit, closed chat…): nothing was saved, a retry is a new attempt
   message.catch(() => {
@@ -475,13 +529,24 @@ export function sendMessage(args: SendArgs): Promise<ChatMessage> {
   return message;
 }
 
-async function createMessage(args: SendArgs): Promise<ChatMessage> {
-  const { conversationId, senderId, body, clientNonce } = args;
-  // Already saved under this nonce (the answer was lost): the same message, never a second copy
-  if (clientNonce) {
-    const saved = await db.message.findFirst({ where: { conversationId, senderId, clientNonce } });
-    if (saved) return toMessage(saved, senderId);
-  }
+/** The message already saved under this nonce (the answer was lost): returned again, never a second copy */
+async function savedByNonce(conversationId: string, senderId: string, clientNonce?: string): Promise<ChatMessage | null> {
+  if (!clientNonce) return null;
+  const saved = await db.message.findFirst({ where: { conversationId, senderId, clientNonce } });
+  return saved ? toMessage(saved, senderId) : null;
+}
+
+type SendContext = {
+  c: LoadedConversation;
+  partner: LoadedConversation["match"]["female"];
+  sender: LoadedConversation["match"]["female"];
+};
+
+/**
+ * The checks every send passes, text or media: the chat switch, a member of this chat (not blocked by
+ * the partner), the chat open, both accounts active, and no block either way.
+ */
+export async function assertCanSend(conversationId: string, senderId: string): Promise<SendContext> {
   const flags = await getCycleFlags();
   if (!flags.chat) throw new IntroError("DISABLED", "المحادثات متوقفة حالياً");
 
@@ -496,6 +561,21 @@ async function createMessage(args: SendArgs): Promise<ChatMessage> {
     throw new IntroError("NOT_ALLOWED", "هذا الحساب غير نشط حالياً، لا يمكن إرسال رسائل الآن");
   }
   if (await isBlocked(senderId, partner.id)) throw new IntroError("BLOCKED");
+  return { c, partner, sender: me };
+}
+
+/** ~1 message per second on average, short bursts allowed (no daily cap); text and media share it */
+function assertSendRate(senderId: string): void {
+  if (!rateLimit(`chat-burst:${senderId}`, { maxAttempts: 5, windowMs: 5000 }).success) {
+    throw new IntroError("RATE_LIMITED", "تمهّل قليلاً قبل إرسال رسالة أخرى");
+  }
+}
+
+async function createMessage(args: SendArgs): Promise<ChatMessage> {
+  const { conversationId, senderId, body, clientNonce } = args;
+  const saved = await savedByNonce(conversationId, senderId, clientNonce);
+  if (saved) return saved;
+  const { c, partner, sender } = await assertCanSend(conversationId, senderId);
 
   // Filter first: a blocked attempt is never saved and doesn't use up the sending allowance
   const check = checkMessage(body);
@@ -519,23 +599,30 @@ async function createMessage(args: SendArgs): Promise<ChatMessage> {
     }
   }
 
-  // ~1 message per second on average, short bursts allowed (no daily cap)
-  if (!rateLimit(`chat-burst:${senderId}`, { maxAttempts: 5, windowMs: 5000 }).success) {
-    throw new IntroError("RATE_LIMITED", "تمهّل قليلاً قبل إرسال رسالة أخرى");
-  }
+  assertSendRate(senderId);
 
   const message = await db.message.create({
     data: { conversationId, senderId, body: check.text, clientNonce: clientNonce ?? null },
   });
+  return delivered(message, { c, partner, sender }, clientNonce);
+}
+
+/** Publish a saved message live, then the bell and the push; the sender's own copy is returned */
+async function delivered(message: MessageRow, ctx: SendContext, clientNonce?: string): Promise<ChatMessage> {
+  const { partner, sender } = ctx;
+  const { conversationId, senderId } = message;
+  const out = toMessage(message, senderId);
+  // `kind` and `media` are additive: old apps read `body` (the fallback text for media)
   await publishChatEvent(conversationId, "message", {
     id: message.id,
     senderId,
     body: message.body,
     createdAt: message.createdAt.toISOString(),
     clientNonce,
+    kind: out.kind,
+    media: out.media,
   });
 
-  const sender = senderId === c.match.femaleId ? c.match.female : c.match.male;
   // Bell and push are not awaited: the sender's answer never waits for OneSignal / FCM (both catch their
   // own errors; one long-running process, so they finish after the response)
   // The bell, for members without a push device (one entry per chat, kept up to date)
@@ -557,7 +644,83 @@ async function createMessage(args: SendArgs): Promise<ChatMessage> {
     });
   }
 
-  return toMessage(message, senderId);
+  return out;
+}
+
+type MediaSendArgs = {
+  conversationId: string;
+  senderId: string;
+  kind: MediaKind;
+  file: Buffer;
+  /** The file's declared MIME type (codec parameters are allowed and dropped) */
+  type: string;
+  /** Voice: the recorder's duration in seconds */
+  durationSec?: number;
+  clientNonce?: string;
+};
+
+/**
+ * A photo or a voice note (Pro). Order: the same can-send checks as text → Pro → the shared rate limit →
+ * validate / process → upload → save. Nothing is uploaded until every check has passed, and a file
+ * whose row can't be saved is deleted again. The text filter doesn't run on media (owner).
+ */
+export function sendMediaMessage(args: MediaSendArgs): Promise<ChatMessage> {
+  return onceByNonce(args, () => createMediaMessage(args));
+}
+
+async function createMediaMessage(args: MediaSendArgs): Promise<ChatMessage> {
+  const { conversationId, senderId, kind, file, clientNonce } = args;
+  const saved = await savedByNonce(conversationId, senderId, clientNonce);
+  if (saved) return saved;
+  const ctx = await assertCanSend(conversationId, senderId);
+  // Pro, not `pro_enabled`: the switch gates sales, a paying member keeps the features
+  if (!(await isPro(senderId))) throw new IntroError("PRO_REQUIRED", "إرسال الصور والرسائل الصوتية متاح لأعضاء Pro");
+  assertSendRate(senderId);
+
+  let upload: { buffer: Buffer; path: string; type: string };
+  let media: { mediaDurationSec: number | null; mediaWidth: number | null; mediaHeight: number | null };
+  if (kind === "IMAGE") {
+    const check = validateImage(args.type, file.length);
+    if (!check.ok) throw new IntroError("MEDIA_INVALID", check.message);
+    const img = await processImage(file);
+    upload = { buffer: img.buffer, path: newMediaPath(conversationId, "webp"), type: "image/webp" };
+    media = { mediaDurationSec: null, mediaWidth: img.width, mediaHeight: img.height };
+  } else {
+    const durationSec = Math.round(args.durationSec ?? Number.NaN);
+    const check = validateVoice(args.type, file.length, durationSec);
+    if (!check.ok) throw new IntroError("MEDIA_INVALID", check.message);
+    const type = baseMime(args.type);
+    upload = { buffer: file, path: newMediaPath(conversationId, voiceExtension(type)), type };
+    media = { mediaDurationSec: durationSec, mediaWidth: null, mediaHeight: null };
+  }
+
+  try {
+    await uploadToBunny(upload.buffer, upload.path, upload.type);
+  } catch (error) {
+    // The storage error can quote the path: only its first part is logged
+    console.error(`[chat-media] upload failed chat=${conversationId}:`, String((error as Error)?.message ?? error).split(":")[0]);
+    throw new Error("chat media upload failed");
+  }
+
+  let message;
+  try {
+    message = await db.message.create({
+      data: {
+        conversationId,
+        senderId,
+        body: fallbackBody(kind),
+        clientNonce: clientNonce ?? null,
+        kind,
+        mediaPath: upload.path,
+        mediaType: upload.type,
+        ...media,
+      },
+    });
+  } catch (error) {
+    await deleteFromBunny(upload.path).catch(() => {});
+    throw error;
+  }
+  return delivered(message, ctx, clientNonce);
 }
 
 /** Mark the partner's messages read — only those up to `upTo` (what was actually on screen). */

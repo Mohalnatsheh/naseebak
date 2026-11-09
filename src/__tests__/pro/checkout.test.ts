@@ -91,7 +91,7 @@ describe("startProCheckout", () => {
     expect(arg.line_items[0].price_data.currency).toBe("usd");
     expect(arg.metadata).toMatchObject({ app: "naseebak", kind: "pro", userId: "u1", plan: "monthly", country: "JO", paymentId: r.paymentId });
     // The offer's credits travel with the checkout (a plan changed in the checkout window never alters what was bought)
-    expect(arg.metadata.credits).toMatch(/^\d+$/);
+    expect(arg.metadata.credits).toBe("8");
     expect(arg.subscription_data.metadata).toEqual(arg.metadata);
     expect(arg.success_url).toContain("/dashboard/pro?pro=success");
     expect(arg.cancel_url).toContain("/dashboard/pro?pro=cancel");

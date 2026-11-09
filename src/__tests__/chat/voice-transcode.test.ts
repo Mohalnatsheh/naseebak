@@ -134,6 +134,17 @@ describe("transcodeVoiceToM4a: the child process", () => {
     expect(Date.now() - started).toBeLessThan(3000);
   });
 
+  it("a killed ffmpeg whose child still holds stderr open fails at its exit, not when the pipe closes", async () => {
+    // The background sleep inherits stderr, so "close" would wait for it (5 s); "exit" comes right after the kill
+    const holder = join(dir, "pipe-holder-ffmpeg.sh");
+    writeFileSync(holder, "#!/bin/sh\nsleep 5 &\nsleep 5\n");
+    chmodSync(holder, 0o755);
+    process.env.FFMPEG_PATH = holder;
+    const started = Date.now();
+    await expectMediaInvalid(transcodeVoiceToM4a(clip.webm, "audio/webm", { timeoutMs: 300 }));
+    expect(Date.now() - started).toBeLessThan(2000);
+  });
+
   it("runs one at a time (queued)", async () => {
     const log = join(dir, "order.log");
     writeFileSync(log, "");
@@ -154,15 +165,20 @@ describe("transcodeVoiceToM4a: the child process", () => {
     process.env.FFMPEG_PATH = slow;
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const err = vi.spyOn(console, "error").mockImplementation(() => {});
-    const queued = Array.from({ length: VOICE_QUEUE_MAX }, () => transcodeVoiceToM4a(clip.webm, "audio/webm", { timeoutMs: 100 }).catch((e) => e));
-    const started = Date.now();
-    await expectMediaInvalid(transcodeVoiceToM4a(clip.webm, "audio/webm"));
-    expect(Date.now() - started).toBeLessThan(50);
-    await Promise.all(queued);
-    delete process.env.FFMPEG_PATH;
-    expectFaststartAacMp4(await transcodeVoiceToM4a(clip.webm, "audio/webm"));
-    warn.mockRestore();
-    err.mockRestore();
+    // Restored even when an assertion fails, so the mocks never leak into later tests
+    try {
+      const queued = Array.from({ length: VOICE_QUEUE_MAX }, () => transcodeVoiceToM4a(clip.webm, "audio/webm", { timeoutMs: 100 }).catch((e) => e));
+      const started = Date.now();
+      await expectMediaInvalid(transcodeVoiceToM4a(clip.webm, "audio/webm"));
+      expect(Date.now() - started).toBeLessThan(50);
+      await Promise.all(queued);
+      delete process.env.FFMPEG_PATH;
+      expectFaststartAacMp4(await transcodeVoiceToM4a(clip.webm, "audio/webm"));
+    } finally {
+      delete process.env.FFMPEG_PATH;
+      warn.mockRestore();
+      err.mockRestore();
+    }
   });
 
   it("a failed job doesn't stop the queue", async () => {

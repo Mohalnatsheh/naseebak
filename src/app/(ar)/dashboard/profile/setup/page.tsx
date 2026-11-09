@@ -21,7 +21,7 @@ import { arabicCount } from "@/lib/utils";
 import { forViewer } from "@/lib/gendered-copy";
 import { dateOfBirthError, parentInfoSchemaFor } from "@/lib/validations/profile";
 import { BirthDateSelect } from "@/components/profile/birth-date-select";
-import { normalizePhone } from "@/lib/validations/auth";
+import { normalizePhone } from "@/lib/phone";
 import { VEIL_CHOICES, veilChoice, veilFromChoice, type VeilChoice } from "@/lib/profile-veil";
 import { PageLoading } from "@/components/shared/page-loading";
 

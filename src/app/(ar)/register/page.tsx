@@ -15,12 +15,13 @@ import {
   Shield,
   Camera,
   Send,
+  Info,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { normalizePhone, arabicLetterCount, NAME_MAX_LENGTH, TERMS_REQUIRED_MESSAGE } from "@/lib/validations/auth";
+import { normalizePhone, localPhone, arabicLetterCount, NAME_MAX_LENGTH, TERMS_REQUIRED_MESSAGE } from "@/lib/phone";
 import {
   Card,
   CardContent,
@@ -182,6 +183,11 @@ function RegisterPageContent() {
   // Track if OTP was already verified (e.g. redirected from login)
   const [otpAlreadyVerified, setOtpAlreadyVerified] = useState(false);
 
+  // Arrived from sign-in with a number that has no account (QA WA-07): say why this page opened
+  const [fromLogin, setFromLogin] = useState(false);
+  // «حساب جديد» with a number that already has an account: signed in to it, and told so (QA WA-17)
+  const [existingAccount, setExistingAccount] = useState(false);
+
   // Toggle for referral code input
   const [showReferral, setShowReferral] = useState(false);
 
@@ -195,10 +201,13 @@ function RegisterPageContent() {
         sessionStorage.removeItem("naseeb:register-handoff");
         const handoff = JSON.parse(raw) as { phone?: string; otp?: string; at?: number };
         if (handoff.phone && handoff.otp && Date.now() - (handoff.at ?? 0) < 10 * 60 * 1000) {
-          setForm((prev) => ({ ...prev, phone: handoff.phone!, otp: handoff.otp! }));
-          setCountry((c) => dialCountryFor(handoff.phone!, c));
+          // The field sits next to its +962 / +966 dial code: show the number as typed at home (QA WA-07)
+          const dial = dialCountryFor(handoff.phone, visitorCountry);
+          setForm((prev) => ({ ...prev, phone: localPhone(handoff.phone!, dial), otp: handoff.otp! }));
+          setCountry(dial);
           setOtpSent(true);
           setOtpAlreadyVerified(true);
+          setFromLogin(searchParams.get("from") === "login");
         }
       }
     } catch {
@@ -217,12 +226,19 @@ function RegisterPageContent() {
       setForm((prev) => ({ ...prev, referralCode: invitationCode.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8) }));
       setShowReferral(true);
     }
-  }, [searchParams]);
+  }, [searchParams, visitorCountry]);
   const [otpSent, setOtpSent] = useState(false);
   const [sendingOtp, setSendingOtp] = useState(false);
 
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  // The error box sits above the form; on a phone the button is far below it, so bring it into view (QA WA-08)
+  const errorRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!error || !errorRef.current) return;
+    errorRef.current.scrollIntoView?.({ behavior: "smooth", block: "center" });
+    errorRef.current.focus({ preventScroll: true });
+  }, [error]);
 
   // Optional photo
   const [wantsPhoto, setWantsPhoto] = useState(false);
@@ -415,7 +431,12 @@ function RegisterPageContent() {
       if (res.status === 409 && data.code === "PHONE_EXISTS") {
         // The number already has an account (send-otp never says so): the verified code signs in
         const existing = await signIn("credentials", { phone: normalizedPhone, otp: form.otp, redirect: false });
-        window.location.href = existing?.error ? "/login?exists=true" : "/dashboard";
+        if (existing?.error) {
+          window.location.href = "/login?exists=true";
+          return;
+        }
+        // Never silently: the names typed here were not saved (QA WA-17)
+        setExistingAccount(true);
         return;
       }
 
@@ -654,8 +675,25 @@ function RegisterPageContent() {
           {/* ============================================ */}
           {/*  Error display                               */}
           {/* ============================================ */}
+          {existingAccount && (
+            <div role="status" className="mb-5 space-y-3 rounded-xl border border-primary/20 bg-primary/10 p-4 text-sm text-primary">
+              <p className="flex items-start gap-2">
+                <Info className="mt-0.5 size-4 shrink-0" aria-hidden />
+                هذا الرقم مسجّل بحساب سابق، وتم تسجيل الدخول إليه. لم يتغيّر الاسم المسجّل في الحساب.
+              </p>
+              <Button type="button" className="h-11 w-full rounded-xl" onClick={() => { window.location.href = "/dashboard"; }}>
+                المتابعة إلى حسابي
+              </Button>
+            </div>
+          )}
+          {fromLogin && !existingAccount && (
+            <div role="status" className="mb-5 flex items-start gap-2 rounded-xl border border-primary/20 bg-primary/10 p-3.5 text-sm text-primary">
+              <Info className="mt-0.5 size-4 shrink-0" aria-hidden />
+              لا يوجد حساب بهذا الرقم، يمكنك إنشاء حساب جديد به الآن.
+            </div>
+          )}
           {error && (
-            <div role="alert" className="rounded-xl bg-destructive/10 border border-destructive/20 p-3.5 text-sm text-destructive mb-5 flex items-center gap-2 animate-[shake_0.4s_ease-in-out]">
+            <div ref={errorRef} tabIndex={-1} role="alert" className="outline-none rounded-xl bg-destructive/10 border border-destructive/20 p-3.5 text-sm text-destructive mb-5 flex items-center gap-2 animate-[shake_0.4s_ease-in-out]">
               <div className="h-2 w-2 rounded-full bg-destructive shrink-0" />
               {error}
             </div>

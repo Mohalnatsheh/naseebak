@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Field, ChoiceGroup } from "@/components/profile/form-fields";
 import { useCountry, useDashboardData } from "@/contexts/dashboard-context";
 import { parentInfoSchemaFor } from "@/lib/validations/profile";
-import { normalizePhone } from "@/lib/validations/auth";
+import { normalizePhone } from "@/lib/phone";
 import type { Opt } from "@/lib/profile-options";
 
 const RELATIONSHIPS: Opt[] = [

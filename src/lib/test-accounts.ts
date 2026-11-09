@@ -11,7 +11,7 @@
  * may own or register one. Local Docker (also a production build) opts back in with
  * ALLOW_BUILTIN_TEST_PHONES=true.
  */
-import { normalizePhone } from "@/lib/validations/auth";
+import { normalizePhone } from "@/lib/phone";
 
 /** Fixed login code for test numbers (no SMS is sent) */
 export const TEST_OTP = "111111";

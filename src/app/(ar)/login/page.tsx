@@ -9,7 +9,7 @@ import { LogIn, Loader2, Shield, HeartHandshake, Sparkles, Send, Info } from "lu
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { normalizePhone } from "@/lib/validations/auth";
+import { normalizePhone } from "@/lib/phone";
 import {
   Card,
   CardContent,
@@ -444,6 +444,7 @@ function LoginPageContent() {
                 {/* Error message */}
                 {error && (
                   <div
+                    role="alert"
                     className="rounded-xl bg-destructive/10 border border-destructive/20 p-4 text-sm text-destructive flex items-center gap-2"
                     style={{ animation: "fadeSlideDown 0.3s ease-out both" }}
                   >

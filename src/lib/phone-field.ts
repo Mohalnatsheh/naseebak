@@ -4,7 +4,7 @@
  * (Jordan keeps «رقم الهاتف», Saudi Arabia says «رقم الجوال»).
  */
 import { COUNTRIES, COUNTRY_CODES, type CountryCode } from "@/lib/countries";
-import { isValidPhone } from "@/lib/validations/auth";
+import { isValidPhone } from "@/lib/phone";
 
 /** «الهاتف» / «الجوال» */
 export function phoneWord(country: CountryCode): string {

@@ -34,7 +34,7 @@ import { activeDealbreakers } from "@/lib/matching/dealbreaker-summary";
 import type { DealbreakerKey } from "@/lib/matching/score";
 import { dateOfBirthError, parentInfoSchemaFor } from "@/lib/validations/profile";
 import { BirthDateSelect } from "@/components/profile/birth-date-select";
-import { normalizePhone } from "@/lib/validations/auth";
+import { normalizePhone } from "@/lib/phone";
 import { splitProfileEdit, buildFillBody } from "@/lib/profile-edit-split";
 import { forViewer } from "@/lib/gendered-copy";
 import { VEIL_CHOICES, veilChoice, veilFromChoice } from "@/lib/profile-veil";

@@ -3,7 +3,7 @@
  * sessionStorage — never the URL (no phone numbers in links, logs or analytics). Valid 30 minutes.
  */
 import { toLatinDigits } from "@/lib/digits";
-import { isValidPhone } from "@/lib/validations/auth";
+import { isValidPhone } from "@/lib/phone";
 import type { CountryCode } from "@/lib/countries";
 
 export const LANDING_START_KEY = "naseeb:register-start";

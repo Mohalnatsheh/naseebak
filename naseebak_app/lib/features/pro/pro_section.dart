@@ -42,6 +42,15 @@ String creditsCount(int n) {
 /// «8 أرصدة مجاناً كل شهر»
 String proCreditsLine(ProOffer o) => '${creditsCount(o.credits)} مجاناً ${_creditsEvery[o.id] ?? 'كل شهر'}';
 
+/// A Pro member's one line («حسابي», the Pro screen and the credits card)
+const proActiveText = 'مزايا Pro فعّالة في حسابك.';
+
+/// Under the plans: renewal, and the free credits only when a plan has some
+String proFootnote(List<ProOffer> offers) {
+  const renew = 'يتجدد الاشتراك تلقائياً، ويمكنك إلغاء التجديد في أي وقت.';
+  return offers.any((o) => o.credits > 0) ? '$renew الرصيد المجاني يُضاف إلى رصيدك ولا تنتهي صلاحيته.' : renew;
+}
+
 /// One line on what Pro gives; the free credits only when a plan has some
 String proPitch(List<ProOffer> offers) {
   final credits = offers.any((o) => o.credits > 0) ? '، ويصلك رصيد مجاني مع الاشتراك' : '';
@@ -84,18 +93,10 @@ class ProSection extends StatelessWidget {
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'عضوية Pro',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
-                  ),
-                  Text(
-                    state.isPro ? 'مزايا Pro فعّالة في حسابك.' : proPitch(state.offers),
-                    style: const TextStyle(color: AppColors.muted, fontSize: 13),
-                  ),
-                ],
+              // The title is the screen's own (AppBar «عضوية Pro»)
+              child: Text(
+                state.isPro ? proActiveText : proPitch(state.offers),
+                style: const TextStyle(color: AppColors.ink, fontSize: 14, fontWeight: FontWeight.w600),
               ),
             ),
           ],
@@ -112,10 +113,11 @@ class ProSection extends StatelessWidget {
             onSubscribe: onSubscribe,
           ),
           const SizedBox(height: 8),
-          const Text(
-            'يتجدد الاشتراك تلقائياً، ويمكنك إلغاء التجديد في أي وقت. الرصيد المجاني يُضاف إلى رصيدك ولا تنتهي صلاحيته.',
+          Text(
+            proFootnote(state.offers),
+            key: const Key('pro-footnote'),
             textAlign: TextAlign.center,
-            style: TextStyle(color: AppColors.muted, fontSize: 12),
+            style: const TextStyle(color: AppColors.muted, fontSize: 12),
           ),
         ],
       ],
@@ -429,6 +431,8 @@ class _MyProCardState extends ConsumerState<MyProCard> {
       container.invalidate(countsProvider);
       if (mounted) showSnack(context, cancel ? 'تم إلغاء التجديد.' : 'تمت متابعة الاشتراك.');
     } catch (e) {
+      // e.g. a 404: the subscription is already gone or changed elsewhere, so «اشتراكي» reloads
+      container.invalidate(proStateProvider);
       if (mounted) showSnack(context, ApiException.messageOf(e));
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -562,7 +566,7 @@ class ProLinkCard extends StatelessWidget {
           child: const Icon(Icons.workspace_premium_rounded, color: Colors.white, size: 22),
         ),
         title: const Text('عضوية Pro', style: TextStyle(fontWeight: FontWeight.w800)),
-        subtitle: Text(isPro ? 'مزايا Pro فعّالة في حسابك.' : 'إرسال الصور والرسائل الصوتية في المحادثة'),
+        subtitle: Text(isPro ? proActiveText : 'إرسال الصور والرسائل الصوتية في المحادثة'),
         trailing: const Icon(Icons.chevron_right, color: AppColors.muted),
         onTap: () => context.push('/pro'),
       ),

@@ -46,12 +46,33 @@ class _ProScreenState extends ConsumerState<ProScreen> with WidgetsBindingObserv
   bool _checkoutOpened = false;
   int _pollRun = 0;
 
+  /// Opening: the Pro state another screen kept alive may be stale (Pro bought on the website, a late webhook), so it
+  /// is re-read and a spinner shows until it answers
+  bool _opening = true;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     // The app payments switch may have changed since `me` was read
     ref.read(authControllerProvider.notifier).refreshMe();
+    // Only a state read before this screen can be stale (otherwise this screen's own first read is fresh). After the
+    // first frame: invalidating while the tree builds would rebuild the screens that watch it mid-build.
+    final kept = ref.exists(proStateProvider);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _refreshOnOpen(stale: kept));
+  }
+
+  Future<void> _refreshOnOpen({required bool stale}) async {
+    if (!mounted) return;
+    if (ref.read(appPaymentsProvider)) {
+      if (stale) ref.invalidate(proStateProvider);
+      try {
+        await ref.read(proStateProvider.future);
+      } catch (_) {
+        // The error view (or the last good state) shows
+      }
+    }
+    if (mounted) setState(() => _opening = false);
   }
 
   @override
@@ -63,7 +84,13 @@ class _ProScreenState extends ConsumerState<ProScreen> with WidgetsBindingObserv
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed && _checkoutOpened) _poll();
+    if (state != AppLifecycleState.resumed) return;
+    if (_checkoutOpened) {
+      _poll();
+    } else if (ref.read(appPaymentsProvider)) {
+      // Pro may have changed elsewhere meanwhile (website, admin): one re-read
+      ref.invalidate(proStateProvider);
+    }
   }
 
   /// «اشترك الآن»: a Pro checkout opened in the browser (https only); the return to the app is polled ([_poll])
@@ -140,6 +167,8 @@ class _ProScreenState extends ConsumerState<ProScreen> with WidgetsBindingObserv
       appBar: AppBar(title: const Text('عضوية Pro')),
       body: pro == null
           ? _unavailable()
+          : _opening
+          ? const Center(child: CircularProgressIndicator())
           : pro.when(
               // A failed re-check (e.g. while polling after a checkout) keeps the last good state on screen
               skipError: true,

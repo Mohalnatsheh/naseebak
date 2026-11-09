@@ -5,6 +5,7 @@ import 'package:naseebak_app/core/auth/auth_controller.dart';
 import 'package:naseebak_app/core/storage/token_store.dart';
 import 'package:go_router/go_router.dart';
 import 'package:naseebak_app/features/credits/credits_screen.dart';
+import 'package:naseebak_app/features/pro/pro_repository.dart';
 import 'package:naseebak_app/features/pro/pro_screen.dart';
 import 'package:naseebak_app/features/settings/settings_screen.dart';
 import 'package:naseebak_app/features/pro/pro_section.dart';
@@ -269,22 +270,59 @@ void main() {
     await _advance(tester, const Duration(seconds: 12));
     expect(find.text('سيتم تفعيل العضوية خلال لحظات'), findsOneWidget);
     expect(find.text('تعذّر التحميل'), findsNothing);
-    // A later resume without a new checkout does not poll
+    // A later resume without a new checkout re-reads once, no polling
     final after = pro.adapter.to('GET', '/api/pro').length;
     _leaveApp(tester);
     _returnToApp(tester);
     await _advance(tester, const Duration(seconds: 5));
-    expect(pro.adapter.to('GET', '/api/pro').length, after);
+    expect(pro.adapter.to('GET', '/api/pro').length, after + 1);
   });
 
-  testWidgets('resume without a checkout from this screen does not poll', (tester) async {
+  testWidgets('resume without a checkout from this screen re-reads Pro once (bought elsewhere), no polling', (
+    tester,
+  ) async {
     final pro = FakePro();
     await _pump(tester, pro);
+    expect(find.byType(MyProCard), findsNothing);
     final before = pro.adapter.to('GET', '/api/pro').length;
+    // Bought on the website meanwhile
+    pro.isPro = true;
     _leaveApp(tester);
     _returnToApp(tester);
     await _advance(tester, const Duration(seconds: 5));
-    expect(pro.adapter.to('GET', '/api/pro').length, before);
+    expect(pro.adapter.to('GET', '/api/pro').length, before + 1);
+    expect(find.byType(MyProCard), findsOneWidget);
+  });
+
+  testWidgets('reopening /pro re-reads a Pro state another screen kept alive (bought elsewhere → «اشتراكي»)', (
+    tester,
+  ) async {
+    final pro = FakePro();
+    final container = await _signIn(tester, pro);
+    // «حسابي» keeps the (non-Pro) state alive, as in the app
+    final keep = container.listen(proStateProvider, (_, _) {});
+    addTearDown(keep.close);
+    for (var i = 0; i < 20 && !container.read(proStateProvider).hasValue; i++) {
+      await tester.pump(const Duration(milliseconds: 10));
+    }
+    expect(container.read(proStateProvider).value?.isPro, isFalse);
+    pro.isPro = true;
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: rtlApp(ProScreen(openCheckout: (_) async => true))),
+    );
+    // A spinner, never the stale plans
+    expect(find.byKey(const Key('pro-subscribe')), findsNothing);
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    for (var i = 0; i < 5; i++) {
+      await tester.pump(const Duration(milliseconds: 10));
+    }
+    expect(find.byType(MyProCard), findsOneWidget);
+  });
+
+  testWidgets('a first open reads Pro once (nothing kept alive)', (tester) async {
+    final pro = FakePro();
+    await _pump(tester, pro);
+    expect(pro.adapter.to('GET', '/api/pro'), hasLength(1));
   });
 
   testWidgets('a Pro member sees «اشتراكي» even when canBuy is false; cancel asks first and never refunds', (
@@ -425,5 +463,36 @@ void main() {
       await pumpMenu(tester, cantBuy);
       expect(find.byKey(const Key('menu-pro')), findsNothing);
     });
+  });
+
+  test('the footnote promises free credits only when a plan has some', () {
+    final withCredits = MyProState.fromJson({'enabled': true, 'canBuy': true, 'offers': _offers}).offers;
+    expect(proFootnote(withCredits), contains('الرصيد المجاني'));
+    final none = MyProState.fromJson({
+      'enabled': true,
+      'canBuy': true,
+      'offers': [for (final o in _offers) {...o, 'credits': 0}],
+    }).offers;
+    expect(proFootnote(none), isNot(contains('رصيد')));
+    expect(proFootnote(none), contains('يتجدد الاشتراك تلقائياً'));
+  });
+
+  testWidgets('a failed cancel (subscription already gone, 404) reloads «اشتراكي»', (tester) async {
+    final pro = FakePro()..isPro = true;
+    pro.adapter.handlers['POST /api/pro/cancel'] = (_) {
+      pro.isPro = false;
+      return const FakeResponse(404, {'error': 'لا يوجد اشتراك'});
+    };
+    await _pump(tester, pro);
+    final before = pro.adapter.to('GET', '/api/pro').length;
+    final cancel = find.byKey(const Key('pro-cancel'));
+    await tester.ensureVisible(cancel);
+    await tester.tap(cancel);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('pro-cancel-confirm')));
+    await tester.pumpAndSettle();
+    expect(find.text('لا يوجد اشتراك'), findsOneWidget);
+    expect(pro.adapter.to('GET', '/api/pro').length, greaterThan(before));
+    expect(find.byType(MyProCard), findsNothing);
   });
 }

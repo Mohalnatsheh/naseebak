@@ -12,6 +12,7 @@ import '../../shared/widgets/common.dart';
 import '../country_selection/country_providers.dart';
 import '../home/counts.dart';
 import '../pro/pro_repository.dart';
+import '../pro/pro_section.dart' show proActiveText;
 
 /// «حسابي»: profile, credits, notification settings, safety, legal links and account actions.
 class AccountScreen extends ConsumerWidget {
@@ -84,7 +85,7 @@ class AccountScreen extends ConsumerWidget {
                 KeyedSubtree(
                   key: const Key('menu-pro'),
                   child: tile(Icons.workspace_premium_rounded, 'عضوية Pro', () => context.push('/pro'),
-                      subtitle: pro.isPro ? 'مزايا Pro فعّالة في حسابك.' : null),
+                      subtitle: pro.isPro ? proActiveText : null),
                 ),
               ],
               const Divider(),

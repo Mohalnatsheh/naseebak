@@ -25,7 +25,7 @@ describe("automatic notifications list", () => {
       .filter((s) => s.length >= 8);
 
   /** Messages the code assembles from parts: compared word by word */
-  const COMPOSED = new Set(["suggestions-new-for-me", "intro-request-expired", "intro-request-reminder", "chat-unread-bell", "engagement-reengagement"]);
+  const COMPOSED = new Set(["suggestions-new-for-me", "intro-request-expired", "intro-request-reminder", "chat-unread-bell", "engagement-reengagement", "pro-credits"]);
   const found = (key: string, piece: string) =>
     code.includes(piece) || (COMPOSED.has(key) && piece.split(/\s+/).every((word) => code.includes(word.replace(/[.،]$/, ""))));
 

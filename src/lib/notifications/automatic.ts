@@ -36,6 +36,7 @@ export const AUTOMATIC_GROUPS: Record<string, string> = {
   moderation: "Reports and moderation",
   engagement: "Bringing members back",
   support: "Support",
+  pro: "Pro membership",
 };
 
 export const AUTOMATIC_NOTIFICATIONS: AutomaticNotification[] = [
@@ -1329,6 +1330,106 @@ export const AUTOMATIC_NOTIFICATIONS: AutomaticNotification[] = [
         "variant": "CLOSED",
         "title": "تحديث تذكرة الدعم",
         "body": "تم تحديث حالة تذكرتك \"{عنوان الطلب}\" إلى: مغلقة"
+      }
+    ]
+  },
+  {
+    "key": "pro-started",
+    "group": "pro",
+    "when": "A Pro subscription's first payment is confirmed and the membership becomes active.",
+    "who": "The subscriber",
+    "channels": [
+      "bell",
+      "push"
+    ],
+    "texts": [
+      {
+        "variant": "default",
+        "title": "أصبحت عضوية Pro فعّالة",
+        "body": "يمكنك الآن إرسال الصور والرسائل الصوتية في المحادثات."
+      }
+    ]
+  },
+  {
+    "key": "pro-credits",
+    "group": "pro",
+    "when": "Pro credits are granted: on the first payment, each renewal, and the monthly drip of a yearly plan.",
+    "who": "The subscriber",
+    "channels": [
+      "bell",
+      "push"
+    ],
+    "texts": [
+      {
+        "variant": "count 1",
+        "title": "رصيد Pro",
+        "body": "أُضيف رصيد واحد إلى رصيدك من اشتراك Pro."
+      },
+      {
+        "variant": "count 2",
+        "title": "رصيد Pro",
+        "body": "أُضيف رصيدان إلى رصيدك من اشتراك Pro."
+      },
+      {
+        "variant": "count 3-10",
+        "title": "رصيد Pro",
+        "body": "أُضيف {count} أرصدة إلى رصيدك من اشتراك Pro."
+      },
+      {
+        "variant": "count 11+",
+        "title": "رصيد Pro",
+        "body": "أُضيف {count} رصيداً إلى رصيدك من اشتراك Pro."
+      }
+    ]
+  },
+  {
+    "key": "pro-payment-failed",
+    "group": "pro",
+    "when": "A Pro renewal payment fails at Stripe.",
+    "who": "The subscriber",
+    "channels": [
+      "bell",
+      "push"
+    ],
+    "texts": [
+      {
+        "variant": "default",
+        "title": "تعذّر تجديد اشتراك Pro",
+        "body": "يمكنك تحديث بطاقتك من صفحة الدفع لمواصلة Pro."
+      }
+    ]
+  },
+  {
+    "key": "pro-ended",
+    "group": "pro",
+    "when": "A Pro membership ends: the subscription is cancelled or expires at Stripe, or an admin cancels it now.",
+    "who": "The subscriber",
+    "channels": [
+      "bell",
+      "push"
+    ],
+    "texts": [
+      {
+        "variant": "default",
+        "title": "انتهت عضوية Pro",
+        "body": "يمكنك الاشتراك في Pro من جديد في أي وقت من صفحة الدفع."
+      }
+    ]
+  },
+  {
+    "key": "pro-refund",
+    "group": "pro",
+    "when": "An admin refunds a Pro payment.",
+    "who": "The subscriber",
+    "channels": [
+      "bell",
+      "push"
+    ],
+    "texts": [
+      {
+        "variant": "default",
+        "title": "تم استرداد المبلغ",
+        "body": "تم استرداد {amount} من اشتراك Pro إلى بطاقتك، وأُزيل رصيده من حسابك."
       }
     ]
   }

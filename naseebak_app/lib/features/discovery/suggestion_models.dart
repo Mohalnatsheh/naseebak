@@ -48,6 +48,7 @@ class FeedItem {
     this.activity,
     this.likedYou = false,
     this.declined = false,
+    this.isPro = false,
   });
 
   factory FeedItem.fromJson(Map<String, dynamic> j) => FeedItem(
@@ -61,6 +62,7 @@ class FeedItem {
         candidate: PersonDetails.fromJson(asMap(j['candidate'])),
         likedYou: asBool(j['likedYou']) ?? false,
         declined: asBool(j['declined']) ?? false,
+        isPro: asBool(j['isPro']) ?? false,
       );
 
   final FeedKind kind;
@@ -77,6 +79,9 @@ class FeedItem {
   final PersonDetails candidate;
   final bool likedYou;
   final bool declined;
+
+  /// The other person is a Pro member (badge only)
+  final bool isPro;
 
   /// Whether «مهتم» / «لا» can be pressed on this card (the waiting tab holds my own «مهتم»).
   bool actionableIn(FeedTab tab) {

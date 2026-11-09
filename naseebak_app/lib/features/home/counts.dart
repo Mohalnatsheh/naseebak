@@ -45,10 +45,13 @@ class Counts {
     this.credits,
     this.newSuggestions,
     this.likedYou,
+    this.isPro = false,
+    this.proCancelAtPeriodEnd = false,
   });
 
   factory Counts.fromJson(Map<String, dynamic> j) {
     final guardian = asMapOrNull(j['guardian']);
+    final pro = asMap(j['pro']);
     return Counts(
       flags: CycleFlags.fromJson(asMap(j['flags'])),
       pendingIntros: asInt(j['pendingIntros']) ?? 0,
@@ -61,6 +64,8 @@ class Counts {
       credits: asInt(j['credits']),
       newSuggestions: asInt(j['newSuggestions']),
       likedYou: asInt(j['likedYou']),
+      isPro: asBool(pro['isPro']) ?? false,
+      proCancelAtPeriodEnd: asBool(pro['cancelAtPeriodEnd']) ?? false,
     );
   }
 
@@ -79,6 +84,10 @@ class Counts {
   /// Only with shared suggestions
   final int? newSuggestions;
   final int? likedYou;
+
+  /// Pro membership of the signed-in member (`pro` of the response)
+  final bool isPro;
+  final bool proCancelAtPeriodEnd;
 }
 
 /// The signed-in member's id: providers that cache member data watch it, so signing in as someone else

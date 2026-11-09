@@ -7,6 +7,7 @@ class PersonDetails {
     required this.id,
     required this.firstName,
     this.isVerified = false,
+    this.isPro = false,
     this.age,
     this.city,
     this.area,
@@ -43,6 +44,7 @@ class PersonDetails {
         id: asStringOr(j['id']),
         firstName: asStringOr(j['firstName']),
         isVerified: asBool(j['isVerified']) ?? false,
+        isPro: asBool(j['isPro']) ?? false,
         age: asInt(j['age']),
         city: asString(j['city']),
         area: asString(j['area']),
@@ -78,6 +80,9 @@ class PersonDetails {
   final String id;
   final String firstName;
   final bool isVerified;
+
+  /// A Pro member (badge only; `partner.isPro` of matches and chats)
+  final bool isPro;
   final int? age;
   final String? city;
   final String? area;

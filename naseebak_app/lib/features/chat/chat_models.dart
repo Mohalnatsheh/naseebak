@@ -23,6 +23,7 @@ class ChatSummary {
     this.lastMine = false,
     this.lastRead = false,
     this.unread = 0,
+    this.partnerIsPro = false,
   });
 
   factory ChatSummary.fromJson(Map<String, dynamic> j) {
@@ -44,6 +45,7 @@ class ChatSummary {
       lastMine: last == null ? false : (asBool(last['mine']) ?? false),
       lastRead: last == null ? false : (asBool(last['read']) ?? false),
       unread: asInt(j['unread']) ?? 0,
+      partnerIsPro: asBool(partner['isPro']) ?? false,
     );
   }
 
@@ -51,7 +53,7 @@ class ChatSummary {
   Map<String, dynamic> toJson() => {
         'id': id,
         'matchId': matchId,
-        'partner': {'id': partnerId, 'firstName': partnerName},
+        'partner': {'id': partnerId, 'firstName': partnerName, 'isPro': partnerIsPro},
         'status': status,
         'expiresAt': expiresAt?.toUtc().toIso8601String(),
         'canExtend': canExtend,
@@ -83,11 +85,63 @@ class ChatSummary {
   final bool lastRead;
   final int unread;
 
+  /// The other person is a Pro member (badge only)
+  final bool partnerIsPro;
+
   /// Messages can be sent only in an open chat with no block either way.
   bool get canSend => status == 'ACTIVE' && !blocked && (expiresAt == null || expiresAt!.isAfter(DateTime.now()));
 }
 
 enum SendState { sending, sent, failed }
+
+enum MessageKind { text, image, voice }
+
+MessageKind parseMessageKind(Object? v) => switch (v) {
+      'IMAGE' => MessageKind.image,
+      'VOICE' => MessageKind.voice,
+      _ => MessageKind.text,
+    };
+
+String messageKindName(MessageKind k) => switch (k) {
+      MessageKind.image => 'IMAGE',
+      MessageKind.voice => 'VOICE',
+      MessageKind.text => 'TEXT',
+    };
+
+/// `media` of a chat message: `url` is relative (`/api/chats/<cid>/media/<mid>`) and needs the Bearer token.
+class ChatMedia {
+  const ChatMedia({required this.url, required this.type, this.durationSec, this.width, this.height});
+
+  static ChatMedia? fromJsonOrNull(Object? v) {
+    final j = asMapOrNull(v);
+    if (j == null) return null;
+    final url = asString(j['url']);
+    if (url == null || url.isEmpty) return null;
+    return ChatMedia.fromJson(j);
+  }
+
+  factory ChatMedia.fromJson(Map<String, dynamic> j) => ChatMedia(
+        url: asStringOr(j['url']),
+        type: asStringOr(j['type']),
+        durationSec: asInt(j['durationSec']),
+        width: asInt(j['width']),
+        height: asInt(j['height']),
+      );
+
+  Map<String, dynamic> toJson() => {
+        'url': url,
+        'type': type,
+        'durationSec': durationSec,
+        'width': width,
+        'height': height,
+      };
+
+  final String url;
+  final String type;
+  final int? durationSec;
+  final int? width;
+  final int? height;
+}
 
 /// `ChatMessage` of src/lib/chat/service.ts, plus local sending state for my own pending messages.
 class ChatMessage {
@@ -102,6 +156,9 @@ class ChatMessage {
     this.nonce,
     this.filtered = false,
     this.maybeSent = false,
+    this.kind = MessageKind.text,
+    this.media,
+    this.localPath,
   });
 
   factory ChatMessage.fromJson(Map<String, dynamic> j) => ChatMessage(
@@ -110,15 +167,19 @@ class ChatMessage {
         createdAt: asDate(j['createdAt']) ?? DateTime.now(),
         mine: asBool(j['mine']) ?? false,
         readAt: asDate(j['readAt']),
+        kind: parseMessageKind(j['kind']),
+        media: ChatMedia.fromJsonOrNull(j['media']),
       );
 
-  /// Same shape as the API (chat cache)
+  /// Same shape as the API (chat cache). `localPath` is never written.
   Map<String, dynamic> toJson() => {
         'id': id,
         'body': body,
         'createdAt': createdAt.toUtc().toIso8601String(),
         'mine': mine,
         'readAt': readAt?.toUtc().toIso8601String(),
+        'kind': messageKindName(kind),
+        'media': media?.toJson(),
       };
 
   final String id;
@@ -138,9 +199,16 @@ class ChatMessage {
   /// Failed without an answer (offline, timeout): the server may still have saved it (the chat room reconciles)
   final bool maybeSent;
 
+  final MessageKind kind;
+  final ChatMedia? media;
+
+  /// A local file shown while my photo / voice note is sending (never serialized)
+  final String? localPath;
+
   /// Same server copy (a newer one differs, e.g. by its read tick)
   bool sameAs(ChatMessage o) =>
-      id == o.id && body == o.body && mine == o.mine && createdAt == o.createdAt && readAt == o.readAt;
+      id == o.id && body == o.body && mine == o.mine && createdAt == o.createdAt && readAt == o.readAt &&
+      kind == o.kind && media?.url == o.media?.url;
 
   ChatMessage copyWith({SendState? state, String? error, bool filtered = false, bool maybeSent = false}) => ChatMessage(
         id: id,
@@ -153,6 +221,9 @@ class ChatMessage {
         nonce: nonce,
         filtered: filtered,
         maybeSent: maybeSent,
+        kind: kind,
+        media: media,
+        localPath: localPath,
       );
 }
 

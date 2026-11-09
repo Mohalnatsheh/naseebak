@@ -21,6 +21,7 @@ CachedChat chat(Iterable<int> ns) => CachedChat(
     );
 
 void main() {
+  cacheVersionTests();
   late Directory root;
   late FileChatCache cache;
 
@@ -77,5 +78,14 @@ void main() {
     final r = cache.remove('u1', 'c1');
     await Future.wait([w, r]);
     expect(await cache.read('u1', 'c1'), isNull);
+  });
+}
+
+void cacheVersionTests() {
+  test('a v1 payload is ignored, a v2 media message survives', () {
+    final j = ChatCache.encode(chat([1]));
+    expect(j['v'], 2);
+    expect(ChatCache.decode(j), isNotNull);
+    expect(ChatCache.decode({...j, 'v': 1}), isNull);
   });
 }

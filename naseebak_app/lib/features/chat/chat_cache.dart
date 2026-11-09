@@ -35,14 +35,14 @@ abstract class ChatCache {
   }
 
   static Map<String, dynamic> encode(CachedChat c) => {
-        'v': 1,
+        'v': 2,
         'conversation': c.conversation.toJson(),
         'messages': [for (final m in trim(c.messages)) m.toJson()],
         'hasMore': c.hasMore || c.messages.where((m) => m.state == SendState.sent).length > keep,
       };
 
   static CachedChat? decode(Object? j) {
-    if (j is! Map<String, dynamic> || j['v'] != 1) return null;
+    if (j is! Map<String, dynamic> || j['v'] != 2) return null;
     final messages = j['messages'];
     final conversation = j['conversation'];
     if (messages is! List || conversation is! Map<String, dynamic>) return null;

@@ -297,4 +297,88 @@ void main() {
     expect(find.text('تعذّر تشغيل الرسالة'), findsOneWidget);
     expect(h.unauthorized, 0);
   });
+
+  group('the token goes only to the API origin', () {
+    final store = MemoryTokenStore('t1');
+    test('a same-origin relative URL gets the Bearer header', () async {
+      final m = await authedMediaFor('http://test.local', store, '/api/chats/c1/media/m1');
+      expect(m.uri.toString(), 'http://test.local/api/chats/c1/media/m1');
+      expect(m.headers['Authorization'], 'Bearer t1');
+    });
+    test('a same-origin absolute URL gets it too', () async {
+      final m = await authedMediaFor('https://naseebak.com', store, 'https://naseebak.com/api/chats/c1/media/m1');
+      expect(m.headers['Authorization'], 'Bearer t1');
+    });
+    test('an absolute CDN URL gets no Authorization header', () async {
+      final m = await authedMediaFor('https://naseebak.com', store, 'https://cdn.example.net/chat/m1.jpg');
+      expect(m.uri.toString(), 'https://cdn.example.net/chat/m1.jpg');
+      expect(m.headers.containsKey('Authorization'), isFalse);
+    });
+    test('another scheme or port is another origin', () async {
+      expect((await authedMediaFor('https://naseebak.com', store, 'http://naseebak.com/x')).headers, isEmpty);
+      expect((await authedMediaFor('https://naseebak.com', store, 'https://naseebak.com:8443/x')).headers, isEmpty);
+      expect((await authedMediaFor('https://naseebak.com', store, 'https://naseebak.com.evil.io/x')).headers, isEmpty);
+    });
+    test('sameOrigin fills in default ports and ignores case', () {
+      expect(sameOrigin(Uri.parse('https://NASEEBAK.com:443/a'), Uri.parse('https://naseebak.com')), isTrue);
+    });
+  });
+
+  testWidgets('a CDN photo is loaded without the token, and its 401 never signs out', (tester) async {
+    Map<String, String>? sent;
+    final h = _Harness()
+      ..image = (uri, headers) {
+        sent = headers;
+        return _FailingImage(uri, 401);
+      };
+    final msg = ChatMessage(
+      id: 'm9',
+      body: 'صورة',
+      createdAt: _t0,
+      mine: false,
+      kind: MessageKind.image,
+      media: const ChatMedia(url: 'https://cdn.example.net/m9.jpg', type: 'image/jpeg'),
+    );
+    await _pump(tester, h, ChatBubble(message: msg));
+    await tester.pump();
+    await tester.pump();
+    expect(sent, isEmpty);
+    expect(find.text('تعذّر عرض الصورة'), findsOneWidget);
+    expect(h.unauthorized, 0);
+  });
+
+  testWidgets('a CDN voice note is played without the token and never probed', (tester) async {
+    final h = _Harness()..failVoice = true;
+    final msg = ChatMessage(
+      id: 'v9',
+      body: 'صوت',
+      createdAt: _t0,
+      mine: false,
+      kind: MessageKind.voice,
+      media: const ChatMedia(url: 'https://cdn.example.net/v9.m4a', type: 'audio/mp4', durationSec: 5),
+    );
+    await _pump(tester, h, ChatBubble(message: msg));
+    await tester.tap(find.byTooltip('تشغيل'));
+    for (var i = 0; i < 5; i++) {
+      await tester.pump(const Duration(milliseconds: 10));
+    }
+    expect(h.players.single.loadedUri.toString(), 'https://cdn.example.net/v9.m4a');
+    expect(h.players.single.loadedHeaders, isEmpty);
+    expect(find.text('تعذّر تشغيل الرسالة'), findsOneWidget);
+    expect(h.adapter.requests, isEmpty, reason: 'no probe to another host');
+    expect(h.unauthorized, 0);
+  });
+
+  testWidgets('the probe for a same-origin voice never follows redirects', (tester) async {
+    final h = _Harness()..failVoice = true;
+    h.adapter.on('GET', '/api/chats/c1/media/v1', const FakeResponse(404, {'error': 'غير موجود'}));
+    await _pump(tester, h, ChatBubble(message: _voice()));
+    await tester.tap(find.byTooltip('تشغيل'));
+    for (var i = 0; i < 5; i++) {
+      await tester.pump(const Duration(milliseconds: 10));
+    }
+    final probe = h.adapter.to('GET', '/api/chats/c1/media/v1').single;
+    expect(probe.followRedirects, isFalse);
+    expect(probe.headers['Authorization'], 'Bearer t1');
+  });
 }

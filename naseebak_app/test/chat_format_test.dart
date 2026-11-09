@@ -25,7 +25,7 @@ void main() {
     expect(chatTimeLeft(now.subtract(const Duration(minutes: 1)), now: now), isNull);
   });
 
-  test('a run from one person: one time under the last, tight gaps, a separator per day', () {
+  test('a run from one person: a tail on its first bubble, tight gaps after it, a chip per day', () {
     // newest first, as the chat draws it
     final items = [
       msg('c', DateTime(2026, 10, 31, 15, 3)),
@@ -33,20 +33,20 @@ void main() {
       msg('a', DateTime(2026, 10, 30, 22, 0)),
     ];
     final c = chatRowLayout(items, 0), b = chatRowLayout(items, 1), a = chatRowLayout(items, 2);
-    expect(c.showTime, isTrue);
-    expect(b.showTime, isFalse);
+    expect(b.tail, isTrue, reason: 'first of today');
+    expect(c.tail, isFalse);
     expect(c.tightTop, isTrue);
     expect(b.daySeparator, isTrue, reason: 'first message of today');
     expect(a.daySeparator, isTrue, reason: 'oldest message');
     expect(c.daySeparator, isFalse);
   });
 
-  test('a message still sending always shows its state', () {
+  test('a message still sending stays in its run (its own time and state are on its bubble)', () {
     final items = [
       msg('new', DateTime(2026, 10, 31, 15, 2), mine: true, state: SendState.sending),
       msg('old', DateTime(2026, 10, 31, 15, 1), mine: true),
     ];
-    expect(chatRowLayout(items, 0).showTime, isTrue);
-    expect(chatRowLayout(items, 1).showTime, isTrue, reason: 'the next one is not sent yet');
+    expect(chatRowLayout(items, 0).tail, isFalse);
+    expect(chatRowLayout(items, 1).tail, isTrue);
   });
 }

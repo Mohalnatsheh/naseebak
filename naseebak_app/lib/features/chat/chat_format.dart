@@ -33,25 +33,35 @@ bool sameChatDay(DateTime a, DateTime b) {
   return (text: text, urgent: days <= 3);
 }
 
-/// Messages from one person within this gap read as one group: tighter spacing, one time under the last
-const chatGroupGap = Duration(minutes: 5);
-
-bool _grouped(ChatMessage a, ChatMessage b) =>
-    a.mine == b.mine &&
-    sameChatDay(a.createdAt, b.createdAt) &&
-    a.createdAt.difference(b.createdAt).abs() <= chatGroupGap;
-
-/// Layout of message [i] in [newestFirst] (the reversed list the chat draws): a day separator above it, the time
-/// under it (last of its group, or not sent yet), a tight gap to the one before it.
-({bool daySeparator, bool showTime, bool tightTop}) chatRowLayout(List<ChatMessage> newestFirst, int i) {
+/// Layout of message [i] in [newestFirst] (the reversed list the chat draws): a day chip above it, the «رسائل جديدة»
+/// divider above it ([unreadFromId]), and whether it starts a run from one sender (the bubble's tail, 8 px above) or
+/// continues one (no tail, 2 px above). A run is broken by the other sender, a new day or the unread divider. Every
+/// bubble carries its own time, so a pause inside a run doesn't break it.
+({bool daySeparator, bool unreadDivider, bool tail, bool tightTop}) chatRowLayout(
+  List<ChatMessage> newestFirst,
+  int i, {
+  String? unreadFromId,
+}) {
   final m = newestFirst[i];
   final older = i + 1 < newestFirst.length ? newestFirst[i + 1] : null;
-  final newer = i > 0 ? newestFirst[i - 1] : null;
-  return (
-    daySeparator: older == null || !sameChatDay(older.createdAt, m.createdAt),
-    showTime: m.state != SendState.sent || newer == null || !_grouped(m, newer) || newer.state != SendState.sent,
-    tightTop: older != null && _grouped(m, older),
-  );
+  final daySeparator = older == null || !sameChatDay(older.createdAt, m.createdAt);
+  final unreadDivider = unreadFromId != null && m.id == unreadFromId;
+  final tail = older == null || daySeparator || unreadDivider || older.mine != m.mine;
+  return (daySeparator: daySeparator, unreadDivider: unreadDivider, tail: tail, tightTop: !tail);
+}
+
+/// Where «رسائل جديدة» goes when the chat opens: the oldest of the other person's unread messages after my last one
+/// (anything before my own reply was seen). Null when nothing of theirs is unread.
+String? firstUnreadId(List<ChatMessage> oldestFirst) {
+  String? first;
+  for (final m in oldestFirst) {
+    if (m.mine) {
+      first = null;
+    } else if (m.readAt == null && m.state == SendState.sent) {
+      first ??= m.id;
+    }
+  }
+  return first;
 }
 
 /// A message's own direction, from its first strong letter: Arabic (and other right-to-left scripts) → RTL, a Latin

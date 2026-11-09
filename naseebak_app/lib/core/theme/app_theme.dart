@@ -22,6 +22,11 @@ class AppColors {
   static const warningBg = Color(0xFFFFF4DC);
   static const danger = Color(0xFFB3261E);
   static const dangerBg = Color(0xFFFDECEA);
+
+  /// Chat: my bubbles in navy with white text, the other person's in white with ink text, on a warm off-white
+  static const chatMine = navy;
+  static const chatTheirs = Colors.white;
+  static const chatBackdrop = Color(0xFFF4F1EB);
 }
 
 class AppTheme {

@@ -10,6 +10,7 @@ import '../../core/analytics/analytics.dart';
 import '../../core/auth/auth_controller.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/privacy/screen_privacy.dart';
+import '../../core/push/push_permission.dart';
 import '../../core/review/store_review.dart';
 import '../../core/storage/picker_files.dart';
 import '../../core/system/app_settings.dart';
@@ -18,8 +19,10 @@ import '../../shared/widgets/common.dart';
 import '../home/counts.dart';
 import '../home/gendered_copy.dart';
 import '../matches/match_detail_screen.dart' show ReportSheet;
+import '../matches/matches_repository.dart';
 import '../pro/pro_badge.dart';
 import '../pro/pro_repository.dart';
+import 'chat_background.dart';
 import 'chat_bubble.dart';
 import 'chat_cache.dart';
 import 'chat_drafts.dart';
@@ -27,6 +30,7 @@ import 'chat_format.dart';
 import 'chat_live.dart';
 import 'chat_media_picker.dart';
 import 'chat_models.dart';
+import 'chat_status_bar.dart';
 import 'media_bubbles.dart' show formatVoiceDuration;
 import 'voice_playback.dart';
 import 'voice_recorder.dart';
@@ -107,6 +111,21 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
   /// Scrolled up to read history (shows «الأحدث» with what arrived meanwhile)
   bool _away = false;
   int _unseen = 0;
+
+  /// «رسائل جديدة» above this message: the first of theirs that was unread when the chat opened (fixed for this
+  /// visit, gone once I write)
+  String? _unreadFromId;
+  bool _unreadFixed = false;
+
+  /// The family step for the status bar (`/api/matches/{id}/intro`); null when there is none or it couldn't load
+  FamilyStep? _family;
+
+  /// The date chip that stays at the top while scrolling: the day of the topmost message on screen
+  String? _stickyDay;
+  bool _scrolling = false;
+  Timer? _stickyHide;
+  final Map<int, BuildContext> _rows = {};
+  final GlobalKey _listKey = GlobalKey();
 
   ChatRepository get _repo => ref.read(chatRepositoryProvider);
   ChatCache get _cache => ref.read(chatCacheProvider);
@@ -227,6 +246,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     for (final f in _filesInUse) {
       _deleteQuietly(f);
     }
+    _stickyHide?.cancel();
     _input.dispose();
     _scroll.dispose();
     super.dispose();
@@ -335,11 +355,16 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
         // A text kept as failed (offline) that the server saved after all
         _reconcile(page.messages);
       });
+      if (!_unreadFixed) {
+        _unreadFixed = true;
+        _unreadFromId = firstUnreadId(page.messages);
+      }
       _dropVoiceIfNotAllowed();
       _saveCache();
       _markRead();
       _watch();
       _fillScreen();
+      _loadFamilyStep();
     } catch (e) {
       if (!mounted) return;
       final gone = e is ApiException && (e.kind == ApiErrorKind.notFound || e.kind == ApiErrorKind.forbidden);
@@ -524,6 +549,75 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     _saveCache();
   }
 
+  /// The family step for the one status bar. Quiet on failure (the bar just doesn't show it).
+  Future<void> _loadFamilyStep() async {
+    final chat = _chat;
+    if (chat == null || chat.matchHidden || !_open) return;
+    try {
+      final s = await ref.read(matchesRepositoryProvider).intro(chat.matchId);
+      if (!mounted) return;
+      final step = familyStepOf(s.familyStatus, introRequests: s.flags.introRequests, closed: s.closed);
+      if (step != _family) setState(() => _family = step);
+    } catch (_) {}
+  }
+
+  /// The match page (family introduction, guardian details); the bar follows what happened there
+  Future<void> _openMatch() async {
+    final chat = _chat;
+    if (chat == null || chat.matchHidden) return;
+    await context.push('/matches/${chat.matchId}');
+    if (!mounted) return;
+    _loadFamilyStep();
+  }
+
+  static const _pushChipKey = 'chat_push_chip_dismissed';
+
+  void _dismissPushChip() {
+    unawaited(ref.read(sharedPreferencesProvider).setBool(_pushChipKey, true));
+    setState(() {});
+  }
+
+  /// Sticky date chip: the day of the topmost message row on screen, shown while scrolling and briefly after
+  void _onScrollNotification(ScrollNotification n) {
+    if (n.depth != 0) return;
+    if (n is ScrollStartNotification || n is ScrollUpdateNotification) {
+      _stickyHide?.cancel();
+      final day = _topDay();
+      if (!_scrolling || day != _stickyDay) {
+        setState(() {
+          _scrolling = true;
+          _stickyDay = day;
+        });
+      }
+    } else if (n is ScrollEndNotification) {
+      _stickyHide?.cancel();
+      _stickyHide = Timer(const Duration(milliseconds: 1400), () {
+        if (mounted && _scrolling) setState(() => _scrolling = false);
+      });
+    }
+  }
+
+  String? _topDay() {
+    final list = _listKey.currentContext?.findRenderObject();
+    if (list is! RenderBox || !list.hasSize) return null;
+    final top = list.localToGlobal(Offset.zero).dy;
+    final items = _messages.reversed.toList();
+    int? best;
+    double bestTop = double.negativeInfinity;
+    for (final e in _rows.entries) {
+      if (!e.value.mounted || e.key >= items.length) continue;
+      final box = e.value.findRenderObject();
+      if (box is! RenderBox || !box.hasSize || !box.attached) continue;
+      final y = box.localToGlobal(Offset.zero).dy;
+      // The row crossing the top edge (or the last one starting above it)
+      if (y <= top + 8 && y > bestTop) {
+        bestTop = y;
+        best = e.key;
+      }
+    }
+    return best == null ? null : chatDayLabel(items[best].createdAt);
+  }
+
   void _onScroll() {
     // reverse: true — offset 0 is the newest message, older ones are at the far end
     final pos = _scroll.position;
@@ -598,6 +692,8 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
       if (retry != null) _messages.removeWhere((m) => m.nonce == nonce);
       _messages.add(local);
       if (retry == null) _input.clear();
+      // I answered: what was new has been read
+      _unreadFromId = null;
     });
     if (retry == null) _saveDraft();
     _toNewest();
@@ -1132,8 +1228,9 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     // Under a PRO_REQUIRED failure, a link to «عضوية Pro» only where the member could buy it (never a test account)
     final proPurchasable =
         ref.watch(appPaymentsProvider) && (ref.watch(proStateProvider).valueOrNull?.canBuy ?? false);
-    // Larger system text: the header grows with it, so «تبقّى 14 يوماً» isn't cut under the name
+    // Larger system text: the header grows with it, so the status line isn't cut under the name
     final textScale = MediaQuery.textScalerOf(context).scale(14) / 14;
+    final status = _statusLine(chat, left);
     return Scaffold(
       appBar: AppBar(
         titleSpacing: 0,
@@ -1142,17 +1239,17 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
           key: const Key('chat-header'),
           borderRadius: BorderRadius.circular(12),
           // The match page: the family introduction, the photos, ending the match
-          onTap: canOpenMatch ? () => context.push('/matches/${chat.matchId}') : null,
+          onTap: canOpenMatch ? _openMatch : null,
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 4),
             child: Row(
               children: [
                 CircleAvatar(
-                  radius: 20,
-                  backgroundColor: AppColors.gold.withValues(alpha: 0.15),
+                  radius: 19,
+                  backgroundColor: AppColors.navy,
                   child: Text(
                     (chat?.partnerName ?? '').isEmpty ? '؟' : chat!.partnerName.characters.first,
-                    style: const TextStyle(color: AppColors.navy, fontWeight: FontWeight.w700, fontSize: 17),
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 16),
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -1165,16 +1262,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
                         isPro: chat?.partnerIsPro ?? false,
                         child: Text(chat?.partnerName ?? 'المحادثة', maxLines: 1, overflow: TextOverflow.ellipsis),
                       ),
-                      if (left != null)
-                        Text(
-                          left.text,
-                          key: const Key('chat-time-left'),
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: left.urgent ? AppColors.warning : AppColors.muted,
-                          ),
-                        ),
+                      ?status,
                     ],
                   ),
                 ),
@@ -1189,7 +1277,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
               onSelected: (v) {
                 switch (v) {
                   case 'match':
-                    context.push('/matches/${chat.matchId}');
+                    _openMatch();
                   case 'extend':
                     _extend();
                   case 'end':
@@ -1214,18 +1302,149 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
           if (_loading && chat == null) return const Center(child: CircularProgressIndicator());
           if (_error != null && chat == null) return ErrorView(error: _error!, onRetry: _load);
           final items = _messages.reversed.toList();
+          final safety = _open ? _safetyChip(female) : null;
           return Column(
             children: [
-              // One line (two with large text); the full advice behind ⓘ. Not in a chat that can't be written in
-              if (_open) InkWell(
-                key: const Key('chat-safety'),
-                onTap: () => _safetyInfo(female),
+              _statusBar(chat, left, female),
+              Expanded(
+                child: ChatBackground(
+                  child: items.isEmpty
+                      ? ListView(
+                          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                          children: [
+                            ?safety,
+                            SizedBox(
+                              height: 360,
+                              child: !_open
+                                  ? const MessageView(icon: Icons.forum_outlined, title: 'لا توجد رسائل في هذه المحادثة')
+                                  : MessageView(
+                                      icon: Icons.waving_hand_outlined,
+                                      title: forViewer(female, 'ابدأ المحادثة بالسلام', 'ابدئي المحادثة بالسلام'),
+                                      body: 'تعرّفا على بعض باحترام: القيم، والطموحات، وتصوّر الحياة الأسرية.',
+                                    ),
+                            ),
+                          ],
+                        )
+                      : _messageList(items, safety, proPurchasable),
+                ),
+              ),
+              _footer(chat),
+            ],
+          );
+        }),
+      ),
+    );
+  }
+
+  /// Under the name: the activity label («نشط اليوم») when the server sends one, else the time left while it isn't
+  /// urgent yet (an urgent one is the status bar). Task 6 puts «يكتب الآن…» here first.
+  Widget? _statusLine(ChatSummary? chat, ({String text, bool urgent})? left) {
+    if (chat == null) return null;
+    final activity = chat.partnerActivity;
+    if (activity != null && activity.isNotEmpty && _open) {
+      return Text(
+        activity,
+        key: const Key('chat-status-line'),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.success),
+      );
+    }
+    if (left == null) return null;
+    return Text(
+      left.text,
+      key: const Key('chat-time-left'),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(
+        fontSize: 12,
+        fontWeight: FontWeight.w600,
+        color: left.urgent ? AppColors.warning : AppColors.muted,
+      ),
+    );
+  }
+
+  /// One slim bar under the header, by priority: ending soon, the family step, the push chip
+  Widget _statusBar(ChatSummary? chat, ({String text, bool urgent})? left, bool female) {
+    if (chat == null) return const SizedBox.shrink();
+    final pushOff = !chat.blocked && ref.watch(pushAllowedProvider).valueOrNull == false;
+    final bar = chatStatusBar(
+      open: _open && !chat.blocked,
+      left: left,
+      family: chat.matchHidden ? null : _family,
+      pushOff: pushOff,
+      pushDismissed: ref.read(sharedPreferencesProvider).getBool(_pushChipKey) ?? false,
+    );
+    String g(String m, String f) => forViewer(female, m, f);
+    return switch (bar) {
+      ChatBar.none => const SizedBox.shrink(),
+      ChatBar.expiry => ChatStatusStrip(
+          key: const Key('chat-bar-expiry'),
+          icon: Icons.schedule_rounded,
+          tone: AppColors.warning,
+          text: 'تنتهي المحادثة قريباً · ${left!.text}',
+          actionLabel: chat.canExtend ? 'تمديد 7 أيام' : null,
+          onAction: chat.canExtend ? _extend : null,
+        ),
+      ChatBar.family => switch (_family!) {
+          FamilyStep.offer => ChatStatusStrip(
+              key: const Key('chat-bar-family'),
+              icon: Icons.family_restroom_rounded,
+              text: 'جاهزان للخطوة التالية؟',
+              actionLabel: 'تعارف عائلي',
+              onAction: _openMatch,
+            ),
+          FamilyStep.pendingSent => const ChatStatusStrip(
+              key: Key('chat-bar-family'),
+              icon: Icons.hourglass_top_rounded,
+              tone: AppColors.warning,
+              text: 'طلب التعارف العائلي بانتظار الرد',
+            ),
+          FamilyStep.pendingReceived => ChatStatusStrip(
+              key: const Key('chat-bar-family'),
+              icon: Icons.family_restroom_rounded,
+              text: g('وصلك طلب تعارف عائلي', 'وصلكِ طلب تعارف عائلي'),
+              onTap: _openMatch,
+            ),
+          FamilyStep.accepted => ChatStatusStrip(
+              key: const Key('chat-bar-family'),
+              icon: Icons.verified_user_outlined,
+              tone: AppColors.success,
+              text: 'بيانات وليّ الأمر',
+              onTap: _openMatch,
+            ),
+        },
+      ChatBar.push => ChatStatusStrip(
+          key: const Key('chat-bar-push'),
+          icon: Icons.notifications_off_outlined,
+          text: g('فعّل الإشعارات لتصلك الرسائل', 'فعّلي الإشعارات لتصلكِ الرسائل'),
+          actionLabel: 'تفعيل',
+          onAction: () => enablePushNotifications(context, ref),
+          onClose: _dismissPushChip,
+        ),
+    };
+  }
+
+  /// «لحمايتك…» once at the top of the conversation (its full advice behind a tap). Not in a chat that can't be
+  /// written in.
+  Widget _safetyChip(bool female) => Center(
+        child: Padding(
+          padding: const EdgeInsets.only(top: 4, bottom: 6),
+          child: Material(
+            color: AppColors.goldLight.withValues(alpha: 0.35),
+            borderRadius: BorderRadius.circular(10),
+            child: InkWell(
+              key: const Key('chat-safety'),
+              borderRadius: BorderRadius.circular(10),
+              onTap: () => _safetyInfo(female),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 44),
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.shield_outlined, size: 15, color: AppColors.muted),
+                      const Icon(Icons.shield_outlined, size: 15, color: AppColors.goldText),
                       const SizedBox(width: 6),
                       Flexible(
                         child: Text(
@@ -1233,84 +1452,111 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
                           maxLines: 2,
                           textAlign: TextAlign.center,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(color: AppColors.muted, fontSize: 12),
+                          style: const TextStyle(color: AppColors.goldText, fontSize: 12.5),
                         ),
                       ),
                       const SizedBox(width: 4),
-                      const Icon(Icons.info_outline_rounded, size: 15, color: AppColors.muted),
+                      const Icon(Icons.info_outline_rounded, size: 15, color: AppColors.goldText),
                     ],
                   ),
                 ),
               ),
-              Expanded(
-                child: items.isEmpty && !_open
-                    ? const MessageView(icon: Icons.forum_outlined, title: 'لا توجد رسائل في هذه المحادثة')
-                    : items.isEmpty
-                    ? MessageView(
-                        icon: Icons.waving_hand_outlined,
-                        title: forViewer(female, 'ابدأ المحادثة بالسلام', 'ابدئي المحادثة بالسلام'),
-                        body: 'تعرّفا على بعض باحترام: القيم، والطموحات، وتصوّر الحياة الأسرية.',
-                      )
-                    : Stack(
+            ),
+          ),
+        ),
+      );
+
+  Widget _messageList(List<ChatMessage> items, Widget? safety, bool proPurchasable) {
+    // The safety chip sits above the oldest message once the whole history is loaded
+    final showSafety = safety != null && !_hasMore;
+    final extra = (_loadingOlder ? 1 : 0) + (showSafety ? 1 : 0);
+    return Stack(
+      children: [
+        NotificationListener<ScrollNotification>(
+          onNotification: (n) {
+            _onScrollNotification(n);
+            return false;
+          },
+          child: ListView.builder(
+            key: _listKey,
+            controller: _scroll,
+            reverse: true,
+            // Scrolling the messages closes the keyboard
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            padding: const EdgeInsets.fromLTRB(8, 6, 8, 10),
+            itemCount: items.length + extra,
+            itemBuilder: (context, i) {
+              if (i >= items.length) {
+                if (_loadingOlder && i == items.length) {
+                  return const Padding(
+                    padding: EdgeInsets.all(12),
+                    child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                  );
+                }
+                return safety!;
+              }
+              final m = items[i];
+              final layout = chatRowLayout(items, i, unreadFromId: _unreadFromId);
+              final bubble = ChatBubble(
+                key: ValueKey(m.id),
+                message: m,
+                tail: layout.tail,
+                tightTop: layout.tightTop,
+                onOpenPro: m.proRequired && proPurchasable ? _openPro : null,
+                onDelete: m.state == SendState.failed ? () => _deleteFailed(m) : null,
+                onRetry: m.state == SendState.failed && !m.proRequired
+                    ? () => m.kind != MessageKind.text
+                        ? _sendMedia(retry: m)
+                        : m.filtered
+                        ? _editFailed(m)
+                        : _send(m)
+                    : null,
+              );
+              return _RowProbe(
+                key: ValueKey('row-${m.id}'),
+                index: i,
+                rows: _rows,
+                child: !layout.daySeparator && !layout.unreadDivider
+                    ? bubble
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          ListView.builder(
-                            controller: _scroll,
-                            reverse: true,
-                            // Scrolling the messages closes the keyboard
-                            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-                            padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-                            itemCount: items.length + (_loadingOlder ? 1 : 0),
-                            itemBuilder: (context, i) {
-                              if (i == items.length) {
-                                return const Padding(
-                                  padding: EdgeInsets.all(12),
-                                  child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
-                                );
-                              }
-                              final m = items[i];
-                              final layout = chatRowLayout(items, i);
-                              final bubble = ChatBubble(
-                                key: ValueKey(m.id),
-                                message: m,
-                                showTime: layout.showTime,
-                                tightTop: layout.tightTop,
-                                onOpenPro: m.proRequired && proPurchasable ? _openPro : null,
-                                onDelete: m.state == SendState.failed ? () => _deleteFailed(m) : null,
-                                onRetry: m.state == SendState.failed && !m.proRequired
-                                    ? () => m.kind != MessageKind.text
-                                        ? _sendMedia(retry: m)
-                                        : m.filtered
-                                        ? _editFailed(m)
-                                        : _send(m)
-                                    : null,
-                              );
-                              if (!layout.daySeparator) return bubble;
-                              return Column(
-                                key: ValueKey('day-${m.id}'),
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [_DaySeparator(label: chatDayLabel(m.createdAt)), bubble],
-                              );
-                            },
-                          ),
-                          if (_away)
-                            PositionedDirectional(
-                              bottom: 12,
-                              start: 12,
-                              child: FilledButton.tonalIcon(
-                                key: const Key('chat-newest'),
-                                onPressed: _toNewest,
-                                icon: const Icon(Icons.arrow_downward_rounded, size: 18),
-                                label: Text(_unseen > 0 ? 'الأحدث ($_unseen)' : 'الأحدث'),
-                              ),
-                            ),
+                          if (layout.daySeparator) _DayChip(label: chatDayLabel(m.createdAt)),
+                          if (layout.unreadDivider) const _UnreadDivider(),
+                          bubble,
                         ],
                       ),
-              ),
-              _footer(chat),
-            ],
-          );
-        }),
-      ),
+              );
+            },
+          ),
+        ),
+        // The day of what's at the top, kept in view while scrolling
+        PositionedDirectional(
+          top: 4,
+          start: 0,
+          end: 0,
+          child: IgnorePointer(
+            child: AnimatedOpacity(
+              opacity: _scrolling && _stickyDay != null ? 1 : 0,
+              duration: const Duration(milliseconds: 180),
+              child: _stickyDay == null
+                  ? const SizedBox.shrink()
+                  : _DayChip(key: const Key('chat-sticky-day'), label: _stickyDay!, floating: true),
+            ),
+          ),
+        ),
+        if (_away)
+          PositionedDirectional(
+            bottom: 12,
+            start: 12,
+            child: FilledButton.tonalIcon(
+              key: const Key('chat-newest'),
+              onPressed: _toNewest,
+              icon: const Icon(Icons.arrow_downward_rounded, size: 18),
+              label: Text(_unseen > 0 ? 'الأحدث ($_unseen)' : 'الأحدث'),
+            ),
+          ),
+      ],
     );
   }
 
@@ -1473,22 +1719,76 @@ class _MediaButton extends StatelessWidget {
   }
 }
 
-/// «اليوم» / «أمس» / a date between the messages of two days
-class _DaySeparator extends StatelessWidget {
-  const _DaySeparator({required this.label});
+/// «اليوم» / «أمس» / a date between the messages of two days; [floating] is the copy kept at the top while scrolling
+class _DayChip extends StatelessWidget {
+  const _DayChip({super.key, required this.label, this.floating = false});
   final String label;
+  final bool floating;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(top: 14, bottom: 6),
+      padding: floating ? EdgeInsets.zero : const EdgeInsets.only(top: 12, bottom: 4),
       child: Center(
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-          decoration: BoxDecoration(color: AppColors.line.withValues(alpha: 0.8), borderRadius: BorderRadius.circular(12)),
-          child: Text(label, style: const TextStyle(fontSize: 12, color: AppColors.muted, fontWeight: FontWeight.w600)),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.92),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: AppColors.line),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            child: Text(label, style: const TextStyle(fontSize: 12, color: AppColors.muted, fontWeight: FontWeight.w700)),
+          ),
         ),
       ),
     );
+  }
+}
+
+/// «رسائل جديدة» above the first message that was unread when the chat opened
+class _UnreadDivider extends StatelessWidget {
+  const _UnreadDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      key: const Key('chat-unread-divider'),
+      padding: const EdgeInsets.only(top: 10, bottom: 2),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 5),
+        color: Colors.white.withValues(alpha: 0.75),
+        alignment: Alignment.center,
+        child: const Text(
+          'رسائل جديدة',
+          style: TextStyle(fontSize: 12.5, color: AppColors.navy, fontWeight: FontWeight.w700),
+        ),
+      ),
+    );
+  }
+}
+
+/// Registers a message row while it is built, so the sticky date chip can find the topmost one on screen
+class _RowProbe extends StatefulWidget {
+  const _RowProbe({super.key, required this.index, required this.rows, required this.child});
+  final int index;
+  final Map<int, BuildContext> rows;
+  final Widget child;
+
+  @override
+  State<_RowProbe> createState() => _RowProbeState();
+}
+
+class _RowProbeState extends State<_RowProbe> {
+  @override
+  Widget build(BuildContext context) {
+    widget.rows[widget.index] = context;
+    return widget.child;
+  }
+
+  @override
+  void dispose() {
+    if (identical(widget.rows[widget.index], context)) widget.rows.remove(widget.index);
+    super.dispose();
   }
 }

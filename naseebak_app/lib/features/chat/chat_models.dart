@@ -25,6 +25,7 @@ class ChatSummary {
     this.lastRead = false,
     this.unread = 0,
     this.partnerIsPro = false,
+    this.partnerActivity,
   });
 
   factory ChatSummary.fromJson(Map<String, dynamic> j) {
@@ -47,6 +48,7 @@ class ChatSummary {
       lastRead: last == null ? false : (asBool(last['read']) ?? false),
       unread: asInt(j['unread']) ?? 0,
       partnerIsPro: asBool(partner['isPro']) ?? false,
+      partnerActivity: asString(partner['activityLabel']),
     );
   }
 
@@ -54,7 +56,12 @@ class ChatSummary {
   Map<String, dynamic> toJson() => {
         'id': id,
         'matchId': matchId,
-        'partner': {'id': partnerId, 'firstName': partnerName, 'isPro': partnerIsPro},
+        'partner': {
+          'id': partnerId,
+          'firstName': partnerName,
+          'isPro': partnerIsPro,
+          if (partnerActivity != null) 'activityLabel': partnerActivity,
+        },
         'status': status,
         'expiresAt': expiresAt?.toUtc().toIso8601String(),
         'canExtend': canExtend,
@@ -88,6 +95,9 @@ class ChatSummary {
 
   /// The other person is a Pro member (badge only)
   final bool partnerIsPro;
+
+  /// «نشط اليوم» / «نشط هذا الأسبوع» for the chat header's status line, when the server sends one (optional field)
+  final String? partnerActivity;
 
   /// Messages can be sent only in an open chat with no block either way.
   bool get canSend => status == 'ACTIVE' && !blocked && (expiresAt == null || expiresAt!.isAfter(DateTime.now()));

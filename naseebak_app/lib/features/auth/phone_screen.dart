@@ -87,6 +87,7 @@ class _PhoneFormState extends ConsumerState<PhoneForm> {
     setState(() => _sending = true);
     try {
       final exists = await ref.read(authRepositoryProvider).sendOtp(phone: phone, context: mode, country: country.code);
+      if (!mounted) return;
       ref.read(analyticsProvider).otpRequested(mode.name);
       ref.read(pendingAuthProvider.notifier).set(
             PendingAuth(phone: phone, countryCode: country.code, mode: mode, userExists: exists),

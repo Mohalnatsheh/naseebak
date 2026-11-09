@@ -1,0 +1,106 @@
+// Crashlytics (1.0.0): a screen closed while its request was still running crashed when the answer came
+// («Cannot use "ref" after the widget was disposed», and in release builds «Null check operator» from a
+// setState after dispose). Each test leaves the screen mid-request, then lets the answer arrive.
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:naseebak_app/core/storage/token_store.dart';
+import 'package:naseebak_app/features/auth/auth_repository.dart';
+import 'package:naseebak_app/features/auth/otp_screen.dart';
+import 'package:naseebak_app/features/auth/pending_auth.dart';
+import 'package:naseebak_app/features/profile/preferences_screen.dart';
+import 'package:naseebak_app/features/profile/profile_repository.dart';
+import 'package:naseebak_app/features/settings/settings_screen.dart';
+
+import 'helpers/fake_api.dart';
+
+/// The screen inside one provider scope, so it can be closed while the scope (and its requests) live on
+Future<(ProviderContainer, ValueNotifier<bool>)> mount(WidgetTester tester, FakeAdapter adapter, Widget screen) async {
+  tester.view.physicalSize = const Size(1080, 2400);
+  tester.view.devicePixelRatio = 3;
+  addTearDown(tester.view.reset);
+  final container = ProviderContainer(overrides: await testOverrides(adapter, store: MemoryTokenStore('t1')));
+  addTearDown(container.dispose);
+  final open = ValueNotifier(true);
+  addTearDown(open.dispose);
+  await tester.pumpWidget(UncontrolledProviderScope(
+    container: container,
+    child: rtlApp(ValueListenableBuilder<bool>(
+      valueListenable: open,
+      builder: (_, on, _) => on ? screen : const SizedBox(),
+    )),
+  ));
+  return (container, open);
+}
+
+Future<void> settle(WidgetTester tester) async {
+  for (var i = 0; i < 10; i++) {
+    await tester.pump(const Duration(milliseconds: 20));
+  }
+}
+
+void main() {
+  testWidgets('notification settings closed before they load', (tester) async {
+    final gate = Completer<void>();
+    final adapter = FakeAdapter()
+      ..on('GET', '/api/notifications/preferences', const FakeResponse(200, {'preferences': {}}))
+      ..hold('GET', '/api/notifications/preferences', gate.future);
+    final (_, open) = await mount(tester, adapter, const NotificationPrefsScreen());
+    await tester.pump();
+    open.value = false;
+    await tester.pump();
+    gate.complete();
+    await settle(tester);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('sign-in code screen closed while a new code is being sent', (tester) async {
+    final gate = Completer<void>();
+    final adapter = FakeAdapter()
+      ..on('POST', '/api/auth/send-otp', const FakeResponse(200, {'message': 'ok'}))
+      ..hold('POST', '/api/auth/send-otp', gate.future);
+    final (container, open) = await mount(tester, adapter, const OtpScreen(resendSeconds: 0));
+    container
+        .read(pendingAuthProvider.notifier)
+        .set(const PendingAuth(phone: '0796922292', countryCode: 'JO', mode: OtpContext.login, userExists: true));
+    await settle(tester);
+    await tester.ensureVisible(find.byKey(const Key('resend')));
+    await tester.tap(find.byKey(const Key('resend')));
+    await tester.pump();
+    open.value = false;
+    await tester.pump();
+    gate.complete();
+    await settle(tester);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('preferences closed while saving', (tester) async {
+    final gate = Completer<void>();
+    final adapter = FakeAdapter()
+      ..on('POST', '/api/profile/update-request', const FakeResponse(200, {'message': 'ok', 'requested': false}))
+      ..hold('POST', '/api/profile/update-request', gate.future);
+    final (_, open) = await mount(
+      tester,
+      adapter,
+      const Scaffold(
+        body: PreferencesForm(
+          initial: PartnerPrefs(ageMin: 24, ageMax: 34),
+          cities: [],
+          female: false,
+          withDealbreakers: false,
+        ),
+      ),
+    );
+    await settle(tester);
+    await tester.scrollUntilVisible(find.byKey(const Key('save-prefs')), 300, scrollable: find.byType(Scrollable).first);
+    await tester.tap(find.byKey(const Key('save-prefs')));
+    await tester.pump();
+    open.value = false;
+    await tester.pump();
+    gate.complete();
+    await settle(tester);
+    expect(tester.takeException(), isNull);
+  });
+}

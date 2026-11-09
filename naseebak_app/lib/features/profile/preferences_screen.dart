@@ -133,11 +133,14 @@ class _PreferencesFormState extends ConsumerState<PreferencesForm> {
     if (err != null) return;
     final prefs = _current(min: min, max: max);
     setState(() => _saving = true);
+    // Taken before the request: the saved preferences still refresh if she leaves meanwhile
+    // (Crashlytics: ref after dispose)
+    final container = ProviderScope.containerOf(context, listen: false);
     try {
       await ref
           .read(profileRepositoryProvider)
           .savePartnerPrefs(prefs, female: widget.female, withDealbreakers: widget.withDealbreakers);
-      ref.invalidate(partnerPrefsProvider);
+      container.invalidate(partnerPrefsProvider);
       if (mounted) showSnack(context, 'تم حفظ تفضيلاتك');
     } on ApiException catch (e) {
       if (mounted) showSnack(context, e.message);

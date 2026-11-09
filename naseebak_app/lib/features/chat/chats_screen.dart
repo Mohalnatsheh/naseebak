@@ -237,6 +237,7 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> with WidgetsBindingOb
       ),
       onTap: () async {
         await context.push('/chats/${c.id}');
+        if (!mounted) return;
         ref.invalidate(chatListProvider);
         ref.invalidate(countsProvider);
       },

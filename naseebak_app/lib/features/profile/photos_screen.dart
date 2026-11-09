@@ -56,9 +56,10 @@ class _PhotosScreenState extends ConsumerState<PhotosScreen> {
 
   Future<void> _run(Future<void> Function() action, String done) async {
     setState(() => _busy = true);
+    final container = ProviderScope.containerOf(context, listen: false);
     try {
       await action();
-      ref.invalidate(myPhotosProvider);
+      container.invalidate(myPhotosProvider);
       if (mounted) showSnack(context, done);
     } on ApiException catch (e) {
       if (mounted) showSnack(context, e.message);

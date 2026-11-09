@@ -243,6 +243,8 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
     if (_saving) return;
     setState(() => _saving = true);
     final repo = ref.read(profileRepositoryProvider);
+    // Used after the requests: still valid if the screen closed meanwhile (Crashlytics: ref after dispose)
+    final container = ProviderScope.containerOf(context, listen: false);
     try {
       if (guardianStep) {
         final country = ref.read(authControllerProvider).me!.country;
@@ -256,14 +258,14 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
       }
       await repo.save(_payload());
       final key = _stepKey;
-      if (key != null) await ref.read(sharedPreferencesProvider).remove(key);
-      ref.read(analyticsProvider).setupCompleted();
-      ref.invalidate(countsProvider);
+      if (key != null) await container.read(sharedPreferencesProvider).remove(key);
+      container.read(analyticsProvider).setupCompleted();
+      container.invalidate(countsProvider);
       // The profile loaded at the start of the setup is stale now. The home card keeps the provider
       // alive, so without this «تعديل ملفي» showed the saved fields as empty until a restart.
-      ref.invalidate(myProfileProvider);
+      container.invalidate(myProfileProvider);
       // The router leaves the setup once `/api/mobile/me` says the profile is complete
-      await ref.read(authControllerProvider.notifier).refreshMe();
+      await container.read(authControllerProvider.notifier).refreshMe();
     } on ApiException catch (e) {
       if (!mounted) return;
       if (e.code == 'GUARDIAN_REQUIRED' && !guardianStep) {
@@ -545,9 +547,11 @@ class _InviteRetryBanner extends ConsumerWidget {
       if (context.mounted) showSnack(context, 'رمز الدعوة يتكون من 8 أحرف وأرقام');
       return;
     }
+    if (!context.mounted) return;
+    final container = ProviderScope.containerOf(context, listen: false);
     try {
       await ref.read(apiClientProvider).post('/api/referral/apply', body: {'code': clean});
-      ref.read(inviteWarningProvider.notifier).set(null);
+      container.read(inviteWarningProvider.notifier).set(null);
       if (context.mounted) showSnack(context, 'تم تطبيق رمز الدعوة');
     } catch (e) {
       ref.read(inviteWarningProvider.notifier).set(ApiException.messageOf(e));

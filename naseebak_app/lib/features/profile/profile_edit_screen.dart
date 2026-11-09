@@ -260,9 +260,10 @@ class _ProfileEditFormState extends ConsumerState<ProfileEditForm> {
 
   Future<void> _withdraw() async {
     setState(() => _withdrawing = true);
+    final container = ProviderScope.containerOf(context, listen: false);
     try {
       await ref.read(profileRepositoryProvider).withdrawPendingEdit();
-      ref.invalidate(pendingEditProvider);
+      container.invalidate(pendingEditProvider);
       if (mounted) showSnack(context, 'تم سحب الطلب');
     } on ApiException catch (e) {
       if (mounted) showSnack(context, e.message);

@@ -31,9 +31,10 @@ class _QuizScreenState extends ConsumerState<QuizScreen> {
       return;
     }
     setState(() => _sending = true);
+    final container = ProviderScope.containerOf(context, listen: false);
     try {
       await ref.read(profileRepositoryProvider).submitQuiz(_answers);
-      ref.invalidate(quizProvider);
+      container.invalidate(quizProvider);
       if (mounted) {
         setState(() => _retaking = false);
         showSnack(context, 'تم حفظ نتيجة اختبار الشخصية');

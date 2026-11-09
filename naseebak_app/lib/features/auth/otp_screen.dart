@@ -70,13 +70,15 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
       await ref
           .read(authRepositoryProvider)
           .sendOtp(phone: pending.phone, context: pending.mode, country: pending.countryCode);
+      // Left the screen meanwhile: nothing to update here (Crashlytics: ref after dispose)
+      if (!mounted) return;
       // A new code replaces the one verified before
       ref.read(pendingAuthProvider.notifier).set(pending.withCode(null));
       _controller.clear();
       _startCooldown();
       if (mounted) showSnack(context, 'أرسلنا رمزاً جديداً');
     } on ApiException catch (e) {
-      setState(() => _error = e.message);
+      if (mounted) setState(() => _error = e.message);
     } finally {
       if (mounted) setState(() => _resending = false);
     }
@@ -99,6 +101,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
       var exists = pending.userExists;
       if (!pending.alreadyVerified(code)) {
         final verifiedExists = await ref.read(authRepositoryProvider).verifyOtp(phone: pending.phone, code: code);
+        if (!mounted) return;
         exists = verifiedExists ?? exists;
         ref.read(pendingAuthProvider.notifier).set(pending.withCode(code, userExists: exists));
         ref.read(analyticsProvider).otpVerified(pending.mode.name);

@@ -219,9 +219,10 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
   }
 
   Future<void> _readAll() async {
+    final container = ProviderScope.containerOf(context, listen: false);
     try {
       await _repo.markAllRead();
-      ref.invalidate(unreadNotificationsProvider);
+      container.invalidate(unreadNotificationsProvider);
       if (mounted) setState(() => _items.setAll(0, _items.map((e) => e.read()).toList()));
     } catch (e) {
       if (mounted) showSnack(context, ApiException.messageOf(e));
@@ -260,9 +261,10 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
       destructive: true,
     );
     if (!ok || !mounted) return;
+    final container = ProviderScope.containerOf(context, listen: false);
     try {
       await _repo.deleteAll();
-      ref.invalidate(unreadNotificationsProvider);
+      container.invalidate(unreadNotificationsProvider);
       if (!mounted) return;
       _generation++;
       setState(() {

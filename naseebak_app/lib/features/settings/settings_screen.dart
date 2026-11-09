@@ -233,10 +233,12 @@ class _NotificationPrefsScreenState extends ConsumerState<NotificationPrefsScree
     setState(() => _error = null);
     try {
       final j = await ref.read(apiClientProvider).get('/api/notifications/preferences');
+      // Left before the answer came (Crashlytics: setState after dispose)
+      if (!mounted) return;
       final p = asMap(j['preferences']);
       setState(() => _prefs = {for (final k in notificationPrefKeys) k.$1: asBool(p[k.$1]) ?? true});
     } catch (e) {
-      setState(() => _error = e);
+      if (mounted) setState(() => _error = e);
     }
   }
 
@@ -312,9 +314,9 @@ class _BlocksScreenState extends ConsumerState<BlocksScreen> {
     setState(() => _error = null);
     try {
       final j = await ref.read(apiClientProvider).get('/api/blocks');
-      setState(() => _blocks = asMapList(j['blocks']));
+      if (mounted) setState(() => _blocks = asMapList(j['blocks']));
     } catch (e) {
-      setState(() => _error = e);
+      if (mounted) setState(() => _error = e);
     }
   }
 

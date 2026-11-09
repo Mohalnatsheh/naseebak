@@ -110,8 +110,8 @@ class _CreditsScreenState extends ConsumerState<CreditsScreen> with WidgetsBindi
     String? paymentId;
     try {
       final start = await _repo.checkout(pkg.id);
-      ref.read(analyticsProvider).checkoutStarted(pkg.id);
       if (!mounted) return;
+      ref.read(analyticsProvider).checkoutStarted(pkg.id);
       if (start.mock) {
         if (!_mockAllowed) {
           showSnack(context, 'الدفع غير متاح في هذه النسخة.');

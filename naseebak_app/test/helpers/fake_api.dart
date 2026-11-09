@@ -35,9 +35,14 @@ class FakeAdapter implements HttpClientAdapter {
 
   void on(String method, String path, FakeResponse response) => handlers['$method $path'] = (_) => response;
 
+  /// Requests that wait until the test lets them go (e.g. to leave a screen mid-request)
+  final Map<String, Future<void>> holds = {};
+  void hold(String method, String path, Future<void> until) => holds['$method $path'] = until;
+
   @override
   Future<ResponseBody> fetch(RequestOptions options, Stream<Uint8List>? requestStream, Future<void>? cancelFuture) async {
     requests.add(options);
+    await holds['${options.method} ${options.path}'];
     final handler = handlers['${options.method} ${options.path}'];
     final res = handler?.call(options) ?? const FakeResponse(404, {'error': 'غير موجود'});
     if (res.network) {

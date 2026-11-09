@@ -119,7 +119,7 @@ class ProfileScreen extends ConsumerWidget {
                   icon: Icons.edit_note_rounded,
                   onPressed: () async {
                     await context.push('/profile/edit');
-                    ref.invalidate(myProfileProvider);
+                    if (context.mounted) ref.invalidate(myProfileProvider);
                   },
                 ),
                 const SizedBox(height: 8),
@@ -162,7 +162,7 @@ class ProfileScreen extends ConsumerWidget {
                         trailing: const Icon(Icons.chevron_right),
                         onTap: () async {
                           await context.push(link.$4);
-                          ref.invalidate(myProfileProvider);
+                          if (context.mounted) ref.invalidate(myProfileProvider);
                         },
                       ),
                     ),

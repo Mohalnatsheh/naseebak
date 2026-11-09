@@ -115,6 +115,11 @@ Changing one of these on the server must keep old app versions working (members 
   the simulator, or Apple refuses the upload (simulator `objective_c.framework`). Store texts, review login and privacy
   answers: `~/Documents/EvoKey-Projects/naseebak-release-1.0.0/store-listing.md`.
 - **Next version, filter tip (owner, 2026-11-05):** the empty «جديدة» page (`suggestions_screen.dart`, `emptyReason == 'no_candidates'`) doesn't show the website's tip («لو خففت شرط «العمر» يظهر لك 43 شخصاً مناسباً.»); app users get it only by push + bell. To add: `GET /api/suggestions/filter-tip` returns `{ text }` (null = nothing to show), show it above «تعديل تفضيلاتي». The route uses `requireUser`, which accepts the app's Bearer sign-in, so the server needs no change.
+- **1.0.2+3 (2026-11-09, from `6997f08`):** a registered number on «حساب جديد» signs in right after the code; setup
+  errors clear as soon as they are answered. Play bundle: `~/Documents/EvoKey-Projects/naseebak-release-1.0.2/naseebak-1.0.2-3.aab`
+  (not uploaded yet). iOS: uploaded to App Store Connect / TestFlight the same day with `xcodebuild -exportArchive`
+  (ExportOptions from `flutter build ipa`, `destination` = `upload`, `manageAppVersionAndBuildNumber` = false; uses
+  the Xcode account, no API key). The 1.0.1 notes above say Play has 1.0.1 live; the App Store had only 1.0.0 then.
 - **Planned, not built (next version):** a `purchase` analytics event, and popup taps:
   `features/alerts/alert_gate.dart` posts `/api/alerts/{id}/dismiss` with no body, so admin → Popup Alerts can't tell an
   app tap from a close — send `{ "action": "TAPPED" | "CLOSED" }` like the website does (the server already accepts it;

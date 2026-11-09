@@ -130,6 +130,7 @@ src/
 - `DashboardDataProvider` shares `profile`, `counts` and unread data, polling `/api/me/counts` every 30s while the tab is visible.
 - Member cards share `src/components/shared/person-card.tsx`.
 - `src/lib/auth.ts`: `requireUser()` accepts the web session or an app `Authorization: Bearer` token. Admin routes never accept Bearer.
+- Website sign-out (`signOutAndUnlinkPush` → `POST /api/auth/logout`) stamps `User.sessionsRevokedAt`: every web session signed in before it is refused in the `jwt` callback (`src/lib/session-revocation.ts`, routes and proxy). Prefetch/RSC answers never refresh the session cookie (2026-11-10). App Bearer sessions are separate.
 
 ## Brand and colours
 
@@ -218,6 +219,8 @@ src/
 - Past payments report their own amount (`formatPaidCharge`), never today's price.
 - `arabic_checkout` (Payment Element on `/pay/<id>`) is off by default. Its state on production is set in Admin → Settings.
 - Test accounts never see payments in the app.
+- Pausing the account, or asking to delete it, stops a live Pro renewal at the period end, no refund, with a notice (`stopProRenewalOnLeave`). Reactivating never resumes it (2026-11-10).
+- A paid Pro invoice that never made Pro live (a duplicate, or a renewal after the end) tells the member and is marked `Payment.proNotLive` («Refund decision» in Admin → Payments).
 - **Pro membership** (switch `pro_enabled`, code `src/lib/pro/`, not deployed yet):
   - Its own dashboard page `/dashboard/pro` (owner, 2026-11-10): plans or «اشتراكي», the Stripe return (`?pro=success|cancel`) and Pro notices land there. `/dashboard/payments` keeps credit packages and history plus one small «عضوية Pro» link card; that card and the «عضوية Pro» nav entries show only when the member can buy a plan or is Pro (`proPageShown`, `counts.pro.showPage`).
   - Weekly, monthly or yearly Stripe subscription (Checkout `mode: "subscription"`, inline `price_data`). Plans, prices and credits per plan are set per country in Admin → Countries and apply to new subscribers only. No trial, no plan switching (cancel, then subscribe again after it ends).

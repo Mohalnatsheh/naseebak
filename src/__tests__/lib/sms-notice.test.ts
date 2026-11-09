@@ -31,6 +31,9 @@ const noDevice = () => fetchMock.mockResolvedValue({ status: 404, ok: false });
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // Midday in Amman: "now" outside the quiet hours (23:00–09:00), whenever the suite runs
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-10-20T09:00:00Z"));
   settings.getSetting.mockResolvedValue("true");
   vi.stubGlobal("fetch", fetchMock);
   process.env.NEXT_PUBLIC_ONESIGNAL_APP_ID = "app";
@@ -42,6 +45,7 @@ beforeEach(() => {
   vi.spyOn(console, "warn").mockImplementation(() => {});
 });
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllGlobals();
   delete process.env.EXTRA_TEST_PHONES;
 });

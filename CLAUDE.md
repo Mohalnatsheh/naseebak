@@ -205,7 +205,7 @@ src/
 - Only «مهتم» costs: 1 credit (ledger `INTEREST`). «لا» is free. The match, requests, chat and chat → family are free. With `free_interest_reply` on, a reply to someone who already said «مهتم» is free too (no `INTEREST` row, so never refunded).
 - Refund only when the other side never answered and the card closed. A «لا» is never refunded.
 - `refundUnansweredInterests` refunds once, stamped by `Suggestion.interestRefundedAt`.
-- A blocker's own unanswered «مهتم» on an open card stays spent. The person blocked gets theirs back.
+- A blocker's own unanswered «مهتم» on an open card stays spent. The person blocked gets theirs back from the morning job, never seconds after the block (the notice would give the block away).
 - A match lost at the last moment refunds both.
 - Charge, claim and ledger run in one transaction in `decideSuggestion`: a lost claim charges nothing.
 - At 0 credits cards stay visible and «لا» stays free. Only «مهتم» is refused (`NO_CREDITS`).
@@ -283,7 +283,7 @@ Feed tabs: `new` = «جديدة» (website «الجديد»), `interested` = «�
 | `SECOND_CHANCE_DAYS` | 30 | `matching/auto-suggest.ts` |
 | `RETRY_COOLDOWN_MS` | 30 minutes | `matching/auto-suggest.ts` |
 
-- One `Suggestion` row with `flow: MUTUAL` is shown to both people. Each decides once through `decideSuggestion` (`POST /api/suggestions/[id]/decide`).
+- One `Suggestion` row with `flow: MUTUAL` is shown to both people. Each decides once through `decideSuggestion` (`POST /api/suggestions/[id]/decide`). The same answer again (a double tap) returns the card's current state with `repeated: true`, never a 404 or a second charge.
 - Both «مهتم» → `createMutualMatch`. If that fails after the charge, `healMissingMatches` creates it in the daily job.
 - A «لا» closes the row at once (REJECTED). Read the two decisions: REJECTED means someone said «لا», not that both answered.
 - Nobody is told about a «لا», except someone who already said «مهتم»: their card shows «لم يحصل توافق» (`declined`), no refund.
@@ -312,7 +312,7 @@ Detail: [docs/reference/suggestions-and-credits.md](docs/reference/suggestions-a
 - Choosing FAMILY needs a guardian and consent. Consent is stored only when the action completes.
 - Mixed match: neither guardian shows until both shared.
 - Requests expire after 7 days. A declined request is final for that type on that match.
-- The chat filter blocks phones, links and handles, including spelled-out or split numbers (`src/lib/chat/filter.ts`).
+- The chat filter blocks phones, links and handles, including spelled-out or split numbers (`src/lib/chat/filter.ts`). A sender's own messages between number pieces don't reset the run; the partner's message does (two people alternating is accepted).
 - Only the server publishes to Ably `chat:<id>`. Browsers get subscribe-only tokens.
 - Admin chat views are logged (`[admin-chat-view]`).
 - A block ends the chat for good and keeps it read-only for the blocked person, so reports stay possible.

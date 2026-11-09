@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 import { closeLegacyInFlight } from "@/lib/suggestions/mutual";
 
 async function state() {
-  const [flags, chatRaw, mutualRaw, creditRaw, activeFirstRaw, saRelaxedRaw, freeReplyRaw, migration] = await Promise.all([
+  const [flags, chatRaw, mutualRaw, creditRaw, activeFirstRaw, saRelaxedRaw, freeReplyRaw, proRaw, migration] = await Promise.all([
     getCycleFlags(),
     getSetting("chat_enabled"),
     getSetting("new_suggestions_flow"),
@@ -14,6 +14,7 @@ async function state() {
     getSetting("feed_active_first"),
     getSetting("sa_relaxed_matching"),
     getSetting("free_interest_reply"),
+    getSetting("pro_enabled"),
     db.systemSetting.findUnique({ where: { key: "migration_new_cycle_v1" } }),
   ]);
   return {
@@ -24,6 +25,7 @@ async function state() {
     activeFirstFeed: activeFirstRaw === "true",
     saRelaxedMatching: saRelaxedRaw === "true",
     freeInterestReply: freeReplyRaw === "true",
+    proEnabled: proRaw === "true",
     creditsMigratedAt: migration?.value ?? null,
   };
 }
@@ -47,6 +49,8 @@ const schema = z.object({
   activeFirstFeed: z.boolean().optional(),
   saRelaxedMatching: z.boolean().optional(),
   freeInterestReply: z.boolean().optional(),
+  /** Pro membership: new sales and offers only; members already subscribed keep Pro */
+  proEnabled: z.boolean().optional(),
 });
 
 export async function PATCH(request: Request) {
@@ -78,6 +82,10 @@ export async function PATCH(request: Request) {
     }
     if (parsed.data.freeInterestReply !== undefined) {
       await setSetting("free_interest_reply", String(parsed.data.freeInterestReply));
+    }
+    if (parsed.data.proEnabled !== undefined) {
+      await setSetting("pro_enabled", String(parsed.data.proEnabled));
+      console.log(`[admin settings] pro_enabled=${parsed.data.proEnabled} by ${result.session.user.id}`);
     }
     // Credit on interest depends on both: turning either off turns it off too, so switching
     // them back on later never silently re-enables it

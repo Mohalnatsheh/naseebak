@@ -48,6 +48,19 @@ const packagePrice = z
   .max(9999, "A package price must be under 10,000")
   .refine((n) => Math.abs(n * 100 - Math.round(n * 100)) < 1e-6, "A price can have at most two decimals");
 
+/** One Pro plan: a plan that is saved has a real price (readProPlans drops the rest), credits 0 to 100 */
+const proPlan = z
+  .object({
+    enabled: z.boolean("Pro plan: enabled must be on or off"),
+    price: z
+      .number("Enter a price for every Pro plan")
+      .gt(0, "A Pro plan price must be above 0")
+      .max(9999, "A Pro plan price must be under 10,000")
+      .refine((n) => Math.abs(n * 100 - Math.round(n * 100)) < 1e-6, "A price can have at most two decimals"),
+    credits: z.number("Enter the credits of every Pro plan").int("Pro credits must be a whole number").min(0, "Pro credits can't be negative").max(100, "Pro credits are at most 100"),
+  })
+  .strict();
+
 /** Admin → Countries: one country's editable settings (every field optional; unknown fields refused) */
 export const countrySettingsSchema = z
   .object({
@@ -57,6 +70,8 @@ export const countrySettingsSchema = z
     pollsEnabled: z.boolean().optional(),
     packagePrices: z.record(z.string(), packagePrice).optional(),
     pricesApproved: z.boolean().optional(),
+    /** Pro membership plans of this country; a plan left out is not offered */
+    proPlans: z.object({ weekly: proPlan.optional(), monthly: proPlan.optional(), yearly: proPlan.optional() }).strict().optional(),
     smsProvider: z.enum(["DEFAULT", "BROADNET", "UNIFONIC", "MOCK", "NONE"]).optional(),
     /** SMS sender name: letters, digits, space . _ - (operators allow up to 11) */
     smsSenderId: z

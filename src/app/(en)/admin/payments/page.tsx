@@ -8,6 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { PersonLink, SearchBox, fmtDateTime } from "@/components/admin/admin-list-bits";
+import { paymentPlanLabel as planLabel } from "@/lib/admin/pro-labels";
 import { enumLabel } from "@/lib/admin/enum-labels";
 import { FAILURE_LABELS } from "@/lib/payments/failure-labels";
 
@@ -308,7 +309,7 @@ function PaymentsView() {
                           <p className="text-sm text-muted-foreground italic">Deleted account</p>
                         )}
                       </td>
-                      <td className="p-3 text-sm">{payment.planName || "—"}</td>
+                      <td className="p-3 text-sm">{planLabel(payment.planName)}</td>
                       <td className="p-3 text-sm font-medium whitespace-nowrap">{Number(payment.amount).toFixed(2)} {payment.currency}</td>
                       <td className="p-3">
                         <Badge className={statusStyles[payment.status] || ""}>

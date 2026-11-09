@@ -56,6 +56,31 @@ describe("admin countries", () => {
     expect(db.countrySetting.upsert).not.toHaveBeenCalled();
   });
 
+  it("saves Pro plans per country", async () => {
+    const proPlans = { weekly: { enabled: false, price: 2, credits: 1 }, monthly: { enabled: true, price: 5.5, credits: 10 }, yearly: { enabled: true, price: 50, credits: 12 } };
+    const res = await update(req({ proPlans }), p("JO"));
+    expect(res.status).toBe(200);
+    expect(db.countrySetting.upsert.mock.calls[0][0].update).toMatchObject({ proPlans });
+  });
+
+  it("refuses Pro plans with a zero or negative price, bad credits, unknown plans or a Saudi price under 2", async () => {
+    const ok = { enabled: true, price: 5, credits: 10 };
+    for (const proPlans of [
+      { monthly: { ...ok, price: -1 } },
+      { monthly: { ...ok, price: 0 } },
+      { monthly: { ...ok, credits: -1 } },
+      { monthly: { ...ok, credits: 101 } },
+      { monthly: { ...ok, credits: 1.5 } },
+      { monthly: { ...ok, price: 5.555 } },
+      { daily: ok },
+      { monthly: { price: 5, credits: 1 } },
+    ]) {
+      expect((await update(req({ proPlans }), p("JO"))).status).toBe(400);
+    }
+    expect((await update(req({ proPlans: { monthly: { ...ok, price: 1.5 } } }), p("SA"))).status).toBe(400);
+    expect(db.countrySetting.upsert).not.toHaveBeenCalled();
+  });
+
   it("admins only", async () => {
     admin.ok = false;
     expect((await list()).status).toBe(403);

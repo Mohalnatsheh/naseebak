@@ -7,7 +7,7 @@ import { NewCycleSettingsCard } from "@/components/admin/new-cycle-settings-card
 
 const base = {
   introRequests: true, chat: true, mutualSuggestions: true, creditOnInterest: true,
-  activeFirstFeed: true, saRelaxedMatching: true, freeInterestReply: true, creditsMigratedAt: null,
+  activeFirstFeed: true, saRelaxedMatching: true, freeInterestReply: true, proEnabled: true, creditsMigratedAt: null,
 };
 const fetchMock = vi.fn();
 
@@ -28,6 +28,7 @@ describe("NewCycleSettingsCard quick switches", () => {
     ["Free «مهتم» reply", "freeInterestReply"],
     ["Active first, busy last", "activeFirstFeed"],
     ["Saudi Arabia: suggest everyone", "saRelaxedMatching"],
+    ["Pro membership sales", "proEnabled"],
   ] as const) {
     it(`turning «${title}» off saves false at once (no confirmation)`, async () => {
       render(<NewCycleSettingsCard />);

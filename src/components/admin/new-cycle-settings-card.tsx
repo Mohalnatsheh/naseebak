@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2, HeartHandshake, MessageCircle, Info, TriangleAlert, Users, Coins, ListOrdered, Globe } from "lucide-react";
+import { Loader2, HeartHandshake, MessageCircle, Info, TriangleAlert, Users, Coins, ListOrdered, Globe, Crown } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
@@ -25,10 +25,11 @@ interface State {
   activeFirstFeed: boolean;
   saRelaxedMatching: boolean;
   freeInterestReply: boolean;
+  proEnabled: boolean;
   creditsMigratedAt: string | null;
 }
 
-type Key = "introRequests" | "chat" | "mutualSuggestions" | "creditOnInterest" | "activeFirstFeed" | "saRelaxedMatching" | "freeInterestReply";
+type Key = "introRequests" | "chat" | "mutualSuggestions" | "creditOnInterest" | "activeFirstFeed" | "saRelaxedMatching" | "freeInterestReply" | "proEnabled";
 
 /** Admin → Settings: the switches for the new user cycle, in plain words. */
 export function NewCycleSettingsCard() {
@@ -65,7 +66,7 @@ export function NewCycleSettingsCard() {
 
   function toggle(key: Key, value: boolean) {
     // The feed order, Saudi matching and the free reply are safe to turn off at once: nothing in flight depends on them
-    const quickOff = key === "activeFirstFeed" || key === "saRelaxedMatching" || key === "freeInterestReply";
+    const quickOff = key === "activeFirstFeed" || key === "saRelaxedMatching" || key === "freeInterestReply" || key === "proEnabled";
     if (!value && !quickOff) setConfirmOff(key);
     else if (value && key === "introRequests") setConfirmIntroOn(true);
     else save(key, value);
@@ -149,6 +150,14 @@ export function NewCycleSettingsCard() {
       text: "While Saudi Arabia is small: Saudi members get suggestions without the minimum score, so preferences only set the order (best match first). Their «شروط أساسية» still apply, and members still meet only within Saudi Arabia. Jordan is unchanged. Turning it off makes no new low-score cards; ones already made run their 7 days.",
       on: !!state?.introRequests && !!state?.mutualSuggestions && !!state?.saRelaxedMatching,
       disabled: !state?.introRequests || !state?.mutualSuggestions,
+    },
+    {
+      key: "proEnabled" as const,
+      icon: Crown,
+      title: "Pro membership sales",
+      text: "Stops new sales and offers only; members already subscribed keep Pro until their subscription ends. Off by default. Plans and prices are set per country in Admin → Countries.",
+      on: !!state?.proEnabled,
+      disabled: false,
     },
   ];
 

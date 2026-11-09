@@ -17,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { enumLabel } from "@/lib/admin/enum-labels";
 import { countryConfig, toCountry } from "@/lib/countries";
 import { CountryFlag } from "@/components/shared/country-flag";
+import { MemberProCard } from "@/components/admin/member-pro-card";
 import { MemberDevicesCard } from "@/components/admin/member-devices-card";
 import { MembersSuggestStatus } from "@/components/admin/members-suggest-status";
 import { PersonLink, fmtDateTime } from "@/components/admin/admin-list-bits";
@@ -594,6 +595,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
 
       {/* Where the member uses Naseebak and whether a push can reach them */}
       <div className="min-w-0"><MemberDevicesCard userId={id} /></div>
+      <div className="min-w-0"><MemberProCard userId={id} /></div>
 
       <SuggestionsCard suggestions={suggestions} failed={sugFailed} />
 

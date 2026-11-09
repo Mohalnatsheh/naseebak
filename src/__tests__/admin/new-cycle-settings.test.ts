@@ -104,4 +104,17 @@ describe("new-cycle settings PATCH", () => {
   it("refuses a non-boolean order switch", async () => {
     expect((await patch({ activeFirstFeed: "yes" })).status).toBe(400);
   });
+
+  it("the Pro sales switch saves on its own and is reported back", async () => {
+    const res = await patch({ proEnabled: true });
+    expect(res.status).toBe(200);
+    expect(store.value.pro_enabled).toBe("true");
+    expect((await res.json()).proEnabled).toBe(true);
+    // none of the other switches move it
+    await patch({ introRequests: false });
+    expect(store.value.pro_enabled).toBe("true");
+    await patch({ proEnabled: false });
+    expect(store.value.pro_enabled).toBe("false");
+    expect((await patch({ proEnabled: "yes" })).status).toBe(400);
+  });
 });

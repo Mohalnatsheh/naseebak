@@ -84,7 +84,12 @@ export interface CountryValues {
   heroSubtitle: string | null;
   packagePrices?: Record<string, number> | null;
   pricesApproved?: boolean | null;
+  proPlans?: Record<string, { enabled: boolean; price: number; credits: number }> | null;
 }
+
+const PRO_PLAN_NAMES: [string, string][] = [["weekly", "Weekly"], ["monthly", "Monthly"], ["yearly", "Yearly"]];
+const proText = (p?: { enabled: boolean; price: number; credits: number }) =>
+  p ? `${p.enabled ? "on" : "off"}, ${p.price}, ${p.credits} credits` : "not offered";
 
 const COUNTRY_SWITCHES: [keyof CountryValues, string][] = [
   ["active", "Active"],
@@ -135,6 +140,11 @@ export function countryChanges(
     if (price >= p.price * 2 || price <= p.price / 2) {
       warnings.push(`${p.credits} credits in ${country} goes from ${p.price} to ${price} ${p.currency}. Check the amount.`);
     }
+  }
+  for (const [id, name] of PRO_PLAN_NAMES) {
+    const b = before.proPlans?.[id];
+    const a = after.proPlans?.[id];
+    if (proText(b) !== proText(a)) lines.push(`Pro ${name}: ${proText(b)} → ${proText(a)}`);
   }
   const approvedAfter = after.pricesApproved ?? approved;
   if (approvedAfter !== approved) lines.push(`Prices approved: ${onOff(approved)} → ${onOff(approvedAfter)}`);

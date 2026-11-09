@@ -13,6 +13,8 @@ import { SettingsConfirmDialog } from "@/components/admin/settings-confirm-dialo
 import { SettingsNote } from "@/components/admin/settings-section";
 import { countryChanges, type ChangeSummary } from "@/lib/admin/settings-changes";
 import { toast } from "sonner";
+import { ProPlansEditor } from "@/components/admin/pro-plans-editor";
+import type { ProPlans } from "@/lib/pro/plans";
 import { formatCharge, packagesFor } from "@/lib/payments/packages";
 import type { CountryCode } from "@/lib/countries";
 
@@ -35,6 +37,7 @@ interface Settings {
   heroSubtitle: string | null;
   packagePrices: Record<string, number> | null;
   pricesApproved: boolean | null;
+  proPlans: ProPlans | null;
   adminEmails: string | null;
 }
 
@@ -160,6 +163,11 @@ function CountryCard({ row, onSaved }: { row: CountryRow; onSaved: () => void })
     delete body.code;
     if (!body.packagePrices) delete body.packagePrices;
     if (body.pricesApproved == null) delete body.pricesApproved;
+    // Every plan taken out clears the saved ones (an empty set, not null: Json columns take no plain null)
+    if (!body.proPlans) {
+      if (row.settings.proPlans) body.proPlans = {};
+      else delete body.proPlans;
+    }
     const res = await fetch(`/api/admin/countries/${code}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).catch(() => null);
     const data = await res?.json().catch(() => ({}));
     setSaving(false);
@@ -286,6 +294,13 @@ function CountryCard({ row, onSaved }: { row: CountryRow; onSaved: () => void })
           </div>
           <p className="text-xs text-muted-foreground">Used on the website, in the app and in the FAQ. Prices written inside blog posts don&apos;t change by themselves.</p>
         </div>
+
+        <ProPlansEditor
+          country={row.display.name.en}
+          currency={row.display.currency.code}
+          value={form.proPlans}
+          onChange={(proPlans) => setForm({ ...form, proPlans })}
+        />
 
         {!row.selling && row.goLive.length > 0 && (
           <div className="space-y-2 rounded-lg border p-3">

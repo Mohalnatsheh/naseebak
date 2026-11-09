@@ -6,8 +6,8 @@
 /** Recording stops by itself here (the server allows up to 185 s) */
 export const MAX_RECORD_SEC = 180;
 
-/** Shorter than this counts as a slip of the finger: nothing is sent */
-const MIN_RECORD_MS = 700;
+/** Shorter than this counts as a slip of the finger: nothing is sent («الرسالة قصيرة جداً») */
+export const MIN_RECORD_MS = 1000;
 
 export interface VoiceRecording {
   blob: Blob;
@@ -33,7 +33,7 @@ export function recorderErrorMessage(code: RecorderErrorCode): string {
     case "denied":
       return "لم يُسمح باستخدام الميكروفون. يمكنك السماح به من إعدادات المتصفح ثم المحاولة مرة أخرى.";
     case "too_short":
-      return "الرسالة الصوتية قصيرة جداً";
+      return "الرسالة قصيرة جداً";
     default:
       return "تعذّر تسجيل الصوت. حاول مرة أخرى.";
   }
@@ -67,6 +67,8 @@ export interface ActiveRecording {
   stop: () => Promise<VoiceRecording>;
   /** Stop and throw it away */
   cancel: () => void;
+  /** The microphone, for the live level while recording (stopped with the recording) */
+  stream: MediaStream;
 }
 
 /**
@@ -115,6 +117,7 @@ export async function startVoiceRecording({ onLimit }: { onLimit: () => void }):
   };
 
   return {
+    stream,
     stop: () =>
       new Promise<VoiceRecording>((resolve, reject) => {
         if (done) return reject(new RecorderError("failed"));

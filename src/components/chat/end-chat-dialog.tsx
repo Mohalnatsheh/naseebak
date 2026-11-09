@@ -48,6 +48,7 @@ export function EndChatDialog({
   busy,
   onConfirm,
   ended = false,
+  initialDetails,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
@@ -59,16 +60,18 @@ export function EndChatDialog({
   onConfirm: (report?: { reason: ReportReasonValue; details?: string }) => void;
   /** The chat is already closed: reporting only (nothing left to end) */
   ended?: boolean;
+  /** «إبلاغ عن الرسالة»: the details start with the reported message (still editable) */
+  initialDetails?: string;
 }) {
   const [reason, setReason] = useState<ReportReasonValue>("HARASSMENT");
-  const [details, setDetails] = useState("");
+  const [details, setDetails] = useState(initialDetails ?? "");
   // Start fresh each time the dialog opens (adjusting state while rendering, not in an effect)
   const [wasOpen, setWasOpen] = useState(open);
   if (open !== wasOpen) {
     setWasOpen(open);
     if (open) {
       setReason("HARASSMENT");
-      setDetails("");
+      setDetails(initialDetails ?? "");
     }
   }
   const familyWarning = report ? null : familyPathWarning(familyStatus);
@@ -128,7 +131,7 @@ export function EndChatDialog({
               onChange={(e) => setDetails(e.target.value)}
               maxLength={1000}
               placeholder="تفاصيل إضافية (اختياري)"
-              className="min-h-20 w-full resize-none rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring/30"
+              className="min-h-20 w-full resize-none rounded-xl border border-input bg-background px-3 py-2 text-base outline-none focus:ring-2 focus:ring-ring/30"
             />
           </div>
         )}

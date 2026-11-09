@@ -4,13 +4,19 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChatMessage } from "@/lib/chat/service";
 
 export interface ChannelHandlers {
-  /** `kind` / `media` are additive (absent from events published before media existed) */
+  /** `kind` / `media` / `replyTo` are additive (absent from events published before they existed). The quote carries
+   *  its sender's id (both sides get the same event): the client works out `mine` */
   onMessage: (m: {
     id: string; senderId: string; body: string; createdAt: string; clientNonce?: string;
     kind?: ChatMessage["kind"]; media?: ChatMessage["media"];
+    replyTo?: { id: string; senderId: string; kind: ChatMessage["kind"]; snippet: string } | null;
   }) => void;
   onRead: (e: { by: string; at: string }) => void;
   onStatus: (e: { status: string; expiresAt?: string }) => void;
+  /** A message's reactions changed (all of them, with who made each) */
+  onReaction?: (e: { messageId: string; reactions: { emoji: string; userId: string }[] }) => void;
+  /** Someone signalled typing (the room ignores my own) */
+  onTyping?: (e: { userId: string }) => void;
   /** Called every few seconds when real-time isn't available; resolves true when something new arrived */
   poll: () => Promise<boolean> | void;
 }
@@ -126,6 +132,8 @@ export function useChatChannel(
           if (msg.name === "message") ref.current.onMessage(msg.data);
           else if (msg.name === "read") ref.current.onRead(msg.data);
           else if (msg.name === "status") ref.current.onStatus(msg.data);
+          else if (msg.name === "reaction") ref.current.onReaction?.(msg.data);
+          else if (msg.name === "typing") ref.current.onTyping?.(msg.data);
         });
       } catch {
         startPolling();

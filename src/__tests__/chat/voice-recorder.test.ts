@@ -173,7 +173,7 @@ describe("useVoiceRecording", () => {
     const mic = fakeMic();
     const media = mediaProp();
     const { result, unmount } = renderHook(() => useVoiceRecording(media));
-    let started!: Promise<void>;
+    let started!: Promise<boolean>;
     act(() => {
       started = result.current.start();
     });
@@ -197,7 +197,7 @@ describe("useVoiceRecording", () => {
     const { result, rerender } = renderHook(({ m }: { m: ComposerMedia | undefined }) => useVoiceRecording(m), {
       initialProps: { m: media as ComposerMedia | undefined },
     });
-    let started!: Promise<void>;
+    let started!: Promise<boolean>;
     act(() => {
       started = result.current.start();
     });

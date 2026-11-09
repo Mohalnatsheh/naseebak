@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ImagePlus, Mic, SendHorizontal, Trash2 } from "lucide-react";
+import { ImagePlus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   MAX_RECORD_SEC,
@@ -44,7 +44,7 @@ export function clockLabel(totalSec: number): string {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
 
-function ProTag() {
+export function ProTag() {
   return (
     <span
       aria-hidden
@@ -96,45 +96,26 @@ export function PhotoButton({ media, disabled }: { media: ComposerMedia; disable
   );
 }
 
-/** The mic button: starts recording (the microphone is asked for only now) */
-export function MicButton({ media, onStart, disabled }: { media: ComposerMedia; onStart: () => void; disabled?: boolean }) {
-  const locked = media.mode === "locked";
-  return (
-    <button
-      type="button"
-      onClick={() => (locked ? media.onLocked() : onStart())}
-      disabled={disabled}
-      aria-label={locked ? "تسجيل رسالة صوتية · متاح لأعضاء Pro" : "تسجيل رسالة صوتية"}
-      className={cn(
-        ROUND_BUTTON,
-        locked
-          ? "bg-muted text-muted-foreground/60 hover:bg-muted/80"
-          : "bg-primary text-primary-foreground shadow-md shadow-primary/20 hover:bg-primary/90",
-        "disabled:opacity-40"
-      )}
-    >
-      <Mic className="h-5 w-5" aria-hidden />
-      {locked && <ProTag />}
-    </button>
-  );
-}
+/** Why a recording stopped and now waits for send or cancel */
+export type StopReason = "limit" | "hidden" | "manual" | "interrupted";
 
 export type RecorderState =
   | { phase: "idle" }
   | { phase: "starting" }
   | { phase: "recording"; elapsed: number }
-  /** The 3-minute limit was reached: the recorder is stopping, then waits for send or cancel */
-  | { phase: "stopping"; elapsed: number }
-  | { phase: "stopped"; elapsed: number; recording: VoiceRecording };
+  /** Stopped (the limit, the tab hidden, «إيقاف», a lost press): the recorder is finishing, then waits */
+  | { phase: "stopping"; elapsed: number; reason: StopReason }
+  | { phase: "stopped"; elapsed: number; recording: VoiceRecording; reason: StopReason };
 
 /**
- * Recording state for the composer: start, the running clock, send, cancel. At 3 minutes the recording
- * stops and waits for the member to send or cancel (never sent by itself). Leaving the chat (unmount),
- * or the buttons going away, while the microphone prompt is open or while recording releases the
- * microphone and sends nothing.
+ * Recording state for the composer: start, the running clock, pause (stop and wait), send, cancel. At 3 minutes,
+ * when the tab is hidden, or when the press is lost, the recording stops and waits for the member to send or cancel
+ * (never sent by itself). Leaving the chat (unmount), or the buttons going away, while the microphone prompt is open
+ * or while recording releases the microphone and sends nothing.
  */
 export function useVoiceRecording(media: ComposerMedia | undefined) {
   const [state, setState] = useState<RecorderState>({ phase: "idle" });
+  const [stream, setStream] = useState<MediaStream | null>(null);
   // The buttons went away (chat ended, Pro gone): the bar goes back to idle, so the text box returns instead of a
   // frozen recording bar (state adjusted during render; the effect below releases the microphone)
   const allowed = media?.mode === "enabled";
@@ -144,6 +125,7 @@ export function useVoiceRecording(media: ComposerMedia | undefined) {
     if (!allowed && state.phase !== "idle") setState({ phase: "idle" });
   }
   const active = useRef<ActiveRecording | null>(null);
+  const began = useRef(0);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
   const mounted = useRef(false);
   const mediaRef = useRef(media);
@@ -169,21 +151,26 @@ export function useVoiceRecording(media: ComposerMedia | undefined) {
     mediaRef.current?.onError(recorderErrorMessage(error instanceof RecorderError ? error.code : "failed"));
   }, []);
 
-  /** The limit: stop the recorder and keep the recording for send / cancel */
-  const stopAtLimit = useCallback(async () => {
-    const rec = active.current;
-    if (!rec) return;
-    stopClock();
-    active.current = null;
-    setState({ phase: "stopping", elapsed: MAX_RECORD_SEC });
-    try {
-      const recording = await rec.stop();
-      // Cancelled while the recorder was stopping: stay idle
-      if (mounted.current) setState((s) => (s.phase === "stopping" ? { phase: "stopped", elapsed: MAX_RECORD_SEC, recording } : s));
-    } catch (error) {
-      fail(error);
-    }
-  }, [fail, stopClock]);
+  /** Stop the recorder and keep the recording for send / cancel (never sent from here) */
+  const pause = useCallback(
+    async (reason: StopReason) => {
+      const rec = active.current;
+      if (!rec) return;
+      stopClock();
+      active.current = null;
+      setStream(null);
+      const elapsed = reason === "limit" ? MAX_RECORD_SEC : Math.min(MAX_RECORD_SEC, Math.floor((Date.now() - began.current) / 1000));
+      setState({ phase: "stopping", elapsed, reason });
+      try {
+        const recording = await rec.stop();
+        // Cancelled while the recorder was stopping: stay idle
+        if (mounted.current) setState((s) => (s.phase === "stopping" ? { phase: "stopped", elapsed, recording, reason } : s));
+      } catch (error) {
+        fail(error);
+      }
+    },
+    [fail, stopClock]
+  );
 
   const send = useCallback(async () => {
     if (state.phase === "stopped") {
@@ -195,6 +182,7 @@ export function useVoiceRecording(media: ComposerMedia | undefined) {
     if (state.phase !== "recording" || !rec) return;
     stopClock();
     active.current = null;
+    setStream(null);
     setState({ phase: "idle" });
     try {
       const recording = await rec.stop();
@@ -209,37 +197,55 @@ export function useVoiceRecording(media: ComposerMedia | undefined) {
     setState({ phase: "idle" });
   }, [discard]);
 
-  const start = useCallback(async () => {
-    if (active.current || state.phase !== "idle") return;
-    setState({ phase: "starting" });
-    let rec: ActiveRecording;
-    try {
-      rec = await startVoiceRecording({ onLimit: () => void stopAtLimit() });
-    } catch (error) {
-      fail(error);
-      return;
-    }
-    // Left the chat, or the buttons went away (chat ended, Pro gone), during the microphone prompt
-    if (!mounted.current || !mediaRef.current || mediaRef.current.mode !== "enabled") {
-      rec.cancel();
-      if (mounted.current) setState({ phase: "idle" });
-      return;
-    }
-    active.current = rec;
-    const began = Date.now();
-    setState({ phase: "recording", elapsed: 0 });
-    timer.current = setInterval(() => {
-      setState((s) =>
-        s.phase === "recording" ? { phase: "recording", elapsed: Math.min(MAX_RECORD_SEC, Math.floor((Date.now() - began) / 1000)) } : s
-      );
-    }, 250);
-  }, [fail, state.phase, stopAtLimit]);
+  /**
+   * Ask for the microphone and record. `keep` is asked once the microphone is granted: false (the press was already
+   * released or cancelled) gives it straight back. Resolves true when recording.
+   */
+  const start = useCallback(
+    async (opts?: { keep?: () => boolean }): Promise<boolean> => {
+      if (active.current || state.phase !== "idle") return false;
+      setState({ phase: "starting" });
+      let rec: ActiveRecording;
+      try {
+        rec = await startVoiceRecording({ onLimit: () => void pause("limit") });
+      } catch (error) {
+        fail(error);
+        return false;
+      }
+      // Left the chat, the buttons went away (chat ended, Pro gone), or the press ended, during the microphone prompt
+      if (!mounted.current || !mediaRef.current || mediaRef.current.mode !== "enabled" || (opts?.keep && !opts.keep())) {
+        rec.cancel();
+        if (mounted.current) setState({ phase: "idle" });
+        return false;
+      }
+      active.current = rec;
+      began.current = Date.now();
+      setStream(rec.stream ?? null);
+      setState({ phase: "recording", elapsed: 0 });
+      timer.current = setInterval(() => {
+        setState((s) =>
+          s.phase === "recording" ? { phase: "recording", elapsed: Math.min(MAX_RECORD_SEC, Math.floor((Date.now() - began.current) / 1000)) } : s
+        );
+      }, 250);
+      return true;
+    },
+    [fail, state.phase, pause]
+  );
 
   // The buttons went away mid-recording (chat no longer open for media): release the microphone
   useEffect(() => {
     if (allowed) return;
     discard();
   }, [allowed, discard]);
+
+  // The tab (or the phone's browser) went to the background: stop and wait, like the app
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") void pause("hidden");
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, [pause]);
 
   // Leaving the chat mid-recording: stop the microphone, send nothing
   useEffect(() => {
@@ -250,58 +256,6 @@ export function useVoiceRecording(media: ComposerMedia | undefined) {
     };
   }, [discard]);
 
-  return { state, start, send, cancel };
-}
-
-/** Shown instead of the text box while recording (or stopped at the limit): cancel, the clock, send */
-export function RecordingBar({
-  elapsed,
-  stopped,
-  onSend,
-  onCancel,
-  sendDisabled,
-}: {
-  elapsed: number;
-  /** The limit was reached: the recording is kept, waiting for send or cancel */
-  stopped?: boolean;
-  onSend: () => void;
-  onCancel: () => void;
-  /** The recorder is still finishing: send waits */
-  sendDisabled?: boolean;
-}) {
-  return (
-    <div className="flex flex-1 items-center gap-2">
-      <button
-        type="button"
-        onClick={onCancel}
-        aria-label="إلغاء التسجيل"
-        className={cn(ROUND_BUTTON, "text-destructive hover:bg-destructive/10")}
-      >
-        <Trash2 className="h-5 w-5" aria-hidden />
-      </button>
-      <div className="flex min-h-11 flex-1 items-center gap-2 rounded-2xl border border-input bg-background px-4" role="status">
-        {stopped ? (
-          <span className="text-sm text-muted-foreground">بلغ التسجيل الحد الأقصى</span>
-        ) : (
-          <>
-            <span className="h-2.5 w-2.5 flex-shrink-0 animate-pulse rounded-full bg-destructive" aria-hidden />
-            <span className="text-sm text-muted-foreground">جارٍ التسجيل</span>
-          </>
-        )}
-        <span dir="ltr" className="ms-auto font-mono text-sm tabular-nums text-foreground">
-          {clockLabel(elapsed)}
-          <span className="text-muted-foreground"> / {clockLabel(MAX_RECORD_SEC)}</span>
-        </span>
-      </div>
-      <button
-        type="button"
-        onClick={onSend}
-        disabled={sendDisabled}
-        aria-label="إرسال الرسالة الصوتية"
-        className={cn(ROUND_BUTTON, "bg-primary text-primary-foreground shadow-md shadow-primary/20 hover:bg-primary/90 disabled:opacity-40")}
-      >
-        <SendHorizontal className="h-5 w-5 -scale-x-100" aria-hidden />
-      </button>
-    </div>
-  );
+  // The microphone stream, only while recording (the live level)
+  return { state, stream: state.phase === "recording" ? stream : null, start, pause, send, cancel };
 }

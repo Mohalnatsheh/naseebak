@@ -35,7 +35,11 @@ import { FREE_REQUEST_NOTE, IntroConfirmDialog } from "@/components/intro/intro-
 import { daysLabel, daysLeft, postJson } from "@/components/intro/intro-utils";
 import { MessageBubble } from "./message-bubble";
 import { ChatComposer, type ChatComposerHandle } from "./chat-composer";
-import { StarterQuestions } from "./starter-questions";
+import type { MessageActions } from "./message-menu";
+import { useTypingSignal, usePartnerTyping } from "./use-typing";
+import { applyMyReaction, nextReaction, quoteOf, reportDetailsFor, showStarters } from "./chat-interactions";
+import type { ReplyQuote } from "@/lib/chat/reply";
+import { forPartner } from "@/lib/gendered-copy";
 import { EndChatDialog, type ReportReasonValue } from "./end-chat-dialog";
 import { ConfirmActionDialog } from "@/components/intro/confirm-action-dialog";
 import { dayLabel, mergeMessages, type UiMessage } from "./chat-utils";
@@ -98,6 +102,10 @@ interface ChatResponse {
   chatEnabled: boolean;
   /** Polls only: my newest message the partner has read */
   readUpTo?: { createdAt: string; readAt: string } | null;
+  /** The partner signalled typing in the last few seconds (the polling fallback for the live `typing` event) */
+  partnerTyping?: boolean;
+  /** Conversation starters while I haven't written anything in an open chat */
+  starters?: string[];
 }
 
 type LatestResult = { kind: "ok"; data: ChatResponse } | { kind: "notFound" } | { kind: "error" };
@@ -144,7 +152,13 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
   }, [messages]);
   const online = useOnline();
   const [hasMore, setHasMore] = useState(false);
+  const hasMoreRef = useRef(false);
+  useEffect(() => {
+    hasMoreRef.current = hasMore;
+  }, [hasMore]);
   const [chatEnabled, setChatEnabled] = useState(true);
+  // «يكتب الآن…» to the other person (at most every 3 s while I type in an open chat)
+  const typing = useTypingSignal(conversationId, !!conversation && conversation.status === "ACTIVE" && !conversation.blocked && chatEnabled);
   const [notFound, setNotFound] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const [loadingOlder, setLoadingOlder] = useState(false);
@@ -156,6 +170,15 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
   const [busy, setBusy] = useState(false);
   // «تمديد 7 أيام» is a one-time move: ask first
   const [extendConfirm, setExtendConfirm] = useState(false);
+  // «إبلاغ عن الرسالة»: the report's details start with that message
+  const [reportDetails, setReportDetails] = useState<string | undefined>(undefined);
+  // Replying to this message (the strip above the composer)
+  const [replyTo, setReplyTo] = useState<ReplyQuote | null>(null);
+  // A quote was tapped: the original is marked for a moment
+  const [highlightId, setHighlightId] = useState<string | null>(null);
+  const [starters, setStarters] = useState<string[]>([]);
+  const partnerTyping = usePartnerTyping();
+  const { mark: markTyping, clear: clearTyping } = partnerTyping;
 
   const scroller = useRef<HTMLDivElement>(null);
   const viewport = useMobileViewport();
@@ -218,9 +241,12 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
     }
     setConversation(data.conversation);
     setChatEnabled(data.chatEnabled);
+    if (data.starters) setStarters(data.starters);
+    if (data.partnerTyping) markTyping();
+    else if (data.partnerTyping === false) clearTyping();
     setMessages((prev) => (mode === "replace" ? data.messages : mergeMessages(prev, data.messages)));
     if (mode === "replace") setHasMore(data.hasMore);
-  }, []);
+  }, [markTyping, clearTyping]);
 
   const applyLatest = useCallback(
     (result: LatestResult, mode: "replace" | "merge") => {
@@ -265,7 +291,8 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
         prev.map((m) => (m.mine && !m.readAt && !m.pending && m.createdAt <= read.createdAt ? { ...m, readAt: read.readAt } : m))
       );
     }
-    return fresh;
+    // While the other person types, keep the fast pace (their message is on its way)
+    return fresh || !!result.data.partnerTyping;
   }, [conversationId, applyLatest, fetchLatest]);
 
   const loadIntro = useCallback(async (matchId: string) => {
@@ -301,13 +328,25 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
     onMessage: (m) => {
       if (!partnerId) return; // not loaded yet — the next poll/load picks it up
       const mine = m.senderId !== partnerId;
+      if (!mine) clearTyping();
+      const replyTo: ReplyQuote | null = m.replyTo
+        ? { id: m.replyTo.id, mine: m.replyTo.senderId !== partnerId, kind: m.replyTo.kind, snippet: m.replyTo.snippet }
+        : null;
       setMessages((prev) =>
         mergeMessages(
           // My own echo replaces exactly the optimistic copy it came from
           mine && m.clientNonce ? dropLocal(prev, m.clientNonce) : prev,
-          [{ id: m.id, body: m.body, createdAt: m.createdAt, mine, readAt: null, kind: m.kind ?? "TEXT", media: m.media ?? null, replyTo: null, reactions: [] }]
+          [{ id: m.id, body: m.body, createdAt: m.createdAt, mine, readAt: null, kind: m.kind ?? "TEXT", media: m.media ?? null, replyTo, reactions: [] }]
         )
       );
+    },
+    onReaction: (e) => {
+      if (!partnerId) return;
+      const reactions = e.reactions.map((r) => ({ emoji: r.emoji, mine: r.userId !== partnerId }));
+      setMessages((prev) => prev.map((m) => (m.id === e.messageId ? { ...m, reactions } : m)));
+    },
+    onTyping: (e) => {
+      if (partnerId && e.userId === partnerId) markTyping();
     },
     onRead: (e) => {
       if (e.by !== partnerId) return;
@@ -391,7 +430,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
 
   async function loadOlder() {
     const el = scroller.current;
-    const first = messages.find((m) => !m.pending);
+    const first = messagesRef.current.find((m) => !m.pending);
     // A ref, not the state: two scroll events before the re-render must not both load (and jump twice)
     if (!el || !first || loadingOlderRef.current) return;
     loadingOlderRef.current = true;
@@ -403,12 +442,30 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
       stickToBottom.current = false;
       setMessages((prev) => mergeMessages(prev, data.messages));
       setHasMore(data.hasMore);
+      hasMoreRef.current = data.hasMore;
       requestAnimationFrame(() => {
         if (scroller.current) scroller.current.scrollTop += scroller.current.scrollHeight - before;
       });
     }
     loadingOlderRef.current = false;
     setLoadingOlder(false);
+  }
+
+  /** A tapped quote: scroll to the original and mark it briefly (older pages load until it is there) */
+  async function revealMessage(id: string) {
+    for (let page = 0; page < 10 && !messagesRef.current.some((m) => m.id === id) && hasMoreRef.current; page++) {
+      await loadOlder();
+      await new Promise((r) => requestAnimationFrame(() => r(null)));
+    }
+    const row = scroller.current?.querySelector<HTMLElement>(`[data-message-id="${CSS.escape(id)}"]`);
+    if (!row) {
+      toast.info("الرسالة الأصلية غير متاحة");
+      return;
+    }
+    stickToBottom.current = false;
+    row.scrollIntoView({ block: "center", behavior: "smooth" });
+    setHighlightId(id);
+    setTimeout(() => setHighlightId((h) => (h === id ? null : h)), 1600);
   }
 
   // Text sends go out one at a time, in order, at the server's pace: a quick burst waits instead of being refused
@@ -427,7 +484,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
    * Shows the message at once and queues it. Returns false only when the instant check refuses it (the text
    * stays in the box); a message the server refuses later goes back into an empty box with the reason.
    */
-  async function send(text: string, retryId?: string): Promise<boolean> {
+  async function send(text: string, retryId?: string, quote: ReplyQuote | null = retryId ? null : replyTo): Promise<boolean> {
     setComposerError(null);
     // Same rules as the server, for instant feedback (the server still checks every message)
     const pre = checkMessage(text);
@@ -437,20 +494,23 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
     }
     const tempId = retryId ?? tempMessageId();
     setUnreadFromId(null);
+    typing.reset();
     const optimistic: UiMessage = {
-      id: tempId, body: text, createdAt: new Date().toISOString(), mine: true, readAt: null, kind: "TEXT", media: null, replyTo: null, reactions: [], pending: "sending",
+      id: tempId, body: text, createdAt: new Date().toISOString(), mine: true, readAt: null, kind: "TEXT", media: null, replyTo: quote, reactions: [], pending: "sending",
     };
     stickToBottom.current = true;
     setMessages((prev) => (retryId ? prev.map((m) => (m.id === retryId ? optimistic : m)) : [...prev, optimistic]));
-    sendQueue.current = sendQueue.current.then(() => deliver(text, tempId)).catch(() => {});
+    if (!retryId) setReplyTo(null);
+    sendQueue.current = sendQueue.current.then(() => deliver(text, tempId, quote?.id)).catch(() => {});
     return true;
   }
 
-  async function deliver(text: string, tempId: string) {
+  async function deliver(text: string, tempId: string, replyToId?: string) {
     await paced();
     const res = await postJson<{ message: ChatMessage }>(`/api/chats/${conversationId}/messages`, {
       body: text,
       clientNonce: tempId,
+      ...(replyToId && { replyToId }),
     });
     if (res.ok) {
       setMessages((prev) => mergeMessages(prev.filter((m) => m.id !== tempId), [res.data.message]));
@@ -472,9 +532,10 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
   }
 
   /** A photo or voice note: shown at once from this device, uploaded, then swapped for the saved copy. */
-  async function sendMedia(upload: PendingUpload, retryId?: string) {
+  async function sendMedia(upload: PendingUpload, retryId?: string, quote: ReplyQuote | null = retryId ? null : replyTo) {
     setComposerError(null);
     setUnreadFromId(null);
+    if (!retryId) setReplyTo(null);
     const tempId = retryId ?? tempMessageId();
     let url = localUrl(messages.find((m) => m.id === retryId));
     if (!url) {
@@ -489,7 +550,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
       readAt: null,
       kind: upload.kind,
       media: { url, type: upload.blob.type, durationSec: upload.durationSec ?? null, width: upload.width ?? null, height: upload.height ?? null },
-      replyTo: null,
+      replyTo: quote,
       reactions: [],
       pending: "sending",
       upload,
@@ -502,6 +563,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
     form.append("kind", upload.kind);
     if (upload.kind === "VOICE" && upload.durationSec) form.append("durationSec", String(upload.durationSec));
     form.append("clientNonce", tempId); // the same nonce on retry: the server never saves it twice
+    if (quote) form.append("replyToId", quote.id);
     const res = await fetch(`/api/chats/${conversationId}/media`, { method: "POST", body: form }).catch(() => null);
     const data: { message?: ChatMessage; error?: string; code?: string } = res ? await res.json().catch(() => ({})) : {};
 
@@ -535,8 +597,8 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
   useEffect(() => {
     retryFailed.current = () => {
       for (const m of messagesRef.current.filter((x) => x.pending === "failed")) {
-        if (m.upload) void sendMedia(m.upload, m.id);
-        else void send(m.body, m.id);
+        if (m.upload) void sendMedia(m.upload, m.id, m.replyTo);
+        else void send(m.body, m.id, m.replyTo);
       }
       void fetchNewer();
     };
@@ -551,6 +613,20 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
     wasOffline.current = false;
     retryFailed.current();
   }, [online]);
+
+  /** A reaction: shown at once, then the server's list (or put back, with a note, if refused) */
+  async function react(target: UiMessage, emoji: string) {
+    const before = messagesRef.current.find((m) => m.id === target.id)?.reactions ?? target.reactions;
+    const next = nextReaction(before, emoji);
+    setMessages((prev) => prev.map((m) => (m.id === target.id ? { ...m, reactions: applyMyReaction(before, next) } : m)));
+    const res = await postJson<{ reactions: UiMessage["reactions"] }>(`/api/chats/${conversationId}/messages/${target.id}/reaction`, { emoji: next });
+    if (res.ok) {
+      setMessages((prev) => prev.map((m) => (m.id === target.id ? { ...m, reactions: res.data.reactions } : m)));
+      return;
+    }
+    setMessages((prev) => prev.map((m) => (m.id === target.id ? { ...m, reactions: before } : m)));
+    toast.error(res.data.error ?? "تعذّر إرسال التفاعل");
+  }
 
   async function extend() {
     setExtendConfirm(false);
@@ -656,6 +732,22 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
     keyboardOpen: !!viewport?.keyboard,
   });
   const activity = open && !conversation.blocked ? conversation.partner.activityLabel : null;
+  // «يكتب الآن…» / «تكتب الآن…» (the partner's gender) wins over the activity label; never in a closed chat
+  const typingLabel = open && !conversation.blocked && partnerTyping.typing ? forPartner(myGender, "يكتب الآن…", "تكتب الآن…") : null;
+  const messageActions: MessageActions = {
+    canInteract: canSend,
+    onReply: (m) => {
+      setReplyTo(quoteOf(m));
+      composer.current?.focus();
+    },
+    onReact: (m, emoji) => void react(m, emoji),
+    onReport: (m) => {
+      setReportDetails(reportDetailsFor(m));
+      setEndDialog("report");
+    },
+    onOpenQuote: (id) => void revealMessage(id),
+    onOpenPhoto: () => {}, // the photo opens in its own dialog until the viewer
+  };
   const familyOpenUntil = family?.openUntil
     ? formatDate(family.openUntil, country, { day: "numeric", month: "long" })
     : null;
@@ -686,10 +778,12 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
                   <VerifiedBadge verified={conversation.partner.isVerified} />
                   {conversation.partner.isPro && <ProBadge />}
                 </div>
-                {/* The status line: the activity label («نشط اليوم») in an open chat, else the time left / why it's
-                    closed. (Typing «يكتب الآن…» goes here first, Task 3.) */}
-                <p data-testid="chat-status-line" className={cn("mt-0.5 flex items-center gap-1 truncate text-xs", activity ? "font-semibold text-emerald-700" : open && left <= EXPIRY_SOON_DAYS ? "font-semibold text-amber-700" : "text-muted-foreground")}>
-                  {activity ? (
+                {/* The status line: «يكتب الآن…» while the partner types, else the activity label («نشط اليوم») in an
+                    open chat, else the time left / why it's closed */}
+                <p data-testid="chat-status-line" aria-live="polite" className={cn("mt-0.5 flex items-center gap-1 truncate text-xs", typingLabel || activity ? "font-semibold text-primary" : open && left <= EXPIRY_SOON_DAYS ? "font-semibold text-amber-700" : "text-muted-foreground")}>
+                  {typingLabel ? (
+                    <span className="italic">{typingLabel}</span>
+                  ) : activity ? (
                     activity
                   ) : (
                     <>
@@ -742,14 +836,20 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
                 </DropdownMenuItem>
               </>
             )}
-            <DropdownMenuItem variant="destructive" onClick={() => setEndDialog("report")}>
+            <DropdownMenuItem
+              variant="destructive"
+              onClick={() => {
+                setReportDetails(undefined);
+                setEndDialog("report");
+              }}
+            >
               <Flag className="h-4 w-4" /> {endable ? "إنهاء وإبلاغ" : "إبلاغ"}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </header>
 
-      {/* Notifications off on this device: a slim line with the guided setup, while the chat is open */}
+      {/* Offline: failed messages go out again by themselves when the connection is back */}
       {!online && (
         <p role="status" className="flex min-h-9 items-center justify-center gap-1.5 border-b border-amber-200 bg-amber-50 px-3 py-1.5 text-center text-xs font-semibold text-amber-800">
           <WifiOff className="h-3.5 w-3.5 shrink-0" aria-hidden />
@@ -788,7 +888,11 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
           </div>
         )}
 
-        {messages.length === 0 && canSend && <StarterQuestions myGender={myGender} onPick={(q) => composer.current?.fill(q)} />}
+        {messages.length === 0 && canSend && (
+          <p className="mx-auto mt-8 max-w-xs rounded-xl bg-card/90 px-4 py-3 text-center text-sm text-muted-foreground shadow-sm">
+            {myGender === "FEMALE" ? "ابدئي المحادثة برسالة، أو اختاري أحد الاقتراحات بالأسفل." : "ابدأ المحادثة برسالة، أو اختر أحد الاقتراحات بالأسفل."}
+          </p>
+        )}
         {messages.length === 0 && !canSend && (
           <p className="py-10 text-center text-sm text-muted-foreground">لا توجد رسائل في هذه المحادثة.</p>
         )}
@@ -813,7 +917,10 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
                   <MessageBubble
                     message={m}
                     tail={layout.tail}
-                    onRetry={() => (m.upload ? sendMedia(m.upload, m.id) : send(m.body, m.id))}
+                    onRetry={() => (m.upload ? sendMedia(m.upload, m.id, m.replyTo) : send(m.body, m.id, m.replyTo))}
+                    actions={messageActions}
+                    partnerName={conversation.partner.firstName}
+                    highlighted={highlightId === m.id}
                   />
                 </Fragment>
               );
@@ -844,7 +951,22 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
 
       {/* Composer or read-only notice */}
       {canSend ? (
-        <ChatComposer ref={composer} female={myGender === "FEMALE"} keyboardOpen={!!viewport?.keyboard} onSend={(t) => send(t)} error={composerError} onTyping={() => composerError && setComposerError(null)} media={composerMedia} />
+        <ChatComposer
+          ref={composer}
+          female={myGender === "FEMALE"}
+          keyboardOpen={!!viewport?.keyboard}
+          onSend={(t) => send(t)}
+          error={composerError}
+          onTyping={() => {
+            if (composerError) setComposerError(null);
+            typing.notify();
+          }}
+          media={composerMedia}
+          replyTo={replyTo}
+          partnerName={conversation.partner.firstName}
+          onCancelReply={() => setReplyTo(null)}
+          starters={showStarters({ starters, canSend, messages }) ? starters : []}
+        />
       ) : (
         <div className="border-t border-border/60 bg-muted/30 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] text-center text-sm text-muted-foreground">
           {conversation.blocked
@@ -896,7 +1018,12 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
       />
       <EndChatDialog
         open={!!endDialog}
-        onOpenChange={(o) => !o && setEndDialog(null)}
+        onOpenChange={(o) => {
+          if (o) return;
+          setEndDialog(null);
+          setReportDetails(undefined);
+        }}
+        initialDetails={reportDetails}
         report={endDialog === "report"}
         partnerName={conversation.partner.firstName}
         familyStatus={intro?.flags.introRequests && !intro.closed ? family?.status : undefined}

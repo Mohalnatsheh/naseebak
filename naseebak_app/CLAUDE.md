@@ -123,6 +123,44 @@ needed a release.
   (`core/storage/picker_files.dart`); a refused microphone offers
   «الإعدادات» (`openAppSettings` on the `naseebak/system` channel). The splash plays in full on the first launch only
   (0.6 s after). A paused account can open `/pro` (renewal shown on the paused page); `/pro` sends test accounts home.
+- **Modern chat (1.1.0, `features/chat/`, design `../docs/superpowers/specs/2026-11-10-modern-chat-design.md`):**
+  - **Look:** WhatsApp-style bubbles painted by one `BubblePainter` (no per-bubble clip or shadow): mine navy, theirs
+    white (`AppColors.chatMine` / `chatTheirs`), a tail only on the first of a run, 2 px inside a run and 8 px between
+    runs, time and ticks inside at the end corner, each bubble's direction from its first strong letter. A soft navy
+    pattern drawn in code (`chat_background.dart`, no image, no faces). A sticky date chip while scrolling and a
+    «رسائل جديدة» divider, scrolled into view when the chat opens on unread messages. Header: avatar initial, name, Pro
+    badge, then «يكتب الآن…» / the server's `partner.activityLabel` (null unless the chat is open and the partner
+    active) / the time left while not urgent.
+  - **Status bar:** one slim bar by priority (`chatStatusBar`, same as the website): (1) ending soon, only when it can
+    be extended; (2) the family step to act on (offer or request received), with «تبقّى …» inline in the last days; (3)
+    ending soon with no action; (4) the push chip until dismissed. The family step is re-read on open, on return from
+    the match page and about once a minute while the chat is open.
+  - **Composer:** a pill field with the photo button inside, one round button: mic when empty, send with text. Starter
+    chips (from the server's `starters`) only while I haven't written and no reply is open; a tap fills the field.
+  - **Hold to record** (`hold_to_record.dart`, raw pointer events): hold 250 ms, release to send, slide 110 px towards
+    the start edge to cancel, slide up 80 px to lock (stop, cancel, send). Under 1 s (or let go before the microphone
+    started) is dropped with «الرسالة قصيرة جداً», except while the permission prompt is up. A **tap** on the mic records
+    hands-free at once (the locked bar): it also serves screen readers, and it never sends on its own. Any other end of a
+    hold (pointer cancel, second finger, wander off, background, the 180 s limit) stops and waits for «إرسال».
+  - **Reply:** swipe a bubble towards the end side or menu «رد»; the strip shows author and snippet with ✕; `replyToId`
+    goes with text, photo and voice and survives retry and «تعديل الرسالة». A tapped quote scrolls to the original and
+    tints it. A swipe the system cancels never replies.
+  - **Menu (long-press a sent message):** reactions ❤️ 👍 😊 🤲 and «رد» while the chat is open, «نسخ» for text,
+    «إبلاغ عن الرسالة» for the partner's messages: the sheet quotes the message and `POST /api/chats/{id}/end` sends
+    `report.messageId` (the details stay the member's own). No delete.
+  - **Reactions:** optimistic, then the server's list, reverted on failure; a chip under the bubble (tap mine to
+    remove, ≥ 44 px). Live `reaction` events update without a fetch; without Ably every poll sends `reactionsSince` (the
+    last answer's `polledAt` less 5 s, server time only) and applies `reactionUpdates` to older messages.
+  - **Typing:** `POST /api/chats/{id}/typing` at most every 3 s (`TypingThrottle`); the partner's shows 5 s (live event or
+    the poll's `partnerTyping`), never my own echo, never in a closed chat, and a late event just after their message is
+    ignored for 1.5 s. The app polls every 4 s without Ably (no backoff), so nothing needs waking while I type.
+  - **Photos:** a preview before sending («إرسال» / «إلغاء», the copy deleted on cancel); the time over the photo's corner;
+    a black full-screen viewer (pinch and double-tap zoom around the photo area, swipe through the chat's loaded photos
+    oldest first, no download or share, ✕ at the end side, SecureArea, no Hero).
+  - **Voice:** a waveform from the duration seeded by the message id (my note keeps its sending look after the server
+    copy replaces it), tap or drag to seek, screen-reader increase / decrease by 5 s, speed 1× / 1.5× / 2× (one for the app
+    run), and an unplayed dot on the partner's notes until one really starts playing (`VoicePlayedStore`, prefs, wiped
+    on sign-out).
 - **Config gate:** `GET /api/mobile/config` on start and every resume → force update / optional update / store links /
   maintenance (`core/update/app_update.dart`). Popup alerts: `GET /api/alerts/current?platform=app`.
 - **Crashlytics:** release builds only.
@@ -170,7 +208,11 @@ Changing one of these on the server must keep old app versions working (members 
   the Xcode account, no API key). The 1.0.1 notes above say Play has 1.0.1 live; the App Store had only 1.0.0 then.
 - **1.1.0+4 (Pro, branch `feature/pro-membership`, not built for the stores yet):** Pro plans and «اشتراكي» on their
   own screen `/pro` (link card on the credits screen, entry in «حسابي»), photos and voice notes in chat (Pro to send, everyone to view and play), the Pro badge on cards,
-  chats and home, `ChatCache` v2 (drops 1.0.x caches), image cache cleared on sign-out. New packages `record` and
+  chats and home, `ChatCache` v2 (drops 1.0.x caches), image cache cleared on sign-out. The modern chat (2026-11-10,
+  above): new look, one status bar, pill composer with hold-to-record, reply, reactions, typing, starters, the
+  long-press menu with «إبلاغ عن الرسالة» (`report.messageId`), photo preview and viewer, voice waveform, speed and
+  unplayed dot. Needs the server's chat commits (`replyTo`, `reactions`, `partnerTyping`, `starters`, `polledAt` /
+  `reactionUpdates`, `report.messageId`); 1.0.x keeps working (all additive). New packages `record` and
   `just_audio`; new permissions: iOS `NSMicrophoneUsageDescription` («لتسجيل رسالة صوتية في المحادثة»), the photo text
   now covers chat, Android `RECORD_AUDIO`; privacy manifest adds `AudioData`. **Before upload, update the store privacy
   answers** (Play Data safety and App Store privacy labels): audio (voice notes) and photos are now collected in chat,

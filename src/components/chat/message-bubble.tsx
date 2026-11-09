@@ -37,7 +37,7 @@ export function MessageBubble({
           )}
         >
           {photo && media ? (
-            <PhotoBubble media={media} mine={mine} />
+            <PhotoBubble media={media} mine={mine} sendFailed={message.pending === "failed"} />
           ) : media ? (
             <VoiceBubble media={media} mine={mine} />
           ) : (

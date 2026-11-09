@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
-import { Loader2, Pause, Play } from "lucide-react";
+import { ImageOff, Loader2, Pause, Play } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import type { ChatMedia } from "@/lib/chat/service";
@@ -16,10 +16,11 @@ const MAX_RATIO = 1.8;
 
 /**
  * A photo in a bubble. Tap opens it full size. A `blob:` URL is the local preview while it uploads; one the browser
- * can't show (a HEIC in Chrome, decoded by the server) says «جارٍ تجهيز الصورة…» until the server's copy arrives.
+ * can't show (a HEIC in Chrome, decoded by the server) says «جارٍ تجهيز الصورة…» until the server's copy arrives, or,
+ * once its upload failed (`sendFailed`, the bubble's retry button is under it), a still «صورة لم تُرسل» with no spinner.
  * A saved photo that fails to load offers a tap to try again.
  */
-export function PhotoBubble({ media, mine }: { media: ChatMedia; mine: boolean }) {
+export function PhotoBubble({ media, mine, sendFailed = false }: { media: ChatMedia; mine: boolean; sendFailed?: boolean }) {
   const [open, setOpen] = useState(false);
   // The address that failed (a new url, the server's copy after the preview, starts fresh) and the retry count
   const [failedUrl, setFailedUrl] = useState<string | null>(null);
@@ -32,6 +33,14 @@ export function PhotoBubble({ media, mine }: { media: ChatMedia; mine: boolean }
   const box = cn("flex items-center justify-center rounded-xl text-sm", mine ? "bg-primary-foreground/10" : "bg-muted");
 
   if (failedUrl === src) {
+    if (local && sendFailed) {
+      return (
+        <div style={style} className={box} role="status">
+          <ImageOff className="me-1.5 h-4 w-4" aria-hidden />
+          صورة لم تُرسل
+        </div>
+      );
+    }
     if (local) {
       return (
         <div style={style} className={box} role="status">

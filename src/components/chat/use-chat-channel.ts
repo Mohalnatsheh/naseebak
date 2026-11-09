@@ -42,6 +42,8 @@ export function useChatChannel(
     let cancelled = false;
     let polling = false;
     let inFlight = false;
+    // wake() while a poll is on its way: the next delay is the fast one, whatever that poll found
+    let woken = false;
     let delay = POLL_MIN_MS;
     let timer: ReturnType<typeof setTimeout> | null = null;
     let realtime: { close: () => void } | null = null;
@@ -67,7 +69,8 @@ export function useChatChannel(
         got = false;
       }
       inFlight = false;
-      delay = nextPollDelay(delay, got);
+      delay = nextPollDelay(delay, got || woken);
+      woken = false;
       schedule();
     };
     const startPolling = () => {
@@ -83,6 +86,7 @@ export function useChatChannel(
     };
     wakeRef.current = () => {
       delay = POLL_MIN_MS;
+      if (inFlight) woken = true;
       schedule();
     };
     const onVisibility = () => {

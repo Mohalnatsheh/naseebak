@@ -534,9 +534,14 @@ export const AUTOMATIC_NOTIFICATIONS: AutomaticNotification[] = [
     ],
     "texts": [
       {
-        "variant": "family",
+        "variant": "family, the chat request declined too",
         "title": "لم يتم قبول الطلب حالياً",
         "body": "لم يتم قبول طلب التعارف العائلي. نتمنى لك التوفيق في اقتراحاتك القادمة."
+      },
+      {
+        "variant": "family, no chat answered yet (the match stays open)",
+        "title": "لم يتم قبول الطلب حالياً",
+        "body": "لم يتم قبول طلب التعارف العائلي، والتوافق بينكما ما زال قائماً."
       },
       {
         "variant": "family, the chat between them still open",

@@ -264,6 +264,15 @@ describe("respondToIntroRequest", () => {
     expect(await bodyFor({ status: "DECLINED" })).toContain("اقتراحاتك القادمة");
   });
 
+  it("a declined family request with no chat answered yet says the match stays open (review minor 7)", async () => {
+    vi.mocked(notifyMod.notify).mockClear();
+    db.introRequest.findUnique.mockResolvedValue(pending({ type: "FAMILY" }));
+    db.introRequest.updateMany.mockResolvedValue({ count: 1 });
+    db.introRequest.findFirst.mockResolvedValueOnce(null);
+    await respondToIntroRequest({ requestId: "r1", userId: "f1", accept: false });
+    expect((vi.mocked(notifyMod.notify).mock.calls[0][0] as { body: string }).body).toBe("لم يتم قبول طلب التعارف العائلي، والتوافق بينكما ما زال قائماً.");
+  });
+
   it("answering a request the daily job already expired says it ran out, not «تم الرد» (QA WC-11)", async () => {
     db.introRequest.findUnique.mockResolvedValue(pending({ status: "EXPIRED" }));
     await expectCode(respondToIntroRequest({ requestId: "r1", userId: "f1", accept: true }), "EXPIRED");

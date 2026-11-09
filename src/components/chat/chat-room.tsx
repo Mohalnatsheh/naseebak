@@ -64,6 +64,9 @@ function tempMessageId() {
   return `tmp-${random}`;
 }
 
+/** Polls ask from this long before the newest message they have */
+const POLL_OVERLAP_MS = 5000;
+
 /** Same pace as the server's burst limit (5 messages in 5 s): queued sends wait instead of being refused */
 const SEND_BURST = 5;
 const SEND_WINDOW_MS = 5000;
@@ -145,6 +148,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
   const [notFound, setNotFound] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const [loadingOlder, setLoadingOlder] = useState(false);
+  const loadingOlderRef = useRef(false);
   const [composerError, setComposerError] = useState<string | null>(null);
   const [intro, setIntro] = useState<IntroState | null>(null);
   const [familyDialog, setFamilyDialog] = useState(false);
@@ -235,7 +239,10 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
       await fetchLatest("merge");
       return messagesRef.current.length !== before;
     }
-    const result = await requestLatest(conversationId, newest.createdAt);
+    // A little before the newest: a partner message stamped earlier but saved a moment later is never skipped
+    // (the overlap is merged by id)
+    const since = new Date(Date.parse(newest.createdAt) - POLL_OVERLAP_MS).toISOString();
+    const result = await requestLatest(conversationId, since);
     if (result.kind !== "ok") {
       applyLatest(result, "merge");
       return false;
@@ -359,13 +366,15 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
     setAway(distance > 160);
     if (distance < 120) setSeenUpTo(messages.at(-1)?.createdAt ?? "");
     // Reading back to the top loads the older messages by itself (the button stays for keyboards and short chats)
-    if (el.scrollTop < 120 && hasMore && !loadingOlder) void loadOlder();
+    if (el.scrollTop < 120 && hasMore) void loadOlder();
   }
 
   async function loadOlder() {
     const el = scroller.current;
     const first = messages.find((m) => !m.pending);
-    if (!el || !first || loadingOlder) return;
+    // A ref, not the state: two scroll events before the re-render must not both load (and jump twice)
+    if (!el || !first || loadingOlderRef.current) return;
+    loadingOlderRef.current = true;
     setLoadingOlder(true);
     const before = el.scrollHeight;
     const res = await fetch(`/api/chats/${conversationId}?before=${encodeURIComponent(first.createdAt)}`).catch(() => null);
@@ -378,6 +387,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
         if (scroller.current) scroller.current.scrollTop += scroller.current.scrollHeight - before;
       });
     }
+    loadingOlderRef.current = false;
     setLoadingOlder(false);
   }
 

@@ -81,4 +81,20 @@ describe("useChatChannel polling (QA chat WC-06)", () => {
     });
     expect(poll).toHaveBeenCalledTimes(4);
   });
+
+  it("wake() during a poll on its way keeps the fast pace (review minor 9)", async () => {
+    let release: (v: boolean) => void = () => {};
+    const poll = vi.fn(() => new Promise<boolean>((r) => (release = r)));
+    const { result } = renderHook(() => useChatChannel("c1", handlers(poll)));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(POLL_MIN_MS);
+    });
+    expect(poll).toHaveBeenCalledTimes(1);
+    act(() => result.current.wake());
+    await act(async () => {
+      release(false);
+      await vi.advanceTimersByTimeAsync(POLL_MIN_MS);
+    });
+    expect(poll).toHaveBeenCalledTimes(2);
+  });
 });

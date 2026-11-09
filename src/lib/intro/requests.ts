@@ -481,6 +481,8 @@ async function declinedRequestBody(type: "FAMILY" | "CHAT", matchId: string, con
   });
   if (type === "FAMILY") {
     if (other?.status === "ACCEPTED" && conversationStatus === "ACTIVE") return "لم يتم قبول طلب التعارف العائلي، والمحادثة بينكما ما زالت مفتوحة.";
+    // No chat answered yet: the match stays open (a chat request can still be sent while chat is on)
+    if (!other) return "لم يتم قبول طلب التعارف العائلي، والتوافق بينكما ما زال قائماً.";
     return "لم يتم قبول طلب التعارف العائلي. نتمنى لك التوفيق في اقتراحاتك القادمة.";
   }
   if (other?.status === "ACCEPTED") return "لم يتم قبول طلب المحادثة، ويبقى التعارف العائلي بينكما قائماً.";

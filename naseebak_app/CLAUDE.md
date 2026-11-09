@@ -12,8 +12,8 @@ accounts and troubleshooting are in `README.md`; the website/server rules are in
 - **Mirror:** `~/Documents/EvoKey-Projects/naseebak_app/` = `github.com/Mohalnatsheh/naseebak_app`
   (`main` and `feature/fcm-push`). After an app change, copy the changed files over and push
   (`git push git@github.com:Mohalnatsheh/naseebak_app.git HEAD:main HEAD:feature/fcm-push`; the https remote has no
-  saved login). On 2026-11-06 the mirror (`d94b4b3`) was behind this copy in four files, still to copy over:
-  `otp_screen.dart`, `phone_screen.dart`, `suggestion_card.dart`, `suggestion_models.dart`.
+  saved login). In step with this copy since 2026-11-09 (mirror `20ad85f` = main `f523654`); find what to copy with
+  `git diff --name-only <last synced main commit>..HEAD -- naseebak_app`.
 - `~/Desktop/Evokey-APPS/Naseebak/naseebak` is an old website checkout — never work there.
 
 ## Before you change anything: does it need a store release?
@@ -38,12 +38,21 @@ needed a release.
 - **Parity with the website:** the app covers every member page. Form lists and options come from
   `GET /api/countries/{code}` (`lists` + `options`) — add an option on the server, never only in the app.
 - **Arabic, RTL, gendered copy:** member-facing text follows the member's gender (`home/gendered_copy.dart`).
-- **No SMS for notices** (owner rule, 2026-11-04): notices are push + bell only; SMS is used for sign-in codes only.
+- **Notices are push + bell.** The app never sends SMS. The server's narrowed notice SMS (match or «مهتم», only to
+  members with no push for 14 days, `sms_notices_enabled`) is decided on the server: see `../CLAUDE.md`.
 - **Links from the server** open only as https / mailto / tel (`isSafeExternalLink` in `shared/widgets/common.dart`);
   store links also `itms-apps` / `market`; checkout only https.
 - **Privacy:** chats and a match's photos are `SecureArea`s (`core/privacy/screen_privacy.dart`): Android
   `FLAG_SECURE`, iOS blur while recording. Analytics never sends ids in screen names (route patterns only).
 - `flutter analyze` must stay at 0 issues and `flutter test` green (fake Dio adapter, no network).
+- **After any `await` in a State**, check `mounted` before `setState`/`ref`/`context`, or take
+  `ProviderScope.containerOf(context, listen: false)` before the request when a refresh must still happen. Leaving a
+  screen mid-request crashed 1.0.0 («Cannot use "ref" after the widget was disposed», «Null check operator» in release).
+  Test it with `FakeAdapter.hold` (`test/leave_mid_request_test.dart`).
+- **No Hero animations:** a `FloatingActionButton` needs `heroTag: null` (its default Hero crashed between two support
+  screens, `RenderBox was not laid out`).
+- **Saudi sign-in code wording** («عبر واتساب») is chosen in the app from the country, not from the server's channel.
+  If Saudi codes ever go back to SMS (VerifyWay key removed or provider changed), the app text needs a new version.
 
 ## Integrations
 
@@ -90,8 +99,15 @@ Changing one of these on the server must keep old app versions working (members 
 - **Status (2026-11-04):** Google Play live with 1.0.0; App Store 1.0.0 (1) in review. Once Apple approves: set the iOS
   store link in Admin → Settings → «Mobile app», check Universal Links on an iPhone, remove the review numbers from
   `EXTRA_TEST_PHONES` on the server.
-- **1.0.1+2 (2026-11-08, Play):** free «مهتم» reply, the niqab answer («الحجاب»: محجبة / منتقبة / غير محجبة) and the «منتقبة» partner preference, setup refreshes the cached profile, plus everything listed under
-  "Waiting for the next version" below. Bundle: `~/Documents/EvoKey-Projects/naseebak-release-1.0.1/naseebak-1.0.1-2.aab`.
+- **1.0.1+2 (Play, bundle rebuilt 2026-11-09 from `f523654`, not uploaded yet):** free «مهتم» reply (follows
+  `free_interest_reply`), the niqab answer («الحجاب»: محجبة / منتقبة / غير محجبة) and the «منتقبة» partner preference, chat
+  tabs «النشطة» / «المنتهية» (opens on active), chat keyboard stays open and the chats list refreshes itself, six
+  Crashlytics fixes (lost connection reported as a crash, `core/analytics/crash_filter.dart` `isExpectedError`; SMS
+  autofill `invalid selection start: 6`, `core/localization/safe_input_formatter.dart`; three screens closed
+  mid-request; the support button's Hero), setup refreshes the cached profile, feminine and neutral copy, guardian
+  number `+962 79 …`, `X-App-Platform`, the activity label on cards, the WhatsApp wording for Saudi codes. Bundle:
+  `~/Documents/EvoKey-Projects/naseebak-release-1.0.1/naseebak-1.0.1-2.aab`. If build 2 was ever uploaded, bump to +3.
+  Once live: force update to 1.0.1 (1.0.0 locks «مهتم» at 0 credits and has the crashes).
 - **Builds:** bump `version: 1.0.x+N` in `pubspec.yaml` for every upload. Android signing reads
   `android/key.properties` (git-ignored; key `~/.naseebak-keys/naseebak-upload.jks`, alias `upload` — never commit it).
   iOS: `flutter build ipa` signs through Xcode's account («Apple Distribution: Evolution Key for Information
@@ -99,16 +115,16 @@ Changing one of these on the server must keep old app versions working (members 
   the simulator, or Apple refuses the upload (simulator `objective_c.framework`). Store texts, review login and privacy
   answers: `~/Documents/EvoKey-Projects/naseebak-release-1.0.0/store-listing.md`.
 - **Next version, filter tip (owner, 2026-11-05):** the empty «جديدة» page (`suggestions_screen.dart`, `emptyReason == 'no_candidates'`) doesn't show the website's tip («لو خففت شرط «العمر» يظهر لك 43 شخصاً مناسباً.»); app users get it only by push + bell. To add: `GET /api/suggestions/filter-tip` returns `{ text }` (null = nothing to show), show it above «تعديل تفضيلاتي». The route uses `requireUser`, which accepts the app's Bearer sign-in, so the server needs no change.
-- **Waiting for the next version:** chats split into «النشطة» / «المنتهية» tabs (opens on active, 2026-11-09); screens closed mid-request no longer crash (Crashlytics «Cannot use ref after dispose» / release «Null check», 2026-11-09: mounted checks, or the provider container taken before the request); the `X-App-Platform` header (done in code); the rough activity label on suggestion cards (done in code); the Saudi sign-in code wording, WhatsApp instead of «برسالة نصية» (done in code); two Crashlytics fixes (done in code, 2026-11-05): a lost connection is no longer reported as a fatal crash (`core/analytics/crash_filter.dart` → `isExpectedError`, used in `main.dart`'s handlers), and the sign-in code and phone fields use `SafeInputFormatter` (`core/localization/safe_input_formatter.dart`) instead of Filtering + LengthLimiting formatters, which crashed on Android SMS code autofill (`invalid selection start: 6`); planned, not built — a
-  `purchase` analytics event, and popup taps: `features/alerts/alert_gate.dart` posts `/api/alerts/{id}/dismiss` with
-  no body, so admin → Popup Alerts can't tell an app tap from a close — send `{ "action": "TAPPED" | "CLOSED" }` like the
-  website does (the server already accepts it; «Seen» is counted on the server and needs nothing from the app).
+- **Planned, not built (next version):** a `purchase` analytics event, and popup taps:
+  `features/alerts/alert_gate.dart` posts `/api/alerts/{id}/dismiss` with no body, so admin → Popup Alerts can't tell an
+  app tap from a close — send `{ "action": "TAPPED" | "CLOSED" }` like the website does (the server already accepts it;
+  «Seen» is counted on the server and needs nothing from the app).
 
 ## Gotchas
 
 - Android needs Kotlin 2.3 (`settings.gradle.kts`) for Play services built with Kotlin 2.4.
-- iOS Podfile pins `$FirebaseSDKVersion = '12.19.0'`; Firebase stops publishing CocoaPods after Oct 2026 — plan a move to
-  Swift Package Manager.
+- iOS Podfile pins `$FirebaseSDKVersion = '12.19.0'`; Firebase stopped publishing CocoaPods after Oct 2026, so this pin
+  still builds but no newer Firebase will come that way — move to Swift Package Manager before the next Firebase update.
 - `flutter build ios --simulator` fails (no x86_64 engine): use `flutter run -d <simulator>`.
 - The first launch after an install clears a keychain token (iOS keeps it after the app is deleted).
 - Arabic text can't be typed with `adb shell input text`.

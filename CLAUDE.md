@@ -155,6 +155,7 @@ src/
 - Member pages are Arabic RTL. Admin is English LTR.
 - Digits are Western (0-9) everywhere. Format dates with `"ar-JO-u-nu-latn"`.
 - Phone and OTP inputs accept Arabic-Indic digits: convert with `toLatinDigits()` (`src/lib/digits.ts`).
+- Number fields (height, weight, ages, counts) use `NumberInput` (`src/components/shared/number-input.tsx`), never `type="number"`: it silently drops Arabic-Indic digits (2026-11-09).
 - RTL chevrons: `ChevronRight` = السابق, `ChevronLeft` = التالي.
 - Copy follows gender: `forViewer()`, `forPartner()` (`src/lib/gendered-copy.ts`). The partner is the opposite gender of the viewer.
 - Shared messages use no masculine commands: say «يمكنك …».
@@ -193,7 +194,7 @@ src/
 - The country switcher does a full page load: `/sa` and `/` are one route to the client router.
 - Blog posts and polls belong to a country. A post opens only under its own country.
 - The dashboard follows the member's country, not the last public page.
-- Saudi purchases stay off until «Prices approved» is on in Admin → Countries. SAR prices are drafts until then.
+- Saudi purchases stay off until «Prices approved» is on in Admin → Countries. SAR prices are drafts until then. Meanwhile the payments page (website and app) says buying isn't available and disables the buttons (`purchasesEnabled` from `/api/payments/plans`).
 - More: [docs/reference/countries-and-app.md](docs/reference/countries-and-app.md).
 
 ## Money and credits
@@ -384,7 +385,7 @@ Needs a new app version:
 - The filter tip on the app's empty «جديدة» page.
 - The website's «الرصيد أرخص» saving line. A live chat widget in the app.
 
-In `naseebak_app/` code, waiting for the next store build: `X-App-Platform`, two Crashlytics fixes, the activity label on cards, the WhatsApp wording for Saudi codes. Details: [naseebak_app/CLAUDE.md](naseebak_app/CLAUDE.md).
+App 1.0.1+2 (built 2026-11-09, not uploaded yet; Play has 1.0.0): free «مهتم» reply, niqab answer, chat tabs «النشطة» / «المنتهية», six Crashlytics fixes, `X-App-Platform`, the activity label on cards, the WhatsApp wording for Saudi codes. Once it is live, turn on the force update to 1.0.1. Details: [naseebak_app/CLAUDE.md](naseebak_app/CLAUDE.md).
 
 API changes must keep old app versions working. Members update slowly.
 

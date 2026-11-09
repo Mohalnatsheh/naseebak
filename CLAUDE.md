@@ -31,6 +31,7 @@ Rules for working on Naseebak (نصيبك). This file holds what you need in eve
 - Two more switches, both **on** in production since 2026-11-07, both off by default: `feed_active_first` (the «جديدة» order, Admin → Settings) and `sms_notices_enabled` (notice SMS, set in `system_settings`: no admin button yet, Admin → Notifications → Automatic only shows it).
 - `free_interest_reply` (Admin → Settings, off by default, **on** in production since 2026-11-09, needs `credit_on_interest`, 2026-11-08): answering «مهتم» on a card the other side already said «مهتم» on (`likedYou`) costs no credit, also at 0 credits; the first «مهتم» still costs 1. The chat/family choice and guardian consent still apply (`decideSuggestion`: `introChoice` vs `charge`). The notices say the reply is free (`replyNoticeLine`). App 1.0.1+ handles it; 1.0.0 at 0 credits still locks «مهتم». Android requires 1.0.1 since 2026-11-09 (`mobile_android_min_version`); iPhone has no minimum until 1.0.1 is on the App Store.
 - `sa_relaxed_matching` (Admin → Settings, off by default, 2026-11-08): Saudi members get suggestions with no score minimum (`minSuggestionScore(flags, country)` = 0), best score first. «شروط أساسية», same country and test-account separation still apply. Jordan unchanged.
+- `pro_enabled` (Admin → Settings, off by default, 2026-11-09): Pro membership. It gates new sales, offers, badges and media sending only. Subscribers keep Pro and their credits while it is off (`isPro()` never reads it). Not deployed yet.
 
 ## Commands
 
@@ -217,6 +218,13 @@ src/
 - Past payments report their own amount (`formatPaidCharge`), never today's price.
 - `arabic_checkout` (Payment Element on `/pay/<id>`) is off by default. Its state on production is set in Admin → Settings.
 - Test accounts never see payments in the app.
+- **Pro membership** (switch `pro_enabled`, code `src/lib/pro/`, not deployed yet):
+  - Weekly, monthly or yearly Stripe subscription (Checkout `mode: "subscription"`, inline `price_data`). Plans, prices and credits per plan are set per country in Admin → Countries and apply to new subscribers only. No trial, no plan switching (cancel, then subscribe again after it ends).
+  - Credits are granted once per paid invoice (ledger `PRO_GRANT`, `ProCreditGrant.key`). Yearly gives a monthly amount: the first month on the invoice, the rest by the morning job (`runYearlyProGrants`), every month of every paid year. Unused credits carry over.
+  - Cancel = at period end; Pro stays until then. A failed renewal is `PAST_DUE` (still Pro) until Stripe's retries end. A full refund of the current invoice ends Pro and takes back that invoice's grants (floored at 0); an older invoice takes back only its own; a partial refund changes nothing. Admin «cancel now» and account deletion cancel in Stripe with no refund.
+  - Webhook cases come before `fulfilCheckoutSession` and ignore anything without our metadata (`kind: "pro"`).
+  - Sales need `purchasesAvailable` and `pro_enabled` and an enabled plan with a price. Pro never touches suggestions, score or order.
+  - Detail: [docs/reference/payments.md](docs/reference/payments.md#pro-membership).
 - More: [docs/reference/payments.md](docs/reference/payments.md), [docs/reference/suggestions-and-credits.md](docs/reference/suggestions-and-credits.md).
 
 ## Privacy and domain rules
@@ -234,6 +242,7 @@ src/
 - Sign-up never reveals whether a number is registered. Sign-in learns it from `verify-otp` (after the code). `send-otp` still returns `userExists` only for app builds before 2026-11-07: remove it once the force update requires the newer app.
 - GA runs on public pages and the dashboard with ids stripped, never in `/admin`. GTM and the Pixel are off the dashboard, admin, `/pay`, `/payments` and login.
 - Identity verification is removed for members. `VerifiedBadge` is hidden while `intro_requests_enabled` is on.
+- **Chat media (Pro):** photos and voice notes only from a Pro sender, only in an ACTIVE chat, never after block, end or expiry. Files sit in the shared Bunny zone under `chat/<conversationId>/<32 random bytes>.<ext>`; the path stays in `Message.mediaPath` and never reaches a client, Ably, push, analytics or logs. They are served only by `GET /api/chats/[id]/media/[messageId]` (a member of the chat, or an admin, logged `[admin-chat-view]`). Photos are re-encoded to WebP, metadata stripped. HEIC/HEIF is decoded in a worker thread (`heic-convert`), one at a time. Old apps get a fallback text in `body`.
 - Profile edits after setup go through review, except partner preferences and filling an empty field.
 - Sign-in, reports, moderation and leaving: [docs/reference/member-rules.md](docs/reference/member-rules.md), [docs/reference/matches-and-safety.md](docs/reference/matches-and-safety.md).
 
@@ -342,6 +351,7 @@ ssh -i ~/.ssh/naseebak_vps_ed25519 -o IdentitiesOnly=yes root@146.103.57.224 nas
 - **Stale `.next` cache trap:** `naseebak-deploy` keeps `.next` between runs, and a stale webpack cache silently drops new Tailwind classes. The cure is step 2 above.
 - A build failing with `Cannot read properties of null (reading '1')` under `nextFontGoogleFontLoader` is a bad Google Fonts download. The live site is untouched: run the deploy again.
 - Before `--db-push`, check what it will run: `npx prisma migrate diff --from-config-datasource --to-schema <file> --script` in `/var/www/naseebak` with `.env` loaded (read-only).
+- **Before the Pro deploy:** `--db-push` (additive: new tables `pro_subscriptions`, `pro_credit_grants`, an enum value, new `Message` columns). Add four events to the Stripe webhook endpoint: `invoice.paid`, `invoice.payment_failed`, `customer.subscription.updated`, `customer.subscription.deleted` (without them nothing renews). The new dependency `heic-convert` needs `pnpm install` on the server: make sure the deploy installs dependencies. Nginx `client_max_body_size` must be at least 11m for media uploads. Set Pro prices in Admin → Countries first, with `pro_enabled` still off.
 - Env: `/var/www/naseebak/.env`. `NEXT_PUBLIC_*` needs a rebuild. Any other `.env` change: `sudo -u naseebak pm2 restart naseebak-a --update-env` (use the live slot).
 - Logs: `/var/log/naseebak/out.log`, `error.log`, `deploy.log`, `cron.log`. Requests: `/var/log/nginx/naseebak.access.log` (`rt=`, `urt=`).
 - Never use `/root/backups/naseebak-deploy-20261103-2112.bak`: it no longer works.
@@ -365,6 +375,7 @@ ssh -i ~/.ssh/naseebak_vps_ed25519 -o IdentitiesOnly=yes root@146.103.57.224 nas
 - Public pages never mention poll credits. Visitors never earn.
 - PM2 stays one fork process. SSH password login stays on.
 - Dashboard home has no welcome pop-up. Every match is managed on the suggestions page.
+- Pro (2026-11-09): read receipts stay free. No content check on chat photos. Chat media shares the profile-photo Bunny zone: the CDN address is unguessable but public, risk accepted. Admins see and hear media in chats they open.
 
 Parked, or waiting for the owner:
 
@@ -384,6 +395,7 @@ Needs a new app version:
 - A `purchase` event, popup tap actions.
 - The filter tip on the app's empty «جديدة» page.
 - The website's «الرصيد أرخص» saving line. A live chat widget in the app.
+- Pro in the app: plans screen (calls `POST /api/pro/checkout`, opens the URL in the browser), «اشتراكي», sending photos and voice notes (picker, recorder, microphone permission), photo and voice bubbles, the Pro badge. Old apps still show media messages as text («حدّث التطبيق»). The website has all of it already.
 
 App 1.0.1+2 (built 2026-11-09, not uploaded yet; Play has 1.0.0): free «مهتم» reply, niqab answer, chat tabs «النشطة» / «المنتهية», six Crashlytics fixes, `X-App-Platform`, the activity label on cards, the WhatsApp wording for Saudi codes. Once it is live, turn on the force update to 1.0.1. Details: [naseebak_app/CLAUDE.md](naseebak_app/CLAUDE.md).
 

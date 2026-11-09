@@ -530,6 +530,7 @@ flowchart LR
       <li><span class="st">Expiry:</span> <span class="dt">read-only; both get «هل تنتقلان لتعارف عائلي؟ الانتقال مجاني». 14 days later with no family request the match counts as finished.</span></li>
       <li><span class="st">End / end and report:</span> <span class="dt">ENDED, pending family requests cancelled, partner told. Ending closes the family path on this match. With a report it also blocks.</span></li>
     </ol>
+    <div class="callout"><b>Pro (switch <code>pro_enabled</code>):</b> a Pro member can also send one photo or a voice note (up to 3 min) while the chat is ACTIVE. Files are stored under unguessable paths and served only through <code>/api/chats/[id]/media/[messageId]</code> to the two members or an admin. Old apps see a text fallback. Code: <span class="path">lib/chat/media.ts</span>.</div>
     <div class="callout">Guardian read-only access to the chat was in the design (<code>new-cycle-design.md</code>) but is deferred and not built.</div>
     <div class="gaplinks"><span>Gaps:</span><a class="gl m" href="#G21">G21</a><a class="gl m" href="#G35">G35</a><a class="gl m" href="#G36">G36</a><a class="gl l" href="#G50">G50</a></div>
   </div>
@@ -607,6 +608,7 @@ flowchart LR
       <li><span class="st">«رجوع»</span> <span class="dt">fails only rows older than 30 min; the session itself stays payable for 24 h.</span></li>
     </ol>
     <div class="callout"><b>Production on 18 Oct:</b> 6 checkouts, 0 paid, 4 still PENDING and no webhook calls seen. If the webhook were registered, Stripe's <code>checkout.session.expired</code> event would have turned those rows FAILED after 24 h. Check the Stripe dashboard webhook endpoint and <code>error-0.log</code> for <code>Checkout error</code> or <code>Webhook signature</code>.</div>
+    <div class="callout"><b>Pro membership (switch <code>pro_enabled</code>, off by default):</b> weekly, monthly or yearly Stripe subscription from the top of <code>/dashboard/payments</code> (<code>POST /api/pro/checkout</code>). The webhook (<code>invoice.paid</code>, <code>invoice.payment_failed</code>, <code>customer.subscription.updated</code>, <code>customer.subscription.deleted</code>) keeps it current. Credits are granted once per paid invoice (ledger <code>PRO_GRANT</code>); yearly gives a monthly amount from the morning job. Cancel runs to period end; a full refund of the current invoice ends Pro and takes the credits back. Code: <span class="path">lib/pro/</span>.</div>
     <div class="gaplinks"><span>Gaps:</span><a class="gl h" href="#G11">G11</a><a class="gl m" href="#G13">G13</a><a class="gl m" href="#G14">G14</a></div>
   </div>
 </section>

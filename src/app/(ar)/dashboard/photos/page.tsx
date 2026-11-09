@@ -171,8 +171,9 @@ export default function PhotosPage() {
       <FirstVisitTip
         storageKey="naseeb_tip_photos"
         icon={<Camera className="h-5 w-5 text-primary" />}
-        title="صورك محمية ومؤمنة"
-        body={`صورك الشخصية لن تظهر لأي مستخدم إلا بعد التوافق المتبادل بينكما. ${female ? "تأكدي" : "تأكد"} من إضافة صور واضحة لزيادة فرصك.`}
+        title="صور واضحة، فرص أكبر"
+        // The privacy sentence is the banner below; the tip doesn't repeat it (QA WA-20)
+        body={`${female ? "تأكدي" : "تأكد"} من إضافة صور واضحة لزيادة فرصك في التوافق.`}
       />
       <PageHeader
         icon={Camera}

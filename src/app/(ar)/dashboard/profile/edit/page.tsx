@@ -1491,6 +1491,12 @@ export default function ProfileEditPage() {
                   : "هذه البيانات سرية وتستخدم فقط من قبل الإدارة لتنسيق الزيارات العائلية ولن تظهر للمستخدمين الآخرين. يتم حفظها مباشرة دون الحاجة لمراجعة الإدارة."}
               </p>
             </div>
+            {/* New cycle with no guardian yet: the step is optional until it is started (QA WA-15) */}
+            {introMode && !originalForm.parentName && (
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                يُطلب وليّ الأمر عند أول تعارف عائلي فقط. يمكنك تركه فارغاً الآن، وإذا بدأت بتعبئته فالحقول المعلَّمة بـ * مطلوبة.
+              </p>
+            )}
 
             <div className="space-y-2">
               <RequiredLabel htmlFor="edit-field-18">اسم ولي الأمر</RequiredLabel>

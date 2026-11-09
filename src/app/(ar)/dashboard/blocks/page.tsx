@@ -9,6 +9,7 @@ import { ConfirmActionDialog } from "@/components/intro/confirm-action-dialog";
 import { PageHeader } from "@/components/shared/page-header";
 import { useDashboardData } from "@/contexts/dashboard-context";
 import { formatDate } from "@/lib/countries";
+import { LoadError } from "@/components/shared/load-error";
 
 interface BlockRow {
   id: string;
@@ -30,7 +31,9 @@ export default function BlocksPage() {
       const res = await fetch("/api/blocks");
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(data.error ?? "تعذّر تحميل القائمة");
+        // A fixed message, never the server's own text (QA WA-19)
+        console.error("Blocks load failed:", res.status, data.error);
+        setError("تعذّر تحميل قائمة المحظورين. حاول مرة أخرى.");
         return;
       }
       setError(null);
@@ -71,7 +74,7 @@ export default function BlocksPage() {
       <PageHeader
         icon={Ban}
         title="المحظورون"
-        description="من تحظره لا يرى ملفك، ولن يُقترح أحدكما على الآخر."
+        description="المحظور لا يرى ملفك، ولن يُقترح أحدكما على الآخر."
       />
 
       {loading ? (
@@ -79,14 +82,7 @@ export default function BlocksPage() {
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
       ) : error ? (
-        <Card className="border-destructive/30">
-          <CardContent className="py-10 text-center space-y-3">
-            <p className="text-sm text-destructive">{error}</p>
-            <Button variant="outline" size="sm" onClick={() => { setLoading(true); load(); }}>
-              إعادة المحاولة
-            </Button>
-          </CardContent>
-        </Card>
+        <LoadError message={error} onRetry={() => { setLoading(true); load(); }} />
       ) : blocks.length === 0 ? (
         <Card className="border-dashed border-2 border-muted-foreground/20">
           <CardContent className="py-14 text-center space-y-3">

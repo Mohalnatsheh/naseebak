@@ -20,6 +20,12 @@ export function useAutoSave(enabled: boolean) {
   const [savedIndicatorVisible, setSavedIndicatorVisible] = useState(false);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const indicatorTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // What the form held when auto-save started (the loaded answers): nothing is saved, and «تم الحفظ التلقائي» never
+  // shows, until the member changes something (QA WA-14)
+  const lastSnapshot = useRef<string | null>(null);
+  useEffect(() => {
+    if (!enabled) lastSnapshot.current = null;
+  }, [enabled]);
 
   // Cleanup timers on unmount
   useEffect(() => {
@@ -40,6 +46,12 @@ export function useAutoSave(enabled: boolean) {
   const saveToLocalStorage = useCallback(
     (form: Record<string, unknown>, parentForm: Record<string, unknown>, step: number, ownerId: string) => {
       if (!enabled || !ownerId) return;
+      const snapshot = JSON.stringify({ form, parentForm, step });
+      if (lastSnapshot.current === null || lastSnapshot.current === snapshot) {
+        lastSnapshot.current = snapshot;
+        return;
+      }
+      lastSnapshot.current = snapshot;
 
       if (debounceTimer.current) clearTimeout(debounceTimer.current);
 

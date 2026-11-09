@@ -34,3 +34,18 @@ describe("profile edit never saves after a partial load (QA WA-05)", () => {
     await waitFor(() => expect(screen.getByRole("alert").textContent).toContain("فلا يمكن التعديل الآن"));
   });
 });
+
+describe("guardian step with no guardian yet (QA WA-15)", () => {
+  it("says the starred fields are needed only once the guardian is started", async () => {
+    window.history.replaceState(null, "", "/dashboard/profile/edit?step=5");
+    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      const url = String(input);
+      if (url === "/api/profile") return json({ user });
+      if (url === "/api/profile/update-request") return json({ requests: [] });
+      return json({ parentInfo: null });
+    });
+    render(<ProfileEditPage />);
+    await waitFor(() => expect(screen.getByText(/يمكنك تركه فارغاً الآن/)).toBeTruthy());
+    window.history.replaceState(null, "", "/");
+  });
+});

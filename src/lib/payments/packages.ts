@@ -7,6 +7,7 @@
  * `prices`. Which credits a package id gives never changes, because refunds of past purchases read it from here.
  */
 import { toCountry, type CountryCode } from "@/lib/countries";
+import { arabicCount } from "@/lib/utils";
 
 /** Set on every Naseebak checkout (metadata.app); the Stripe account also serves other sites */
 export const CHECKOUT_APP = "naseebak";
@@ -137,6 +138,24 @@ export function formatCharge(p: Pick<CreditPackage, "chargeCurrency" | "chargeAm
 /** What a past payment was charged, from its stored display price (prices may have changed since) */
 export function formatPaidCharge(payment: { amount: unknown; currency: string }): string {
   return formatCharge(chargeFor(Number(payment.amount), payment.currency === "SAR" ? "SAR" : "JOD"));
+}
+
+/**
+ * A past payment as the member saw it, with the charge when it differs (QA WEB-PAY-08): «35 د.أ (49.35$)», «15 ر.س».
+ * Rows in another currency (old USD rows) come back as stored.
+ */
+export function formatPaidAmount(payment: { amount: unknown; currency: string }): string {
+  if (payment.currency !== "JOD" && payment.currency !== "SAR") return formatPaidCharge(payment);
+  const shown = `${Number(payment.amount).toLocaleString("en-US")} ${SYMBOL[payment.currency]}`;
+  const charged = formatPaidCharge(payment);
+  return charged === shown ? shown : `${shown} (${charged})`;
+}
+
+const PACK_CREDITS = { one: "رصيد واحد", two: "رصيدان", few: "أرصدة", many: "رصيداً" };
+
+/** «شراء 25 رصيداً في نصيبك» (QA WEB-PAY-06): the stored description of a pack payment, and how history shows any pack row */
+export function packPurchaseDescription(credits: number): string {
+  return `شراء ${arabicCount(credits, PACK_CREDITS)} في نصيبك`;
 }
 
 /**

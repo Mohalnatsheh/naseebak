@@ -13,7 +13,7 @@ import { db } from "@/lib/db";
 import { notify } from "@/lib/notify";
 import { recordCredit } from "@/lib/credits";
 import { sendAdminAlert } from "@/lib/admin-alert";
-import { findAnyPackage, formatPaidCharge } from "@/lib/payments/packages";
+import { findAnyPackage, formatPaidAmount } from "@/lib/payments/packages";
 import { PRO_PAGE_PATH, planFromName } from "@/lib/pro/plans";
 import { cancelProNow, endProLocally } from "@/lib/pro/manage";
 import { invoiceIdForPaymentIntent } from "@/lib/pro/invoice-payments";
@@ -116,11 +116,11 @@ export async function applyRefund(args: {
       // Charged in USD (shown in JOD): say what actually goes back to the card
       body: proPlan
         ? refunded.deducted
-          ? `تم استرداد ${formatPaidCharge(payment)} من اشتراك Pro إلى بطاقتك، وأُزيل رصيده من حسابك.`
+          ? `تم استرداد ${formatPaidAmount(payment)} من اشتراك Pro إلى بطاقتك، وأُزيل رصيده من حسابك.`
           : // Nothing was taken back (the payment granted nothing, or the balance was already 0)
-            `تم استرداد ${formatPaidCharge(payment)} من اشتراك Pro إلى بطاقتك.`
+            `تم استرداد ${formatPaidAmount(payment)} من اشتراك Pro إلى بطاقتك.`
         : pkg
-          ? `تم استرداد ${formatPaidCharge(payment)} (قيمة باقة ${pkg.name}) إلى بطاقتك، وأُزيل رصيد الباقة من حسابك.`
+          ? `تم استرداد ${formatPaidAmount(payment)} (قيمة باقة ${pkg.name}) إلى بطاقتك، وأُزيل رصيد الباقة من حسابك.`
           : "تم استرداد قيمة عملية الدفع إلى بطاقتك.",
       // A Pro refund opens the Pro page (app 1.0.x falls back to its credits screen by the type)
       url: proPlan ? PRO_PAGE_PATH : "/dashboard/payments",

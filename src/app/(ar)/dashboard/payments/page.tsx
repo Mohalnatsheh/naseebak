@@ -45,8 +45,9 @@ import { PageLoading } from "@/components/shared/page-loading";
 import { FixedToast, type FixedToastMessage } from "@/components/shared/fixed-toast";
 import { isLocalHostname } from "@/lib/local-host";
 
-/** «ر.س» for riyal rows; anything else (Jordan's rows: JOD / USD) as stored */
-const currencyLabel = (c: string) => (c === "SAR" ? "ر.س" : c);
+/** The currency symbol of a history row, as on the package cards (QA WEB-PAY-08): «د.أ», «ر.س», «$» for old USD rows */
+const CURRENCY_SYMBOLS: Record<string, string> = { JOD: "د.أ", SAR: "ر.س", USD: "$" };
+const currencyLabel = (c: string) => CURRENCY_SYMBOLS[c] ?? c;
 
 
 interface CreditPackage {

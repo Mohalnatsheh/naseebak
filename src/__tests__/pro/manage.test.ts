@@ -193,7 +193,7 @@ describe("applyRefund of a Pro payment", () => {
       userId: "u1",
       type: "PAYMENT",
       sms: false,
-      body: "تم استرداد 56.40$ من اشتراك Pro إلى بطاقتك، وأُزيل رصيده من حسابك.",
+      body: "تم استرداد 40 د.أ (56.40$) من اشتراك Pro إلى بطاقتك، وأُزيل رصيده من حسابك.",
     });
   });
 

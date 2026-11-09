@@ -5,7 +5,7 @@ import { appPaymentsFor } from "@/lib/mobile-config";
 import { db } from "@/lib/db";
 import { getStripe } from "@/lib/stripe";
 import { CHECKOUT_APP } from "@/lib/payments/fulfil";
-import { CHECKOUT_TTL_MS, findPackage } from "@/lib/payments/packages";
+import { CHECKOUT_TTL_MS, findPackage, packPurchaseDescription } from "@/lib/payments/packages";
 import { checkoutPresentation, isPresentationError, productName } from "@/lib/payments/checkout-branding";
 import { newPayToken, payPagePath, paymentIntentParams, usesArabicCheckout } from "@/lib/payments/intent";
 import { MOCK_SESSION_PREFIX, paymentsMockEnabled } from "@/lib/payments/mock";
@@ -138,7 +138,7 @@ export async function POST(request: Request) {
         stripeSessionId: sessionId,
         stripePaymentIntentId: intentId,
         payToken,
-        description: `${sessionId?.startsWith(MOCK_SESSION_PREFIX) ? "[MOCK] " : ""}شراء ${pkg.credits} أرصدة في نصيبك`,
+        description: `${sessionId?.startsWith(MOCK_SESSION_PREFIX) ? "[MOCK] " : ""}${packPurchaseDescription(pkg.credits)}`,
       },
     });
 

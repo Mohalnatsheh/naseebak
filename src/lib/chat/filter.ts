@@ -27,12 +27,13 @@ const LINK_RE =
   /(https?:\/\/|www\.|wa\.me|t\.me|\b[a-z0-9-]+\.(com|net|org|me|jo|io|co|info|app|link|ly|xyz|site|online|store|shop|live|page|dev|biz|top|club|pro|tv|cc|gg|ws|to|sa|ae|qa|kw|bh|om|eg|ps|iq|lb|sy|tr|uk|us|ca|de|fr)\b)/i;
 
 /**
- * A domain with the dot spaced out or spelled ("example . com", "example dot com", "example(dot)com",
- * «example نقطة com»). Only the TLDs nobody types after a full stop in a sentence ("ok. me too" stays).
- * Read on the lower-cased, normalised text (ة → ه).
+ * A domain with the dot spaced out or spelled: a space before the dot ("example . com", "mysite .net"),
+ * a bracketed or spelled dot ("example(dot)com", "example dot com", «example نقطة com»). Never just a space
+ * after the dot: that is an English full stop ("I like it. App is great", "ok. com on"). Read on the
+ * lower-cased, normalised text (ة → ه).
  */
 const SPACED_LINK_RE =
-  /\b[a-z0-9-]{2,}(?:\s+\.\s*|\s*\.\s+|\s*[([]\s*(?:dot|\.)\s*[)\]]\s*|\s+(?:dot|دوت|نقطه)\s+)(?:com|net|org|io|app|xyz|info|jo|sa)(?![a-z])/;
+  /\b[a-z0-9-]{2,}(?:\s+\.\s*|\s*[([]\s*(?:dot|\.)\s*[)\]]\s*|\s+(?:dot|دوت|نقطه)\s+)(?:com|net|org|io|app|xyz|info|jo|sa)(?![a-z])/;
 
 const EMAIL_RE = /\S+@\S+\.\S+/;
 const HANDLE_RE = /(^|[\s(،,])@[a-z0-9_.]{2,}/i;
@@ -54,7 +55,15 @@ function hasUsernameShape(lower: string): boolean {
   return lower
     .split(/[\s،,!?؟:;"'()[\]]+/)
     .map((t) => t.replace(/[.]+$/, ""))
-    .some((t) => t.length >= 5 && /^[a-z][a-z0-9]*(?:[._][a-z0-9]+)+$/.test(t) && /\d/.test(t));
+    .some(
+      (t) =>
+        t.length >= 5 &&
+        /^[a-z][a-z0-9]*(?:[._][a-z0-9]+)+$/.test(t) &&
+        /\d/.test(t) &&
+        // A letter after the first `_` / `.` ("ahmad_k99", "ahmad.khaled99") or 3+ digits ("ahmad_999"):
+        // "covid_19", "web3.0" and "ali.99" are ordinary words
+        (/[._].*[a-z]/.test(t) || (t.match(/\d/g) ?? []).length >= 3),
+    );
 }
 
 // Arabic spellings: matched anywhere in the message (after normalising), so keep them long enough not to hit normal words
@@ -79,12 +88,14 @@ const SOCIAL_KEYWORDS_LATIN = [
   "facebook", "messenger",
   "tiktok",
   "viber", "twitter", "signal", "discord",
-  "skype", "wechat", "we chat", "kik", "botim", "linkedin", "imessage", "facetime",
+  "skype", "wechat", "we chat", "botim", "linkedin", "imessage", "facetime",
   "gmail", "hotmail", "yahoo", "outlook", "icloud", "protonmail", "proton mail", "yandex",
 ];
 const WHOLE_WORD_MAX = 5;
 /** "line: ahmad99", "line id ahmad" (the app): never the word "line" in a sentence */
 const LINE_APP_RE = /\bline\s*(?:[:：=]|\s(?:id|اي دي)\b)/;
+/** Kik only with context ("kik: ahmad", "on kik", "kik me", «كيك:»): «كيك» alone is cake */
+const KIK_RE = /\bkik\s*[:：=]|\bon\s+kik\b|\bkik\s+me\b|كيك\s*[:：=]/;
 // Short names only blocked as a whole word ("ig", not "big"; "وتس", not "وتسلم" / "وتسعين"; «لاين», not «اونلاين»)
 const SOCIAL_WORDS = new Set(["ig", "fb", "imo", "ايمو", "وتس", "لاين"]);
 
@@ -95,7 +106,7 @@ function lookAlikeLatin(s: string): string {
 
 function hasSocialKeyword(lower: string): boolean {
   if (SOCIAL_KEYWORDS_AR.some((k) => lower.includes(normaliseArabic(k)))) return true;
-  if (LINE_APP_RE.test(lower)) return true;
+  if (LINE_APP_RE.test(lower) || KIK_RE.test(lower)) return true;
   const latin = lookAlikeLatin(lower);
   return SOCIAL_KEYWORDS_LATIN.some((k) => {
     const key = lookAlikeLatin(k);
@@ -155,7 +166,7 @@ const OFFENSIVE = ["يا حمار", "يا كلب", "يا غبي", "يا حيوا
  */
 function normaliseDigits(s: string): string {
   return s
-    .replace(/[️⃣]/g, "")
+    .replace(/[\uFE0F\u20E3]/g, "")
     .replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660))
     .replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x06f0))
     .replace(/[０-９]/g, (d) => String(d.charCodeAt(0) - 0xff10))
@@ -170,7 +181,7 @@ function normaliseDigits(s: string): string {
  * (zero-width joiners, direction marks). Never the stored text.
  */
 function forChecks(s: string): string {
-  return normaliseDigits(s).replace(/[ـ\p{M}\p{Cf}]/gu, "");
+  return normaliseDigits(s).replace(/[\u0640\p{M}\p{Cf}]/gu, "");
 }
 
 function normaliseArabic(s: string): string {
@@ -205,7 +216,15 @@ function normaliseNumberDisguise(s: string): string {
     if (next === out) break;
     out = next;
   }
-  return out.replace(/(?<=\d)\p{L}{1,3}(?=\d)/gu, "");
+  // …except between two years / round amounts ("1990و1995", "2017و2019"): ordinary talk, kept apart
+  return out.replace(/(\d+)(\p{L}{1,3})(?=(\d+))/gu, (_m, left: string, sep: string, right: string) =>
+    ordinaryNumber(left) && ordinaryNumber(right) ? `${left} ${sep} ` : left,
+  );
+}
+
+function isYear(group: string): boolean {
+  const n = Number(group);
+  return group.length === 4 && n >= 1950 && n <= 2039;
 }
 
 /** A year (1950–2039) or a round amount ("5000" dowry, "1500" salary): ordinary talk, not a phone group */
@@ -274,8 +293,8 @@ function tokens(s: string): Token[] {
 
 /**
  * A number hidden among words: 6+ spelled digits anywhere ("صفر ثم سبعة ثم تسعة ثم …"), or 9+ digits
- * in total across groups and spelled numbers with words between them ("07 ثم 95 ثم 55 ثم 12 ثم 34",
- * «سبعمية وتسعة وسبعين، مية وثلاثة وعشرين…»). Years and round amounts don't count, so
+ * in total across written groups and single spelled digits with words between them ("07 ثم 95 ثم 55 ثم 12
+ * ثم 34"). Years and round amounts don't count, so
  * "مواليد 1995 وتخرجت 2017 والمهر 5000" stays an ordinary message.
  */
 function hasScatteredNumber(s: string): boolean {
@@ -283,8 +302,13 @@ function hasScatteredNumber(s: string): boolean {
   let total = 0;
   for (const t of tokens(s)) {
     if (t.kind === "spelled") {
-      if (t.single) spelled += 1;
-      total += t.digits;
+      // Single spelled digits only: numbers said the long way («مية وسبعين») with words between them are
+      // how people describe themselves (age, height, weight, salary); read in a row they are caught by
+      // hasSpelledNumber
+      if (t.single) {
+        spelled += 1;
+        total += 1;
+      }
     } else if (t.kind === "written" && !ordinaryNumber(t.text)) {
       total += t.text.length;
     }
@@ -327,7 +351,8 @@ export function numberShape(body: string): { digits: number; numberish: boolean;
   let longestGroup = 0;
   for (const t of list) {
     if (t.kind === "spelled") digits += t.digits;
-    else if (t.kind === "written" && (numberish || !ordinaryNumber(t.text))) {
+    // Years never count ("1995", then "2020"); round amounts only in a message that is just the number
+    else if (t.kind === "written" && !isYear(t.text) && (numberish || !ordinaryNumber(t.text))) {
       digits += t.text.length;
       longestGroup = Math.max(longestGroup, t.text.length);
     }

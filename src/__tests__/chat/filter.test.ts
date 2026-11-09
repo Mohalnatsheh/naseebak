@@ -301,7 +301,7 @@ describe("QA 2026-11-10 (chat WC-04, WC-15): handles, spaced domains, more apps,
     expect(reason(t)).toBe("CONTACT"),
   );
 
-  it.each(["skype: ahmad", "line: ahmad99", "WeChat ahmad", "lnstagram ahmad", "1nstagram", "ضيفني سكايب", "عندي لاين", "insta?", "تواصل معي بوتيم"])(
+  it.each(["skype: ahmad", "line: ahmad99", "WeChat ahmad", "lnstagram ahmad", "1nstagram", "ضيفني سكايب", "عندي لاين", "insta?", "تواصل معي بوتيم", "kik: ahmad99", "add me on kik", "كيك: ahmad"])(
     "blocks other apps and look-alike spellings: %s",
     (t) => expect(reason(t)).toBe("CONTACT"),
   );
@@ -333,5 +333,53 @@ describe("QA 2026-11-10 (chat WC-04, WC-15): handles, spaced domains, more apps,
       "big family",
       "LG phone",
     ]) allowed(t);
+  });
+});
+
+describe("W2 review round 1: false positives closed, Highs still closed", () => {
+  const reason = (t: string) => {
+    const r = checkMessage(t);
+    return r.ok ? null : r.reason;
+  };
+  const allowed = (t: string) => expect(checkMessage(t).ok, t).toBe(true);
+
+  it.each(["I like it. App is great", "Got it. Info later", "sure. io", "ok. com on", "Thanks. Org chart is ready"])(
+    "an English full stop is not a link: %s",
+    (t) => allowed(t),
+  );
+
+  it.each(["example . com", "mysite .net", "example dot com", "example(dot)com", "example نقطة com", "example [.] org"])(
+    "a spaced or spelled domain is still a link: %s",
+    (t) => expect(reason(t)).toBe("LINK"),
+  );
+
+  it.each([
+    "covid_19 خلص الحمدلله",
+    "web3.0 is the future",
+    "1990و1995",
+    "تخرجت 2017و2019",
+    "عمري خمسة وعشرين وطولي مية وسبعين ووزني سبعين وراتبي خمسمية",
+    "عندي ثلاث اولاد واعمارهم خمسة وسبعة وعشرة",
+    "بحب الكيك بالشوكولاتة",
+    "kik is a word in this sentence",
+  ])("ordinary messages pass: %s", (t) => allowed(t));
+
+  it("two bare years from the same sender within an hour aren't a split number", () => {
+    expect(completesSplitNumber("2020", ["كيف", "1995"])).toBe(false);
+    expect(completesSplitNumber("2020", ["1995"])).toBe(false);
+  });
+
+  it("handles that look like usernames are still blocked", () => {
+    for (const t of ["يوزري ahmad_99_jo", "ahmad.khaled99", "ahmad_k99", "ahmad_999"]) expect(reason(t), t).toBe("CONTACT");
+  });
+
+  it("both Highs stay closed", () => {
+    for (const t of ["079ـ123ـ4567", "٠٧٩ـ١٢٣ـ٤٥٦٧", "0ب7ب9ب1ب2ب3ب4ب5ب6ب7", "0791و2345و67", "05ب12ب34ب56ب78"]) expect(reason(t), t).toBe("CONTACT");
+    expect(completesSplitNumber("234567", ["تمام", "0791"])).toBe(true);
+    expect(completesSplitNumber("4567", ["و", "079123"])).toBe(true);
+  });
+
+  it("a number read the long way in one go is still blocked", () => {
+    expect(reason("رقمي سبعمية وتسعة وسبعين، مية وثلاثة وعشرين، اربعمية وستة وخمسين")).toBe("CONTACT");
   });
 });

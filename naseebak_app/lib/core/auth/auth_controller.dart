@@ -124,7 +124,7 @@ class AuthController extends Notifier<AuthState> {
   /// Shows a newer balance without a round trip (payment status, decide answers).
   void updateCredits(int credits) {
     final me = state.me;
-    if (state.status == AuthStatus.signedIn && me != null) {
+    if (state.status == AuthStatus.signedIn && me != null && me.credits != credits) {
       state = AuthState(AuthStatus.signedIn, me: me.copyWith(credits: credits));
     }
   }

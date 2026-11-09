@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:naseebak_app/core/auth/auth_controller.dart';
@@ -192,7 +193,44 @@ void main() {
 
       expect(find.text('رصيدك لا يكفي'), findsOneWidget);
       expect(h.container.read(authControllerProvider).me!.credits, 0);
+      // The sheet's balance line follows (never «17» next to «رصيد غير كافٍ»)
+      expect(find.textContaining('رصيدكِ\u00A0الحالي:\u00A00'), findsOneWidget);
     });
+
+    testWidgets('the balance changed elsewhere: a refresh brings it, and 0 locks «مهتم»', (tester) async {
+      final h = Harness(credits: 17);
+      await h.pump(tester);
+      expect(h.container.read(authControllerProvider).me!.credits, 17);
+      // Set to 0 outside the app; pull to refresh: `/api/suggestions` carries the balance
+      h.adapter.handlers['GET /api/suggestions'] =
+          (_) => const FakeResponse(200, {'mutualView': true, 'credits': 0});
+      await tester.fling(find.byType(Scrollable).first, const Offset(0, 400), 1000);
+      await pumpFor(tester, 40);
+      expect(h.container.read(authControllerProvider).me!.credits, 0);
+    });
+
+    testWidgets('a reply to someone who already said «مهتم» says the match is immediate', (tester) async {
+      final h = Harness(items: [card('s1', likedYou: true)]);
+      await h.pump(tester);
+      await tester.tap(find.byKey(const Key('interested-s1')));
+      await pumpFor(tester);
+      expect(find.textContaining('فور الإرسال'), findsOneWidget);
+      expect(find.textContaining('إذا أبدى اهتمامه'), findsNothing);
+    });
+  });
+
+  testWidgets('on a 375 pt phone «مهتمون بك» shows in full next to its count', (tester) async {
+    tester.view.physicalSize = const Size(375, 812);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final h = Harness(likedYou: 3);
+    await h.pump(tester);
+    final tab = find.byKey(const Key('feed-tab-interested'));
+    expect(find.descendant(of: tab, matching: find.text('مهتمون بك')), findsOneWidget);
+    expect(find.descendant(of: tab, matching: find.text('3')), findsOneWidget);
+    // Laid out whole: the text's own size isn't squeezed below its natural width
+    final text = tester.renderObject<RenderParagraph>(find.descendant(of: tab, matching: find.text('مهتمون بك')));
+    expect(text.didExceedMaxLines, isFalse);
   });
 
   testWidgets('credit on interest off: «مهتم» decides directly, no chat/family sheet', (tester) async {

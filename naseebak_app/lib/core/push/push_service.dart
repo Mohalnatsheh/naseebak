@@ -81,8 +81,8 @@ class PushService with WidgetsBindingObserver {
     }
     try {
       await _initLocal();
-      // Android 13+ and iOS show the system prompt once; a refusal just means no pushes
-      await messaging.requestPermission();
+      // No system prompt here (it came bare over the first setup step): home asks once after setup, with a word on
+      // what the notices are for (`PushAskGate`); a member who already allowed gets pushes as before
       // No system banner while the app is open (on iOS either): `_showForeground` shows one, except for the screen
       // already open
       await messaging.setForegroundNotificationPresentationOptions(alert: false, badge: true, sound: false);

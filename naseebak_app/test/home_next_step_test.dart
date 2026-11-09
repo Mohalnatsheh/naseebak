@@ -80,6 +80,66 @@ void homeLayoutTests() {
     expect(find.text('مهتم بك'), findsOneWidget);
   });
 
+  testWidgets('home «اقتراحات اليوم»: no verified mark while intro requests are on; shown when off', (tester) async {
+    Future<void> pump(bool introRequests) async {
+      final adapter = FakeAdapter()
+        ..on('GET', '/api/me/counts', FakeResponse(200, {
+          'flags': {'mutualSuggestions': true, 'introRequests': introRequests},
+          'newSuggestions': 1,
+        }))
+        ..on('GET', '/api/notifications/unread-count', const FakeResponse(200, {'count': 0}));
+      adapter.handlers['GET /api/suggestions/feed'] = (r) => FakeResponse(200, {
+            'items': r.queryParameters['tab'] == 'new'
+                ? [
+                    {
+                      'kind': 'mutual',
+                      'id': '1',
+                      'compatibilityScore': 80,
+                      'reason': '',
+                      'candidate': {'id': 'u1', 'firstName': 'عمر', 'age': 31, 'isVerified': true},
+                    },
+                  ]
+                : [],
+            'page': 1,
+            'totalPages': 1,
+          });
+      final overrides = await testOverrides(adapter, store: MemoryTokenStore('t1'));
+      await tester.pumpWidget(ProviderScope(
+        key: UniqueKey(),
+        overrides: [...overrides, pushAllowedProvider.overrideWith((ref) async => true)],
+        child: rtlApp(const HomeScreen()),
+      ));
+      await tester.pumpAndSettle();
+    }
+
+    await pump(true);
+    expect(find.text('عمر، 31'), findsOneWidget);
+    expect(find.byKey(const Key('home-verified')), findsNothing);
+    await pump(false);
+    expect(find.byKey(const Key('home-verified')), findsOneWidget);
+  });
+
+  testWidgets('home «اقتراحات اليوم» failing to load shows a line with a retry, not an empty space', (tester) async {
+    var fail = true;
+    final adapter = FakeAdapter()
+      ..on('GET', '/api/me/counts', const FakeResponse(200, {'flags': {'mutualSuggestions': true}, 'newSuggestions': 1}))
+      ..on('GET', '/api/notifications/unread-count', const FakeResponse(200, {'count': 0}));
+    adapter.handlers['GET /api/suggestions/feed'] = (_) => fail
+        ? const FakeResponse(500, {'error': 'خطأ'})
+        : const FakeResponse(200, {'items': [], 'page': 1, 'totalPages': 1});
+    final overrides = await testOverrides(adapter, store: MemoryTokenStore('t1'));
+    await tester.pumpWidget(ProviderScope(
+      overrides: [...overrides, pushAllowedProvider.overrideWith((ref) async => true)],
+      child: rtlApp(const HomeScreen()),
+    ));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('home-suggestions-error')), findsOneWidget);
+    fail = false;
+    await tester.tap(find.descendant(of: find.byKey(const Key('home-suggestions-error')), matching: find.text('إعادة المحاولة')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('no-home-suggestions')), findsOneWidget);
+  });
+
   testWidgets('home: no new suggestions → a card that leads to the preferences', (tester) async {
     final adapter = FakeAdapter()
       ..on('GET', '/api/me/counts', const FakeResponse(200, {'flags': {}}))

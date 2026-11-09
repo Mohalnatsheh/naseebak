@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../app/providers.dart';
 import '../../features/home/gendered_copy.dart';
 import '../auth/auth_controller.dart';
 import '../theme/app_theme.dart';
@@ -221,6 +222,107 @@ class _PushOffCardState extends ConsumerState<PushOffCard> with WidgetsBindingOb
                 icon: const Icon(Icons.notifications_active_outlined, size: 20),
                 label: Text(g('فعّل الإشعارات', 'فعّلي الإشعارات')),
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Shared preferences: the «why notifications» sheet was shown on this install (once)
+const pushExplainedKey = 'push_explained';
+
+/// Asks for notifications once, on home after the short setup, with a word on what they are for, before the system
+/// prompt (iOS shows it once only; a bare «Don't Allow» over the first setup step lost pushes for good). Signing in
+/// no longer asks (`PushService.start`). «لاحقاً» leaves the «الإشعارات غير مفعّلة» card on home.
+class PushAskGate extends ConsumerStatefulWidget {
+  const PushAskGate({super.key});
+
+  @override
+  ConsumerState<PushAskGate> createState() => _PushAskGateState();
+}
+
+class _PushAskGateState extends ConsumerState<PushAskGate> {
+  bool _asked = false;
+
+  Future<void> _ask() async {
+    if (!mounted) return;
+    final prefs = ref.read(sharedPreferencesProvider);
+    await prefs.setBool(pushExplainedKey, true);
+    if (!mounted) return;
+    final female = ref.read(authControllerProvider).me?.isFemale ?? false;
+    final allow = await showModalBottomSheet<bool>(
+      context: context,
+      useRootNavigator: true,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => PushAskSheet(female: female),
+    );
+    if (allow == true && mounted) await enablePushNotifications(context, ref);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final allowed = ref.watch(pushAllowedProvider).valueOrNull;
+    if (allowed == false && !_asked && !(ref.read(sharedPreferencesProvider).getBool(pushExplainedKey) ?? false)) {
+      _asked = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) => _ask());
+    }
+    return const SizedBox.shrink();
+  }
+}
+
+/// What the notifications are for, then «السماح بالإشعارات» (the system prompt) or «لاحقاً»
+class PushAskSheet extends StatelessWidget {
+  const PushAskSheet({super.key, required this.female});
+  final bool female;
+
+  @override
+  Widget build(BuildContext context) {
+    String g(String m, String f) => forViewer(female, m, f);
+    final points = [
+      (Icons.favorite_border_rounded, 'عندما يبدي أحدٌ اهتمامه ${g('بك', 'بكِ')}'),
+      (Icons.handshake_outlined, 'عند التوافق المتبادل وطلبات التعارف'),
+      (Icons.forum_outlined, 'عند وصول رسالة جديدة في المحادثة'),
+    ];
+    return SafeArea(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Icon(Icons.notifications_active_outlined, color: AppColors.gold, size: 40),
+            const SizedBox(height: 10),
+            const Text('الإشعارات', textAlign: TextAlign.center, style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800)),
+            const SizedBox(height: 6),
+            Text(
+              'لا نرسل إلا ما يهمّ${g('ك', 'كِ')}، فتعرف${g('', 'ين')} فوراً:',
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: AppColors.muted, height: 1.6),
+            ),
+            const SizedBox(height: 12),
+            for (final (icon, text) in points)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(children: [
+                  Icon(icon, color: AppColors.navy, size: 22),
+                  const SizedBox(width: 10),
+                  Expanded(child: Text(text, style: const TextStyle(height: 1.5))),
+                ]),
+              ),
+            const SizedBox(height: 10),
+            FilledButton(
+              key: const Key('push-ask-allow'),
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('السماح بالإشعارات'),
+            ),
+            const SizedBox(height: 6),
+            TextButton(
+              key: const Key('push-ask-later'),
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('لاحقاً'),
             ),
           ],
         ),

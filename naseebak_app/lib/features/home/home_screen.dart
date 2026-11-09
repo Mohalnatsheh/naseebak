@@ -183,6 +183,7 @@ class HomeScreen extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  const PushAskGate(),
                   const PushOffCard(dismissible: true, padding: EdgeInsets.only(bottom: 12)),
                   if (counts.hasError && c == null) ...[
                     InfoBanner(
@@ -362,8 +363,20 @@ class _SuggestionsStrip extends ConsumerWidget {
           ),
         ),
       ),
-      // The chips above already lead to the suggestions; no second error here
-      error: (_, _) => const SizedBox.shrink(),
+      // Never an empty space under the heading: a short line with a retry
+      error: (_, _) => Card(
+        margin: EdgeInsets.zero,
+        child: ListTile(
+          key: const Key('home-suggestions-error'),
+          minVerticalPadding: 14,
+          leading: const Icon(Icons.wifi_off_rounded, color: AppColors.muted),
+          title: const Text('تعذّر تحميل الاقتراحات'),
+          trailing: TextButton(
+            onPressed: () => ref.invalidate(homeSuggestionsProvider),
+            child: const Text('إعادة المحاولة'),
+          ),
+        ),
+      ),
       data: (list) => list.isEmpty
           ? Card(
               margin: EdgeInsets.zero,
@@ -391,13 +404,17 @@ class _SuggestionsStrip extends ConsumerWidget {
   }
 }
 
-class _SuggestionPreview extends StatelessWidget {
+class _SuggestionPreview extends ConsumerWidget {
   const _SuggestionPreview({required this.item});
   final FeedItem item;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final p = item.candidate;
+    // The verified mark is hidden while intro requests are on (newer members never look second-class), and while
+    // the switches aren't known yet
+    final introRequests = ref.watch(countsProvider.select((c) => c.valueOrNull?.flags.introRequests));
+    final showVerified = p.isVerified && introRequests == false;
     return SizedBox(
       width: 150,
       child: Card(
@@ -424,8 +441,9 @@ class _SuggestionPreview extends StatelessWidget {
                             child: Text(p.firstName.isEmpty ? '؟' : p.firstName.characters.first,
                                 style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700, color: AppColors.navy)),
                           ),
-                    if (p.isVerified)
+                    if (showVerified)
                       const PositionedDirectional(
+                        key: Key('home-verified'),
                         bottom: -2,
                         end: -2,
                         child: Icon(Icons.verified_rounded, size: 20, color: AppColors.success),

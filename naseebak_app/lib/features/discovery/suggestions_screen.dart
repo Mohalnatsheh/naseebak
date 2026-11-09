@@ -49,7 +49,10 @@ class _SuggestionsScreenState extends ConsumerState<SuggestionsScreen> with Sing
     ref.invalidate(suggestionsMetaProvider);
     ref.invalidate(countsProvider);
     try {
-      await ref.read(suggestionsMetaProvider.future);
+      final meta = await ref.read(suggestionsMetaProvider.future);
+      // The balance can change elsewhere (a refund, the website, admin): the cards' «مهتم» lock follows it
+      final credits = meta.credits;
+      if (credits != null && mounted) ref.read(authControllerProvider.notifier).updateCredits(credits);
     } catch (_) {
       // Shown by the screen (ErrorView with a retry)
     }
@@ -119,15 +122,22 @@ class _SuggestionsScreenState extends ConsumerState<SuggestionsScreen> with Sing
         ],
         bottom: TabBar(
           controller: _tabs,
+          // Tighter than the default 16: «مهتمون بك» with its count fits a 375 pt phone
+          labelPadding: const EdgeInsets.symmetric(horizontal: 6),
           tabs: [
             for (final t in FeedTab.values)
               Tab(
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Flexible(child: Text(t.label, overflow: TextOverflow.ellipsis)),
-                    if ((badge(t) ?? 0) > 0) ...[const SizedBox(width: 6), CountBadge(count: badge(t)!)],
-                  ],
+                // Never cut to «مهتمون …»: a little smaller instead where it can't fit (small phone, large text)
+                child: FittedBox(
+                  key: Key('feed-tab-${t.name}'),
+                  fit: BoxFit.scaleDown,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(t.label, maxLines: 1),
+                      if ((badge(t) ?? 0) > 0) ...[const SizedBox(width: 4), CountBadge(count: badge(t)!)],
+                    ],
+                  ),
                 ),
               ),
           ],
@@ -373,6 +383,7 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
             chatAvailable: (counts?.flags.chat ?? false) && (me?.country.chatEnabled ?? true),
             creditOnInterest: counts?.flags.creditOnInterest ?? false,
             free: _freeReply(counts, item),
+            likedYou: item.likedYou,
             credits: me?.credits,
             canRecharge: ref.read(appPaymentsProvider),
             guardianConsented: counts?.guardianConsented ?? false,

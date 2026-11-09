@@ -22,6 +22,7 @@ class InterestSheet extends StatefulWidget {
     this.viewerFemale = false,
     this.onNoCredits,
     this.free = false,
+    this.likedYou = false,
   });
 
   final String firstName;
@@ -42,6 +43,9 @@ class InterestSheet extends StatefulWidget {
 
   /// A reply to someone who already said «مهتم» with free_interest_reply on: no credit is taken
   final bool free;
+
+  /// The other side already said «مهتم»: sending makes the match at once
+  final bool likedYou;
 
   /// A [DecisionResult] when sent, the [ApiException] when the card is gone (404: the sheet closes so the
   /// card can leave the list), null when dismissed.
@@ -65,11 +69,14 @@ class _InterestSheetState extends State<InterestSheet> {
   String? _error;
   String? _errorCode;
 
+  /// The balance shown; 0 once the server answered NO_CREDITS
+  late int? _credits = widget.credits;
+
   String _g(String m, String f) => forViewer(widget.viewerFemale, m, f);
 
   Future<void> _send() async {
     if (_pref == null) {
-      setState(() => _error = '${_g('اختر', 'اختاري')} طريقة التعارف: محادثة أو تعارف عائلي');
+      setState(() => _error = 'يُرجى اختيار طريقة التعارف: محادثة أو تعارف عائلي');
       return;
     }
     if (_pref == 'FAMILY' && !widget.guardianConsented && !_consent) {
@@ -94,6 +101,7 @@ class _InterestSheetState extends State<InterestSheet> {
       final code = e.code ?? (e.kind == ApiErrorKind.noCredits ? 'NO_CREDITS' : null);
       if (code == 'NO_CREDITS') widget.onNoCredits?.call();
       setState(() {
+        if (code == 'NO_CREDITS') _credits = 0;
         _error = e.message;
         _errorCode = code;
       });
@@ -125,8 +133,11 @@ class _InterestSheetState extends State<InterestSheet> {
             Text('${_g('مهتم', 'مهتمة')} بـ${widget.firstName}', style: theme.textTheme.titleLarge),
             const SizedBox(height: 6),
             Text(
-              '${forPartner(widget.viewerFemale, 'إذا أبدى اهتمامه', 'إذا أبدت اهتمامها')} أيضاً، يتم التوافق ونبدأ '
-              'بالطريقة التي ${_g('تختارها', 'تختارينها')}.',
+              widget.likedYou
+                  ? '${forPartner(widget.viewerFemale, 'أبدى اهتمامه', 'أبدت اهتمامها')} ${_g('بك', 'بكِ')}، فيتم التوافق '
+                      'فور الإرسال ونبدأ بالطريقة التي ${_g('تختارها', 'تختارينها')}.'
+                  : '${forPartner(widget.viewerFemale, 'إذا أبدى اهتمامه', 'إذا أبدت اهتمامها')} أيضاً، يتم التوافق ونبدأ '
+                      'بالطريقة التي ${_g('تختارها', 'تختارينها')}.',
               style: theme.textTheme.bodyMedium?.copyWith(color: AppColors.muted),
             ),
             const SizedBox(height: 18),
@@ -176,7 +187,10 @@ class _InterestSheetState extends State<InterestSheet> {
             ] else if (widget.creditOnInterest) ...[
               const SizedBox(height: 12),
               InfoBanner(
-                text: 'يُخصم رصيد واحد عند إرسال «مهتم»${widget.credits != null ? ' · رصيدك الحالي ${widget.credits}' : ''}.',
+                key: const Key('interest-balance'),
+                // The balance on its own line, never split from its number
+                text: 'يُخصم رصيد واحد عند إرسال «مهتم».'
+                    '${_credits != null ? '\n${widget.viewerFemale ? 'رصيدكِ' : 'رصيدك'}\u00A0الحالي:\u00A0$_credits' : ''}',
                 icon: Icons.account_balance_wallet_outlined,
               ),
             ],

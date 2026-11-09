@@ -7,6 +7,7 @@ import '../core/auth/auth_controller.dart';
 import '../core/push/push_service.dart';
 import '../core/routing/router.dart';
 import '../core/update/app_update.dart';
+import '../features/home/counts.dart';
 import '../core/theme/app_theme.dart';
 import 'maintenance_gate.dart';
 
@@ -21,6 +22,10 @@ class NaseebakApp extends ConsumerWidget {
     ref.listen(authControllerProvider.select((a) => a.isSignedIn), (_, signedIn) {
       final push = ref.read(pushServiceProvider);
       signedIn ? push.start() : push.reset();
+    });
+    // The balance the counts carry (credit on interest) keeps the stored one fresh: it changes elsewhere too
+    ref.listen(countsProvider.select((c) => c.valueOrNull?.credits), (_, credits) {
+      if (credits != null) ref.read(authControllerProvider.notifier).updateCredits(credits);
     });
     // Analytics reports split by member, gender and country (no name or phone)
     ref.listen(authControllerProvider.select((a) => a.me?.id), (_, _) {

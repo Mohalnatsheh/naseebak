@@ -601,7 +601,7 @@ flowchart LR
       </tbody>
     </table></div>
     <ol class="steps">
-      <li><span class="st">Checkout</span> <span class="dt">creates a PENDING <code>Payment</code> row first, then the Stripe session (metadata <code>app: naseebak</code>, paymentId, userId, credits).</span></li>
+      <li><span class="st">Checkout</span> <span class="dt">creates the Stripe session (metadata <code>app: naseebak</code>, paymentId, userId, credits), then the PENDING <code>Payment</code> row under that pre-generated id.</span></li>
       <li><span class="st">Embedded form</span> <span class="dt">loads with the publishable key (baked in at build time).</span></li>
       <li><span class="st">Return URL</span> <span class="dt"><code>NEXT_PUBLIC_APP_URL/dashboard/payments?session_id=…</code> calls session-status, which fulfils if paid.</span></li>
       <li><span class="st">Credits added once</span> <span class="dt">by <code>fulfilCheckoutSession</code> from any of three places: webhook, return page, or daily reconcile (last 3 days). Ledger PURCHASE, PAYMENT notice.</span></li>

@@ -46,10 +46,12 @@ export interface FileReportInput {
   details?: string | null;
   /** The chat it was sent from, when there is one */
   conversationId?: string | null;
+  /** «إبلاغ عن الرسالة»: the reported message (the caller checked it belongs to `conversationId`) */
+  messageId?: string | null;
 }
 
 export async function fileReport(input: FileReportInput): Promise<{ id: string; reopened: boolean }> {
-  const { reporterId, reportedId, reason, conversationId } = input;
+  const { reporterId, reportedId, reason, conversationId, messageId } = input;
   const details = input.details?.trim() || null;
 
   const existing = await db.report.findUnique({
@@ -70,13 +72,15 @@ export async function fileReport(input: FileReportInput): Promise<{ id: string; 
         status: "PENDING",
         reviewedAt: null,
         ...(conversationId && { conversationId }),
+        // A later report without a message keeps the one reported before (like the chat)
+        ...(messageId && { messageId }),
       },
       select: { id: true },
     });
     id = report.id;
   } else {
     const report = await db.report.create({
-      data: { reporterId, reportedId, reason, details, ...(conversationId && { conversationId }) },
+      data: { reporterId, reportedId, reason, details, ...(conversationId && { conversationId }), ...(messageId && { messageId }) },
       select: { id: true },
     });
     id = report.id;
@@ -84,19 +88,22 @@ export async function fileReport(input: FileReportInput): Promise<{ id: string; 
 
   // Nothing happens to the member automatically: the admins are told and decide
   const pending = await pendingReportCount(reportedId);
-  void alertAdmins({ id, reporterId, reportedId, reason, details, reopened: !!existing, pending, fromChat: !!conversationId });
+  void alertAdmins({ id, reporterId, reportedId, reason, details, reopened: !!existing, pending, fromChat: !!conversationId, messageId });
   return { id, reopened: !!existing };
 }
 
 async function alertAdmins(r: {
   id: string; reporterId: string; reportedId: string; reason: ReportReason; details: string | null;
-  reopened: boolean; pending: number; fromChat: boolean;
+  reopened: boolean; pending: number; fromChat: boolean; messageId?: string | null;
 }): Promise<void> {
   try {
-    const people = await db.user.findMany({
-      where: { id: { in: [r.reporterId, r.reportedId] } },
-      select: { id: true, firstName: true, lastName: true, phone: true },
-    });
+    const [people, reported] = await Promise.all([
+      db.user.findMany({
+        where: { id: { in: [r.reporterId, r.reportedId] } },
+        select: { id: true, firstName: true, lastName: true, phone: true },
+      }),
+      r.messageId ? db.message.findUnique({ where: { id: r.messageId }, select: { kind: true, body: true } }) : null,
+    ]);
     const who = (id: string) => {
       const p = people.find((x) => x.id === id);
       return p ? `${p.firstName} ${p.lastName} (+${p.phone}, ${id})` : id;
@@ -106,6 +113,7 @@ async function alertAdmins(r: {
       `المُبلِّغ: ${who(r.reporterId)}`,
       `المُبلَّغ عنه: ${who(r.reportedId)}`,
       `السبب: ${REASON_LABEL[r.reason] ?? r.reason}${r.fromChat ? " · من المحادثة" : ""}`,
+      reported ? `الرسالة المُبلَّغ عنها: «${replySnippet(reported)}»` : null,
       r.details ? `التفاصيل: ${r.details}` : null,
       `بلاغات قيد المراجعة عن هذا العضو: ${r.pending}`,
       "لم يُتخذ أي إجراء تلقائي. القرار للإدارة: تعليم العضو، إنهاء المحادثة أو إيقاف الحساب.",
@@ -258,6 +266,8 @@ type EvidenceMessage = {
   mediaPath?: string | null;
   /** The message this one replied to: who wrote it and its one-line snippet (same chat only) */
   replyTo?: { from: "reporter" | "reported"; snippet: string };
+  /** The message the report was about («إبلاغ عن الرسالة», Report.messageId) */
+  reported?: true;
 };
 
 /**
@@ -289,7 +299,7 @@ const EVIDENCE_MAX_MESSAGES = 1000;
 export async function snapshotReportEvidence(userId: string): Promise<number> {
   const reports = await db.report.findMany({
     where: { OR: [{ reporterId: userId }, { reportedId: userId }], evidence: { equals: Prisma.DbNull } },
-    select: { id: true, reporterId: true, reportedId: true, conversationId: true },
+    select: { id: true, reporterId: true, reportedId: true, conversationId: true, messageId: true },
   });
   let saved = 0;
   for (const r of reports) {
@@ -326,7 +336,7 @@ export async function snapshotReportEvidence(userId: string): Promise<number> {
         orderBy: { createdAt: "desc" },
         take: EVIDENCE_MAX_MESSAGES + 1,
         select: {
-          senderId: true, body: true, kind: true, mediaPath: true, createdAt: true,
+          id: true, senderId: true, body: true, kind: true, mediaPath: true, createdAt: true,
           replyTo: { select: { conversationId: true, senderId: true, kind: true, body: true } },
         },
       });
@@ -345,6 +355,7 @@ export async function snapshotReportEvidence(userId: string): Promise<number> {
             ...(m.replyTo && m.replyTo.conversationId === chat.id && {
               replyTo: { from: m.replyTo.senderId === r.reporterId ? "reporter" : "reported", snippet: replySnippet(m.replyTo) },
             }),
+            ...(r.messageId && m.id === r.messageId && { reported: true as const }),
           })),
       };
     }

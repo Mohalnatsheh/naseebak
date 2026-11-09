@@ -28,7 +28,11 @@ vi.mock("@/lib/rate-limit", () => rl);
 vi.mock("@/lib/reports", () => ({ fileReport: vi.fn() }));
 vi.mock("@/lib/auth", () => auth);
 
-import { getConversation, listConversations, sendMessage, setReaction, signalTyping } from "@/lib/chat/service";
+import { endConversation, getConversation, listConversations, sendMessage, setReaction, signalTyping } from "@/lib/chat/service";
+import * as chatService from "@/lib/chat/service";
+import { fileReport } from "@/lib/reports";
+import { POST as endRoute } from "@/app/api/chats/[id]/end/route";
+import { GET as chatRoute } from "@/app/api/chats/[id]/route";
 import { IntroError } from "@/lib/intro/errors";
 import { REACTION_EMOJI } from "@/lib/chat/reactions";
 import { TYPING_SHOW_MS } from "@/lib/chat/typing";
@@ -219,7 +223,27 @@ describe("reactions", () => {
     expect(out).toEqual({ reactions: [{ emoji: "❤️", mine: true }] });
     expect(ably.publishChatEvent).toHaveBeenCalledWith(c.id, "reaction", { messageId: "msg1", reactions: [{ emoji: "❤️", userId: "u1" }] });
     expect(notifyMod.notify).not.toHaveBeenCalled();
-    expect(db.message.updateMany).not.toHaveBeenCalled();
+    // Only the message's reaction stamp moves (polling clients pick it up), never its read state
+    expect(db.message.updateMany).toHaveBeenCalledTimes(1);
+    expect(db.message.updateMany).toHaveBeenCalledWith({ where: { id: "msg1" }, data: { reactedAt: expect.any(Date) } });
+  });
+
+  it("two first taps at once: the losing create (P2002) becomes an update instead of a 500", async () => {
+    const c = conv();
+    db.conversation.findUnique.mockResolvedValue(c);
+    db.message.findUnique.mockResolvedValue(msgOf(c.id));
+    const { Prisma } = await import("@prisma/client");
+    db.messageReaction.upsert.mockRejectedValueOnce(
+      new Prisma.PrismaClientKnownRequestError("Unique constraint failed", { code: "P2002", clientVersion: "7" }),
+    );
+    (db.messageReaction as Record<string, ReturnType<typeof vi.fn>>).update = vi.fn().mockResolvedValue({});
+    db.messageReaction.findMany.mockResolvedValue([{ emoji: "👍", userId: "u1" }]);
+    const out = await setReaction({ conversationId: c.id, messageId: "msg1", userId: "u1", emoji: "👍" });
+    expect((db.messageReaction as Record<string, ReturnType<typeof vi.fn>>).update).toHaveBeenCalledWith({
+      where: { messageId_userId: { messageId: "msg1", userId: "u1" } },
+      data: { emoji: "👍" },
+    });
+    expect(out).toEqual({ reactions: [{ emoji: "👍", mine: true }] });
   });
 
   it("one per member: a different emoji replaces mine (upsert on messageId + userId)", async () => {
@@ -439,5 +463,130 @@ describe("partner activity label in the chat header", () => {
     const list = await listConversations("u1");
     expect(list[0].partner.activityLabel).toBe("نشطة اليوم");
     expect(JSON.stringify(list)).not.toContain("lastActiveAt");
+  });
+});
+
+describe("activity label only in an open chat", () => {
+  it("null once the chat is ENDED or EXPIRED, and for a partner who is not active", async () => {
+    const recent = new Date(Date.now() - 60 * 60 * 1000);
+    const withPartner = (over: object, partner: object = {}) => {
+      const c = conv(over);
+      return { ...c, match: { ...c.match, female: { ...c.match.female, lastActiveAt: recent, ...partner } } };
+    };
+    for (const status of ["ENDED", "EXPIRED"]) {
+      db.conversation.findUnique.mockResolvedValue(withPartner({ status }));
+      expect((await getConversation("c", "u1")).conversation.partner.activityLabel).toBeNull();
+    }
+    db.conversation.findUnique.mockResolvedValue(withPartner({}, { isDeactivated: true }));
+    expect((await getConversation("c", "u1")).conversation.partner.activityLabel).toBeNull();
+    db.conversation.findUnique.mockResolvedValue(withPartner({}, { status: "SUSPENDED" }));
+    expect((await getConversation("c", "u1")).conversation.partner.activityLabel).toBeNull();
+    db.conversation.findUnique.mockResolvedValue(withPartner({}));
+    expect((await getConversation("c", "u1")).conversation.partner.activityLabel).toBe("نشطة اليوم");
+  });
+});
+
+describe("dead surface", () => {
+  it("service.ts no longer re-exports TYPING_SHOW_MS (import it from typing.ts)", () => {
+    expect("TYPING_SHOW_MS" in chatService).toBe(false);
+  });
+});
+
+describe("report a message (Report.messageId)", () => {
+  beforeEach(() => {
+    db.introRequest.updateMany.mockResolvedValue({ count: 0 });
+  });
+
+  it("a message of this chat goes with the report", async () => {
+    const c = conv();
+    db.conversation.findUnique.mockResolvedValue(c);
+    db.message.findUnique.mockResolvedValue({ id: "bad", conversationId: c.id });
+    await endConversation({ conversationId: c.id, userId: "u1", report: { reason: "HARASSMENT", messageId: "bad" } });
+    expect(fileReport).toHaveBeenCalledWith(expect.objectContaining({ conversationId: c.id, messageId: "bad", reportedId: "f1" }));
+  });
+
+  it("a message of another chat (or one that is gone) is refused with 400 before anything is ended", async () => {
+    const c = conv();
+    db.conversation.findUnique.mockResolvedValue(c);
+    for (const found of [{ id: "x", conversationId: "someone-elses" }, null]) {
+      vi.mocked(fileReport).mockClear();
+      db.conversation.update.mockClear();
+      db.message.findUnique.mockResolvedValue(found);
+      const err = await endConversation({ conversationId: c.id, userId: "u1", report: { reason: "SPAM", messageId: "x" } }).catch((e) => e);
+      expect(err).toBeInstanceOf(IntroError);
+      expect(err.status).toBe(400);
+      expect(db.conversation.update).not.toHaveBeenCalled();
+      expect(fileReport).not.toHaveBeenCalled();
+    }
+  });
+
+  it("without messageId (app 1.0.x) a report works as before", async () => {
+    const c = conv();
+    db.conversation.findUnique.mockResolvedValue(c);
+    await endConversation({ conversationId: c.id, userId: "u1", report: { reason: "SPAM" } });
+    expect(db.message.findUnique).not.toHaveBeenCalled();
+    expect(vi.mocked(fileReport).mock.calls[0][0]).not.toHaveProperty("messageId", expect.anything());
+  });
+
+  it("the end route takes report.messageId (optional, a short string)", async () => {
+    const c = conv();
+    db.conversation.findUnique.mockResolvedValue(c);
+    db.message.findUnique.mockResolvedValue({ id: "bad", conversationId: c.id });
+    const call = (body: unknown) =>
+      endRoute(new Request("http://x", { method: "POST", body: JSON.stringify(body) }), { params: Promise.resolve({ id: c.id }) });
+    expect((await call({ report: { reason: "HARASSMENT", messageId: "bad" } })).status).toBe(200);
+    expect(fileReport).toHaveBeenCalledWith(expect.objectContaining({ messageId: "bad" }));
+    expect((await call({ report: { reason: "HARASSMENT", messageId: "x".repeat(200) } })).status).toBe(400);
+    expect((await call({ report: { reason: "HARASSMENT" } })).status).toBe(200);
+  });
+});
+
+describe("polling: reactions on older messages (?after= with reactionsSince)", () => {
+  it("every GET says when the server answered (polledAt)", async () => {
+    db.conversation.findUnique.mockResolvedValue(conv());
+    const before = Date.now();
+    const res = await getConversation("c", "u1");
+    expect(Date.parse(res.polledAt)).toBeGreaterThanOrEqual(before);
+  });
+
+  it("a poll with reactionsSince returns the reactions of messages whose reactions changed since then", async () => {
+    const c = conv();
+    db.conversation.findUnique.mockResolvedValue(c);
+    const since = new Date(Date.now() - 10_000).toISOString();
+    db.message.findMany.mockImplementation(async (args: { where: { reactedAt?: unknown } }) =>
+      args.where.reactedAt
+        ? [{ id: "old", reactions: [{ emoji: "❤️", userId: "f1" }] }, { id: "old2", reactions: [] }]
+        : [],
+    );
+    const res = await getConversation(c.id, "u1", { after: new Date().toISOString(), reactionsSince: since });
+    expect(res.reactionUpdates).toEqual([
+      { messageId: "old", reactions: [{ emoji: "❤️", mine: false }] },
+      // All reactions removed: an empty list, so the chip goes away
+      { messageId: "old2", reactions: [] },
+    ]);
+    const query = db.message.findMany.mock.calls.find((call) => call[0].where.reactedAt)![0];
+    expect(query.where).toEqual({ conversationId: c.id, reactedAt: { gte: new Date(since) } });
+    expect(JSON.stringify(res.reactionUpdates)).not.toContain("f1");
+  });
+
+  it("no reactionsSince (old clients, first load): no reactionUpdates and no extra query", async () => {
+    db.conversation.findUnique.mockResolvedValue(conv());
+    const res = await getConversation("c", "u1", { after: new Date().toISOString() });
+    expect(res).not.toHaveProperty("reactionUpdates");
+    expect(db.message.findMany.mock.calls.some((call) => call[0].where.reactedAt)).toBe(false);
+  });
+
+  it("the GET route passes a valid reactionsSince through and ignores a bad one", async () => {
+    const c = conv();
+    db.conversation.findUnique.mockResolvedValue(c);
+    const since = new Date(Date.now() - 5000).toISOString();
+    const res = await chatRoute(new Request(`http://x/api/chats/${c.id}?after=${encodeURIComponent(since)}&reactionsSince=${encodeURIComponent(since)}`), {
+      params: Promise.resolve({ id: c.id }),
+    });
+    expect((await res.json()).reactionUpdates).toEqual([]);
+    const bad = await chatRoute(new Request(`http://x/api/chats/${c.id}?after=${encodeURIComponent(since)}&reactionsSince=nope`), {
+      params: Promise.resolve({ id: c.id }),
+    });
+    expect(await bad.json()).not.toHaveProperty("reactionUpdates");
   });
 });

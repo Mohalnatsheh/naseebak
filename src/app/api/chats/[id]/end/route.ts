@@ -9,6 +9,8 @@ const schema = z.object({
     .object({
       reason: z.enum(["FAKE_PROFILE", "INAPPROPRIATE_CONTENT", "HARASSMENT", "SPAM", "OTHER"]),
       details: z.string().max(1000).optional(),
+      /** «إبلاغ عن الرسالة»: the reported message (must belong to this chat); absent from app 1.0.x */
+      messageId: z.string().min(1).max(64).optional(),
     })
     .optional(),
 });

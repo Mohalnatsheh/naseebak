@@ -7,6 +7,26 @@ import { effectiveConversationStatus } from "@/lib/admin/cycle-stats";
 import { adminEndConversation, setSuspended } from "@/lib/admin/moderation";
 import { endPausedChat, evidenceForAdmin, refreshReportFlag } from "@/lib/reports";
 import { getAdminCountry, reportCountryWhere } from "@/lib/admin/country-filter";
+import { replySnippet } from "@/lib/chat/reply";
+
+/**
+ * «إبلاغ عن الرسالة»: the message each report points at (Report.messageId), only when it belongs to the report's chat.
+ * Its stored text is already filtered; admins see the whole chat anyway (logged), this is one line to start from.
+ */
+async function reportedMessages(reports: { messageId: string | null; conversationId: string | null; reportedId: string | null }[]) {
+  const ids = [...new Set(reports.flatMap((r) => (r.messageId ? [r.messageId] : [])))];
+  const rows = ids.length
+    ? await db.message.findMany({
+        where: { id: { in: ids } },
+        select: { id: true, conversationId: true, senderId: true, kind: true, body: true, createdAt: true },
+      })
+    : [];
+  return reports.map((r) => {
+    const m = rows.find((x) => x.id === r.messageId);
+    if (!m || m.conversationId !== r.conversationId) return null;
+    return { id: m.id, at: m.createdAt.toISOString(), kind: m.kind, snippet: replySnippet(m), fromReported: m.senderId === r.reportedId };
+  });
+}
 
 /**
  * Attach chat metadata to reports: the chat the report was sent from (Report.conversationId), or —
@@ -107,9 +127,11 @@ export async function GET(request: Request) {
       : [];
     const reviewerEmail = new Map(reviewers.map((r) => [r.id, r.email]));
 
+    const messages = await reportedMessages(reports);
     return NextResponse.json({
-      reports: (await withChats(reports)).map((r) => ({
+      reports: (await withChats(reports)).map((r, i) => ({
         ...r,
+        reportedMessage: messages[i],
         // A saved photo or voice note's storage path stays on the server
         evidence: evidenceForAdmin(r.evidence),
         reviewedBy: r.reviewedById ? reviewerEmail.get(r.reviewedById) ?? null : null,

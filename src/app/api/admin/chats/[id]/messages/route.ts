@@ -43,7 +43,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     const reports = await db.report.findMany({
       where: { conversationId: id },
       orderBy: { createdAt: "desc" },
-      select: { id: true, status: true, createdAt: true },
+      // messageId: «إبلاغ عن الرسالة» (the page highlights those messages)
+      select: { id: true, status: true, createdAt: true, messageId: true },
     });
 
     const people = [chat.match.female, chat.match.male];

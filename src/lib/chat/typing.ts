@@ -3,7 +3,11 @@
  * Clients signal at most every 3 s; the indicator shows for TYPING_SHOW_MS after the last signal.
  */
 export const TYPING_SHOW_MS = 5000;
-/** A live `typing` event is published at most this often per member and chat */
+/**
+ * A live `typing` event is published at most this often per member and chat. Known cost: app 1.0.x refetches the chat
+ * on any Ably event, so a typing partner makes it fetch about every 3 s (the client's signal pace) while they type.
+ * Accepted (one indexed fetch; it ends when 1.0.x does). Each signal runs the full send gate (assertCanSend).
+ */
 export const TYPING_PUBLISH_MS = 2000;
 
 const lastTyping = new Map<string, number>();

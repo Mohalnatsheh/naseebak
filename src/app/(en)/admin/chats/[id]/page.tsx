@@ -23,7 +23,8 @@ interface ChatDetail {
   endedAt: string | null;
   /** "paused" (report review), "system", "admin", the member's first name, or null */
   endedBy: string | null;
-  reports: { id: string; status: string; createdAt: string }[];
+  /** `messageId`: «إبلاغ عن الرسالة» (that message is highlighted) */
+  reports: { id: string; status: string; createdAt: string; messageId?: string | null }[];
 }
 
 interface Msg {
@@ -104,6 +105,13 @@ export default function AdminChatPage({ params }: { params: Promise<{ id: string
     load();
   }, [load]);
 
+  // Opened from a report («Show in chat», #msg-<id>): scroll to that message once the chat is on screen
+  const loadedCount = messages.length;
+  useEffect(() => {
+    if (!loadedCount || typeof window === "undefined" || !window.location.hash.startsWith("#msg-")) return;
+    document.getElementById(window.location.hash.slice(1))?.scrollIntoView({ block: "center" });
+  }, [loadedCount]);
+
   async function endChat() {
     if (!chat) return;
     if (!confirm(`End the chat between ${chat.people.map((p) => p.firstName).join(" & ")}? Both are told.`)) return;
@@ -119,6 +127,7 @@ export default function AdminChatPage({ params }: { params: Promise<{ id: string
     setEnding(false);
   }
 
+  const reportedIds = useMemo(() => new Set((chat?.reports ?? []).flatMap((r) => (r.messageId ? [r.messageId] : []))), [chat]);
   const term = find.trim().toLowerCase();
   const shown = useMemo(
     () => messages.filter((m) => (!only || m.senderId === only) && (!term || m.body.toLowerCase().includes(term))),
@@ -235,9 +244,15 @@ export default function AdminChatPage({ params }: { params: Promise<{ id: string
                       <div
                         className={cn(
                           "max-w-[80%] rounded-2xl px-3 py-2 shadow-sm",
-                          mine ? "rounded-bl-sm bg-background" : "rounded-br-sm bg-primary text-primary-foreground"
+                          mine ? "rounded-bl-sm bg-background" : "rounded-br-sm bg-primary text-primary-foreground",
+                          reportedIds.has(m.id) && "ring-2 ring-destructive ring-offset-2"
                         )}
                       >
+                        {reportedIds.has(m.id) && (
+                          <p className="mb-1 inline-flex items-center gap-1 rounded-full bg-destructive px-2 py-0.5 text-[11px] font-semibold text-white">
+                            <Flag className="h-3 w-3" /> Reported message
+                          </p>
+                        )}
                         <p className={cn("text-xs font-semibold", mine ? "text-primary" : "text-primary-foreground/80")}>{nameOf(m.senderId)}</p>
                         {m.replyTo && (
                           <a

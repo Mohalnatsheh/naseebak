@@ -1,6 +1,6 @@
 /** Reply quotes (db-free: the website imports it). The snippet is built on the server from the stored, filtered text. */
 export const REPLY_SNIPPET_MAX = 80;
-/** Same labels as the chat list preview (media.ts IMAGE_PREVIEW / VOICE_PREVIEW) */
+/** Also the chat list preview (media.ts IMAGE_PREVIEW / VOICE_PREVIEW are these) */
 export const REPLY_IMAGE_LABEL = "📷 صورة";
 export const REPLY_VOICE_LABEL = "🎤 رسالة صوتية";
 

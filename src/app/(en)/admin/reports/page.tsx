@@ -33,13 +33,20 @@ interface Report {
     endedByAdmin: boolean;
     messages: number;
   } | null;
+  /** «إبلاغ عن الرسالة»: the reported message (same chat only), or null */
+  reportedMessage: { id: string; at: string; kind: string; snippet: string; fromReported: boolean } | null;
 }
 
 /** Saved before an account in the report was deleted (src/lib/reports.ts snapshotReportEvidence) */
 interface ReportEvidence {
   capturedAt: string;
   people: { reporter: EvidencePerson | null; reported: EvidencePerson | null };
-  chat: { id: string; messages: { at: string; from: "reporter" | "reported"; body: string }[]; truncated: boolean } | null;
+  chat: {
+    id: string;
+    /** `reported`: the message this report was about */
+    messages: { at: string; from: "reporter" | "reported"; body: string; reported?: boolean }[];
+    truncated: boolean;
+  } | null;
 }
 interface EvidencePerson {
   id: string;
@@ -223,6 +230,22 @@ export default function AdminReportsPage() {
                       </Link>
                     </div>
                   )}
+                  {report.reportedMessage && (
+                    <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs">
+                      <p className="flex flex-wrap items-center gap-x-2 font-medium text-destructive">
+                        <Flag className="h-3 w-3" /> Reported message
+                        <span className="font-normal text-muted-foreground">
+                          {report.reportedMessage.fromReported ? "by the reported user" : "by the reporter"} · {fmtDateTime(report.reportedMessage.at)}
+                        </span>
+                        {report.chat && (
+                          <Link href={`/admin/chats/${report.chat.id}#msg-${report.reportedMessage.id}`} className="font-normal text-primary hover:underline">
+                            Show in chat
+                          </Link>
+                        )}
+                      </p>
+                      <p dir="auto" className="mt-1 break-words text-sm text-foreground"><bdi>{report.reportedMessage.snippet}</bdi></p>
+                    </div>
+                  )}
                   {report.evidence?.chat && (
                     <details className="text-xs border rounded-md px-3 py-2">
                       <summary className="cursor-pointer font-medium text-foreground">
@@ -231,7 +254,11 @@ export default function AdminReportsPage() {
                       </summary>
                       <div className="mt-2 max-h-80 space-y-1 overflow-y-auto" dir="rtl">
                         {report.evidence.chat.messages.map((m, i) => (
-                          <p key={i} className="break-words">
+                          <p
+                            key={i}
+                            className={m.reported ? "break-words rounded bg-destructive/10 px-1 ring-1 ring-destructive/40" : "break-words"}
+                          >
+                            {m.reported && <span className="font-semibold text-destructive">[Reported message] </span>}
                             <span className={m.from === "reported" ? "font-semibold text-destructive" : "font-semibold text-primary"}>
                               {m.from === "reported" ? "Reported" : "Reporter"}
                             </span>{" "}

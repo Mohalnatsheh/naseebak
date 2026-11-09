@@ -4,7 +4,7 @@
  * Expiry, the day-7 family nudge and the "2 days left" warning are applied lazily whenever a
  * conversation is read, and by the daily job (chatHousekeepingAll) for chats nobody opens.
  */
-import type { ReportReason } from "@prisma/client";
+import { Prisma, type ReportReason } from "@prisma/client";
 import { db } from "@/lib/db";
 import { formatDate } from "@/lib/countries";
 import { notify, notifyMany } from "@/lib/notify";
@@ -34,7 +34,7 @@ import {
 import { prepareVoice } from "@/lib/chat/voice-transcode";
 import { type ChatReaction, type ReactionEmoji, reactionsFor } from "@/lib/chat/reactions";
 import { type ReplyQuote, replySnippet } from "@/lib/chat/reply";
-import { TYPING_SHOW_MS, clearTyping, isTyping, noteTyping } from "@/lib/chat/typing";
+import { clearTyping, isTyping, noteTyping } from "@/lib/chat/typing";
 import { chatStarters } from "@/lib/chat/starters";
 import { activityLabel } from "@/lib/suggestions/feed";
 
@@ -290,7 +290,10 @@ function summarise(
   const partner = partnerOf(c, userId);
   // The partner is the opposite gender; no activity across a block either way
   const partnerGender = partner.id === c.match.femaleId ? "FEMALE" : "MALE";
-  const activity = blocked || matchHidden ? null : activityLabel(partner.lastActiveAt, partnerGender);
+  // Only while the chat is open and the partner's account is active: a former match's activity is not shown
+  const activity = blocked || matchHidden || c.status !== "ACTIVE" || isUnavailable(partner)
+    ? null
+    : activityLabel(partner.lastActiveAt, partnerGender);
   return {
     id: c.id,
     matchId: c.matchId,
@@ -483,7 +486,7 @@ export async function chatHousekeepingAll(now = new Date()): Promise<{ expired: 
 export async function getConversation(
   id: string,
   userId: string,
-  opts: { before?: string; beforeId?: string; after?: string; limit?: number } = {}
+  opts: { before?: string; beforeId?: string; after?: string; limit?: number; reactionsSince?: string } = {}
 ): Promise<{
   conversation: ChatSummary;
   messages: ChatMessage[];
@@ -494,7 +497,13 @@ export async function getConversation(
   partnerTyping: boolean;
   /** Conversation starters while I haven't written anything in an open chat, else [] */
   starters: string[];
+  /** The server's time when it answered: a polling client sends it back (less a few seconds) as `reactionsSince` */
+  polledAt: string;
+  /** Polls (?after=) with `reactionsSince` only: every message whose reactions changed since then, with all of them
+   *  (an empty list = the last one was removed). The polling fallback for the Ably `reaction` event */
+  reactionUpdates?: { messageId: string; reactions: ChatReaction[] }[];
 }> {
+  const polledAt = new Date().toISOString();
   const c = await loadForUser(id, userId, { readOnly: true });
   const limit = Math.min(Math.max(opts.limit ?? 30, 1), 100);
 
@@ -528,7 +537,8 @@ export async function getConversation(
   }
 
   const partnerId = partnerOf(c, userId).id;
-  const [unread, blocked, blockedMe, partnerPro, lastRead, sentByMe] = await Promise.all([
+  const reactionsSince = opts.after && opts.reactionsSince ? new Date(opts.reactionsSince) : null;
+  const [unread, blocked, blockedMe, partnerPro, lastRead, sentByMe, reacted] = await Promise.all([
     db.message.count({ where: { conversationId: id, readAt: null, senderId: { not: userId } } }),
     isBlocked(userId, partnerId),
     db.block.findFirst({ where: { blockerId: partnerId, blockedId: userId }, select: { id: true } }),
@@ -542,6 +552,14 @@ export async function getConversation(
         })
       : null,
     db.message.count({ where: { conversationId: id, senderId: userId }, take: 1 }),
+    reactionsSince
+      ? db.message.findMany({
+          where: { conversationId: id, reactedAt: { gte: reactionsSince } },
+          select: { id: true, reactions: messageInclude.reactions },
+          orderBy: { reactedAt: "asc" },
+          take: 200,
+        })
+      : null,
   ]);
   const last = messages.length ? messages[messages.length - 1] : null;
   const open = c.status === "ACTIVE" && !blocked && !blockedMe;
@@ -551,6 +569,8 @@ export async function getConversation(
     hasMore,
     partnerTyping: open && isTyping(id, partnerId),
     starters: open && sentByMe === 0 ? chatStarters(userId === c.match.femaleId ? "FEMALE" : "MALE") : [],
+    polledAt,
+    ...(reacted && { reactionUpdates: reacted.map((m) => ({ messageId: m.id, reactions: reactionsFor(m.reactions, userId) })) }),
     ...(opts.after && {
       readUpTo: lastRead?.readAt ? { createdAt: lastRead.createdAt.toISOString(), readAt: lastRead.readAt.toISOString() } : null,
     }),
@@ -845,8 +865,16 @@ export async function setReaction(args: {
   if (!emoji || current?.emoji === emoji) {
     await db.messageReaction.deleteMany({ where: { messageId, userId } });
   } else {
-    await db.messageReaction.upsert({ where, create: { messageId, userId, emoji }, update: { emoji } });
+    try {
+      await db.messageReaction.upsert({ where, create: { messageId, userId, emoji }, update: { emoji } });
+    } catch (error) {
+      // Two first taps at once: both upserts tried to create, the loser hits the unique key. Mine exists now: update it
+      if (!(error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002")) throw error;
+      await db.messageReaction.update({ where, data: { emoji } });
+    }
   }
+  // Polling clients (no Ably) ask for messages whose reactions changed since their last poll
+  await db.message.updateMany({ where: { id: messageId }, data: { reactedAt: new Date() } });
   const rows = await db.messageReaction.findMany({
     where: { messageId },
     select: { emoji: true, userId: true },
@@ -864,7 +892,6 @@ export async function signalTyping(conversationId: string, userId: string): Prom
   await assertCanSend(conversationId, userId);
   if (noteTyping(conversationId, userId)) await publishChatEvent(conversationId, "typing", { userId });
 }
-export { TYPING_SHOW_MS };
 
 /** Mark the partner's messages read — only those up to `upTo` (what was actually on screen). */
 export async function markRead(conversationId: string, userId: string, upTo?: string): Promise<number> {
@@ -922,12 +949,17 @@ export async function extendConversation(conversationId: string, userId: string)
 export async function endConversation(args: {
   conversationId: string;
   userId: string;
-  report?: { reason: ReportReason; details?: string };
+  /** `messageId`: «إبلاغ عن الرسالة», a message of this chat (else INVALID, 400, and nothing is ended or filed) */
+  report?: { reason: ReportReason; details?: string; messageId?: string };
 }): Promise<void> {
   const { conversationId, userId, report } = args;
   // Read-only access is enough: someone the other person blocked can still report this chat
   const c = await loadForUser(conversationId, userId, { readOnly: true });
   const partner = partnerOf(c, userId);
+  if (report?.messageId) {
+    const target = await db.message.findUnique({ where: { id: report.messageId }, select: { id: true, conversationId: true } });
+    if (!target || target.conversationId !== conversationId) throw new IntroError("INVALID", "لا يمكن الإبلاغ عن هذه الرسالة");
+  }
   // Only an open chat can be ended (and the partner told): not an expired or ended one, and not across
   // a block — a blocked person must not push «أنهى الطرف الآخر المحادثة» to the blocker. Reporting
   // («إبلاغ») stays possible on any chat.
@@ -958,7 +990,10 @@ export async function endConversation(args: {
 
   if (report) {
     // Same path as the match card: reopens a repeat report and emails the admins
-    await fileReport({ reporterId: userId, reportedId: partner.id, reason: report.reason, details: report.details, conversationId });
+    await fileReport({
+      reporterId: userId, reportedId: partner.id, reason: report.reason, details: report.details, conversationId,
+      ...(report.messageId && { messageId: report.messageId }),
+    });
     const existing = await db.block.findFirst({ where: { blockerId: userId, blockedId: partner.id } });
     if (!existing) await db.block.create({ data: { blockerId: userId, blockedId: partner.id } });
     await cancelPendingBetween(userId, partner.id);

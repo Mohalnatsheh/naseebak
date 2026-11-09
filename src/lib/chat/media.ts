@@ -10,6 +10,7 @@ import path from "path";
 import { Worker } from "worker_threads";
 import { IntroError } from "@/lib/intro/errors";
 import { UNSUPPORTED_IMAGE_MESSAGE } from "@/lib/chat/media-messages";
+import { REPLY_IMAGE_LABEL, REPLY_VOICE_LABEL } from "@/lib/chat/reply";
 
 export type MediaKind = "IMAGE" | "VOICE";
 export type MessageKindValue = "TEXT" | MediaKind;
@@ -32,9 +33,9 @@ const HEIC_QUEUE_MAX = 3;
 /** `body` of a media message: what app 1.0.x (text only) shows as a normal bubble */
 export const IMAGE_FALLBACK_BODY = "📷 صورة — حدّث التطبيق لعرضها";
 export const VOICE_FALLBACK_BODY = "🎤 رسالة صوتية — حدّث التطبيق لسماعها";
-/** The chat list's last-message preview */
-export const IMAGE_PREVIEW = "📷 صورة";
-export const VOICE_PREVIEW = "🎤 رسالة صوتية";
+/** The chat list's last-message preview: the same labels as a reply quote (one source, reply.ts is db-free) */
+export const IMAGE_PREVIEW = REPLY_IMAGE_LABEL;
+export const VOICE_PREVIEW = REPLY_VOICE_LABEL;
 
 export { UNSUPPORTED_IMAGE_MESSAGE };
 export const IMAGE_BUSY_MESSAGE = "تعذّر تجهيز الصورة الآن، حاول مرة أخرى";

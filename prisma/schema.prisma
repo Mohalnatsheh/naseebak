@@ -719,6 +719,8 @@ model Report {
   reviewedAt  DateTime?
   // Set when the report was sent while ending a chat (new cycle); no FK so deleting a chat never touches reports
   conversationId String?
+  /// «إبلاغ عن الرسالة»: the reported message, checked to belong to `conversationId` (no FK: the evidence keeps it)
+  messageId      String?
   reviewedById   String?
   /// Snapshot taken before an account in this report is deleted: both people (name, phone) and the
   /// chat between them, which would otherwise disappear with the match (src/lib/reports.ts)
@@ -726,6 +728,7 @@ model Report {
   createdAt   DateTime     @default(now())
 
   @@unique([reporterId, reportedId])
+  @@index([messageId])
   @@map("reports")
 }
 
@@ -921,10 +924,13 @@ model Message {
   replyTo        Message?     @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
   replies        Message[]    @relation("MessageReplies")
   reactions      MessageReaction[]
+  /// Last time a reaction on this message was set or removed: polling clients ask for changes since (chat/service.ts)
+  reactedAt      DateTime?
   createdAt      DateTime     @default(now())
 
   @@index([conversationId, createdAt])
   @@index([replyToId])
+  @@index([conversationId, reactedAt])
   // Not unique: a new unique constraint makes `prisma db push` stop for a data-loss prompt (the deploy runs it
   // without --accept-data-loss); simultaneous duplicates are caught in memory (single process)
   @@index([conversationId, senderId, clientNonce])

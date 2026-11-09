@@ -5,7 +5,7 @@ const db = vi.hoisted(() => ({
   report: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn(), count: vi.fn(), findMany: vi.fn(), updateMany: vi.fn() },
   user: { updateMany: vi.fn(), findMany: vi.fn() },
   conversation: { findUnique: vi.fn(), findFirst: vi.fn(), findMany: vi.fn(async (): Promise<unknown[]> => []), updateMany: vi.fn() },
-  message: { findMany: vi.fn() },
+  message: { findMany: vi.fn(), findUnique: vi.fn(async (): Promise<unknown> => null) },
   block: { findFirst: vi.fn(async (): Promise<unknown> => null) },
   mutualMatch: { findMany: vi.fn(async (): Promise<unknown[]> => []) },
 }));
@@ -53,6 +53,28 @@ describe("fileReport", () => {
     const { data } = db.report.update.mock.calls[0][0];
     expect(data).toMatchObject({ reason: "SPAM", status: "PENDING", reviewedAt: null });
     expect(data.details).toMatch(/^أول مرة\n---\n\[\d{4}-\d{2}-\d{2}\] مرة ثانية$/);
+  });
+
+  it("«إبلاغ عن الرسالة»: the reported message is kept on a new report and on a reopened one", async () => {
+    db.report.findUnique.mockResolvedValue(null);
+    await fileReport({ reporterId: "a", reportedId: "b", reason: "HARASSMENT", conversationId: "c1", messageId: "m9" });
+    expect(db.report.create.mock.calls[0][0].data).toMatchObject({ conversationId: "c1", messageId: "m9" });
+    db.report.findUnique.mockResolvedValue({ id: "r1", details: null });
+    await fileReport({ reporterId: "a", reportedId: "b", reason: "SPAM", conversationId: "c1", messageId: "m10" });
+    expect(db.report.update.mock.calls[0][0].data).toMatchObject({ messageId: "m10" });
+    // A later report without a message keeps the one reported before (like the chat)
+    db.report.update.mockClear();
+    await fileReport({ reporterId: "a", reportedId: "b", reason: "SPAM" });
+    expect(db.report.update.mock.calls[0][0].data).not.toHaveProperty("messageId");
+  });
+
+  it("the admin email quotes the reported message (one line)", async () => {
+    db.report.findUnique.mockResolvedValue(null);
+    db.message.findUnique.mockResolvedValue({ kind: "TEXT", body: "كلام\nمسيء" });
+    await fileReport({ reporterId: "a", reportedId: "b", reason: "HARASSMENT", conversationId: "c1", messageId: "m9" });
+    await vi.waitFor(() => expect(alert.sendAdminAlert).toHaveBeenCalled());
+    const [, text] = alert.sendAdminAlert.mock.calls[0] as unknown as [string, string];
+    expect(text).toContain("الرسالة المُبلَّغ عنها: «كلام مسيء»");
   });
 
   it("never flags the member or pauses their chats, however many reports (owner, 2026-11-07)", async () => {
@@ -124,6 +146,23 @@ describe("snapshotReportEvidence", () => {
     const msgs = db.report.updateMany.mock.calls[0][0].data.evidence.chat.messages;
     expect(msgs.find((m: { body: string }) => m.body === "رد").replyTo).toEqual({ from: "reporter", snippet: "سؤال" });
     expect(JSON.stringify(msgs)).not.toContain("سر");
+  });
+
+  it("marks the reported message (Report.messageId) in the saved chat", async () => {
+    db.report.findMany.mockResolvedValue([{ id: "r1", reporterId: "a", reportedId: "b", conversationId: "c1", messageId: "m2" }]);
+    db.user.findMany.mockResolvedValue([]);
+    db.conversation.findUnique.mockResolvedValue({ id: "c1" });
+    db.message.findMany.mockResolvedValue([
+      { id: "m2", senderId: "b", body: "مسيء", createdAt: new Date("2026-10-02T10:00:00Z") },
+      { id: "m1", senderId: "a", body: "مرحبا", createdAt: new Date("2026-10-01T10:00:00Z") },
+    ]);
+    await snapshotReportEvidence("b");
+    expect(db.report.findMany.mock.calls[0][0].select).toMatchObject({ messageId: true });
+    const msgs = db.report.updateMany.mock.calls[0][0].data.evidence.chat.messages;
+    expect(msgs).toEqual([
+      { at: "2026-10-01T10:00:00.000Z", from: "reporter", body: "مرحبا" },
+      { at: "2026-10-02T10:00:00.000Z", from: "reported", body: "مسيء", reported: true },
+    ]);
   });
 
   it("finds the pair's chat when the report didn't come from one, and works with no chat", async () => {

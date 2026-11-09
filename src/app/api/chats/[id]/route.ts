@@ -6,7 +6,9 @@ import { getCycleFlags } from "@/lib/settings";
 
 /**
  * One conversation with messages: ?before=<iso>[&beforeId=<message id>] loads older (exact cursor with the id,
- * else inclusive), ?after=<iso> polls newer (inclusive). Clients merge by message id.
+ * else inclusive), ?after=<iso> polls newer (inclusive). Clients merge by message id. A poll may add
+ * &reactionsSince=<iso> (the last answer's `polledAt`, less a few seconds) to get `reactionUpdates`: the reactions of
+ * older messages that changed since then (the polling fallback for the Ably `reaction` event).
  */
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -20,6 +22,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         before: valid(url.searchParams.get("before")),
         beforeId: url.searchParams.get("beforeId")?.slice(0, 64) || undefined,
         after: valid(url.searchParams.get("after")),
+        reactionsSince: valid(url.searchParams.get("reactionsSince")),
       }),
       getCycleFlags(),
     ]);

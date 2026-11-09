@@ -34,6 +34,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ co
     if (code === "SA" && Object.values(data.proPlans ?? {}).some((plan) => plan.price < 2)) {
       return NextResponse.json({ error: "A Saudi Pro plan price must be at least 2 SAR" }, { status: 400 });
     }
+    // Jordan is charged in dollars (dinar × 1.41): below 0.36 JOD a Pro plan is under Stripe's 0.50 USD minimum
+    if (code === "JO" && Object.values(data.proPlans ?? {}).some((plan) => plan.price < 0.36)) {
+      return NextResponse.json({ error: "A Jordan Pro plan price must be at least 0.36 JOD" }, { status: 400 });
+    }
     const unknownPackage = Object.keys(data.packagePrices ?? {}).find((id) => !packagesFor(code).some((p) => p.id === id));
     if (unknownPackage) return NextResponse.json({ error: `${unknownPackage} is not a package of this country` }, { status: 400 });
 

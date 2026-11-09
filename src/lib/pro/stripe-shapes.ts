@@ -10,7 +10,7 @@
  * these shapes (lib/pro/mock.ts, src/__tests__/pro/legacy-shapes.ts).
  */
 import type Stripe from "stripe";
-import { CHECKOUT_APP } from "@/lib/payments/fulfil";
+import { CHECKOUT_APP } from "@/lib/payments/packages";
 
 type Ref = string | { id: string } | null | undefined;
 

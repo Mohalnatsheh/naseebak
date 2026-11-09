@@ -78,6 +78,10 @@ describe("admin countries", () => {
       expect((await update(req({ proPlans }), p("JO"))).status).toBe(400);
     }
     expect((await update(req({ proPlans: { monthly: { ...ok, price: 1.5 } } }), p("SA"))).status).toBe(400);
+    // Jordan is charged in dollars: under 0.36 JOD is under Stripe's 0.50 USD minimum
+    const jo = await update(req({ proPlans: { monthly: { ...ok, price: 0.35 } } }), p("JO"));
+    expect(jo.status).toBe(400);
+    expect((await jo.json()).error).toBe("A Jordan Pro plan price must be at least 0.36 JOD");
     expect(db.countrySetting.upsert).not.toHaveBeenCalled();
   });
 

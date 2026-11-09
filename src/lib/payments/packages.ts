@@ -8,6 +8,9 @@
  */
 import { toCountry, type CountryCode } from "@/lib/countries";
 
+/** Set on every Naseebak checkout (metadata.app); the Stripe account also serves other sites */
+export const CHECKOUT_APP = "naseebak";
+
 export interface CreditPackage {
   id: string;
   country: CountryCode;

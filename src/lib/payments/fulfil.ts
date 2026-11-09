@@ -12,11 +12,12 @@ import { db } from "@/lib/db";
 import { getStripe } from "@/lib/stripe";
 import { notify } from "@/lib/notify";
 import { recordCredit } from "@/lib/credits";
+import { CHECKOUT_APP } from "@/lib/payments/packages";
 
 export type FulfilResult = "fulfilled" | "already" | "not_paid" | "invalid" | "not_ours";
 
-/** Set on every Naseebak checkout; the Stripe account also serves other sites */
-export const CHECKOUT_APP = "naseebak";
+// Set on every Naseebak checkout; it lives in the db-free packages module (lib/pro/stripe-shapes reads it too)
+export { CHECKOUT_APP };
 
 /** A Naseebak checkout: tagged, or (older sessions) carrying our three metadata keys */
 export function isOurSession(session: Stripe.Checkout.Session): boolean {

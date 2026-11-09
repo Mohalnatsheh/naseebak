@@ -314,6 +314,11 @@ Detail: [docs/reference/suggestions-and-credits.md](docs/reference/suggestions-a
 - Requests expire after 7 days. A declined request is final for that type on that match.
 - The chat filter blocks phones, links and handles, including spelled-out or split numbers (`src/lib/chat/filter.ts`). A sender's own messages between number pieces don't reset the run; the partner's message does (two people alternating is accepted).
 - Only the server publishes to Ably `chat:<id>`. Browsers get subscribe-only tokens.
+- Modern chat (2026-11-10, website + app 1.1.0, old apps ignore the new fields):
+  - Reply: `replyToId` (same chat, else 400) → `replyTo {id, mine, kind, snippet}`. Reactions ❤️ 👍 😊 🤲, one per member: `POST …/messages/[messageId]/reaction {emoji|null}`. Typing: `POST …/typing` (3 s client pace, 5 s shown, in memory). Starters in the GET while I haven't written. None of these in an ended or blocked chat; reactions make no push.
+  - «إبلاغ عن الرسالة» sends `report.messageId` to `/api/chats/[id]/end` (`Report.messageId`, same chat only).
+  - Without Ably: the GET returns `partnerTyping` and `polledAt`; a poll with `reactionsSince` (last `polledAt` − 5 s) gets `reactionUpdates`. Own typing wakes the fast poll.
+  - Status bar, one line by priority: expiry while extendable, family step (+ days left), expiry, push chip. Mic: hold to record, slide to cancel, slide up to lock; stops and waits at 3 min or in the background.
 - Admin chat views are logged (`[admin-chat-view]`).
 - A block ends the chat for good and keeps it read-only for the blocked person, so reports stay possible.
 - Reports never act on their own (owner, 2026-11-07): no automatic flag, no automatic chat pause. Every report emails the admins, who flag, end the chat or suspend by hand. Report evidence survives account deletion.

@@ -522,8 +522,9 @@ flowchart LR
     <div class="states"><span class="s">ACTIVE</span><span class="arr">→</span><span class="s end">EXPIRED</span><span class="arr">/</span><span class="s end">ENDED (user or admin)</span></div>
     <ol class="steps">
       <li><span class="st">Send a message.</span> <span class="dt">Refused if chat off, expired, ended, a user suspended / inactive, or blocked.</span>
-        <ul><li>Filter: links, emails, @handles, phone digits (all digit scripts), spelled-out numbers, social keywords, a short insult list.</li><li>Split numbers caught across the sender's own consecutive messages (10 min, 6 back).</li><li>Limits 5 per 5 s, 50 per day.</li></ul></li>
-      <li><span class="st">Partner pushed</span> <span class="dt">(push only, one per 3 min per chat, shows the text).</span></li>
+        <ul><li>Filter: links, emails, @handles, phone digits (all digit scripts), spelled-out numbers, social keywords, a short insult list.</li><li>Split numbers caught across the sender's own consecutive messages (10 min, 6 back).</li><li>Limit 5 per 5 s, no daily cap.</li><li>May reply to a message of the same chat (<code>replyToId</code>, checked on the server; the quote is a filtered snippet).</li></ul></li>
+      <li><span class="st">Partner pushed</span> <span class="dt">(push only, one per 3 min per chat, «رسالة جديدة من …», never the text).</span></li>
+      <li><span class="st">While it is open:</span> <span class="dt">reactions ❤️ 👍 😊 🤲 (one per member per message, no push, no unread), «يكتب الآن…» (in memory, 5 s), 4 conversation starters until I write. None in an ended or blocked chat.</span></li>
       <li><span class="st">Day 7:</span> <span class="dt">one "ready for a family introduction?" nudge to both while the family path is open.</span></li>
       <li><span class="st">2 days left:</span> <span class="dt">warning to both. Either side may extend +7 once in the last 3 days; partner told.</span></li>
       <li><span class="st">Move to family</span> <span class="dt">any time: «ننتقل لتعارف عائلي» in the strip or the expired footer, free.</span></li>
@@ -531,6 +532,7 @@ flowchart LR
       <li><span class="st">End / end and report:</span> <span class="dt">ENDED, pending family requests cancelled, partner told. Ending closes the family path on this match. With a report it also blocks.</span></li>
     </ol>
     <div class="callout"><b>Pro (switch <code>pro_enabled</code>):</b> a Pro member can also send one photo or a voice note (up to 3 min) while the chat is ACTIVE. Files are stored under unguessable paths and served only through <code>/api/chats/[id]/media/[messageId]</code> to the two members or an admin. Old apps see a text fallback. Code: <span class="path">lib/chat/media.ts</span>.</div>
+    <div class="callout"><b>Modern chat (2026-11-10):</b> WhatsApp-style look; one status bar by priority (expiry while it can be extended, the family step with the days left, expiry, the push chip); hold the mic to record (release sends, slide to cancel, slide up to lock); a hover / long-press menu (reactions, «رد», «نسخ», «إبلاغ عن الرسالة»), no delete. «إبلاغ عن الرسالة» sends <code>report.messageId</code> (same chat only): the admin email quotes it, Admin → Reports shows it and the chat view highlights it. Without Ably, polls carry <code>partnerTyping</code> and, with <code>reactionsSince</code>, <code>reactionUpdates</code>; my own typing keeps polling fast. Spec: <code>docs/superpowers/specs/2026-11-10-modern-chat-design.md</code>.</div>
     <div class="callout">Guardian read-only access to the chat was in the design (<code>new-cycle-design.md</code>) but is deferred and not built.</div>
     <div class="gaplinks"><span>Gaps:</span><a class="gl m" href="#G21">G21</a><a class="gl m" href="#G35">G35</a><a class="gl m" href="#G36">G36</a><a class="gl l" href="#G50">G50</a></div>
   </div>

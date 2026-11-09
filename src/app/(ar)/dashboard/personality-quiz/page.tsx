@@ -29,6 +29,7 @@ import { useDashboardData } from "@/contexts/dashboard-context";
 import { formatDate } from "@/lib/countries";
 import { LoadError } from "@/components/shared/load-error";
 import { PageHeader } from "@/components/shared/page-header";
+import { PageLoading } from "@/components/shared/page-loading";
 
 interface Question {
   id: string;
@@ -199,17 +200,7 @@ export default function PersonalityQuizPage() {
 
   // --- Loading State ---
   if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20 gap-4">
-        <div className="relative">
-          <div className="h-16 w-16 rounded-full bg-gradient-to-br from-secondary/20 to-primary/10 flex items-center justify-center">
-            <Brain className="h-8 w-8 animate-spin text-primary" />
-          </div>
-          <div className="absolute inset-0 h-16 w-16 rounded-full bg-primary/10 animate-ping" />
-        </div>
-        <p className="text-sm text-muted-foreground animate-pulse">جارٍ تحميل اختبار الشخصية...</p>
-      </div>
-    );
+    return <PageLoading width="max-w-2xl" label="جارٍ تحميل اختبار الشخصية…" />;
   }
 
   // --- Result Screen ---

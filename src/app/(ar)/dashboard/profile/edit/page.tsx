@@ -38,6 +38,7 @@ import { normalizePhone } from "@/lib/validations/auth";
 import { splitProfileEdit, buildFillBody } from "@/lib/profile-edit-split";
 import { forViewer } from "@/lib/gendered-copy";
 import { VEIL_CHOICES, veilChoice, veilFromChoice } from "@/lib/profile-veil";
+import { PageLoading } from "@/components/shared/page-loading";
 
 const educationLevels = [
   "ثانوية عامة",
@@ -658,18 +659,7 @@ export default function ProfileEditPage() {
   }
 
   if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20 gap-4">
-        <div className="relative">
-          <div className="h-16 w-16 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          </div>
-        </div>
-        <p className="text-sm text-muted-foreground animate-pulse">
-          جاري تحميل بيانات الملف الشخصي...
-        </p>
-      </div>
-    );
+    return <PageLoading width="max-w-2xl" label="جارٍ تحميل بيانات الملف الشخصي…" />;
   }
 
   async function withdrawRequest() {

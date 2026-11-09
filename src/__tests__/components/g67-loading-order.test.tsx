@@ -79,7 +79,7 @@ describe("G67: pages wait for the switch flags before switch-dependent copy", ()
     const { default: PaymentsPage } = await import("@/app/(ar)/dashboard/payments/page");
     render(<PaymentsPage />);
     await act(async () => {});
-    expect(screen.getByText("جاري التحميل...")).toBeTruthy();
+    expect(screen.getByRole("status").textContent).toContain("جارٍ التحميل");
   });
 });
 
@@ -105,5 +105,15 @@ describe("G67: setup wizard when /api/profile fails", () => {
     });
     await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
     expect(autoSave.enabled.at(-1)).toBe(true);
+  });
+});
+
+describe("PageLoading keeps the page's width and height (QA WA-06)", () => {
+  it("takes the loaded page's width and most of the screen", async () => {
+    const { PageLoading } = await import("@/components/shared/page-loading");
+    render(<PageLoading width="max-w-3xl" />);
+    const el = screen.getAllByRole("status").at(-1)!;
+    expect(el.className).toContain("max-w-3xl");
+    expect(el.className).toContain("min-h-[70vh]");
   });
 });

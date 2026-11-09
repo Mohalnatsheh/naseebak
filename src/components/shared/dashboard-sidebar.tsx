@@ -214,8 +214,12 @@ export function DashboardSidebar() {
             </Button>
         </div>
 
+        {/* Until the profile loads, a placeholder of the same height keeps the menu below from jumping (QA WA-06) */}
+        {!collapsed && !userData && (
+          <div className="h-[58px] rounded-xl border border-border/30 bg-muted/40" aria-hidden />
+        )}
         {!collapsed && userData && (
-          <div className="flex items-center gap-3 p-2.5 bg-muted/40 rounded-xl border border-border/30">
+          <div className="flex h-[58px] items-center gap-3 p-2.5 bg-muted/40 rounded-xl border border-border/30">
             <Avatar className="h-9 w-9 border border-primary/20 flex-shrink-0">
               <AvatarFallback className="bg-gradient-to-br from-primary/15 to-primary/5 text-primary text-sm font-bold">
                 {userData.firstName?.charAt(0) || "؟"}

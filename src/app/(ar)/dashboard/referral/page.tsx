@@ -5,7 +5,6 @@ import {
   Gift,
   Copy,
   Share2,
-  Loader2,
   Users,
   CreditCard,
   CheckCircle2,
@@ -18,6 +17,7 @@ import { useDashboardData } from "@/contexts/dashboard-context";
 import { formatDate } from "@/lib/countries";
 import { LoadError } from "@/components/shared/load-error";
 import { PageHeader } from "@/components/shared/page-header";
+import { PageLoading } from "@/components/shared/page-loading";
 
 interface ReferralData {
   referralCode: string;
@@ -93,17 +93,7 @@ export default function ReferralPage() {
   }
 
   if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20 gap-4">
-        <div className="relative">
-          <div className="h-16 w-16 rounded-full bg-gradient-to-br from-primary/20 to-secondary/30 flex items-center justify-center">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          </div>
-          <div className="absolute inset-0 h-16 w-16 rounded-full bg-primary/10 animate-ping" />
-        </div>
-        <p className="text-sm text-muted-foreground animate-pulse">جارٍ التحميل...</p>
-      </div>
-    );
+    return <PageLoading width="max-w-2xl" />;
   }
 
   if (!data) {

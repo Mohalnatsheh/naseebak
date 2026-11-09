@@ -41,6 +41,7 @@ import { discountPercent } from "@/lib/payments/packages";
 import { COUNTRIES, formatDate, toCountry } from "@/lib/countries";
 import { ProLinkCard } from "@/components/payments/pro-section";
 import { PRO_PAGE_PATH } from "@/lib/pro/plans";
+import { PageLoading } from "@/components/shared/page-loading";
 
 /** «ر.س» for riyal rows; anything else (Jordan's rows: JOD / USD) as stored */
 const currencyLabel = (c: string) => (c === "SAR" ? "ر.س" : c);
@@ -320,19 +321,7 @@ function PaymentsContent() {
   }
 
   if (loading || switchesLoading) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20 gap-4">
-        <div className="relative">
-          <div className="h-16 w-16 rounded-full bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          </div>
-          <div className="absolute inset-0 h-16 w-16 rounded-full bg-primary/10 animate-ping" />
-        </div>
-        <p className="text-sm text-muted-foreground animate-pulse">
-          جاري التحميل...
-        </p>
-      </div>
-    );
+    return <PageLoading width="max-w-4xl" />;
   }
 
   // Show embedded checkout form

@@ -23,6 +23,7 @@ import { dateOfBirthError, parentInfoSchemaFor } from "@/lib/validations/profile
 import { BirthDateSelect } from "@/components/profile/birth-date-select";
 import { normalizePhone } from "@/lib/validations/auth";
 import { VEIL_CHOICES, veilChoice, veilFromChoice, type VeilChoice } from "@/lib/profile-veil";
+import { PageLoading } from "@/components/shared/page-loading";
 
 const asOpts = (values: readonly string[]): Opt[] => values.map((v) => ({ value: v, label: v }));
 const educationLevels = asOpts(["ثانوية عامة", "دبلوم", "بكالوريوس", "ماجستير", "دكتوراه"]);
@@ -563,11 +564,7 @@ export default function ProfileSetupPage() {
   }
 
   if (fetchingProfile || !flags) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+    return <PageLoading width="max-w-2xl" />;
   }
 
   return (

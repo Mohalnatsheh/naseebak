@@ -57,6 +57,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { LoadError } from "@/components/shared/load-error";
+import { PageLoading } from "@/components/shared/page-loading";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -329,19 +330,7 @@ export default function ProfilePage() {
   }
 
   if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20 gap-4">
-        <div className="relative">
-          <div className="h-16 w-16 rounded-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          </div>
-          <div className="absolute inset-0 h-16 w-16 rounded-full bg-primary/10 animate-ping" />
-        </div>
-        <p className="text-sm text-muted-foreground animate-pulse">
-          جاري تحميل الملف الشخصي...
-        </p>
-      </div>
-    );
+    return <PageLoading width="max-w-3xl" label="جارٍ تحميل الملف الشخصي…" />;
   }
 
   if (!user) {

@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../app/providers.dart';
 import '../../core/auth/auth_controller.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/theme/app_theme.dart';
@@ -14,15 +15,35 @@ import 'welcome_state.dart';
 /// the tagline. The router waits for [splashDoneProvider]; if the saved session could not be checked (no network)
 /// the screen stays with a retry.
 class SplashScreen extends ConsumerStatefulWidget {
-  const SplashScreen({super.key, this.duration = const Duration(milliseconds: 2600)});
-  final Duration duration;
+  const SplashScreen({super.key, this.duration});
+
+  /// Fixed length (tests); otherwise [firstLaunchDuration] once per install, [quickDuration] after that
+  final Duration? duration;
+
+  /// The full animation, on the first launch only
+  static const firstLaunchDuration = Duration(milliseconds: 2600);
+
+  /// Every later launch (also from a push or a link): a short brand moment while the session is restored
+  static const quickDuration = Duration(milliseconds: 600);
+
+  /// Shared preferences: the full animation has played on this install
+  static const playedKey = 'splash_played';
 
   @override
   ConsumerState<SplashScreen> createState() => _SplashScreenState();
 }
 
 class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerProviderStateMixin {
-  late final _c = AnimationController(vsync: this, duration: widget.duration);
+  late final _c = AnimationController(vsync: this, duration: _duration());
+
+  Duration _duration() {
+    final fixed = widget.duration;
+    if (fixed != null) return fixed;
+    final prefs = ref.read(sharedPreferencesProvider);
+    if (prefs.getBool(SplashScreen.playedKey) ?? false) return SplashScreen.quickDuration;
+    prefs.setBool(SplashScreen.playedKey, true);
+    return SplashScreen.firstLaunchDuration;
+  }
 
   // Phases of the one timeline
   late final _ring = CurvedAnimation(parent: _c, curve: const Interval(0.0, 0.55, curve: Curves.easeInOutCubic));

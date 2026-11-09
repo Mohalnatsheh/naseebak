@@ -73,7 +73,8 @@ String? guardRedirect({
       return '/auth/phone';
     case AuthStatus.signedIn:
       final me = auth.me!;
-      if (me.deactivated) return location == '/paused' ? null : '/paused';
+      // Paused: only the paused page, and «عضوية Pro» to see or stop the renewal
+      if (me.deactivated) return location == '/paused' || location == '/pro' ? null : '/paused';
       if (!me.profileComplete) {
         return location == '/onboarding' || location == '/profile/guardian' ? null : '/onboarding';
       }
@@ -85,6 +86,21 @@ String? guardRedirect({
 
 /// `/credits?section=pro` (old links and pre-release builds' «Pro» tag) → the Pro screen, which now has its own route
 String? creditsRedirect(Uri uri) => uri.queryParameters['section'] == 'pro' ? '/pro' : null;
+
+/// A screen of the signed-in app (not the splash, intro, sign-in or setup pages)
+bool _inApp(String path) =>
+    !const ['/splash', '/intro', '/country', '/paused', '/suspended', '/onboarding'].contains(path) &&
+    !path.startsWith('/auth/');
+
+/// Sees a naseebak.com link the platform opens while the app runs before the router does; [handle] returns true when
+/// it opened it itself.
+class WebsiteLinkObserver with WidgetsBindingObserver {
+  WebsiteLinkObserver(this.handle);
+  final bool Function(Uri uri) handle;
+
+  @override
+  Future<bool> didPushRouteInformation(RouteInformation routeInformation) async => handle(routeInformation.uri);
+}
 
 /// Bridges Riverpod state changes to go_router's refresh.
 class _RouterRefresh extends ChangeNotifier {
@@ -108,15 +124,15 @@ final routerProvider = Provider<GoRouter>((ref) {
   ref.onDispose(refresh.dispose);
 
   // A naseebak.com link waiting for the home screen: one that opened the app before it could show it (splash,
-  // sign-in), or a detail screen (a chat, a match), which is pushed over home so «رجوع» returns there
+  // sign-in), or a detail screen (a chat, a match), which is pushed over home so «رجوع» returns there. One slot: a
+  // newer link replaces one still waiting, and a link is opened once (taken out of the slot before it opens).
   String? pendingLink;
   late final GoRouter router;
   void openPending() {
     final route = pendingLink;
     pendingLink = null;
     if (route == null) return;
-    const tabs = ['/home', '/suggestions', '/matches', '/chats', '/account'];
-    tabs.contains(Uri.parse(route).path) ? router.go(route) : router.push(route);
+    openAppRoute(router, route);
   }
   String? guard(String path) => guardRedirect(
         location: path,
@@ -125,6 +141,23 @@ final routerProvider = Provider<GoRouter>((ref) {
         splashDone: ref.read(splashDoneProvider),
         introSeen: ref.read(introSeenProvider),
       );
+
+  // A link while the app is open and ready (signed in, past setup): opened like a notice tap, over the screen the
+  // member is on, and the screen already on top (e.g. «عضوية Pro» when Stripe returns to it) is never opened twice.
+  // Registered before the router's own listener, so it sees the link first; anything else (signed out, a referral
+  // link) goes on to the router's redirect below.
+  final links = WebsiteLinkObserver((uri) {
+    final link = WebsiteLink.parse(uri);
+    final route = link?.route;
+    if (link == null || route == null || link.invitationCode != null) return false;
+    final current = router.state.uri.path;
+    if (guard('/home') != null || guard(current) != null || !_inApp(current)) return false;
+    pendingLink = null;
+    openAppRoute(router, route);
+    return true;
+  });
+  WidgetsBinding.instance.addObserver(links);
+  ref.onDispose(() => WidgetsBinding.instance.removeObserver(links));
 
   router = GoRouter(
     navigatorKey: rootNavigatorKey,
@@ -212,6 +245,8 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/pro',
+        // A test or review account (payments hidden) never sees Pro, not even its name: home instead
+        redirect: (_, _) => ref.read(appPaymentsProvider) ? null : '/home',
         builder: (_, _) => const MarkPageRead(path: '/dashboard/pro', child: ProScreen()),
       ),
       GoRoute(path: '/credits/history', builder: (_, _) => const PaymentHistoryScreen()),

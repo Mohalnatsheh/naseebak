@@ -93,7 +93,13 @@ class _IntroScreenState extends ConsumerState<IntroScreen> {
   Widget build(BuildContext context) {
     final index = _page.round().clamp(0, introPages.length - 1);
     final last = index == introPages.length - 1;
-    return Scaffold(
+    // Back on a later page goes to the page before (Android); on the first it leaves as usual
+    return PopScope(
+      canPop: index == 0,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _pages.previousPage(duration: const Duration(milliseconds: 420), curve: Curves.easeOutCubic);
+      },
+      child: Scaffold(
       backgroundColor: AppColors.navyDeep,
       body: NightBackdrop(
         child: SafeArea(
@@ -121,7 +127,7 @@ class _IntroScreenState extends ConsumerState<IntroScreen> {
                   key: const Key('intro-pages'),
                   controller: _pages,
                   itemCount: introPages.length,
-                  itemBuilder: (_, i) => _IntroSlide(page: introPages[i], delta: _page - i),
+                  itemBuilder: (_, i) => _IntroSlide(key: Key('intro-page-$i'), page: introPages[i], delta: _page - i),
                 ),
               ),
               Padding(
@@ -155,13 +161,14 @@ class _IntroScreenState extends ConsumerState<IntroScreen> {
           ),
         ),
       ),
+      ),
     );
   }
 }
 
 /// One page: the photo in a gold-edged frame (parallax while swiping), then the words and two points.
 class _IntroSlide extends StatelessWidget {
-  const _IntroSlide({required this.page, required this.delta});
+  const _IntroSlide({super.key, required this.page, required this.delta});
   final IntroPage page;
 
   /// How far the pager is from this page (-1..1 while swiping)

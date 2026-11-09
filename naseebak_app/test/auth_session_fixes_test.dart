@@ -186,7 +186,8 @@ void main() {
       final adapter = FakeAdapter()
         ..on('GET', '/api/mobile/me', FakeResponse(200, {
           'user': {...meJson(deactivated: true), 'deletion': {'scheduledFor': scheduled.toUtc().toIso8601String()}},
-        }));
+        }))
+        ..on('GET', '/api/pro', const FakeResponse(200, {'enabled': true, 'isPro': false, 'canBuy': true, 'offers': []}));
       final container = ProviderContainer(overrides: await testOverrides(adapter, store: MemoryTokenStore('t1')));
       addTearDown(container.dispose);
       await tester.runAsync(() => settled(container));
@@ -195,6 +196,9 @@ void main() {
       expect(find.text('طلبتِ حذف حسابكِ'), findsOneWidget);
       expect(find.textContaining('بعد 21 يوماً'), findsOneWidget);
       expect(find.text('إلغاء الحذف وإعادة التفعيل'), findsOneWidget);
+      // Not Pro: no Pro line (the page reads `/api/pro` where payments show)
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(find.byKey(const Key('paused-pro')), findsNothing);
     });
   });
 

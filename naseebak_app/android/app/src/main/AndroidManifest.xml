@@ -11,10 +11,12 @@
         android:enableOnBackInvokedCallback="true"
         android:allowBackup="false"
         android:fullBackupContent="false">
+        <!-- singleTask: one Naseebak in recents; a link or a push while the app runs reaches it through onNewIntent
+             (singleTop with the empty affinity opened a second task per link) -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:launchMode="singleTop"
+            android:launchMode="singleTask"
             android:screenOrientation="portrait"
             android:taskAffinity=""
             android:theme="@style/LaunchTheme"

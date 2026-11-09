@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:naseebak_app/app/providers.dart';
 import 'package:naseebak_app/core/auth/auth_controller.dart';
 import 'package:naseebak_app/core/routing/router.dart';
 import 'package:naseebak_app/features/welcome/intro_screen.dart';
@@ -75,5 +76,39 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
     expect(container.read(splashDoneProvider), isTrue);
     expect(find.text('زواج تقليدي بروح عصرية'), findsOneWidget);
+  });
+
+  testWidgets('the full splash plays on the first launch only; later launches take 0.6 s', (tester) async {
+    final container = ProviderContainer(overrides: await testOverrides(FakeAdapter()));
+    addTearDown(container.dispose);
+    Widget app() => UncontrolledProviderScope(container: container, child: rtlApp(const SplashScreen()));
+    await tester.pumpWidget(app());
+    await tester.pump(const Duration(milliseconds: 700));
+    expect(container.read(splashDoneProvider), isFalse);
+    await tester.pump(const Duration(milliseconds: 2000));
+    expect(container.read(splashDoneProvider), isTrue);
+    expect(container.read(sharedPreferencesProvider).getBool(SplashScreen.playedKey), isTrue);
+
+    // The next launch
+    await tester.pumpWidget(const SizedBox());
+    container.invalidate(splashDoneProvider);
+    await tester.pumpWidget(app());
+    expect(container.read(splashDoneProvider), isFalse);
+    await tester.pump(const Duration(milliseconds: 650));
+    expect(container.read(splashDoneProvider), isTrue);
+  });
+
+  testWidgets('back on the second intro page goes to the first, not out of the app', (tester) async {
+    final container = ProviderContainer(overrides: await testOverrides(FakeAdapter()));
+    addTearDown(container.dispose);
+    await tester.pumpWidget(UncontrolledProviderScope(container: container, child: rtlApp(const IntroScreen())));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('intro-next')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('intro-page-1')), findsOneWidget);
+    final handled = await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(handled, isTrue);
+    expect(find.byKey(const Key('intro-page-0')), findsOneWidget);
   });
 }

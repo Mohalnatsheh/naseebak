@@ -18,7 +18,13 @@ class AppShell extends ConsumerWidget {
         : Icon(i);
     final suggestionsBadge = (c?.newSuggestions ?? 0) + (c?.likedYou ?? 0);
     final matchesBadge = c?.pendingIntros ?? 0;
-    return Scaffold(
+    // Back on another tab goes to «الرئيسية» first (Android); only home's back leaves the app
+    return PopScope(
+      canPop: shell.currentIndex == 0,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) shell.goBranch(0);
+      },
+      child: Scaffold(
       // The admin's popup alert, over whichever tab is open
       body: AlertGate(child: shell),
       bottomNavigationBar: NavigationBar(
@@ -35,6 +41,7 @@ class AppShell extends ConsumerWidget {
           const NavigationDestination(icon: Icon(Icons.person_outline_rounded), selectedIcon: Icon(Icons.person_rounded), label: 'حسابي'),
         ],
       ),
+    ),
     );
   }
 }

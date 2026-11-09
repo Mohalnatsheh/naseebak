@@ -7,6 +7,7 @@ import '../../core/auth/auth_controller.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/push/push_permission.dart';
 import '../../core/network/json.dart';
+import '../../core/localization/digits.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/common.dart';
 import '../country_selection/country_providers.dart';
@@ -14,21 +15,29 @@ import '../home/counts.dart';
 import '../pro/pro_repository.dart';
 import '../pro/pro_section.dart' show proActiveText;
 
+/// The pause dialog's Pro line (a renewing subscription)
+String pauseProLine(DateTime? end) =>
+    'اشتراك Pro لن يتجدد بعد الإيقاف${end == null ? '' : '، ويبقى فعّالاً حتى ${formatDate(end)}'}، دون استرداد.';
+
 /// «حسابي»: profile, credits, notification settings, safety, legal links and account actions.
 class AccountScreen extends ConsumerWidget {
   const AccountScreen({super.key});
 
-  Future<void> _pause(BuildContext context, WidgetRef ref) async {
+  Future<void> _pause(BuildContext context, WidgetRef ref, MyProState? pro) async {
+    // A Pro renewal stops with the pause (the server ends it with the period, no refund)
+    final renewing = pro != null && pro.isPro && !pro.cancelAtPeriodEnd;
     final ok = await confirmDialog(
       context,
       title: 'إيقاف الحساب مؤقتاً',
-      body: 'لن يظهر ملفك لأحد ولن تصلك اقتراحات، وتُنهى المحادثات المفتوحة. يمكنك إعادة التفعيل في أي وقت.',
+      body: 'لن يظهر ملفك لأحد ولن تصلك اقتراحات، وتُنهى المحادثات المفتوحة. يمكنك إعادة التفعيل في أي وقت.'
+          '${renewing ? '\n\n${pauseProLine(pro.renewsAt)}' : ''}',
       confirmLabel: 'إيقاف',
     );
     if (!ok || !context.mounted) return;
     try {
       await ref.read(apiClientProvider).post('/api/profile/deactivate', body: {'action': 'pause'});
       await ref.read(authControllerProvider.notifier).refreshMe();
+      ref.invalidate(proStateProvider);
     } catch (e) {
       if (context.mounted) showSnack(context, ApiException.messageOf(e));
     }
@@ -119,7 +128,7 @@ class AccountScreen extends ConsumerWidget {
           const SizedBox(height: 16),
           Card(
             child: Column(children: [
-              tile(Icons.pause_circle_outline_rounded, 'إيقاف الحساب مؤقتاً', () => _pause(context, ref), color: AppColors.warning),
+              tile(Icons.pause_circle_outline_rounded, 'إيقاف الحساب مؤقتاً', () => _pause(context, ref, pro), color: AppColors.warning),
               const Divider(),
               tile(Icons.delete_outline_rounded, 'حذف الحساب', () => _delete(context, ref), color: AppColors.danger),
             ]),

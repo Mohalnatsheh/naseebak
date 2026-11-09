@@ -2,6 +2,8 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Android 13+: asked by the app after sign-in (push) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Voice messages in chats (Pro) -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <application
         android:label="نصيبك"
         android:name="${applicationName}"

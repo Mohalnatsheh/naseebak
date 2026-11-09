@@ -12,13 +12,14 @@ import type { CountrySetting, SmsProviderKind } from "@prisma/client";
 import { db } from "@/lib/db";
 import { COUNTRIES, COUNTRY_CODES, DEFAULT_COUNTRY, countryConfig, countryOfPhone, isCountryCode, type CountryCode } from "@/lib/countries";
 import { PRICES_APPROVED, packagesFor, readPackagePrices, type PackagePrices } from "@/lib/payments/packages";
+import { readProPlans, type ProPlans } from "@/lib/pro/plans";
 import { localizedPath } from "@/lib/site-paths";
 import { parseEmailList } from "@/lib/validations/country-settings";
 import { areasFor, citiesFor } from "@/lib/countries/places";
 import { HOUSING_TYPES, OPTION_VALUES, SKIN_COLORS, expenseRangesFor, incomeRangesFor, nationalityOptions, tribeLabel } from "@/lib/profile-options";
 import { EDUCATION_ORDER } from "@/lib/matching/score";
 
-export type CountrySettings = Omit<CountrySetting, "createdAt" | "updatedAt" | "updatedById" | "packagePrices"> & { packagePrices: PackagePrices | null };
+export type CountrySettings = Omit<CountrySetting, "createdAt" | "updatedAt" | "updatedById" | "packagePrices" | "proPlans"> & { packagePrices: PackagePrices | null; proPlans: ProPlans | null };
 export type ResolvedSmsProvider = "BROADNET" | "UNIFONIC" | "MOCK" | "NONE";
 
 const BASE: Omit<CountrySettings, "code" | "active" | "purchasesEnabled"> = {
@@ -34,6 +35,7 @@ const BASE: Omit<CountrySettings, "code" | "active" | "purchasesEnabled"> = {
   heroSubtitle: null,
   pollsEnabled: true,
   packagePrices: null,
+  proPlans: null,
   pricesApproved: null,
   adminEmails: null,
 };
@@ -50,7 +52,7 @@ function toSettings(r: CountrySetting): CountrySettings {
     code: r.code, active: r.active, registrationOpen: r.registrationOpen, purchasesEnabled: r.purchasesEnabled,
     smsProvider: r.smsProvider, smsSenderId: r.smsSenderId, supportEmail: r.supportEmail, supportPhone: r.supportPhone,
     supportWhatsapp: r.supportWhatsapp, seoTitle: r.seoTitle, seoDescription: r.seoDescription, heroTitle: r.heroTitle,
-    heroSubtitle: r.heroSubtitle, pollsEnabled: r.pollsEnabled, packagePrices: readPackagePrices(r.packagePrices), pricesApproved: r.pricesApproved, adminEmails: r.adminEmails,
+    heroSubtitle: r.heroSubtitle, pollsEnabled: r.pollsEnabled, packagePrices: readPackagePrices(r.packagePrices), proPlans: readProPlans(r.proPlans), pricesApproved: r.pricesApproved, adminEmails: r.adminEmails,
   };
 }
 

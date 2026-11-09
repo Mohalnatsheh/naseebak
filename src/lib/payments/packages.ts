@@ -31,7 +31,7 @@ const was = (credits: number) => Math.round(credits * OLD_JOD_PER_CREDIT * 10) /
 /** Jordan is charged in USD: cents per dinar */
 const USD_CENTS_PER_JOD = 141;
 /** What Stripe charges for a display price */
-const chargeFor = (price: number, currency: CreditPackage["currency"]) =>
+export const chargeFor = (price: number, currency: CreditPackage["currency"]) =>
   currency === "JOD"
     ? { chargeCurrency: "usd" as const, chargeAmount: Math.round(price * USD_CENTS_PER_JOD) }
     : { chargeCurrency: "sar" as const, chargeAmount: Math.round(price * 100) };

@@ -182,6 +182,27 @@ enum CreditReason {
   INTEREST
   /// Answering «سؤال نصيبك» (poll_reward_credits per question)
   POLL_REWARD
+  /// Credits granted by a Pro membership (taken back with REFUND on a refund)
+  PRO_GRANT
+}
+
+enum ProPlan {
+  WEEKLY
+  MONTHLY
+  YEARLY
+}
+
+enum ProStatus {
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  ENDED
+}
+
+enum MessageKind {
+  TEXT
+  IMAGE
+  VOICE
 }
 
 // ─── Models ─────────────────────────────────────────────────────────────────
@@ -227,6 +248,7 @@ model User {
   photos            Photo[]
   subscriptions     Subscription[]
   payments          Payment[]
+  proSubscriptions  ProSubscription[]
   notifications     Notification[]
 
   // Suggestions where this user is the recipient (receives the suggestion)
@@ -553,11 +575,14 @@ model Payment {
   failureReason   String?
 
   subscription    Subscription?
+  /// The Pro membership this payment (first or renewal invoice) belongs to
+  proSubscriptionId String?
 
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
   @@index([stripeSessionId])
+  @@index([proSubscriptionId])
   @@index([stripePaymentIntentId])
   @@map("payments")
 }
@@ -877,6 +902,13 @@ model Message {
   /// Unread-message SMS (lib/chat/unread-sms.ts): last attempt and its result (sent, sent_admin, has_push, already_today, opted_out, …)
   smsNoticeAt     DateTime?
   smsNoticeStatus String?
+  kind           MessageKind  @default(TEXT)
+  /// Private storage path of an image or voice message (never sent to clients)
+  mediaPath      String?
+  mediaType      String?
+  mediaDurationSec Int?
+  mediaWidth     Int?
+  mediaHeight    Int?
   createdAt      DateTime     @default(now())
 
   @@index([conversationId, createdAt])
@@ -1016,6 +1048,8 @@ model CountrySetting {
   pollsEnabled     Boolean         @default(true)
   /// Prices set in Admin → Countries, by package id ({"sa_10": 20}). A package not listed keeps its price in code
   packagePrices    Json?
+  /// Pro membership plans of this country ({"monthly": {"enabled": true, "price": 4, "credits": 8}})
+  proPlans         Json?
   /// Prices approved for sale in admin. Null = the default in code (Jordan approved, Saudi Arabia not)
   pricesApproved   Boolean?
   /// Who gets this country's admin emails, comma separated. Empty = ADMIN_NOTIFY_EMAIL
@@ -1137,4 +1171,47 @@ model ActivityDay {
   @@id([userId, day, source])
   @@index([day, source])
   @@map("activity_days")
+}
+
+/// A member's Pro membership (Stripe subscription). Kept after the account is deleted (userId null)
+model ProSubscription {
+  id                   String    @id @default(cuid())
+  userId               String?
+  user                 User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  country              String
+  plan                 ProPlan
+  status               ProStatus @default(ACTIVE)
+  stripeSubscriptionId String?
+  stripeCustomerId     String?
+  currentPeriodEnd     DateTime
+  cancelAtPeriodEnd    Boolean   @default(false)
+  /// Display price and currency at purchase
+  price                Decimal   @db.Decimal(10, 2)
+  currency             String
+  /// Credits per grant (yearly: per month)
+  creditsPerGrant      Int
+  grantsMade           Int       @default(0)
+  nextCreditGrantAt    DateTime?
+  endedAt              DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  @@index([stripeSubscriptionId])
+  @@index([userId, status])
+  @@map("pro_subscriptions")
+}
+
+/// One credit grant of a Pro membership; `key` makes each grant happen once
+model ProCreditGrant {
+  id             String   @id @default(cuid())
+  key            String   @unique
+  subscriptionId String
+  paymentId      String?
+  userId         String?
+  credits        Int
+  takenBack      Boolean  @default(false)
+  createdAt      DateTime @default(now())
+
+  @@index([paymentId])
+  @@map("pro_credit_grants")
 }

@@ -34,11 +34,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ co
     const unknownPackage = Object.keys(data.packagePrices ?? {}).find((id) => !packagesFor(code).some((p) => p.id === id));
     if (unknownPackage) return NextResponse.json({ error: `${unknownPackage} is not a package of this country` }, { status: 400 });
 
-    const { packagePrices, ...current } = await getCountrySettings(code);
+    const { packagePrices, proPlans, ...current } = await getCountrySettings(code);
     await db.countrySetting.upsert({
       where: { code },
       // A first save starts from the code defaults (the row didn't exist yet)
-      create: { ...current, ...(packagePrices && { packagePrices }), ...data, code, updatedById: result.session.user.id }, // Json columns take no plain null
+      create: { ...current, ...(packagePrices && { packagePrices }), ...(proPlans && { proPlans }), ...data, code, updatedById: result.session.user.id }, // Json columns take no plain null
       update: { ...data, updatedById: result.session.user.id },
     });
     clearCountrySettingsCache();

@@ -33,6 +33,7 @@ import { toLatinDigits } from "@/lib/digits";
 import { takeLandingStart } from "@/lib/landing-start";
 import { useVisitorCountry } from "@/components/shared/visitor-country";
 import { DialCodeToggle } from "@/components/shared/dial-code-toggle";
+import { TermsConsentText } from "@/components/shared/terms-consent-text";
 import { COUNTRIES, type CountryCode } from "@/lib/countries";
 import { dialCountryFor, isPhoneFor, phoneExampleError, phoneFormatsError, phoneWord } from "@/lib/phone-field";
 
@@ -303,11 +304,11 @@ function RegisterPageContent() {
     setError("");
 
     if (arabicLetterCount(form.firstName) < 2) {
-      setError("الاسم الأول يجب أن يكون حرفين على الأقل");
+      setError(form.firstName.trim() ? "الاسم الأول يجب أن يكون حرفين على الأقل" : "الاسم الأول مطلوب");
       return false;
     }
     if (arabicLetterCount(form.lastName) < 2) {
-      setError("اسم العائلة يجب أن يكون حرفين على الأقل");
+      setError(form.lastName.trim() ? "اسم العائلة يجب أن يكون حرفين على الأقل" : "اسم العائلة مطلوب");
       return false;
     }
     if (!form.gender) {
@@ -1078,17 +1079,7 @@ function RegisterPageContent() {
                     className="mt-0.5 h-5 w-5 shrink-0 accent-primary cursor-pointer"
                     required
                   />
-                  <span className="text-xs leading-relaxed text-foreground/80">
-                    أوافق على{" "}
-                    <Link href="/terms" target="_blank" className="font-semibold text-primary underline underline-offset-2">
-                      الشروط والأحكام
-                    </Link>{" "}
-                    و
-                    <Link href="/privacy" target="_blank" className="font-semibold text-primary underline underline-offset-2">
-                      سياسة الخصوصية
-                    </Link>
-                    ، وأؤكد أن عمري 18 سنة أو أكثر.
-                  </span>
+                  <TermsConsentText country={country} />
                 </label>
               </div>
             )}

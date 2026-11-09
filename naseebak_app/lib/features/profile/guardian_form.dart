@@ -58,11 +58,17 @@ class GuardianFieldsView extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final country = ref.watch(authControllerProvider).me?.country;
+    // An error goes as soon as its answer changes (not only at the next save), like the setup steps
+    void changed(String key) {
+      if (errors[key] != null) errors.remove(key);
+      onChanged();
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         TextField(
           controller: fields.name,
+          onChanged: (_) => changed('parentName'),
           decoration: InputDecoration(labelText: 'اسم وليّ الأمر', errorText: errors['parentName']),
         ),
         const SizedBox(height: 12),
@@ -74,7 +80,7 @@ class GuardianFieldsView extends ConsumerWidget {
           ],
           onChanged: (v) {
             fields.relationship = v;
-            onChanged();
+            changed('relationship');
           },
         ),
         const SizedBox(height: 12),
@@ -84,6 +90,7 @@ class GuardianFieldsView extends ConsumerWidget {
             controller: fields.phone,
             keyboardType: TextInputType.phone,
             inputFormatters: [LatinDigitsFormatter()],
+            onChanged: (_) => changed('parentPhone'),
             decoration: InputDecoration(
               labelText: 'رقم ${country?.phoneWord ?? 'هاتف'} وليّ الأمر',
               hintText: country?.phoneExample,
@@ -94,6 +101,7 @@ class GuardianFieldsView extends ConsumerWidget {
         const SizedBox(height: 12),
         TextField(
           controller: fields.address,
+          onChanged: (_) => changed('address'),
           decoration: InputDecoration(labelText: 'العنوان (المدينة والحي)', errorText: errors['address']),
         ),
         const SizedBox(height: 4),

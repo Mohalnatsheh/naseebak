@@ -278,5 +278,30 @@ void main() {
       expect(find.text('الحجاب'), findsOneWidget);
       expect(find.text('منتقبة'), findsOneWidget);
     });
+
+    testWidgets('«ملفي» shows an edit waiting for review, and the job', (tester) async {
+      phone(tester);
+      final adapter = FakeAdapter()
+        ..on('GET', '/api/profile', const FakeResponse(200, {
+          'user': {
+            'id': 'u1',
+            'firstName': 'سارة',
+            'lastName': 'أحمد',
+            'gender': 'FEMALE',
+            'profile': {..._basics, 'job': 'معلمة'},
+          },
+          'completeness': {'total': 60, 'sections': []},
+        }))
+        ..on('GET', '/api/profile/update-request', const FakeResponse(200, {
+          'requests': [
+            {'id': 'r1', 'status': 'PENDING', 'changes': {'city': 'إربد'}, 'createdAt': '2026-11-10T10:00:00.000Z'},
+          ],
+        }));
+      await tester.pumpWidget(scoped(await testOverrides(adapter), const ProfileScreen()));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('profile-pending-review')), findsOneWidget);
+      expect(find.textContaining('المدينة'), findsWidgets);
+      expect(find.text('معلمة'), findsOneWidget);
+    });
   });
 }

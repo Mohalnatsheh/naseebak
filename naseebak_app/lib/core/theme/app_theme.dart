@@ -136,7 +136,12 @@ class AppTheme {
       chipTheme: base.chipTheme.copyWith(
         backgroundColor: AppColors.surface,
         selectedColor: AppColors.navy.withValues(alpha: 0.1),
-        side: const BorderSide(color: AppColors.line),
+        // No ✓ on a picked chip: it made the chip wider, the row re-wrapped and the next tap landed in a gap. The
+        // pick shows by its colour and a navy edge (same width)
+        showCheckmark: false,
+        side: WidgetStateBorderSide.resolveWith(
+          (states) => BorderSide(color: states.contains(WidgetState.selected) ? AppColors.navy : AppColors.line),
+        ),
         labelStyle: const TextStyle(fontFamily: fontFamily, color: AppColors.ink, fontSize: 14),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),

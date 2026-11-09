@@ -10,6 +10,7 @@ import '../../core/analytics/analytics.dart';
 import '../../core/auth/auth_controller.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/privacy/screen_privacy.dart';
+import '../../core/review/store_review.dart';
 import '../../core/storage/picker_files.dart';
 import '../../core/system/app_settings.dart';
 import '../../core/theme/app_theme.dart';
@@ -121,6 +122,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
 
   /// Read once: used again in dispose (no ref there)
   late final ChatDrafts _drafts;
+  late final StoreReview _review;
   late final String? _draftOwner;
 
   /// While the media buttons are locked (no Pro), `/api/pro` is re-read now and then: Pro bought in the browser or on
@@ -145,6 +147,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     _scroll.addListener(_onScroll);
     // What was typed here before (back, or the app killed in the background)
     _drafts = ref.read(chatDraftsProvider);
+    _review = ref.read(storeReviewProvider);
     _draftOwner = _memberId;
     final draft = _draftOwner == null ? null : _drafts.read(_draftOwner, widget.chatId);
     if (draft != null) _input.text = draft;
@@ -165,6 +168,9 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _saveDraft();
+    // A real conversation (both have written): the store's rating sheet, once per install, as the chat is left
+    final sent = _messages.where((m) => m.state == SendState.sent);
+    if (sent.any((m) => m.mine) && sent.any((m) => !m.mine)) unawaited(_review.afterConversation());
     _proCheck?.cancel();
     _stopPolling();
     _live?.cancel();

@@ -704,7 +704,7 @@ class _PaymentHistoryScreenState extends ConsumerState<PaymentHistoryScreen> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
-                            Text('${formatAmount(p.amount)} ${p.currency}', style: const TextStyle(fontWeight: FontWeight.w700)),
+                            Text('${formatAmount(p.amount)} ${currencyLabel(p.currency)}', style: const TextStyle(fontWeight: FontWeight.w700)),
                             Pill(text: label, color: color),
                           ],
                         ),

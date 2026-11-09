@@ -26,6 +26,9 @@ void main() {
     await tester.pumpWidget(ProviderScope(overrides: overrides, child: rtlApp(const PaymentHistoryScreen())));
     await tester.pumpAndSettle();
     expect(find.text('باقة 3'), findsNothing);
+    // The amount in the app's own way of writing it («3 د.أ», not «JOD 3»)
+    expect(find.text('3 د.أ'), findsNWidgets(2));
+    expect(find.textContaining('JOD'), findsNothing);
 
     await tester.tap(find.byKey(const Key('payments-more')));
     await tester.pumpAndSettle();

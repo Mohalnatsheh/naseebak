@@ -10,6 +10,7 @@ import '../../core/theme/app_theme.dart';
 import '../../shared/person.dart';
 import '../../shared/widgets/common.dart';
 import '../auth/phone_validation.dart';
+import 'profile_edit_screen.dart' show profileFieldLabels;
 import 'profile_repository.dart';
 
 /// Free-text fields the app lets a member fill or change. Filling an empty one saves at once; changing a
@@ -30,6 +31,8 @@ class ProfileScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final profile = ref.watch(myProfileProvider);
     final me = ref.watch(authControllerProvider).me;
+    // An edit waiting for review shows here too (not only on «تعديل ملفي»)
+    final pending = ref.watch(pendingEditProvider).valueOrNull;
     return Scaffold(
       appBar: AppBar(title: const Text('ملفي')),
       body: profile.when(
@@ -44,6 +47,7 @@ class ProfileScreen extends ConsumerWidget {
             ('الجنسية', v('nationality')),
             ('المدينة', [v('city'), v('area')].whereType<String>().join('، ')),
             ('التعليم', v('education')),
+            ('الوظيفة', v('job')),
             ('الحالة الاجتماعية', v('maritalStatus') == null ? null : OptionLabels.self('maritalStatus', v('maritalStatus')!, female: female)),
             ('التدين', v('religiosity') == null ? null : OptionLabels.self('religiosity', v('religiosity')!, female: female)),
             if (female) ('الحجاب', hijabLabel(asBool(p.field('hijab')), asBool(p.field('niqab')))),
@@ -51,10 +55,23 @@ class ProfileScreen extends ConsumerWidget {
                 p.field('prefAgeMin') == null ? null : '${asInt(p.field('prefAgeMin'))} – ${asInt(p.field('prefAgeMax'))}'),
           ];
           return RefreshIndicator(
-            onRefresh: () async => ref.invalidate(myProfileProvider),
+            onRefresh: () async {
+              ref.invalidate(myProfileProvider);
+              ref.invalidate(pendingEditProvider);
+            },
             child: ListView(
               padding: const EdgeInsets.all(16),
               children: [
+                if (pending != null) ...[
+                  InfoBanner(
+                    key: const Key('profile-pending-review'),
+                    tone: BannerTone.warning,
+                    icon: Icons.hourglass_top_rounded,
+                    text: 'طلب تعديل قيد المراجعة: ${pending.fields.map((f) => profileFieldLabels[f] ?? f).join('، ')}. '
+                        'تظهر القيم الجديدة بعد الموافقة.',
+                  ),
+                  const SizedBox(height: 12),
+                ],
                 Card(
                   child: Padding(
                     padding: const EdgeInsets.all(18),

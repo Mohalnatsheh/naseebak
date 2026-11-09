@@ -70,6 +70,14 @@ class PaymentStatus {
   final int credits;
 }
 
+/// A paid amount's currency the way the rest of the app writes it («3 د.أ», not «JOD 3»); an unknown code stays as is
+String currencyLabel(String code) => switch (code.toUpperCase()) {
+      'JOD' => 'د.أ',
+      'SAR' => 'ر.س',
+      'USD' => r'$',
+      _ => code,
+    };
+
 class PaymentRecord {
   const PaymentRecord({
     required this.id,

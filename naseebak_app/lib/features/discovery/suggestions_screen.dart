@@ -340,7 +340,10 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
           ),
         ],
       ),
-    ).then((_) => review.afterFirstMatch());
+    ).then((_) {
+      // A chat opened: asked when that chat is left after a reply (chat room), never over it now
+      if (res.intro != 'CHAT') review.afterFirstMatch();
+    });
   }
 
 

@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:in_app_review/in_app_review.dart';
+import 'package:naseebak_app/app/providers.dart';
+import 'package:naseebak_app/core/analytics/analytics.dart';
 import 'package:naseebak_app/core/auth/auth_controller.dart';
+import 'package:naseebak_app/core/review/store_review.dart';
 import 'package:naseebak_app/core/storage/token_store.dart';
 import 'package:naseebak_app/features/chat/chat_cache.dart';
 import 'package:naseebak_app/features/chat/chat_drafts.dart';
@@ -40,13 +44,13 @@ CachedChat cached(Iterable<int> ns, {bool hasMore = false}) => CachedChat(
 
 /// A signed-in member (id u1) with the chat room open on c1
 Future<ProviderContainer> openRoom(WidgetTester tester, FakeAdapter adapter, MemoryChatCache cache,
-    {Duration pollInterval = const Duration(hours: 1)}) async {
+    {Duration pollInterval = const Duration(hours: 1), List<Override> extra = const []}) async {
   adapter
     ..on('GET', '/api/mobile/me', FakeResponse(200, {'user': meJson()}))
     ..on('POST', '/api/chats/c1/read', const FakeResponse(200, {'ok': true}))
     ..on('GET', '/api/chats/ably-token', const FakeResponse(404, {'error': 'غير متاح'}));
   final overrides = await testOverrides(adapter, store: MemoryTokenStore('t1'));
-  final container = ProviderContainer(overrides: [...overrides, chatCacheProvider.overrideWithValue(cache)]);
+  final container = ProviderContainer(overrides: [...overrides, chatCacheProvider.overrideWithValue(cache), ...extra]);
   addTearDown(container.dispose);
   container.read(authControllerProvider);
   // The fake API answers inside the test's fake clock: pump until the session is restored
@@ -459,5 +463,35 @@ void main() {
       expect(tester.widget<Text>(find.text('07 9 12 34 567')).textDirection, TextDirection.ltr);
       expect(tester.widget<Text>(find.text('رسالة 1')).textDirection, TextDirection.rtl);
     });
+
+    testWidgets('the store rating sheet waits for a real conversation and asks as the chat is left', (tester) async {
+      final fake = _Review();
+      Future<void> visit(List<Map<String, dynamic>> messages) async {
+        final adapter = FakeAdapter()..on('GET', '/api/chats/c1', FakeResponse(200, {...page([]), 'messages': messages}));
+        final container = await openRoom(tester, adapter, MemoryChatCache(), extra: [
+          storeReviewProvider.overrideWith((ref) => StoreReview(ref.watch(sharedPreferencesProvider), AppAnalytics(false), review: fake)),
+        ]);
+        await tester.pumpAndSettle();
+        await tester.pumpWidget(UncontrolledProviderScope(container: container, child: const SizedBox()));
+        await tester.pump(const Duration(seconds: 1));
+      }
+
+      // Only my first message: not yet
+      await visit([msg(1, mine: true)]);
+      expect(fake.requests, 0);
+      // The other side replied: asked once
+      await visit([msg(1, mine: true), msg(2)]);
+      expect(fake.requests, 1);
+    });
   });
+}
+
+class _Review implements InAppReview {
+  int requests = 0;
+  @override
+  Future<bool> isAvailable() async => true;
+  @override
+  Future<void> requestReview() async => requests++;
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

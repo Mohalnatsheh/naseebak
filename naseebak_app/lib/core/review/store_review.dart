@@ -18,8 +18,15 @@ class StoreReview {
 
   static const askedKey = 'store_review_asked';
 
-  /// After the match dialog closed; the short pause lets the screen it opened settle first
-  Future<void> afterFirstMatch({Duration delay = const Duration(seconds: 2)}) async {
+  /// After the match dialog closed, for a match that didn't open a chat (family introduction); the short pause lets
+  /// the screen it opened settle first. A match that opened a chat asks in [afterConversation] instead: never over
+  /// the brand-new chat, just as the member is about to write the first message.
+  Future<void> afterFirstMatch({Duration delay = const Duration(seconds: 2)}) => _ask(delay);
+
+  /// Leaving a chat where both have written (the other side replied): the same one-time ask
+  Future<void> afterConversation({Duration delay = const Duration(milliseconds: 600)}) => _ask(delay);
+
+  Future<void> _ask(Duration delay) async {
     if (_prefs.getBool(askedKey) ?? false) return;
     try {
       if (!await _review.isAvailable()) return;

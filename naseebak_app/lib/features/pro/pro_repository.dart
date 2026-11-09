@@ -78,6 +78,13 @@ class MyProState {
   final List<ProOffer> offers;
 }
 
+/// A started Pro checkout: the Stripe page, or (local mock only) the payment to finish in the app
+class ProCheckout {
+  const ProCheckout({this.url, this.mockPaymentId});
+  final Uri? url;
+  final String? mockPaymentId;
+}
+
 class ProRepository {
   ProRepository(this._api);
   final ApiClient _api;
@@ -85,13 +92,27 @@ class ProRepository {
   Future<MyProState> state() async => MyProState.fromJson(await _api.get('/api/pro'));
 
   /// Starts a Stripe checkout; the returned page is opened in the phone's browser. Only https is accepted.
-  Future<Uri> checkout(String plan) async {
+  Future<Uri> checkout(String plan) async => (await startCheckout(plan)).url!;
+
+  /// Same, also reading a local mock checkout (`PAYMENTS_MOCK`: a relative `/dashboard/pro?mockPro=<id>`), which
+  /// only a debug build talking to a local backend accepts ([allowMock], like the credits' «دفع تجريبي»)
+  Future<ProCheckout> startCheckout(String plan, {bool allowMock = false}) async {
     final j = await _api.post('/api/pro/checkout', body: {'plan': plan});
-    final uri = Uri.tryParse((asString(j['url']) ?? '').trim());
+    final raw = (asString(j['url']) ?? '').trim();
+    final uri = Uri.tryParse(raw);
+    final mockId = uri?.queryParameters['mockPro'];
+    if (allowMock && uri != null && !uri.hasScheme && mockId != null && mockId.isNotEmpty) {
+      return ProCheckout(mockPaymentId: mockId);
+    }
     if (uri == null || uri.scheme.toLowerCase() != 'https' || uri.host.isEmpty) {
       throw const FormatException('Pro checkout url is not https');
     }
-    return uri;
+    return ProCheckout(url: uri);
+  }
+
+  /// Local mock payments only (404 on real servers)
+  Future<void> completeMock(String paymentId, {required bool paid}) async {
+    await _api.post('/api/dev/mock-checkout/$paymentId', body: {'outcome': paid ? 'paid' : 'cancelled'});
   }
 
   /// Stops the renewal; Pro stays until the paid period ends. Never refunds.

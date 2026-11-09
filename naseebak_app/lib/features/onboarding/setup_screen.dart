@@ -541,11 +541,17 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
               ),
           ],
         ),
-        if (error != null)
-          Padding(
-            padding: const EdgeInsets.only(top: 6),
-            child: Text(error, style: const TextStyle(color: AppColors.danger, fontSize: 13)),
-          ),
+        // Eases out when answered instead of pulling the rows below up under the finger
+        AnimatedSize(
+          duration: const Duration(milliseconds: 250),
+          alignment: AlignmentDirectional.topStart,
+          child: error == null
+              ? const SizedBox(width: double.infinity)
+              : Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text(error, style: const TextStyle(color: AppColors.danger, fontSize: 13)),
+                ),
+        ),
       ],
     );
   }

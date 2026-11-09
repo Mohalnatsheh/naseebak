@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/analytics/analytics.dart';
+import '../../core/config/env.dart';
 import '../../core/auth/auth_controller.dart';
 import '../../core/network/api_exception.dart';
 import '../../shared/widgets/common.dart';
@@ -25,7 +26,11 @@ class ProScreen extends ConsumerStatefulWidget {
     this.openCheckout,
     this.pollInterval = const Duration(seconds: 2),
     this.pollWindow = const Duration(seconds: 10),
+    this.allowMock,
   });
+
+  /// Local mock payments (debug build + local backend; tests set it)
+  final bool? allowMock;
 
   /// Opens the Stripe page; defaults to the external browser (tests pass a fake)
   final Future<bool> Function(Uri url)? openCheckout;
@@ -98,9 +103,34 @@ class _ProScreenState extends ConsumerState<ProScreen> with WidgetsBindingObserv
     if (_subscribing) return;
     setState(() => _subscribing = true);
     try {
-      final url = await ref.read(proRepositoryProvider).checkout(offer.id);
+      final repo = ref.read(proRepositoryProvider);
+      final start = await repo.startCheckout(offer.id, allowMock: widget.allowMock ?? Env.showMockPayments);
       if (!mounted) return;
       ref.read(analyticsProvider).checkoutStarted('pro_${offer.id}');
+      final mockId = start.mockPaymentId;
+      if (mockId != null) {
+        // Local development only: no browser, the result is chosen here, then the same return check as Stripe's
+        final paid = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('دفع تجريبي'),
+            content: const Text('نسخة تطوير: لا يوجد دفع حقيقي. يمكنك اختيار نتيجة الدفع.'),
+            actions: [
+              TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('إلغاء الدفع')),
+              FilledButton(
+                key: const Key('mock-pro-pay'),
+                onPressed: () => Navigator.of(ctx).pop(true),
+                child: const Text('دفع تجريبي ناجح'),
+              ),
+            ],
+          ),
+        );
+        if (paid == null || !mounted) return;
+        await repo.completeMock(mockId, paid: paid);
+        if (paid && mounted) unawaited(_poll());
+        return;
+      }
+      final url = start.url!;
       // Set before the browser opens: the return to the app (resumed) may come before launch answers
       _checkoutOpened = true;
       final open = widget.openCheckout ?? (u) => launchUrl(u, mode: LaunchMode.externalApplication);

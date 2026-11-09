@@ -244,6 +244,38 @@ void main() {
     expect(find.text('حدث خطأ غير متوقع. حاول مرة أخرى.'), findsOneWidget);
   });
 
+  testWidgets('local mock checkout (debug + local backend): finished in the app, then Pro is read', (tester) async {
+    final pro = FakePro()..checkoutUrl = '/dashboard/pro?mockPro=pay1';
+    pro.adapter.handlers['POST /api/dev/mock-checkout/pay1'] = (_) {
+      pro.isPro = true;
+      return const FakeResponse(200, {'ok': true});
+    };
+    final container = await _signIn(tester, pro);
+    await tester.pumpWidget(UncontrolledProviderScope(
+      container: container,
+      child: rtlApp(ProScreen(allowMock: true, openCheckout: (url) async {
+        pro.opened.add(url);
+        return true;
+      })),
+    ));
+    await tester.pumpAndSettle();
+    await _subscribe(tester);
+    expect(pro.opened, isEmpty);
+    await tester.tap(find.byKey(const Key('mock-pro-pay')));
+    await _advance(tester, const Duration(seconds: 3));
+    expect(pro.adapter.to('POST', '/api/dev/mock-checkout/pay1').single.data, {'outcome': 'paid'});
+    expect(find.text('تم تفعيل عضوية Pro في حسابك.'), findsOneWidget);
+  });
+
+  testWidgets('a relative mock url is refused outside a local debug build', (tester) async {
+    final pro = FakePro()..checkoutUrl = '/dashboard/pro?mockPro=pay1';
+    await _pump(tester, pro);
+    await _subscribe(tester);
+    expect(find.byKey(const Key('mock-pro-pay')), findsNothing);
+    expect(pro.opened, isEmpty);
+    expect(find.text('حدث خطأ غير متوقع. حاول مرة أخرى.'), findsOneWidget);
+  });
+
   testWidgets('back from the browser: polls until Pro is on, then a success snack', (tester) async {
     final pro = FakePro();
     await _pump(tester, pro);

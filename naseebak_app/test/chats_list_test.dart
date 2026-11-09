@@ -230,5 +230,18 @@ void main() {
       expect(find.text('عمر'), findsOneWidget);
       expect(find.text('خالد'), findsNothing);
     });
+
+    testWidgets('an ended chat with no messages shows its status label like the others', (tester) async {
+      final adapter = FakeAdapter()
+        ..on('GET', '/api/chats', FakeResponse(200, {
+          'conversations': [chat(id: 'n', name: 'سامي', status: 'ENDED'), chat(id: 'e', name: 'خالد', status: 'ENDED', last: 'إلى اللقاء')],
+        }));
+      await openList(tester, adapter);
+      await tester.tap(find.text('المنتهية'));
+      await tester.pumpAndSettle();
+      expect(find.text('منتهية'), findsNWidgets(2));
+      expect(find.text('لا توجد رسائل'), findsOneWidget);
+    });
   });
 }
+

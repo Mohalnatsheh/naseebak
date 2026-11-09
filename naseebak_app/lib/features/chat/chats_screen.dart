@@ -207,7 +207,9 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> with WidgetsBindingOb
               Expanded(
                 child: Text(
                   c.lastMessage == null
-                      ? (status ?? forViewer(female, 'ابدأ المحادثة بالسلام', 'ابدئي المحادثة بالسلام'))
+                      ? (status != null
+                            ? 'لا توجد رسائل'
+                            : forViewer(female, 'ابدأ المحادثة بالسلام', 'ابدئي المحادثة بالسلام'))
                       : '${c.lastMine ? '${forViewer(female, 'أنت', 'أنتِ')}: ' : ''}${c.lastMessage}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -217,7 +219,8 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> with WidgetsBindingOb
                   ),
                 ),
               ),
-              if (status != null && c.lastMessage != null) Pill(text: status, color: AppColors.muted),
+              // Every ended chat carries its status label, with or without messages
+              if (status != null) Pill(text: status, color: AppColors.muted),
               if (c.unread > 0) ...[const SizedBox(width: 6), CountBadge(count: c.unread)],
             ],
           ),

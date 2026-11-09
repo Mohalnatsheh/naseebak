@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -20,6 +21,8 @@ import 'chat_format.dart';
 import 'chat_live.dart';
 import 'chat_media_picker.dart';
 import 'chat_models.dart';
+import 'media_bubbles.dart' show formatVoiceDuration;
+import 'voice_recorder.dart';
 
 /// One conversation. It opens at once from the messages kept on the device (`ChatCache`), then the newest page from
 /// the API is merged in. With Ably configured on the server, live events (`ChatLive`) trigger a fetch at once and the
@@ -61,10 +64,22 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
 
   /// A send that got no answer matches a message of mine with the same text this close to it (device vs server clock)
   static const _reconcileWindow = Duration(minutes: 1);
+
+  /// A photo or voice note: the server saves it at the end of an upload of up to 120 s
+  static const _mediaReconcileWindow = Duration(minutes: 3);
   int _nonceSeq = 0;
 
   /// The gallery is open (a second tap does nothing)
   bool _picking = false;
+
+  /// The voice note being recorded (one recorder per note; null when idle or released)
+  _Voice _voice = _Voice.idle;
+  VoiceRecorder? _recorder;
+  Timer? _voiceTimer;
+  Duration _voiceElapsed = Duration.zero;
+
+  /// Stopped at the limit: the file waiting for «إرسال» or «إلغاء»
+  String? _voicePath;
 
   /// Scrolled up to read history (shows «الأحدث» with what arrived meanwhile)
   bool _away = false;
@@ -87,6 +102,8 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     WidgetsBinding.instance.removeObserver(this);
     _stopPolling();
     _live?.cancel();
+    // Leaving mid-recording (or during the microphone prompt): release the microphone, send nothing
+    _releaseVoice();
     _input.dispose();
     _scroll.dispose();
     super.dispose();
@@ -320,13 +337,20 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
 
   /// A send that got no answer (offline, timeout) may have been saved all the same: once a message of mine with the
   /// same text arrives within a minute of it, that's the one — drop the failed bubble instead of asking for a retry.
+  /// A photo or voice note has no text of its own (the server copy carries the old-app fallback «📷 صورة», and the GET
+  /// returns no nonce): it matches a message of mine of the same kind within the upload window.
   void _reconcile(Iterable<ChatMessage> arrived) {
     final candidates = arrived.where((m) => m.mine && m.state == SendState.sent).toList();
     if (candidates.isEmpty) return;
+    bool same(ChatMessage m, ChatMessage local) {
+      final gap = m.createdAt.difference(local.createdAt).abs();
+      if (local.kind != MessageKind.text) return m.kind == local.kind && gap <= _mediaReconcileWindow;
+      return m.kind == MessageKind.text && m.body == local.body && gap <= _reconcileWindow;
+    }
+
     _messages.removeWhere((local) {
       if (local.state != SendState.failed || !local.maybeSent) return false;
-      final i = candidates.indexWhere(
-          (m) => m.body == local.body && m.createdAt.difference(local.createdAt).abs() <= _reconcileWindow);
+      final i = candidates.indexWhere((m) => same(m, local));
       if (i < 0) return false;
       candidates.removeAt(i);
       return true;
@@ -498,6 +522,8 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     // Refreshes that must happen even if the member leaves the chat meanwhile
     final container = ProviderScope.containerOf(context, listen: false);
     final first = retry == null && !_hasMore && !_messages.any((m) => m.mine);
+    // What a poll during the upload can bring (the copy of this message, if the answer gets lost)
+    final before = _messages.map((m) => m.id).toSet();
     setState(() {
       if (retry != null) _messages.removeWhere((m) => m.nonce == nonce);
       _messages.add(local);
@@ -514,6 +540,8 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
       );
       if (first) container.read(analyticsProvider).chatStarted();
       container.invalidate(chatListProvider);
+      // The voice note's temporary file is no longer needed (the server copy plays from now on)
+      if (voice) _deleteQuietly(file);
       if (!mounted) return;
       setState(() {
         _messages.removeWhere((m) => m.nonce == nonce || m.id == sent.id);
@@ -533,9 +561,249 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
           _messages[i] = _messages[i].copyWith(
               state: SendState.failed, error: ApiException.messageOf(e), maybeSent: api?.isNetwork ?? false);
         }
+        // Its copy may already be here (a poll during the upload); otherwise the next poll reconciles
+        if (api?.isNetwork ?? false) _reconcile(_messages.where((m) => !before.contains(m.id)));
       });
       if (api?.code == 'EXPIRED' || api?.code == 'NOT_ALLOWED' || api?.code == 'DISABLED') _poll();
     }
+  }
+
+  /// Photo and voice buttons for this chat (watched: the footer rebuilds when Pro or payments change)
+  MediaButtons _mediaMode(ChatSummary chat) {
+    final pro = ref.watch(proStateProvider).valueOrNull;
+    final countsPro = ref.watch(countsProvider.select((c) => c.valueOrNull?.isPro));
+    return mediaButtonsMode(
+      isPro: pro?.isPro ?? countsPro ?? false,
+      appPayments: ref.watch(appPaymentsProvider),
+      canBuy: pro?.canBuy ?? false,
+      chatActive: chat.status == 'ACTIVE',
+    );
+  }
+
+  /// Voice notes are still allowed right now (Pro, chat open). Read, not watched: used after an await.
+  bool get _voiceAllowed {
+    final chat = _chat;
+    if (chat == null || !chat.canSend || !_chatEnabled) return false;
+    final pro = ref.read(proStateProvider).valueOrNull;
+    final countsPro = ref.read(countsProvider).valueOrNull?.isPro;
+    final mode = mediaButtonsMode(
+      isPro: pro?.isPro ?? countsPro ?? false,
+      appPayments: ref.read(appPaymentsProvider),
+      canBuy: pro?.canBuy ?? false,
+      chatActive: chat.status == 'ACTIVE',
+    );
+    return mode == MediaButtons.enabled;
+  }
+
+  /// The mic: ask for the microphone (the system asks only the first time), then record until «إرسال», «إلغاء» or
+  /// the 3-minute limit. Leaving the chat, or the chat closing, during the prompt drops the recorder unused.
+  Future<void> _startVoice() async {
+    if (_voice != _Voice.idle || _recorder != null) return;
+    final rec = ref.read(voiceRecorderProvider)();
+    _recorder = rec;
+    setState(() => _voice = _Voice.starting);
+    var allowed = false;
+    try {
+      allowed = await rec.hasPermission();
+    } catch (_) {}
+    if (_recorder != rec || !mounted || !_voiceAllowed) return _drop(rec);
+    if (!allowed) {
+      _drop(rec);
+      showSnack(context, 'يمكنك السماح باستخدام الميكروفون من إعدادات الهاتف لإرسال رسالة صوتية');
+      return;
+    }
+    try {
+      await rec.start();
+    } catch (_) {
+      _drop(rec);
+      if (mounted) showSnack(context, 'تعذّر بدء التسجيل');
+      return;
+    }
+    if (_recorder != rec || !mounted || !_voiceAllowed) return _drop(rec);
+    setState(() {
+      _voice = _Voice.recording;
+      _voiceElapsed = Duration.zero;
+    });
+    _voiceTimer = Timer.periodic(const Duration(milliseconds: 250), (_) => _tickVoice());
+  }
+
+  /// A recorder let go during an await (prompt, start, stop) or refused: cancel it (deleting its file) and dispose it.
+  /// The State is touched only if still mounted and no other recording took over.
+  void _drop(VoiceRecorder rec) {
+    if (_recorder == rec) _recorder = null;
+    _endRecorder(rec);
+    if (mounted && _recorder == null && _voice != _Voice.idle) setState(() => _voice = _Voice.idle);
+  }
+
+  void _endRecorder(VoiceRecorder rec) {
+    unawaited(() async {
+      try {
+        await rec.cancel();
+      } catch (_) {}
+      try {
+        await rec.dispose();
+      } catch (_) {}
+    }());
+  }
+
+  Duration _elapsedOf(VoiceRecorder rec) => rec.elapsed > maxVoiceDuration ? maxVoiceDuration : rec.elapsed;
+
+  void _tickVoice() {
+    final rec = _recorder;
+    if (!mounted || rec == null || _voice != _Voice.recording) return;
+    final elapsed = _elapsedOf(rec);
+    if (elapsed >= maxVoiceDuration) {
+      _stopAtLimit(rec);
+      return;
+    }
+    if (elapsed.inSeconds != _voiceElapsed.inSeconds) setState(() => _voiceElapsed = elapsed);
+  }
+
+  /// The limit: the recorder stops and the bar waits for «إرسال» or «إلغاء» (never sent on its own)
+  Future<void> _stopAtLimit(VoiceRecorder rec) async {
+    _voiceTimer?.cancel();
+    _voiceTimer = null;
+    setState(() {
+      _voice = _Voice.stopping;
+      _voiceElapsed = maxVoiceDuration;
+    });
+    String? path;
+    try {
+      path = await rec.stop();
+    } catch (_) {}
+    if (_recorder != rec || !mounted) return _drop(rec);
+    if (path == null) {
+      _drop(rec);
+      showSnack(context, 'تعذّر حفظ التسجيل');
+      return;
+    }
+    setState(() {
+      _voicePath = path;
+      _voice = _Voice.stopped;
+    });
+  }
+
+  /// «إرسال»: stop (unless already stopped at the limit), let the microphone go and send like a photo
+  Future<void> _sendVoice() async {
+    final rec = _recorder;
+    if (rec == null) return;
+    String? path;
+    Duration elapsed;
+    if (_voice == _Voice.stopped) {
+      path = _voicePath;
+      elapsed = maxVoiceDuration;
+    } else if (_voice == _Voice.recording) {
+      _voiceTimer?.cancel();
+      _voiceTimer = null;
+      elapsed = _elapsedOf(rec);
+      setState(() => _voice = _Voice.stopping);
+      try {
+        path = await rec.stop();
+      } catch (_) {}
+      if (_recorder != rec || !mounted) return _drop(rec);
+    } else {
+      return;
+    }
+    // The file stays for the upload (and a retry); only the microphone is released
+    _recorder = null;
+    _voicePath = null;
+    rec.dispose().catchError((_) {});
+    setState(() => _voice = _Voice.idle);
+    if (path == null) {
+      showSnack(context, 'تعذّر حفظ التسجيل');
+      return;
+    }
+    await _sendMedia(kind: MessageKind.voice, path: path, durationSec: voiceDurationSec(elapsed));
+  }
+
+  /// «إلغاء»: stop and delete the file
+  void _cancelVoice() {
+    if (_voice != _Voice.recording && _voice != _Voice.stopped) return;
+    _releaseVoice();
+    setState(() => _voice = _Voice.idle);
+  }
+
+  /// Stops the clock and lets the recorder go, deleting its file. A step still awaiting the recorder (the permission
+  /// prompt, start, stop) sees it gone and drops it itself. Never calls setState (runs from dispose).
+  void _releaseVoice() {
+    _voiceTimer?.cancel();
+    _voiceTimer = null;
+    final rec = _recorder;
+    final waiting = _voicePath;
+    _recorder = null;
+    _voicePath = null;
+    if (waiting != null) _deleteQuietly(waiting);
+    if (rec == null || _voice == _Voice.starting || _voice == _Voice.stopping) return;
+    _endRecorder(rec);
+  }
+
+  void _deleteQuietly(String path) {
+    try {
+      final f = File(path);
+      if (f.existsSync()) f.deleteSync();
+    } catch (_) {}
+  }
+
+  /// In place of the text box while recording (or stopped at the limit): «إلغاء», the clock, «إرسال»
+  Widget _recordingBar() {
+    final stopped = _voice == _Voice.stopped;
+    final busy = _voice == _Voice.stopping;
+    return SafeArea(
+      top: false,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
+        decoration: const BoxDecoration(color: Colors.white, border: Border(top: BorderSide(color: AppColors.line))),
+        child: Row(
+          children: [
+            TextButton(
+              key: const Key('voice-cancel'),
+              onPressed: busy ? null : _cancelVoice,
+              style: TextButton.styleFrom(minimumSize: const Size(64, 48), foregroundColor: AppColors.muted),
+              child: const Text('إلغاء'),
+            ),
+            Expanded(
+              child: Column(
+                key: const Key('voice-clock'),
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        stopped || busy ? Icons.stop_circle_outlined : Icons.fiber_manual_record_rounded,
+                        size: 14,
+                        color: stopped || busy ? AppColors.muted : Theme.of(context).colorScheme.error,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        formatVoiceDuration(_voiceElapsed),
+                        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16, color: AppColors.ink),
+                      ),
+                    ],
+                  ),
+                  if (_voiceElapsed >= maxVoiceDuration)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 2),
+                      child: Text(
+                        'بلغ التسجيل الحد الأقصى',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 12, color: AppColors.muted),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            FilledButton.icon(
+              key: const Key('voice-send'),
+              onPressed: busy ? null : _sendVoice,
+              style: FilledButton.styleFrom(backgroundColor: AppColors.navy, minimumSize: const Size(96, 48)),
+              icon: const Icon(Icons.send_rounded, size: 18),
+              label: const Text('إرسال'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   /// A filtered message can't be resent as is: put it back in the box to edit.
@@ -791,7 +1059,18 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
   Widget _footer(ChatSummary? chat) {
     if (chat == null) return const SizedBox.shrink();
     final female = ref.watch(authControllerProvider).me?.isFemale ?? false;
-    if (!chat.canSend || !_chatEnabled) {
+    // Photo and voice follow Pro: usable, greyed with a «Pro» tag for a member who could buy it, or hidden
+    final media = _mediaMode(chat);
+    final canSend = chat.canSend && _chatEnabled;
+    // The chat closed or Pro went away mid-recording: release the microphone, the bar goes back to idle
+    if (_voice != _Voice.idle && (!canSend || media != MediaButtons.enabled)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || _voice == _Voice.idle || _voiceAllowed) return;
+        _releaseVoice();
+        setState(() => _voice = _Voice.idle);
+      });
+    }
+    if (!canSend) {
       final text = !_chatEnabled
           ? 'المحادثات متوقفة حالياً.'
           : chat.blocked
@@ -809,15 +1088,8 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
         ),
       );
     }
-    // Photo (and voice) follow Pro: usable, greyed with a «Pro» tag for a member who could buy it, or hidden
-    final pro = ref.watch(proStateProvider).valueOrNull;
-    final countsPro = ref.watch(countsProvider.select((c) => c.valueOrNull?.isPro));
-    final media = mediaButtonsMode(
-      isPro: pro?.isPro ?? countsPro ?? false,
-      appPayments: ref.watch(appPaymentsProvider),
-      canBuy: pro?.canBuy ?? false,
-      chatActive: chat.status == 'ACTIVE',
-    );
+    if (_voice == _Voice.recording || _voice == _Voice.stopping || _voice == _Voice.stopped) return _recordingBar();
+    final locked = media == MediaButtons.locked;
     return SafeArea(
       top: false,
       child: Container(
@@ -830,13 +1102,23 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
               TextFieldTapRegion(
                 child: _MediaButton(
                   key: const Key('chat-photo'),
+                  tagKey: const Key('chat-media-pro-tag'),
                   icon: Icons.photo_outlined,
-                  tooltip: media == MediaButtons.locked ? 'إرسال الصور مع Pro' : 'إرسال صورة',
-                  locked: media == MediaButtons.locked,
-                  onPressed: media == MediaButtons.locked ? _openPro : _pickPhoto,
+                  tooltip: locked ? 'إرسال الصور مع Pro' : 'إرسال صورة',
+                  locked: locked,
+                  onPressed: locked ? _openPro : _pickPhoto,
                 ),
               ),
-              // The voice button sits here too (next task)
+              TextFieldTapRegion(
+                child: _MediaButton(
+                  key: const Key('chat-mic'),
+                  tagKey: const Key('chat-mic-pro-tag'),
+                  icon: Icons.mic_none_rounded,
+                  tooltip: locked ? 'الرسائل الصوتية مع Pro' : 'رسالة صوتية',
+                  locked: locked,
+                  onPressed: locked ? _openPro : _startVoice,
+                ),
+              ),
               const SizedBox(width: 2),
             ],
             Expanded(
@@ -871,16 +1153,22 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
   }
 }
 
+/// Recording a voice note: the permission prompt and start (`starting`), the clock running, the recorder finishing
+/// the file (`stopping`), stopped at the limit and waiting for «إرسال» or «إلغاء» (`stopped`)
+enum _Voice { idle, starting, recording, stopping, stopped }
+
 /// A composer media button. Locked: greyed, with a small «Pro» tag; the whole button (tag included) opens the plans.
 class _MediaButton extends StatelessWidget {
   const _MediaButton({
     super.key,
+    required this.tagKey,
     required this.icon,
     required this.tooltip,
     required this.locked,
     required this.onPressed,
   });
 
+  final Key tagKey;
   final IconData icon;
   final String tooltip;
   final bool locked;
@@ -907,7 +1195,7 @@ class _MediaButton extends StatelessWidget {
               child: GestureDetector(
                 onTap: onPressed,
                 child: Container(
-                  key: const Key('chat-media-pro-tag'),
+                  key: tagKey,
                   padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
                   decoration: BoxDecoration(color: AppColors.gold, borderRadius: BorderRadius.circular(6)),
                   child: const Text(

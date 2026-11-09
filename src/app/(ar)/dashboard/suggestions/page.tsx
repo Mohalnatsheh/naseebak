@@ -48,6 +48,7 @@ import { MutualSuggestionsView } from "@/components/suggestions/mutual-suggestio
 import { rechargeToContinue } from "@/components/suggestions/interest-dialog";
 import type { SuggestEmptyReason } from "@/lib/matching/auto-suggest";
 import { PageHeader } from "@/components/shared/page-header";
+import { sharedGet } from "@/lib/shared-get";
 
 interface Suggestion {
   id: string;
@@ -275,7 +276,7 @@ export default function SuggestionsPage() {
     async function init() {
       setLoadFailed(false);
       try {
-        const res = await fetch("/api/profile");
+        const res = await sharedGet("/api/profile");
         if (!res.ok) throw new Error(`profile ${res.status}`);
         const data = await res.json();
         const total = data.completeness?.total ?? 0;

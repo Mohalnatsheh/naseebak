@@ -8,7 +8,7 @@ import { DashboardDataProvider } from "@/contexts/dashboard-context";
 import { Toaster } from "@/components/ui/sonner";
 import { DashboardFooter } from "@/components/shared/dashboard-footer";
 import { MemberCountryAnalytics, VisitorCountryProvider } from "@/components/shared/visitor-country";
-import { currentSession, sessionAccountGate } from "@/lib/auth";
+import { auth, currentSession, sessionAccountGate } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { toCountry } from "@/lib/countries";
 import { getVisitorCountry } from "@/lib/countries/server";
@@ -37,6 +37,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
 async function DashboardShell({ children }: { children: React.ReactNode }) {
   const gate = await sessionAccountGate();
+  // The web session, handed to the client so it doesn't fetch /api/auth/session again on load (QA WA-10)
+  const webSession = await auth().catch(() => null);
 
   // Suspended accounts: every user API refuses them, so show one explanation instead of empty pages
   if (gate === "suspended") {
@@ -62,7 +64,7 @@ async function DashboardShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <Providers>
+    <Providers session={webSession?.user?.id ? webSession : undefined}>
       <OneSignalProvider />
       <DashboardDataProvider>
         <div className={`flex min-h-screen overflow-x-hidden`}>

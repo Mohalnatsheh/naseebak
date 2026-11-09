@@ -39,6 +39,7 @@ import { splitProfileEdit, buildFillBody } from "@/lib/profile-edit-split";
 import { forViewer } from "@/lib/gendered-copy";
 import { VEIL_CHOICES, veilChoice, veilFromChoice } from "@/lib/profile-veil";
 import { PageLoading } from "@/components/shared/page-loading";
+import { sharedGet } from "@/lib/shared-get";
 
 const educationLevels = [
   "ثانوية عامة",
@@ -244,7 +245,7 @@ export default function ProfileEditPage() {
       setLoadFailed(false);
       try {
         const [profileRes, requestsRes, parentRes] = await Promise.all([
-          fetch("/api/profile"),
+          sharedGet("/api/profile"),
           fetch("/api/profile/update-request"),
           fetch("/api/profile/parent-info"),
         ]);

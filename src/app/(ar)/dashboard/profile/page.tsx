@@ -58,6 +58,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { LoadError } from "@/components/shared/load-error";
 import { PageLoading } from "@/components/shared/page-loading";
+import { sharedGet } from "@/lib/shared-get";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -239,7 +240,7 @@ export default function ProfilePage() {
   useEffect(() => {
     async function fetchProfile() {
       try {
-        const res = await fetch("/api/profile");
+        const res = await sharedGet("/api/profile");
         if (!res.ok) throw new Error(`profile ${res.status}`);
         const data = await res.json();
         setUser(data.user);

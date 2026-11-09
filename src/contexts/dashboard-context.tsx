@@ -3,6 +3,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
 import type { CompletenessResult } from "@/lib/profile-completeness";
 import { COUNTRIES, toCountry, type CountryCode, type CountryConfig } from "@/lib/countries";
+import { sharedGet } from "@/lib/shared-get";
 
 /** The signed-in user as returned (JSON-serialised) by GET /api/profile */
 export interface DashboardProfile {
@@ -120,7 +121,7 @@ export function DashboardDataProvider({ children }: { children: ReactNode }) {
 
   const refreshProfile = useCallback(async () => {
     try {
-      const res = await fetch("/api/profile");
+      const res = await sharedGet("/api/profile");
       if (!res.ok) throw new Error(`profile ${res.status}`);
       const data = await res.json();
       if (!data?.user) throw new Error("profile missing");

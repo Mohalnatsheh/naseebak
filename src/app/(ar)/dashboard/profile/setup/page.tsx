@@ -24,6 +24,7 @@ import { BirthDateSelect } from "@/components/profile/birth-date-select";
 import { normalizePhone } from "@/lib/phone";
 import { VEIL_CHOICES, veilChoice, veilFromChoice, type VeilChoice } from "@/lib/profile-veil";
 import { PageLoading } from "@/components/shared/page-loading";
+import { sharedGet } from "@/lib/shared-get";
 
 const asOpts = (values: readonly string[]): Opt[] => values.map((v) => ({ value: v, label: v }));
 const educationLevels = asOpts(["ثانوية عامة", "دبلوم", "بكالوريوس", "ماجستير", "دكتوراه"]);
@@ -165,7 +166,7 @@ export default function ProfileSetupPage() {
     setFetchingProfile(true);
     let loaded = false;
     try {
-      const res = await fetch("/api/profile");
+      const res = await sharedGet("/api/profile");
       let serverUpdatedAt: string | null = null;
       let serverStep = 1;
       let draftOwner = "";

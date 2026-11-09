@@ -252,7 +252,7 @@ export function ProSection({
  * The one small card on /dashboard/payments that leads to the Pro page. Shown only when the Pro page is worth a link
  * (`proPageShown`: plans the member can buy, or their subscription); the caller decides.
  */
-export function ProLinkCard({ isPro }: { isPro: boolean }) {
+export function ProLinkCard({ isPro, chatOn = true }: { isPro: boolean; /** chat_enabled: the pitch names chat media only when chat is on */ chatOn?: boolean }) {
   return (
     <Link
       href={PRO_PAGE_PATH}
@@ -263,10 +263,14 @@ export function ProLinkCard({ isPro }: { isPro: boolean }) {
       </span>
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-2 font-bold text-foreground">
-          عضوية <ProBadge size="sm" />
+          عضوية <ProBadge size="sm" inText />
         </span>
         <span className="block text-sm text-muted-foreground">
-          {isPro ? "مزايا Pro فعّالة في حسابك. إدارة اشتراكك." : "إرسال الصور والرسائل الصوتية في المحادثة."}
+          {isPro
+            ? "مزايا Pro فعّالة في حسابك. إدارة اشتراكك."
+            : chatOn
+              ? "إرسال الصور والرسائل الصوتية في المحادثة، والباقات وأسعارها."
+              : "مزايا عضوية Pro وباقاتها وأسعارها."}
         </span>
       </span>
       <ChevronLeft className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden="true" />

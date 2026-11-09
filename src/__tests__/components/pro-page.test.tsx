@@ -251,3 +251,15 @@ describe("/dashboard/payments local mock pack checkout (QA WEB-PAY-01)", () => {
     expect(await screen.findByText("تم الدفع بنجاح! تمت إضافة الرصيد")).toBeTruthy();
   });
 });
+
+describe("Pro link card (QA WEB-PAY-14, Pro review minor 3)", () => {
+  it("reads «عضوية Pro» once, and names chat media only while chat is on", async () => {
+    const { ProLinkCard } = await import("@/components/payments/pro-section");
+    const { container, rerender } = render(<ProLinkCard isPro={false} chatOn />);
+    const link = screen.getByRole("link");
+    expect(link.textContent).toContain("إرسال الصور");
+    expect(container.querySelector("[aria-label='عضوية Pro']")).toBeNull();
+    rerender(<ProLinkCard isPro={false} chatOn={false} />);
+    expect(screen.getByRole("link").textContent).not.toContain("المحادثة");
+  });
+});

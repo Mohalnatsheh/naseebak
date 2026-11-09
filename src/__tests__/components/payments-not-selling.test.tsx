@@ -36,6 +36,8 @@ describe("payments page when the country is not selling", () => {
     const { default: PaymentsPage } = await import("@/app/(ar)/dashboard/payments/page");
     render(<PaymentsPage />);
     await waitFor(() => expect(screen.getByText(/شراء الرصيد غير متاح في دولتك حالياً/)).toBeTruthy());
+    // No promise of a notice that nothing sends (QA WEB-PAY-13)
+    expect(screen.queryByText(/سنُعلمك/)).toBeNull();
     const buy = screen.getByRole("button", { name: /شراء الآن/ }) as HTMLButtonElement;
     expect(buy.disabled).toBe(true);
   });

@@ -494,7 +494,7 @@ function PaymentsContent() {
       </PageHeader>
 
       {/* Pro has its own page: one small link to it, only when there are plans to buy or a subscription to manage */}
-      {pro?.showPage && <ProLinkCard isPro={pro.isPro} />}
+      {pro?.showPage && <ProLinkCard isPro={pro.isPro} chatOn={!!flags.chat} />}
 
       {/* Opening offer: why the prices are low right now */}
       {packages.some((p) => discountPercent({ price: p.price, wasPrice: p.wasPrice })) && (
@@ -516,7 +516,7 @@ function PaymentsContent() {
 
       {!purchasesEnabled && (
         <div role="status" className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          شراء الرصيد غير متاح في دولتك حالياً. سنُعلمك عند توفره.
+          شراء الرصيد غير متاح في دولتك حالياً.
         </div>
       )}
 

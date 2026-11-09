@@ -9,15 +9,18 @@ import { cn } from "@/lib/utils";
 export function ProBadge({
   size = "sm",
   onDark = false,
+  inText = false,
   className,
 }: {
   size?: "sm" | "md";
   onDark?: boolean;
+  /** Inside text that already says «عضوية»: read as plain «Pro», never «عضوية عضوية Pro» (QA WEB-PAY-14) */
+  inText?: boolean;
   className?: string;
 }) {
   return (
     <span
-      aria-label="عضوية Pro"
+      aria-label={inText ? undefined : "عضوية Pro"}
       className={cn(
         "inline-flex shrink-0 items-center rounded-full border font-bold leading-none text-accent-foreground",
         onDark ? "border-accent bg-accent shadow-sm shadow-black/20" : "border-accent/30 bg-accent/15",

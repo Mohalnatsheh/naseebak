@@ -182,7 +182,8 @@ export function VoiceBubble({ media, mine, messageId }: { media: ChatMedia; mine
       <button
         type="button"
         onClick={toggle}
-        aria-label={state === "playing" ? "إيقاف مؤقت" : "تشغيل الرسالة الصوتية"}
+        // «لم تُسمع بعد» is read with the button (the dot itself is decoration)
+        aria-label={state === "playing" ? "إيقاف مؤقت" : played ? "تشغيل الرسالة الصوتية" : "تشغيل الرسالة الصوتية · لم تُسمع بعد"}
         className={cn(
           "relative flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full transition-transform active:scale-95",
           mine ? "bg-primary-foreground text-primary" : "bg-primary text-primary-foreground"
@@ -196,7 +197,7 @@ export function VoiceBubble({ media, mine, messageId }: { media: ChatMedia; mine
           <Play className="h-5 w-5" aria-hidden />
         )}
         {!played && (
-          <span data-testid="voice-unplayed" aria-label="لم تُسمع بعد" className="absolute -bottom-0.5 -end-0.5 h-3 w-3 rounded-full border-2 border-card bg-accent" />
+          <span data-testid="voice-unplayed" aria-hidden="true" className="absolute -bottom-0.5 -end-0.5 h-3 w-3 rounded-full border-2 border-card bg-accent" />
         )}
       </button>
       <div className="min-w-0 flex-1">

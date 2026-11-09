@@ -108,15 +108,21 @@ export const ChatComposer = forwardRef<ChatComposerHandle, {
     if (phase === "recording") void voice.pause("interrupted");
   }
 
-  // A second finger (or another pointer) anywhere while holding: the press is no longer clear
+  // A second finger (or another pointer) anywhere while holding: the press is no longer clear. Subscribed once per
+  // press (not on every move); the latest loseHold is read through a ref
+  const loseHoldRef = useRef(loseHold);
   useEffect(() => {
-    if (holdDx === null) return;
+    loseHoldRef.current = loseHold;
+  });
+  const pressing = holdDx !== null;
+  useEffect(() => {
+    if (!pressing) return;
     const onDown = (e: PointerEvent) => {
-      if (hold.current && e.pointerId !== hold.current.id) loseHold();
+      if (hold.current && e.pointerId !== hold.current.id) loseHoldRef.current();
     };
     window.addEventListener("pointerdown", onDown, true);
     return () => window.removeEventListener("pointerdown", onDown, true);
-  });
+  }, [pressing]);
 
   function startHold(e: React.PointerEvent<HTMLButtonElement>) {
     if (!media || media.mode !== "enabled" || phase !== "idle") return;
@@ -214,7 +220,8 @@ export const ChatComposer = forwardRef<ChatComposerHandle, {
         setText(s);
         requestAnimationFrame(() => area.current?.focus());
       }} />}
-      {replyTo && !busyVoice && <ReplyStrip quote={replyTo} partnerName={partnerName} onClose={() => onCancelReply?.()} />}
+      {/* Stays while recording: the voice note goes as this reply */}
+      {replyTo && <ReplyStrip quote={replyTo} partnerName={partnerName} onClose={() => onCancelReply?.()} />}
       <div className="flex items-end gap-2">
         <div
           className={cn(
@@ -327,7 +334,9 @@ export const ChatComposer = forwardRef<ChatComposerHandle, {
                 : showMic || holding
                   ? media?.mode === "locked"
                     ? "تسجيل رسالة صوتية · متاح لأعضاء Pro"
-                    : "تسجيل رسالة صوتية (اضغط مطولاً)"
+                    : female
+                      ? "تسجيل رسالة صوتية (اضغطي مطولاً)"
+                      : "تسجيل رسالة صوتية (اضغط مطولاً)"
                   : "إرسال"
             }
             className={cn(

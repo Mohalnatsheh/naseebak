@@ -48,7 +48,7 @@ export function EndChatDialog({
   busy,
   onConfirm,
   ended = false,
-  initialDetails,
+  reportedMessage,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
@@ -60,18 +60,18 @@ export function EndChatDialog({
   onConfirm: (report?: { reason: ReportReasonValue; details?: string }) => void;
   /** The chat is already closed: reporting only (nothing left to end) */
   ended?: boolean;
-  /** «إبلاغ عن الرسالة»: the details start with the reported message (still editable) */
-  initialDetails?: string;
+  /** «إبلاغ عن الرسالة»: the reported message's one-line snippet, shown as a quote (the room sends its id) */
+  reportedMessage?: string;
 }) {
   const [reason, setReason] = useState<ReportReasonValue>("HARASSMENT");
-  const [details, setDetails] = useState(initialDetails ?? "");
+  const [details, setDetails] = useState("");
   // Start fresh each time the dialog opens (adjusting state while rendering, not in an effect)
   const [wasOpen, setWasOpen] = useState(open);
   if (open !== wasOpen) {
     setWasOpen(open);
     if (open) {
       setReason("HARASSMENT");
-      setDetails(initialDetails ?? "");
+      setDetails("");
     }
   }
   const familyWarning = report ? null : familyPathWarning(familyStatus);
@@ -105,6 +105,12 @@ export function EndChatDialog({
 
         {report && (
           <div className="space-y-3">
+            {reportedMessage && (
+              <div data-testid="reported-message" className="rounded-xl border-s-4 border-destructive/60 bg-muted/50 px-3 py-2 text-sm">
+                <p className="text-xs font-semibold text-muted-foreground">الرسالة المُبلَّغ عنها</p>
+                <p dir="auto" className="mt-0.5 break-words text-foreground">{reportedMessage}</p>
+              </div>
+            )}
             <div className="grid gap-2">
               {REASONS.map((r) => (
                 <label

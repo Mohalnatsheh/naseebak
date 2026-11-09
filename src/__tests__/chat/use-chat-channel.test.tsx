@@ -97,4 +97,21 @@ describe("useChatChannel polling (QA chat WC-06)", () => {
     });
     expect(poll).toHaveBeenCalledTimes(2);
   });
+
+  it("wake() every few seconds (my own typing) never postpones the poll that is due: it still comes within 4 s", async () => {
+    const poll = vi.fn(async () => false);
+    const { result } = renderHook(() => useChatChannel("c1", handlers(poll)));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(POLL_MIN_MS + 6000 + 9000);
+    });
+    expect(poll).toHaveBeenCalledTimes(3);
+    // Typing: a wake every 3 s (the typing signal's pace). Polls keep coming at the fast pace, not pushed back each time
+    for (let i = 0; i < 4; i++) {
+      act(() => result.current.wake());
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(3000);
+      });
+    }
+    expect(poll.mock.calls.length).toBeGreaterThanOrEqual(5);
+  });
 });

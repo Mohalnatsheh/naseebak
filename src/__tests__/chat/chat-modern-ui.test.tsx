@@ -12,6 +12,7 @@ import { EndChatDialog } from "@/components/chat/end-chat-dialog";
 import { PhotoViewer } from "@/components/chat/photo-viewer";
 import { usePartnerTyping, useTypingSignal } from "@/components/chat/use-typing";
 import type { UiMessage } from "@/components/chat/chat-utils";
+import { pushChipDismissed, pushChipHideValue } from "@/components/chat/chat-push-banner";
 
 // Radix popper / dialog need these in jsdom
 class RO {
@@ -286,11 +287,39 @@ describe("status bar: the family step in the last days", () => {
 });
 
 describe("«إبلاغ عن الرسالة»", () => {
-  it("the report opens with that message in its details, still editable", () => {
+  it("the report shows the reported message (sent by id, not as text): the details stay the member's own", () => {
+    const onConfirm = vi.fn();
     render(
-      <EndChatDialog open onOpenChange={vi.fn()} report partnerName="سلمى" busy={false} onConfirm={vi.fn()} initialDetails="بخصوص الرسالة: «نص»" />
+      <EndChatDialog open onOpenChange={vi.fn()} report partnerName="سلمى" busy={false} onConfirm={onConfirm} reportedMessage="نص مسيء" />
     );
-    expect((screen.getByPlaceholderText("تفاصيل إضافية (اختياري)") as HTMLTextAreaElement).value).toBe("بخصوص الرسالة: «نص»");
+    expect(screen.getByTestId("reported-message").textContent).toContain("نص مسيء");
+    expect((screen.getByPlaceholderText("تفاصيل إضافية (اختياري)") as HTMLTextAreaElement).value).toBe("");
+    fireEvent.click(screen.getByRole("button", { name: "إنهاء وإبلاغ" }));
+    expect(onConfirm).toHaveBeenCalledWith({ reason: "HARASSMENT", details: undefined });
+  });
+
+  it("a report from the menu (no message) shows no quote", () => {
+    render(<EndChatDialog open onOpenChange={vi.fn()} report partnerName="سلمى" busy={false} onConfirm={vi.fn()} />);
+    expect(screen.queryByTestId("reported-message")).toBeNull();
+  });
+});
+
+describe("review polish (Task 3+4 minors)", () => {
+  it("reaction items carry the state in their name, not aria-pressed (invalid on menuitem)", () => {
+    render(<MessageBubble message={message({ reactions: [{ emoji: "❤️", mine: true }] })} tail actions={actions()} />);
+    openMenu();
+    const mine = screen.getByRole("menuitem", { name: "تفاعل ❤️ · تفاعلك" });
+    expect(mine.getAttribute("aria-pressed")).toBeNull();
+    expect(screen.getByRole("menuitem", { name: "تفاعل 👍" }).getAttribute("aria-pressed")).toBeNull();
+  });
+
+  it("the mic's name follows the viewer's gender", () => {
+    const media = { mode: "enabled" as const, onPhoto: vi.fn(), onVoice: vi.fn(), onLocked: vi.fn(), onError: vi.fn() };
+    render(<ChatComposer onSend={vi.fn(async () => true)} error={null} onTyping={vi.fn()} media={media} female />);
+    expect(screen.getByRole("button", { name: "تسجيل رسالة صوتية (اضغطي مطولاً)" })).toBeTruthy();
+    cleanup();
+    render(<ChatComposer onSend={vi.fn(async () => true)} error={null} onTyping={vi.fn()} media={media} />);
+    expect(screen.getByRole("button", { name: "تسجيل رسالة صوتية (اضغط مطولاً)" })).toBeTruthy();
   });
 });
 
@@ -329,5 +358,17 @@ describe("photo viewer", () => {
     expect(screen.getByText("2 من 2")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "تكبير" }));
     expect(screen.getByRole("button", { name: "تصغير" })).toBeTruthy();
+  });
+});
+
+describe("push chip: ✕ hides the variant that was showing (Task 2 review minor 4)", () => {
+  it("hiding «تفعيل» doesn't hide «طريقة الفتح» once notifications get blocked, and the other way round", () => {
+    expect(pushChipDismissed(null, false)).toBe(false);
+    expect(pushChipDismissed(pushChipHideValue(false), false)).toBe(true);
+    expect(pushChipDismissed(pushChipHideValue(false), true)).toBe(false);
+    expect(pushChipDismissed(pushChipHideValue(true), true)).toBe(true);
+    // Hidden before this change ("1"): that was the «تفعيل» chip
+    expect(pushChipDismissed("1", false)).toBe(true);
+    expect(pushChipDismissed("1", true)).toBe(false);
   });
 });

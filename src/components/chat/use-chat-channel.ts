@@ -32,8 +32,8 @@ export function nextPollDelay(current: number, gotSomething: boolean): number {
 /**
  * Live chat events through Ably (subscribe-only token from the server).
  * Falls back to polling when Ably isn't configured (`{ enabled: false }`) or the connection drops. Polling
- * pauses while the tab is hidden and backs off while the chat is quiet; `wake()` (a send, the tab coming
- * back) polls at the fast pace again.
+ * pauses while the tab is hidden and backs off while the chat is quiet; `wake()` (a send, my own typing, the tab
+ * coming back) polls at the fast pace again.
  */
 export function useChatChannel(
   conversationId: string,
@@ -52,6 +52,8 @@ export function useChatChannel(
     let woken = false;
     let delay = POLL_MIN_MS;
     let timer: ReturnType<typeof setTimeout> | null = null;
+    // When the scheduled poll is due (a wake() never pushes a nearer one back)
+    let dueAt = 0;
     let realtime: { close: () => void } | null = null;
 
     const hidden = () => typeof document !== "undefined" && document.visibilityState === "hidden";
@@ -63,6 +65,7 @@ export function useChatChannel(
       clear();
       // A poll on its way schedules the next one itself; a hidden tab doesn't poll at all
       if (cancelled || !polling || inFlight || hidden()) return;
+      dueAt = Date.now() + delay;
       timer = setTimeout(tick, delay);
     };
     const tick = async () => {
@@ -90,9 +93,12 @@ export function useChatChannel(
       polling = false;
       clear();
     };
+    // Called on a send and every few seconds while I type: a poll already due sooner stays where it is, so a stream
+    // of wakes never postpones it
     wakeRef.current = () => {
       delay = POLL_MIN_MS;
       if (inFlight) woken = true;
+      if (timer && dueAt <= Date.now() + POLL_MIN_MS) return;
       schedule();
     };
     const onVisibility = () => {

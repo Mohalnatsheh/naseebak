@@ -109,7 +109,11 @@ describe("VoiceBubble", () => {
   it("the other person's note carries a dot until played here; mine never", async () => {
     render(<VoiceBubble media={voice(10)} mine={false} messageId="v9" />);
     expect(screen.getByTestId("voice-unplayed")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "تشغيل الرسالة الصوتية" }));
+    // Screen readers hear it on the play button (the dot itself is decoration)
+    expect(screen.getByTestId("voice-unplayed").getAttribute("aria-label")).toBeNull();
+    expect(screen.getByTestId("voice-unplayed").getAttribute("aria-hidden")).toBe("true");
+    fireEvent.click(screen.getByRole("button", { name: "تشغيل الرسالة الصوتية · لم تُسمع بعد" }));
+    expect(screen.getByRole("button", { name: /^(إيقاف مؤقت|تشغيل الرسالة الصوتية)$/ })).toBeTruthy();
     expect(screen.queryByTestId("voice-unplayed")).toBeNull();
     cleanup();
     render(<VoiceBubble media={voice(10)} mine={false} messageId="v9" />);

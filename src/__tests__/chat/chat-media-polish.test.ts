@@ -7,7 +7,7 @@ import {
   seekFraction,
   voiceBars,
 } from "@/components/chat/voice-wave";
-import { clampZoom, photoSwipe } from "@/components/chat/photo-viewer-logic";
+import { clampPan, clampZoom, photoSwipe } from "@/components/chat/photo-viewer-logic";
 
 describe("voice waveform from the duration", () => {
   it("is stable for one note, more bars for a longer note within limits, heights in (0, 1]", () => {
@@ -101,5 +101,14 @@ describe("photo viewer", () => {
     expect(clampZoom(0.5)).toBe(1);
     expect(clampZoom(2.5)).toBe(2.5);
     expect(clampZoom(9)).toBe(4);
+  });
+
+  it("pan stays on the photo: at most (scale − 1) / 2 of the stage, in the pre-scale units the transform uses", () => {
+    const stage = { width: 400, height: 800 };
+    // 2×: the photo is 800 × 1600 on screen, it can move 200 / 400 px each way → 100 / 200 before scaling
+    expect(clampPan({ x: 1000, y: -1000 }, 2, stage)).toEqual({ x: 100, y: -200 });
+    expect(clampPan({ x: 30, y: -40 }, 2, stage)).toEqual({ x: 30, y: -40 });
+    // Not zoomed: no pan at all
+    expect(clampPan({ x: 50, y: 50 }, 1, stage)).toEqual({ x: 0, y: 0 });
   });
 });

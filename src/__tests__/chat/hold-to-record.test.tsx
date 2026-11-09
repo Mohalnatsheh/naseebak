@@ -126,6 +126,21 @@ describe("hold to record: the composer", () => {
     expect(screen.queryByText("اسحب للإلغاء")).toBeNull();
   });
 
+  it("the reply strip stays in view while recording (the note goes as that reply)", async () => {
+    const media = mediaProp();
+    render(
+      <div dir="rtl">
+        <ChatComposer
+          onSend={vi.fn(async () => true)} error={null} onTyping={vi.fn()} media={media}
+          replyTo={{ id: "q1", mine: false, kind: "TEXT", snippet: "سؤالها" }} partnerName="سلمى" onCancelReply={vi.fn()}
+        />
+      </div>
+    );
+    await pressAndRecord();
+    expect(screen.getByText("اسحب للإلغاء")).toBeInTheDocument();
+    expect(screen.getByText("سؤالها")).toBeInTheDocument();
+  });
+
   it("sliding up locks: release doesn't send; stop, cancel and send are shown; send sends", async () => {
     const media = renderComposer();
     await pressAndRecord(300, 700);

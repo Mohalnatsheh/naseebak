@@ -23,6 +23,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -38,7 +39,10 @@ import { ChatComposer, type ChatComposerHandle } from "./chat-composer";
 import type { MessageActions } from "./message-menu";
 import { PhotoViewer, type ViewerPhoto } from "./photo-viewer";
 import { useTypingSignal, usePartnerTyping } from "./use-typing";
-import { applyMyReaction, nextReaction, quoteOf, reportDetailsFor, showStarters } from "./chat-interactions";
+import {
+  applyMyReaction, applyReactionUpdates, emptyChatHint, nextReaction, quoteOf, reactionsSinceFor, showStarters,
+} from "./chat-interactions";
+import type { ChatReaction } from "@/lib/chat/reactions";
 import type { ReplyQuote } from "@/lib/chat/reply";
 import { forPartner } from "@/lib/gendered-copy";
 import { EndChatDialog, type ReportReasonValue } from "./end-chat-dialog";
@@ -46,7 +50,9 @@ import { ConfirmActionDialog } from "@/components/intro/confirm-action-dialog";
 import { dayLabel, mergeMessages, timeLabel, type UiMessage } from "./chat-utils";
 import { useChatChannel } from "./use-chat-channel";
 import { useChatPushChip } from "./chat-push-banner";
-import { CHAT_BACKDROP_STYLE, EXPIRY_SOON_DAYS, chatRowLayout, chatStatusBar, familyStepOf, firstUnreadId, groupByDay } from "./chat-look";
+import {
+  CHAT_BACKDROP_STYLE, EXPIRY_SOON_DAYS, chatRowLayout, chatStatusBar, closedChatFamilyNote, familyStepOf, firstUnreadId, groupByDay,
+} from "./chat-look";
 import { ChatStatusBar } from "./chat-status-bar";
 import { useDashboardData } from "@/contexts/dashboard-context";
 import { formatDate } from "@/lib/countries";
@@ -107,13 +113,22 @@ interface ChatResponse {
   partnerTyping?: boolean;
   /** Conversation starters while I haven't written anything in an open chat */
   starters?: string[];
+  /** The server's time when it answered: the next poll asks for reaction changes since then (less an overlap) */
+  polledAt?: string;
+  /** Polls with reactionsSince: older messages whose reactions changed (the polling fallback for the live event) */
+  reactionUpdates?: { messageId: string; reactions: ChatReaction[] }[];
 }
 
 type LatestResult = { kind: "ok"; data: ChatResponse } | { kind: "notFound" } | { kind: "error" };
 
-/** The newest page of the chat, or with `after` only what came since (applied by the component; network errors count as "error"). */
-async function requestLatest(conversationId: string, after?: string): Promise<LatestResult> {
-  const query = after ? `?after=${encodeURIComponent(after)}` : "";
+/**
+ * The newest page of the chat, or with `after` only what came since (applied by the component; network errors count as
+ * "error"). A poll also asks for reaction changes on older messages since `reactionsSince`.
+ */
+async function requestLatest(conversationId: string, after?: string, reactionsSince?: string | null): Promise<LatestResult> {
+  const query = after
+    ? `?after=${encodeURIComponent(after)}${reactionsSince ? `&reactionsSince=${encodeURIComponent(reactionsSince)}` : ""}`
+    : "";
   const res = await fetch(`/api/chats/${conversationId}${query}`).catch(() => null);
   if (res?.status === 404) return { kind: "notFound" };
   if (res?.ok) return { kind: "ok", data: await res.json() };
@@ -171,12 +186,18 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
   const [busy, setBusy] = useState(false);
   // «تمديد 7 أيام» is a one-time move: ask first
   const [extendConfirm, setExtendConfirm] = useState(false);
-  // «إبلاغ عن الرسالة»: the report's details start with that message
-  const [reportDetails, setReportDetails] = useState<string | undefined>(undefined);
+  // «إبلاغ عن الرسالة»: the reported message (its id goes with the report, its snippet shows in the dialog)
+  const [reportMessage, setReportMessage] = useState<{ id: string; snippet: string } | null>(null);
   // Replying to this message (the strip above the composer)
   const [replyTo, setReplyTo] = useState<ReplyQuote | null>(null);
   // A quote was tapped: the original is marked for a moment
   const [highlightId, setHighlightId] = useState<string | null>(null);
+  const highlightTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (highlightTimer.current) clearTimeout(highlightTimer.current);
+  }, []);
+  // The server's time on its last answer: polls ask for reaction changes since then
+  const polledAt = useRef<string | null>(null);
   // The full-screen photo viewer (the photo's message id)
   const [viewerId, setViewerId] = useState<string | null>(null);
   const [starters, setStarters] = useState<string[]>([]);
@@ -242,6 +263,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
       setUnreadFromId(id);
       dividerPending.current = !!id;
     }
+    if (data.polledAt) polledAt.current = data.polledAt;
     setConversation(data.conversation);
     setChatEnabled(data.chatEnabled);
     if (data.starters) setStarters(data.starters);
@@ -280,7 +302,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
     // A little before the newest: a partner message stamped earlier but saved a moment later is never skipped
     // (the overlap is merged by id)
     const since = new Date(Date.parse(newest.createdAt) - POLL_OVERLAP_MS).toISOString();
-    const result = await requestLatest(conversationId, since);
+    const result = await requestLatest(conversationId, since, reactionsSinceFor(polledAt.current));
     if (result.kind !== "ok") {
       applyLatest(result, "merge");
       return false;
@@ -288,14 +310,18 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
     const known = new Set(messagesRef.current.map((m) => m.id));
     const fresh = result.data.messages.some((m) => !known.has(m.id));
     const read = result.data.readUpTo;
+    // Reactions on older messages (no Ably): whatever changed since the last answer
+    const updates = result.data.reactionUpdates;
+    const reacted = applyReactionUpdates(messagesRef.current, updates).changed;
     applyLatest(result, "merge");
+    if (reacted) setMessages((prev) => applyReactionUpdates(prev, updates).messages);
     if (read) {
       setMessages((prev) =>
         prev.map((m) => (m.mine && !m.readAt && !m.pending && m.createdAt <= read.createdAt ? { ...m, readAt: read.readAt } : m))
       );
     }
     // While the other person types, keep the fast pace (their message is on its way)
-    return fresh || !!result.data.partnerTyping;
+    return fresh || reacted || !!result.data.partnerTyping;
   }, [conversationId, applyLatest, fetchLatest]);
 
   const loadIntro = useCallback(async (matchId: string) => {
@@ -431,7 +457,18 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
     if (el.scrollTop < 120 && hasMore) void loadOlder();
   }
 
-  async function loadOlder() {
+  // The older page on its way: a second caller (a quote tap while scrolling loads) waits for it instead of giving up
+  const olderLoad = useRef<Promise<void> | null>(null);
+  function loadOlder(): Promise<void> {
+    if (olderLoad.current) return olderLoad.current;
+    const load = loadOlderPage().finally(() => {
+      olderLoad.current = null;
+    });
+    olderLoad.current = load;
+    return load;
+  }
+
+  async function loadOlderPage() {
     const el = scroller.current;
     const first = messagesRef.current.find((m) => !m.pending);
     // A ref, not the state: two scroll events before the re-render must not both load (and jump twice)
@@ -468,7 +505,8 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
     stickToBottom.current = false;
     row.scrollIntoView({ block: "center", behavior: "smooth" });
     setHighlightId(id);
-    setTimeout(() => setHighlightId((h) => (h === id ? null : h)), 1600);
+    if (highlightTimer.current) clearTimeout(highlightTimer.current);
+    highlightTimer.current = setTimeout(() => setHighlightId((h) => (h === id ? null : h)), 1600);
   }
 
   // Text sends go out one at a time, in order, at the server's pace: a quick burst waits instead of being refused
@@ -644,7 +682,9 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
 
   async function end(report?: { reason: ReportReasonValue; details?: string }): Promise<boolean> {
     setBusy(true);
-    const res = await postJson(`/api/chats/${conversationId}/end`, report ? { report } : {});
+    // «إبلاغ عن الرسالة»: the message goes by id (the server checks it belongs to this chat)
+    const body = report ? { report: { ...report, ...(reportMessage && { messageId: reportMessage.id }) } } : {};
+    const res = await postJson(`/api/chats/${conversationId}/end`, body);
     setBusy(false);
     setEndDialog(null);
     if (res.ok) {
@@ -736,6 +776,8 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
     keyboardOpen: !!viewport?.keyboard,
   });
   const activity = open && !conversation.blocked ? conversation.partner.activityLabel : null;
+  const startersShown = showStarters({ starters, canSend, messages });
+  const closedFamily = closedChatFamilyNote(familyStep, myGender);
   // «يكتب الآن…» / «تكتب الآن…» (the partner's gender) wins over the activity label; never in a closed chat
   const typingLabel = open && !conversation.blocked && partnerTyping.typing ? forPartner(myGender, "يكتب الآن…", "تكتب الآن…") : null;
   const messageActions: MessageActions = {
@@ -746,7 +788,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
     },
     onReact: (m, emoji) => void react(m, emoji),
     onReport: (m) => {
-      setReportDetails(reportDetailsFor(m));
+      setReportMessage({ id: m.id, snippet: quoteOf(m).snippet });
       setEndDialog("report");
     },
     onOpenQuote: (id) => void revealMessage(id),
@@ -791,9 +833,10 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
                 </div>
                 {/* The status line: «يكتب الآن…» while the partner types, else the activity label («نشط اليوم») in an
                     open chat, else the time left / why it's closed */}
-                <p data-testid="chat-status-line" aria-live="polite" className={cn("mt-0.5 flex items-center gap-1 truncate text-xs", typingLabel || activity ? "font-semibold text-primary" : open && left <= EXPIRY_SOON_DAYS ? "font-semibold text-amber-700" : "text-muted-foreground")}>
+                {/* Not a live region: typing on / off every few seconds would be read out each time */}
+                <p data-testid="chat-status-line" className={cn("mt-0.5 flex items-center gap-1 truncate text-xs", typingLabel || activity ? "font-semibold text-primary" : open && left <= EXPIRY_SOON_DAYS ? "font-semibold text-amber-700" : "text-muted-foreground")}>
                   {typingLabel ? (
-                    <span className="italic">{typingLabel}</span>
+                    <span>{typingLabel}</span>
                   ) : activity ? (
                     activity
                   ) : (
@@ -827,6 +870,15 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
+            {/* The days left, which the status line doesn't show while it carries the activity label */}
+            {open && (
+              <>
+                <DropdownMenuLabel className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                  <Clock className="h-3.5 w-3.5" aria-hidden /> متبقي {daysLabel(left)} على المحادثة
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+              </>
+            )}
             {conversation.canExtend && (
               <DropdownMenuItem onClick={() => setExtendConfirm(true)} disabled={busy}>
                 <CalendarPlus className="h-4 w-4" /> تمديد 7 أيام
@@ -850,7 +902,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
             <DropdownMenuItem
               variant="destructive"
               onClick={() => {
-                setReportDetails(undefined);
+                setReportMessage(null);
                 setEndDialog("report");
               }}
             >
@@ -901,7 +953,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
 
         {messages.length === 0 && canSend && (
           <p className="mx-auto mt-8 max-w-xs rounded-xl bg-card/90 px-4 py-3 text-center text-sm text-muted-foreground shadow-sm">
-            {myGender === "FEMALE" ? "ابدئي المحادثة برسالة، أو اختاري أحد الاقتراحات بالأسفل." : "ابدأ المحادثة برسالة، أو اختر أحد الاقتراحات بالأسفل."}
+            {emptyChatHint({ female: myGender === "FEMALE", starters: startersShown && !viewport?.keyboard })}
           </p>
         )}
         {messages.length === 0 && !canSend && (
@@ -971,12 +1023,15 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
           onTyping={() => {
             if (composerError) setComposerError(null);
             typing.notify();
+            // Polling (no Ably): someone composing is in a live exchange, so the next poll comes at the fast pace
+            // (it brings their «يكتب الآن…» and the reply sooner). A wake never postpones a poll already due
+            wake();
           }}
           media={composerMedia}
           replyTo={replyTo}
           partnerName={conversation.partner.firstName}
           onCancelReply={() => setReplyTo(null)}
-          starters={showStarters({ starters, canSend, messages }) ? starters : []}
+          starters={startersShown ? starters : []}
         />
       ) : (
         <div className="border-t border-border/60 bg-muted/30 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] text-center text-sm text-muted-foreground">
@@ -993,6 +1048,18 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
                 ? `انتهت مدة المحادثة. هل تنتقلان لتعارف عائلي؟${familyFree ? " الانتقال مجاني" : ""}${familyOpenUntil ? ` ومتاح حتى ${familyOpenUntil}` : ""}.`
                 : "انتهت مدة المحادثة."
               : "المحادثات متوقفة مؤقتاً. يمكنك قراءة الرسائل السابقة."}
+          {/* An expired chat keeps its family links: a request on its way, one received, guardian details */}
+          {conversation.status === "EXPIRED" && !conversation.blocked && closedFamily && (
+            <p className="mt-1.5 font-semibold text-primary">
+              {closedFamily.link ? (
+                <Link href={`/dashboard/matches?match=${conversation.matchId}`} className="inline-flex min-h-11 items-center gap-1 underline-offset-4 hover:underline">
+                  {closedFamily.text}
+                </Link>
+              ) : (
+                closedFamily.text
+              )}
+            </p>
+          )}
           {/* An expired chat keeps the free move to family: offer it right here */}
           {conversation.status === "EXPIRED" && !conversation.blocked && family?.status === "none" && intro?.flags.introRequests && !intro.closed && (
             <div className="mt-2">
@@ -1033,9 +1100,9 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
         onOpenChange={(o) => {
           if (o) return;
           setEndDialog(null);
-          setReportDetails(undefined);
+          setReportMessage(null);
         }}
-        initialDetails={reportDetails}
+        reportedMessage={reportMessage?.snippet}
         report={endDialog === "report"}
         partnerName={conversation.partner.firstName}
         familyStatus={intro?.flags.introRequests && !intro.closed ? family?.status : undefined}

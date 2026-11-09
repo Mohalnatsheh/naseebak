@@ -3,6 +3,7 @@ import {
   chatRowLayout,
   chatStatusBar,
   familyStepOf,
+  closedChatFamilyNote,
   firstUnreadId,
   groupByDay,
   isActiveChat,
@@ -146,5 +147,19 @@ describe("chats list tabs", () => {
 
   it("a blocked chat is not active", () => {
     expect(isActiveChat({ status: "ACTIVE", blocked: true })).toBe(false);
+  });
+});
+
+describe("closedChatFamilyNote: an expired chat keeps its family links (Task 2 review minor 2)", () => {
+  it("a request on its way, one received, or guardian details: one line, with the match link where there is something to do", () => {
+    expect(closedChatFamilyNote("pending_sent", "MALE")).toEqual({ text: "طلب التعارف العائلي بانتظار الرد.", link: false });
+    expect(closedChatFamilyNote("pending_received", "MALE")).toEqual({ text: "وصلك طلب تعارف عائلي.", link: true });
+    expect(closedChatFamilyNote("pending_received", "FEMALE")).toEqual({ text: "وصلكِ طلب تعارف عائلي.", link: true });
+    expect(closedChatFamilyNote("accepted", "MALE")).toEqual({ text: "تم قبول التعارف العائلي · بيانات وليّ الأمر في صفحة التوافق.", link: true });
+  });
+
+  it("nothing for the offer (the footer has its own button) or no step", () => {
+    expect(closedChatFamilyNote("offer", "MALE")).toBeNull();
+    expect(closedChatFamilyNote(null, "MALE")).toBeNull();
   });
 });

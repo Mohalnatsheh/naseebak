@@ -8,7 +8,9 @@ import {
   holdGesture,
   nextReaction,
   quoteOf,
-  reportDetailsFor,
+  applyReactionUpdates,
+  emptyChatHint,
+  reactionsSinceFor,
   showStarters,
 } from "@/components/chat/chat-interactions";
 import type { UiMessage } from "@/components/chat/chat-utils";
@@ -77,16 +79,12 @@ describe("reactions", () => {
   });
 });
 
-describe("reply quote and report details", () => {
+describe("reply quote", () => {
   it("a quote for the strip and the optimistic bubble: one line, or the media label", () => {
     expect(quoteOf(msg({ body: "سطر\nثانٍ", mine: true }))).toEqual({ id: "m1", mine: true, kind: "TEXT", snippet: "سطر ثانٍ" });
     expect(quoteOf(msg({ kind: "IMAGE", body: "📷 صورة" })).snippet).toBe("📷 صورة");
     expect(quoteOf(msg({ kind: "VOICE", body: "x" })).snippet).toBe("🎤 رسالة صوتية");
     expect(Array.from(quoteOf(msg({ body: "ب".repeat(200) })).snippet)).toHaveLength(80);
-  });
-
-  it("the report prefill names the message (same words as the app)", () => {
-    expect(reportDetailsFor(msg({ body: "نص الرسالة" }))).toBe("بخصوص الرسالة: «نص الرسالة»");
   });
 });
 
@@ -125,5 +123,41 @@ describe("createThrottle: typing signals", () => {
     now = 10;
     throttled();
     expect(fn).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("polling: reactions on older messages", () => {
+  it("reactionsSince: the last answer's polledAt less 5 s (overlap), none before the first answer", () => {
+    expect(reactionsSinceFor(null)).toBeNull();
+    expect(reactionsSinceFor("2026-11-10T10:00:10.000Z")).toBe("2026-11-10T10:00:05.000Z");
+  });
+
+  it("applies each update (all of a message's reactions; empty removes the chips), leaves unsent bubbles alone", () => {
+    const list = [msg({ id: "a" }), msg({ id: "b", reactions: [{ emoji: "👍", mine: true }] }), msg({ id: "tmp", pending: "sending" })];
+    const out = applyReactionUpdates(list, [
+      { messageId: "a", reactions: [{ emoji: "❤️", mine: false }] },
+      { messageId: "b", reactions: [] },
+      { messageId: "tmp", reactions: [{ emoji: "😊", mine: false }] },
+      { messageId: "not-loaded", reactions: [{ emoji: "🤲", mine: false }] },
+    ]);
+    expect(out.changed).toBe(true);
+    expect(out.messages.map((m) => m.reactions)).toEqual([[{ emoji: "❤️", mine: false }], [], []]);
+  });
+
+  it("nothing different: the same list back and changed false (no re-render, no fast pace)", () => {
+    const list = [msg({ id: "a", reactions: [{ emoji: "❤️", mine: false }] })];
+    const out = applyReactionUpdates(list, [{ messageId: "a", reactions: [{ emoji: "❤️", mine: false }] }]);
+    expect(out).toEqual({ messages: list, changed: false });
+    expect(out.messages).toBe(list);
+    expect(applyReactionUpdates(list, undefined).messages).toBe(list);
+  });
+});
+
+describe("the empty chat hint", () => {
+  it("points to the suggestions below only when they show, gendered", () => {
+    expect(emptyChatHint({ female: false, starters: true })).toBe("ابدأ المحادثة برسالة، أو اختر أحد الاقتراحات بالأسفل.");
+    expect(emptyChatHint({ female: true, starters: true })).toBe("ابدئي المحادثة برسالة، أو اختاري أحد الاقتراحات بالأسفل.");
+    expect(emptyChatHint({ female: false, starters: false })).toBe("ابدأ المحادثة برسالة.");
+    expect(emptyChatHint({ female: true, starters: false })).toBe("ابدئي المحادثة برسالة.");
   });
 });

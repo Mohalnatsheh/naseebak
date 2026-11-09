@@ -70,6 +70,17 @@ export function familyStepOf(
       : null;
 }
 
+/**
+ * An expired chat (read-only) keeps its way to the family step: a request on its way, one received (link to the match)
+ * or guardian details shared (link). The offer has its own button in the footer; nothing else shows.
+ */
+export function closedChatFamilyNote(step: FamilyStep | null, viewerGender?: string): { text: string; link: boolean } | null {
+  if (step === "pending_sent") return { text: "طلب التعارف العائلي بانتظار الرد.", link: false };
+  if (step === "pending_received") return { text: viewerGender === "FEMALE" ? "وصلكِ طلب تعارف عائلي." : "وصلك طلب تعارف عائلي.", link: true };
+  if (step === "accepted") return { text: "تم قبول التعارف العائلي · بيانات وليّ الأمر في صفحة التوافق.", link: true };
+  return null;
+}
+
 export type ChatBar = "none" | "expiry" | "family" | "push";
 
 /** Under this many days left, the chat counts as ending soon */

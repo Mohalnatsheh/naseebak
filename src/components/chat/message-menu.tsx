@@ -90,8 +90,8 @@ export function MessageMenu({
                 <DropdownMenuItem
                   key={emoji}
                   onSelect={() => actions.onReact(message, emoji)}
-                  aria-label={`تفاعل ${emoji}`}
-                  aria-pressed={myEmoji === emoji}
+                  // The state is in the name: aria-pressed isn't valid on a menuitem
+                  aria-label={myEmoji === emoji ? `تفاعل ${emoji} · تفاعلك` : `تفاعل ${emoji}`}
                   className={cn(
                     "flex h-11 w-11 items-center justify-center rounded-full p-0 text-2xl leading-none",
                     myEmoji === emoji && "bg-primary/10 ring-1 ring-primary/30"

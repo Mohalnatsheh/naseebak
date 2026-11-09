@@ -6,7 +6,7 @@ import { ChevronLeft, ChevronRight, X, ZoomIn, ZoomOut } from "lucide-react";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import type { ChatMedia } from "@/lib/chat/service";
-import { clampZoom, photoSwipe } from "./photo-viewer-logic";
+import { clampPan, clampZoom, photoSwipe } from "./photo-viewer-logic";
 
 export interface ViewerPhoto {
   id: string;
@@ -69,13 +69,17 @@ function ViewerBody({ photos, startId }: { photos: ViewerPhoto[]; startId: strin
     setOffset({ x: 0, y: 0 });
   }
 
+  const stage = useRef<HTMLDivElement>(null);
+  /** The pan kept on the photo at this zoom (it can't be dragged off screen) */
+  const keepOnPhoto = (o: { x: number; y: number }, s: number) =>
+    clampPan(o, s, { width: stage.current?.clientWidth ?? 0, height: stage.current?.clientHeight ?? 0 });
+
   function zoomTo(next: number) {
     const s = clampZoom(next);
     setScale(s);
-    if (s === 1) setOffset({ x: 0, y: 0 });
+    setOffset((o) => keepOnPhoto(o, s));
   }
 
-  const stage = useRef<HTMLDivElement>(null);
   // The viewer is laid out right-to-left (dir on the dialog); a page in LTR flips the swipe and the arrow keys
   const rtl = () => (stage.current?.closest("[dir]")?.getAttribute("dir") ?? "rtl") === "rtl";
 
@@ -112,7 +116,7 @@ function ViewerBody({ photos, startId }: { photos: ViewerPhoto[]; startId: strin
       const [a, b] = [...pointers.current.values()];
       zoomTo((g.scale * Math.hypot(a.x - b.x, a.y - b.y)) / g.dist);
     } else if (g.kind === "pan" && e.pointerId === g.id) {
-      setOffset({ x: g.ox + (e.clientX - g.x) / scale, y: g.oy + (e.clientY - g.y) / scale });
+      setOffset(keepOnPhoto({ x: g.ox + (e.clientX - g.x) / scale, y: g.oy + (e.clientY - g.y) / scale }, scale));
     } else if (g.kind === "swipe" && e.pointerId === g.id) {
       g.dx = e.clientX - g.x;
       setDragX(g.dx);

@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+// Stripe is configured in these tests (the refund route refuses without a key: QA WEB-PAY-12)
+process.env.STRIPE_SECRET_KEY ??= "sk_test_dummy";
 
 const db = vi.hoisted(() => ({
   proSubscription: { findFirst: vi.fn(), findMany: vi.fn() },
@@ -108,6 +110,24 @@ describe("admin refund of a Pro payment", () => {
     expect((await adminRefund(new Request("http://x", { method: "POST" }), params("p1"))).status).toBe(200);
     expect(stripe.refunds.create).not.toHaveBeenCalled();
     expect(invoices.paymentIntentForInvoice).not.toHaveBeenCalled();
+  });
+
+  it("a local mock pack payment is refunded here only, never sent to Stripe (QA WEB-PAY-12)", async () => {
+    db.payment.findUnique.mockResolvedValue({ id: "p1", status: "COMPLETED", providerTxId: "mock_cs_p1", provider: "STRIPE", planName: "launch_10" });
+    expect((await adminRefund(new Request("http://x", { method: "POST" }), params("p1"))).status).toBe(200);
+    expect(stripe.refunds.create).not.toHaveBeenCalled();
+    expect(refundMod.applyRefund).toHaveBeenCalledWith({ paymentId: "p1", adminId: "a1", note: "Admin refund" });
+  });
+
+  it("without a Stripe key a real payment gets a readable 503, nothing changes", async () => {
+    const key = process.env.STRIPE_SECRET_KEY;
+    delete process.env.STRIPE_SECRET_KEY;
+    db.payment.findUnique.mockResolvedValue({ id: "p1", status: "COMPLETED", providerTxId: "pi_9", provider: "STRIPE", planName: "launch_10" });
+    const res = await adminRefund(new Request("http://x", { method: "POST" }), params("p1"));
+    process.env.STRIPE_SECRET_KEY = key;
+    expect(res.status).toBe(503);
+    expect((await res.json()).error).toContain("Stripe is not configured");
+    expect(refundMod.applyRefund).not.toHaveBeenCalled();
   });
 
   it("an invoice Stripe cannot match to a payment is refused, nothing changes", async () => {

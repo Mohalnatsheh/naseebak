@@ -33,7 +33,8 @@ export async function POST(request: Request) {
     const message = err instanceof Error ? err.message : "Unknown error";
     // Usually STRIPE_WEBHOOK_SECRET belongs to another endpoint of the shared Stripe account
     console.error("[payments] Webhook signature verification failed:", message);
-    return NextResponse.json({ error: `Webhook Error: ${message}` }, { status: 400 });
+    // The detail stays in the log; the caller only learns the signature was refused (QA WEB-PAY-17)
+    return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
   }
 
   try {

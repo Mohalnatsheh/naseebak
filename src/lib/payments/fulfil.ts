@@ -50,6 +50,8 @@ export async function fulfilCheckoutSession(session: Stripe.Checkout.Session): P
       data: {
         status: "COMPLETED",
         providerTxId: (typeof session.payment_intent === "string" && session.payment_intent) || session.id,
+        // A checkout cancelled or expired here and paid after all is a completed payment, not a failed one (QA WEB-PAY-11)
+        failureReason: null,
       },
     });
     if (marked.count === 0) return false;

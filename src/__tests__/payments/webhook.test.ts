@@ -17,7 +17,16 @@ vi.mock("@/lib/payments/fulfil", () => ({
   fulfilCheckoutSession: fulfil.fulfilCheckoutSession,
   isOurSession: (s: { metadata?: { app?: string } }) => s.metadata?.app === "naseebak",
 }));
-vi.mock("@/lib/stripe", () => ({ getStripe: () => ({ webhooks: { constructEvent: () => event.current } }) }));
+vi.mock("@/lib/stripe", () => ({
+  getStripe: () => ({
+    webhooks: {
+      constructEvent: () => {
+        if (event.current instanceof Error) throw event.current;
+        return event.current;
+      },
+    },
+  }),
+}));
 const intents = vi.hoisted(() => ({ fulfilPaymentIntent: vi.fn() }));
 vi.mock("@/lib/payments/intent", () => ({
   fulfilPaymentIntent: intents.fulfilPaymentIntent,
@@ -35,6 +44,15 @@ beforeEach(() => {
 });
 
 describe("Stripe webhook", () => {
+  it("a refused signature answers a short error, the detail only in the log (QA WEB-PAY-17)", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    event.current = new Error("No signatures found matching the expected signature for payload. Learn more at https://stripe.com");
+    const res = await call();
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: "Invalid signature" });
+  });
+
+
   it("fails our row on an expired or failed async checkout", async () => {
     for (const type of ["checkout.session.expired", "checkout.session.async_payment_failed"]) {
       event.current = { type, data: { object: { metadata: { app: "naseebak", paymentId: "p1" } } } };

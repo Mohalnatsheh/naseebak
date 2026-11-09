@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+// Stripe is configured in these tests (the refund route refuses without a key: QA WEB-PAY-12)
+process.env.STRIPE_SECRET_KEY ??= "sk_test_dummy";
 
 const tx = vi.hoisted(() => ({
   payment: { updateMany: vi.fn() },

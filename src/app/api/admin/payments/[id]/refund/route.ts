@@ -5,6 +5,7 @@ import { getStripe } from "@/lib/stripe";
 import { applyRefund } from "@/lib/payments/refund";
 import { planFromName } from "@/lib/pro/plans";
 import { paymentIntentForInvoice } from "@/lib/pro/invoice-payments";
+import { MOCK_SESSION_PREFIX } from "@/lib/payments/mock";
 
 export async function POST(
   _request: Request,
@@ -34,11 +35,15 @@ export async function POST(
       return NextResponse.json({ error: "Refund only supported for Stripe payments with a transaction ID" }, { status: 400 });
     }
 
-    // A Pro payment stores its invoice id: refund the payment intent that paid it. A local mock invoice has none
+    // A Pro payment stores its invoice id: refund the payment intent that paid it. A local mock payment (pack or Pro,
+    // `mock_…`) has no Stripe payment at all: only the app side is refunded (QA WEB-PAY-12)
     const pro = !!planFromName(payment.planName);
-    const mockPro = pro && payment.providerTxId.startsWith("mock_");
-    const paymentIntent = mockPro ? null : pro ? await paymentIntentForInvoice(payment.providerTxId) : payment.providerTxId;
-    if (!mockPro && !paymentIntent) {
+    const mock = payment.providerTxId.startsWith(MOCK_SESSION_PREFIX);
+    if (!mock && !process.env.STRIPE_SECRET_KEY) {
+      return NextResponse.json({ error: "Stripe is not configured on this server: the refund cannot be sent" }, { status: 503 });
+    }
+    const paymentIntent = mock ? null : pro ? await paymentIntentForInvoice(payment.providerTxId) : payment.providerTxId;
+    if (!mock && !paymentIntent) {
       return NextResponse.json({ error: "No Stripe payment found for this invoice" }, { status: 400 });
     }
 

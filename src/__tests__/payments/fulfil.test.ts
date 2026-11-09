@@ -36,7 +36,8 @@ describe("fulfilCheckoutSession", () => {
     expect(await fulfilCheckoutSession(session())).toBe("fulfilled");
     expect(db.payment.updateMany).toHaveBeenCalledWith({
       where: { id: "p1", userId: "u1", status: { in: ["PENDING", "FAILED"] } },
-      data: { status: "COMPLETED", providerTxId: "pi_1" },
+      // failureReason cleared: a cancelled checkout paid later is no failure (QA WEB-PAY-11)
+      data: { status: "COMPLETED", providerTxId: "pi_1", failureReason: null },
     });
     expect(db.user.update).toHaveBeenCalledWith({ where: { id: "u1" }, data: { matchCredits: { increment: 5 } } });
     expect(credits.recordCredit).toHaveBeenCalledWith({ userId: "u1", delta: 5, reason: "PURCHASE", refId: "p1" });

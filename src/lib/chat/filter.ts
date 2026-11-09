@@ -249,7 +249,7 @@ function words(s: string): string[] {
  * number the way people say them: «مية وثلاثة وعشرين» = 123, 3 digits; «سبع مية» = 700; "twenty one" = 21)
  * and other words. `single` marks a spelled number that is one digit word on its own («صفر», «سبعة»).
  */
-type Token = { kind: "written"; text: string } | { kind: "spelled"; digits: number; single: boolean } | { kind: "word" };
+type Token = { kind: "written"; text: string } | { kind: "spelled"; digits: number; single: boolean } | { kind: "word"; text: string };
 
 function tokens(s: string): Token[] {
   const out: Token[] = [];
@@ -263,7 +263,7 @@ function tokens(s: string): Token[] {
     const n = numberWord(word);
     if (!n) {
       flush();
-      out.push(/^\d+$/.test(word) ? { kind: "written", text: word } : { kind: "word" });
+      out.push(/^\d+$/.test(word) ? { kind: "written", text: word } : { kind: "word", text: word });
       continue;
     }
     const g = group as { value: number; last: NumberWord["place"]; parts: number; hasUnit: boolean } | null;
@@ -316,8 +316,14 @@ function hasScatteredNumber(s: string): boolean {
   return spelled >= SCATTERED_DIGIT_WORDS || total >= SCATTERED_DIGITS;
 }
 
+/** A short word between the groups of one number read aloud («ثم», «و», «بعدين», "then", "and", any word of ≤ 3 letters) */
+const CONNECTORS = new Set(["و", "ثم", "بعدين", "وبعدين", "بعدها", "وبعدها", "then", "and"]);
+function connector(word: string): boolean {
+  return CONNECTORS.has(word) || [...word].length <= 3;
+}
+
 /**
- * 7+ digits in a row, counting written digit groups and spelled-out numbers together, so mixing them
+ * 7+ digits in a row (across short connectors), counting written digit groups and spelled-out numbers together, so mixing them
  * ("079 خمسه خمسه خمسه 1234") or spelling in dialect or English doesn't get through.
  */
 function hasSpelledNumber(s: string): boolean {
@@ -329,6 +335,8 @@ function hasSpelledNumber(s: string): boolean {
     else if (t.kind === "spelled") {
       streak += t.digits;
       spelled = true;
+    } else if (connector(t.text)) {
+      // «ثم», «و», "then": the next group carries on the same number
     } else {
       streak = 0;
       spelled = false;

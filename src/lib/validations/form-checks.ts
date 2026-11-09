@@ -9,7 +9,8 @@ import { COUNTRIES, DEFAULT_COUNTRY, countryConfig, type CountryCode } from "@/l
 
 export type FieldIssue = { field: string; message: string };
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+/** zod's own email pattern (zod/v4 `z.email()`), so the page and the API agree */
+const EMAIL_RE = /^(?!\.)(?!.*\.\.)([A-Za-z0-9_'+\-.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9-]*\.)+[A-Za-z]{2,}$/;
 
 /** First problem with a contact form, in field order (null = fine). Mirrors `contactSchemaFor` */
 export function contactFormIssue(

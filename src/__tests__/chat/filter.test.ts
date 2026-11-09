@@ -383,3 +383,23 @@ describe("W2 review round 1: false positives closed, Highs still closed", () => 
     expect(reason("رقمي سبعمية وتسعة وسبعين، مية وثلاثة وعشرين، اربعمية وستة وخمسين")).toBe("CONTACT");
   });
 });
+
+describe("W2 review round 2: composite numbers across short connectors", () => {
+  it.each([
+    "رقمي سبعمية وتسعة وسبعين ثم مية وثلاثة وعشرين ثم اربعمية وستة وخمسين",
+    "رقمي سبعمية وتسعة وسبعين و مية وثلاثة وعشرين و اربعمية وستة وخمسين",
+    "079 ثم مية وثلاثة وعشرين ثم 4567",
+    "صفر سبعة تسعة ثم مية وثلاثة وعشرين ثم اربعمية وستة وخمسين وسبعة",
+    "seven hundred ninety then one hundred twenty three then four hundred fifty six",
+    "صفر سبعة تسعة بعدين مية وثلاثة وعشرين بعدين خمسة واربعين",
+  ])("blocks %s", (t) => expect(checkMessage(t).ok, t).toBe(false));
+
+  it.each([
+    "عمري خمسة وعشرين وطولي مية وسبعين ووزني سبعين وراتبي خمسمية",
+    "عمري خمسة وعشرين سنة وطولي مية وسبعين سم ووزني سبعين كيلو",
+    "مواليد 1995 وتخرجت 2017 والمهر 5000",
+    "خمسة وتسعين بالمية من الناس بحبوا السفر",
+    "عندي ثلاث اولاد واعمارهم خمسة وسبعة وعشرة",
+    "1995 و 2017 و 5000",
+  ])("still passes %s", (t) => expect(checkMessage(t).ok, t).toBe(true));
+});

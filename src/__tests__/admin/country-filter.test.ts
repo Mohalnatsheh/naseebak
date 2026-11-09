@@ -175,8 +175,8 @@ describe("admin payments filters", () => {
     ]);
     const body = await (await getPayments(req("http://x/api/admin/payments", "ALL")))!.json();
     expect(body.payments).toEqual([
-      { id: "p1", planName: "nope", credits: 0, stripePaymentIntent: "pi_1" },
-      { id: "p2", planName: null, credits: 0, stripePaymentIntent: null },
+      { id: "p1", planName: "nope", credits: 0, endsPro: false, renewal: false, stripePaymentIntent: "pi_1" },
+      { id: "p2", planName: null, credits: 0, endsPro: false, renewal: false, stripePaymentIntent: null },
     ]);
   });
 });

@@ -42,13 +42,19 @@ export function proPlansFromDrafts(drafts: Record<ProPlanId, Draft>): ProPlans |
  * A plan that is off with no price is simply not stored. Values go to the server as typed: it refuses a bad price.
  */
 export function ProPlansEditor({
+  code,
   country,
   currency,
   value,
   onChange,
+  error,
 }: {
+  /** Country code, for the field ids («pro-SA-weekly-price», never a name with a space) */
+  code: string;
   country: string;
   currency: string;
+  /** The first problem with the plans, shown here before any confirmation (QA WEB-PAY-10) */
+  error?: string | null;
   value: ProPlans | null;
   onChange: (plans: ProPlans | null) => void;
 }) {
@@ -77,6 +83,11 @@ export function ProPlansEditor({
           A plan switched off keeps its settings only while its price is filled in; with no price it is removed.
         </p>
       </div>
+      {error && (
+        <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+          {error}
+        </p>
+      )}
       <div className="grid gap-3 sm:grid-cols-3">
         {PRO_PLAN_IDS.map((id) => (
           <div key={id} className="space-y-2 rounded-md border p-3">
@@ -85,27 +96,22 @@ export function ProPlansEditor({
               <Switch checked={drafts[id].enabled} onCheckedChange={(v) => update(id, { enabled: v })} aria-label={`${NAMES[id]} plan on`} />
             </label>
             <div className="space-y-1.5">
-              <Label htmlFor={`pro-${country}-${id}-price`}>Price ({currency})</Label>
+              <Label htmlFor={`pro-${code}-${id}-price`}>Price ({currency})</Label>
               <Input
-                id={`pro-${country}-${id}-price`}
+                id={`pro-${code}-${id}-price`}
                 dir="ltr"
-                type="number"
-                min={0}
-                step="any"
+                type="text"
                 inputMode="decimal"
                 value={drafts[id].price}
                 onChange={(e) => update(id, { price: e.target.value })}
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor={`pro-${country}-${id}-credits`}>{id === "yearly" ? "Credits per month" : "Credits per grant"}</Label>
+              <Label htmlFor={`pro-${code}-${id}-credits`}>{id === "yearly" ? "Credits per month" : "Credits per grant"}</Label>
               <Input
-                id={`pro-${country}-${id}-credits`}
+                id={`pro-${code}-${id}-credits`}
                 dir="ltr"
-                type="number"
-                min={0}
-                max={100}
-                step={1}
+                type="text"
                 inputMode="numeric"
                 value={drafts[id].credits}
                 onChange={(e) => update(id, { credits: e.target.value })}

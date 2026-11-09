@@ -9,7 +9,8 @@ import { toast } from "sonner";
 import { fmtDateTime } from "@/components/admin/admin-list-bits";
 import type { DailyRunSummary } from "@/lib/cron/daily";
 
-const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+/** «1 reminder», «3 reminders»; words ending in s/sh/ch/x take «es» («0 re-engagement pushes», QA WEB-PAY-15) */
+export const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : /(s|sh|ch|x)$/.test(word) ? "es" : "s"}`;
 
 function line(run: DailyRunSummary): string {
   const t = run.totals;

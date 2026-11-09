@@ -84,12 +84,23 @@ describe("ProPlansEditor: what goes to the server", () => {
 
   it("typing sends the mapped plans; a value changed from outside resets the fields", () => {
     const onChange = vi.fn();
-    const { rerender } = render(<ProPlansEditor country="Jordan" currency="JOD" value={{ monthly: { enabled: true, price: 4, credits: 8 } }} onChange={onChange} />);
-    fireEvent.change(screen.getByLabelText("Price (JOD)", { selector: "#pro-Jordan-monthly-price" }), { target: { value: "5" } });
+    const { rerender } = render(<ProPlansEditor code="JO" country="Jordan" currency="JOD" value={{ monthly: { enabled: true, price: 4, credits: 8 } }} onChange={onChange} />);
+    fireEvent.change(screen.getByLabelText("Price (JOD)", { selector: "#pro-JO-monthly-price" }), { target: { value: "5" } });
     expect(onChange).toHaveBeenLastCalledWith({ monthly: { enabled: true, price: 5, credits: 8 } });
     // The page reloads the saved settings (a different value): the fields follow
-    rerender(<ProPlansEditor country="Jordan" currency="JOD" value={{ monthly: { enabled: true, price: 6, credits: 2 } }} onChange={onChange} />);
-    expect((screen.getByLabelText("Price (JOD)", { selector: "#pro-Jordan-monthly-price" }) as HTMLInputElement).value).toBe("6");
-    expect((document.getElementById("pro-Jordan-monthly-credits") as HTMLInputElement).value).toBe("2");
+    rerender(<ProPlansEditor code="JO" country="Jordan" currency="JOD" value={{ monthly: { enabled: true, price: 6, credits: 2 } }} onChange={onChange} />);
+    expect((screen.getByLabelText("Price (JOD)", { selector: "#pro-JO-monthly-price" }) as HTMLInputElement).value).toBe("6");
+    expect((document.getElementById("pro-JO-monthly-credits") as HTMLInputElement).value).toBe("2");
+  });
+
+  it("names a bad plan inline before any confirmation, with ids from the country code (QA WEB-PAY-10)", async () => {
+    const { proPlansError } = await import("@/lib/validations/country-settings");
+    expect(proPlansError({ weekly: { enabled: false, price: -5, credits: 2 } }, "SA")).toBe("Weekly: A Pro plan price must be above 0");
+    expect(proPlansError({ monthly: { enabled: true, price: 4, credits: 2.5 } }, "JO")).toBe("Monthly: Pro credits must be a whole number");
+    expect(proPlansError({ monthly: { enabled: true, price: 1, credits: 2 } }, "SA")).toBe("A Saudi Pro plan price must be at least 2 SAR");
+    expect(proPlansError({ monthly: { enabled: true, price: 4, credits: 8 } }, "JO")).toBeNull();
+    render(<ProPlansEditor code="SA" country="Saudi Arabia" currency="SAR" value={null} onChange={vi.fn()} error="Weekly: A Pro plan price must be above 0" />);
+    expect(screen.getByRole("alert").textContent).toContain("Weekly");
+    expect(document.getElementById("pro-SA-weekly-price")).toBeTruthy();
   });
 });

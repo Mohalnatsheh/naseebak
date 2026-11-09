@@ -14,6 +14,7 @@ import { SettingsNote } from "@/components/admin/settings-section";
 import { countryChanges, type ChangeSummary } from "@/lib/admin/settings-changes";
 import { toast } from "sonner";
 import { ProPlansEditor } from "@/components/admin/pro-plans-editor";
+import { proPlansError } from "@/lib/validations/country-settings";
 import type { ProPlans } from "@/lib/pro/plans";
 import { formatCharge, packagesFor } from "@/lib/payments/packages";
 import type { CountryCode } from "@/lib/countries";
@@ -147,9 +148,15 @@ function CountryCard({ row, onSaved }: { row: CountryRow; onSaved: () => void })
   const [priceTexts, setPriceTexts] = useState<Record<string, string>>(() => Object.fromEntries(row.packages.map((p) => [p.id, String(p.price)])));
   const approved = form.pricesApproved ?? row.pricesApproved;
   const dirty = JSON.stringify(form) !== JSON.stringify(row.settings);
+  const planError = proPlansError(form.proPlans, code);
 
-  /** Always asks first, naming every change (only a cleared-and-retyped field has none to name) */
+  /** Always asks first, naming every change (only a cleared-and-retyped field has none to name). A bad Pro plan is
+   *  named under the plans at once, never after the confirmation (QA WEB-PAY-10) */
   function requestSave() {
+    if (planError) {
+      toast.error(planError);
+      return;
+    }
     const changes = countryChanges(row.settings, form, row.display.name.en, row.packages, row.pricesApproved);
     if (changes.lines.length === 0) save();
     else setPending(changes);
@@ -296,6 +303,8 @@ function CountryCard({ row, onSaved }: { row: CountryRow; onSaved: () => void })
         </div>
 
         <ProPlansEditor
+          code={code}
+          error={planError}
           country={row.display.name.en}
           currency={row.display.currency.code}
           value={form.proPlans}

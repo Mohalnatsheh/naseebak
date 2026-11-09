@@ -77,6 +77,12 @@ describe("admin countries", () => {
     expect(db.countrySetting.upsert.mock.calls[0][0].update).toMatchObject({ proPlans });
   });
 
+  it("clearing every Pro plan stores NULL, not {} (QA WEB-PAY-16)", async () => {
+    const { Prisma } = await import("@prisma/client");
+    expect((await update(req({ proPlans: {} }), p("JO"))).status).toBe(200);
+    expect(db.countrySetting.upsert.mock.calls[0][0].update.proPlans).toBe(Prisma.DbNull);
+  });
+
   it("refuses Pro plans with a zero or negative price, bad credits, unknown plans or a Saudi price under 2", async () => {
     const ok = { enabled: true, price: 5, credits: 10 };
     for (const proPlans of [

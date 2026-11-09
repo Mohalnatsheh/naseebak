@@ -61,6 +61,30 @@ const proPlan = z
   })
   .strict();
 
+const proPlansSchema = z.object({ weekly: proPlan.optional(), monthly: proPlan.optional(), yearly: proPlan.optional() }).strict();
+
+const PLAN_NAMES: Record<string, string> = { weekly: "Weekly", monthly: "Monthly", yearly: "Yearly" };
+
+/**
+ * The first problem with a country's Pro plans, named by plan («Monthly: A Pro plan price must be above 0»), or null.
+ * The same rules as the server, so Admin → Countries says it before the confirmation dialog (QA WEB-PAY-10):
+ * the schema above, and Stripe's smallest charge (Saudi Arabia: 2 SAR; Jordan, charged in dollars: 0.36 JOD).
+ */
+export function proPlansError(plans: unknown, code: string): string | null {
+  if (plans == null) return null;
+  const parsed = proPlansSchema.safeParse(plans);
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0];
+    const plan = PLAN_NAMES[String(issue?.path?.[0] ?? "")];
+    return `${plan ? `${plan}: ` : ""}${issue?.message ?? "Invalid Pro plans"}`;
+  }
+  const prices = Object.values(parsed.data).filter(Boolean) as { price: number }[];
+  if (code === "SA" && prices.some((p) => p.price < 2)) return "A Saudi Pro plan price must be at least 2 SAR";
+  // Jordan is charged in dollars (dinar × 1.41): below 0.36 JOD a Pro plan is under Stripe's 0.50 USD minimum
+  if (code === "JO" && prices.some((p) => p.price < 0.36)) return "A Jordan Pro plan price must be at least 0.36 JOD";
+  return null;
+}
+
 /** Admin → Countries: one country's editable settings (every field optional; unknown fields refused) */
 export const countrySettingsSchema = z
   .object({
@@ -71,7 +95,7 @@ export const countrySettingsSchema = z
     packagePrices: z.record(z.string(), packagePrice).optional(),
     pricesApproved: z.boolean().optional(),
     /** Pro membership plans of this country; a plan left out is not offered */
-    proPlans: z.object({ weekly: proPlan.optional(), monthly: proPlan.optional(), yearly: proPlan.optional() }).strict().optional(),
+    proPlans: proPlansSchema.optional(),
     smsProvider: z.enum(["DEFAULT", "BROADNET", "UNIFONIC", "MOCK", "NONE"]).optional(),
     /** SMS sender name: letters, digits, space . _ - (operators allow up to 11) */
     smsSenderId: z

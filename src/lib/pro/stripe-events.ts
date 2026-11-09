@@ -195,14 +195,14 @@ export async function handleProInvoicePaid(invoice: Stripe.Invoice): Promise<Pro
   const { sub, paymentId, paymentNew } = step;
   let granted = false;
   if ((invoice.amount_paid ?? 0) > 0) {
-    const yearlyStart = sub.plan === "YEARLY" && sub.grantsMade === 0;
     const result = await grantProCredits({
       subscriptionId: sub.id,
       paymentId,
       key: `invoice:${invoice.id}`,
       credits: sub.creditsPerGrant,
-      // Yearly: this invoice is month 1, the morning task gives months 2 to 12
-      ...(yearlyStart ? { advanceNextTo: addMonth(period.start) } : {}),
+      // Yearly: every yearly invoice is month 1 of a paid year (count restarts at 1, in the grant's transaction);
+      // the morning task gives months 2 to 12 from a month after the period start
+      ...(sub.plan === "YEARLY" ? { restartYear: true, advanceNextTo: addMonth(period.start) } : {}),
     });
     granted = result === "granted";
   } else {

@@ -225,7 +225,7 @@ describe("handleProInvoicePaid", () => {
     const end = Math.floor(new Date("2027-11-09T10:00:00Z").getTime() / 1000);
     await handleProInvoicePaid(firstInvoice({ metadata: yearly, periodEnd: end }));
     expect(store.subs[0]).toMatchObject({ plan: "YEARLY", creditsPerGrant: 10, grantsMade: 1 });
-    expect(grants.grantProCredits).toHaveBeenCalledWith(expect.objectContaining({ key: "invoice:in_1", credits: 10, advanceNextTo: new Date("2026-12-09T10:00:00Z") }));
+    expect(grants.grantProCredits).toHaveBeenCalledWith(expect.objectContaining({ key: "invoice:in_1", credits: 10, restartYear: true, advanceNextTo: new Date("2026-12-09T10:00:00Z") }));
     expect(store.subs[0].nextCreditGrantAt).toEqual(new Date("2026-12-09T10:00:00Z"));
   });
 

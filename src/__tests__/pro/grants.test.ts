@@ -76,6 +76,20 @@ describe("grantProCredits", () => {
   });
 });
 
+describe("grantProCredits restartYear (a yearly invoice)", () => {
+  it("sets the per-year count to 1 with the next date, in the grant's transaction", async () => {
+    const next = new Date("2027-12-09T10:00:00Z");
+    expect(await grantProCredits({ subscriptionId: "s1", paymentId: "pay2", key: "invoice:in_2", credits: 10, restartYear: true, advanceNextTo: next })).toBe("granted");
+    expect(db.proSubscription.update).toHaveBeenCalledWith({ where: { id: "s1" }, data: { grantsMade: 1, nextCreditGrantAt: next } });
+  });
+
+  it("a re-delivered invoice (key used) resets nothing", async () => {
+    db.proCreditGrant.create.mockRejectedValue(new Prisma.PrismaClientKnownRequestError("dup", { code: "P2002", clientVersion: "x" }));
+    expect(await grantProCredits({ subscriptionId: "s1", paymentId: "pay2", key: "invoice:in_2", credits: 10, restartYear: true, advanceNextTo: new Date() })).toBe("already");
+    expect(db.proSubscription.update).not.toHaveBeenCalled();
+  });
+});
+
 describe("runYearlyProGrants", () => {
   const now = new Date("2026-11-09T06:00:00Z");
 
@@ -106,7 +120,13 @@ describe("runYearlyProGrants", () => {
     const r = await runYearlyProGrants(now);
     expect(r).toEqual({ granted: 1 });
     expect(db.proCreditGrant.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({ key: "yearly:s1:4", subscriptionId: "s1", paymentId: "pay1", credits: 4 }),
+      data: expect.objectContaining({ key: "yearly:pay1:4", subscriptionId: "s1", paymentId: "pay1", credits: 4 }),
+    });
+    // The paid year now running: the latest completed yearly payment
+    expect(db.payment.findFirst).toHaveBeenCalledWith({
+      where: { proSubscriptionId: "s1", status: "COMPLETED", planName: "pro_yearly" },
+      orderBy: { createdAt: "desc" },
+      select: { id: true },
     });
     expect(db.proSubscription.update).toHaveBeenCalledWith({
       where: { id: "s1" },
@@ -149,6 +169,18 @@ describe("runYearlyProGrants", () => {
     expect(db.proSubscription.update).not.toHaveBeenCalled(); // no separate write outside the transaction
     expect(await runYearlyProGrants(now)).toEqual({ granted: 0 });
     expect(db.proCreditGrant.create).toHaveBeenCalledTimes(1);
+  });
+
+  it("no completed yearly payment: grants nothing and writes nothing", async () => {
+    db.proSubscription.findMany.mockResolvedValue([
+      { id: "s1", userId: "u1", grantsMade: 3, creditsPerGrant: 4, nextCreditGrantAt: new Date("2026-11-01T06:00:00Z") },
+    ]);
+    db.payment.findFirst.mockResolvedValue(null);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    expect(await runYearlyProGrants(now)).toEqual({ granted: 0 });
+    warn.mockRestore();
+    expect(db.proCreditGrant.create).not.toHaveBeenCalled();
+    expect(db.proSubscription.update).not.toHaveBeenCalled();
   });
 
   it("an already-granted key still moves the date on, and is not counted", async () => {

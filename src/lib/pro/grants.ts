@@ -5,6 +5,7 @@ import { notify } from "@/lib/notify";
 import { arabicCount } from "@/lib/utils";
 import { liveProWhere } from "@/lib/pro/status";
 import { addMonth } from "@/lib/pro/dates";
+import { proPlanName } from "@/lib/pro/plans";
 
 const MAX_YEARLY_GRANTS_PER_RUN = 500;
 const YEARLY_GRANT_MONTHS = 12;
@@ -14,7 +15,7 @@ function isUniqueViolation(e: unknown): boolean {
 }
 
 /**
- * Give a Pro member their credits once per `key` (invoice:<id>, or yearly:<subscriptionId>:<n>).
+ * Give a Pro member their credits once per `key` (invoice:<id>, or yearly:<that year's paymentId>:<n>).
  * The grant row, the balance, the ledger row and the counter change in one transaction; a repeated
  * key (webhook retry, second run) is a no-op.
  */
@@ -25,8 +26,13 @@ export async function grantProCredits(args: {
   credits: number;
   /** Yearly drip: moves the next grant date in the same transaction, so a crash can never grant twice */
   advanceNextTo?: Date;
+  /**
+   * A yearly invoice: this grant is month 1 of a new paid year, so `grantsMade` (yearly: grants in the current paid
+   * year) restarts at 1. Only when the grant happens: a re-delivered invoice resets nothing.
+   */
+  restartYear?: boolean;
 }): Promise<"granted" | "already"> {
-  const { subscriptionId, paymentId, key, credits, advanceNextTo } = args;
+  const { subscriptionId, paymentId, key, credits, advanceNextTo, restartYear } = args;
   if (credits <= 0) return "already";
 
   let userId: string;
@@ -40,7 +46,8 @@ export async function grantProCredits(args: {
       await tx.user.update({ where: { id: sub.userId }, data: { matchCredits: { increment: credits } } });
       await recordCredit({ userId: sub.userId, delta: credits, reason: "PRO_GRANT", refId: grant.id, note: key }, tx);
       await tx.proSubscription.update({
-        where: { id: subscriptionId }, data: { grantsMade: { increment: 1 }, ...(advanceNextTo ? { nextCreditGrantAt: advanceNextTo } : {}) },
+        where: { id: subscriptionId },
+        data: { grantsMade: restartYear ? 1 : { increment: 1 }, ...(advanceNextTo ? { nextCreditGrantAt: advanceNextTo } : {}) },
       });
       return sub.userId;
     });
@@ -68,7 +75,11 @@ export async function grantProCredits(args: {
 
 class NoMemberError extends Error {}
 
-/** Morning task: the monthly grant of live yearly memberships (months 2 to 12; month 1 comes with the invoice) */
+/**
+ * Morning task: the monthly grant of live yearly memberships, months 2 to 12 of each paid year (month 1 comes with the
+ * year's invoice, which restarts `grantsMade` at 1). Each grant is keyed and linked to that year's payment, so a
+ * refund of that payment takes back exactly that year's credits. After 12 it stops until the next yearly invoice.
+ */
 export async function runYearlyProGrants(now: Date): Promise<{ granted: number }> {
   const due = await db.proSubscription.findMany({
     where: {
@@ -84,16 +95,21 @@ export async function runYearlyProGrants(now: Date): Promise<{ granted: number }
   let granted = 0;
   for (const sub of due) {
     try {
+      // The paid year now running: the latest completed yearly payment
       const payment = await db.payment.findFirst({
-        where: { proSubscriptionId: sub.id, status: "COMPLETED" },
+        where: { proSubscriptionId: sub.id, status: "COMPLETED", planName: proPlanName("yearly") },
         orderBy: { createdAt: "desc" },
         select: { id: true },
       });
+      if (!payment) {
+        console.warn("[pro-grants] yearly subscription without a completed payment", sub.id);
+        continue;
+      }
       const nextDate = addMonth(sub.nextCreditGrantAt ?? now);
       const result = await grantProCredits({
         subscriptionId: sub.id,
-        paymentId: payment?.id ?? null,
-        key: `yearly:${sub.id}:${sub.grantsMade + 1}`,
+        paymentId: payment.id,
+        key: `yearly:${payment.id}:${sub.grantsMade + 1}`,
         credits: sub.creditsPerGrant,
         // Anchored on the planned date so twelve grants fit the year; a late run just catches up daily
         advanceNextTo: nextDate,

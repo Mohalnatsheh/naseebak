@@ -3,11 +3,13 @@
  * leave (no card ever tried). A member who started a payment 50 minutes to 12 hours ago, didn't pay it and hasn't paid
  * since gets one push + bell (never SMS), at most once per payment and once per Amman day, never at night (23:00–09:00,
  * the next run after 09:00 sends it). Runs every 15 minutes (`naseebak-daily-job frequent`).
+ * Credit packages only: an abandoned Pro checkout (`pro_<plan>`) never gets this text, which speaks of a package.
  */
 import { db } from "@/lib/db";
 import { notify } from "@/lib/notify";
 import { isUnavailable } from "@/lib/matches/state";
 import { isTestPhone } from "@/lib/test-accounts";
+import { PRO_PLAN_IDS, planFromName, proPlanName } from "@/lib/pro/plans";
 
 export const UNPAID_TITLE = "باقي خطوة لإتمام شحن رصيدك";
 const MIN = 60 * 1000;
@@ -33,14 +35,16 @@ export async function remindUnpaidPayments(now = new Date()): Promise<{ payments
       status: { in: ["PENDING", "FAILED"] },
       createdAt: { lte: new Date(now.getTime() - FROM_MIN * MIN), gte: new Date(now.getTime() - TO_HOURS * 60 * MIN) },
       userId: { not: null },
+      OR: [{ planName: null }, { planName: { notIn: PRO_PLAN_IDS.map(proPlanName) } }],
     },
-    select: { id: true, userId: true, createdAt: true, user: { select: { gender: true, role: true, phone: true, isDeactivated: true, status: true } } },
+    select: { id: true, userId: true, createdAt: true, planName: true, user: { select: { gender: true, role: true, phone: true, isDeactivated: true, status: true } } },
     orderBy: { createdAt: "desc" },
   });
 
   const seen = new Set<string>();
   let reminded = 0;
   for (const p of rows) {
+    if (planFromName(p.planName)) continue;
     const userId = p.userId!;
     // One per member per run (their latest unpaid payment)
     if (seen.has(userId)) continue;

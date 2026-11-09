@@ -42,6 +42,15 @@ describe("remindUnpaidPayments («باقي خطوة لإتمام شحن رصيد
     expect(notifyMod.notify).not.toHaveBeenCalled();
   });
 
+  it("never reminds about a Pro checkout (its text is about credit packages)", async () => {
+    db.payment.findMany.mockResolvedValue([{ ...row("p1", "u1"), planName: "pro_monthly" }, { ...row("p2", "u2"), planName: "credits_5" }]);
+    expect((await remindUnpaidPayments(now)).reminded).toBe(1);
+    expect(notifyMod.notify).toHaveBeenCalledTimes(1);
+    expect(notifyMod.notify.mock.calls[0][0].userId).toBe("u2");
+    const where = db.payment.findMany.mock.calls[0][0].where;
+    expect(where.OR).toEqual([{ planName: null }, { planName: { notIn: ["pro_weekly", "pro_monthly", "pro_yearly"] } }]);
+  });
+
   it("quiet at night (Amman 23:00–09:00): nothing is read or sent", async () => {
     expect(isQuietHour(new Date("2026-11-05T20:30:00Z"))).toBe(true); // 23:30
     expect(isQuietHour(new Date("2026-11-05T05:59:00Z"))).toBe(true); // 08:59

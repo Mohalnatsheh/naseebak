@@ -78,19 +78,34 @@ void main() {
     const soon = (text: 'تبقّى يومان', urgent: true);
     const far = (text: 'تبقّى 12 يوماً', urgent: false);
 
-    test('expiry soon beats the family step and the push chip', () {
-      expect(chatStatusBar(open: true, left: soon, family: FamilyStep.offer, pushOff: true), ChatBar.expiry);
+    test('1: expiry soon beats everything only when the chat can be extended', () {
+      expect(
+        chatStatusBar(open: true, left: soon, canExtend: true, family: FamilyStep.offer, pushOff: true),
+        ChatBar.expiry,
+      );
     });
 
-    test('then the family step, then the push chip', () {
-      expect(chatStatusBar(open: true, left: far, family: FamilyStep.offer, pushOff: true), ChatBar.family);
+    test('2: a family offer or an incoming request beats an expiry that cannot be extended', () {
+      expect(chatStatusBar(open: true, left: soon, family: FamilyStep.offer, pushOff: true), ChatBar.family);
+      expect(chatStatusBar(open: true, left: soon, family: FamilyStep.pendingReceived), ChatBar.family);
+    });
+
+    test('3: the expiry (no action) beats a family step with nothing to do, and the push chip', () {
+      expect(chatStatusBar(open: true, left: soon, family: FamilyStep.pendingSent, pushOff: true), ChatBar.expiryInfo);
+      expect(chatStatusBar(open: true, left: soon, family: FamilyStep.accepted), ChatBar.expiryInfo);
+      expect(chatStatusBar(open: true, left: soon, pushOff: true), ChatBar.expiryInfo);
+    });
+
+    test('far from the end: the family step, then the push chip', () {
+      expect(chatStatusBar(open: true, left: far, canExtend: true, family: FamilyStep.offer, pushOff: true), ChatBar.family);
+      expect(chatStatusBar(open: true, left: far, family: FamilyStep.pendingSent, pushOff: true), ChatBar.family);
       expect(chatStatusBar(open: true, left: far, family: null, pushOff: true), ChatBar.push);
       expect(chatStatusBar(open: true, left: far, family: null, pushOff: false), ChatBar.none);
     });
 
     test('a dismissed push chip stays away; a closed chat shows no bar', () {
       expect(chatStatusBar(open: true, left: far, pushOff: true, pushDismissed: true), ChatBar.none);
-      expect(chatStatusBar(open: false, left: soon, family: FamilyStep.offer, pushOff: true), ChatBar.none);
+      expect(chatStatusBar(open: false, left: soon, canExtend: true, family: FamilyStep.offer, pushOff: true), ChatBar.none);
     });
 
     test('family step from the intro state: offered only while requests are on and nothing closed it', () {
@@ -171,7 +186,7 @@ void main() {
       expect(find.byKey(const Key('chat-bar-expiry')), findsNothing);
     });
 
-    testWidgets('one bar: expiry soon wins over the family step', (tester) async {
+    testWidgets('one bar: expiry soon (extendable) wins over the family step', (tester) async {
       final soon = DateTime.now().toUtc().add(const Duration(days: 2)).toIso8601String();
       final adapter = FakeAdapter()
         ..on('GET', '/api/chats/c1', FakeResponse(200, {
@@ -188,6 +203,41 @@ void main() {
       expect(find.byKey(const Key('chat-bar-expiry')), findsOneWidget);
       expect(find.byKey(const Key('chat-bar-family')), findsNothing);
       expect(find.text('تمديد 7 أيام'), findsOneWidget);
+    });
+
+    testWidgets('the last days with no extension left: the family offer shows, with the days left inline',
+        (tester) async {
+      final soon = DateTime.now().toUtc().add(const Duration(days: 1, hours: 12)).toIso8601String();
+      final adapter = FakeAdapter()
+        ..on('GET', '/api/chats/c1', FakeResponse(200, {
+          ...page([1]),
+          'conversation': {...conv, 'expiresAt': soon, 'canExtend': false},
+        }))
+        ..on('GET', '/api/matches/x1/intro', const FakeResponse(200, {
+          'flags': {'introRequests': true, 'chat': true},
+          'family': {'status': 'none'},
+          'chat': {'status': 'open'},
+        }));
+      await openRoom(tester, adapter, MemoryChatCache());
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('chat-bar-family')), findsOneWidget);
+      expect(find.byKey(const Key('chat-bar-expiry')), findsNothing);
+      expect(find.text('تعارف عائلي'), findsOneWidget);
+      expect(find.textContaining('تبقّى يومان'), findsOneWidget);
+    });
+
+    testWidgets('the last days, no extension, nothing to do on the family side: the expiry line with no action',
+        (tester) async {
+      final soon = DateTime.now().toUtc().add(const Duration(days: 1, hours: 12)).toIso8601String();
+      final adapter = FakeAdapter()
+        ..on('GET', '/api/chats/c1', FakeResponse(200, {
+          ...page([1]),
+          'conversation': {...conv, 'expiresAt': soon, 'canExtend': false},
+        }));
+      await openRoom(tester, adapter, MemoryChatCache());
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('chat-bar-expiry-info')), findsOneWidget);
+      expect(find.text('تمديد 7 أيام'), findsNothing);
     });
 
     testWidgets('the header status line shows the activity label when the server sends one', (tester) async {

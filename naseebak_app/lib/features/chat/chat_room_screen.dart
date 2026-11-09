@@ -1699,7 +1699,8 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
         style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.success),
       );
     }
-    if (left == null) return null;
+    // An urgent time left is always in the status bar (the expiry bar, or inline in the family bar)
+    if (left == null || left.urgent) return null;
     return Text(
       left.text,
       key: const Key('chat-time-left'),
@@ -1720,11 +1721,14 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     final bar = chatStatusBar(
       open: _open && !chat.blocked,
       left: left,
+      canExtend: chat.canExtend,
       family: chat.matchHidden ? null : _family,
       pushOff: pushOff,
       pushDismissed: ref.read(sharedPreferencesProvider).getBool(_pushChipKey) ?? false,
     );
     String g(String m, String f) => forViewer(female, m, f);
+    // In the last days the family bar also says how long is left («تبقّى يومان»)
+    final soon = left != null && left.urgent ? ' · ${left.text}' : '';
     return switch (bar) {
       ChatBar.none => const SizedBox.shrink(),
       ChatBar.expiry => ChatStatusStrip(
@@ -1732,34 +1736,40 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
           icon: Icons.schedule_rounded,
           tone: AppColors.warning,
           text: 'تنتهي المحادثة قريباً · ${left!.text}',
-          actionLabel: chat.canExtend ? 'تمديد 7 أيام' : null,
-          onAction: chat.canExtend ? _extend : null,
+          actionLabel: 'تمديد 7 أيام',
+          onAction: _extend,
+        ),
+      ChatBar.expiryInfo => ChatStatusStrip(
+          key: const Key('chat-bar-expiry-info'),
+          icon: Icons.schedule_rounded,
+          tone: AppColors.warning,
+          text: 'تنتهي المحادثة قريباً · ${left!.text}',
         ),
       ChatBar.family => switch (_family!) {
           FamilyStep.offer => ChatStatusStrip(
               key: const Key('chat-bar-family'),
               icon: Icons.family_restroom_rounded,
-              text: 'جاهزان للخطوة التالية؟',
+              text: 'جاهزان للخطوة التالية؟$soon',
               actionLabel: 'تعارف عائلي',
               onAction: _openMatch,
             ),
-          FamilyStep.pendingSent => const ChatStatusStrip(
-              key: Key('chat-bar-family'),
+          FamilyStep.pendingSent => ChatStatusStrip(
+              key: const Key('chat-bar-family'),
               icon: Icons.hourglass_top_rounded,
               tone: AppColors.warning,
-              text: 'طلب التعارف العائلي بانتظار الرد',
+              text: 'طلب التعارف العائلي بانتظار الرد$soon',
             ),
           FamilyStep.pendingReceived => ChatStatusStrip(
               key: const Key('chat-bar-family'),
               icon: Icons.family_restroom_rounded,
-              text: g('وصلك طلب تعارف عائلي', 'وصلكِ طلب تعارف عائلي'),
+              text: '${g('وصلك طلب تعارف عائلي', 'وصلكِ طلب تعارف عائلي')}$soon',
               onTap: _openMatch,
             ),
           FamilyStep.accepted => ChatStatusStrip(
               key: const Key('chat-bar-family'),
               icon: Icons.verified_user_outlined,
               tone: AppColors.success,
-              text: 'بيانات وليّ الأمر',
+              text: 'بيانات وليّ الأمر$soon',
               onTap: _openMatch,
             ),
         },

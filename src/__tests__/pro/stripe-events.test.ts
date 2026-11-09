@@ -426,3 +426,94 @@ describe("an endpoint on a Stripe API version before 2025-03-31 (older payload s
     expect(store.subs[0].status).toBe("ENDED");
   });
 });
+
+describe("minor fixes", () => {
+  it("credits per grant come from the checkout's metadata (what the offer said), not the plan changed meanwhile", async () => {
+    pendingCheckoutRow();
+    settings.getCountrySettings.mockResolvedValue({ proPlans: { monthly: { enabled: false, price: 4, credits: 0 } } });
+    await handleProInvoicePaid(firstInvoice({ metadata: { ...META, credits: "8" } }));
+    expect(store.subs[0].creditsPerGrant).toBe(8);
+  });
+
+  it("an older checkout without credits in its metadata falls back to the plan; junk metadata is ignored", async () => {
+    pendingCheckoutRow();
+    await handleProInvoicePaid(firstInvoice({ metadata: { ...META, credits: "lots" } }));
+    expect(store.subs[0].creditsPerGrant).toBe(8);
+  });
+
+  it("the country settings are read before the lock is taken", async () => {
+    pendingCheckoutRow();
+    const order: string[] = [];
+    settings.getCountrySettings.mockImplementation(async () => {
+      order.push("settings");
+      return { proPlans: { monthly: { enabled: true, price: 4, credits: 8 } } };
+    });
+    (db.$transaction as ReturnType<typeof vi.fn>).mockImplementation(async (fn: (tx: unknown) => unknown) => {
+      order.push("lock");
+      return fn(db);
+    });
+    await handleProInvoicePaid(firstInvoice());
+    expect(order[0]).toBe("settings");
+  });
+
+  it("a renewal delivered before the first invoice never takes the checkout's row; the first invoice then does", async () => {
+    pendingCheckoutRow();
+    await handleProInvoicePaid(firstInvoice({ id: "in_2", periodStart: T1, periodEnd: T2, billingReason: "subscription_cycle" }));
+    expect(store.payments.find((p) => p.id === "pay1")).toMatchObject({ status: "PENDING", providerTxId: null });
+    const renewal = store.payments.find((p) => p.providerTxId === "in_2")!;
+    expect(renewal.description).toContain("تجديد");
+    expect(notifyMock.notify).not.toHaveBeenCalled();
+
+    await handleProInvoicePaid(firstInvoice());
+    expect(store.payments.find((p) => p.id === "pay1")).toMatchObject({ status: "COMPLETED", providerTxId: "in_1" });
+    expect(notifyMock.notify).toHaveBeenCalledTimes(1);
+  });
+
+  it("«started» is told once when two deliveries race: only the one whose grant went through tells", async () => {
+    pendingCheckoutRow();
+    // Delivery A records the Payment, but delivery B's grant got in first
+    grants.keys.add("invoice:in_1");
+    await handleProInvoicePaid(firstInvoice());
+    expect(notifyMock.notify).not.toHaveBeenCalled();
+  });
+
+  it("a plan with 0 credits still tells «started» once, on the first record of the Payment", async () => {
+    pendingCheckoutRow();
+    settings.getCountrySettings.mockResolvedValue({ proPlans: { monthly: { enabled: true, price: 4, credits: 0 } } });
+    await handleProInvoicePaid(firstInvoice());
+    await handleProInvoicePaid(firstInvoice());
+    expect(notifyMock.notify).toHaveBeenCalledTimes(1);
+  });
+
+  it("yearly: an older year's invoice first delivered after a newer one grants its credits but never restarts the count", async () => {
+    const Y = { ...META, plan: "yearly" };
+    const Y0 = T0;
+    const Y1 = Math.floor(new Date("2027-11-09T10:00:00Z").getTime() / 1000);
+    const Y2 = Math.floor(new Date("2028-11-09T10:00:00Z").getTime() / 1000);
+    store.payments.push({ id: "pay1", userId: "u1", type: "SUBSCRIPTION", planName: "pro_yearly", amount: 40, currency: "JOD", provider: "STRIPE", status: "PENDING", providerTxId: null, proSubscriptionId: null });
+    await handleProInvoicePaid(firstInvoice({ id: "in_y2", metadata: Y, periodStart: Y1, periodEnd: Y2, billingReason: "subscription_cycle" }));
+    const after = { ...store.subs[0] };
+    await handleProInvoicePaid(firstInvoice({ id: "in_y1", metadata: Y, periodStart: Y0, periodEnd: Y1 }));
+    expect(grants.keys.has("invoice:in_y1")).toBe(true);
+    const call = grants.grantProCredits.mock.calls.find((c) => (c[0] as { key: string }).key === "invoice:in_y1")![0] as Record<string, unknown>;
+    expect(call.restartYear).toBeUndefined();
+    expect(call.advanceNextTo).toBeUndefined();
+    expect(store.subs[0].nextCreditGrantAt).toEqual(after.nextCreditGrantAt);
+  });
+
+  it("a subscription update never extends a row with no paid invoice (a duplicate's checkout row stays not live)", async () => {
+    // Checkout made the row with an estimated end; no invoice.paid yet
+    await handleProCheckoutCompleted(session());
+    const estimated = store.subs[0].currentPeriodEnd;
+    await handleProSubscriptionChanged(fakeProSubscription({ id: "sub_1", metadata: META, status: "active", periodEnd: T2 }));
+    expect(store.subs[0].currentPeriodEnd).toEqual(estimated);
+  });
+
+  it("an `incomplete` subscription's period end never extends the row", async () => {
+    pendingCheckoutRow();
+    await handleProInvoicePaid(firstInvoice());
+    await handleProSubscriptionChanged(fakeProSubscription({ id: "sub_1", metadata: META, status: "incomplete", periodEnd: T2 }));
+    expect(store.subs[0].currentPeriodEnd).toEqual(new Date(T1 * 1000));
+    expect(store.subs[0].status).toBe("ACTIVE");
+  });
+});

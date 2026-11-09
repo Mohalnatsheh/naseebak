@@ -6,7 +6,8 @@ export function addMonth(d: Date): Date {
   return addMonths(d, 1);
 }
 
-function addMonths(d: Date, n: number): Date {
+/** `n` calendar months later (or earlier, n < 0), clamped to that month's last day */
+export function addMonths(d: Date, n: number): Date {
   const out = new Date(d.getTime());
   const day = out.getUTCDate();
   out.setUTCDate(1);

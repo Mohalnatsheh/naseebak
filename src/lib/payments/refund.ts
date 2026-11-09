@@ -99,7 +99,14 @@ export async function applyRefund(args: {
   });
   if (!refunded) return "already";
 
-  if (refunded.endsPro && payment.proSubscriptionId) await endProAfterRefund(payment.proSubscriptionId, payment, args.adminId);
+  if (refunded.endsPro && payment.proSubscriptionId) {
+    // The refund is committed: nothing after it may throw, or the member would get no notice and a retry says "already"
+    try {
+      await endProAfterRefund(payment.proSubscriptionId, payment, args.adminId);
+    } catch (e) {
+      console.error("[pro] refund: ending Pro failed", payment.proSubscriptionId, e);
+    }
+  }
 
   if (userId) {
     await notify({
@@ -132,8 +139,10 @@ async function endProAfterRefund(subscriptionId: string, payment: { id: string; 
     await cancelProNow(subscriptionId, { reason: "refund", ...(adminId && { adminId }) });
   } catch (e) {
     console.error("[pro] refund: Stripe cancel failed", subscriptionId, e);
-    await endProLocally(subscriptionId);
-    const sub = await db.proSubscription.findUnique({ where: { id: subscriptionId }, select: { stripeSubscriptionId: true } });
+    await endProLocally(subscriptionId).catch((err) => console.error("[pro] refund: local end failed", subscriptionId, err));
+    const sub = await db.proSubscription
+      .findUnique({ where: { id: subscriptionId }, select: { stripeSubscriptionId: true } })
+      .catch(() => null);
     await sendAdminAlert(
       "Pro refund: cancel the subscription in Stripe",
       `Payment ${payment.id} was refunded and Pro ended here, but cancelling Stripe subscription ` +

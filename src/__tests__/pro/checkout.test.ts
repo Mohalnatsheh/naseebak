@@ -19,7 +19,11 @@ vi.mock("@/lib/countries/settings", () => ({ getCountrySettings: mocks.getCountr
 vi.mock("@/lib/pro/status", () => ({ currentProSubscription: mocks.currentProSubscription }));
 vi.mock("@/lib/payments/mock", () => ({ MOCK_SESSION_PREFIX: "mock_", paymentsMockEnabled: mocks.paymentsMockEnabled }));
 
+vi.mock("@/lib/auth", () => ({ requireUser: async () => ({ session: { user: { id: "u1" } } }) }));
+vi.mock("@/lib/mobile-config", () => ({ appPaymentsFor: async () => true }));
+
 import { ProError, startProCheckout } from "@/lib/pro/checkout";
+import { POST as checkoutRoute } from "@/app/api/pro/checkout/route";
 import { CHECKOUT_TTL_MS } from "@/lib/payments/packages";
 
 const plans = { monthly: { enabled: true, price: 4, credits: 8 } };
@@ -86,6 +90,8 @@ describe("startProCheckout", () => {
     expect(arg.line_items[0].price_data.unit_amount).toBe(564);
     expect(arg.line_items[0].price_data.currency).toBe("usd");
     expect(arg.metadata).toMatchObject({ app: "naseebak", kind: "pro", userId: "u1", plan: "monthly", country: "JO", paymentId: r.paymentId });
+    // The offer's credits travel with the checkout (a plan changed in the checkout window never alters what was bought)
+    expect(arg.metadata.credits).toMatch(/^\d+$/);
     expect(arg.subscription_data.metadata).toEqual(arg.metadata);
     expect(arg.success_url).toContain("/dashboard/payments?pro=success");
     expect(arg.cancel_url).toContain("/dashboard/payments?pro=cancel");
@@ -148,5 +154,24 @@ describe("startProCheckout", () => {
     db.payment.findMany.mockRejectedValue(new Error("db down"));
     const r = await startProCheckout("u1", "monthly");
     expect(r.url).toBe("https://stripe.test/c");
+  });
+});
+
+describe("POST /api/pro/checkout", () => {
+  const post = (body: unknown) => checkoutRoute(new Request("http://x/api/pro/checkout", { method: "POST", body: JSON.stringify(body) }));
+
+  it("an unknown plan is refused with its code, without a cast-only check", async () => {
+    const res = await post({ plan: "daily" });
+    expect(res.status).toBe(400);
+    expect((await res.json()).code).toBe("UNKNOWN_PLAN");
+  });
+
+  it("a Stripe failure answers 502 with a code the app can read", async () => {
+    stripe.create.mockRejectedValue(Object.assign(new Error("boom"), { type: "StripeAPIError" }));
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const res = await post({ plan: "monthly" });
+    expect(res.status).toBe(502);
+    expect(await res.json()).toEqual({ error: "تعذّر بدء عملية الدفع الآن. حاول مرة أخرى بعد قليل.", code: "CHECKOUT_FAILED" });
+    spy.mockRestore();
   });
 });

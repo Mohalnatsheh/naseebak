@@ -80,7 +80,13 @@ export async function cancelProNow(
 
   const stripeId = stripeIdOf(sub);
   if (stripeId) await cancelOnStripe(stripeId);
-  if (!(await endProLocally(sub.id))) return "already";
+  if (!(await endProLocally(sub.id))) {
+    // Our Stripe cancel went through and its `customer.subscription.deleted` webhook ended the row first (and told the
+    // member): this cancel still did it. Without a Stripe call, someone else ended it
+    if (!stripeId) return "already";
+    console.log("[pro] ended now (row ended by the webhook first):", sub.id, by.reason);
+    return "ended";
+  }
   console.log("[pro] ended now:", sub.id, by.reason, by.adminId ? `admin ${by.adminId}` : "");
 
   if (by.reason === "admin" && sub.userId) {

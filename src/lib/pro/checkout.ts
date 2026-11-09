@@ -20,6 +20,12 @@ export const PRO_ERROR_MESSAGES: Record<ProErrorCode, string> = {
   UNKNOWN_PLAN: "الباقة غير صالحة",
 };
 
+/** The checkout route's own refusals, next to the Pro ones */
+export const PRO_ROUTE_MESSAGES = {
+  APP_PURCHASES_DISABLED: "الشراء غير متاح في التطبيق حالياً",
+  CHECKOUT_FAILED: "تعذّر بدء عملية الدفع الآن. حاول مرة أخرى بعد قليل.",
+} as const;
+
 export class ProError extends Error {
   constructor(public readonly code: ProErrorCode) {
     super(PRO_ERROR_MESSAGES[code]);
@@ -91,7 +97,8 @@ export async function startProCheckout(userId: string, plan: ProPlanId): Promise
     sessionId = `${MOCK_SESSION_PREFIX}pro_${randomUUID()}`;
     url = `/dashboard/payments?mockPro=${paymentId}`;
   } else {
-    const metadata = { app: CHECKOUT_APP, kind: "pro", userId, plan, country, paymentId };
+    // credits: what the offer said, so a plan changed in the checkout window never alters what was bought
+    const metadata = { app: CHECKOUT_APP, kind: "pro", userId, plan, country, paymentId, credits: String(offer.credits) };
     const checkout = await getStripe().checkout.sessions.create({
       mode: "subscription",
       line_items: [

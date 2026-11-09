@@ -39,9 +39,21 @@ describe("proOffersFor", () => {
     });
     expect(o.map((x) => x.id)).toEqual(["weekly", "yearly"]);
   });
-  it("is empty without plans or country", () => {
+  it("is empty without plans", () => {
     expect(proOffersFor("JO", null)).toEqual([]);
-    expect(proOffersFor("XX", { weekly: { enabled: true, price: 1, credits: 1 } })).toEqual([]);
+  });
+  it("reads an unknown country as the default one, like toCountry", () => {
+    const o = proOffersFor("XX", { weekly: { enabled: true, price: 1, credits: 1 } });
+    expect(o.map((x) => [x.id, x.currency])).toEqual([["weekly", "JOD"]]);
+    expect(proOffersFor("sa", { weekly: { enabled: true, price: 5, credits: 1 } })[0].currency).toBe("SAR");
+  });
+  it("skips a price that isn't a finite positive number", () => {
+    const plans = {
+      weekly: { enabled: true, price: Number.NaN, credits: 1 },
+      monthly: { enabled: true, price: Number.POSITIVE_INFINITY, credits: 1 },
+      yearly: { enabled: true, price: 0, credits: 1 },
+    };
+    expect(proOffersFor("JO", plans)).toEqual([]);
   });
 });
 

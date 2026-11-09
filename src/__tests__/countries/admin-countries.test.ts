@@ -11,7 +11,7 @@ vi.mock("@/lib/auth", () => ({
 vi.mock("@/lib/sms", () => sms);
 vi.mock("@/lib/rate-limit-db", () => ({ rateLimitDb: async () => ({ success: true }) }));
 
-import { clearCountrySettingsCache } from "@/lib/countries/settings";
+import { clearCountrySettingsCache, getCountrySettings } from "@/lib/countries/settings";
 import { GET as list } from "@/app/api/admin/countries/route";
 import { PATCH as update } from "@/app/api/admin/countries/[code]/route";
 import { POST as testSms } from "@/app/api/admin/countries/[code]/test-sms/route";
@@ -54,6 +54,20 @@ describe("admin countries", () => {
       expect((await update(req({ packagePrices: { sa_10: price } }), p("SA"))).status).toBe(400);
     }
     expect(db.countrySetting.upsert).not.toHaveBeenCalled();
+  });
+
+  it("Pro plans round-trip: a first save creates the row with them, and the stored value reads back as the same plans", async () => {
+    const proPlans = { monthly: { enabled: true, price: 4, credits: 8 }, yearly: { enabled: false, price: 40, credits: 5 } };
+    await update(req({ proPlans }), p("JO"));
+    const { create } = db.countrySetting.upsert.mock.calls[0][0];
+    expect(create.proPlans).toEqual(proPlans);
+    // A first save with no Pro change sends no plain null into the Json column
+    await update(req({ active: true }), p("SA"));
+    expect(db.countrySetting.upsert.mock.calls[1][0].create).not.toHaveProperty("proPlans");
+
+    clearCountrySettingsCache();
+    db.countrySetting.findMany.mockResolvedValue([{ ...create, createdAt: new Date(), updatedAt: new Date(), updatedById: "admin1" }]);
+    expect((await getCountrySettings("JO")).proPlans).toEqual(proPlans);
   });
 
   it("saves Pro plans per country", async () => {

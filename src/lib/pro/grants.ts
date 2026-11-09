@@ -4,11 +4,13 @@ import { recordCredit } from "@/lib/credits";
 import { notify } from "@/lib/notify";
 import { arabicCount } from "@/lib/utils";
 import { liveProWhere } from "@/lib/pro/status";
-import { addMonth } from "@/lib/pro/dates";
+import { addMonth, addMonths } from "@/lib/pro/dates";
 import { proPlanName } from "@/lib/pro/plans";
 
 const MAX_YEARLY_GRANTS_PER_RUN = 500;
 const YEARLY_GRANT_MONTHS = 12;
+
+class NoMemberError extends Error {}
 
 function isUniqueViolation(e: unknown): boolean {
   return e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002";
@@ -52,7 +54,12 @@ export async function grantProCredits(args: {
       return sub.userId;
     });
   } catch (e) {
-    if (isUniqueViolation(e) || e instanceof NoMemberError) return "already";
+    if (isUniqueViolation(e)) return "already";
+    if (e instanceof NoMemberError) {
+      // The member was deleted (the row is kept for the records): nobody to credit, nothing to retry
+      console.warn("[pro-grants] no member on the subscription, nothing granted", subscriptionId, key);
+      return "already";
+    }
     throw e;
   }
 
@@ -73,7 +80,16 @@ export async function grantProCredits(args: {
   return "granted";
 }
 
-class NoMemberError extends Error {}
+/**
+ * The date of the grant after month `month` of a paid year, anchored on the year's start day (the period end minus
+ * twelve months) and clamped per month: 31 Jan → 28 Feb → 31 Mar, never drifting to the 28th. Falls back to one month
+ * after the planned date if the period end can't anchor it (never earlier than that planned date).
+ */
+export function nextYearlyGrantDate(planned: Date, periodEnd: Date | null | undefined, month: number): Date {
+  if (!periodEnd || Number.isNaN(periodEnd.getTime())) return addMonth(planned);
+  const anchored = addMonths(periodEnd, month - 12);
+  return anchored > planned ? anchored : addMonth(planned);
+}
 
 /**
  * Morning task: the monthly grant of live yearly memberships, months 2 to 12 of each paid year (month 1 comes with the
@@ -105,13 +121,13 @@ export async function runYearlyProGrants(now: Date): Promise<{ granted: number }
         console.warn("[pro-grants] yearly subscription without a completed payment", sub.id);
         continue;
       }
-      const nextDate = addMonth(sub.nextCreditGrantAt ?? now);
+      const nextDate = nextYearlyGrantDate(sub.nextCreditGrantAt ?? now, sub.currentPeriodEnd, sub.grantsMade + 1);
       const result = await grantProCredits({
         subscriptionId: sub.id,
         paymentId: payment.id,
         key: `yearly:${payment.id}:${sub.grantsMade + 1}`,
         credits: sub.creditsPerGrant,
-        // Anchored on the planned date so twelve grants fit the year; a late run just catches up daily
+        // Anchored on the paid year's start day so twelve grants fit the year; a late run just catches up daily
         advanceNextTo: nextDate,
       });
       if (result === "granted") granted += 1;

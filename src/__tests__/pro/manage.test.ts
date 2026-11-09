@@ -254,3 +254,38 @@ describe("applyRefund of a Pro payment", () => {
     expect(stripe.subscriptions.cancel).not.toHaveBeenCalled();
   });
 });
+
+describe("minor fixes", () => {
+  it("cancelProNow: the deleted webhook ended the row between our Stripe cancel and our write → still 'ended', no second notice", async () => {
+    addSub();
+    stripe.subscriptions.cancel.mockImplementation(async () => {
+      // The webhook of this very cancel commits first
+      s().subs[0].status = "ENDED";
+      s().subs[0].endedAt = new Date();
+      return { status: "canceled" };
+    });
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    expect(await cancelProNow("ps1", { reason: "admin", adminId: "a1" })).toBe("ended");
+    log.mockRestore();
+    expect(notifyMock.notify).not.toHaveBeenCalled();
+  });
+
+  it("applyRefund: a failure while ending Pro after the refund never escapes, and the member still gets the refund notice", async () => {
+    addSub();
+    addPayment("pay1", new Date());
+    stripe.subscriptions.cancel.mockRejectedValueOnce(new Error("stripe down"));
+    alert.sendAdminAlert.mockRejectedValueOnce(new Error("mail down"));
+    const update = fake.current.db.proSubscription.updateMany;
+    fake.current.db.proSubscription.updateMany = vi.fn(async () => {
+      throw new Error("db blip");
+    }) as typeof update;
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      expect(await applyRefund({ paymentId: "pay1" })).toBe("refunded");
+    } finally {
+      fake.current.db.proSubscription.updateMany = update;
+      spy.mockRestore();
+    }
+    expect(notifyMock.notify).toHaveBeenCalledWith(expect.objectContaining({ title: "تم استرداد المبلغ" }));
+  });
+});

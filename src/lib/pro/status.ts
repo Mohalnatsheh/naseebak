@@ -14,7 +14,7 @@ export function liveProWhere(now: Date) {
  */
 export async function currentProSubscription(userId: string, now: Date = new Date()): Promise<ProSubscription | null> {
   return db.proSubscription.findFirst({
-    where: { userId, status: { in: [...LIVE_STATUSES] }, currentPeriodEnd: { gt: now } },
+    where: { userId, ...liveProWhere(now) },
     orderBy: { currentPeriodEnd: "desc" },
   });
 }
@@ -28,7 +28,7 @@ export async function isPro(userId: string, now: Date = new Date()): Promise<boo
 export async function proUserIds(userIds: string[], now: Date = new Date()): Promise<Set<string>> {
   if (userIds.length === 0) return new Set();
   const rows = await db.proSubscription.findMany({
-    where: { userId: { in: userIds }, status: { in: [...LIVE_STATUSES] }, currentPeriodEnd: { gt: now } },
+    where: { userId: { in: userIds }, ...liveProWhere(now) },
     select: { userId: true },
   });
   const out = new Set<string>();

@@ -1213,5 +1213,6 @@ model ProCreditGrant {
   createdAt      DateTime @default(now())
 
   @@index([paymentId])
+  @@index([subscriptionId])
   @@map("pro_credit_grants")
 }

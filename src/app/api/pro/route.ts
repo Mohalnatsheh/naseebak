@@ -5,9 +5,12 @@ import { toCountry } from "@/lib/countries";
 import { getCountrySettings, purchasesAvailable } from "@/lib/countries/settings";
 import { appPaymentsFor } from "@/lib/mobile-config";
 import { getProEnabled } from "@/lib/settings";
-import { proOffersFor } from "@/lib/pro/plans";
+import type { ProPlan } from "@prisma/client";
+import { proOffersFor, type ProPlanId } from "@/lib/pro/plans";
 import type { MyProState } from "@/lib/pro/pro-types";
 import { currentProSubscription } from "@/lib/pro/status";
+
+const PLAN_IDS: Record<ProPlan, ProPlanId> = { WEEKLY: "weekly", MONTHLY: "monthly", YEARLY: "yearly" };
 
 /** The signed-in member's Pro state and, while sales are on, the offers of their country */
 export async function GET(request: Request) {
@@ -21,14 +24,16 @@ export async function GET(request: Request) {
     db.user.findUnique({ where: { id: userId }, select: { country: true, phone: true } }),
   ]);
   const country = toCountry(me?.country);
-  const countrySettings = await getCountrySettings(country);
   // The app follows the app-only payments switch and never sells to test accounts (same rule as POST /api/pro/checkout)
-  const sellable = request.headers.get("authorization")?.startsWith("Bearer ") ? await appPaymentsFor(me?.phone) : true;
+  const [countrySettings, sellable] = await Promise.all([
+    getCountrySettings(country),
+    request.headers.get("authorization")?.startsWith("Bearer ") ? appPaymentsFor(me?.phone) : Promise.resolve(true),
+  ]);
   const offers = enabled && sellable ? proOffersFor(country, countrySettings.proPlans) : [];
   const state: MyProState = {
     enabled,
     isPro: !!sub,
-    plan: sub ? sub.plan.toLowerCase() as MyProState["plan"] : null,
+    plan: sub ? PLAN_IDS[sub.plan] : null,
     renewsAt: sub ? sub.currentPeriodEnd.toISOString() : null,
     cancelAtPeriodEnd: sub?.cancelAtPeriodEnd ?? false,
     pastDue: sub?.status === "PAST_DUE",

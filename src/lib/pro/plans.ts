@@ -3,7 +3,7 @@
  * Prices and credits are set in Admin → Countries (`country_settings.proPlans`); this module only reads and shapes them.
  * Jordan: shown in JOD, charged in USD cents. Saudi Arabia: SAR.
  */
-import { isCountryCode } from "@/lib/countries";
+import { toCountry } from "@/lib/countries";
 import { chargeFor } from "@/lib/payments/packages";
 
 export type ProPlanId = "weekly" | "monthly" | "yearly";
@@ -28,7 +28,7 @@ export interface ProPlanOffer {
   interval: "week" | "month" | "year";
 }
 
-export const PRO_PLAN_IDS: readonly ProPlanId[] = ["weekly", "monthly", "yearly"];
+export const PRO_PLAN_IDS = ["weekly", "monthly", "yearly"] as const satisfies readonly ProPlanId[];
 export const PRO_PLAN_LABELS: Record<ProPlanId, string> = { weekly: "أسبوعي", monthly: "شهري", yearly: "سنوي" };
 const INTERVALS: Record<ProPlanId, ProPlanOffer["interval"]> = { weekly: "week", monthly: "month", yearly: "year" };
 
@@ -49,14 +49,17 @@ export function readProPlans(value: unknown): ProPlans | null {
   return Object.keys(out).length > 0 ? out : null;
 }
 
-/** Enabled plans of a country as sellable offers, weekly then monthly then yearly */
+/**
+ * Enabled plans of a country as sellable offers, weekly then monthly then yearly. An unknown country is read as the
+ * default one (`toCountry`), like every other country lookup.
+ */
 export function proOffersFor(country: unknown, plans: ProPlans | null): ProPlanOffer[] {
-  if (!plans || !isCountryCode(country)) return [];
-  const currency = country === "SA" ? "SAR" : "JOD";
+  if (!plans) return [];
+  const currency = toCountry(country) === "SA" ? "SAR" : "JOD";
   const offers: ProPlanOffer[] = [];
   for (const id of PRO_PLAN_IDS) {
     const c = plans[id];
-    if (!c || !c.enabled || !(c.price > 0)) continue;
+    if (!c || !c.enabled || !Number.isFinite(c.price) || !(c.price > 0)) continue;
     offers.push({ id, price: c.price, currency, ...chargeFor(c.price, currency), credits: c.credits, interval: INTERVALS[id] });
   }
   return offers;

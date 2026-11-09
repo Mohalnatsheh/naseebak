@@ -10,6 +10,7 @@
  */
 import type Stripe from "stripe";
 import type { Prisma, ProPlan, ProSubscription } from "@prisma/client";
+import type { CountrySettings } from "@/lib/countries/settings";
 import { db } from "@/lib/db";
 import { notify } from "@/lib/notify";
 import { toCountry } from "@/lib/countries";
@@ -75,19 +76,34 @@ function otherLiveRow(tx: Tx, userId: string, stripeSubscriptionId: string) {
   });
 }
 
+/** How far before the row's end an invoice's period must end to count as an older period delivered late */
+const OLDER_PERIOD_MARGIN_MS = 3 * 24 * 60 * 60 * 1000;
+
 const findRow = (tx: Tx, stripeSubscriptionId: string) =>
   tx.proSubscription.findFirst({ where: { stripeSubscriptionId }, orderBy: { createdAt: "asc" } });
 
+/** The country settings a row may need, read before taking the lock (a cold read never lengthens the locked time) */
+function settingsFor(meta: Meta): Promise<CountrySettings> {
+  return getCountrySettings(toCountry(meta.country));
+}
+
+/** Credits per grant the member saw at checkout (metadata), or null for an older checkout without them */
+function creditsFromMeta(meta: Meta): number | null {
+  const n = Number(meta.credits);
+  return meta.credits !== undefined && meta.credits !== "" && Number.isInteger(n) && n >= 0 && n <= 100 ? n : null;
+}
+
 /**
  * Creates the subscription row from our metadata. Price and currency come from the checkout's Payment (what the member
- * saw); credits per grant from the country's plan config now: a later admin change never alters a bought plan.
+ * saw), and credits per grant from the checkout's metadata (what the offer said; the country's plan config now for
+ * an older checkout without them): a later admin change never alters a bought plan.
  */
 async function createRow(
   tx: Tx,
-  a: { stripeSubscriptionId: string; customerId: string | null; meta: Meta; plan: ProPlanId; periodEnd: Date }
+  a: { stripeSubscriptionId: string; customerId: string | null; meta: Meta; plan: ProPlanId; periodEnd: Date; settings: CountrySettings }
 ): Promise<ProSubscription> {
   const country = toCountry(a.meta.country);
-  const settings = await getCountrySettings(country);
+  const settings = a.settings;
   const config = settings.proPlans?.[a.plan];
   const payment = a.meta.paymentId
     ? await tx.payment.findUnique({ where: { id: a.meta.paymentId }, select: { amount: true, currency: true } })
@@ -117,7 +133,7 @@ async function createRow(
       currentPeriodEnd: a.periodEnd,
       price,
       currency,
-      creditsPerGrant: config?.credits ?? 0,
+      creditsPerGrant: creditsFromMeta(a.meta) ?? config?.credits ?? 0,
     },
   });
 }
@@ -132,15 +148,17 @@ export async function handleProCheckoutCompleted(session: Stripe.Checkout.Sessio
     console.error("[pro] checkout without a subscription or plan:", session.id, meta);
     return "already";
   }
+  const settings = await settingsFor(meta!);
   return withSubscriptionLock(stripeSubscriptionId, async (tx) => {
     if (await findRow(tx, stripeSubscriptionId)) return "already";
     await lockMember(tx, meta!.userId);
     const created = new Date(session.created * 1000);
-    // A second subscription while another is live is never made live here: its invoice.paid cancels and refunds it
+    // A second subscription while another is live is not made live here (and a subscription update never extends a
+    // row with no paid invoice): its invoice.paid ends it, cancels it at Stripe and leaves any refund to an admin
     const duplicate = meta!.userId ? await otherLiveRow(tx, meta!.userId, stripeSubscriptionId) : null;
     // Paid: live for one estimated period until invoice.paid sets the exact end. Not paid yet: not live
     const periodEnd = session.payment_status === "paid" && !duplicate ? addPlanPeriod(created, plan) : created;
-    await createRow(tx, { stripeSubscriptionId, customerId: idOf(session.customer), meta: meta!, plan, periodEnd });
+    await createRow(tx, { stripeSubscriptionId, customerId: idOf(session.customer), meta: meta!, plan, periodEnd, settings });
     return "ok";
   });
 }
@@ -157,11 +175,12 @@ export async function handleProInvoicePaid(invoice: Stripe.Invoice): Promise<Pro
     return "already";
   }
 
+  const settings = await settingsFor(meta!);
   const step = await withSubscriptionLock(stripeSubscriptionId, async (tx) => {
     await lockMember(tx, meta!.userId);
     let sub =
       (await findRow(tx, stripeSubscriptionId)) ??
-      (await createRow(tx, { stripeSubscriptionId, customerId: idOf(invoice.customer), meta: meta!, plan, periodEnd: period.end }));
+      (await createRow(tx, { stripeSubscriptionId, customerId: idOf(invoice.customer), meta: meta!, plan, periodEnd: period.end, settings }));
 
     // The member already has a live membership on another subscription: this one is never live (ENDED here, cancelled
     // at Stripe after the commit). Its invoice still grants its credits: the money was taken, and only an admin refunds
@@ -184,7 +203,9 @@ export async function handleProInvoicePaid(invoice: Stripe.Invoice): Promise<Pro
       const checkoutRow = meta!.paymentId
         ? await tx.payment.findUnique({ where: { id: meta!.paymentId }, select: { id: true, status: true, providerTxId: true } })
         : null;
-      if (checkoutRow && !checkoutRow.providerTxId && (checkoutRow.status === "PENDING" || checkoutRow.status === "FAILED")) {
+      // A renewal (billing_reason subscription_cycle) delivered before the first invoice never takes the checkout's row
+      const renewal = invoice.billing_reason === "subscription_cycle";
+      if (!renewal && checkoutRow && !checkoutRow.providerTxId && (checkoutRow.status === "PENDING" || checkoutRow.status === "FAILED")) {
         // The first invoice completes the checkout's row (also a FAILED one: the app gave up while the member paid)
         await tx.payment.update({
           where: { id: checkoutRow.id },
@@ -193,7 +214,7 @@ export async function handleProInvoicePaid(invoice: Stripe.Invoice): Promise<Pro
         paymentId = checkoutRow.id;
       } else {
         const mock = invoice.id.startsWith("mock_");
-        const first = !checkoutRow && !!meta!.paymentId;
+        const first = !renewal && !checkoutRow && !!meta!.paymentId;
         const row = await tx.payment.create({
           data: {
             // The checkout's row never got written: it is made now under its own id, so nothing else can claim it
@@ -228,6 +249,10 @@ export async function handleProInvoicePaid(invoice: Stripe.Invoice): Promise<Pro
     }
     if (endedHere) return { sub, paymentId, paymentNew, notLive: "ended" as const, kept: null };
 
+    // An older paid period first delivered after a newer one (well before the row's end: the checkout's estimate is
+    // only seconds off): its credits are granted, but it never restarts the yearly count or moves the drip date
+    const olderPeriod = period.end.getTime() < sub.currentPeriodEnd.getTime() - OLDER_PERIOD_MARGIN_MS;
+
     const data: Prisma.ProSubscriptionUpdateInput = {};
     // Never back in time: an older invoice delivered late
     if (period.end > sub.currentPeriodEnd) data.currentPeriodEnd = period.end;
@@ -237,7 +262,7 @@ export async function handleProInvoicePaid(invoice: Stripe.Invoice): Promise<Pro
     if (!sub.stripeCustomerId && customerId) data.stripeCustomerId = customerId;
     if (Object.keys(data).length > 0) await tx.proSubscription.update({ where: { id: sub.id }, data });
 
-    return { sub, paymentId, paymentNew, notLive: null, kept: null };
+    return { sub, paymentId, paymentNew, notLive: null, kept: null, olderPeriod };
   });
 
   const { sub, paymentId, paymentNew } = step;
@@ -261,6 +286,7 @@ export async function handleProInvoicePaid(invoice: Stripe.Invoice): Promise<Pro
     return paymentNew || granted ? "ok" : "already";
   }
   let granted = false;
+  const grants = (invoice.amount_paid ?? 0) > 0 && sub.creditsPerGrant > 0;
   if ((invoice.amount_paid ?? 0) > 0) {
     const result = await grantProCredits({
       subscriptionId: sub.id,
@@ -269,15 +295,16 @@ export async function handleProInvoicePaid(invoice: Stripe.Invoice): Promise<Pro
       credits: sub.creditsPerGrant,
       // Yearly: every yearly invoice is month 1 of a paid year (count restarts at 1, in the grant's transaction);
       // the morning task gives months 2 to 12 from a month after the period start
-      ...(sub.plan === "YEARLY" ? { restartYear: true, advanceNextTo: addMonth(period.start) } : {}),
+      ...(sub.plan === "YEARLY" && !step.olderPeriod ? { restartYear: true, advanceNextTo: addMonth(period.start) } : {}),
     });
     granted = result === "granted";
   } else {
     console.warn("[pro] paid invoice of 0, no credits:", invoice.id);
   }
 
-  // «started» once: when the checkout's own Payment is first recorded or first credited (a retry after a failed grant)
-  if (sub.userId && paymentId === meta!.paymentId && (paymentNew || granted)) {
+  // «started» once: by whoever grants the checkout's invoice (the grant is once per key, so two racing deliveries can't
+  // both tell; a retry after a failed grant tells), or, with no credits to grant, by whoever first records its Payment
+  if (sub.userId && paymentId === meta!.paymentId && (granted || (!grants && paymentNew))) {
     try {
       await notify({ userId: sub.userId, type: "PAYMENT", title: PRO_STARTED_TITLE, body: PRO_STARTED_BODY, url: "/dashboard/payments", sms: false });
     } catch (e) {
@@ -338,6 +365,9 @@ const STATUS_FROM_STRIPE: Partial<Record<Stripe.Subscription.Status, ProSubscrip
   incomplete_expired: "CANCELED",
 };
 
+/** Stripe statuses whose period end is a paid period the row may move on to */
+const EXTENDS_PERIOD: readonly Stripe.Subscription.Status[] = ["active", "trialing", "past_due"];
+
 /** Stripe statuses that end Pro here while the subscription still exists at Stripe: cancelled there at once */
 const STOP_AT_STRIPE: readonly Stripe.Subscription.Status[] = ["unpaid", "paused"];
 
@@ -360,7 +390,12 @@ export async function handleProSubscriptionChanged(sub: Stripe.Subscription, kin
 
     const data: Prisma.ProSubscriptionUpdateInput = {};
     if (row.cancelAtPeriodEnd !== sub.cancel_at_period_end) data.cancelAtPeriodEnd = sub.cancel_at_period_end;
-    if (periodEnd && periodEnd > row.currentPeriodEnd) data.currentPeriodEnd = periodEnd;
+    // The period moves on only for a subscription Stripe collects on (not `incomplete`) whose row has a paid invoice:
+    // an update arriving before the first invoice.paid never makes a duplicate's row live
+    if (periodEnd && periodEnd > row.currentPeriodEnd && EXTENDS_PERIOD.includes(sub.status)) {
+      const paid = await tx.payment.findFirst({ where: { proSubscriptionId: row.id, status: "COMPLETED" }, select: { id: true } });
+      if (paid) data.currentPeriodEnd = periodEnd;
+    }
     let ends = false;
     if (kind === "deleted") {
       data.status = "ENDED";

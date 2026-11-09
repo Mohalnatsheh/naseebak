@@ -13,7 +13,7 @@ const notifyMock = vi.hoisted(() => ({ notify: vi.fn() }));
 vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/notify", () => notifyMock);
 
-import { grantProCredits, runYearlyProGrants } from "@/lib/pro/grants";
+import { grantProCredits, nextYearlyGrantDate, runYearlyProGrants } from "@/lib/pro/grants";
 
 const sub = { id: "s1", userId: "u1" };
 
@@ -190,5 +190,50 @@ describe("runYearlyProGrants", () => {
     db.proCreditGrant.create.mockRejectedValue(new Prisma.PrismaClientKnownRequestError("dup", { code: "P2002", clientVersion: "x" }));
     expect(await runYearlyProGrants(now)).toEqual({ granted: 0 });
     expect(db.proSubscription.update).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("yearly grant dates", () => {
+  it("stay on the year's start day through short months: 31 Jan → 28 Feb → 31 Mar, never drifting to the 28th", () => {
+    // A year that started 31 Jan 2027 ends 31 Jan 2028; month 2 is due 28 Feb
+    const end = new Date("2028-01-31T09:00:00Z");
+    const feb = new Date("2027-02-28T09:00:00Z");
+    const mar = nextYearlyGrantDate(feb, end, 2);
+    expect(mar).toEqual(new Date("2027-03-31T09:00:00Z"));
+    expect(nextYearlyGrantDate(mar, end, 3)).toEqual(new Date("2027-04-30T09:00:00Z"));
+    expect(nextYearlyGrantDate(new Date("2027-04-30T09:00:00Z"), end, 4)).toEqual(new Date("2027-05-31T09:00:00Z"));
+  });
+
+  it("twelve grants fit the year: month 12's next date is the period end", () => {
+    const end = new Date("2028-01-31T09:00:00Z");
+    expect(nextYearlyGrantDate(new Date("2027-12-31T09:00:00Z"), end, 12)).toEqual(end);
+  });
+
+  it("falls back to one month after the planned date without a usable period end, and never goes back", () => {
+    expect(nextYearlyGrantDate(new Date("2026-11-01T06:00:00Z"), null, 4)).toEqual(new Date("2026-12-01T06:00:00Z"));
+    expect(nextYearlyGrantDate(new Date("2026-11-01T06:00:00Z"), new Date("2026-01-01T06:00:00Z"), 4)).toEqual(new Date("2026-12-01T06:00:00Z"));
+  });
+
+  it("the morning run anchors on the period end", async () => {
+    const now = new Date("2027-02-28T10:00:00Z");
+    db.proSubscription.findMany.mockResolvedValue([
+      { id: "s1", userId: "u1", grantsMade: 1, creditsPerGrant: 4, nextCreditGrantAt: new Date("2027-02-28T09:00:00Z"), currentPeriodEnd: new Date("2028-01-31T09:00:00Z") },
+    ]);
+    await runYearlyProGrants(now);
+    expect(db.proSubscription.update).toHaveBeenCalledWith({
+      where: { id: "s1" },
+      data: { grantsMade: { increment: 1 }, nextCreditGrantAt: new Date("2027-03-31T09:00:00Z") },
+    });
+  });
+});
+
+describe("a subscription with no member", () => {
+  it("grants nothing and says so in the log", async () => {
+    db.proSubscription.findUnique.mockResolvedValue({ id: "s1", userId: null });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    expect(await grantProCredits({ subscriptionId: "s1", paymentId: "p", key: "invoice:x", credits: 3 })).toBe("already");
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("no member"), "s1", "invoice:x");
+    expect(db.user.update).not.toHaveBeenCalled();
+    warn.mockRestore();
   });
 });

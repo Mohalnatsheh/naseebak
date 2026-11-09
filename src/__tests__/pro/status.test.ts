@@ -67,3 +67,21 @@ describe("proUserIds", () => {
     expect(db.proSubscription.findMany).not.toHaveBeenCalled();
   });
 });
+
+describe("currentProSubscription", () => {
+  it("is null with no live row", async () => {
+    state.rows = [{ userId: "a", status: "ENDED", currentPeriodEnd: future }, { userId: "a", status: "ACTIVE", currentPeriodEnd: past }];
+    expect(await currentProSubscription("a", NOW)).toBeNull();
+    expect(await currentProSubscription("nobody", NOW)).toBeNull();
+  });
+  it("asks for the live row with the latest end first", async () => {
+    const later = new Date("2026-12-20T00:00:00Z");
+    state.rows = [{ userId: "a", status: "ACTIVE", currentPeriodEnd: future }, { userId: "a", status: "PAST_DUE", currentPeriodEnd: later }];
+    db.proSubscription.findFirst.mockImplementation(async ({ where, orderBy }: { where: Where; orderBy: { currentPeriodEnd: "asc" | "desc" } }) => {
+      const rows = match(where).sort((x, y) => x.currentPeriodEnd.getTime() - y.currentPeriodEnd.getTime());
+      return (orderBy.currentPeriodEnd === "desc" ? rows.reverse() : rows)[0] ?? null;
+    });
+    expect((await currentProSubscription("a", NOW))?.currentPeriodEnd).toEqual(later);
+    expect(db.proSubscription.findFirst.mock.calls[0][0].orderBy).toEqual({ currentPeriodEnd: "desc" });
+  });
+});

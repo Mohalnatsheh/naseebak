@@ -158,18 +158,35 @@ describe("sendMessage", () => {
   it("refuses the last piece of a phone number sent in parts", async () => {
     db.conversation.findUnique.mockResolvedValue(conv());
     db.message.findMany.mockResolvedValueOnce([
-      { senderId: "u1", body: "صفر سبعة تسعة" },
-      { senderId: "u1", body: "صفر صفر" },
+      { senderId: "u1", body: "صفر سبعة تسعة", createdAt: new Date() },
+      { senderId: "u1", body: "صفر صفر", createdAt: new Date() },
     ]);
     await expectCode(sendMessage({ conversationId: "c", senderId: "u1", body: "تسعة تسعة" }), "FILTERED");
     expect(db.message.create).not.toHaveBeenCalled();
   });
 
+  it("my own filler message between the pieces doesn't reset them (QA WC-02)", async () => {
+    db.conversation.findUnique.mockResolvedValue(conv());
+    db.message.findMany.mockResolvedValueOnce([
+      { senderId: "u1", body: "تمام", createdAt: new Date() },
+      { senderId: "u1", body: "0791", createdAt: new Date() },
+    ]);
+    await expectCode(sendMessage({ conversationId: "c", senderId: "u1", body: "234567" }), "FILTERED");
+    expect(db.message.create).not.toHaveBeenCalled();
+  });
+
+  it("an ordinary message with years and amounts is not a split number (QA WC-03)", async () => {
+    db.conversation.findUnique.mockResolvedValue(conv());
+    db.message.findMany.mockResolvedValueOnce([]);
+    await sendMessage({ conversationId: "c", senderId: "u1", body: "مواليد 1995 وتخرجت 2017 والمهر 5000" });
+    expect(db.message.create).toHaveBeenCalled();
+  });
+
   it("a partner's reply in between resets the pieces", async () => {
     db.conversation.findUnique.mockResolvedValue(conv());
     db.message.findMany.mockResolvedValueOnce([
-      { senderId: "f1", body: "ماذا تقصد؟" },
-      { senderId: "u1", body: "صفر سبعة تسعة صفر صفر" },
+      { senderId: "f1", body: "ماذا تقصد؟", createdAt: new Date() },
+      { senderId: "u1", body: "صفر سبعة تسعة صفر صفر", createdAt: new Date() },
     ]);
     await sendMessage({ conversationId: "c", senderId: "u1", body: "تسعة تسعة" });
     expect(db.message.create).toHaveBeenCalled();
@@ -295,12 +312,22 @@ describe("extendConversation", () => {
     db.conversation.findUnique.mockResolvedValue(c);
     const res = await extendConversation(c.id, "u1");
     expect(new Date(res.expiresAt).getTime() - Date.now()).toBeGreaterThan(9 * DAY);
-    expect(db.conversation.update).toHaveBeenCalledWith(expect.objectContaining({
+    expect(db.conversation.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ extended: false }),
       data: expect.objectContaining({ extended: true }),
     }));
 
     db.conversation.findUnique.mockResolvedValue({ ...c, extended: true });
     await expectCode(extendConversation(c.id, "u1"), "NOT_ALLOWED");
+  });
+
+  it("two taps at once: only one extends and tells the partner (QA chat WC-14)", async () => {
+    const c = conv({ expiresAt: new Date(Date.now() + 2.5 * DAY), expiryWarnedAt: null });
+    db.conversation.findUnique.mockResolvedValue(c);
+    db.conversation.updateMany.mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({ count: 0 });
+    const results = await Promise.allSettled([extendConversation(c.id, "u1"), extendConversation(c.id, "f1")]);
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    expect(notifyMod.notify).toHaveBeenCalledTimes(1);
   });
 });
 

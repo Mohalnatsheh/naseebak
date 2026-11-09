@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { checkMessage, completesSplitNumber, numberShape } from "@/lib/chat/filter";
+import { checkMessage, completesSplitNumber, numberShape, ownRecentPieces } from "@/lib/chat/filter";
 
 const blocked = (body: string) => {
   const r = checkMessage(body);
@@ -69,8 +69,8 @@ describe("phone numbers split across messages", () => {
     expect(completesSplitNumber("صفر سبعة", ["كيف حالك؟"])).toBe(false);
   });
 
-  it("stops at the first message that is not a number", () => {
-    expect(completesSplitNumber("واحد اثنان", ["أهلاً", "صفر سبعة تسعة صفر صفر"])).toBe(false);
+  it("skips the sender's own filler messages between pieces (QA WC-02)", () => {
+    expect(completesSplitNumber("واحد اثنان", ["أهلاً", "صفر سبعة تسعة صفر صفر"])).toBe(true);
   });
 
   it("numberShape counts digits and spelled digits", () => {
@@ -212,4 +212,126 @@ describe("checkMessage — Saudi numbers (multi-country)", () => {
       expect(checkMessage(body)).toEqual({ ok: true, text: body });
     },
   );
+});
+
+describe("QA 2026-11-10 (chat WC-01): tatweel, marks and letters of any script between digits", () => {
+  const blocked = (t: string) => expect(checkMessage(t).ok, t).toBe(false);
+  const allowed = (t: string) => expect(checkMessage(t).ok, t).toBe(true);
+
+  it("blocks numbers stretched with tatweel or harakat", () => {
+    blocked("079ـ123ـ4567");
+    blocked("٠٧٩ـ١٢٣ـ٤٥٦٧");
+    blocked("0ـ7ـ9ـ1ـ2ـ3ـ4ـ5ـ6ـ7");
+    blocked("0َ7ُ9ِ1ّ2ْ3ً4ٌ5ٍ6َ7");
+  });
+
+  it("blocks numbers with invisible characters between the digits", () => {
+    blocked("079\u200b123\u200b4567");
+    blocked("0\u200d7\u200d9\u200d1\u200d2\u200d3\u200d4\u200d5\u200d6\u200d7");
+    blocked("079\u200f123\u200e4567");
+  });
+
+  it("blocks numbers with Arabic (or any) letters between the digits", () => {
+    blocked("0ب7ب9ب1ب2ب3ب4ب5ب6ب7");
+    blocked("079ثم123ثم4567");
+    blocked("05ж12ж34ж56ж78");
+  });
+
+  it("ordinary messages with tatweel and harakat still pass", () => {
+    allowed("أهـــلاً وسهـــلاً");
+    allowed("عُمري 29 وطولي 175");
+    allowed("مواليد 1995 و 2017 تخرجت");
+    allowed("2و3 أطفال إن شاء الله");
+  });
+});
+
+describe("QA 2026-11-10 (chat WC-02, WC-03, WC-16): split numbers", () => {
+  it("the same sender's filler messages don't reset the run", () => {
+    expect(completesSplitNumber("234567", ["تمام", "0791"])).toBe(true);
+    expect(completesSplitNumber("4567", ["و", "079123"])).toBe(true);
+    expect(completesSplitNumber("4567", ["طيب", "123", "اه", "079"])).toBe(true);
+  });
+
+  it("a message on its own is never a split number (needs an earlier piece)", () => {
+    expect(completesSplitNumber("مواليد 1995 وتخرجت 2017 والمهر 5000", [])).toBe(false);
+    expect(completesSplitNumber("0791234", [])).toBe(false);
+  });
+
+  it("years and round amounts with words around them aren't pieces", () => {
+    expect(completesSplitNumber("والمهر 5000", ["تخرجت 2017", "مواليد 1995"])).toBe(false);
+    expect(completesSplitNumber("راتبي 1500", ["عمري 29"])).toBe(false);
+    expect(checkMessage("مواليد 1995 وتخرجت 2017 والمهر 5000").ok).toBe(true);
+  });
+
+  it("ownRecentPieces: my run since the partner wrote; number-only pieces over a longer window", () => {
+    const now = Date.parse("2026-11-10T12:00:00Z");
+    const ago = (min: number) => new Date(now - min * 60_000);
+    const recent = [
+      { senderId: "me", body: "تمام", createdAt: ago(1) },
+      { senderId: "me", body: "079", createdAt: ago(25) },
+      { senderId: "me", body: "رقمي 0791", createdAt: ago(30) },
+      { senderId: "me", body: "123", createdAt: ago(70) },
+      { senderId: "her", body: "123", createdAt: ago(80) },
+    ];
+    expect(ownRecentPieces(recent, "me", now)).toEqual(["تمام", "079"]);
+    // The partner's message ends the run (two people alternating is accepted)
+    expect(ownRecentPieces([{ senderId: "her", body: "1", createdAt: ago(1) }, ...recent], "me", now)).toEqual([]);
+    // Pieces 25 minutes apart still add up
+    expect(completesSplitNumber("1234567", ownRecentPieces(recent, "me", now))).toBe(true);
+  });
+});
+
+describe("QA 2026-11-10 (chat WC-04, WC-15): handles, spaced domains, more apps, spelled tens", () => {
+  const reason = (t: string) => {
+    const r = checkMessage(t);
+    return r.ok ? null : r.reason;
+  };
+  const allowed = (t: string) => expect(checkMessage(t).ok, t).toBe(true);
+
+  it.each(["يوزري ahmad_99_jo", "ابحثي عني باسم ahmad.khaled99", "my handle is ahmad_k99", "يوزري ahmad", "handle: ahmad", "دور علي ahmadk"])(
+    "blocks a handle without @: %s",
+    (t) => expect(reason(t)).toBe("CONTACT"),
+  );
+
+  it.each(["example . com", "example dot com", "example(dot)com", "example نقطة com", "mysite .net"])("blocks a spaced domain: %s", (t) =>
+    expect(reason(t)).toBe("LINK"),
+  );
+
+  it.each(["ahmad at protonmail", "ahmad (at) proton", "ahmad [at] mailbox"])("blocks a spelled-out email: %s", (t) =>
+    expect(reason(t)).toBe("CONTACT"),
+  );
+
+  it.each(["skype: ahmad", "line: ahmad99", "WeChat ahmad", "lnstagram ahmad", "1nstagram", "ضيفني سكايب", "عندي لاين", "insta?", "تواصل معي بوتيم"])(
+    "blocks other apps and look-alike spellings: %s",
+    (t) => expect(reason(t)).toBe("CONTACT"),
+  );
+
+  it.each([
+    "رقمي سبعمية وتسعة وسبعين، مية وثلاثة وعشرين، اربعمية وستة وخمسين",
+    "صفر سبعة تسعة وتسعين مية وثلاثة وعشرين خمسة واربعين",
+    "zero seven ninety nine one hundred twenty three forty five",
+  ])("blocks a number spelled with tens and hundreds: %s", (t) => expect(reason(t)).toBe("CONTACT"));
+
+  it("ordinary messages still pass (whole-word short names, years, amounts, ages in words)", () => {
+    for (const t of [
+      "instant coffee please",
+      "snapshot of the day",
+      "I love the online courses",
+      "اشتغل اونلاين من البيت",
+      "we stood in line for hours",
+      "I can handle it",
+      "ok. me too",
+      "Thanks. Come early",
+      "مواليد 1995 وتخرجت 2017 والمهر 5000",
+      "عمري تسعة وعشرين وطولي مية وخمسة وسبعين",
+      "خمسة وتسعين بالمية من الناس بحبوا السفر",
+      "عشر سنين وانا بشتغل بالتدريس",
+      "اخواني اثنين واخواتي ثلاثة",
+      "I look at things differently",
+      "version v1.2 of the app",
+      "iPhone 15 Pro",
+      "big family",
+      "LG phone",
+    ]) allowed(t);
+  });
 });

@@ -26,33 +26,126 @@ const MESSAGES: Record<FilterReason, string> = {
 const LINK_RE =
   /(https?:\/\/|www\.|wa\.me|t\.me|\b[a-z0-9-]+\.(com|net|org|me|jo|io|co|info|app|link|ly|xyz|site|online|store|shop|live|page|dev|biz|top|club|pro|tv|cc|gg|ws|to|sa|ae|qa|kw|bh|om|eg|ps|iq|lb|sy|tr|uk|us|ca|de|fr)\b)/i;
 
+/**
+ * A domain with the dot spaced out or spelled ("example . com", "example dot com", "example(dot)com",
+ * «example نقطة com»). Only the TLDs nobody types after a full stop in a sentence ("ok. me too" stays).
+ * Read on the lower-cased, normalised text (ة → ه).
+ */
+const SPACED_LINK_RE =
+  /\b[a-z0-9-]{2,}(?:\s+\.\s*|\s*\.\s+|\s*[([]\s*(?:dot|\.)\s*[)\]]\s*|\s+(?:dot|دوت|نقطه)\s+)(?:com|net|org|io|app|xyz|info|jo|sa)(?![a-z])/;
+
 const EMAIL_RE = /\S+@\S+\.\S+/;
 const HANDLE_RE = /(^|[\s(،,])@[a-z0-9_.]{2,}/i;
+/** An address with the @ spelled out: "ahmad (at) gmail", "ahmad at protonmail" */
+const EMAIL_AT_RE =
+  /[a-z0-9._-]{2,}\s*(?:[([]\s*at\s*[)\]]\s*[a-z]{2,}|\s+at\s+(?:gmail|hotmail|yahoo|outlook|icloud|protonmail|proton|aol|yandex|zoho)\b)/;
+/** A Latin username right after «يوزري» / «ابحثي عني (باسم)» / «دوّر علي» / «حسابي على»: any Latin word */
+const HANDLE_AFTER_AR =
+  /(?:يوزر\S*|ابحث\S*\s+عني|دور\S*\s+علي|حسابي\s+(?:على|ع|في))(?:\s+باسم)?\s*[:：=]?\s*@?[a-z][a-z0-9_.]{2,}/;
+/** "username" / "handle": a word that looks like a username (has a digit, _ or .) or comes after a colon */
+const HANDLE_AFTER_EN =
+  /\b(?:username|user\s*name|handle)\b\s*(?:is\b|هو)?\s*(?:[:：=]\s*@?[a-z][a-z0-9_.]{2,}|@?[a-z][a-z0-9_.]*[0-9_.][a-z0-9_.]*)/;
 
-// Matched anywhere in the message (after normalising), so keep them long enough not to hit normal words
-const SOCIAL_KEYWORDS = [
-  "whatsapp", "watsapp", "whats app", "what's app", "wats app", "واتس", "واتس اب", "وات ساب", "وات س اب", "وتس اب", "وتساب", "وتسب",
-  "instagram", "insta", "انستا", "انستغرام", "انستقرام", "انستجرام", "انستكرام", "اينستا", "انستغرم",
-  "snapchat", "snap", "سناب",
-  "telegram", "تلغرام", "تيليجرام", "تلجرام", "تيلجرام", "تيليغرام", "تليغرام", "تلقرام", "تيليقرام",
-  "facebook", "فيسبوك", "فيس بوك", "messenger", "ماسنجر", "مسنجر",
-  "tiktok", "تيك توك", "تيكتوك",
-  "viber", "فايبر", "twitter", "تويتر", "signal", "سيجنال", "discord", "ديسكورد",
-  "gmail", "hotmail", "yahoo", "outlook", "icloud", "ايميل", "اميل",
+/**
+ * A Latin word shaped like a username on its own: letters, then `_` or `.` pieces, with a digit somewhere
+ * ("ahmad_99_jo", "ahmad.khaled99", "ahmad_k99"). Ordinary words, versions ("v1.2") and years don't look like it.
+ */
+function hasUsernameShape(lower: string): boolean {
+  return lower
+    .split(/[\s،,!?؟:;"'()[\]]+/)
+    .map((t) => t.replace(/[.]+$/, ""))
+    .some((t) => t.length >= 5 && /^[a-z][a-z0-9]*(?:[._][a-z0-9]+)+$/.test(t) && /\d/.test(t));
+}
+
+// Arabic spellings: matched anywhere in the message (after normalising), so keep them long enough not to hit normal words
+const SOCIAL_KEYWORDS_AR = [
+  "واتس", "واتس اب", "وات ساب", "وات س اب", "وتس اب", "وتساب", "وتسب",
+  "انستا", "انستغرام", "انستقرام", "انستجرام", "انستكرام", "اينستا", "انستغرم",
+  "سناب",
+  "تلغرام", "تيليجرام", "تلجرام", "تيلجرام", "تيليغرام", "تليغرام", "تلقرام", "تيليقرام",
+  "فيسبوك", "فيس بوك", "ماسنجر", "مسنجر",
+  "تيك توك", "تيكتوك",
+  "فايبر", "تويتر", "سيجنال", "ديسكورد",
+  "سكايب", "ويتشات", "وي شات", "ويشات", "بوتيم", "لينكدان", "لينكد ان", "فيس تايم", "فيستايم",
+  "ايميل", "اميل",
 ];
-// Short names only blocked as a whole word ("ig", not "big"; "وتس", not "وتسلم" / "وتسعين")
-const SOCIAL_WORDS = new Set(["ig", "fb", "imo", "ايمو", "وتس"]);
+// Latin names: long ones anywhere, short ones (≤ 5 letters) only as a whole word, so "instant coffee",
+// "snapshot" and "big" pass. Read after the look-alike swap (l / 1 / | / ! → i, 0 → o): "lnstagram" is Instagram
+const SOCIAL_KEYWORDS_LATIN = [
+  "whatsapp", "watsapp", "whats app", "what's app", "wats app",
+  "instagram", "insta",
+  "snapchat", "snap",
+  "telegram",
+  "facebook", "messenger",
+  "tiktok",
+  "viber", "twitter", "signal", "discord",
+  "skype", "wechat", "we chat", "kik", "botim", "linkedin", "imessage", "facetime",
+  "gmail", "hotmail", "yahoo", "outlook", "icloud", "protonmail", "proton mail", "yandex",
+];
+const WHOLE_WORD_MAX = 5;
+/** "line: ahmad99", "line id ahmad" (the app): never the word "line" in a sentence */
+const LINE_APP_RE = /\bline\s*(?:[:：=]|\s(?:id|اي دي)\b)/;
+// Short names only blocked as a whole word ("ig", not "big"; "وتس", not "وتسلم" / "وتسعين"; «لاين», not «اونلاين»)
+const SOCIAL_WORDS = new Set(["ig", "fb", "imo", "ايمو", "وتس", "لاين"]);
 
-// Digits spelled out (after normalising أإآ→ا and ة→ه): standard Arabic, Jordanian and Gulf dialects
-// («زيرو», «ثنتين»), English. Phone numbers of every served country (Jordan 07…/962…, Saudi Arabia
-// 05…/966…) are caught by length, whatever the prefix
-const DIGIT_WORDS = new Set([
-  "صفر", "واحد", "اثنين", "اثنان", "ثنين", "ثلاثه", "ثلاث", "اربعه", "اربع",
-  "خمسه", "خمس", "سته", "ست", "سبعه", "سبع", "ثمانيه", "ثمان", "تسعه", "تسع",
-  "تنين", "اتنين", "ثنتين", "تنتين", "تلاته", "تلات", "تلاث", "تمانيه", "تمنيه", "ثمنيه", "تمان",
-  "زيرو",
-  "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine",
-]);
+/** Latin letters and digits people swap into app names ("lnstagram", "1nsta", "teleqram" aside) */
+function lookAlikeLatin(s: string): string {
+  return s.replace(/[l1|!]/g, "i").replace(/0/g, "o");
+}
+
+function hasSocialKeyword(lower: string): boolean {
+  if (SOCIAL_KEYWORDS_AR.some((k) => lower.includes(normaliseArabic(k)))) return true;
+  if (LINE_APP_RE.test(lower)) return true;
+  const latin = lookAlikeLatin(lower);
+  return SOCIAL_KEYWORDS_LATIN.some((k) => {
+    const key = lookAlikeLatin(k);
+    if (k.length > WHOLE_WORD_MAX) return latin.includes(key);
+    return new RegExp(`(?<![a-z])${key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![a-z])`).test(latin);
+  });
+}
+
+type NumberWord = { place: "u" | "t" | "h"; value: number };
+
+// Numbers spelled out (after normalising أإآ→ا and ة→ه): standard Arabic, Jordanian and Gulf dialects
+// («زيرو», «ثنتين», «سبعمية», «اطنعش»), English. Phone numbers of every served country (Jordan 07…/962…,
+// Saudi Arabia 05…/966…) are caught by length, whatever the prefix
+const UNIT_WORDS: Record<string, number> = {
+  صفر: 0, واحد: 1, اثنين: 2, اثنان: 2, ثنين: 2, ثلاثه: 3, ثلاث: 3, اربعه: 4, اربع: 4,
+  خمسه: 5, خمس: 5, سته: 6, ست: 6, سبعه: 7, سبع: 7, ثمانيه: 8, ثمان: 8, تسعه: 9, تسع: 9,
+  تنين: 2, اتنين: 2, ثنتين: 2, تنتين: 2, تلاته: 3, تلات: 3, تلاث: 3, تمانيه: 8, تمنيه: 8, ثمنيه: 8, تمان: 8,
+  زيرو: 0,
+  zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9,
+};
+const TENS_WORDS: Record<string, number> = {
+  عشره: 10, عشر: 10, ten: 10,
+  احدعش: 11, حدعش: 11, اطنعش: 12, اتنعش: 12, ثلطعش: 13, تلطعش: 13, تلتعش: 13, اربعطعش: 14, اربعتعش: 14,
+  خمسطعش: 15, خمستعش: 15, ستطعش: 16, سطعش: 16, سبعطعش: 17, سبعتعش: 17, ثمنطعش: 18, تمنطعش: 18, تمنتعش: 18,
+  تسعطعش: 19, تسعتعش: 19,
+  eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19,
+  عشرين: 20, عشرون: 20, ثلاثين: 30, ثلاثون: 30, تلاتين: 30, اربعين: 40, اربعون: 40, خمسين: 50, خمسون: 50,
+  ستين: 60, ستون: 60, سبعين: 70, سبعون: 70, ثمانين: 80, ثمانون: 80, تمانين: 80, تسعين: 90, تسعون: 90,
+  twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60, seventy: 70, eighty: 80, ninety: 90,
+};
+const HUNDREDS_WORDS: Record<string, number> = {
+  ميه: 100, مايه: 100, مائه: 100, مئه: 100, ميتين: 200, مئتين: 200, مئتان: 200, ميتان: 200,
+  ثلاثميه: 300, تلاتميه: 300, تلتميه: 300, ثلاثمائه: 300, اربعميه: 400, اربعمايه: 400, اربعمائه: 400,
+  خمسميه: 500, خمسمايه: 500, خمسمائه: 500, ستميه: 600, ستمايه: 600, ستمائه: 600,
+  سبعميه: 700, سبعمايه: 700, سبعمائه: 700, ثمانميه: 800, ثمنميه: 800, تمنميه: 800, تمانميه: 800, ثمانمائه: 800,
+  تسعميه: 900, تسعمايه: 900, تسعمائه: 900,
+  hundred: 100,
+};
+
+function numberWordExact(word: string): NumberWord | null {
+  if (word in UNIT_WORDS) return { place: "u", value: UNIT_WORDS[word] };
+  if (word in TENS_WORDS) return { place: "t", value: TENS_WORDS[word] };
+  if (word in HUNDREDS_WORDS) return { place: "h", value: HUNDREDS_WORDS[word] };
+  return null;
+}
+
+/** A spelled number word; "و" + a number word ("وخمسه", "وعشرين") counts as the word */
+function numberWord(word: string): NumberWord | null {
+  return numberWordExact(word) ?? (word.startsWith("و") ? numberWordExact(word.slice(1)) : null);
+}
 
 const OFFENSIVE = ["يا حمار", "يا كلب", "يا غبي", "يا حيوان", "حقير", "fuck", "shit", "bitch"];
 
@@ -62,13 +155,22 @@ const OFFENSIVE = ["يا حمار", "يا كلب", "يا غبي", "يا حيوا
  */
 function normaliseDigits(s: string): string {
   return s
-    .replace(/[\uFE0F\u20E3]/g, "")
+    .replace(/[️⃣]/g, "")
     .replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660))
     .replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x06f0))
     .replace(/[０-９]/g, (d) => String(d.charCodeAt(0) - 0xff10))
     .replace(/[①-⑨]/g, (d) => String(d.charCodeAt(0) - 0x2460 + 1))
     .replace(/⓪/g, "0")
     .replace(/[\u{1D7CE}-\u{1D7FF}]/gu, (d) => String((d.codePointAt(0)! - 0x1d7ce) % 10));
+}
+
+/**
+ * The text every check reads: digits in ASCII, and gone what changes nothing a reader sees: tatweel
+ * (ـ, U+0640), every combining mark (harakat, keycap leftovers) and invisible format characters
+ * (zero-width joiners, direction marks). Never the stored text.
+ */
+function forChecks(s: string): string {
+  return normaliseDigits(s).replace(/[ـ\p{M}\p{Cf}]/gu, "");
 }
 
 function normaliseArabic(s: string): string {
@@ -89,8 +191,9 @@ function hasPhoneNumber(s: string): boolean {
 }
 
 /**
- * Latin letters standing in for digits inside a number ("O79 555 I234" → 0, 1) and letters used as
- * separators between digits ("079x555x1234"): only for the number checks, never the stored text.
+ * Latin letters standing in for digits inside a number ("O79 555 I234" → 0, 1) and 1–3 letters of any
+ * script used as separators between digits ("079x555x1234", "0ب7ب9…"): only for the number checks, never
+ * the stored text. Words with spaces around them ("1995 و 2017") stay apart.
  */
 function normaliseNumberDisguise(s: string): string {
   let out = s;
@@ -102,7 +205,7 @@ function normaliseNumberDisguise(s: string): string {
     if (next === out) break;
     out = next;
   }
-  return out.replace(/(?<=\d)[a-zA-Z]{1,3}(?=\d)/g, "");
+  return out.replace(/(?<=\d)\p{L}{1,3}(?=\d)/gu, "");
 }
 
 /** A year (1950–2039) or a round amount ("5000" dowry, "1500" salary): ordinary talk, not a phone group */
@@ -114,50 +217,93 @@ function ordinaryNumber(group: string): boolean {
 
 /** Digit words anywhere in one message that make it a spelled number («صفر ثم سبعة ثم تسعة…») */
 const SCATTERED_DIGIT_WORDS = 6;
-/** Digits anywhere in one message (written groups + spelled digits, word-separated) that make it a number */
+/** Digits anywhere in one message (written groups + spelled numbers, word-separated) that make it a number */
 const SCATTERED_DIGITS = 9;
-
-/**
- * A number hidden among words: 6+ spelled digits anywhere ("صفر ثم سبعة ثم تسعة ثم …"), or 9+ digits
- * in total across groups with words between them ("07 ثم 95 ثم 55 ثم 12 ثم 34"). Years and round
- * amounts don't count, so "مواليد 1995 وتخرجت 2017 والمهر 5000" stays an ordinary message.
- */
-function hasScatteredNumber(s: string): boolean {
-  let spelled = 0;
-  let total = 0;
-  for (const word of words(s)) {
-    if (digitWord(word)) {
-      spelled += 1;
-      total += 1;
-    } else if (/^\d+$/.test(word) && !ordinaryNumber(word)) {
-      total += word.length;
-    }
-  }
-  return spelled >= SCATTERED_DIGIT_WORDS || total >= SCATTERED_DIGITS;
-}
 
 /** Message split into words: anything that isn't a letter or a digit separates them */
 function words(s: string): string[] {
   return normaliseArabic(s.toLowerCase()).split(/[^\p{L}\p{N}]+/u).filter(Boolean);
 }
 
-/** "و" + digit word ("وخمسه") counts as the digit word */
-function digitWord(word: string): boolean {
-  return DIGIT_WORDS.has(word) || (word.startsWith("و") && DIGIT_WORDS.has(word.slice(1)));
+/**
+ * A message read as tokens: written digit groups, spelled numbers (consecutive number words read as one
+ * number the way people say them: «مية وثلاثة وعشرين» = 123, 3 digits; «سبع مية» = 700; "twenty one" = 21)
+ * and other words. `single` marks a spelled number that is one digit word on its own («صفر», «سبعة»).
+ */
+type Token = { kind: "written"; text: string } | { kind: "spelled"; digits: number; single: boolean } | { kind: "word" };
+
+function tokens(s: string): Token[] {
+  const out: Token[] = [];
+  let group: { value: number; last: NumberWord["place"]; parts: number; hasUnit: boolean } | null = null;
+  const flush = () => {
+    if (!group) return;
+    out.push({ kind: "spelled", digits: group.value === 0 ? 1 : String(group.value).length, single: group.parts === 1 && group.last === "u" });
+    group = null;
+  };
+  for (const word of words(s)) {
+    const n = numberWord(word);
+    if (!n) {
+      flush();
+      out.push(/^\d+$/.test(word) ? { kind: "written", text: word } : { kind: "word" });
+      continue;
+    }
+    const g = group as { value: number; last: NumberWord["place"]; parts: number; hasUnit: boolean } | null;
+    if (g && g.last === "u" && g.parts === 1 && n.place === "h" && n.value === 100 && g.value > 0) {
+      // «سبع مية», "seven hundred"
+      g.value *= 100;
+      g.last = "h";
+      g.parts += 1;
+    } else if (
+      g &&
+      ((g.last === "h" && n.place !== "h") ||
+        (g.last === "u" && n.place === "t" && g.value % 10 > 0) ||
+        (g.last === "t" && n.place === "u" && !g.hasUnit && n.value > 0 && g.value % 10 === 0))
+    ) {
+      g.value += n.value;
+      g.last = n.place;
+      g.parts += 1;
+      g.hasUnit ||= n.place === "u";
+    } else {
+      flush();
+      group = { value: n.value, last: n.place, parts: 1, hasUnit: n.place === "u" };
+    }
+  }
+  flush();
+  return out;
 }
 
 /**
- * 7+ digits in a row, counting written digit groups and spelled-out digits together, so mixing them
+ * A number hidden among words: 6+ spelled digits anywhere ("صفر ثم سبعة ثم تسعة ثم …"), or 9+ digits
+ * in total across groups and spelled numbers with words between them ("07 ثم 95 ثم 55 ثم 12 ثم 34",
+ * «سبعمية وتسعة وسبعين، مية وثلاثة وعشرين…»). Years and round amounts don't count, so
+ * "مواليد 1995 وتخرجت 2017 والمهر 5000" stays an ordinary message.
+ */
+function hasScatteredNumber(s: string): boolean {
+  let spelled = 0;
+  let total = 0;
+  for (const t of tokens(s)) {
+    if (t.kind === "spelled") {
+      if (t.single) spelled += 1;
+      total += t.digits;
+    } else if (t.kind === "written" && !ordinaryNumber(t.text)) {
+      total += t.text.length;
+    }
+  }
+  return spelled >= SCATTERED_DIGIT_WORDS || total >= SCATTERED_DIGITS;
+}
+
+/**
+ * 7+ digits in a row, counting written digit groups and spelled-out numbers together, so mixing them
  * ("079 خمسه خمسه خمسه 1234") or spelling in dialect or English doesn't get through.
  */
 function hasSpelledNumber(s: string): boolean {
   // Written-only digit runs are hasPhoneNumber's job (it knows dates like 12/10/2026 apart)
   let streak = 0;
   let spelled = false;
-  for (const word of words(s)) {
-    if (/^\d+$/.test(word)) streak += word.length;
-    else if (digitWord(word)) {
-      streak += 1;
+  for (const t of tokens(s)) {
+    if (t.kind === "written") streak += t.text.length;
+    else if (t.kind === "spelled") {
+      streak += t.digits;
       spelled = true;
     } else {
       streak = 0;
@@ -170,26 +316,24 @@ function hasSpelledNumber(s: string): boolean {
 
 /**
  * How many digits a message carries (written or spelled out), whether it is only a number (every
- * word is a digit word or digit group, e.g. "079" or "صفر سبعة تسعة"), and its longest digit group.
+ * word is a number word or digit group, e.g. "079" or "صفر سبعة تسعة"), and its longest digit group.
+ * In a message with words around the numbers, years and round amounts ("مواليد 1995", "المهر 5000")
+ * are ordinary talk and don't count.
  */
 export function numberShape(body: string): { digits: number; numberish: boolean; longestGroup: number } {
-  const tokens = words(normaliseDigits(body ?? ""));
+  const list = tokens(normaliseNumberDisguise(forChecks(body ?? "")));
+  const numberish = list.length > 0 && list.every((t) => t.kind !== "word");
   let digits = 0;
-  let numericTokens = 0;
   let longestGroup = 0;
-  for (const word of tokens) {
-    if (digitWord(word)) {
-      digits += 1;
-      numericTokens += 1;
-    } else if (/^\d+$/.test(word)) {
-      digits += word.length;
-      numericTokens += 1;
-      longestGroup = Math.max(longestGroup, word.length);
+  for (const t of list) {
+    if (t.kind === "spelled") digits += t.digits;
+    else if (t.kind === "written" && (numberish || !ordinaryNumber(t.text))) {
+      digits += t.text.length;
+      longestGroup = Math.max(longestGroup, t.text.length);
     }
   }
-  // Only digits (written or spelled): "صفر سبعة تسعة", "079". "رقمي 079" has a word, so it is a
-  // wrapped piece (mayBePartOfNumber) and needs the higher total
-  return { digits, numberish: tokens.length > 0 && numericTokens === tokens.length, longestGroup };
+  // "رقمي 079" has a word, so it is a wrapped piece (mayBePartOfNumber) and needs the higher total
+  return { digits, numberish, longestGroup };
 }
 
 /** Worth reading together with the sender's previous messages: only a number, or carries a 3+ digit group */
@@ -198,13 +342,37 @@ export function mayBePartOfNumber(body: string): boolean {
   return shape.digits > 0 && (shape.numberish || shape.longestGroup >= 3);
 }
 
-/** Minutes within which consecutive number-only messages are read together */
+/** Minutes within which the sender's messages are read together */
 export const SPLIT_NUMBER_WINDOW_MS = 10 * 60 * 1000;
+/** Number-only pieces ("079", «صفر سبعة») are read together over a longer stretch */
+export const NUMBER_ONLY_WINDOW_MS = 60 * 60 * 1000;
+/** How many recent messages the split-number check reads */
+export const SPLIT_NUMBER_LOOKBACK = 20;
 
 /**
- * A phone number sent in pieces: this message and the sender's previous messages (newest first,
- * already limited to the recent window) that may be pieces of a number add up to 7+ digits (9+ when
- * any piece has words around it).
+ * The sender's own run of messages since the partner last wrote (newest first), as pieces for
+ * completesSplitNumber: anything from the last 10 minutes, and number-only messages from the last hour.
+ * Two people alternating pieces is accepted (owner): the partner's message ends the run.
+ */
+export function ownRecentPieces(
+  recentNewestFirst: { senderId: string; body: string; createdAt: Date }[],
+  senderId: string,
+  now = Date.now(),
+): string[] {
+  const out: string[] = [];
+  for (const m of recentNewestFirst) {
+    if (m.senderId !== senderId) break;
+    const age = now - m.createdAt.getTime();
+    if (age <= SPLIT_NUMBER_WINDOW_MS || (age <= NUMBER_ONLY_WINDOW_MS && numberShape(m.body).numberish)) out.push(m.body);
+  }
+  return out;
+}
+
+/**
+ * A phone number sent in pieces: this message and the sender's previous messages (newest first, already
+ * limited to their own recent run) that may be pieces of a number add up to 7+ digits (9+ when any piece
+ * has words around it). The sender's own other messages in between ("تمام", "و") are skipped, not a
+ * reset. A message on its own is checkMessage's job: at least one earlier piece is needed.
  */
 export function completesSplitNumber(current: string, previousNewestFirst: string[]): boolean {
   if (!mayBePartOfNumber(current)) return false;
@@ -213,15 +381,14 @@ export function completesSplitNumber(current: string, previousNewestFirst: strin
   // Pieces wrapped in text ("رقمي 0795", "والباقي 551234") need 9 digits, so an age or height
   // mentioned in passing doesn't add up to a "number"
   let allNumberish = now.numberish;
-  const enough = () => total >= (allNumberish ? 7 : 9);
   for (const prev of previousNewestFirst) {
-    if (!mayBePartOfNumber(prev)) break;
+    if (!mayBePartOfNumber(prev)) continue;
     const shape = numberShape(prev);
     total += shape.digits;
     allNumberish = allNumberish && shape.numberish;
-    if (enough()) return true;
+    if (total >= (allNumberish ? 7 : 9)) return true;
   }
-  return enough();
+  return false;
 }
 
 function fail(reason: FilterReason): FilterResult {
@@ -233,14 +400,15 @@ export function checkMessage(body: string): FilterResult {
   if (!text) return fail("EMPTY");
   if (text.length > MAX_MESSAGE_LENGTH) return fail("TOO_LONG");
 
-  const digits = normaliseDigits(text);
+  const digits = forChecks(text);
   const lower = normaliseArabic(digits.toLowerCase());
 
-  if (LINK_RE.test(digits)) return fail("LINK");
-  if (EMAIL_RE.test(digits) || HANDLE_RE.test(digits)) return fail("CONTACT");
+  if (LINK_RE.test(digits) || SPACED_LINK_RE.test(lower)) return fail("LINK");
+  if (EMAIL_RE.test(digits) || HANDLE_RE.test(digits) || EMAIL_AT_RE.test(lower)) return fail("CONTACT");
+  if (HANDLE_AFTER_AR.test(lower) || HANDLE_AFTER_EN.test(lower) || hasUsernameShape(lower)) return fail("CONTACT");
   const numbers = normaliseNumberDisguise(digits);
   if (hasPhoneNumber(numbers) || hasSpelledNumber(numbers) || hasScatteredNumber(numbers)) return fail("CONTACT");
-  if (SOCIAL_KEYWORDS.some((k) => lower.includes(normaliseArabic(k)))) return fail("CONTACT");
+  if (hasSocialKeyword(lower)) return fail("CONTACT");
   if (words(digits).some((w) => SOCIAL_WORDS.has(w))) return fail("CONTACT");
   if (OFFENSIVE.some((w) => lower.includes(normaliseArabic(w)))) return fail("OFFENSIVE");
 

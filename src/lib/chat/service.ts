@@ -14,7 +14,14 @@ import { chatSmsTargets } from "@/lib/chat/unread-sms";
 import { rateLimit } from "@/lib/rate-limit";
 import { getCycleFlags } from "@/lib/settings";
 import { publishChatEvent } from "@/lib/ably";
-import { checkMessage, completesSplitNumber, mayBePartOfNumber, SPLIT_NUMBER_WINDOW_MS } from "@/lib/chat/filter";
+import {
+  checkMessage,
+  completesSplitNumber,
+  mayBePartOfNumber,
+  NUMBER_ONLY_WINDOW_MS,
+  ownRecentPieces,
+  SPLIT_NUMBER_LOOKBACK,
+} from "@/lib/chat/filter";
 import { IntroError } from "@/lib/intro/errors";
 import { fileReport } from "@/lib/reports";
 import { LEGACY_ADMIN_VISIT, cancelPendingBetween, familyMoveOpenUntil, isUnavailable } from "@/lib/matches/state";
@@ -582,18 +589,13 @@ async function createMessage(args: SendArgs): Promise<ChatMessage> {
   // A number sent in pieces ("صفر سبعة تسعة", then "واحد اثنان …"): read my recent messages together
   if (mayBePartOfNumber(check.text)) {
     const recent = await db.message.findMany({
-      where: { conversationId, createdAt: { gt: new Date(Date.now() - SPLIT_NUMBER_WINDOW_MS) } },
+      where: { conversationId, createdAt: { gt: new Date(Date.now() - NUMBER_ONLY_WINDOW_MS) } },
       orderBy: { createdAt: "desc" },
-      take: 6,
-      select: { senderId: true, body: true },
+      take: SPLIT_NUMBER_LOOKBACK,
+      select: { senderId: true, body: true, createdAt: true },
     });
-    // Only my own run of messages since the partner last wrote
-    const mine: string[] = [];
-    for (const m of recent) {
-      if (m.senderId !== senderId) break;
-      mine.push(m.body);
-    }
-    if (completesSplitNumber(check.text, mine)) {
+    // Only my own run of messages since the partner last wrote (my filler messages in between are skipped)
+    if (completesSplitNumber(check.text, ownRecentPieces(recent, senderId))) {
       throw new IntroError("FILTERED", "لا يمكن مشاركة الأرقام أو الروابط أو حسابات التواصل. مشاركة التواصل تتم عبر التعارف العائلي.");
     }
   }
@@ -756,10 +758,12 @@ export async function extendConversation(conversationId: string, userId: string)
     throw new IntroError("NOT_ALLOWED", "هذا الحساب غير نشط حالياً");
   }
   const expiresAt = new Date(c.expiresAt.getTime() + EXTENSION_DAYS * DAY_MS);
-  await db.conversation.update({
-    where: { id: conversationId },
+  // Both sides tapping «تمديد» at once: only the first write wins, the other is told it's already extended
+  const { count } = await db.conversation.updateMany({
+    where: { id: conversationId, extended: false, status: "ACTIVE" },
     data: { expiresAt, extended: true, expiryWarnedAt: null },
   });
+  if (count === 0) throw new IntroError("NOT_ALLOWED", "تم تمديد هذه المحادثة مسبقاً");
   const partner = partnerOf(c, userId);
   // Badge only, looked up alongside the event and the notice
   const partnerProLookup = isPro(partner.id).catch(() => false);

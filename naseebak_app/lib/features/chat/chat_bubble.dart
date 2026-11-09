@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/localization/digits.dart';
 import '../../core/theme/app_theme.dart';
 import 'chat_models.dart';
+import 'media_bubbles.dart';
 
 /// One message. Mine sit at the start side (right in Arabic) in navy, the other person's at the end side,
 /// the same as the website. Messages in a row from one person sit closer ([tightTop]) and only the last shows its time
@@ -29,7 +30,9 @@ class ChatBubble extends StatelessWidget {
           children: [
             Container(
               margin: EdgeInsets.only(top: tightTop ? 2 : 6),
-              padding: const EdgeInsets.fromLTRB(14, 9, 14, 7),
+              padding: message.kind == MessageKind.image
+                  ? const EdgeInsets.fromLTRB(4, 4, 4, 5)
+                  : const EdgeInsets.fromLTRB(14, 9, 14, 7),
               decoration: BoxDecoration(
                 color: bg,
                 border: failed ? Border.all(color: AppColors.danger) : null,
@@ -45,34 +48,42 @@ class ChatBubble extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(message.body, style: TextStyle(color: fg, fontSize: 16, height: 1.5)),
+                  // Media never shows `body` (the fallback text for apps before 1.1.0)
+                  switch (message.kind) {
+                    MessageKind.image => PhotoBubble(message: message),
+                    MessageKind.voice => VoiceBubble(message: message, color: fg),
+                    MessageKind.text => Text(message.body, style: TextStyle(color: fg, fontSize: 16, height: 1.5)),
+                  },
                   if (showTime) ...[
                     const SizedBox(height: 2),
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          formatTime(message.createdAt),
-                          style: TextStyle(color: fg.withValues(alpha: 0.7), fontSize: 11),
-                        ),
-                        if (mine) ...[
-                          const SizedBox(width: 4),
-                          Icon(
-                            switch (message.state) {
-                              SendState.sending => Icons.schedule_rounded,
-                              SendState.failed => Icons.error_outline_rounded,
-                              SendState.sent => message.readAt != null ? Icons.done_all_rounded : Icons.done_rounded,
-                            },
-                            size: 14,
-                            color: failed ? AppColors.danger : fg.withValues(alpha: 0.8),
-                            semanticLabel: switch (message.state) {
-                              SendState.sending => 'جارٍ الإرسال',
-                              SendState.failed => 'لم تُرسل',
-                              SendState.sent => message.readAt != null ? 'مقروءة' : 'أُرسلت',
-                            },
+                    Padding(
+                      padding: EdgeInsets.symmetric(horizontal: message.kind == MessageKind.image ? 6 : 0),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            formatTime(message.createdAt),
+                            style: TextStyle(color: fg.withValues(alpha: 0.7), fontSize: 11),
                           ),
+                          if (mine) ...[
+                            const SizedBox(width: 4),
+                            Icon(
+                              switch (message.state) {
+                                SendState.sending => Icons.schedule_rounded,
+                                SendState.failed => Icons.error_outline_rounded,
+                                SendState.sent => message.readAt != null ? Icons.done_all_rounded : Icons.done_rounded,
+                              },
+                              size: 14,
+                              color: failed ? AppColors.danger : fg.withValues(alpha: 0.8),
+                              semanticLabel: switch (message.state) {
+                                SendState.sending => 'جارٍ الإرسال',
+                                SendState.failed => 'لم تُرسل',
+                                SendState.sent => message.readAt != null ? 'مقروءة' : 'أُرسلت',
+                              },
+                            ),
+                          ],
                         ],
-                      ],
+                      ),
                     ),
                   ],
                 ],

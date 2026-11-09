@@ -117,6 +117,8 @@ Handled in `src/app/api/payments/webhook/route.ts`, new cases:
 
 ### 5. Cancel, refund
 
+> **Owner decision (2026-11-09), supersedes anything below that refunds on its own:** refunds are made only by an admin. Members can cancel renewal; cancelling never refunds. A second paid subscription while one is live, or a renewal paid after Pro ended, is cancelled at Stripe at once, its invoice's credits are granted, Pro is not made live (the older membership stays), and the admins are emailed the payments to refund by hand. Stripe `unpaid`/`paused` end Pro and are cancelled at Stripe.
+
 - «اشتراكي» section on the website payments page (and the app's plans screen) shows the plan, the next renewal date and a cancel button. Cancel = Stripe `cancel_at_period_end: true`. Before the period ends, the member can undo it («متابعة الاشتراك»).
 - **Refunds** *(my calls, the owner can change them)*:
   - A **full** refund of the **current** period's invoice ends Pro at once and takes back every credit granted from that invoice, never below 0. For yearly that is all the monthly grants so far, because every grant's `refId` points to its invoice.
@@ -129,6 +131,7 @@ Handled in `src/app/api/payments/webhook/route.ts`, new cases:
 
 **Sending** (`POST /api/chats/[id]/media`, multipart; web and app):
 
+- *Superseded (Global Constraint, audit B11): `pro_enabled` gates new sales and offers only; sending follows `isPro` whatever the switch. Don't add the switch back here.*
 - Allowed only when `pro_enabled` is on, the sender `isPro`, the chat is ACTIVE, the sender is in it, and nobody has blocked anyone. Otherwise a clear Arabic error, with a Pro offer when the only missing piece is Pro.
 - **Photos:** JPEG / PNG / WebP / HEIC up to 10 MB uploaded. Re-encoded server-side to WebP (`sharp` is already a dependency), long side ≤ 1600 px, **all metadata stripped (EXIF / GPS location)**. One photo per message, no caption in this version.
 - **Voice:** up to 3 minutes. The app records AAC/M4A, browsers record what `MediaRecorder` gives (WebM/Opus on Chrome/Android, MP4/AAC on Safari). Store as sent; the server checks type and duration (reject > 185 s). *(Builder's call: transcoding is not required if both clients can play both formats. Check that Safari plays WebM/Opus and that the app can play both. If not, transcode or record one format.)*
@@ -155,6 +158,7 @@ Handled in `src/app/api/payments/webhook/route.ts`, new cases:
 
 ### 7. Badge
 
+- *Superseded (Global Constraint, audit B11): `isPro` and the badge follow the membership whatever `pro_enabled` says; the switch gates new sales and offers only.*
 - An `isPro` boolean (only while `pro_enabled` is on) is added to the payloads behind the shared person card (`src/components/shared/person-card.tsx`), the chat header and the member's own profile/dashboard data (`/api/me/counts` or the profile endpoint). The app gets the same fields.
 - Look: a small gold (`accent`) «Pro» pill. Brand colour rules apply.
 - The badge is display only. See anti-goals.

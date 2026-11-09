@@ -139,6 +139,9 @@ class SupportScreen extends ConsumerWidget {
       appBar: AppBar(title: const Text('الدعم الفني')),
       floatingActionButton: FloatingActionButton.extended(
         key: const Key('new-ticket'),
+        // No Hero: it flew between two support screens opened on top of each other and crashed before layout
+        // (Crashlytics: RenderBox was not laid out, _HeroFlightManifest._boundingBoxFor)
+        heroTag: null,
         onPressed: () => _new(context, ref),
         icon: const Icon(Icons.add_comment_outlined),
         label: const Text('تذكرة جديدة'),

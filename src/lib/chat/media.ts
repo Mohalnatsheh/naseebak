@@ -71,6 +71,27 @@ export function voiceExtension(type: string): string {
 
 type Check = { ok: true } | { ok: false; message: string };
 
+const HEIC_MIMES = ["image/heic", "image/heif", "image/heic-sequence", "image/heif-sequence"];
+const HEIC_BRANDS = ["heic", "heix", "hevc", "hevx", "heim", "heis", "mif1", "msf1"];
+
+/** ISO-BMFF `ftyp` box at byte 4 with a HEIC/HEIF brand */
+export function hasHeicMagic(buf: Buffer): boolean {
+  return buf.length >= 12 && buf.toString("latin1", 4, 8) === "ftyp" && HEIC_BRANDS.includes(buf.toString("latin1", 8, 12));
+}
+
+/**
+ * The image type to validate: a HEIC/HEIF by its MIME, its `.heic`/`.heif` extension or, when the
+ * browser/app sent no type (or `application/octet-stream`), its magic bytes, is returned as `image/heic`.
+ * Anything else comes back as sent.
+ */
+export function detectImageType(type: string, fileName: string | null | undefined, buf: Buffer): string {
+  const mime = baseMime(type);
+  if (HEIC_MIMES.includes(mime)) return mime;
+  if (/\.hei[cf]$/i.test(fileName ?? "")) return "image/heic";
+  if ((mime === "" || mime === "application/octet-stream") && hasHeicMagic(buf)) return "image/heic";
+  return type;
+}
+
 export function validateImage(type: string, size: number): Check {
   if (!(IMAGE_TYPES as readonly string[]).includes(baseMime(type))) return { ok: false, message: UNSUPPORTED_IMAGE_MESSAGE };
   if (size <= 0) return { ok: false, message: UNSUPPORTED_IMAGE_MESSAGE };
@@ -90,21 +111,40 @@ export function validateVoice(type: string, size: number, durationSec: number): 
   return { ok: true };
 }
 
+/** sharp first; when this libvips has no HEVC decoder, the wasm decoder turns HEIC into a JPEG for it */
+async function decodeHeicToJpeg(buf: Buffer, sharp: typeof import("sharp")): Promise<Buffer> {
+  // Size check before the decode: heic-convert has no pixel limit of its own
+  const { width = 0, height = 0 } = await sharp(buf).metadata();
+  if (width * height > IMAGE_MAX_INPUT_PIXELS) throw new Error("too large");
+  // Loaded only when a HEIC arrives, so it stays out of every other path and every client bundle
+  const { default: convert } = await import("heic-convert");
+  return Buffer.from(await convert({ buffer: buf, format: "JPEG", quality: 0.9 }));
+}
+
 /**
  * Re-encode a photo to WebP, long side ≤ 1600 px, turned upright from its EXIF orientation. No
  * `withMetadata()`, so EXIF (GPS location included), ICC and XMP are all dropped. A photo sharp can't
- * decode (for example HEIC, when the installed libvips lacks the HEVC decoder) is refused.
+ * decode is refused. HEIC/HEIF (iPhone) goes through sharp when it can decode it, else through the
+ * wasm decoder (primary image only), and then the same pipeline.
  */
 export async function processImage(buf: Buffer): Promise<{ buffer: Buffer; width: number; height: number }> {
   try {
     // Loaded here so the constants above stay importable without the native module
     const { default: sharp } = await import("sharp");
-    const { data, info } = await sharp(buf, { limitInputPixels: IMAGE_MAX_INPUT_PIXELS })
+    const run = (input: Buffer) =>
+      sharp(input, { limitInputPixels: IMAGE_MAX_INPUT_PIXELS })
       .rotate()
       .resize({ width: IMAGE_MAX_SIDE, height: IMAGE_MAX_SIDE, fit: "inside", withoutEnlargement: true })
       .webp({ quality: 80 })
       .toBuffer({ resolveWithObject: true });
-    return { buffer: data, width: info.width, height: info.height };
+    let out;
+    try {
+      out = await run(buf);
+    } catch (err) {
+      if (!hasHeicMagic(buf)) throw err;
+      out = await run(await decodeHeicToJpeg(buf, sharp));
+    }
+    return { buffer: out.data, width: out.info.width, height: out.info.height };
   } catch {
     throw new IntroError("MEDIA_INVALID", UNSUPPORTED_IMAGE_MESSAGE);
   }

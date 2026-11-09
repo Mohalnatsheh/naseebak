@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import sharp from "sharp";
 import { NextResponse } from "next/server";
@@ -32,7 +33,9 @@ vi.mock("@/lib/auth", () => auth);
 vi.mock("@/lib/admin-alert", () => ({ sendAdminAlert: vi.fn() }));
 
 import { getConversation, listConversations, sendMediaMessage, sendMessage } from "@/lib/chat/service";
-import { IMAGE_FALLBACK_BODY, VOICE_FALLBACK_BODY, processImage, validateVoice } from "@/lib/chat/media";
+import { IMAGE_FALLBACK_BODY, VOICE_FALLBACK_BODY, detectImageType, hasHeicMagic, processImage, validateVoice } from "@/lib/chat/media";
+import { readFileSync } from "fs";
+import { join } from "path";
 import { IntroError } from "@/lib/intro/errors";
 import { GET as getMedia } from "@/app/api/chats/[id]/media/[messageId]/route";
 
@@ -268,6 +271,54 @@ describe("processImage", () => {
   it("never enlarges a small photo", async () => {
     const out = await processImage(await gpsJpeg(300, 200));
     expect([out.width, out.height]).toEqual([300, 200]);
+  });
+});
+
+describe("HEIC / HEIF (iPhone)", () => {
+  const heic = () => readFileSync(join(__dirname, "../fixtures/small.heic"));
+
+  it("detects HEIC by MIME, by extension, and by magic when the type is empty or octet-stream", () => {
+    const junk = Buffer.from("not an image at all");
+    for (const t of ["image/heic", "image/heif", "image/heic-sequence", "image/heif-sequence"]) {
+      expect(detectImageType(t, null, junk)).toBe(t);
+    }
+    expect(detectImageType("", "IMG_1.HEIC", junk)).toBe("image/heic");
+    expect(detectImageType("application/octet-stream", "x.heif", junk)).toBe("image/heic");
+    expect(detectImageType("", "photo", heic())).toBe("image/heic");
+    expect(detectImageType("application/octet-stream", "photo", heic())).toBe("image/heic");
+    expect(detectImageType("image/jpeg", "a.jpg", junk)).toBe("image/jpeg");
+    expect(detectImageType("", "a", junk)).toBe("");
+  });
+
+  it("recognises every ISO-BMFF HEIC brand", () => {
+    for (const brand of ["heic", "heix", "hevc", "hevx", "heim", "heis", "mif1", "msf1"]) {
+      expect(hasHeicMagic(Buffer.concat([Buffer.from([0, 0, 0, 24]), Buffer.from("ftyp" + brand)]))).toBe(true);
+    }
+    expect(hasHeicMagic(Buffer.concat([Buffer.from([0, 0, 0, 24]), Buffer.from("ftypisom")]))).toBe(false);
+  });
+
+  it("decodes a real HEIC to a metadata-free WebP, long side ≤ 1600", async () => {
+    const out = await processImage(heic());
+    const meta = await sharp(out.buffer).metadata();
+    expect(meta.format).toBe("webp");
+    expect(meta.exif).toBeUndefined();
+    expect(Math.max(meta.width!, meta.height!)).toBeLessThanOrEqual(1600);
+    expect(out.width).toBe(1600);
+    expect(out.height).toBe(720);
+  });
+
+  it("sends an octet-stream HEIC through the whole send path", async () => {
+    const buf = heic();
+    const type = detectImageType("application/octet-stream", "photo", buf);
+    await sendMediaMessage({ conversationId: "c1", senderId: "u1", kind: "IMAGE", file: buf, type });
+    expect(bunny.uploadToBunny.mock.calls[0][2]).toBe("image/webp");
+  });
+
+  it("refuses a corrupt HEIC with the Arabic message", async () => {
+    const corrupt = Buffer.concat([heic().subarray(0, 40), Buffer.alloc(200, 7)]);
+    const err = await processImage(corrupt).catch((e) => e);
+    expect(err).toBeInstanceOf(IntroError);
+    expect(err.message).toBe("صيغة الصورة غير مدعومة، جرّب صورة JPG أو PNG");
   });
 });
 

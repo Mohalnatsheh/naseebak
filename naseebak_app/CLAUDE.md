@@ -69,8 +69,11 @@ needed a release.
 - **Every request** sends `X-App-Platform: android|ios` (`core/network/api_client.dart`, added 2026-11-04, not yet in a
   store build) for the admin «Active by device» card; older builds are told apart by their push device.
 - **Website links (App Links / Universal Links):** naseebak.com `/dashboard`, `/dashboard/*` and `/register` open the
-  app (`core/routing/website_links.dart`); any incoming link goes to home first, then pushes the mapped screen (so a
-  screen already open is replaced). Android: verified since 2026-11-04 (Play signing + upload key in
+  app (`core/routing/website_links.dart`). A link while the app is ready opens like a notice tap over the current
+  screen (`WebsiteLinkObserver` in `router.dart`; the screen already on top, e.g. `/pro` on a Stripe return, is never
+  opened twice); a link that opens the app (splash, sign-in) waits in one slot (newest wins) and is pushed over home.
+  Android (`MainActivity`, `singleTask`): a handled link is dropped from the activity's intent, so a recreation after
+  process death or a relaunch from recents never replays it (QA H1, 2026-11-10). Android: verified since 2026-11-04 (Play signing + upload key in
   `/.well-known/assetlinks.json`, from Admin → Settings → «Mobile app»). iPhone: works once the App Store build is live.
 - **Payments:** credits are bought with **Stripe** in the phone's browser (`launchUrl` external), not Google/Apple
   billing — the owner's choice, known store-review risk. The app polls `GET /api/payments/{id}/status` when it comes
@@ -110,6 +113,14 @@ needed a release.
   recording (which leaves `playAndRecord`). My note played while still sending moves to the server id on confirm (`handOver`) and its file is kept until the chat is left. **Pro state freshness:** `/pro` re-reads a state another screen kept alive
   (spinner, never stale plans) and on resume; the chat re-reads it on resume and when the counts poll's `pro.isPro`
   disagrees with it.
+- **Push permission (2026-11-10):** signing in no longer shows the system prompt (it came bare over setup step 1);
+  home asks once after setup (`PushAskGate`, prefs `push_explained`) with what the notices are for, then the system
+  prompt; «لاحقاً» leaves the «الإشعارات غير مفعّلة» card.
+- **Chat on the phone (2026-11-10):** failed texts are kept in `ChatCache` (`failed`) and sorted by time with «حذف»;
+  the composer draft is kept per chat in shared preferences (`ChatDrafts`), wiped on send and sign-out; photo-picker
+  copies are deleted after upload and on sign-out (`core/storage/picker_files.dart`); a refused microphone offers
+  «الإعدادات» (`openAppSettings` on the `naseebak/system` channel). The splash plays in full on the first launch only
+  (0.6 s after). A paused account can open `/pro` (renewal shown on the paused page); `/pro` sends test accounts home.
 - **Config gate:** `GET /api/mobile/config` on start and every resume → force update / optional update / store links /
   maintenance (`core/update/app_update.dart`). Popup alerts: `GET /api/alerts/current?platform=app`.
 - **Crashlytics:** release builds only.

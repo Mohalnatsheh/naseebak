@@ -702,6 +702,25 @@ void main() {
       await h.leave(tester);
     });
 
+    testWidgets('Pro bought in the browser with nothing else changing: the open chat unlocks within a minute',
+        (tester) async {
+      final h = _Harness(isPro: false);
+      await h.open(tester);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('chat-mic-pro-tag')), findsOneWidget);
+      h.isPro = true;
+      await tester.pump(const Duration(seconds: 61));
+      for (var i = 0; i < 10; i++) {
+        await tester.pump(const Duration(milliseconds: 10));
+      }
+      expect(find.byKey(const Key('chat-mic-pro-tag')), findsNothing);
+      // Unlocked: no more re-reads
+      final reads = h.adapter.to('GET', '/api/pro').length;
+      await tester.pump(const Duration(seconds: 61));
+      expect(h.adapter.to('GET', '/api/pro').length, reads);
+      await h.leave(tester);
+    });
+
     testWidgets('back in the foreground the chat re-reads Pro once', (tester) async {
       final h = _Harness(isPro: false);
       await h.open(tester);

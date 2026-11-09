@@ -1,0 +1,144 @@
+import { describe, expect, it } from "vitest";
+import {
+  chatRowLayout,
+  chatStatusBar,
+  familyStepOf,
+  firstUnreadId,
+  groupByDay,
+  isActiveChat,
+  splitChats,
+} from "@/components/chat/chat-look";
+import type { UiMessage } from "@/components/chat/chat-utils";
+
+function msg(id: string, mine: boolean, createdAt: string, extra: Partial<UiMessage> = {}): UiMessage {
+  return { id, body: id, createdAt, mine, readAt: null, kind: "TEXT", media: null, replyTo: null, reactions: [], ...extra };
+}
+
+// Local noon times, so the day boundaries don't depend on the machine's zone
+const day1 = (h: number, m = 0) => new Date(2026, 10, 9, h, m).toISOString();
+const day2 = (h: number, m = 0) => new Date(2026, 10, 10, h, m).toISOString();
+
+describe("chatRowLayout: runs and tails", () => {
+  const list = [
+    msg("a", false, day1(10)),
+    msg("b", false, day1(10, 1)),
+    msg("c", true, day1(10, 2)),
+    msg("d", true, day1(14)), // a long pause stays in the run
+    msg("e", true, day2(9)), // a new day starts a new run
+    msg("f", false, day2(9, 1)),
+  ];
+
+  it("puts a tail on the first bubble of each run only", () => {
+    expect(list.map((_, i) => chatRowLayout(list, i).tail)).toEqual([true, false, true, false, true, true]);
+  });
+
+  it("starts a day chip on the first message and on each new day", () => {
+    expect(list.map((_, i) => chatRowLayout(list, i).daySeparator)).toEqual([true, false, false, false, true, false]);
+  });
+
+  it("breaks a run at the unread divider", () => {
+    const l = chatRowLayout(list, 1, "b");
+    expect(l.unreadDivider).toBe(true);
+    expect(l.tail).toBe(true);
+    expect(chatRowLayout(list, 0, "b").unreadDivider).toBe(false);
+  });
+});
+
+describe("groupByDay", () => {
+  it("splits by day and keeps each message's index", () => {
+    const list = [msg("a", true, day1(10)), msg("b", false, day1(11)), msg("c", true, day2(8))];
+    const days = groupByDay(list);
+    expect(days.map((d) => d.items.map((m) => m.id))).toEqual([["a", "b"], ["c"]]);
+    expect(days.map((d) => d.first)).toEqual([0, 2]);
+  });
+});
+
+describe("firstUnreadId: where «رسائل جديدة» goes", () => {
+  it("is the oldest unread partner message after my last one", () => {
+    const list = [
+      msg("a", false, day1(9)),
+      msg("b", true, day1(10)),
+      msg("c", false, day1(11)),
+      msg("d", false, day1(12)),
+    ];
+    expect(firstUnreadId(list)).toBe("c");
+  });
+
+  it("is null when everything of theirs was read, or I replied after it", () => {
+    expect(firstUnreadId([msg("a", false, day1(9), { readAt: day1(9) })])).toBeNull();
+    expect(firstUnreadId([msg("a", false, day1(9)), msg("b", true, day1(10))])).toBeNull();
+    expect(firstUnreadId([])).toBeNull();
+  });
+
+  it("skips my unsent bubbles and read partner messages", () => {
+    const list = [msg("a", false, day1(9), { readAt: day1(9) }), msg("b", false, day1(10))];
+    expect(firstUnreadId(list)).toBe("b");
+  });
+});
+
+describe("chatStatusBar: one bar, by priority", () => {
+  const base = { open: true, daysLeft: 10, family: null, pushOff: false, pushDismissed: false };
+
+  it("expiry soon beats the family step and the push chip", () => {
+    expect(chatStatusBar({ ...base, daysLeft: 3, family: "offer", pushOff: true })).toBe("expiry");
+    expect(chatStatusBar({ ...base, daysLeft: 0 })).toBe("expiry");
+  });
+
+  it("the family step beats the push chip", () => {
+    expect(chatStatusBar({ ...base, family: "pending_sent", pushOff: true })).toBe("family");
+  });
+
+  it("the push chip until dismissed", () => {
+    expect(chatStatusBar({ ...base, pushOff: true })).toBe("push");
+    expect(chatStatusBar({ ...base, pushOff: true, pushDismissed: true })).toBe("none");
+  });
+
+  it("nothing in a closed chat or while the keyboard is open", () => {
+    expect(chatStatusBar({ ...base, open: false, daysLeft: 1, family: "offer", pushOff: true })).toBe("none");
+    expect(chatStatusBar({ ...base, daysLeft: 1, keyboardOpen: true })).toBe("none");
+    expect(chatStatusBar(base)).toBe("none");
+  });
+});
+
+describe("familyStepOf", () => {
+  it("maps the request state while requests are on and the match is open", () => {
+    const on = { introRequests: true, closed: null };
+    expect(familyStepOf("none", on)).toBe("offer");
+    expect(familyStepOf("pending_sent", on)).toBe("pending_sent");
+    expect(familyStepOf("pending_received", on)).toBe("pending_received");
+    expect(familyStepOf("accepted", on)).toBe("accepted");
+    expect(familyStepOf("declined", on)).toBeNull();
+  });
+
+  it("shows nothing with requests off, a closed match or no state yet", () => {
+    expect(familyStepOf("none", { introRequests: false, closed: null })).toBeNull();
+    expect(familyStepOf("none", { introRequests: true, closed: "NOT_A_MATCH" })).toBeNull();
+    expect(familyStepOf(undefined, { introRequests: true, closed: null })).toBeNull();
+  });
+});
+
+describe("chats list tabs", () => {
+  const chats = [
+    { id: "1", status: "ACTIVE" as const, blocked: false, unread: 2 },
+    { id: "2", status: "EXPIRED" as const, blocked: false, unread: 1 },
+    { id: "3", status: "ACTIVE" as const, blocked: true, unread: 0 },
+    { id: "4", status: "ENDED" as const, blocked: false, unread: 0 },
+    { id: "5", status: "ACTIVE" as const, blocked: false, unread: 3 },
+  ];
+
+  it("«النشطة» holds open, unblocked chats; the rest go under «المنتهية», order kept", () => {
+    const { active, ended } = splitChats(chats);
+    expect(active.map((c) => c.id)).toEqual(["1", "5"]);
+    expect(ended.map((c) => c.id)).toEqual(["2", "3", "4"]);
+  });
+
+  it("totals the unread per tab", () => {
+    const { activeUnread, endedUnread } = splitChats(chats);
+    expect(activeUnread).toBe(5);
+    expect(endedUnread).toBe(1);
+  });
+
+  it("a blocked chat is not active", () => {
+    expect(isActiveChat({ status: "ACTIVE", blocked: true })).toBe(false);
+  });
+});

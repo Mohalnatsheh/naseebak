@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -15,8 +15,6 @@ import {
   Flag,
   Loader2,
   Lock,
-  CheckCircle2,
-  ArrowLeft,
   ChevronDown,
   WifiOff,
 } from "lucide-react";
@@ -40,9 +38,11 @@ import { ChatComposer, type ChatComposerHandle } from "./chat-composer";
 import { StarterQuestions } from "./starter-questions";
 import { EndChatDialog, type ReportReasonValue } from "./end-chat-dialog";
 import { ConfirmActionDialog } from "@/components/intro/confirm-action-dialog";
-import { dayLabel, mergeMessages, sameDay, type UiMessage } from "./chat-utils";
+import { dayLabel, mergeMessages, type UiMessage } from "./chat-utils";
 import { useChatChannel } from "./use-chat-channel";
-import { ChatPushBanner } from "./chat-push-banner";
+import { useChatPushChip } from "./chat-push-banner";
+import { CHAT_BACKDROP_STYLE, EXPIRY_SOON_DAYS, chatRowLayout, chatStatusBar, familyStepOf, firstUnreadId, groupByDay } from "./chat-look";
+import { ChatStatusBar } from "./chat-status-bar";
 import { useDashboardData } from "@/contexts/dashboard-context";
 import { formatDate } from "@/lib/countries";
 import { checkMessage } from "@/lib/chat/filter";
@@ -206,7 +206,16 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
     };
   }, []);
 
+  // «رسائل جديدة»: fixed when the chat opens (the first unread message of theirs), gone once I write
+  const [unreadFromId, setUnreadFromId] = useState<string | null>(null);
+  const dividerPending = useRef(false);
+
   const applyResponse = useCallback((data: ChatResponse, mode: "replace" | "merge") => {
+    if (mode === "replace") {
+      const id = firstUnreadId(data.messages);
+      setUnreadFromId(id);
+      dividerPending.current = !!id;
+    }
     setConversation(data.conversation);
     setChatEnabled(data.chatEnabled);
     setMessages((prev) => (mode === "replace" ? data.messages : mergeMessages(prev, data.messages)));
@@ -353,6 +362,17 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
     if (el && stickToBottom.current) el.scrollTop = el.scrollHeight;
   }, [messages]);
 
+  // Opening a chat with unread messages: «رسائل جديدة» comes into view (near the top) instead of the very bottom
+  useLayoutEffect(() => {
+    const el = scroller.current;
+    if (!el || !dividerPending.current || !unreadFromId) return;
+    const divider = el.querySelector<HTMLElement>("[data-unread-divider]");
+    if (!divider) return;
+    dividerPending.current = false;
+    el.scrollTop = Math.max(0, el.scrollTop + divider.getBoundingClientRect().top - el.getBoundingClientRect().top - 56);
+    stickToBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+  }, [messages, unreadFromId]);
+
   // Scrolled up to read history: a "back to the newest" button with how many arrived since
   const [away, setAway] = useState(false);
   const [seenUpTo, setSeenUpTo] = useState("");
@@ -416,6 +436,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
       return false;
     }
     const tempId = retryId ?? tempMessageId();
+    setUnreadFromId(null);
     const optimistic: UiMessage = {
       id: tempId, body: text, createdAt: new Date().toISOString(), mine: true, readAt: null, kind: "TEXT", media: null, replyTo: null, reactions: [], pending: "sending",
     };
@@ -453,6 +474,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
   /** A photo or voice note: shown at once from this device, uploaded, then swapped for the saved copy. */
   async function sendMedia(upload: PendingUpload, retryId?: string) {
     setComposerError(null);
+    setUnreadFromId(null);
     const tempId = retryId ?? tempMessageId();
     let url = localUrl(messages.find((m) => m.id === retryId));
     if (!url) {
@@ -565,6 +587,8 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
     loadIntro(conversation.matchId);
   }
 
+  const pushChip = useChatPushChip();
+
   if (notFound) {
     return (
       <div className="mx-auto max-w-md py-20 text-center">
@@ -620,6 +644,18 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
         onError: setComposerError,
       }
     : undefined;
+  const familyStep = conversation.matchHidden
+    ? null
+    : familyStepOf(family?.status, { introRequests: !!intro?.flags.introRequests, closed: intro?.closed });
+  const statusBar = chatStatusBar({
+    open: open && !conversation.blocked,
+    daysLeft: left,
+    family: familyStep,
+    pushOff: pushChip.pushOff,
+    pushDismissed: pushChip.dismissed,
+    keyboardOpen: !!viewport?.keyboard,
+  });
+  const activity = open && !conversation.blocked ? conversation.partner.activityLabel : null;
   const familyOpenUntil = family?.openUntil
     ? formatDate(family.openUntil, country, { day: "numeric", month: "long" })
     : null;
@@ -628,11 +664,12 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
     <div
       // Phones: full screen over the dashboard bar, sized to the visible area so the keyboard never covers the box
       style={viewport ? { height: viewport.height, top: viewport.top } : undefined}
-      className="mx-auto flex max-w-3xl flex-col overflow-hidden bg-card max-md:fixed max-md:inset-x-0 max-md:top-0 max-md:z-50 max-md:h-[100dvh] md:h-[calc(100dvh-4rem)] md:rounded-2xl md:border md:border-border/60 md:shadow-sm"
+      className="mx-auto flex w-full max-w-3xl flex-col overflow-hidden bg-card max-md:fixed max-md:inset-x-0 max-md:top-0 max-md:z-50 max-md:h-[100dvh] md:h-[calc(100dvh-4rem)] md:rounded-2xl md:border md:border-border/60 md:shadow-sm lg:max-w-none"
     >
       {/* Header: who, and how long the chat stays open */}
       <header className="flex items-center gap-2 border-b border-border/60 px-2 pb-2.5 pt-[max(0.625rem,env(safe-area-inset-top))] sm:px-4">
-        <Button asChild variant="ghost" size="icon" aria-label="رجوع" className="shrink-0">
+        {/* Desktop shows the list beside the chat: no way back needed there */}
+        <Button asChild variant="ghost" size="icon" aria-label="رجوع" className="shrink-0 lg:hidden">
           <Link href="/dashboard/chats">
             <ArrowRight className="h-5 w-5" />
           </Link>
@@ -649,10 +686,18 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
                   <VerifiedBadge verified={conversation.partner.isVerified} />
                   {conversation.partner.isPro && <ProBadge />}
                 </div>
-                <p className={cn("mt-0.5 flex items-center gap-1 text-xs", open && left <= 3 ? "font-semibold text-amber-700" : "text-muted-foreground")}>
-                  {open ? <Clock className="h-3.5 w-3.5" aria-hidden /> : <Lock className="h-3.5 w-3.5" aria-hidden />}
-                  {open ? `متبقي ${daysLabel(left)}` : conversation.status === "ENDED" ? "المحادثة منتهية" : "انتهت مدة المحادثة"}
-                  {mode === "live" && <span className="ms-1 inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" aria-label="متصل" />}
+                {/* The status line: the activity label («نشط اليوم») in an open chat, else the time left / why it's
+                    closed. (Typing «يكتب الآن…» goes here first, Task 3.) */}
+                <p data-testid="chat-status-line" className={cn("mt-0.5 flex items-center gap-1 truncate text-xs", activity ? "font-semibold text-emerald-700" : open && left <= EXPIRY_SOON_DAYS ? "font-semibold text-amber-700" : "text-muted-foreground")}>
+                  {activity ? (
+                    activity
+                  ) : (
+                    <>
+                      {open ? <Clock className="h-3.5 w-3.5 shrink-0" aria-hidden /> : <Lock className="h-3.5 w-3.5 shrink-0" aria-hidden />}
+                      {open ? `متبقي ${daysLabel(left)}` : conversation.status === "ENDED" ? "المحادثة منتهية" : "انتهت مدة المحادثة"}
+                    </>
+                  )}
+                  {mode === "live" && <span className="ms-1 inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" aria-label="متصل" />}
                 </p>
               </div>
             </>
@@ -711,58 +756,24 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
           لا يوجد اتصال بالإنترنت. تُرسل رسائلك عند عودة الاتصال.
         </p>
       )}
-      {open && !conversation.blocked && <ChatPushBanner viewerGender={myGender} partnerName={conversation.partner.firstName} />}
-
-      {/* One slim bar, only when there is something to do: extend near the end, the family step */}
-      {(() => {
-        const offerFamily =
-          family?.status === "none" && !!intro?.flags.introRequests && !intro.closed && !conversation.blocked && conversation.status === "ACTIVE";
-        const extendSoon = conversation.canExtend && left <= 3;
-        const familyNote =
-          family?.status === "pending_sent" || family?.status === "pending_received" || family?.status === "accepted" ? family.status : null;
-        if (!offerFamily && !extendSoon && !familyNote) return null;
-        return (
-          <div className="flex min-h-11 items-center gap-2 border-b border-border/40 bg-accent/10 px-3 py-1.5 text-sm">
-            {extendSoon && (
-              <>
-                <Clock className="h-4 w-4 shrink-0 text-amber-700" aria-hidden />
-                <span className="min-w-0 flex-1 truncate text-foreground/80">تنتهي المحادثة قريباً</span>
-                <Button size="xs" variant="outline" onClick={() => setExtendConfirm(true)} disabled={busy} className="shrink-0">
-                  تمديد 7 أيام
-                </Button>
-              </>
-            )}
-            {!extendSoon && offerFamily && (
-              <>
-                <Users className="h-4 w-4 shrink-0 text-accent-foreground" aria-hidden />
-                <span className="min-w-0 flex-1 truncate text-foreground/80">جاهزان للخطوة التالية؟</span>
-                <Button size="xs" onClick={() => setFamilyDialog(true)} className="shrink-0">
-                  تعارف عائلي
-                </Button>
-              </>
-            )}
-            {!extendSoon && !offerFamily && familyNote === "pending_sent" && (
-              <span className="inline-flex items-center gap-1.5 font-semibold text-amber-700">
-                <Clock className="h-4 w-4" aria-hidden /> طلب التعارف العائلي بانتظار الرد
-              </span>
-            )}
-            {!extendSoon && !offerFamily && familyNote === "pending_received" && (
-              <Link href={`/dashboard/matches?match=${conversation.matchId}`} className="inline-flex min-h-11 flex-1 items-center gap-1.5 font-semibold text-primary">
-                <Users className="h-4 w-4" aria-hidden /> وصلك طلب تعارف عائلي <ArrowLeft className="ms-auto h-4 w-4" aria-hidden />
-              </Link>
-            )}
-            {!extendSoon && !offerFamily && familyNote === "accepted" && (
-              <Link href={`/dashboard/matches?match=${conversation.matchId}`} className="inline-flex min-h-11 flex-1 items-center gap-1.5 font-semibold text-emerald-700">
-                <CheckCircle2 className="h-4 w-4" aria-hidden /> بيانات وليّ الأمر <ArrowLeft className="ms-auto h-4 w-4" aria-hidden />
-              </Link>
-            )}
-          </div>
-        );
-      })()}
+      {/* One slim bar, by priority: ending soon, the family step, the push chip (QA WC-07) */}
+      <ChatStatusBar
+        bar={statusBar}
+        daysLeft={left}
+        canExtend={conversation.canExtend}
+        busy={busy}
+        onExtend={() => setExtendConfirm(true)}
+        family={familyStep}
+        onFamily={() => setFamilyDialog(true)}
+        matchHref={`/dashboard/matches?match=${conversation.matchId}`}
+        viewerGender={myGender}
+        pushBlocked={pushChip.blocked}
+        onPushDismiss={pushChip.dismiss}
+      />
 
       {/* Messages */}
       <div className="relative min-h-0 flex-1">
-      <div ref={scroller} onScroll={onScroll} className="chat-backdrop h-full overflow-y-auto overscroll-contain px-3 py-3 sm:px-5">
+      <div ref={scroller} onScroll={onScroll} style={CHAT_BACKDROP_STYLE} className="h-full overflow-y-auto overscroll-contain px-1.5 py-3 sm:px-4">
         {/* Shown once at the top of every chat (most members chat on phones) */}
         <p className="mx-auto mb-1 flex w-fit max-w-full items-center gap-1.5 rounded-full bg-card/90 px-3 py-1.5 text-xs text-muted-foreground shadow-sm ring-1 ring-border/50">
           <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-primary" aria-hidden />
@@ -782,26 +793,33 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
           <p className="py-10 text-center text-sm text-muted-foreground">لا توجد رسائل في هذه المحادثة.</p>
         )}
 
-        {messages.map((m, i) => {
-          const prev = messages[i - 1];
-          const newDay = !prev || !sameDay(prev.createdAt, m.createdAt);
-          return (
-            <Fragment key={m.id}>
-              {newDay && (
-                <div className="my-4 flex justify-center">
-                  <span className="rounded-full bg-card/90 px-3 py-1 text-[11px] font-medium text-muted-foreground shadow-sm ring-1 ring-border/50">
-                    {dayLabel(m.createdAt, country)}
-                  </span>
-                </div>
-              )}
-              <MessageBubble
-                message={m}
-                grouped={!newDay && !!prev && prev.mine === m.mine}
-                onRetry={() => (m.upload ? sendMedia(m.upload, m.id) : send(m.body, m.id))}
-              />
-            </Fragment>
-          );
-        })}
+        {/* One section per day: its date chip stays at the top while that day scrolls by */}
+        {groupByDay(messages).map((day) => (
+          <section key={day.key} className="pb-1">
+            <div className="sticky top-1 z-10 my-2 flex justify-center">
+              <span className="rounded-lg bg-card/95 px-3 py-1 text-[11.5px] font-semibold text-muted-foreground shadow-sm">
+                {dayLabel(day.items[0].createdAt, country)}
+              </span>
+            </div>
+            {day.items.map((m, k) => {
+              const layout = chatRowLayout(messages, day.first + k, unreadFromId);
+              return (
+                <Fragment key={m.id}>
+                  {layout.unreadDivider && (
+                    <div data-unread-divider role="separator" className="my-3 flex justify-center bg-accent/15 py-1">
+                      <span className="rounded-full bg-card px-3 py-0.5 text-xs font-bold text-primary shadow-sm">رسائل جديدة</span>
+                    </div>
+                  )}
+                  <MessageBubble
+                    message={m}
+                    tail={layout.tail}
+                    onRetry={() => (m.upload ? sendMedia(m.upload, m.id) : send(m.body, m.id))}
+                  />
+                </Fragment>
+              );
+            })}
+          </section>
+        ))}
       </div>
         {/* Back to the newest message after scrolling up (with what arrived meanwhile) */}
         {away && (

@@ -17,8 +17,13 @@ import { PageHeader } from "@/components/shared/page-header";
 import { markPageNotificationsRead } from "@/lib/notifications-client";
 import { matchesHref } from "@/lib/matches/links";
 import { ProBadge } from "@/components/shared/pro-badge";
+import { splitChats, type ChatTab } from "./chat-look";
 
-export function ChatList() {
+/**
+ * The chats, in two tabs: «النشطة» (open chats, first) and «المنتهية» (read-only), each with its unread total.
+ * `compact`: the desktop side pane beside an open chat (≥1024 px): no page header or app card, the open chat marked.
+ */
+export function ChatList({ compact = false, activeId }: { compact?: boolean; activeId?: string | null } = {}) {
   // Opening this page clears the bell for the notifications that lead here
   useEffect(() => {
     markPageNotificationsRead("/dashboard/chats", { exact: true });
@@ -31,6 +36,7 @@ export function ChatList() {
   const loaded = useRef(false);
   const { counts, profile, country } = useDashboardData();
   const female = profile?.gender === "FEMALE";
+  const [tab, setTab] = useState<ChatTab>("active");
 
   useEffect(() => {
     let alive = true;
@@ -51,19 +57,28 @@ export function ChatList() {
         });
     load();
     const t = setInterval(load, 15000);
+    // The open chat beside the list marked messages read: the unread badges follow at once
+    window.addEventListener("naseeb:notifications-read", load);
     return () => {
       alive = false;
       clearInterval(t);
+      window.removeEventListener("naseeb:notifications-read", load);
     };
   }, [reloadKey]);
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6 pb-8">
-      <PageHeader
-        icon={MessageCircle}
-        title="المحادثات"
-        description="محادثات خاصة للتعارف قبل الزيارة العائلية، لمدة 14 يوماً."
-      />
+    <div className={compact ? "flex h-full flex-col gap-3" : "mx-auto max-w-3xl space-y-6 pb-8"}>
+      {compact ? (
+        <h2 className="flex items-center gap-2 px-1 pt-1 text-lg font-bold text-foreground">
+          <MessageCircle className="h-5 w-5 text-primary" aria-hidden /> المحادثات
+        </h2>
+      ) : (
+        <PageHeader
+          icon={MessageCircle}
+          title="المحادثات"
+          description="محادثات خاصة للتعارف قبل الزيارة العائلية، لمدة 14 يوماً."
+        />
+      )}
 
       {chats === null && loadFailed ? (
         <LoadError
@@ -101,16 +116,66 @@ export function ChatList() {
           </CardContent>
         </Card>
       ) : (
+        (() => {
+          const split = splitChats(chats);
+          const shown = tab === "active" ? split.active : split.ended;
+          const tabs: { key: ChatTab; label: string; unread: number }[] = [
+            { key: "active", label: "النشطة", unread: split.activeUnread },
+            { key: "ended", label: "المنتهية", unread: split.endedUnread },
+          ];
+          return (
+            <div className={cn("overflow-hidden rounded-2xl border border-border/60 bg-card", compact && "flex min-h-0 flex-1 flex-col")}>
+              <div role="tablist" aria-label="المحادثات" className="grid grid-cols-2 border-b border-border/60">
+                {tabs.map((t) => (
+                  <button
+                    key={t.key}
+                    type="button"
+                    role="tab"
+                    id={`chats-tab-${t.key}`}
+                    aria-selected={tab === t.key}
+                    aria-controls="chats-tabpanel"
+                    onClick={() => setTab(t.key)}
+                    className={cn(
+                      "flex min-h-11 items-center justify-center gap-1.5 border-b-2 text-sm font-bold transition-colors",
+                      tab === t.key ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    {t.label}
+                    {t.unread > 0 && (
+                      <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-accent px-1.5 text-[11px] font-bold text-accent-foreground">
+                        {t.unread > 99 ? "99+" : t.unread}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+              <div role="tabpanel" id="chats-tabpanel" aria-labelledby={`chats-tab-${tab}`} className={cn(compact && "min-h-0 flex-1 overflow-y-auto")}>
+                {shown.length === 0 ? (
+                  <div className="px-6 py-12 text-center">
+                    <p className="font-semibold text-foreground">{tab === "active" ? "لا توجد محادثات نشطة" : "لا توجد محادثات منتهية"}</p>
+                    <p className="mx-auto mt-1 max-w-xs text-sm text-muted-foreground">
+                      {tab === "active"
+                        ? "تظهر هنا المحادثات المفتوحة بعد التوافق المتبادل."
+                        : "تظهر هنا المحادثات التي انتهت مدتها أو أُنهيت، للقراءة فقط."}
+                    </p>
+                  </div>
+                ) : (
         // One list, messaging-app style: whole row taps through, unread in bold with a count
-        <ul className="divide-y divide-border/60 overflow-hidden rounded-2xl border border-border/60 bg-card">
-          {chats.map((c) => {
+        <ul className="divide-y divide-border/60">
+          {shown.map((c) => {
             const left = daysLeft(c.expiresAt);
+            const current = c.id === activeId;
             return (
               <li key={c.id}>
                 <Link
                   href={`/dashboard/chats/${c.id}`}
+                  aria-current={current ? "page" : undefined}
                   aria-label={c.unread > 0 ? `${c.partner.firstName}، ${c.unread} رسائل غير مقروءة` : c.partner.firstName}
-                  className={cn("flex items-center gap-3 px-3.5 py-3.5 transition-colors hover:bg-muted/40", c.unread > 0 && "bg-primary/[0.03]")}
+                  className={cn(
+                    "flex items-center gap-3 px-3.5 py-3.5 transition-colors hover:bg-muted/40",
+                    c.unread > 0 && "bg-primary/[0.03]",
+                    current && "bg-primary/10 hover:bg-primary/10"
+                  )}
                 >
                   <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-primary/10 text-lg font-bold text-primary" aria-hidden>
                     {c.partner.firstName.charAt(0)}
@@ -164,11 +229,16 @@ export function ChatList() {
             );
           })}
         </ul>
+                )}
+              </div>
+            </div>
+          );
+        })()
       )}
 
       {/* After the list (the chats come first on a phone). The only notifications prompt on this page: the
           dashboard's notification bar stays off here */}
-      {chats !== null && <InstallAppCard context="chats" />}
+      {chats !== null && !compact && <InstallAppCard context="chats" />}
     </div>
   );
 }

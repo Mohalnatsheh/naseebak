@@ -6,16 +6,17 @@ import { timeLabel, type UiMessage } from "./chat-utils";
 import { useDashboardData } from "@/contexts/dashboard-context";
 import { PhotoBubble, VoiceBubble } from "./media-bubble";
 
-/** One message. Mine sit on the start (right in RTL) in brand blue; theirs on the end, white.
+/** One message. Mine sit on the start (right in RTL) in brand navy; theirs on the end, white.
+ * The first bubble of a run carries a tail at its top corner (8 px above it); the rest of the run sits 2 px apart.
  * Time and read ticks sit inside the bubble, at its bottom corner. */
 export function MessageBubble({
   message,
-  grouped,
+  tail,
   onRetry,
 }: {
   message: UiMessage;
-  /** Same sender as the message before: tighter spacing */
-  grouped: boolean;
+  /** First of a run from one sender (chatRowLayout) */
+  tail: boolean;
   onRetry?: () => void;
 }) {
   const mine = message.mine;
@@ -24,18 +25,33 @@ export function MessageBubble({
   const media = (message.kind === "IMAGE" || message.kind === "VOICE") && message.media ? message.media : null;
   const photo = !!media && message.kind === "IMAGE";
   return (
-    <div className={cn("flex animate-bubble-in", mine ? "justify-start" : "justify-end", grouped ? "mt-1" : "mt-3")}>
+    <div
+      data-message-id={message.id}
+      className={cn("flex animate-bubble-in px-2", mine ? "justify-start" : "justify-end", tail ? "mt-2" : "mt-0.5")}
+    >
       <div className={cn("flex max-w-[85%] flex-col sm:max-w-[70%]", mine ? "items-start" : "items-end")}>
         <div
           className={cn(
-            "whitespace-pre-wrap break-words text-[15px] leading-relaxed shadow-sm",
-            photo ? "p-1 pb-1.5" : "px-3 pb-1.5 pt-2",
-            mine
-              ? "rounded-2xl rounded-es-md bg-primary text-primary-foreground"
-              : "rounded-2xl rounded-ee-md border border-border/50 bg-card text-foreground",
+            "relative whitespace-pre-wrap break-words rounded-xl text-[15px] leading-relaxed shadow-[0_1px_0.5px_rgb(0_0_0/0.13)]",
+            photo ? "p-1 pb-1.5" : "px-2.5 pb-1.5 pt-1.5",
+            mine ? "bg-primary text-primary-foreground" : "bg-card text-foreground",
+            tail && (mine ? "rounded-ss-none" : "rounded-se-none"),
             message.pending === "failed" && "opacity-70 ring-1 ring-destructive/40"
           )}
         >
+          {tail && (
+            // The tail: a small triangle out of the top corner on the sender's side (start for mine, end for theirs)
+            <span
+              aria-hidden
+              data-testid="bubble-tail"
+              className={cn(
+                "absolute top-0 h-2.5 w-2",
+                mine
+                  ? "-start-2 bg-primary [clip-path:polygon(0_0,100%_0,0_100%)] ltr:[clip-path:polygon(0_0,100%_0,100%_100%)]"
+                  : "-end-2 bg-card [clip-path:polygon(0_0,100%_0,100%_100%)] ltr:[clip-path:polygon(0_0,100%_0,0_100%)]"
+              )}
+            />
+          )}
           {photo && media ? (
             <PhotoBubble media={media} mine={mine} sendFailed={message.pending === "failed"} />
           ) : media ? (

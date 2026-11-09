@@ -154,7 +154,7 @@ export default function SupportPage() {
       <PageHeader
         icon={LifeBuoy}
         title="الدعم والملاحظات"
-        description="أرسل تذكرة دعم أو اقتراح وسنتواصل معك في أقرب وقت"
+        description="يمكنك إرسال تذكرة دعم أو اقتراح، وسنتواصل معك في أقرب وقت"
       />
 
       {/* Tabs */}

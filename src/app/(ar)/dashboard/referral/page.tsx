@@ -66,7 +66,7 @@ export default function ReferralPage() {
   async function handleCopy() {
     if (!data) return;
     const url = `https://naseebak.com/register?invitationCode=${data.referralCode}`;
-    const text = `سجّل في نصيبك واحصل على رصيد مجاني!\n${url}`;
+    const text = `يمكنك التسجيل في نصيبك والحصول على رصيد مجاني!\n${url}`;
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
@@ -79,7 +79,7 @@ export default function ReferralPage() {
   async function handleShare() {
     if (!data) return;
     const url = `https://naseebak.com/register?invitationCode=${data.referralCode}`;
-    const text = `سجّل في نصيبك واحصل على رصيد مجاني!`;
+    const text = `يمكنك التسجيل في نصيبك والحصول على رصيد مجاني!`;
 
     if (navigator.share) {
       try {
@@ -146,7 +146,7 @@ export default function ReferralPage() {
               ) : (
                 <Copy className="h-4 w-4 me-2" />
               )}
-              {copied ? "تم النسخ!" : "انسخ الرمز"}
+              {copied ? "تم النسخ!" : "نسخ الرمز"}
             </Button>
             <Button
               onClick={handleShare}
@@ -176,7 +176,7 @@ export default function ReferralPage() {
                 <CreditCard className="h-5 w-5 text-primary" />
               </div>
               <p className="text-2xl font-bold text-primary">+2</p>
-              <p className="text-xs text-muted-foreground">رصيد لك (الداعي)</p>
+              <p className="text-xs text-muted-foreground">{g("رصيد لك (صاحب الدعوة)", "رصيد لكِ (صاحبة الدعوة)")}</p>
             </div>
             <div className="rounded-xl bg-gradient-to-br from-accent/5 to-accent/10 border border-accent/10 p-4 text-center space-y-2">
               <div className="h-10 w-10 rounded-full bg-accent/10 flex items-center justify-center mx-auto">

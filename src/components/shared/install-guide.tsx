@@ -20,6 +20,7 @@ import {
   Smartphone,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { V } from "@/components/shared/gendered-word";
 import { requestPushPermission } from "@/lib/push-client";
 import { pushPermission, type Device, type PushPermission } from "@/lib/install-env";
 import { canPromptInstall, onInstallPromptChange, promptInstall } from "@/lib/install-prompt";
@@ -52,7 +53,7 @@ function Step({ icon, children }: { icon: ReactNode; children: ReactNode }) {
 
 const B = ({ children }: { children: ReactNode }) => <span className="font-semibold text-foreground">{children}</span>;
 
-const openIconStep = <Step icon={<BellRing />}>افتح نصيبك من <B>الأيقونة الجديدة</B> على شاشتك، ثم وافق على الإشعارات</Step>;
+const openIconStep = <Step icon={<BellRing />}><V m="افتح" f="افتحي" /> نصيبك من <B>الأيقونة الجديدة</B> على شاشتك، ثم <V m="وافق" f="وافقي" /> على الإشعارات</Step>;
 
 /** Copies the guide link, for pasting into Safari / Chrome. */
 export function CopyLink({ label = "نسخ رابط الموقع" }: { label?: string }) {
@@ -110,18 +111,18 @@ export function InstallSteps({ device, onInstalled }: { device: Device; onInstal
     return (
       <div className="space-y-3">
         <p className="text-sm leading-relaxed text-muted-foreground">
-          أنت تتصفح نصيبك من داخل <B>{name}</B>، ولا يمكن تثبيته أو استقبال الإشعارات من هنا. افتحه في {target} أولاً:
+          <V m="أنت تتصفح" f="أنتِ تتصفحين" /> نصيبك من داخل <B>{name}</B>، ولا يمكن تثبيته أو استقبال الإشعارات من هنا. <V m="افتحه" f="افتحيه" /> في {target} أولاً:
         </p>
         <Steps>
           <Step icon={device.os === "ios" ? <MoreHorizontal /> : <MoreVertical />}>
-            اضغط زر <B>النقاط الثلاث</B> في أعلى الشاشة
+            <V m="اضغط" f="اضغطي" /> زر <B>النقاط الثلاث</B> في أعلى الشاشة
           </Step>
           <Step icon={<ExternalLink />}>
-            اختر <B>«فتح في المتصفح»</B> أو <B>«Open in {device.os === "ios" ? "external browser" : "Chrome"}»</B>
+            <V m="اختر" f="اختاري" /> <B>«فتح في المتصفح»</B> أو <B>«Open in {device.os === "ios" ? "external browser" : "Chrome"}»</B>
           </Step>
           <Step icon={<SquarePlus />}>ثم اتبع خطوات التثبيت التي ستظهر لك هناك</Step>
         </Steps>
-        <p className="text-xs text-muted-foreground">إن لم تجد الخيار، انسخ الرابط والصقه في {target}:</p>
+        <p className="text-xs text-muted-foreground">إن لم <V m="تجد" f="تجدي" /> الخيار، <V m="انسخ" f="انسخي" /> الرابط <V m="والصقه" f="والصقيه" /> في {target}:</p>
         <CopyLink />
       </div>
     );
@@ -152,12 +153,12 @@ export function InstallSteps({ device, onInstalled }: { device: Device; onInstal
       return (
         <Steps>
           <Step icon={<Share />}>
-            اضغط زر <B>المشاركة</B> (مربع وسهم للأعلى) أسفل الشاشة. في الإصدارات الأحدث تجده داخل زر <B>«⋯»</B>
+            <V m="اضغط" f="اضغطي" /> زر <B>المشاركة</B> (مربع وسهم للأعلى) أسفل الشاشة. في الإصدارات الأحدث <V m="تجده" f="تجديه" /> داخل زر <B>«⋯»</B>
           </Step>
           <Step icon={<SquarePlus />}>
-            مرّر للأسفل واختر <B>«إضافة إلى الشاشة الرئيسية»</B>
+            <V m="مرّر" f="مرّري" /> للأسفل <V m="واختر" f="واختاري" /> <B>«إضافة إلى الشاشة الرئيسية»</B>
           </Step>
-          <Step icon={<Plus />}>اضغط <B>«إضافة»</B> في أعلى الشاشة</Step>
+          <Step icon={<Plus />}><V m="اضغط" f="اضغطي" /> <B>«إضافة»</B> في أعلى الشاشة</Step>
           {openIconStep}
         </Steps>
       );
@@ -166,10 +167,10 @@ export function InstallSteps({ device, onInstalled }: { device: Device; onInstal
       return (
         <Steps>
           <Step icon={<Share />}>
-            اضغط زر <B>المشاركة</B> في شريط العنوان أعلى الشاشة
+            <V m="اضغط" f="اضغطي" /> زر <B>المشاركة</B> في شريط العنوان أعلى الشاشة
           </Step>
           <Step icon={<SquarePlus />}>
-            اختر <B>«إضافة إلى الشاشة الرئيسية»</B>، ثم <B>«إضافة»</B>
+            <V m="اختر" f="اختاري" /> <B>«إضافة إلى الشاشة الرئيسية»</B>، ثم <B>«إضافة»</B>
           </Step>
           {openIconStep}
         </Steps>
@@ -178,7 +179,7 @@ export function InstallSteps({ device, onInstalled }: { device: Device; onInstal
     return (
       <div className="space-y-3">
         <p className="text-sm leading-relaxed text-muted-foreground">
-          على iPhone يتم التثبيت من <B>Safari</B>. انسخ الرابط وافتحه في Safari، ثم اضغط زر المشاركة واختر «إضافة إلى الشاشة الرئيسية».
+          على iPhone يتم التثبيت من <B>Safari</B>. <V m="انسخ" f="انسخي" /> الرابط <V m="وافتحه" f="وافتحيه" /> في Safari، ثم <V m="اضغط" f="اضغطي" /> زر المشاركة <V m="واختر" f="واختاري" /> «إضافة إلى الشاشة الرئيسية».
         </p>
         <CopyLink />
       </div>
@@ -190,10 +191,10 @@ export function InstallSteps({ device, onInstalled }: { device: Device; onInstal
       return (
         <Steps>
           <Step icon={<Menu />}>
-            اضغط زر <B>القائمة ☰</B> أسفل الشاشة
+            <V m="اضغط" f="اضغطي" /> زر <B>القائمة ☰</B> أسفل الشاشة
           </Step>
           <Step icon={<SquarePlus />}>
-            اختر <B>«إضافة صفحة إلى»</B> ثم <B>«الشاشة الرئيسية»</B>
+            <V m="اختر" f="اختاري" /> <B>«إضافة صفحة إلى»</B> ثم <B>«الشاشة الرئيسية»</B>
           </Step>
           {openIconStep}
         </Steps>
@@ -202,10 +203,10 @@ export function InstallSteps({ device, onInstalled }: { device: Device; onInstal
     return (
       <Steps>
         <Step icon={<MoreVertical />}>
-          اضغط زر <B>⋮</B> في أعلى الشاشة
+          <V m="اضغط" f="اضغطي" /> زر <B>⋮</B> في أعلى الشاشة
         </Step>
         <Step icon={<Download />}>
-          اختر <B>«تثبيت التطبيق»</B> أو <B>«إضافة إلى الشاشة الرئيسية»</B>، ثم <B>«تثبيت»</B>
+          <V m="اختر" f="اختاري" /> <B>«تثبيت التطبيق»</B> أو <B>«إضافة إلى الشاشة الرئيسية»</B>، ثم <B>«تثبيت»</B>
         </Step>
         {openIconStep}
       </Steps>
@@ -214,7 +215,7 @@ export function InstallSteps({ device, onInstalled }: { device: Device; onInstal
 
   return (
     <p className="text-sm leading-relaxed text-muted-foreground">
-      على الكمبيوتر لا حاجة للتثبيت: فعّل الإشعارات من الأسفل لتصلك التنبيهات. وفي Chrome أو Edge يمكنك التثبيت من أيقونة التثبيت في شريط العنوان.
+      على الكمبيوتر لا حاجة للتثبيت: <V m="فعّل" f="فعّلي" /> الإشعارات من الأسفل لتصلك التنبيهات. وفي Chrome أو Edge يمكنك التثبيت من أيقونة التثبيت في شريط العنوان.
     </p>
   );
 }
@@ -225,13 +226,13 @@ export function UnblockSteps({ device }: { device: Device }) {
     return (
       <Steps>
         <Step icon={<Settings />}>
-          افتح <B>الإعدادات</B> في iPhone ثم <B>الإشعارات</B>
+          <V m="افتح" f="افتحي" /> <B>الإعدادات</B> في iPhone ثم <B>الإشعارات</B>
         </Step>
         <Step icon={<Smartphone />}>
-          اختر <B>نصيبك</B> من القائمة
+          <V m="اختر" f="اختاري" /> <B>نصيبك</B> من القائمة
         </Step>
         <Step icon={<BellRing />}>
-          فعّل <B>«السماح بالإشعارات»</B>
+          <V m="فعّل" f="فعّلي" /> <B>«السماح بالإشعارات»</B>
         </Step>
       </Steps>
     );
@@ -240,10 +241,10 @@ export function UnblockSteps({ device }: { device: Device }) {
     return (
       <Steps>
         <Step icon={<Smartphone />}>
-          اضغط مطولاً على <B>أيقونة نصيبك</B> ثم <B>«معلومات التطبيق»</B>
+          <V m="اضغط" f="اضغطي" /> مطولاً على <B>أيقونة نصيبك</B> ثم <B>«معلومات التطبيق»</B>
         </Step>
         <Step icon={<BellRing />}>
-          افتح <B>الإشعارات</B> وفعّلها
+          <V m="افتح" f="افتحي" /> <B>الإشعارات</B> <V m="وفعّلها" f="وفعّليها" />
         </Step>
       </Steps>
     );
@@ -252,10 +253,10 @@ export function UnblockSteps({ device }: { device: Device }) {
     return (
       <Steps>
         <Step icon={<Menu />}>
-          اضغط <B>☰</B> ثم <B>الإعدادات</B> ثم <B>المواقع والتنزيلات</B>
+          <V m="اضغط" f="اضغطي" /> <B>☰</B> ثم <B>الإعدادات</B> ثم <B>المواقع والتنزيلات</B>
         </Step>
         <Step icon={<BellRing />}>
-          اختر <B>الإشعارات</B>، ثم اسمح لـ <span dir="ltr">naseebak.com</span>
+          <V m="اختر" f="اختاري" /> <B>الإشعارات</B>، ثم <V m="اسمح" f="اسمحي" /> لـ <span dir="ltr">naseebak.com</span>
         </Step>
       </Steps>
     );
@@ -263,10 +264,10 @@ export function UnblockSteps({ device }: { device: Device }) {
   return (
     <Steps>
       <Step icon={<Lock />}>
-        اضغط رمز <B>القفل</B> أو <B>الإعدادات</B> بجانب رابط الموقع في شريط العنوان
+        <V m="اضغط" f="اضغطي" /> رمز <B>القفل</B> أو <B>الإعدادات</B> بجانب رابط الموقع في شريط العنوان
       </Step>
       <Step icon={<BellRing />}>
-        اختر <B>الأذونات</B> ثم <B>الإشعارات</B> وغيّرها إلى <B>«سماح»</B>
+        <V m="اختر" f="اختاري" /> <B>الأذونات</B> ثم <B>الإشعارات</B> <V m="وغيّرها" f="وغيّريها" /> إلى <B>«سماح»</B>
       </Step>
     </Steps>
   );
@@ -295,7 +296,7 @@ export function NotificationHelp({ device }: { device: Device }) {
     return (
       <p className="flex items-start gap-2 text-sm leading-relaxed text-green-700">
         <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" />
-        <span>الإشعارات مفعّلة على هذا الجهاز. إن لم تصلك، تأكد أن وضع «عدم الإزعاج» أو «التركيز» لا يحجبها.</span>
+        <span>الإشعارات مفعّلة على هذا الجهاز. إن لم تصلك، <V m="تأكد" f="تأكدي" /> أن وضع «عدم الإزعاج» أو «التركيز» لا يحجبها.</span>
       </p>
     );
   }
@@ -306,10 +307,10 @@ export function NotificationHelp({ device }: { device: Device }) {
         <BellOff className="mt-0.5 h-5 w-5 shrink-0" />
         <span>
           {device.inApp
-            ? "لا تعمل الإشعارات داخل متصفح التطبيقات. افتح نصيبك في المتصفح كما في الخطوات أعلاه."
+            ? <>لا تعمل الإشعارات داخل متصفح التطبيقات. <V m="افتح" f="افتحي" /> نصيبك في المتصفح كما في الخطوات أعلاه.</>
             : device.os === "ios"
               ? "على iPhone تعمل الإشعارات فقط بعد تثبيت نصيبك على الشاشة الرئيسية وفتحه من الأيقونة (iOS 16.4 أو أحدث)."
-              : "هذا المتصفح لا يدعم الإشعارات. جرّب Chrome أو Safari."}
+              : <>هذا المتصفح لا يدعم الإشعارات. <V m="جرّب" f="جرّبي" /> Chrome أو Safari.</>}
         </span>
       </p>
     );
@@ -324,7 +325,7 @@ export function NotificationHelp({ device }: { device: Device }) {
         </p>
         <UnblockSteps device={device} />
         <Button type="button" variant="outline" size="sm" onClick={() => window.location.reload()}>
-          فعّلتها، حدّث الصفحة
+          فعّلتها، <V m="حدّث" f="حدّثي" /> الصفحة
         </Button>
       </div>
     );
@@ -333,7 +334,7 @@ export function NotificationHelp({ device }: { device: Device }) {
   return (
     <div className="space-y-3">
       <p className="text-sm leading-relaxed text-muted-foreground">
-        اضغط الزر ثم اختر <B>«سماح»</B> في النافذة التي ستظهر.
+        <V m="اضغط" f="اضغطي" /> الزر ثم <V m="اختر" f="اختاري" /> <B>«سماح»</B> في النافذة التي ستظهر.
       </p>
       <Button type="button" onClick={enable} disabled={busy} className="gap-1.5">
         <BellRing className="h-4 w-4" />

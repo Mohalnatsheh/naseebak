@@ -421,7 +421,7 @@ export default function NotificationsPage() {
                 <Smartphone className="h-4 w-4 shrink-0 text-primary" />
                 <span className="flex-1">
                   <span className="block font-semibold text-foreground">تثبيت التطبيق والإشعارات</span>
-                  <span className="block text-xs text-muted-foreground">لا تصلك الإشعارات؟ اتبع الخطوات لجهازك</span>
+                  <span className="block text-xs text-muted-foreground">لا تصلك الإشعارات؟ يمكنك اتباع الخطوات لجهازك</span>
                 </span>
               </Link>
             </div>

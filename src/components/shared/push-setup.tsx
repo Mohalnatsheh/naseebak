@@ -17,6 +17,7 @@ import {
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { V } from "@/components/shared/gendered-word";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { forViewer } from "@/lib/gendered-copy";
@@ -193,7 +194,7 @@ function ShareBarMock({ chrome }: { chrome: boolean }) {
         {!chrome && <MoreHorizontal className="h-5 w-5" />}
       </div>
       <p className="mt-2 text-center text-xs text-muted-foreground">
-        {chrome ? "زر المشاركة في أعلى الشاشة بجانب الرابط" : "زر المشاركة أسفل الشاشة. إن لم تجده اضغط «⋯» ثم «مشاركة»"}
+        {chrome ? "زر المشاركة في أعلى الشاشة بجانب الرابط" : <>زر المشاركة أسفل الشاشة. إن لم <V m="تجده" f="تجديه" /> <V m="اضغط" f="اضغطي" /> «⋯» ثم «مشاركة»</>}
       </p>
     </Mock>
   );
@@ -212,7 +213,7 @@ function ShareSheetMock() {
           <SquarePlus className="h-5 w-5 shrink-0" />
         </Tap>
       </div>
-      <p className="mt-2 text-center text-xs text-muted-foreground">مرّر القائمة للأسفل إن لم يظهر الخيار</p>
+      <p className="mt-2 text-center text-xs text-muted-foreground"><V m="مرّر" f="مرّري" /> القائمة للأسفل إن لم يظهر الخيار</p>
     </Mock>
   );
 }
@@ -365,7 +366,7 @@ export function PushSetupFlow({
           <Button asChild size="lg" className="h-14 w-full gap-2 text-base">
             <a href={href} onClick={watchLeave}>
               <ExternalLink className="h-5 w-5" />
-              افتح في {browserName}
+              <V m="افتح" f="افتحي" /> في {browserName}
             </a>
           </Button>
         )}
@@ -380,7 +381,7 @@ export function PushSetupFlow({
               <Button asChild variant="outline" size="lg" className="h-12 w-full gap-2 bg-card">
                 <a href={anyBrowser}>
                   <ExternalLink className="h-4 w-4" />
-                  افتح في متصفح آخر
+                  <V m="افتح" f="افتحي" /> في متصفح آخر
                 </a>
               </Button>
             )}
@@ -399,10 +400,10 @@ export function PushSetupFlow({
               <ChevronLeft className="h-4 w-4 transition-transform group-open:-rotate-90" />
             </summary>
             <ol className="mt-3 space-y-4">
-              <StepCard n={1} title={<>اضغط زر <B>{device.os === "ios" ? "⋯" : "⋮"}</B> في أعلى الشاشة، ثم <B>«{menu.ar}»</B></>}>
+              <StepCard n={1} title={<><V m="اضغط" f="اضغطي" /> زر <B>{device.os === "ios" ? "⋯" : "⋮"}</B> في أعلى الشاشة، ثم <B>«{menu.ar}»</B></>}>
                 <InAppBarMock device={device} />
               </StepCard>
-              <StepCard n={2} title={<>أو انسخ الرابط والصقه في {device.os === "ios" ? "Safari" : "Chrome أو أي متصفح"}:</>}>
+              <StepCard n={2} title={<>أو <V m="انسخ" f="انسخي" /> الرابط <V m="والصقه" f="والصقيه" /> في {device.os === "ios" ? "Safari" : "Chrome أو أي متصفح"}:</>}>
                 <CopyLink />
               </StepCard>
             </ol>
@@ -419,17 +420,17 @@ export function PushSetupFlow({
         <div className="space-y-1.5">
           <h3 className="font-display text-xl">{v(`أضف نصيبك إلى شاشة ${handset}ك`, `أضيفي نصيبك إلى شاشة ${handset}كِ`)}</h3>
           <p className="text-sm leading-relaxed text-muted-foreground">
-            على iPhone تصل الإشعارات فقط عندما يُفتح نصيبك من أيقونته. ثلاث ضغطات، ثم افتحه من الأيقونة:
+            على iPhone تصل الإشعارات فقط عندما يُفتح نصيبك من أيقونته. ثلاث ضغطات، ثم <V m="افتحه" f="افتحيه" /> من الأيقونة:
           </p>
         </div>
         <ol className="space-y-5">
-          <StepCard n={1} title={<>اضغط زر <B>المشاركة</B> <Share className="inline h-4 w-4 align-text-bottom text-primary" /></>}>
+          <StepCard n={1} title={<><V m="اضغط" f="اضغطي" /> زر <B>المشاركة</B> <Share className="inline h-4 w-4 align-text-bottom text-primary" /></>}>
             <ShareBarMock chrome={chrome} />
           </StepCard>
-          <StepCard n={2} title={<>اختر <B>«إضافة إلى الشاشة الرئيسية»</B></>}>
+          <StepCard n={2} title={<><V m="اختر" f="اختاري" /> <B>«إضافة إلى الشاشة الرئيسية»</B></>}>
             <ShareSheetMock />
           </StepCard>
-          <StepCard n={3} title={<>اضغط <B>«إضافة»</B></>}>
+          <StepCard n={3} title={<><V m="اضغط" f="اضغطي" /> <B>«إضافة»</B></>}>
             <AddButtonMock />
           </StepCard>
           <StepCard n={4} title={<>{v("افتح نصيبك من", "افتحي نصيبك من")} <B>الأيقونة الجديدة</B> {v("وفعّل الإشعارات من هناك", "وفعّلي الإشعارات من هناك")}</>}>
@@ -524,8 +525,8 @@ export function PushSetupFlow({
     body = (
       <p className="text-sm leading-relaxed text-muted-foreground">
         {device.os === "ios"
-          ? "الإشعارات تحتاج iPhone بنظام iOS 16.4 أو أحدث. حدّث النظام من الإعدادات ← عام ← تحديث البرنامج."
-          : "هذا المتصفح لا يدعم الإشعارات. افتح نصيبك في Chrome."}
+          ? <>الإشعارات تحتاج iPhone بنظام iOS 16.4 أو أحدث. <V m="حدّث" f="حدّثي" /> النظام من الإعدادات ← عام ← تحديث البرنامج.</>
+          : <>هذا المتصفح لا يدعم الإشعارات. <V m="افتح" f="افتحي" /> نصيبك في Chrome.</>}
       </p>
     );
   }

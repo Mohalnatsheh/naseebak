@@ -15,10 +15,11 @@ const plans = {
   ],
 };
 
-Future<FakeAdapter> pumpCredits(WidgetTester tester, {required bool appPayments}) async {
+Future<FakeAdapter> pumpCredits(WidgetTester tester, {required bool appPayments, Map<String, dynamic>? flags}) async {
   final adapter = FakeAdapter()
     ..on('GET', '/api/mobile/me', FakeResponse(200, {'user': {...meJson(), 'appPayments': appPayments}}))
     ..on('GET', '/api/payments/plans', const FakeResponse(200, plans));
+  if (flags != null) adapter.on('GET', '/api/me/counts', FakeResponse(200, {'flags': flags}));
   final container = ProviderContainer(overrides: await testOverrides(adapter, store: MemoryTokenStore('t1')));
   addTearDown(container.dispose);
   container.read(authControllerProvider);
@@ -33,6 +34,20 @@ Future<FakeAdapter> pumpCredits(WidgetTester tester, {required bool appPayments}
 }
 
 void main() {
+  testWidgets('credit on interest: the rule line says only «مهتم» uses credit', (tester) async {
+    await pumpCredits(tester, appPayments: true, flags: {'creditOnInterest': true});
+    expect(find.text('يُستخدم رصيد واحد عند اختيار «مهتم»، والتوافق والطلبات والمحادثة مجانية.'), findsOneWidget);
+    expect(find.textContaining('طلب التعارف'), findsNothing);
+  });
+
+  testWidgets('free reply on: the rule line adds that the reply is free', (tester) async {
+    await pumpCredits(tester, appPayments: true, flags: {'creditOnInterest': true, 'freeInterestReply': true});
+    expect(
+      find.text('يُستخدم رصيد واحد عند اختيار «مهتم»، والتوافق والطلبات والمحادثة مجانية. الرد بـ«مهتم» على من أبدى اهتمامه مجاني.'),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('payments shown: packages are offered', (tester) async {
     final adapter = await pumpCredits(tester, appPayments: true);
     expect(find.text('الباقات'), findsOneWidget);

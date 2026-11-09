@@ -44,10 +44,40 @@ class SseParser {
   }
 }
 
+/// One event on `chat:<id>`: its name (`message`, `read`, `reaction`, `typing`, …) and its data, or no name when the
+/// SSE data wasn't an Ably message (the chat room then just fetches, as for any event).
+class ChatLiveEvent {
+  const ChatLiveEvent(this.name, this.data);
+
+  /// The SSE `data:` of Ably's enveloped stream: `{name, data, encoding?}`, where data may be a JSON string
+  factory ChatLiveEvent.fromSse(String raw) {
+    try {
+      final j = jsonDecode(raw);
+      if (j is! Map) return const ChatLiveEvent(null, null);
+      final name = j['name'] is String ? j['name'] as String : null;
+      Object? data = j['data'];
+      if (data is String) {
+        try {
+          data = jsonDecode(data);
+        } catch (_) {
+          data = null;
+        }
+      }
+      return ChatLiveEvent(name, data is Map ? Map<String, dynamic>.from(data) : null);
+    } catch (_) {
+      return const ChatLiveEvent(null, null);
+    }
+  }
+
+  final String? name;
+  final Map<String, dynamic>? data;
+}
+
 /// Live chat events through Ably, read-only. The server issues a subscribe-only token request for my own
 /// conversations (`GET /api/chats/ably-token`, 404 when Ably isn't configured); the app exchanges it for a
-/// token and listens to the chat's channel over Ably's SSE endpoint. Every event only means "something
-/// changed": the chat room then fetches from the API as before, so messages always come from our server.
+/// token and listens to the chat's channel over Ably's SSE endpoint. A message event only means "something
+/// changed": the chat room then fetches from the API as before, so messages always come from our server. `typing`
+/// and `reaction` carry what they change (no fetch per keystroke).
 class ChatLive {
   ChatLive(this._api, {Dio? ably}) : _ably = ably ?? Dio();
 
@@ -80,8 +110,8 @@ class ChatLive {
   /// Emits once per event on `chat:<id>` until the subscription is cancelled. Reconnects with a growing delay
   /// (and a fresh token); ends quietly when live chat isn't available. [connected] reports the link state, never
   /// after the subscription is cancelled.
-  Stream<void> events(String chatId, {void Function(bool connected)? connected}) {
-    late StreamController<void> controller;
+  Stream<ChatLiveEvent> events(String chatId, {void Function(bool connected)? connected}) {
+    late StreamController<ChatLiveEvent> controller;
     var active = true;
     CancelToken? cancel;
 
@@ -112,8 +142,8 @@ class ChatLive {
           final parser = SseParser();
           await for (final text in utf8.decoder.bind(r.data!.stream)) {
             if (!active) break;
-            for (final _ in parser.add(text)) {
-              if (!controller.isClosed) controller.add(null);
+            for (final (_, data) in parser.add(text)) {
+              if (!controller.isClosed) controller.add(ChatLiveEvent.fromSse(data));
             }
           }
         } catch (_) {
@@ -127,7 +157,7 @@ class ChatLive {
       if (!controller.isClosed) await controller.close();
     }
 
-    controller = StreamController<void>(
+    controller = StreamController<ChatLiveEvent>(
       onListen: run,
       onCancel: () {
         active = false;

@@ -154,6 +154,69 @@ class ChatMedia {
   final int? height;
 }
 
+/// The four reactions the server accepts (src/lib/chat/reactions.ts), in the menu's order
+const chatReactionEmoji = ['❤️', '👍', '😊', '🤲'];
+
+/// A reaction on a message: the emoji and whether it is mine (never who else reacted)
+class ChatReaction {
+  const ChatReaction({required this.emoji, required this.mine});
+
+  factory ChatReaction.fromJson(Map<String, dynamic> j) =>
+      ChatReaction(emoji: asStringOr(j['emoji']), mine: asBool(j['mine']) ?? false);
+
+  Map<String, dynamic> toJson() => {'emoji': emoji, 'mine': mine};
+
+  final String emoji;
+  final bool mine;
+
+  @override
+  bool operator ==(Object other) => other is ChatReaction && other.emoji == emoji && other.mine == mine;
+
+  @override
+  int get hashCode => Object.hash(emoji, mine);
+}
+
+List<ChatReaction> parseReactions(Object? v) =>
+    asMapList(v).map(ChatReaction.fromJson).where((r) => r.emoji.isNotEmpty).toList();
+
+/// The live `reaction` event lists every reaction with its member's id: mine is the one with my id
+List<ChatReaction> reactionsFromLive(Object? v, String? me) => [
+      for (final r in asMapList(v))
+        if (asString(r['emoji']) case final e? when e.isNotEmpty) ChatReaction(emoji: e, mine: me != null && r['userId'] == me),
+    ];
+
+/// My reaction changed to [emoji] (null removes it; the same one again removes it too), the other person's kept
+List<ChatReaction> toggledReactions(List<ChatReaction> current, String? emoji) {
+  final mine = current.where((r) => r.mine).map((r) => r.emoji).firstOrNull;
+  final others = current.where((r) => !r.mine).toList();
+  if (emoji == null || emoji == mine) return others;
+  return [...others, ChatReaction(emoji: emoji, mine: true)];
+}
+
+/// The quoted message of a reply (same chat only; the snippet is built on the server from the filtered text)
+class ReplyQuote {
+  const ReplyQuote({required this.id, required this.mine, required this.kind, required this.snippet});
+
+  static ReplyQuote? fromJsonOrNull(Object? v) {
+    final j = asMapOrNull(v);
+    final id = j == null ? null : asString(j['id']);
+    if (j == null || id == null || id.isEmpty) return null;
+    return ReplyQuote(
+      id: id,
+      mine: asBool(j['mine']) ?? false,
+      kind: parseMessageKind(j['kind']),
+      snippet: asStringOr(j['snippet']),
+    );
+  }
+
+  Map<String, dynamic> toJson() => {'id': id, 'mine': mine, 'kind': messageKindName(kind), 'snippet': snippet};
+
+  final String id;
+  final bool mine;
+  final MessageKind kind;
+  final String snippet;
+}
+
 /// `ChatMessage` of src/lib/chat/service.ts, plus local sending state for my own pending messages.
 class ChatMessage {
   const ChatMessage({
@@ -171,6 +234,8 @@ class ChatMessage {
     this.kind = MessageKind.text,
     this.media,
     this.localPath,
+    this.replyTo,
+    this.reactions = const [],
   });
 
   factory ChatMessage.fromJson(Map<String, dynamic> j) => ChatMessage(
@@ -181,6 +246,8 @@ class ChatMessage {
         readAt: asDate(j['readAt']),
         kind: parseMessageKind(j['kind']),
         media: ChatMedia.fromJsonOrNull(j['media']),
+        replyTo: ReplyQuote.fromJsonOrNull(j['replyTo']),
+        reactions: parseReactions(j['reactions']),
       );
 
   /// Same shape as the API (chat cache). `localPath` is never written.
@@ -192,6 +259,8 @@ class ChatMessage {
         'readAt': readAt?.toUtc().toIso8601String(),
         'kind': messageKindName(kind),
         'media': media?.toJson(),
+        'replyTo': replyTo?.toJson(),
+        'reactions': [for (final r in reactions) r.toJson()],
       };
 
   final String id;
@@ -220,10 +289,45 @@ class ChatMessage {
   /// A local file shown while my photo / voice note is sending (never serialized)
   final String? localPath;
 
+  /// The message this one answers (null for none, and from servers before the field)
+  final ReplyQuote? replyTo;
+
+  /// One per member at most (empty from servers before the field)
+  final List<ChatReaction> reactions;
+
+  String? get myReaction => reactions.where((r) => r.mine).map((r) => r.emoji).firstOrNull;
+
   /// Same server copy (a newer one differs, e.g. by its read tick)
   bool sameAs(ChatMessage o) =>
       id == o.id && body == o.body && mine == o.mine && createdAt == o.createdAt && readAt == o.readAt &&
-      kind == o.kind && media?.url == o.media?.url;
+      kind == o.kind && media?.url == o.media?.url && replyTo?.id == o.replyTo?.id && _sameReactions(o.reactions);
+
+  bool _sameReactions(List<ChatReaction> o) {
+    if (o.length != reactions.length) return false;
+    for (var i = 0; i < o.length; i++) {
+      if (o[i] != reactions[i]) return false;
+    }
+    return true;
+  }
+
+  ChatMessage withReactions(List<ChatReaction> next) => ChatMessage(
+        id: id,
+        body: body,
+        createdAt: createdAt,
+        mine: mine,
+        readAt: readAt,
+        state: state,
+        error: error,
+        nonce: nonce,
+        filtered: filtered,
+        maybeSent: maybeSent,
+        proRequired: proRequired,
+        kind: kind,
+        media: media,
+        localPath: localPath,
+        replyTo: replyTo,
+        reactions: next,
+      );
 
   ChatMessage copyWith({
     SendState? state,
@@ -246,15 +350,30 @@ class ChatMessage {
         kind: kind,
         media: media,
         localPath: localPath,
+        replyTo: replyTo,
+        reactions: reactions,
       );
 }
 
 class ChatPage {
-  const ChatPage({required this.conversation, required this.messages, required this.hasMore, this.chatEnabled = true});
+  const ChatPage({
+    required this.conversation,
+    required this.messages,
+    required this.hasMore,
+    this.chatEnabled = true,
+    this.partnerTyping = false,
+    this.starters = const [],
+  });
   final ChatSummary conversation;
   final List<ChatMessage> messages;
   final bool hasMore;
   final bool chatEnabled;
+
+  /// The other person typed in the last few seconds (the polling fallback for the live `typing` event)
+  final bool partnerTyping;
+
+  /// Conversation starters, sent only while I haven't written anything in an open chat
+  final List<String> starters;
 }
 
 class ChatRepository {
@@ -279,12 +398,29 @@ class ChatRepository {
       messages: asMapList(j['messages']).map(ChatMessage.fromJson).toList(),
       hasMore: asBool(j['hasMore']) ?? false,
       chatEnabled: asBool(j['chatEnabled']) ?? true,
+      partnerTyping: asBool(j['partnerTyping']) ?? false,
+      starters: asStringList(j['starters']).where((s) => s.trim().isNotEmpty).toList(),
     );
   }
 
-  Future<ChatMessage> send(String id, String body, {String? nonce}) async {
-    final j = await _api.post('/api/chats/$id/messages', body: {'body': body, 'clientNonce': ?nonce});
+  /// A text message; [replyToId] quotes a message of the same chat (the server refuses any other with 400)
+  Future<ChatMessage> send(String id, String body, {String? nonce, String? replyToId}) async {
+    final j = await _api.post(
+      '/api/chats/$id/messages',
+      body: {'body': body, 'clientNonce': ?nonce, 'replyToId': ?replyToId},
+    );
     return ChatMessage.fromJson(asMap(j['message']));
+  }
+
+  /// `{emoji}` sets mine (the same one again removes it), null removes it. Returns the message's reactions.
+  Future<List<ChatReaction>> react(String id, String messageId, String? emoji) async {
+    final j = await _api.post('/api/chats/$id/messages/$messageId/reaction', body: {'emoji': emoji});
+    return parseReactions(j['reactions']);
+  }
+
+  /// «يكتب الآن…» for the other person (the caller sends it at most every 3 s, see `TypingThrottle`)
+  Future<void> typing(String id) async {
+    await _api.post('/api/chats/$id/typing');
   }
 
   /// `POST /api/chats/{id}/media`: a photo (`IMAGE`, `photo.jpg` as `image/jpeg`) or a voice note (`VOICE`,
@@ -297,12 +433,14 @@ class ChatRepository {
     required String mime,
     int? durationSec,
     String? nonce,
+    String? replyToId,
   }) async {
     final type = DioMediaType.parse(mime);
     final form = FormData.fromMap({
       'kind': kind,
       'durationSec': ?durationSec?.toString(),
       'clientNonce': ?nonce,
+      'replyToId': ?replyToId,
       'file': MultipartFile.fromFileSync(
         filePath,
         filename: kind == 'VOICE' ? 'voice.m4a' : 'photo.jpg',

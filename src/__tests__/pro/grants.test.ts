@@ -177,8 +177,11 @@ describe("runYearlyProGrants", () => {
     ]);
     db.payment.findFirst.mockResolvedValue(null);
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    expect(await runYearlyProGrants(now)).toEqual({ granted: 0 });
-    warn.mockRestore();
+    try {
+      expect(await runYearlyProGrants(now)).toEqual({ granted: 0 });
+    } finally {
+      warn.mockRestore();
+    }
     expect(db.proCreditGrant.create).not.toHaveBeenCalled();
     expect(db.proSubscription.update).not.toHaveBeenCalled();
   });
@@ -214,6 +217,13 @@ describe("yearly grant dates", () => {
     expect(nextYearlyGrantDate(new Date("2026-11-01T06:00:00Z"), new Date("2026-01-01T06:00:00Z"), 4)).toEqual(new Date("2026-12-01T06:00:00Z"));
   });
 
+  it("a run that fell a month behind until the renewal moved the period end a year on: the next date stays a month on", () => {
+    // Paid year 31 Jan 2027 – 31 Jan 2028, renewed: the period end is now 31 Jan 2029, month 12 still owed
+    const renewedEnd = new Date("2029-01-31T09:00:00Z");
+    expect(nextYearlyGrantDate(new Date("2027-12-31T09:00:00Z"), renewedEnd, 12)).toEqual(new Date("2028-01-31T09:00:00Z"));
+    expect(nextYearlyGrantDate(new Date("2027-11-30T09:00:00Z"), renewedEnd, 11)).toEqual(new Date("2027-12-30T09:00:00Z"));
+  });
+
   it("the morning run anchors on the period end", async () => {
     const now = new Date("2027-02-28T10:00:00Z");
     db.proSubscription.findMany.mockResolvedValue([
@@ -231,9 +241,12 @@ describe("a subscription with no member", () => {
   it("grants nothing and says so in the log", async () => {
     db.proSubscription.findUnique.mockResolvedValue({ id: "s1", userId: null });
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    expect(await grantProCredits({ subscriptionId: "s1", paymentId: "p", key: "invoice:x", credits: 3 })).toBe("already");
-    expect(warn).toHaveBeenCalledWith(expect.stringContaining("no member"), "s1", "invoice:x");
-    expect(db.user.update).not.toHaveBeenCalled();
-    warn.mockRestore();
+    try {
+      expect(await grantProCredits({ subscriptionId: "s1", paymentId: "p", key: "invoice:x", credits: 3 })).toBe("already");
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining("no member"), "s1", "invoice:x");
+      expect(db.user.update).not.toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+    }
   });
 });

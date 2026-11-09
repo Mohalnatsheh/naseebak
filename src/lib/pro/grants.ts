@@ -80,15 +80,23 @@ export async function grantProCredits(args: {
   return "granted";
 }
 
+/** How far the per-month clamp can put an anchored date past "one month after the planned one" (28th → 31st) */
+const MONTH_CLAMP_SLACK_MS = 3 * 24 * 60 * 60 * 1000;
+
 /**
  * The date of the grant after month `month` of a paid year, anchored on the year's start day (the period end minus
  * twelve months) and clamped per month: 31 Jan → 28 Feb → 31 Mar, never drifting to the 28th. Falls back to one month
- * after the planned date if the period end can't anchor it (never earlier than that planned date).
+ * after the planned date if the period end can't anchor it (never earlier than that planned date), and never more
+ * than a month (plus the short-month clamp) after it: if the morning job fell behind until the renewal moved the
+ * period end a year on, the owed month still comes next month, not a year later.
  */
 export function nextYearlyGrantDate(planned: Date, periodEnd: Date | null | undefined, month: number): Date {
-  if (!periodEnd || Number.isNaN(periodEnd.getTime())) return addMonth(planned);
+  const oneMonthOn = addMonth(planned);
+  if (!periodEnd || Number.isNaN(periodEnd.getTime())) return oneMonthOn;
   const anchored = addMonths(periodEnd, month - 12);
-  return anchored > planned ? anchored : addMonth(planned);
+  if (anchored <= planned) return oneMonthOn;
+  // 28 Feb → 31 Mar is 3 days past "one month on": the clamp's largest step
+  return anchored.getTime() - oneMonthOn.getTime() > MONTH_CLAMP_SLACK_MS ? oneMonthOn : anchored;
 }
 
 /**

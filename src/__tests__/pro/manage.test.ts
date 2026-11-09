@@ -17,7 +17,7 @@ vi.mock("@/lib/notify", () => notifyMock);
 vi.mock("@/lib/admin-alert", () => alert);
 vi.mock("@/lib/countries/settings", () => ({ getCountrySettings: async () => ({}) }));
 
-import { cancelPro, resumePro, cancelProNow, cancelProForDeletion } from "@/lib/pro/manage";
+import { cancelPro, resumePro, cancelProNow, cancelProForDeletion, stopProRenewalOnLeave } from "@/lib/pro/manage";
 import { applyRefund } from "@/lib/payments/refund";
 import { isPro } from "@/lib/pro/status";
 
@@ -101,6 +101,45 @@ describe("cancelPro / resumePro", () => {
     stripe.subscriptions.update.mockRejectedValueOnce(new Error("stripe down"));
     await expect(cancelPro("u1")).rejects.toThrow("stripe down");
     expect(s().subs[0].cancelAtPeriodEnd).toBe(false);
+  });
+});
+
+describe("stopProRenewalOnLeave (IOS-H01 ruling)", () => {
+  it("pausing stops the renewal at the period end, no refund, and tells the member with the end date", async () => {
+    addSub();
+    expect(await stopProRenewalOnLeave("u1", "paused")).toBe("stopped");
+    expect(stripe.subscriptions.update).toHaveBeenCalledWith("sub_1", { cancel_at_period_end: true });
+    expect(s().subs[0]).toMatchObject({ cancelAtPeriodEnd: true, status: "ACTIVE" });
+    expect(await isPro("u1")).toBe(true);
+    const n = notifyMock.notify.mock.calls[0][0];
+    expect(n).toMatchObject({ userId: "u1", title: "توقّف تجديد Pro", url: "/dashboard/pro", sms: false });
+    expect(n.body).toContain("أوقفت حسابك مؤقتاً");
+    expect(n.body).toMatch(/حتى \d+ /);
+    expect(alert.sendAdminAlert).not.toHaveBeenCalled();
+  });
+
+  it("a deletion request says so; nothing to do without Pro or when renewal already stopped", async () => {
+    expect(await stopProRenewalOnLeave("u1", "deletion")).toBe("none");
+    addSub({ cancelAtPeriodEnd: true });
+    expect(await stopProRenewalOnLeave("u1", "deletion")).toBe("already");
+    expect(stripe.subscriptions.update).not.toHaveBeenCalled();
+    expect(notifyMock.notify).not.toHaveBeenCalled();
+  });
+
+  it("a Stripe failure never blocks the pause: the admins are told to stop it by hand", async () => {
+    addSub();
+    stripe.subscriptions.update.mockRejectedValue(new Error("stripe down"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(await stopProRenewalOnLeave("u1", "paused")).toBe("failed");
+    expect(s().subs[0].cancelAtPeriodEnd).toBe(false);
+    expect(alert.sendAdminAlert).toHaveBeenCalledWith("Pro renewal not stopped for a member who left", expect.any(String), { userId: "u1" });
+  });
+
+  it("resuming the account never resumes Pro on its own", async () => {
+    addSub();
+    await stopProRenewalOnLeave("u1", "paused");
+    // Only «متابعة الاشتراك» (resumePro) undoes it
+    expect(s().subs[0].cancelAtPeriodEnd).toBe(true);
   });
 });
 

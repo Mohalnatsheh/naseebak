@@ -8,8 +8,10 @@ import { db } from "@/lib/db";
 import { getStripe } from "@/lib/stripe";
 import { notify } from "@/lib/notify";
 import { currentProSubscription } from "@/lib/pro/status";
-import { PRO_ENDED_BODY, PRO_ENDED_TITLE } from "@/lib/pro/notices";
+import { PRO_ENDED_BODY, PRO_ENDED_TITLE, PRO_LEAVE_TITLE, proLeaveBody } from "@/lib/pro/notices";
 import { PRO_PAGE_PATH } from "@/lib/pro/plans";
+import { sendAdminAlert } from "@/lib/admin-alert";
+import { formatDate } from "@/lib/countries";
 
 /** A Stripe subscription we may call: real ids only, never a local mock or a missing id */
 function stripeIdOf(sub: { stripeSubscriptionId: string | null }): string | null {
@@ -114,4 +116,34 @@ export async function cancelProForDeletion(userId: string): Promise<number> {
     if ((await cancelProNow(sub.id, { reason: "deletion" })) === "ended") ended += 1;
   }
   return ended;
+}
+
+/**
+ * The member paused the account or asked to delete it (IOS-H01 ruling, 2026-11-10): a paused member must not keep
+ * paying, so the live membership stops renewing at the period end, with no refund, and the member is told. Coming back
+ * never resumes it on its own: «متابعة الاشتراك» on the Pro page does. (Deletion itself ends Pro at once:
+ * cancelProForDeletion.) Never throws: a Stripe failure is logged and emailed to the admins to stop it by hand.
+ */
+export async function stopProRenewalOnLeave(userId: string, reason: "paused" | "deletion"): Promise<"stopped" | "none" | "already" | "failed"> {
+  try {
+    const sub = await currentProSubscription(userId);
+    if (!sub) return "none";
+    if (sub.cancelAtPeriodEnd) return "already";
+    await cancelPro(userId);
+    const me = await db.user.findUnique({ where: { id: userId }, select: { country: true } });
+    const date = formatDate(sub.currentPeriodEnd, me?.country, { year: "numeric", month: "long", day: "numeric" });
+    await notify({ userId, type: "PAYMENT", title: PRO_LEAVE_TITLE, body: proLeaveBody(reason, date), url: PRO_PAGE_PATH, sms: false }).catch((e) =>
+      console.error("[pro] leave notice failed", userId, e),
+    );
+    return "stopped";
+  } catch (e) {
+    console.error("[pro] stopping renewal on leave failed", userId, e);
+    await sendAdminAlert(
+      "Pro renewal not stopped for a member who left",
+      `Member ${userId} ${reason === "paused" ? "paused the account" : "asked to delete the account"}, but stopping the Pro renewal failed ` +
+        `(${e instanceof Error ? e.message : String(e)}). Set it to cancel at the period end in Stripe by hand (no refund).`,
+      { userId },
+    ).catch(() => {});
+    return "failed";
+  }
 }

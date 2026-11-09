@@ -11,6 +11,8 @@ const leave = vi.hoisted(() => ({ closeActivityForLeaving: vi.fn() }));
 vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/auth", () => ({ requireUser }));
 vi.mock("@/lib/matches/leave", () => leave);
+const proManage = vi.hoisted(() => ({ stopProRenewalOnLeave: vi.fn() }));
+vi.mock("@/lib/pro/manage", () => proManage);
 
 import { POST } from "@/app/api/profile/deactivate/route";
 
@@ -28,6 +30,7 @@ beforeEach(() => {
   db.user.findUnique.mockResolvedValue({ isDeactivated: false });
   db.accountDeletionRequest.findUnique.mockResolvedValue(null);
   leave.closeActivityForLeaving.mockResolvedValue(undefined);
+  proManage.stopProRenewalOnLeave.mockResolvedValue("none");
 });
 
 describe("POST /api/profile/deactivate (explicit pause / resume, G02)", () => {
@@ -36,6 +39,8 @@ describe("POST /api/profile/deactivate (explicit pause / resume, G02)", () => {
     expect((await res.json()).isDeactivated).toBe(true);
     expect(db.user.update).toHaveBeenCalledWith({ where: { id: "u1" }, data: { isDeactivated: true } });
     expect(leave.closeActivityForLeaving).toHaveBeenCalledWith("u1", "paused");
+    // A paused member must not keep paying for Pro (IOS-H01 ruling)
+    expect(proManage.stopProRenewalOnLeave).toHaveBeenCalledWith("u1", "paused");
   });
 
   it("no body means pause (older clients only paused)", async () => {
@@ -57,6 +62,12 @@ describe("POST /api/profile/deactivate (explicit pause / resume, G02)", () => {
     expect(await res.json()).toMatchObject({ isDeactivated: false, cancelledDeletion: true });
     expect(db.accountDeletionRequest.update).toHaveBeenCalledWith({ where: { userId: "u1" }, data: { cancelledAt: expect.any(Date) } });
     expect(db.user.update).toHaveBeenCalledWith({ where: { id: "u1" }, data: { isDeactivated: false } });
+  });
+
+  it("resume never restarts a stopped Pro renewal (IOS-H01 ruling)", async () => {
+    db.user.findUnique.mockResolvedValue({ isDeactivated: true });
+    await POST(req({ action: "resume" }));
+    expect(proManage.stopProRenewalOnLeave).not.toHaveBeenCalled();
   });
 
   it("resume on an active account is a no-op", async () => {

@@ -1358,6 +1358,12 @@ export default function ProfilePage() {
                     ? "سيتم إخفاء ملفك الشخصي من جميع الاقتراحات، وتظهر توافقاتك للطرف الآخر مغلقة فلا مراسلة ولا طلبات تعارف حتى تعيد التفعيل. يبقى رصيدك كما هو، ويمكنك إعادة تفعيل حسابك في أي وقت عبر تسجيل الدخول مجددًا."
                     : "سيتم إخفاء ملفكِ الشخصي من جميع الاقتراحات، وتظهر توافقاتكِ للطرف الآخر مغلقة فلا مراسلة ولا طلبات تعارف حتى تعيدي التفعيل. يبقى رصيدكِ كما هو، ويمكنكِ إعادة تفعيل حسابكِ في أي وقت عبر تسجيل الدخول مجددًا."}
                 </p>
+                {/* A paused member must not keep paying (IOS-H01 ruling): say it before the pause */}
+                {pro?.isPro && !pro.cancelAtPeriodEnd && (
+                  <p className="text-xs font-semibold leading-relaxed text-foreground">
+                    يتوقف تجديد اشتراك Pro دون استرداد، وتبقى مزاياه حتى نهاية المدة المدفوعة. بعد إعادة التفعيل يمكنك متابعة الاشتراك من صفحة عضوية Pro.
+                  </p>
+                )}
                 <div className="flex gap-3">
                   <Button
                     variant="destructive"
@@ -1507,6 +1513,11 @@ export default function ProfilePage() {
                   توافقاتك ومحادثاتك ورصيدك المتبقي (لا يُسترجع). يمكنك إلغاء
                   الطلب خلال هذه الفترة بتسجيل الدخول مجدداً.
                 </p>
+                {pro?.isPro && (
+                  <p className="text-xs font-semibold leading-relaxed text-foreground">
+                    يتوقف تجديد اشتراك Pro فوراً دون استرداد، وينتهي الاشتراك عند حذف الحساب.
+                  </p>
+                )}
                 <div className="space-y-2">
                   <label htmlFor="delete-reason" className="text-sm font-medium text-foreground">
                     سبب الحذف (اختياري)

@@ -2,11 +2,13 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { closeActivityForLeaving } from "@/lib/matches/leave";
+import { stopProRenewalOnLeave } from "@/lib/pro/manage";
 
 /**
  * POST { action: "pause" | "resume" } — explicit, never a toggle (a stale tab must not wake an
  * account that is scheduled for deletion). No body = "pause" (older clients only ever paused).
  * "resume" also cancels a pending deletion request, like POST /api/profile/reactivate.
+ * Pausing stops a live Pro renewal at the period end (no refund); resuming never restarts it: «متابعة الاشتراك» does.
  */
 export async function POST(request: Request) {
   try {
@@ -35,7 +37,9 @@ export async function POST(request: Request) {
       await db.user.update({ where: { id: userId }, data: { isDeactivated: true } });
       // Pausing: end open chats and pending requests, so partners aren't left waiting
       await closeActivityForLeaving(userId, "paused").catch((e) => console.error("Leave cleanup error:", e));
-      return NextResponse.json({ message: "تم تعطيل الحساب بنجاح", isDeactivated: true });
+      // A paused member must not keep paying: Pro stops renewing at the period end, no refund (IOS-H01 ruling)
+      const pro = await stopProRenewalOnLeave(userId, "paused");
+      return NextResponse.json({ message: "تم تعطيل الحساب بنجاح", isDeactivated: true, proRenewalStopped: pro === "stopped" });
     }
 
     // resume

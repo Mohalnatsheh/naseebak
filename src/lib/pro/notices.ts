@@ -8,3 +8,11 @@ export const PRO_FAILED_BODY = "سنحاول الدفع مرة أخرى خلال
 export const PRO_NOT_LIVE_TITLE = "دفعة Pro إضافية";
 export const PRO_DUPLICATE_BODY = "وصلتنا دفعة لاشتراك Pro ثانٍ بينما اشتراكك فعّال، فأوقفنا الاشتراك الثاني. سيراجع فريق نصيبك هذه الدفعة ويُعلمك بقرار استردادها.";
 export const PRO_AFTER_END_BODY = "وصلتنا دفعة تجديد بعد انتهاء عضوية Pro، ولم تُستأنف العضوية. سيراجع فريق نصيبك هذه الدفعة ويُعلمك بقرار استردادها.";
+
+/** The member paused or asked to delete the account: renewal stops at the period end, no refund (IOS-H01 ruling) */
+export const PRO_LEAVE_TITLE = "توقّف تجديد Pro";
+export function proLeaveBody(reason: "paused" | "deletion", date: string): string {
+  return reason === "paused"
+    ? `أوقفت حسابك مؤقتاً، فأوقفنا تجديد اشتراك Pro دون استرداد. تبقى مزايا Pro حتى ${date}، ويمكنك متابعة الاشتراك من صفحة عضوية Pro بعد إعادة تفعيل حسابك.`
+    : `طلبت حذف حسابك، فأوقفنا تجديد اشتراك Pro دون استرداد. تبقى مزايا Pro حتى ${date} ما لم يُحذف الحساب قبل ذلك.`;
+}

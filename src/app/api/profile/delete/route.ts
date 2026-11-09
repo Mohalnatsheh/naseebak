@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { closeActivityForLeaving } from "@/lib/matches/leave";
+import { stopProRenewalOnLeave } from "@/lib/pro/manage";
 import { db } from "@/lib/db";
 
 /**
@@ -54,6 +55,8 @@ export async function POST(request: Request) {
       data: { isDeactivated: true },
     });
     await closeActivityForLeaving(session.user.id, "deleting").catch((e) => console.error("Leave cleanup error:", e));
+    // No renewal while the deletion waits (the deletion itself ends Pro at once): IOS-H01 ruling
+    await stopProRenewalOnLeave(session.user.id, "deletion");
 
     return NextResponse.json({
       message: "تم تقديم طلب حذف الحساب. سيتم حذف الحساب نهائياً بعد 30 يوماً.",

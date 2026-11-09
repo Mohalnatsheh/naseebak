@@ -1439,6 +1439,28 @@ export const AUTOMATIC_NOTIFICATIONS: AutomaticNotification[] = [
     ]
   },
   {
+    "key": "pro-renewal-stopped-on-leave",
+    "group": "pro",
+    "when": "A member with a live Pro membership pauses the account or asks to delete it: the renewal stops at the period end, with no refund. Reactivating never resumes it on its own.",
+    "who": "The subscriber",
+    "channels": [
+      "bell",
+      "push"
+    ],
+    "texts": [
+      {
+        "variant": "paused",
+        "title": "توقّف تجديد Pro",
+        "body": "أوقفت حسابك مؤقتاً، فأوقفنا تجديد اشتراك Pro دون استرداد. تبقى مزايا Pro حتى {date}، ويمكنك متابعة الاشتراك من صفحة عضوية Pro بعد إعادة تفعيل حسابك."
+      },
+      {
+        "variant": "deletion requested",
+        "title": "توقّف تجديد Pro",
+        "body": "طلبت حذف حسابك، فأوقفنا تجديد اشتراك Pro دون استرداد. تبقى مزايا Pro حتى {date} ما لم يُحذف الحساب قبل ذلك."
+      }
+    ]
+  },
+  {
     "key": "pro-not-live-payment",
     "group": "pro",
     "when": "A paid Pro invoice did not make Pro live: a second subscription paid while one was live, or a renewal paid after Pro ended. Admins get an email to decide on a refund.",

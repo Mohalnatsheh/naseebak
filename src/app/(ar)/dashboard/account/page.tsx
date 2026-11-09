@@ -13,6 +13,7 @@ import { signOutAndUnlinkPush } from "@/lib/push-client";
 import { cn } from "@/lib/utils";
 import { matchesHref } from "@/lib/matches/links";
 import { PRO_PAGE_PATH } from "@/lib/pro/plans";
+import { LoadError } from "@/components/shared/load-error";
 
 interface Row {
   href: string;
@@ -36,15 +37,55 @@ function ageFrom(dob: unknown): number | null {
  * then every account page in short groups, and sign-out last. Same links as the desktop sidebar.
  */
 export default function AccountPage() {
-  const { profile, completeness, counts, unreadCount, loading, country } = useDashboardData();
+  const { profile, completeness, counts, unreadCount, loading, country, refreshProfile } = useDashboardData();
   const [signingOut, setSigningOut] = useState(false);
+  const [retrying, setRetrying] = useState(false);
   const female = profile?.gender === "FEMALE";
   const g = (masculine: string, feminine: string) => (female ? feminine : masculine);
 
-  if (loading || !profile) {
+  const signOutButton = (
+    <button
+      type="button"
+      disabled={signingOut}
+      onClick={() => {
+        setSigningOut(true);
+        void signOutAndUnlinkPush("/login");
+      }}
+      className={cn(
+        "flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl border border-destructive/20 bg-destructive/5 text-sm font-bold text-destructive transition-colors hover:bg-destructive/10",
+        signingOut && "opacity-60"
+      )}
+    >
+      {signingOut ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <LogOut className="h-4 w-4" aria-hidden />}
+      تسجيل الخروج
+    </button>
+  );
+
+  // Same width as the loaded page, so nothing jumps when it fills in (QA WA-06)
+  if (loading) {
     return (
-      <div className="flex justify-center py-24">
+      <div className="mx-auto flex max-w-xl justify-center py-24">
         <Loader2 className="h-8 w-8 animate-spin text-primary" aria-hidden />
+      </div>
+    );
+  }
+
+  // The profile didn't load (QA WA-04): say so with a retry, and keep sign-out reachable
+  if (!profile) {
+    return (
+      <div className="mx-auto max-w-xl space-y-5 py-6">
+        <LoadError
+          message="تعذّر تحميل حسابك. تحقّق من الاتصال وحاول مرة أخرى."
+          onRetry={
+            retrying
+              ? undefined
+              : () => {
+                  setRetrying(true);
+                  refreshProfile().finally(() => setRetrying(false));
+                }
+          }
+        />
+        {signOutButton}
       </div>
     );
   }
@@ -205,21 +246,7 @@ export default function AccountPage() {
         </section>
       ))}
 
-      <button
-        type="button"
-        disabled={signingOut}
-        onClick={() => {
-          setSigningOut(true);
-          void signOutAndUnlinkPush("/login");
-        }}
-        className={cn(
-          "flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl border border-destructive/20 bg-destructive/5 text-sm font-bold text-destructive transition-colors hover:bg-destructive/10",
-          signingOut && "opacity-60"
-        )}
-      >
-        {signingOut ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <LogOut className="h-4 w-4" aria-hidden />}
-        تسجيل الخروج
-      </button>
+      {signOutButton}
     </div>
   );
 }

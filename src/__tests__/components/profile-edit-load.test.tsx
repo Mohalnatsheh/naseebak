@@ -1,0 +1,36 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
+
+vi.mock("next/navigation", () => ({ useRouter: () => ({ replace: vi.fn(), push: vi.fn() }) }));
+vi.mock("@/contexts/dashboard-context", () => ({
+  useDashboardData: () => ({
+    profile: { gender: "MALE" }, country: "JO",
+    counts: { flags: { introRequests: true, chat: true, mutualSuggestions: true } },
+  }),
+}));
+
+import ProfileEditPage from "@/app/(ar)/dashboard/profile/edit/page";
+
+function json(body: unknown, ok = true) {
+  return Promise.resolve({ ok, status: ok ? 200 : 500, json: async () => body } as Response);
+}
+const user = { gender: "MALE", country: "JO", profile: { isComplete: true, city: "عمّان" } };
+
+beforeEach(() => vi.restoreAllMocks());
+
+describe("profile edit never saves after a partial load (QA WA-05)", () => {
+  it.each([
+    ["the guardian", "/api/profile/parent-info"],
+    ["the pending request", "/api/profile/update-request"],
+  ])("shows LoadError when %s fails to load", async (_label, failing) => {
+    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      const url = String(input);
+      if (url === failing) return json({ error: "x" }, false);
+      if (url === "/api/profile") return json({ user });
+      if (url === "/api/profile/update-request") return json({ requests: [] });
+      return json({ parentInfo: null });
+    });
+    render(<ProfileEditPage />);
+    await waitFor(() => expect(screen.getByRole("alert").textContent).toContain("فلا يمكن التعديل الآن"));
+  });
+});

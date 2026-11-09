@@ -56,6 +56,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { LoadError } from "@/components/shared/load-error";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -223,6 +224,8 @@ export default function ProfilePage() {
     status: string;
     createdAt: string;
   } | null>(null);
+  // The pending-request check failed (QA WA-05): say so instead of looking like there is none
+  const [pendingFailed, setPendingFailed] = useState(false);
   const [deletionRequest, setDeletionRequest] = useState<{
     scheduledAt: string;
   } | null>(null);
@@ -249,13 +252,15 @@ export default function ProfilePage() {
     async function fetchPendingRequest() {
       try {
         const res = await fetch("/api/profile/update-request");
+        if (!res.ok) throw new Error(`update requests ${res.status}`);
         const data = await res.json();
         const pending = data.requests?.find(
           (r: { status: string }) => r.status === "PENDING"
         );
-        if (pending) setPendingRequest(pending);
+        setPendingRequest(pending ?? null);
+        setPendingFailed(false);
       } catch {
-        // Silently fail
+        setPendingFailed(true);
       }
     }
     async function fetchDeletionStatus() {
@@ -1282,6 +1287,13 @@ export default function ProfilePage() {
       {/* ============================================ */}
       {/*  Pending update request banner                */}
       {/* ============================================ */}
+      {pendingFailed && !pendingRequest && (
+        <LoadError
+          className="py-5"
+          message="تعذّر التحقق من طلبات تعديل الملف."
+          onRetry={() => setReloadKey((k) => k + 1)}
+        />
+      )}
       {pendingRequest && (
         <Card
           className="relative overflow-hidden border-primary/20 bg-gradient-to-l from-primary/8 to-primary/3 shadow-sm"

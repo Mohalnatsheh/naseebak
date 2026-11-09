@@ -248,9 +248,13 @@ export default function ProfileEditPage() {
           fetch("/api/profile/parent-info"),
         ]);
         if (!profileRes.ok) throw new Error(`profile ${profileRes.status}`);
+        // The guardian and the pending request must load too (QA WA-05): blank guardian fields would overwrite the
+        // stored guardian on save, and a missed pending request would allow a second one
+        if (!requestsRes.ok) throw new Error(`update requests ${requestsRes.status}`);
+        if (!parentRes.ok) throw new Error(`parent info ${parentRes.status}`);
         const profileData = await profileRes.json();
-        const requestsData = requestsRes.ok ? await requestsRes.json() : {};
-        const parentData = parentRes.ok ? await parentRes.json() : null;
+        const requestsData = await requestsRes.json();
+        const parentData = await parentRes.json();
 
         // Check for pending request
         const pending = requestsData.requests?.find(

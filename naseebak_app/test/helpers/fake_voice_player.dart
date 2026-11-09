@@ -48,10 +48,17 @@ class FakeVoicePlayer implements VoicePlayer {
     _playing.add(false);
   }
 
+  final seeks = <Duration>[];
+  double speed = 1;
+
   @override
   Future<void> seek(Duration position) async {
     if (throwOnPause) throw StateError('disposed');
+    seeks.add(position);
   }
+
+  @override
+  Future<void> setSpeed(double speed) async => this.speed = speed;
 
   @override
   Future<void> dispose() async => disposed = true;

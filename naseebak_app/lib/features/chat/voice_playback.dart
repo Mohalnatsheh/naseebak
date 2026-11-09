@@ -21,6 +21,9 @@ abstract class VoicePlayer {
   void play();
   Future<void> pause();
   Future<void> seek(Duration position);
+
+  /// Playback speed (1, 1.5 or 2); the pitch stays the same
+  Future<void> setSpeed(double speed);
   Future<void> dispose();
 }
 
@@ -55,6 +58,9 @@ class JustAudioVoicePlayer implements VoicePlayer {
 
   @override
   Future<void> seek(Duration position) => _player.seek(position);
+
+  @override
+  Future<void> setSpeed(double speed) => _player.setSpeed(speed);
 
   @override
   Future<void> dispose() => _player.dispose();
@@ -139,6 +145,9 @@ class VoiceSession extends ValueNotifier<VoiceNoteState> {
 
   /// Played to the end and not started again: shown at its full length, ready to play from the start
   bool _ended = false;
+
+  /// Where the member dragged the waveform before the note was loaded: the first play starts there
+  Duration? _pendingSeek;
   bool _closed = false;
 
   bool get closed => _closed;
@@ -155,10 +164,12 @@ class VoiceSession extends ValueNotifier<VoiceNoteState> {
     _subs
       ..add(p.playingStream.listen((v) => _set(value.copyWith(playing: v))))
       // After the end, a late position (the player reporting where it stopped) never moves the bar back to full
-      ..add(p.positionStream.listen((v) {
-        if (_ended && v > Duration.zero) return;
-        _set(value.copyWith(position: v));
-      }))
+      ..add(
+        p.positionStream.listen((v) {
+          if (_ended && v > Duration.zero) return;
+          _set(value.copyWith(position: v));
+        }),
+      )
       ..add(
         p.completedStream.listen((_) async {
           // The player may be disposed meanwhile: an error here would reach Crashlytics as fatal
@@ -287,6 +298,7 @@ class VoicePlayback {
     s._ended = false;
     if (!s.value.loaded) {
       final player = s._playerFrom(_create);
+      unawaited(player.setSpeed(speed.value).catchError((Object _) {}));
       s._set(s.value.copyWith(loading: true));
       try {
         final src = await source();
@@ -294,8 +306,18 @@ class VoicePlayback {
         final real = await player.load(src.uri, headers: src.headers);
         if (s.closed) return true;
         s._set(
-          s.value.copyWith(loading: false, loaded: true, realDuration: real != null && real > Duration.zero ? real : null),
+          s.value.copyWith(
+            loading: false,
+            loaded: true,
+            realDuration: real != null && real > Duration.zero ? real : null,
+          ),
         );
+        final at = s._pendingSeek;
+        s._pendingSeek = null;
+        if (at != null && at > Duration.zero) {
+          await player.seek(at).catchError((Object _) {});
+          if (s.closed) return true;
+        }
       } catch (_) {
         if (s.closed) return false;
         s._wantPlay = false;
@@ -309,6 +331,38 @@ class VoicePlayback {
     if (s.closed || !s._wantPlay || _current != key || !(canPlay?.call() ?? true)) return true;
     s._player?.play();
     return true;
+  }
+
+  /// Speeds a note can play at, in the order the speed button cycles them
+  static const speeds = [1.0, 1.5, 2.0];
+
+  /// The speed every note plays at: one for the whole app run (WhatsApp-style), so the next note keeps it
+  final speed = ValueNotifier<double>(1.0);
+
+  /// 1× → 1.5× → 2× → 1×, applied at once to the note playing and to every loaded one
+  void cycleSpeed() {
+    final i = speeds.indexOf(speed.value);
+    speed.value = speeds[(i + 1) % speeds.length];
+    for (final s in _sessions.values) {
+      final p = s._player;
+      if (p != null) unawaited(p.setSpeed(speed.value).catchError((Object _) {}));
+    }
+  }
+
+  /// The member tapped or dragged [key]'s waveform to [to]. A loaded note jumps there (playing or not); one never
+  /// played yet remembers it and starts there on its first play.
+  void seek(String key, Duration to) {
+    final s = _sessions[key];
+    if (s == null || s.closed || s.value.failed) return;
+    final at = to < Duration.zero ? Duration.zero : to;
+    s._ended = false;
+    s._set(s.value.copyWith(position: at));
+    final p = s._player;
+    if (s.value.loaded && p != null) {
+      unawaited(p.seek(at).catchError((Object _) {}));
+    } else {
+      s._pendingSeek = at;
+    }
   }
 
   void _claim(String key) {

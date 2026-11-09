@@ -31,7 +31,7 @@ import 'chat_live.dart';
 import 'chat_media_picker.dart';
 import 'chat_models.dart';
 import 'chat_status_bar.dart';
-import 'media_bubbles.dart' show formatVoiceDuration;
+import 'media_bubbles.dart' show ChatPhotoGallery, formatVoiceDuration;
 import 'voice_playback.dart';
 import 'voice_recorder.dart';
 
@@ -1472,62 +1472,66 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     final extra = (_loadingOlder ? 1 : 0) + (showSafety ? 1 : 0);
     return Stack(
       children: [
-        NotificationListener<ScrollNotification>(
-          onNotification: (n) {
-            _onScrollNotification(n);
-            return false;
-          },
-          child: ListView.builder(
-            key: _listKey,
-            controller: _scroll,
-            reverse: true,
-            // Scrolling the messages closes the keyboard
-            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-            padding: const EdgeInsets.fromLTRB(8, 6, 8, 10),
-            itemCount: items.length + extra,
-            itemBuilder: (context, i) {
-              if (i >= items.length) {
-                if (_loadingOlder && i == items.length) {
-                  return const Padding(
-                    padding: EdgeInsets.all(12),
-                    child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
-                  );
-                }
-                return safety!;
-              }
-              final m = items[i];
-              final layout = chatRowLayout(items, i, unreadFromId: _unreadFromId);
-              final bubble = ChatBubble(
-                key: ValueKey(m.id),
-                message: m,
-                tail: layout.tail,
-                tightTop: layout.tightTop,
-                onOpenPro: m.proRequired && proPurchasable ? _openPro : null,
-                onDelete: m.state == SendState.failed ? () => _deleteFailed(m) : null,
-                onRetry: m.state == SendState.failed && !m.proRequired
-                    ? () => m.kind != MessageKind.text
-                        ? _sendMedia(retry: m)
-                        : m.filtered
-                        ? _editFailed(m)
-                        : _send(m)
-                    : null,
-              );
-              return _RowProbe(
-                key: ValueKey('row-${m.id}'),
-                index: i,
-                rows: _rows,
-                child: !layout.daySeparator && !layout.unreadDivider
-                    ? bubble
-                    : Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          if (layout.daySeparator) _DayChip(label: chatDayLabel(m.createdAt)),
-                          if (layout.unreadDivider) const _UnreadDivider(),
-                          bubble,
-                        ],
-                      ),
-              );
+        // A tapped photo opens full screen with every photo of the chat (oldest first) to swipe through
+        ChatPhotoGallery(
+          photos: () => _messages,
+          child: NotificationListener<ScrollNotification>(
+            onNotification: (n) {
+              _onScrollNotification(n);
+              return false;
             },
+            child: ListView.builder(
+              key: _listKey,
+              controller: _scroll,
+              reverse: true,
+              // Scrolling the messages closes the keyboard
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              padding: const EdgeInsets.fromLTRB(8, 6, 8, 10),
+              itemCount: items.length + extra,
+              itemBuilder: (context, i) {
+                if (i >= items.length) {
+                  if (_loadingOlder && i == items.length) {
+                    return const Padding(
+                      padding: EdgeInsets.all(12),
+                      child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                    );
+                  }
+                  return safety!;
+                }
+                final m = items[i];
+                final layout = chatRowLayout(items, i, unreadFromId: _unreadFromId);
+                final bubble = ChatBubble(
+                  key: ValueKey(m.id),
+                  message: m,
+                  tail: layout.tail,
+                  tightTop: layout.tightTop,
+                  onOpenPro: m.proRequired && proPurchasable ? _openPro : null,
+                  onDelete: m.state == SendState.failed ? () => _deleteFailed(m) : null,
+                  onRetry: m.state == SendState.failed && !m.proRequired
+                      ? () => m.kind != MessageKind.text
+                          ? _sendMedia(retry: m)
+                          : m.filtered
+                          ? _editFailed(m)
+                          : _send(m)
+                      : null,
+                );
+                return _RowProbe(
+                  key: ValueKey('row-${m.id}'),
+                  index: i,
+                  rows: _rows,
+                  child: !layout.daySeparator && !layout.unreadDivider
+                      ? bubble
+                      : Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            if (layout.daySeparator) _DayChip(label: chatDayLabel(m.createdAt)),
+                            if (layout.unreadDivider) const _UnreadDivider(),
+                            bubble,
+                          ],
+                        ),
+                );
+              },
+            ),
           ),
         ),
         // The day of what's at the top, kept in view while scrolling

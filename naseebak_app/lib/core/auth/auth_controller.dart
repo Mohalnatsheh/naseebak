@@ -5,6 +5,7 @@ import '../../app/providers.dart';
 import '../../features/auth/me.dart';
 import '../../features/chat/chat_cache.dart';
 import '../../features/chat/chat_drafts.dart';
+import '../../features/chat/voice_played_store.dart';
 import '../network/api_exception.dart';
 import '../push/push_service.dart';
 import '../storage/picker_files.dart';
@@ -161,6 +162,8 @@ class AuthController extends Notifier<AuthState> {
       await ref.read(chatCacheProvider).clearAll();
       await ref.read(chatDraftsProvider).clearAll();
       await ref.read(pickerFilesCleanerProvider)();
+      // Which of the partner's voice notes were played (the unplayed dots)
+      await ref.read(voicePlayedStoreProvider).clear();
     } finally {
       state = const AuthState.signedOut();
     }

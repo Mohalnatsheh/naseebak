@@ -49,3 +49,21 @@ describe("guardian step with no guardian yet (QA WA-15)", () => {
     window.history.replaceState(null, "", "/");
   });
 });
+
+describe("edit labels follow gender (QA WA-13 review)", () => {
+  it("a woman sees feminine skin colours, and city buttons keep the city names", async () => {
+    window.history.replaceState(null, "", "/dashboard/profile/edit?step=1");
+    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      const url = String(input);
+      if (url === "/api/profile") return json({ user: { ...user, gender: "FEMALE" } });
+      if (url === "/api/profile/update-request") return json({ requests: [] });
+      return json({ parentInfo: null });
+    });
+    render(<ProfileEditPage />);
+    await waitFor(() => expect(screen.getByRole("button", { name: "سمراء" })).toBeTruthy());
+    expect(screen.getByRole("button", { name: "بيضاء" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "أسمر" })).toBeNull();
+    expect(screen.getByRole("button", { name: "عمّان" })).toBeTruthy();
+    window.history.replaceState(null, "", "/");
+  });
+});

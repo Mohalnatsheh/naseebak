@@ -816,7 +816,7 @@ export default function ProfileEditPage() {
                     onClick={() => handleCityChange(c)}
                     className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.city === c ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
                   >
-                    {skinColorLabel(c, gender)}
+                    {c}
                   </button>
                 ))}
               </div>
@@ -874,7 +874,7 @@ export default function ProfileEditPage() {
                     onClick={() => update("skinColor", c)}
                     className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.skinColor === c ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
                   >
-                    {c}
+                    {skinColorLabel(c, gender)}
                   </button>
                 ))}
               </div>

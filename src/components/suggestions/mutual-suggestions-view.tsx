@@ -1,6 +1,5 @@
 "use client";
 
-import { ProBadge } from "@/components/shared/pro-badge";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -35,6 +34,7 @@ import { describeOption, nationalityLabel, oppositeGender } from "@/lib/profile-
 import type { FeedItem, FeedTab, OpenFeedItem } from "@/lib/suggestions/feed-types";
 import type { SuggestEmptyReason } from "@/lib/matching/auto-suggest";
 import { markPageNotificationsRead } from "@/lib/notifications-client";
+import { ProBadge } from "@/components/shared/pro-badge";
 
 type Notice =
   | { kind: "match"; matchId?: string }

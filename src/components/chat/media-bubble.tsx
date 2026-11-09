@@ -14,20 +14,37 @@ const PHOTO_WIDTH = 240;
 const MIN_RATIO = 0.6;
 const MAX_RATIO = 1.8;
 
-/** A photo in a bubble. Tap opens it full size. A `blob:` URL is the local preview while it uploads. */
+/**
+ * A photo in a bubble. Tap opens it full size. A `blob:` URL is the local preview while it uploads; one the browser
+ * can't show (a HEIC in Chrome, decoded by the server) says «جارٍ تجهيز الصورة…» until the server's copy arrives.
+ * A saved photo that fails to load offers a tap to try again.
+ */
 export function PhotoBubble({ media, mine }: { media: ChatMedia; mine: boolean }) {
   const [open, setOpen] = useState(false);
-  const [failed, setFailed] = useState(false);
+  // The address that failed (a new url, the server's copy after the preview, starts fresh) and the retry count
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
   const ratio = media.width && media.height ? media.width / media.height : 1;
   const shown = Math.min(MAX_RATIO, Math.max(MIN_RATIO, ratio));
   const local = media.url.startsWith("blob:");
+  const src = local || attempt === 0 ? media.url : `${media.url}?retry=${attempt}`;
   const style = { width: PHOTO_WIDTH, maxWidth: "100%", aspectRatio: String(shown) };
+  const box = cn("flex items-center justify-center rounded-xl text-sm", mine ? "bg-primary-foreground/10" : "bg-muted");
 
-  if (failed) {
+  if (failedUrl === src) {
+    if (local) {
+      return (
+        <div style={style} className={box} role="status">
+          <Loader2 className="me-1.5 h-4 w-4 animate-spin" aria-hidden />
+          جارٍ تجهيز الصورة…
+        </div>
+      );
+    }
     return (
-      <div style={style} className={cn("flex items-center justify-center rounded-xl text-sm", mine ? "bg-primary-foreground/10" : "bg-muted")}>
-        تعذّر عرض الصورة
-      </div>
+      <button type="button" style={style} className={cn(box, "flex-col gap-1")} onClick={() => setAttempt((n) => n + 1)}>
+        <span>تعذّر عرض الصورة</span>
+        <span className="text-xs underline underline-offset-2">اضغط لإعادة المحاولة</span>
+      </button>
     );
   }
 
@@ -42,15 +59,15 @@ export function PhotoBubble({ media, mine }: { media: ChatMedia; mine: boolean }
       >
         {local ? (
           // eslint-disable-next-line @next/next/no-img-element -- blob: preview of a photo still uploading
-          <img src={media.url} alt="صورة" className="h-full w-full object-cover" />
+          <img src={src} alt="صورة" onError={() => setFailedUrl(src)} className="h-full w-full object-cover" />
         ) : (
           <Image
-            src={media.url}
+            src={src}
             alt="صورة"
             width={media.width ?? PHOTO_WIDTH}
             height={media.height ?? PHOTO_WIDTH}
             unoptimized
-            onError={() => setFailed(true)}
+            onError={() => setFailedUrl(src)}
             className="h-full w-full object-cover"
           />
         )}
@@ -61,10 +78,10 @@ export function PhotoBubble({ media, mine }: { media: ChatMedia; mine: boolean }
           <div className="flex items-center justify-center">
             {local ? (
               // eslint-disable-next-line @next/next/no-img-element -- blob: preview of a photo still uploading
-              <img src={media.url} alt="صورة" className="max-h-[calc(100dvh-7rem)] w-auto max-w-full rounded-md object-contain" />
+              <img src={src} alt="صورة" className="max-h-[calc(100dvh-7rem)] w-auto max-w-full rounded-md object-contain" />
             ) : (
               <Image
-                src={media.url}
+                src={src}
                 alt="صورة"
                 width={media.width ?? 1200}
                 height={media.height ?? 1200}
@@ -117,7 +134,7 @@ export function VoiceBubble({ media, mine }: { media: ChatMedia; mine: boolean }
     }
   }
 
-  // MediaRecorder WebM often reports an endless duration: fall back to the recorder's
+  // The declared length until the file's own is known (MediaRecorder WebM may report an endless one)
   const total = length > 0 ? length : 0;
   const progress = total > 0 ? Math.min(1, current / total) : 0;
   const active = state === "playing" || state === "loading" || (state === "paused" && current > 0);
@@ -175,8 +192,10 @@ export function VoiceBubble({ media, mine }: { media: ChatMedia; mine: boolean }
         onWaiting={() => setState("loading")}
         onTimeUpdate={(e) => setCurrent(e.currentTarget.currentTime)}
         onLoadedMetadata={(e) => {
+          // The file's own length (the stored note is AAC, finite) is exact: the declared one is rounded up, which
+          // left the bar short of the end. An endless WebM length keeps the declared one
           const d = e.currentTarget.duration;
-          if (Number.isFinite(d) && d > 0 && !(media.durationSec && media.durationSec > 0)) setLength(d);
+          if (Number.isFinite(d) && d > 0) setLength(d);
         }}
         onEnded={() => {
           setState("idle");

@@ -85,7 +85,7 @@ export function MyProCard({ state, onChanged }: { state: MyProState; onChanged: 
         <ul className="grid gap-2 text-sm text-muted-foreground sm:grid-cols-3">
           {PRO_FEATURE_LABELS.map((f) => (
             <li key={f} className="flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" aria-hidden="true" />
+              <CheckCircle2 className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
               {f}
             </li>
           ))}
@@ -136,11 +136,11 @@ export function MyProCard({ state, onChanged }: { state: MyProState; onChanged: 
             </p>
           )}
           <DialogFooter className="gap-2 sm:flex-row-reverse sm:justify-start">
-            <Button variant="destructive" disabled={busy !== null} onClick={() => manage("cancel")} className="flex-1 sm:flex-none">
+            <Button variant="destructive" disabled={busy !== null} onClick={() => manage("cancel")} className="h-11 flex-1 rounded-xl sm:flex-none">
               {busy === "cancel" && <Loader2 className="h-4 w-4 animate-spin" />}
               إلغاء التجديد
             </Button>
-            <Button variant="ghost" disabled={busy !== null} onClick={() => setConfirmOpen(false)} className="flex-1 sm:flex-none">
+            <Button variant="ghost" disabled={busy !== null} onClick={() => setConfirmOpen(false)} className="h-11 flex-1 rounded-xl sm:flex-none">
               {forViewer(gender, "تراجع", "تراجعي")}
             </Button>
           </DialogFooter>

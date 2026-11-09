@@ -1,6 +1,5 @@
 "use client";
 
-import { ProBadge } from "@/components/shared/pro-badge";
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -29,6 +28,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { VerifiedBadge } from "@/components/shared/verified-badge";
+import { ProBadge } from "@/components/shared/pro-badge";
 import { cn } from "@/lib/utils";
 import type { ChatSummary, ChatMessage } from "@/lib/chat/service";
 import type { IntroState } from "@/lib/intro/requests";
@@ -49,7 +49,8 @@ import { markPageNotificationsRead } from "@/lib/notifications-client";
 import { ProOfferDialog } from "@/components/payments/pro-offer-dialog";
 import type { MyProState } from "@/lib/pro/pro-types";
 import { composerMediaMode, type ComposerMedia, type MediaMode } from "./media-buttons";
-import { preparePhoto } from "./voice-recorder";
+import { preparePhoto } from "./photo-prepare";
+import { UNSUPPORTED_IMAGE_MESSAGE } from "@/lib/chat/media-messages";
 import type { PendingUpload } from "./chat-utils";
 
 /** Id for an optimistic message until the server answers (also its clientNonce); only called from send() / sendMedia(). */
@@ -60,7 +61,6 @@ function tempMessageId() {
 /** Same limit as the server (photos are usually far smaller after preparePhoto) */
 const PHOTO_MAX_BYTES = 10 * 1024 * 1024;
 /** The server's wording for a photo it can't read (src/lib/chat/media.ts, which client code can't import) */
-const UNSUPPORTED_PHOTO = "صيغة الصورة غير مدعومة، جرّب صورة JPG أو PNG";
 
 /** A file name for the multipart upload (the server goes by the type, the name only helps logs and proxies) */
 function uploadName(upload: PendingUpload): string {
@@ -99,6 +99,15 @@ async function requestLatest(conversationId: string): Promise<LatestResult> {
 async function requestIntro(matchId: string): Promise<IntroState | null> {
   const res = await fetch(`/api/matches/${matchId}/intro`).catch(() => null);
   return res?.ok ? res.json() : null;
+}
+
+
+/** The chat's Pro bits from GET /api/pro, or null when the request failed */
+async function fetchProBits(): Promise<Pick<MyProState, "canBuy" | "isPro"> | null> {
+  const res = await fetch("/api/pro").catch(() => null);
+  if (!res?.ok) return null;
+  const data: MyProState | null = await res.json().catch(() => null);
+  return data ? { canBuy: !!data.canBuy, isPro: !!data.isPro } : null;
 }
 
 export function ChatRoom({ conversationId }: { conversationId: string }) {
@@ -162,20 +171,13 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
   // Fetched once for the page, again only after the server says PRO_REQUIRED.
   const [pro, setPro] = useState<Pick<MyProState, "canBuy" | "isPro"> | null>(null);
   const [offerOpen, setOfferOpen] = useState(false);
-  const loadPro = useCallback(async () => {
-    const res = await fetch("/api/pro").catch(() => null);
-    if (!res?.ok) return;
-    const data: MyProState = await res.json().catch(() => null);
-    if (data) setPro({ canBuy: !!data.canBuy, isPro: !!data.isPro });
-  }, []);
+  // A failed (re)fetch answers null and keeps the last known state: the buttons stay as they were, never vanish silently
+  const loadPro = useCallback(() => fetchProBits().then((bits) => bits && setPro(bits)), []);
   useEffect(() => {
     let active = true;
-    fetch("/api/pro")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data: MyProState | null) => {
-        if (active && data) setPro({ canBuy: !!data.canBuy, isPro: !!data.isPro });
-      })
-      .catch(() => {});
+    fetchProBits().then((bits) => {
+      if (active && bits) setPro(bits);
+    });
     return () => {
       active = false;
     };
@@ -418,7 +420,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
   async function sendPhoto(file: File) {
     setComposerError(null);
     const photo = await preparePhoto(file).catch(() => null);
-    if (!photo) return setComposerError(UNSUPPORTED_PHOTO);
+    if (!photo) return setComposerError(UNSUPPORTED_IMAGE_MESSAGE);
     if (photo.blob.size > PHOTO_MAX_BYTES) return setComposerError("حجم الصورة أكبر من 10 ميغابايت");
     sendMedia({ kind: "IMAGE", blob: photo.blob, width: photo.width, height: photo.height });
   }

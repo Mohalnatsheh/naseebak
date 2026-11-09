@@ -5,7 +5,7 @@ import type { ProPlanOffer } from "@/lib/pro/plans";
 const data = vi.hoisted(() => ({ current: { profile: { gender: "FEMALE" } } as Record<string, unknown> }));
 vi.mock("@/contexts/dashboard-context", () => ({ useDashboardData: () => data.current }));
 
-import { ProPlanChooser, defaultProPlan } from "@/components/payments/pro-section";
+import { ProPlanChooser, defaultProPlan, proCreditsLine, proPitch } from "@/components/payments/pro-section";
 import { ProBadge } from "@/components/shared/pro-badge";
 
 const offer = (id: ProPlanOffer["id"], price: number, credits: number): ProPlanOffer => ({
@@ -64,6 +64,55 @@ describe("ProPlanChooser (one compact Pro card)", () => {
   });
 });
 
+describe("ProPlanChooser: minor fixes", () => {
+  it("«الأكثر طلباً» shows only next to other plans", () => {
+    render(<ProPlanChooser offers={offers} canBuy />);
+    expect(screen.getByText("الأكثر طلباً")).toBeTruthy();
+    cleanup();
+    render(<ProPlanChooser offers={[offer("monthly", 5, 4)]} canBuy />);
+    expect(screen.queryByText("الأكثر طلباً")).toBeNull();
+  });
+
+  it("radiogroup keys: one tab stop; in RTL the left arrow picks the next plan, the right arrow the one before; Home / End", () => {
+    render(
+      <div dir="rtl">
+        <ProPlanChooser offers={offers} canBuy />
+      </div>
+    );
+    const radio = (name: string) => screen.getByRole("radio", { name });
+    expect(screen.getAllByRole("radio").map((r) => r.tabIndex)).toEqual([-1, 0, -1]);
+    fireEvent.keyDown(radio("شهري"), { key: "ArrowLeft" });
+    expect(radio("سنوي").getAttribute("aria-checked")).toBe("true");
+    expect(document.activeElement).toBe(radio("سنوي"));
+    fireEvent.keyDown(radio("سنوي"), { key: "ArrowLeft" }); // wraps
+    expect(radio("أسبوعي").getAttribute("aria-checked")).toBe("true");
+    fireEvent.keyDown(radio("أسبوعي"), { key: "ArrowRight" });
+    expect(radio("سنوي").getAttribute("aria-checked")).toBe("true");
+    fireEvent.keyDown(radio("سنوي"), { key: "Home" });
+    expect(radio("أسبوعي").getAttribute("aria-checked")).toBe("true");
+    fireEvent.keyDown(radio("أسبوعي"), { key: "End" });
+    expect(radio("سنوي").getAttribute("aria-checked")).toBe("true");
+    expect(screen.getAllByRole("radio").map((r) => r.tabIndex)).toEqual([-1, -1, 0]);
+  });
+
+  it("subscribe starts the checkout of the chosen plan; a man reads the masculine copy", async () => {
+    data.current = { profile: { gender: "MALE" } };
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ error: "x" }), { status: 403 }));
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      render(<ProPlanChooser offers={offers} canBuy />);
+      expect(screen.getByText(/تدفع 7.05\$ بالدولار/)).toBeTruthy();
+      fireEvent.click(screen.getByRole("radio", { name: "سنوي" }));
+      fireEvent.click(screen.getByRole("button", { name: "اشترك الآن" }));
+      await screen.findByRole("alert");
+      expect(fetchMock).toHaveBeenCalledWith("/api/pro/checkout", expect.objectContaining({ method: "POST", body: JSON.stringify({ plan: "yearly" }) }));
+    } finally {
+      vi.unstubAllGlobals();
+      data.current = { profile: { gender: "FEMALE" } };
+    }
+  });
+});
+
 describe("ProBadge", () => {
   it("is solid gold with dark text on dark backgrounds, a light tint elsewhere", () => {
     render(
@@ -76,5 +125,18 @@ describe("ProBadge", () => {
     expect(dark.className).toMatch(/\bbg-accent\b/);
     expect(dark.className).toMatch(/text-accent-foreground/);
     expect(light.className).toMatch(/bg-accent\/15/);
+  });
+});
+
+describe("proPitch / proCreditsLine", () => {
+  it("mentions the free credits only when a plan has some", () => {
+    expect(proPitch([{ credits: 0 }])).toBe("مع Pro يمكنك إرسال الصور والرسائل الصوتية في المحادثة.");
+    expect(proPitch([{ credits: 0 }, { credits: 3 }])).toContain("ويصلك رصيد مجاني مع الاشتراك");
+  });
+  it("counts the credits in Arabic, with the plan's rhythm", () => {
+    expect(proCreditsLine({ id: "weekly", credits: 1 })).toBe("رصيد واحد مجاناً كل أسبوع");
+    expect(proCreditsLine({ id: "monthly", credits: 2 })).toBe("رصيدان مجاناً كل شهر");
+    expect(proCreditsLine({ id: "yearly", credits: 5 })).toBe("5 أرصدة مجاناً كل شهر");
+    expect(proCreditsLine({ id: "monthly", credits: 12 })).toBe("12 رصيداً مجاناً كل شهر");
   });
 });

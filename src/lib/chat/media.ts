@@ -35,7 +35,8 @@ export const VOICE_FALLBACK_BODY = "🎤 رسالة صوتية — حدّث ال
 export const IMAGE_PREVIEW = "📷 صورة";
 export const VOICE_PREVIEW = "🎤 رسالة صوتية";
 
-export const UNSUPPORTED_IMAGE_MESSAGE = "صيغة الصورة غير مدعومة، جرّب صورة JPG أو PNG";
+import { UNSUPPORTED_IMAGE_MESSAGE } from "@/lib/chat/media-messages";
+export { UNSUPPORTED_IMAGE_MESSAGE };
 export const IMAGE_BUSY_MESSAGE = "تعذّر تجهيز الصورة الآن، حاول مرة أخرى";
 
 const VOICE_EXT: Record<(typeof VOICE_TYPES)[number], string> = {

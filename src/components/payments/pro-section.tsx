@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState, type KeyboardEvent } from "react";
 import { CheckCircle2, CircleDollarSign, Crown, Loader2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -78,8 +78,28 @@ export function ProPlanChooser({ offers, canBuy }: { offers: ProPlanOffer[]; can
   const { buying, error, buy } = useProCheckout();
   const sorted = [...offers].sort((a, b) => PRO_PLAN_IDS.indexOf(a.id) - PRO_PLAN_IDS.indexOf(b.id));
   const [picked, setPicked] = useState<ProPlanId | null>(null);
+  const radios = useRef<(HTMLButtonElement | null)[]>([]);
   const offer = sorted.find((o) => o.id === picked) ?? sorted.find((o) => o.id === defaultProPlan(sorted));
   if (!offer) return null;
+
+  /** The radiogroup keyboard pattern: arrows move and choose (left = next in RTL), Home / End jump; one tab stop */
+  function onRadioKey(e: KeyboardEvent<HTMLButtonElement>, index: number) {
+    const rtl = e.currentTarget.closest("[dir]")?.getAttribute("dir") === "rtl";
+    const step: Record<string, number> = {
+      ArrowDown: 1,
+      ArrowUp: -1,
+      ArrowLeft: rtl ? 1 : -1,
+      ArrowRight: rtl ? -1 : 1,
+    };
+    let next: number;
+    if (e.key === "Home") next = 0;
+    else if (e.key === "End") next = sorted.length - 1;
+    else if (e.key in step) next = (index + step[e.key] + sorted.length) % sorted.length;
+    else return;
+    e.preventDefault();
+    setPicked(sorted[next].id);
+    radios.current[next]?.focus();
+  }
 
   return (
     <div className="space-y-2.5">
@@ -93,15 +113,20 @@ export function ProPlanChooser({ offers, canBuy }: { offers: ProPlanOffer[]; can
               className="grid gap-1 rounded-xl bg-muted p-1"
               style={{ gridTemplateColumns: `repeat(${sorted.length}, minmax(0, 1fr))` }}
             >
-              {sorted.map((o) => {
+              {sorted.map((o, i) => {
                 const on = o.id === offer.id;
                 return (
                   <button
                     key={o.id}
+                    ref={(el) => {
+                      radios.current[i] = el;
+                    }}
                     type="button"
                     role="radio"
                     aria-checked={on}
+                    tabIndex={on ? 0 : -1}
                     onClick={() => setPicked(o.id)}
+                    onKeyDown={(e) => onRadioKey(e, i)}
                     className={cn(
                       "h-11 rounded-lg text-sm font-bold transition-all",
                       on ? "bg-card text-primary shadow-sm ring-1 ring-accent/40" : "text-muted-foreground hover:text-foreground"
@@ -114,7 +139,7 @@ export function ProPlanChooser({ offers, canBuy }: { offers: ProPlanOffer[]; can
             </div>
           )}
 
-          <div className="flex flex-wrap items-end justify-between gap-x-3 gap-y-1">
+          <div className="flex flex-wrap items-end justify-between gap-x-3 gap-y-1" aria-live="polite">
             <div>
               <div className="flex items-baseline gap-1.5">
                 <span className="text-3xl font-black text-primary">{formatPrice({ price: offer.price, currency: offer.currency })}</span>
@@ -127,7 +152,8 @@ export function ProPlanChooser({ offers, canBuy }: { offers: ProPlanOffer[]; can
                 </p>
               )}
             </div>
-            {offer.id === "monthly" && (
+            {/* Only next to other plans: on its own, "most chosen" says nothing */}
+            {offer.id === "monthly" && sorted.length > 1 && (
               <span className="rounded-full bg-accent px-2.5 py-1 text-xs font-bold text-accent-foreground">الأكثر طلباً</span>
             )}
           </div>

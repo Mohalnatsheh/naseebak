@@ -48,7 +48,7 @@ function ProTag() {
   return (
     <span
       aria-hidden
-      className="pointer-events-none absolute -top-1 -end-1 rounded-full border border-accent/40 bg-accent px-1.5 py-px text-[10px] font-bold leading-none text-accent-foreground shadow-sm"
+      className="pointer-events-none absolute -top-1 -end-1 rounded-full border border-accent/40 bg-accent px-1.5 py-px text-[11px] font-bold leading-none text-accent-foreground shadow-sm"
     >
       Pro
     </span>
@@ -135,6 +135,14 @@ export type RecorderState =
  */
 export function useVoiceRecording(media: ComposerMedia | undefined) {
   const [state, setState] = useState<RecorderState>({ phase: "idle" });
+  // The buttons went away (chat ended, Pro gone): the bar goes back to idle, so the text box returns instead of a
+  // frozen recording bar (state adjusted during render; the effect below releases the microphone)
+  const allowed = media?.mode === "enabled";
+  const [wasAllowed, setWasAllowed] = useState(allowed);
+  if (wasAllowed !== allowed) {
+    setWasAllowed(allowed);
+    if (!allowed && state.phase !== "idle") setState({ phase: "idle" });
+  }
   const active = useRef<ActiveRecording | null>(null);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
   const mounted = useRef(false);
@@ -228,7 +236,6 @@ export function useVoiceRecording(media: ComposerMedia | undefined) {
   }, [fail, state.phase, stopAtLimit]);
 
   // The buttons went away mid-recording (chat no longer open for media): release the microphone
-  const allowed = media?.mode === "enabled";
   useEffect(() => {
     if (allowed) return;
     discard();

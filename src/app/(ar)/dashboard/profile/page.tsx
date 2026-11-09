@@ -4,6 +4,7 @@ import Image from "next/image";
 import { toast } from "sonner";
 import { useState, useEffect, useRef } from "react";
 import { useCountry, useDashboardData } from "@/contexts/dashboard-context";
+import { ProBadge } from "@/components/shared/pro-badge";
 import { selfLabel, tribeLabel } from "@/lib/profile-options";
 import { formatDate } from "@/lib/countries";
 import { compressImage } from "@/lib/image-compress";
@@ -205,7 +206,7 @@ function SectionCard({
 }
 
 export default function ProfilePage() {
-  const { flags } = useDashboardData().counts;
+  const { flags, pro } = useDashboardData().counts;
   const introMode = flags.introRequests;
   // Dates and wording follow the member's country
   const country = useCountry();
@@ -469,6 +470,8 @@ export default function ProfilePage() {
             <div className="space-y-2">
               <h1 className="text-2xl sm:text-3xl font-extrabold leading-tight">
                 {user.firstName} {user.lastName}
+                {/* Display only, the same badge others see on the member's card */}
+                {pro?.isPro && <ProBadge size="md" onDark className="ms-2 align-middle" />}
               </h1>
               <div className="flex flex-wrap items-center gap-2">
                 {p?.dateOfBirth && (

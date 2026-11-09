@@ -9,19 +9,33 @@ import { PRO_PLAN_IDS, type ProPlanId, type ProPlans } from "@/lib/pro/plans";
 
 const NAMES: Record<ProPlanId, string> = { weekly: "Weekly", monthly: "Monthly", yearly: "Yearly" };
 
-interface Draft {
+export interface Draft {
   enabled: boolean;
   price: string;
   credits: string;
 }
 
-const toDrafts = (value: ProPlans | null): Record<ProPlanId, Draft> =>
+export const toDrafts = (value: ProPlans | null): Record<ProPlanId, Draft> =>
   Object.fromEntries(
     PRO_PLAN_IDS.map((id) => {
       const c = value?.[id];
       return [id, { enabled: c?.enabled ?? false, price: c ? String(c.price) : "", credits: c ? String(c.credits) : "" }];
     }),
   ) as Record<ProPlanId, Draft>;
+
+/**
+ * What the drafts send to the server. A blank, switched-off plan is not stored. Anything else goes along as typed, so
+ * the server can name a bad value (a blank credits field is 0).
+ */
+export function proPlansFromDrafts(drafts: Record<ProPlanId, Draft>): ProPlans | null {
+  const out: ProPlans = {};
+  for (const pid of PRO_PLAN_IDS) {
+    const d = drafts[pid];
+    if (!d.enabled && d.price.trim() === "") continue;
+    out[pid] = { enabled: d.enabled, price: Number(d.price), credits: Number(d.credits === "" ? 0 : d.credits) };
+  }
+  return Object.keys(out).length > 0 ? out : null;
+}
 
 /**
  * Admin → Countries: a country's Pro plans (weekly, monthly, yearly): on/off, price in the country's currency and credits.
@@ -39,18 +53,17 @@ export function ProPlansEditor({
   onChange: (plans: ProPlans | null) => void;
 }) {
   const [drafts, setDrafts] = useState(() => toDrafts(value));
+  // A value changed from outside (a reload or a reset of the form, not our own typing): the drafts follow it
+  const [seen, setSeen] = useState(value);
+  if (value !== seen) {
+    setSeen(value);
+    if (JSON.stringify(value) !== JSON.stringify(proPlansFromDrafts(drafts))) setDrafts(toDrafts(value));
+  }
 
   function update(id: ProPlanId, patch: Partial<Draft>) {
     const next = { ...drafts, [id]: { ...drafts[id], ...patch } };
     setDrafts(next);
-    const out: ProPlans = {};
-    for (const pid of PRO_PLAN_IDS) {
-      const d = next[pid];
-      // A blank, switched-off plan is not stored. Anything else goes along, so the server can name a bad value
-      if (!d.enabled && d.price.trim() === "") continue;
-      out[pid] = { enabled: d.enabled, price: Number(d.price), credits: Number(d.credits === "" ? 0 : d.credits) };
-    }
-    onChange(Object.keys(out).length > 0 ? out : null);
+    onChange(proPlansFromDrafts(next));
   }
 
   return (
@@ -61,6 +74,7 @@ export function ProPlansEditor({
         </p>
         <p className="text-xs text-muted-foreground">
           Price changes apply to new subscribers only. Sales also need Pro on in Settings and «Prices approved» for this country.
+          A plan switched off keeps its settings only while its price is filled in; with no price it is removed.
         </p>
       </div>
       <div className="grid gap-3 sm:grid-cols-3">

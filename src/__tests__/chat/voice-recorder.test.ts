@@ -1,8 +1,16 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { VoiceRecording } from "@/components/chat/voice-recorder";
-import { MAX_RECORD_SEC, isHeicFile, pickVoiceType, preparePhoto, recordedSeconds, recorderErrorMessage, startVoiceRecording, RecorderError } from "@/components/chat/voice-recorder";
+import { MAX_RECORD_SEC, pickVoiceType, recordedSeconds, recorderErrorMessage, startVoiceRecording, RecorderError } from "@/components/chat/voice-recorder";
+import { isHeicFile, preparePhoto } from "@/components/chat/photo-prepare";
 import { act, renderHook } from "@testing-library/react";
 import { clockLabel, composerMediaMode, useVoiceRecording, type ComposerMedia } from "@/components/chat/media-buttons";
+
+// Tests redefine navigator.mediaDevices: put the original back after each one (unstubAllGlobals doesn't undo it)
+const originalMediaDevices = Object.getOwnPropertyDescriptor(navigator, "mediaDevices");
+afterEach(() => {
+  if (originalMediaDevices) Object.defineProperty(navigator, "mediaDevices", originalMediaDevices);
+  else delete (navigator as unknown as Record<string, unknown>).mediaDevices;
+});
 
 describe("voice recorder helpers", () => {
   afterEach(() => {
@@ -85,12 +93,13 @@ describe("preparePhoto when the browser can't decode the file", () => {
     }
   });
 
-  it("a JPEG/PNG/WebP still goes to the server; anything else is refused here", async () => {
+  it("a JPEG/PNG/WebP still goes to the server, and a file with no type (the server reads its first bytes); a known other type is refused here", async () => {
     undecodable();
     const jpg = new File(["x"], "a.jpg", { type: "image/jpeg" });
     expect((await preparePhoto(jpg))?.blob).toBe(jpg);
     expect(await preparePhoto(new File(["x"], "a.gif", { type: "image/gif" }))).toBeNull();
-    expect(await preparePhoto(new File(["x"], "a.tiff", { type: "" }))).toBeNull();
+    const untyped = new File(["x"], "photo", { type: "" });
+    expect(await preparePhoto(untyped)).toEqual({ blob: untyped, width: null, height: null });
   });
 
   it("isHeicFile reads the type or the name", () => {
@@ -200,6 +209,30 @@ describe("useVoiceRecording", () => {
     expect(mic.track.stop).toHaveBeenCalled();
     expect(result.current.state.phase).toBe("idle");
     expect(media.onVoice).not.toHaveBeenCalled();
+  });
+
+  it("the buttons going away mid-recording release the mic and bring the text box back (idle, not a frozen bar)", async () => {
+    vi.stubGlobal("MediaRecorder", FakeRecorder);
+    const mic = fakeMic();
+    const media = mediaProp();
+    const { result, rerender } = renderHook(({ m }: { m: ComposerMedia | undefined }) => useVoiceRecording(m), {
+      initialProps: { m: media as ComposerMedia | undefined },
+    });
+    await act(async () => {
+      const started = result.current.start();
+      mic.grant();
+      await started;
+    });
+    expect(result.current.state.phase).toBe("recording");
+    rerender({ m: undefined });
+    await act(async () => {});
+    expect(result.current.state.phase).toBe("idle");
+    expect(mic.track.stop).toHaveBeenCalled();
+    expect(FakeRecorder.instances[0].state).toBe("inactive");
+    expect(media.onVoice).not.toHaveBeenCalled();
+    // Buttons back: a new recording can start
+    rerender({ m: media });
+    expect(result.current.state.phase).toBe("idle");
   });
 
   it("leaving mid-recording stops the recorder and releases the mic", async () => {

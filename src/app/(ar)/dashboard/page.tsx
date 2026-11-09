@@ -1,6 +1,5 @@
 "use client";
 
-import { ProBadge } from "@/components/shared/pro-badge";
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Loader2, Sparkles, Heart, Bell, ChevronLeft, Zap, Inbox, Coins } from "lucide-react";
@@ -18,6 +17,7 @@ import { matchesHref } from "@/lib/matches/links";
 import type { ChatSummary } from "@/lib/chat/service";
 import type { FeedItem } from "@/lib/suggestions/feed-types";
 import { homeZeroCreditLine } from "@/lib/suggestions/copy";
+import { ProBadge } from "@/components/shared/pro-badge";
 
 /** Local time in Jordan and Saudi Arabia (both UTC+3 all year), whatever the device clock says */
 function ammanHour(): number {
@@ -292,8 +292,11 @@ export default function DashboardPage() {
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="flex items-center justify-between gap-2">
-                        <span className="truncate font-bold text-foreground">{c.partner.firstName}</span>
-                        {c.partner.isPro && <ProBadge />}
+                        {/* Name and badge together (as in the chat list), so the time keeps its place */}
+                        <span className="flex min-w-0 items-center gap-1.5">
+                          <span className="truncate font-bold text-foreground">{c.partner.firstName}</span>
+                          {c.partner.isPro && <ProBadge />}
+                        </span>
                         {c.lastMessage && <span className="shrink-0 text-xs text-muted-foreground">{listTimeLabel(c.lastMessage.createdAt, country)}</span>}
                       </span>
                       <span className={cn("block truncate text-sm", c.unread > 0 ? "font-semibold text-foreground" : "text-muted-foreground")}>

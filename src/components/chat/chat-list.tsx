@@ -1,6 +1,5 @@
 "use client";
 
-import { ProBadge } from "@/components/shared/pro-badge";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { MessageCircle, Loader2, Clock, Lock, Heart } from "lucide-react";
@@ -17,6 +16,7 @@ import { LoadError } from "@/components/shared/load-error";
 import { PageHeader } from "@/components/shared/page-header";
 import { markPageNotificationsRead } from "@/lib/notifications-client";
 import { matchesHref } from "@/lib/matches/links";
+import { ProBadge } from "@/components/shared/pro-badge";
 
 export function ChatList() {
   // Opening this page clears the bell for the notifications that lead here

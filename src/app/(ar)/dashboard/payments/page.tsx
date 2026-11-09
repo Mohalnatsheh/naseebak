@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useEffectEvent, useCallback, useRef, Suspense } from "react";
+import { useState, useEffect, useEffectEvent, useCallback, useRef, useSyncExternalStore, Suspense } from "react";
 import Link from "@/components/shared/site-link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { loadStripe } from "@stripe/stripe-js";
@@ -110,6 +110,12 @@ export default function PaymentsPage() {
   );
 }
 
+const noSubscribe = () => () => {};
+/** The page is served from this machine (the local mock checkout's only home) */
+function isLocalHost(): boolean {
+  return /^(localhost|127\.0\.0\.1|\[::1\])$/.test(window.location.hostname) || window.location.hostname.endsWith(".localhost");
+}
+
 function PaymentsContent() {
   // Opening this page clears the bell for the notifications that lead here
   useEffect(() => {
@@ -157,7 +163,8 @@ function PaymentsContent() {
   const [mockBusy, setMockBusy] = useState<string | null>(null);
   const [mockResult, setMockResult] = useState<string | null>(null);
 
-  const loadPro = useCallback(async (): Promise<MyProState | null> => {
+  /** `quiet`: a refetch (activation polling) whose failure keeps the last known state instead of the load error */
+  const loadPro = useCallback(async (quiet = false): Promise<MyProState | null> => {
     try {
       const res = await fetch("/api/pro");
       if (!res.ok) throw new Error(`pro ${res.status}`);
@@ -167,9 +174,18 @@ function PaymentsContent() {
       return data;
     } catch (err) {
       console.error(err);
-      setProFailed(true);
+      if (!quiet) setProFailed(true);
       return null;
     }
+  }, []);
+
+  // The activation wait stops when the member leaves the page
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
   }, []);
 
   const loadData = useCallback(async (p = histPage) => {
@@ -216,7 +232,10 @@ function PaymentsContent() {
     setToast({ type: "success", message: "تم الدفع بنجاح! جاري تفعيل اشتراك Pro…" });
     const until = Date.now() + PRO_ACTIVATION_WAIT_MS;
     while (Date.now() < until) {
-      const pro = await loadPro();
+      if (!mounted.current) return;
+      // A failed poll keeps the section as it was (no load-error flash); the next one tries again
+      const pro = await loadPro(true);
+      if (!mounted.current) return;
       if (pro?.isPro) {
         setToast({ type: "success", message: "تم تفعيل اشتراك Pro" });
         loadData();
@@ -226,7 +245,7 @@ function PaymentsContent() {
       }
       await new Promise((r) => setTimeout(r, 1500));
     }
-    setToast({ type: "info", message: "تم استلام الدفع، وسيظهر اشتراكك خلال دقائق." });
+    if (mounted.current) setToast({ type: "info", message: "تم استلام الدفع، وسيظهر اشتراكك خلال دقائق." });
   });
   useEffect(() => {
     if (!proReturn || handledProReturn.current === proReturn) return;
@@ -244,7 +263,9 @@ function PaymentsContent() {
   }, [loading, proShown]);
 
   // Local mock Pro checkout (PAYMENTS_MOCK): /dashboard/payments?mockPro=<paymentId> shows dev buttons in place of Stripe
-  const mockProId = searchParams.get("mockPro");
+  // Only on this machine (the dev route refuses everywhere else anyway): never a dev panel on naseebak.com
+  const localHost = useSyncExternalStore(noSubscribe, isLocalHost, () => false);
+  const mockProId = localHost ? searchParams.get("mockPro") : null;
   async function runMockPro(outcome: (typeof MOCK_PRO_OUTCOMES)[number]) {
     if (!mockProId || mockBusy) return;
     setMockBusy(outcome);

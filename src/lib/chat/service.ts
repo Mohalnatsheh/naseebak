@@ -21,9 +21,10 @@ import { LEGACY_ADMIN_VISIT, cancelPendingBetween, familyMoveOpenUntil, isUnavai
 import { isPro, proUserIds } from "@/lib/pro/status";
 import { deleteFromBunny, uploadToBunny } from "@/lib/bunny";
 import {
-  type MediaKind, type MessageKindValue, baseMime, fallbackBody, mediaUrl, newMediaPath, previewBody, processImage,
-  validateImage, validateVoice, voiceExtension,
+  type MediaKind, type MessageKindValue, fallbackBody, mediaUrl, newMediaPath, previewBody, processImage,
+  validateImage, validateVoice,
 } from "@/lib/chat/media";
+import { prepareVoice } from "@/lib/chat/voice-transcode";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 export const EXTENSION_DAYS = 7;
@@ -692,8 +693,9 @@ async function createMediaMessage(args: MediaSendArgs): Promise<ChatMessage> {
     const durationSec = Math.round(args.durationSec ?? Number.NaN);
     const check = validateVoice(args.type, file.length, durationSec);
     if (!check.ok) throw new IntroError("MEDIA_INVALID", check.message);
-    const type = baseMime(args.type);
-    upload = { buffer: file, path: newMediaPath(conversationId, voiceExtension(type)), type };
+    // WebM / Ogg / MP3 → AAC in an .m4a (iPhone plays nothing else); MP4/AAC as sent. The declared duration is kept
+    const voice = await prepareVoice(file, args.type);
+    upload = { buffer: voice.buffer, path: newMediaPath(conversationId, voice.ext), type: voice.type };
     media = { mediaDurationSec: durationSec, mediaWidth: null, mediaHeight: null };
   }
 

@@ -34,6 +34,8 @@ vi.mock("@/lib/admin-alert", () => ({ sendAdminAlert: vi.fn() }));
 import { getConversation, listConversations, sendMediaMessage, sendMessage } from "@/lib/chat/service";
 import { IMAGE_FALLBACK_BODY, VOICE_FALLBACK_BODY, detectImageType, hasHeicMagic, processImage, validateImage, validateVoice } from "@/lib/chat/media";
 import { readFileSync } from "fs";
+import { execFileSync } from "child_process";
+import ffmpegPath from "ffmpeg-static";
 import { join } from "path";
 import { IntroError } from "@/lib/intro/errors";
 import { GET as getMedia } from "@/app/api/chats/[id]/media/[messageId]/route";
@@ -216,15 +218,43 @@ describe("sendMediaMessage: a photo", () => {
 });
 
 describe("sendMediaMessage: a voice note", () => {
-  it("stores audio as sent, keeping only the base type", async () => {
+  it("a WebM (Chrome, Android) note is transcoded to AAC in an .m4a and stored as audio/mp4, keeping the declared duration", async () => {
+    const webm = execFileSync(ffmpegPath as unknown as string, ["-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", "sine=d=2", "-c:a", "libopus", "-f", "webm", "pipe:1"]);
     const msg = await sendMediaMessage({
-      conversationId: "c1", senderId: "u1", kind: "VOICE", file: Buffer.alloc(2000), type: "audio/webm;codecs=opus", durationSec: 42,
+      conversationId: "c1", senderId: "u1", kind: "VOICE", file: webm, type: "audio/webm;codecs=opus", durationSec: 42,
     });
-    const [, path, mime] = bunny.uploadToBunny.mock.calls[0];
-    expect(path).toMatch(/^chat\/c1\/[A-Za-z0-9_-]{43}\.webm$/);
-    expect(mime).toBe("audio/webm");
-    expect(db.message.create.mock.calls[0][0].data).toMatchObject({ kind: "VOICE", mediaType: "audio/webm", mediaDurationSec: 42, body: VOICE_FALLBACK_BODY });
-    expect(msg.media).toMatchObject({ type: "audio/webm", durationSec: 42, width: null, height: null });
+    const [buf, path, mime] = bunny.uploadToBunny.mock.calls[0];
+    expect(path).toMatch(/^chat\/c1\/[A-Za-z0-9_-]{43}\.m4a$/);
+    expect(mime).toBe("audio/mp4");
+    expect((buf as Buffer).toString("latin1", 4, 8)).toBe("ftyp");
+    expect(db.message.create.mock.calls[0][0].data).toMatchObject({ kind: "VOICE", mediaType: "audio/mp4", mediaDurationSec: 42, body: VOICE_FALLBACK_BODY });
+    expect(msg.media).toMatchObject({ type: "audio/mp4", durationSec: 42, width: null, height: null });
+  });
+
+  it("an MP4 note is stored as sent, keeping only the base type", async () => {
+    const file = Buffer.alloc(2000);
+    await sendMediaMessage({ conversationId: "c1", senderId: "u1", kind: "VOICE", file, type: "audio/mp4;codecs=mp4a.40.2", durationSec: 12 });
+    const [buf, path, mime] = bunny.uploadToBunny.mock.calls[0];
+    expect(buf).toBe(file);
+    expect(path).toMatch(/\.m4a$/);
+    expect(mime).toBe("audio/mp4");
+  });
+
+  it("a voice note ffmpeg can't read: the Arabic 422 error, nothing uploaded", async () => {
+    await expectCode(
+      sendMediaMessage({ conversationId: "c1", senderId: "u1", kind: "VOICE", file: Buffer.alloc(2000), type: "audio/webm", durationSec: 5 }),
+      "MEDIA_INVALID"
+    );
+    expect(bunny.uploadToBunny).not.toHaveBeenCalled();
+  });
+
+  it("a non-Pro sender never reaches the transcoder", async () => {
+    pro.isPro.mockResolvedValue(false);
+    await expectCode(
+      sendMediaMessage({ conversationId: "c1", senderId: "u1", kind: "VOICE", file: Buffer.alloc(2000), type: "audio/webm", durationSec: 5 }),
+      "PRO_REQUIRED"
+    );
+    expect(bunny.uploadToBunny).not.toHaveBeenCalled();
   });
 
   it("refuses a 200 s voice note before uploading", async () => {

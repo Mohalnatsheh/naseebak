@@ -1,12 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { loadStripe } from "@stripe/stripe-js";
+import { getStripe } from "@/lib/stripe-client";
 import { Elements, PaymentElement, useElements, useStripe } from "@stripe/react-stripe-js";
 import { Loader2, Lock } from "lucide-react";
 
-// Stripe's own fields in Arabic, right to left (Payment Element supports `ar`; Stripe Checkout does not)
-const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!, { locale: "ar" });
 
 const appearance = {
   theme: "stripe" as const,
@@ -61,9 +59,14 @@ function PayButton({ priceLabel, returnUrl }: { priceLabel: string; returnUrl: s
 
 /** The card form of /pay/<id> (lib/payments/intent): Stripe Payment Element in Arabic, Naseebak colours */
 export function ArabicPayForm({ clientSecret, priceLabel, returnUrl }: { clientSecret: string; priceLabel: string; returnUrl: string }) {
+  // Stripe's own fields in Arabic, right to left (Payment Element supports `ar`; Stripe Checkout does not)
+  const stripe = getStripe("ar");
+  if (!stripe) {
+    return <p role="alert" className="text-center text-sm text-destructive">الدفع غير متاح حالياً. حاول مرة أخرى لاحقاً.</p>;
+  }
   return (
     <Elements
-      stripe={stripePromise}
+      stripe={stripe}
       options={{
         clientSecret,
         locale: "ar",

@@ -3,7 +3,7 @@
 import { useState, useEffect, useEffectEvent, useCallback, Suspense } from "react";
 import Link from "@/components/shared/site-link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { loadStripe } from "@stripe/stripe-js";
+import { getStripe } from "@/lib/stripe-client";
 import {
   EmbeddedCheckoutProvider,
   EmbeddedCheckout,
@@ -42,13 +42,12 @@ import { COUNTRIES, formatDate, toCountry } from "@/lib/countries";
 import { ProLinkCard } from "@/components/payments/pro-section";
 import { PRO_PAGE_PATH } from "@/lib/pro/plans";
 import { PageLoading } from "@/components/shared/page-loading";
+import { FixedToast, type FixedToastMessage } from "@/components/shared/fixed-toast";
+import { isLocalHostname } from "@/lib/local-host";
 
 /** «ر.س» for riyal rows; anything else (Jordan's rows: JOD / USD) as stored */
 const currencyLabel = (c: string) => (c === "SAR" ? "ر.س" : c);
 
-const stripePromise = loadStripe(
-  process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!
-);
 
 interface CreditPackage {
   id: string;
@@ -136,10 +135,9 @@ function PaymentsContent() {
   const [histPage, setHistPage] = useState(1);
   const [histTotalPages, setHistTotalPages] = useState(1);
   const [purchasing, setPurchasing] = useState<string | null>(null);
-  const [toast, setToast] = useState<{
-    type: "success" | "info" | "error";
-    message: string;
-  } | null>(null);
+  const [mockPayment, setMockPayment] = useState<{ id: string; name: string } | null>(null);
+  const [mockBusy, setMockBusy] = useState<string | null>(null);
+  const [toast, setToast] = useState<FixedToastMessage | null>(null);
 
   // Embedded checkout state
   const [checkoutSecret, setCheckoutSecret] = useState<string | null>(null);
@@ -254,6 +252,19 @@ function PaymentsContent() {
         window.location.assign(result.payUrl);
         return;
       }
+      // Local mock (PAYMENTS_MOCK, QA WEB-PAY-01): the dev panel below pays or cancels it, in place of Stripe
+      if (res.ok && result.mock && result.paymentId) {
+        if (isLocalHostname(window.location.hostname)) {
+          setMockPayment({ id: result.paymentId, name: packageName });
+          return;
+        }
+      }
+      if (res.ok && result.clientSecret && !getStripe()) {
+        // No publishable key on this site: never open a checkout that can't load (QA WA-18)
+        setToast({ type: "error", message: "الدفع غير متاح حالياً. حاول مرة أخرى لاحقاً." });
+        if (result.paymentId) void fetch("/api/payments/cancel", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ paymentId: result.paymentId }) }).then(() => loadData());
+        return;
+      }
       if (res.ok && result.clientSecret) {
         trackEvent("begin_checkout", { currency: country.currency.code, package_name: packageName });
         setCheckoutSecret(result.clientSecret);
@@ -272,6 +283,34 @@ function PaymentsContent() {
       setToast({ type: "error", message: "حدث خطأ في الاتصال" });
     } finally {
       setPurchasing(null);
+    }
+  }
+
+  /** Local mock pack checkout: finish it as paid or cancelled through the dev route (credits added exactly once) */
+  async function finishMockPayment(outcome: "paid" | "cancelled") {
+    if (!mockPayment || mockBusy) return;
+    setMockBusy(outcome);
+    try {
+      const res = await fetch(`/api/dev/mock-checkout/${encodeURIComponent(mockPayment.id)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ outcome }),
+      });
+      if (!res.ok) throw new Error(`mock ${res.status}`);
+      setMockPayment(null);
+      if (outcome === "paid") {
+        setToast({ type: "success", message: "تم الدفع بنجاح! تمت إضافة الرصيد" });
+        refreshUnread();
+        refreshProfile();
+      } else {
+        setToast({ type: "info", message: "تم إلغاء عملية الدفع" });
+      }
+      loadData();
+    } catch (err) {
+      console.error(err);
+      setToast({ type: "error", message: "تعذّر إنهاء الدفع التجريبي" });
+    } finally {
+      setMockBusy(null);
     }
   }
 
@@ -385,7 +424,7 @@ function PaymentsContent() {
         <Card className="overflow-hidden border-primary/20">
           <CardContent className="p-0">
             <EmbeddedCheckoutProvider
-              stripe={stripePromise}
+              stripe={getStripe()}
               options={{ clientSecret: checkoutSecret }}
             >
               <EmbeddedCheckout className="min-h-[400px]" />
@@ -409,27 +448,19 @@ function PaymentsContent() {
   return (
     <div className="max-w-4xl mx-auto space-y-10 pb-8">
       {/* Toast notification */}
-      {toast && (
-        <div
-          role="status"
-          aria-live="polite"
-          className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 rounded-xl px-5 py-3 shadow-lg border backdrop-blur-sm transition-all duration-300 ${
-            toast.type === "success"
-              ? "bg-emerald-50/95 border-emerald-200 text-emerald-800"
-              : toast.type === "error"
-                ? "bg-destructive/5 border-destructive/20 text-destructive"
-                : "bg-accent/10 border-accent/30 text-accent-foreground"
-          }`}
-          style={{ animation: "fadeSlideIn 0.3s ease-out" }}
-        >
-          {toast.type === "success" ? (
-            <CheckCircle2 className="h-5 w-5 text-emerald-500 flex-shrink-0" />
-          ) : toast.type === "error" ? (
-            <XCircle className="h-5 w-5 text-destructive flex-shrink-0" />
-          ) : (
-            <Sparkles className="h-5 w-5 text-accent flex-shrink-0" />
-          )}
-          <span className="text-sm font-medium">{toast.message}</span>
+      <FixedToast toast={toast} />
+
+      {mockPayment && (
+        <div dir="ltr" className="space-y-2 rounded-xl border border-dashed border-primary/40 bg-primary/5 p-4 text-sm">
+          <p className="font-semibold text-foreground">Mock checkout (local only): {mockPayment.name}</p>
+          <div className="flex flex-wrap gap-2">
+            {(["paid", "cancelled"] as const).map((o) => (
+              <Button key={o} size="sm" variant="outline" disabled={mockBusy !== null} onClick={() => finishMockPayment(o)}>
+                {mockBusy === o && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                {o}
+              </Button>
+            ))}
+          </div>
         </div>
       )}
 

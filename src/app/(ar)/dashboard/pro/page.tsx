@@ -3,9 +3,10 @@
 import { useState, useEffect, useEffectEvent, useCallback, useRef, useSyncExternalStore, Suspense } from "react";
 import Link from "@/components/shared/site-link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { CheckCircle2, Crown, Loader2, Sparkles } from "lucide-react";
+import { Crown, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/shared/page-header";
+import { FixedToast, type FixedToastMessage } from "@/components/shared/fixed-toast";
 import { ProSection, proPageDescription } from "@/components/payments/pro-section";
 import { useDashboardData } from "@/contexts/dashboard-context";
 import { trackEvent } from "@/lib/analytics";
@@ -51,7 +52,7 @@ function ProContent() {
   const [state, setState] = useState<MyProState | null>(null);
   const [failed, setFailed] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [toast, setToast] = useState<{ type: "success" | "info"; message: string } | null>(null);
+  const [toast, setToast] = useState<FixedToastMessage | null>(null);
   const [mockBusy, setMockBusy] = useState<string | null>(null);
   const [mockResult, setMockResult] = useState<string | null>(null);
 
@@ -98,11 +99,12 @@ function ProContent() {
       setToast({ type: "info", message: "لم تكتمل عملية الدفع" });
       return;
     }
-    trackPaid();
     setToast({ type: "success", message: "تم الدفع بنجاح! جاري تفعيل اشتراك Pro…" });
     // A failed poll keeps the page as it was (no load-error flash); the next one tries again
     const outcome = await waitForProActivation({ load: () => loadPro(true), isMounted: () => mounted.current });
     if (outcome === "active") {
+      // Only a confirmed activation counts as paid (QA WEB-PAY-19): `?pro=success` alone can be typed or replayed
+      trackPaid();
       setToast({ type: "success", message: "تم تفعيل اشتراك Pro" });
       refreshUnread();
       refreshProfile();
@@ -115,6 +117,14 @@ function ProContent() {
     handledProReturn.current = proReturn;
     onProReturn(proReturn);
   }, [proReturn]);
+
+  // Sales switched off and no subscription: nothing to show here (an old notice or link), so go to the credits page
+  // instead of naming a switched-off feature (Pro review minor 4). Never during a checkout return or the mock panel.
+  const salesOffNotPro = !!state && !state.enabled && !state.isPro;
+  const busyReturn = !!proReturn || !!searchParams.get("mockPro");
+  useEffect(() => {
+    if (salesOffNotPro && !busyReturn) router.replace("/dashboard/payments");
+  }, [salesOffNotPro, busyReturn, router]);
 
   // Auto-dismiss toast
   useEffect(() => {
@@ -152,24 +162,7 @@ function ProContent() {
 
   return (
     <div className="mx-auto max-w-xl space-y-6 pb-8">
-      {toast && (
-        <div
-          role="status"
-          aria-live="polite"
-          className={`fixed top-4 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-xl border px-5 py-3 shadow-lg backdrop-blur-sm ${
-            toast.type === "success"
-              ? "border-emerald-200 bg-emerald-50/95 text-emerald-800"
-              : "border-accent/30 bg-accent/10 text-accent-foreground"
-          }`}
-        >
-          {toast.type === "success" ? (
-            <CheckCircle2 className="h-5 w-5 flex-shrink-0 text-emerald-500" />
-          ) : (
-            <Sparkles className="h-5 w-5 flex-shrink-0 text-accent" />
-          )}
-          <span className="text-sm font-medium">{toast.message}</span>
-        </div>
-      )}
+      <FixedToast toast={toast} />
 
       <PageHeader icon={Crown} title="عضوية Pro" description={proPageDescription(state)} />
 

@@ -138,6 +138,8 @@ describe("/dashboard/pro", () => {
     expect(await screen.findByText("الاشتراك غير متاح حالياً.")).toBeTruthy();
     expect(screen.queryByText(/مع Pro يمكنك/)).toBeNull();
     expect(screen.queryByRole("button", { name: /اشتركي الآن/ })).toBeNull();
+    // Nothing to show with sales off (Pro review minor 4): the credits page instead
+    await waitFor(() => expect(nav.replace).toHaveBeenCalledWith("/dashboard/payments"));
   });
 
   it("the cancelled return says so and clears the query", async () => {
@@ -160,10 +162,29 @@ describe("/dashboard/pro", () => {
       if (String(input).startsWith("/api/pro")) return json(++calls >= 2 ? proState : sellingState);
       return json({});
     });
+    const analytics = await import("@/lib/analytics");
+    const track = vi.spyOn(analytics, "trackEvent").mockImplementation(() => {});
     const { default: ProPage } = await import("@/app/(ar)/dashboard/pro/page");
     render(<ProPage />);
     expect(await screen.findByText("تم تفعيل اشتراك Pro")).toBeTruthy();
     expect(await screen.findByText("اشتراكي")).toBeTruthy();
+    expect(track).toHaveBeenCalledWith("payment_success", expect.anything());
+  });
+
+  it("?pro=success alone never counts as paid until Pro is active (QA WEB-PAY-19)", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    nav.pathname = "/dashboard/pro";
+    nav.search = "pro=success";
+    context({ isPro: false, cancelAtPeriodEnd: false, showPage: true });
+    serve(sellingState);
+    const analytics = await import("@/lib/analytics");
+    const track = vi.spyOn(analytics, "trackEvent").mockImplementation(() => {});
+    const { default: ProPage } = await import("@/app/(ar)/dashboard/pro/page");
+    render(<ProPage />);
+    expect(await screen.findByText(/جاري تفعيل اشتراك Pro/)).toBeTruthy();
+    await vi.advanceTimersByTimeAsync(12_000);
+    expect(track).not.toHaveBeenCalledWith("payment_success", expect.anything());
+    vi.useRealTimers();
   });
 });
 
@@ -199,5 +220,34 @@ describe("«عضوية Pro» in the navigation", () => {
     context({ isPro: false, cancelAtPeriodEnd: false, showPage: false });
     render(<AccountPage />);
     expect(screen.queryAllByRole("link").filter((a) => a.getAttribute("href") === "/dashboard/pro")).toHaveLength(0);
+  });
+});
+
+describe("/dashboard/payments local mock pack checkout (QA WEB-PAY-01)", () => {
+  it("«شراء الآن» opens the mock panel, and «paid» finishes it through the dev route", async () => {
+    context({ isPro: false, cancelAtPeriodEnd: false, showPage: false });
+    const calls: string[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      const url = String(input);
+      calls.push(`${init?.method ?? "GET"} ${url}`);
+      if (url.startsWith("/api/payments/plans")) return json({ country: "JO", purchasesEnabled: true, packages: [pkg] });
+      if (url.startsWith("/api/payments/history")) return json({ payments: [], matchCredits: 2, totalPages: 1 });
+      if (url === "/api/payments/checkout") return json({ mock: true, paymentId: "pay1" });
+      if (url.startsWith("/api/dev/mock-checkout/")) return json({ result: "fulfilled" });
+      return json({});
+    });
+    const { default: PaymentsPage } = await import("@/app/(ar)/dashboard/payments/page");
+    render(<PaymentsPage />);
+    const { fireEvent, act } = await import("@testing-library/react");
+    await act(async () => {
+      fireEvent.click(await screen.findByRole("button", { name: /شراء الآن/ }));
+    });
+    expect(await screen.findByText(/Mock checkout \(local only\)/)).toBeTruthy();
+    expect(screen.queryByText(/حدث خطأ أثناء إنشاء عملية الدفع/)).toBeNull();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "paid" }));
+    });
+    expect(calls).toContain("POST /api/dev/mock-checkout/pay1");
+    expect(await screen.findByText("تم الدفع بنجاح! تمت إضافة الرصيد")).toBeTruthy();
   });
 });

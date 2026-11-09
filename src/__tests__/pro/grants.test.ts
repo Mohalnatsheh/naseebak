@@ -110,7 +110,7 @@ describe("runYearlyProGrants", () => {
     });
     expect(db.proSubscription.update).toHaveBeenCalledWith({
       where: { id: "s1" },
-      data: { nextCreditGrantAt: new Date("2026-12-01T06:00:00Z") },
+      data: { grantsMade: { increment: 1 }, nextCreditGrantAt: new Date("2026-12-01T06:00:00Z") },
     });
   });
 
@@ -123,6 +123,32 @@ describe("runYearlyProGrants", () => {
     db.proSubscription.findMany.mockResolvedValue([]);
     await runYearlyProGrants(now);
     expect(db.proSubscription.findMany.mock.calls.at(-1)![0].where).not.toHaveProperty("cancelAtPeriodEnd");
+  });
+
+  it("moves the date inside the grant transaction, survives a failing notice, and never grants twice", async () => {
+    const state = { id: "s1", userId: "u1", grantsMade: 3, creditsPerGrant: 4, nextCreditGrantAt: new Date("2026-11-01T06:00:00Z") };
+    db.proSubscription.findMany.mockImplementation(async () => (state.nextCreditGrantAt <= now ? [{ ...state }] : []));
+    const txClient = {
+      ...db,
+      proSubscription: {
+        ...db.proSubscription,
+        update: vi.fn(async ({ data }: { data: { nextCreditGrantAt?: Date } }) => {
+          if (data.nextCreditGrantAt) state.nextCreditGrantAt = data.nextCreditGrantAt;
+          return {};
+        }),
+      },
+    };
+    db.$transaction.mockImplementation(async (fn: (tx: typeof db) => unknown) => fn(txClient as unknown as typeof db));
+    notifyMock.notify.mockRejectedValue(new Error("push down"));
+
+    expect(await runYearlyProGrants(now)).toEqual({ granted: 1 });
+    expect(txClient.proSubscription.update).toHaveBeenCalledWith({
+      where: { id: "s1" },
+      data: { grantsMade: { increment: 1 }, nextCreditGrantAt: new Date("2026-12-01T06:00:00Z") },
+    });
+    expect(db.proSubscription.update).not.toHaveBeenCalled(); // no separate write outside the transaction
+    expect(await runYearlyProGrants(now)).toEqual({ granted: 0 });
+    expect(db.proCreditGrant.create).toHaveBeenCalledTimes(1);
   });
 
   it("an already-granted key still moves the date on, and is not counted", async () => {

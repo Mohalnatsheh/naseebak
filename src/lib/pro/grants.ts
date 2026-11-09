@@ -33,8 +33,10 @@ export async function grantProCredits(args: {
   paymentId: string | null;
   key: string;
   credits: number;
+  /** Yearly drip: moves the next grant date in the same transaction, so a crash can never grant twice */
+  advanceNextTo?: Date;
 }): Promise<"granted" | "already"> {
-  const { subscriptionId, paymentId, key, credits } = args;
+  const { subscriptionId, paymentId, key, credits, advanceNextTo } = args;
   if (credits <= 0) return "already";
 
   let userId: string;
@@ -47,7 +49,9 @@ export async function grantProCredits(args: {
       });
       await tx.user.update({ where: { id: sub.userId }, data: { matchCredits: { increment: credits } } });
       await recordCredit({ userId: sub.userId, delta: credits, reason: "PRO_GRANT", refId: grant.id, note: key }, tx);
-      await tx.proSubscription.update({ where: { id: subscriptionId }, data: { grantsMade: { increment: 1 } } });
+      await tx.proSubscription.update({
+        where: { id: subscriptionId }, data: { grantsMade: { increment: 1 }, ...(advanceNextTo ? { nextCreditGrantAt: advanceNextTo } : {}) },
+      });
       return sub.userId;
     });
   } catch (e) {
@@ -56,14 +60,19 @@ export async function grantProCredits(args: {
   }
 
   const count = arabicCount(credits, { one: "رصيد واحد", two: "رصيدان", few: "أرصدة", many: "رصيداً" });
-  await notify({
-    userId,
-    type: "PAYMENT",
-    title: "رصيد Pro",
-    body: `أُضيف ${count} إلى رصيدك من اشتراك Pro.`,
-    url: "/dashboard/payments",
-    sms: false,
-  });
+  try {
+    await notify({
+      userId,
+      type: "PAYMENT",
+      title: "رصيد Pro",
+      body: `أُضيف ${count} إلى رصيدك من اشتراك Pro.`,
+      url: "/dashboard/payments",
+      sms: false,
+    });
+  } catch (e) {
+    // The credits are already in: a failed notice must never reach the caller
+    console.error("[pro-grants] notice failed", subscriptionId, e);
+  }
   return "granted";
 }
 
@@ -90,18 +99,18 @@ export async function runYearlyProGrants(now: Date): Promise<{ granted: number }
         orderBy: { createdAt: "desc" },
         select: { id: true },
       });
+      const nextDate = addMonth(sub.nextCreditGrantAt ?? now);
       const result = await grantProCredits({
         subscriptionId: sub.id,
         paymentId: payment?.id ?? null,
         key: `yearly:${sub.id}:${sub.grantsMade + 1}`,
         credits: sub.creditsPerGrant,
+        // Anchored on the planned date so twelve grants fit the year; a late run just catches up daily
+        advanceNextTo: nextDate,
       });
       if (result === "granted") granted += 1;
-      // Anchored on the planned date so twelve grants fit the year; a late run just catches up daily
-      await db.proSubscription.update({
-        where: { id: sub.id },
-        data: { nextCreditGrantAt: addMonth(sub.nextCreditGrantAt ?? now) },
-      });
+      // Nothing was granted (key already used): only the date still has to move on
+      else await db.proSubscription.update({ where: { id: sub.id }, data: { nextCreditGrantAt: nextDate } });
     } catch (e) {
       console.error("[pro-grants] yearly grant failed", sub.id, e);
     }

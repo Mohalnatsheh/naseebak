@@ -81,8 +81,15 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
   Timer? _typingTimer;
   final _typingThrottle = TypingThrottle();
 
+  /// Just after their message: a `typing` event Ably delivers late (its order across publishes isn't guaranteed)
+  /// would show «يكتب الآن…» again under the message that ended it
+  Timer? _typingMute;
+
   /// The mic is held down (release sends, slide cancels or locks); false once locked, cancelled or stopped
   bool _holding = false;
+
+  /// The microphone permission is being asked (the system prompt may be up): a release then says nothing
+  VoiceRecorder? _askingMic;
   Offset _holdDrag = Offset.zero;
 
   /// The live level bars while the mic is held (newest last)
@@ -92,7 +99,8 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
   String? _highlightId;
   Timer? _highlightTimer;
 
-  /// Message rows on screen by message id (scrolling to a quote's original or to «رسائل جديدة»)
+  /// Message rows on screen by message id (the sticky date chip, scrolling to a quote's original or to «رسائل جديدة»).
+  /// Keyed by id, not list index: an arriving message shifts every index.
   final Map<String, BuildContext> _rowsById = {};
   final _scroll = ScrollController();
   ChatSummary? _chat;
@@ -117,6 +125,16 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
   static const _livePollInterval = Duration(seconds: 20);
   static const _readOnlyPollInterval = Duration(seconds: 60);
 
+  /// The server's time of its last answer (`polledAt`): a poll asks for reaction changes since then, less
+  /// [_reactionsOverlap] (nothing missed in between), so reactions on older messages follow without the live link too.
+  /// Server time only, never the phone's clock.
+  DateTime? _polledAt;
+  static const _reactionsOverlap = Duration(seconds: 5);
+
+  /// The family step can change while the chat is open (their request arrives): re-read about once a minute
+  static const _familyRecheck = Duration(seconds: 60);
+  int _pollsSinceFamily = 0;
+
   /// A send that got no answer matches a message of mine with the same text this close to it (device vs server clock)
   static const _reconcileWindow = Duration(minutes: 1);
 
@@ -126,6 +144,10 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
 
   /// Server copies of my own sends that succeeded here: never the copy of another, failed send
   final Set<String> _confirmedIds = {};
+
+  /// My voice notes confirmed in this visit: server id → the sending bubble's id, so the waveform (seeded by id)
+  /// doesn't change shape when the server copy replaces it
+  final Map<String, String> _waveSeeds = {};
 
   /// The gallery is open (a second tap does nothing)
   bool _picking = false;
@@ -158,7 +180,6 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
   String? _stickyDay;
   bool _scrolling = false;
   Timer? _stickyHide;
-  final Map<int, BuildContext> _rows = {};
   final GlobalKey _listKey = GlobalKey();
 
   ChatRepository get _repo => ref.read(chatRepositoryProvider);
@@ -282,6 +303,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     }
     _stickyHide?.cancel();
     _typingTimer?.cancel();
+    _typingMute?.cancel();
     _highlightTimer?.cancel();
     _input.dispose();
     _inputFocus.dispose();
@@ -360,19 +382,35 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
   /// A live event: typing and reactions carry what changed; anything else (a message, a read tick) fetches
   void _onLive(ChatLiveEvent e) {
     if (!mounted) return;
+    final me = _memberId;
     switch (e.name) {
       case 'typing':
         final who = asString(e.data?['userId']);
-        if (who != null && who != _memberId) _notePartnerTyping(true);
+        // Never my own echo (nor anyone's while I'm not known)
+        if (who != null && me != null && who != me && _typingMute == null) _notePartnerTyping(true);
       case 'reaction':
         final id = asString(e.data?['messageId']);
         final i = id == null ? -1 : _messages.indexWhere((m) => m.id == id && m.state == SendState.sent);
         if (i < 0) return;
         setState(() => _messages[i] = _messages[i].withReactions(reactionsFromLive(e.data?['reactions'], _memberId)));
         _saveCache();
+      case 'message':
+        final sender = asString(e.data?['senderId']);
+        if (sender != null && me != null && sender != me) setState(_partnerSent);
+        // The event's own copy is not used (its quote carries a sender id, not `mine`): the fetch brings the message
+        // with `replyTo` and reactions as the GET shapes them. Parse `replyTo` here before ever dropping this fetch.
+        _poll();
       default:
+        // A read tick or a status change: the fetch brings it
         _poll();
     }
+  }
+
+  /// Their message arrived: their «يكتب الآن…» ends, and a late `typing` signal is ignored for a moment
+  void _partnerSent() {
+    _clearPartnerTyping();
+    _typingMute?.cancel();
+    _typingMute = Timer(const Duration(milliseconds: 1500), () => _typingMute = null);
   }
 
   /// The other person is typing: shown for 5 s from now, only in an open chat
@@ -429,6 +467,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     try {
       final page = await _repo.load(widget.chatId);
       if (!mounted) return;
+      _polledAt = page.polledAt;
       setState(() {
         _chat = page.conversation;
         _chatEnabled = page.chatEnabled;
@@ -525,6 +564,22 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     return since ?? last;
   }
 
+  /// A poll's `reactionUpdates` on the messages held (sent ones only); true when any changed
+  bool _applyReactionUpdates(Map<String, List<ChatReaction>>? updates) {
+    if (updates == null || updates.isEmpty) return false;
+    var changed = false;
+    for (var i = 0; i < _messages.length; i++) {
+      final held = _messages[i];
+      final next = held.state == SendState.sent ? updates[held.id] : null;
+      if (next == null) continue;
+      final updated = held.withReactions(next);
+      if (updated.sameAs(held)) continue;
+      _messages[i] = updated;
+      changed = true;
+    }
+    return changed;
+  }
+
   Future<void> _poll() async {
     if (_polling) {
       // A live event during a fetch: fetch once more right after it
@@ -536,9 +591,15 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     try {
       final after = _pollSince;
       final catchUp = _catchUp;
-      final page = await _repo.load(widget.chatId, after: after);
+      final polledAt = _polledAt;
+      final page = await _repo.load(
+        widget.chatId,
+        after: after,
+        reactionsSince: polledAt?.subtract(_reactionsOverlap),
+      );
       if (!mounted) return;
       _catchUp = false;
+      _polledAt = page.polledAt;
       final known = _messages.map((m) => m.id).toSet();
       final fresh = page.messages.where((m) => !known.contains(m.id)).toList();
       var changed = false;
@@ -547,7 +608,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
         _chatEnabled = page.chatEnabled;
         _starters = page.starters;
         // A message from them ends their «يكتب الآن…»
-        if (fresh.any((m) => !m.mine)) _clearPartnerTyping();
+        if (fresh.any((m) => !m.mine)) _partnerSent();
         if (after == null) {
           // Nothing loaded yet (the first load failed offline): take the latest page as is
           _messages.removeWhere((m) => m.state == SendState.sent);
@@ -555,6 +616,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
           _hasMore = page.hasMore;
         } else {
           changed = _replaceChanged(page.messages);
+          if (_applyReactionUpdates(page.reactionUpdates)) changed = true;
           _insertSorted(fresh);
           if (_away) _unseen += fresh.where((m) => !m.mine).length;
           // Cut at the cap: read the rest from the newest message right away
@@ -568,6 +630,10 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
       if (fresh.any((m) => !m.mine)) _markRead();
       _watch();
       if (after == null) _fillScreen();
+      if (++_pollsSinceFamily * (_timerEvery ?? widget.pollInterval).inMilliseconds >= _familyRecheck.inMilliseconds) {
+        _pollsSinceFamily = 0;
+        _loadFamilyStep();
+      }
     } catch (_) {
       // Silent: the next tick retries; a 401 signs out through the API client
     } finally {
@@ -690,11 +756,11 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     final list = _listKey.currentContext?.findRenderObject();
     if (list is! RenderBox || !list.hasSize) return null;
     final top = list.localToGlobal(Offset.zero).dy;
-    final items = _messages.reversed.toList();
-    int? best;
+    // Runs on every scroll frame: no list copies, only the rows built right now
+    String? best;
     double bestTop = double.negativeInfinity;
-    for (final e in _rows.entries) {
-      if (!e.value.mounted || e.key >= items.length) continue;
+    for (final e in _rowsById.entries) {
+      if (!e.value.mounted) continue;
       final box = e.value.findRenderObject();
       if (box is! RenderBox || !box.hasSize || !box.attached) continue;
       final y = box.localToGlobal(Offset.zero).dy;
@@ -704,7 +770,11 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
         best = e.key;
       }
     }
-    return best == null ? null : chatDayLabel(items[best].createdAt);
+    if (best == null) return null;
+    for (final m in _messages) {
+      if (m.id == best) return chatDayLabel(m.createdAt);
+    }
+    return null;
   }
 
   void _onScroll() {
@@ -920,6 +990,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
         replyToId: quote?.id,
       );
       _confirmedIds.add(sent.id);
+      if (voice) _waveSeeds[sent.id] = local.id;
       if (first) container.read(analyticsProvider).chatStarted();
       container.invalidate(chatListProvider);
       // The voice note's temporary file is no longer needed (the server copy plays from now on), unless it is playing
@@ -1018,9 +1089,11 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     _playback.pauseCurrent();
     setState(() => _voice = _Voice.starting);
     var allowed = false;
+    _askingMic = rec;
     try {
       allowed = await rec.hasPermission();
     } catch (_) {}
+    if (_askingMic == rec) _askingMic = null;
     if (_recorder != rec || !mounted || !_voiceAllowed) return _drop(rec);
     if (!allowed) {
       _drop(rec);
@@ -1199,9 +1272,12 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     _holding = false;
     final rec = _recorder;
     if (_voice == _Voice.starting || rec == null) {
-      // Let go during the microphone prompt or before the recorder started: nothing is recorded
+      // Let go before the recorder started: nothing is recorded. A short hold says so, like any hold under 1 s;
+      // a release while the microphone prompt was up (the member was answering it) says nothing.
+      final asking = _askingMic != null && _askingMic == rec;
       _releaseVoice();
       setState(() => _voice = _Voice.idle);
+      if (!asking) showSnack(context, holdTooShortText);
       return;
     }
     if (_voice != _Voice.recording) {
@@ -1359,8 +1435,8 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
           title: message == null ? 'إبلاغ' : 'إبلاغ عن الرسالة',
           description: 'يصل البلاغ إلى فريق نصيبك، وتنتهي المحادثة للطرفين ولا يمكن فتحها مرة أخرى.',
           submitLabel: 'إبلاغ وإنهاء المحادثة',
-          // The message reported, named in the details (still editable); the team sees the chat with the report
-          initialDetails: message == null ? null : 'بخصوص الرسالة: «${replySnippetOf(message)}»',
+          // The message reported is shown as a quote and goes as `messageId` (the team sees it marked in the chat)
+          reportedMessage: message == null ? null : replySnippetOf(message),
         ),
       );
       if (res == null) return;
@@ -1377,7 +1453,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
       if (!ok) return;
     }
     try {
-      await _repo.end(widget.chatId, reportReason: reason, details: details);
+      await _repo.end(widget.chatId, reportReason: reason, details: details, messageId: report ? message?.id : null);
       _reportedOrEnded = true;
       if (mounted) showSnack(context, report ? 'تم إنهاء المحادثة والإبلاغ' : 'تم إنهاء المحادثة');
       await _poll();
@@ -1706,11 +1782,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
       key: const Key('chat-time-left'),
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
-      style: TextStyle(
-        fontSize: 12,
-        fontWeight: FontWeight.w600,
-        color: left.urgent ? AppColors.warning : AppColors.muted,
-      ),
+      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.muted),
     );
   }
 
@@ -1727,7 +1799,8 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
       pushDismissed: ref.read(sharedPreferencesProvider).getBool(_pushChipKey) ?? false,
     );
     String g(String m, String f) => forViewer(female, m, f);
-    // In the last days the family bar also says how long is left («تبقّى يومان»)
+    // In the last days the family bar also says how long is left («تبقّى يومان»). Only the offer and a received
+    // request need it: in the last days a request I sent or an accepted one ranks below the expiry info bar.
     final soon = left != null && left.urgent ? ' · ${left.text}' : '';
     return switch (bar) {
       ChatBar.none => const SizedBox.shrink(),
@@ -1757,7 +1830,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
               key: const Key('chat-bar-family'),
               icon: Icons.hourglass_top_rounded,
               tone: AppColors.warning,
-              text: 'طلب التعارف العائلي بانتظار الرد$soon',
+              text: 'طلب التعارف العائلي بانتظار الرد',
             ),
           FamilyStep.pendingReceived => ChatStatusStrip(
               key: const Key('chat-bar-family'),
@@ -1769,7 +1842,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
               key: const Key('chat-bar-family'),
               icon: Icons.verified_user_outlined,
               tone: AppColors.success,
-              text: 'بيانات وليّ الأمر$soon',
+              text: 'بيانات وليّ الأمر',
               onTap: _openMatch,
             ),
         },
@@ -1867,6 +1940,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
                   tightTop: layout.tightTop,
                   partnerName: _chat?.partnerName ?? '',
                   onQuoteTap: _goToQuoted,
+                  waveSeed: _waveSeeds[m.id],
                   onReactionTap: _open && m.myReaction != null ? () => _react(m.id, null) : null,
                   onOpenPro: m.proRequired && proPurchasable ? _openPro : null,
                   onDelete: m.state == SendState.failed ? () => _deleteFailed(m) : null,
@@ -1893,9 +1967,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
                 );
                 return _RowProbe(
                   key: ValueKey('row-${m.id}'),
-                  index: i,
                   id: m.id,
-                  rows: _rows,
                   rowsById: _rowsById,
                   child: !layout.daySeparator && !layout.unreadDivider
                       ? row
@@ -2248,19 +2320,16 @@ class _UnreadDivider extends StatelessWidget {
   }
 }
 
-/// Registers a message row while it is built, so the sticky date chip can find the topmost one on screen
+/// Registers a message row by its message id while it is built, so the sticky date chip can find the topmost one on
+/// screen and a quote can scroll to its original
 class _RowProbe extends StatefulWidget {
   const _RowProbe({
     super.key,
-    required this.index,
     required this.id,
-    required this.rows,
     required this.rowsById,
     required this.child,
   });
-  final int index;
   final String id;
-  final Map<int, BuildContext> rows;
   final Map<String, BuildContext> rowsById;
   final Widget child;
 
@@ -2271,14 +2340,12 @@ class _RowProbe extends StatefulWidget {
 class _RowProbeState extends State<_RowProbe> {
   @override
   Widget build(BuildContext context) {
-    widget.rows[widget.index] = context;
     widget.rowsById[widget.id] = context;
     return widget.child;
   }
 
   @override
   void dispose() {
-    if (identical(widget.rows[widget.index], context)) widget.rows.remove(widget.index);
     if (identical(widget.rowsById[widget.id], context)) widget.rowsById.remove(widget.id);
     super.dispose();
   }

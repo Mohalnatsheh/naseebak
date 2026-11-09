@@ -2,14 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:naseebak_app/core/localization/digits.dart';
 import 'package:naseebak_app/features/chat/chat_bubble.dart';
+import 'package:naseebak_app/features/chat/chat_cache.dart';
 import 'package:naseebak_app/features/chat/chat_format.dart';
 import 'package:naseebak_app/features/chat/chat_models.dart';
 import 'package:naseebak_app/features/chat/chat_status_bar.dart';
 import 'package:naseebak_app/features/chat/media_bubbles.dart';
 
-import 'chat_room_test.dart' show conv, msg, openRoom, page;
+import 'helpers/chat_room_helpers.dart';
 import 'helpers/fake_api.dart';
-import 'package:naseebak_app/features/chat/chat_cache.dart';
 
 ChatMessage m(String id, DateTime at, {bool mine = false, DateTime? readAt, SendState state = SendState.sent}) =>
     ChatMessage(id: id, body: id, createdAt: at, mine: mine, readAt: readAt, state: state);
@@ -265,6 +265,64 @@ void main() {
       expect(find.byKey(const Key('chat-sticky-day')), findsOneWidget);
       await gesture.up();
       await tester.pumpAndSettle(const Duration(seconds: 2));
+    });
+
+    testWidgets('the sticky chip names the day of the topmost row on screen', (tester) async {
+      // One message a day for 30 days: every row is a different day
+      final days = {
+        ...page([]),
+        'messages': [
+          for (var n = 1; n <= 30; n++)
+            {...msg(n), 'createdAt': chatT0.add(Duration(days: n)).toIso8601String()},
+        ],
+      };
+      final adapter = FakeAdapter()..on('GET', '/api/chats/c1', FakeResponse(200, days));
+      await openRoom(tester, adapter, MemoryChatCache());
+      await tester.pumpAndSettle();
+      final gesture = await tester.startGesture(tester.getCenter(find.byType(ListView)));
+      await gesture.moveBy(const Offset(0, 250));
+      await tester.pump(const Duration(milliseconds: 100));
+      await gesture.moveBy(const Offset(0, 1));
+      await tester.pump(const Duration(milliseconds: 100));
+      final listTop = tester.getRect(find.byType(ListView)).top;
+      // The topmost bubble still showing below the list's top edge: its row is the one crossing that edge
+      ChatMessage? top;
+      var topY = double.infinity;
+      for (final e in tester.elementList(find.byType(ChatBubble))) {
+        final box = e.renderObject! as RenderBox;
+        final bottom = box.localToGlobal(Offset(0, box.size.height)).dy;
+        if (bottom > listTop + 8 && bottom < topY) {
+          topY = bottom;
+          top = (e.widget as ChatBubble).message;
+        }
+      }
+      expect(top, isNotNull);
+      final chip = find.byKey(const Key('chat-sticky-day'));
+      expect(find.descendant(of: chip, matching: find.text(chatDayLabel(top!.createdAt))), findsOneWidget);
+      await gesture.up();
+      await tester.pumpAndSettle(const Duration(seconds: 2));
+    });
+
+    testWidgets('the family bar follows a request that arrives while the chat is open (checked about once a minute)',
+        (tester) async {
+      var family = 'none';
+      final adapter = FakeAdapter()..on('GET', '/api/chats/c1', FakeResponse(200, page([1])));
+      adapter.handlers['GET /api/matches/x1/intro'] = (_) => FakeResponse(200, {
+            'flags': {'introRequests': true, 'chat': true},
+            'family': {'status': family},
+            'chat': {'status': 'open'},
+          });
+      await openRoom(tester, adapter, MemoryChatCache(), pollInterval: const Duration(seconds: 4));
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(find.text('تعارف عائلي'), findsOneWidget);
+      family = 'pending_received';
+      await tester.pump(const Duration(seconds: 30));
+      expect(find.text('تعارف عائلي'), findsOneWidget, reason: 'not re-read on every poll');
+      await tester.pump(const Duration(seconds: 35));
+      expect(find.textContaining('طلب تعارف عائلي'), findsOneWidget);
+      // About one read a minute, not one per 4 s poll
+      expect(adapter.to('GET', '/api/matches/x1/intro').length, lessThanOrEqualTo(3));
+      await tester.pumpWidget(const SizedBox());
     });
   });
 }

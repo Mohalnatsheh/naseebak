@@ -112,6 +112,41 @@ void main() {
       expect(b.partnerTyping, isFalse);
       expect(b.starters, isEmpty);
     });
+
+    test('a poll sends reactionsSince and reads polledAt and reactionUpdates (absent on an old server)', () async {
+      final adapter = FakeAdapter()
+        ..on('GET', '/api/chats/c1', const FakeResponse(200, {
+          'conversation': {'id': 'c1', 'matchId': 'x1', 'partner': {'id': 'p1', 'firstName': 'عمر'}, 'status': 'ACTIVE'},
+          'messages': [],
+          'hasMore': false,
+          'polledAt': '2026-11-10T10:00:00.000Z',
+          'reactionUpdates': [
+            {
+              'messageId': 'm1',
+              'reactions': [
+                {'emoji': '❤️', 'mine': false},
+              ],
+            },
+            {'messageId': 'm2', 'reactions': []},
+          ],
+        }))
+        ..on('GET', '/api/chats/c2', const FakeResponse(200, {
+          'conversation': {'id': 'c2', 'matchId': 'x2', 'partner': {'id': 'p1', 'firstName': 'عمر'}, 'status': 'ACTIVE'},
+          'messages': [],
+          'hasMore': false,
+        }));
+      final repo = ChatRepository(fakeClient(adapter));
+      final since = DateTime.utc(2026, 11, 10, 9, 59, 55);
+      final a = await repo.load('c1', after: DateTime.utc(2026, 11, 10, 9), reactionsSince: since);
+      expect(adapter.to('GET', '/api/chats/c1').single.queryParameters['reactionsSince'], since.toIso8601String());
+      expect(a.polledAt, DateTime.utc(2026, 11, 10, 10));
+      expect(a.reactionUpdates!['m1']!.single.emoji, '❤️');
+      expect(a.reactionUpdates!['m2'], isEmpty);
+      final b = await repo.load('c2');
+      expect(adapter.to('GET', '/api/chats/c2').single.queryParameters.containsKey('reactionsSince'), isFalse);
+      expect(b.polledAt, isNull);
+      expect(b.reactionUpdates, isNull);
+    });
   });
 
   group('the repository', () {

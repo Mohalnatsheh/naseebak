@@ -156,17 +156,30 @@ class AuthController extends Notifier<AuthState> {
     } catch (_) {
       // No painting binding (pure unit tests): no image cache to clear
     }
+    // Each step runs even if one before it fails (the first failure is rethrown once all have run)
+    Object? failed;
+    StackTrace? failedAt;
+    Future<void> step(Future<void> Function() run) async {
+      try {
+        await run();
+      } catch (e, st) {
+        failed ??= e;
+        failedAt ??= st;
+      }
+    }
+
     try {
-      await ref.read(tokenStoreProvider).clear();
+      await step(() => ref.read(tokenStoreProvider).clear());
       // Private conversations never stay on a phone after sign-out (nor drafts, nor the photo picker's copies)
-      await ref.read(chatCacheProvider).clearAll();
-      await ref.read(chatDraftsProvider).clearAll();
-      await ref.read(pickerFilesCleanerProvider)();
+      await step(() => ref.read(chatCacheProvider).clearAll());
+      await step(() => ref.read(chatDraftsProvider).clearAll());
+      await step(() => ref.read(pickerFilesCleanerProvider)());
       // Which of the partner's voice notes were played (the unplayed dots)
-      await ref.read(voicePlayedStoreProvider).clear();
+      await step(() => ref.read(voicePlayedStoreProvider).clear());
     } finally {
       state = const AuthState.signedOut();
     }
+    if (failed != null) Error.throwWithStackTrace(failed!, failedAt!);
   }
 
   /// The member's country is fixed by their number; keep the picker in step for the next sign-in.

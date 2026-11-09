@@ -45,8 +45,9 @@ class ChatPatternPainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.1;
     final fill = Paint()..color = AppColors.navy.withValues(alpha: 0.05);
-    final gold = Paint()
-      ..color = AppColors.gold.withValues(alpha: 0.10)
+    // Navy only, as the design says (navy at 4–6% on off-white)
+    final rhombi = Paint()
+      ..color = AppColors.navy.withValues(alpha: 0.05)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.1;
     final star = _star(9);
@@ -68,7 +69,7 @@ class ChatPatternPainter extends CustomPainter {
         } else {
           canvas.save();
           canvas.translate(x, y);
-          canvas.drawPath(rhombus, gold);
+          canvas.drawPath(rhombus, rhombi);
           canvas.restore();
         }
         canvas.drawCircle(Offset(x + tile / 4, y + tile / 8), 1.4, fill);

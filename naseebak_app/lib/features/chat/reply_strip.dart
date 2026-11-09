@@ -107,7 +107,8 @@ class QuoteInBubble extends StatelessWidget {
         child: Container(
           key: Key('chat-quote-${quote.id}'),
           margin: const EdgeInsets.only(bottom: 4),
-          constraints: const BoxConstraints(minHeight: 40),
+          // A tap target (it scrolls to the original): at least 44 px tall
+          constraints: const BoxConstraints(minHeight: 44),
           padding: const EdgeInsetsDirectional.fromSTEB(8, 4, 8, 4),
           decoration: BoxDecoration(
             color: onMine ? Colors.white.withValues(alpha: 0.14) : AppColors.navy.withValues(alpha: 0.06),
@@ -171,41 +172,53 @@ class _SwipeToReplyState extends State<SwipeToReply> {
     });
   }
 
+  /// The finger let go: past the trigger, reply
   void _end() {
     final reply = _armed;
+    _reset();
+    if (reply) widget.onReply();
+  }
+
+  /// The swipe was interrupted (the system cancelled the pointer): back in place, no reply
+  void _reset() {
+    if (_shift == 0 && !_armed) return;
     setState(() {
       _shift = 0;
       _armed = false;
     });
-    if (reply) widget.onReply();
   }
 
   @override
   Widget build(BuildContext context) {
     if (!widget.enabled) return widget.child;
     final rtl = Directionality.of(context) == TextDirection.rtl;
-    return GestureDetector(
-      onHorizontalDragUpdate: _update,
-      onHorizontalDragEnd: (_) => _end(),
-      onHorizontalDragCancel: _end,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          if (_shift > 0)
-            // Uncovered where the bubble left from: the start side
-            PositionedDirectional(
-              start: 4,
-              child: Opacity(
-                opacity: (_shift / SwipeToReply.trigger).clamp(0.0, 1.0),
-                child: const CircleAvatar(
-                  radius: 15,
-                  backgroundColor: Colors.white,
-                  child: Icon(Icons.reply_rounded, size: 18, color: AppColors.navy),
+    // A cancelled pointer ends an accepted drag like a release would (onEnd): the listener, which sees the cancel
+    // first, disarms it so only a real release replies
+    return Listener(
+      onPointerCancel: (_) => _reset(),
+      child: GestureDetector(
+        onHorizontalDragUpdate: _update,
+        onHorizontalDragEnd: (_) => _end(),
+        onHorizontalDragCancel: _reset,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            if (_shift > 0)
+              // Uncovered where the bubble left from: the start side
+              PositionedDirectional(
+                start: 4,
+                child: Opacity(
+                  opacity: (_shift / SwipeToReply.trigger).clamp(0.0, 1.0),
+                  child: const CircleAvatar(
+                    radius: 15,
+                    backgroundColor: Colors.white,
+                    child: Icon(Icons.reply_rounded, size: 18, color: AppColors.navy),
+                  ),
                 ),
               ),
-            ),
-          Transform.translate(offset: Offset(rtl ? -_shift : _shift, 0), child: widget.child),
-        ],
+            Transform.translate(offset: Offset(rtl ? -_shift : _shift, 0), child: widget.child),
+          ],
+        ),
       ),
     );
   }

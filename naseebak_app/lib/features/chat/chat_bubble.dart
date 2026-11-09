@@ -28,8 +28,12 @@ class ChatBubble extends StatelessWidget {
     this.partnerName = '',
     this.onQuoteTap,
     this.onReactionTap,
+    this.waveSeed,
   });
   final ChatMessage message;
+
+  /// A voice note's waveform seed when not its id (my note keeps the look it had while sending)
+  final String? waveSeed;
 
   /// For the quote's author line («أنت» or this name)
   final String partnerName;
@@ -144,9 +148,10 @@ class ChatBubble extends StatelessWidget {
             behavior: HitTestBehavior.opaque,
             onTap: mine != null ? onReactionTap : null,
             child: ConstrainedBox(
-              // The chip is small; its tap area reaches 44 px tall around it
-              constraints: const BoxConstraints(minHeight: 30, minWidth: 44),
-              child: Center(
+              // The chip is small and tucked under the bubble's corner; its tap area reaches 44 × 44 below it
+              constraints: const BoxConstraints(minHeight: 44, minWidth: 44),
+              child: Align(
+                alignment: Alignment.topCenter,
                 widthFactor: 1,
                 child: DecoratedBox(
                   key: Key('chat-reactions-${message.id}'),
@@ -281,7 +286,7 @@ class ChatBubble extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.end,
         mainAxisSize: MainAxisSize.min,
         children: [
-          RepaintBoundary(child: VoiceBubble(message: message, color: fg)),
+          RepaintBoundary(child: VoiceBubble(message: message, color: fg, waveSeed: waveSeed)),
           _meta(fg),
         ],
       );

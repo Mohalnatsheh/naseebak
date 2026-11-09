@@ -23,61 +23,10 @@ import 'package:naseebak_app/features/pro/pro_repository.dart';
 import 'package:record/record.dart' show AudioEncoder;
 
 import 'helpers/fake_api.dart';
+import 'helpers/fake_recorder.dart';
 import 'helpers/fake_voice_player.dart';
 
 /// The microphone in tests: a real temp file, a clock the test sets, and a record of what the screen asked for.
-class FakeRecorder implements VoiceRecorder {
-  FakeRecorder(this.dir, this.permission);
-  final Directory dir;
-  final Future<bool> Function() permission;
-  Duration now = Duration.zero;
-  bool asked = false;
-  bool started = false;
-  bool stopped = false;
-  bool cancelled = false;
-  bool disposed = false;
-  File? file;
-
-  @override
-  Future<bool> hasPermission() {
-    asked = true;
-    return permission();
-  }
-
-  bool failStart = false;
-
-  @override
-  Future<void> start() async {
-    if (failStart) throw StateError('no microphone');
-    started = true;
-    file = File('${dir.path}/voice-${DateTime.now().microsecondsSinceEpoch}.m4a')..writeAsBytesSync([0, 1, 2, 3]);
-  }
-
-  @override
-  Duration get elapsed => now;
-
-  double levelNow = 0.5;
-
-  @override
-  Future<double> level() async => levelNow;
-
-  @override
-  Future<String?> stop() async {
-    stopped = true;
-    return file?.path;
-  }
-
-  @override
-  Future<void> cancel() async {
-    cancelled = true;
-    final f = file;
-    if (f != null && f.existsSync()) f.deleteSync();
-  }
-
-  @override
-  Future<void> dispose() async => disposed = true;
-}
-
 /// A 1×1 PNG
 const _png = [
   0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, //

@@ -291,8 +291,9 @@ class _ViewerPageState extends ConsumerState<_ViewerPage> {
     if (zoomed) {
       _zoom.value = Matrix4.identity();
     } else {
-      final size = MediaQuery.sizeOf(context);
-      // Twice the size around the middle of the screen
+      // The photo area (under the bar), not the whole screen
+      final size = (context.findRenderObject() as RenderBox?)?.size ?? MediaQuery.sizeOf(context);
+      // Twice the size around the middle of the photo area
       _zoom.value = Matrix4.identity()
         ..translateByDouble(-size.width / 2, -size.height / 2, 0, 1)
         ..scaleByDouble(2, 2, 1, 1);
@@ -412,6 +413,9 @@ List<double> voiceWaveform(String seed, int durationSec) {
   return out;
 }
 
+/// A screen reader's increase / decrease on a voice note's waveform moves this many seconds
+const voiceSeekStepSec = 5;
+
 /// `1×`, `1.5×`, `2×` (Western digits)
 String formatVoiceSpeed(double speed) => '${speed == speed.roundToDouble() ? speed.toInt() : speed}×';
 
@@ -456,8 +460,11 @@ class VoiceWaveformPainter extends CustomPainter {
 /// the first play), so the note keeps playing when its bubble scrolls out of view. A failed load shows
 /// «تعذّر تشغيل الرسالة», which a tap tries again; a 401 also goes through the app's sign-out path.
 class VoiceBubble extends ConsumerStatefulWidget {
-  const VoiceBubble({super.key, required this.message, this.color = AppColors.ink});
+  const VoiceBubble({super.key, required this.message, this.color = AppColors.ink, this.waveSeed});
   final ChatMessage message;
+
+  /// What seeds the waveform when not the message id: my note confirmed by the server keeps its sending bubble's look
+  final String? waveSeed;
 
   /// Icon and text colour (white on my navy bubble)
   final Color color;
@@ -488,16 +495,18 @@ class _VoiceBubbleState extends ConsumerState<VoiceBubble> {
     _played = ref.read(voicePlayedStoreProvider);
     _key = VoiceBubble.keyOf(widget.message);
     _session = _playback.attach(_key);
-    _bars = _barsFor(widget.message);
+    _bars = _barsFor(widget);
   }
 
-  static List<double> _barsFor(ChatMessage m) => voiceWaveform(m.id, m.media?.durationSec ?? 0);
+  static List<double> _barsFor(VoiceBubble w) =>
+      voiceWaveform(w.waveSeed ?? w.message.id, w.message.media?.durationSec ?? 0);
 
   @override
   void didUpdateWidget(VoiceBubble old) {
     super.didUpdateWidget(old);
-    if (old.message.id != widget.message.id || old.message.media?.durationSec != widget.message.media?.durationSec) {
-      _bars = _barsFor(widget.message);
+    if ((old.waveSeed ?? old.message.id) != (widget.waveSeed ?? widget.message.id) ||
+        old.message.media?.durationSec != widget.message.media?.durationSec) {
+      _bars = _barsFor(widget);
     }
     final key = VoiceBubble.keyOf(widget.message);
     if (key == _key) return;
@@ -533,12 +542,14 @@ class _VoiceBubbleState extends ConsumerState<VoiceBubble> {
       _session.value = _session.value.copyWith(failed: true);
       return;
     }
-    if (_tracksPlayed && !_session.value.playing) unawaited(_played.markPlayed(widget.message.id));
+    // The partner's note counts as played once it really starts (a note that fails to load keeps its dot)
+    final played = _tracksPlayed && !_session.value.playing ? widget.message.id : null;
     // Providers are read now: the note may finish loading after this bubble has scrolled away
     final Future<VoiceSource> Function() source = local != null
         ? () async => (uri: Uri.file(local), headers: null)
         : () => authedMedia(ref, url!).then((m) => (uri: m.uri, headers: m.headers));
     final ok = await _playback.toggle(_key, source);
+    if (ok && played != null) unawaited(_played.markPlayed(played));
     // Signed out (401) → the API client's sign-out path; gone (404) stays a placeholder
     if (!ok && mounted && local == null) unawaited(probeMediaAccess(ref, url!));
   }
@@ -564,10 +575,25 @@ class _VoiceBubbleState extends ConsumerState<VoiceBubble> {
     return LayoutBuilder(
       builder: (context, box) {
         final w = box.maxWidth;
+        // Screen readers seek with increase / decrease, 5 s at a time
+        final step = Duration(seconds: voiceSeekStepSec).inMilliseconds;
+        final at = (progress * total.inMilliseconds).round();
+        void seekBy(int ms) {
+          if (total <= Duration.zero) return;
+          _seekTo(((at + ms).clamp(0, total.inMilliseconds)) / total.inMilliseconds, total);
+        }
+
+        String pct(int ms) => total <= Duration.zero
+            ? '0%'
+            : '${((ms.clamp(0, total.inMilliseconds) / total.inMilliseconds) * 100).round()}%';
         return Semantics(
           label: 'موضع التشغيل',
           slider: true,
           value: '${(progress * 100).round()}%',
+          increasedValue: pct(at + step),
+          decreasedValue: pct(at - step),
+          onIncrease: () => seekBy(step),
+          onDecrease: () => seekBy(-step),
           child: GestureDetector(
             key: const Key('voice-waveform'),
             behavior: HitTestBehavior.opaque,

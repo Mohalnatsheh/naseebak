@@ -24,7 +24,10 @@ class VoicePlayedStore extends ChangeNotifier {
     _ids.add(messageId);
     if (_ids.length > maxKept) _ids.removeRange(0, _ids.length - maxKept);
     notifyListeners();
-    await _prefs.setStringList(prefsKey, List.of(_ids));
+    // Fire-and-forget from the bubble: a failed write only means the dot may come back after a restart
+    try {
+      await _prefs.setStringList(prefsKey, List.of(_ids));
+    } catch (_) {}
   }
 
   Future<void> clear() async {

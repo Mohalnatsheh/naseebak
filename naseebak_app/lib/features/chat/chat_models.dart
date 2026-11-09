@@ -363,6 +363,8 @@ class ChatPage {
     this.chatEnabled = true,
     this.partnerTyping = false,
     this.starters = const [],
+    this.polledAt,
+    this.reactionUpdates,
   });
   final ChatSummary conversation;
   final List<ChatMessage> messages;
@@ -374,6 +376,25 @@ class ChatPage {
 
   /// Conversation starters, sent only while I haven't written anything in an open chat
   final List<String> starters;
+
+  /// The server's time when it answered (null from servers before the field): the next poll sends it back, less a
+  /// few seconds, as `reactionsSince`
+  final DateTime? polledAt;
+
+  /// A poll with `reactionsSince`: message id → all its reactions now (empty = the last one was removed), for
+  /// messages whose reactions changed since then, older ones included. The polling fallback for the live `reaction`.
+  final Map<String, List<ChatReaction>>? reactionUpdates;
+}
+
+/// `reactionUpdates` of the chat GET: `[{messageId, reactions: [{emoji, mine}]}]` (null when absent)
+Map<String, List<ChatReaction>>? parseReactionUpdates(Object? v) {
+  if (v is! List) return null;
+  final out = <String, List<ChatReaction>>{};
+  for (final u in asMapList(v)) {
+    final id = asString(u['messageId']);
+    if (id != null && id.isNotEmpty) out[id] = parseReactions(u['reactions']);
+  }
+  return out;
 }
 
 class ChatRepository {
@@ -387,11 +408,12 @@ class ChatRepository {
 
   /// `GET /api/chats/{id}` — `before` (+ `beforeId`, the exact cursor) loads older, `after` polls newer (inclusive:
   /// the caller drops messages it already has).
-  Future<ChatPage> load(String id, {DateTime? before, String? beforeId, DateTime? after}) async {
+  Future<ChatPage> load(String id, {DateTime? before, String? beforeId, DateTime? after, DateTime? reactionsSince}) async {
     final j = await _api.get('/api/chats/$id', query: {
       if (before != null) 'before': before.toUtc().toIso8601String(),
       if (before != null && beforeId != null) 'beforeId': beforeId,
       if (after != null) 'after': after.toUtc().toIso8601String(),
+      if (after != null && reactionsSince != null) 'reactionsSince': reactionsSince.toUtc().toIso8601String(),
     });
     return ChatPage(
       conversation: ChatSummary.fromJson(asMap(j['conversation'])),
@@ -400,6 +422,8 @@ class ChatRepository {
       chatEnabled: asBool(j['chatEnabled']) ?? true,
       partnerTyping: asBool(j['partnerTyping']) ?? false,
       starters: asStringList(j['starters']).where((s) => s.trim().isNotEmpty).toList(),
+      polledAt: asDate(j['polledAt']),
+      reactionUpdates: parseReactionUpdates(j['reactionUpdates']),
     );
   }
 
@@ -455,10 +479,16 @@ class ChatRepository {
     await _api.post('/api/chats/$id/read', body: {if (upTo != null) 'upTo': upTo.toUtc().toIso8601String()});
   }
 
-  Future<void> end(String id, {String? reportReason, String? details}) async {
+  /// Ends the chat for both; with [reportReason] it is also a report (and a block). [messageId] names the message
+  /// reported («إبلاغ عن الرسالة»): servers before the field ignore it, so the details still quote the message.
+  Future<void> end(String id, {String? reportReason, String? details, String? messageId}) async {
     await _api.post('/api/chats/$id/end', body: {
       if (reportReason != null)
-        'report': {'reason': reportReason, if (details != null && details.trim().isNotEmpty) 'details': details.trim()},
+        'report': {
+          'reason': reportReason,
+          if (details != null && details.trim().isNotEmpty) 'details': details.trim(),
+          'messageId': ?messageId,
+        },
     });
   }
 

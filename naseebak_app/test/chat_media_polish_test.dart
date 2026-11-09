@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:naseebak_app/app/providers.dart';
@@ -57,6 +59,9 @@ class _PendingImage extends ImageProvider<_PendingImage> {
 
 class _Harness {
   final adapter = FakeAdapter();
+
+  /// Every player fails to load (a note that can't be played)
+  bool failLoad = false;
   final players = <FakeVoicePlayer>[];
   final asked = <Uri>[];
 
@@ -66,7 +71,7 @@ class _Harness {
       ...await testOverrides(adapter, store: store, prefs: prefs),
       apiClientProvider.overrideWithValue(fakeClient(adapter, store: store)),
       voicePlayerFactoryProvider.overrideWithValue(() {
-        final p = FakeVoicePlayer();
+        final p = FakeVoicePlayer(failLoad: failLoad);
         players.add(p);
         return p;
       }),
@@ -230,6 +235,42 @@ void main() {
       expect(prefs.getStringList(VoicePlayedStore.prefsKey), ['v1']);
     });
 
+    testWidgets('a note that fails to load keeps its unplayed dot', (tester) async {
+      final h = _Harness()..failLoad = true;
+      await _pump(tester, h, ChatBubble(message: _voice()));
+      await tester.tap(find.byTooltip('تشغيل'));
+      await _settle(tester);
+      expect(find.text(voiceErrorText), findsOneWidget);
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getStringList(VoicePlayedStore.prefsKey), isNull);
+      // Back from the error: still unplayed
+      await tester.tap(find.byKey(const Key('voice-retry')));
+      await _settle(tester);
+      expect(find.byKey(const Key('voice-unplayed')), findsOneWidget);
+    });
+
+    testWidgets('a screen reader can seek the note: increase / decrease move it by 5 s', (tester) async {
+      final h = _Harness();
+      final c = await _pump(tester, h, ChatBubble(message: _voice()));
+      SemanticsProperties slider() => tester
+          .widget<Semantics>(
+            find.ancestor(of: find.byKey(const Key('voice-waveform')), matching: find.byType(Semantics)).first,
+          )
+          .properties;
+      expect(slider().slider, isTrue);
+      expect(slider().increasedValue, '25%');
+      slider().onIncrease!();
+      await tester.pump();
+      final s = c.read(voicePlaybackProvider).sessionFor('v1')!;
+      expect(s.value.position, const Duration(seconds: 5));
+      slider().onIncrease!();
+      await tester.pump();
+      expect(s.value.position, const Duration(seconds: 10));
+      slider().onDecrease!();
+      await tester.pump();
+      expect(s.value.position, const Duration(seconds: 5));
+    });
+
     testWidgets('a note played before shows no dot; my own notes never do', (tester) async {
       final h = _Harness();
       await _pump(
@@ -245,6 +286,30 @@ void main() {
       );
       expect(find.byKey(const Key('voice-unplayed')), findsNothing);
     });
+  });
+
+  test('sign-out clears the played notes even when an earlier clean-up step fails', () async {
+    final adapter = FakeAdapter()
+      ..on('GET', '/api/mobile/me', FakeResponse(200, {'user': meJson()}))
+      ..on('POST', '/api/mobile/auth/logout', const FakeResponse(200, {'ok': true}));
+    final c = ProviderContainer(overrides: [
+      ...await testOverrides(adapter, store: MemoryTokenStore('t1')),
+      chatCacheProvider.overrideWithValue(MemoryChatCache()),
+      pickerFilesCleanerProvider.overrideWithValue(() async => throw const FileSystemException('busy')),
+      chatDraftsProvider.overrideWithValue(MemoryChatDrafts()),
+    ]);
+    addTearDown(c.dispose);
+    c.read(authControllerProvider);
+    for (var i = 0; i < 50 && !c.read(authControllerProvider).isSignedIn; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+    }
+    final store = c.read(voicePlayedStoreProvider);
+    await store.markPlayed('v1');
+    try {
+      await c.read(authControllerProvider.notifier).logout();
+    } catch (_) {}
+    expect(store.isPlayed('v1'), isFalse);
+    expect(c.read(authControllerProvider).isSignedIn, isFalse);
   });
 
   test('sign-out clears the played notes', () async {
@@ -335,6 +400,25 @@ void main() {
       await tester.tap(pages);
       await tester.pumpAndSettle();
       expect(tester.widget<PageView>(pages).physics, isA<PageScrollPhysics>());
+    });
+
+    testWidgets('double-tap zooms around the middle of the photo area (under the bar), not the whole screen',
+        (tester) async {
+      final h = _Harness();
+      await _pump(tester, h, chat([_photo('p1')]));
+      await tester.tap(find.byType(PhotoBubble).first);
+      await tester.pumpAndSettle();
+      final viewer = find.byType(InteractiveViewer);
+      final size = tester.getSize(viewer);
+      await tester.tap(viewer);
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.tap(viewer);
+      await tester.pumpAndSettle();
+      final m = tester.widget<InteractiveViewer>(viewer).transformationController!.value;
+      expect(m.getMaxScaleOnAxis(), closeTo(2, 0.001));
+      final t = m.getTranslation();
+      expect(t.x, closeTo(-size.width / 2, 0.5));
+      expect(t.y, closeTo(-size.height / 2, 0.5));
     });
 
     testWidgets('outside a chat (no gallery) the viewer shows just that photo', (tester) async {

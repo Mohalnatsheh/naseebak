@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -11,11 +13,50 @@ import '../home/gendered_copy.dart';
 import 'chat_format.dart';
 import 'chat_models.dart';
 
-class ChatsScreen extends ConsumerWidget {
+class ChatsScreen extends ConsumerStatefulWidget {
   const ChatsScreen({super.key});
 
+  /// While the list is on screen it reloads itself, so a message that arrives meanwhile shows up
+  /// (last message, unread badge) without a pull to refresh.
+  static const refreshEvery = Duration(seconds: 15);
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ChatsScreen> createState() => _ChatsScreenState();
+}
+
+class _ChatsScreenState extends ConsumerState<ChatsScreen> with WidgetsBindingObserver {
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _timer = Timer.periodic(ChatsScreen.refreshEvery, (_) => _refresh());
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _refresh();
+  }
+
+  /// Only while this tab is the one shown (inactive tabs run with tickers off) and the app is in front
+  void _refresh() {
+    if (!mounted || !TickerMode.valuesOf(context).enabled) return;
+    final life = WidgetsBinding.instance.lifecycleState;
+    if (life != null && life != AppLifecycleState.resumed) return;
+    ref.invalidate(chatListProvider);
+    ref.invalidate(countsProvider);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final chats = ref.watch(chatListProvider);
     final female = ref.watch(authControllerProvider).me?.isFemale ?? false;
     return Scaffold(
@@ -90,7 +131,7 @@ class ChatsScreen extends ConsumerWidget {
                               Expanded(
                                 child: Text(
                                   c.lastMessage == null
-                                      ? (status ?? 'ابدأ المحادثة بالسلام')
+                                      ? (status ?? forViewer(female, 'ابدأ المحادثة بالسلام', 'ابدئي المحادثة بالسلام'))
                                       : '${c.lastMine ? '${forViewer(female, 'أنت', 'أنتِ')}: ' : ''}${c.lastMessage}',
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,

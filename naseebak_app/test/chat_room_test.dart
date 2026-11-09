@@ -270,6 +270,24 @@ void main() {
       expect(tester.testTextInput.isVisible, isFalse);
     });
 
+    testWidgets('tapping send keeps the keyboard open for the next message', (tester) async {
+      final adapter = FakeAdapter()
+        ..on('GET', '/api/chats/c1', FakeResponse(200, page([1, 2])))
+        ..on('POST', '/api/chats/c1/messages', FakeResponse(201, {
+          'message': {'id': 'm901', 'body': 'السلام عليكم', 'createdAt': DateTime.utc(2026, 10, 30, 12).toIso8601String(), 'mine': true, 'readAt': null},
+        }));
+      await openRoom(tester, adapter, MemoryChatCache());
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('chat-input')));
+      await tester.pump();
+      await tester.enterText(find.byKey(const Key('chat-input')), 'السلام عليكم');
+      await tester.tap(find.byKey(const Key('chat-send')));
+      for (var i = 0; i < 10; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+      expect(tester.testTextInput.isVisible, isTrue);
+    });
+
     testWidgets('a sent message reloads the chats list (its last message and order)', (tester) async {
       final adapter = FakeAdapter()
         ..on('GET', '/api/chats/c1', FakeResponse(200, page([1, 2])))

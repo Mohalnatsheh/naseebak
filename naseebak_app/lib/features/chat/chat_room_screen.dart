@@ -726,12 +726,15 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
               ),
             ),
             const SizedBox(width: 6),
-            IconButton.filled(
-              key: const Key('chat-send'),
-              tooltip: 'إرسال',
-              style: IconButton.styleFrom(backgroundColor: AppColors.navy, minimumSize: const Size(52, 52)),
-              onPressed: () => _send(),
-              icon: const Icon(Icons.send_rounded, color: Colors.white),
+            // Part of the input's tap region: sending keeps the keyboard open for the next message
+            TextFieldTapRegion(
+              child: IconButton.filled(
+                key: const Key('chat-send'),
+                tooltip: 'إرسال',
+                style: IconButton.styleFrom(backgroundColor: AppColors.navy, minimumSize: const Size(52, 52)),
+                onPressed: () => _send(),
+                icon: const Icon(Icons.send_rounded, color: Colors.white),
+              ),
             ),
           ],
         ),

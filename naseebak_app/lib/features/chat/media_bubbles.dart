@@ -323,7 +323,16 @@ class _VoiceBubbleState extends ConsumerState<VoiceBubble> {
     _playback = ref.read(voicePlaybackProvider);
   }
 
-  Duration get _total => _realDuration ?? Duration(seconds: widget.message.media?.durationSec ?? 0);
+  /// The length shown: the server's `durationSec` (what the sender saw, rounded up), so the label doesn't drop a
+  /// second once the player reports the real, slightly shorter length
+  Duration get _shownTotal {
+    final sec = widget.message.media?.durationSec;
+    if (sec != null && sec > 0) return Duration(seconds: sec);
+    return _realDuration ?? Duration.zero;
+  }
+
+  /// The length the progress bar runs against: the player's real length once loaded (it ends exactly at 100 %)
+  Duration get _total => _realDuration ?? _shownTotal;
 
   Future<void> _toggle() async {
     if (_loading || _failed) return;
@@ -465,7 +474,7 @@ class _VoiceBubbleState extends ConsumerState<VoiceBubble> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  formatVoiceDuration(started ? _position : total),
+                  formatVoiceDuration(started ? _position : _shownTotal),
                   style: TextStyle(color: c.withValues(alpha: 0.8), fontSize: 12),
                 ),
               ],

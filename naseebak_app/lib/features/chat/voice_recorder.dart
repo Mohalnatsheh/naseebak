@@ -35,6 +35,9 @@ abstract class VoiceRecorder {
   Future<void> dispose();
 }
 
+/// AAC-LC 64 kbps, 44.1 kHz, mono (a voice needs one channel; stereo doubled the size for nothing)
+const voiceRecordConfig = RecordConfig(encoder: AudioEncoder.aacLc, bitRate: 64000, sampleRate: 44100, numChannels: 1);
+
 typedef VoiceRecorderFactory = VoiceRecorder Function();
 
 /// A new recorder per voice note (tests replace it)
@@ -53,10 +56,7 @@ class RecordVoiceRecorder implements VoiceRecorder {
     final dir = await getTemporaryDirectory();
     final path = '${dir.path}/voice-${DateTime.now().microsecondsSinceEpoch}.m4a';
     _path = path;
-    await _rec.start(
-      const RecordConfig(encoder: AudioEncoder.aacLc, bitRate: 64000, sampleRate: 44100),
-      path: path,
-    );
+    await _rec.start(voiceRecordConfig, path: path);
     _clock
       ..reset()
       ..start();

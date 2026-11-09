@@ -59,8 +59,11 @@ class _PendingImage extends ImageProvider<_PendingImage> {
 }
 
 class FakeVoicePlayer implements VoicePlayer {
-  FakeVoicePlayer({this.failLoad = false});
+  FakeVoicePlayer({this.failLoad = false, this.realDuration});
   final bool failLoad;
+
+  /// What the platform player reports once loaded (null = unknown)
+  final Duration? realDuration;
   Uri? loadedUri;
   Map<String, String>? loadedHeaders;
   int plays = 0;
@@ -82,7 +85,7 @@ class FakeVoicePlayer implements VoicePlayer {
     loadedUri = uri;
     loadedHeaders = headers;
     if (failLoad) throw Exception('Source error');
-    return null;
+    return realDuration;
   }
 
   @override
@@ -109,6 +112,7 @@ class _Harness {
   final players = <FakeVoicePlayer>[];
   int unauthorized = 0;
   bool failVoice = false;
+  Duration? realDuration;
   ImageProvider Function(Uri uri, Map<String, String> headers)? image;
 
   Future<List<Override>> overrides() async {
@@ -117,7 +121,7 @@ class _Harness {
       ...await testOverrides(adapter, store: store),
       apiClientProvider.overrideWithValue(fakeClient(adapter, store: store, onUnauthorized: () => unauthorized++)),
       voicePlayerFactoryProvider.overrideWithValue(() {
-        final p = FakeVoicePlayer(failLoad: failVoice);
+        final p = FakeVoicePlayer(failLoad: failVoice, realDuration: realDuration);
         players.add(p);
         return p;
       }),
@@ -226,6 +230,22 @@ void main() {
     expect(find.textContaining('حدّث التطبيق'), findsNothing);
     // Created lazily: nothing until the first play
     expect(h.players, isEmpty);
+  });
+
+  testWidgets('the label keeps the server durationSec once the note loads (the player says 10.4 s for an 11 s note)',
+      (tester) async {
+    final h = _Harness()..realDuration = const Duration(milliseconds: 10400);
+    await _pump(tester, h, ChatBubble(message: _voice()));
+    expect(find.text('0:11'), findsOneWidget);
+    await tester.tap(find.byTooltip('تشغيل'));
+    await tester.pump();
+    await tester.pump();
+    await tester.tap(find.byTooltip('إيقاف مؤقت'));
+    await tester.pump();
+    await tester.pump();
+    expect(h.players.single.plays, 1);
+    expect(find.text('0:11'), findsOneWidget);
+    expect(find.text('0:10'), findsNothing);
   });
 
   test('formatVoiceDuration', () {

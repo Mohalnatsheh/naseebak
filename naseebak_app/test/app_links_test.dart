@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:naseebak_app/app/providers.dart';
 import 'package:naseebak_app/core/auth/auth_controller.dart';
 import 'package:naseebak_app/core/routing/router.dart';
 import 'package:naseebak_app/core/routing/website_links.dart';
@@ -167,5 +168,12 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
     expect(router.state.uri.path, '/notifications');
     await tester.pump(const Duration(seconds: 3));
+  });
+
+  testWidgets('a referral link that arrives while the app is starting keeps its invitation code', (tester) async {
+    EarlyLinks.instance.start();
+    await tester.binding.handlePushRoute('https://naseebak.com/register?invitationCode=AB12CD34');
+    final (container, _) = await _app(tester);
+    expect(container.read(sharedPreferencesProvider).getString(pendingInvitationKey), 'AB12CD34');
   });
 }

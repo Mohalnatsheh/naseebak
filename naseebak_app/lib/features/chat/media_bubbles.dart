@@ -58,6 +58,8 @@ class _PhotoBubbleState extends ConsumerState<PhotoBubble> {
   void didUpdateWidget(PhotoBubble old) {
     super.didUpdateWidget(old);
     if (old.message.media?.url != widget.message.media?.url || old.message.localPath != widget.message.localPath) {
+      // Another photo: its own 401 may be reported again
+      _reported = false;
       _resolve();
     }
   }

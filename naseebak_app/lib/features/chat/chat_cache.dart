@@ -140,7 +140,10 @@ class FileChatCache extends ChatCache {
     try {
       final f = await _file(memberId, chatId);
       if (!await f.exists()) return null;
-      return ChatCache.decode(jsonDecode(await f.readAsString()));
+      final cached = ChatCache.decode(jsonDecode(await f.readAsString()));
+      // An older version's file (or a broken one) is of no use any more: it goes now, not at the next write
+      if (cached == null) await f.delete();
+      return cached;
     } catch (e) {
       debugPrint('[chat-cache] read failed: $e');
       return null;

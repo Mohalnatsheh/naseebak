@@ -233,6 +233,38 @@ void main() {
     expect(text.didExceedMaxLines, isFalse);
   });
 
+  testWidgets('360x640: the first card\'s «مهتم» / «لا» and the sheet\'s buttons are on screen without scrolling',
+      (tester) async {
+    tester.view.physicalSize = const Size(360, 640);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final long = {
+      ...card('s1'),
+      'reason': 'يوافق ما تبحث عنه في التعليم والمدينة والتدين والعمر',
+      'candidate': {
+        'id': 'c-s1', 'firstName': 'أحمد', 'age': 30, 'city': 'عمّان', 'education': 'بكالوريوس',
+        'job': 'مهندس', 'maritalStatus': 'أعزب', 'religiosity': 'ملتزم', 'height': 178, 'about': 'نبذة طويلة ' * 20,
+      },
+    };
+    final h = Harness(items: [long]);
+    await h.pump(tester);
+    bool onScreen(Finder f) => tester.getRect(f).bottom <= 640;
+    // ignore: avoid_print
+    expect(onScreen(find.byKey(const Key('interested-s1'))), isTrue);
+    expect(onScreen(find.byKey(const Key('decline-s1'))), isTrue);
+    await tester.tap(find.byKey(const Key('interested-s1')));
+    await pumpFor(tester);
+    expect(onScreen(find.byKey(const Key('send-interest'))), isTrue);
+    expect(onScreen(find.byKey(const Key('interest-cancel'))), isTrue);
+    await tester.tap(find.byKey(const Key('interest-cancel')));
+    await pumpFor(tester);
+    // The details are one tap away
+    await tester.tap(find.byKey(const Key('card-details-open')));
+    await pumpFor(tester);
+    expect(find.byKey(const Key('card-details-open')), findsNothing);
+    expect(find.text('الصور تظهر بعد التوافق المتبادل فقط'), findsOneWidget);
+  });
+
   testWidgets('credit on interest off: «مهتم» decides directly, no chat/family sheet', (tester) async {
     final h = Harness(creditOnInterest: false);
     h.adapter.on('POST', '/api/suggestions/s1/decide', const FakeResponse(200, {'match': false}));

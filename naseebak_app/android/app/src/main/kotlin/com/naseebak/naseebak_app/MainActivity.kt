@@ -25,7 +25,8 @@ class MainActivity : FlutterActivity() {
     /** A link arriving while the app runs: handled by Flutter (the router), then never replayed */
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        setIntent(withoutLink(intent))
+        // Only a link's data is dropped; any other intent (a push tap) stays as it came
+        if (intent.data != null) setIntent(withoutLink(intent))
     }
 
     private fun fromHistory(intent: Intent) = (intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY) != 0

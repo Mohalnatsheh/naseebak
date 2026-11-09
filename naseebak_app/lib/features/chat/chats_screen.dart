@@ -168,6 +168,11 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> with WidgetsBindingOb
     );
   }
 
+  Widget _name(ChatSummary c) => Text(c.partnerName,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(fontWeight: c.unread > 0 ? FontWeight.w800 : FontWeight.w600));
+
   Widget _tile(BuildContext context, ChatSummary c, bool female) {
     final status = switch (c.status) {
       'ENDED' => 'منتهية',
@@ -188,16 +193,13 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> with WidgetsBindingOb
       title: Row(
         children: [
           Expanded(
-            child: Align(
-              alignment: AlignmentDirectional.centerStart,
-              child: NameWithBadge(
-                isPro: c.partnerIsPro,
-                child: Text(c.partnerName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontWeight: c.unread > 0 ? FontWeight.w800 : FontWeight.w600)),
-              ),
-            ),
+            // Aligned only around the badge row; a non-Pro name keeps the plain layout
+            child: c.partnerIsPro
+                ? Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    child: NameWithBadge(isPro: true, child: _name(c)),
+                  )
+                : _name(c),
           ),
           if (c.lastMessageAt != null)
             Text(formatRelative(c.lastMessageAt!), style: const TextStyle(color: AppColors.muted, fontSize: 12)),

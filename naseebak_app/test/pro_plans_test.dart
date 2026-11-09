@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:naseebak_app/core/auth/auth_controller.dart';
 import 'package:naseebak_app/core/storage/token_store.dart';
-import 'package:go_router/go_router.dart';
 import 'package:naseebak_app/features/credits/credits_screen.dart';
+import 'package:naseebak_app/features/home/counts.dart';
 import 'package:naseebak_app/features/pro/pro_repository.dart';
 import 'package:naseebak_app/features/pro/pro_screen.dart';
-import 'package:naseebak_app/features/settings/settings_screen.dart';
 import 'package:naseebak_app/features/pro/pro_section.dart';
+import 'package:naseebak_app/features/settings/settings_screen.dart';
 
 import 'helpers/fake_api.dart';
 
@@ -216,6 +217,26 @@ void main() {
     }
   });
 
+  testWidgets('a picked plan that a reload no longer offers falls back to the default, not a stale choice',
+      (tester) async {
+    List<ProOffer> offers(List<Map<String, dynamic>> l) => l.map(ProOffer.fromJson).toList();
+    Widget card(List<ProOffer> o) => rtlApp(Scaffold(
+          body: SingleChildScrollView(
+            child: ProPlansCard(offers: o, canBuy: true, female: false, busy: false, onSubscribe: (_) {}),
+          ),
+        ));
+    await tester.pumpWidget(card(offers(_offers)));
+    await tester.tap(find.text('سنوي'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('36'), findsWidgets);
+    await tester.pumpWidget(card(offers([_offers[0], _offers[1]])));
+    await tester.pumpAndSettle();
+    // Yearly is back after another reload: the pick went to the default (monthly), not to the old yearly
+    await tester.pumpWidget(card(offers(_offers)));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('36'), findsNothing);
+  });
+
   testWidgets('choosing «سنوي» shows the yearly price and credits every month', (tester) async {
     final pro = FakePro();
     await _pump(tester, pro);
@@ -281,9 +302,16 @@ void main() {
     await _pump(tester, pro);
     await _subscribe(tester);
     final before = pro.adapter.to('GET', '/api/pro').length;
+    // The app shell watches the counts (here, a listener stands in for it)
+    final sub = ProviderScope.containerOf(tester.element(find.byType(ProScreen))).listen(countsProvider, (_, _) {});
+    addTearDown(sub.close);
+    await tester.pump();
+    final countsBefore = pro.adapter.to('GET', '/api/me/counts').length;
     _returnToApp(tester);
     await _advance(tester, const Duration(seconds: 3));
     expect(pro.adapter.to('GET', '/api/pro').length, greaterThan(before));
+    // The counts (badge, credits) are re-read with it
+    expect(pro.adapter.to('GET', '/api/me/counts').length, greaterThan(countsBefore));
     pro.isPro = true;
     await _advance(tester, const Duration(seconds: 3));
     expect(find.text('تم تفعيل عضوية Pro في حسابك.'), findsOneWidget);

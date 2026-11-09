@@ -37,7 +37,7 @@ class AccountScreen extends ConsumerWidget {
     try {
       await ref.read(apiClientProvider).post('/api/profile/deactivate', body: {'action': 'pause'});
       await ref.read(authControllerProvider.notifier).refreshMe();
-      ref.invalidate(proStateProvider);
+      if (context.mounted) ref.invalidate(proStateProvider);
     } catch (e) {
       if (context.mounted) showSnack(context, ApiException.messageOf(e));
     }

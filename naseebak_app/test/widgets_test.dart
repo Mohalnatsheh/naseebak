@@ -176,6 +176,10 @@ void main() {
     });
 
     testWidgets('shows the details and the score, never a photo', (tester) async {
+      // A regular phone height (a short one folds the details: suggestions_flow_test)
+      tester.view.physicalSize = const Size(400, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
       var taps = 0;
       await tester.pumpWidget(rtlApp(Scaffold(
         body: SingleChildScrollView(

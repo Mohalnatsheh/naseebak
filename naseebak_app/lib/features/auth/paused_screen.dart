@@ -30,7 +30,7 @@ String? pausedProText(MyProState pro, {required bool female}) {
   final end = pro.renewsAt;
   if (pro.cancelAtPeriodEnd) {
     return 'اشتراك Pro لا يتجدد بعد الآن${end == null ? '' : '، ويبقى فعّالاً حتى ${formatDate(end)}'}. '
-        '${female ? 'يمكنكِ' : 'يمكنك'} متابعته من «عضوية Pro» بعد إعادة التفعيل.';
+        '${female ? 'يمكنكِ' : 'يمكنك'} متابعته من «اشتراكي في Pro».';
   }
   return 'اشتراك Pro ما زال يتجدد${end == null ? '' : ' في ${formatDate(end)}'}. '
       '${female ? 'يمكنكِ' : 'يمكنك'} إيقاف التجديد من «اشتراكي».';
@@ -58,7 +58,7 @@ class _PausedScreenState extends ConsumerState<PausedScreen> {
     try {
       await ref.read(authRepositoryProvider).reactivate();
       await ref.read(authControllerProvider.notifier).refreshMe();
-      ref.invalidate(proStateProvider);
+      if (mounted) ref.invalidate(proStateProvider);
     } on ApiException catch (e) {
       if (mounted) setState(() => _error = e.message);
     } finally {

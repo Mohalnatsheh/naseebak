@@ -21,7 +21,30 @@ CachedChat chat(Iterable<int> ns) => CachedChat(
     );
 
 void main() {
-  cacheVersionTests();
+  test('a v1 payload is ignored, a v2 media message survives with its media', () {
+    final c = CachedChat(
+      conversation: chat([]).conversation,
+      messages: [
+        ChatMessage(
+          id: 'm9',
+          body: '📷 صورة',
+          createdAt: _t0,
+          mine: true,
+          kind: MessageKind.image,
+          media: const ChatMedia(url: '/api/chats/c1/media/m9', type: 'image/webp', width: 800, height: 600),
+        ),
+      ],
+      hasMore: false,
+    );
+    final j = ChatCache.encode(c);
+    expect(j['v'], 2);
+    final back = ChatCache.decode(j)!;
+    expect(back.messages.single.kind, MessageKind.image);
+    expect(back.messages.single.media?.url, '/api/chats/c1/media/m9');
+    expect(back.messages.single.media?.width, 800);
+    expect(ChatCache.decode({...j, 'v': 1}), isNull);
+  });
+
   late Directory root;
   late FileChatCache cache;
 
@@ -36,6 +59,14 @@ void main() {
 
   List<String> leftovers() =>
       root.listSync(recursive: true).map((e) => e.path).where((p) => p.endsWith('.tmp')).toList();
+
+  test('a file from an older app version is deleted when read', () async {
+    final f = File('${root.path}/chat_cache/u1/c1.json');
+    await f.parent.create(recursive: true);
+    await f.writeAsString('{"v":1,"messages":[]}');
+    expect(await cache.read('u1', 'c1'), isNull);
+    expect(f.existsSync(), isFalse);
+  });
 
   test('writes to one chat at the same time land in order, with no temp file left', () async {
     await Future.wait([for (var i = 1; i <= 20; i++) cache.write('u1', 'c1', chat(List.generate(i, (j) => j + 1)))]);
@@ -81,11 +112,4 @@ void main() {
   });
 }
 
-void cacheVersionTests() {
-  test('a v1 payload is ignored, a v2 media message survives', () {
-    final j = ChatCache.encode(chat([1]));
-    expect(j['v'], 2);
-    expect(ChatCache.decode(j), isNotNull);
-    expect(ChatCache.decode({...j, 'v': 1}), isNull);
-  });
-}
+

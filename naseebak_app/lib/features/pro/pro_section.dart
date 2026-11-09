@@ -160,6 +160,13 @@ class _ProPlansCardState extends State<ProPlansCard> {
   }
 
   @override
+  void didUpdateWidget(ProPlansCard old) {
+    super.didUpdateWidget(old);
+    // A reload without the plan picked (withdrawn): back to the default pick, not a silent stale choice
+    if (_picked != null && !widget.offers.any((o) => o.id == _picked)) _picked = null;
+  }
+
+  @override
   Widget build(BuildContext context) {
     final sorted = _sorted;
     if (sorted.isEmpty) return const SizedBox.shrink();

@@ -136,9 +136,7 @@ class AppTheme {
       chipTheme: base.chipTheme.copyWith(
         backgroundColor: AppColors.surface,
         selectedColor: AppColors.navy.withValues(alpha: 0.1),
-        // No ✓ on a picked chip: it made the chip wider, the row re-wrapped and the next tap landed in a gap. The
-        // pick shows by its colour and a navy edge (same width)
-        showCheckmark: false,
+        // A picked chip also gets a navy edge (same width as the grey one)
         side: WidgetStateBorderSide.resolveWith(
           (states) => BorderSide(color: states.contains(WidgetState.selected) ? AppColors.navy : AppColors.line),
         ),

@@ -52,6 +52,21 @@ void main() {
     expect(find.byType(PushAskSheet), findsNothing);
   });
 
+  testWidgets('«السماح» then a refusal on that first prompt: no second «how to enable» sheet at once', (tester) async {
+    prefsSeen = false;
+    final overrides = await testOverrides(FakeAdapter());
+    await tester.pumpWidget(ProviderScope(
+      overrides: [...overrides, pushAllowedProvider.overrideWith((ref) async => false)],
+      child: rtlApp(const Scaffold(body: PushAskGate())),
+    ));
+    await tester.pumpAndSettle();
+    // No Firebase in tests: the system answer counts as a refusal
+    await tester.tap(find.byKey(const Key('push-ask-allow')));
+    await tester.pumpAndSettle();
+    expect(find.byType(PushAskSheet), findsNothing);
+    expect(find.byType(PushStepsSheet), findsNothing);
+  });
+
   testWidgets('notifications off: the card shows, «لاحقاً» hides it on home; on: nothing', (tester) async {
     Future<void> pump(bool? allowed, {bool dismissible = false}) async {
       final overrides = await testOverrides(FakeAdapter());

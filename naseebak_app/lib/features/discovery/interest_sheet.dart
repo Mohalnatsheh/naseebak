@@ -123,10 +123,16 @@ class _InterestSheetState extends State<InterestSheet> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    // The choices scroll; «إرسال «مهتم»» and «إلغاء» stay under them, in view on a short phone (360x640)
     return Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Flexible(
+            child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -202,12 +208,29 @@ class _InterestSheetState extends State<InterestSheet> {
                 action: _errorAction(context),
               ),
             ],
-            const SizedBox(height: 18),
-            LoadingButton(key: const Key('send-interest'), label: 'إرسال «مهتم»', loading: _busy, onPressed: _send),
-            const SizedBox(height: 6),
-            TextButton(onPressed: _busy ? null : () => Navigator.of(context).pop(), child: const Text('إلغاء')),
           ],
         ),
+            ),
+          ),
+          SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 10, 20, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  LoadingButton(key: const Key('send-interest'), label: 'إرسال «مهتم»', loading: _busy, onPressed: _send),
+                  const SizedBox(height: 4),
+                  TextButton(
+                    key: const Key('interest-cancel'),
+                    onPressed: _busy ? null : () => Navigator.of(context).pop(),
+                    child: const Text('إلغاء'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -252,9 +252,7 @@ void main() {
     h.adapter.on('GET', '/api/chats/c1/media/v1', const FakeResponse(401, {'error': 'غير مصرح'}));
     await _pump(tester, h, ChatBubble(message: _voice()));
     await tester.tap(find.byTooltip('تشغيل'));
-    for (var i = 0; i < 5; i++) {
-      await tester.pump(const Duration(milliseconds: 10));
-    }
+    await _until(tester, find.text('تعذّر تشغيل الرسالة'));
     expect(find.text('تعذّر تشغيل الرسالة'), findsOneWidget);
     expect(h.unauthorized, 1);
   });
@@ -263,9 +261,7 @@ void main() {
     final h = _Harness()..failVoice = true;
     await _pump(tester, h, ChatBubble(message: _voice()));
     await tester.tap(find.byTooltip('تشغيل'));
-    for (var i = 0; i < 5; i++) {
-      await tester.pump(const Duration(milliseconds: 10));
-    }
+    await _until(tester, find.text('تعذّر تشغيل الرسالة'));
     expect(find.text('تعذّر تشغيل الرسالة'), findsOneWidget);
     expect(h.unauthorized, 0);
   });
@@ -353,4 +349,11 @@ void main() {
     expect(probe.followRedirects, isFalse);
     expect(probe.headers['Authorization'], 'Bearer t1');
   });
+}
+
+/// Pumps until [f] shows (at most 50 short frames), so a slower fake answer never makes the test flaky
+Future<void> _until(WidgetTester tester, Finder f) async {
+  for (var i = 0; i < 50 && f.evaluate().isEmpty; i++) {
+    await tester.pump(const Duration(milliseconds: 10));
+  }
 }

@@ -51,6 +51,7 @@ class SuggestionCard extends StatelessWidget {
     final c = item.candidate;
     final theme = Theme.of(context);
     final actionable = item.actionableIn(tab);
+    final fold = actionable && MediaQuery.sizeOf(context).height < 700;
     return Card(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(18, 18, 18, 12),
@@ -130,15 +131,31 @@ class SuggestionCard extends StatelessWidget {
                   children: [
                     const Icon(Icons.auto_awesome_outlined, size: 18, color: AppColors.gold),
                     const SizedBox(width: 8),
-                    Expanded(child: Text(item.reason, style: const TextStyle(fontSize: 14, height: 1.55))),
+                    Expanded(
+                      child: Text(
+                        item.reason,
+                        // Short phone: two lines, the rest with the details
+                        maxLines: fold ? 2 : null,
+                        overflow: fold ? TextOverflow.ellipsis : null,
+                        style: const TextStyle(fontSize: 14, height: 1.55),
+                      ),
+                    ),
                   ],
                 ),
               ),
             ],
             const SizedBox(height: 10),
-            PersonDetailsView(person: c, female: candidateFemale, tribeLabel: tribeLabel),
-            const SizedBox(height: 6),
-            const Row(
+            // A short phone (360x640): the details fold behind «عرض التفاصيل», so «مهتم» and «لا» are on the first
+            // screen; a tap shows them all
+            _Details(
+              key: Key('card-details-${item.id}'),
+              fold: fold,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  PersonDetailsView(person: c, female: candidateFemale, tribeLabel: tribeLabel),
+                  const SizedBox(height: 6),
+                  const Row(
               children: [
                 Icon(Icons.lock_outline_rounded, size: 15, color: AppColors.muted),
                 SizedBox(width: 6),
@@ -147,9 +164,12 @@ class SuggestionCard extends StatelessWidget {
                       style: TextStyle(color: AppColors.muted, fontSize: 12.5)),
                 ),
               ],
+                  ),
+                ],
+              ),
             ),
             if (actionable) ...[
-              const SizedBox(height: 14),
+              SizedBox(height: fold ? 6 : 14),
               if (creditNote != null) ...[
                 Text(creditNote!, style: const TextStyle(color: AppColors.muted, fontSize: 12.5)),
                 const SizedBox(height: 8),
@@ -213,5 +233,32 @@ class SuggestionCard extends StatelessWidget {
       );
     }
     return null;
+  }
+}
+
+class _Details extends StatefulWidget {
+  const _Details({super.key, required this.fold, required this.child});
+  final bool fold;
+  final Widget child;
+
+  @override
+  State<_Details> createState() => _DetailsState();
+}
+
+class _DetailsState extends State<_Details> {
+  bool _open = false;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!widget.fold || _open) return widget.child;
+    return Align(
+      alignment: AlignmentDirectional.centerStart,
+      child: TextButton.icon(
+        key: const Key('card-details-open'),
+        onPressed: () => setState(() => _open = true),
+        icon: const Icon(Icons.expand_more_rounded),
+        label: const Text('عرض التفاصيل'),
+      ),
+    );
   }
 }

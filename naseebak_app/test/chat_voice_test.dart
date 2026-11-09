@@ -19,6 +19,7 @@ import 'package:naseebak_app/features/chat/chat_room_screen.dart';
 import 'package:naseebak_app/features/chat/media_bubbles.dart';
 import 'package:naseebak_app/features/chat/voice_recorder.dart';
 import 'package:naseebak_app/features/home/counts.dart';
+import 'package:naseebak_app/features/pro/pro_repository.dart';
 import 'package:record/record.dart' show AudioEncoder;
 
 import 'helpers/fake_api.dart';
@@ -43,8 +44,11 @@ class FakeRecorder implements VoiceRecorder {
     return permission();
   }
 
+  bool failStart = false;
+
   @override
   Future<void> start() async {
+    if (failStart) throw StateError('no microphone');
     started = true;
     file = File('${dir.path}/voice-${DateTime.now().microsecondsSinceEpoch}.m4a')..writeAsBytesSync([0, 1, 2, 3]);
   }
@@ -100,6 +104,7 @@ class _Harness {
   String status = 'ACTIVE';
   List<Map<String, dynamic>> serverExtra = [];
   Future<bool> Function() permission = () async => true;
+  bool failStart = false;
   final recorders = <FakeRecorder>[];
   FakeRecorder get rec => recorders.single;
   final players = <FakeVoicePlayer>[];
@@ -164,7 +169,7 @@ class _Harness {
       // Server copies of photos never reach the network in tests
       mediaImageProvider.overrideWithValue((_, _) => MemoryImage(Uint8List.fromList(_png))),
       voiceRecorderProvider.overrideWithValue(() {
-        final r = FakeRecorder(dir, permission);
+        final r = FakeRecorder(dir, permission)..failStart = failStart;
         recorders.add(r);
         return r;
       }),
@@ -407,7 +412,55 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
     expect(h.rec.started, isFalse);
+    expect(h.rec.cancelled, isTrue);
     expect(h.rec.disposed, isTrue);
+    expect(h.uploads, isEmpty);
+  });
+
+  testWidgets('while the microphone prompt is open the mic shows a spinner, not a dead button', (tester) async {
+    final h = _Harness();
+    final answer = Completer<bool>();
+    h.permission = () => answer.future;
+    await h.open(tester);
+    await tester.tap(_mic);
+    await tester.pump();
+    expect(find.byKey(const Key('chat-media-busy')), findsOneWidget);
+    answer.complete(true);
+    await tester.pump();
+    await tester.pump();
+    expect(find.byKey(const Key('chat-media-busy')), findsNothing);
+    expect(_clock, findsOneWidget);
+    await tester.tap(_cancel);
+    await tester.pump();
+  });
+
+  testWidgets('the recorder fails to start: «تعذّر بدء التسجيل», released, nothing sent', (tester) async {
+    final h = _Harness()..failStart = true;
+    await h.open(tester);
+    await tester.tap(_mic);
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('تعذّر بدء التسجيل'), findsOneWidget);
+    expect(h.rec.disposed, isTrue);
+    expect(_clock, findsNothing);
+    expect(h.uploads, isEmpty);
+    await tester.pump(const Duration(seconds: 5));
+  });
+
+  testWidgets('Pro lapses mid-recording: the microphone is released and the bar goes back', (tester) async {
+    final h = _Harness();
+    await h.open(tester);
+    await tester.tap(_mic);
+    await tester.pump();
+    await tester.pump();
+    expect(_clock, findsOneWidget);
+    h.isPro = false;
+    h.container.invalidate(proStateProvider);
+    for (var i = 0; i < 10; i++) {
+      await tester.pump(const Duration(milliseconds: 10));
+    }
+    expect(_clock, findsNothing);
+    expect(h.rec.cancelled, isTrue);
     expect(h.uploads, isEmpty);
   });
 

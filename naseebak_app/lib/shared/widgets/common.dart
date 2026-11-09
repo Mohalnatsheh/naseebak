@@ -306,9 +306,13 @@ void showSnack(BuildContext context, String message, {SnackBarAction? action}) {
   if (messenger == null) return;
   messenger
     ..hideCurrentSnackBar()
-    // Never left on screen over the composer or the buttons: a SnackBar with an action would otherwise stay until
-    // tapped (Flutter's default since 3.32)
-    ..showSnackBar(SnackBar(content: Text(message), action: action, persist: false));
+    // Never left on screen over the composer or the buttons (Flutter 3.32+ keeps one with an action until tapped),
+    // except for a screen-reader user, who needs time to reach its action (Flutter's behaviour before 3.32)
+    ..showSnackBar(SnackBar(
+      content: Text(message),
+      action: action,
+      persist: action != null && (MediaQuery.maybeAccessibleNavigationOf(context) ?? false),
+    ));
 }
 
 Future<bool> confirmDialog(

@@ -42,7 +42,10 @@ Future<void> openNotificationSettings() async {
 
 /// Asks once more where the system still can (first time, Android's second chance); otherwise explains how to turn
 /// them on in the phone's settings.
-Future<void> enablePushNotifications(BuildContext context, WidgetRef ref) async {
+///
+/// [explainIfRefused] false: a «Don't Allow» on the system prompt just asked (the first ask, after the home sheet)
+/// is left at that; the «الإشعارات غير مفعّلة» card stays for later, no second sheet at once.
+Future<void> enablePushNotifications(BuildContext context, WidgetRef ref, {bool explainIfRefused = true}) async {
   var allowed = false;
   try {
     final s = await FirebaseMessaging.instance.requestPermission();
@@ -54,7 +57,7 @@ Future<void> enablePushNotifications(BuildContext context, WidgetRef ref) async 
     ref.read(pushServiceProvider).start();
     return;
   }
-  if (!context.mounted) return;
+  if (!context.mounted || !explainIfRefused) return;
   final female = ref.read(authControllerProvider).me?.isFemale ?? false;
   await showModalBottomSheet<void>(
     context: context,
@@ -259,7 +262,7 @@ class _PushAskGateState extends ConsumerState<PushAskGate> {
       showDragHandle: true,
       builder: (_) => PushAskSheet(female: female),
     );
-    if (allow == true && mounted) await enablePushNotifications(context, ref);
+    if (allow == true && mounted) await enablePushNotifications(context, ref, explainIfRefused: false);
   }
 
   @override

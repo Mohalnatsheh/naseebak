@@ -50,19 +50,18 @@ class GuardianFields {
 }
 
 class GuardianFieldsView extends ConsumerWidget {
-  const GuardianFieldsView({super.key, required this.fields, required this.errors, required this.onChanged});
+  const GuardianFieldsView({super.key, required this.fields, required this.errors, required this.onFieldChanged});
   final GuardianFields fields;
   final Map<String, String?> errors;
-  final VoidCallback onChanged;
+
+  /// An answer changed (its key: `parentName`, `relationship`, `parentPhone`, `address`, `consent`): the owner of
+  /// [errors] clears that one and rebuilds
+  final ValueChanged<String> onFieldChanged;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final country = ref.watch(authControllerProvider).me?.country;
-    // An error goes as soon as its answer changes (not only at the next save), like the setup steps
-    void changed(String key) {
-      if (errors[key] != null) errors.remove(key);
-      onChanged();
-    }
+    void changed(String key) => onFieldChanged(key);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -109,7 +108,7 @@ class GuardianFieldsView extends ConsumerWidget {
           value: fields.consent,
           onChanged: (v) {
             fields.consent = v ?? false;
-            onChanged();
+            changed('consent');
           },
           controlAffinity: ListTileControlAffinity.leading,
           contentPadding: EdgeInsets.zero,
@@ -229,7 +228,12 @@ class _GuardianScreenState extends ConsumerState<GuardianScreen> {
               : ListView(
                   padding: const EdgeInsets.all(20),
                   children: [
-                    GuardianFieldsView(fields: _fields, errors: _errors, onChanged: () => setState(() {})),
+                    GuardianFieldsView(
+                      fields: _fields,
+                      errors: _errors,
+                      // An error goes as soon as its answer changes (not only at the next save)
+                      onFieldChanged: (key) => setState(() => _errors = {..._errors}..remove(key)),
+                    ),
                     if (_error != null) ...[const SizedBox(height: 12), InfoBanner(text: _error!, tone: BannerTone.danger)],
                     const SizedBox(height: 20),
                     LoadingButton(label: 'حفظ', loading: _saving, onPressed: _save),

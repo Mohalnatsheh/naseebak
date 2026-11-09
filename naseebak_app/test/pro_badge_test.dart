@@ -87,16 +87,17 @@ void main() {
     expect(find.descendant(of: find.widgetWithText(ListTile, 'عمر'), matching: find.byType(ProBadge)), findsOneWidget);
   });
 
-  testWidgets('the chat room header shows the badge for partnerIsPro', (tester) async {
+  for (final pro in [true, false]) {
+    testWidgets('the chat room header shows the badge only for a Pro partner (isPro: $pro)', (tester) async {
     final adapter = FakeAdapter()
       ..on('GET', '/api/mobile/me', FakeResponse(200, {'user': meJson()}))
       ..on('POST', '/api/chats/c1/read', const FakeResponse(200, {'ok': true}))
       ..on('GET', '/api/chats/ably-token', const FakeResponse(404, {'error': 'x'}))
-      ..on('GET', '/api/chats/c1', const FakeResponse(200, {
+      ..on('GET', '/api/chats/c1', FakeResponse(200, {
         'conversation': {
           'id': 'c1',
           'matchId': 'x1',
-          'partner': {'id': 'p1', 'firstName': 'عمر', 'isPro': true},
+          'partner': {'id': 'p1', 'firstName': 'عمر', 'isPro': pro},
           'status': 'ACTIVE',
           'expiresAt': '2099-01-01T00:00:00.000Z',
         },
@@ -117,13 +118,15 @@ void main() {
     for (var i = 0; i < 10; i++) {
       await tester.pump(const Duration(milliseconds: 20));
     }
-    expect(find.byType(ProBadge), findsOneWidget);
-  });
+    expect(find.byType(ProBadge), pro ? findsOneWidget : findsNothing);
+    });
+  }
 
-  testWidgets('the home greeting uses the on-dark badge for a Pro member', (tester) async {
+  for (final pro in [true, false]) {
+    testWidgets('the home greeting has the on-dark badge for a Pro member only (isPro: $pro)', (tester) async {
     final adapter = FakeAdapter()
       ..on('GET', '/api/mobile/me', FakeResponse(200, {'user': meJson()}))
-      ..on('GET', '/api/me/counts', const FakeResponse(200, {'flags': {}, 'pro': {'isPro': true}}))
+      ..on('GET', '/api/me/counts', FakeResponse(200, {'flags': {}, 'pro': {'isPro': pro}}))
       ..on('GET', '/api/notifications/unread-count', const FakeResponse(200, {'count': 0}))
       ..on('GET', '/api/suggestions/feed', const FakeResponse(200, {'items': [], 'page': 1, 'totalPages': 1}));
     final overrides = await testOverrides(adapter, store: MemoryTokenStore('t1'));
@@ -132,9 +135,14 @@ void main() {
       child: rtlApp(const HomeScreen()),
     ));
     await tester.pumpAndSettle();
+    if (!pro) {
+      expect(find.byType(ProBadge), findsNothing);
+      return;
+    }
     final badge = tester.widget<ProBadge>(find.byType(ProBadge));
     expect(badge.onDark, isTrue);
-  });
+    });
+  }
 }
 
 class _Stub extends ImageStreamCompleter {}

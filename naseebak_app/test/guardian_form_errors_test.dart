@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -39,10 +41,21 @@ void main() {
     expect(find.text('العنوان مطلوب'), findsNothing);
   });
 
-  testWidgets('a picked chip keeps its width (no ✓), so the row never re-wraps under the finger', (tester) async {
+  testWidgets('a setup chip keeps its width when picked (no ✓), so the row never re-wraps under the finger',
+      (tester) async {
+    final src = File('lib/features/onboarding/setup_screen.dart').readAsStringSync();
+    expect(src.contains('showCheckmark: false'), isTrue, reason: 'setup chips have no ✓');
     Future<Size> size(bool selected) async {
       await tester.pumpWidget(rtlApp(Scaffold(
-        body: Center(child: ChoiceChip(key: const Key('c'), label: const Text('بكالوريوس'), selected: selected, onSelected: (_) {})),
+        body: Center(
+          child: ChoiceChip(
+            key: const Key('c'),
+            label: const Text('بكالوريوس'),
+            showCheckmark: false,
+            selected: selected,
+            onSelected: (_) {},
+          ),
+        ),
       )));
       await tester.pumpAndSettle();
       return tester.getSize(find.byKey(const Key('c')));

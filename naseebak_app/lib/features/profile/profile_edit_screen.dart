@@ -93,9 +93,6 @@ Map<String, Object?> editableValues(MyProfile p) => {
       for (final k in profileFieldLabels.keys) k: k == 'dateOfBirth' ? dayOf(p.field(k)) : p.field(k),
     };
 
-/// «تعديل ملفي»: every profile field of the website. Empty fields save at once; changing a stored value is sent to
-/// the Naseebak team for review (one request at a time, «سحب الطلب» to change it), like `/dashboard/profile/edit`.
-
 /// Jobs only women pick («ربة منزل»), like the website's `jobValuesFor`: not offered to a man (a value he already
 /// has still shows)
 const femaleOnlyJobs = {'ربة منزل'};
@@ -103,6 +100,8 @@ const femaleOnlyJobs = {'ربة منزل'};
 List<String> jobOptionsFor(List<String> all, {required bool female, String? current}) =>
     [for (final j in all) if (female || !femaleOnlyJobs.contains(j) || j == current) j];
 
+/// «تعديل ملفي»: every profile field of the website. Empty fields save at once; changing a stored value is sent to
+/// the Naseebak team for review (one request at a time, «سحب الطلب» to change it), like `/dashboard/profile/edit`.
 class ProfileEditScreen extends ConsumerWidget {
   const ProfileEditScreen({super.key});
 

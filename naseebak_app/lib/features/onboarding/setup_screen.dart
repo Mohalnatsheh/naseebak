@@ -514,7 +514,13 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
               style: const TextStyle(color: AppColors.muted, fontSize: 13)),
         ];
       default:
-        return [GuardianFieldsView(fields: _guardian, errors: _errors, onChanged: () => setState(() {}))];
+        return [
+          GuardianFieldsView(
+            fields: _guardian,
+            errors: _errors,
+            onFieldChanged: (key) => setState(() => _errors.remove(key)),
+          ),
+        ];
     }
   }
 
@@ -535,6 +541,9 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
             for (final o in options)
               ChoiceChip(
                 label: Text(labelOf?.call(o) ?? o),
+                // No ✓ here: it widened the picked chip, the row re-wrapped and the next tap landed in a gap; the
+                // pick shows by its colour and navy edge
+                showCheckmark: false,
                 selected: value == o,
                 onSelected: (_) => onPick(o),
                 materialTapTargetSize: MaterialTapTargetSize.padded,

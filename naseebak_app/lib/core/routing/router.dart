@@ -171,7 +171,16 @@ final routerProvider = Provider<GoRouter>((ref) {
   // A link that came while the app was still starting
   final early = EarlyLinks.instance.take();
   final earlyLink = early == null ? null : WebsiteLink.parse(early);
-  if (earlyLink?.route != null && earlyLink?.invitationCode == null) pendingLink = earlyLink!.route;
+  if (earlyLink != null) {
+    final code = earlyLink.invitationCode;
+    if (code != null) {
+      // A friend's invitation: kept for sign-up, which opens on «حساب جديد» (as the redirect does)
+      ref.read(sharedPreferencesProvider).setString(pendingInvitationKey, code);
+      Future.microtask(() => ref.read(authModeProvider.notifier).set(OtpContext.register));
+    } else if (earlyLink.route != null) {
+      pendingLink = earlyLink.route;
+    }
+  }
 
   router = GoRouter(
     navigatorKey: rootNavigatorKey,

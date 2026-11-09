@@ -4,6 +4,8 @@
  *   (floored at 0, ledger reason REFUND with a negative delta) and the buyer is told. Called by the
  *   admin refund route (after it refunds on Stripe) and by the webhook on `charge.refunded` (a refund
  *   made in the Stripe dashboard). Both paths together still deduct once (status claim).
+ *   A Pro payment (`pro_<plan>`) takes back the credits granted from it instead (its `ProCreditGrant` rows, yearly: every
+ *   monthly grant of that paid year), and a refund of the membership's latest payment ends Pro at once.
  * - `flagDispute`: `charge.dispute.created` marks the payment (`disputedAt`) and alerts the admins.
  */
 import type Stripe from "stripe";
@@ -12,6 +14,9 @@ import { notify } from "@/lib/notify";
 import { recordCredit } from "@/lib/credits";
 import { sendAdminAlert } from "@/lib/admin-alert";
 import { findAnyPackage, formatPaidCharge } from "@/lib/payments/packages";
+import { planFromName } from "@/lib/pro/plans";
+import { cancelProNow, endProLocally } from "@/lib/pro/manage";
+import { invoiceIdForPaymentIntent } from "@/lib/pro/invoice-payments";
 
 export type RefundResult = "refunded" | "already" | "not_found";
 
@@ -22,23 +27,49 @@ export async function applyRefund(args: {
 }): Promise<RefundResult> {
   const payment = await db.payment.findUnique({
     where: { id: args.paymentId },
-    select: { id: true, status: true, userId: true, planName: true, amount: true, currency: true },
+    select: { id: true, status: true, userId: true, planName: true, amount: true, currency: true, proSubscriptionId: true },
   });
   if (!payment) return "not_found";
   if (payment.status === "REFUNDED") return "already";
 
+  const proPlan = planFromName(payment.planName);
   // Also packages no longer sold: an older purchase gives back what it bought
-  const pkg = findAnyPackage(payment.planName);
-  const creditsToDeduct = pkg?.credits ?? 0;
+  const pkg = proPlan ? undefined : findAnyPackage(payment.planName);
   const userId = payment.userId;
 
   const refunded = await db.$transaction(async (tx) => {
+    // Pro: is this the membership's latest paid period? Read before the claim below changes this payment's status
+    const latest =
+      proPlan && payment.proSubscriptionId
+        ? await tx.payment.findFirst({
+            where: { proSubscriptionId: payment.proSubscriptionId, status: "COMPLETED" },
+            orderBy: { createdAt: "desc" },
+            select: { id: true },
+          })
+        : null;
+
     // COMPLETED guard: a concurrent refund (admin + webhook) of the same payment only deducts once
     const claimed = await tx.payment.updateMany({
       where: { id: payment.id, status: "COMPLETED" },
       data: { status: "REFUNDED" },
     });
-    if (claimed.count !== 1) return false;
+    if (claimed.count !== 1) return null;
+
+    let creditsToDeduct = pkg?.credits ?? 0;
+    if (proPlan) {
+      // Every grant made from this payment and not taken back yet, in the same transaction as the claim
+      const grants = await tx.proCreditGrant.findMany({
+        where: { paymentId: payment.id, takenBack: false },
+        select: { id: true, credits: true },
+      });
+      if (grants.length > 0) {
+        await tx.proCreditGrant.updateMany({
+          where: { id: { in: grants.map((g) => g.id) }, takenBack: false },
+          data: { takenBack: true },
+        });
+      }
+      creditsToDeduct = grants.reduce((sum, g) => sum + g.credits, 0);
+    }
 
     if (userId && creditsToDeduct > 0) {
       const user = await tx.user.findUnique({ where: { id: userId }, select: { matchCredits: true } });
@@ -61,9 +92,11 @@ export async function applyRefund(args: {
         }
       }
     }
-    return true;
+    return { endsPro: !!latest && latest.id === payment.id };
   });
   if (!refunded) return "already";
+
+  if (refunded.endsPro && payment.proSubscriptionId) await endProAfterRefund(payment.proSubscriptionId, payment, args.adminId);
 
   if (userId) {
     await notify({
@@ -71,24 +104,52 @@ export async function applyRefund(args: {
       type: "PAYMENT",
       title: "تم استرداد المبلغ",
       // Charged in USD (shown in JOD): say what actually goes back to the card
-      body: pkg
-        ? `تم استرداد ${formatPaidCharge(payment)} (قيمة باقة ${pkg.name}) إلى بطاقتك، وأُزيل رصيد الباقة من حسابك.`
-        : "تم استرداد قيمة عملية الدفع إلى بطاقتك.",
+      body: proPlan
+        ? `تم استرداد ${formatPaidCharge(payment)} من اشتراك Pro إلى بطاقتك، وأُزيل رصيده من حسابك.`
+        : pkg
+          ? `تم استرداد ${formatPaidCharge(payment)} (قيمة باقة ${pkg.name}) إلى بطاقتك، وأُزيل رصيد الباقة من حسابك.`
+          : "تم استرداد قيمة عملية الدفع إلى بطاقتك.",
       url: "/dashboard/payments",
       metadata: { paymentId: payment.id },
+      ...(proPlan ? { sms: false as const } : {}),
     });
   }
   return "refunded";
 }
 
-/** Our Payment row for a Stripe charge (fulfil stores the payment intent id as providerTxId) */
+/**
+ * The refunded payment paid the current period: Pro ends at once, on Stripe too. The refund is already recorded, so a
+ * Stripe failure here still ends Pro locally and asks the admins to cancel the subscription in Stripe by hand.
+ */
+async function endProAfterRefund(subscriptionId: string, payment: { id: string; currency: string }, adminId?: string) {
+  try {
+    await cancelProNow(subscriptionId, { reason: "refund", ...(adminId && { adminId }) });
+  } catch (e) {
+    console.error("[pro] refund: Stripe cancel failed", subscriptionId, e);
+    await endProLocally(subscriptionId);
+    const sub = await db.proSubscription.findUnique({ where: { id: subscriptionId }, select: { stripeSubscriptionId: true } });
+    await sendAdminAlert(
+      "Pro refund: cancel the subscription in Stripe",
+      `Payment ${payment.id} was refunded and Pro ended here, but cancelling Stripe subscription ` +
+        `${sub?.stripeSubscriptionId ?? "?"} failed. Cancel it in the Stripe dashboard so it does not renew.`,
+      alertAbout(payment),
+    ).catch((err) => console.error("[pro] refund alert failed", err));
+  }
+}
+
+/**
+ * Our Payment row for a Stripe charge. Packages store the payment intent id as providerTxId (fulfil); a Pro payment
+ * stores its invoice id, found through the payment intent's invoice when no package matches.
+ */
 export async function findPaymentForCharge(charge: Pick<Stripe.Charge, "payment_intent">) {
   const pi = typeof charge.payment_intent === "string" ? charge.payment_intent : charge.payment_intent?.id;
   if (!pi) return null;
-  return db.payment.findFirst({
-    where: { providerTxId: pi, provider: "STRIPE" },
-    select: { id: true, status: true, userId: true, amount: true, currency: true, planName: true },
-  });
+  const select = { id: true, status: true, userId: true, amount: true, currency: true, planName: true } as const;
+  const byIntent = await db.payment.findFirst({ where: { providerTxId: pi, provider: "STRIPE" }, select });
+  if (byIntent) return byIntent;
+  const invoiceId = await invoiceIdForPaymentIntent(pi);
+  if (!invoiceId) return null;
+  return db.payment.findFirst({ where: { providerTxId: invoiceId, provider: "STRIPE" }, select });
 }
 
 /** A payment's currency tells its country, also once the account is deleted */

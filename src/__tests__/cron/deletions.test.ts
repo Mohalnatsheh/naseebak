@@ -16,10 +16,12 @@ const db = vi.hoisted(() => ({
 const bunny = vi.hoisted(() => ({ deleteFromBunny: vi.fn(), getBunnyPathFromUrl: vi.fn((u: string) => u) }));
 const reports = vi.hoisted(() => ({ snapshotReportEvidence: vi.fn() }));
 const leave = vi.hoisted(() => ({ closeActivityForLeaving: vi.fn() }));
+const pro = vi.hoisted(() => ({ cancelProForDeletion: vi.fn() }));
 vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/bunny", () => bunny);
 vi.mock("@/lib/reports", () => reports);
 vi.mock("@/lib/matches/leave", () => leave);
+vi.mock("@/lib/pro/manage", () => pro);
 
 import { processAccountDeletions } from "@/lib/cron/deletions";
 
@@ -38,6 +40,7 @@ beforeEach(() => {
   bunny.deleteFromBunny.mockResolvedValue(undefined);
   reports.snapshotReportEvidence.mockResolvedValue(0);
   leave.closeActivityForLeaving.mockResolvedValue(undefined);
+  pro.cancelProForDeletion.mockResolvedValue(0);
 });
 
 describe("processAccountDeletions", () => {
@@ -86,6 +89,23 @@ describe("processAccountDeletions", () => {
     db.$transaction.mockRejectedValueOnce(new Error("fk")).mockResolvedValue([]);
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
     expect(await processAccountDeletions()).toBe(1);
+    spy.mockRestore();
+  });
+
+  it("cancels the member's Pro subscriptions on Stripe before any file or row goes", async () => {
+    await processAccountDeletions();
+    expect(pro.cancelProForDeletion).toHaveBeenCalledWith("u1");
+    const order = pro.cancelProForDeletion.mock.invocationCallOrder[0];
+    expect(order).toBeLessThan(bunny.deleteFromBunny.mock.invocationCallOrder[0]);
+    expect(order).toBeLessThan(db.$transaction.mock.invocationCallOrder[0]);
+  });
+
+  it("a failed Stripe cancel stops that deletion (retried next run)", async () => {
+    pro.cancelProForDeletion.mockRejectedValueOnce(new Error("stripe down"));
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(await processAccountDeletions()).toBe(0);
+    expect(bunny.deleteFromBunny).not.toHaveBeenCalled();
+    expect(db.$transaction).not.toHaveBeenCalled();
     spy.mockRestore();
   });
 });

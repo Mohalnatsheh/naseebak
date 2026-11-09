@@ -38,8 +38,8 @@ const PRO_STARTED_TITLE = "أصبحت عضوية Pro فعّالة";
 const PRO_STARTED_BODY = "يمكنك الآن إرسال الصور والرسائل الصوتية في المحادثات.";
 const PRO_FAILED_TITLE = "تعذّر تجديد اشتراك Pro";
 const PRO_FAILED_BODY = "يمكنك تحديث بطاقتك من صفحة الدفع لمواصلة Pro.";
-const PRO_ENDED_TITLE = "انتهت عضوية Pro";
-const PRO_ENDED_BODY = "يمكنك الاشتراك في Pro من جديد في أي وقت من صفحة الدفع.";
+export const PRO_ENDED_TITLE = "انتهت عضوية Pro";
+export const PRO_ENDED_BODY = "يمكنك الاشتراك في Pro من جديد في أي وقت من صفحة الدفع.";
 
 function planOf(meta: Meta): ProPlanId | null {
   return (PRO_PLAN_IDS as readonly string[]).includes(meta.plan) ? (meta.plan as ProPlanId) : null;

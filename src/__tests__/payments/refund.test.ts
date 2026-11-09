@@ -8,10 +8,12 @@ const db = vi.hoisted(() => ({
 const credits = vi.hoisted(() => ({ recordCredit: vi.fn() }));
 const notifyMod = vi.hoisted(() => ({ notify: vi.fn() }));
 const alert = vi.hoisted(() => ({ sendAdminAlert: vi.fn() }));
+const invoices = vi.hoisted(() => ({ invoiceIdForPaymentIntent: vi.fn() }));
 vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/credits", () => credits);
 vi.mock("@/lib/notify", () => notifyMod);
 vi.mock("@/lib/admin-alert", () => alert);
+vi.mock("@/lib/pro/invoice-payments", () => invoices);
 
 import { applyRefund, flagDispute, handleChargeRefunded } from "@/lib/payments/refund";
 
@@ -22,6 +24,7 @@ beforeEach(() => {
   db.payment.findFirst.mockResolvedValue({ id: "p1", status: "COMPLETED", userId: "u1", planName: "credits_5" });
   db.payment.updateMany.mockResolvedValue({ count: 1 });
   db.user.findUnique.mockResolvedValue({ matchCredits: 7 });
+  invoices.invoiceIdForPaymentIntent.mockResolvedValue(null);
 });
 
 describe("applyRefund", () => {
@@ -72,6 +75,17 @@ describe("Stripe charge events", () => {
     const charge: any = { id: "ch_1", payment_intent: "pi_1", refunded: true, amount: 564, amount_refunded: 564, currency: "usd" };
     expect(await handleChargeRefunded(charge)).toBe("refunded");
     expect(db.payment.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { providerTxId: "pi_1", provider: "STRIPE" } }));
+  });
+
+  it("a Pro payment (stored by invoice id) is found through the charge's invoice", async () => {
+    db.payment.findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce({ id: "p9", status: "COMPLETED", userId: "u1", planName: "pro_monthly" });
+    invoices.invoiceIdForPaymentIntent.mockResolvedValue("in_9");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const charge: any = { id: "ch_9", payment_intent: "pi_9", refunded: false, amount: 564, amount_refunded: 100, currency: "usd" };
+    expect(await handleChargeRefunded(charge)).toBe("partial");
+    expect(invoices.invoiceIdForPaymentIntent).toHaveBeenCalledWith("pi_9");
+    expect(db.payment.findFirst).toHaveBeenLastCalledWith(expect.objectContaining({ where: { providerTxId: "in_9", provider: "STRIPE" } }));
+    expect(db.payment.updateMany).not.toHaveBeenCalled();
   });
 
   it("a partial refund only alerts the admins", async () => {

@@ -3,6 +3,8 @@ import { requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getStripe } from "@/lib/stripe";
 import { applyRefund } from "@/lib/payments/refund";
+import { planFromName } from "@/lib/pro/plans";
+import { paymentIntentForInvoice } from "@/lib/pro/invoice-payments";
 
 export async function POST(
   _request: Request,
@@ -17,7 +19,7 @@ export async function POST(
 
     const payment = await db.payment.findUnique({
       where: { id },
-      select: { id: true, status: true, providerTxId: true, provider: true },
+      select: { id: true, status: true, providerTxId: true, provider: true, planName: true },
     });
 
     if (!payment) {
@@ -32,17 +34,27 @@ export async function POST(
       return NextResponse.json({ error: "Refund only supported for Stripe payments with a transaction ID" }, { status: 400 });
     }
 
+    // A Pro payment stores its invoice id: refund the payment intent that paid it. A local mock invoice has none
+    const pro = !!planFromName(payment.planName);
+    const mockPro = pro && payment.providerTxId.startsWith("mock_");
+    const paymentIntent = mockPro ? null : pro ? await paymentIntentForInvoice(payment.providerTxId) : payment.providerTxId;
+    if (!mockPro && !paymentIntent) {
+      return NextResponse.json({ error: "No Stripe payment found for this invoice" }, { status: 400 });
+    }
+
     // Issue the Stripe refund first; the idempotency key makes a retry (e.g. after a DB failure
     // below) return the same refund instead of refunding twice
-    try {
-      await getStripe().refunds.create(
-        { payment_intent: payment.providerTxId },
-        { idempotencyKey: `refund-${payment.id}` }
-      );
-    } catch (err) {
-      const code = (err as { code?: string })?.code;
-      // Already refunded on Stripe (e.g. from the Stripe dashboard): still record it here
-      if (code !== "charge_already_refunded") throw err;
+    if (paymentIntent) {
+      try {
+        await getStripe().refunds.create(
+          { payment_intent: paymentIntent },
+          { idempotencyKey: `refund-${payment.id}` }
+        );
+      } catch (err) {
+        const code = (err as { code?: string })?.code;
+        // Already refunded on Stripe (e.g. from the Stripe dashboard): still record it here
+        if (code !== "charge_already_refunded") throw err;
+      }
     }
 
     // Credits back + notice; the charge.refunded webhook for the same refund is then a no-op

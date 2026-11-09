@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { deleteFromBunny, getBunnyPathFromUrl } from "@/lib/bunny";
 import { closeActivityForLeaving } from "@/lib/matches/leave";
 import { snapshotReportEvidence } from "@/lib/reports";
+import { cancelProForDeletion } from "@/lib/pro/manage";
 
 export async function processAccountDeletions(): Promise<number> {
   // Find all requests that are past the scheduled date and not cancelled
@@ -29,6 +30,10 @@ export async function processAccountDeletions(): Promise<number> {
         select: { cancelledAt: true, scheduledAt: true, user: { select: { isDeactivated: true } } },
       });
       if (!fresh || fresh.cancelledAt || fresh.scheduledAt > new Date() || !fresh.user?.isDeactivated) continue;
+
+      // A Pro membership must stop charging before the account goes. A Stripe failure stops this deletion
+      // (retried tomorrow) rather than leave a deleted member's card being billed.
+      await cancelProForDeletion(req.userId);
 
       // Clean up Bunny CDN files before DB deletion
       try {

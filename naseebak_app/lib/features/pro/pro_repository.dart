@@ -108,13 +108,16 @@ final proRepositoryProvider = Provider<ProRepository>((ref) => ProRepository(ref
 
 final proStateProvider = FutureProvider.autoDispose<MyProState>((ref) => ref.watch(proRepositoryProvider).state());
 
-/// The plans section is shown to buyers (app payments on and the server says they can buy) and to current Pro members.
-bool showPlans(MyProState s, bool appPayments) => (appPayments && s.canBuy) || s.isPro;
+/// The Pro screen, its menu entry and the link card on the credits screen: only where the app shows payments, to
+/// buyers (the server says they can buy) and to current Pro members. A test or review account (app payments off)
+/// never sees a plan or «اشتراكي», even if it is Pro (owner, 2026-11-10).
+bool showPlans(MyProState s, bool appPayments) => appPayments && (s.canBuy || s.isPro);
 
 enum MediaButtons { enabled, locked, hidden }
 
-/// Photo and voice buttons in a chat: usable for Pro in an ACTIVE chat, greyed with a «Pro» tag for a member who could
-/// buy it, hidden otherwise (test and review accounts get `canBuy: false`).
+/// Photo and voice buttons in a chat: usable for Pro in an ACTIVE chat (also a Pro test account: sending is not a
+/// purchase), greyed with a «Pro» tag that opens `/pro` only where the app shows payments and the member could buy,
+/// hidden otherwise (test and review accounts: app payments off, and `canBuy: false`).
 MediaButtons mediaButtonsMode({
   required bool isPro,
   required bool appPayments,

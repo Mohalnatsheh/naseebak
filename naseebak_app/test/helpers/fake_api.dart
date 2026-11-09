@@ -144,3 +144,16 @@ Widget rtlApp(Widget child) => MaterialApp(
       ],
       home: child,
     );
+
+/// Same, around a router (screens that push routes)
+Widget rtlRouterApp(RouterConfig<Object> router) => MaterialApp.router(
+      theme: AppTheme.light(),
+      locale: const Locale('ar'),
+      supportedLocales: const [Locale('ar')],
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      routerConfig: router,
+    );

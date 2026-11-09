@@ -12,7 +12,6 @@ import 'package:naseebak_app/core/storage/token_store.dart';
 import 'package:naseebak_app/core/theme/app_theme.dart';
 import 'package:naseebak_app/features/chat/chat_cache.dart';
 import 'package:naseebak_app/features/chat/chat_room_screen.dart';
-import 'package:naseebak_app/features/credits/credits_screen.dart';
 import 'package:naseebak_app/features/chat/chat_media_picker.dart';
 
 import 'helpers/fake_api.dart';
@@ -46,8 +45,9 @@ Map<String, dynamic> _pro({bool isPro = false, bool canBuy = true}) =>
     {'enabled': true, 'isPro': isPro, 'cancelAtPeriodEnd': false, 'pastDue': false, 'canBuy': canBuy, 'offers': []};
 
 class _Harness {
-  _Harness({this.isPro = true, this.canBuy = true, this.status = 'ACTIVE'});
+  _Harness({this.isPro = true, this.canBuy = true, this.status = 'ACTIVE', this.appPayments = true});
   bool isPro;
+  bool appPayments;
   bool canBuy;
   String status;
   late final File photo = () {
@@ -60,7 +60,7 @@ class _Harness {
 
   late final FakeAdapter adapter = FakeAdapter()
     ..handlers['GET /api/mobile/me'] = ((_) => FakeResponse(200, {
-          'user': {...meJson(), 'appPayments': true},
+          'user': {...meJson(), 'appPayments': appPayments},
         }))
     ..on('POST', '/api/chats/c1/read', const FakeResponse(200, {'ok': true}))
     ..on('GET', '/api/chats/ably-token', const FakeResponse(404, {'error': 'غير متاح'}))
@@ -109,10 +109,7 @@ class _Harness {
           path: '/chats/c1',
           builder: (_, _) => const ChatRoomScreen(chatId: 'c1', pollInterval: Duration(hours: 1)),
         ),
-        GoRoute(
-          path: '/credits',
-          builder: (_, s) => Scaffold(body: Text('credits:${s.uri.queryParameters['section']}')),
-        ),
+        GoRoute(path: '/pro', builder: (_, _) => const Scaffold(body: Text('pro-screen'))),
       ],
     );
     await tester.pumpWidget(UncontrolledProviderScope(
@@ -176,14 +173,14 @@ void main() {
     expect(h.uploads, isEmpty);
   });
 
-  testWidgets('not Pro, payments on and can buy: greyed with a «Pro» tag that opens the plans section', (tester) async {
+  testWidgets('not Pro, payments on and can buy: greyed with a «Pro» tag that opens the Pro screen', (tester) async {
     final h = _Harness(isPro: false);
     await h.open(tester);
     expect(_proTag, findsOneWidget);
     await tester.tap(_proTag); // the tag (over the greyed button) opens the plans too
     await tester.pumpAndSettle();
     expect(h.picks, 0);
-    expect(find.text('credits:pro'), findsOneWidget);
+    expect(find.text('pro-screen'), findsOneWidget);
   });
 
   testWidgets('a test account (canBuy false, not Pro) sees no media buttons', (tester) async {
@@ -192,6 +189,23 @@ void main() {
     expect(_photo, findsNothing);
     expect(_proTag, findsNothing);
     expect(find.byKey(const Key('chat-input')), findsOneWidget);
+  });
+
+  testWidgets('a test account (app payments off) that can buy sees no greyed buttons', (tester) async {
+    final h = _Harness(isPro: false, appPayments: false);
+    await h.open(tester);
+    expect(_photo, findsNothing);
+    expect(_proTag, findsNothing);
+  });
+
+  testWidgets('a Pro test account (app payments off) can still send a photo', (tester) async {
+    final h = _Harness(appPayments: false, canBuy: false);
+    await h.open(tester);
+    expect(_photo, findsOneWidget);
+    expect(_proTag, findsNothing);
+    await tester.tap(_photo);
+    await tester.pumpAndSettle();
+    expect(h.uploads, hasLength(1));
   });
 
   testWidgets('an ENDED chat shows no media buttons, even for Pro', (tester) async {
@@ -236,6 +250,25 @@ void main() {
     expect(h.adapter.to('GET', '/api/me/counts').length, greaterThan(countReads));
     // The buttons follow: greyed with the «Pro» tag
     expect(_proTag, findsOneWidget);
+    // Resending can't work: no «إعادة الإرسال», a link to «عضوية Pro» instead
+    expect(find.text('إعادة الإرسال'), findsNothing);
+    await tester.tap(find.byKey(const Key('chat-failed-pro')));
+    await tester.pumpAndSettle();
+    expect(find.text('pro-screen'), findsOneWidget);
+  });
+
+  testWidgets('PRO_REQUIRED for a member who can\'t buy: the message alone, no retry, no link', (tester) async {
+    final h = _Harness(canBuy: false);
+    await h.open(tester);
+    h.adapter.handlers['POST /api/chats/c1/media'] = (_) {
+      h.isPro = false;
+      return const FakeResponse(403, {'error': 'إرسال الصور متاح لأعضاء Pro', 'code': 'PRO_REQUIRED'});
+    };
+    await tester.tap(_photo);
+    await tester.pumpAndSettle();
+    expect(find.text('إرسال الصور متاح لأعضاء Pro'), findsOneWidget);
+    expect(find.text('إعادة الإرسال'), findsNothing);
+    expect(find.byKey(const Key('chat-failed-pro')), findsNothing);
   });
 
   testWidgets('leaving the chat mid-upload: no setState after dispose', (tester) async {
@@ -252,39 +285,5 @@ void main() {
     gate.complete();
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
-  });
-
-  testWidgets('the credits screen opened for Pro scrolls to the plans section', (tester) async {
-    tester.view.physicalSize = const Size(420, 500);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
-    final adapter = FakeAdapter()
-      ..handlers['GET /api/mobile/me'] = ((_) => FakeResponse(200, {
-            'user': {...meJson(), 'appPayments': true},
-          }))
-      ..on('GET', '/api/payments/plans', const FakeResponse(200, {'country': 'JO', 'purchasesEnabled': true, 'packages': []}))
-      ..on('GET', '/api/pro', FakeResponse(200, {
-            ..._pro(),
-            'offers': [
-              {'id': 'monthly', 'price': 4, 'currency': 'JOD', 'chargeCurrency': 'usd', 'chargeAmount': 564, 'credits': 5, 'interval': 'month'},
-            ],
-          }))
-      ..on('GET', '/api/me/counts', const FakeResponse(200, {'flags': {}}));
-    final container = ProviderContainer(overrides: await testOverrides(adapter, store: MemoryTokenStore('t1')));
-    addTearDown(container.dispose);
-    container.read(authControllerProvider);
-    await tester.pumpWidget(const SizedBox());
-    for (var i = 0; i < 50 && !container.read(authControllerProvider).isSignedIn; i++) {
-      await tester.pump(const Duration(milliseconds: 10));
-    }
-    await tester.pumpWidget(UncontrolledProviderScope(
-      container: container,
-      child: rtlApp(const CreditsScreen(scrollToPro: true)),
-    ));
-    await tester.pumpAndSettle();
-    final top = tester.getTopLeft(find.byKey(const Key('pro-section'))).dy;
-    expect(top, lessThan(200)); // brought up to the top of the screen
-    final list = tester.state<ScrollableState>(find.byType(Scrollable).first);
-    expect(list.position.pixels, greaterThan(0));
   });
 }

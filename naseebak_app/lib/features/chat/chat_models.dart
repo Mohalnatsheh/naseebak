@@ -157,6 +157,7 @@ class ChatMessage {
     this.nonce,
     this.filtered = false,
     this.maybeSent = false,
+    this.proRequired = false,
     this.kind = MessageKind.text,
     this.media,
     this.localPath,
@@ -200,6 +201,9 @@ class ChatMessage {
   /// Failed without an answer (offline, timeout): the server may still have saved it (the chat room reconciles)
   final bool maybeSent;
 
+  /// A photo / voice note refused with `PRO_REQUIRED` (Pro ended): resending it can't work, so no «إعادة الإرسال»
+  final bool proRequired;
+
   final MessageKind kind;
   final ChatMedia? media;
 
@@ -211,7 +215,13 @@ class ChatMessage {
       id == o.id && body == o.body && mine == o.mine && createdAt == o.createdAt && readAt == o.readAt &&
       kind == o.kind && media?.url == o.media?.url;
 
-  ChatMessage copyWith({SendState? state, String? error, bool filtered = false, bool maybeSent = false}) => ChatMessage(
+  ChatMessage copyWith({
+    SendState? state,
+    String? error,
+    bool filtered = false,
+    bool maybeSent = false,
+    bool proRequired = false,
+  }) => ChatMessage(
         id: id,
         body: body,
         createdAt: createdAt,
@@ -222,6 +232,7 @@ class ChatMessage {
         nonce: nonce,
         filtered: filtered,
         maybeSent: maybeSent,
+        proRequired: proRequired,
         kind: kind,
         media: media,
         localPath: localPath,

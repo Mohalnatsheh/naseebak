@@ -9,9 +9,19 @@ import 'media_bubbles.dart';
 /// the same as the website. Messages in a row from one person sit closer ([tightTop]) and only the last shows its time
 /// ([showTime]).
 class ChatBubble extends StatelessWidget {
-  const ChatBubble({super.key, required this.message, this.onRetry, this.showTime = true, this.tightTop = false});
+  const ChatBubble({
+    super.key,
+    required this.message,
+    this.onRetry,
+    this.onOpenPro,
+    this.showTime = true,
+    this.tightTop = false,
+  });
   final ChatMessage message;
   final VoidCallback? onRetry;
+
+  /// Under a `PRO_REQUIRED` failure: opens «عضوية Pro» (null where the member can't buy: the message alone)
+  final VoidCallback? onOpenPro;
   final bool showTime;
   final bool tightTop;
 
@@ -97,7 +107,15 @@ class ChatBubble extends StatelessWidget {
                   children: [
                     if (message.error != null)
                       Text(message.error!, style: const TextStyle(color: AppColors.danger, fontSize: 12.5)),
-                    if (onRetry != null)
+                    if (message.proRequired) ...[
+                      if (onOpenPro != null)
+                        TextButton.icon(
+                          key: const Key('chat-failed-pro'),
+                          onPressed: onOpenPro,
+                          icon: const Icon(Icons.workspace_premium_rounded, size: 18),
+                          label: const Text('عضوية Pro'),
+                        ),
+                    ] else if (onRetry != null)
                       TextButton.icon(
                         onPressed: onRetry,
                         icon: Icon(message.filtered ? Icons.edit_outlined : Icons.refresh_rounded, size: 18),

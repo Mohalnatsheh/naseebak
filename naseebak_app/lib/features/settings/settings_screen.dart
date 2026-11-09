@@ -11,6 +11,7 @@ import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/common.dart';
 import '../country_selection/country_providers.dart';
 import '../home/counts.dart';
+import '../pro/pro_repository.dart';
 
 /// «حسابي»: profile, credits, notification settings, safety, legal links and account actions.
 class AccountScreen extends ConsumerWidget {
@@ -52,6 +53,11 @@ class AccountScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final me = ref.watch(authControllerProvider).me;
     final details = me == null ? null : ref.watch(countryDetailsProvider(me.country.code)).valueOrNull;
+    // «عضوية Pro» only where payments show (never a test or review account, even a Pro one) and Pro can be bought or
+    // is held; `/api/pro` isn't even read otherwise
+    final payments = ref.watch(appPaymentsProvider);
+    final pro = payments ? ref.watch(proStateProvider).valueOrNull : null;
+    final showPro = pro != null && showPlans(pro, payments);
     Widget tile(IconData icon, String title, VoidCallback onTap, {Color? color, String? subtitle}) => ListTile(
           minVerticalPadding: 12,
           leading: Icon(icon, color: color ?? AppColors.navy),
@@ -70,9 +76,17 @@ class AccountScreen extends ConsumerWidget {
               tile(Icons.person_outline_rounded, 'ملفي الشخصي', () => context.push('/profile'),
                   subtitle: me == null ? null : '${me.firstName} ${me.lastName}'),
               const Divider(),
-              tile(Icons.account_balance_wallet_outlined, ref.watch(appPaymentsProvider) ? 'الرصيد والباقات' : 'الرصيد',
+              tile(Icons.account_balance_wallet_outlined, payments ? 'الرصيد والباقات' : 'الرصيد',
                   () => context.push('/credits'),
                   subtitle: me == null ? null : 'رصيدك: ${me.credits}'),
+              if (showPro) ...[
+                const Divider(),
+                KeyedSubtree(
+                  key: const Key('menu-pro'),
+                  child: tile(Icons.workspace_premium_rounded, 'عضوية Pro', () => context.push('/pro'),
+                      subtitle: pro.isPro ? 'مزايا Pro فعّالة في حسابك.' : null),
+                ),
+              ],
               const Divider(),
               tile(Icons.edit_note_rounded, 'تعديل ملفي', () => context.push('/profile/edit'), subtitle: 'كل بياناتك في مكان واحد'),
               const Divider(),

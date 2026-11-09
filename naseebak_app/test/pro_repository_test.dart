@@ -88,16 +88,24 @@ void main() {
     expect(a.to('POST', '/api/pro/resume'), hasLength(1));
   });
 
-  test('showPlans truth table', () {
-    // (appPayments && canBuy) || isPro
-    for (final appPayments in [true, false]) {
-      for (final isPro in [true, false]) {
-        for (final canBuy in [true, false]) {
-          expect(showPlans(_s(isPro: isPro, canBuy: canBuy), appPayments), (appPayments && canBuy) || isPro,
-              reason: 'app=$appPayments pro=$isPro buy=$canBuy');
-        }
-      }
-    }
+  test('showPlans truth table: appPayments && (canBuy || isPro)', () {
+    const table = {
+      // (appPayments, isPro, canBuy): shown
+      (true, false, false): false,
+      (true, false, true): true,
+      (true, true, false): true,
+      (true, true, true): true,
+      // A test or review account (app payments off) never sees Pro, even when Pro (owner, 2026-11-10)
+      (false, false, false): false,
+      (false, false, true): false,
+      (false, true, false): false,
+      (false, true, true): false,
+    };
+    table.forEach((k, shown) {
+      final (appPayments, isPro, canBuy) = k;
+      expect(showPlans(_s(isPro: isPro, canBuy: canBuy), appPayments), shown,
+          reason: 'app=$appPayments pro=$isPro buy=$canBuy');
+    });
   });
 
   test('mediaButtonsMode truth table', () {
@@ -113,6 +121,8 @@ void main() {
         expect(mode(pro: false, pay: pay, buy: buy, active: false), MediaButtons.hidden);
       }
     }
+    // A Pro test account (app payments off) still sends: sending is not a purchase
+    expect(mode(pro: true, pay: false, buy: false, active: true), MediaButtons.enabled);
     expect(mode(pro: false, pay: true, buy: true, active: true), MediaButtons.locked);
     expect(mode(pro: false, pay: false, buy: true, active: true), MediaButtons.hidden);
     // A test account: canBuy false, not Pro

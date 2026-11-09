@@ -24,6 +24,7 @@ import '../../features/matches/matches_screen.dart';
 import '../../features/notifications/mark_page_read.dart';
 import '../../features/notifications/notifications_screen.dart';
 import '../../features/onboarding/setup_screen.dart';
+import '../../features/pro/pro_screen.dart';
 import '../../features/profile/guardian_form.dart';
 import '../../features/profile/photos_screen.dart';
 import '../../features/profile/profile_edit_screen.dart';
@@ -81,6 +82,9 @@ String? guardRedirect({
       return null;
   }
 }
+
+/// `/credits?section=pro` (old links and pre-release builds' «Pro» tag) → the Pro screen, which now has its own route
+String? creditsRedirect(Uri uri) => uri.queryParameters['section'] == 'pro' ? '/pro' : null;
 
 /// Bridges Riverpod state changes to go_router's refresh.
 class _RouterRefresh extends ChangeNotifier {
@@ -202,11 +206,13 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/notifications', builder: (_, _) => const NotificationsScreen()),
       GoRoute(
         path: '/credits',
-        // `?section=pro` (a «Pro» tag in a chat) opens it scrolled to the Pro plans
-        builder: (_, state) => MarkPageRead(
-          path: '/dashboard/payments',
-          child: CreditsScreen(scrollToPro: state.uri.queryParameters['section'] == 'pro'),
-        ),
+        // `?section=pro` (a «Pro» tag in a 1.1.0 pre-release chat, old links) now lives on its own screen
+        redirect: (_, state) => creditsRedirect(state.uri),
+        builder: (_, _) => const MarkPageRead(path: '/dashboard/payments', child: CreditsScreen()),
+      ),
+      GoRoute(
+        path: '/pro',
+        builder: (_, _) => const MarkPageRead(path: '/dashboard/pro', child: ProScreen()),
       ),
       GoRoute(path: '/credits/history', builder: (_, _) => const PaymentHistoryScreen()),
       GoRoute(path: '/profile', builder: (_, _) => const ProfileScreen()),

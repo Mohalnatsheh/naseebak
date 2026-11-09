@@ -10,6 +10,8 @@ void main() {
       expect(WebsiteLink.parse(Uri.parse('https://naseebak.com/dashboard/matches?match=m1'))!.route, '/matches/m1');
       expect(WebsiteLink.parse(Uri.parse('/dashboard/suggestions?tab=interested'))!.route, '/suggestions?tab=interested');
       expect(WebsiteLink.parse(Uri.parse('https://naseebak.com/dashboard'))!.route, '/home');
+      expect(WebsiteLink.parse(Uri.parse('https://naseebak.com/dashboard/pro'))!.route, '/pro');
+      expect(WebsiteLink.parse(Uri.parse('https://naseebak.com/dashboard/payments'))!.route, '/credits');
     });
 
     test('a referral link keeps its invitation code; other pages stay on the website', () {

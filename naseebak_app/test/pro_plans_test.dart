@@ -3,7 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:naseebak_app/core/auth/auth_controller.dart';
 import 'package:naseebak_app/core/storage/token_store.dart';
+import 'package:go_router/go_router.dart';
 import 'package:naseebak_app/features/credits/credits_screen.dart';
+import 'package:naseebak_app/features/pro/pro_screen.dart';
+import 'package:naseebak_app/features/settings/settings_screen.dart';
 import 'package:naseebak_app/features/pro/pro_section.dart';
 
 import 'helpers/fake_api.dart';
@@ -48,6 +51,8 @@ const _offers = [
 
 /// A fake server whose Pro state can change while the screen runs
 class FakePro {
+  /// false = a test or review account (`EXTRA_TEST_PHONES`): the app shows no payments
+  bool appPayments = true;
   bool canBuy = true;
   bool isPro = false;
   bool cancelAtPeriodEnd = false;
@@ -69,7 +74,7 @@ class FakePro {
 
   late final FakeAdapter adapter = FakeAdapter()
     ..handlers['GET /api/mobile/me'] = ((_) => FakeResponse(200, {
-      'user': {...meJson(), 'appPayments': true},
+      'user': {...meJson(), 'appPayments': appPayments},
     }))
     ..on('GET', '/api/payments/plans', const FakeResponse(200, _plans))
     ..handlers['GET /api/pro'] = ((_) =>
@@ -86,7 +91,7 @@ class FakePro {
     ..on('GET', '/api/me/counts', const FakeResponse(200, {'flags': {}}));
 }
 
-Future<void> _pump(WidgetTester tester, FakePro pro) async {
+Future<ProviderContainer> _signIn(WidgetTester tester, FakePro pro) async {
   // A tall phone: the whole screen (Pro section and packages) is laid out
   tester.view.physicalSize = const Size(420, 2400);
   tester.view.devicePixelRatio = 1;
@@ -98,22 +103,42 @@ Future<void> _pump(WidgetTester tester, FakePro pro) async {
   for (var i = 0; i < 50 && !container.read(authControllerProvider).isSignedIn; i++) {
     await tester.pump(const Duration(milliseconds: 10));
   }
+  return container;
+}
+
+/// The Pro screen (`/pro`)
+Future<void> _pump(WidgetTester tester, FakePro pro) async {
+  final container = await _signIn(tester, pro);
   await tester.pumpWidget(
     UncontrolledProviderScope(
       container: container,
       child: rtlApp(
-        CreditsScreen(
+        ProScreen(
           openCheckout: (url) async {
             pro.opened.add(url);
             _leaveApp(tester);
             return true;
           },
-          proPollInterval: const Duration(seconds: 2),
-          proPollWindow: const Duration(seconds: 10),
+          pollInterval: const Duration(seconds: 2),
+          pollWindow: const Duration(seconds: 10),
         ),
       ),
     ),
   );
+  await tester.pumpAndSettle();
+}
+
+/// The credits screen inside a router, so the «عضوية Pro» card can open `/pro`
+Future<void> _pumpCredits(WidgetTester tester, FakePro pro) async {
+  final container = await _signIn(tester, pro);
+  final router = GoRouter(
+    initialLocation: '/credits',
+    routes: [
+      GoRoute(path: '/credits', builder: (_, _) => const CreditsScreen()),
+      GoRoute(path: '/pro', builder: (_, _) => const Scaffold(body: Text('pro-screen'))),
+    ],
+  );
+  await tester.pumpWidget(UncontrolledProviderScope(container: container, child: rtlRouterApp(router)));
   await tester.pumpAndSettle();
 }
 
@@ -160,18 +185,34 @@ void main() {
     final yearly = tester.getCenter(find.text('سنوي')).dx;
     expect(weekly, greaterThan(yearly));
     expect(tester.getSize(find.byKey(const Key('pro-plan-weekly'))).height, greaterThanOrEqualTo(44));
-    // The section sits above the packages
-    expect(tester.getTopLeft(find.byType(ProPlansCard)).dy, lessThan(tester.getTopLeft(find.text('الباقات')).dy));
-    expect(find.byKey(const Key('buy-p1')), findsOneWidget);
+    // Pro has its own screen: no credit packages here
+    expect(find.text('الباقات'), findsNothing);
+    expect(find.byKey(const Key('buy-p1')), findsNothing);
   });
 
-  testWidgets('a test account (canBuy false, not Pro) sees no plans', (tester) async {
+  testWidgets('a member who can\'t buy (canBuy false, not Pro) sees «غير متاحة», nothing to buy', (tester) async {
     final pro = FakePro()..canBuy = false;
     await _pump(tester, pro);
+    expect(find.byKey(const Key('pro-unavailable')), findsOneWidget);
     expect(find.byType(ProPlansCard), findsNothing);
     expect(find.byType(MyProCard), findsNothing);
-    expect(find.textContaining('Pro'), findsNothing);
-    expect(find.byKey(const Key('buy-p1')), findsOneWidget);
+    expect(find.byKey(const Key('pro-subscribe')), findsNothing);
+  });
+
+  testWidgets('a test account (app payments off) opening /pro sees nothing purchasable, even when Pro', (tester) async {
+    for (final isPro in [false, true]) {
+      final pro = FakePro()
+        ..appPayments = false
+        ..isPro = isPro;
+      await _pump(tester, pro);
+      expect(find.byKey(const Key('pro-unavailable')), findsOneWidget, reason: 'isPro=$isPro');
+      expect(find.byType(ProPlansCard), findsNothing);
+      expect(find.byType(MyProCard), findsNothing);
+      expect(find.text('اشتراكي'), findsNothing);
+      expect(find.textContaining('د.أ'), findsNothing);
+      // `/api/pro` isn't even read
+      expect(pro.adapter.to('GET', '/api/pro'), isEmpty);
+    }
   });
 
   testWidgets('choosing «سنوي» shows the yearly price and credits every month', (tester) async {
@@ -291,18 +332,98 @@ void main() {
     pro.adapter.on('GET', '/api/pro', const FakeResponse(404, {'error': 'غير موجود'}));
     await _pump(tester, pro);
     expect(find.byKey(const Key('pro-section')), findsNothing);
-    expect(find.byKey(const Key('pro-error')), findsNothing);
-    expect(find.byKey(const Key('buy-p1')), findsOneWidget);
+    expect(find.byKey(const Key('pro-unavailable')), findsOneWidget);
   });
 
-  testWidgets('a failed Pro load shows the error view and keeps the packages', (tester) async {
+  testWidgets('a failed Pro load shows the error view; retry loads the plans', (tester) async {
     final pro = FakePro()..failState = true;
     await _pump(tester, pro);
-    expect(find.byKey(const Key('pro-error')), findsOneWidget);
-    expect(find.byKey(const Key('buy-p1')), findsOneWidget);
+    expect(find.text('تعذّر التحميل'), findsOneWidget);
+    expect(find.byType(ProPlansCard), findsNothing);
     pro.failState = false;
     await tester.tap(find.text('إعادة المحاولة'));
     await tester.pumpAndSettle();
     expect(find.byType(ProPlansCard), findsOneWidget);
+  });
+
+  group('credits screen', () {
+    testWidgets('packages and a small «عضوية Pro» card that opens /pro; no plans on it', (tester) async {
+      final pro = FakePro();
+      await _pumpCredits(tester, pro);
+      expect(find.byKey(const Key('buy-p1')), findsOneWidget);
+      expect(find.byType(ProPlansCard), findsNothing);
+      expect(find.byType(MyProCard), findsNothing);
+      expect(find.byKey(const Key('pro-link')), findsOneWidget);
+      await tester.tap(find.byKey(const Key('pro-link')));
+      await tester.pumpAndSettle();
+      expect(find.text('pro-screen'), findsOneWidget);
+    });
+
+    testWidgets('a Pro member who can no longer buy still gets the card', (tester) async {
+      final pro = FakePro()
+        ..isPro = true
+        ..canBuy = false;
+      await _pumpCredits(tester, pro);
+      expect(find.byKey(const Key('pro-link')), findsOneWidget);
+      expect(find.text('مزايا Pro فعّالة في حسابك.'), findsOneWidget);
+    });
+
+    testWidgets('no card for a member who can\'t buy', (tester) async {
+      final pro = FakePro()..canBuy = false;
+      await _pumpCredits(tester, pro);
+      expect(find.byKey(const Key('pro-link')), findsNothing);
+      expect(find.textContaining('Pro'), findsNothing);
+    });
+
+    testWidgets('a test account (app payments off) sees nothing about Pro, even when Pro', (tester) async {
+      final pro = FakePro()
+        ..appPayments = false
+        ..isPro = true;
+      await _pumpCredits(tester, pro);
+      expect(find.byKey(const Key('pro-link')), findsNothing);
+      expect(find.textContaining('Pro'), findsNothing);
+      expect(pro.adapter.to('GET', '/api/pro'), isEmpty);
+    });
+  });
+
+  group('account menu', () {
+    Future<void> pumpMenu(WidgetTester tester, FakePro pro) async {
+      final container = await _signIn(tester, pro);
+      final router = GoRouter(
+        initialLocation: '/account',
+        routes: [
+          GoRoute(path: '/account', builder: (_, _) => const AccountScreen()),
+          GoRoute(path: '/pro', builder: (_, _) => const Scaffold(body: Text('pro-screen'))),
+        ],
+      );
+      await tester.pumpWidget(UncontrolledProviderScope(container: container, child: rtlRouterApp(router)));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('«عضوية Pro» sits under the credits entry and opens /pro', (tester) async {
+      final pro = FakePro();
+      await pumpMenu(tester, pro);
+      final entry = find.byKey(const Key('menu-pro'));
+      expect(entry, findsOneWidget);
+      expect(tester.getTopLeft(entry).dy, greaterThan(tester.getTopLeft(find.text('الرصيد والباقات')).dy));
+      await tester.tap(entry);
+      await tester.pumpAndSettle();
+      expect(find.text('pro-screen'), findsOneWidget);
+    });
+
+    testWidgets('no entry for a test account (app payments off), even when Pro, nor for one who can\'t buy',
+        (tester) async {
+      final testAccount = FakePro()
+        ..appPayments = false
+        ..isPro = true;
+      await pumpMenu(tester, testAccount);
+      expect(find.byKey(const Key('menu-pro')), findsNothing);
+      expect(find.textContaining('Pro'), findsNothing);
+      expect(testAccount.adapter.to('GET', '/api/pro'), isEmpty);
+
+      final cantBuy = FakePro()..canBuy = false;
+      await pumpMenu(tester, cantBuy);
+      expect(find.byKey(const Key('menu-pro')), findsNothing);
+    });
   });
 }

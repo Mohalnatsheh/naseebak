@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/localization/digits.dart';
 import '../../core/network/api_exception.dart';
@@ -47,7 +48,7 @@ String proPitch(List<ProOffer> offers) {
   return 'مع Pro يمكنك إرسال الصور والرسائل الصوتية في المحادثة$credits.';
 }
 
-/// The Pro block above the credit packages: «اشتراكي» for a Pro member, otherwise the plans card.
+/// The Pro screen's content: «اشتراكي» for a Pro member, otherwise the plans card.
 /// The caller shows it only when [showPlans] is true.
 class ProSection extends StatelessWidget {
   const ProSection({
@@ -532,4 +533,39 @@ class _Spinner extends StatelessWidget {
   @override
   Widget build(BuildContext context) =>
       SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: color));
+}
+
+/// The small «عضوية Pro» card on the credits screen (like the website's payments page): opens `/pro`.
+/// The caller shows it only when [showPlans] is true.
+class ProLinkCard extends StatelessWidget {
+  const ProLinkCard({super.key, required this.isPro});
+  final bool isPro;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      key: const Key('pro-link'),
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: AppColors.gold.withValues(alpha: 0.5)),
+      ),
+      child: ListTile(
+        minVerticalPadding: 12,
+        leading: Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(colors: [AppColors.gold, AppColors.gold.withValues(alpha: 0.7)]),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: const Icon(Icons.workspace_premium_rounded, color: Colors.white, size: 22),
+        ),
+        title: const Text('عضوية Pro', style: TextStyle(fontWeight: FontWeight.w800)),
+        subtitle: Text(isPro ? 'مزايا Pro فعّالة في حسابك.' : 'إرسال الصور والرسائل الصوتية في المحادثة'),
+        trailing: const Icon(Icons.chevron_right, color: AppColors.muted),
+        onTap: () => context.push('/pro'),
+      ),
+    );
+  }
 }

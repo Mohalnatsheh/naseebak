@@ -17,6 +17,7 @@ import 'package:naseebak_app/features/chat/chat_media_picker.dart';
 import 'package:naseebak_app/features/chat/chat_room_screen.dart';
 import 'package:naseebak_app/features/chat/media_bubbles.dart';
 import 'package:naseebak_app/features/chat/voice_recorder.dart';
+import 'package:record/record.dart' show AudioEncoder;
 
 import 'helpers/fake_api.dart';
 
@@ -169,7 +170,7 @@ class _Harness {
       initialLocation: '/chats/c1',
       routes: [
         GoRoute(path: '/chats/c1', builder: (_, _) => ChatRoomScreen(chatId: 'c1', pollInterval: pollInterval)),
-        GoRoute(path: '/credits', builder: (_, s) => Scaffold(body: Text('credits:${s.uri.queryParameters['section']}'))),
+        GoRoute(path: '/pro', builder: (_, _) => const Scaffold(body: Text('pro-screen'))),
       ],
     );
     await tester.pumpWidget(UncontrolledProviderScope(
@@ -212,6 +213,12 @@ void main() {
     expect(voiceDurationSec(const Duration(seconds: 10)), 10);
     expect(voiceDurationSec(const Duration(milliseconds: 300)), 1);
     expect(voiceDurationSec(Duration.zero), 1);
+  });
+
+  test('voice notes record AAC-LC 64 kbps in mono', () {
+    expect(voiceRecordConfig.numChannels, 1);
+    expect(voiceRecordConfig.encoder, AudioEncoder.aacLc);
+    expect(voiceRecordConfig.bitRate, 64000);
   });
 
   testWidgets('the microphone refused: the SnackBar shows and nothing records', (tester) async {
@@ -373,7 +380,7 @@ void main() {
     await tester.tap(_mic);
     await tester.pumpAndSettle();
     expect(h.recorders, isEmpty);
-    expect(find.text('credits:pro'), findsOneWidget);
+    expect(find.text('pro-screen'), findsOneWidget);
   });
 
   testWidgets('a photo that failed with no answer is matched to its server copy by kind: shown once', (tester) async {
@@ -444,12 +451,13 @@ void main() {
     await tester.pump();
     await tester.pump();
     expect(h.rec.stopped, isTrue);
-    expect(find.text('توقف التسجيل'), findsOneWidget);
-    expect(find.text('بلغ التسجيل الحد الأقصى'), findsNothing);
     // The real clock would keep going: what was recorded stays frozen
     h.rec.now = const Duration(seconds: 90);
+    // A paused app draws no frames: the bar is checked once it is back
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     await tester.pump(const Duration(seconds: 5));
+    expect(find.text('توقف التسجيل'), findsOneWidget);
+    expect(find.text('بلغ التسجيل الحد الأقصى'), findsNothing);
     expect(find.descendant(of: _clock, matching: find.text('0:12')), findsOneWidget);
     expect(h.uploads, isEmpty);
     expect(h.rec.cancelled, isFalse);

@@ -33,9 +33,6 @@ class CreditsScreen extends ConsumerStatefulWidget {
     this.pollInterval = const Duration(milliseconds: 2500),
     this.pollWindow = const Duration(minutes: 10),
     this.cancelGrace = const Duration(seconds: 8),
-    this.proPollInterval = const Duration(seconds: 2),
-    this.proPollWindow = const Duration(seconds: 10),
-    this.scrollToPro = false,
   });
 
   /// Defaults to debug builds only
@@ -49,13 +46,6 @@ class CreditsScreen extends ConsumerStatefulWidget {
 
   /// How long after returning to the app a still PENDING payment waits before «إلغاء الدفع» is offered
   final Duration cancelGrace;
-
-  /// After a Pro checkout opened from this screen, how often and how long `/api/pro` is re-read on return
-  final Duration proPollInterval;
-  final Duration proPollWindow;
-
-  /// Opened from a «Pro» tag (`/credits?section=pro`): scroll the plans section into view once it is shown
-  final bool scrollToPro;
 
   @override
   ConsumerState<CreditsScreen> createState() => _CreditsScreenState();
@@ -82,25 +72,6 @@ class _CreditsScreenState extends ConsumerState<CreditsScreen> with WidgetsBindi
   final _offerCancel = ValueNotifier(false);
   final _cancelling = ValueNotifier(false);
 
-  /// Pro: a checkout is being started, and a checkout page was opened from this screen (polled on return)
-  bool _proSubscribing = false;
-  bool _proCheckoutOpened = false;
-  int _proPollRun = 0;
-
-  final _proKey = GlobalKey();
-  bool _scrolledToPro = false;
-
-  /// Once, after the frame that first lays out the plans section
-  void _scrollToProOnce() {
-    if (!widget.scrollToPro || _scrolledToPro) return;
-    _scrolledToPro = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final ctx = _proKey.currentContext;
-      if (!mounted || ctx == null) return;
-      Scrollable.ensureVisible(ctx, duration: const Duration(milliseconds: 300), curve: Curves.easeOutCubic);
-    });
-  }
-
   bool get _mockAllowed => widget.showMockButton ?? Env.showMockPayments;
 
   CreditsRepository get _repo => ref.read(creditsRepositoryProvider);
@@ -117,7 +88,6 @@ class _CreditsScreenState extends ConsumerState<CreditsScreen> with WidgetsBindi
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _pollRun++;
-    _proPollRun++;
     _graceTimer?.cancel();
     _offerCancel.dispose();
     _dialogDone.dispose();
@@ -128,7 +98,6 @@ class _CreditsScreenState extends ConsumerState<CreditsScreen> with WidgetsBindi
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state != AppLifecycleState.resumed) return;
-    if (_proCheckoutOpened) _pollPro();
     if (_pendingId == null) return;
     // Back from the checkout page: keep checking (a new window if the last one ran out), offer cancel if still pending
     _poll();
@@ -181,65 +150,6 @@ class _CreditsScreenState extends ConsumerState<CreditsScreen> with WidgetsBindi
     _track(paymentId);
     _poll();
     _showWaitDialog();
-  }
-
-  /// «اشترك الآن»: a Pro checkout opened in the browser (https only); the return to the app is polled ([_pollPro])
-  Future<void> _subscribePro(ProOffer offer) async {
-    if (_proSubscribing) return;
-    setState(() => _proSubscribing = true);
-    try {
-      final url = await ref.read(proRepositoryProvider).checkout(offer.id);
-      if (!mounted) return;
-      ref.read(analyticsProvider).checkoutStarted('pro_${offer.id}');
-      // Set before the browser opens: the return to the app (resumed) may come before launch answers
-      _proCheckoutOpened = true;
-      final open = widget.openCheckout ?? (u) => launchUrl(u, mode: LaunchMode.externalApplication);
-      final ok = await open(url).catchError((_) => false);
-      if (!ok) {
-        _proCheckoutOpened = false;
-        if (mounted) showSnack(context, 'تعذّر فتح صفحة الدفع');
-      }
-    } on ApiException catch (e) {
-      if (e.code == 'APP_PURCHASES_DISABLED') ref.read(authControllerProvider.notifier).refreshMe();
-      if (e.code == 'ALREADY_PRO' || e.code == 'APP_PURCHASES_DISABLED') ref.invalidate(proStateProvider);
-      if (mounted) showSnack(context, e.message);
-    } catch (_) {
-      // A non-https or missing url (FormatException) or anything unexpected
-      if (mounted) showSnack(context, ApiException.genericMessage);
-    } finally {
-      if (mounted) setState(() => _proSubscribing = false);
-    }
-  }
-
-  /// Back from the Pro checkout: re-reads the Pro state and counts every [CreditsScreen.proPollInterval] for up to
-  /// [CreditsScreen.proPollWindow]. Pro on → success; otherwise a neutral line (the webhook may land a bit later).
-  Future<void> _pollPro() async {
-    final run = ++_proPollRun;
-    // Ticks, not wall time: one check now and one per interval until the window is used up
-    final checks = 1 + widget.proPollWindow.inMilliseconds ~/ widget.proPollInterval.inMilliseconds.clamp(1, 1 << 30);
-    for (var i = 0; i < checks; i++) {
-      if (i > 0) await Future<void>.delayed(widget.proPollInterval);
-      if (run != _proPollRun || !mounted) return;
-      ref.invalidate(countsProvider);
-      ref.invalidate(proStateProvider);
-      bool isPro = false;
-      try {
-        isPro = (await ref.read(proStateProvider.future)).isPro;
-      } catch (_) {
-        // A failed check is not an answer: try again on the next tick
-      }
-      if (run != _proPollRun || !mounted) return;
-      if (isPro) {
-        _proCheckoutOpened = false;
-        _proPollRun++;
-        ref.read(authControllerProvider.notifier).refreshMe();
-        showSnack(context, 'تم تفعيل عضوية Pro في حسابك.');
-        return;
-      }
-    }
-    if (run != _proPollRun || !mounted) return;
-    _proCheckoutOpened = false;
-    showSnack(context, 'سيتم تفعيل العضوية خلال لحظات');
   }
 
   /// Starts following [paymentId] (replacing an earlier one)
@@ -401,7 +311,8 @@ class _CreditsScreenState extends ConsumerState<CreditsScreen> with WidgetsBindi
     // Payments hidden in the app: balance and history only (no packages, no pointer to buying elsewhere)
     final plans = payments ? ref.watch(plansProvider) : null;
     final me = ref.watch(authControllerProvider).me;
-    final pro = ref.watch(proStateProvider);
+    // Pro lives on its own screen (`/pro`); here only a link card, and only where payments show
+    final pro = payments ? ref.watch(proStateProvider).valueOrNull : null;
     return Scaffold(
       appBar: AppBar(
         title: const Text('الرصيد'),
@@ -413,7 +324,7 @@ class _CreditsScreenState extends ConsumerState<CreditsScreen> with WidgetsBindi
       body: RefreshIndicator(
         onRefresh: () async {
           ref.invalidate(plansProvider);
-          ref.invalidate(proStateProvider);
+          if (payments) ref.invalidate(proStateProvider);
           await ref.read(authControllerProvider.notifier).refreshMe();
         },
         child: ListView(
@@ -448,37 +359,10 @@ class _CreditsScreenState extends ConsumerState<CreditsScreen> with WidgetsBindi
               const SizedBox(height: 12),
               _PendingPaymentCard(offerCancel: _offerCancel, cancelling: _cancelling, onCancel: _cancel),
             ],
-            ...pro.when(
-              // A failed re-check (e.g. while polling after a checkout) keeps the last good state on screen
-              skipError: true,
-              // Nothing while loading: a member who can't buy never sees a Pro placeholder
-              loading: () => const <Widget>[],
-              // Said generically, without naming Pro; the packages below stay. A 404 is a server without Pro: nothing.
-              error: (e, _) => e is ApiException && e.statusCode == 404
-                  ? const <Widget>[]
-                  : [
-                      const SizedBox(height: 16),
-                      SizedBox(
-                        key: const Key('pro-error'),
-                        height: 240,
-                        child: ErrorView(error: e, onRetry: () => ref.invalidate(proStateProvider)),
-                      ),
-                    ],
-              data: (s) {
-                if (!showPlans(s, payments)) return const <Widget>[];
-                _scrollToProOnce();
-                return [
-                  const SizedBox(height: 20),
-                  ProSection(
-                    key: _proKey,
-                    state: s,
-                    female: me?.isFemale ?? false,
-                    subscribing: _proSubscribing,
-                    onSubscribe: _subscribePro,
-                  ),
-                ];
-              },
-            ),
+            if (pro != null && showPlans(pro, payments)) ...[
+              const SizedBox(height: 16),
+              ProLinkCard(isPro: pro.isPro),
+            ],
             if (plans != null) ...[
             const SizedBox(height: 16),
             const SectionTitle('الباقات'),

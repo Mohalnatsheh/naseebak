@@ -74,7 +74,11 @@ String appRouteForLink({String? url, String? type}) {
         return tab != null ? '/suggestions?tab=$tab' : '/suggestions';
       }
       if (path.startsWith('/dashboard/chats')) return '/chats';
-      if (path.startsWith('/dashboard/payments')) return '/credits';
+      // Exact: `/dashboard/profile` starts with `/dashboard/pro` too
+      if (path == '/dashboard/pro' || path.startsWith('/dashboard/pro/')) return '/pro';
+      if (path.startsWith('/dashboard/payments')) {
+        return uri.queryParameters['section'] == 'pro' ? '/pro' : '/credits';
+      }
       if (path.startsWith('/dashboard/profile/edit')) return '/profile/edit';
       if (path.startsWith('/dashboard/profile')) return '/profile';
       if (path.startsWith('/dashboard/support')) return '/support';

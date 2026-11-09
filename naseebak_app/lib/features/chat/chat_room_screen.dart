@@ -513,8 +513,8 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     await _sendMedia(kind: MessageKind.image, path: photo.path);
   }
 
-  /// A greyed media button: the credits screen, scrolled to the Pro plans
-  void _openPro() => context.push('/credits?section=pro');
+  /// A greyed media button (and the link under a PRO_REQUIRED failure): the Pro screen
+  void _openPro() => context.push('/pro');
 
   /// A photo or voice note: a bubble from the local file at once, replaced by the server copy. A retry passes the
   /// failed bubble and resends its file with the same nonce. `PRO_REQUIRED` (Pro lapsed while the chat was open)
@@ -579,7 +579,11 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
         final i = _messages.indexWhere((m) => m.nonce == nonce);
         if (i >= 0) {
           _messages[i] = _messages[i].copyWith(
-              state: SendState.failed, error: ApiException.messageOf(e), maybeSent: api?.isNetwork ?? false);
+            state: SendState.failed,
+            error: ApiException.messageOf(e),
+            maybeSent: api?.isNetwork ?? false,
+            proRequired: api?.code == 'PRO_REQUIRED',
+          );
         }
         // Its copy may already be here (a poll during the upload); otherwise the next poll reconciles
         if (api?.isNetwork ?? false) _reconcile(_messages.where((m) => !before.contains(m.id)));
@@ -908,6 +912,9 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     final female = ref.watch(authControllerProvider).me?.isFemale ?? false;
     final left = chat != null && chat.status == 'ACTIVE' ? chatTimeLeft(chat.expiresAt) : null;
     final canOpenMatch = chat != null && !chat.matchHidden;
+    // Under a PRO_REQUIRED failure, a link to «عضوية Pro» only where the member could buy it (never a test account)
+    final proPurchasable =
+        ref.watch(appPaymentsProvider) && (ref.watch(proStateProvider).valueOrNull?.canBuy ?? false);
     return Scaffold(
       appBar: AppBar(
         titleSpacing: 0,
@@ -1046,7 +1053,8 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
                                 message: m,
                                 showTime: layout.showTime,
                                 tightTop: layout.tightTop,
-                                onRetry: m.state == SendState.failed
+                                onOpenPro: m.proRequired && proPurchasable ? _openPro : null,
+                                onRetry: m.state == SendState.failed && !m.proRequired
                                     ? () => m.kind != MessageKind.text
                                         ? _sendMedia(retry: m)
                                         : m.filtered

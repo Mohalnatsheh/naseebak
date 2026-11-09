@@ -36,7 +36,7 @@ export function GuardianConsentCard() {
       toast.success("تم حفظ موافقتك");
       refreshUnread();
     } else {
-      toast.error("تعذّر حفظ الموافقة، حاول مرة أخرى");
+      toast.error("تعذّر حفظ الموافقة، يمكنك المحاولة مرة أخرى");
     }
   }
 

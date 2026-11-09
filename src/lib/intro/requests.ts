@@ -468,6 +468,26 @@ export async function sendIntroRequest(args: {
   }
 }
 
+/**
+ * The notice for a declined request. The match itself stays open after a «ليس الآن» (QA WC-04): it only wishes
+ * luck with the next suggestions when the other way is closed too (also declined); otherwise it says what
+ * still stands (a family introduction already agreed, an open chat) or that the match is still there.
+ */
+async function declinedRequestBody(type: "FAMILY" | "CHAT", matchId: string, conversationStatus: string | null): Promise<string> {
+  const other = await db.introRequest.findFirst({
+    where: { matchId, type: type === "FAMILY" ? "CHAT" : "FAMILY", status: { in: ["ACCEPTED", "DECLINED"] } },
+    orderBy: { createdAt: "desc" },
+    select: { status: true },
+  });
+  if (type === "FAMILY") {
+    if (other?.status === "ACCEPTED" && conversationStatus === "ACTIVE") return "لم يتم قبول طلب التعارف العائلي، والمحادثة بينكما ما زالت مفتوحة.";
+    return "لم يتم قبول طلب التعارف العائلي. نتمنى لك التوفيق في اقتراحاتك القادمة.";
+  }
+  if (other?.status === "ACCEPTED") return "لم يتم قبول طلب المحادثة، ويبقى التعارف العائلي بينكما قائماً.";
+  if (other?.status === "DECLINED") return "لم يتم قبول طلب المحادثة. نتمنى لك التوفيق في اقتراحاتك القادمة.";
+  return "لم يتم قبول طلب المحادثة، والتوافق بينكما ما زال قائماً. يمكنك طلب التعارف العائلي من صفحة التوافق.";
+}
+
 export async function respondToIntroRequest(args: {
   requestId: string;
   userId: string;
@@ -487,6 +507,8 @@ export async function respondToIntroRequest(args: {
     },
   });
   if (!request || request.receiverId !== userId) throw new IntroError("NOT_FOUND", "الطلب غير موجود");
+  // Already closed by the daily job: say it ran out, not that someone answered it (QA WC-11)
+  if (request.status === "EXPIRED") throw new IntroError("EXPIRED");
   if (request.status !== "PENDING") throw new IntroError("NOT_ALLOWED", "تم الرد على هذا الطلب مسبقاً");
   if (request.expiresAt < new Date()) {
     await db.introRequest.update({ where: { id: requestId }, data: { status: "EXPIRED" } });
@@ -519,10 +541,7 @@ export async function respondToIntroRequest(args: {
       userId: request.senderId,
       type: "INTRO_REQUEST",
       title: "لم يتم قبول الطلب حالياً",
-      body:
-        request.type === "FAMILY"
-          ? "لم يتم قبول طلب التعارف العائلي. نتمنى لك التوفيق في اقتراحاتك القادمة."
-          : "لم يتم قبول طلب المحادثة. نتمنى لك التوفيق في اقتراحاتك القادمة.",
+      body: await declinedRequestBody(request.type, request.matchId, request.match.conversation?.status ?? null),
       url: matchUrl,
       metadata: { matchId: request.matchId, requestId },
     });

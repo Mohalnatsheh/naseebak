@@ -77,13 +77,13 @@ export function GuardianQuickForm({
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        setError(data.error || "تعذّر حفظ بيانات وليّ الأمر، حاول مرة أخرى");
+        setError(data.error || "تعذّر حفظ بيانات وليّ الأمر، يمكنك المحاولة مرة أخرى");
         return;
       }
       await Promise.all([refreshProfile(), refreshUnread()]);
       await onSaved();
     } catch {
-      setError("تعذّر حفظ بيانات وليّ الأمر، حاول مرة أخرى");
+      setError("تعذّر حفظ بيانات وليّ الأمر، يمكنك المحاولة مرة أخرى");
     } finally {
       setBusy(false);
     }
@@ -97,6 +97,7 @@ export function GuardianQuickForm({
           للتعارف العائلي نحتاج بيانات وليّ الأمر. تبقى سرية، ولا تظهر إلا لعائلة الطرف الآخر عند تعارف عائلي على توافق متبادل.
         </p>
       </div>
+      <p className="text-xs text-muted-foreground">كل الحقول مطلوبة، ومنها العنوان.</p>
       <Field id="gq-parentName" label="اسم ولي الأمر" error={errors.parentName}>
         <Input id="gq-parentName" value={form.parentName} onChange={(e) => update("parentName", e.target.value)} placeholder="الاسم الكامل لولي الأمر" aria-invalid={!!errors.parentName} />
       </Field>

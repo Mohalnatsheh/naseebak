@@ -172,7 +172,7 @@ export function MatchIntroPanel({ matchId, partnerName }: { matchId: string; par
     return (
       <div role="alert" className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-destructive/20 bg-destructive/5 p-4 text-sm">
         <span className="text-destructive">تعذّر تحميل خيارات التعارف لهذا التوافق.</span>
-        <Button size="sm" variant="outline" onClick={retry} disabled={retrying}>
+        <Button size="sm" className="max-md:h-11" variant="outline" onClick={retry} disabled={retrying}>
           {retrying ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-4 w-4" aria-hidden="true" />}
           إعادة المحاولة
         </Button>
@@ -188,12 +188,12 @@ export function MatchIntroPanel({ matchId, partnerName }: { matchId: string; par
     return (
       <MatchClosedNote reason={state.closed}>
         {["finished", "ended"].includes(state.closed) && chat.conversationId && (
-          <Button asChild size="sm" variant="outline">
+          <Button asChild size="sm" className="max-md:h-11" variant="outline">
             <Link href={`/dashboard/chats/${chat.conversationId}`}>عرض المحادثة</Link>
           </Button>
         )}
         {state.closed === "engaged" && (
-          <Button size="sm" variant="ghost" disabled={busy} onClick={() => saveOutcome("CONTINUING")}>
+          <Button size="sm" className="max-md:h-11" variant="ghost" disabled={busy} onClick={() => saveOutcome("CONTINUING")}>
             تراجع: ما زلنا نتعارف
           </Button>
         )}
@@ -227,10 +227,10 @@ export function MatchIntroPanel({ matchId, partnerName }: { matchId: string; par
     if (!res.ok) {
       if (res.data.code === "NO_CREDITS") {
         toast.error(res.data.error ?? "رصيدك غير كافٍ", {
-          action: { label: "اشحن رصيدك", onClick: () => router.push("/dashboard/payments") },
+          action: { label: g("اشحن رصيدك", "اشحني رصيدك"), onClick: () => router.push("/dashboard/payments") },
         });
       } else {
-        toast.error(res.data.error ?? "حدث خطأ، حاول مرة أخرى");
+        toast.error(res.data.error ?? "حدث خطأ، يمكنك المحاولة مرة أخرى");
       }
       setDialog(null);
       load();
@@ -259,7 +259,7 @@ export function MatchIntroPanel({ matchId, partnerName }: { matchId: string; par
     const res = await postJson<IntroState>(`/api/matches/${matchId}/guardian-share`, state?.myGuardian.consented ? {} : { consent: true });
     setBusy(false);
     if (!res.ok) {
-      toast.error(res.data.error ?? "تعذّر حفظ الموافقة، حاول مرة أخرى");
+      toast.error(res.data.error ?? "تعذّر حفظ الموافقة، يمكنك المحاولة مرة أخرى");
       return;
     }
     toast.success("تبادلت العائلتان بيانات التواصل");
@@ -276,7 +276,7 @@ export function MatchIntroPanel({ matchId, partnerName }: { matchId: string; par
     setBusy(false);
     setOutcomeDialog(null);
     if (!res.ok) {
-      toast.error(res.data.error ?? "تعذّر الحفظ، حاول مرة أخرى");
+      toast.error(res.data.error ?? "تعذّر الحفظ، يمكنك المحاولة مرة أخرى");
       return;
     }
     toast.success(
@@ -292,7 +292,7 @@ export function MatchIntroPanel({ matchId, partnerName }: { matchId: string; par
     const res = await postJson(`/api/intro-requests/${cancelId}/cancel`);
     setBusy(false);
     setCancelId(null);
-    if (!res.ok) toast.error(res.data.error ?? "تعذّر إلغاء الطلب، حاول مرة أخرى");
+    if (!res.ok) toast.error(res.data.error ?? "تعذّر إلغاء الطلب، يمكنك المحاولة مرة أخرى");
     else toast.success("تم إلغاء الطلب");
     await load();
     refreshUnread();
@@ -300,7 +300,7 @@ export function MatchIntroPanel({ matchId, partnerName }: { matchId: string; par
 
   const cancelButton = (requestId?: string) =>
     requestId ? (
-      <Button size="sm" variant="ghost" className="gap-1 text-muted-foreground" onClick={() => setCancelId(requestId)}>
+      <Button size="sm" variant="ghost" className="max-md:h-11 gap-1 text-muted-foreground" onClick={() => setCancelId(requestId)}>
         <X className="h-4 w-4" />
         إلغاء الطلب
       </Button>
@@ -311,7 +311,7 @@ export function MatchIntroPanel({ matchId, partnerName }: { matchId: string; par
   const sendButton = (type: "FAMILY" | "CHAT", freeOnce?: boolean) => {
     const free = freeOnce || freeRequests;
     return !free && state.credits <= 0 ? (
-      <Button asChild size="sm" variant="outline" className="gap-1.5">
+      <Button asChild size="sm" variant="outline" className="max-md:h-11 gap-1.5">
         <Link href="/dashboard/payments">
           <Coins className="h-4 w-4" />
           {g("اشحن رصيدك للإرسال", "اشحني رصيدك للإرسال")}
@@ -322,7 +322,7 @@ export function MatchIntroPanel({ matchId, partnerName }: { matchId: string; par
         size="sm"
         variant={type === "FAMILY" ? "default" : "outline"}
         onClick={() => setDialog({ mode: "send", type })}
-        className="gap-1.5"
+        className="max-md:h-11 gap-1.5"
       >
         {free ? <Gift className="h-4 w-4" /> : <Coins className="h-4 w-4" />}
         {free ? "إرسال الطلب مجاناً" : "إرسال الطلب"}
@@ -332,10 +332,10 @@ export function MatchIntroPanel({ matchId, partnerName }: { matchId: string; par
 
   const answerButtons = (type: "FAMILY" | "CHAT", requestId?: string) => (
     <div className="flex gap-2">
-      <Button size="sm" onClick={() => setDialog({ mode: "accept", type, requestId })}>
+      <Button size="sm" className="max-md:h-11" onClick={() => setDialog({ mode: "accept", type, requestId })}>
         قبول
       </Button>
-      <Button size="sm" variant="ghost" onClick={() => setDialog({ mode: "decline", type, requestId })}>
+      <Button size="sm" className="max-md:h-11" variant="ghost" onClick={() => setDialog({ mode: "decline", type, requestId })}>
         ليس الآن
       </Button>
     </div>
@@ -357,7 +357,12 @@ export function MatchIntroPanel({ matchId, partnerName }: { matchId: string; par
       familyAction = answerButtons("FAMILY", family.requestId);
       break;
     case "accepted":
-      familyChip = <Chip tone="emerald" icon={CheckCircle2}>تم التعارف العائلي</Chip>;
+      // Mixed match: accepted, but the guardian contacts show only once both families shared
+      familyChip = family.contacts ? (
+        <Chip tone="emerald" icon={CheckCircle2}>تم التعارف العائلي</Chip>
+      ) : (
+        <Chip tone="amber" icon={Clock}>بانتظار مشاركة بيانات وليّ الأمر</Chip>
+      );
       break;
     case "declined":
       familyChip = <Chip tone="muted" icon={Ban}>{family.declinedByMe ? "اعتذرت عن الطلب" : "لم يتم قبول الطلب"}</Chip>;
@@ -388,7 +393,7 @@ export function MatchIntroPanel({ matchId, partnerName }: { matchId: string; par
     case "open":
       chatChip = <Chip tone="emerald" icon={MessageCircle}>مفتوحة · متبقي {daysLabel(daysLeft(chat.expiresAt))}</Chip>;
       chatAction = (
-        <Button asChild size="sm" className="gap-1.5">
+        <Button asChild size="sm" className="max-md:h-11 gap-1.5">
           <Link href={`/dashboard/chats/${chat.conversationId}`}>
             فتح المحادثة
             <ArrowLeft className="h-4 w-4" />
@@ -404,7 +409,7 @@ export function MatchIntroPanel({ matchId, partnerName }: { matchId: string; par
         <Chip tone="muted" icon={Ban}>{chat.status === "ended" ? "انتهت المحادثة" : "انتهت مدة المحادثة"}</Chip>
       );
       chatAction = (
-        <Button asChild size="sm" variant="outline">
+        <Button asChild size="sm" className="max-md:h-11" variant="outline">
           <Link href={`/dashboard/chats/${chat.conversationId}`}>عرض المحادثة</Link>
         </Button>
       );
@@ -522,11 +527,11 @@ export function MatchIntroPanel({ matchId, partnerName }: { matchId: string; par
                     </label>
                   )}
                   <div className="flex flex-wrap gap-2">
-                    <Button size="sm" onClick={() => shareGuardian()} disabled={busy || (!myGuardian.consented && !shareConsent)} className="gap-1.5">
+                    <Button size="sm" onClick={() => shareGuardian()} disabled={busy || (!myGuardian.consented && !shareConsent)} className="max-md:h-11 gap-1.5">
                       {busy && <Loader2 className="h-4 w-4 animate-spin" />}
                       مشاركة بيانات وليّ أمري
                     </Button>
-                    <Button size="sm" variant="ghost" disabled={busy} onClick={() => setOutcomeDialog("NOT_A_MATCH")}>
+                    <Button size="sm" className="max-md:h-11" variant="ghost" disabled={busy} onClick={() => setOutcomeDialog("NOT_A_MATCH")}>
                       لا أرغب بالمتابعة
                     </Button>
                   </div>
@@ -587,11 +592,11 @@ export function MatchIntroPanel({ matchId, partnerName }: { matchId: string; par
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             {state.followUp.mine !== "CONTINUING" && (
-              <Button size="sm" variant="outline" disabled={busy} onClick={() => saveOutcome("CONTINUING")}>
+              <Button size="sm" className="max-md:h-11" variant="outline" disabled={busy} onClick={() => saveOutcome("CONTINUING")}>
                 ما زلنا نتعارف
               </Button>
             )}
-            <Button size="sm" disabled={busy} onClick={() => setOutcomeDialog("ENGAGED")} className="gap-1.5">
+            <Button size="sm" disabled={busy} onClick={() => setOutcomeDialog("ENGAGED")} className="max-md:h-11 gap-1.5">
               <PartyPopper className="h-4 w-4" aria-hidden="true" />
               تمت الخطبة
             </Button>
@@ -600,7 +605,7 @@ export function MatchIntroPanel({ matchId, partnerName }: { matchId: string; par
               variant="outline"
               disabled={busy}
               onClick={() => setOutcomeDialog("NOT_A_MATCH")}
-              className="border-destructive/30 text-destructive hover:bg-destructive/5 hover:text-destructive"
+              className="max-md:h-11 border-destructive/30 text-destructive hover:bg-destructive/5 hover:text-destructive"
             >
               لم يُكتب نصيب
             </Button>
@@ -609,7 +614,9 @@ export function MatchIntroPanel({ matchId, partnerName }: { matchId: string; par
       )}
 
       {/* A polite way out of any open match (no block needed) */}
-      {!state.followUp.ask && !myGuardian.askShare && (
+      {/* While asked to share the guardian: the share card has «لا أرغب بالمتابعة» once a guardian exists; before
+          that (the quick form) this is the way out */}
+      {!state.followUp.ask && !(myGuardian.askShare && myGuardian.exists) && (
         <div className="mt-3 text-end">
           <button
             type="button"

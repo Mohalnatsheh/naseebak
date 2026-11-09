@@ -248,6 +248,27 @@ describe("respondToIntroRequest", () => {
     expect(notifyMod.notify).toHaveBeenCalledWith(expect.objectContaining({ userId: "u1", title: "لم يتم قبول الطلب حالياً" }));
   });
 
+  it("a declined chat request doesn't read as the match ending while the family introduction stands (QA WC-04)", async () => {
+    const bodyFor = async (other: unknown) => {
+      vi.mocked(notifyMod.notify).mockClear();
+      db.introRequest.findUnique.mockResolvedValue(pending({ type: "CHAT" }));
+      db.introRequest.updateMany.mockResolvedValue({ count: 1 });
+      db.introRequest.findFirst.mockResolvedValueOnce(other);
+      await respondToIntroRequest({ requestId: "r1", userId: "f1", accept: false });
+      return (vi.mocked(notifyMod.notify).mock.calls[0][0] as { body: string }).body;
+    };
+    expect(await bodyFor({ status: "ACCEPTED" })).toBe("لم يتم قبول طلب المحادثة، ويبقى التعارف العائلي بينكما قائماً.");
+    expect(await bodyFor(null)).toContain("والتوافق بينكما ما زال قائماً");
+    expect(await bodyFor(null)).not.toContain("اقتراحاتك القادمة");
+    // Both ways closed: the match is really over
+    expect(await bodyFor({ status: "DECLINED" })).toContain("اقتراحاتك القادمة");
+  });
+
+  it("answering a request the daily job already expired says it ran out, not «تم الرد» (QA WC-11)", async () => {
+    db.introRequest.findUnique.mockResolvedValue(pending({ status: "EXPIRED" }));
+    await expectCode(respondToIntroRequest({ requestId: "r1", userId: "f1", accept: true }), "EXPIRED");
+  });
+
   it("an expired request can't be accepted", async () => {
     db.introRequest.findUnique.mockResolvedValue(pending({ expiresAt: new Date(Date.now() - 1000) }));
     await expectCode(respondToIntroRequest({ requestId: "r1", userId: "f1", accept: true }), "EXPIRED");

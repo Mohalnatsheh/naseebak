@@ -55,7 +55,7 @@ export async function postJson<T>(url: string, body?: unknown): Promise<{ ok: tr
       body: body === undefined ? undefined : JSON.stringify(body),
     });
   } catch {
-    return { ok: false, status: 0, data: { error: "تعذّر الاتصال. تحقق من الإنترنت وحاول مرة أخرى." } };
+    return { ok: false, status: 0, data: { error: "تعذّر الاتصال. يمكنك التحقق من الإنترنت والمحاولة مرة أخرى." } };
   }
   const data = await res.json().catch(() => ({}));
   return res.ok ? { ok: true, data: data as T } : { ok: false, status: res.status, data: data as ApiError };

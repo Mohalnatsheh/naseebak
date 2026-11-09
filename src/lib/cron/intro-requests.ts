@@ -60,7 +60,7 @@ export async function expireIntroRequests(now = new Date()): Promise<{ expired: 
       userId: r.senderId,
       type: "INTRO_REQUEST",
       title: "انتهت مدة طلبك دون رد",
-      body: `مرّت 7 أيام على ${typeLabel(r.type)} دون رد من الطرف الآخر، وانتهت مدته.`,
+      body: `مرّت 7 أيام على ${typeLabel(r.type)} دون رد من الطرف الآخر، وانتهت مدته. يمكنك إرساله مرة أخرى من صفحة التوافق.`,
       url: matchUrl(r.matchId),
       metadata: { matchId: r.matchId, requestId: r.id },
     });

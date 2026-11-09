@@ -109,7 +109,7 @@ export function DealbreakersCard() {
       setSaved(new Set(keys));
       setJustSaved(true);
     } else {
-      setError("تعذّر الحفظ. حاول مرة أخرى.");
+      setError("تعذّر الحفظ. يمكنك المحاولة مرة أخرى.");
     }
     setSaving(false);
   }

@@ -202,7 +202,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/notifications', builder: (_, _) => const NotificationsScreen()),
       GoRoute(
         path: '/credits',
-        builder: (_, _) => const MarkPageRead(path: '/dashboard/payments', child: CreditsScreen()),
+        // `?section=pro` (a «Pro» tag in a chat) opens it scrolled to the Pro plans
+        builder: (_, state) => MarkPageRead(
+          path: '/dashboard/payments',
+          child: CreditsScreen(scrollToPro: state.uri.queryParameters['section'] == 'pro'),
+        ),
       ),
       GoRoute(path: '/credits/history', builder: (_, _) => const PaymentHistoryScreen()),
       GoRoute(path: '/profile', builder: (_, _) => const ProfileScreen()),

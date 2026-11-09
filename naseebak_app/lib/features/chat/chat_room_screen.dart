@@ -10,12 +10,15 @@ import '../../core/network/api_exception.dart';
 import '../../core/privacy/screen_privacy.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/common.dart';
+import '../home/counts.dart';
 import '../home/gendered_copy.dart';
 import '../matches/match_detail_screen.dart' show ReportSheet;
+import '../pro/pro_repository.dart';
 import 'chat_bubble.dart';
 import 'chat_cache.dart';
 import 'chat_format.dart';
 import 'chat_live.dart';
+import 'chat_media_picker.dart';
 import 'chat_models.dart';
 
 /// One conversation. It opens at once from the messages kept on the device (`ChatCache`), then the newest page from
@@ -59,6 +62,9 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
   /// A send that got no answer matches a message of mine with the same text this close to it (device vs server clock)
   static const _reconcileWindow = Duration(minutes: 1);
   int _nonceSeq = 0;
+
+  /// The gallery is open (a second tap does nothing)
+  bool _picking = false;
 
   /// Scrolled up to read history (shows «الأحدث» with what arrived meanwhile)
   bool _away = false;
@@ -397,7 +403,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
   Future<void> _send([ChatMessage? retry]) async {
     final text = retry?.body ?? _input.text.trim();
     if (text.isEmpty) return;
-    final nonce = retry?.nonce ?? 'app-${DateTime.now().microsecondsSinceEpoch}-${_nonceSeq++}';
+    final nonce = retry?.nonce ?? _newNonce();
     final local = ChatMessage(
       id: 'local-$nonce',
       body: text,
@@ -439,6 +445,96 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
         if (e.isNetwork) _reconcile(_messages.where((m) => !before.contains(m.id)));
       });
       if (e.code == 'EXPIRED' || e.code == 'NOT_ALLOWED' || e.code == 'DISABLED') _poll();
+    }
+  }
+
+  String _newNonce() => 'app-${DateTime.now().microsecondsSinceEpoch}-${_nonceSeq++}';
+
+  /// The photo button (Pro): pick from the gallery, refuse over 10 MB, then send.
+  Future<void> _pickPhoto() async {
+    if (_picking) return;
+    _picking = true;
+    PickedPhoto? photo;
+    try {
+      photo = await ref.read(chatPhotoPickerProvider)();
+    } catch (_) {
+      if (mounted) showSnack(context, 'تعذّر اختيار الصورة');
+    } finally {
+      _picking = false;
+    }
+    if (!mounted || photo == null) return;
+    if (photo.bytes > maxChatPhotoBytes) {
+      showSnack(context, 'الصورة كبيرة جداً');
+      return;
+    }
+    await _sendMedia(kind: MessageKind.image, path: photo.path);
+  }
+
+  /// A greyed media button: the credits screen, scrolled to the Pro plans
+  void _openPro() => context.push('/credits?section=pro');
+
+  /// A photo or voice note: a bubble from the local file at once, replaced by the server copy. A retry passes the
+  /// failed bubble and resends its file with the same nonce. `PRO_REQUIRED` (Pro lapsed while the chat was open)
+  /// fails the bubble with the server's text and reloads the Pro state, so the buttons follow.
+  Future<void> _sendMedia({MessageKind? kind, String? path, int? durationSec, ChatMessage? retry}) async {
+    final k = retry?.kind ?? kind ?? MessageKind.image;
+    final file = retry?.localPath ?? path;
+    if (file == null || k == MessageKind.text) return;
+    final seconds = retry?.media?.durationSec ?? durationSec;
+    final voice = k == MessageKind.voice;
+    final mime = voice ? 'audio/mp4' : 'image/jpeg';
+    final nonce = retry?.nonce ?? _newNonce();
+    final local = ChatMessage(
+      id: 'local-$nonce',
+      body: '',
+      createdAt: DateTime.now(),
+      mine: true,
+      state: SendState.sending,
+      nonce: nonce,
+      kind: k,
+      localPath: file,
+      media: seconds == null ? null : ChatMedia(url: '', type: mime, durationSec: seconds),
+    );
+    // Refreshes that must happen even if the member leaves the chat meanwhile
+    final container = ProviderScope.containerOf(context, listen: false);
+    final first = retry == null && !_hasMore && !_messages.any((m) => m.mine);
+    setState(() {
+      if (retry != null) _messages.removeWhere((m) => m.nonce == nonce);
+      _messages.add(local);
+    });
+    _toNewest();
+    try {
+      final sent = await _repo.sendMedia(
+        widget.chatId,
+        kind: messageKindName(k),
+        filePath: file,
+        mime: mime,
+        durationSec: voice ? seconds : null,
+        nonce: nonce,
+      );
+      if (first) container.read(analyticsProvider).chatStarted();
+      container.invalidate(chatListProvider);
+      if (!mounted) return;
+      setState(() {
+        _messages.removeWhere((m) => m.nonce == nonce || m.id == sent.id);
+        _insertSorted([sent]);
+      });
+      _saveCache();
+    } catch (e) {
+      final api = e is ApiException ? e : null;
+      if (api?.code == 'PRO_REQUIRED') {
+        container.invalidate(proStateProvider);
+        container.invalidate(countsProvider);
+      }
+      if (!mounted) return;
+      setState(() {
+        final i = _messages.indexWhere((m) => m.nonce == nonce);
+        if (i >= 0) {
+          _messages[i] = _messages[i].copyWith(
+              state: SendState.failed, error: ApiException.messageOf(e), maybeSent: api?.isNetwork ?? false);
+        }
+      });
+      if (api?.code == 'EXPIRED' || api?.code == 'NOT_ALLOWED' || api?.code == 'DISABLED') _poll();
     }
   }
 
@@ -655,7 +751,11 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
                                 showTime: layout.showTime,
                                 tightTop: layout.tightTop,
                                 onRetry: m.state == SendState.failed
-                                    ? () => m.filtered ? _editFailed(m) : _send(m)
+                                    ? () => m.kind != MessageKind.text
+                                        ? _sendMedia(retry: m)
+                                        : m.filtered
+                                        ? _editFailed(m)
+                                        : _send(m)
                                     : null,
                               );
                               if (!layout.daySeparator) return bubble;
@@ -709,6 +809,15 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
         ),
       );
     }
+    // Photo (and voice) follow Pro: usable, greyed with a «Pro» tag for a member who could buy it, or hidden
+    final pro = ref.watch(proStateProvider).valueOrNull;
+    final countsPro = ref.watch(countsProvider.select((c) => c.valueOrNull?.isPro));
+    final media = mediaButtonsMode(
+      isPro: pro?.isPro ?? countsPro ?? false,
+      appPayments: ref.watch(appPaymentsProvider),
+      canBuy: pro?.canBuy ?? false,
+      chatActive: chat.status == 'ACTIVE',
+    );
     return SafeArea(
       top: false,
       child: Container(
@@ -717,6 +826,19 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
+            if (media != MediaButtons.hidden) ...[
+              TextFieldTapRegion(
+                child: _MediaButton(
+                  key: const Key('chat-photo'),
+                  icon: Icons.photo_outlined,
+                  tooltip: media == MediaButtons.locked ? 'إرسال الصور مع Pro' : 'إرسال صورة',
+                  locked: media == MediaButtons.locked,
+                  onPressed: media == MediaButtons.locked ? _openPro : _pickPhoto,
+                ),
+              ),
+              // The voice button sits here too (next task)
+              const SizedBox(width: 2),
+            ],
             Expanded(
               child: TextField(
                 key: const Key('chat-input'),
@@ -744,6 +866,58 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// A composer media button. Locked: greyed, with a small «Pro» tag; the whole button (tag included) opens the plans.
+class _MediaButton extends StatelessWidget {
+  const _MediaButton({
+    super.key,
+    required this.icon,
+    required this.tooltip,
+    required this.locked,
+    required this.onPressed,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final bool locked;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 48,
+      height: 52,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          IconButton(
+            tooltip: tooltip,
+            onPressed: onPressed,
+            style: IconButton.styleFrom(minimumSize: const Size(48, 52)),
+            icon: Icon(icon, color: locked ? AppColors.muted.withValues(alpha: 0.6) : AppColors.navy),
+          ),
+          if (locked)
+            PositionedDirectional(
+              top: 4,
+              end: 2,
+              child: GestureDetector(
+                onTap: onPressed,
+                child: Container(
+                  key: const Key('chat-media-pro-tag'),
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                  decoration: BoxDecoration(color: AppColors.gold, borderRadius: BorderRadius.circular(6)),
+                  child: const Text(
+                    'Pro',
+                    style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800, height: 1.2),
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }

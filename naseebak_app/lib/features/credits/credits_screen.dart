@@ -35,6 +35,7 @@ class CreditsScreen extends ConsumerStatefulWidget {
     this.cancelGrace = const Duration(seconds: 8),
     this.proPollInterval = const Duration(seconds: 2),
     this.proPollWindow = const Duration(seconds: 10),
+    this.scrollToPro = false,
   });
 
   /// Defaults to debug builds only
@@ -52,6 +53,9 @@ class CreditsScreen extends ConsumerStatefulWidget {
   /// After a Pro checkout opened from this screen, how often and how long `/api/pro` is re-read on return
   final Duration proPollInterval;
   final Duration proPollWindow;
+
+  /// Opened from a «Pro» tag (`/credits?section=pro`): scroll the plans section into view once it is shown
+  final bool scrollToPro;
 
   @override
   ConsumerState<CreditsScreen> createState() => _CreditsScreenState();
@@ -82,6 +86,20 @@ class _CreditsScreenState extends ConsumerState<CreditsScreen> with WidgetsBindi
   bool _proSubscribing = false;
   bool _proCheckoutOpened = false;
   int _proPollRun = 0;
+
+  final _proKey = GlobalKey();
+  bool _scrolledToPro = false;
+
+  /// Once, after the frame that first lays out the plans section
+  void _scrollToProOnce() {
+    if (!widget.scrollToPro || _scrolledToPro) return;
+    _scrolledToPro = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final ctx = _proKey.currentContext;
+      if (!mounted || ctx == null) return;
+      Scrollable.ensureVisible(ctx, duration: const Duration(milliseconds: 300), curve: Curves.easeOutCubic);
+    });
+  }
 
   bool get _mockAllowed => widget.showMockButton ?? Env.showMockPayments;
 
@@ -446,17 +464,20 @@ class _CreditsScreenState extends ConsumerState<CreditsScreen> with WidgetsBindi
                         child: ErrorView(error: e, onRetry: () => ref.invalidate(proStateProvider)),
                       ),
                     ],
-              data: (s) => showPlans(s, payments)
-                  ? [
-                      const SizedBox(height: 20),
-                      ProSection(
-                        state: s,
-                        female: me?.isFemale ?? false,
-                        subscribing: _proSubscribing,
-                        onSubscribe: _subscribePro,
-                      ),
-                    ]
-                  : const <Widget>[],
+              data: (s) {
+                if (!showPlans(s, payments)) return const <Widget>[];
+                _scrollToProOnce();
+                return [
+                  const SizedBox(height: 20),
+                  ProSection(
+                    key: _proKey,
+                    state: s,
+                    female: me?.isFemale ?? false,
+                    subscribing: _proSubscribing,
+                    onSubscribe: _subscribePro,
+                  ),
+                ];
+              },
             ),
             if (plans != null) ...[
             const SizedBox(height: 16),

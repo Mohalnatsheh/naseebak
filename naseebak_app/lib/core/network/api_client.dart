@@ -91,6 +91,15 @@ class ApiClient {
   Future<Json> post(String path, {Object? body, bool auth = true}) =>
       _send(() => dio.post<dynamic>(path, data: body ?? const <String, dynamic>{}, options: _opts(auth)));
 
+  /// A multipart upload with its own timeouts (chat photos and voice notes can be slow on a weak connection).
+  Future<Json> postMultipart(String path, FormData form, {Duration timeout = const Duration(seconds: 120)}) => _send(
+        () => dio.post<dynamic>(
+          path,
+          data: form,
+          options: Options(extra: {'auth': true}, sendTimeout: timeout, receiveTimeout: timeout),
+        ),
+      );
+
   Future<Json> put(String path, {Object? body}) =>
       _send(() => dio.put<dynamic>(path, data: body ?? const <String, dynamic>{}, options: _opts(true)));
 

@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart' show DioMediaType, FormData, MultipartFile;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
@@ -262,6 +263,32 @@ class ChatRepository {
 
   Future<ChatMessage> send(String id, String body, {String? nonce}) async {
     final j = await _api.post('/api/chats/$id/messages', body: {'body': body, 'clientNonce': ?nonce});
+    return ChatMessage.fromJson(asMap(j['message']));
+  }
+
+  /// `POST /api/chats/{id}/media`: a photo (`IMAGE`, `photo.jpg` as `image/jpeg`) or a voice note (`VOICE`,
+  /// `voice.m4a` as `audio/mp4`, with `durationSec`). Returns the saved message; a resend with the same [nonce] is
+  /// recognised by the server.
+  Future<ChatMessage> sendMedia(
+    String id, {
+    required String kind,
+    required String filePath,
+    required String mime,
+    int? durationSec,
+    String? nonce,
+  }) async {
+    final type = DioMediaType.parse(mime);
+    final form = FormData.fromMap({
+      'kind': kind,
+      'durationSec': ?durationSec?.toString(),
+      'clientNonce': ?nonce,
+      'file': MultipartFile.fromFileSync(
+        filePath,
+        filename: kind == 'VOICE' ? 'voice.m4a' : 'photo.jpg',
+        contentType: type,
+      ),
+    });
+    final j = await _api.postMultipart('/api/chats/$id/media', form);
     return ChatMessage.fromJson(asMap(j['message']));
   }
 

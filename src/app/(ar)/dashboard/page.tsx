@@ -187,7 +187,7 @@ export default function DashboardPage() {
         <div className="relative min-w-0 flex-1">
           <h1 className="font-display truncate text-xl leading-tight">
             {getGreeting()}، {profile.firstName}
-            {counts.pro?.isPro && <ProBadge size="md" className="ms-2 align-middle" />}
+            {counts.pro?.isPro && <ProBadge size="md" onDark className="ms-2 align-middle" />}
           </h1>
           <p className="mt-0.5 text-xs text-white/65">{getArabicDate(country)}</p>
         </div>

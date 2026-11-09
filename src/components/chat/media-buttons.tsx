@@ -15,10 +15,18 @@ import {
 /**
  * Photo and voice in the chat composer (Pro).
  * - `enabled`: a Pro member in an open chat.
- * - `locked`: not Pro while Pro is on sale: the buttons look greyed with a small «Pro» tag and open the offer.
- * Hidden otherwise (the composer gets no `media` prop).
+ * - `locked`: not Pro, but this member could buy it now (`canBuy` from GET /api/pro): the buttons look greyed
+ *   with a small «Pro» tag and open the offer.
+ * Hidden otherwise (the composer gets no `media` prop): no offer that ends in «غير متاح».
  */
 export type MediaMode = "enabled" | "locked";
+
+/** Which photo / voice buttons the composer shows: null = none */
+export function composerMediaMode({ canSend, isPro, canBuy }: { canSend: boolean; isPro: boolean; canBuy: boolean }): MediaMode | null {
+  if (!canSend) return null;
+  if (isPro) return "enabled";
+  return canBuy ? "locked" : null;
+}
 
 export interface ComposerMedia {
   mode: MediaMode;

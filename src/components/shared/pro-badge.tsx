@@ -3,13 +3,24 @@ import { cn } from "@/lib/utils";
 /**
  * Gold «Pro» pill for members with a live Pro subscription. Display only: it never changes who is
  * suggested or in what order. No db imports, so client components can use it.
+ * `onDark`: on navy / primary backgrounds (the dashboard greeting card) the pill is solid gold with dark text,
+ * since the light pill's dark text on a faint gold tint disappears there.
  */
-export function ProBadge({ size = "sm", className }: { size?: "sm" | "md"; className?: string }) {
+export function ProBadge({
+  size = "sm",
+  onDark = false,
+  className,
+}: {
+  size?: "sm" | "md";
+  onDark?: boolean;
+  className?: string;
+}) {
   return (
     <span
-      aria-label="عضو Pro"
+      aria-label="عضوية Pro"
       className={cn(
-        "inline-flex shrink-0 items-center rounded-full border border-accent/30 bg-accent/15 font-bold leading-none text-accent-foreground",
+        "inline-flex shrink-0 items-center rounded-full border font-bold leading-none text-accent-foreground",
+        onDark ? "border-accent bg-accent shadow-sm shadow-black/20" : "border-accent/30 bg-accent/15",
         size === "sm" ? "px-2 py-0.5 text-[11px]" : "px-2.5 py-1 text-xs",
         className
       )}

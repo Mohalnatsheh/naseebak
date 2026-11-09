@@ -11,9 +11,9 @@ import { useDashboardData } from "@/contexts/dashboard-context";
 import { trackEvent } from "@/lib/analytics";
 import { forViewer } from "@/lib/gendered-copy";
 import { formatPrice } from "@/lib/payments/packages";
-import { PRO_PLAN_LABELS, type ProPlanId, type ProPlanOffer } from "@/lib/pro/plans";
+import { PRO_PLAN_IDS, PRO_PLAN_LABELS, type ProPlanId, type ProPlanOffer } from "@/lib/pro/plans";
 import type { MyProState } from "@/lib/pro/pro-types";
-import { arabicCount } from "@/lib/utils";
+import { arabicCount, cn } from "@/lib/utils";
 
 const PER_PERIOD: Record<ProPlanId, string> = { weekly: "في الأسبوع", monthly: "في الشهر", yearly: "في السنة" };
 // Weekly and monthly plans grant on each renewal; yearly grants a monthly amount every month
@@ -62,89 +62,104 @@ export function useProCheckout() {
   return { buying, error, buy };
 }
 
-/** The three plan cards (payments page and the offer dialog). Buttons are disabled when buying isn't possible. */
-export function ProPlanCards({
-  offers,
-  canBuy,
-  compact = false,
-}: {
-  offers: ProPlanOffer[];
-  canBuy: boolean;
-  /** One column, smaller type (dialog) */
-  compact?: boolean;
-}) {
+/** The plan picked first: monthly when it is offered */
+export function defaultProPlan(offers: Pick<ProPlanOffer, "id">[]): ProPlanId | null {
+  return offers.find((o) => o.id === "monthly")?.id ?? offers[0]?.id ?? null;
+}
+
+/**
+ * Pro as ONE compact card (payments page and the chat's offer dialog): a weekly / monthly / yearly selector
+ * (monthly first), the chosen plan's price, its free credits, what Pro gives and one subscribe button.
+ * The button is disabled when buying isn't possible.
+ */
+export function ProPlanChooser({ offers, canBuy }: { offers: ProPlanOffer[]; canBuy: boolean }) {
   const { profile } = useDashboardData();
+  const gender = profile?.gender;
   const { buying, error, buy } = useProCheckout();
+  const sorted = [...offers].sort((a, b) => PRO_PLAN_IDS.indexOf(a.id) - PRO_PLAN_IDS.indexOf(b.id));
+  const [picked, setPicked] = useState<ProPlanId | null>(null);
+  const offer = sorted.find((o) => o.id === picked) ?? sorted.find((o) => o.id === defaultProPlan(sorted));
+  if (!offer) return null;
 
   return (
-    <div className="space-y-3">
-      <div className={compact ? "grid grid-cols-1 gap-3" : "grid grid-cols-1 gap-4 md:grid-cols-3"}>
-        {offers.map((offer) => {
-          const best = offer.id === "monthly";
-          return (
-            <Card
-              key={offer.id}
-              className={`relative gap-0 overflow-hidden py-0 ${best ? "border-accent/50 ring-1 ring-accent/20 shadow-lg shadow-accent/10" : "border-border/50"}`}
+    <div className="space-y-2.5">
+      <Card className="relative gap-0 overflow-hidden border-accent/40 py-0 shadow-md shadow-accent/10">
+        <div className="h-1.5 bg-gradient-to-l from-accent to-accent/60" aria-hidden />
+        <CardContent className="space-y-3.5 p-4 sm:p-5">
+          {sorted.length > 1 && (
+            <div
+              role="radiogroup"
+              aria-label="مدة الاشتراك"
+              className="grid gap-1 rounded-xl bg-muted p-1"
+              style={{ gridTemplateColumns: `repeat(${sorted.length}, minmax(0, 1fr))` }}
             >
-              <div className={`h-1.5 ${best ? "bg-gradient-to-l from-accent to-accent/60" : "bg-gradient-to-l from-primary to-secondary"}`} />
-              <CardContent className={compact ? "space-y-3 p-4" : "space-y-4 p-5 md:p-6"}>
-                <div className="flex items-center justify-between gap-2">
-                  <h3 className="flex items-center gap-2 text-lg font-bold text-foreground">
-                    Pro {PRO_PLAN_LABELS[offer.id]}
-                  </h3>
-                  {best && (
-                    <span className="rounded-full bg-accent px-2.5 py-0.5 text-xs font-bold text-accent-foreground">الأكثر طلباً</span>
-                  )}
-                </div>
+              {sorted.map((o) => {
+                const on = o.id === offer.id;
+                return (
+                  <button
+                    key={o.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={on}
+                    onClick={() => setPicked(o.id)}
+                    className={cn(
+                      "h-11 rounded-lg text-sm font-bold transition-all",
+                      on ? "bg-card text-primary shadow-sm ring-1 ring-accent/40" : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    {PRO_PLAN_LABELS[o.id]}
+                  </button>
+                );
+              })}
+            </div>
+          )}
 
-                <div>
-                  <div className="flex items-baseline gap-1.5">
-                    <span className={`font-black ${compact ? "text-3xl" : "text-4xl"} ${best ? "text-accent-foreground" : "text-primary"}`}>
-                      {formatPrice({ price: offer.price, currency: offer.currency })}
-                    </span>
-                    <span className="text-sm font-semibold text-muted-foreground">{PER_PERIOD[offer.id]}</span>
-                  </div>
-                  {offer.chargeCurrency === "usd" && (
-                    <p className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-primary">
-                      <CircleDollarSign className="h-3.5 w-3.5" aria-hidden="true" />
-                      تدفع {(offer.chargeAmount / 100).toFixed(2)}$ بالدولار
-                    </p>
-                  )}
-                </div>
+          <div className="flex flex-wrap items-end justify-between gap-x-3 gap-y-1">
+            <div>
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-3xl font-black text-primary">{formatPrice({ price: offer.price, currency: offer.currency })}</span>
+                <span className="text-sm font-semibold text-muted-foreground">{PER_PERIOD[offer.id]}</span>
+              </div>
+              {offer.chargeCurrency === "usd" && (
+                <p className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-primary">
+                  <CircleDollarSign className="h-3.5 w-3.5" aria-hidden="true" />
+                  {forViewer(gender, "تدفع", "تدفعين")} {(offer.chargeAmount / 100).toFixed(2)}$ بالدولار
+                </p>
+              )}
+            </div>
+            {offer.id === "monthly" && (
+              <span className="rounded-full bg-accent px-2.5 py-1 text-xs font-bold text-accent-foreground">الأكثر طلباً</span>
+            )}
+          </div>
 
-                <ul className="space-y-2 text-sm text-muted-foreground">
-                  {offer.credits > 0 && (
-                    <li className="flex items-center gap-2.5 font-semibold text-foreground">
-                      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent/15 text-accent-foreground">
-                        <Sparkles className="h-3 w-3" aria-hidden="true" />
-                      </span>
-                      {proCreditsLine(offer)}
-                    </li>
-                  )}
-                  {PRO_FEATURE_LABELS.map((f) => (
-                    <li key={f} className="flex items-center gap-2.5">
-                      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-                        <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
-                      </span>
-                      {f}
-                    </li>
-                  ))}
-                </ul>
+          <ul className="space-y-1.5 text-sm text-muted-foreground">
+            {offer.credits > 0 && (
+              <li className="flex items-center gap-2.5 font-semibold text-foreground">
+                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent/15 text-accent-foreground">
+                  <Sparkles className="h-3 w-3" aria-hidden="true" />
+                </span>
+                {proCreditsLine(offer)}
+              </li>
+            )}
+            {PRO_FEATURE_LABELS.map((f) => (
+              <li key={f} className="flex items-center gap-2.5">
+                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                  <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
+                </span>
+                {f}
+              </li>
+            ))}
+          </ul>
 
-                <Button
-                  className={`h-12 w-full rounded-xl text-base font-bold border-0 ${
-                    best ? "bg-accent text-accent-foreground hover:brightness-110" : "bg-primary text-primary-foreground hover:brightness-110"
-                  }`}
-                  disabled={!canBuy || buying !== null}
-                  onClick={() => buy(offer)}
-                >
-                  {buying === offer.id ? <Loader2 className="h-5 w-5 animate-spin" /> : forViewer(profile?.gender, "اشترك الآن", "اشتركي الآن")}
-                </Button>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
+          <Button
+            className="h-12 w-full rounded-xl border-0 bg-accent text-base font-bold text-accent-foreground hover:brightness-110"
+            disabled={!canBuy || buying !== null}
+            onClick={() => buy(offer)}
+          >
+            {buying === offer.id ? <Loader2 className="h-5 w-5 animate-spin" /> : forViewer(gender, "اشترك الآن", "اشتركي الآن")}
+          </Button>
+        </CardContent>
+      </Card>
       {error && (
         <p role="alert" className="rounded-xl border border-destructive/20 bg-destructive/5 px-4 py-3 text-sm text-destructive">
           {error}
@@ -205,7 +220,7 @@ export function ProSection({
               الاشتراك في Pro غير متاح في دولتك حالياً.
             </div>
           )}
-          {state.offers.length > 0 && <ProPlanCards offers={state.offers} canBuy={state.canBuy} />}
+          {state.offers.length > 0 && <ProPlanChooser offers={state.offers} canBuy={state.canBuy} />}
         </>
       )}
     </section>

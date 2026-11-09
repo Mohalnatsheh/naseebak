@@ -7,14 +7,14 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { LoadError } from "@/components/shared/load-error";
 import { ProBadge } from "@/components/shared/pro-badge";
-import { ProPlanCards, proPitch } from "@/components/payments/pro-section";
+import { ProPlanChooser, proPitch } from "@/components/payments/pro-section";
 import { useDashboardData } from "@/contexts/dashboard-context";
 import { forViewer } from "@/lib/gendered-copy";
 import type { MyProState } from "@/lib/pro/pro-types";
 
 /**
  * The Pro offer, opened from the chat's greyed photo / voice buttons. Loads /api/pro each time it opens and offers the
- * same plan cards as the payments page, or a link there when buying isn't possible from here.
+ * same compact plan chooser as the payments page, or a link there when buying isn't possible from here.
  */
 export function ProOfferDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const { profile } = useDashboardData();
@@ -79,7 +79,7 @@ export function ProOfferDialog({ open, onOpenChange }: { open: boolean; onOpenCh
             <Loader2 className="h-7 w-7 animate-spin text-primary" aria-label="جاري التحميل" />
           </div>
         ) : state.canBuy ? (
-          <ProPlanCards offers={state.offers} canBuy compact />
+          <ProPlanChooser offers={state.offers} canBuy />
         ) : !state.isPro && !state.enabled ? (
           // Sales are off: no link to a page that won't show Pro
           <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">

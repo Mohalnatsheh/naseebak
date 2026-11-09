@@ -48,7 +48,7 @@ import { checkMessage } from "@/lib/chat/filter";
 import { markPageNotificationsRead } from "@/lib/notifications-client";
 import { ProOfferDialog } from "@/components/payments/pro-offer-dialog";
 import type { MyProState } from "@/lib/pro/pro-types";
-import type { ComposerMedia, MediaMode } from "./media-buttons";
+import { composerMediaMode, type ComposerMedia, type MediaMode } from "./media-buttons";
 import { preparePhoto } from "./voice-recorder";
 import type { PendingUpload } from "./chat-utils";
 
@@ -65,7 +65,10 @@ const UNSUPPORTED_PHOTO = "صيغة الصورة غير مدعومة، جرّب 
 /** A file name for the multipart upload (the server goes by the type, the name only helps logs and proxies) */
 function uploadName(upload: PendingUpload): string {
   const type = upload.blob.type;
-  if (upload.kind === "IMAGE") return type === "image/png" ? "photo.png" : type === "image/webp" ? "photo.webp" : "photo.jpg";
+  if (upload.kind === "IMAGE") {
+    if (type.startsWith("image/hei")) return "photo.heic"; // a HEIC/HEIF the browser couldn't decode: the server does
+    return type === "image/png" ? "photo.png" : type === "image/webp" ? "photo.webp" : "photo.jpg";
+  }
   return type.startsWith("audio/mp4") ? "voice.m4a" : type.startsWith("audio/ogg") ? "voice.ogg" : "voice.webm";
 }
 
@@ -155,21 +158,22 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
     return list.filter((m) => m.id !== id);
   }, []);
 
-  // Pro (photos and voice) and whether it is on sale (greyed buttons that open the offer)
-  const [pro, setPro] = useState<Pick<MyProState, "enabled" | "isPro"> | null>(null);
+  // Pro (photos and voice) and whether this member could buy it (greyed buttons that open the offer).
+  // Fetched once for the page, again only after the server says PRO_REQUIRED.
+  const [pro, setPro] = useState<Pick<MyProState, "canBuy" | "isPro"> | null>(null);
   const [offerOpen, setOfferOpen] = useState(false);
   const loadPro = useCallback(async () => {
     const res = await fetch("/api/pro").catch(() => null);
     if (!res?.ok) return;
     const data: MyProState = await res.json().catch(() => null);
-    if (data) setPro({ enabled: !!data.enabled, isPro: !!data.isPro });
+    if (data) setPro({ canBuy: !!data.canBuy, isPro: !!data.isPro });
   }, []);
   useEffect(() => {
     let active = true;
     fetch("/api/pro")
       .then((res) => (res.ok ? res.json() : null))
       .then((data: MyProState | null) => {
-        if (active && data) setPro({ enabled: !!data.enabled, isPro: !!data.isPro });
+        if (active && data) setPro({ canBuy: !!data.canBuy, isPro: !!data.isPro });
       })
       .catch(() => {});
     return () => {
@@ -495,10 +499,11 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
   // Credit on interest: every request is free, also after an earlier family request expired
   const familyFree = !!intro?.flags.creditOnInterest || !!family?.free;
   /** The free move to family stays open until the match fades (CHAT_STALE_DAYS after the chat ran out) */
-  // Photos / voice: Pro members in an open chat; greyed (opens the offer) while Pro is on sale; else hidden.
+  // Photos / voice: Pro members in an open chat; greyed (opens the offer) only when this member could buy Pro now
+  // (sales on, the country selling, a plan priced); else hidden: never an offer that ends in «غير متاح».
   // Media already in the chat always shows, whatever the switch
   const myPro = !!pro?.isPro || !!counts.pro?.isPro;
-  const mediaMode: MediaMode | null = !canSend ? null : myPro ? "enabled" : pro?.enabled ? "locked" : null;
+  const mediaMode: MediaMode | null = composerMediaMode({ canSend, isPro: myPro, canBuy: !!pro?.canBuy });
   const composerMedia: ComposerMedia | undefined = mediaMode
     ? {
         mode: mediaMode,

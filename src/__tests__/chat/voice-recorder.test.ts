@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { VoiceRecording } from "@/components/chat/voice-recorder";
-import { MAX_RECORD_SEC, pickVoiceType, recordedSeconds, recorderErrorMessage, startVoiceRecording, RecorderError } from "@/components/chat/voice-recorder";
+import { MAX_RECORD_SEC, isHeicFile, pickVoiceType, preparePhoto, recordedSeconds, recorderErrorMessage, startVoiceRecording, RecorderError } from "@/components/chat/voice-recorder";
 import { act, renderHook } from "@testing-library/react";
-import { clockLabel, useVoiceRecording, type ComposerMedia } from "@/components/chat/media-buttons";
+import { clockLabel, composerMediaMode, useVoiceRecording, type ComposerMedia } from "@/components/chat/media-buttons";
 
 describe("voice recorder helpers", () => {
   afterEach(() => {
@@ -16,11 +16,13 @@ describe("voice recorder helpers", () => {
     expect(recordedSeconds(500_000)).toBe(MAX_RECORD_SEC);
   });
 
-  it("prefers WebM Opus, else MP4, else nothing", () => {
+  it("prefers MP4/AAC (plays on iPhone), else WebM Opus, else nothing", () => {
     vi.stubGlobal("MediaRecorder", { isTypeSupported: (t: string) => t === "audio/webm;codecs=opus" || t === "audio/mp4" });
-    expect(pickVoiceType()).toBe("audio/webm;codecs=opus");
+    expect(pickVoiceType()).toBe("audio/mp4");
     vi.stubGlobal("MediaRecorder", { isTypeSupported: (t: string) => t === "audio/mp4" });
     expect(pickVoiceType()).toBe("audio/mp4");
+    vi.stubGlobal("MediaRecorder", { isTypeSupported: (t: string) => t === "audio/webm;codecs=opus" });
+    expect(pickVoiceType()).toBe("audio/webm;codecs=opus");
     vi.stubGlobal("MediaRecorder", { isTypeSupported: () => false });
     expect(pickVoiceType()).toBeNull();
   });
@@ -39,6 +41,71 @@ describe("voice recorder helpers", () => {
     expect(clockLabel(0)).toBe("0:00");
     expect(clockLabel(9.7)).toBe("0:09");
     expect(clockLabel(180)).toBe("3:00");
+  });
+});
+
+// ── Photos the browser can't decode (Chrome / Edge and HEIC) ───────────────────────────────────
+
+/** An <img> that never decodes, as in Chrome with a HEIC */
+class UndecodableImage {
+  onload: (() => void) | null = null;
+  onerror: (() => void) | null = null;
+  set src(_: string) {
+    queueMicrotask(() => this.onerror?.());
+  }
+}
+
+describe("preparePhoto when the browser can't decode the file", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  function undecodable() {
+    vi.stubGlobal("Image", UndecodableImage);
+    vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:x");
+    vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+  }
+
+  it("a HEIC/HEIF by type goes to the server as it is", async () => {
+    undecodable();
+    for (const type of ["image/heic", "image/heif", "image/HEIC"]) {
+      const file = new File(["x"], "IMG_1.bin", { type });
+      const out = await preparePhoto(file);
+      expect(out).toEqual({ blob: file, width: null, height: null });
+    }
+  });
+
+  it("a .heic/.heif name with no type goes too, typed image/heic so the upload is named .heic", async () => {
+    undecodable();
+    for (const name of ["IMG_2.HEIC", "photo.heif"]) {
+      const out = await preparePhoto(new File(["xy"], name, { type: "" }));
+      expect(out?.blob.type).toBe("image/heic");
+      expect(out?.blob.size).toBe(2);
+    }
+  });
+
+  it("a JPEG/PNG/WebP still goes to the server; anything else is refused here", async () => {
+    undecodable();
+    const jpg = new File(["x"], "a.jpg", { type: "image/jpeg" });
+    expect((await preparePhoto(jpg))?.blob).toBe(jpg);
+    expect(await preparePhoto(new File(["x"], "a.gif", { type: "image/gif" }))).toBeNull();
+    expect(await preparePhoto(new File(["x"], "a.tiff", { type: "" }))).toBeNull();
+  });
+
+  it("isHeicFile reads the type or the name", () => {
+    expect(isHeicFile({ type: "image/heif-sequence", name: "a" })).toBe(true);
+    expect(isHeicFile({ type: "", name: "a.heic" })).toBe(true);
+    expect(isHeicFile({ type: "image/jpeg", name: "a.jpg" })).toBe(false);
+  });
+});
+
+describe("composerMediaMode", () => {
+  it("Pro members get the buttons; others greyed only when they could buy Pro, else none", () => {
+    expect(composerMediaMode({ canSend: true, isPro: true, canBuy: false })).toBe("enabled");
+    expect(composerMediaMode({ canSend: true, isPro: false, canBuy: true })).toBe("locked");
+    expect(composerMediaMode({ canSend: true, isPro: false, canBuy: false })).toBeNull();
+    expect(composerMediaMode({ canSend: false, isPro: true, canBuy: true })).toBeNull();
   });
 });
 

@@ -39,7 +39,10 @@ export function recorderErrorMessage(code: RecorderErrorCode): string {
   }
 }
 
-/** Opus in WebM where the browser can record it (Chrome, Firefox, Android), else MP4/AAC (Safari) */
+/**
+ * MP4/AAC where the browser can record it (Safari, recent Chrome): it plays everywhere, the iPhone app included.
+ * Else Opus in WebM (Firefox, older Chrome); the server turns that into AAC.
+ */
 export function pickVoiceType(): string | null {
   if (typeof window === "undefined" || typeof MediaRecorder === "undefined") return null;
   const supported = (t: string) => {
@@ -49,8 +52,8 @@ export function pickVoiceType(): string | null {
       return false;
     }
   };
-  if (supported("audio/webm;codecs=opus")) return "audio/webm;codecs=opus";
   if (supported("audio/mp4")) return "audio/mp4";
+  if (supported("audio/webm;codecs=opus")) return "audio/webm;codecs=opus";
   return null;
 }
 
@@ -154,6 +157,12 @@ const PHOTO_MAX_SIDE = 2048;
 /** Already small enough to send untouched (when the format is one the server reads) */
 const PHOTO_PASS_BYTES = 1.5 * 1024 * 1024;
 const PASS_TYPES = ["image/jpeg", "image/png", "image/webp"];
+const HEIC_TYPES = ["image/heic", "image/heif", "image/heic-sequence", "image/heif-sequence"];
+
+/** A HEIC/HEIF photo by its type or, when the browser gave none it knows, its `.heic`/`.heif` name */
+export function isHeicFile(file: Pick<File, "type" | "name">): boolean {
+  return HEIC_TYPES.includes(file.type.toLowerCase()) || /\.hei[cf]$/i.test(file.name ?? "");
+}
 
 export interface PreparedPhoto {
   blob: Blob;
@@ -178,17 +187,22 @@ function loadImage(file: Blob): Promise<HTMLImageElement> {
 }
 
 /**
- * Before upload: HEIC/HEIF (which the server can't read) and large photos become a JPEG of at most
- * 2048 px on the long side, when the browser can decode them (iPhone Safari decodes HEIC). A small
- * JPEG/PNG/WebP goes as it is. Returns null when the photo can't be used at all.
+ * Before upload: HEIC/HEIF and large photos become a JPEG of at most 2048 px on the long side, when the
+ * browser can decode them (iPhone Safari decodes HEIC). A small JPEG/PNG/WebP goes as it is. A HEIC/HEIF
+ * the browser can't decode (Chrome, Edge) goes as it is too: the server decodes it. Returns null when the
+ * photo can't be used at all.
  */
 export async function preparePhoto(file: File): Promise<PreparedPhoto | null> {
   let img: HTMLImageElement;
   try {
     img = await loadImage(file);
   } catch {
-    // Not decodable here: let the server judge a type it reads, refuse the rest now
-    return PASS_TYPES.includes(file.type) ? { blob: file, width: null, height: null } : null;
+    // Not decodable here: let the server judge a type it reads (HEIC/HEIF included), refuse the rest now
+    if (PASS_TYPES.includes(file.type)) return { blob: file, width: null, height: null };
+    if (!isHeicFile(file)) return null;
+    // Typed, so the upload is named .heic even when the browser gave the file no type
+    const blob = HEIC_TYPES.includes(file.type.toLowerCase()) ? file : new Blob([file], { type: "image/heic" });
+    return { blob, width: null, height: null };
   }
   const w = img.naturalWidth;
   const h = img.naturalHeight;

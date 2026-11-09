@@ -146,18 +146,32 @@ final routerProvider = Provider<GoRouter>((ref) {
   // member is on, and the screen already on top (e.g. «عضوية Pro» when Stripe returns to it) is never opened twice.
   // Registered before the router's own listener, so it sees the link first; anything else (signed out, a referral
   // link) goes on to the router's redirect below.
+  // Not ready yet (splash, sign-in, setup): it waits in the slot and opens on home.
   final links = WebsiteLinkObserver((uri) {
     final link = WebsiteLink.parse(uri);
     final route = link?.route;
     if (link == null || route == null || link.invitationCode != null) return false;
-    final current = router.state.uri.path;
-    if (guard('/home') != null || guard(current) != null || !_inApp(current)) return false;
+    String current;
+    try {
+      current = router.state.uri.path;
+    } catch (_) {
+      // No screen yet
+      current = '/splash';
+    }
+    if (guard('/home') != null || guard(current) != null || !_inApp(current)) {
+      pendingLink = route;
+      return true;
+    }
     pendingLink = null;
     openAppRoute(router, route);
     return true;
   });
   WidgetsBinding.instance.addObserver(links);
   ref.onDispose(() => WidgetsBinding.instance.removeObserver(links));
+  // A link that came while the app was still starting
+  final early = EarlyLinks.instance.take();
+  final earlyLink = early == null ? null : WebsiteLink.parse(early);
+  if (earlyLink?.route != null && earlyLink?.invitationCode == null) pendingLink = earlyLink!.route;
 
   router = GoRouter(
     navigatorKey: rootNavigatorKey,

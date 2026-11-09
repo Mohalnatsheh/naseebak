@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:naseebak_app/core/auth/auth_controller.dart';
 import 'package:naseebak_app/core/routing/router.dart';
+import 'package:naseebak_app/core/routing/website_links.dart';
 import 'package:naseebak_app/core/storage/token_store.dart';
 import 'package:naseebak_app/features/auth/paused_screen.dart';
 import 'package:naseebak_app/features/chat/chat_cache.dart';
@@ -140,5 +141,31 @@ void main() {
         allOf(contains('لا يتجدد بعد الآن'), contains('يمكنكِ')));
     expect(pausedProText(MyProState(isPro: true, renewsAt: end), female: false), contains('إيقاف التجديد'));
     expect(pausedProText(const MyProState(), female: false), isNull);
+  });
+
+  testWidgets('a link that arrives while the app is still starting is kept and opens on home', (tester) async {
+    EarlyLinks.instance.start();
+    final handled = await tester.binding.handlePushRoute('https://naseebak.com/dashboard/notifications');
+    expect(handled, isTrue);
+    final (_, router) = await _app(tester);
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(router.state.uri.path, '/notifications');
+    // Taken once: nothing caught any more
+    expect(EarlyLinks.instance.take(), isNull);
+  });
+
+  testWidgets('a link during the splash waits and opens once home shows', (tester) async {
+    final (container, router) = await _app(tester);
+    container.invalidate(splashDoneProvider);
+    router.go('/splash');
+    await tester.pump(const Duration(milliseconds: 200));
+    await _link(tester, 'https://naseebak.com/dashboard/notifications');
+    expect(router.state.uri.path, '/splash');
+    container.read(splashDoneProvider.notifier).done();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(router.state.uri.path, '/notifications');
+    await tester.pump(const Duration(seconds: 3));
   });
 }

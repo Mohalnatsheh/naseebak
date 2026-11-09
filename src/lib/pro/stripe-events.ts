@@ -255,19 +255,26 @@ export async function handleProInvoiceFailed(invoice: Stripe.Invoice): Promise<P
   return step.changed ? "ok" : "already";
 }
 
+/**
+ * Only `active` (and `trialing`, unused) and `past_due` (Stripe still retrying) are live. `unpaid` and `paused` mean
+ * Stripe stopped collecting, and depending on the shared account's Billing settings no deletion may ever follow, so
+ * they end Pro here; `canceled` and `incomplete_expired` are final at Stripe.
+ */
 const STATUS_FROM_STRIPE: Partial<Record<Stripe.Subscription.Status, ProSubscription["status"]>> = {
   active: "ACTIVE",
   trialing: "ACTIVE",
   past_due: "PAST_DUE",
-  unpaid: "PAST_DUE",
-  paused: "PAST_DUE",
+  unpaid: "CANCELED",
+  paused: "CANCELED",
   canceled: "CANCELED",
   incomplete_expired: "CANCELED",
 };
 
 /**
- * customer.subscription.updated / deleted. Updated: syncs cancelAtPeriodEnd, the period end and the status.
- * Deleted: ENDED with endedAt, and Pro ends at once. A local ENDED or CANCELED row never comes back.
+ * customer.subscription.updated / deleted. Updated: syncs cancelAtPeriodEnd, the period end and the status; a status
+ * that isn't live stamps endedAt. Deleted: ENDED with endedAt, and Pro ends at once. A local ENDED or CANCELED row
+ * never comes back. The member is told once, when a live membership first gets its endedAt (never for a first payment
+ * that never went through).
  */
 export async function handleProSubscriptionChanged(sub: Stripe.Subscription, kind: "updated" | "deleted" = "updated"): Promise<ProEventResult> {
   if (!isOurProMetadata(sub.metadata)) return "not_ours";
@@ -280,20 +287,28 @@ export async function handleProSubscriptionChanged(sub: Stripe.Subscription, kin
     const data: Prisma.ProSubscriptionUpdateInput = {};
     if (row.cancelAtPeriodEnd !== sub.cancel_at_period_end) data.cancelAtPeriodEnd = sub.cancel_at_period_end;
     if (periodEnd && periodEnd > row.currentPeriodEnd) data.currentPeriodEnd = periodEnd;
+    let ends = false;
     if (kind === "deleted") {
       data.status = "ENDED";
       data.endedAt = subscriptionEndedAt(sub) ?? new Date();
+      ends = true;
     } else if (row.status !== "CANCELED") {
       const status = STATUS_FROM_STRIPE[sub.status];
       if (status && status !== row.status) data.status = status;
+      if (status === "CANCELED") {
+        data.endedAt = subscriptionEndedAt(sub) ?? new Date();
+        ends = true;
+      }
     }
     if (Object.keys(data).length === 0) return null;
     await tx.proSubscription.update({ where: { id: row.id }, data });
-    return { userId: row.userId };
+    const wasLive = row.status === "ACTIVE" || row.status === "PAST_DUE";
+    const tell = ends && wasLive && !row.endedAt && sub.status !== "incomplete_expired";
+    return { userId: row.userId, tell };
   });
   if (!step) return "already";
 
-  if (kind === "deleted" && step.userId) {
+  if (step.tell && step.userId) {
     try {
       await notify({ userId: step.userId, type: "PAYMENT", title: PRO_ENDED_TITLE, body: PRO_ENDED_BODY, url: "/dashboard/payments", sms: false });
     } catch (e) {

@@ -57,6 +57,7 @@ import {
   isOurProMetadata,
 } from "@/lib/pro/stripe-events";
 import { fakeProInvoice, fakeProSession, fakeProSubscription } from "@/lib/pro/mock";
+import { legacyInvoice, legacySubscription } from "./legacy-shapes";
 
 const META = { app: "naseebak", kind: "pro", userId: "u1", plan: "monthly", country: "JO", paymentId: "pay1" };
 const T0 = Math.floor(new Date("2026-11-09T10:00:00Z").getTime() / 1000);
@@ -301,10 +302,46 @@ describe("handleProSubscriptionChanged", () => {
     expect(store.subs[0].currentPeriodEnd).toEqual(new Date(T2 * 1000));
   });
 
-  it("Stripe 'canceled' on an update → CANCELED", async () => {
+  it("Stripe 'canceled' on an update → CANCELED with endedAt, one ended notice even when deleted follows", async () => {
     await live();
-    await handleProSubscriptionChanged(fakeProSubscription({ id: "sub_1", metadata: META, status: "canceled", periodEnd: T1 }));
+    await handleProSubscriptionChanged(fakeProSubscription({ id: "sub_1", metadata: META, status: "canceled", periodEnd: T1, endedAt: T0 + 50 }));
     expect(store.subs[0].status).toBe("CANCELED");
+    expect(store.subs[0].endedAt).toEqual(new Date((T0 + 50) * 1000));
+    expect(notifyMock.notify).toHaveBeenCalledTimes(1);
+    expect(notifyMock.notify).toHaveBeenCalledWith(expect.objectContaining({ title: "انتهت عضوية Pro" }));
+    await handleProSubscriptionChanged(fakeProSubscription({ id: "sub_1", metadata: META, status: "canceled", periodEnd: T1, endedAt: T0 + 50 }), "deleted");
+    expect(store.subs[0].status).toBe("ENDED");
+    expect(notifyMock.notify).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(["unpaid", "paused"] as const)("Stripe '%s' (it stopped collecting, no deletion follows) → not live, endedAt, ended notice", async (status) => {
+    await live();
+    expect(await handleProSubscriptionChanged(fakeProSubscription({ id: "sub_1", metadata: META, status, periodEnd: T2 }))).toBe("ok");
+    expect(store.subs[0].status).toBe("CANCELED");
+    expect(store.subs[0].endedAt).toBeInstanceOf(Date);
+    expect(notifyMock.notify).toHaveBeenCalledTimes(1);
+    expect(notifyMock.notify).toHaveBeenCalledWith(expect.objectContaining({ userId: "u1", title: "انتهت عضوية Pro", sms: false }));
+    // Never live again from a later update, and no repeated notice
+    await handleProSubscriptionChanged(fakeProSubscription({ id: "sub_1", metadata: META, status: "active", periodEnd: T2 }));
+    expect(store.subs[0].status).toBe("CANCELED");
+    expect(notifyMock.notify).toHaveBeenCalledTimes(1);
+  });
+
+  it("past_due stays live (Stripe is still retrying)", async () => {
+    await live();
+    await handleProSubscriptionChanged(fakeProSubscription({ id: "sub_1", metadata: META, status: "past_due", periodEnd: T2 }));
+    expect(store.subs[0].status).toBe("PAST_DUE");
+    expect(store.subs[0].endedAt).toBeNull();
+    expect(notifyMock.notify).not.toHaveBeenCalled();
+  });
+
+  it("incomplete_expired (the first payment never went through): not live, endedAt, no ended notice", async () => {
+    pendingCheckoutRow();
+    await handleProCheckoutCompleted({ ...session(), payment_status: "unpaid" } as never);
+    await handleProSubscriptionChanged(fakeProSubscription({ id: "sub_1", metadata: META, status: "incomplete_expired", periodEnd: T1 }));
+    expect(store.subs[0].status).toBe("CANCELED");
+    expect(store.subs[0].endedAt).toBeInstanceOf(Date);
+    expect(notifyMock.notify).not.toHaveBeenCalled();
   });
 
   it("customer.subscription.deleted → ENDED with endedAt and one notice", async () => {
@@ -329,5 +366,52 @@ describe("handleProSubscriptionChanged", () => {
   it("an unknown subscription is left alone", async () => {
     expect(await handleProSubscriptionChanged(fakeProSubscription({ id: "sub_9", metadata: META, status: "active", periodEnd: T1 }))).toBe("already");
     expect(store.subs).toHaveLength(0);
+  });
+});
+
+describe("an endpoint on a Stripe API version before 2025-03-31 (older payload shapes)", () => {
+  const oldFirst = (over: Partial<Parameters<typeof fakeProInvoice>[0]> = {}) => legacyInvoice(firstInvoice(over));
+
+  it("invoice.paid: completes the checkout payment, sets the period and grants, as with the new shape", async () => {
+    pendingCheckoutRow();
+    expect(await handleProInvoicePaid(oldFirst())).toBe("ok");
+    expect(store.subs).toHaveLength(1);
+    expect(store.subs[0]).toMatchObject({ userId: "u1", stripeSubscriptionId: "sub_1", status: "ACTIVE", creditsPerGrant: 8 });
+    expect(store.subs[0].currentPeriodEnd).toEqual(new Date(T1 * 1000));
+    expect(store.payments[0]).toMatchObject({ id: "pay1", status: "COMPLETED", providerTxId: "in_1" });
+    expect(grants.keys).toEqual(new Set(["invoice:in_1"]));
+    // A renewal in the old shape moves the period too
+    expect(await handleProInvoicePaid(oldFirst({ id: "in_2", periodStart: T1, periodEnd: T2, billingReason: "subscription_cycle" }))).toBe("ok");
+    expect(store.subs[0].currentPeriodEnd).toEqual(new Date(T2 * 1000));
+  });
+
+  it("invoice.paid of another site in the old shape is still 'not_ours'", async () => {
+    const other = { ...META, app: "other" };
+    expect(await handleProInvoicePaid(oldFirst({ metadata: other }))).toBe("not_ours");
+    expect(db.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("invoice.payment_failed: PAST_DUE", async () => {
+    pendingCheckoutRow();
+    await handleProInvoicePaid(oldFirst());
+    expect(await handleProInvoiceFailed(oldFirst({ id: "in_2", billingReason: "subscription_cycle" }))).toBe("ok");
+    expect(store.subs[0].status).toBe("PAST_DUE");
+  });
+
+  it("customer.subscription.updated: the period end comes from the top-level current_period_end", async () => {
+    pendingCheckoutRow();
+    await handleProInvoicePaid(oldFirst());
+    const updated = legacySubscription(fakeProSubscription({ id: "sub_1", metadata: META, status: "active", periodEnd: T2, cancelAtPeriodEnd: true }));
+    expect(await handleProSubscriptionChanged(updated)).toBe("ok");
+    expect(store.subs[0]).toMatchObject({ cancelAtPeriodEnd: true, status: "ACTIVE" });
+    expect(store.subs[0].currentPeriodEnd).toEqual(new Date(T2 * 1000));
+  });
+
+  it("customer.subscription.deleted: ENDED", async () => {
+    pendingCheckoutRow();
+    await handleProInvoicePaid(oldFirst());
+    const deleted = legacySubscription(fakeProSubscription({ id: "sub_1", metadata: META, status: "canceled", periodEnd: T1, endedAt: T0 + 100 }));
+    expect(await handleProSubscriptionChanged(deleted, "deleted")).toBe("ok");
+    expect(store.subs[0].status).toBe("ENDED");
   });
 });

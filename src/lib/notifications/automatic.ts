@@ -1402,7 +1402,7 @@ export const AUTOMATIC_NOTIFICATIONS: AutomaticNotification[] = [
   {
     "key": "pro-ended",
     "group": "pro",
-    "when": "A Pro membership ends: the subscription is cancelled or expires at Stripe, or an admin cancels it now.",
+    "when": "A Pro membership ends: the subscription is cancelled or expires at Stripe, Stripe stops collecting after failed renewals (unpaid or paused), or an admin cancels it now.",
     "who": "The subscriber",
     "channels": [
       "bell",

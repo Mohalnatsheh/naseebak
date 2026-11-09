@@ -88,6 +88,21 @@ describe("Stripe charge events", () => {
     expect(db.payment.updateMany).not.toHaveBeenCalled();
   });
 
+  it("an older-API charge payload names its invoice directly: no InvoicePayment lookup needed", async () => {
+    db.payment.findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce({ id: "p9", status: "COMPLETED", userId: "u1", planName: "pro_monthly" });
+    const charge = { id: "ch_9", payment_intent: "pi_9", invoice: "in_9", refunded: false, amount: 564, amount_refunded: 100, currency: "usd" } as never;
+    expect(await handleChargeRefunded(charge)).toBe("partial");
+    expect(invoices.invoiceIdForPaymentIntent).not.toHaveBeenCalled();
+    expect(db.payment.findFirst).toHaveBeenLastCalledWith(expect.objectContaining({ where: { providerTxId: "in_9", provider: "STRIPE" } }));
+  });
+
+  it("an older-API charge whose invoice field is expanded is read too", async () => {
+    db.payment.findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce({ id: "p9", status: "COMPLETED", userId: "u1", planName: "pro_monthly" });
+    const charge = { id: "ch_9", payment_intent: { id: "pi_9" }, invoice: { id: "in_9" }, refunded: false, amount: 564, amount_refunded: 100, currency: "usd" } as never;
+    expect(await handleChargeRefunded(charge)).toBe("partial");
+    expect(db.payment.findFirst).toHaveBeenLastCalledWith(expect.objectContaining({ where: { providerTxId: "in_9", provider: "STRIPE" } }));
+  });
+
   it("a partial refund only alerts the admins", async () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const charge: any = { id: "ch_1", payment_intent: "pi_1", refunded: false, amount: 564, amount_refunded: 100, currency: "usd" };

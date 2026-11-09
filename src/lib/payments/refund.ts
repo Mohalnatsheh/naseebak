@@ -17,6 +17,7 @@ import { findAnyPackage, formatPaidCharge } from "@/lib/payments/packages";
 import { planFromName } from "@/lib/pro/plans";
 import { cancelProNow, endProLocally } from "@/lib/pro/manage";
 import { invoiceIdForPaymentIntent } from "@/lib/pro/invoice-payments";
+import { chargeInvoiceId } from "@/lib/pro/stripe-shapes";
 
 export type RefundResult = "refunded" | "already" | "not_found";
 
@@ -139,7 +140,7 @@ async function endProAfterRefund(subscriptionId: string, payment: { id: string; 
 
 /**
  * Our Payment row for a Stripe charge. Packages store the payment intent id as providerTxId (fulfil); a Pro payment
- * stores its invoice id, found through the payment intent's invoice when no package matches.
+ * stores its invoice id: an older-API payload names it on the charge, otherwise the payment intent's invoice is looked up.
  */
 export async function findPaymentForCharge(charge: Pick<Stripe.Charge, "payment_intent">) {
   const pi = typeof charge.payment_intent === "string" ? charge.payment_intent : charge.payment_intent?.id;
@@ -147,7 +148,7 @@ export async function findPaymentForCharge(charge: Pick<Stripe.Charge, "payment_
   const select = { id: true, status: true, userId: true, amount: true, currency: true, planName: true } as const;
   const byIntent = await db.payment.findFirst({ where: { providerTxId: pi, provider: "STRIPE" }, select });
   if (byIntent) return byIntent;
-  const invoiceId = await invoiceIdForPaymentIntent(pi);
+  const invoiceId = chargeInvoiceId(charge) ?? (await invoiceIdForPaymentIntent(pi));
   if (!invoiceId) return null;
   return db.payment.findFirst({ where: { providerTxId: invoiceId, provider: "STRIPE" }, select });
 }

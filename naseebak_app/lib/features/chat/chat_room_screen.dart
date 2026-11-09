@@ -120,10 +120,21 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
   final List<String> _filesInUse = [];
   ProviderSubscription<bool?>? _countsPro;
 
+  /// Pro, payments and the counts: a recording stops when they no longer allow voice notes
+  final List<ProviderSubscription<Object?>> _voiceWatch = [];
+
   /// Read once: used again in dispose (no ref there)
   late final ChatDrafts _drafts;
+  late final int _draftsGeneration;
   late final StoreReview _review;
   late final String? _draftOwner;
+
+  /// The member who opened this chat is no longer signed in (a sign-out, a 401): nothing is kept or asked any more
+  bool _signedOut = false;
+  ProviderSubscription<String?>? _session;
+
+  /// Reported or ended in this visit: no rating sheet on leaving
+  bool _reportedOrEnded = false;
 
   /// While the media buttons are locked (no Pro), `/api/pro` is re-read now and then: Pro bought in the browser or on
   /// another phone unlocks them without leaving the chat
@@ -144,13 +155,31 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
       if (next == null || prev == next) return;
       if (ref.read(proStateProvider).valueOrNull?.isPro != next) ref.invalidate(proStateProvider);
     });
+    // The chat closing (poll / load) or Pro going away mid-recording releases the microphone: from these changes,
+    // never as a side effect of build
+    _voiceWatch
+      ..add(ref.listenManual(proStateProvider, (_, _) => _dropVoiceIfNotAllowed()))
+      ..add(ref.listenManual(countsProvider, (_, _) => _dropVoiceIfNotAllowed()))
+      ..add(ref.listenManual(appPaymentsProvider, (_, _) => _dropVoiceIfNotAllowed()));
     _scroll.addListener(_onScroll);
     // What was typed here before (back, or the app killed in the background)
     _drafts = ref.read(chatDraftsProvider);
     _review = ref.read(storeReviewProvider);
+    _draftsGeneration = _drafts.generation;
     _draftOwner = _memberId;
-    final draft = _draftOwner == null ? null : _drafts.read(_draftOwner, widget.chatId);
-    if (draft != null) _input.text = draft;
+    // Heard before the router removes this screen after a sign-out (its dispose then keeps nothing)
+    _session = ref.listenManual(
+      authControllerProvider.select((a) => a.isSignedIn ? a.me?.id : null),
+      (_, id) {
+        if (id != _draftOwner) _signedOut = true;
+      },
+    );
+    final owner = _draftOwner;
+    if (owner != null) {
+      _drafts.read(owner, widget.chatId).then((draft) {
+        if (draft != null && mounted && !_signedOut && _input.text.isEmpty) _input.text = draft;
+      });
+    }
     _proCheck = Timer.periodic(_proCheckEvery, (_) {
       if (!mounted || _background || !ref.read(appPaymentsProvider)) return;
       final chat = _chat;
@@ -161,7 +190,8 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
 
   void _saveDraft() {
     final owner = _draftOwner;
-    if (owner != null) unawaited(_drafts.write(owner, widget.chatId, _input.text));
+    if (owner == null || _signedOut) return;
+    unawaited(_drafts.write(owner, widget.chatId, _input.text, since: _draftsGeneration));
   }
 
   @override
@@ -169,8 +199,13 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     WidgetsBinding.instance.removeObserver(this);
     _saveDraft();
     // A real conversation (both have written): the store's rating sheet, once per install, as the chat is left
+    // Not after a sign-out (it would show over the sign-in page), nor after a report, an end or a block
     final sent = _messages.where((m) => m.state == SendState.sent);
-    if (sent.any((m) => m.mine) && sent.any((m) => !m.mine)) unawaited(_review.afterConversation());
+    final stillOpen = _chat?.status == 'ACTIVE' && !(_chat?.blocked ?? false) && !_reportedOrEnded;
+    if (!_signedOut && stillOpen && sent.any((m) => m.mine) && sent.any((m) => !m.mine)) {
+      unawaited(_review.afterConversation());
+    }
+    _session?.close();
     _proCheck?.cancel();
     _stopPolling();
     _live?.cancel();
@@ -183,6 +218,9 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
       }
     }
     _countsPro?.close();
+    for (final w in _voiceWatch) {
+      w.close();
+    }
     _playback
       ..canPlay = null
       ..closeAll();
@@ -297,6 +335,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
         // A text kept as failed (offline) that the server saved after all
         _reconcile(page.messages);
       });
+      _dropVoiceIfNotAllowed();
       _saveCache();
       _markRead();
       _watch();
@@ -410,6 +449,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
         }
         _reconcile(fresh);
       });
+      _dropVoiceIfNotAllowed();
       if (fresh.isNotEmpty || changed) _saveCache();
       if (fresh.any((m) => !m.mine)) _markRead();
       _watch();
@@ -630,6 +670,8 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     }
     final seconds = retry?.media?.durationSec ?? durationSec;
     final voice = k == MessageKind.voice;
+    // A photo is always JPEG: `chatPhotoPickerProvider` sets imageQuality, which makes image_picker re-encode (HEIC
+    // included); the server also checks the bytes. Keep the two together if the picker changes.
     final mime = voice ? 'audio/mp4' : 'image/jpeg';
     final nonce = retry?.nonce ?? _newNonce();
     final local = ChatMessage(
@@ -728,6 +770,17 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
       canBuy: pro?.canBuy ?? false,
       chatActive: chat.status == 'ACTIVE',
     );
+  }
+
+  /// The chat closed or Pro went away mid-recording: release the microphone, the bar goes back to idle
+  void _dropVoiceIfNotAllowed() {
+    if (_voice == _Voice.idle) return;
+    // Not in the middle of a provider notification or a build
+    Future.microtask(() {
+      if (!mounted || _voice == _Voice.idle || _voiceAllowed) return;
+      _releaseVoice();
+      setState(() => _voice = _Voice.idle);
+    });
   }
 
   /// Voice notes are still allowed right now (Pro, chat open). Read, not watched: used after an await.
@@ -1005,6 +1058,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     }
     try {
       await _repo.end(widget.chatId, reportReason: reason, details: details);
+      _reportedOrEnded = true;
       if (mounted) showSnack(context, report ? 'تم إنهاء المحادثة والإبلاغ' : 'تم إنهاء المحادثة');
       await _poll();
     } catch (e) {
@@ -1266,14 +1320,6 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     // Photo and voice follow Pro: usable, greyed with a «Pro» tag for a member who could buy it, or hidden
     final media = _mediaMode(chat);
     final canSend = chat.canSend && _chatEnabled;
-    // The chat closed or Pro went away mid-recording: release the microphone, the bar goes back to idle
-    if (_voice != _Voice.idle && (!canSend || media != MediaButtons.enabled)) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted || _voice == _Voice.idle || _voiceAllowed) return;
-        _releaseVoice();
-        setState(() => _voice = _Voice.idle);
-      });
-    }
     if (!canSend) {
       final text = !_chatEnabled
           ? 'المحادثات متوقفة حالياً.'
@@ -1320,6 +1366,8 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
                   icon: Icons.mic_none_rounded,
                   tooltip: locked ? 'الرسائل الصوتية مع Pro' : 'رسالة صوتية',
                   locked: locked,
+                  // The microphone prompt or the recorder starting: a spinner, not a dead tap
+                  busy: _voice == _Voice.starting,
                   onPressed: locked ? _openPro : _startVoice,
                 ),
               ),
@@ -1370,8 +1418,10 @@ class _MediaButton extends StatelessWidget {
     required this.tooltip,
     required this.locked,
     required this.onPressed,
+    this.busy = false,
   });
 
+  final bool busy;
   final Key tagKey;
   final IconData icon;
   final String tooltip;
@@ -1386,12 +1436,20 @@ class _MediaButton extends StatelessWidget {
       child: Stack(
         alignment: Alignment.center,
         children: [
-          IconButton(
-            tooltip: tooltip,
-            onPressed: onPressed,
-            style: IconButton.styleFrom(minimumSize: const Size(48, 52)),
-            icon: Icon(icon, color: locked ? AppColors.muted.withValues(alpha: 0.6) : AppColors.navy),
-          ),
+          if (busy)
+            const SizedBox(
+              key: Key('chat-media-busy'),
+              width: 22,
+              height: 22,
+              child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.navy),
+            )
+          else
+            IconButton(
+              tooltip: tooltip,
+              onPressed: onPressed,
+              style: IconButton.styleFrom(minimumSize: const Size(48, 52)),
+              icon: Icon(icon, color: locked ? AppColors.muted.withValues(alpha: 0.6) : AppColors.navy),
+            ),
           if (locked)
             PositionedDirectional(
               top: 4,

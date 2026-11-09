@@ -6,6 +6,7 @@ import 'package:naseebak_app/app/providers.dart';
 import 'package:naseebak_app/core/analytics/analytics.dart';
 import 'package:naseebak_app/core/auth/auth_controller.dart';
 import 'package:naseebak_app/core/review/store_review.dart';
+import 'package:naseebak_app/core/storage/picker_files.dart';
 import 'package:naseebak_app/core/storage/token_store.dart';
 import 'package:naseebak_app/features/chat/chat_cache.dart';
 import 'package:naseebak_app/features/chat/chat_drafts.dart';
@@ -411,14 +412,16 @@ void main() {
       final adapter = FakeAdapter()
         ..on('GET', '/api/chats/c1', FakeResponse(200, page([1])))
         ..on('POST', '/api/chats/c1/messages', FakeResponse(200, {'message': {...msg(50, mine: true), 'body': 'نص محفوظ'}}));
-      final container = await openRoom(tester, adapter, MemoryChatCache());
+      final drafts = MemoryChatDrafts();
+      final container = await openRoom(tester, adapter, MemoryChatCache(), extra: [chatDraftsProvider.overrideWithValue(drafts)]);
       await tester.pumpAndSettle();
       await tester.enterText(find.byKey(const Key('chat-input')), 'نص محفوظ');
       // The app goes to the background (Android may kill it there)
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
-      expect(container.read(chatDraftsProvider).read('u1', 'c1'), 'نص محفوظ');
+      await tester.pump();
+      expect(drafts.data['u1/c1'], 'نص محفوظ');
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
@@ -432,11 +435,53 @@ void main() {
       expect(input.controller!.text, 'نص محفوظ');
       await tester.tap(find.byKey(const Key('chat-send')));
       await tester.pumpAndSettle();
-      expect(container.read(chatDraftsProvider).read('u1', 'c1'), isNull);
+      await tester.pump();
+      expect(drafts.data['u1/c1'], isNull);
+    });
 
-      await container.read(chatDraftsProvider).write('u1', 'c2', 'مسودة');
-      await container.read(chatDraftsProvider).clearAll();
-      expect(container.read(chatDraftsProvider).read('u1', 'c2'), isNull);
+    testWidgets('a forced sign-out with a chat open and text typed keeps no draft and asks no rating', (tester) async {
+      final drafts = MemoryChatDrafts();
+      final fake = _Review();
+      final adapter = FakeAdapter()
+        ..on('GET', '/api/chats/c1', FakeResponse(200, {...page([]), 'messages': [msg(1, mine: true), msg(2)]}));
+      final container = await openRoom(tester, adapter, MemoryChatCache(), extra: [
+        chatDraftsProvider.overrideWithValue(drafts),
+        pickerFilesCleanerProvider.overrideWithValue(() async {}),
+        storeReviewProvider.overrideWith((ref) => StoreReview(ref.watch(sharedPreferencesProvider), AppAnalytics(false), review: fake)),
+      ]);
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byKey(const Key('chat-input')), 'رقم سري');
+      // A 401: the session goes, then the router removes the chat
+      container.read(authControllerProvider.notifier).handleUnauthorized();
+      for (var i = 0; i < 20 && container.read(authControllerProvider).isSignedIn; i++) {
+        await tester.pump(const Duration(milliseconds: 10));
+      }
+      expect(container.read(authControllerProvider).isSignedIn, isFalse);
+      await tester.pumpWidget(UncontrolledProviderScope(container: container, child: const SizedBox()));
+      await tester.pump(const Duration(seconds: 1));
+      expect(drafts.data, isEmpty);
+      expect(fake.requests, 0);
+    });
+
+    testWidgets('leaving a chat just ended asks no rating', (tester) async {
+      final fake = _Review();
+      final adapter = FakeAdapter()
+        ..on('GET', '/api/chats/c1', FakeResponse(200, {...page([]), 'messages': [msg(1, mine: true), msg(2)]}))
+        ..on('POST', '/api/chats/c1/end', const FakeResponse(200, {'ok': true}));
+      final container = await openRoom(tester, adapter, MemoryChatCache(), extra: [
+        storeReviewProvider.overrideWith((ref) => StoreReview(ref.watch(sharedPreferencesProvider), AppAnalytics(false), review: fake)),
+      ]);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('خيارات'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('إنهاء المحادثة').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'إنهاء'));
+      await tester.pumpAndSettle();
+      expect(adapter.to('POST', '/api/chats/c1/end'), hasLength(1));
+      await tester.pumpWidget(UncontrolledProviderScope(container: container, child: const SizedBox()));
+      await tester.pump(const Duration(seconds: 1));
+      expect(fake.requests, 0);
     });
 
     testWidgets('an ended chat has no «لحمايتك» line over «للقراءة فقط»', (tester) async {

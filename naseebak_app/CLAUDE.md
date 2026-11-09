@@ -117,8 +117,10 @@ needed a release.
   home asks once after setup (`PushAskGate`, prefs `push_explained`) with what the notices are for, then the system
   prompt; «لاحقاً» leaves the «الإشعارات غير مفعّلة» card.
 - **Chat on the phone (2026-11-10):** failed texts are kept in `ChatCache` (`failed`) and sorted by time with «حذف»;
-  the composer draft is kept per chat in shared preferences (`ChatDrafts`), wiped on send and sign-out; photo-picker
-  copies are deleted after upload and on sign-out (`core/storage/picker_files.dart`); a refused microphone offers
+  the composer draft is kept per chat in the cache directory like `ChatCache` (`ChatDrafts`, never backed up), wiped
+  on send and sign-out (a chat room disposed after a sign-out writes nothing back); photo-picker copies are deleted
+  after upload and on sign-out, and `voice-*.m4a` left by a killed run at start and on sign-out
+  (`core/storage/picker_files.dart`); a refused microphone offers
   «الإعدادات» (`openAppSettings` on the `naseebak/system` channel). The splash plays in full on the first launch only
   (0.6 s after). A paused account can open `/pro` (renewal shown on the paused page); `/pro` sends test accounts home.
 - **Config gate:** `GET /api/mobile/config` on start and every resume → force update / optional update / store links /

@@ -38,11 +38,36 @@ Future<void> clearPickerFiles(Directory tmp) async {
   } catch (_) {}
 }
 
-/// Sign-out clean-up (tests replace it)
+/// Voice notes recorded in the chat (`voice-<time>.m4a`, `voice_recorder.dart`). One is left behind when the app is
+/// killed mid-recording or with a note still sending or failed; they are private too. Swept on sign-out and at
+/// start (nothing is recording or sending then).
+final _voiceNote = RegExp(r'^voice-\d+\.m4a$');
+
+bool isVoiceNoteName(String name) => _voiceNote.hasMatch(name);
+
+Future<void> clearVoiceFiles(Directory tmp) async {
+  try {
+    if (!tmp.existsSync()) return;
+    for (final e in tmp.listSync()) {
+      if (e is File && isVoiceNoteName(_name(e.path))) e.deleteSync();
+    }
+  } catch (_) {}
+}
+
+/// Sign-out clean-up: the photo picker's copies and the voice notes (tests replace it)
 final pickerFilesCleanerProvider = Provider<Future<void> Function()>((ref) => () async {
       try {
-        await clearPickerFiles(await getTemporaryDirectory());
+        final tmp = await getTemporaryDirectory();
+        await clearPickerFiles(tmp);
+        await clearVoiceFiles(tmp);
       } catch (_) {
         // No path provider (tests)
       }
     });
+
+/// At start: voice notes left by a previous run (killed while recording or sending)
+Future<void> sweepVoiceFilesAtStart() async {
+  try {
+    await clearVoiceFiles(await getTemporaryDirectory());
+  } catch (_) {}
+}

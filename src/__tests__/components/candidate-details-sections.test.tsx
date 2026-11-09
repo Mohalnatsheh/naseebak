@@ -1,0 +1,30 @@
+import { describe, it, expect, vi } from "vitest";
+import { render, screen } from "@testing-library/react";
+
+vi.mock("@/contexts/dashboard-context", () => ({
+  useDashboardData: () => ({ profile: { gender: "MALE" }, country: "SA" }),
+}));
+
+import { CandidateDetails, type CandidateDetailsData } from "@/components/suggestions/candidate-details";
+
+const base: CandidateDetailsData = {
+  age: 28, city: "الرياض", area: null, nationality: "سعودية", education: "بكالوريوس", fieldOfStudy: null,
+  job: "معلمة", incomeRange: null, height: null, weight: null, skinColor: null, maritalStatus: "عزباء",
+  childrenCount: 0, religiosity: "ملتزم", smokingStatus: null, hobbies: null, interests: null, lifestyle: null,
+  beard: null, hijab: true, niqab: false, tribe: null, familyOriginArea: null, numberOfSiblings: null,
+  housingType: null, cookingAbility: null, drivingLicense: null, willingToRelocate: null, familyValues: null,
+};
+
+describe("CandidateDetails sections", () => {
+  it("leaves out a section with nothing answered in it", () => {
+    render(<CandidateDetails c={base} />);
+    expect(screen.getByText("المعلومات الشخصية")).toBeTruthy();
+    expect(screen.queryByText("العائلة")).toBeNull();
+  });
+
+  it("shows the family section once one answer is there", () => {
+    render(<CandidateDetails c={{ ...base, numberOfSiblings: 3 }} />);
+    expect(screen.getByText("العائلة")).toBeTruthy();
+    expect(screen.getByText("عدد الإخوة")).toBeTruthy();
+  });
+});

@@ -122,6 +122,8 @@ function PaymentsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [packages, setPackages] = useState<CreditPackage[]>([]);
+  // False while the member's country is not selling (prices not approved, switched off): say so before any click
+  const [purchasesEnabled, setPurchasesEnabled] = useState(true);
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
   const [matchCredits, setMatchCredits] = useState(0);
   // Plans/history didn't load: never show a balance of 0 or an empty package list as if real
@@ -154,6 +156,7 @@ function PaymentsContent() {
       setLoadFailed(false);
 
       setPackages(plansData.packages || []);
+      setPurchasesEnabled(plansData.purchasesEnabled !== false);
       if (plansData.country) setPlanCountry(plansData.country);
       setPayments(histData.payments || []);
       setMatchCredits(histData.matchCredits ?? 0);
@@ -474,6 +477,12 @@ function PaymentsContent() {
         </section>
       )}
 
+      {!purchasesEnabled && (
+        <div role="status" className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          شراء الرصيد غير متاح في دولتك حالياً. سنُعلمك عند توفره.
+        </div>
+      )}
+
       {/* Credit Packages */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
         {packages.map((pkg, index) => {
@@ -645,7 +654,7 @@ function PaymentsContent() {
                         : "bg-primary text-primary-foreground shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 hover:brightness-110"
                     }`}
                     onClick={() => handlePurchase(pkg.id, pkg.name)}
-                    disabled={purchasing === pkg.id}
+                    disabled={purchasing === pkg.id || !purchasesEnabled}
                   >
                     {purchasing === pkg.id ? (
                       <Loader2 className="h-5 w-5 animate-spin" />

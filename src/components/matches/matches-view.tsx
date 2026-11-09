@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { useState, useEffect, useCallback, useRef } from "react";
+import { hasShownRows } from "@/components/shared/section-rows";
 import {
   Loader2,
   Heart,
@@ -210,6 +211,8 @@ function Section({
 }) {
   const [open, setOpen] = useState(defaultOpen);
 
+  // Every row empty: no heading with nothing under it
+  if (!hasShownRows(children, InfoRow)) return null;
   return (
     <div className="border border-border/40 rounded-xl overflow-hidden bg-card/50">
       <button

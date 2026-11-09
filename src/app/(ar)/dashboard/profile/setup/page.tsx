@@ -7,6 +7,7 @@ import { useAutoSave } from "@/hooks/use-auto-save";
 import { LoadError } from "@/components/shared/load-error";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { NumberInput } from "@/components/shared/number-input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { areasFor, citiesFor } from "@/lib/countries/places";
 import { COUNTRIES, toCountry, type CountryCode } from "@/lib/countries";
@@ -674,10 +675,10 @@ export default function ProfileSetupPage() {
 
             <div className="grid grid-cols-2 gap-4">
               <Field id="height" label="الطول (سم)" optional error={fieldErrors.height}>
-                <Input id="height" type="number" value={form.height} onChange={(e) => update("height", e.target.value)} placeholder="170" dir="ltr" aria-invalid={!!fieldErrors.height} className={inputError(!!fieldErrors.height)} />
+                <NumberInput id="height" value={form.height} onChange={(e) => update("height", e.target.value)} placeholder="170" dir="ltr" aria-invalid={!!fieldErrors.height} className={inputError(!!fieldErrors.height)} />
               </Field>
               <Field id="weight" label={`الوزن (${country.words.kg})`} optional error={fieldErrors.weight}>
-                <Input id="weight" type="number" value={form.weight} onChange={(e) => update("weight", e.target.value)} placeholder="70" dir="ltr" aria-invalid={!!fieldErrors.weight} className={inputError(!!fieldErrors.weight)} />
+                <NumberInput id="weight" value={form.weight} onChange={(e) => update("weight", e.target.value)} placeholder="70" dir="ltr" aria-invalid={!!fieldErrors.weight} className={inputError(!!fieldErrors.weight)} />
               </Field>
             </div>
 
@@ -716,7 +717,7 @@ export default function ProfileSetupPage() {
 
             {form.maritalStatus && form.maritalStatus !== "أعزب/عزباء" && (
               <Field id="childrenCount" label="عدد الأبناء" error={fieldErrors.childrenCount}>
-                <Input id="childrenCount" type="number" value={form.childrenCount} onChange={(e) => update("childrenCount", e.target.value)} placeholder="0" min={0} max={20} dir="ltr" aria-invalid={!!fieldErrors.childrenCount} className={inputError(!!fieldErrors.childrenCount)} />
+                <NumberInput id="childrenCount" value={form.childrenCount} onChange={(e) => update("childrenCount", e.target.value)} placeholder="0" min={0} max={20} dir="ltr" aria-invalid={!!fieldErrors.childrenCount} className={inputError(!!fieldErrors.childrenCount)} />
               </Field>
             )}
 
@@ -809,10 +810,10 @@ export default function ProfileSetupPage() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <Field id="prefAgeMin" label="العمر الأدنى" error={fieldErrors.prefAgeMin}>
-                  <Input id="prefAgeMin" type="number" value={form.prefAgeMin} onChange={(e) => update("prefAgeMin", e.target.value)} placeholder="18" min={18} max={70} dir="ltr" aria-invalid={!!fieldErrors.prefAgeMin} className={inputError(!!fieldErrors.prefAgeMin)} />
+                  <NumberInput id="prefAgeMin" value={form.prefAgeMin} onChange={(e) => update("prefAgeMin", e.target.value)} placeholder="18" min={18} max={70} dir="ltr" aria-invalid={!!fieldErrors.prefAgeMin} className={inputError(!!fieldErrors.prefAgeMin)} />
                 </Field>
                 <Field id="prefAgeMax" label="العمر الأقصى" error={fieldErrors.prefAgeMax}>
-                  <Input id="prefAgeMax" type="number" value={form.prefAgeMax} onChange={(e) => update("prefAgeMax", e.target.value)} placeholder="40" min={18} max={70} dir="ltr" aria-invalid={!!fieldErrors.prefAgeMax} className={inputError(!!fieldErrors.prefAgeMax)} />
+                  <NumberInput id="prefAgeMax" value={form.prefAgeMax} onChange={(e) => update("prefAgeMax", e.target.value)} placeholder="40" min={18} max={70} dir="ltr" aria-invalid={!!fieldErrors.prefAgeMax} className={inputError(!!fieldErrors.prefAgeMax)} />
                 </Field>
               </div>
             </div>
@@ -878,7 +879,7 @@ export default function ProfileSetupPage() {
             </Field>
 
             <Field id="numberOfSiblings" label="عدد الإخوة والأخوات" optional error={fieldErrors.numberOfSiblings}>
-              <Input id="numberOfSiblings" type="number" value={form.numberOfSiblings} onChange={(e) => update("numberOfSiblings", e.target.value)} placeholder="0" min={0} max={20} dir="ltr" aria-invalid={!!fieldErrors.numberOfSiblings} className={inputError(!!fieldErrors.numberOfSiblings)} />
+              <NumberInput id="numberOfSiblings" value={form.numberOfSiblings} onChange={(e) => update("numberOfSiblings", e.target.value)} placeholder="0" min={0} max={20} dir="ltr" aria-invalid={!!fieldErrors.numberOfSiblings} className={inputError(!!fieldErrors.numberOfSiblings)} />
             </Field>
 
             <Field id="housingType" label="نوع السكن" optional>

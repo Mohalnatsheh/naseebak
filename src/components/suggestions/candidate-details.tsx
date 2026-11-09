@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { hasShownRows } from "@/components/shared/section-rows";
 import { useDashboardData } from "@/contexts/dashboard-context";
 import { countryConfig } from "@/lib/countries";
 import { describeOption, nationalityLabel, oppositeGender, tribeLabel } from "@/lib/profile-options";
@@ -84,6 +85,8 @@ function Section({
 }) {
   const [open, setOpen] = useState(defaultOpen);
 
+  // Every row empty: no heading with nothing under it
+  if (!hasShownRows(children, InfoRow)) return null;
   return (
     <div className="border border-border/40 rounded-xl overflow-hidden bg-card/50">
       <button

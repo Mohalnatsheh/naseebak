@@ -205,11 +205,12 @@ function getLevel(total: number): StrengthLevel {
 }
 
 const sectionTipMessages: Record<string, string> = {
-  basic: "أضف معلوماتك الأساسية لتحسين فرص التوافق",
-  preferences: "حدّد تفضيلاتك لتلقي اقتراحات أفضل",
-  quiz: "أكمل اختبار الشخصية لتحسين دقة التوافق",
-  photos: "أضف صورك لإكمال ملفك الشخصي",
-  family: "أكمل معلومات العائلة وولي الأمر",
+  // Shared texts (no gender here): no masculine command
+  basic: "إضافة معلوماتك الأساسية تحسّن فرص التوافق",
+  preferences: "تحديد تفضيلاتك يجلب اقتراحات أفضل",
+  quiz: "اختبار الشخصية يحسّن دقة التوافق",
+  photos: "إضافة صورك تُكمل ملفك الشخصي",
+  family: "إكمال معلومات العائلة وولي الأمر",
 };
 
 function generateTips(sections: CompletenessSection[]): StrengthTip[] {
@@ -219,7 +220,7 @@ function generateTips(sections: CompletenessSection[]): StrengthTip[] {
     if (section.percentage < 100) {
       const missingWeight = Math.round(((100 - section.percentage) / 100) * section.weight);
       tips.push({
-        message: sectionTipMessages[section.key] || `أكمل ${section.label}`,
+        message: sectionTipMessages[section.key] || `إكمال ${section.label}`,
         impact: missingWeight,
         link: section.link,
         sectionKey: section.key,

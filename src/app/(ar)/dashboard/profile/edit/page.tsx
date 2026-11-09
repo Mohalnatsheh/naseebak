@@ -17,6 +17,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { LoadError } from "@/components/shared/load-error";
 import { Input } from "@/components/ui/input";
+import { NumberInput } from "@/components/shared/number-input";
 import { Label } from "@/components/ui/label";
 import {
   Card,
@@ -848,9 +849,8 @@ export default function ProfileEditPage() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="edit-field-4">الطول (سم) <OptionalTag /></Label>
-                <Input
+                <NumberInput
                   id="edit-field-4"
-                  type="number"
                   value={form.height}
                   onChange={(e) => update("height", e.target.value)}
                   placeholder="170"
@@ -859,9 +859,8 @@ export default function ProfileEditPage() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="edit-field-5">الوزن ({country.words.kg}) <OptionalTag /></Label>
-                <Input
+                <NumberInput
                   id="edit-field-5"
-                  type="number"
                   value={form.weight}
                   onChange={(e) => update("weight", e.target.value)}
                   placeholder="70"
@@ -980,9 +979,8 @@ export default function ProfileEditPage() {
             {form.maritalStatus !== "أعزب/عزباء" && (
               <div className="space-y-2">
                 <RequiredLabel htmlFor="edit-field-7">عدد الأبناء</RequiredLabel>
-                <Input
+                <NumberInput
                   id="edit-field-7"
-                  type="number"
                   value={form.childrenCount}
                   onChange={(e) => update("childrenCount", e.target.value)}
                   placeholder="0"
@@ -1208,9 +1206,8 @@ export default function ProfileEditPage() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <RequiredLabel htmlFor="edit-field-12">العمر الأدنى</RequiredLabel>
-                <Input
+                <NumberInput
                   id="edit-field-12"
-                  type="number"
                   value={form.prefAgeMin}
                   onChange={(e) => update("prefAgeMin", e.target.value)}
                   placeholder="18"
@@ -1221,9 +1218,8 @@ export default function ProfileEditPage() {
               </div>
               <div className="space-y-2">
                 <RequiredLabel htmlFor="edit-field-13">العمر الأقصى</RequiredLabel>
-                <Input
+                <NumberInput
                   id="edit-field-13"
-                  type="number"
                   value={form.prefAgeMax}
                   onChange={(e) => update("prefAgeMax", e.target.value)}
                   placeholder="40"
@@ -1419,9 +1415,8 @@ export default function ProfileEditPage() {
 
             <div className="space-y-2">
               <Label htmlFor="edit-field-16">عدد الإخوة والأخوات <OptionalTag /></Label>
-              <Input
+              <NumberInput
                 id="edit-field-16"
-                type="number"
                 value={form.numberOfSiblings}
                 onChange={(e) =>
                   update("numberOfSiblings", e.target.value)

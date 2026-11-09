@@ -283,6 +283,12 @@ describe("calculateCompleteness", () => {
     expect(result.tips).toHaveLength(0);
   });
 
+  it("tips speak to men and women alike: no masculine command", () => {
+    const result = calculateCompleteness({});
+    expect(result.tips.length).toBeGreaterThan(0);
+    for (const tip of result.tips) expect(tip.message).not.toMatch(/^(أكمل|أضف|حدّد|حدد) /);
+  });
+
   it("tips max 3 items", () => {
     const user: UserForCompleteness = {};
     const result = calculateCompleteness(user);

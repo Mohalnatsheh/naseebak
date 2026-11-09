@@ -77,13 +77,26 @@ needed a release.
   back; Stripe returns to `naseebak.com/payments/return` («العودة إلى التطبيق» on Android opens `/dashboard/payments`).
   «Payments in the app» (`mobile_payments_enabled`) is ON since 2026-11-04; review/test accounts (`EXTRA_TEST_PHONES`)
   never see payments.
-- **Pro membership (1.1.0):** `lib/features/pro/` (repository, plans section on the credits screen, badge). Plans are
+- **Pro membership (1.1.0):** `lib/features/pro/` (repository, `ProScreen`, plans card, «اشتراكي», badge). Pro has
+  its own screen «عضوية Pro» at route `/pro` (`pro_screen.dart`, the website's `/dashboard/pro`; owner, 2026-11-10);
+  the credits screen keeps packages + history and one small «عضوية Pro» link card (`ProLinkCard`), and «حسابي» has an
+  «عضوية Pro» entry under «الرصيد والباقات». Links: `/dashboard/pro` → `/pro` (`appRouteForLink`, website links; matched
+  exactly, `/dashboard/profile` starts with it too), old `/credits?section=pro` redirects to `/pro`
+  (`creditsRedirect`). Plans are
   bought with Stripe in the phone's browser like credits (https only, `LaunchMode.externalApplication`); on the return
   the app re-reads `/api/pro` + counts for up to 10 s, then shows «سيتم تفعيل العضوية خلال لحظات». Cancel stops the
-  renewal only (no refund button: refunds are admin-only); «متابعة الاشتراك» resumes. The plans section shows only when
-  (`appPayments` && `canBuy`) or `isPro`. Pro members send photos (`image_picker`, ≤ 2048 px, JPEG q85, ≤ 10 MB) and
-  voice notes (`record`, AAC-LC 64 kbps `.m4a`, stops at 180 s and waits, never auto-sent) in an ACTIVE chat; non-Pro
-  members who can buy see the buttons greyed with a «Pro» tag that opens the plans; everyone else doesn't see them.
+  renewal only (no refund button: refunds are admin-only); «متابعة الاشتراك» resumes. **Test-account rule (owner,
+  2026-11-10):** every Pro purchase surface (the screen's content, the menu entry, the link card, «اشتراكي», the greyed
+  media buttons and the «عضوية Pro» link under a `PRO_REQUIRED` failure) needs `appPaymentsProvider` true:
+  `showPlans` = `appPayments && (canBuy || isPro)`. A test or review account (app payments off) sees none of it, even
+  if it is Pro, and `/pro` opened directly shows «عضوية Pro غير متاحة حالياً.»; it doesn't even read `/api/pro` there.
+  A Pro test account can still send media (sending is not a purchase). Never trust a server flag alone for this (e.g.
+  `/api/me/counts` `pro.showPage` can be true for a Pro test account): always AND it with `appPaymentsProvider`.
+  Pro members send photos (`image_picker`, ≤ 2048 px, JPEG q85, ≤ 10 MB) and
+  voice notes (`record`, AAC-LC 64 kbps mono `.m4a`, `voiceRecordConfig`, stops at 180 s and waits, never auto-sent) in an ACTIVE chat; non-Pro
+  members who can buy see the buttons greyed with a «Pro» tag that opens `/pro`; everyone else doesn't see them. A
+  `PRO_REQUIRED` upload failure shows the server's message with no «إعادة الإرسال» (plus the `/pro` link where
+  purchasable). A voice bubble shows the server's `durationSec`; the player's real length only drives the progress bar.
   Everyone sees and hears media sent to them. Media (`media.url`, relative) loads with the Bearer token, sent only to
   the API's own origin; voice plays through `just_audio` with `useProxyForRequestHeaders: false` (headers go straight
   to AVPlayer / ExoPlayer). **The server media route `GET /api/chats/{id}/media/{mid}` must never redirect** (players
@@ -135,8 +148,8 @@ Changing one of these on the server must keep old app versions working (members 
   (not uploaded yet). iOS: uploaded to App Store Connect / TestFlight the same day with `xcodebuild -exportArchive`
   (ExportOptions from `flutter build ipa`, `destination` = `upload`, `manageAppVersionAndBuildNumber` = false; uses
   the Xcode account, no API key). The 1.0.1 notes above say Play has 1.0.1 live; the App Store had only 1.0.0 then.
-- **1.1.0+4 (Pro, branch `feature/pro-membership`, not built for the stores yet):** Pro plans and «اشتراكي» on the
-  credits screen, photos and voice notes in chat (Pro to send, everyone to view and play), the Pro badge on cards,
+- **1.1.0+4 (Pro, branch `feature/pro-membership`, not built for the stores yet):** Pro plans and «اشتراكي» on their
+  own screen `/pro` (link card on the credits screen, entry in «حسابي»), photos and voice notes in chat (Pro to send, everyone to view and play), the Pro badge on cards,
   chats and home, `ChatCache` v2 (drops 1.0.x caches), image cache cleared on sign-out. New packages `record` and
   `just_audio`; new permissions: iOS `NSMicrophoneUsageDescription` («لتسجيل رسالة صوتية في المحادثة»), the photo text
   now covers chat, Android `RECORD_AUDIO`; privacy manifest adds `AudioData`. **Before upload, update the store privacy

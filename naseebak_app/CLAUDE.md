@@ -96,7 +96,7 @@ Changing one of these on the server must keep old app versions working (members 
 - **Ids:** Android `com.naseebak.naseebakApp` (the Play listing's fixed id since 2026-11-01; the Kotlin namespace and
   Firebase's first Android app `com.naseebak.naseebak_app` are leftovers), iOS bundle `com.naseebak.naseebakApp`,
   team `4S958MQTCR`, iPhone only, portrait, iOS 15+.
-- **Status (2026-11-04):** Google Play live with 1.0.0; App Store 1.0.0 (1) in review. Once Apple approves: set the iOS
+- **Status (2026-11-09):** Google Play live with 1.0.1 (required on Android since 2026-11-09); 1.0.2+3 built, not uploaded to Play, and in TestFlight. App Store: 1.0.0 (1) was in review (2026-11-04); no iPhone minimum version is set. Once Apple approves: set the iOS
   store link in Admin → Settings → «Mobile app», check Universal Links on an iPhone, remove the review numbers from
   `EXTRA_TEST_PHONES` on the server.
 - **1.0.1+2 (Play, bundle rebuilt 2026-11-09 from `f523654`, not uploaded yet):** free «مهتم» reply (follows

@@ -145,6 +145,7 @@ class _Harness {
     });
 
   late final ProviderContainer container;
+  late final GoRouter router;
 
   Future<void> open(WidgetTester tester) async {
     final overrides = await testOverrides(adapter, store: MemoryTokenStore('t1'));
@@ -175,10 +176,13 @@ class _Harness {
     for (var i = 0; i < 50 && !container.read(authControllerProvider).isSignedIn; i++) {
       await tester.pump(const Duration(milliseconds: 10));
     }
-    final router = GoRouter(
+    router = GoRouter(
       initialLocation: '/chats/c1',
       routes: [
-        GoRoute(path: '/chats/c1', builder: (_, _) => ChatRoomScreen(chatId: 'c1', pollInterval: pollInterval)),
+        GoRoute(
+          path: '/chats/:id',
+          builder: (_, s) => ChatRoomScreen(chatId: s.pathParameters['id']!, pollInterval: pollInterval),
+        ),
         GoRoute(path: '/pro', builder: (_, _) => const Scaffold(body: Text('pro-screen'))),
       ],
     );
@@ -679,5 +683,117 @@ void main() {
     await h.leave(tester);
     await tester.pumpAndSettle();
     expect(file.existsSync(), isFalse);
+  });
+
+  group('one voice playback per chat', () {
+    Map<String, dynamic> voiceMsg(String id) => {
+      'id': id,
+      'body': 'رسالة صوتية',
+      'createdAt': '2026-10-30T10:01:00.000Z',
+      'mine': false,
+      'kind': 'VOICE',
+      'media': {'url': '/api/chats/c1/media/$id', 'type': 'audio/mp4', 'durationSec': 7},
+    };
+
+    testWidgets('a chat pushed on top (a notice) and popped leaves the first chat\'s notes and guard working',
+        (tester) async {
+      final h = _Harness()..serverExtra = [voiceMsg('v001')];
+      h.adapter
+        ..handlers['GET /api/chats/c2'] = ((_) => FakeResponse(200, {
+              ..._page('ACTIVE', [voiceMsg('v002')]),
+              'conversation': {..._page('ACTIVE')['conversation'] as Map<String, dynamic>, 'id': 'c2'},
+            }))
+        ..on('POST', '/api/chats/c2/read', const FakeResponse(200, {'ok': true}));
+      await h.open(tester);
+      unawaited(h.router.push('/chats/c2'));
+      for (var i = 0; i < 5; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+      expect(find.byType(ChatRoomScreen), findsNWidgets(2));
+      h.router.pop();
+      await tester.pumpAndSettle();
+      expect(find.byType(ChatRoomScreen), findsOneWidget);
+      // A's note still plays
+      await tester.tap(find.byTooltip('تشغيل'));
+      for (var i = 0; i < 5; i++) {
+        await tester.pump(const Duration(milliseconds: 10));
+      }
+      expect(h.players, hasLength(1));
+      expect(h.players.single.plays, 1);
+      expect(find.byTooltip('إيقاف مؤقت'), findsOneWidget);
+      // A's guard still works: recording pauses the note and nothing plays meanwhile
+      await tester.tap(_mic);
+      await tester.pump();
+      await tester.pump();
+      expect(h.players.single.pauses, 1);
+      await tester.tap(find.byTooltip('تشغيل'));
+      await tester.pump();
+      expect(h.players.single.plays, 1);
+      await tester.tap(_cancel);
+      await tester.pump();
+      await h.leave(tester);
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('my note played while sending carries on as the server copy; its file goes when the chat is left',
+        (tester) async {
+      final h = _Harness();
+      final upload = Completer<void>();
+      h.adapter.hold('POST', '/api/chats/c1/media', upload.future);
+      await h.open(tester);
+      await tester.tap(_mic);
+      await tester.pump();
+      await tester.pump();
+      h.rec.now = const Duration(seconds: 4);
+      await _tick(tester);
+      final file = h.rec.file!;
+      await tester.tap(_send);
+      for (var i = 0; i < 5; i++) {
+        await tester.pump(const Duration(milliseconds: 10));
+      }
+      // Still uploading: play the local copy
+      await tester.tap(find.byTooltip('تشغيل'));
+      for (var i = 0; i < 5; i++) {
+        await tester.pump(const Duration(milliseconds: 10));
+      }
+      expect(h.players.single.loadedUri, Uri.file(file.path));
+      expect(find.byTooltip('إيقاف مؤقت'), findsOneWidget);
+      upload.complete();
+      for (var i = 0; i < 10; i++) {
+        await tester.pump(const Duration(milliseconds: 20));
+      }
+      // Confirmed: the server bubble shows the same note still playing, nothing new loaded, the file kept meanwhile
+      expect(h.uploads, hasLength(1));
+      expect(find.byTooltip('إيقاف مؤقت'), findsOneWidget);
+      expect(h.players, hasLength(1));
+      expect(h.players.single.disposed, isFalse);
+      expect(file.existsSync(), isTrue);
+      // Pause works through the new bubble
+      await tester.tap(find.byTooltip('إيقاف مؤقت'));
+      await tester.pump();
+      expect(h.players.single.pauses, 1);
+      await h.leave(tester);
+      await tester.pumpAndSettle();
+      expect(h.players.single.disposed, isTrue);
+      expect(file.existsSync(), isFalse);
+    });
+
+    testWidgets('my note never played while sending: its file is deleted at once on confirm', (tester) async {
+      final h = _Harness();
+      await h.open(tester);
+      await tester.tap(_mic);
+      await tester.pump();
+      await tester.pump();
+      h.rec.now = const Duration(seconds: 4);
+      await _tick(tester);
+      final file = h.rec.file!;
+      await tester.tap(_send);
+      for (var i = 0; i < 10; i++) {
+        await tester.pump(const Duration(milliseconds: 20));
+      }
+      expect(h.uploads, hasLength(1));
+      expect(file.existsSync(), isFalse);
+      await h.leave(tester);
+    });
   });
 }

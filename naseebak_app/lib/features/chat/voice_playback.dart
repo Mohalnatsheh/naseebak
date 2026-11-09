@@ -122,9 +122,12 @@ typedef VoiceSource = ({Uri uri, Map<String, String>? headers});
 /// One voice note's player and state. Owned by [VoicePlayback], not by its bubble: a bubble scrolled out of view
 /// detaches and the note plays on; scrolled back, the new bubble attaches to the same session.
 class VoiceSession extends ValueNotifier<VoiceNoteState> {
-  VoiceSession(this.key) : super(const VoiceNoteState());
+  VoiceSession(this._key) : super(const VoiceNoteState());
 
-  final String key;
+  String _key;
+
+  /// The message this note belongs to (changes once when my note's upload is confirmed, see [VoicePlayback.handOver])
+  String get key => _key;
   VoicePlayer? _player;
   final _subs = <StreamSubscription<Object?>>[];
 
@@ -214,12 +217,34 @@ class VoicePlayback {
     return s;
   }
 
-  /// A bubble left (scrolled away, or replaced): its session closes unless it is the note playing
-  void detach(String key) {
-    final s = _sessions[key];
-    if (s == null) return;
+  /// The session for [key], if one is live (no attach)
+  VoiceSession? sessionFor(String key) => _sessions[key];
+
+  /// A bubble left (scrolled away, or replaced): its session closes unless it is the note playing. By session, not
+  /// key: the key may have changed meanwhile ([handOver]).
+  void detach(VoiceSession s) {
     if (s._attached > 0) s._attached--;
-    _closeIfIdle(s);
+    if (identical(_sessions[s.key], s)) _closeIfIdle(s);
+  }
+
+  /// My note's upload was confirmed: its key moves from the local file to the server id, and a note playing (or loaded)
+  /// from the file carries on under the new key, so the new bubble shows it playing. Returns true when the session
+  /// still uses the local file (the caller must keep the file until the chat is left).
+  bool handOver(String from, String to) {
+    final s = _sessions[from];
+    if (s == null || from == to) return false;
+    if (_sessions.containsKey(to)) {
+      // The server copy already has its own bubble (a poll came first): the local one stops, nothing plays unseen
+      _sessions.remove(from);
+      if (_current == from) _current = null;
+      s._close();
+      return false;
+    }
+    _sessions.remove(from);
+    s._key = to;
+    _sessions[to] = s;
+    if (_current == from) _current = to;
+    return s._player != null;
   }
 
   void _closeIfIdle(VoiceSession s) {

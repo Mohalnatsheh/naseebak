@@ -100,15 +100,23 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
   ChatCache get _cache => ref.read(chatCacheProvider);
   String? get _memberId => ref.read(authControllerProvider).me?.id;
 
-  /// The chat's voice notes (players outlive their bubbles; all closed when the chat is left)
+  /// The chat's voice notes (players outlive their bubbles; all closed when the chat is left). Given to the bubbles
+  /// through a ProviderScope override of [voicePlaybackProvider].
   late final VoicePlayback _playback;
+
+  /// Sent voice notes still playing from their local file: deleted when the chat is left
+  final List<String> _filesInUse = [];
   ProviderSubscription<bool?>? _countsPro;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _playback = ref.read(voicePlaybackProvider)..canPlay = () => _voice == _Voice.idle || _voice == _Voice.stopped;
+    // This chat's own (another chat pushed on top, e.g. from a notice, has its own and never touches this one's)
+    _playback = VoicePlayback(
+      createPlayer: ref.read(voicePlayerFactoryProvider),
+      beforePlay: ref.read(voiceAudioSessionProvider),
+    )..canPlay = () => _voice == _Voice.idle || _voice == _Voice.stopped;
     // Pro bought or lapsed elsewhere: the counts poll sees it first, then the buttons follow `/api/pro`
     _countsPro = ref.listenManual(countsProvider.select((c) => c.valueOrNull?.isPro), (prev, next) {
       if (next == null || prev == next) return;
@@ -133,6 +141,9 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     _playback
       ..canPlay = null
       ..closeAll();
+    for (final f in _filesInUse) {
+      _deleteQuietly(f);
+    }
     _input.dispose();
     _scroll.dispose();
     super.dispose();
@@ -592,8 +603,15 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
       _confirmedIds.add(sent.id);
       if (first) container.read(analyticsProvider).chatStarted();
       container.invalidate(chatListProvider);
-      // The voice note's temporary file is no longer needed (the server copy plays from now on)
-      if (voice) _deleteQuietly(file);
+      // The voice note's temporary file is no longer needed (the server copy plays from now on), unless it is playing
+      // from that file right now: its session moves to the server id and the file stays until the chat is left
+      if (voice) {
+        if (mounted && _playback.handOver(file, sent.id)) {
+          _filesInUse.add(file);
+        } else {
+          _deleteQuietly(file);
+        }
+      }
       if (!mounted) return;
       setState(() {
         _messages.removeWhere((m) => m.nonce == nonce || m.id == sent.id);
@@ -941,7 +959,12 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => ProviderScope(
+    overrides: [voicePlaybackProvider.overrideWithValue(_playback)],
+    child: _screen(context),
+  );
+
+  Widget _screen(BuildContext context) {
     final chat = _chat;
     final female = ref.watch(authControllerProvider).me?.isFemale ?? false;
     final left = chat != null && chat.status == 'ACTIVE' ? chatTimeLeft(chat.expiresAt) : null;

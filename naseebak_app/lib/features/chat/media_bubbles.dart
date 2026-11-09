@@ -258,14 +258,16 @@ class _VoiceBubbleState extends ConsumerState<VoiceBubble> {
     super.didUpdateWidget(old);
     final key = VoiceBubble.keyOf(widget.message);
     if (key == _key) return;
-    _playback.detach(_key);
     _key = key;
+    // Handed over to the new key (my note confirmed): same session, nothing to swap
+    if (identical(_playback.sessionFor(key), _session)) return;
+    _playback.detach(_session);
     _session = _playback.attach(key);
   }
 
   @override
   void dispose() {
-    _playback.detach(_key);
+    _playback.detach(_session);
     super.dispose();
   }
 
@@ -294,6 +296,7 @@ class _VoiceBubbleState extends ConsumerState<VoiceBubble> {
   }
 
   void _retry() => setState(() => _session = _playback.reset(_key));
+
 
   @override
   Widget build(BuildContext context) {

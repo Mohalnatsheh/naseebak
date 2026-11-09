@@ -22,6 +22,7 @@ import { MemberDevicesCard } from "@/components/admin/member-devices-card";
 import { MembersSuggestStatus } from "@/components/admin/members-suggest-status";
 import { PersonLink, fmtDateTime } from "@/components/admin/admin-list-bits";
 import { FAILURE_LABELS } from "@/lib/payments/failure-labels";
+import { CREDIT_REASON_LABELS, paymentPlanLabel } from "@/lib/admin/pro-labels";
 
 interface UserDetail {
   id: string;
@@ -151,18 +152,7 @@ const decisionLabel: Record<string, { text: string; className: string }> = {
   DECLINED: { text: "Declined", className: "text-destructive" },
 };
 
-const creditReasonLabel: Record<string, string> = {
-  REGISTRATION: "Registration",
-  PURCHASE: "Purchase",
-  REQUEST: "Family/chat request",
-  SUGGESTION: "Suggestion (legacy)",
-  ADMIN_ADJUST: "Admin adjustment",
-  MIGRATION_GIFT: "New-cycle top-up",
-  REFUND: "Refund",
-  REFERRAL: "Referral reward",
-  INTEREST: "Interest",
-  POLL_REWARD: "Question answered",
-};
+const creditReasonLabel = CREDIT_REASON_LABELS;
 
 function formatDate(d: string | null) {
   return d ? new Date(d).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "—";
@@ -906,7 +896,7 @@ function PaymentsCard({ user }: { user: UserDetail }) {
                 {payments.map((pay) => (
                   <tr key={pay.id} className="border-b align-top">
                     <td className="p-2 text-muted-foreground whitespace-nowrap">{fmtDateTime(pay.createdAt)}</td>
-                    <td className="p-2">{pay.planName || "—"}</td>
+                    <td className="p-2">{paymentPlanLabel(pay.planName)}</td>
                     <td className="p-2 font-medium whitespace-nowrap">{Number(pay.amount).toFixed(2)} {pay.currency}</td>
                     <td className="p-2">
                       <Badge className={`text-xs ${paymentStatusColors[pay.status] || ""}`}>{enumLabel("paymentStatus", pay.status)}</Badge>

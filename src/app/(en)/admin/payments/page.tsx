@@ -7,10 +7,12 @@ import { CreditCard, Loader2, ChevronLeft, ChevronRight, DollarSign, ExternalLin
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { PersonLink, SearchBox, fmtDateTime } from "@/components/admin/admin-list-bits";
 import { paymentPlanLabel as planLabel } from "@/lib/admin/pro-labels";
 import { enumLabel } from "@/lib/admin/enum-labels";
 import { FAILURE_LABELS } from "@/lib/payments/failure-labels";
+import { refundQuestion } from "@/lib/admin/refund-preview";
 
 interface PaymentRow {
   id: string;
@@ -23,8 +25,14 @@ interface PaymentRow {
   user: { id: string; firstName: string; lastName: string; phone: string | null; matchCredits: number } | null;
   disputedAt?: string | null;
   failureReason?: string | null;
-  /** Credits a refund takes back */
+  /** Credits a refund takes back (a Pro payment: the credits granted from it) */
   credits: number;
+  /** A refund of this Pro payment ends the membership now */
+  endsPro?: boolean;
+  /** A Pro renewal (not the membership's first payment) */
+  renewal?: boolean;
+  /** A paid Pro invoice that never made Pro live: "duplicate" | "ended" (refund decision needed) */
+  proNotLive?: string | null;
   /** pi_…, for the Stripe link; null when not known */
   stripePaymentIntent: string | null;
 }
@@ -57,17 +65,6 @@ const statusStyles: Record<string, string> = {
   REFUNDED: "bg-primary/10 text-primary",
 };
 
-/** "Refund 5.00 JOD…": what the admin is about to do, with a warning when the balance can't cover it */
-function refundQuestion(p: PaymentRow): string {
-  const lines = [`Refund ${Number(p.amount).toFixed(2)} ${p.currency} to ${p.user ? `${p.user.firstName} ${p.user.lastName}` : "this deleted account"}?`];
-  if (p.user) {
-    lines.push(`${p.credits} credit(s) will be taken back. Current balance: ${p.user.matchCredits}.`);
-    if (p.user.matchCredits < p.credits) {
-      lines.push(`Warning: the balance is lower than the credits, so it stops at 0 and ${p.credits - p.user.matchCredits} credit(s) already used stay used.`);
-    }
-  }
-  return lines.join("\n\n");
-}
 
 export default function AdminPaymentsPage() {
   // useSearchParams needs a Suspense boundary for the build
@@ -92,6 +89,8 @@ function PaymentsView() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [refundingId, setRefundingId] = useState<string | null>(null);
+  // The refund confirmation (a Dialog, never window.confirm: QA WEB-PAY-03)
+  const [confirmRefund, setConfirmRefund] = useState<PaymentRow | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -131,7 +130,7 @@ function PaymentsView() {
   }
 
   async function handleRefund(payment: PaymentRow) {
-    if (!confirm(refundQuestion(payment))) return;
+    setConfirmRefund(null);
     setRefundingId(payment.id);
     try {
       const res = await fetch(`/api/admin/payments/${payment.id}/refund`, { method: "POST" });
@@ -309,7 +308,14 @@ function PaymentsView() {
                           <p className="text-sm text-muted-foreground italic">Deleted account</p>
                         )}
                       </td>
-                      <td className="p-3 text-sm">{planLabel(payment.planName)}</td>
+                      <td className="p-3 text-sm">
+                        {planLabel(payment.planName, { renewal: payment.renewal })}
+                        {payment.proNotLive && payment.status === "COMPLETED" && (
+                          <Badge variant="outline" className="ms-1 border-amber-300 bg-amber-50 text-amber-800" title={payment.proNotLive === "duplicate" ? "A second subscription paid while one was live: never made Pro live" : "A renewal paid after Pro ended: Pro did not come back"}>
+                            Refund decision
+                          </Badge>
+                        )}
+                      </td>
                       <td className="p-3 text-sm font-medium whitespace-nowrap">{Number(payment.amount).toFixed(2)} {payment.currency}</td>
                       <td className="p-3">
                         <Badge className={statusStyles[payment.status] || ""}>
@@ -339,7 +345,7 @@ function PaymentsView() {
                               variant="outline"
                               size="sm"
                               className="text-xs"
-                              onClick={() => handleRefund(payment)}
+                              onClick={() => setConfirmRefund(payment)}
                               disabled={refundingId === payment.id}
                             >
                               {refundingId === payment.id ? (
@@ -384,6 +390,28 @@ function PaymentsView() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={confirmRefund !== null} onOpenChange={(open) => !open && setConfirmRefund(null)}>
+        <DialogContent closeLabel="Close" dir="ltr" className="text-left">
+          {confirmRefund && (
+            <>
+              <DialogHeader className="text-left">
+                <DialogTitle>{refundQuestion(confirmRefund).title}</DialogTitle>
+                <DialogDescription className="sr-only">What the refund takes back</DialogDescription>
+              </DialogHeader>
+              <ul className="space-y-2 text-sm text-muted-foreground">
+                {refundQuestion(confirmRefund).lines.map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setConfirmRefund(null)}>Keep the payment</Button>
+                <Button variant="destructive" onClick={() => handleRefund(confirmRefund)}>Refund</Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -11,8 +11,12 @@
  * subscriptions only, never a local mock) and emails the admins naming the payments, to decide on a refund.
  * Never throws: whatever fails is in the admins' email, to finish by hand.
  */
+import { db } from "@/lib/db";
+import { notify } from "@/lib/notify";
 import { sendAdminAlert } from "@/lib/admin-alert";
 import { cancelOnStripe } from "@/lib/pro/manage";
+import { PRO_AFTER_END_BODY, PRO_DUPLICATE_BODY, PRO_NOT_LIVE_TITLE } from "@/lib/pro/notices";
+import { PRO_PAGE_PATH } from "@/lib/pro/plans";
 
 const isMock = (id: string) => id.startsWith("mock_");
 
@@ -46,6 +50,30 @@ export async function settleNotLiveProInvoice(a: {
   }
 
   const ended = a.reason === "ended";
+
+  // Admin → Payments marks the payment for a refund decision (QA WEB-PAY-05); repeats write the same value
+  try {
+    await db.payment.updateMany({ where: { id: a.paymentId }, data: { proNotLive: a.reason } });
+  } catch (e) {
+    problems.push(`Marking payment ${a.paymentId} for a refund decision failed (${errText(e)}).`);
+  }
+  // The member is told once, the first time this invoice is seen: a second payment never goes unexplained
+  if (a.firstSeen && a.userId) {
+    try {
+      await notify({
+        userId: a.userId,
+        type: "PAYMENT",
+        title: PRO_NOT_LIVE_TITLE,
+        body: ended ? PRO_AFTER_END_BODY : PRO_DUPLICATE_BODY,
+        url: PRO_PAGE_PATH,
+        metadata: { paymentId: a.paymentId },
+        sms: false,
+      });
+    } catch (e) {
+      problems.push(`Telling the member about payment ${a.paymentId} failed (${errText(e)}).`);
+    }
+  }
+
   console.warn(`[pro] ${ended ? "renewal of an ended" : "duplicate"} subscription cancelled:`, a.stripeSubscriptionId, problems.length ? "with problems" : "");
   if (problems.length === 0 && !a.firstSeen) return;
 

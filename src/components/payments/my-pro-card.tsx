@@ -64,7 +64,9 @@ export function MyProCard({ state, onChanged }: { state: MyProState; onChanged: 
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
             <span>
               لم ينجح تجديد الدفع. سنحاول مرة أخرى تلقائياً خلال الأيام القادمة، وإن لم ينجح الدفع ينتهي الاشتراك. يمكنك التأكد من بطاقتك
-              أو رصيدها.
+              أو رصيدها، وإن انتهى الاشتراك يمكنك الاشتراك من جديد ببطاقة أخرى.
+              {/* The paid period's end stays visible while Stripe retries (QA WEB-PAY-04) */}
+              {date && <span className="mt-1 block font-semibold">مزايا Pro مستمرة حتى {date}.</span>}
             </span>
           </div>
         ) : (

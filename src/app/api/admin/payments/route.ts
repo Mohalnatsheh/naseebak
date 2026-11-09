@@ -5,6 +5,8 @@ import { safePagination } from "@/lib/admin/query";
 import { getAdminCountry, paymentCountryWhere } from "@/lib/admin/country-filter";
 import { paymentsListWhere } from "@/lib/admin/list-filters";
 import { findAnyPackage } from "@/lib/payments/packages";
+import { planFromName } from "@/lib/pro/plans";
+import { liveProWhere } from "@/lib/pro/status";
 const DAY_MS = 24 * 60 * 60 * 1000;
 const AMMAN_OFFSET_MS = 3 * 60 * 60 * 1000;
 
@@ -45,6 +47,8 @@ export async function GET(request: Request) {
           failureReason: true,
           providerTxId: true,
           stripePaymentIntentId: true,
+          proSubscriptionId: true,
+          proNotLive: true,
           createdAt: true,
           user: {
             select: { id: true, firstName: true, lastName: true, phone: true, country: true, matchCredits: true },
@@ -71,6 +75,7 @@ export async function GET(request: Request) {
         _count: true,
       }),
     ]);
+    const pro = await proRefundFacts(payments, now);
     const failed30d = failedRaw
       .map((f) => ({ reason: f.failureReason ?? "UNKNOWN", count: f._count }))
       .sort((a, b) => b.count - a.count);
@@ -85,10 +90,15 @@ export async function GET(request: Request) {
       .sort((a, b) => a.currency.localeCompare(b.currency));
 
     return NextResponse.json({
-      payments: payments.map(({ providerTxId, stripePaymentIntentId, ...p }) => ({
+      payments: payments.map(({ providerTxId, stripePaymentIntentId, proSubscriptionId, ...p }) => ({
         ...p,
-        /** What a refund takes back: the package's credits (also for packages no longer sold) */
-        credits: findAnyPackage(p.planName)?.credits ?? 0,
+        /** What a refund takes back: the package's credits (also for packages no longer sold); a Pro payment, the credits
+         *  granted from it and not taken back yet (yearly: every monthly grant of that year, QA WEB-PAY-02) */
+        credits: planFromName(p.planName) ? (pro.credits.get(p.id) ?? 0) : (findAnyPackage(p.planName)?.credits ?? 0),
+        /** A refund of this payment ends Pro now: it paid the live membership's current period */
+        endsPro: pro.endsPro.has(p.id),
+        /** Not the membership's first payment */
+        renewal: !!proSubscriptionId && pro.firstPayment.get(proSubscriptionId) !== p.id,
         /** For the «View in Stripe» link: a checkout's providerTxId may be something else in old rows */
         stripePaymentIntent: stripePaymentIntentId ?? (providerTxId?.startsWith("pi_") ? providerTxId : null),
       })),
@@ -107,4 +117,40 @@ export async function GET(request: Request) {
     console.error("Admin payments error:", error);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
+}
+
+/**
+ * For the Pro payments on this page: the credits a refund takes back (grants made from each payment, not taken back),
+ * which payments a refund would end Pro with (the live membership's latest completed payment, as applyRefund decides),
+ * and each membership's first payment (the rest are renewals)
+ */
+async function proRefundFacts(rows: { id: string; planName: string | null; proSubscriptionId: string | null }[], now: Date) {
+  const proRows = rows.filter((r) => planFromName(r.planName));
+  const subIds = [...new Set(proRows.map((r) => r.proSubscriptionId).filter((id): id is string => !!id))];
+  if (proRows.length === 0) return { credits: new Map<string, number>(), endsPro: new Set<string>(), firstPayment: new Map<string, string>() };
+  const [grants, live, completed] = await Promise.all([
+    db.proCreditGrant.groupBy({
+      by: ["paymentId"],
+      where: { paymentId: { in: proRows.map((r) => r.id) }, takenBack: false },
+      _sum: { credits: true },
+    }),
+    subIds.length ? db.proSubscription.findMany({ where: { id: { in: subIds }, ...liveProWhere(now) }, select: { id: true } }) : [],
+    subIds.length
+      ? db.payment.findMany({
+          where: { proSubscriptionId: { in: subIds }, status: { in: ["COMPLETED", "REFUNDED"] } },
+          orderBy: { createdAt: "asc" },
+          select: { id: true, status: true, proSubscriptionId: true },
+        })
+      : [],
+  ]);
+  const credits = new Map(grants.map((g) => [g.paymentId ?? "", g._sum.credits ?? 0]));
+  const firstPayment = new Map<string, string>();
+  const latestCompleted = new Map<string, string>();
+  for (const p of completed) {
+    if (!p.proSubscriptionId) continue;
+    if (!firstPayment.has(p.proSubscriptionId)) firstPayment.set(p.proSubscriptionId, p.id);
+    if (p.status === "COMPLETED") latestCompleted.set(p.proSubscriptionId, p.id);
+  }
+  const endsPro = new Set(live.map((s) => latestCompleted.get(s.id)).filter((id): id is string => !!id));
+  return { credits, endsPro, firstPayment };
 }

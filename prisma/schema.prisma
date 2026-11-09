@@ -580,6 +580,9 @@ model Payment {
   subscription    Subscription?
   /// The Pro membership this payment (first or renewal invoice) belongs to
   proSubscriptionId String?
+  /// A paid Pro invoice that did not make Pro live (2026-11-10, QA WEB-PAY-05): "duplicate" (a second subscription while
+  /// one was live) or "ended" (a renewal after Pro ended). Admin → Payments marks it for a refund decision
+  proNotLive        String?
 
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt

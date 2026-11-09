@@ -279,7 +279,7 @@ describe("handleProInvoiceFailed", () => {
         userId: "u1",
         type: "PAYMENT",
         title: "تعذّر تجديد اشتراك Pro",
-        body: "يمكنك تحديث بطاقتك من صفحة الدفع لمواصلة Pro.",
+        body: "سنحاول الدفع مرة أخرى خلال الأيام القادمة. إن انتهت العضوية يمكنك الاشتراك من جديد ببطاقة أخرى من صفحة عضوية Pro.",
         sms: false,
         url: "/dashboard/pro",
         oncePerDay: "pro-payment-failed",

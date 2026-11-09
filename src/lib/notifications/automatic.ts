@@ -1395,7 +1395,7 @@ export const AUTOMATIC_NOTIFICATIONS: AutomaticNotification[] = [
       {
         "variant": "default",
         "title": "تعذّر تجديد اشتراك Pro",
-        "body": "يمكنك تحديث بطاقتك من صفحة الدفع لمواصلة Pro."
+        "body": "سنحاول الدفع مرة أخرى خلال الأيام القادمة. إن انتهت العضوية يمكنك الاشتراك من جديد ببطاقة أخرى من صفحة عضوية Pro."
       }
     ]
   },
@@ -1412,7 +1412,7 @@ export const AUTOMATIC_NOTIFICATIONS: AutomaticNotification[] = [
       {
         "variant": "default",
         "title": "انتهت عضوية Pro",
-        "body": "يمكنك الاشتراك في Pro من جديد في أي وقت من صفحة الدفع."
+        "body": "يمكنك الاشتراك في Pro من جديد في أي وقت من صفحة عضوية Pro."
       }
     ]
   },
@@ -1435,6 +1435,28 @@ export const AUTOMATIC_NOTIFICATIONS: AutomaticNotification[] = [
         "variant": "no credits taken back",
         "title": "تم استرداد المبلغ",
         "body": "تم استرداد {amount} من اشتراك Pro إلى بطاقتك."
+      }
+    ]
+  },
+  {
+    "key": "pro-not-live-payment",
+    "group": "pro",
+    "when": "A paid Pro invoice did not make Pro live: a second subscription paid while one was live, or a renewal paid after Pro ended. Admins get an email to decide on a refund.",
+    "who": "The member who paid",
+    "channels": [
+      "bell",
+      "push"
+    ],
+    "texts": [
+      {
+        "variant": "duplicate",
+        "title": "دفعة Pro إضافية",
+        "body": "وصلتنا دفعة لاشتراك Pro ثانٍ بينما اشتراكك فعّال، فأوقفنا الاشتراك الثاني. سيراجع فريق نصيبك هذه الدفعة ويُعلمك بقرار استردادها."
+      },
+      {
+        "variant": "after the end",
+        "title": "دفعة Pro إضافية",
+        "body": "وصلتنا دفعة تجديد بعد انتهاء عضوية Pro، ولم تُستأنف العضوية. سيراجع فريق نصيبك هذه الدفعة ويُعلمك بقرار استردادها."
       }
     ]
   }

@@ -16,7 +16,7 @@ import { notify } from "@/lib/notify";
 import { toCountry } from "@/lib/countries";
 import { getCountrySettings } from "@/lib/countries/settings";
 import { grantProCredits } from "@/lib/pro/grants";
-import { PRO_ENDED_BODY, PRO_ENDED_TITLE } from "@/lib/pro/notices";
+import { PRO_ENDED_BODY, PRO_ENDED_TITLE, PRO_FAILED_BODY, PRO_FAILED_TITLE } from "@/lib/pro/notices";
 import { liveProWhere } from "@/lib/pro/status";
 import { settleNotLiveProInvoice } from "@/lib/pro/duplicate";
 import { cancelOnStripe } from "@/lib/pro/manage";
@@ -42,8 +42,6 @@ type Meta = Record<string, string>;
 
 const PRO_STARTED_TITLE = "أصبحت عضوية Pro فعّالة";
 const PRO_STARTED_BODY = "يمكنك الآن إرسال الصور والرسائل الصوتية في المحادثات.";
-const PRO_FAILED_TITLE = "تعذّر تجديد اشتراك Pro";
-const PRO_FAILED_BODY = "يمكنك تحديث بطاقتك من صفحة الدفع لمواصلة Pro.";
 export { PRO_ENDED_BODY, PRO_ENDED_TITLE };
 
 function planOf(meta: Meta): ProPlanId | null {

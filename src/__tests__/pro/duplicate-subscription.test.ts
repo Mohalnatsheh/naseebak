@@ -95,6 +95,13 @@ describe("a second Pro subscription while one is live", () => {
     const titles = notifyMock.notify.mock.calls.map((c) => c[0].title);
     expect(titles).not.toContain("أصبحت عضوية Pro فعّالة");
     expect(titles).not.toContain("تم استرداد المبلغ");
+    // The member is told about the second payment, once (QA WEB-PAY-05), and Admin → Payments marks it
+    const told = notifyMock.notify.mock.calls.filter((c) => c[0].title === "دفعة Pro إضافية");
+    expect(told).toHaveLength(1);
+    expect(told[0][0]).toMatchObject({ userId: "u1", url: "/dashboard/pro", sms: false });
+    expect(told[0][0].body).toContain("اشتراك Pro ثانٍ");
+    expect(payment("pay2")).toMatchObject({ proNotLive: "duplicate" });
+    expect(payment("pay1")?.proNotLive).toBeUndefined();
   });
 
   it("an admin refund later takes back exactly that payment's credits and leaves the kept membership alone", async () => {

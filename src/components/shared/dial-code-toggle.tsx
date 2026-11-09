@@ -29,7 +29,7 @@ export function DialCodeToggle({
     return (
       <span
         aria-label={`رمز الدولة ${cfg.name} +${cfg.dialCode}`}
-        className={cn("inline-flex h-9 items-center gap-1.5 px-1.5 text-sm text-muted-foreground", className)}
+        className={cn("inline-flex h-11 items-center gap-1.5 px-1.5 text-sm text-muted-foreground", className)}
       >
         <CountryFlag country={country} className="h-[14px] w-5" />
         <span dir="ltr" className="font-medium">
@@ -45,7 +45,7 @@ export function DialCodeToggle({
         disabled={disabled}
         aria-label={`رمز الدولة ${cfg.name} +${cfg.dialCode}. تغيير الدولة`}
         className={cn(
-          "inline-flex h-9 items-center gap-1.5 rounded-lg px-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 disabled:opacity-60",
+          "inline-flex h-11 items-center gap-1.5 rounded-lg px-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 disabled:opacity-60",
           className
         )}
       >

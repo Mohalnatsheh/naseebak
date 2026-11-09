@@ -7,7 +7,8 @@ import { localizedPath } from "@/lib/site-paths";
  * the site the visitor came from: the terms and privacy differ per country (e.g. how codes are sent).
  */
 export function TermsConsentText({ country }: { country: CountryCode }) {
-  const linkClass = "font-semibold text-primary underline underline-offset-2";
+  // Inline links: vertical padding widens the tap area to 44 px without moving the line (QA WA-09)
+  const linkClass = "py-3 font-semibold text-primary underline underline-offset-2";
   return (
     <span className="text-xs leading-relaxed text-foreground/80">
       أوافق على{" "}

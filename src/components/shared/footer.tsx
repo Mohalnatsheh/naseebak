@@ -51,29 +51,29 @@ export function Footer() {
           {/* Column 2: Quick Links */}
           <div className="space-y-4">
             <p className="font-bold text-sm">روابط سريعة</p>
-            <ul className="space-y-2.5 text-sm text-muted-foreground">
-              <li><Link href="/#features" className="hover:text-primary transition-colors duration-200">المميزات</Link></li>
-              <li><Link href="/#how-it-works" className="hover:text-primary transition-colors duration-200">كيف تعمل المنصة</Link></li>
-              <li><Link href="/register" className="hover:text-primary transition-colors duration-200">إنشاء حساب</Link></li>
-              <li><Link href="/login" className="hover:text-primary transition-colors duration-200">تسجيل الدخول</Link></li>
+            <ul className="text-sm text-muted-foreground">
+              <li><Link href="/#features" className="inline-flex min-h-11 items-center hover:text-primary transition-colors duration-200">المميزات</Link></li>
+              <li><Link href="/#how-it-works" className="inline-flex min-h-11 items-center hover:text-primary transition-colors duration-200">كيف تعمل المنصة</Link></li>
+              <li><Link href="/register" className="inline-flex min-h-11 items-center hover:text-primary transition-colors duration-200">إنشاء حساب</Link></li>
+              <li><Link href="/login" className="inline-flex min-h-11 items-center hover:text-primary transition-colors duration-200">تسجيل الدخول</Link></li>
             </ul>
           </div>
 
           {/* Column 3: Pages */}
           <div className="space-y-4">
             <p className="font-bold text-sm">صفحات</p>
-            <ul className="space-y-2.5 text-sm text-muted-foreground">
-              <li><Link href="/about" className="hover:text-primary transition-colors duration-200">من نحن</Link></li>
-              <li><Link href="/contact" className="hover:text-primary transition-colors duration-200">تواصل معنا</Link></li>
-              <li><Link href="/blog" className="hover:text-primary transition-colors duration-200">المدونة</Link></li>
-              <li><Link href="/faq" className="hover:text-primary transition-colors duration-200">الأسئلة الشائعة</Link></li>
+            <ul className="text-sm text-muted-foreground">
+              <li><Link href="/about" className="inline-flex min-h-11 items-center hover:text-primary transition-colors duration-200">من نحن</Link></li>
+              <li><Link href="/contact" className="inline-flex min-h-11 items-center hover:text-primary transition-colors duration-200">تواصل معنا</Link></li>
+              <li><Link href="/blog" className="inline-flex min-h-11 items-center hover:text-primary transition-colors duration-200">المدونة</Link></li>
+              <li><Link href="/faq" className="inline-flex min-h-11 items-center hover:text-primary transition-colors duration-200">الأسئلة الشائعة</Link></li>
             </ul>
           </div>
 
           {/* Column 4: Contact Info */}
           <div className="space-y-4">
             <p className="font-bold text-sm">تواصل معنا</p>
-            <ul className="space-y-2.5 text-sm text-muted-foreground">
+            <ul className="text-sm text-muted-foreground">
               <li>
                 البريد:{" "}
                 <a href="mailto:info@naseebak.com" dir="ltr" className="hover:text-primary transition-colors">
@@ -92,7 +92,7 @@ export function Footer() {
                     target="_blank"
                     rel="noopener noreferrer"
                     aria-label={country === "SA" && label === "انستغرام" ? "إنستقرام" : label}
-                    className="h-9 w-9 rounded-xl bg-muted/60 hover:bg-primary/10 hover:text-primary flex items-center justify-center text-muted-foreground transition-all duration-200"
+                    className="h-11 w-11 rounded-xl bg-muted/60 hover:bg-primary/10 hover:text-primary flex items-center justify-center text-muted-foreground transition-all duration-200"
                   >
                     <Icon className="h-4 w-4" aria-hidden="true" />
                   </a>
@@ -109,11 +109,11 @@ export function Footer() {
               صُنع بـ <Heart className="h-3.5 w-3.5 text-destructive fill-destructive" /> {copy.footerMadeIn}
             </p>
             <div className="flex items-center gap-4">
-              <Link href="/privacy" className="hover:text-primary transition-colors duration-200">سياسة الخصوصية</Link>
+              <Link href="/privacy" className="inline-flex min-h-11 items-center hover:text-primary transition-colors duration-200">سياسة الخصوصية</Link>
               <span className="text-border">|</span>
-              <Link href="/terms" className="hover:text-primary transition-colors duration-200">شروط الاستخدام</Link>
+              <Link href="/terms" className="inline-flex min-h-11 items-center hover:text-primary transition-colors duration-200">شروط الاستخدام</Link>
               <span className="text-border">|</span>
-              <Link href="/refund-policy" className="hover:text-primary transition-colors duration-200">سياسة الاسترداد</Link>
+              <Link href="/refund-policy" className="inline-flex min-h-11 items-center hover:text-primary transition-colors duration-200">سياسة الاسترداد</Link>
             </div>
             <p>&copy; {new Date().getFullYear()} نصيبك. جميع الحقوق محفوظة.</p>
           </div>

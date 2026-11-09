@@ -442,7 +442,7 @@ export default function PersonalityQuizPage() {
           </div>
         </div>
         {/* Page dots */}
-        <div className="flex justify-center gap-1.5">
+        <div className="flex flex-wrap justify-center">
           {Array.from({ length: totalPages }).map((_, i) => (
             <button
               key={i}
@@ -456,14 +456,20 @@ export default function PersonalityQuizPage() {
                   setCurrentPage(i);
                 }
               }}
-              className={`rounded-full transition-all duration-300 ${
-                i === currentPage
-                  ? "w-8 h-2.5 bg-gradient-to-l from-secondary to-primary shadow-sm shadow-primary/30"
-                  : i < currentPage
-                  ? "w-2.5 h-2.5 bg-primary/40 hover:bg-primary/60 cursor-pointer"
-                  : "w-2.5 h-2.5 bg-muted"
-              }`}
-            />
+              // A 44 px tap target around the small dot (QA WA-09)
+              className={`group flex h-11 items-center justify-center ${i === currentPage ? "w-12" : "w-11"} ${i < currentPage ? "cursor-pointer" : ""}`}
+            >
+              <span
+                aria-hidden
+                className={`block rounded-full transition-all duration-300 ${
+                  i === currentPage
+                    ? "w-8 h-2.5 bg-gradient-to-l from-secondary to-primary shadow-sm shadow-primary/30"
+                    : i < currentPage
+                    ? "w-2.5 h-2.5 bg-primary/40 group-hover:bg-primary/60"
+                    : "w-2.5 h-2.5 bg-muted"
+                }`}
+              />
+            </button>
           ))}
         </div>
       </div>

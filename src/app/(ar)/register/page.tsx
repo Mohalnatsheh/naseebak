@@ -995,7 +995,7 @@ function RegisterPageContent() {
                       type="button"
                       onClick={handleSendOtp}
                       disabled={resendIn > 0 || sendingOtp}
-                      className="text-xs text-primary hover:text-primary/80 hover:underline transition-colors duration-300 font-medium disabled:cursor-not-allowed disabled:text-muted-foreground disabled:no-underline"
+                      className="inline-flex min-h-11 items-center text-xs text-primary hover:text-primary/80 hover:underline transition-colors duration-300 font-medium disabled:cursor-not-allowed disabled:text-muted-foreground disabled:no-underline"
                     >
                       {resendIn > 0 ? `إعادة الإرسال بعد ${resendIn} ثانية` : "إعادة إرسال رمز التحقق"}
                     </button>
@@ -1023,7 +1023,7 @@ function RegisterPageContent() {
                   <button
                     type="button"
                     onClick={() => setShowReferral(true)}
-                    className="text-sm text-primary hover:text-primary/80 hover:underline underline-offset-4 transition-colors duration-300 font-medium"
+                    className="inline-flex min-h-11 items-center text-sm text-primary hover:text-primary/80 hover:underline underline-offset-4 transition-colors duration-300 font-medium"
                   >
                     لديك رمز دعوة؟
                   </button>

@@ -303,7 +303,7 @@ export default function BlogView({ initial }: { initial: BlogInitial }) {
                         {/* Read more link */}
                         <Link
                           href={`/blog/${post.slug}`}
-                          className="inline-flex items-center gap-1.5 text-sm font-semibold text-primary hover:underline transition-colors duration-200"
+                          className="inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold text-primary hover:underline transition-colors duration-200"
                         >
                           اقرأ المزيد
                           <ArrowLeft className="size-4 transition-transform duration-300 group-hover:-translate-x-1" />

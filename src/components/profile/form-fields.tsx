@@ -82,7 +82,7 @@ export function ChoiceGroup({
             type="button"
             aria-pressed={on}
             onClick={() => onSelect(o.value)}
-            className={`rounded-xl border px-3 py-2 text-sm transition-all ${on ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
+            className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${on ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
           >
             {o.label}
             {multiple && <span className="sr-only">{on ? " (مختار)" : ""}</span>}
@@ -108,7 +108,7 @@ export function DealbreakerToggle({
   return (
     <label
       htmlFor={`${id}-dealbreaker`}
-      className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-1 text-xs transition-colors ${
+      className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-1 max-md:min-h-11 max-md:px-3.5 text-xs transition-colors ${
         disabled
           ? "cursor-not-allowed border-border/50 text-muted-foreground/60"
           : checked

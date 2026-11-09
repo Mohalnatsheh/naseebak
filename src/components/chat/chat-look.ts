@@ -76,20 +76,27 @@ export type ChatBar = "none" | "expiry" | "family" | "push";
 export const EXPIRY_SOON_DAYS = 3;
 
 /**
- * The one slim bar under the header, by priority: the chat ending soon, then the family step, then the push chip
- * (until dismissed). Nothing in a chat that can't be written in, nor while the phone keyboard is open.
+ * The one slim bar under the header, by priority (owner ruling 2026-11-10, same order in the app):
+ * 1. ending soon while it can still be extended (the bar carries «تمديد 7 أيام»);
+ * 2. the family step (in the last days it also states the days left, so the way to family stays visible);
+ * 3. ending soon with nothing to do about it;
+ * 4. the push chip, until dismissed.
+ * Nothing in a chat that can't be written in, nor while the phone keyboard is open.
  */
 export function chatStatusBar(input: {
   open: boolean;
   daysLeft: number;
+  canExtend: boolean;
   family: FamilyStep | null;
   pushOff: boolean;
   pushDismissed: boolean;
   keyboardOpen?: boolean;
 }): ChatBar {
   if (!input.open || input.keyboardOpen) return "none";
-  if (input.daysLeft <= EXPIRY_SOON_DAYS) return "expiry";
+  const endingSoon = input.daysLeft <= EXPIRY_SOON_DAYS;
+  if (endingSoon && input.canExtend) return "expiry";
   if (input.family) return "family";
+  if (endingSoon) return "expiry";
   if (input.pushOff && !input.pushDismissed) return "push";
   return "none";
 }
@@ -116,14 +123,14 @@ export function splitChats<T extends Pick<ChatSummary, "status" | "blocked" | "u
  */
 const PATTERN_TILE = [
   `<svg xmlns="http://www.w3.org/2000/svg" width="88" height="88" viewBox="0 0 88 88">`,
-  `<g fill="none" stroke="#22476a" stroke-opacity=".07" stroke-width="1.1">`,
+  `<g fill="none" stroke="#22476a" stroke-opacity=".05" stroke-width="1.1">`,
   `<path d="M31 22 22 31 13 22 22 13Z M28.4 15.6V28.4H15.6V15.6Z"/>`,
   `<path d="M75 66 66 75 57 66 66 57Z M72.4 59.6V72.4H59.6V59.6Z"/>`,
   `</g>`,
-  `<g fill="none" stroke="#c19250" stroke-opacity=".16" stroke-width="1.1">`,
+  `<g fill="none" stroke="#c19250" stroke-opacity=".12" stroke-width="1.1">`,
   `<path d="M66 16 70 22 66 28 62 22Z"/><path d="M22 60 26 66 22 72 18 66Z"/>`,
   `</g>`,
-  `<g fill="#22476a" fill-opacity=".06"><circle cx="44" cy="11" r="1.4"/><circle cx="0" cy="55" r="1.4"/><circle cx="88" cy="55" r="1.4"/></g>`,
+  `<g fill="#22476a" fill-opacity=".05"><circle cx="44" cy="11" r="1.4"/><circle cx="0" cy="55" r="1.4"/><circle cx="88" cy="55" r="1.4"/></g>`,
   `</svg>`,
 ].join("");
 

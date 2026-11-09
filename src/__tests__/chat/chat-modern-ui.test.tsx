@@ -7,7 +7,9 @@ vi.mock("@/components/shared/notification-bar", () => ({ openPushSetup: vi.fn() 
 import { MessageBubble } from "@/components/chat/message-bubble";
 import type { MessageActions } from "@/components/chat/message-menu";
 import { ChatComposer } from "@/components/chat/chat-composer";
+import { ChatStatusBar } from "@/components/chat/chat-status-bar";
 import { EndChatDialog } from "@/components/chat/end-chat-dialog";
+import { PhotoViewer } from "@/components/chat/photo-viewer";
 import { usePartnerTyping, useTypingSignal } from "@/components/chat/use-typing";
 import type { UiMessage } from "@/components/chat/chat-utils";
 
@@ -163,6 +165,21 @@ describe("reply quote and reactions in the bubble", () => {
     const { container } = render(<MessageBubble message={message()} tail actions={actions()} highlighted />);
     expect(container.firstElementChild?.className).toContain("bg-accent/20");
   });
+
+  it("a photo: the time sits over the photo; a tap opens the viewer", () => {
+    const a = actions();
+    render(
+      <MessageBubble
+        message={message({ kind: "IMAGE", body: "📷 صورة", media: { url: "/api/chats/c1/media/p1", type: "image/webp", durationSec: null, width: 400, height: 300 } })}
+        tail
+        actions={a}
+      />
+    );
+    const button = screen.getByRole("button", { name: "عرض الصورة بالحجم الكامل" });
+    expect(button.parentElement!.textContent).toMatch(/1:05/);
+    fireEvent.click(button);
+    expect(a.onOpenPhoto).toHaveBeenCalledWith("m1");
+  });
 });
 
 describe("composer extras", () => {
@@ -245,11 +262,72 @@ describe("typing", () => {
   });
 });
 
+describe("status bar: the family step in the last days", () => {
+  const common = {
+    canExtend: false,
+    busy: false,
+    onExtend: vi.fn(),
+    onFamily: vi.fn(),
+    matchHref: "/dashboard/matches?match=x",
+    pushBlocked: false,
+    onPushDismiss: vi.fn(),
+  };
+
+  it("states the days left inline", () => {
+    render(<ChatStatusBar {...common} bar="family" family="offer" daysLeft={2} />);
+    expect(screen.getByTestId("chat-bar-family").textContent).toContain("تبقّى يومان");
+    expect(screen.getByRole("button", { name: "تعارف عائلي" })).toBeTruthy();
+  });
+
+  it("not before the last days", () => {
+    render(<ChatStatusBar {...common} bar="family" family="pending_received" daysLeft={9} />);
+    expect(screen.getByTestId("chat-bar-family").textContent).not.toContain("تبقّى");
+  });
+});
+
 describe("«إبلاغ عن الرسالة»", () => {
   it("the report opens with that message in its details, still editable", () => {
     render(
       <EndChatDialog open onOpenChange={vi.fn()} report partnerName="سلمى" busy={false} onConfirm={vi.fn()} initialDetails="بخصوص الرسالة: «نص»" />
     );
     expect((screen.getByPlaceholderText("تفاصيل إضافية (اختياري)") as HTMLTextAreaElement).value).toBe("بخصوص الرسالة: «نص»");
+  });
+});
+
+describe("photo viewer", () => {
+  const photo = (id: string) => ({
+    id,
+    caption: `أنت · ${id}`,
+    media: { url: `/api/chats/c1/media/${id}`, type: "image/webp", durationSec: null, width: 800, height: 600 },
+  });
+
+  it("black, full screen, ✕ at the end, no download; arrows move between the chat's photos", () => {
+    const onClose = vi.fn();
+    render(<PhotoViewer photos={[photo("p1"), photo("p2"), photo("p3")]} openId="p2" onClose={onClose} />);
+    const dialog = screen.getByRole("dialog");
+    expect(dialog.className).toContain("bg-black");
+    expect(within(dialog).getByText("2 من 3")).toBeTruthy();
+    expect(within(dialog).queryByRole("link")).toBeNull();
+    expect(within(dialog).queryByRole("button", { name: /تنزيل|تحميل/ })).toBeNull();
+    expect(within(dialog).getByRole("button", { name: "إغلاق" }).className).toContain("end-2");
+    fireEvent.click(within(dialog).getByRole("button", { name: "الصورة التالية" }));
+    expect(within(dialog).getByText("3 من 3")).toBeTruthy();
+    fireEvent.click(within(dialog).getByRole("button", { name: "الصورة السابقة" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "الصورة السابقة" }));
+    expect(within(dialog).getByText("1 من 3")).toBeTruthy();
+    fireEvent.click(within(dialog).getByRole("button", { name: "إغلاق" }));
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it("a swipe moves to the next photo; zoom toggles", () => {
+    render(<PhotoViewer photos={[photo("p1"), photo("p2")]} openId="p1" onClose={vi.fn()} />);
+    const stage = screen.getByTestId("photo-stage");
+    // RTL: a finger moving right brings the newer photo
+    fireEvent.pointerDown(stage, { pointerId: 1, clientX: 150, clientY: 300 });
+    fireEvent.pointerMove(stage, { pointerId: 1, clientX: 300, clientY: 300 });
+    fireEvent.pointerUp(stage, { pointerId: 1, clientX: 300, clientY: 300 });
+    expect(screen.getByText("2 من 2")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "تكبير" }));
+    expect(screen.getByRole("button", { name: "تصغير" })).toBeTruthy();
   });
 });

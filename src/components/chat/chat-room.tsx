@@ -36,13 +36,14 @@ import { daysLabel, daysLeft, postJson } from "@/components/intro/intro-utils";
 import { MessageBubble } from "./message-bubble";
 import { ChatComposer, type ChatComposerHandle } from "./chat-composer";
 import type { MessageActions } from "./message-menu";
+import { PhotoViewer, type ViewerPhoto } from "./photo-viewer";
 import { useTypingSignal, usePartnerTyping } from "./use-typing";
 import { applyMyReaction, nextReaction, quoteOf, reportDetailsFor, showStarters } from "./chat-interactions";
 import type { ReplyQuote } from "@/lib/chat/reply";
 import { forPartner } from "@/lib/gendered-copy";
 import { EndChatDialog, type ReportReasonValue } from "./end-chat-dialog";
 import { ConfirmActionDialog } from "@/components/intro/confirm-action-dialog";
-import { dayLabel, mergeMessages, type UiMessage } from "./chat-utils";
+import { dayLabel, mergeMessages, timeLabel, type UiMessage } from "./chat-utils";
 import { useChatChannel } from "./use-chat-channel";
 import { useChatPushChip } from "./chat-push-banner";
 import { CHAT_BACKDROP_STYLE, EXPIRY_SOON_DAYS, chatRowLayout, chatStatusBar, familyStepOf, firstUnreadId, groupByDay } from "./chat-look";
@@ -176,6 +177,8 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
   const [replyTo, setReplyTo] = useState<ReplyQuote | null>(null);
   // A quote was tapped: the original is marked for a moment
   const [highlightId, setHighlightId] = useState<string | null>(null);
+  // The full-screen photo viewer (the photo's message id)
+  const [viewerId, setViewerId] = useState<string | null>(null);
   const [starters, setStarters] = useState<string[]>([]);
   const partnerTyping = usePartnerTyping();
   const { mark: markTyping, clear: clearTyping } = partnerTyping;
@@ -726,6 +729,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
   const statusBar = chatStatusBar({
     open: open && !conversation.blocked,
     daysLeft: left,
+    canExtend: conversation.canExtend,
     family: familyStep,
     pushOff: pushChip.pushOff,
     pushDismissed: pushChip.dismissed,
@@ -746,8 +750,15 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
       setEndDialog("report");
     },
     onOpenQuote: (id) => void revealMessage(id),
-    onOpenPhoto: () => {}, // the photo opens in its own dialog until the viewer
+    onOpenPhoto: (id) => setViewerId(id),
   };
+  const viewerPhotos: ViewerPhoto[] = messages
+    .filter((m) => m.kind === "IMAGE" && m.media)
+    .map((m) => ({
+      id: m.id,
+      media: m.media!,
+      caption: `${m.mine ? "أنت" : conversation.partner.firstName} · ${timeLabel(m.createdAt, country)}`,
+    }));
   const familyOpenUntil = family?.openUntil
     ? formatDate(family.openUntil, country, { day: "numeric", month: "long" })
     : null;
@@ -1016,6 +1027,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
         busy={busy}
         onConfirm={extend}
       />
+      <PhotoViewer photos={viewerPhotos} openId={viewerId} onClose={() => setViewerId(null)} />
       <EndChatDialog
         open={!!endDialog}
         onOpenChange={(o) => {

@@ -31,23 +31,26 @@ export function useTwoPanes(): boolean {
 export function ChatsShell({ children }: { children: React.ReactNode }) {
   const twoPanes = useTwoPanes();
   const openId = useSelectedLayoutSegment();
-  if (!twoPanes) return <>{children}</>;
+  // `children` keeps one place in the tree on both layouts (`contents` boxes on phones), so the open chat isn't
+  // remounted when the wide layout takes over after hydration
   return (
-    <div className="flex h-[calc(100dvh-4rem)] gap-4">
-      <aside className="w-72 shrink-0 xl:w-80" aria-label="قائمة المحادثات">
-        <ChatList compact activeId={openId} />
-      </aside>
-      <div className="flex min-w-0 flex-1">
-        {openId ? (
-          children
-        ) : (
-          <div className="flex flex-1 flex-col items-center justify-center gap-3 rounded-2xl border border-border/60 text-center">
+    <div className={twoPanes ? "flex h-[calc(100dvh-4rem)] gap-4" : "contents"}>
+      {twoPanes && (
+        <aside className="w-72 shrink-0 xl:w-80" aria-label="قائمة المحادثات">
+          <ChatList compact activeId={openId} />
+        </aside>
+      )}
+      <div className={twoPanes ? "flex min-w-0 flex-1" : "contents"}>
+        {twoPanes && !openId ? (
+          <div className="flex flex-1 flex-col items-center justify-center gap-3 rounded-2xl border border-border/60 bg-card text-center">
             <span className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/5">
               <MessageCircle className="h-8 w-8 text-primary/60" aria-hidden />
             </span>
             <p className="font-semibold text-foreground">اختر محادثة لعرضها</p>
             <p className="max-w-xs text-sm text-muted-foreground">رسائلك خاصة، والمحادثة نصية ومحدودة المدة.</p>
           </div>
+        ) : (
+          children
         )}
       </div>
     </div>

@@ -77,25 +77,31 @@ describe("firstUnreadId: where «رسائل جديدة» goes", () => {
 });
 
 describe("chatStatusBar: one bar, by priority", () => {
-  const base = { open: true, daysLeft: 10, family: null, pushOff: false, pushDismissed: false };
+  const base = { open: true, daysLeft: 10, canExtend: false, family: null, pushOff: false, pushDismissed: false };
 
-  it("expiry soon beats the family step and the push chip", () => {
-    expect(chatStatusBar({ ...base, daysLeft: 3, family: "offer", pushOff: true })).toBe("expiry");
-    expect(chatStatusBar({ ...base, daysLeft: 0 })).toBe("expiry");
+  it("(1) ending soon while it can be extended beats the family step and the push chip", () => {
+    expect(chatStatusBar({ ...base, daysLeft: 3, canExtend: true, family: "offer", pushOff: true })).toBe("expiry");
+    expect(chatStatusBar({ ...base, daysLeft: 0, canExtend: true })).toBe("expiry");
   });
 
-  it("the family step beats the push chip", () => {
+  it("(2) the family step beats an expiry that can't be extended (it states the days left itself)", () => {
+    expect(chatStatusBar({ ...base, daysLeft: 2, family: "offer", pushOff: true })).toBe("family");
+    expect(chatStatusBar({ ...base, daysLeft: 1, family: "pending_received" })).toBe("family");
     expect(chatStatusBar({ ...base, family: "pending_sent", pushOff: true })).toBe("family");
   });
 
-  it("the push chip until dismissed", () => {
+  it("(3) ending soon with no action still beats the push chip", () => {
+    expect(chatStatusBar({ ...base, daysLeft: 2, pushOff: true })).toBe("expiry");
+  });
+
+  it("(4) the push chip until dismissed", () => {
     expect(chatStatusBar({ ...base, pushOff: true })).toBe("push");
     expect(chatStatusBar({ ...base, pushOff: true, pushDismissed: true })).toBe("none");
   });
 
   it("nothing in a closed chat or while the keyboard is open", () => {
-    expect(chatStatusBar({ ...base, open: false, daysLeft: 1, family: "offer", pushOff: true })).toBe("none");
-    expect(chatStatusBar({ ...base, daysLeft: 1, keyboardOpen: true })).toBe("none");
+    expect(chatStatusBar({ ...base, open: false, daysLeft: 1, canExtend: true, family: "offer", pushOff: true })).toBe("none");
+    expect(chatStatusBar({ ...base, daysLeft: 1, canExtend: true, keyboardOpen: true })).toBe("none");
     expect(chatStatusBar(base)).toBe("none");
   });
 });

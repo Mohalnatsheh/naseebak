@@ -160,11 +160,12 @@ export function MessageBubble({
                 media={media}
                 mine={mine}
                 sendFailed={message.pending === "failed"}
+                onOpen={actions ? () => actions.onOpenPhoto(message.id) : undefined}
               />
               {time}
             </div>
           ) : media ? (
-            <VoiceBubble media={media} mine={mine} />
+            <VoiceBubble media={media} mine={mine} messageId={message.id} />
           ) : (
             // Its own direction from its first letter: a Latin or mixed message keeps its punctuation in place
             <span dir="auto">{message.body}</span>

@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import { forViewer } from "@/lib/gendered-copy";
 import { openPushSetup } from "@/components/shared/notification-bar";
 import { daysLabel } from "@/components/intro/intro-utils";
-import type { ChatBar, FamilyStep } from "./chat-look";
+import { EXPIRY_SOON_DAYS, type ChatBar, type FamilyStep } from "./chat-look";
 
 type Tone = "brand" | "warning" | "success";
 
@@ -75,8 +75,8 @@ function Strip({
 }
 
 /**
- * The bar chosen by `chatStatusBar()`: ending soon (with «تمديد 7 أيام» while it can be extended), the family step,
- * or the push chip. Replaces the stacked bars that took about 42% of a phone screen (QA WC-07).
+ * The bar chosen by `chatStatusBar()`: ending soon (with «تمديد 7 أيام» while it can be extended), the family step
+ * (with the days left in the chat's last days), or the push chip. Replaces the stacked bars that took about 42% of a phone screen (QA WC-07).
  */
 export function ChatStatusBar({
   bar,
@@ -104,6 +104,8 @@ export function ChatStatusBar({
   onPushDismiss: () => void;
 }) {
   const g = (m: string, f: string) => forViewer(viewerGender, m, f);
+  // The family bar in the chat's last days keeps the time left in view (it outranks a non-extendable expiry bar)
+  const left = daysLeft <= EXPIRY_SOON_DAYS ? ` · تبقّى ${daysLabel(daysLeft)}` : "";
   if (bar === "expiry") {
     return (
       <Strip
@@ -120,14 +122,14 @@ export function ChatStatusBar({
     if (family === "offer") {
       return (
         <Strip icon={Users} testId="chat-bar-family" action={{ label: "تعارف عائلي", onClick: onFamily }}>
-          جاهزان للخطوة التالية؟
+          جاهزان للخطوة التالية؟{left}
         </Strip>
       );
     }
     if (family === "pending_sent") {
       return (
         <Strip icon={Hourglass} tone="warning" testId="chat-bar-family">
-          طلب التعارف العائلي بانتظار الرد
+          طلب التعارف العائلي بانتظار الرد{left}
         </Strip>
       );
     }
@@ -135,12 +137,13 @@ export function ChatStatusBar({
       return (
         <Strip icon={Users} testId="chat-bar-family" href={matchHref}>
           {g("وصلك طلب تعارف عائلي", "وصلكِ طلب تعارف عائلي")}
+          {left}
         </Strip>
       );
     }
     return (
       <Strip icon={CheckCircle2} tone="success" testId="chat-bar-family" href={matchHref}>
-        بيانات وليّ الأمر
+        بيانات وليّ الأمر{left}
       </Strip>
     );
   }

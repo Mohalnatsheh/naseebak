@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { PhotoBubble, VoiceBubble } from "@/components/chat/media-bubble";
 
@@ -45,10 +45,21 @@ describe("VoiceBubble", () => {
     Object.defineProperty(el, "duration", { configurable: true, get: () => duration });
     return el;
   }
-  const bar = () => Number(screen.getByRole("progressbar").getAttribute("aria-valuenow"));
+  const bar = () => Number(screen.getByRole("slider").getAttribute("aria-valuenow"));
+  let store: Map<string, string>;
+  beforeEach(() => {
+    store = new Map();
+    vi.stubGlobal("localStorage", { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v) });
+    vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+    vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {});
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
 
   it("the bar follows the file's own length, not the declared one (rounded up)", () => {
-    render(<VoiceBubble media={voice(4)} mine={false} />);
+    render(<VoiceBubble media={voice(4)} mine={false} messageId="v1" />);
     expect(screen.getByText("0:04")).toBeTruthy();
     const el = audioWith(3.2);
     fireEvent.loadedMetadata(el);
@@ -59,11 +70,52 @@ describe("VoiceBubble", () => {
   });
 
   it("an endless WebM length keeps the declared one", () => {
-    render(<VoiceBubble media={voice(4)} mine />);
+    render(<VoiceBubble media={voice(4)} mine messageId="v1" />);
     const el = audioWith(Infinity);
     fireEvent.loadedMetadata(el);
     Object.defineProperty(el, "currentTime", { configurable: true, get: () => 2 });
     fireEvent.timeUpdate(el);
     expect(bar()).toBe(50);
+  });
+
+  it("a tap on the waveform seeks (from the start edge), before and while playing", () => {
+    render(<VoiceBubble media={voice(10)} mine messageId="v1" />);
+    const slider = screen.getByRole("slider");
+    slider.getBoundingClientRect = () => ({ left: 0, width: 200, top: 0, height: 32, right: 200, bottom: 32, x: 0, y: 0, toJSON: () => ({}) });
+    fireEvent.pointerDown(slider, { pointerId: 1, clientX: 50 });
+    expect(bar()).toBe(25);
+    expect(screen.getByText("0:02")).toBeTruthy();
+    // Loaded later: the seek is applied to the file
+    const el = audioWith(10);
+    let set = 0;
+    Object.defineProperty(el, "currentTime", { configurable: true, get: () => set, set: (v: number) => void (set = v) });
+    fireEvent.loadedMetadata(el);
+    expect(set).toBe(2.5);
+  });
+
+  it("speed 1× → 1.5× → 2× while playing, applied to the audio", () => {
+    render(<VoiceBubble media={voice(10)} mine messageId="v1" />);
+    expect(screen.queryByRole("button", { name: /سرعة التشغيل/ })).toBeNull();
+    const el = document.querySelector("audio")!;
+    fireEvent.playing(el);
+    fireEvent.click(screen.getByRole("button", { name: "سرعة التشغيل 1×" }));
+    expect(el.playbackRate).toBe(1.5);
+    fireEvent.click(screen.getByRole("button", { name: "سرعة التشغيل 1.5×" }));
+    expect(el.playbackRate).toBe(2);
+    fireEvent.click(screen.getByRole("button", { name: "سرعة التشغيل 2×" }));
+    expect(el.playbackRate).toBe(1);
+  });
+
+  it("the other person's note carries a dot until played here; mine never", async () => {
+    render(<VoiceBubble media={voice(10)} mine={false} messageId="v9" />);
+    expect(screen.getByTestId("voice-unplayed")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "تشغيل الرسالة الصوتية" }));
+    expect(screen.queryByTestId("voice-unplayed")).toBeNull();
+    cleanup();
+    render(<VoiceBubble media={voice(10)} mine={false} messageId="v9" />);
+    expect(screen.queryByTestId("voice-unplayed")).toBeNull();
+    cleanup();
+    render(<VoiceBubble media={voice(10)} mine messageId="v10" />);
+    expect(screen.queryByTestId("voice-unplayed")).toBeNull();
   });
 });

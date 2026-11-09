@@ -17,7 +17,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { markPageNotificationsRead } from "@/lib/notifications-client";
 import { matchesHref } from "@/lib/matches/links";
 import { ProBadge } from "@/components/shared/pro-badge";
-import { splitChats, type ChatTab } from "./chat-look";
+import { isActiveChat, splitChats, type ChatTab } from "./chat-look";
 
 /**
  * The chats, in two tabs: «النشطة» (open chats, first) and «المنتهية» (read-only), each with its unread total.
@@ -37,6 +37,15 @@ export function ChatList({ compact = false, activeId }: { compact?: boolean; act
   const { counts, profile, country } = useDashboardData();
   const female = profile?.gender === "FEMALE";
   const [tab, setTab] = useState<ChatTab>("active");
+  // Two panes with an ended chat open: its tab is the one shown first (once, when the list first knows it)
+  const [tabFor, setTabFor] = useState<string | null>(null);
+  if (activeId && chats && tabFor !== activeId) {
+    const open = chats.find((c) => c.id === activeId);
+    if (open) {
+      setTabFor(activeId);
+      setTab(isActiveChat(open) ? "active" : "ended");
+    }
+  }
 
   useEffect(() => {
     let alive = true;
@@ -134,7 +143,16 @@ export function ChatList({ compact = false, activeId }: { compact?: boolean; act
                     id={`chats-tab-${t.key}`}
                     aria-selected={tab === t.key}
                     aria-controls="chats-tabpanel"
+                    tabIndex={tab === t.key ? 0 : -1}
                     onClick={() => setTab(t.key)}
+                    onKeyDown={(e) => {
+                      // Two tabs: either arrow moves to the other one (roving focus)
+                      if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+                      e.preventDefault();
+                      const other: ChatTab = t.key === "active" ? "ended" : "active";
+                      setTab(other);
+                      document.getElementById(`chats-tab-${other}`)?.focus();
+                    }}
                     className={cn(
                       "flex min-h-11 items-center justify-center gap-1.5 border-b-2 text-sm font-bold transition-colors",
                       tab === t.key ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"

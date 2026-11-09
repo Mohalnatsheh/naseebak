@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import sharp from "sharp";
 import { NextResponse } from "next/server";
@@ -33,7 +32,7 @@ vi.mock("@/lib/auth", () => auth);
 vi.mock("@/lib/admin-alert", () => ({ sendAdminAlert: vi.fn() }));
 
 import { getConversation, listConversations, sendMediaMessage, sendMessage } from "@/lib/chat/service";
-import { IMAGE_FALLBACK_BODY, VOICE_FALLBACK_BODY, detectImageType, hasHeicMagic, processImage, validateVoice } from "@/lib/chat/media";
+import { IMAGE_FALLBACK_BODY, VOICE_FALLBACK_BODY, detectImageType, hasHeicMagic, processImage, validateImage, validateVoice } from "@/lib/chat/media";
 import { readFileSync } from "fs";
 import { join } from "path";
 import { IntroError } from "@/lib/intro/errors";
@@ -280,7 +279,7 @@ describe("HEIC / HEIF (iPhone)", () => {
   it("detects HEIC by MIME, by extension, and by magic when the type is empty or octet-stream", () => {
     const junk = Buffer.from("not an image at all");
     for (const t of ["image/heic", "image/heif", "image/heic-sequence", "image/heif-sequence"]) {
-      expect(detectImageType(t, null, junk)).toBe(t);
+      expect(detectImageType(t, null, junk)).toBe("image/heic");
     }
     expect(detectImageType("", "IMG_1.HEIC", junk)).toBe("image/heic");
     expect(detectImageType("application/octet-stream", "x.heif", junk)).toBe("image/heic");
@@ -288,6 +287,22 @@ describe("HEIC / HEIF (iPhone)", () => {
     expect(detectImageType("application/octet-stream", "photo", heic())).toBe("image/heic");
     expect(detectImageType("image/jpeg", "a.jpg", junk)).toBe("image/jpeg");
     expect(detectImageType("", "a", junk)).toBe("");
+  });
+
+  it("accepts every HEIC/HEIF MIME through validateImage and the full intake", async () => {
+    for (const t of ["image/heic", "image/heif", "image/heic-sequence", "image/heif-sequence"]) {
+      expect(validateImage(t, 1000).ok).toBe(true);
+      expect(validateImage(detectImageType(t, null, heic()), 1000).ok).toBe(true);
+    }
+    for (const t of ["image/heic-sequence", "image/heif-sequence"]) {
+      await sendMediaMessage({ conversationId: "c1", senderId: "u1", kind: "IMAGE", file: heic(), type: t });
+      expect(bunny.uploadToBunny.mock.calls.at(-1)![2]).toBe("image/webp");
+    }
+  });
+
+  it("decodes one at a time through the worker and survives several at once", async () => {
+    const outs = await Promise.all([processImage(heic()), processImage(heic()), processImage(heic())]);
+    for (const o of outs) expect(o.width).toBe(1600);
   });
 
   it("recognises every ISO-BMFF HEIC brand", () => {

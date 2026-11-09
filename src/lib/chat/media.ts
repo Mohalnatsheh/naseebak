@@ -6,6 +6,8 @@
  * members-only route that streams the file (src/app/api/chats/[id]/media/[messageId]/route.ts).
  */
 import { randomBytes } from "crypto";
+import path from "path";
+import { Worker } from "worker_threads";
 import { IntroError } from "@/lib/intro/errors";
 
 export type MediaKind = "IMAGE" | "VOICE";
@@ -13,13 +15,16 @@ export type MessageKindValue = "TEXT" | MediaKind;
 
 export const IMAGE_MAX_BYTES = 10 * 1024 * 1024;
 export const IMAGE_MAX_SIDE = 1600;
-export const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"] as const;
+export const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif", "image/heic-sequence", "image/heif-sequence"] as const;
 export const VOICE_MAX_BYTES = 6 * 1024 * 1024;
 export const VOICE_MIN_SEC = 1;
 export const VOICE_MAX_SEC = 185;
 export const VOICE_TYPES = ["audio/webm", "audio/ogg", "audio/mp4", "audio/aac", "audio/mpeg", "audio/x-m4a"] as const;
 /** Pixels sharp may decode: a 48 MP phone photo fits, a decompression bomb doesn't */
 const IMAGE_MAX_INPUT_PIXELS = 100_000_000;
+/** The wasm HEIC decode is slower and heavier: 50 MP at most, 20 s at most */
+const HEIC_MAX_PIXELS = 50_000_000;
+const HEIC_TIMEOUT_MS = 20_000;
 
 /** `body` of a media message: what app 1.0.x (text only) shows as a normal bubble */
 export const IMAGE_FALLBACK_BODY = "📷 صورة — حدّث التطبيق لعرضها";
@@ -86,7 +91,7 @@ export function hasHeicMagic(buf: Buffer): boolean {
  */
 export function detectImageType(type: string, fileName: string | null | undefined, buf: Buffer): string {
   const mime = baseMime(type);
-  if (HEIC_MIMES.includes(mime)) return mime;
+  if (HEIC_MIMES.includes(mime)) return "image/heic";
   if (/\.hei[cf]$/i.test(fileName ?? "")) return "image/heic";
   if ((mime === "" || mime === "application/octet-stream") && hasHeicMagic(buf)) return "image/heic";
   return type;
@@ -111,14 +116,48 @@ export function validateVoice(type: string, size: number, durationSec: number): 
   return { ok: true };
 }
 
-/** sharp first; when this libvips has no HEVC decoder, the wasm decoder turns HEIC into a JPEG for it */
+let heicQueue: Promise<unknown> = Promise.resolve();
+
+/** One decode at a time: each waits for the one before it, so there is never more than one worker */
+function runHeicWorker(buf: Buffer): Promise<Buffer> {
+  const job = heicQueue.then(
+    () =>
+      new Promise<Buffer>((resolve, reject) => {
+        // A plain .mjs outside the bundle, found from the app root (the slot's directory in production)
+        const worker = new Worker(path.join(process.cwd(), "src/lib/chat/heic-worker.mjs"), {
+          workerData: { buffer: buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) },
+        });
+        const timer = setTimeout(() => {
+          void worker.terminate();
+          reject(new Error("heic decode timed out"));
+        }, HEIC_TIMEOUT_MS);
+        const done = () => clearTimeout(timer);
+        worker.once("message", (m: { ok: boolean; buffer?: ArrayBuffer; message?: string }) => {
+          done();
+          void worker.terminate();
+          if (m.ok && m.buffer) resolve(Buffer.from(m.buffer));
+          else reject(new Error(m.message ?? "heic decode failed"));
+        });
+        worker.once("error", (e) => {
+          done();
+          reject(e);
+        });
+        worker.once("exit", (code) => {
+          done();
+          reject(new Error(`heic worker exited ${code}`));
+        });
+      })
+  );
+  heicQueue = job.catch(() => undefined);
+  return job;
+}
+
+/** sharp first; when this libvips has no HEVC decoder, the wasm decoder (in a worker) turns HEIC into a JPEG for it */
 async function decodeHeicToJpeg(buf: Buffer, sharp: typeof import("sharp")): Promise<Buffer> {
-  // Size check before the decode: heic-convert has no pixel limit of its own
+  // Size check before the decode: the decoder has no pixel limit of its own
   const { width = 0, height = 0 } = await sharp(buf).metadata();
-  if (width * height > IMAGE_MAX_INPUT_PIXELS) throw new Error("too large");
-  // Loaded only when a HEIC arrives, so it stays out of every other path and every client bundle
-  const { default: convert } = await import("heic-convert");
-  return Buffer.from(await convert({ buffer: buf, format: "JPEG", quality: 0.9 }));
+  if (width * height > HEIC_MAX_PIXELS) throw new Error("too large");
+  return runHeicWorker(buf);
 }
 
 /**

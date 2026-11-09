@@ -14,12 +14,14 @@ const tasks = vi.hoisted(() => ({
   processAccountDeletions: vi.fn(),
   remindWaitingInterest: vi.fn(),
   remindUnpaidPayments: vi.fn(),
+  runYearlyProGrants: vi.fn(),
 }));
 const authMod = vi.hoisted(() => ({ requireAdmin: vi.fn() }));
 const alert = vi.hoisted(() => ({ sendAdminAlert: vi.fn() }));
 vi.mock("@/lib/admin-alert", () => alert);
 vi.mock("@/lib/rate-limit-db", () => ({ purgeExpiredRateLimits: vi.fn(async () => 0) }));
 vi.mock("@/lib/engagement/polls", () => ({ runPollRotation: vi.fn(async () => ({ rotated: 0, queueEmpty: 0 })) }));
+vi.mock("@/lib/pro/grants", () => ({ runYearlyProGrants: tasks.runYearlyProGrants }));
 vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/settings", () => settings);
 vi.mock("@/lib/chat/service", () => ({ chatHousekeepingAll: tasks.chatHousekeepingAll, nudgeQuietChats: tasks.nudgeQuietChats }));
@@ -65,6 +67,7 @@ beforeEach(() => {
   tasks.processAccountDeletions.mockResolvedValue(1);
   tasks.remindWaitingInterest.mockResolvedValue({ members: 0, reminded: 0 });
   tasks.remindUnpaidPayments.mockResolvedValue({ payments: 3, reminded: 2 });
+  tasks.runYearlyProGrants.mockResolvedValue({ granted: 0 });
   settings.setSetting.mockResolvedValue(undefined);
   authMod.requireAdmin.mockResolvedValue({ session: { user: { id: "admin1", role: "ADMIN" } } });
   process.env.CRON_SECRET = "s3cret";
@@ -112,6 +115,7 @@ describe("runDailyJobs", () => {
     expect(run.part).toBe("morning");
     expect(tasks.expireMutualSuggestionsAll).toHaveBeenCalled();
     expect(tasks.runWeeklySuggestions).toHaveBeenCalled();
+    expect(tasks.runYearlyProGrants).toHaveBeenCalled();
     for (const t of [tasks.remindIntroRequests, tasks.remindMutualSuggestions, tasks.remindWaitingInterest, tasks.runReengagement]) {
       expect(t).not.toHaveBeenCalled();
     }

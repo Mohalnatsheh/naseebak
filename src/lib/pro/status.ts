@@ -3,6 +3,11 @@ import type { ProSubscription } from "@prisma/client";
 
 const LIVE_STATUSES = ["ACTIVE", "PAST_DUE"] as const;
 
+/** The one definition of a live subscription, shared with the grant task */
+export function liveProWhere(now: Date) {
+  return { status: { in: [...LIVE_STATUSES] }, currentPeriodEnd: { gt: now } };
+}
+
 /**
  * The member's live Pro subscription: status ACTIVE or PAST_DUE and a period end in the future.
  * Independent of `pro_enabled`: the switch gates new sales only, never what a member already paid for.

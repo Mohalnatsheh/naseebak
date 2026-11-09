@@ -25,7 +25,7 @@ beforeEach(() => {
 
 describe("GET /api/me/counts", () => {
   it("records last activity for the signed-in user (the helper throttles to once per hour)", async () => {
-    const res = await GET();
+    const res = await GET(new Request("http://x/api/me/counts"));
     expect(res.status).toBe(200);
     expect(activity.touchLastActive).toHaveBeenCalledWith("u1");
   });

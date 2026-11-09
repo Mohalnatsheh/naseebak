@@ -22,7 +22,7 @@ import { settleNotLiveProInvoice } from "@/lib/pro/duplicate";
 import { cancelOnStripe } from "@/lib/pro/manage";
 import { sendAdminAlert } from "@/lib/admin-alert";
 import { addMonth, addPlanPeriod } from "@/lib/pro/dates";
-import { PRO_PLAN_IDS, PRO_PLAN_LABELS, proOffersFor, proPlanName, type ProPlanId } from "@/lib/pro/plans";
+import { PRO_PAGE_PATH, PRO_PLAN_IDS, PRO_PLAN_LABELS, proOffersFor, proPlanName, type ProPlanId } from "@/lib/pro/plans";
 import {
   idOf,
   invoiceMetadata,
@@ -306,7 +306,7 @@ export async function handleProInvoicePaid(invoice: Stripe.Invoice): Promise<Pro
   // both tell; a retry after a failed grant tells), or, with no credits to grant, by whoever first records its Payment
   if (sub.userId && paymentId === meta!.paymentId && (granted || (!grants && paymentNew))) {
     try {
-      await notify({ userId: sub.userId, type: "PAYMENT", title: PRO_STARTED_TITLE, body: PRO_STARTED_BODY, url: "/dashboard/payments", sms: false });
+      await notify({ userId: sub.userId, type: "PAYMENT", title: PRO_STARTED_TITLE, body: PRO_STARTED_BODY, url: PRO_PAGE_PATH, sms: false });
     } catch (e) {
       console.error("[pro] started notice failed", sub.id, e);
     }
@@ -338,7 +338,7 @@ export async function handleProInvoiceFailed(invoice: Stripe.Invoice): Promise<P
         type: "PAYMENT",
         title: PRO_FAILED_TITLE,
         body: PRO_FAILED_BODY,
-        url: "/dashboard/payments",
+        url: PRO_PAGE_PATH,
         sms: false,
         oncePerDay: "pro-payment-failed",
       });
@@ -434,7 +434,7 @@ export async function handleProSubscriptionChanged(sub: Stripe.Subscription, kin
 
   if (step.tell && step.userId) {
     try {
-      await notify({ userId: step.userId, type: "PAYMENT", title: PRO_ENDED_TITLE, body: PRO_ENDED_BODY, url: "/dashboard/payments", sms: false });
+      await notify({ userId: step.userId, type: "PAYMENT", title: PRO_ENDED_TITLE, body: PRO_ENDED_BODY, url: PRO_PAGE_PATH, sms: false });
     } catch (e) {
       console.error("[pro] ended notice failed", sub.id, e);
     }

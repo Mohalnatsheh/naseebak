@@ -5,13 +5,14 @@ import Link from "next/link";
 import Image from "next/image";
 import {
   Bell, Heart, User, Camera, Brain, Coins, Ban, LifeBuoy, Gift, Settings, LogOut, ChevronLeft,
-  ShieldCheck, Smartphone, Loader2, PenLine, MapPin,
+  ShieldCheck, Smartphone, Loader2, PenLine, MapPin, Crown,
 } from "lucide-react";
 import { useDashboardData } from "@/contexts/dashboard-context";
 import { countryConfig } from "@/lib/countries";
 import { signOutAndUnlinkPush } from "@/lib/push-client";
 import { cn } from "@/lib/utils";
 import { matchesHref } from "@/lib/matches/links";
+import { PRO_PAGE_PATH } from "@/lib/pro/plans";
 
 interface Row {
   href: string;
@@ -77,7 +78,13 @@ export default function AccountPage() {
     },
     {
       title: "الرصيد",
-      rows: [{ href: "/dashboard/payments", label: creditsLabel, icon: Coins, value: String(credits) }],
+      rows: [
+        { href: "/dashboard/payments", label: creditsLabel, icon: Coins, value: String(credits) },
+        // Only when there are plans to buy or a subscription to manage (same rule as the sidebar)
+        ...(counts.pro?.showPage
+          ? [{ href: PRO_PAGE_PATH, label: "عضوية Pro", icon: Crown, value: counts.pro.isPro ? "فعّالة" : undefined }]
+          : []),
+      ],
     },
     {
       title: "التطبيق والمساعدة",

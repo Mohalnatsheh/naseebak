@@ -7,7 +7,7 @@ import { getCountrySettings, purchasesAvailable } from "@/lib/countries/settings
 import { CHECKOUT_APP } from "@/lib/payments/fulfil";
 import { MOCK_SESSION_PREFIX, paymentsMockEnabled } from "@/lib/payments/mock";
 import { CHECKOUT_TTL_MS } from "@/lib/payments/packages";
-import { PRO_PLAN_IDS, PRO_PLAN_LABELS, proOffersFor, proPlanName, type ProPlanId } from "@/lib/pro/plans";
+import { PRO_PAGE_PATH, PRO_PLAN_IDS, PRO_PLAN_LABELS, proOffersFor, proPlanName, type ProPlanId } from "@/lib/pro/plans";
 import { currentProSubscription } from "@/lib/pro/status";
 
 export type ProErrorCode = "DISABLED" | "UNAVAILABLE" | "ALREADY_PRO" | "UNKNOWN_PLAN";
@@ -95,7 +95,7 @@ export async function startProCheckout(userId: string, plan: ProPlanId): Promise
   let url: string;
   if (mock) {
     sessionId = `${MOCK_SESSION_PREFIX}pro_${randomUUID()}`;
-    url = `/dashboard/payments?mockPro=${paymentId}`;
+    url = `${PRO_PAGE_PATH}?mockPro=${paymentId}`;
   } else {
     // credits: what the offer said, so a plan changed in the checkout window never alters what was bought
     const metadata = { app: CHECKOUT_APP, kind: "pro", userId, plan, country, paymentId, credits: String(offer.credits) };
@@ -115,8 +115,8 @@ export async function startProCheckout(userId: string, plan: ProPlanId): Promise
       metadata,
       subscription_data: { metadata },
       expires_at: Math.floor((Date.now() + CHECKOUT_TTL_MS) / 1000),
-      success_url: `${appUrl}/dashboard/payments?pro=success`,
-      cancel_url: `${appUrl}/dashboard/payments?pro=cancel`,
+      success_url: `${appUrl}${PRO_PAGE_PATH}?pro=success`,
+      cancel_url: `${appUrl}${PRO_PAGE_PATH}?pro=cancel`,
     });
     if (!checkout.url) throw new Error("Stripe returned no checkout url");
     sessionId = checkout.id;

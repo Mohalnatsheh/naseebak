@@ -50,8 +50,9 @@ export interface CycleCounts {
   newSuggestions?: number;
   /** Shared suggestions only: the other side said «مهتم», I haven't decided («مهتمون بالتحدث معك») */
   likedYou?: number;
-  /** My own Pro state, for the badge (independent of the `pro_enabled` switch) */
-  pro?: { isPro: boolean; cancelAtPeriodEnd: boolean };
+  /** My own Pro state, for the badge (independent of the `pro_enabled` switch). `showPage`: link the Pro page
+   * (plans I can buy right now, or my subscription) */
+  pro?: { isPro: boolean; cancelAtPeriodEnd: boolean; showPage?: boolean };
 }
 
 const EMPTY_COUNTS: CycleCounts = {

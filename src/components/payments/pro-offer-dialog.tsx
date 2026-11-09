@@ -10,11 +10,12 @@ import { ProBadge } from "@/components/shared/pro-badge";
 import { ProPlanChooser, proPitch } from "@/components/payments/pro-section";
 import { useDashboardData } from "@/contexts/dashboard-context";
 import { forViewer } from "@/lib/gendered-copy";
+import { PRO_PAGE_PATH } from "@/lib/pro/plans";
 import type { MyProState } from "@/lib/pro/pro-types";
 
 /**
  * The Pro offer, opened from the chat's greyed photo / voice buttons. Loads /api/pro each time it opens and offers the
- * same compact plan chooser as the payments page, or a link there when buying isn't possible from here.
+ * same compact plan chooser as the Pro page, or a link there when buying isn't possible from here.
  */
 export function ProOfferDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const { profile } = useDashboardData();
@@ -93,8 +94,8 @@ export function ProOfferDialog({ open, onOpenChange }: { open: boolean; onOpenCh
               </p>
             )}
             <Button asChild variant="outline" className="h-11 w-full rounded-xl">
-              <Link href="/dashboard/payments#pro" onClick={() => onOpenChange(false)}>
-                {state.isPro ? "إدارة اشتراكي" : "صفحة الرصيد والاشتراك"}
+              <Link href={PRO_PAGE_PATH} onClick={() => onOpenChange(false)}>
+                {state.isPro ? "إدارة اشتراكي" : "صفحة عضوية Pro"}
               </Link>
             </Button>
           </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useEffectEvent, useCallback, useRef, useSyncExternalStore, Suspense } from "react";
+import { useState, useEffect, useEffectEvent, useCallback, Suspense } from "react";
 import Link from "@/components/shared/site-link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { loadStripe } from "@stripe/stripe-js";
@@ -39,13 +39,8 @@ import { PageHeader } from "@/components/shared/page-header";
 import { markPageNotificationsRead } from "@/lib/notifications-client";
 import { discountPercent } from "@/lib/payments/packages";
 import { COUNTRIES, formatDate, toCountry } from "@/lib/countries";
-import { ProSection } from "@/components/payments/pro-section";
-import type { MyProState } from "@/lib/pro/pro-types";
-
-/** Outcomes of a local mock Pro checkout (`POST /api/dev/mock-checkout/[id]`) */
-const MOCK_PRO_OUTCOMES = ["paid", "cancelled", "renew", "fail", "end"] as const;
-/** How long a return from Stripe waits for the webhook to turn Pro on */
-const PRO_ACTIVATION_WAIT_MS = 10_000;
+import { ProLinkCard } from "@/components/payments/pro-section";
+import { PRO_PAGE_PATH } from "@/lib/pro/plans";
 
 /** «ر.س» for riyal rows; anything else (Jordan's rows: JOD / USD) as stored */
 const currencyLabel = (c: string) => (c === "SAR" ? "ر.س" : c);
@@ -110,12 +105,6 @@ export default function PaymentsPage() {
   );
 }
 
-const noSubscribe = () => () => {};
-/** The page is served from this machine (the local mock checkout's only home) */
-function isLocalHost(): boolean {
-  return /^(localhost|127\.0\.0\.1|\[::1\])$/.test(window.location.hostname) || window.location.hostname.endsWith(".localhost");
-}
-
 function PaymentsContent() {
   // Opening this page clears the bell for the notifications that lead here
   useEffect(() => {
@@ -125,7 +114,7 @@ function PaymentsContent() {
   // New cycle: a credit is spent per family/chat request, suggestions are free;
   // credit on interest: a credit is spent on "مهتم" instead, requests are free
   // `switchesLoading`: the copy depends on the switch flags, so wait for them (no legacy-copy flash)
-  const { counts: { flags }, refreshUnread, refreshProfile, loading: switchesLoading, country: memberCountry } = useDashboardData();
+  const { counts: { flags, pro }, refreshUnread, refreshProfile, loading: switchesLoading, country: memberCountry } = useDashboardData();
   // Packages, currency and wording follow the member's country (the plans answer names it)
   const [planCountry, setPlanCountry] = useState<string | null>(null);
   const country = COUNTRIES[toCountry(planCountry ?? memberCountry)];
@@ -157,37 +146,6 @@ function PaymentsContent() {
   const [checkoutPackage, setCheckoutPackage] = useState<CreditPackage | null>(null);
   const [checkoutPaymentId, setCheckoutPaymentId] = useState<string | null>(null);
 
-  // Pro loads on its own: a failure here never hides the packages, and vice versa
-  const [proState, setProState] = useState<MyProState | null>(null);
-  const [proFailed, setProFailed] = useState(false);
-  const [mockBusy, setMockBusy] = useState<string | null>(null);
-  const [mockResult, setMockResult] = useState<string | null>(null);
-
-  /** `quiet`: a refetch (activation polling) whose failure keeps the last known state instead of the load error */
-  const loadPro = useCallback(async (quiet = false): Promise<MyProState | null> => {
-    try {
-      const res = await fetch("/api/pro");
-      if (!res.ok) throw new Error(`pro ${res.status}`);
-      const data = (await res.json()) as MyProState;
-      setProState(data);
-      setProFailed(false);
-      return data;
-    } catch (err) {
-      console.error(err);
-      if (!quiet) setProFailed(true);
-      return null;
-    }
-  }, []);
-
-  // The activation wait stops when the member leaves the page
-  const mounted = useRef(true);
-  useEffect(() => {
-    mounted.current = true;
-    return () => {
-      mounted.current = false;
-    };
-  }, []);
-
   const loadData = useCallback(async (p = histPage) => {
     try {
       const [plansRes, histRes] = await Promise.all([
@@ -213,79 +171,22 @@ function PaymentsContent() {
 
   useEffect(() => {
     async function init() {
-      await Promise.all([loadData(), loadPro()]);
+      await loadData();
       setLoading(false);
     }
     init();
-  }, [loadData, loadPro]);
+  }, [loadData]);
 
-  // Back from the Pro checkout (?pro=success|cancel): the webhook may land a moment later, so wait for it up to 10 s
-  const proReturn = searchParams.get("pro");
-  const handledProReturn = useRef<string | null>(null);
-  const onProReturn = useEffectEvent(async (kind: string) => {
-    router.replace("/dashboard/payments");
-    if (kind !== "success") {
-      setToast({ type: "info", message: "لم تكتمل عملية الدفع" });
-      return;
-    }
-    trackPaid();
-    setToast({ type: "success", message: "تم الدفع بنجاح! جاري تفعيل اشتراك Pro…" });
-    const until = Date.now() + PRO_ACTIVATION_WAIT_MS;
-    while (Date.now() < until) {
-      if (!mounted.current) return;
-      // A failed poll keeps the section as it was (no load-error flash); the next one tries again
-      const pro = await loadPro(true);
-      if (!mounted.current) return;
-      if (pro?.isPro) {
-        setToast({ type: "success", message: "تم تفعيل اشتراك Pro" });
-        loadData();
-        refreshUnread();
-        refreshProfile();
-        return;
-      }
-      await new Promise((r) => setTimeout(r, 1500));
-    }
-    if (mounted.current) setToast({ type: "info", message: "تم استلام الدفع، وسيظهر اشتراكك خلال دقائق." });
-  });
+  // Pro lives on its own page (owner, 2026-11-10): a Stripe return or mock link made before the move (?pro=, ?mockPro=)
+  // and the old anchor (#pro) go there
+  const proQuery = searchParams.get("pro") ?? searchParams.get("mockPro");
   useEffect(() => {
-    if (!proReturn || handledProReturn.current === proReturn) return;
-    handledProReturn.current = proReturn;
-    onProReturn(proReturn);
-  }, [proReturn]);
-
-  // /dashboard/payments#pro (the chat's offer): the section renders after loading, so scroll to it then
-  const scrolledToPro = useRef(false);
-  const proShown = !!proState && (proState.enabled || proState.isPro);
-  useEffect(() => {
-    if (loading || !proShown || scrolledToPro.current || window.location.hash !== "#pro") return;
-    scrolledToPro.current = true;
-    document.getElementById("pro")?.scrollIntoView({ block: "start" });
-  }, [loading, proShown]);
-
-  // Local mock Pro checkout (PAYMENTS_MOCK): /dashboard/payments?mockPro=<paymentId> shows dev buttons in place of Stripe
-  // Only on this machine (the dev route refuses everywhere else anyway): never a dev panel on naseebak.com
-  const localHost = useSyncExternalStore(noSubscribe, isLocalHost, () => false);
-  const mockProId = localHost ? searchParams.get("mockPro") : null;
-  async function runMockPro(outcome: (typeof MOCK_PRO_OUTCOMES)[number]) {
-    if (!mockProId || mockBusy) return;
-    setMockBusy(outcome);
-    try {
-      const res = await fetch(`/api/dev/mock-checkout/${encodeURIComponent(mockProId)}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ outcome }),
-      });
-      const data = await res.json().catch(() => ({}));
-      setMockResult(`${outcome}: ${res.status} ${JSON.stringify(data.result ?? data.error ?? null)}`);
-      await Promise.all([loadPro(), loadData()]);
-      refreshUnread();
-      refreshProfile();
-    } catch (err) {
-      setMockResult(`${outcome}: ${String(err)}`);
-    } finally {
-      setMockBusy(null);
+    if (proQuery !== null) {
+      router.replace(`${PRO_PAGE_PATH}?${searchParams.toString()}`);
+    } else if (window.location.hash === "#pro") {
+      router.replace(PRO_PAGE_PATH);
     }
-  }
+  }, [proQuery, searchParams, router]);
 
   // Analytics only: the currency is read when the payment is confirmed, not a reason to re-check it
   const trackPaid = useEffectEvent(() => trackEvent("payment_success", { currency: country.currency.code }));
@@ -571,25 +472,8 @@ function PaymentsContent() {
         </div>
       </PageHeader>
 
-      {mockProId && (
-        <div dir="ltr" className="space-y-2 rounded-xl border border-dashed border-primary/40 bg-primary/5 p-4 text-sm">
-          <p className="font-semibold text-foreground">Mock Pro checkout (local only)</p>
-          <div className="flex flex-wrap gap-2">
-            {MOCK_PRO_OUTCOMES.map((o) => (
-              <Button key={o} size="sm" variant="outline" disabled={mockBusy !== null} onClick={() => runMockPro(o)}>
-                {mockBusy === o && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                {o}
-              </Button>
-            ))}
-            <Button size="sm" variant="ghost" onClick={() => router.replace("/dashboard/payments")}>
-              close
-            </Button>
-          </div>
-          {mockResult && <p className="break-all font-mono text-xs text-muted-foreground">{mockResult}</p>}
-        </div>
-      )}
-
-      <ProSection state={proState} loadFailed={proFailed} onRetry={() => loadPro()} onChanged={() => loadPro()} />
+      {/* Pro has its own page: one small link to it, only when there are plans to buy or a subscription to manage */}
+      {pro?.showPage && <ProLinkCard isPro={pro.isPro} />}
 
       {/* Opening offer: why the prices are low right now */}
       {packages.some((p) => discountPercent({ price: p.price, wasPrice: p.wasPrice })) && (

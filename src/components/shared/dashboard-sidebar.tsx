@@ -23,11 +23,13 @@ import {
   MessageCircle,
   Ban,
   Coins,
+  Crown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { useDashboardData } from "@/contexts/dashboard-context";
+import { PRO_PAGE_PATH } from "@/lib/pro/plans";
 
 interface NavLink {
   href: string;
@@ -46,13 +48,15 @@ const mainLinks: NavLink[] = [
 ];
 
 /** Account pages: «حسابي» in the bottom bar is active on these */
-const ACCOUNT_PREFIXES = ["/dashboard/account", "/dashboard/profile", "/dashboard/photos", "/dashboard/personality-quiz", "/dashboard/payments", "/dashboard/blocks", "/dashboard/support", "/dashboard/referral", "/dashboard/install"];
+const ACCOUNT_PREFIXES = ["/dashboard/account", "/dashboard/profile", "/dashboard/photos", "/dashboard/personality-quiz", "/dashboard/payments", "/dashboard/pro", "/dashboard/blocks", "/dashboard/support", "/dashboard/referral", "/dashboard/install"];
 
 const accountLinks: NavLink[] = [
   { href: "/dashboard/profile", label: "الملف الشخصي", icon: User },
   { href: "/dashboard/photos", label: "صوري", icon: Camera },
   { href: "/dashboard/personality-quiz", label: "اختبار الشخصية", icon: Brain },
   { href: "/dashboard/payments", label: "الرصيد", icon: CreditCard },
+  // Shown only when the Pro page is worth a link (`counts.pro.showPage`)
+  { href: PRO_PAGE_PATH, label: "عضوية Pro", icon: Crown },
   { href: "/dashboard/blocks", label: "المحظورون", icon: Ban },
   { href: "/dashboard/support", label: "الدعم والملاحظات", icon: LifeBuoy },
   { href: "/dashboard/referral", label: "ادعُ صديقاً", icon: Gift },
@@ -63,7 +67,8 @@ const accountLinks: NavLink[] = [
 function isActiveLink(href: string, pathname: string): boolean {
   // In-page links (e.g. the profile's account settings) never take the active state from their page
   if (href.includes("#")) return false;
-  return href === "/dashboard" ? pathname === "/dashboard" : pathname.startsWith(href);
+  // A whole path segment: /dashboard/pro is not active on /dashboard/profile
+  return href === "/dashboard" ? pathname === "/dashboard" : pathname === href || pathname.startsWith(`${href}/`);
 }
 
 function NavItem({
@@ -147,11 +152,13 @@ export function DashboardSidebar() {
   // Same name for the balance as the home and payments pages
   const creditsLabel = counts.flags.introRequests ? "رصيدك" : "رصيد الاقتراحات";
   const filteredAccountLinks = filterLinks(
-    accountLinks.map((link) => {
-      if (link.href === "/dashboard/payments") return { ...link, label: creditsLabel };
-      if (link.href === "/dashboard/referral" && userData?.gender === "FEMALE") return { ...link, label: "ادعي صديقة" };
-      return link;
-    })
+    accountLinks
+      .filter((link) => link.href !== PRO_PAGE_PATH || !!counts.pro?.showPage)
+      .map((link) => {
+        if (link.href === "/dashboard/payments") return { ...link, label: creditsLabel };
+        if (link.href === "/dashboard/referral" && userData?.gender === "FEMALE") return { ...link, label: "ادعي صديقة" };
+        return link;
+      })
   );
 
   // Bottom bar: الرئيسية · التوافقات (suggestions + mutual matches) · المحادثات (when on) · حسابي.

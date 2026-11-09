@@ -9,6 +9,7 @@ import { getStripe } from "@/lib/stripe";
 import { notify } from "@/lib/notify";
 import { currentProSubscription } from "@/lib/pro/status";
 import { PRO_ENDED_BODY, PRO_ENDED_TITLE } from "@/lib/pro/notices";
+import { PRO_PAGE_PATH } from "@/lib/pro/plans";
 
 /** A Stripe subscription we may call: real ids only, never a local mock or a missing id */
 function stripeIdOf(sub: { stripeSubscriptionId: string | null }): string | null {
@@ -91,7 +92,7 @@ export async function cancelProNow(
 
   if (by.reason === "admin" && sub.userId) {
     try {
-      await notify({ userId: sub.userId, type: "PAYMENT", title: PRO_ENDED_TITLE, body: PRO_ENDED_BODY, url: "/dashboard/payments", sms: false });
+      await notify({ userId: sub.userId, type: "PAYMENT", title: PRO_ENDED_TITLE, body: PRO_ENDED_BODY, url: PRO_PAGE_PATH, sms: false });
     } catch (e) {
       console.error("[pro] ended notice failed", sub.id, e);
     }

@@ -38,7 +38,7 @@ describe("grantProCredits", () => {
     });
     expect(db.proSubscription.update).toHaveBeenCalledWith({ where: { id: "s1" }, data: { grantsMade: { increment: 1 } } });
     expect(notifyMock.notify).toHaveBeenCalledWith(
-      expect.objectContaining({ userId: "u1", type: "PAYMENT", title: "رصيد Pro", sms: false, url: "/dashboard/payments" })
+      expect.objectContaining({ userId: "u1", type: "PAYMENT", title: "رصيد Pro", sms: false, url: "/dashboard/pro" })
     );
     expect(notifyMock.notify.mock.calls[0][0].body).toBe("أُضيف 5 أرصدة إلى رصيدك من اشتراك Pro.");
   });

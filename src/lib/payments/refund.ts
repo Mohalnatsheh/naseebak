@@ -14,7 +14,7 @@ import { notify } from "@/lib/notify";
 import { recordCredit } from "@/lib/credits";
 import { sendAdminAlert } from "@/lib/admin-alert";
 import { findAnyPackage, formatPaidCharge } from "@/lib/payments/packages";
-import { planFromName } from "@/lib/pro/plans";
+import { PRO_PAGE_PATH, planFromName } from "@/lib/pro/plans";
 import { cancelProNow, endProLocally } from "@/lib/pro/manage";
 import { invoiceIdForPaymentIntent } from "@/lib/pro/invoice-payments";
 import { chargeInvoiceId } from "@/lib/pro/stripe-shapes";
@@ -122,7 +122,8 @@ export async function applyRefund(args: {
         : pkg
           ? `تم استرداد ${formatPaidCharge(payment)} (قيمة باقة ${pkg.name}) إلى بطاقتك، وأُزيل رصيد الباقة من حسابك.`
           : "تم استرداد قيمة عملية الدفع إلى بطاقتك.",
-      url: "/dashboard/payments",
+      // A Pro refund opens the Pro page (app 1.0.x falls back to its credits screen by the type)
+      url: proPlan ? PRO_PAGE_PATH : "/dashboard/payments",
       metadata: { paymentId: payment.id },
       ...(proPlan ? { sms: false as const } : {}),
     });

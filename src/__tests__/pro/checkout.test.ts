@@ -93,8 +93,8 @@ describe("startProCheckout", () => {
     // The offer's credits travel with the checkout (a plan changed in the checkout window never alters what was bought)
     expect(arg.metadata.credits).toMatch(/^\d+$/);
     expect(arg.subscription_data.metadata).toEqual(arg.metadata);
-    expect(arg.success_url).toContain("/dashboard/payments?pro=success");
-    expect(arg.cancel_url).toContain("/dashboard/payments?pro=cancel");
+    expect(arg.success_url).toContain("/dashboard/pro?pro=success");
+    expect(arg.cancel_url).toContain("/dashboard/pro?pro=cancel");
     expect(db.payment.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         id: r.paymentId, userId: "u1", type: "SUBSCRIPTION", planName: "pro_monthly", amount: 4, currency: "JOD",
@@ -107,7 +107,7 @@ describe("startProCheckout", () => {
     mocks.paymentsMockEnabled.mockReturnValue(true);
     const r = await startProCheckout("u1", "monthly");
     expect(stripe.create).not.toHaveBeenCalled();
-    expect(r.url).toBe(`/dashboard/payments?mockPro=${r.paymentId}`);
+    expect(r.url).toBe(`/dashboard/pro?mockPro=${r.paymentId}`);
     expect(db.payment.create.mock.calls[0][0].data.stripeSessionId).toMatch(/^mock_pro_/);
   });
 

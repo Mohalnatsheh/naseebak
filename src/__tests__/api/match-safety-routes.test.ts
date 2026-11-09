@@ -161,7 +161,7 @@ describe("GET /api/me/counts", () => {
       ] },
       listMatch("m3", "f-off", { isDeactivated: true, status: "VERIFIED" }),
     ]);
-    const data = await (await getCounts()).json();
+    const data = await (await getCounts(new Request("http://x/api/me/counts"))).json();
     expect(data.actionableMatches).toBe(1);
     expect(db.introRequest.updateMany).toHaveBeenCalledWith(expect.objectContaining({ data: { status: "CANCELLED" } }));
   });
@@ -179,7 +179,7 @@ describe("GET /api/me/counts", () => {
     quietCounts();
     db.block.findMany.mockResolvedValue([{ blockerId: "u1", blockedId: "x9" }]);
     db.suggestion.count.mockResolvedValueOnce(4).mockResolvedValueOnce(2);
-    const data = await (await getCounts()).json();
+    const data = await (await getCounts(new Request("http://x/api/me/counts"))).json();
     expect(data.newSuggestions).toBe(4);
     expect(data.likedYou).toBe(2);
     const likedWhere = db.suggestion.count.mock.calls[1][0].where;
@@ -192,7 +192,7 @@ describe("GET /api/me/counts", () => {
     db.block.findMany.mockResolvedValue([]);
     db.suggestion.count.mockRejectedValue(new Error("db down"));
     vi.spyOn(console, "error").mockImplementation(() => {});
-    const res = await getCounts();
+    const res = await getCounts(new Request("http://x/api/me/counts"));
     expect(res.status).toBe(200);
     expect((await res.json()).likedYou).toBeUndefined();
   });

@@ -7,7 +7,8 @@ import { cancelDeadPendingFor, hiddenPartnerIds, loadMatchStates, visibleConvers
 import { touchLastActive } from "@/lib/activity";
 import { recordActivityDay } from "@/lib/activity-days";
 import { countMutualTabs } from "@/lib/suggestions/feed";
-import { currentProSubscription } from "@/lib/pro/status";
+import { getMyProState, isAppRequest } from "@/lib/pro/my-state";
+import { proPageShown } from "@/lib/pro/plans";
 
 /**
  * Dashboard badges for the new cycle, polled with the unread-notification count:
@@ -15,8 +16,10 @@ import { currentProSubscription } from "@/lib/pro/status";
  * whether I still need to give guardian consent, and how many matches still have something
  * to do (`actionableMatches`: not blocked, partner active, no introduction under way yet and a family or chat request can be sent).
  * With credit_on_interest on, also my balance (`credits`).
+ * `pro`: my own Pro state for the badge, and `showPage`: whether the Pro page is linked (plans I can buy, or my
+ * subscription), the same rule as the Pro page link card.
  */
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const result = await requireUser();
     if ("error" in result) return result.error;
@@ -26,13 +29,13 @@ export async function GET() {
     await recordActivityDay(userId);
 
     // The Pro badge lookup runs alongside the switches and the hidden-partner lookup, adding no wait to the poll
-    const [flags, proSub, hidden] = await Promise.all([
+    const [flags, proState, hidden] = await Promise.all([
       getCycleFlags(),
-      // Badge only: a failure just hides it
-      currentProSubscription(userId).catch(() => null),
+      // Badge and Pro link only: a failure just hides them
+      getMyProState(userId, { app: isAppRequest(request) }).catch(() => null),
       hiddenPartnerIds(userId),
     ]);
-    const pro = { isPro: !!proSub, cancelAtPeriodEnd: !!proSub?.cancelAtPeriodEnd };
+    const pro = { isPro: !!proState?.isPro, cancelAtPeriodEnd: !!proState?.cancelAtPeriodEnd, showPage: proPageShown(proState) };
     // Chats with someone who blocked me are hidden from me, so they never count (badge, "has chats")
     const mine = visibleConversationsWhere(userId, hidden);
     if (!flags.introRequests) {

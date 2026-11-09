@@ -8,6 +8,17 @@ import { chargeFor } from "@/lib/payments/packages";
 
 export type ProPlanId = "weekly" | "monthly" | "yearly";
 
+/** The member's Pro page (plans, «اشتراكي», the Stripe return). Pro notices open it too. */
+export const PRO_PAGE_PATH = "/dashboard/pro";
+
+/**
+ * Whether the Pro page is worth a link (navigation, the card on the payments page): plans the member can buy right now,
+ * or a live subscription to manage. A switched-off or unsellable Pro is never described.
+ */
+export function proPageShown(state: { isPro: boolean; canBuy: boolean } | null | undefined): boolean {
+  return !!state && (state.isPro || state.canBuy);
+}
+
 // A type alias, not an interface, so Prisma accepts it as Json input
 export type ProPlanConfig = {
   enabled: boolean;

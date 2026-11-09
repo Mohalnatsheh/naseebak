@@ -5,7 +5,7 @@ import { notify } from "@/lib/notify";
 import { arabicCount } from "@/lib/utils";
 import { liveProWhere } from "@/lib/pro/status";
 import { addMonth, addMonths } from "@/lib/pro/dates";
-import { proPlanName } from "@/lib/pro/plans";
+import { PRO_PAGE_PATH, proPlanName } from "@/lib/pro/plans";
 
 const MAX_YEARLY_GRANTS_PER_RUN = 500;
 const YEARLY_GRANT_MONTHS = 12;
@@ -70,7 +70,7 @@ export async function grantProCredits(args: {
       type: "PAYMENT",
       title: "رصيد Pro",
       body: `أُضيف ${count} إلى رصيدك من اشتراك Pro.`,
-      url: "/dashboard/payments",
+      url: PRO_PAGE_PATH,
       sms: false,
     });
   } catch (e) {

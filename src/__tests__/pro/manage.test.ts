@@ -117,7 +117,7 @@ describe("cancelProNow", () => {
     expect(s().users[0].matchCredits).toBe(10);
     expect(s().grants[0].takenBack).toBe(false);
     expect(s().payments[0].status).toBe("COMPLETED");
-    expect(notifyMock.notify).toHaveBeenCalledWith(expect.objectContaining({ userId: "u1", type: "PAYMENT", title: "انتهت عضوية Pro", sms: false }));
+    expect(notifyMock.notify).toHaveBeenCalledWith(expect.objectContaining({ userId: "u1", type: "PAYMENT", title: "انتهت عضوية Pro", sms: false, url: "/dashboard/pro" }));
   });
 
   it("a subscription Stripe already cancelled still ends here", async () => {
@@ -286,6 +286,6 @@ describe("minor fixes", () => {
       fake.current.db.proSubscription.updateMany = update;
       spy.mockRestore();
     }
-    expect(notifyMock.notify).toHaveBeenCalledWith(expect.objectContaining({ title: "تم استرداد المبلغ" }));
+    expect(notifyMock.notify).toHaveBeenCalledWith(expect.objectContaining({ title: "تم استرداد المبلغ", url: "/dashboard/pro" }));
   });
 });

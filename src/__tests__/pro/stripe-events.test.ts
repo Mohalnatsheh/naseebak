@@ -141,7 +141,7 @@ describe("handleProInvoicePaid", () => {
     expect(store.payments[0]).toMatchObject({ id: "pay1", status: "COMPLETED", providerTxId: "in_1", proSubscriptionId: sub.id });
     expect(grants.grantProCredits).toHaveBeenCalledWith({ subscriptionId: sub.id, paymentId: "pay1", key: "invoice:in_1", credits: 8 });
     expect(notifyMock.notify).toHaveBeenCalledTimes(1);
-    expect(notifyMock.notify).toHaveBeenCalledWith(expect.objectContaining({ userId: "u1", type: "PAYMENT", title: "أصبحت عضوية Pro فعّالة", sms: false }));
+    expect(notifyMock.notify).toHaveBeenCalledWith(expect.objectContaining({ userId: "u1", type: "PAYMENT", title: "أصبحت عضوية Pro فعّالة", sms: false, url: "/dashboard/pro" }));
     // The per-subscription lock was taken
     expect(db.$executeRaw).toHaveBeenCalled();
   });
@@ -281,6 +281,7 @@ describe("handleProInvoiceFailed", () => {
         title: "تعذّر تجديد اشتراك Pro",
         body: "يمكنك تحديث بطاقتك من صفحة الدفع لمواصلة Pro.",
         sms: false,
+        url: "/dashboard/pro",
         oncePerDay: "pro-payment-failed",
       })
     );
@@ -331,7 +332,7 @@ describe("handleProSubscriptionChanged", () => {
     expect(stripeMock.subscriptions.cancel).toHaveBeenCalledWith("sub_1", { invoice_now: false, prorate: false });
     expect(stripeMock.refunds.create).not.toHaveBeenCalled();
     expect(notifyMock.notify).toHaveBeenCalledTimes(1);
-    expect(notifyMock.notify).toHaveBeenCalledWith(expect.objectContaining({ userId: "u1", title: "انتهت عضوية Pro", sms: false }));
+    expect(notifyMock.notify).toHaveBeenCalledWith(expect.objectContaining({ userId: "u1", title: "انتهت عضوية Pro", sms: false, url: "/dashboard/pro" }));
     // Never live again from a later update, and no repeated notice
     await handleProSubscriptionChanged(fakeProSubscription({ id: "sub_1", metadata: META, status: "active", periodEnd: T2 }));
     expect(store.subs[0].status).toBe("CANCELED");

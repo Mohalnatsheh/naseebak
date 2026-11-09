@@ -1,7 +1,8 @@
 "use client";
 
 import { useRef, useState, type KeyboardEvent } from "react";
-import { CheckCircle2, CircleDollarSign, Crown, Loader2, Sparkles } from "lucide-react";
+import Link from "next/link";
+import { CheckCircle2, ChevronLeft, CircleDollarSign, Crown, Loader2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { LoadError } from "@/components/shared/load-error";
@@ -11,7 +12,7 @@ import { useDashboardData } from "@/contexts/dashboard-context";
 import { trackEvent } from "@/lib/analytics";
 import { forViewer } from "@/lib/gendered-copy";
 import { formatPrice } from "@/lib/payments/packages";
-import { PRO_PLAN_IDS, PRO_PLAN_LABELS, type ProPlanId, type ProPlanOffer } from "@/lib/pro/plans";
+import { PRO_PAGE_PATH, PRO_PLAN_IDS, PRO_PLAN_LABELS, type ProPlanId, type ProPlanOffer } from "@/lib/pro/plans";
 import type { MyProState } from "@/lib/pro/pro-types";
 import { arabicCount, cn } from "@/lib/utils";
 
@@ -68,7 +69,7 @@ export function defaultProPlan(offers: Pick<ProPlanOffer, "id">[]): ProPlanId | 
 }
 
 /**
- * Pro as ONE compact card (payments page and the chat's offer dialog): a weekly / monthly / yearly selector
+ * Pro as ONE compact card (the Pro page and the chat's offer dialog): a weekly / monthly / yearly selector
  * (monthly first), the chosen plan's price, its free credits, what Pro gives and one subscribe button.
  * The button is disabled when buying isn't possible.
  */
@@ -198,9 +199,17 @@ export function ProPlanChooser({ offers, canBuy }: { offers: ProPlanOffer[]; can
   );
 }
 
+/** The line under the Pro page's title: what Pro gives, or that it is on */
+export function proPageDescription(state: Pick<MyProState, "isPro" | "enabled" | "offers"> | null): string | undefined {
+  if (!state) return undefined;
+  if (state.isPro) return "مزايا Pro فعّالة في حسابك.";
+  return state.enabled ? proPitch(state.offers) : undefined;
+}
+
 /**
- * The Pro block at the top of /dashboard/payments (anchor #pro). Shown only while sales are on or the member is Pro:
- * a switched-off feature is never described. A failed load is said generically, without naming Pro.
+ * The body of /dashboard/pro: «اشتراكي» for a member who is Pro, else the compact plan card. While sales are off and
+ * the member isn't Pro, only a short "not available" line: a switched-off feature is never described.
+ * A failed load is said generically, without naming Pro.
  */
 export function ProSection({
   state,
@@ -217,38 +226,50 @@ export function ProSection({
   if (loadFailed) {
     return <LoadError message="تعذّر تحميل جزء من هذه الصفحة. تحقّق من الاتصال وحاول مرة أخرى." onRetry={onRetry} />;
   }
-  if (!state || !(state.enabled || state.isPro)) return null;
+  if (!state) return null;
+  if (state.isPro) return <MyProCard state={state} onChanged={onChanged} />;
+  if (!state.enabled) {
+    return (
+      <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+        الاشتراك غير متاح حالياً.
+      </p>
+    );
+  }
 
   return (
-    <section id="pro" className="scroll-mt-24 space-y-4" aria-labelledby="pro-title">
-      <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-accent to-accent/70 shadow-lg shadow-accent/20">
-          <Crown className="h-5 w-5 text-white" aria-hidden="true" />
+    <section className="space-y-4" aria-label="باقات Pro">
+      {!state.canBuy && (
+        <div role="status" className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          الاشتراك في Pro غير متاح في دولتك حالياً.
         </div>
-        <div className="min-w-0">
-          <h2 id="pro-title" className="flex items-center gap-2 text-xl font-bold text-foreground">
-            عضوية <ProBadge size="md" />
-          </h2>
-          <p className="text-sm text-muted-foreground">
-            {state.isPro
-              ? "مزايا Pro فعّالة في حسابك."
-              : proPitch(state.offers)}
-          </p>
-        </div>
-      </div>
-
-      {state.isPro ? (
-        <MyProCard state={state} onChanged={onChanged} />
-      ) : (
-        <>
-          {!state.canBuy && (
-            <div role="status" className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-              الاشتراك في Pro غير متاح في دولتك حالياً.
-            </div>
-          )}
-          {state.offers.length > 0 && <ProPlanChooser offers={state.offers} canBuy={state.canBuy} />}
-        </>
       )}
+      {state.offers.length > 0 && <ProPlanChooser offers={state.offers} canBuy={state.canBuy} />}
     </section>
+  );
+}
+
+/**
+ * The one small card on /dashboard/payments that leads to the Pro page. Shown only when the Pro page is worth a link
+ * (`proPageShown`: plans the member can buy, or their subscription); the caller decides.
+ */
+export function ProLinkCard({ isPro }: { isPro: boolean }) {
+  return (
+    <Link
+      href={PRO_PAGE_PATH}
+      className="flex min-h-16 items-center gap-3 rounded-2xl border border-accent/40 bg-accent/5 px-4 py-3 transition-colors hover:bg-accent/10"
+    >
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-accent to-accent/70 text-white shadow-sm shadow-accent/20">
+        <Crown className="h-5 w-5" aria-hidden="true" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="flex items-center gap-2 font-bold text-foreground">
+          عضوية <ProBadge size="sm" />
+        </span>
+        <span className="block text-sm text-muted-foreground">
+          {isPro ? "مزايا Pro فعّالة في حسابك. إدارة اشتراكك." : "إرسال الصور والرسائل الصوتية في المحادثة."}
+        </span>
+      </span>
+      <ChevronLeft className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden="true" />
+    </Link>
   );
 }

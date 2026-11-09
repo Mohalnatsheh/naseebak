@@ -315,7 +315,7 @@ Detail: [docs/reference/suggestions-and-credits.md](docs/reference/suggestions-a
 
 ## Deployment
 
-**Production: `498628e` (app profile edit: stored basics kept on a finished profile; Arabic validation errors), deployed 2026-11-08, slot b.**
+**Production: `f523654` (niqab answer + «منتقبة» preference with `--db-push`, `free_interest_reply` switch, dashboard test fixes: number fields take Arabic-Indic digits, payments notice when a country isn't selling, neutral tips and guardian texts), deployed 2026-11-09, slot a.**
 
 Update that one line after each deploy. Don't list past versions. The live revision is in `/var/www/naseebak/REVISION`.
 

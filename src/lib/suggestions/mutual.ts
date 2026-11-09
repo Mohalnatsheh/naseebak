@@ -128,8 +128,8 @@ export async function revealHiddenFor(
  * first, and an unanswered «مهتم» of the blocked person is refunded like any other closing — but by the
  * morning job (06:00, `refundUnansweredInterests` with its 7-day look-back), together with the day's
  * natural expiries, never seconds after the block: a refund notice right after a tap would tell them
- * they were blocked (QA WC-14). Their own next visit that closes a card of theirs may refund it earlier,
- * also unconnected to the moment of the block.
+ * they were blocked (QA WC-14). User-scoped sweeps (anyone's visit, profile change, admin close) skip a
+ * pair with a block between them, so only the morning job refunds it.
  */
 export async function closeSuggestionsBetween(blockerId: string, blockedId: string): Promise<void> {
   const now = new Date();
@@ -217,8 +217,27 @@ export async function refundUnansweredInterests(opts: { userId?: string; now?: D
     take: 500,
   });
 
+  // A visit, a profile change or an admin close (user-scoped) never refunds a card a block closed: that
+  // refund and its notice always wait for the morning job (no userId), so they can't follow a block within
+  // seconds (QA WC-14). Two people with a block between them have no other open card to refund.
+  let blockedPairs = new Set<string>();
+  if (opts.userId && rows.length > 0) {
+    const others = [...new Set(rows.map((r) => (r.recipientId === opts.userId ? r.candidateId : r.recipientId)))];
+    const blocks = await db.block.findMany({
+      where: {
+        OR: [
+          { blockerId: opts.userId, blockedId: { in: others } },
+          { blockerId: { in: others }, blockedId: opts.userId },
+        ],
+      },
+      select: { blockerId: true, blockedId: true },
+    });
+    blockedPairs = new Set(blocks.map((b) => (b.blockerId === opts.userId ? b.blockedId : b.blockerId)));
+  }
+
   let refunded = 0;
   for (const row of rows) {
+    if (blockedPairs.has(row.recipientId === opts.userId ? row.candidateId : row.recipientId)) continue;
     const recipientWaited = row.recipientDecision === "INTERESTED";
     const userId = recipientWaited ? row.recipientId : row.candidateId;
     const gender = (recipientWaited ? row.recipient : row.candidate).gender;

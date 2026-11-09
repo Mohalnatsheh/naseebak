@@ -205,7 +205,7 @@ src/
 - Only «مهتم» costs: 1 credit (ledger `INTEREST`). «لا» is free. The match, requests, chat and chat → family are free. With `free_interest_reply` on, a reply to someone who already said «مهتم» is free too (no `INTEREST` row, so never refunded).
 - Refund only when the other side never answered and the card closed. A «لا» is never refunded.
 - `refundUnansweredInterests` refunds once, stamped by `Suggestion.interestRefundedAt`.
-- A blocker's own unanswered «مهتم» on an open card stays spent. The person blocked gets theirs back from the morning job, never seconds after the block (the notice would give the block away).
+- A blocker's own unanswered «مهتم» on an open card stays spent. The person blocked gets theirs back, but only from the morning job: user-scoped refund sweeps skip a pair with a block between them, so the notice never follows the block (it would give it away).
 - A match lost at the last moment refunds both.
 - Charge, claim and ledger run in one transaction in `decideSuggestion`: a lost claim charges nothing.
 - At 0 credits cards stay visible and «لا» stays free. Only «مهتم» is refused (`NO_CREDITS`).

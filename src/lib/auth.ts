@@ -6,9 +6,11 @@ import { db } from "@/lib/db";
 import { authConfig } from "@/lib/auth.config";
 import { authorizeAdminLogin, authorizePhoneLogin } from "@/lib/auth-authorize";
 import { sessionFromBearer } from "@/lib/mobile-auth";
+import { serverAuthCallbacks } from "@/lib/session-revocation";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
+  callbacks: serverAuthCallbacks,
   providers: [
     Credentials({
       id: "credentials",

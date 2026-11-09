@@ -33,10 +33,12 @@ export const authConfig = {
     },
     jwt({ token, user }) {
       if (user) {
-        token.id = user.id;
+        token.id = user.id as string;
         token.role = user.role;
         token.gender = user.gender;
         token.isVerified = user.isVerified;
+        // Sign-in time, kept through every refresh: sign-out revokes sessions signed in before it
+        token.authAt = Date.now();
       }
       return token;
     },

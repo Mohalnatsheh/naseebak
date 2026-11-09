@@ -23,5 +23,7 @@ declare module "next-auth/jwt" {
     role: string;
     gender: string;
     isVerified: boolean;
+    /** When this session signed in (ms), kept through every refresh: src/lib/session-revocation.ts */
+    authAt?: number;
   }
 }

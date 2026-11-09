@@ -1,11 +1,14 @@
 import NextAuth from "next-auth";
-import { NextResponse, type NextRequest } from "next/server";
+import { NextResponse, type NextFetchEvent, type NextRequest } from "next/server";
 import { authConfig } from "@/lib/auth.config";
 import { COUNTRY_COOKIE, type CountryCode } from "@/lib/countries";
 import { COUNTRY_COOKIE_OPTIONS, countryQueryRedirect } from "@/lib/visitor-country";
 import { SITE_COUNTRY_HEADER, isLocalizedPath, localizedPath, splitCountryPath, switchCountryPath } from "@/lib/site-paths";
+import { serverAuthCallbacks } from "@/lib/session-revocation";
+import { isBackgroundRequest, withoutSessionCookie } from "@/lib/proxy-session";
 
-const { auth } = NextAuth(authConfig);
+// Same revocation check as the routes (src/lib/session-revocation.ts): a signed-out session is never let through here
+const { auth } = NextAuth({ ...authConfig, callbacks: serverAuthCallbacks });
 
 /**
  * Render the page for `country`: the page reads the country from SITE_COUNTRY_HEADER. /sa/... reaches its page through
@@ -33,7 +36,7 @@ function redirectWithCountry(url: URL, country: CountryCode) {
  * 3. Route protection (authConfig.authorized). When `authorized` answers with a redirect, NextAuth
  *    returns it without calling this handler.
  */
-export default auth(async (req) => {
+const handler = auth(async (req) => {
   const { country: urlCountry, path } = splitCountryPath(req.nextUrl.pathname);
 
   const switched = countryQueryRedirect(req.nextUrl);
@@ -72,6 +75,15 @@ export default auth(async (req) => {
   }
   return NextResponse.next();
 });
+
+/**
+ * 4. Prefetch and RSC requests never refresh the session cookie (QA WA-01): one sent just before a sign-out could
+ *    otherwise answer after it with a fresh cookie and sign the member back in. Page loads still refresh it.
+ */
+export default async function proxy(req: NextRequest, ev: NextFetchEvent) {
+  const res = await handler(req, ev as never);
+  return res && isBackgroundRequest(req.headers) ? withoutSessionCookie(res) : res;
+}
 
 export const config = {
   matcher: ["/((?!api|_next/static|_next/image|favicon.ico).*)"],

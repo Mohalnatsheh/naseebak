@@ -84,5 +84,15 @@ export async function signOutAndUnlinkPush(callbackUrl = "/login"): Promise<void
     }
     ready = false;
   }
+  // Server half first (QA WA-01): revokes this member's web sessions, so a request still in flight can't sign them
+  // back in. A failure here never blocks signing out of this browser.
+  try {
+    await Promise.race([
+      fetch("/api/auth/logout", { method: "POST" }),
+      new Promise((r) => setTimeout(r, 3000)),
+    ]);
+  } catch (error) {
+    console.warn("[signOut] revoke failed:", error);
+  }
   await signOut({ callbackUrl });
 }

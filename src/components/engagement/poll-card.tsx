@@ -6,6 +6,7 @@ import { useDashboardData } from "@/contexts/dashboard-context";
 import { arabicCount } from "@/lib/utils";
 import type { PublicPoll } from "@/lib/engagement/poll-types";
 import { PollWidget, SharePollButton } from "@/components/engagement/poll-widget";
+import { LoadError } from "@/components/shared/load-error";
 
 const CREDITS = { one: "رصيد واحد", two: "رصيدان", few: "أرصدة", many: "رصيداً" };
 const DAYS = { one: "يوم", two: "يومين", few: "أيام", many: "يوماً" };
@@ -21,26 +22,36 @@ function nextQuestionLabel(endsAt: string | null, now: number): string | null {
 
 /**
  * Dashboard home: «سؤال نصيبك». Answering earns the member credits (poll_reward_credits, once per question).
- * Renders nothing while the switch is off, nothing is running, or the load fails (it's an extra, never a blocker).
+ * Renders nothing while the switch is off or nothing is running; a failed load shows a small LoadError with a retry.
  */
 export function PollCard() {
   const { refreshUnread } = useDashboardData();
   const [poll, setPoll] = useState<PublicPoll | null>(null);
   const [now] = useState(() => Date.now());
+  const [failed, setFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
     fetch("/api/polls/current")
-      .then((r) => (r.ok ? r.json() : null))
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`poll ${r.status}`))))
       .then((data) => {
-        if (!cancelled && data?.poll && data.poll.status === "ACTIVE") setPoll(data.poll);
+        if (cancelled) return;
+        setFailed(false);
+        if (data?.poll && data.poll.status === "ACTIVE") setPoll(data.poll);
       })
-      .catch(() => {});
+      // A failed load says so (QA WA-03), never a silent gap that looks like "no question this week"
+      .catch(() => {
+        if (!cancelled) setFailed(true);
+      });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [attempt]);
 
+  if (!poll && failed) {
+    return <LoadError className="py-5" message="تعذّر تحميل سؤال نصيبك." onRetry={() => setAttempt((n) => n + 1)} />;
+  }
   if (!poll) return null;
   const answered = poll.myVote !== null;
   const next = nextQuestionLabel(poll.endsAt, now);

@@ -118,3 +118,91 @@ describe("DashboardDataProvider polling (G65)", () => {
     vi.useRealTimers();
   });
 });
+
+describe("DashboardDataProvider countsFailed (QA WA-02)", () => {
+  it("marks counts that never loaded (first try and retry failed)", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      const url = String(input);
+      if (url === "/api/profile") return json({ user: { id: "u1" } });
+      if (url === "/api/me/counts") return json({ error: "x" }, false);
+      return json({ count: 0 });
+    });
+    render(<DashboardDataProvider><Probe /></DashboardDataProvider>);
+    await act(async () => {});
+    await act(async () => {
+      vi.advanceTimersByTime(2500);
+    });
+    await act(async () => {});
+    expect(data.current.countsFailed).toBe(true);
+    vi.useRealTimers();
+  });
+
+  it("a counts answer without `pro` (server lookup failed) keeps the badge already shown", async () => {
+    let withPro = true;
+    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      const url = String(input);
+      if (url === "/api/profile") return json({ user: { id: "u1" } });
+      if (url === "/api/me/counts") return json(withPro ? { flags, pro: { isPro: true, cancelAtPeriodEnd: false, showPage: true } } : { flags });
+      return json({ count: 0 });
+    });
+    render(<DashboardDataProvider><Probe /></DashboardDataProvider>);
+    await waitFor(() => expect(screen.getByText("ok")).toBeTruthy());
+    withPro = false;
+    await act(async () => {
+      await (data.current.refreshUnread as () => Promise<unknown>)();
+    });
+    expect((data.current.counts as { pro?: { isPro: boolean } }).pro?.isPro).toBe(true);
+    expect(data.current.countsFailed).toBe(false);
+  });
+});
+
+describe("dashboard home when the counts failed (QA WA-02)", () => {
+  it("shows LoadError with a retry, not the switched-off flow", async () => {
+    const refreshUnread = vi.fn(async () => true);
+    vi.doMock("@/contexts/dashboard-context", () => ({
+      useDashboardData: () => ({
+        profile: { id: "u1", firstName: "س", gender: "FEMALE", profile: { isComplete: true }, _count: {} },
+        completeness: { total: 100 }, unreadCount: 0, loading: false, profileFailed: false, countsFailed: true,
+        refreshProfile: vi.fn(), refreshUnread, country: "JO",
+        counts: { flags: { introRequests: false, chat: false, mutualSuggestions: false }, pendingIntros: 0, unreadChats: 0, hasChats: false, guardian: null, actionableMatches: 0 },
+      }),
+    }));
+    vi.resetModules();
+    const { default: DashboardPage } = await import("@/app/(ar)/dashboard/page");
+    render(<DashboardPage />);
+    expect(screen.getByRole("alert").textContent).toContain("تعذّر تحميل صفحتك");
+    expect(screen.queryByText(/مكتمل/)).toBeNull();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /إعادة المحاولة/ }));
+    });
+    expect(refreshUnread).toHaveBeenCalledTimes(1);
+    vi.doUnmock("@/contexts/dashboard-context");
+  });
+
+  it("a failed chats or feed load shows LoadError there, not an empty state (QA WA-03)", async () => {
+    vi.doMock("@/contexts/dashboard-context", () => ({
+      useDashboardData: () => ({
+        profile: { id: "u1", firstName: "س", gender: "FEMALE", profile: { isComplete: true }, _count: {} },
+        completeness: { total: 100 }, unreadCount: 0, loading: false, profileFailed: false, countsFailed: false,
+        refreshProfile: vi.fn(), refreshUnread: vi.fn(), country: "JO",
+        counts: { flags, pendingIntros: 0, unreadChats: 0, hasChats: true, guardian: null, actionableMatches: 0, newSuggestions: 0, likedYou: 0 },
+      }),
+    }));
+    vi.doMock("@/components/engagement/poll-card", () => ({ PollCard: () => null }));
+    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      const url = String(input);
+      if (url.startsWith("/api/suggestions?")) return json({ emptyReason: "pending" });
+      return json({ error: "x" }, false);
+    });
+    vi.resetModules();
+    const { default: DashboardPage } = await import("@/app/(ar)/dashboard/page");
+    render(<DashboardPage />);
+    await waitFor(() => expect(screen.getByText("تعذّر تحميل المحادثات.")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("تعذّر تحميل التوافقات المقترحة.")).toBeTruthy());
+    expect(screen.queryByText(/تبدأ المحادثة عندما/)).toBeNull();
+    expect(screen.queryByText(/لديك اقتراحات بانتظار الطرف الآخر/)).toBeNull();
+    vi.doUnmock("@/contexts/dashboard-context");
+    vi.doUnmock("@/components/engagement/poll-card");
+  });
+});

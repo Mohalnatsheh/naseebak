@@ -39,7 +39,7 @@ function getArabicDate(country: CountryCode) {
  * it's not complete). Every number comes from the server (/api/me/counts, /api/chats).
  */
 export default function DashboardPage() {
-  const { profile, completeness, counts, unreadCount, loading, profileFailed, refreshProfile, country } = useDashboardData();
+  const { profile, completeness, counts, unreadCount, loading, profileFailed, countsFailed, refreshProfile, refreshUnread, country } = useDashboardData();
   const [retrying, setRetrying] = useState(false);
   // Why nothing new came ("weekly_cap" | "no_candidates" | "pending" | null), from page 1 of /api/suggestions
   const [emptyReason, setEmptyReason] = useState<string | null>(null);
@@ -56,6 +56,11 @@ export default function DashboardPage() {
   const chatOn = counts.flags.chat || counts.hasChats;
   const sharedFeed = counts.flags.mutualSuggestions;
   const [suggested, setSuggested] = useState<FeedItem[] | null>(null);
+  // A failed section load shows LoadError there, never an empty state (QA WA-03); retry bumps these
+  const [feedFailed, setFeedFailed] = useState(false);
+  const [feedTry, setFeedTry] = useState(0);
+  const [chatsFailed, setChatsFailed] = useState(false);
+  const [chatsTry, setChatsTry] = useState(0);
 
   // Once the profile qualifies, page 1 of /api/suggestions tops up suggestions automatically (the counts
   // shown come from /api/me/counts; this call also says why nothing new came)
@@ -78,10 +83,14 @@ export default function DashboardPage() {
       // «توافقات مقترحة»: the people in the «الجديد» tab, read after the top-up above ran
       .then(() => (sharedFeed ? fetch("/api/suggestions/feed?tab=new&page=1") : null))
       .then((r) => (r ? (r.ok ? r.json() : Promise.reject(new Error(`feed ${r.status}`))) : null))
-      .then((d) => { if (!cancelled && d) setSuggested((d.items ?? []) as FeedItem[]); })
-      .catch(() => { if (!cancelled) setSuggested([]); });
+      .then((d) => {
+        if (cancelled || !d) return;
+        setSuggested((d.items ?? []) as FeedItem[]);
+        setFeedFailed(false);
+      })
+      .catch(() => { if (!cancelled) setFeedFailed(true); });
     return () => { cancelled = true; };
-  }, [loading, qualifiesForSuggestions, sharedFeed]);
+  }, [loading, qualifiesForSuggestions, sharedFeed, feedTry]);
 
   // Conversations to continue (the same list as the chats page)
   useEffect(() => {
@@ -89,10 +98,14 @@ export default function DashboardPage() {
     let cancelled = false;
     fetch("/api/chats")
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`chats ${r.status}`))))
-      .then((d) => { if (!cancelled) setChats((d.conversations ?? []) as ChatSummary[]); })
-      .catch(() => { if (!cancelled) setChats([]); });
+      .then((d) => {
+        if (cancelled) return;
+        setChats((d.conversations ?? []) as ChatSummary[]);
+        setChatsFailed(false);
+      })
+      .catch(() => { if (!cancelled) setChatsFailed(true); });
     return () => { cancelled = true; };
-  }, [loading, chatOn]);
+  }, [loading, chatOn, chatsTry]);
 
   if (loading) {
     return (
@@ -115,6 +128,25 @@ export default function DashboardPage() {
               : () => {
                   setRetrying(true);
                   refreshProfile().finally(() => setRetrying(false));
+                }
+          }
+        />
+      </div>
+    );
+  }
+
+  // The switches never loaded (QA WA-02): the page would show the switched-off flow, so say so with a retry
+  if (countsFailed) {
+    return (
+      <div className="py-12">
+        <LoadError
+          message="تعذّر تحميل صفحتك. تحقّق من الاتصال وحاول مرة أخرى."
+          onRetry={
+            retrying
+              ? undefined
+              : () => {
+                  setRetrying(true);
+                  refreshUnread().finally(() => setRetrying(false));
                 }
           }
         />
@@ -266,6 +298,9 @@ export default function DashboardPage() {
       )}
 
       {/* Conversations to continue */}
+      {chatOn && chatsFailed && chats === null && (
+        <LoadError className="py-5" message="تعذّر تحميل المحادثات." onRetry={() => setChatsTry((n) => n + 1)} />
+      )}
       {chatOn && chats !== null && (
         <section>
           <div className="mb-2 flex items-center justify-between px-1">
@@ -317,7 +352,18 @@ export default function DashboardPage() {
       )}
 
       {/* «توافقات مقترحة»: who is waiting in «الجديد», a tap away (photos stay hidden: initials only) */}
-      {sharedFeed && qualifiesForSuggestions && suggested !== null && (
+      {sharedFeed && qualifiesForSuggestions && (feedFailed || suggestionsFailed) && (suggested === null || suggested.length === 0) && (
+        <LoadError
+          className="py-5"
+          message="تعذّر تحميل التوافقات المقترحة."
+          onRetry={() => {
+            setFeedFailed(false);
+            setSuggestionsFailed(false);
+            setFeedTry((n) => n + 1);
+          }}
+        />
+      )}
+      {sharedFeed && qualifiesForSuggestions && suggested !== null && !((feedFailed || suggestionsFailed) && suggested.length === 0) && (
         <section>
           <div className="mb-2 flex items-center justify-between px-1">
             <h2 className="text-lg font-bold text-foreground">توافقات مقترحة</h2>

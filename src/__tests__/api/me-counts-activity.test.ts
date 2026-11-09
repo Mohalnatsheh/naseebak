@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const db = vi.hoisted(() => ({ conversation: { count: vi.fn() } }));
+const db = vi.hoisted(() => ({ conversation: { count: vi.fn() }, user: { findUnique: vi.fn(async () => null) } }));
 const activity = vi.hoisted(() => ({ touchLastActive: vi.fn() }));
 vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/activity", () => activity);

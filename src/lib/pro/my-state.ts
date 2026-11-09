@@ -8,6 +8,8 @@ import { proOffersFor, type ProPlanId } from "@/lib/pro/plans";
 import type { MyProState } from "@/lib/pro/pro-types";
 import { currentProSubscription } from "@/lib/pro/status";
 
+export type ProStateUser = { country: string; phone: string | null };
+
 const PLAN_IDS: Record<ProPlan, ProPlanId> = { WEEKLY: "weekly", MONTHLY: "monthly", YEARLY: "yearly" };
 
 /**
@@ -15,11 +17,14 @@ const PLAN_IDS: Record<ProPlan, ProPlanId> = { WEEKLY: "weekly", MONTHLY: "month
  * rule in /api/me/counts). `app`: the request came from the app (Bearer), which follows the app-only payments switch
  * and never sells to test accounts (same rule as POST /api/pro/checkout).
  */
-export async function getMyProState(userId: string, { app }: { app: boolean }): Promise<MyProState> {
+export async function getMyProState(
+  userId: string,
+  { app, me: known }: { app: boolean; /** The member's country and phone when the caller already read them */ me?: ProStateUser | null },
+): Promise<MyProState> {
   const [enabled, sub, me] = await Promise.all([
     getProEnabled(),
     currentProSubscription(userId),
-    db.user.findUnique({ where: { id: userId }, select: { country: true, phone: true } }),
+    known !== undefined ? known : db.user.findUnique({ where: { id: userId }, select: { country: true, phone: true } }),
   ]);
   const country = toCountry(me?.country);
   const [countrySettings, sellable] = await Promise.all([

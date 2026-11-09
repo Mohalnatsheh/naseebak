@@ -77,6 +77,10 @@ interface DashboardData {
   /** The last /api/profile load failed (network, server error, no user in the answer). The profile
    *  loaded before, if any, is kept; with none, pages show LoadError instead of "finish your setup" */
   profileFailed: boolean;
+  /** /api/me/counts never loaded (first load and its retry failed): `counts` holds the switches-off defaults, so
+   *  switch-dependent pages show LoadError instead of the legacy flow (QA WA-02). Later poll failures keep the last
+   *  counts and leave this false */
+  countsFailed: boolean;
   refreshProfile: () => Promise<void>;
   refreshUnread: () => Promise<unknown>;
 }
@@ -89,6 +93,7 @@ const DashboardContext = createContext<DashboardData>({
   country: "JO",
   loading: true,
   profileFailed: false,
+  countsFailed: false,
   refreshProfile: async () => {},
   refreshUnread: async () => {},
 });
@@ -110,6 +115,7 @@ export function DashboardDataProvider({ children }: { children: ReactNode }) {
   const [profileLoading, setProfileLoading] = useState(true);
   const [profileFailed, setProfileFailed] = useState(false);
   const [countsReady, setCountsReady] = useState(false);
+  const [countsLoaded, setCountsLoaded] = useState(false);
   const loading = profileLoading || !countsReady;
 
   const refreshProfile = useCallback(async () => {
@@ -140,7 +146,10 @@ export function DashboardDataProvider({ children }: { children: ReactNode }) {
         setUnreadCount(data.count || 0);
       }
       if (countsRes.ok) {
-        setCounts({ ...EMPTY_COUNTS, ...(await countsRes.json()) });
+        const next = (await countsRes.json()) as Partial<CycleCounts>;
+        // The Pro lookup failed on the server (no `pro` in the answer): keep the badge as it was, never hide it
+        setCounts((prev) => ({ ...EMPTY_COUNTS, ...next, pro: next.pro ?? prev.pro }));
+        setCountsLoaded(true);
         return true;
       }
       return false;
@@ -184,7 +193,7 @@ export function DashboardDataProvider({ children }: { children: ReactNode }) {
   }, [refreshProfile, refreshUnread]);
 
   return (
-    <DashboardContext.Provider value={{ profile, completeness, unreadCount, counts, country: toCountry(profile?.country), loading, profileFailed, refreshProfile, refreshUnread }}>
+    <DashboardContext.Provider value={{ profile, completeness, unreadCount, counts, country: toCountry(profile?.country), loading, profileFailed, countsFailed: countsReady && !countsLoaded, refreshProfile, refreshUnread }}>
       {children}
     </DashboardContext.Provider>
   );

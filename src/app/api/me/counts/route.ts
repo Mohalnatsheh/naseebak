@@ -28,14 +28,22 @@ export async function GET(request: Request) {
     await touchLastActive(userId);
     await recordActivityDay(userId);
 
-    // The Pro badge lookup runs alongside the switches and the hidden-partner lookup, adding no wait to the poll
-    const [flags, proState, hidden] = await Promise.all([
+    // One read of the member serves the balance and the Pro lookup (country, phone), so the 30 s poll costs one Pro
+    // query on top of cached settings
+    const [flags, me, hidden] = await Promise.all([
       getCycleFlags(),
-      // Badge and Pro link only: a failure just hides them
-      getMyProState(userId, { app: isAppRequest(request) }).catch(() => null),
+      db.user.findUnique({ where: { id: userId }, select: { matchCredits: true, country: true, phone: true } }),
       hiddenPartnerIds(userId),
     ]);
-    const pro = { isPro: !!proState?.isPro, cancelAtPeriodEnd: !!proState?.cancelAtPeriodEnd, showPage: proPageShown(proState) };
+    // Badge and Pro link only. A failure is logged and leaves `pro` out of the answer: the website keeps the badge it
+    // showed, and older apps treat a missing `pro` as before
+    const proState = await getMyProState(userId, { app: isAppRequest(request), me }).catch((e) => {
+      console.error("Counts Pro state:", e);
+      return undefined;
+    });
+    const pro = proState
+      ? { isPro: proState.isPro, cancelAtPeriodEnd: proState.cancelAtPeriodEnd, showPage: proPageShown(proState) }
+      : undefined;
     // Chats with someone who blocked me are hidden from me, so they never count (badge, "has chats")
     const mine = visibleConversationsWhere(userId, hidden);
     if (!flags.introRequests) {
@@ -50,7 +58,7 @@ export async function GET(request: Request) {
     await cancelDeadPendingFor(userId).catch((e) => console.error("Cancel dead requests:", e));
 
     const pendingWhere = { receiverId: userId, status: "PENDING" as const, expiresAt: { gt: new Date() } };
-    const [pendingIntros, firstPending, unreadChats, chatCount, guardian, states, me, tabs] = await Promise.all([
+    const [pendingIntros, firstPending, unreadChats, chatCount, guardian, states, tabs] = await Promise.all([
       db.introRequest.count({ where: pendingWhere }),
       // The one that expires first, so the dashboard card can open that match
       db.introRequest.findFirst({ where: pendingWhere, orderBy: { expiresAt: "asc" }, select: { matchId: true } }),
@@ -64,8 +72,6 @@ export async function GET(request: Request) {
       db.conversation.count({ where: mine }),
       db.parentInfo.findUnique({ where: { userId }, select: { shareConsentAt: true } }),
       loadMatchStates(userId, flags),
-      // Credit on interest: the balance gates "مهتم" (dashboard next step)
-      flags.creditOnInterest ? db.user.findUnique({ where: { id: userId }, select: { matchCredits: true } }) : null,
       // Shared suggestions: «الجديد» and «مهتمون بالتحدث معك» badges (home + bottom bar)
       // A failure here only hides those two badges, never the whole poll
       flags.mutualSuggestions
@@ -86,6 +92,7 @@ export async function GET(request: Request) {
       guardian: { exists: !!guardian, consented: !!guardian?.shareConsentAt },
       actionableMatches,
       pro,
+      // Credit on interest: the balance gates "مهتم" (dashboard next step)
       ...(flags.creditOnInterest && { credits: me?.matchCredits ?? 0 }),
       ...(tabs && { newSuggestions: tabs.fresh, likedYou: tabs.likedYou }),
     });

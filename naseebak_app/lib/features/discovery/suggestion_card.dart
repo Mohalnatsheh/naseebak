@@ -4,6 +4,7 @@ import '../../core/localization/digits.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/common.dart';
 import '../../shared/widgets/person_details_view.dart';
+import '../pro/pro_badge.dart';
 import 'suggestion_models.dart';
 
 /// A suggestion card: first name, age, compatibility, reason, details. Never a photo.
@@ -73,9 +74,12 @@ class SuggestionCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        c.age != null ? '${c.firstName}، ${c.age} سنة' : c.firstName,
-                        style: theme.textTheme.titleMedium,
+                      NameWithBadge(
+                        isPro: item.isPro,
+                        child: Text(
+                          c.age != null ? '${c.firstName}، ${c.age} سنة' : c.firstName,
+                          style: theme.textTheme.titleMedium,
+                        ),
                       ),
                       if (c.city != null)
                         Text(c.city!, style: const TextStyle(color: AppColors.muted, fontSize: 14)),

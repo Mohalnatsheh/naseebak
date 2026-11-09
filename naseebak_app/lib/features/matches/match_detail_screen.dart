@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../pro/pro_badge.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -138,8 +139,11 @@ class _MatchView extends ConsumerWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(p.age != null ? '${p.firstName}، ${p.age} سنة' : p.firstName,
-                              style: Theme.of(context).textTheme.titleLarge),
+                          NameWithBadge(
+                            isPro: p.isPro,
+                            child: Text(p.age != null ? '${p.firstName}، ${p.age} سنة' : p.firstName,
+                                style: Theme.of(context).textTheme.titleLarge),
+                          ),
                           if (p.city != null) Text(p.city!, style: const TextStyle(color: AppColors.muted)),
                           const SizedBox(height: 8),
                           closed != null

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import '../pro/pro_badge.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -184,7 +185,16 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> with WidgetsBindingOb
       title: Row(
         children: [
           Expanded(
-            child: Text(c.partnerName, style: TextStyle(fontWeight: c.unread > 0 ? FontWeight.w800 : FontWeight.w600)),
+            child: Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: NameWithBadge(
+                isPro: c.partnerIsPro,
+                child: Text(c.partnerName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontWeight: c.unread > 0 ? FontWeight.w800 : FontWeight.w600)),
+              ),
+            ),
           ),
           if (c.lastMessageAt != null)
             Text(formatRelative(c.lastMessageAt!), style: const TextStyle(color: AppColors.muted, fontSize: 12)),

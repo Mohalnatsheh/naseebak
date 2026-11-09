@@ -1,3 +1,4 @@
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
@@ -147,6 +148,11 @@ class AuthController extends Notifier<AuthState> {
     await ref.read(tokenStoreProvider).clear();
     // Private conversations never stay on a phone after sign-out
     await ref.read(chatCacheProvider).clearAll();
+    // Photos of the last member's matches never stay in memory for the next sign-in
+    WidgetsFlutterBinding.ensureInitialized();
+    PaintingBinding.instance.imageCache
+      ..clear()
+      ..clearLiveImages();
     state = const AuthState.signedOut();
   }
 

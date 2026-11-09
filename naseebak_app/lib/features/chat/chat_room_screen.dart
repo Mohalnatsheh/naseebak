@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../pro/pro_badge.dart';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -933,7 +934,10 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(chat?.partnerName ?? 'المحادثة', maxLines: 1, overflow: TextOverflow.ellipsis),
+                      NameWithBadge(
+                        isPro: chat?.partnerIsPro ?? false,
+                        child: Text(chat?.partnerName ?? 'المحادثة', maxLines: 1, overflow: TextOverflow.ellipsis),
+                      ),
                       if (left != null)
                         Text(
                           left.text,

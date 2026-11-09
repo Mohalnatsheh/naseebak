@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../pro/pro_badge.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -133,9 +134,13 @@ class HomeScreen extends ConsumerWidget {
                     ],
                   ),
                   const SizedBox(height: 18),
-                  Text(
-                    greetingFor(DateTime.now(), me?.firstName),
-                    style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w700),
+                  NameWithBadge(
+                    isPro: c?.isPro ?? false,
+                    onDark: true,
+                    child: Text(
+                      greetingFor(DateTime.now(), me?.firstName),
+                      style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w700),
+                    ),
                   ),
                   const SizedBox(height: 16),
                   Container(

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/auth/auth_controller.dart';
 import '../../core/localization/digits.dart';
+import '../../core/localization/safe_input_formatter.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/person.dart';
@@ -227,6 +228,7 @@ class _PreferencesFormState extends ConsumerState<PreferencesForm> {
                 key: const Key('age-min'),
                 controller: _ageMin,
                 keyboardType: TextInputType.number,
+                inputFormatters: [LatinDigitsFormatter()],
                 textDirection: TextDirection.ltr,
                 decoration: const InputDecoration(labelText: 'العمر الأدنى'),
               ),
@@ -237,6 +239,7 @@ class _PreferencesFormState extends ConsumerState<PreferencesForm> {
                 key: const Key('age-max'),
                 controller: _ageMax,
                 keyboardType: TextInputType.number,
+                inputFormatters: [LatinDigitsFormatter()],
                 textDirection: TextDirection.ltr,
                 decoration: const InputDecoration(labelText: 'العمر الأقصى'),
               ),

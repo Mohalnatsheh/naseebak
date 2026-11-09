@@ -147,7 +147,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         appBar: AppBar(),
         body: MessageView(
           icon: Icons.person_add_alt_1_outlined,
-          title: 'ابدأ بإدخال رقمك',
+          title: 'الخطوة الأولى: رقمك',
           actionLabel: 'رجوع',
           onAction: () => context.go('/auth/phone'),
         ),
@@ -162,7 +162,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         children: [
           const AuthHero(
             showBack: true,
-            title: 'عرّفنا بنفسك',
+            title: 'بياناتك الأساسية',
             subtitle: 'خطوة أخيرة لإنشاء حسابك. يظهر اسمك الأول فقط للطرف الآخر.',
           ),
           Expanded(

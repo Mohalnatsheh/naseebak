@@ -3,6 +3,7 @@ import 'dart:io' show Platform;
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/common.dart';
@@ -154,9 +155,12 @@ class _FadeSlideInState extends State<FadeSlideIn> with SingleTickerProviderStat
 /// While the keyboard is open it folds to the back button and a smaller title, so the field and the button below
 /// stay in view on small phones with large text.
 class AuthHero extends StatefulWidget {
-  const AuthHero({super.key, required this.title, this.subtitle, this.showBack = false, this.trailing});
+  const AuthHero({super.key, required this.title, this.subtitle, this.showBack = false, this.trailing, this.compactLine});
   final String title;
   final String? subtitle;
+
+  /// Kept under the title while the keyboard is open (the code screen: the number the code went to)
+  final String? compactLine;
   final bool showBack;
   final Widget? trailing;
 
@@ -186,7 +190,10 @@ class _AuthHeroState extends State<AuthHero> with WidgetsBindingObserver {
     final compact = View.of(context).viewInsets.bottom > 0;
     final title = widget.title;
     final subtitle = widget.subtitle;
-    return ClipPath(
+    // Light status-bar icons over the navy hero (sign-in, sign-up, code)
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light,
+      child: ClipPath(
       clipper: _CurveClipper(),
       child: NightBackdrop(
         child: AnimatedSize(
@@ -223,6 +230,17 @@ class _AuthHeroState extends State<AuthHero> with WidgetsBindingObserver {
                     const Spacer(),
                   ?widget.trailing,
                 ]),
+                if (compact && widget.compactLine != null)
+                  Padding(
+                    padding: EdgeInsetsDirectional.only(start: widget.showBack ? 48 : 0),
+                    child: Text(
+                      widget.compactLine!,
+                      key: const Key('auth-hero-compact-line'),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: Colors.white.withValues(alpha: 0.82), fontSize: 14),
+                    ),
+                  ),
                 if (!compact) ...[
                   const FadeSlideIn(child: BrandLogo(height: 46, onDark: true)),
                   const SizedBox(height: 22),
@@ -249,6 +267,7 @@ class _AuthHeroState extends State<AuthHero> with WidgetsBindingObserver {
           ),
         ),
       ),
+    ),
     );
   }
 }

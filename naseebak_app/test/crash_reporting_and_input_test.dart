@@ -49,9 +49,9 @@ void main() {
       expect(r.composing, TextRange.empty);
     });
 
-    test('Arabic digits are kept (converted later), normal typing is untouched', () {
+    test('Arabic digits are kept as Western digits, normal typing is untouched', () {
       final arabic = otp.formatEditUpdate(empty, const TextEditingValue(text: '١٢٣', selection: TextSelection.collapsed(offset: 3)));
-      expect(arabic.text, '١٢٣');
+      expect(arabic.text, '123');
       const typed = TextEditingValue(text: '12', selection: TextSelection.collapsed(offset: 2), composing: TextRange(start: 0, end: 2));
       expect(identical(otp.formatEditUpdate(empty, typed), typed), isTrue);
     });
@@ -68,6 +68,27 @@ void main() {
       final r = phone.formatEditUpdate(empty, const TextEditingValue(text: '079-12a34', selection: TextSelection.collapsed(offset: 5)));
       expect(r.text, '0791234');
       expect(r.selection.extentOffset, 4);
+    });
+  });
+
+  group('Arabic-Indic digits show as Western digits while typed', () {
+    TextEditingValue typed(String t) => TextEditingValue(text: t, selection: TextSelection.collapsed(offset: t.length));
+
+    test('phone and code fields', () {
+      final phone = SafeInputFormatter(allowed: RegExp(r'[0-9٠-٩۰-۹+ ]'), maxLength: 16);
+      final r = phone.formatEditUpdate(TextEditingValue.empty, typed('٠٧٧٥٠٠٠١٠١'));
+      expect(r.text, '0775000101');
+      expect(r.selection.extentOffset, 10);
+    });
+
+    test('number fields (ages, children, guardian phone)', () {
+      final f = LatinDigitsFormatter();
+      final r = f.formatEditUpdate(TextEditingValue.empty, typed('٣٠'));
+      expect(r.text, '30');
+      expect(r.selection.extentOffset, 2);
+      expect(f.formatEditUpdate(TextEditingValue.empty, typed('۳۸')).text, '38');
+      final same = typed('25');
+      expect(identical(f.formatEditUpdate(TextEditingValue.empty, same), same), isTrue);
     });
   });
 }

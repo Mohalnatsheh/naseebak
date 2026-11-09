@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/auth/auth_controller.dart';
 import '../../core/localization/digits.dart';
+import '../../core/localization/safe_input_formatter.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/network/json.dart';
 import '../../shared/person.dart';
@@ -376,6 +377,7 @@ class _ProfileEditFormState extends ConsumerState<ProfileEditForm> {
           maxLines: long ? 4 : 1,
           minLines: 1,
           keyboardType: number ? TextInputType.number : TextInputType.text,
+          inputFormatters: [LatinDigitsFormatter()],
           textDirection: number ? TextDirection.ltr : null,
           decoration: InputDecoration(hintText: hint),
         ),
@@ -442,7 +444,7 @@ class _ProfileEditFormState extends ConsumerState<ProfileEditForm> {
             key: const Key('field-dateOfBirth'),
             onPressed: _pickDate,
             icon: const Icon(Icons.calendar_month_outlined),
-            label: Text(dob == null ? 'اختر التاريخ' : formatDate(dob)),
+            label: Text(dob == null ? 'اختيار التاريخ' : formatDate(dob)),
           ),
           _choice('nationality', lists.nationalities(female: _female)),
           _choice('city', lists.cities),

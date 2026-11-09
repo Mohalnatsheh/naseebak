@@ -20,7 +20,7 @@ void main() {
     await tester.pumpWidget(UncontrolledProviderScope(container: container, child: rtlApp(const RegisterScreen())));
     await tester.pump();
 
-    await tester.ensureVisible(find.byKey(const Key('register-submit')));
+    await tester.scrollUntilVisible(find.byKey(const Key('register-submit')), 200, scrollable: find.byType(Scrollable).first);
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('register-submit')));
     await tester.pumpAndSettle();

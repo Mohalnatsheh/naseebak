@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -93,12 +94,17 @@ class HomeScreen extends ConsumerWidget {
     final credits = c?.credits ?? me?.credits;
     String count(int? n) => counts.isLoading && c == null ? '…' : '${n ?? 0}';
     return Scaffold(
-      body: RefreshIndicator(
+      // Status bar: dark icons over the page, light ones over the navy header while it is under them
+      body: AnnotatedRegion<SystemUiOverlayStyle>(
+        value: SystemUiOverlayStyle.dark,
+        child: RefreshIndicator(
         onRefresh: () => _refresh(ref),
         child: ListView(
           padding: EdgeInsets.zero,
           children: [
-            Container(
+            AnnotatedRegion<SystemUiOverlayStyle>(
+              value: SystemUiOverlayStyle.light,
+              child: Container(
               decoration: const BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
@@ -177,7 +183,7 @@ class HomeScreen extends ConsumerWidget {
                   ),
                 ],
               ),
-            ),
+            )),
             Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
@@ -249,7 +255,7 @@ class HomeScreen extends ConsumerWidget {
             ),
           ],
         ),
-      ),
+      )),
     );
   }
 }

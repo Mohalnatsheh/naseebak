@@ -57,7 +57,7 @@ void main() {
     expect(find.text(introPages[1].title), findsOneWidget);
     await tester.tap(find.byKey(const Key('intro-next')));
     await tester.pumpAndSettle();
-    expect(find.text('ابدأ الآن'), findsOneWidget);
+    expect(find.text('لنبدأ'), findsOneWidget);
     await tester.tap(find.byKey(const Key('intro-next')));
     await tester.pumpAndSettle();
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/localization/safe_input_formatter.dart';
 import '../../core/auth/auth_controller.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/theme/app_theme.dart';
@@ -82,6 +83,7 @@ class GuardianFieldsView extends ConsumerWidget {
           child: TextField(
             controller: fields.phone,
             keyboardType: TextInputType.phone,
+            inputFormatters: [LatinDigitsFormatter()],
             decoration: InputDecoration(
               labelText: 'رقم ${country?.phoneWord ?? 'هاتف'} وليّ الأمر',
               hintText: country?.phoneExample,

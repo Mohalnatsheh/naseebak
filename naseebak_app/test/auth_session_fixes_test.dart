@@ -220,6 +220,8 @@ void main() {
       await tester.pump(const Duration(milliseconds: 300));
     }
     expect(find.byKey(const Key('auth-hero-compact')), findsOneWidget);
+    // The number the code went to stays in view
+    expect(find.text('إلى \u20660796922292\u2069'), findsOneWidget);
     expect(tester.takeException(), isNull);
     final field = tester.getRect(find.byKey(const Key('otp-field')));
     expect(field.bottom, lessThanOrEqualTo(340));

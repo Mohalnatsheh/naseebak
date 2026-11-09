@@ -168,13 +168,13 @@ class _RequiredUpdate extends StatelessWidget {
               const Icon(Icons.system_update_rounded, size: 72, color: AppColors.gold),
               const SizedBox(height: 24),
               const Text(
-                'حدّث التطبيق',
+                'تحديث التطبيق',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.w800),
               ),
               const SizedBox(height: 12),
               const Text(
-                'يتوفر إصدار جديد من نصيبك فيه تحسينات مهمة. حدّث التطبيق لتتابع استخدامه.',
+                'يتوفر إصدار جديد من نصيبك فيه تحسينات مهمة، ويلزم تحديثه لمتابعة استخدامه.',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: Colors.white70, fontSize: 16, height: 1.6),
               ),
@@ -195,7 +195,7 @@ class _RequiredUpdate extends StatelessWidget {
               ),
               if (status.storeUrl.isEmpty) ...[
                 const SizedBox(height: 12),
-                const Text('افتح متجر التطبيقات وحدّث «نصيبك».',
+                const Text('يمكنك تحديث «نصيبك» من متجر التطبيقات.',
                     textAlign: TextAlign.center, style: TextStyle(color: Colors.white70)),
               ],
             ],

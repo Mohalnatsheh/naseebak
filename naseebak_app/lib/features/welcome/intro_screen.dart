@@ -256,7 +256,7 @@ class _IntroSlide extends StatelessWidget {
   }
 }
 
-/// Round gold button with a ring that fills as the pages go by; on the last page it widens to «ابدأ الآن».
+/// Round gold button with a ring that fills as the pages go by; on the last page it widens to «لنبدأ».
 class _NextButton extends StatelessWidget {
   const _NextButton({required this.progress, required this.last, required this.onTap});
   final double progress;
@@ -297,7 +297,7 @@ class _NextButton extends StatelessWidget {
               height: 52,
               alignment: Alignment.center,
               child: last
-                  ? const Text('ابدأ الآن', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 16))
+                  ? const Text('لنبدأ', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 16))
                   : const Icon(Icons.arrow_forward_rounded, color: Colors.white),
             ),
           ),

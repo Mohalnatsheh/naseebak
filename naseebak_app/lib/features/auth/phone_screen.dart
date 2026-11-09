@@ -127,10 +127,10 @@ class _PhoneFormState extends ConsumerState<PhoneForm> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         AuthHero(
-          title: register ? 'ابدأ رحلتك نحو نصيبك' : 'أهلاً بعودتك',
+          title: register ? 'رحلتك نحو نصيبك تبدأ هنا' : 'أهلاً بعودتك',
           subtitle: register
-              ? 'أنشئ حسابك برقم ${country.phoneWord}ك في دقيقة واحدة.'
-              : 'سجّل دخولك برقم ${country.phoneWord}ك لنكمل من حيث توقفت.',
+              ? 'يمكنك إنشاء حسابك برقم ${country.phoneWord}ك في دقيقة واحدة.'
+              : 'يمكنك الدخول برقم ${country.phoneWord}ك لنكمل من حيث توقفنا.',
           trailing: _CountryChip(country: country, onTap: _sending ? null : () => context.push('/country')),
         ),
         Expanded(
@@ -262,7 +262,7 @@ class _PhoneFormState extends ConsumerState<PhoneForm> {
                 delay: const Duration(milliseconds: 440),
                 child: _GoldButton(
                   key: const Key('send-otp'),
-                  label: register ? 'أنشئ حسابي' : 'إرسال رمز التحقق',
+                  label: register ? 'إنشاء الحساب' : 'إرسال رمز التحقق',
                   loading: _sending,
                   onPressed: _submit,
                 ),

@@ -5,6 +5,7 @@ import '../../app/providers.dart';
 import '../../core/analytics/analytics.dart';
 import '../../core/auth/auth_controller.dart';
 import '../../core/localization/digits.dart';
+import '../../core/localization/safe_input_formatter.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/network/json.dart';
 import '../../core/theme/app_theme.dart';
@@ -465,6 +466,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
             TextField(
               controller: _children,
               keyboardType: TextInputType.number,
+              inputFormatters: [LatinDigitsFormatter()],
               onChanged: (_) => setState(() {}),
               decoration: InputDecoration(hintText: '0', errorText: _errors['children']),
             ),
@@ -489,6 +491,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
                   key: const Key('age-min'),
                   controller: _ageMin,
                   keyboardType: TextInputType.number,
+                  inputFormatters: [LatinDigitsFormatter()],
                   onChanged: (_) => setState(() {}),
                   decoration: InputDecoration(labelText: 'من', errorText: _errors['ageMin'], errorMaxLines: 2),
                 ),
@@ -499,6 +502,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
                   key: const Key('age-max'),
                   controller: _ageMax,
                   keyboardType: TextInputType.number,
+                  inputFormatters: [LatinDigitsFormatter()],
                   onChanged: (_) => setState(() {}),
                   decoration: InputDecoration(labelText: 'إلى', errorText: _errors['ageMax'], errorMaxLines: 2),
                 ),

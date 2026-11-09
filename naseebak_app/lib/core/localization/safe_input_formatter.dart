@@ -1,5 +1,7 @@
 import 'package:flutter/services.dart';
 
+import 'digits.dart';
+
 /// Keeps only [allowed] characters, at most [maxLength] of them, and never leaves the cursor or the keyboard's
 /// composing region outside the text.
 ///
@@ -31,7 +33,8 @@ class SafeInputFormatter extends TextInputFormatter {
       }
       i += ch.length;
     }
-    final text = kept.toString();
+    // Arabic-Indic digits are kept as Western ones (same length: the cursor doesn't move)
+    final text = toLatinDigits(kept.toString());
     if (text == newValue.text) {
       // Nothing removed: keep what the keyboard sent, only make sure it fits
       return _fits(newValue) ? newValue : newValue.copyWith(composing: TextRange.empty, selection: TextSelection.collapsed(offset: text.length));
@@ -49,5 +52,16 @@ class SafeInputFormatter extends TextInputFormatter {
     return inside(v.selection.baseOffset) &&
         inside(v.selection.extentOffset) &&
         (!v.composing.isValid || (v.composing.start <= n && v.composing.end <= n));
+  }
+}
+
+/// Arabic-Indic (٠-٩) and Persian (۰-۹) digits become Western digits as they are typed, so number and phone fields
+/// show 0-9 like the rest of the app (the value was already converted on submit). One character for one, so the
+/// cursor and the keyboard's composing region stay where they were.
+class LatinDigitsFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
+    final text = toLatinDigits(newValue.text);
+    return text == newValue.text ? newValue : newValue.copyWith(text: text);
   }
 }

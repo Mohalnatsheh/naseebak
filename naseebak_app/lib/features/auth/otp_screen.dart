@@ -87,7 +87,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
     if (_verifying) return;
     final code = normalizeOtp(_controller.text);
     if (code == null) {
-      setState(() => _error = 'أدخل الرمز المكوّن من 6 أرقام');
+      setState(() => _error = 'الرمز مكوّن من 6 أرقام');
       return;
     }
     setState(() {
@@ -133,7 +133,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
         appBar: AppBar(),
         body: MessageView(
           icon: Icons.sms_outlined,
-          title: 'ابدأ بإدخال رقمك',
+          title: 'الخطوة الأولى: رقمك',
           actionLabel: 'رجوع',
           onAction: () => context.go('/auth/phone'),
         ),
@@ -147,8 +147,10 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
         children: [
           AuthHero(
             showBack: true,
-            title: 'أدخل رمز التحقق',
+            title: 'رمز التحقق',
             subtitle: 'أرسلنا رمزاً من 6 أرقام ${pending.countryCode == 'SA' ? 'عبر واتساب' : 'برسالة نصية'} إلى \u2066${pending.phone}\u2069',
+            // With the keyboard open the subtitle folds away: the number stays
+            compactLine: 'إلى \u2066${pending.phone}\u2069',
           ),
           Expanded(
             child: ListView(

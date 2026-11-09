@@ -8,7 +8,7 @@ import { db } from "@/lib/db";
 import { getStripe } from "@/lib/stripe";
 import { notify } from "@/lib/notify";
 import { currentProSubscription } from "@/lib/pro/status";
-import { PRO_ENDED_BODY, PRO_ENDED_TITLE } from "@/lib/pro/stripe-events";
+import { PRO_ENDED_BODY, PRO_ENDED_TITLE } from "@/lib/pro/notices";
 
 /** A Stripe subscription we may call: real ids only, never a local mock or a missing id */
 function stripeIdOf(sub: { stripeSubscriptionId: string | null }): string | null {
@@ -37,7 +37,7 @@ export function resumePro(userId: string): Promise<"ok" | "none"> {
 }
 
 /** Cancels on Stripe now, with no proration and no final invoice. One Stripe already cancelled counts as done */
-async function cancelOnStripe(stripeId: string): Promise<void> {
+export async function cancelOnStripe(stripeId: string): Promise<void> {
   try {
     await getStripe().subscriptions.cancel(stripeId, { invoice_now: false, prorate: false });
   } catch (e) {

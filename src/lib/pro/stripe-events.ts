@@ -15,6 +15,9 @@ import { notify } from "@/lib/notify";
 import { toCountry } from "@/lib/countries";
 import { getCountrySettings } from "@/lib/countries/settings";
 import { grantProCredits } from "@/lib/pro/grants";
+import { PRO_ENDED_BODY, PRO_ENDED_TITLE } from "@/lib/pro/notices";
+import { liveProWhere } from "@/lib/pro/status";
+import { settleDuplicateProSubscription } from "@/lib/pro/duplicate";
 import { addMonth, addPlanPeriod } from "@/lib/pro/dates";
 import { PRO_PLAN_IDS, PRO_PLAN_LABELS, proOffersFor, proPlanName, type ProPlanId } from "@/lib/pro/plans";
 import {
@@ -38,8 +41,7 @@ const PRO_STARTED_TITLE = "أصبحت عضوية Pro فعّالة";
 const PRO_STARTED_BODY = "يمكنك الآن إرسال الصور والرسائل الصوتية في المحادثات.";
 const PRO_FAILED_TITLE = "تعذّر تجديد اشتراك Pro";
 const PRO_FAILED_BODY = "يمكنك تحديث بطاقتك من صفحة الدفع لمواصلة Pro.";
-export const PRO_ENDED_TITLE = "انتهت عضوية Pro";
-export const PRO_ENDED_BODY = "يمكنك الاشتراك في Pro من جديد في أي وقت من صفحة الدفع.";
+export { PRO_ENDED_BODY, PRO_ENDED_TITLE };
 
 function planOf(meta: Meta): ProPlanId | null {
   return (PRO_PLAN_IDS as readonly string[]).includes(meta.plan) ? (meta.plan as ProPlanId) : null;
@@ -52,6 +54,22 @@ function withSubscriptionLock<T>(stripeSubscriptionId: string, fn: (tx: Tx) => P
   return db.$transaction(async (tx) => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`pro:${stripeSubscriptionId}`}))`;
     return fn(tx);
+  });
+}
+
+/**
+ * Serialises a member's Pro events across their subscriptions (taken after the subscription's lock, always in that
+ * order): two first invoices of two subscriptions can't both see "no other live membership".
+ */
+async function lockMember(tx: Tx, userId: string | undefined): Promise<void> {
+  if (userId) await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`pro-user:${userId}`}))`;
+}
+
+/** The member's live membership on another Stripe subscription: one arriving now is a duplicate checkout */
+function otherLiveRow(tx: Tx, userId: string, stripeSubscriptionId: string) {
+  return tx.proSubscription.findFirst({
+    where: { userId, stripeSubscriptionId: { not: stripeSubscriptionId }, ...liveProWhere(new Date()) },
+    select: { id: true, stripeSubscriptionId: true },
   });
 }
 
@@ -114,9 +132,12 @@ export async function handleProCheckoutCompleted(session: Stripe.Checkout.Sessio
   }
   return withSubscriptionLock(stripeSubscriptionId, async (tx) => {
     if (await findRow(tx, stripeSubscriptionId)) return "already";
+    await lockMember(tx, meta!.userId);
     const created = new Date(session.created * 1000);
+    // A second subscription while another is live is never made live here: its invoice.paid cancels and refunds it
+    const duplicate = meta!.userId ? await otherLiveRow(tx, meta!.userId, stripeSubscriptionId) : null;
     // Paid: live for one estimated period until invoice.paid sets the exact end. Not paid yet: not live
-    const periodEnd = session.payment_status === "paid" ? addPlanPeriod(created, plan) : created;
+    const periodEnd = session.payment_status === "paid" && !duplicate ? addPlanPeriod(created, plan) : created;
     await createRow(tx, { stripeSubscriptionId, customerId: idOf(session.customer), meta: meta!, plan, periodEnd });
     return "ok";
   });
@@ -135,9 +156,20 @@ export async function handleProInvoicePaid(invoice: Stripe.Invoice): Promise<Pro
   }
 
   const step = await withSubscriptionLock(stripeSubscriptionId, async (tx) => {
-    const sub =
+    await lockMember(tx, meta!.userId);
+    let sub =
       (await findRow(tx, stripeSubscriptionId)) ??
       (await createRow(tx, { stripeSubscriptionId, customerId: idOf(invoice.customer), meta: meta!, plan, periodEnd: period.end }));
+
+    // The member already has a live membership on another subscription: this one ends here, granting nothing
+    // (creditsPerGrant 0 keeps any later delivery from granting too); it is cancelled and refunded after the commit
+    const keep = sub.userId ? await otherLiveRow(tx, sub.userId, stripeSubscriptionId) : null;
+    if (keep && (sub.status !== "ENDED" || sub.creditsPerGrant !== 0)) {
+      sub = await tx.proSubscription.update({
+        where: { id: sub.id },
+        data: { status: "ENDED", endedAt: sub.endedAt ?? new Date(), creditsPerGrant: 0 },
+      });
+    }
 
     // One invoice, one Payment: a repeat finds the one it made
     let paymentId: string;
@@ -180,6 +212,8 @@ export async function handleProInvoicePaid(invoice: Stripe.Invoice): Promise<Pro
       }
     }
 
+    if (keep) return { sub, paymentId, paymentNew, keptStripeSubscriptionId: keep.stripeSubscriptionId ?? null, duplicate: true };
+
     const data: Prisma.ProSubscriptionUpdateInput = {};
     // Never back in time: an older invoice delivered late
     if (period.end > sub.currentPeriodEnd) data.currentPeriodEnd = period.end;
@@ -189,10 +223,22 @@ export async function handleProInvoicePaid(invoice: Stripe.Invoice): Promise<Pro
     if (!sub.stripeCustomerId && customerId) data.stripeCustomerId = customerId;
     if (Object.keys(data).length > 0) await tx.proSubscription.update({ where: { id: sub.id }, data });
 
-    return { sub, paymentId, paymentNew };
+    return { sub, paymentId, paymentNew, keptStripeSubscriptionId: null, duplicate: false };
   });
 
   const { sub, paymentId, paymentNew } = step;
+  if (step.duplicate) {
+    await settleDuplicateProSubscription({
+      userId: sub.userId!,
+      stripeSubscriptionId,
+      keptStripeSubscriptionId: step.keptStripeSubscriptionId,
+      paymentId,
+      invoiceId: invoice.id,
+      amountPaid: invoice.amount_paid ?? 0,
+      firstSeen: paymentNew,
+    });
+    return paymentNew ? "ok" : "already";
+  }
   let granted = false;
   if ((invoice.amount_paid ?? 0) > 0) {
     const result = await grantProCredits({

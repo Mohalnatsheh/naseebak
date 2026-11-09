@@ -2,9 +2,9 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const db = vi.hoisted(() => ({
   user: { findUnique: vi.fn() },
-  payment: { create: vi.fn() },
+  payment: { create: vi.fn(), findMany: vi.fn(), updateMany: vi.fn() },
 }));
-const stripe = vi.hoisted(() => ({ create: vi.fn() }));
+const stripe = vi.hoisted(() => ({ create: vi.fn(), expire: vi.fn() }));
 const mocks = vi.hoisted(() => ({
   getProEnabled: vi.fn(),
   getCountrySettings: vi.fn(),
@@ -13,13 +13,14 @@ const mocks = vi.hoisted(() => ({
   paymentsMockEnabled: vi.fn(),
 }));
 vi.mock("@/lib/db", () => ({ db }));
-vi.mock("@/lib/stripe", () => ({ getStripe: () => ({ checkout: { sessions: { create: stripe.create } } }) }));
+vi.mock("@/lib/stripe", () => ({ getStripe: () => ({ checkout: { sessions: { create: stripe.create, expire: stripe.expire } } }) }));
 vi.mock("@/lib/settings", () => ({ getProEnabled: mocks.getProEnabled }));
 vi.mock("@/lib/countries/settings", () => ({ getCountrySettings: mocks.getCountrySettings, purchasesAvailable: mocks.purchasesAvailable }));
 vi.mock("@/lib/pro/status", () => ({ currentProSubscription: mocks.currentProSubscription }));
 vi.mock("@/lib/payments/mock", () => ({ MOCK_SESSION_PREFIX: "mock_", paymentsMockEnabled: mocks.paymentsMockEnabled }));
 
 import { ProError, startProCheckout } from "@/lib/pro/checkout";
+import { CHECKOUT_TTL_MS } from "@/lib/payments/packages";
 
 const plans = { monthly: { enabled: true, price: 4, credits: 8 } };
 
@@ -32,6 +33,9 @@ beforeEach(() => {
   mocks.paymentsMockEnabled.mockReturnValue(false);
   db.user.findUnique.mockResolvedValue({ country: "JO" });
   db.payment.create.mockResolvedValue({});
+  db.payment.findMany.mockResolvedValue([]);
+  db.payment.updateMany.mockResolvedValue({ count: 1 });
+  stripe.expire.mockResolvedValue({});
   stripe.create.mockResolvedValue({ id: "cs_1", url: "https://stripe.test/c" });
 });
 
@@ -99,5 +103,50 @@ describe("startProCheckout", () => {
     expect(stripe.create).not.toHaveBeenCalled();
     expect(r.url).toBe(`/dashboard/payments?mockPro=${r.paymentId}`);
     expect(db.payment.create.mock.calls[0][0].data.stripeSessionId).toMatch(/^mock_pro_/);
+  });
+
+  it("the session expires after CHECKOUT_TTL_MS (not Stripe's 24 h default)", async () => {
+    const before = Date.now();
+    await startProCheckout("u1", "monthly");
+    const at = stripe.create.mock.calls[0][0].expires_at as number;
+    expect(at * 1000).toBeGreaterThanOrEqual(before + CHECKOUT_TTL_MS - 1000);
+    expect(at * 1000).toBeLessThanOrEqual(Date.now() + CHECKOUT_TTL_MS);
+    // Stripe refuses less than 30 minutes
+    expect(CHECKOUT_TTL_MS).toBeGreaterThanOrEqual(30 * 60 * 1000);
+  });
+
+  it("expires the member's other open Pro checkouts first (best effort) and closes their rows", async () => {
+    db.payment.findMany.mockResolvedValue([
+      { id: "old1", stripeSessionId: "cs_old1" },
+      { id: "old2", stripeSessionId: "cs_old2" },
+      { id: "old3", stripeSessionId: "mock_pro_x" },
+    ]);
+    // cs_old2 is already expired (or was paid meanwhile): Stripe refuses, which is ignored
+    stripe.expire.mockImplementation(async (id: string) => {
+      if (id === "cs_old2") throw Object.assign(new Error("Only open sessions can be expired"), { code: "resource_missing" });
+      return {};
+    });
+    const r = await startProCheckout("u1", "monthly");
+    expect(r.url).toBe("https://stripe.test/c");
+    const where = db.payment.findMany.mock.calls[0][0].where;
+    expect(where).toMatchObject({ userId: "u1", status: "PENDING", planName: { in: ["pro_weekly", "pro_monthly", "pro_yearly"] }, stripeSessionId: { not: null } });
+    expect(where.createdAt.gte).toBeInstanceOf(Date);
+    expect(stripe.expire).toHaveBeenCalledWith("cs_old1");
+    expect(stripe.expire).toHaveBeenCalledWith("cs_old2");
+    // A mock session is never sent to Stripe
+    expect(stripe.expire).not.toHaveBeenCalledWith("mock_pro_x");
+    const closed = db.payment.updateMany.mock.calls.map((c) => c[0]);
+    expect(closed).toEqual([
+      { where: { id: "old1", status: "PENDING" }, data: { status: "FAILED", failureReason: "CANCELLED" } },
+      { where: { id: "old3", status: "PENDING" }, data: { status: "FAILED", failureReason: "CANCELLED" } },
+    ]);
+    // Expired before the new session is made
+    expect(stripe.expire.mock.invocationCallOrder[0]).toBeLessThan(stripe.create.mock.invocationCallOrder[0]);
+  });
+
+  it("a failed lookup of old sessions never blocks the new checkout", async () => {
+    db.payment.findMany.mockRejectedValue(new Error("db down"));
+    const r = await startProCheckout("u1", "monthly");
+    expect(r.url).toBe("https://stripe.test/c");
   });
 });

@@ -4,26 +4,25 @@ import { loadPollPage } from "./load";
 import { socialMetadata } from "@/lib/seo";
 import { getVisitorCountry } from "@/lib/countries/server";
 import { pollCountries } from "@/lib/engagement/polls";
+import { POLL_COPY } from "@/lib/engagement/poll-types";
 import { publicCopy } from "@/lib/public-copy";
 import { absoluteUrl, seoAlternates } from "@/lib/site-paths";
 
-/** Each country's question: /poll and /sa/poll */
+/** Each country's question: /poll, /sa/poll and /lb/poll */
 export async function generateMetadata(): Promise<Metadata> {
   const country = await getVisitorCountry();
-  const sa = country === "SA";
+  const copy = POLL_COPY[country];
   const open = await pollCountries();
   return {
     // Absolute: the brand is already in the name («سؤال نصيبك | نصيبك» before)
-    title: { absolute: sa ? "سؤال نصيبك: أجب واطّلع على رأي الناس | نصيبك" : "سؤال نصيبك: جاوب وشوف رأي الناس | نصيبك" },
-    description: sa
-      ? "سؤال جديد كل 3 أيام من نصيبك، منصة الزواج الجاد: أجب بضغطة واطّلع على رأي الآخرين."
-      : "سؤال جديد كل 3 أيام من نصيبك، منصة الزواج الجاد: جاوب بكبسة وشوف رأي الناس.",
+    title: { absolute: copy.title },
+    description: copy.description,
     alternates: seoAlternates("/poll", country, open),
     // No running question here: nothing for search engines yet
     ...(!open.includes(country) && { robots: { index: false, follow: true } }),
     ...socialMetadata({
       title: "سؤال نصيبك",
-      description: sa ? "أجب بضغطة واطّلع على رأي الناس." : "جاوب بكبسة وشوف رأي الناس.",
+      description: copy.socialDescription,
       url: absoluteUrl("/poll", country),
       locale: publicCopy(country).ogLocale,
     }),

@@ -37,12 +37,20 @@ import { EmptyState } from "@/components/shared/line-art";
 import { PageHeader } from "@/components/shared/page-header";
 import { markPageNotificationsRead } from "@/lib/notifications-client";
 import { discountPercent } from "@/lib/payments/packages";
-import { COUNTRIES, formatDate, toCountry } from "@/lib/countries";
+import { COUNTRIES, formatDate, toCountry, type CountryCode } from "@/lib/countries";
 import { ProLinkCard } from "@/components/payments/pro-section";
 import { PRO_PAGE_PATH } from "@/lib/pro/plans";
 import { PageLoading } from "@/components/shared/page-loading";
 import { FixedToast, type FixedToastMessage } from "@/components/shared/fixed-toast";
 import { isLocalHostname } from "@/lib/local-host";
+
+/** How prices are shown and charged, under the packages */
+const PRICE_NOTE: Record<CountryCode, string> = {
+  JO: "الأسعار بالدينار الأردني، ويتم الخصم بما يعادلها بالدولار الأمريكي (يظهر في كشف الحساب باسم LOGICCR). البائع: LOGIC CENTER FOR WEBSITE DESIGN",
+  // [NEEDS INPUT] statement descriptor and seller name for the Saudi Stripe account
+  SA: "الأسعار بالريال السعودي، ويتم الدفع بالريال عبر Stripe",
+  LB: "الأسعار بالدولار الأمريكي، ويتم الدفع بالدولار عبر Stripe",
+};
 
 /** Stripe's embedded checkout and Stripe.js load only once a checkout has started (QA PA-M3, WP2-06) */
 const StripeEmbeddedCheckout = dynamic(() => import("@/components/payments/embedded-checkout"), {
@@ -692,14 +700,7 @@ function PaymentsContent() {
       </div>
 
       <p className="text-center text-xs leading-relaxed text-muted-foreground">
-        {country.code === "LB" ? (
-          <>الأسعار بالدولار الأمريكي، ويتم الدفع بالدولار عبر Stripe ·{" "}</>
-        ) : country.code === "SA" ? (
-          // [NEEDS INPUT] statement descriptor and seller name for the Saudi Stripe account
-          <>الأسعار بالريال السعودي، ويتم الدفع بالريال عبر Stripe ·{" "}</>
-        ) : (
-          <>الأسعار بالدينار الأردني، ويتم الخصم بما يعادلها بالدولار الأمريكي (يظهر في كشف الحساب باسم LOGICCR). البائع: LOGIC CENTER FOR WEBSITE DESIGN ·{" "}</>
-        )}
+        {PRICE_NOTE[country.code]} ·{" "}
         <Link href="/refund-policy" className="inline-flex min-h-11 items-center font-semibold text-primary underline-offset-4 hover:underline">
           سياسة الاسترداد
         </Link>

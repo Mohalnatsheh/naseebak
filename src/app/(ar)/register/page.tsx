@@ -946,7 +946,7 @@ function RegisterPageContent() {
                     <Shield className="h-4 w-4 text-primary" />
                   </div>
                   <span className="min-w-0 leading-relaxed text-xs">
-                    اسمك الكامل ورقم {country === "SA" ? "جوالك" : "هاتفك"} محميان بالكامل ولن يظهرا لأي مستخدم آخر على المنصة. يُعرض فقط الاسم الأول للمستخدمين الآخرين
+                    اسمك الكامل ورقم {COUNTRIES[country].words.phone}ك محميان بالكامل ولن يظهرا لأي مستخدم آخر على المنصة. يُعرض فقط الاسم الأول للمستخدمين الآخرين
                   </span>
                 </div>
 

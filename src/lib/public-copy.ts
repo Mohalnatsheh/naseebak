@@ -1,7 +1,8 @@
 /**
  * Small pieces of public-page copy that differ per visitor country (db-free, client-safe):
  * site description, keywords, Open Graph locale, schema.org area, footer lines.
- * JO = the original Jordanian text (live site, unchanged); SA = the reviewed Saudi copy (naseebak-ksa).
+ * JO = the original Jordanian text (live site, unchanged); SA = the reviewed Saudi copy (naseebak-ksa);
+ * LB = Jordan's text with Lebanon named (neutral for every community).
  */
 import type { CountryCode } from "@/lib/countries";
 
@@ -13,7 +14,7 @@ export interface PublicCopy {
   /** Tagline: site title, login page */
   tagline: string;
   keywords: string[];
-  ogLocale: "ar_JO" | "ar_SA";
+  ogLocale: "ar_JO" | "ar_SA" | "ar_LB";
   /** schema.org Organization.areaServed */
   areaServed: { "@type": "Country"; name: string; identifier?: string };
   /** «في الأردن» / «في المملكة العربية السعودية» in page descriptions */
@@ -22,7 +23,7 @@ export interface PublicCopy {
   footerAbout: string;
   footerPlace: string;
   footerMadeIn: string;
-  /** The country's Instagram account: footer icon and Organization JSON-LD */
+  /** The country's Instagram account: footer icon and Organization JSON-LD ("" = none yet, hidden) */
   instagram: string;
 }
 
@@ -68,11 +69,22 @@ const SA: PublicCopy = {
   footerMadeIn: "لعائلات المملكة",
 };
 
-const COPY: Record<CountryCode, PublicCopy> = {
-  JO,
-  SA,
-  LB: JO, // TODO(LB task 5): Lebanese public copy; placeholder = Jordan's until then
+const LB: PublicCopy = {
+  description: "منصة توصّل العائلات في لبنان بالشريك الأنسب بالحلال — تقنية ذكية تحترم عاداتنا وقيمنا، بستر واحترام",
+  shortDescription: "منصة توصّل العائلات في لبنان بالشريك الأنسب بالحلال — تقنية ذكية تحترم عاداتنا وقيمنا",
+  tagline: "نوصّلك بشريك العمر بالحلال",
+  keywords: ["زواج", "زواج بالحلال", "نصيبك", "زواج في لبنان", "تعارف للزواج", "شريك الحياة", "زواج إسلامي", "خطبة", "لبنان"],
+  ogLocale: "ar_LB",
+  // No Lebanese account yet: empty hides the footer icon and the JSON-LD link (never Jordan's account)
+  instagram: "",
+  areaServed: { "@type": "Country", name: "Lebanon", identifier: "LB" },
+  inCountry: "في لبنان",
+  footerAbout: "منصة توصّل العائلات في لبنان بالشريك الأنسب بالحلال — تقنية ذكية تحترم عاداتنا وقيمنا، بستر واحترام.",
+  footerPlace: "لبنان",
+  footerMadeIn: "لعائلات لبنان",
 };
+
+const COPY: Record<CountryCode, PublicCopy> = { JO, SA, LB };
 
 export function publicCopy(country: CountryCode): PublicCopy {
   return COPY[country] ?? JO;

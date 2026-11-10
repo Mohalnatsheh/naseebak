@@ -1,4 +1,5 @@
 import { z } from "zod/v4";
+import { COUNTRY_CODES } from "@/lib/countries";
 
 export const createBlogPostSchema = z.object({
   title: z.string().min(3, "Title must be at least 3 characters"),
@@ -9,7 +10,7 @@ export const createBlogPostSchema = z.object({
   status: z.enum(["DRAFT", "PUBLISHED"]).default("DRAFT"),
   readTime: z.string().optional(),
   /** Which country's blog shows the post. Not sent: a new post is Jordan's, an edit keeps its country */
-  country: z.enum(["JO", "SA"]).optional(),
+  country: z.enum(COUNTRY_CODES).optional(),
 });
 
 export const createCategorySchema = z.object({

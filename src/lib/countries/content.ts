@@ -13,13 +13,18 @@ export interface CountryPageText {
   seoDescription: string;
 }
 
+const SEO_TITLE: Record<CountryCode, string> = {
+  JO: "نصيبك - منصة زواج بالحلال في الأردن | نوصّلك بشريك العمر",
+  SA: "نصيبك - منصة زواج جاد في السعودية بالحلال",
+  LB: "نصيبك - منصة زواج بالحلال في لبنان | نوصّلك بشريك العمر",
+};
+
 export function countryPageDefaults(country: CountryCode, mode: LandingMode): CountryPageText {
   const hero = contentFor(mode, country).hero;
   return {
     heroTitle: hero.title,
     heroSubtitle: hero.lead,
-    seoTitle:
-      country === "SA" ? "نصيبك - منصة زواج جاد في السعودية بالحلال" : "نصيبك - منصة زواج بالحلال في الأردن | نوصّلك بشريك العمر",
+    seoTitle: SEO_TITLE[country],
     seoDescription: publicCopy(country).description,
   };
 }

@@ -13,6 +13,55 @@ export const POLL_QUESTION_MAX = 120;
 export const POLL_OPTION_MAX = 40;
 export const POLL_NOTE_MAX = 200;
 
+/** Public «سؤال نصيبك» wording per country: Levantine for Jordan and Lebanon (the poll's casual voice), standard Arabic for Saudi Arabia */
+export interface PollCopy {
+  /** Page title of /poll */
+  title: string;
+  /** Meta description of /poll and /poll/<slug> */
+  description: string;
+  /** Open Graph description of /poll */
+  socialDescription: string;
+  /** «لا يوجد سؤال مفتوح الآن» line */
+  nextQuestion: string;
+  /** Visitor box heading */
+  notDating: string;
+  /** Under the visitor box's sign-up button */
+  answerInAccount: string;
+  /** Share sheet line */
+  share: string;
+}
+
+export const POLL_COPY: Record<CountryCode, PollCopy> = {
+  JO: {
+    title: "سؤال نصيبك: جاوب وشوف رأي الناس | نصيبك",
+    description: "سؤال جديد كل 3 أيام من نصيبك، منصة الزواج الجاد: جاوب بكبسة وشوف رأي الناس.",
+    socialDescription: "جاوب بكبسة وشوف رأي الناس.",
+    nextQuestion: "ننشر سؤالاً جديداً كل بضعة أيام على انستغرام وهنا. ارجع قريباً.",
+    notDating: "نصيبك منصة زواج جاد، مش تطبيق تعارف",
+    answerInAccount: "وجاوب على سؤال جديد من داخل حسابك كل 3 أيام.",
+    share: "شو رأيك؟ جاوب على سؤال نصيبك:",
+  },
+  SA: {
+    title: "سؤال نصيبك: أجب واطّلع على رأي الناس | نصيبك",
+    description: "سؤال جديد كل 3 أيام من نصيبك، منصة الزواج الجاد: أجب بضغطة واطّلع على رأي الآخرين.",
+    socialDescription: "أجب بضغطة واطّلع على رأي الناس.",
+    nextQuestion: "ننشر سؤالاً جديداً كل بضعة أيام على إنستقرام وهنا. ارجع قريباً.",
+    notDating: "نصيبك منصة زواج جاد، وليست تطبيق تعارف",
+    answerInAccount: "وأجب عن سؤال جديد من داخل حسابك كل 3 أيام.",
+    share: "ما رأيك؟ أجب عن سؤال نصيبك:",
+  },
+  // No Lebanese Instagram account yet: the questions are published here only
+  LB: {
+    title: "سؤال نصيبك: جاوب وشوف رأي الناس | نصيبك",
+    description: "سؤال جديد كل 3 أيام من نصيبك، منصة الزواج الجاد: جاوب بكبسة وشوف رأي الناس.",
+    socialDescription: "جاوب بكبسة وشوف رأي الناس.",
+    nextQuestion: "ننشر سؤالاً جديداً هنا كل بضعة أيام. ارجع قريباً.",
+    notDating: "نصيبك منصة زواج جاد، مش تطبيق تعارف",
+    answerInAccount: "وجاوب على سؤال جديد من داخل حسابك كل 3 أيام.",
+    share: "شو رأيك؟ جاوب على سؤال نصيبك:",
+  },
+};
+
 export type PollSource = "dashboard" | "page" | "instagram";
 export type PollStatusValue = "DRAFT" | "ACTIVE" | "CLOSED";
 

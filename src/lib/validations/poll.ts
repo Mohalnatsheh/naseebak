@@ -1,4 +1,5 @@
 import { z } from "zod/v4";
+import { COUNTRY_CODES } from "@/lib/countries";
 import { POLL_NOTE_MAX, POLL_OPTION_MAX, POLL_OPTIONS_MAX, POLL_OPTIONS_MIN, POLL_QUESTION_MAX } from "@/lib/engagement/poll-types";
 
 const text = (max: number, label: string) =>
@@ -11,7 +12,7 @@ const text = (max: number, label: string) =>
 export const pollInputSchema = z.object({
   question: text(POLL_QUESTION_MAX, "Question"),
   /** Whose question it is; set when created (Jordan when not sent) */
-  country: z.enum(["JO", "SA"]).optional(),
+  country: z.enum(COUNTRY_CODES).optional(),
   options: z
     .array(text(POLL_OPTION_MAX, "Option"))
     .min(POLL_OPTIONS_MIN, `At least ${POLL_OPTIONS_MIN} options`)

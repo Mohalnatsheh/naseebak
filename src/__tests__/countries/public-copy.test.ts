@@ -62,6 +62,8 @@ describe("site metadata copy", () => {
     expect(publicCopy("SA").ogLocale).toBe("ar_SA");
     expect(publicCopy("SA").areaServed).toEqual({ "@type": "Country", name: "Saudi Arabia", identifier: "SA" });
     expect(publicCopy("SA").description).not.toMatch(/أردن/);
+    expect(publicCopy("LB").ogLocale).toBe("ar_LB");
+    expect(publicCopy("LB").areaServed).toEqual({ "@type": "Country", name: "Lebanon", identifier: "LB" });
   });
 });
 
@@ -83,6 +85,8 @@ describe("Instagram per country", () => {
   it("each country has its own account", () => {
     expect(publicCopy("JO").instagram).toBe("https://www.instagram.com/naseebakjo/");
     expect(publicCopy("SA").instagram).toBe("https://www.instagram.com/naseebaksa");
+    // No Lebanese account yet: hidden, never Jordan's
+    expect(publicCopy("LB").instagram).toBe("");
   });
 });
 

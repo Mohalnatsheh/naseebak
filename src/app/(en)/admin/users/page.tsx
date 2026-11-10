@@ -23,7 +23,7 @@ interface UserRow {
   email: string;
   phone: string | null;
   gender: string;
-  /** "JO" | "SA" */
+  /** A `CountryCode`: "JO" | "SA" | "LB" */
   country: string;
   role: string;
   status: string;

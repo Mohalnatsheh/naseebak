@@ -1,4 +1,5 @@
 import { z } from "zod/v4";
+import { isCountryCode, type CountryCode } from "@/lib/countries";
 
 const optionalText = (max: number) =>
   z
@@ -63,6 +64,13 @@ const proPlan = z
 
 const proPlansSchema = z.object({ weekly: proPlan.optional(), monthly: proPlan.optional(), yearly: proPlan.optional() }).strict();
 
+/** Stripe's smallest charge as a Pro plan price, per country */
+const PRO_MIN_PRICE: Record<CountryCode, [number, string]> = {
+  JO: [0.36, "A Jordan Pro plan price must be at least 0.36 JOD"],
+  SA: [2, "A Saudi Pro plan price must be at least 2 SAR"],
+  LB: [0.5, "A Lebanon Pro plan price must be at least 0.5 USD"],
+};
+
 const PLAN_NAMES: Record<string, string> = { weekly: "Weekly", monthly: "Monthly", yearly: "Yearly" };
 
 /**
@@ -85,11 +93,7 @@ export function proPlansError(plans: unknown, code: string): string | null {
   const under = (min: number) => priced.filter(([, p]) => p.price < min).map(([id]) => PLAN_NAMES[id] ?? id);
   // Saudi: Stripe's 2 SAR minimum. Jordan is charged in dollars (dinar × 1.41): below 0.36 JOD is under 0.50 USD
   // Lebanon is charged in dollars as shown: Stripe's 0.50 USD minimum
-  const [min, label] =
-    code === "SA" ? [2, "A Saudi Pro plan price must be at least 2 SAR"]
-    : code === "JO" ? [0.36, "A Jordan Pro plan price must be at least 0.36 JOD"]
-    : code === "LB" ? [0.5, "A Lebanon Pro plan price must be at least 0.5 USD"]
-    : [0, ""];
+  const [min, label] = isCountryCode(code) ? PRO_MIN_PRICE[code] : [0, ""];
   const low = min ? under(min) : [];
   if (low.length === 1 && priced.length === 1) return label;
   return low.length ? `${label} (${low.join(", ")})` : null;

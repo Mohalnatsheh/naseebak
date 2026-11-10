@@ -8,6 +8,9 @@ import { cleanStartPhone, saveLandingStart, type StartGender } from "@/lib/landi
 import { cn } from "@/lib/utils";
 import { COUNTRIES, DEFAULT_COUNTRY, type CountryCode } from "@/lib/countries";
 
+/** The phone field's placeholder after the dial code, grouped as people write it */
+const PHONE_PLACEHOLDER: Record<CountryCode, string> = { JO: "7X XXX XXXX", SA: "5X XXX XXXX", LB: "3 XXX XXX" };
+
 const CHOICES: { value: StartGender; label: string }[] = [
   { value: "MALE", label: "زوجة" },
   { value: "FEMALE", label: "زوج" },
@@ -35,7 +38,8 @@ export function StartForm({
   country?: CountryCode;
 }) {
   const cfg = COUNTRIES[country];
-  const sa = country === "SA";
+  /** «هاتف» / «جوال» */
+  const handset = cfg.words.phone;
   const router = useRouter();
   const uid = useId();
   const [phone, setPhone] = useState("");
@@ -51,7 +55,7 @@ export function StartForm({
     }
     const clean = cleanStartPhone(phone, country);
     if (clean === null) {
-      setError(`رقم ${sa ? "الجوال" : "الهاتف"} غير صالح. مثال: ${cfg.phone.example}`);
+      setError(`رقم ال${handset} غير صالح. مثال: ${cfg.phone.example}`);
       return;
     }
     setError("");
@@ -96,7 +100,7 @@ export function StartForm({
       </fieldset>
 
       <label htmlFor={`${uid}-phone`} className={cn("mt-4 block text-sm font-semibold", dark ? "text-white/80" : "text-foreground/80")}>
-        رقم {sa ? "جوالك" : "هاتفك"} <span className={dark ? "text-white/50" : "text-muted-foreground"}>(اختياري الآن)</span>
+        رقم {handset}ك <span className={dark ? "text-white/50" : "text-muted-foreground"}>(اختياري الآن)</span>
       </label>
       <div className="mt-2 flex flex-col gap-2 sm:flex-row">
         <div
@@ -114,7 +118,7 @@ export function StartForm({
             type="tel"
             inputMode="tel"
             autoComplete="tel-national"
-            placeholder={sa ? "5X XXX XXXX" : "7X XXX XXXX"}
+            placeholder={PHONE_PLACEHOLDER[country]}
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
             aria-invalid={!!error && cleanStartPhone(phone, country) === null}

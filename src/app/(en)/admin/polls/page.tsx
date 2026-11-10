@@ -28,9 +28,10 @@ import {
 } from "@/lib/engagement/poll-types";
 import type { OptionBreakdown } from "@/lib/engagement/poll-admin";
 import { localizedPath } from "@/lib/site-paths";
+import { COUNTRY_CODES, countryConfig, type CountryCode } from "@/lib/countries";
 
-type PollCountry = "JO" | "SA";
-const COUNTRY_NAMES: Record<PollCountry, string> = { JO: "Jordan", SA: "Saudi Arabia" };
+type PollCountry = CountryCode;
+const countryName = (c: PollCountry) => countryConfig(c).nameEn;
 
 interface PollRow {
   id: string;
@@ -145,9 +146,9 @@ export default function AdminPollsPage() {
     if (data) {
       toast.success(
         !editing && barCountry !== "ALL" && country !== barCountry
-          ? `Saved for ${COUNTRY_NAMES[country]}. Switch the admin country to see it.`
+          ? `Saved for ${countryName(country)}. Switch the admin country to see it.`
           : !editing && !runningIn(country)
-            ? `Published now: nothing was running in ${COUNTRY_NAMES[country]}.`
+            ? `Published now: nothing was running in ${countryName(country)}.`
             : "Question saved",
       );
       setForm(emptyForm);
@@ -210,7 +211,7 @@ export default function AdminPollsPage() {
   // Queue order = oldest draft first (the list itself is newest first)
   const queueOf = (country: PollCountry) => polls.filter((p) => p.status === "DRAFT" && p.country === country).map((p) => ({ id: p.id, at: p.createdAt })).sort((a, b) => a.at.localeCompare(b.at)).map((p) => p.id);
   const origin = useSyncExternalStore(noSubscribe, () => window.location.origin, () => "");
-  const shareLink = origin ? pollShareUrl(origin, undefined, "story", barCountry === "SA" ? "SA" : (active?.country ?? "JO")) : "";
+  const shareLink = origin ? pollShareUrl(origin, undefined, "story", barCountry !== "ALL" ? barCountry : (active?.country ?? "JO")) : "";
 
   async function copyLink() {
     await navigator.clipboard.writeText(shareLink).catch(() => {});
@@ -295,9 +296,9 @@ export default function AdminPollsPage() {
           {!editing && (
             <p className={publishesNow ? "rounded-md bg-amber-100 px-2 py-1 text-xs text-amber-800" : "text-xs text-muted-foreground"}>
               {publishesNow
-                ? `Nothing is running in ${COUNTRY_NAMES[country]}: this question goes live as soon as it's saved.`
+                ? `Nothing is running in ${countryName(country)}: this question goes live as soon as it's saved.`
                 : runningIn(country) === null
-                  ? `Queued questions go live on their own, oldest first. If nothing is running in ${COUNTRY_NAMES[country]}, it goes live at once.`
+                  ? `Queued questions go live on their own, oldest first. If nothing is running in ${countryName(country)}, it goes live at once.`
                   : `Queued questions go live on their own, oldest first, when the running one has had its ${roundDays} days.`}
             </p>
           )}
@@ -305,8 +306,11 @@ export default function AdminPollsPage() {
             <div className="space-y-1">
               <Label htmlFor="poll-country">Country</Label>
               <select id="poll-country" value={country} onChange={(e) => setCountry(e.target.value as PollCountry)} className="h-9 w-full rounded-md border bg-background px-3 text-sm">
-                <option value="JO">Jordan</option>
-                <option value="SA">Saudi Arabia</option>
+                {COUNTRY_CODES.map((c) => (
+                  <option key={c} value={c}>
+                    {countryName(c)}
+                  </option>
+                ))}
               </select>
             </div>
           )}
@@ -379,7 +383,7 @@ export default function AdminPollsPage() {
                       {p.question}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {COUNTRY_NAMES[p.country]} · {localizedPath(`/poll/${p.slug}`, p.country)} · created {fmtDate(p.createdAt)}
+                      {countryName(p.country)} · {localizedPath(`/poll/${p.slug}`, p.country)} · created {fmtDate(p.createdAt)}
                       {p.startedAt && ` · started ${fmtDate(p.startedAt)}`}
                       {p.status === "ACTIVE" && p.endsAt && ` · next question ${fmtDate(p.endsAt)}`}
                       {p.closedAt && ` · closed ${fmtDate(p.closedAt)}`}

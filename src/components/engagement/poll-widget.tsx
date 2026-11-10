@@ -5,7 +5,7 @@ import { Check, Loader2, Share2 } from "lucide-react";
 import { arabicCount, cn } from "@/lib/utils";
 import { toCountry } from "@/lib/countries";
 import { localizedPath } from "@/lib/site-paths";
-import { MIN_POLL_RESULTS, type PollSource, type PublicPoll } from "@/lib/engagement/poll-types";
+import { MIN_POLL_RESULTS, POLL_COPY, type PollSource, type PublicPoll } from "@/lib/engagement/poll-types";
 
 /**
  * «سؤال نصيبك»: the options, then (after voting) the results as bars with the voter's answer marked.
@@ -137,7 +137,7 @@ export function SharePollButton({ slug, country, className }: { slug: string; co
   const [copied, setCopied] = useState(false);
   async function share() {
     const url = `${window.location.origin}${localizedPath(`/poll/${slug}`, toCountry(country))}`;
-    const data = { title: "سؤال نصيبك", text: country === "SA" ? "ما رأيك؟ أجب عن سؤال نصيبك:" : "شو رأيك؟ جاوب على سؤال نصيبك:", url };
+    const data = { title: "سؤال نصيبك", text: POLL_COPY[toCountry(country)].share, url };
     try {
       if (navigator.share) {
         await navigator.share(data);

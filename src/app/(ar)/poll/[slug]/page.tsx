@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { PublicPollView } from "@/components/engagement/public-poll-view";
 import { getPublishedPoll, pollsEnabled } from "@/lib/engagement/polls";
+import { POLL_COPY } from "@/lib/engagement/poll-types";
 import { loadPollPage } from "../load";
 import { socialMetadata } from "@/lib/seo";
 import { getVisitorCountry } from "@/lib/countries/server";
@@ -14,9 +15,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const country = await getVisitorCountry();
   const poll = (await pollsEnabled()) ? await getPublishedPoll(slug.slice(0, 40), country) : null;
   const title = poll?.question ?? "سؤال نصيبك";
-  const description = country === "SA"
-    ? "سؤال جديد كل 3 أيام من نصيبك، منصة الزواج الجاد: أجب بضغطة واطّلع على رأي الآخرين."
-    : "سؤال جديد كل 3 أيام من نصيبك، منصة الزواج الجاد: جاوب بكبسة وشوف رأي الناس.";
+  const { description } = POLL_COPY[country];
   const url = absoluteUrl(`/poll/${slug}`, country);
   return {
     title,

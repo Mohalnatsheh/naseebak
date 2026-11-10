@@ -34,7 +34,7 @@ interface UserDetail {
   email: string;
   phone: string | null;
   gender: string;
-  /** "JO" | "SA": follows the phone, members are only matched within it */
+  /** A `CountryCode` ("JO" | "SA" | "LB"): follows the phone, members are only matched within it */
   country: string;
   role: string;
   status: string;

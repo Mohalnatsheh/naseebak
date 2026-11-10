@@ -18,6 +18,7 @@ import { Footer } from "@/components/shared/footer";
 import { useInView } from "@/hooks/use-in-view";
 import { IslamicPatternBg } from "@/components/shared/islamic-pattern";
 import { useVisitorCountry } from "@/components/shared/visitor-country";
+import type { CountryCode } from "@/lib/countries";
 import { PRO_LEGAL_UPDATED, PRO_REFUND_SECTION, refundIntro, withProRefund } from "@/lib/pro/legal-copy";
 
 /** The «عضوية Pro» section, shown only while Pro is sold in the visitor's country (QA WP2-01) */
@@ -142,14 +143,79 @@ const saSections = [
   },
 ];
 
+/** Lebanon: Jordan's policy with dollar prices and a neutral operator line */
+// LB draft: owner's legal review pending
+const lbSections = [
+  {
+    icon: Building2,
+    title: "الجهة البائعة",
+    items: [
+      // [NEEDS INPUT] the operator's legal name for Lebanon
+      "تُشغّل منصة نصيبك الجهةُ المالكة لها، وتتم جميع عمليات الدفع على المنصة باسمها.",
+      "للتواصل بخصوص أي عملية دفع: info@naseebak.com أو صفحة «تواصل معنا».",
+    ],
+  },
+  {
+    icon: Receipt,
+    title: "ما الذي تشتريه",
+    items: [
+      "الأرصدة خدمة رقمية تُستخدم داخل المنصة فقط، وتُضاف إلى حسابك فور إتمام الدفع.",
+      "لا قيمة نقدية للأرصدة، ولا يمكن تحويلها إلى مستخدم آخر أو صرفها نقداً.",
+      "لا يوجد اشتراك ولا تجديد تلقائي؛ كل عملية شراء دفعة واحدة، ويبقى الرصيد في حسابك حتى استخدامه.",
+      // [NEEDS INPUT] card statement descriptor
+      "تُعرض الأسعار بالدولار الأمريكي ($)، ويُخصم من البطاقة المبلغ نفسه بالدولار الأمريكي، وقد يضيف البنك رسوم تحويل عملة إذا كانت بطاقتك بعملة أخرى.",
+    ],
+  },
+  {
+    icon: RotateCcw,
+    title: "متى يحق لك الاسترداد",
+    items: [
+      "خلال 14 يوماً من تاريخ الشراء، إذا لم يُستخدم أي رصيد من الباقة المشتراة.",
+      "إذا خُصم المبلغ أكثر من مرة لعملية الشراء نفسها، يُسترد المبلغ المكرر كاملاً.",
+      "إذا تم الدفع ولم تُضف الأرصدة إلى حسابك، نضيفها فوراً أو نسترد المبلغ كاملاً حسب رغبتك.",
+    ],
+  },
+  {
+    icon: Ban,
+    title: "حالات لا يشملها الاسترداد",
+    items: [
+      "الأرصدة التي استُخدمت داخل المنصة وفق قواعد خصم الرصيد المبيّنة في شروط الاستخدام.",
+      "طلبات الاسترداد بعد مرور 14 يوماً على الشراء، باستثناء الخصم المكرر أو عدم إضافة الأرصدة.",
+      "الحسابات التي تم إيقافها أو حذفها بسبب مخالفة شروط الاستخدام.",
+    ],
+  },
+  {
+    icon: Mail,
+    title: "كيف تطلب الاسترداد",
+    items: [
+      "راسلنا على info@naseebak.com أو عبر صفحة «تواصل معنا»، مع ذكر الاسم المسجّل ورقم الهاتف المرتبط بالحساب وتاريخ الشراء والمبلغ.",
+      "نرد على طلبك خلال 3 أيام عمل.",
+      "عند الموافقة، يُعاد المبلغ إلى البطاقة نفسها التي تم الدفع بها، ويظهر عادةً خلال 5 إلى 10 أيام عمل حسب البنك.",
+      "عند استرداد مبلغ باقة، تُخصم أرصدة تلك الباقة من حسابك.",
+    ],
+  },
+  {
+    icon: AlertTriangle,
+    title: "عملية لا تعرفها؟",
+    items: [
+      "إذا لاحظت في كشف حسابك عملية لا تعرفها من نصيبك، يُرجى التواصل معنا أولاً وسنحلّها بسرعة قبل فتح اعتراض لدى البنك.",
+    ],
+  },
+];
+
+const SECTIONS: Record<CountryCode, typeof joSections> = { JO: joSections, SA: saSections, LB: lbSections };
+
+/** «آخر تحديث» of each country's policy without Pro */
+const UPDATED: Record<CountryCode, string> = { JO: "22 أكتوبر 2026", SA: "24 أكتوبر 2026", LB: "10 نوفمبر 2026" };
+
 /* ══════════════════════════════════════════════════════ */
 /*               REFUND POLICY PAGE                      */
 /* ══════════════════════════════════════════════════════ */
 
-export function RefundPolicyView({ proSold }: { proSold: { JO: boolean; SA: boolean } }) {
-  const sa = useVisitorCountry() === "SA";
-  const withPro = sa ? proSold.SA : proSold.JO;
-  const sections = withProRefund(sa ? saSections : joSections, withPro, proSection);
+export function RefundPolicyView({ proSold }: { proSold: Record<CountryCode, boolean> }) {
+  const country = useVisitorCountry();
+  const withPro = proSold[country];
+  const sections = withProRefund(SECTIONS[country], withPro, proSection);
   const { ref: introRef, inView: introInView } = useInView(0.15);
   const { ref: sectionsRef, inView: sectionsInView } = useInView(0.1);
   const { ref: contactRef, inView: contactInView } = useInView(0.15);
@@ -199,7 +265,7 @@ export function RefundPolicyView({ proSold }: { proSold: { JO: boolean; SA: bool
               className="mx-auto mt-4 text-sm text-white/75"
               style={{ animation: "fadeSlideUp var(--motion-sheet) var(--motion-ease) 0.6s both" }}
             >
-              آخر تحديث: {withPro ? PRO_LEGAL_UPDATED : sa ? "24 أكتوبر 2026" : "22 أكتوبر 2026"}
+              آخر تحديث: {withPro ? PRO_LEGAL_UPDATED : UPDATED[country]}
             </p>
           </div>
         </section>

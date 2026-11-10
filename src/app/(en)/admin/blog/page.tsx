@@ -20,10 +20,12 @@ import { toast } from "sonner";
 import { fmtDate } from "@/components/admin/admin-list-bits";
 import { AdminEmptyState, AdminLoadError } from "@/components/admin/admin-states";
 import { useConfirm } from "@/components/admin/confirm-dialog";
+import { COUNTRY_CODES, countryConfig, isCountryCode, type CountryCode } from "@/lib/countries";
+import { localizedPath } from "@/lib/site-paths";
 
 /* ──────────────────── Types ──────────────────── */
 
-type PostCountry = "JO" | "SA";
+type PostCountry = CountryCode;
 
 interface Category {
   id: string;
@@ -151,7 +153,7 @@ export default function AdminBlogPage() {
 
   function openNewPost() {
     setEditingPost(null);
-    setPostForm({ title: "", slug: "", excerpt: "", content: "", categoryId: categories[0]?.id || "", status: "DRAFT", country: barCountry === "SA" ? "SA" : "JO", readTime: "" });
+    setPostForm({ title: "", slug: "", excerpt: "", content: "", categoryId: categories[0]?.id || "", status: "DRAFT", country: isCountryCode(barCountry) ? barCountry : "JO", readTime: "" });
     setPostError("");
     setPostDialogOpen(true);
   }
@@ -366,7 +368,7 @@ export default function AdminBlogPage() {
                             <p className="font-medium text-sm" dir="auto">{post.title}</p>
                             <p className="text-xs text-muted-foreground mt-0.5 break-all">/{post.slug}</p>
                           </td>
-                          <td className="p-3 text-sm">{post.country === "SA" ? "Saudi Arabia" : "Jordan"}</td>
+                          <td className="p-3 text-sm">{countryConfig(post.country).nameEn}</td>
                           <td className="p-3">
                             <Badge variant="secondary" className="text-xs">
                               {post.category.nameEn}
@@ -663,8 +665,11 @@ export default function AdminBlogPage() {
                   value={postForm.country}
                   onChange={(e) => setPostForm({ ...postForm, country: e.target.value as PostCountry })}
                 >
-                  <option value="JO">Jordan (/blog)</option>
-                  <option value="SA">Saudi Arabia (/sa/blog)</option>
+                  {COUNTRY_CODES.map((c) => (
+                    <option key={c} value={c}>
+                      {countryConfig(c).nameEn} ({localizedPath("/blog", c)})
+                    </option>
+                  ))}
                 </select>
               </div>
 

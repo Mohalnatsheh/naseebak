@@ -1,6 +1,10 @@
 import Link from "@/components/shared/site-link";
 import { EyeOff, Flag, MessageSquareLock, ShieldCheck } from "lucide-react";
+import type { CountryCode } from "@/lib/countries";
 import type { LandingContent } from "./content";
+
+/** «هاتفك الأردني» / «جوالك السعودي» / «هاتفك اللبناني» */
+const MY_LOCAL_PHONE: Record<CountryCode, string> = { JO: "هاتفك الأردني", SA: "جوالك السعودي", LB: "هاتفك اللبناني" };
 
 const SAFETY_ICONS = [ShieldCheck, Flag, MessageSquareLock];
 
@@ -15,7 +19,7 @@ export function LandingTrust({ content }: { content: LandingContent }) {
           </p>
           <h2 className="mt-2 text-3xl font-extrabold text-primary sm:text-4xl">من يرى ماذا… ومتى؟</h2>
           <p className="mt-3 max-w-lg leading-relaxed text-muted-foreground">
-            للتسجيل نطلب اسمك وجنسك ورقم {content.country === "SA" ? "جوالك السعودي" : "هاتفك الأردني"} فقط، ولا يظهر للآخرين منها إلا اسمك الأول.
+            للتسجيل نطلب اسمك وجنسك ورقم {MY_LOCAL_PHONE[content.country]} فقط، ولا يظهر للآخرين منها إلا اسمك الأول.
           </p>
 
           <ol className="relative mt-8 space-y-5 border-s-2 border-accent/40 ps-6">

@@ -25,6 +25,7 @@ import { Footer } from "@/components/shared/footer";
 import { useInView } from "@/hooks/use-in-view";
 import { contactFormIssue } from "@/lib/validations/form-checks";
 import { useVisitorCountry } from "@/components/shared/visitor-country";
+import { countryConfig, type CountryCode } from "@/lib/countries";
 
 /* ──────────────────── DATA ──────────────────── */
 
@@ -53,13 +54,30 @@ const saContactInfo = [
   },
 ];
 
+/** Lebanon: the country only */
+const lbContactInfo = [
+  contactInfo[0],
+  {
+    icon: MapPin,
+    title: "الموقع",
+    // [NEEDS INPUT] city / registered address for Lebanon, if the owner wants one shown
+    value: "لبنان",
+  },
+];
+
+const CONTACT_INFO: Record<CountryCode, typeof contactInfo> = { JO: contactInfo, SA: saContactInfo, LB: lbContactInfo };
+
+/** The phone field's placeholder, in the local form */
+const PHONE_PLACEHOLDER: Record<CountryCode, string> = { JO: "07XXXXXXXX", SA: "05XXXXXXXX", LB: "03XXXXXX" };
+
 /* ══════════════════════════════════════════════════════ */
 /*                  CONTACT PAGE                         */
 /* ══════════════════════════════════════════════════════ */
 
 export default function ContactPage() {
   const country = useVisitorCountry();
-  const sa = country === "SA";
+  /** «هاتف» / «جوال» */
+  const handset = countryConfig(country).words.phone;
   const { ref: formRef, inView: formInView } = useInView(0.15);
 
   const [formData, setFormData] = useState({
@@ -189,7 +207,7 @@ export default function ContactPage() {
                       <CheckCircle2 className="size-12 text-emerald-600" aria-hidden="true" />
                       <h3 className="text-lg font-bold">وصلتنا رسالتك</h3>
                       <p className="max-w-sm text-sm leading-relaxed text-muted-foreground">
-                        شكراً لتواصلك مع نصيبك. سنرد عليك على رقم {sa ? "جوالك" : "هاتفك"} أو بريدك الإلكتروني في أقرب وقت ممكن.
+                        شكراً لتواصلك مع نصيبك. سنرد عليك على رقم {handset}ك أو بريدك الإلكتروني في أقرب وقت ممكن.
                       </p>
                       <Button variant="outline" className="mt-2 rounded-xl" onClick={() => setStatus("idle")}>
                         إرسال رسالة أخرى
@@ -225,7 +243,7 @@ export default function ContactPage() {
 
                     {/* Phone (members sign up with a phone) — a phone or an email is enough */}
                     <div className="space-y-2">
-                      <Label htmlFor="phone">{sa ? "رقم الجوال" : "رقم الهاتف"}</Label>
+                      <Label htmlFor="phone">رقم ال{handset}</Label>
                       <Input
                         id="phone"
                         name="phone"
@@ -233,7 +251,7 @@ export default function ContactPage() {
                         type="tel"
                         inputMode="tel"
                         dir="ltr"
-                        placeholder={sa ? "05XXXXXXXX" : "07XXXXXXXX"}
+                        placeholder={PHONE_PLACEHOLDER[country]}
                         value={formData.phone}
                         onChange={handleChange}
                         className="h-12 rounded-xl border-border/60 bg-background/50 backdrop-blur-sm text-left"
@@ -243,7 +261,7 @@ export default function ContactPage() {
                     {/* Email */}
                     <div className="space-y-2">
                       <Label htmlFor="email">
-                        البريد الإلكتروني <span className="text-muted-foreground font-normal">(اختياري إذا أدخلت رقم {sa ? "الجوال" : "الهاتف"})</span>
+                        البريد الإلكتروني <span className="text-muted-foreground font-normal">(اختياري إذا أدخلت رقم ال{handset})</span>
                       </Label>
                       <Input
                         id="email"
@@ -321,7 +339,7 @@ export default function ContactPage() {
                 }}
               >
                 {/* Contact info cards */}
-                {(sa ? saContactInfo : contactInfo).map((info, i) => (
+                {CONTACT_INFO[country].map((info, i) => (
                   <Card
                     key={info.title}
                     className={`relative overflow-hidden rounded-2xl bg-card/80 border transition-all duration-500 hover:border-primary/20 hover:shadow-lg ${

@@ -5,6 +5,14 @@ import { Button } from "@/components/ui/button";
 import type { GuardianContact } from "@/lib/intro/requests";
 import { RELATIONSHIP_LABELS, formatGuardianPhone } from "./intro-utils";
 import { useDashboardData } from "@/contexts/dashboard-context";
+import type { CountryCode } from "@/lib/countries";
+
+/** What the guardians arrange: Saudi custom names the النظرة الشرعية */
+const VISIT: Record<CountryCode, string> = {
+  JO: "موعد الزيارة العائلية",
+  SA: "موعد الزيارة والنظرة الشرعية",
+  LB: "موعد الزيارة العائلية",
+};
 
 /** Shown to both sides after an accepted family introduction. */
 export function GuardianContactCard({ contact, partnerName }: { contact?: GuardianContact; partnerName: string }) {
@@ -56,7 +64,7 @@ export function GuardianContactCard({ contact, partnerName }: { contact?: Guardi
       </div>
 
       <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
-        ننصح أن يتواصل وليّ أمرك مباشرة مع وليّ أمر الطرف الآخر لترتيب {country === "SA" ? "موعد الزيارة والنظرة الشرعية" : "موعد الزيارة العائلية"}.
+        ننصح أن يتواصل وليّ أمرك مباشرة مع وليّ أمر الطرف الآخر لترتيب {VISIT[country]}.
       </p>
     </div>
   );

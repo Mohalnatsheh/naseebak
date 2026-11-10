@@ -7,7 +7,7 @@ import { ChevronLeft, MessageCircleQuestion } from "lucide-react";
 import { Navbar } from "@/components/shared/navbar";
 import { Footer } from "@/components/shared/footer";
 import { trackEvent } from "@/lib/analytics";
-import type { PollSource, PublicPoll } from "@/lib/engagement/poll-types";
+import { POLL_COPY, type PollSource, type PublicPoll } from "@/lib/engagement/poll-types";
 import { PollWidget, SharePollButton } from "@/components/engagement/poll-widget";
 
 /**
@@ -28,7 +28,7 @@ export function PublicPollView({
 }) {
   const [poll, setPoll] = useState(initial);
   const answered = poll?.myVote != null;
-  const sa = useVisitorCountry() === "SA";
+  const copy = POLL_COPY[useVisitorCountry()];
 
   return (
     <>
@@ -61,7 +61,7 @@ export function PublicPollView({
                 <>
                   <h1 className="font-display text-2xl leading-snug sm:text-3xl">لا يوجد سؤال مفتوح الآن</h1>
                   {!pollsOff && (
-                    <p className="text-sm leading-relaxed text-white/75">ننشر سؤالاً جديداً كل بضعة أيام على {sa ? "إنستقرام" : "انستغرام"} وهنا. ارجع قريباً.</p>
+                    <p className="text-sm leading-relaxed text-white/75">{copy.nextQuestion}</p>
                   )}
                 </>
               )}
@@ -79,7 +79,7 @@ export function PublicPollView({
           ) : (
             (answered || !poll) && (
               <section className="space-y-3 rounded-2xl border border-accent/40 bg-card p-5">
-                <h2 className="text-lg font-bold text-foreground">{sa ? "نصيبك منصة زواج جاد، وليست تطبيق تعارف" : "نصيبك منصة زواج جاد، مش تطبيق تعارف"}</h2>
+                <h2 className="text-lg font-bold text-foreground">{copy.notDating}</h2>
                 <ul className="space-y-1.5 text-sm leading-relaxed text-muted-foreground">
                   <li>• الصور مخفية حتى يقول الطرفان «مهتم».</li>
                   <li>• لا تواصل قبل التوافق المتبادل، وقرار «لا» بدون إشعار.</li>
@@ -92,7 +92,7 @@ export function PublicPollView({
                   سجّل الآن مجاناً
                 </Link>
                 {!pollsOff && (
-                  <p className="text-center text-xs text-muted-foreground">{sa ? "وأجب عن سؤال جديد من داخل حسابك كل 3 أيام." : "وجاوب على سؤال جديد من داخل حسابك كل 3 أيام."}</p>
+                  <p className="text-center text-xs text-muted-foreground">{copy.answerInAccount}</p>
                 )}
               </section>
             )

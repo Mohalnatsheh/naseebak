@@ -280,7 +280,7 @@ function LoginPageContent() {
                 <h1>تسجيل الدخول</h1>
               </CardTitle>
               <CardDescription className="text-base text-muted-foreground">
-                أدخل رقم {country === "SA" ? "جوالك" : "هاتفك"} للدخول إلى حسابك
+                أدخل رقم {COUNTRIES[country].words.phone}ك للدخول إلى حسابك
               </CardDescription>
             </CardHeader>
 

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const db = vi.hoisted(() => ({ contactMessage: { create: vi.fn() }, countrySetting: { findMany: vi.fn(async () => []) } }));
-const visitor = vi.hoisted(() => ({ country: "SA" as "SA" | "JO" }));
+const visitor = vi.hoisted(() => ({ country: "SA" as "SA" | "JO" | "LB" }));
 vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/email", () => ({ sendContactNotification: vi.fn(async () => {}) }));
 vi.mock("@/lib/countries/server", () => ({ getVisitorCountry: vi.fn(async () => visitor.country) }));
@@ -41,6 +41,13 @@ describe("POST /api/contact stores the visitor's country", () => {
     const res = await POST(post({ ...msg(), phone: "0791234560", country: "JO" }));
     expect(res.status).toBe(201);
     expect(db.contactMessage.create.mock.calls[0][0].data).toMatchObject({ phone: "962791234560", country: "JO" });
+  });
+
+  it("Lebanese visitor: Lebanese mobile normalised to 961…, country LB", async () => {
+    visitor.country = "LB";
+    const res = await POST(post({ ...msg(), phone: "71123456", country: "LB" }));
+    expect(res.status).toBe(201);
+    expect(db.contactMessage.create.mock.calls[0][0].data).toMatchObject({ phone: "96171123456", country: "LB" });
   });
 
   it("Jordanian visitor: country JO", async () => {

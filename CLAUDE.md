@@ -21,7 +21,7 @@ Rules for working on Naseebak (نصيبك). This file holds what you need in eve
 
 ## Project overview
 
-- Traditional marriage facilitation platform for Jordan and Saudi Arabia. **Not** a dating app.
+- Traditional marriage facilitation platform for Jordan, Saudi Arabia and Lebanon (Lebanon prepared, switched off). **Not** a dating app.
 - Production: https://naseebak.com. Full spec: `SRS.md` (parts superseded). Specs: `docs/superpowers/specs/`. QA notes: `docs/qa/`.
 - Flow map and gaps register: `docs/platform-flow.html` (some numbers are older than the code; update it when a flow changes).
 - The cycle: free shared suggestions → both say «مهتم» → match → family introduction or a short filtered in-app chat. No admin work.
@@ -202,7 +202,7 @@ src/
 - The dashboard follows the member's country, not the last public page.
 - Saudi purchases stay off until «Prices approved» is on in Admin → Countries. SAR prices are drafts until then. Lebanon is the same: shown and charged in USD («$»), draft packages `lb_10` / `lb_25` / `lb_50` (3 / 6 / 10 $), not approved; Pro plans only once set. Meanwhile the payments page (website and app) says buying isn't available and disables the buttons (`purchasesEnabled` from `/api/payments/plans`).
 - Sign-in codes by WhatsApp are `CountryConfig.otpByWhatsapp` (SA and LB), never `country === "SA"`. Lebanon's notice-SMS provider defaults to NONE (no notice SMS) until the owner picks one.
-- Numbers in `EXTRA_TEST_PHONES` pass the closed-country sign-up gate (`countrySignupBlock`), so Lebanon can be walked on production while off. Admin «Send a test SMS» sends a real WhatsApp code for a WhatsApp country (checks VerifyWay to +961).
+- Numbers in `EXTRA_TEST_PHONES` pass the closed-country sign-up gate (`countrySignupBlock`), so Lebanon can be walked on production while off. Admin «Send a test SMS» tests the country's SMS provider (Saudi Arabia: Unifonic, as before); only a WhatsApp country with no SMS provider ready (NONE or missing credentials: Lebanon today) gets a real WhatsApp sign-in code instead (checks VerifyWay to +961).
 - **«المذهب»** (Lebanon only, `src/lib/profile-sect.ts`): `Profile.sect` سني / شيعي / «أفضّل عدم الذكر», `prefSect` (سني / شيعي), «شرط أساسي» key `sect`. «أفضّل عدم الذكر» is never shown on a card, never a preference, and fails a sect «شرط أساسي». The server strips `sect`, `prefSect` and the `sect` key for non-LB members. Required in the website and app 1.2.0 setup, never by the server (older apps).
 - More: [docs/reference/countries-and-app.md](docs/reference/countries-and-app.md).
 
@@ -220,6 +220,7 @@ src/
 - Copy follows the switches: never say requests cost credit while `credit_on_interest` is on. Never describe a switched-off feature.
 - Referral: friend +1, referrer +2 after the friend finishes short setup, referrer's reward stops after 10 (`maybeAwardReferral()`).
 - Jordan: shown in JOD, charged in USD (dinar × 1.41). Saudi Arabia: shown and charged in SAR.
+- Lebanon: shown and charged in USD (draft, not approved).
 - Prices are set in Admin → Countries. A package id's credits stay in code, because refunds read them, so a different size needs a new package id.
 - Credits are added only by `fulfilCheckoutSession()` / `fulfilPaymentIntent`, once, when paid.
 - **The Stripe account is shared with other sites.** Ignore anything without our metadata (`isOurSession`).
@@ -238,7 +239,7 @@ src/
   - A second paid subscription while one is live is never live: it is cancelled at Stripe at once, its invoice grants its credits, the older one stays the member's Pro, and the admins are emailed both payments to refund by hand. A renewal paid after Pro ended here is handled the same way: Pro does not come back (`lib/pro/duplicate.ts`).
   - Pro checkout sessions expire after `CHECKOUT_TTL_MS` (35 min); a new Pro checkout expires the member's other open ones. The unpaid-checkout reminder skips `pro_*` rows. The webhook reads both Stripe payload shapes (before and after API 2025-03-31).
   - Webhook cases come before `fulfilCheckoutSession` and ignore anything without our metadata (`kind: "pro"`).
-  - Sales need `purchasesAvailable` and `pro_enabled` and an enabled plan with a price. Pro never touches suggestions, score or order. The plans list «أولوية في الاقتراحات» (owner, 2026-11-10): text only, the priority is owed, not built.
+  - Sales need `purchasesAvailable` and `pro_enabled` and an enabled plan with a price. Pro never touches suggestions, score or order. The plans list «أولوية في الاقتراحات» by owner decision (2026-11-10), made after being told nothing delivers it yet: don't "correct" the copy; the priority is owed and gets built later.
   - Detail: [docs/reference/payments.md](docs/reference/payments.md#pro-membership).
 - More: [docs/reference/payments.md](docs/reference/payments.md), [docs/reference/suggestions-and-credits.md](docs/reference/suggestions-and-credits.md).
 

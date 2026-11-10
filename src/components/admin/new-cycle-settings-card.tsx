@@ -66,7 +66,7 @@ export function NewCycleSettingsCard() {
   }
 
   function toggle(key: Key, value: boolean) {
-    // The feed order, Saudi matching and the free reply are safe to turn off at once: nothing in flight depends on them
+    // The feed order, Saudi and Lebanese relaxed matching, the free reply and Pro sales are safe to turn off at once: nothing in flight depends on them
     const quickOff = key === "activeFirstFeed" || key === "saRelaxedMatching" || key === "lbRelaxedMatching" || key === "freeInterestReply" || key === "proEnabled";
     if (!value && !quickOff) setConfirmOff(key);
     else if (value && key === "introRequests") setConfirmIntroOn(true);

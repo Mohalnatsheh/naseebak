@@ -41,7 +41,7 @@ export function phoneInputCountry(v: string, fallback?: CountryCode): CountryCod
 }
 
 /**
- * Normalize any valid Jordanian or Saudi mobile to its international form (962… / 966…).
+ * Normalize any valid Jordanian, Saudi or Lebanese mobile to its international form (962… / 966… / 961…).
  * The country comes from the number itself; `country` only decides a number that fits neither.
  */
 export function normalizePhone(phone: string, country?: CountryCode): string {
@@ -53,8 +53,9 @@ export function normalizePhone(phone: string, country?: CountryCode): string {
 }
 
 /**
- * The number as a member types it at home (07XXXXXXXX / 05XXXXXXXX), from any accepted format including the
- * international one (9627…), e.g. to fill a phone field next to its +962 / +966 dial code (QA WA-07).
+ * The number as a member types it at home (07XXXXXXXX / 05XXXXXXXX / 03XXXXXX or 71XXXXXX in Lebanon), from any
+ * accepted format including the international one (9627…), e.g. to fill a phone field next to its +962 / +966 / +961
+ * dial code (QA WA-07).
  */
 export function localPhone(phone: string, country?: CountryCode): string {
   const intl = normalizePhone(phone, country);

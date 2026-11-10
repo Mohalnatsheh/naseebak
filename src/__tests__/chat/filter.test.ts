@@ -492,3 +492,40 @@ describe("final review minor 1: «أميل» and «سناب شوت» are ordinar
     (t) => expect(blocked(t)).toBe("CONTACT"),
   );
 });
+
+describe("final review I2, round 2: glued «و» pieces count when the message looks like a phone number", () => {
+  const reason = (t: string) => {
+    const r = checkMessage(t);
+    return r.ok ? null : r.reason;
+  };
+
+  it.each([
+    // An unglued group that starts a number: country code or a 4+ digit piece
+    "+962 و79 و55 و12 و34",
+    "962 و79 و55 و12 و34",
+    "00962 و79 و55 و12 و34",
+    "+966 و50 و12 و34 و56",
+    // A phone word
+    "رقمي 79 و55 و12 و34 و5",
+    "رقمي و79 و55 و12 و34 و56",
+    "رقمي 5 و51 و23 و45 و67",
+    "جوالي 79 و55 و12 و34 و56",
+    "والجوال 79 و55 و12 و34 و56",
+  ])("blocked: %s", (t) => expect(reason(t)).toBe("CONTACT"));
+
+  it.each([
+    // No context: an ordinary list (owner decision pending)
+    "79 و55 و12 و34",
+    "5 و51 و23 و45 و67",
+    // A 3-digit height or weight is not a number's start
+    "عمري 150 سم واخواتي 28 و26 و24 و21 و19",
+    "طولي 175 ووزني 70 واخواتي 28 و26 و24 و21",
+  ])("passes: %s", (t) => expect(checkMessage(t).ok, t).toBe(true));
+
+  it("«اميل» before «لو سمحت» is still an email; a Latin handle glued on is blocked; the verb still passes", () => {
+    expect(reason("ابعتلي اميل لو سمحت")).toBe("CONTACT");
+    expect(reason("اميلahmad")).toBe("CONTACT");
+    expect(checkMessage("أميل إلى الهدوء").ok).toBe(true);
+    expect(checkMessage("أنا أميل للبيت أكثر").ok).toBe(true);
+  });
+});

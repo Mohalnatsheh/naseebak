@@ -81,15 +81,19 @@ const SOCIAL_KEYWORDS_AR = [
 const SNAP_AR_RE = /سناب(?!\s?شوت)/u;
 // «اميل» (email without the ي) is also the verb «أميل» ("I lean": «أميل إلى الهدوء») and sits inside «فاميلي»
 // (family), so it counts only as its own word (final review minor 1): with «ال» or a suffix («الاميل»,
-// «اميلي», «عالاميل»), or bare unless the next word makes it the verb («إلى», «لل…»)
+// «اميلي», «عالاميل»), or bare unless the next word makes it the verb («إلى», «لل…»); a Latin handle glued on
+// («اميلahmad») always counts
+const EMAIL_AR_GLUED_LATIN = /^(?:[وب]?ال|عال|عل)?اميل[a-z0-9_]/u;
 const EMAIL_AR_WORD = /^(?:[وب]?ال|عال|عل)?اميل(?:ي|ك|كم|ه|ها|نا|ات|اتي|اتك)?$/u;
 function hasEmailWordAr(lower: string): boolean {
   const list = lower.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
   return list.some((w, i) => {
+    // A handle glued on ("اميلahmad")
+    if (EMAIL_AR_GLUED_LATIN.test(w)) return true;
     if (!EMAIL_AR_WORD.test(w)) return false;
     if (w !== "اميل" && w !== "واميل") return true;
     const next = list[i + 1] ?? "";
-    return !(next === "الى" || next === "الي" || next.startsWith("ل"));
+    return !(next === "الى" || next === "الي" || next.startsWith("لل"));
   });
 }
 // Latin names: long ones anywhere, short ones (≤ 5 letters) only as a whole word, so "instant coffee",
@@ -382,13 +386,28 @@ function tokens(s: string): Token[] {
  * ثم 34"). Years and round amounts don't count, so
  * "مواليد 1995 وتخرجت 2017 والمهر 5000" stays an ordinary message.
  */
+/** A phone word, whole, with «و»/«ف»/«ب»/«ال» in front and «ي/ك/ه» after (after normaliseArabic: «نمرة» → «نمره») */
+const PHONE_CONTEXT_WORD = /^(?:[وفب]?(?:ال)?)(?:رقم|نمر|نمره|اتصل|كلمني|واتس|موبايل|جوال|تلفون|هاتف)(?:ي|ك|ه)?$/u;
+
+/** An unglued group that can start a phone number: 4+ digits, or 3 starting with 0 or 9 (962, 966, 079), never a year or round amount */
+function phonePrefixGroup(group: string): boolean {
+  if (ordinaryNumber(group)) return false;
+  return group.length >= 4 || (group.length === 3 && /^[09]/.test(group));
+}
+
 function hasScatteredNumber(s: string): boolean {
   let spelled = 0;
   let total = 0;
   const list = tokens(s);
-  // A group with a leading zero ("07", «و05») is how a phone number starts, never an age or a price: then the
-  // glued list items count again ("07 و95 و55 و12 و34")
-  const phoneStart = list.some((t) => t.kind === "written" && t.text.length >= 2 && t.text.startsWith("0"));
+  // Glued list items («و27») count again when the message looks like a phone number (final review I2, rulings):
+  // a group with a leading zero ("07", «و05»), an unglued non-ordinary group that can start a number ("962", "+962",
+  // "0795", any 4+ digits; a 3-digit height or weight «طولي 175» doesn't), or a phone word («رقمي», «جوالي», …)
+  const phoneStart = list.some(
+    (t) =>
+      (t.kind === "written" &&
+        ((t.text.length >= 2 && t.text.startsWith("0")) || (!t.glued && phonePrefixGroup(t.text)))) ||
+      (t.kind === "word" && PHONE_CONTEXT_WORD.test(t.text)),
+  );
   for (const t of list) {
     if (t.kind === "spelled") {
       // Single spelled digits only: numbers said the long way («مية وسبعين») with words between them are

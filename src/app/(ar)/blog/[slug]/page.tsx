@@ -3,24 +3,14 @@ import Link from "@/components/shared/site-link";
 import { Navbar } from "@/components/shared/navbar";
 import { Footer } from "@/components/shared/footer";
 import { Badge } from "@/components/ui/badge";
-import { PageHeroPhoto } from "@/components/shared/page-hero-photo";
+import Image from "next/image";
+import { blogCover } from "@/lib/blog-covers";
 import { ArrowRight, Calendar, Clock } from "lucide-react";
 import { PostContent } from "@/components/blog/post-content";
 import { formatDate, type CountryCode } from "@/lib/countries";
 import { getVisitorCountry } from "@/lib/countries/server";
 import { getPublishedPost, listPublishedPostTitles } from "@/lib/blog";
 import { relatedPosts } from "@/lib/blog-content";
-
-/* ──────────────────── Gradient Map ──────────────────── */
-
-const categoryGradients: Record<string, string> = {
-  tips: "from-primary/20 via-secondary/10 to-primary/5",
-  stories: "from-secondary/20 via-primary/10 to-secondary/5",
-  development: "from-accent/20 via-accent/10 to-accent/5",
-  family: "from-primary/20 via-secondary/10 to-primary/5",
-};
-
-const defaultGradient = "from-primary/20 via-secondary/10 to-primary/5";
 
 /* ──────────────────── Helpers ──────────────────── */
 
@@ -49,20 +39,22 @@ export default async function BlogDetailPage({ params }: { params: Promise<{ slu
 
       <main id="main" tabIndex={-1} className="overflow-hidden">
         {/* ═══════════════ MINI HERO ═══════════════ */}
-        <section className={`relative overflow-hidden pt-20 bg-gradient-to-bl ${categoryGradients[post.category.slug] || defaultGradient}`}>
-          <PageHeroPhoto src="/images/pages/post.webp" strength="opacity-60" />
+        {/* The landing look (P2-7): the navy night over the post's own cover (DS-19), the gold star tile on top */}
+        <section className="landing-night relative overflow-hidden pt-20 text-white">
+          <Image src={blogCover(post.slug)} alt="" fill priority sizes="100vw" className="object-cover opacity-20" aria-hidden />
+          <div className="landing-khatam absolute inset-0" aria-hidden />
           <div className="container relative mx-auto max-w-3xl px-4 py-16">
             {/* Back link */}
             <Link
               href="/blog"
-              className="inline-flex min-h-11 items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors mb-8"
+              className="inline-flex min-h-11 items-center gap-2 text-sm font-medium text-white/75 hover:text-white transition-colors mb-8"
             >
               <ArrowRight className="size-4" />
               العودة للمدونة
             </Link>
 
             {/* Category badge */}
-            <Badge className="mb-4 bg-background/90 backdrop-blur-sm text-foreground border-border/50">
+            <Badge className="mb-4 border-accent/40 bg-white/10 text-accent backdrop-blur-sm">
               {post.category.nameAr}
             </Badge>
 
@@ -72,7 +64,7 @@ export default async function BlogDetailPage({ params }: { params: Promise<{ slu
             </h1>
 
             {/* Meta info */}
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-white/75">
               <span>فريق نصيبك</span>
               <span className="inline-flex items-center gap-1.5">
                 <Calendar className="size-4" />

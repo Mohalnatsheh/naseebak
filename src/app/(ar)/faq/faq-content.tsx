@@ -6,8 +6,7 @@ import { Navbar } from "@/components/shared/navbar";
 import { Footer } from "@/components/shared/footer";
 import { useInView } from "@/hooks/use-in-view";
 import { Button } from "@/components/ui/button";
-import { ChevronDown, MessageCircle, Shield, CreditCard, Users, HelpCircle } from "lucide-react";
-import { PageHeroPhoto } from "@/components/shared/page-hero-photo";
+import { Plus, MessageCircle, Shield, CreditCard, Users, HelpCircle } from "lucide-react";
 import { faqsFor } from "./faq-data";
 import type { CountryCode } from "@/lib/countries";
 import type { PackagePrices } from "@/lib/payments/packages";
@@ -56,33 +55,15 @@ export function FaqContent({
 
       <main id="main" tabIndex={-1} className="overflow-hidden">
         {/* ═══════════════ HERO BANNER ═══════════════ */}
-        <section className="relative min-h-[40vh] flex items-center justify-center pt-20">
-          <PageHeroPhoto src="/images/pages/faq.webp" />
-          {/* Gradient background */}
-          <div className="absolute inset-0 bg-gradient-to-bl from-primary/[0.08] via-background to-secondary/[0.06]" />
-          <div
-            className="absolute inset-0 opacity-30"
-            style={{
-              background:
-                "radial-gradient(ellipse 80% 50% at 50% 0%, oklch(0.39 0.07 249 / 0.08), transparent), radial-gradient(ellipse 60% 40% at 80% 100%, oklch(0.48 0.06 249 / 0.06), transparent)",
-            }}
-          />
-
-          {/* Decorative blurred orbs */}
-          <div
-            className="absolute top-20 start-10 h-56 w-56 rounded-full bg-primary/[0.06] blur-3xl"
-            style={{ animationDuration: "8s" }}
-          />
-          <div
-            className="absolute bottom-10 end-10 h-72 w-72 rounded-full bg-secondary/[0.08] blur-3xl"
-            style={{ animationDuration: "10s" }}
-          />
+        <section className="landing-night relative flex min-h-[40vh] items-center justify-center overflow-hidden pt-20 text-white">
+          {/* The landing look (P2-7 / DS-20): the navy night with the gold eight-point star */}
+          <div className="landing-khatam absolute inset-0" aria-hidden />
 
           <div className="container relative mx-auto px-4 py-16 text-center">
             {/* Badge */}
             <div
-              className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/[0.06] backdrop-blur-sm px-5 py-2 text-sm font-medium text-primary mb-6 shadow-sm"
-              style={{ animation: "fadeSlideDown 0.8s ease-out both" }}
+              className="inline-flex items-center gap-2 rounded-full border border-accent/40 bg-white/10 backdrop-blur-sm px-5 py-2 text-sm font-medium text-accent mb-6 shadow-sm"
+              style={{ animation: "fadeSlideDown var(--motion-sheet) var(--motion-ease) both" }}
             >
               <HelpCircle className="size-4" />
               الأسئلة الشائعة
@@ -91,21 +72,21 @@ export function FaqContent({
             {/* Headline */}
             <h1
               className="mx-auto max-w-4xl text-4xl font-bold leading-tight tracking-tight sm:text-5xl lg:text-6xl"
-              style={{ animation: "fadeSlideUp 0.8s ease-out 0.2s both" }}
+              style={{ animation: "fadeSlideUp var(--motion-sheet) var(--motion-ease) 0.2s both" }}
             >
               إجابات لكل{" "}
-              <span className="bg-gradient-to-l from-primary via-secondary to-accent bg-clip-text text-transparent">
+              <span className="text-accent">
                 أسئلتك
               </span>
             </h1>
 
             {/* Description */}
             <p
-              className="mx-auto mt-6 max-w-xl text-lg leading-relaxed text-muted-foreground"
-              style={{ animation: "fadeSlideUp 0.8s ease-out 0.4s both" }}
+              className="mx-auto mt-6 max-w-xl text-lg leading-relaxed text-white/75"
+              style={{ animation: "fadeSlideUp var(--motion-sheet) var(--motion-ease) 0.4s both" }}
             >
-              كل ما تحتاج معرفته عن منصة نصيبك وكيفية عملها. وإذا لم تجد
-              إجابتك، يمكنك التواصل معنا.
+              كل ما يهمّك معرفته عن منصة نصيبك وكيفية عملها. وإن بقي سؤالك
+              بلا إجابة، يمكنك التواصل معنا.
             </p>
           </div>
         </section>
@@ -177,9 +158,11 @@ export function FaqContent({
                           <span className="font-semibold text-sm leading-relaxed">
                             {faq.q}
                           </span>
-                          <ChevronDown
-                            className={`size-5 shrink-0 text-muted-foreground transition-transform duration-300 ${
-                              isOpen ? "rotate-180" : ""
+                          {/* One FAQ toggle on the site: the landing's gold + that turns into ✕ (P2-7) */}
+                          <Plus
+                            aria-hidden
+                            className={`size-5 shrink-0 text-accent-ink transition-transform duration-300 motion-reduce:transition-none ${
+                              isOpen ? "rotate-45" : ""
                             }`}
                           />
                         </button>

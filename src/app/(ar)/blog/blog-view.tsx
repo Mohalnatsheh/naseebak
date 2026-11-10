@@ -10,8 +10,8 @@ import { useInView } from "@/hooks/use-in-view";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { PageHeroPhoto } from "@/components/shared/page-hero-photo";
 import Image from "next/image";
+import { blogCover } from "@/lib/blog-covers";
 import { Sparkles, Calendar, Clock, ArrowLeft, Heart, BookOpen, Users, Lightbulb, Home, ChevronLeft, ChevronRight } from "lucide-react";
 
 /* ──────────────────── Types ──────────────────── */
@@ -128,33 +128,15 @@ export default function BlogView({ initial }: { initial: BlogInitial }) {
 
       <main id="main" tabIndex={-1} className="overflow-hidden">
         {/* ═══════════════ HERO BANNER ═══════════════ */}
-        <section className="relative min-h-[40vh] flex items-center justify-center pt-20">
-          <PageHeroPhoto src="/images/pages/blog.webp" />
-          {/* Gradient background */}
-          <div className="absolute inset-0 bg-gradient-to-bl from-primary/[0.08] via-background to-secondary/[0.06]" />
-          <div
-            className="absolute inset-0 opacity-30"
-            style={{
-              background:
-                "radial-gradient(ellipse 80% 50% at 50% 0%, oklch(0.39 0.07 249 / 0.08), transparent), radial-gradient(ellipse 60% 40% at 80% 100%, oklch(0.48 0.06 249 / 0.06), transparent)",
-            }}
-          />
-
-          {/* Decorative blurred orbs */}
-          <div
-            className="absolute top-20 start-10 h-56 w-56 rounded-full bg-primary/[0.06] blur-3xl"
-            style={{ animationDuration: "8s" }}
-          />
-          <div
-            className="absolute bottom-10 end-10 h-72 w-72 rounded-full bg-secondary/[0.08] blur-3xl"
-            style={{ animationDuration: "10s" }}
-          />
+        <section className="landing-night relative flex min-h-[40vh] items-center justify-center overflow-hidden pt-20 text-white">
+          {/* The landing look (P2-7 / DS-20): the navy night with the gold eight-point star */}
+          <div className="landing-khatam absolute inset-0" aria-hidden />
 
           <div className="container relative mx-auto max-w-7xl px-4 py-16 text-center">
             {/* Badge */}
             <div
-              className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/[0.06] backdrop-blur-sm px-5 py-2 text-sm font-medium text-primary mb-6 shadow-sm"
-              style={{ animation: "fadeSlideDown 0.8s ease-out both" }}
+              className="inline-flex items-center gap-2 rounded-full border border-accent/40 bg-white/10 backdrop-blur-sm px-5 py-2 text-sm font-medium text-accent mb-6 shadow-sm"
+              style={{ animation: "fadeSlideDown var(--motion-sheet) var(--motion-ease) both" }}
             >
               <BookOpen className="size-4" />
               المدونة
@@ -163,18 +145,18 @@ export default function BlogView({ initial }: { initial: BlogInitial }) {
             {/* Headline */}
             <h1
               className="mx-auto max-w-4xl text-4xl font-bold leading-tight tracking-tight sm:text-5xl lg:text-6xl"
-              style={{ animation: "fadeSlideUp 0.8s ease-out 0.2s both" }}
+              style={{ animation: "fadeSlideUp var(--motion-sheet) var(--motion-ease) 0.2s both" }}
             >
               مقالات ونصائح{" "}
-              <span className="bg-gradient-to-l from-primary via-secondary to-accent bg-clip-text text-transparent">
+              <span className="text-accent">
                 للحياة الزوجية
               </span>
             </h1>
 
             {/* Description */}
             <p
-              className="mx-auto mt-6 max-w-xl text-lg leading-relaxed text-muted-foreground"
-              style={{ animation: "fadeSlideUp 0.8s ease-out 0.4s both" }}
+              className="mx-auto mt-6 max-w-xl text-lg leading-relaxed text-white/75"
+              style={{ animation: "fadeSlideUp var(--motion-sheet) var(--motion-ease) 0.4s both" }}
             >
               نصائح عملية، قصص نجاح ملهمة، ومقالات متخصصة لمساعدتك في رحلة
               البحث عن شريك الحياة المناسب.
@@ -269,9 +251,9 @@ export default function BlogView({ initial }: { initial: BlogInitial }) {
                         transitionProperty: "all",
                       }}
                     >
-                      {/* Cover: the shared post photo under the category tint */}
+                      {/* Cover: the post's own brand photo (DS-19, never a face) under the category tint */}
                       <div className={`relative h-48 overflow-hidden bg-gradient-to-bl ${gradient} flex items-center justify-center`}>
-                        <Image src="/images/pages/post.webp" alt="" fill sizes="(min-width: 1024px) 400px, (min-width: 640px) 50vw, 100vw" className="object-cover transition-transform duration-700 group-hover:scale-105" aria-hidden />
+                        <Image src={blogCover(post.slug)} alt="" fill sizes="(min-width: 1024px) 400px, (min-width: 640px) 50vw, 100vw" className="object-cover transition-transform duration-700 group-hover:scale-105" aria-hidden />
                         <div className={`absolute inset-0 bg-gradient-to-bl ${gradient} opacity-60`} aria-hidden />
                         <Icon className="relative size-12 opacity-30 text-white" />
                         <Badge className="absolute top-3 start-3 bg-background/90 backdrop-blur-sm text-foreground border-border/50 text-xs">

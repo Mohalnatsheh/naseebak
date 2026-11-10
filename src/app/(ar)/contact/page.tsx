@@ -23,8 +23,6 @@ import { Label } from "@/components/ui/label";
 import { Navbar } from "@/components/shared/navbar";
 import { Footer } from "@/components/shared/footer";
 import { useInView } from "@/hooks/use-in-view";
-import { IslamicPatternBg } from "@/components/shared/islamic-pattern";
-import { PageHeroPhoto } from "@/components/shared/page-hero-photo";
 import { contactFormIssue } from "@/lib/validations/form-checks";
 import { useVisitorCountry } from "@/components/shared/visitor-country";
 
@@ -123,34 +121,15 @@ export default function ContactPage() {
 
       <main id="main" tabIndex={-1} className="overflow-hidden">
         {/* ═══════════════ HERO SECTION ═══════════════ */}
-        <section className="relative min-h-[40vh] flex items-center justify-center pt-24">
-          <PageHeroPhoto src="/images/pages/contact.webp" />
-          {/* Gradient background */}
-          <div className="absolute inset-0 bg-gradient-to-bl from-primary/[0.06] via-background to-secondary/[0.04]" />
-
-          {/* Decorative blurred orbs */}
-          <div
-            className="absolute top-20 start-10 h-60 w-60 rounded-full bg-primary/[0.06] blur-3xl"
-            style={{ animationDuration: "8s" }}
-          />
-          <div
-            className="absolute bottom-10 end-10 h-72 w-72 rounded-full bg-secondary/[0.08] blur-3xl"
-            style={{ animationDuration: "10s" }}
-          />
-
-          {/* Islamic pattern overlay */}
-          <div className="absolute top-10 end-0 w-64 h-64 text-primary opacity-[0.03] rotate-12">
-            <IslamicPatternBg className="w-full h-full" />
-          </div>
-          <div className="absolute bottom-0 start-0 w-48 h-48 text-secondary opacity-[0.03] -rotate-6">
-            <IslamicPatternBg className="w-full h-full" />
-          </div>
+        <section className="landing-night relative flex min-h-[40vh] items-center justify-center overflow-hidden pt-24 text-white">
+          {/* The landing look (P2-7 / DS-20): the navy night with the gold eight-point star */}
+          <div className="landing-khatam absolute inset-0" aria-hidden />
 
           <div className="container relative mx-auto px-4 py-16 text-center">
             {/* Badge */}
             <div
-              className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/[0.06] backdrop-blur-sm px-5 py-2 text-sm font-medium text-primary mb-8 shadow-sm"
-              style={{ animation: "fadeSlideDown 0.8s ease-out both" }}
+              className="inline-flex items-center gap-2 rounded-full border border-accent/40 bg-white/10 backdrop-blur-sm px-5 py-2 text-sm font-medium text-accent mb-8 shadow-sm"
+              style={{ animation: "fadeSlideDown var(--motion-sheet) var(--motion-ease) both" }}
             >
               <MessageSquare className="size-4" />
               تواصل معنا
@@ -159,21 +138,21 @@ export default function ContactPage() {
             {/* Heading */}
             <h1
               className="mx-auto max-w-4xl text-4xl font-bold leading-tight tracking-tight sm:text-5xl md:text-6xl"
-              style={{ animation: "fadeSlideUp 0.8s ease-out 0.2s both" }}
+              style={{ animation: "fadeSlideUp var(--motion-sheet) var(--motion-ease) 0.2s both" }}
             >
               نحن هنا{" "}
-              <span className="bg-gradient-to-l from-primary to-secondary bg-clip-text text-transparent">
+              <span className="text-accent">
                 لمساعدتك
               </span>
             </h1>
 
             {/* Description */}
             <p
-              className="mx-auto mt-6 max-w-xl text-lg leading-relaxed text-muted-foreground"
-              style={{ animation: "fadeSlideUp 0.8s ease-out 0.4s both" }}
+              className="mx-auto mt-6 max-w-xl text-lg leading-relaxed text-white/75"
+              style={{ animation: "fadeSlideUp var(--motion-sheet) var(--motion-ease) 0.4s both" }}
             >
-              لديك سؤال أو استفسار؟ فريقنا جاهز لمساعدتك. تواصل معنا وسنرد
-              عليك في أقرب وقت ممكن.
+              لديك سؤال أو استفسار؟ فريقنا جاهز لمساعدتك. يمكنك التواصل معنا
+              وسنرد عليك في أقرب وقت ممكن.
             </p>
           </div>
         </section>

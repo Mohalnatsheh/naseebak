@@ -626,16 +626,17 @@ function RegisterPageContent() {
           {/* ============================================ */}
           {/*  Fancy step indicator                        */}
           {/* ============================================ */}
-          <div className="flex items-center justify-center gap-0 mb-8">
+          {/* Never wider than the card: at 200% text the labels wrap and the lines shrink (QA WM-05) */}
+          <div className="mb-8 flex min-w-0 items-center justify-center gap-0">
             {stepLabels.map((label, idx) => {
               const stepNum = idx + 1;
               const isCompleted = step > stepNum;
               const isActive = step === stepNum;
 
               return (
-                <div key={idx} className="flex items-center">
+                <div key={idx} className="flex min-w-0 items-center">
                   {/* Circle */}
-                  <div className="flex flex-col items-center gap-1.5">
+                  <div className="flex min-w-0 flex-col items-center gap-1.5">
                     <div
                       className={`
                         relative flex h-10 w-10 items-center justify-center rounded-full
@@ -656,7 +657,7 @@ function RegisterPageContent() {
                       )}
                     </div>
                     <span
-                      className={`text-xs font-medium whitespace-nowrap transition-colors duration-300 ${
+                      className={`max-w-[5.5rem] text-center text-xs font-medium leading-tight transition-colors duration-300 ${
                         isActive
                           ? "text-primary"
                           : isCompleted
@@ -669,7 +670,7 @@ function RegisterPageContent() {
                   </div>
                   {/* Connector line */}
                   {idx < stepLabels.length - 1 && (
-                    <div className="relative mx-2 h-0.5 w-12 sm:w-16 rounded-full bg-muted overflow-hidden -mt-5">
+                    <div className="relative mx-1.5 h-0.5 w-6 min-w-3 shrink rounded-full bg-muted overflow-hidden -mt-5 sm:mx-2 sm:w-16">
                       <div
                         className="absolute inset-y-0 right-0 bg-gradient-to-l from-primary to-primary/80 rounded-full transition-all duration-700 ease-out"
                         style={{

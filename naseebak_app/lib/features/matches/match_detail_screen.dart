@@ -451,6 +451,16 @@ class _IntroPanelState extends ConsumerState<IntroPanel> {
       data: (s) {
         final children = <Widget>[];
         void gap() => children.add(const SizedBox(height: 10));
+        // Moves the steps added since [from] into one sand card (nothing added: nothing shown)
+        void majlis(int from) {
+          if (children.length <= from) return;
+          final steps = children.sublist(from);
+          children.removeRange(from, children.length);
+          if (steps.isNotEmpty && steps.last is SizedBox) steps.removeLast();
+          children
+            ..add(MajlisCard(key: Key('majlis-$from'), children: steps))
+            ..add(const SizedBox(height: 10));
+        }
         final name = widget.partnerName;
 
         if (s.closed != null) {
@@ -492,7 +502,8 @@ class _IntroPanelState extends ConsumerState<IntroPanel> {
           gap();
         }
 
-        // Family introduction
+        // Family introduction: its steps sit in a warm sand «مجلس» card with a gold line (design S3)
+        final familyFrom = children.length;
         switch (s.familyStatus) {
           case 'accepted':
             if (s.contacts != null) {
@@ -580,6 +591,8 @@ class _IntroPanelState extends ConsumerState<IntroPanel> {
             }
         }
 
+        majlis(familyFrom);
+
         // Chat requests
         switch (s.chatStatus) {
           case 'pending_sent':
@@ -628,6 +641,7 @@ class _IntroPanelState extends ConsumerState<IntroPanel> {
             }
         }
 
+        final shareFrom = children.length;
         if (s.askShare) {
           children.add(InfoBanner(
             text: '${_p('اختار', 'اختارت')} $name التعارف العائلي. ${_g('شارك', 'شاركي')} بيانات وليّ أمرك '
@@ -655,6 +669,7 @@ class _IntroPanelState extends ConsumerState<IntroPanel> {
           ));
           gap();
         }
+        majlis(shareFrom);
 
         if (s.followUpAsk && s.closed == null) {
           children.add(_FollowUp(
@@ -797,4 +812,24 @@ class _FollowUp extends StatelessWidget {
       ),
     );
   }
+}
+
+/// The «مجلس» room (design S3): warm sand with a gold line at the start edge, for the family introduction steps and
+/// guardian consent, as in the chat
+class MajlisCard extends StatelessWidget {
+  const MajlisCard({super.key, required this.children});
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) => ClipRRect(
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        child: Container(
+          padding: const EdgeInsets.all(AppSpace.md),
+          decoration: const BoxDecoration(
+            color: AppColors.sand,
+            border: BorderDirectional(start: BorderSide(color: AppColors.gold, width: 3)),
+          ),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: children),
+        ),
+      );
 }

@@ -211,7 +211,7 @@ class PushService with WidgetsBindingObserver {
     );
   }
 
-    /// Opens the push's screen once the app is past the splash / sign-in screens (a cold start lands on the splash).
+  /// Opens the push's screen once the app is past the splash / sign-in screens (a cold start lands on the splash).
   void _open(String? url) {
     final route = appRouteForLink(url: url);
     final router = _ref.read(routerProvider);

@@ -10,6 +10,7 @@ import '../../core/localization/digits.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/network/json.dart';
 import '../../core/review/store_review.dart';
+import '../../core/push/push_permission.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/brand_kit.dart';
 import '../../shared/widgets/common.dart';
@@ -457,9 +458,8 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
   }
 
   /// «مهتمون بك» at 0 credits with free_interest_reply on: the reply needs no credit
-  Widget _freeReplyBanner() => InfoBanner(
+  Widget _freeReplyBanner() => BannerLine(
         key: const Key('free-reply'),
-        tone: BannerTone.success,
         icon: Icons.favorite_outline,
         text: '${_g('شخص مهتم بك ينتظر ردّك.', 'شخص مهتم بكِ ينتظر ردّكِ.')} الرد بـ«مهتم» مجاني حتى برصيد صفر.',
       );
@@ -467,19 +467,14 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
   /// 0 credits: everything stays visible and «لا» is free; only «مهتم» waits for a recharge
   Widget _zeroBalance(BuildContext context) {
     final canRecharge = ref.watch(appPaymentsProvider);
-    return InfoBanner(
+    return BannerLine(
       key: const Key('zero-balance'),
-      tone: BannerTone.warning,
+      warning: true,
       icon: Icons.account_balance_wallet_outlined,
-      text: 'رصيدك صفر. ${_g('يمكنك تصفّح اقتراحاتك', 'يمكنكِ تصفّح اقتراحاتكِ')} والرد بـ«لا» مجاناً، '
-          '${canRecharge ? '${_g('واشحن رصيدك لتختار', 'واشحني رصيدكِ لتختاري')} «مهتم».' : 'و«مهتم» يحتاج رصيداً.'}',
-      action: canRecharge
-          ? TextButton(
-              key: const Key('recharge'),
-              onPressed: () => context.push('/credits'),
-              child: Text(_g('اشحن رصيدك', 'اشحني رصيدك')),
-            )
-          : null,
+      text: 'رصيدك صفر: «لا» مجاني، و«مهتم» ${canRecharge ? 'يحتاج شحن الرصيد.' : 'يحتاج رصيداً.'}',
+      actionKey: const Key('recharge'),
+      actionLabel: canRecharge ? _g('اشحن', 'اشحني') : null,
+      onAction: canRecharge ? () => context.push('/credits') : null,
     );
   }
 
@@ -500,7 +495,11 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
     final banner = widget.tab != FeedTab.waiting && outOfCredits && _items.isNotEmpty
         ? (freeTab ? _freeReplyBanner() : _zeroBalance(context))
         : null;
-    final headers = [?bar, ?banner];
+    // One banner slot (design P1-5): the credit line when it applies, else the notifications nudge on «جديدة»;
+    // the preferences bar is part of the page, under it
+    final slot = banner ??
+        (widget.tab == FeedTab.newTab && _items.isNotEmpty ? const PushOffCard(dismissible: true) : null);
+    final headers = [?slot, ?bar];
     final head = headers.length;
     return RefreshIndicator(
       onRefresh: _refresh,

@@ -7,6 +7,8 @@ import 'package:naseebak_app/core/storage/picker_files.dart';
 import 'package:naseebak_app/core/storage/token_store.dart';
 import 'package:naseebak_app/features/chat/chat_cache.dart';
 import 'package:naseebak_app/features/chat/chat_drafts.dart';
+import 'package:naseebak_app/features/chat/last_chat.dart';
+import 'package:naseebak_app/app/providers.dart';
 
 import 'helpers/fake_api.dart';
 
@@ -105,8 +107,11 @@ void main() {
     }
     final drafts = c.read(chatDraftsProvider);
     await drafts.write('u1', 'c1', 'مسودة', since: drafts.generation);
+    await LastChat.remember(c.read(sharedPreferencesProvider), 'c1');
     await c.read(authControllerProvider.notifier).logout();
     expect(cleaned, 1);
     expect(await drafts.read('u1', 'c1'), isNull);
+    // The chat to reopen is the signed-out member's: gone (review A2 minor 5)
+    expect(c.read(sharedPreferencesProvider).getString(LastChat.key), isNull);
   });
 }

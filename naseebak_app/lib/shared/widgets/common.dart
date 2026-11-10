@@ -243,6 +243,64 @@ class _SkeletonBoxState extends State<SkeletonBox> with SingleTickerProviderStat
   }
 }
 
+/// The page's one banner slot line (design P1-5): a navy (or amber, for a warning) tile, one compact line of text,
+/// and at most one action. Only the most urgent item of a page shows here.
+class BannerLine extends StatelessWidget {
+  const BannerLine({
+    super.key,
+    required this.icon,
+    required this.text,
+    this.actionKey,
+    this.actionLabel,
+    this.onAction,
+    this.warning = false,
+  });
+
+  final IconData icon;
+  final String text;
+  final Key? actionKey;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+  final bool warning;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(minHeight: 56),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: warning ? AppColors.warningBg : AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: warning ? AppColors.warning.withValues(alpha: 0.35) : AppColors.line),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: warning ? AppColors.warning : AppColors.navy,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, size: 18, color: Colors.white),
+          ),
+          const SizedBox(width: 12),
+          Expanded(child: Text(text, style: AppText.label.copyWith(color: AppColors.ink, fontWeight: FontWeight.w500))),
+          if (actionLabel != null && onAction != null) ...[
+            const SizedBox(width: 8),
+            FilledButton(
+              key: actionKey,
+              style: FilledButton.styleFrom(minimumSize: const Size(0, 44), padding: const EdgeInsets.symmetric(horizontal: 14)),
+              onPressed: onAction,
+              child: Text(actionLabel!),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 /// A soft colored note (info / success / warning / error).
 enum BannerTone { info, success, warning, danger }
 
@@ -306,7 +364,8 @@ class Pill extends StatelessWidget {
         children: [
           if (icon != null) ...[Icon(icon, size: 14, color: color), const SizedBox(width: 4)],
           // Gold text on a light pill is accent-ink (DS-02: gold measures 2.8:1)
-          Text(text, style: AppText.caption.copyWith(color: ink, fontWeight: FontWeight.w700)),
+          // Wraps inside a narrow parent instead of overflowing (a long next-step line)
+          Flexible(child: Text(text, style: AppText.caption.copyWith(color: ink, fontWeight: FontWeight.w700))),
         ],
       ),
     );

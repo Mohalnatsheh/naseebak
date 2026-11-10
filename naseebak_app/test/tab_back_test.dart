@@ -27,10 +27,11 @@ void main() {
     expect(seen, isNotEmpty);
     expect(seen.last, isTrue);
 
+    // Home (a fresh tree, so the navigator reports again): its own report passes through as it is
     seen.clear();
-    await tester.pumpWidget(_tree(false, seen));
+    await tester.pumpWidget(KeyedSubtree(key: UniqueKey(), child: _tree(false, seen)));
     await tester.pumpAndSettle();
-    // Home: the inner navigator's own report passes through as it is
+    expect(seen, isNotEmpty);
     expect(seen.every((v) => v == false), isTrue);
   });
 }

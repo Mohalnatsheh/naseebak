@@ -78,6 +78,21 @@ void main() {
     expect(find.text('زواج تقليدي بروح عصرية'), findsOneWidget);
   });
 
+  testWidgets('with reduced motion the splash is shown complete at once (DS-22)', (tester) async {
+    final container = ProviderContainer(overrides: await testOverrides(FakeAdapter()));
+    addTearDown(container.dispose);
+    await tester.pumpWidget(UncontrolledProviderScope(
+      container: container,
+      child: MediaQuery(
+        data: const MediaQueryData(disableAnimations: true),
+        child: rtlApp(const SplashScreen(duration: Duration(seconds: 3))),
+      ),
+    ));
+    await tester.pump(const Duration(milliseconds: 20));
+    expect(container.read(splashDoneProvider), isTrue);
+    expect(tester.hasRunningAnimations, isFalse);
+  });
+
   testWidgets('the full splash plays on the first launch only; later launches take 0.6 s', (tester) async {
     final container = ProviderContainer(overrides: await testOverrides(FakeAdapter()));
     addTearDown(container.dispose);

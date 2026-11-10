@@ -5,6 +5,7 @@ import '../../app/providers.dart';
 import '../../features/auth/me.dart';
 import '../../features/chat/chat_cache.dart';
 import '../../features/chat/chat_drafts.dart';
+import '../../features/chat/last_chat.dart';
 import '../../features/chat/voice_played_store.dart';
 import '../network/api_exception.dart';
 import '../push/push_service.dart';
@@ -176,6 +177,8 @@ class AuthController extends Notifier<AuthState> {
       await step(() => ref.read(pickerFilesCleanerProvider)());
       // Which of the partner's voice notes were played (the unplayed dots)
       await step(() => ref.read(voicePlayedStoreProvider).clear());
+      // The chat to reopen after the system ended the app is this member's: never the next one's (review A2 minor 5)
+      await step(() => ref.read(sharedPreferencesProvider).remove(LastChat.key));
     } finally {
       state = const AuthState.signedOut();
     }

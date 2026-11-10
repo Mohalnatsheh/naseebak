@@ -138,18 +138,10 @@ class _QuizScreenState extends ConsumerState<QuizScreen> {
                     children: [
                       Text('${i + 1}. ${question.text}', style: const TextStyle(fontWeight: FontWeight.w700, height: 1.5)),
                       const SizedBox(height: 10),
-                      Wrap(
-                        spacing: 6,
-                        runSpacing: 6,
-                        children: [
-                          for (var v = 1; v <= 5; v++)
-                            ChoiceChip(
-                              key: Key('${question.id}-$v'),
-                              label: Text(quizScale[v - 1]),
-                              selected: _answers[question.id] == v,
-                              onSelected: (_) => setState(() => _answers[question.id] = v),
-                            ),
-                        ],
+                      QuizScaleRow(
+                        questionId: question.id,
+                        value: _answers[question.id],
+                        onPick: (v) => setState(() => _answers[question.id] = v),
                       ),
                     ],
                   ),
@@ -157,6 +149,72 @@ class _QuizScreenState extends ConsumerState<QuizScreen> {
               );
             },
           ),
+        ),
+      ],
+    );
+  }
+}
+
+/// One question's answer as a single row of five (design review: the 5-point scale on one row, not wrapping chips):
+/// five 44 px steps that grow from «لا أوافق إطلاقاً» at the start to «أوافق بشدة» at the end, the two ends named
+/// under them, and the picked step's words read out (and named for screen readers on every step).
+class QuizScaleRow extends StatelessWidget {
+  const QuizScaleRow({super.key, required this.questionId, required this.value, required this.onPick});
+  final String questionId;
+  final int? value;
+  final ValueChanged<int> onPick;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            for (var v = 1; v <= 5; v++)
+              Semantics(
+                button: true,
+                selected: value == v,
+                inMutuallyExclusiveGroup: true,
+                label: quizScale[v - 1],
+                excludeSemantics: true,
+                child: InkResponse(
+                  key: Key('$questionId-$v'),
+                  radius: 26,
+                  onTap: () => onPick(v),
+                  child: SizedBox(
+                    width: 48,
+                    height: 48,
+                    child: Center(
+                      child: AnimatedContainer(
+                        duration: AppMotion.of(context, AppMotion.press),
+                        // The steps grow a little towards the ends, so the scale reads at a glance
+                        width: 28 + (v - 3).abs() * 6.0,
+                        height: 28 + (v - 3).abs() * 6.0,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: value == v ? AppColors.navy : AppColors.surface,
+                          border: Border.all(color: value == v ? AppColors.navy : AppColors.line, width: 1.5),
+                        ),
+                        child: value == v ? const Icon(Icons.check_rounded, size: 16, color: Colors.white) : null,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Row(
+          children: [
+            Expanded(child: Text(quizScale.first, style: AppText.caption.copyWith(color: AppColors.muted))),
+            if (value != null)
+              Text(quizScale[value! - 1], key: Key('$questionId-picked'), style: AppText.caption.copyWith(color: AppColors.navy, fontWeight: FontWeight.w700)),
+            Expanded(
+              child: Text(quizScale.last, textAlign: TextAlign.end, style: AppText.caption.copyWith(color: AppColors.muted)),
+            ),
+          ],
         ),
       ],
     );

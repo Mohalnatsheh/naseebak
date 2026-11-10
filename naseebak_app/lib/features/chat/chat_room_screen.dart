@@ -65,6 +65,13 @@ import 'voice_recorder.dart';
   );
 }
 
+/// Whether the server would end this chat on a report (its `endConversation` «open»): ACTIVE, not expired, no block
+bool chatOpenForReport(ChatSummary? c, {DateTime? now}) =>
+    c != null &&
+    c.status == 'ACTIVE' &&
+    (c.expiresAt == null || c.expiresAt!.isAfter(now ?? DateTime.now())) &&
+    !c.blocked;
+
 /// The snack after a report or an end: never «تم إنهاء المحادثة» for a chat that was already closed
 String reportDoneText({required bool report, required bool end, required bool open}) {
   if (!report) return 'تم إنهاء المحادثة';
@@ -1488,8 +1495,10 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     String? reason;
     String? details;
     var end = true;
-    // An open chat can end; a closed one (ended, expired, blocked) can only be reported, or reported with a block
-    final open = _open;
+    // An open chat can end; a closed one (ended, expired, blocked) can only be reported, or reported with a block.
+    // «Open» as the server judges it (ACTIVE, not expired, no block), not whether I can write: a chat paused for
+    // review, or with the chat switch off, still ends on «إبلاغ وإنهاء» (review A2 minor 2)
+    final open = chatOpenForReport(_chat);
     if (report) {
       final copy = reportSheetCopy(open: open);
       final res = await showModalBottomSheet<ReportAnswer>(
@@ -1745,10 +1754,10 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
                   child: GestureDetector(
                     key: const Key('chat-time-arc'),
                     onTap: left == null ? null : () => showSnack(context, left.text),
+                    // One Pro marker in the header: the «Pro» badge by the name (no dot here, review A2 minor 4)
                     child: MemberAvatar(
                       name: chat?.partnerName ?? '',
                       size: 42,
-                      pro: chat?.partnerIsPro ?? false,
                       timeLeft: chat?.status == 'ACTIVE' ? chatTimeFraction(chat?.expiresAt) : null,
                     ),
                   ),
@@ -2083,7 +2092,12 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
                   child: !layout.daySeparator && !layout.unreadDivider
                       // A message that arrives or is sent while the chat is open rises 6 px into place (P2-1); none
                       // with reduced motion, and never the ones already there when it opened
-                      ? RiseIn(enabled: _loadedOnce && !_shownAtOpen.contains(m.id), child: row)
+                      // (my own message confirmed by the server is a new row under its server id: it rose already, as
+                      // it was sent)
+                      ? RiseIn(
+                          enabled: _loadedOnce && !_shownAtOpen.contains(m.id) && !(m.mine && m.state == SendState.sent),
+                          child: row,
+                        )
                       : Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [

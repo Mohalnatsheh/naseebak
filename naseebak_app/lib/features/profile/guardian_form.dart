@@ -223,8 +223,10 @@ class _GuardianScreenState extends ConsumerState<GuardianScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Guardian consent sits in the same warm sand «مجلس» as the family steps (design S3)
     return Scaffold(
-      appBar: AppBar(title: const Text('بيانات وليّ الأمر')),
+      backgroundColor: AppColors.sand,
+      appBar: AppBar(title: const Text('بيانات وليّ الأمر'), backgroundColor: AppColors.sand),
       body: _loading
           ? const SkeletonList(count: 4, itemHeight: 56)
           : _loadError != null

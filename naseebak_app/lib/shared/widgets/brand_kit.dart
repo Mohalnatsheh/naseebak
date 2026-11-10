@@ -51,7 +51,9 @@ class MemberAvatar extends StatelessWidget {
     Widget face = photo == null
         ? _Veil(initial: initial, size: inner, locked: locked, dimmed: dimmed)
         : _PhotoFadeIn(image: photo!, size: inner);
-    face = ClipOval(child: SizedBox(width: inner, height: inner, child: face));
+    face = ClipOval(
+      child: SizedBox(width: inner, height: inner, child: face),
+    );
     return ExcludeSemantics(
       child: SizedBox(
         key: const Key('member-avatar'),
@@ -113,11 +115,14 @@ class _Veil extends StatelessWidget {
             Padding(
               padding: EdgeInsets.only(bottom: locked ? size * 0.12 : 0),
               child: SizedBox.square(
-              dimension: size * 0.46,
-              child: FittedBox(
-                child: Text(initial, style: AppText.title.copyWith(color: dimmed ? AppColors.muted : Colors.white, height: 1.1)),
+                dimension: size * 0.46,
+                child: FittedBox(
+                  child: Text(
+                    initial,
+                    style: AppText.title.copyWith(color: dimmed ? AppColors.muted : Colors.white, height: 1.1),
+                  ),
+                ),
               ),
-            ),
             ),
             if (locked && size >= 36)
               // Below the initial, never over it
@@ -167,7 +172,10 @@ class _PhotoFadeIn extends StatelessWidget {
       curve: AppMotion.curve,
       builder: (context, t, child) => t >= 1
           ? child!
-          : ImageFiltered(imageFilter: ImageFilter.blur(sigmaX: (1 - t) * 8, sigmaY: (1 - t) * 8), child: child),
+          : ImageFiltered(
+              imageFilter: ImageFilter.blur(sigmaX: (1 - t) * 8, sigmaY: (1 - t) * 8),
+              child: child,
+            ),
       child: Image(image: image, width: size, height: size, fit: BoxFit.cover),
     );
   }
@@ -239,25 +247,28 @@ class MatchSeal extends StatelessWidget {
           widthFactor: 1,
           heightFactor: 1,
           child: SizedBox.square(
-          dimension: size,
-          child: CustomPaint(
-            painter: _SealPainter(progress: t),
-            child: Center(
-              child: Container(
-                width: size * 0.42,
-                height: size * 0.42,
-                alignment: Alignment.center,
-                decoration: const BoxDecoration(color: AppColors.navy, shape: BoxShape.circle),
-                child: FittedBox(
-                  child: Padding(
-                    padding: const EdgeInsets.all(4),
-                    child: Text(initials, style: AppText.label.copyWith(color: Colors.white, fontWeight: FontWeight.w800)),
+            dimension: size,
+            child: CustomPaint(
+              painter: _SealPainter(progress: t),
+              child: Center(
+                child: Container(
+                  width: size * 0.42,
+                  height: size * 0.42,
+                  alignment: Alignment.center,
+                  decoration: const BoxDecoration(color: AppColors.navy, shape: BoxShape.circle),
+                  child: FittedBox(
+                    child: Padding(
+                      padding: const EdgeInsets.all(4),
+                      child: Text(
+                        initials,
+                        style: AppText.label.copyWith(color: Colors.white, fontWeight: FontWeight.w800),
+                      ),
+                    ),
                   ),
                 ),
               ),
             ),
           ),
-        ),
         ),
       ),
     );
@@ -300,17 +311,19 @@ class SealMark extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Semantics(
-        label: label,
-        child: CustomPaint(
-          key: const Key('seal-mark'),
-          size: Size.square(size),
-          painter: _SealPainter(progress: 1),
-          child: SizedBox.square(
-            dimension: size,
-            child: Center(child: Icon(icon, size: size * 0.5, color: AppColors.navy)),
-          ),
+    label: label,
+    child: CustomPaint(
+      key: const Key('seal-mark'),
+      size: Size.square(size),
+      painter: _SealPainter(progress: 1),
+      child: SizedBox.square(
+        dimension: size,
+        child: Center(
+          child: Icon(icon, size: size * 0.5, color: AppColors.navy),
         ),
-      );
+      ),
+    ),
+  );
 }
 
 /// The line-art empty states (P2-2, S5): navy lines with one gold touch, 120 px, no faces
@@ -323,8 +336,8 @@ class LineArt extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => ExcludeSemantics(
-        child: CustomPaint(key: Key('line-art-${kind.name}'), size: Size.square(size), painter: _LineArtPainter(kind)),
-      );
+    child: CustomPaint(key: Key('line-art-${kind.name}'), size: Size.square(size), painter: _LineArtPainter(kind)),
+  );
 }
 
 class _LineArtPainter extends CustomPainter {
@@ -360,56 +373,62 @@ class _LineArtPainter extends CustomPainter {
           ..quadraticBezierTo(34, 70, 38, 92);
         canvas.drawPath(pot, navy);
         canvas.drawPath(
-            Path()
-              ..moveTo(60, 60)
-              ..quadraticBezierTo(76, 54, 84, 42),
-            navy);
+          Path()
+            ..moveTo(60, 60)
+            ..quadraticBezierTo(76, 54, 84, 42),
+          navy,
+        );
         canvas.drawLine(const Offset(52, 40), const Offset(52, 34), navy);
         canvas.drawCircle(const Offset(52, 32), 2.5, goldFill);
         for (final x in [82.0, 98.0]) {
           canvas.drawPath(
-              Path()
-                ..moveTo(x - 6, 82)
-                ..lineTo(x - 4, 92)
-                ..lineTo(x + 4, 92)
-                ..lineTo(x + 6, 82),
-              navy);
+            Path()
+              ..moveTo(x - 6, 82)
+              ..lineTo(x - 4, 92)
+              ..lineTo(x + 4, 92)
+              ..lineTo(x + 6, 82),
+            navy,
+          );
         }
         canvas.drawLine(const Offset(28, 96), const Offset(106, 96), gold);
       case LineArtKind.envelope:
         // A sealed envelope
         canvas.drawRRect(RRect.fromLTRBR(22, 38, 98, 88, const Radius.circular(6)), navy);
         canvas.drawPath(
-            Path()
-              ..moveTo(24, 40)
-              ..lineTo(60, 66)
-              ..lineTo(96, 40),
-            navy);
+          Path()
+            ..moveTo(24, 40)
+            ..lineTo(60, 66)
+            ..lineTo(96, 40),
+          navy,
+        );
         canvas.drawCircle(const Offset(60, 66), 7, goldFill);
       case LineArtKind.cupsTray:
         // Two cups on a tray
         for (final x in [46.0, 74.0]) {
           canvas.drawPath(
-              Path()
-                ..moveTo(x - 11, 58)
-                ..lineTo(x - 8, 80)
-                ..lineTo(x + 8, 80)
-                ..lineTo(x + 11, 58),
-              navy);
+            Path()
+              ..moveTo(x - 11, 58)
+              ..lineTo(x - 8, 80)
+              ..lineTo(x + 8, 80)
+              ..lineTo(x + 11, 58),
+            navy,
+          );
           canvas.drawPath(
-              Path()
-                ..moveTo(x - 2, 52)
-                ..quadraticBezierTo(x + 3, 46, x - 1, 40),
-              gold);
+            Path()
+              ..moveTo(x - 2, 52)
+              ..quadraticBezierTo(x + 3, 46, x - 1, 40),
+            gold,
+          );
         }
         canvas.drawPath(
-            Path()
-              ..moveTo(22, 84)
-              ..lineTo(98, 84)
-              ..quadraticBezierTo(94, 92, 86, 92)
-              ..lineTo(34, 92)
-              ..quadraticBezierTo(26, 92, 22, 84),
-            navy);
+          Path()
+            ..moveTo(22, 84)
+            ..lineTo(98, 84)
+            ..quadraticBezierTo(94, 92, 86, 92)
+            ..lineTo(34, 92)
+            ..quadraticBezierTo(26, 92, 22, 84),
+          navy,
+        );
       case LineArtKind.door:
         // A carved, arched door
         final door = Path()
@@ -439,28 +458,31 @@ class _LineArtPainter extends CustomPainter {
         // A hanging lantern
         canvas.drawLine(const Offset(60, 18), const Offset(60, 30), navy);
         canvas.drawPath(
-            Path()
-              ..moveTo(48, 36)
-              ..lineTo(72, 36)
-              ..lineTo(66, 30)
-              ..lineTo(54, 30)
-              ..close(),
-            navy);
+          Path()
+            ..moveTo(48, 36)
+            ..lineTo(72, 36)
+            ..lineTo(66, 30)
+            ..lineTo(54, 30)
+            ..close(),
+          navy,
+        );
         canvas.drawPath(
-            Path()
-              ..moveTo(46, 38)
-              ..lineTo(74, 38)
-              ..lineTo(78, 80)
-              ..lineTo(42, 80)
-              ..close(),
-            navy);
+          Path()
+            ..moveTo(46, 38)
+            ..lineTo(74, 38)
+            ..lineTo(78, 80)
+            ..lineTo(42, 80)
+            ..close(),
+          navy,
+        );
         canvas.drawLine(const Offset(60, 38), const Offset(60, 80), navy);
         canvas.drawPath(
-            Path()
-              ..moveTo(60, 70)
-              ..quadraticBezierTo(52, 60, 60, 50)
-              ..quadraticBezierTo(68, 60, 60, 70),
-            gold);
+          Path()
+            ..moveTo(60, 70)
+            ..quadraticBezierTo(52, 60, 60, 50)
+            ..quadraticBezierTo(68, 60, 60, 70),
+          gold,
+        );
         canvas.drawLine(const Offset(44, 86), const Offset(76, 86), navy);
     }
   }
@@ -552,8 +574,11 @@ class _CardSkeletonState extends State<CardSkeleton> with SingleTickerProviderSt
       animation: _c,
       builder: (context, _) {
         final tone = Color.lerp(AppColors.line, AppColors.offWhite, _c.value)!;
-        Widget bar(double w, double h, {double r = 8}) =>
-            Container(width: w, height: h, decoration: BoxDecoration(color: tone, borderRadius: BorderRadius.circular(r)));
+        Widget bar(double w, double h, {double r = 8}) => Container(
+          width: w,
+          height: h,
+          decoration: BoxDecoration(color: tone, borderRadius: BorderRadius.circular(r)),
+        );
         return Container(
           key: const Key('card-skeleton'),
           padding: const EdgeInsets.all(AppSpace.lg),
@@ -579,11 +604,25 @@ class _CardSkeletonState extends State<CardSkeleton> with SingleTickerProviderSt
                 ],
               ),
               const SizedBox(height: 16),
-              Row(children: [bar(80, 28, r: 14), const SizedBox(width: 8), bar(60, 28, r: 14), const SizedBox(width: 8), bar(64, 28, r: 14)]),
+              Row(
+                children: [
+                  bar(80, 28, r: 14),
+                  const SizedBox(width: 8),
+                  bar(60, 28, r: 14),
+                  const SizedBox(width: 8),
+                  bar(64, 28, r: 14),
+                ],
+              ),
               const SizedBox(height: 12),
               bar(double.infinity, 40, r: 12),
               const SizedBox(height: 16),
-              Row(children: [Expanded(flex: 2, child: bar(double.infinity, 48, r: 12)), const SizedBox(width: 8), Expanded(child: bar(double.infinity, 48, r: 12))]),
+              Row(
+                children: [
+                  Expanded(flex: 2, child: bar(double.infinity, 48, r: 12)),
+                  const SizedBox(width: 8),
+                  Expanded(child: bar(double.infinity, 48, r: 12)),
+                ],
+              ),
             ],
           ),
         );

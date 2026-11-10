@@ -26,7 +26,6 @@ void main() {
   // Shared texts every member sees, whatever the gender (QA round 2 A-L03, A2-L1, A-L07)
   test('shared messages and labels say «يمكنك …» or a neutral form', () {
     const phrases = [
-      '. تحقق من',
       'حاول مرة أخرى',
       'سجّل الدخول من جديد',
       'اضغط لإزالة',
@@ -43,6 +42,8 @@ void main() {
       for (final p in phrases) {
         expect(text.contains(p), isFalse, reason: '${f.path} has «$p»');
       }
+      // The command «تحقق من …» wherever it stands (not the nouns «التحقق من» / «رمز تحقق من», review A2 minor 9)
+      expect(RegExp(r'(?<!ال|رمز )تحقق من').hasMatch(text), isFalse, reason: '${f.path} has «تحقق من»');
     }
   });
 }

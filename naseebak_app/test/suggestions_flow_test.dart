@@ -3,6 +3,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:naseebak_app/core/auth/auth_controller.dart';
+import 'package:naseebak_app/core/push/push_permission.dart';
 import 'package:naseebak_app/core/storage/token_store.dart';
 import 'package:naseebak_app/features/discovery/suggestion_card.dart';
 import 'package:naseebak_app/features/discovery/suggestion_models.dart';
@@ -52,7 +53,11 @@ class Harness {
     this.likedYou = 0,
     this.freeReply = false,
     this.itemsTab = 'new',
+    this.pushAllowed,
   }) : items = items ?? [card('s1')];
+
+  /// Notifications allowed on the phone (null: unknown, as the tests' default)
+  final bool? pushAllowed;
 
   /// Switch free_interest_reply
   final bool freeReply;
@@ -93,7 +98,10 @@ class Harness {
           'total': 1,
           'totalPages': 1,
         });
-    container = ProviderContainer(overrides: await testOverrides(adapter, store: MemoryTokenStore('t1')));
+    container = ProviderContainer(overrides: [
+      ...await testOverrides(adapter, store: MemoryTokenStore('t1')),
+      pushAllowedProvider.overrideWith((ref) async => pushAllowed),
+    ]);
     addTearDown(container.dispose);
     container.read(authControllerProvider);
     await tester.pumpWidget(const SizedBox());
@@ -286,7 +294,21 @@ void main() {
       expect(tester.widget<OutlinedButton>(find.byKey(const Key('decline-s1'))).onPressed, isNotNull);
       expect(find.byKey(const Key('zero-balance')), findsOneWidget);
       expect(find.byKey(const Key('recharge')), findsOneWidget);
-      expect(find.textContaining('واشحني رصيدكِ لتختاري'), findsOneWidget);
+      // One compact banner line (design P1-5)
+      expect(find.text('اشحني'), findsOneWidget);
+      expect(find.textContaining('«مهتم» يحتاج شحن الرصيد'), findsOneWidget);
+    });
+
+    testWidgets('one banner slot: the credit line wins over the notifications nudge (design P1-5)', (tester) async {
+      final broke = Harness(credits: 0, pushAllowed: false);
+      await broke.pump(tester);
+      expect(find.byKey(const Key('zero-balance')), findsOneWidget);
+      expect(find.byKey(const Key('push-off-card')), findsNothing);
+
+      final fine = Harness(pushAllowed: false);
+      await fine.pump(tester);
+      expect(find.byKey(const Key('zero-balance')), findsNothing);
+      expect(find.byKey(const Key('push-off-card')), findsOneWidget);
     });
 
     testWidgets('payments hidden in the app: no recharge link', (tester) async {

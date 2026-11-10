@@ -73,10 +73,16 @@ class NightBackdrop extends StatefulWidget {
 class _NightBackdropState extends State<NightBackdrop> with SingleTickerProviderStateMixin {
   late final _c = AnimationController(vsync: this, duration: const Duration(seconds: 30));
 
+  /// The drift loops forever: never with reduced motion (DS-22)
   @override
-  void initState() {
-    super.initState();
-    if (widget.animate && loopingMotion) _c.repeat();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final run = widget.animate && loopingMotion && !AppMotion.reduced(context);
+    if (run && !_c.isAnimating) {
+      _c.repeat();
+    } else if (!run && _c.isAnimating) {
+      _c.stop();
+    }
   }
 
   @override

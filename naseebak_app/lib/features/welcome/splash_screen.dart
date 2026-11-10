@@ -52,9 +52,15 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerPr
   late final _glow = CurvedAnimation(parent: _c, curve: const Interval(0.45, 0.8, curve: Curves.easeOut));
   late final _tagline = CurvedAnimation(parent: _c, curve: const Interval(0.6, 0.95, curve: Curves.easeOutCubic));
 
+  bool _started = false;
+
+  /// The ring draws itself once; with reduced motion the splash is shown at once, still and complete (DS-22)
   @override
-  void initState() {
-    super.initState();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_started) return;
+    _started = true;
+    if (AppMotion.reduced(context)) _c.duration = const Duration(milliseconds: 1);
     _c.forward().whenComplete(() {
       if (mounted) ref.read(splashDoneProvider.notifier).done();
     });
@@ -197,10 +203,16 @@ class _Dots extends StatefulWidget {
 class _DotsState extends State<_Dots> with SingleTickerProviderStateMixin {
   late final _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 1100));
 
+  /// Loops forever: never with reduced motion (DS-22)
   @override
-  void initState() {
-    super.initState();
-    if (loopingMotion) _c.repeat();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final run = loopingMotion && !AppMotion.reduced(context);
+    if (run && !_c.isAnimating) {
+      _c.repeat();
+    } else if (!run && _c.isAnimating) {
+      _c.stop();
+    }
   }
 
   @override

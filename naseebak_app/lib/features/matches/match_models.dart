@@ -14,6 +14,7 @@ class MatchSummary {
     this.visitStatus,
     this.scheduledDate,
     this.compatibilityScore = 0,
+    this.nextStep,
   });
 
   factory MatchSummary.fromJson(Map<String, dynamic> j) => MatchSummary(
@@ -25,8 +26,13 @@ class MatchSummary {
         visitStatus: asString(j['visitStatus']),
         scheduledDate: asDate(j['scheduledDate']),
         compatibilityScore: asDouble(j['compatibilityScore']) ?? 0,
+        nextStep: asString(j['nextStep']),
         partner: PersonDetails.fromJson(asMap(j['partner'])),
       );
+
+  /// The viewer's next step from the server (`reply_family`, `reply_chat`, `waiting_family`, `waiting_chat`,
+  /// `chat_open`, `family_accepted`, `choose`); null when closed, nothing waits, or an older server
+  final String? nextStep;
 
   final String id;
 

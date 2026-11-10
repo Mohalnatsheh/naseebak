@@ -281,8 +281,8 @@ class _PhoneFormState extends ConsumerState<PhoneForm> {
                 ),
               ),
               const SizedBox(height: 28),
-              FadeSlideIn(
-                key: const ValueKey('phone-in-6'),
+              const FadeSlideIn(
+                key: ValueKey('phone-in-6'),
                 delay: Duration(milliseconds: 520),
                 child: Row(children: [
                   Expanded(child: _Promise(icon: Icons.verified_user_outlined, text: 'رقم مؤكَّد\nلكل حساب')),

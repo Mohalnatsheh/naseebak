@@ -265,6 +265,15 @@ void main() {
       expect(find.text('إبلاغ فقط'), findsOneWidget);
     });
 
+    test('«open» for a report is the server\'s: ACTIVE, not expired, no block (review A2 minor 2)', () {
+      ChatSummary c(Map<String, dynamic> over) => ChatSummary.fromJson({...conv, ...over});
+      expect(chatOpenForReport(c({})), isTrue);
+      expect(chatOpenForReport(c({'status': 'ENDED'})), isFalse);
+      expect(chatOpenForReport(c({'expiresAt': '2020-01-01T00:00:00.000Z'})), isFalse);
+      expect(chatOpenForReport(c({'blocked': true})), isFalse);
+      expect(chatOpenForReport(null), isFalse);
+    });
+
     test('a closed chat offers «إبلاغ وحظر», and its snack never says the chat was ended (minor 7)', () {
       final closed = reportSheetCopy(open: false);
       expect(closed.submitLabel, 'إبلاغ وحظر');

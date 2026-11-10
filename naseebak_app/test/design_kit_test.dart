@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:naseebak_app/features/discovery/suggestion_card.dart';
 import 'package:naseebak_app/features/discovery/suggestion_models.dart';
+import 'package:naseebak_app/features/profile/quiz_screen.dart';
 import 'package:naseebak_app/shared/widgets/brand_kit.dart';
 
 import 'helpers/fake_api.dart';
@@ -109,5 +110,30 @@ void main() {
     for (final f in Directory('lib/features').listSync(recursive: true).whereType<File>().where((f) => f.path.endsWith('.dart'))) {
       expect(f.readAsStringSync().contains('fontSize:'), isFalse, reason: f.path);
     }
+  });
+
+  testWidgets('the quiz answer is one row of five steps, even at 320 dp with large text', (tester) async {
+    tester.view.physicalSize = const Size(320, 600);
+    tester.view.devicePixelRatio = 1;
+    tester.platformDispatcher.textScaleFactorTestValue = 1.5;
+    addTearDown(tester.view.reset);
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    int? picked;
+    await tester.pumpWidget(rtlApp(Scaffold(
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: StatefulBuilder(
+          builder: (context, set) => QuizScaleRow(questionId: 'q1', value: picked, onPick: (v) => set(() => picked = v)),
+        ),
+      ),
+    )));
+    expect(tester.takeException(), isNull);
+    final ys = [for (var v = 1; v <= 5; v++) tester.getCenter(find.byKey(Key('q1-$v'))).dy];
+    expect(ys.toSet(), hasLength(1));
+    expect(tester.getSize(find.byKey(const Key('q1-3'))).width, greaterThanOrEqualTo(44));
+    await tester.tap(find.byKey(const Key('q1-4')));
+    await tester.pumpAndSettle();
+    expect(picked, 4);
+    expect(find.byKey(const Key('q1-picked')), findsOneWidget);
   });
 }

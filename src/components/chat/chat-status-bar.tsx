@@ -43,7 +43,7 @@ function Strip({
       aria-label="تنبيه المحادثة"
       data-testid={testId}
       className={cn(
-        "flex min-h-11 items-center gap-2 border-b border-border/50 px-3 text-[13.5px] font-semibold",
+        "flex min-h-11 items-center gap-2 border-b border-border/50 px-3 text-label font-semibold",
         tone === "warning" ? "bg-amber-50" : "bg-accent/10",
         toneText
       )}

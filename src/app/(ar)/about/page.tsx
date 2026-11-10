@@ -165,11 +165,11 @@ export default function AboutPage() {
 
           {/* Decorative blurred orbs */}
           <div
-            className="absolute top-20 start-10 h-72 w-72 rounded-full bg-primary/[0.06] blur-3xl animate-pulse"
+            className="absolute top-20 start-10 h-72 w-72 rounded-full bg-primary/[0.06] blur-3xl"
             style={{ animationDuration: "8s" }}
           />
           <div
-            className="absolute bottom-10 end-10 h-80 w-80 rounded-full bg-secondary/[0.08] blur-3xl animate-pulse"
+            className="absolute bottom-10 end-10 h-80 w-80 rounded-full bg-secondary/[0.08] blur-3xl"
             style={{ animationDuration: "10s" }}
           />
 
@@ -187,7 +187,7 @@ export default function AboutPage() {
               className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/[0.06] backdrop-blur-sm px-5 py-2 text-sm font-medium text-primary mb-8 shadow-sm"
               style={{ animation: "fadeSlideDown 0.8s ease-out both" }}
             >
-              <Sparkles className="size-4 animate-pulse" />
+              <Sparkles className="size-4" />
               من نحن
             </div>
 
@@ -430,11 +430,6 @@ export default function AboutPage() {
                     {/* Year circle */}
                     <div className="relative z-10 flex size-16 shrink-0 items-center justify-center rounded-full bg-gradient-to-bl from-primary to-primary/80 text-sm font-bold text-primary-foreground shadow-xl shadow-primary/20 ring-4 ring-background transition-all duration-500 group-hover:scale-110 group-hover:shadow-2xl group-hover:shadow-primary/30">
                       {milestone.year}
-                      {/* Pulse ring */}
-                      <div
-                        className="absolute inset-0 rounded-full bg-primary/20 animate-ping opacity-0 group-hover:opacity-30"
-                        style={{ animationDuration: "2s" }}
-                      />
                     </div>
 
                     {/* Milestone content card */}

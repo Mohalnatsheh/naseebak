@@ -4,13 +4,14 @@ import { useState } from "react";
 import { getStripe } from "@/lib/stripe-client";
 import { Elements, PaymentElement, useElements, useStripe } from "@stripe/react-stripe-js";
 import { Loader2, Lock } from "lucide-react";
+import { BRAND_HEX } from "@/lib/brand-colors";
 
 
 const appearance = {
   theme: "stripe" as const,
   variables: {
-    colorPrimary: "#22476a",
-    colorText: "#1a2230",
+    colorPrimary: BRAND_HEX.primary,
+    colorText: BRAND_HEX.ink,
     fontFamily: "Cairo, system-ui, sans-serif",
     borderRadius: "12px",
     spacingUnit: "4px",

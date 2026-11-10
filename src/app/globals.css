@@ -21,12 +21,26 @@
   /* Gold for TEXT on light backgrounds (≈ #7a5420, 6.9:1 on white): --accent itself is 2.8:1, so it stays for icons,
      rings and fills (QA DS-02 / PA-M8 / WM-06) */
   --accent-ink: oklch(0.47 0.085 70);
+  /* Shared brand sheet (design review P1-1; same values as the app's AppColors) */
+  --primary-deep: oklch(0.302 0.058 249.5); /* #15304a — dark headers, pressed states */
+  --primary-2: oklch(0.455 0.086 247.9);    /* #2b5a84 — gradients only */
+  --accent-soft: oklch(0.691 0.101 74.1 / 0.12); /* 12% gold — the "why" line, gentle highlights */
+  --sand: oklch(0.959 0.009 84.6);          /* #f4f1eb — chat and family rooms */
+  --ink: oklch(0.251 0.029 261.4);          /* #1a2230 — body text */
+  --muted-ink: oklch(0.499 0.021 253.5);    /* #5b646f — secondary text */
+  /* Motion (P2-8; the app's AppMotion): one easing and four durations */
+  --motion-ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --motion-press: 120ms;
+  --motion-appear: 180ms;
+  --motion-sheet: 280ms;
+  --motion-seal: 600ms;
   --destructive: oklch(0.55 0.2 25);
   --destructive-foreground: oklch(0.98 0.005 25);
   --border: oklch(0.88 0.01 250);
   --input: oklch(0.88 0.01 250);
   --ring: oklch(0.39 0.07 249);
-  --radius: 0.625rem;
+  /* Corner radius scale (P1-1): 8 / 12 / 16 (cards) / 24 (sheets) / full */
+  --radius: 0.75rem;
 
   --chart-1: oklch(0.39 0.07 249);
   --chart-2: oklch(0.48 0.06 249);
@@ -60,6 +74,12 @@
   --accent: oklch(0.65 0.10 74);
   --accent-foreground: oklch(0.1 0.04 74);
   --accent-ink: oklch(0.78 0.09 74);
+  --primary-deep: oklch(0.25 0.05 250);
+  --primary-2: oklch(0.5 0.09 248);
+  --accent-soft: oklch(0.65 0.10 74 / 0.16);
+  --sand: oklch(0.22 0.02 80);
+  --ink: oklch(0.95 0.005 250);
+  --muted-ink: oklch(0.7 0.01 250);
   --destructive: oklch(0.55 0.2 25);
   --destructive-foreground: oklch(0.98 0.005 25);
   --border: oklch(0.3 0.02 250);
@@ -98,6 +118,12 @@
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent-ink: var(--accent-ink);
+  --color-accent-soft: var(--accent-soft);
+  --color-primary-deep: var(--primary-deep);
+  --color-primary-2: var(--primary-2);
+  --color-sand: var(--sand);
+  --color-ink: var(--ink);
+  --color-muted-ink: var(--muted-ink);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);
@@ -108,10 +134,46 @@
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
+  /* Radius: only 8 / 12 / 16 / 24 (and full). sm and md = 8, lg and xl = 12, 2xl and card = 16, 3xl and sheet = 24 */
+  --radius-sm: 0.5rem;
+  --radius-md: 0.5rem;
   --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
+  --radius-xl: var(--radius);
+  --radius-2xl: 1rem;
+  --radius-card: 1rem;
+  --radius-3xl: 1.5rem;
+  --radius-sheet: 1.5rem;
+
+  /* Shadows (P1-1): cards carry a border only; floating bars and dialogs get these */
+  --shadow-float: 0 1px 2px oklch(0.302 0.058 249.5 / 0.06), 0 4px 12px oklch(0.302 0.058 249.5 / 0.05);
+  --shadow-dialog: 0 12px 32px oklch(0.302 0.058 249.5 / 0.14);
+
+  /* One Cairo type scale (P1-2). Nothing under 12 px on member pages. */
+  --text-display: 2.125rem;
+  --text-display--line-height: 2.625rem;
+  --text-display--font-weight: 800;
+  --text-display-sm: 1.75rem;
+  --text-display-sm--line-height: 2.25rem;
+  --text-display-sm--font-weight: 800;
+  --text-title: 1.375rem;
+  --text-title--line-height: 1.875rem;
+  --text-title--font-weight: 800;
+  --text-headline: 1.125rem;
+  --text-headline--line-height: 1.75rem;
+  --text-headline--font-weight: 700;
+  --text-body: 1rem;
+  --text-body--line-height: 1.625rem;
+  --text-label: 0.875rem;
+  --text-label--line-height: 1.375rem;
+  --text-label--font-weight: 600;
+  --text-caption: 0.75rem;
+  --text-caption--line-height: 1.125rem;
+  --text-caption--font-weight: 500;
+
+  /* Motion (P2-8): one easing; 120 press, 180 appear, 280 sheet, 600 seal. All off under reduced motion. */
+  --ease-brand: var(--motion-ease);
+  --animate-appear: appear 180ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  --animate-seal-draw: seal-draw 600ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
   --color-sidebar-background: var(--sidebar-background);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -173,21 +235,6 @@ img.protected-photo {
   to { opacity: 1; transform: scale(1); }
 }
 
-@keyframes float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-10px); }
-}
-
-@keyframes pulse-glow {
-  0%, 100% { box-shadow: 0 0 5px rgba(34, 71, 106, 0.3); }
-  50% { box-shadow: 0 0 20px rgba(34, 71, 106, 0.6); }
-}
-
-@keyframes shimmer {
-  0% { background-position: -200% center; }
-  100% { background-position: 200% center; }
-}
-
 @keyframes slide-up {
   from { opacity: 0; transform: translateY(30px); }
   to { opacity: 1; transform: translateY(0); }
@@ -198,23 +245,11 @@ img.protected-photo {
   to { stroke-dashoffset: 0; }
 }
 
-@keyframes spin-slow {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-
 .animate-fade-in { animation: fade-in 0.6s ease-out forwards; }
 .animate-fade-in-right { animation: fade-in-right 0.6s ease-out forwards; }
 .animate-fade-in-left { animation: fade-in-left 0.6s ease-out forwards; }
 .animate-scale-in { animation: scale-in 0.5s ease-out forwards; }
-.animate-float { animation: float 3s ease-in-out infinite; }
-.animate-pulse-glow { animation: pulse-glow 2s ease-in-out infinite; }
-.animate-shimmer {
-  background-size: 200% auto;
-  animation: shimmer 3s linear infinite;
-}
 .animate-slide-up { animation: slide-up 0.6s ease-out forwards; }
-.animate-spin-slow { animation: spin-slow 8s linear infinite; }
 
 .delay-100 { animation-delay: 100ms; }
 .delay-200 { animation-delay: 200ms; }
@@ -224,57 +259,43 @@ img.protected-photo {
 .delay-600 { animation-delay: 600ms; }
 .delay-700 { animation-delay: 700ms; }
 
-/* Glass morphism utility */
-.glass {
-  background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-}
-
-.glass-dark {
-  background: rgba(0, 0, 0, 0.3);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-/* Gradient text */
+/* Gradient text and border: brand navy → primary-2 → gold, tokens only (no stray blues) */
 .gradient-text {
-  background: linear-gradient(135deg, #22476a 0%, #2b5a84 50%, #c19250 100%);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-2) 50%, var(--accent) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
-
-/* Gradient border */
 .gradient-border {
   position: relative;
-  border-radius: 12px;
+  border-radius: var(--radius);
 }
 .gradient-border::before {
   content: "";
   position: absolute;
   inset: -2px;
-  border-radius: 14px;
-  background: linear-gradient(135deg, #22476a, #2b5a84, #c19250);
+  border-radius: calc(var(--radius) + 2px);
+  background: linear-gradient(135deg, var(--primary), var(--primary-2), var(--accent));
   z-index: -1;
 }
 
-/* Smooth hover transitions */
-.hover-lift {
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
+/* ─── Motion system (P2-8) ───
+ * One easing (--motion-ease, utility ease-brand), four durations: press 120, appear 180, sheet 280, seal 600.
+ * .press: a slight shrink while pressed (cards, buttons). .appear: rise 6 px on entry.
+ * Everything is off under prefers-reduced-motion (the global rule at the end). */
+@keyframes appear {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
 }
-.hover-lift:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12);
+@keyframes seal-draw {
+  from { stroke-dashoffset: 320; }
+  to { stroke-dashoffset: 0; }
 }
-
-/* Islamic geometric pattern (subtle background) */
-.pattern-bg {
-  background-image:
-    radial-gradient(circle at 25% 25%, rgba(34, 71, 106, 0.03) 0%, transparent 50%),
-    radial-gradient(circle at 75% 75%, rgba(43, 90, 132, 0.03) 0%, transparent 50%);
+.press {
+  transition: transform var(--motion-press) var(--motion-ease);
+}
+.press:active:not(:disabled) {
+  transform: scale(0.98);
 }
 
 /* ─── Landing / public page keyframes ─── */
@@ -306,7 +327,7 @@ img.protected-photo {
   from { opacity: 0; transform: translateY(6px) scale(0.98); }
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
-.animate-bubble-in { animation: bubbleIn 0.22s ease-out both; }
+.animate-bubble-in { animation: bubbleIn var(--motion-appear) var(--motion-ease) both; }
 @media (prefers-reduced-motion: reduce) {
   .animate-bubble-in { animation: none; }
 }
@@ -319,7 +340,7 @@ img.protected-photo {
   from { opacity: 0; transform: translateY(14px); }
   to { opacity: 1; transform: none; }
 }
-.landing-rise { animation: landingRise 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+.landing-rise { animation: landingRise 0.7s var(--motion-ease) both; }
 /* Navy night (hero + final call) and a faint gold khatam (eight-point star) tile over it */
 .landing-night {
   background:
@@ -352,6 +373,7 @@ img.protected-photo {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+  .press:active:not(:disabled) { transform: none; }
 }
 
 /* «الانتقال إلى المحتوى»: hidden until focused by the keyboard (QA PA-M7 / WM-21) */

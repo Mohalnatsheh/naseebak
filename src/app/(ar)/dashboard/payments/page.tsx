@@ -100,9 +100,8 @@ export default function PaymentsPage() {
             <div className="h-16 w-16 rounded-full bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center">
               <Loader2 className="h-8 w-8 animate-spin text-primary" aria-hidden />
             </div>
-            <div className="absolute inset-0 h-16 w-16 rounded-full bg-primary/10 animate-ping" />
-          </div>
-          <p className="text-sm text-muted-foreground animate-pulse">
+            </div>
+          <p className="text-sm text-muted-foreground">
             جاري التحميل...
           </p>
         </div>
@@ -802,7 +801,7 @@ function PaymentsContent() {
                             <p className="text-sm font-semibold text-foreground">
                               {p.description}
                             </p>
-                            <span className="text-[11px] text-muted-foreground">
+                            <span className="text-caption text-muted-foreground">
                               {formatDate(p.createdAt, country.code, {
                                 year: "numeric",
                                 month: "short",

@@ -232,7 +232,7 @@ export default function PhotosPage() {
         <Card className="border-dashed border-2 border-muted-foreground/20 bg-gradient-to-b from-card to-primary/5">
           <CardContent className="text-center py-16 md:py-20 space-y-5">
             <div className="relative mx-auto w-24 h-24">
-              <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-primary/10 rounded-full animate-pulse" />
+              <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-primary/10 rounded-full" />
               <div className="relative h-24 w-24 rounded-full bg-gradient-to-br from-primary/5 to-primary/5 flex items-center justify-center border-2 border-dashed border-primary/20">
                 {/* An empty slot invites a photo; a broken-image icon said something failed (QA DS-11) */}
                 <ImagePlus className="h-10 w-10 text-primary/50" aria-hidden />

@@ -1061,7 +1061,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
         {groupByDay(messages).map((day) => (
           <section key={day.key} className="pb-1">
             <div className="sticky top-1 z-10 my-2 flex justify-center">
-              <span className="rounded-lg bg-card/95 px-3 py-1 text-[11.5px] font-semibold text-muted-foreground shadow-sm">
+              <span className="rounded-lg bg-card/95 px-3 py-1 text-caption font-semibold text-muted-foreground shadow-sm">
                 {dayLabel(day.items[0].createdAt, country)}
               </span>
             </div>
@@ -1134,7 +1134,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
           >
             <ChevronDown className="h-5 w-5" aria-hidden />
             {unseen > 0 && (
-              <span aria-hidden className="absolute -top-1.5 -start-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-accent px-1 text-[11px] font-bold text-accent-foreground">
+              <span aria-hidden className="absolute -top-1.5 -start-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-accent px-1 text-caption font-bold text-accent-foreground">
                 {unseen > 99 ? "99+" : unseen}
               </span>
             )}

@@ -1,3 +1,4 @@
+import { BRAND_HEX } from "@/lib/brand-colors";
 /**
  * Photos in the website chat, before upload (browser only, no db imports): scaled to a JPEG when the browser can
  * decode them, passed to the server as they are when it can't (the server decodes HEIC and sniffs the type).
@@ -72,7 +73,7 @@ export async function preparePhoto(file: File): Promise<PreparedPhoto | null> {
   const ctx = canvas.getContext("2d");
   if (!ctx) return PASS_TYPES.includes(file.type) ? { blob: file, width: w, height: h } : null;
   // JPEG has no transparency: a white page under a PNG's clear parts
-  ctx.fillStyle = "#ffffff";
+  ctx.fillStyle = BRAND_HEX.white;
   ctx.fillRect(0, 0, cw, ch);
   ctx.drawImage(img, 0, 0, cw, ch);
   const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.88));

@@ -70,11 +70,11 @@ export function FaqContent({
 
           {/* Decorative blurred orbs */}
           <div
-            className="absolute top-20 start-10 h-56 w-56 rounded-full bg-primary/[0.06] blur-3xl animate-pulse"
+            className="absolute top-20 start-10 h-56 w-56 rounded-full bg-primary/[0.06] blur-3xl"
             style={{ animationDuration: "8s" }}
           />
           <div
-            className="absolute bottom-10 end-10 h-72 w-72 rounded-full bg-secondary/[0.08] blur-3xl animate-pulse"
+            className="absolute bottom-10 end-10 h-72 w-72 rounded-full bg-secondary/[0.08] blur-3xl"
             style={{ animationDuration: "10s" }}
           />
 

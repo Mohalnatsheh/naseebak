@@ -22,7 +22,7 @@ export function VerifiedBadge({ verified, className }: { verified?: boolean; cla
       <span
         title="تم التحقق من هوية صاحب الحساب"
         className={cn(
-          "inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700",
+          "inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-caption font-semibold text-emerald-700",
           className
         )}
       >

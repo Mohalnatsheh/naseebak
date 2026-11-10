@@ -24,7 +24,7 @@ export function ProBadge({
       className={cn(
         "inline-flex shrink-0 items-center rounded-full border font-bold leading-none text-accent-foreground",
         onDark ? "border-accent bg-accent shadow-sm shadow-black/20" : "border-accent/30 bg-accent/15",
-        size === "sm" ? "px-2 py-0.5 text-[11px]" : "px-2.5 py-1 text-xs",
+        size === "sm" ? "px-2 py-0.5 text-caption" : "px-2.5 py-1 text-xs",
         className
       )}
     >

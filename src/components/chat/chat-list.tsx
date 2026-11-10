@@ -198,7 +198,7 @@ export function ChatList({ compact = false, activeId }: { compact?: boolean; act
                   >
                     {t.label}
                     {t.unread > 0 && (
-                      <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-accent px-1.5 text-[11px] font-bold text-accent-foreground">
+                      <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-accent px-1.5 text-caption font-bold text-accent-foreground">
                         {t.unread > 99 ? "99+" : t.unread}
                       </span>
                     )}
@@ -264,7 +264,7 @@ export function ChatList({ compact = false, activeId }: { compact?: boolean; act
                       </span>
                       {c.unread > 0 && (
                         <>
-                          <span className="flex h-5 min-w-5 flex-shrink-0 items-center justify-center rounded-full bg-accent px-1.5 text-[11px] font-bold text-accent-foreground" aria-hidden>
+                          <span className="flex h-5 min-w-5 flex-shrink-0 items-center justify-center rounded-full bg-accent px-1.5 text-caption font-bold text-accent-foreground" aria-hidden>
                             {c.unread > 99 ? "99+" : c.unread}
                           </span>
                           <span className="sr-only">
@@ -277,11 +277,11 @@ export function ChatList({ compact = false, activeId }: { compact?: boolean; act
                     </span>
                     <span className="mt-1 block">
                       {c.status === "ACTIVE" ? (
-                        <span className={cn("inline-flex items-center gap-1 text-[11px] font-semibold", left <= 3 ? "text-amber-700" : "text-muted-foreground")}>
+                        <span className={cn("inline-flex items-center gap-1 text-caption font-semibold", left <= 3 ? "text-amber-700" : "text-muted-foreground")}>
                           <Clock className="h-3 w-3" aria-hidden /> متبقي {daysLabel(left)}
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-muted-foreground">
+                        <span className="inline-flex items-center gap-1 text-caption font-semibold text-muted-foreground">
                           <Lock className="h-3 w-3" aria-hidden /> {c.status === "ENDED" ? "منتهية" : "انتهت المدة"}
                         </span>
                       )}

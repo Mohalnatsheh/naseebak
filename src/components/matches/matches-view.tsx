@@ -513,9 +513,8 @@ export function MatchesView({ embedded = false }: { embedded?: boolean } = {}) {
           <div className="h-16 w-16 rounded-full bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center">
             <Loader2 className="h-8 w-8 animate-spin text-primary" aria-hidden />
           </div>
-          <div className="absolute inset-0 h-16 w-16 rounded-full bg-primary/10 animate-ping" />
-        </div>
-        <p className="text-sm text-muted-foreground animate-pulse">جاري تحميل التوافقات...</p>
+          </div>
+        <p className="text-sm text-muted-foreground">جاري تحميل التوافقات...</p>
       </div>
     );
   }
@@ -570,7 +569,7 @@ export function MatchesView({ embedded = false }: { embedded?: boolean } = {}) {
         <Card className="border-dashed border-2 border-muted-foreground/20 bg-gradient-to-b from-card to-primary/5">
           <CardContent className="text-center py-16 md:py-20 space-y-5">
             <div className="relative mx-auto w-24 h-24">
-              <div className="absolute inset-0 bg-gradient-to-br from-primary/15 to-secondary/10 rounded-full animate-pulse" />
+              <div className="absolute inset-0 bg-gradient-to-br from-primary/15 to-secondary/10 rounded-full" />
               <div className="relative h-24 w-24 rounded-full bg-gradient-to-br from-primary/5 to-secondary/5 flex items-center justify-center border-2 border-dashed border-primary/20">
                 <Users className="h-10 w-10 text-muted-foreground/40" />
               </div>

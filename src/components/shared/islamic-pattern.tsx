@@ -51,25 +51,9 @@ export function FloatingParticles() {
             height: `${3 + (i % 4) * 2}px`,
             left: `${(i * 17 + 5) % 100}%`,
             top: `${(i * 23 + 10) % 100}%`,
-            animation: `float-particle ${6 + (i % 5) * 2}s ease-in-out ${i * 0.4}s infinite alternate`,
           }}
         />
       ))}
-      <style jsx>{`
-        @keyframes float-particle {
-          0% {
-            transform: translateY(0px) translateX(0px) scale(1);
-            opacity: 0.3;
-          }
-          50% {
-            opacity: 0.7;
-          }
-          100% {
-            transform: translateY(-30px) translateX(15px) scale(1.3);
-            opacity: 0.2;
-          }
-        }
-      `}</style>
     </div>
   );
 }

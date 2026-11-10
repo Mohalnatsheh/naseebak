@@ -1,4 +1,5 @@
 import { ImageResponse } from "next/og";
+import { BRAND_HEX } from "@/lib/brand-colors";
 
 export const runtime = "nodejs";
 export const alt = "نصيبك - نوصّلك بشريك العمر بالحلال";
@@ -19,7 +20,7 @@ export default async function Image() {
           flexDirection: "column",
           alignItems: "center",
           justifyContent: "center",
-          background: "linear-gradient(135deg, #f8f9fc 0%, #eef1f8 50%, #f5f0e8 100%)",
+          background: `linear-gradient(135deg, ${BRAND_HEX.white} 0%, ${BRAND_HEX.line} 50%, ${BRAND_HEX.sand} 100%)`,
           position: "relative",
         }}
       >
@@ -31,7 +32,7 @@ export default async function Image() {
             left: 0,
             right: 0,
             height: 6,
-            background: "linear-gradient(90deg, #22476a, #2d5280, #c19250)",
+            background: `linear-gradient(90deg, ${BRAND_HEX.primary}, ${BRAND_HEX.primary2}, ${BRAND_HEX.accent})`,
             display: "flex",
           }}
         />
@@ -76,7 +77,7 @@ export default async function Image() {
           style={{
             fontSize: 28,
             fontWeight: 600,
-            color: "#22476a",
+            color: BRAND_HEX.primary,
             textAlign: "center",
             display: "flex",
             letterSpacing: "-0.02em",
@@ -93,7 +94,7 @@ export default async function Image() {
             left: 0,
             right: 0,
             height: 6,
-            background: "linear-gradient(90deg, #c19250, #2d5280, #22476a)",
+            background: `linear-gradient(90deg, ${BRAND_HEX.accent}, ${BRAND_HEX.primary2}, ${BRAND_HEX.primary})`,
             display: "flex",
           }}
         />
@@ -104,7 +105,7 @@ export default async function Image() {
             position: "absolute",
             bottom: 24,
             fontSize: 20,
-            color: "#9ca3af",
+            color: BRAND_HEX.mutedInk,
             display: "flex",
           }}
         >

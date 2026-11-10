@@ -62,7 +62,7 @@ export function BubbleQuote({
     >
       {/* In my navy bubble the author is light (gold on navy measured 2.4:1, QA PA-M8) */}
       <span className={cn("block truncate text-xs font-bold", mine ? "text-primary-foreground" : "text-primary")}>{author}</span>
-      <span dir="auto" className={cn("block truncate text-[13px]", mine ? "text-primary-foreground/80" : "text-muted-foreground")}>
+      <span dir="auto" className={cn("block truncate text-label", mine ? "text-primary-foreground/80" : "text-muted-foreground")}>
         {quote.snippet}
       </span>
     </button>

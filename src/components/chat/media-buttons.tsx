@@ -48,7 +48,7 @@ export function ProTag() {
   return (
     <span
       aria-hidden
-      className="pointer-events-none absolute -top-1 -end-1 rounded-full border border-accent/40 bg-accent px-1.5 py-px text-[11px] font-bold leading-none text-accent-foreground shadow-sm"
+      className="pointer-events-none absolute -top-1 -end-1 rounded-full border border-accent/40 bg-accent px-1.5 py-px text-caption font-bold leading-none text-accent-foreground shadow-sm"
     >
       Pro
     </span>

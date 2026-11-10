@@ -160,7 +160,7 @@ function InfoField({
         <Icon className={`h-5 w-5 ${iconColor}`} />
       </div>
       <div className="min-w-0">
-        <p className="text-[11px] text-muted-foreground font-medium">{label}</p>
+        <p className="text-caption text-muted-foreground font-medium">{label}</p>
         {/* Long values (cities, notes) wrap instead of being cut off */}
         <p className="text-sm font-semibold text-foreground break-words">{value}</p>
       </div>
@@ -338,7 +338,7 @@ export default function ProfilePage() {
     return (
       <div className="flex flex-col items-center justify-center py-20 gap-4">
         <div className="relative mx-auto w-24 h-24">
-          <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-primary/5 rounded-full animate-pulse" />
+          <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-primary/5 rounded-full" />
           <div className="relative h-24 w-24 rounded-full bg-gradient-to-br from-primary/5 to-primary/[0.03] flex items-center justify-center border-2 border-dashed border-primary/20">
             <User className="h-10 w-10 text-muted-foreground/40" />
           </div>
@@ -1208,7 +1208,7 @@ export default function ProfilePage() {
               >
                 {stat.value}
               </p>
-              <p className="text-[11px] font-medium text-muted-foreground">
+              <p className="text-caption font-medium text-muted-foreground">
                 {stat.label}
               </p>
             </CardContent>

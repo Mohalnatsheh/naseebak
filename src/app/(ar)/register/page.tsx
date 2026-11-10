@@ -37,6 +37,7 @@ import { DialCodeToggle } from "@/components/shared/dial-code-toggle";
 import { TermsConsentText } from "@/components/shared/terms-consent-text";
 import { COUNTRIES, type CountryCode } from "@/lib/countries";
 import { dialCountryFor, isPhoneFor, phoneExampleError, phoneFormatsError, phoneWord } from "@/lib/phone-field";
+import { BRAND_HEX } from "@/lib/brand-colors";
 
 /** Seconds before another verification code may be requested (the server also limits 3 per 5 minutes) */
 const RESEND_SECONDS = 60;
@@ -55,7 +56,7 @@ function Sparkles() {
         duration: 1.8 + Math.random() * 1.5,
         size: 4 + Math.random() * 6,
         // Brand palette: deep blue + warm gold
-        color: ["#22476a", "#c19250", "#2b5a84", "#c19250", "#22476a", "#15304a"][Math.floor(Math.random() * 6)],
+        color: [BRAND_HEX.primary, BRAND_HEX.accent, BRAND_HEX.primary2, BRAND_HEX.accent, BRAND_HEX.primary, BRAND_HEX.primaryDeep][Math.floor(Math.random() * 6)],
       }))
   );
 
@@ -95,7 +96,6 @@ function Sparkles() {
 function AnimatedCheck() {
   return (
     <div className="relative flex items-center justify-center">
-      <div className="absolute h-28 w-28 rounded-full bg-primary/20 animate-ping" />
       <div className="relative h-24 w-24 rounded-full bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-lg shadow-primary/30">
         <svg
           viewBox="0 0 24 24"
@@ -667,9 +667,6 @@ function RegisterPageContent() {
                       ) : (
                         stepNum
                       )}
-                      {isActive && (
-                        <span className="absolute inset-0 rounded-full animate-[glow_2s_ease-in-out_infinite] bg-primary/20" />
-                      )}
                     </div>
                     <span
                       className={`text-xs font-medium whitespace-nowrap transition-colors duration-300 ${
@@ -806,7 +803,7 @@ function RegisterPageContent() {
                     />
                   </div>
                 </div>
-                <p className="text-[11px] text-muted-foreground -mt-2">
+                <p className="text-caption text-muted-foreground -mt-2">
                   يرجى إدخال الاسم باللغة العربية فقط
                 </p>
 
@@ -835,7 +832,7 @@ function RegisterPageContent() {
                           style={{
                             background:
                               "linear-gradient(135deg, var(--primary), var(--secondary))",
-                            mask: "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
+                            mask: "linear-gradient(white 0 0) content-box, linear-gradient(white 0 0)",
                             maskComposite: "xor",
                             WebkitMaskComposite: "xor",
                             padding: "2px",
@@ -894,7 +891,7 @@ function RegisterPageContent() {
                           style={{
                             background:
                               "linear-gradient(135deg, var(--accent), var(--primary))",
-                            mask: "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
+                            mask: "linear-gradient(white 0 0) content-box, linear-gradient(white 0 0)",
                             maskComposite: "xor",
                             WebkitMaskComposite: "xor",
                             padding: "2px",
@@ -1087,7 +1084,7 @@ function RegisterPageContent() {
                       dir="ltr"
                       className="h-11 rounded-xl border-border/60 bg-muted/30 text-center text-sm tracking-[0.1em] font-mono focus:bg-background transition-colors"
                     />
-                    <p className="text-[11px] text-muted-foreground">
+                    <p className="text-caption text-muted-foreground">
                       إذا دعاك أحد، فأدخل رمز الدعوة هنا
                     </p>
                   </div>

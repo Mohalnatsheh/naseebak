@@ -21,7 +21,7 @@ export function StarterChips({ starters, onPick }: { starters: readonly string[]
             type="button"
             dir="auto"
             onClick={() => onPick(s)}
-            className="min-h-11 rounded-full border border-primary/20 bg-card px-3 py-1.5 text-[13.5px] leading-snug text-foreground/85 transition-colors hover:border-primary/40 hover:bg-primary/5"
+            className="min-h-11 rounded-full border border-primary/20 bg-card px-3 py-1.5 text-label leading-snug text-foreground/85 transition-colors hover:border-primary/40 hover:bg-primary/5"
           >
             {s}
           </button>

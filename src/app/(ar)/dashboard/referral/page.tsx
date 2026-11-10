@@ -249,7 +249,7 @@ export default function ReferralPage() {
                       </p>
                     </div>
                   </div>
-                  <div className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold ${
+                  <div className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-caption font-semibold ${
                     referral.creditsAwarded
                       ? "bg-emerald-500/10 text-emerald-600"
                       : "bg-amber-500/10 text-amber-600"

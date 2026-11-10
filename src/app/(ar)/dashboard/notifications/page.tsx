@@ -329,9 +329,8 @@ export default function NotificationsPage() {
           <div className="h-16 w-16 rounded-full bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center">
             <Loader2 className="h-8 w-8 animate-spin text-primary" aria-hidden />
           </div>
-          <div className="absolute inset-0 h-16 w-16 rounded-full bg-primary/10 animate-ping" />
-        </div>
-        <p className="text-sm text-muted-foreground animate-pulse">جاري تحميل الإشعارات...</p>
+          </div>
+        <p className="text-sm text-muted-foreground">جاري تحميل الإشعارات...</p>
       </div>
     );
   }
@@ -411,7 +410,7 @@ export default function NotificationsPage() {
             <div className="p-5 pt-0 space-y-3">
               <div className="flex items-center gap-2 p-3 rounded-xl bg-muted/40 border border-border/30">
                 <Info className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                <p className="text-caption text-muted-foreground leading-relaxed">
                   إشعارات النظام مفعّلة دائماً ولا يمكن إيقافها
                 </p>
               </div>
@@ -461,7 +460,7 @@ export default function NotificationsPage() {
         <Card className="border-dashed border-2 border-muted-foreground/20 bg-gradient-to-b from-card to-primary/5">
           <CardContent className="text-center py-16 md:py-20 space-y-5">
             <div className="relative mx-auto w-24 h-24">
-              <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-secondary/10 rounded-full animate-pulse" />
+              <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-secondary/10 rounded-full" />
               <div className="relative h-24 w-24 rounded-full bg-gradient-to-br from-primary/5 to-secondary/5 flex items-center justify-center border-2 border-dashed border-primary/20">
                 <BellOff className="h-10 w-10 text-muted-foreground/40" />
               </div>
@@ -515,9 +514,6 @@ export default function NotificationsPage() {
                         {!n.isRead && (
                           <div className="absolute -top-1 -end-1">
                             <span className="relative flex h-3 w-3">
-                              <span
-                                className={`animate-ping absolute inline-flex h-full w-full rounded-full ${config.dotColor} opacity-75`}
-                              />
                               <span
                                 className={`relative inline-flex rounded-full h-3 w-3 ${config.dotColor} ring-2 ring-card`}
                               />

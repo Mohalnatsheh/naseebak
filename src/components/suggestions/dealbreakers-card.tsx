@@ -130,7 +130,7 @@ export function DealbreakersCard() {
           <SlidersHorizontal className="h-4 w-4" aria-hidden />
           شروطي الأساسية
           {active.length > 0 && (
-            <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-accent px-1 text-[11px] text-accent-foreground">{active.length}</span>
+            <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-accent px-1 text-caption text-accent-foreground">{active.length}</span>
           )}
         </button>
         <div className="flex min-w-0 flex-1 gap-1.5 overflow-hidden">

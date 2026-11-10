@@ -11,6 +11,7 @@
 import type Stripe from "stripe";
 import { countryConfig, toCountry } from "@/lib/countries";
 import { formatCharge, type CreditPackage } from "@/lib/payments/packages";
+import { BRAND_HEX } from "@/lib/brand-colors";
 
 const SITE = "https://naseebak.com";
 /** Shown after the account's own prefix on the bank statement: «LOGICCR* NASEEBAK» */
@@ -52,7 +53,7 @@ export function checkoutPresentation(
     ...(hosted && {
       branding_settings: {
         display_name: "نصيبك (Naseebak)",
-        button_color: "#22476a",
+        button_color: BRAND_HEX.primary,
         border_style: "rounded" as const,
         icon: { type: "url" as const, url: `${SITE}/images/icon-512.png` },
         // The current wordmark (public/images/logo-wordmark.png = logo.svg as PNG; Stripe takes no SVG). Not logo-full.png: that is the old logo

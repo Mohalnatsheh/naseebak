@@ -133,11 +133,10 @@ function Mock({ children, className }: { children: ReactNode; className?: string
   return <div className={cn("overflow-hidden rounded-2xl border border-border bg-muted/40 p-3", className)} aria-hidden="true">{children}</div>;
 }
 
-/** The thing to tap: gold ring + gentle pulse */
+/** The thing to tap: gold ring */
 function Tap({ children, className }: { children: ReactNode; className?: string }) {
   return (
     <span className={cn("relative inline-flex items-center justify-center rounded-xl bg-accent/20 ring-2 ring-accent", className)}>
-      <span className="absolute inset-0 animate-ping rounded-xl ring-2 ring-accent/40 motion-reduce:hidden" />
       {children}
     </span>
   );
@@ -209,7 +208,7 @@ function ShareSheetMock() {
         <Tap className="w-full justify-between gap-2 px-3 py-2.5 text-sm font-semibold text-foreground">
           <span>
             إضافة إلى الشاشة الرئيسية
-            <span dir="ltr" className="block text-[11px] font-normal text-muted-foreground">Add to Home Screen</span>
+            <span dir="ltr" className="block text-caption font-normal text-muted-foreground">Add to Home Screen</span>
           </span>
           <SquarePlus className="h-5 w-5 shrink-0" />
         </Tap>
@@ -241,7 +240,7 @@ function HomeIconMock() {
         <Tap className="rounded-[14px] p-0">
           <Image src="/images/icon-192.png" alt="" width={48} height={48} className="h-12 w-12 rounded-[14px]" />
         </Tap>
-        <span className="text-[11px] font-semibold">نصيبك</span>
+        <span className="text-caption font-semibold">نصيبك</span>
       </span>
     </Mock>
   );
@@ -252,7 +251,7 @@ function AllowPromptMock() {
     <Mock>
       <div className="mx-auto max-w-64 overflow-hidden rounded-xl bg-card text-center shadow-sm">
         <p className="px-4 pt-3 text-xs font-semibold leading-relaxed">«نصيبك» يريد إرسال إشعارات إليك</p>
-        <p className="px-4 pb-3 text-[11px] text-muted-foreground">تنبيهات، أصوات، شارات</p>
+        <p className="px-4 pb-3 text-caption text-muted-foreground">تنبيهات، أصوات، شارات</p>
         <div className="grid grid-cols-2 border-t border-border text-xs">
           <span className="border-e border-border py-2.5 text-muted-foreground">عدم السماح</span>
           <Tap className="m-1 rounded-lg py-1.5 font-bold text-primary">السماح · Allow</Tap>

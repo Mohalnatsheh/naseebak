@@ -321,7 +321,7 @@ export default function SupportPage() {
                   <Loader2 className="h-8 w-8 animate-spin text-primary" aria-hidden />
                 </div>
               </div>
-              <p className="text-sm text-muted-foreground animate-pulse">جاري تحميل التذاكر...</p>
+              <p className="text-sm text-muted-foreground">جاري تحميل التذاكر...</p>
             </div>
           ) : listFailed ? (
             <LoadError message="تعذّر تحميل تذاكرك. يمكنك التحقق من الاتصال والمحاولة مرة أخرى." onRetry={() => void loadTickets()} />
@@ -329,7 +329,7 @@ export default function SupportPage() {
             <Card className="border-dashed border-2 border-muted-foreground/20 bg-gradient-to-b from-card to-primary/5">
               <CardContent className="text-center py-16 space-y-5">
                 <div className="relative mx-auto w-24 h-24">
-                  <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-secondary/10 rounded-full animate-pulse" />
+                  <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-secondary/10 rounded-full" />
                   <div className="relative h-24 w-24 rounded-full bg-gradient-to-br from-primary/5 to-secondary/5 flex items-center justify-center border-2 border-dashed border-primary/20">
                     <LifeBuoy className="h-10 w-10 text-muted-foreground/40" />
                   </div>

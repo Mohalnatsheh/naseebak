@@ -130,11 +130,11 @@ export default function ContactPage() {
 
           {/* Decorative blurred orbs */}
           <div
-            className="absolute top-20 start-10 h-60 w-60 rounded-full bg-primary/[0.06] blur-3xl animate-pulse"
+            className="absolute top-20 start-10 h-60 w-60 rounded-full bg-primary/[0.06] blur-3xl"
             style={{ animationDuration: "8s" }}
           />
           <div
-            className="absolute bottom-10 end-10 h-72 w-72 rounded-full bg-secondary/[0.08] blur-3xl animate-pulse"
+            className="absolute bottom-10 end-10 h-72 w-72 rounded-full bg-secondary/[0.08] blur-3xl"
             style={{ animationDuration: "10s" }}
           />
 
@@ -152,7 +152,7 @@ export default function ContactPage() {
               className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/[0.06] backdrop-blur-sm px-5 py-2 text-sm font-medium text-primary mb-8 shadow-sm"
               style={{ animation: "fadeSlideDown 0.8s ease-out both" }}
             >
-              <MessageSquare className="size-4 animate-pulse" />
+              <MessageSquare className="size-4" />
               تواصل معنا
             </div>
 

@@ -72,7 +72,7 @@ export function MessageBubble({
   const time = (
     <span
       className={cn(
-        "inline-flex items-center gap-0.5 text-[11px] leading-none",
+        "inline-flex items-center gap-0.5 text-caption leading-none",
         photo
           ? "absolute bottom-2.5 end-2.5 rounded-full bg-black/45 px-1.5 py-1 text-white"
           : cn("float-end ms-3 mt-1.5 translate-y-0.5", mine ? "text-primary-foreground/70" : "text-muted-foreground")
@@ -221,7 +221,7 @@ export function MessageBubble({
                   )}
                 >
                   <span>{c.emoji}</span>
-                  {c.count > 1 && <span className="text-[11px] font-semibold text-muted-foreground">{c.count}</span>}
+                  {c.count > 1 && <span className="text-caption font-semibold text-muted-foreground">{c.count}</span>}
                 </button>
               ))}
             </div>

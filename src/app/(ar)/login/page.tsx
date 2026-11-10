@@ -227,15 +227,15 @@ function LoginPageContent() {
 
         {/* Animated orbs */}
         <div
-          className="absolute top-20 end-20 h-64 w-64 rounded-full bg-white/[0.04] blur-3xl animate-pulse"
+          className="absolute top-20 end-20 h-64 w-64 rounded-full bg-white/[0.04] blur-3xl"
           style={{ animationDuration: "8s" }}
         />
         <div
-          className="absolute bottom-20 start-10 h-80 w-80 rounded-full bg-accent/[0.06] blur-3xl animate-pulse"
+          className="absolute bottom-20 start-10 h-80 w-80 rounded-full bg-accent/[0.06] blur-3xl"
           style={{ animationDuration: "10s" }}
         />
         <div
-          className="absolute top-1/2 start-1/2 -translate-x-1/2 -translate-y-1/2 h-96 w-96 rounded-full bg-secondary/[0.05] blur-3xl animate-pulse"
+          className="absolute top-1/2 start-1/2 -translate-x-1/2 -translate-y-1/2 h-96 w-96 rounded-full bg-secondary/[0.05] blur-3xl"
           style={{ animationDuration: "12s" }}
         />
 
@@ -290,15 +290,12 @@ function LoginPageContent() {
         {/* Floating decorative elements */}
         <div
           className="absolute top-[15%] end-[15%] w-16 h-16 rounded-2xl border border-white/10 backdrop-blur-sm bg-white/[0.03] rotate-12"
-          style={{ animation: "floatSlow 8s ease-in-out infinite alternate" }}
         />
         <div
           className="absolute bottom-[20%] start-[10%] w-12 h-12 rounded-full border border-white/10 backdrop-blur-sm bg-white/[0.03]"
-          style={{ animation: "floatSlow 6s ease-in-out 1s infinite alternate" }}
         />
         <div
           className="absolute top-[60%] end-[8%] w-10 h-10 rounded-xl border border-white/10 backdrop-blur-sm bg-white/[0.03] -rotate-12"
-          style={{ animation: "floatSlow 7s ease-in-out 2s infinite alternate" }}
         />
 
         {/* Content */}
@@ -674,14 +671,6 @@ function LoginPageContent() {
           to {
             opacity: 1;
             transform: translateX(0);
-          }
-        }
-        @keyframes floatSlow {
-          0% {
-            transform: translateY(0px) rotate(var(--tw-rotate, 0deg));
-          }
-          100% {
-            transform: translateY(-20px) rotate(var(--tw-rotate, 0deg));
           }
         }
         @keyframes shake {

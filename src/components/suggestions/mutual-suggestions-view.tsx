@@ -577,7 +577,7 @@ export function MutualSuggestionsView({
                 aria-selected={on}
                 aria-controls="feed-panel"
                 onClick={() => switchTab(t.key)}
-                className={`relative flex min-h-12 items-center justify-center gap-1.5 rounded-xl px-2 py-2 text-center text-[13px] font-semibold leading-tight transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 sm:flex-col sm:gap-0.5 sm:text-sm lg:flex-row lg:gap-1.5 ${
+                className={`relative flex min-h-12 items-center justify-center gap-1.5 rounded-xl px-2 py-2 text-center text-label font-semibold leading-tight transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 sm:flex-col sm:gap-0.5 sm:text-sm lg:flex-row lg:gap-1.5 ${
                   on ? "border border-border/50 bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
                 }`}
               >
@@ -585,7 +585,7 @@ export function MutualSuggestionsView({
                 <span>{t.label}</span>
                 {badge > 0 && (
                   <span
-                    className={`inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full px-1.5 text-[11px] font-bold ${
+                    className={`inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full px-1.5 text-caption font-bold ${
                       t.key === "matches" && counts.pendingIntros > 0
                         ? "bg-destructive text-white"
                         : on
@@ -799,21 +799,21 @@ export function MutualSuggestionsView({
                     <>
                       {item.isPro && <ProBadge />}
                       {item.activity && !declined && (
-                        <Badge className="bg-emerald-50 text-emerald-800 border border-emerald-200/60 text-[11px] gap-1">
+                        <Badge className="bg-emerald-50 text-emerald-800 border border-emerald-200/60 text-caption gap-1">
                           <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden /> {item.activity}
                         </Badge>
                       )}
                       {declined ? (
-                        <Badge className="bg-muted text-muted-foreground border border-border text-[11px] gap-1">
+                        <Badge className="bg-muted text-muted-foreground border border-border text-caption gap-1">
                           <X className="h-3 w-3" /> لم يحصل توافق
                         </Badge>
                       ) : waiting ? (
-                        <Badge className="bg-amber-100 text-amber-800 border border-amber-200/60 text-[11px] gap-1">
+                        <Badge className="bg-amber-100 text-amber-800 border border-amber-200/60 text-caption gap-1">
                           <Hourglass className="h-3 w-3" /> بانتظار الطرف الآخر
                         </Badge>
                       ) : null}
                       {(item.kind === "legacy_interest" || item.likedYou) && (
-                        <Badge className="bg-accent/15 text-accent-foreground border border-accent/25 text-[11px] gap-1">
+                        <Badge className="bg-accent/15 text-accent-foreground border border-accent/25 text-caption gap-1">
                           <Heart className="h-3 w-3" /> {partnerGender === "FEMALE" ? "أبدت اهتمامها بك" : "أبدى اهتمامه بك"}
                         </Badge>
                       )}

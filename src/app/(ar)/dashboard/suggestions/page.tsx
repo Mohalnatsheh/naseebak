@@ -456,9 +456,8 @@ toast.success("تهانينا! لديك توافق متبادل!", {
           <div className="h-16 w-16 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
             <Loader2 className="h-8 w-8 animate-spin text-primary" aria-hidden />
           </div>
-          <div className="absolute inset-0 h-16 w-16 rounded-full bg-primary/10 animate-ping" />
-        </div>
-        <p className="text-sm text-muted-foreground animate-pulse">جاري تحميل الاقتراحات...</p>
+          </div>
+        <p className="text-sm text-muted-foreground">جاري تحميل الاقتراحات...</p>
       </div>
     );
   }
@@ -587,7 +586,7 @@ toast.success("تهانينا! لديك توافق متبادل!", {
           <span className="hidden sm:inline">اقتراحات جديدة</span>
           <span className="sm:hidden">اقتراحات</span>
           {suggestions.length > 0 && (
-            <span className={`inline-flex items-center justify-center h-5 min-w-5 px-1.5 rounded-full text-[11px] font-bold ${
+            <span className={`inline-flex items-center justify-center h-5 min-w-5 px-1.5 rounded-full text-caption font-bold ${
               activeTab === "new" ? "bg-primary text-primary-foreground" : "bg-muted-foreground/20 text-muted-foreground"
             }`}>
               {suggestions.length}
@@ -606,7 +605,7 @@ toast.success("تهانينا! لديك توافق متبادل!", {
           <span className="hidden sm:inline">الطلبات المرسلة</span>
           <span className="sm:hidden">المرسلة</span>
           {sentRequests.length > 0 && (
-            <span className={`inline-flex items-center justify-center h-5 min-w-5 px-1.5 rounded-full text-[11px] font-bold ${
+            <span className={`inline-flex items-center justify-center h-5 min-w-5 px-1.5 rounded-full text-caption font-bold ${
               activeTab === "sent" ? "bg-primary text-primary-foreground" : "bg-muted-foreground/20 text-muted-foreground"
             }`}>
               {sentRequests.length}
@@ -625,7 +624,7 @@ toast.success("تهانينا! لديك توافق متبادل!", {
           <span className="hidden sm:inline">طلبات الاهتمام</span>
           <span className="sm:hidden">الاهتمام</span>
           {interests.length > 0 && (
-            <span className={`inline-flex items-center justify-center h-5 min-w-5 px-1.5 rounded-full text-[11px] font-bold ${
+            <span className={`inline-flex items-center justify-center h-5 min-w-5 px-1.5 rounded-full text-caption font-bold ${
               activeTab === "interests" ? "bg-primary text-primary-foreground" : "bg-primary/20 text-primary"
             }`}>
               {interests.length}
@@ -664,7 +663,7 @@ toast.success("تهانينا! لديك توافق متبادل!", {
             <Card className="border-dashed border-2 border-muted-foreground/20 bg-gradient-to-b from-card to-muted/30">
               <CardContent className="text-center py-16 md:py-20 space-y-5">
                 <div className="relative mx-auto w-24 h-24">
-                  <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-accent/10 rounded-full animate-pulse" />
+                  <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-accent/10 rounded-full" />
                   <div className="relative h-24 w-24 rounded-full bg-gradient-to-br from-primary/5 to-accent/5 flex items-center justify-center border-2 border-dashed border-muted-foreground/20">
                     <Search className="h-10 w-10 text-muted-foreground/40" />
                   </div>
@@ -812,13 +811,13 @@ toast.success("تهانينا! لديك توافق متبادل!", {
                   <Loader2 className="h-7 w-7 animate-spin text-primary" aria-hidden />
                 </div>
               </div>
-              <p className="text-sm text-muted-foreground animate-pulse">جاري تحميل الطلبات...</p>
+              <p className="text-sm text-muted-foreground">جاري تحميل الطلبات...</p>
             </div>
           ) : sentRequests.length === 0 ? (
             <Card className="border-dashed border-2 border-muted-foreground/20 bg-gradient-to-b from-card to-muted/30">
               <CardContent className="text-center py-16 md:py-20 space-y-5">
                 <div className="relative mx-auto w-24 h-24">
-                  <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-accent/10 rounded-full animate-pulse" />
+                  <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-accent/10 rounded-full" />
                   <div className="relative h-24 w-24 rounded-full bg-gradient-to-br from-primary/5 to-accent/5 flex items-center justify-center border-2 border-dashed border-muted-foreground/20">
                     <Send className="h-10 w-10 text-muted-foreground/40" />
                   </div>
@@ -859,7 +858,7 @@ toast.success("تهانينا! لديك توافق متبادل!", {
                       photoLocked={req.status !== "matched"}
                       tone={req.status === "matched" ? "success" : req.status === "seen" ? "info" : "pending"}
                       badges={
-                        <Badge className={`${config.className} border text-[11px] px-2.5 py-0.5 flex items-center gap-1 flex-shrink-0`}>
+                        <Badge className={`${config.className} border text-caption px-2.5 py-0.5 flex items-center gap-1 flex-shrink-0`}>
                           <StatusIcon className="h-3 w-3" />
                           {config.label}
                         </Badge>
@@ -912,13 +911,13 @@ toast.success("تهانينا! لديك توافق متبادل!", {
                   <Loader2 className="h-7 w-7 animate-spin text-primary" />
                 </div>
               </div>
-              <p className="text-sm text-muted-foreground animate-pulse">جاري تحميل طلبات الاهتمام...</p>
+              <p className="text-sm text-muted-foreground">جاري تحميل طلبات الاهتمام...</p>
             </div>
           ) : interests.length === 0 ? (
             <Card className="border-dashed border-2 border-muted-foreground/20 bg-gradient-to-b from-card to-muted/30">
               <CardContent className="text-center py-16 md:py-20 space-y-5">
                 <div className="relative mx-auto w-24 h-24">
-                  <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-secondary/10 rounded-full animate-pulse" />
+                  <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-secondary/10 rounded-full" />
                   <div className="relative h-24 w-24 rounded-full bg-gradient-to-br from-primary/5 to-secondary/5 flex items-center justify-center border-2 border-dashed border-primary/20">
                     <Heart className="h-10 w-10 text-muted-foreground/40" />
                   </div>

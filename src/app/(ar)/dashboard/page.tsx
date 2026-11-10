@@ -236,7 +236,7 @@ export default function DashboardPage() {
         >
           <Bell className="h-5 w-5" aria-hidden />
           {unreadCount > 0 && (
-            <span aria-hidden className="absolute -top-1 -start-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-[11px] font-bold text-white">
+            <span aria-hidden className="absolute -top-1 -start-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-caption font-bold text-white">
               {unreadCount > 99 ? "99+" : unreadCount}
             </span>
           )}
@@ -264,7 +264,6 @@ export default function DashboardPage() {
         <section aria-labelledby="waiting-title" className="overflow-hidden rounded-2xl border border-accent/40 bg-card shadow-sm">
           <div className="flex items-center gap-2 border-b border-accent/20 bg-accent/10 px-4 py-2.5">
             <span className="relative flex h-2.5 w-2.5" aria-hidden>
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent opacity-60 motion-reduce:animate-none" />
               <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-accent" />
             </span>
             <h2 id="waiting-title" className="text-sm font-bold text-foreground">بانتظار ردّك</h2>
@@ -277,7 +276,7 @@ export default function DashboardPage() {
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block text-sm font-bold text-foreground">{w.title}</span>
-                  <span className="mt-0.5 inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
+                  <span className="mt-0.5 inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-caption font-semibold text-amber-800">
                     بانتظار ردّك
                   </span>
                   <span className="mt-1 block text-xs text-muted-foreground">{w.note}</span>
@@ -397,12 +396,12 @@ export default function DashboardPage() {
                       >
                         {s.candidate.firstName.charAt(0)}
                       </span>
-                      <span className="absolute inset-x-0 -bottom-1 mx-auto w-fit rounded-full bg-accent px-1.5 text-[11px] font-bold leading-4 text-accent-foreground">
+                      <span className="absolute inset-x-0 -bottom-1 mx-auto w-fit rounded-full bg-accent px-1.5 text-caption font-bold leading-4 text-accent-foreground">
                         {Math.round(s.compatibilityScore)}%
                       </span>
                     </span>
                     <span className="mt-1 w-full truncate text-sm font-semibold text-foreground">{s.candidate.firstName}</span>
-                    <span className="w-full truncate text-[11px] text-muted-foreground">
+                    <span className="w-full truncate text-caption text-muted-foreground">
                       {[s.candidate.age ? `${s.candidate.age} سنة` : null, s.candidate.city].filter(Boolean).join(" · ") || " "}
                     </span>
                   </Link>

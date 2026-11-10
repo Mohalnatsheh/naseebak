@@ -1,11 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { AlertTriangle, CalendarClock, CheckCircle2, Loader2 } from "lucide-react";
+import { AlertTriangle, CalendarClock, CheckCircle2, Crown, Loader2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ProBadge } from "@/components/shared/pro-badge";
+import { SealMark } from "@/components/shared/match-seal";
 import { useDashboardData } from "@/contexts/dashboard-context";
 import { formatDate } from "@/lib/countries";
 import { forViewer } from "@/lib/gendered-copy";
@@ -60,48 +60,42 @@ export function MyProCard({ state, onChanged }: { state: MyProState; onChanged: 
     }
   }
 
+  // The same order as the app's «اشتراكي» (web-pay P3): gold rule → seal, title, plan → renewal state → the date (or
+  // the failed renewal) → what happens next → the plan's credits and what Pro gives → one full-width button
   return (
-    <Card className="gap-0 overflow-hidden py-0">
-      <CardContent className="space-y-4 p-5 md:p-6">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="flex items-center gap-2 text-lg font-bold text-foreground">
-            اشتراكي <ProBadge size="md" />
-          </h2>
-          <span className="flex flex-wrap items-center gap-2">
-            <span data-testid="pro-status" className={`rounded-full border px-3 py-1 text-sm font-bold ${status.tone}`}>
-              {status.label}
-            </span>
-            {state.plan && (
-              <span className="rounded-full bg-primary/5 px-3 py-1 text-sm font-semibold text-primary">
-                الباقة: {PRO_PLAN_LABELS[state.plan]}
-              </span>
-            )}
-          </span>
+    <Card data-testid="my-pro" className="gap-0 overflow-hidden border-accent/50 py-0">
+      <div className="h-1.5 bg-gradient-to-l from-accent to-accent/60" aria-hidden />
+      <CardContent className="space-y-3 p-4 md:p-6">
+        <div className="flex items-center gap-2.5">
+          <SealMark size={34} icon={Crown} label="عضوية Pro" />
+          <h2 className="flex-1 text-headline text-ink">اشتراكي</h2>
+          {state.plan && (
+            <span className="rounded-full bg-primary/5 px-3 py-1 text-label text-primary">الباقة: {PRO_PLAN_LABELS[state.plan]}</span>
+          )}
         </div>
 
-        {/* The date first: when it renews, or ends */}
-        {date && (
-          <p className="flex items-center gap-2 text-base font-bold text-foreground">
-            <CalendarClock className="h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
-            {state.pastDue ? `مزايا Pro مستمرة حتى ${date}` : state.cancelAtPeriodEnd ? `ينتهي في ${date}` : `يتجدد في ${date}`}
-          </p>
-        )}
-        {creditsLine && (
-          <p data-testid="pro-credits-line" className="-mt-2 text-sm text-muted-foreground">
-            {creditsLine}
-          </p>
-        )}
+        <span data-testid="pro-status" className={`inline-flex rounded-full border px-3 py-1 text-label font-bold ${status.tone}`}>
+          {status.label}
+        </span>
 
-        {state.pastDue && (
-          // One headline, then what happens (Pro design P1); the paid period's end is the date above (WEB-PAY-04)
+        {state.pastDue ? (
+          // One headline, then what happens (Pro design P1); the paid period's end is in the line (WEB-PAY-04)
           <div role="status" className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-relaxed text-amber-900">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
             <span>
               <span className="block font-bold">لم ينجح تجديد الدفع.</span>
+              {date ? `مزايا Pro مستمرة حتى ${date}. ` : ""}
               سنحاول مرة أخرى تلقائياً خلال الأيام القادمة، وإن لم ينجح الدفع ينتهي الاشتراك. يمكنك التأكد من بطاقتك أو رصيدها، وإن
               انتهى الاشتراك يمكنك الاشتراك من جديد ببطاقة أخرى.
             </span>
           </div>
+        ) : (
+          date && (
+            <p className="flex items-center gap-2 text-base font-bold tabular-nums text-foreground">
+              <CalendarClock className="h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
+              {state.cancelAtPeriodEnd ? `ينتهي في ${date}` : `يتجدد في ${date}`}
+            </p>
+          )
         )}
 
         {state.cancelAtPeriodEnd && !state.pastDue && (
@@ -110,7 +104,13 @@ export function MyProCard({ state, onChanged }: { state: MyProState; onChanged: 
           </p>
         )}
 
-        <ul className="grid gap-2 text-sm text-muted-foreground sm:grid-cols-3">
+        <ul className="space-y-1.5 text-sm text-muted-foreground">
+          {creditsLine && (
+            <li data-testid="pro-credits-line" className="flex items-center gap-2 font-semibold tabular-nums text-ink">
+              <Sparkles className="h-4 w-4 shrink-0 text-accent-ink" aria-hidden="true" />
+              {creditsLine}
+            </li>
+          )}
           {PRO_FEATURE_LABELS.map((f) => (
             <li key={f} className="flex items-center gap-2">
               <CheckCircle2 className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
@@ -125,26 +125,25 @@ export function MyProCard({ state, onChanged }: { state: MyProState; onChanged: 
           </p>
         )}
 
-        <div className="flex flex-wrap gap-2">
-          {state.cancelAtPeriodEnd ? (
-            <Button className="h-11 rounded-xl px-5 font-bold" disabled={busy !== null} onClick={() => manage("resume")}>
-              {busy === "resume" && <Loader2 className="h-4 w-4 animate-spin" />}
-              متابعة الاشتراك
-            </Button>
-          ) : (
-            <Button
-              variant="outline"
-              className="h-11 rounded-xl px-5"
-              disabled={busy !== null}
-              onClick={() => {
-                setError(null);
-                setConfirmOpen(true);
-              }}
-            >
-              إلغاء التجديد
-            </Button>
-          )}
-        </div>
+        {state.cancelAtPeriodEnd ? (
+          <Button size="cta" className="w-full rounded-xl font-bold" disabled={busy !== null} onClick={() => manage("resume")}>
+            {busy === "resume" && <Loader2 className="h-4 w-4 animate-spin" />}
+            متابعة الاشتراك
+          </Button>
+        ) : (
+          <Button
+            variant="outline"
+            size="cta"
+            className="w-full rounded-xl"
+            disabled={busy !== null}
+            onClick={() => {
+              setError(null);
+              setConfirmOpen(true);
+            }}
+          >
+            إلغاء التجديد
+          </Button>
+        )}
       </CardContent>
 
       <Dialog open={confirmOpen} onOpenChange={(o) => busy === null && setConfirmOpen(o)}>

@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
  * Line-art for empty states (design review P2-2 / S5; the app's `LineArt`): navy lines with one gold touch, 120 px,
  * drawn inline — no files, never a face. Same drawings as the app (120 × 120 grid).
  */
-export type LineArtKind = "dallah" | "envelope" | "cupsTray" | "door" | "window" | "lantern";
+export type LineArtKind = "dallah" | "envelope" | "cupsTray" | "door" | "window" | "lantern" | "wallet";
 
 const NAVY = { stroke: "var(--primary)", strokeWidth: 2.2, strokeLinecap: "round", strokeLinejoin: "round", fill: "none" } as const;
 const GOLD = { stroke: "var(--accent)", strokeWidth: 2.2, strokeLinecap: "round", fill: "none" } as const;
@@ -67,6 +67,17 @@ const DRAWINGS: Record<LineArtKind, ReactNode> = {
       <path {...NAVY} d="M38 96 L38 54 A22 22 0 0 1 82 54 L82 96 Z" />
       <path {...NAVY} d="M60 32 L60 96 M38 68 L82 68" />
       <path {...GOLD} d="M30 98 L90 98" />
+    </>
+  ),
+  // A wallet with two coins (an empty payment history)
+  wallet: (
+    <>
+      <rect {...NAVY} x="24" y="44" width="68" height="46" rx="8" />
+      <path {...NAVY} d="M30 44 L74 30 L80 44" />
+      <path {...NAVY} d="M92 58 L78 58 Q72 58 72 64 L72 70 Q72 76 78 76 L92 76" />
+      <circle {...GOLD_FILL} cx="80" cy="67" r="2.5" />
+      <circle {...GOLD} cx="98" cy="36" r="7" />
+      <circle {...GOLD} cx="88" cy="24" r="5" />
     </>
   ),
   // A hanging lantern

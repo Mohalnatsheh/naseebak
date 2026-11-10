@@ -74,7 +74,18 @@ export function MatchSeal({
 }
 
 /** The small «توافق متبادل» seal for a match card or the chat header: already drawn, never animated */
-export function SealMark({ size = 18, label = "توافق متبادل", className }: { size?: number; label?: string; className?: string }) {
+export function SealMark({
+  size = 18,
+  label = "توافق متبادل",
+  icon: Icon = Check,
+  className,
+}: {
+  size?: number;
+  label?: string;
+  /** The centre: a check for a match; the crown for «اشتراكي» (as in the app) */
+  icon?: typeof Check;
+  className?: string;
+}) {
   return (
     <span
       role="img"
@@ -87,7 +98,7 @@ export function SealMark({ size = 18, label = "توافق متبادل", classNa
       <svg viewBox="0 0 100 100" width={size} height={size} aria-hidden className="absolute inset-0">
         <Star animate={false} strokeWidth={7} />
       </svg>
-      <Check aria-hidden className="relative text-primary" style={{ width: size * 0.5, height: size * 0.5 }} strokeWidth={3} />
+      <Icon aria-hidden className="relative text-primary" style={{ width: size * 0.5, height: size * 0.5 }} strokeWidth={Icon === Check ? 3 : 2.25} />
     </span>
   );
 }

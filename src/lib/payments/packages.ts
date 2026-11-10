@@ -108,7 +108,8 @@ export function findAnyPackage(id: string | null | undefined): CreditPackage | u
   return findPackage(id) ?? (id ? RETIRED_PACKAGES.find((p) => p.id === id) : undefined);
 }
 
-const SYMBOL = { JOD: "د.أ", SAR: "ر.س" } as const;
+export const CURRENCY_SYMBOL = { JOD: "د.أ", SAR: "ر.س" } as const;
+const SYMBOL = CURRENCY_SYMBOL;
 
 /** «3 د.أ» / «15 ر.س» */
 export function formatPrice(p: Pick<CreditPackage, "price" | "currency">): string {

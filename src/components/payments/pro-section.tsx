@@ -2,7 +2,7 @@
 
 import { useRef, useState, type KeyboardEvent } from "react";
 import Link from "next/link";
-import { CheckCircle2, ChevronLeft, CircleDollarSign, Crown, Loader2, Sparkles } from "lucide-react";
+import { CheckCircle2, ChevronLeft, Crown, Loader2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { LoadError } from "@/components/shared/load-error";
@@ -11,7 +11,8 @@ import { MyProCard, PRO_FEATURE_LABELS } from "@/components/payments/my-pro-card
 import { useDashboardData } from "@/contexts/dashboard-context";
 import { trackEvent } from "@/lib/analytics";
 import { forViewer } from "@/lib/gendered-copy";
-import { formatPrice } from "@/lib/payments/packages";
+import { CURRENCY_SYMBOL } from "@/lib/payments/packages";
+import { MoneyAmount, UsdLine } from "@/components/payments/money";
 import { PRO_PAGE_PATH, PRO_PLAN_IDS, PRO_PLAN_LABELS, type ProPlanId, type ProPlanOffer } from "@/lib/pro/plans";
 import type { MyProState } from "@/lib/pro/pro-types";
 import { arabicCount, cn } from "@/lib/utils";
@@ -164,15 +165,13 @@ export function ProPlanChooser({ offers, canBuy }: { offers: ProPlanOffer[]; can
 
           <div className="flex flex-wrap items-end justify-between gap-x-3 gap-y-1" aria-live="polite">
             <div>
+              {/* Money typography: large price, the currency smaller and muted, the dollars as a muted line */}
               <div className="flex items-baseline gap-1.5">
-                <span className="text-3xl font-black text-primary">{formatPrice({ price: offer.price, currency: offer.currency })}</span>
-                <span className="text-sm font-semibold text-muted-foreground">{PER_PERIOD[offer.id]}</span>
+                <MoneyAmount amount={offer.price} symbol={CURRENCY_SYMBOL[offer.currency]} size="md" />
+                <span className="text-label text-muted-ink">{PER_PERIOD[offer.id]}</span>
               </div>
               {offer.chargeCurrency === "usd" && (
-                <p className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-primary">
-                  <CircleDollarSign className="h-3.5 w-3.5" aria-hidden="true" />
-                  {forViewer(gender, "تدفع", "تدفعين")} {(offer.chargeAmount / 100).toFixed(2)}$ بالدولار
-                </p>
+                <UsdLine className="mt-1" lead={forViewer(gender, "تدفع", "تدفعين")} usd={offer.chargeAmount / 100} />
               )}
             </div>
             {/* Only next to other plans: on its own, "most chosen" says nothing */}

@@ -151,7 +151,7 @@ describe("MemberAvatar", () => {
 
 describe("line-art empty states", () => {
   it("draws every kind at 120 px, decorative, in navy with a gold touch", () => {
-    const kinds: LineArtKind[] = ["dallah", "envelope", "cupsTray", "door", "window", "lantern"];
+    const kinds: LineArtKind[] = ["dallah", "envelope", "cupsTray", "door", "window", "lantern", "wallet"];
     for (const kind of kinds) {
       const { container, unmount } = render(<LineArt kind={kind} />);
       const svg = container.querySelector("svg")!;

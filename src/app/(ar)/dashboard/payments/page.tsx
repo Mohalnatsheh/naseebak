@@ -32,6 +32,8 @@ import { useDashboardData } from "@/contexts/dashboard-context";
 import { creditLine } from "@/lib/suggestions/copy";
 import { arabicCount } from "@/lib/utils";
 import { LoadError } from "@/components/shared/load-error";
+import { MoneyAmount, UsdLine } from "@/components/payments/money";
+import { EmptyState } from "@/components/shared/line-art";
 import { PageHeader } from "@/components/shared/page-header";
 import { markPageNotificationsRead } from "@/lib/notifications-client";
 import { discountPercent } from "@/lib/payments/packages";
@@ -490,7 +492,7 @@ function PaymentsContent() {
         <div className="inline-flex min-h-11 items-center gap-2.5 rounded-full bg-accent px-5 py-2 text-accent-foreground shadow-sm shadow-accent/20">
           <Sparkles className="h-4 w-4 shrink-0" aria-hidden="true" />
           <span className="text-sm font-medium">رصيدك الحالي</span>
-          <span className="text-2xl font-black leading-none">{matchCredits}</span>
+          <span className="text-2xl font-black leading-none tabular-nums">{matchCredits}</span>
           <span className="text-sm font-medium">رصيد</span>
         </div>
       </PageHeader>
@@ -536,41 +538,32 @@ function PaymentsContent() {
               }}
             >
               <Card
-                className={`group relative overflow-hidden transition-all duration-500 hover:-translate-y-2 ${
-                  pkg.popular
-                    ? "border-accent/50 shadow-2xl shadow-accent/15 hover:shadow-accent/25 ring-1 ring-accent/20"
-                    : "border-border/40 hover:border-primary/30 hover:shadow-xl hover:shadow-primary/10"
+                className={`group relative gap-0 overflow-hidden py-0 transition-colors ${
+                  pkg.popular ? "border-primary/60 ring-1 ring-primary/20" : "border-border hover:border-primary/30"
                 }`}
               >
                 {/* Top accent line */}
-                <div
-                  className={`h-1.5 ${
-                    pkg.popular
-                      ? "bg-gradient-to-l from-accent via-accent/80 to-accent/60"
-                      : "bg-gradient-to-l from-primary via-secondary to-primary/60"
-                  }`}
-                />
+                <div className={`h-1.5 ${pkg.popular ? "bg-gradient-to-l from-accent to-accent/70" : "bg-gradient-to-l from-primary to-primary-2"}`} />
 
                 {/* Popular badge */}
                 {pkg.popular && (
-                  <div className="absolute top-5 left-1/2 -translate-x-1/2 z-10">
-                    <div className="flex items-center gap-1.5 bg-accent text-accent-foreground text-xs font-bold px-4 py-1.5 rounded-full shadow-lg shadow-accent/30">
-                      <Crown className="h-3.5 w-3.5" />
+                  // «الأكثر طلباً» as an outlined navy chip (gold stays for fills on navy)
+                  <div className="absolute top-4 start-4 z-10">
+                    <div className="flex items-center gap-1.5 rounded-full border border-primary/40 bg-card px-3 py-1 text-caption font-bold text-primary">
+                      <Crown className="h-3.5 w-3.5" aria-hidden />
                       الأكثر طلباً
                     </div>
                   </div>
                 )}
 
                 {/* Background decorations for popular */}
-                {pkg.popular && (
-                  <div className="absolute inset-0 bg-gradient-to-b from-accent/[0.04] via-transparent to-accent/[0.02] pointer-events-none" />
-                )}
 
                 <CardContent
-                  className={`relative p-5 md:p-6 ${pkg.popular ? "pt-11 md:pt-12" : "pt-5 md:pt-8"}`}
+                  // Phones: a compact pack (name, price, button); the icon and the feature list from md up
+                  className={`relative p-4 md:p-6 ${pkg.popular ? "pt-12 md:pt-12" : "md:pt-8"}`}
                 >
                   {/* Icon */}
-                  <div className="flex justify-center mb-3 md:mb-5">
+                  <div className="mb-5 hidden justify-center md:flex">
                     <div
                       className={`h-12 w-12 md:h-16 md:w-16 rounded-2xl flex items-center justify-center transition-transform duration-500 group-hover:scale-110 group-hover:rotate-3 ${
                         pkg.popular
@@ -583,18 +576,18 @@ function PaymentsContent() {
                   </div>
 
                   {/* Package name */}
-                  <h3 className="text-center font-bold text-lg text-foreground mb-2">
+                  <h3 className="mb-1 text-headline text-ink md:mb-2 md:text-center">
                     {pkg.name}
                   </h3>
 
                   {/* Credits count */}
                   {/* The count chip only when the package name doesn't already say it */}
                   {!pkg.name.includes(String(pkg.credits)) && (
-                  <div className="text-center mb-4">
+                  <div className="mb-3 md:mb-4 md:text-center">
                     <span
                       className={`inline-flex items-center gap-1.5 text-sm font-semibold px-3 py-1 rounded-full ${
                         pkg.popular
-                          ? "bg-accent/10 text-accent-foreground border border-accent/20"
+                          ? "bg-accent-soft text-accent-ink border border-accent/30"
                           : "bg-primary/5 text-primary border border-primary/10"
                       }`}
                     >
@@ -606,54 +599,38 @@ function PaymentsContent() {
                   </div>
                   )}
 
-                  {/* Price (the opening offer shows the old price struck through and the saving) */}
-                  <div className="text-center mb-1">
+                  {/* Price (money typography): large digits, the currency smaller and muted, the opening offer's old price
+                      struck through with the saving; the dollars charged as a muted line */}
+                  <div className="mb-1 md:text-center">
                     {(() => {
                       const off = discountPercent({ price: pkg.price, wasPrice: pkg.wasPrice });
                       return off ? (
-                        <div className="mb-1 flex items-center justify-center gap-2">
-                          <span className="text-base font-semibold text-muted-foreground line-through decoration-destructive/70 decoration-2">
+                        <div className="mb-1 flex items-center gap-2 md:justify-center">
+                          <span className="text-label tabular-nums text-muted-ink line-through decoration-destructive/70 decoration-2">
                             {pkg.wasPrice} {currencySymbol(pkg)}
                           </span>
-                          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-800">
+                          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-caption font-bold tabular-nums text-emerald-800">
                             وفّر {off}%
                           </span>
                         </div>
                       ) : null;
                     })()}
-                    <div className="flex items-baseline justify-center gap-1.5">
-                      <span
-                        className={`text-4xl md:text-5xl font-black ${
-                          pkg.popular ? "text-accent-foreground" : "text-primary"
-                        }`}
-                      >
-                        {pkg.price}
-                      </span>
-                      <span className="text-base text-muted-foreground font-semibold">
-                        {currencySymbol(pkg)}
-                      </span>
-                    </div>
+                    <MoneyAmount amount={pkg.price} symbol={currencySymbol(pkg)} />
                   </div>
 
                   {/* Per credit, and the saving against the smallest package (owner request 2026-11-05) */}
-                  <p className={`text-center text-xs text-muted-foreground ${pkg.chargeUsd ? "mb-1" : "mb-4 md:mb-6"}`}>
+                  <p className="text-caption tabular-nums text-muted-ink md:text-center">
                     {(pkg.price / pkg.credits).toFixed(2)} {currencySymbol(pkg)} لكل رصيد
                     {(() => {
                       const save = savingVsSmallest(pkg, packages);
                       return save > 0 ? <span className="ms-1.5 font-bold text-emerald-700">· الرصيد أرخص {save}٪</span> : null;
                     })()}
                   </p>
-                  {pkg.chargeUsd ? (
-                    <div className="flex justify-center mb-4 md:mb-6">
-                      <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/15 bg-primary/5 px-3 py-1 text-sm font-semibold text-primary">
-                        <CircleDollarSign className="h-4 w-4" />
-                        تدفع {pkg.chargeUsd.toFixed(2)}$ بالدولار
-                      </span>
-                    </div>
-                  ) : null}
+                  {pkg.chargeUsd ? <UsdLine usd={pkg.chargeUsd} className="mt-0.5 md:text-center" /> : null}
+                  <div className="mb-4 md:mb-6" />
 
                   {/* Features */}
-                  <div className="space-y-2 md:space-y-2.5 mb-5 md:mb-6">
+                  <div className="mb-6 hidden space-y-2.5 md:block">
                     {features.map((feat, i) => (
                       <div
                         key={i}
@@ -687,11 +664,9 @@ function PaymentsContent() {
 
                   {/* CTA Button */}
                   <Button
-                    className={`w-full h-12 rounded-xl font-bold text-base transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] border-0 ${
-                      pkg.popular
-                        ? "bg-accent text-accent-foreground shadow-lg shadow-accent/25 hover:shadow-xl hover:shadow-accent/35 hover:brightness-110"
-                        : "bg-primary text-primary-foreground shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 hover:brightness-110"
-                    }`}
+                    size="cta"
+                    // Navy on every pack: gold fills belong on navy surfaces only (P2-4 / DS-18)
+                    className="w-full rounded-xl text-base font-bold"
                     onClick={() => handlePurchase(pkg.id, pkg.name)}
                     disabled={purchasing === pkg.id || !purchasesEnabled}
                     // The package in the name: three «شراء الآن» on one page (QA PA-L2)
@@ -727,6 +702,11 @@ function PaymentsContent() {
           سياسة الاسترداد
         </Link>
       </p>
+
+      {/* No payments yet: the wallet drawing (no faces) */}
+      {payments.length === 0 && (
+        <EmptyState art="wallet" title="لا مدفوعات بعد" description="تظهر هنا كل عملية شراء للرصيد أو اشتراك Pro." />
+      )}
 
       {/* Payment History */}
       {payments.length > 0 && (
@@ -813,12 +793,7 @@ function PaymentsContent() {
                         </div>
 
                         <div className="flex flex-col items-end gap-1.5">
-                          <span className="text-lg font-bold text-foreground">
-                            {p.amount}{" "}
-                            <span className="text-xs font-medium text-muted-foreground">
-                              {currencyLabel(p.currency)}
-                            </span>
-                          </span>
+                          <MoneyAmount amount={p.amount} symbol={currencyLabel(p.currency)} size="sm" />
                           <div className="flex items-center gap-2">
                             <span
                               className={`inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-0.5 rounded-full ${

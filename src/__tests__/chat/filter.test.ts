@@ -447,3 +447,36 @@ describe("QA round 2: glued, spaced and transliterated (WC2-01, WC2-02, WC2-09, 
     expect(mayBePartOfNumber("عندي ثلاث اولاد واعمارهم خمسة وسبعة وعشرة")).toBe(false);
   });
 });
+
+describe("final review I2: «و» glued to a short number is a separator, not a letter between digits", () => {
+  const allowed = (t: string) => expect(checkMessage(t).ok, t).toBe(true);
+  const reason = (t: string) => {
+    const r = checkMessage(t);
+    return r.ok ? null : r.reason;
+  };
+
+  it.each([
+    "اعمارهم 30 و27 و25 و22 و19",
+    "اخواني ٤ وانا الخامس، اعمارهم ٣٠ و٢٧ و٢٥ و٢٢",
+    "اخواتي 28 و26 و24 و21 و19 و17",
+    "عندي ولدين اعمارهم 7 و5 وبنت عمرها 3",
+    "اطفالي 12 و9 و6 و4 و2 سنين",
+    "الأسعار 15 و20 و25 و30 و45 دينار",
+    "سافرت سنة 2015 و2017 و2019 و2021",
+  ])("a list of ages, prices or years passes: %s", (t) => allowed(t));
+
+  it.each([
+    // Glued on both sides: one run once the connector is dropped
+    "079و123و4567",
+    "07و95و55و12و34",
+    "0795و551و234",
+    "07ب95ب55ب12ب34",
+    // A leading-zero group is how a phone number starts, so the glued pieces count
+    "07 و95 و55 و12 و34",
+    "رقمي 0795 و55 و12 و34",
+    "رقمي و07 و95 و55 و12 و34",
+    "ف07 ف95 ف55 ف12 ف34",
+    // Spelled digits with the connector glued
+    "صفر و7 و9 و5 و5 و1 و2 و3 و4",
+  ])("a phone number with «و» glued between short pieces is still blocked: %s", (t) => expect(reason(t)).toBe("CONTACT"));
+});

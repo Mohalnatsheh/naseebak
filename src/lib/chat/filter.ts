@@ -279,11 +279,27 @@ function words(s: string): string[] {
 }
 
 /**
+ * A short number with the Arabic connector glued in front («و27», «ف5», «ب30»): a word separator, not a
+ * letter between digits, so it reads as «و» then 27 (final review I2, owner ruling). A list of ages or
+ * prices written this way («اعمارهم 30 و27 و25 و22 و19») is ordinary family talk, so hasScatteredNumber
+ * doesn't count these groups. Pieces glued on both sides ("079و123و4567") are joined by
+ * normaliseNumberDisguise first and stay caught as one run.
+ */
+const GLUED_CONNECTOR_GROUP = /^[وفب]\d{1,2}$/u;
+
+/**
  * Words for the number checks: also split where letters meet digits ("zero7nine1two3" → zero 7 nine 1 two 3,
  * QA WC2-01), and transliterated number words read as digits inside a run of 4+ (`TRANSLITERATED_UNITS`).
+ * `glued` marks the digit groups split off a leading connector (`GLUED_CONNECTOR_GROUP`).
  */
-function numberWords(s: string): string[] {
-  const list = words(s).flatMap((w) => w.split(/(?<=\p{L})(?=\p{N})|(?<=\p{N})(?=\p{L})/u).filter(Boolean));
+function numberWords(s: string): { list: string[]; glued: Set<number> } {
+  const list: string[] = [];
+  const glued = new Set<number>();
+  for (const w of words(s)) {
+    const parts = w.split(/(?<=\p{L})(?=\p{N})|(?<=\p{N})(?=\p{L})/u).filter(Boolean);
+    if (GLUED_CONNECTOR_GROUP.test(w)) glued.add(list.length + 1);
+    list.push(...parts);
+  }
   const counts = (w: string) => /^\d+$/.test(w) || numberWord(w) !== null || w in TRANSLITERATED_UNITS;
   const out = [...list];
   let start = 0;
@@ -294,7 +310,7 @@ function numberWords(s: string): string[] {
     }
     start = i + 1;
   }
-  return out;
+  return { list: out, glued };
 }
 
 /**
@@ -302,7 +318,7 @@ function numberWords(s: string): string[] {
  * number the way people say them: «مية وثلاثة وعشرين» = 123, 3 digits; «سبع مية» = 700; "twenty one" = 21)
  * and other words. `single` marks a spelled number that is one digit word on its own («صفر», «سبعة»).
  */
-type Token = { kind: "written"; text: string } | { kind: "spelled"; digits: number; single: boolean } | { kind: "word"; text: string };
+type Token = { kind: "written"; text: string; glued?: boolean } | { kind: "spelled"; digits: number; single: boolean } | { kind: "word"; text: string };
 
 function tokens(s: string): Token[] {
   const out: Token[] = [];
@@ -312,11 +328,12 @@ function tokens(s: string): Token[] {
     out.push({ kind: "spelled", digits: group.value === 0 ? 1 : String(group.value).length, single: group.parts === 1 && group.last === "u" });
     group = null;
   };
-  for (const word of numberWords(s)) {
+  const { list, glued } = numberWords(s);
+  for (const [i, word] of list.entries()) {
     const n = numberWord(word);
     if (!n) {
       flush();
-      out.push(/^\d+$/.test(word) ? { kind: "written", text: word } : { kind: "word", text: word });
+      out.push(/^\d+$/.test(word) ? { kind: "written", text: word, ...(glued.has(i) && { glued: true }) } : { kind: "word", text: word });
       continue;
     }
     const g = group as { value: number; last: NumberWord["place"]; parts: number; hasUnit: boolean } | null;
@@ -353,7 +370,11 @@ function tokens(s: string): Token[] {
 function hasScatteredNumber(s: string): boolean {
   let spelled = 0;
   let total = 0;
-  for (const t of tokens(s)) {
+  const list = tokens(s);
+  // A group with a leading zero ("07", «و05») is how a phone number starts, never an age or a price: then the
+  // glued list items count again ("07 و95 و55 و12 و34")
+  const phoneStart = list.some((t) => t.kind === "written" && t.text.length >= 2 && t.text.startsWith("0"));
+  for (const t of list) {
     if (t.kind === "spelled") {
       // Single spelled digits only: numbers said the long way («مية وسبعين») with words between them are
       // how people describe themselves (age, height, weight, salary); read in a row they are caught by
@@ -362,7 +383,8 @@ function hasScatteredNumber(s: string): boolean {
         spelled += 1;
         total += 1;
       }
-    } else if (t.kind === "written" && !ordinaryNumber(t.text)) {
+    } else if (t.kind === "written" && !(t.glued && !phoneStart) && !ordinaryNumber(t.text)) {
+      // A short number with «و»/«ف»/«ب» glued in front is a list item («30 و27 و25»), not a phone group
       total += t.text.length;
     }
   }

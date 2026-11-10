@@ -30,8 +30,22 @@ function chatResponse(n: number, reportedIndex?: number) {
   };
 }
 
-async function renderPage(body: unknown) {
-  vi.spyOn(globalThis, "fetch").mockResolvedValue({ ok: true, status: 200, json: async () => body } as Response);
+/** The paged API (X1, ADM-26): ?limit=N newest, &before=<id> the N just older */
+async function renderPage(body: ReturnType<typeof chatResponse>) {
+  const all = body.messages;
+  vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+    const url = new URL(String(input), "http://x");
+    const limit = Number(url.searchParams.get("limit") ?? 3000);
+    const before = url.searchParams.get("before");
+    const end = before ? all.findIndex((m) => m.id === before) : all.length;
+    const from = Math.max(0, end - limit);
+    const page = all.slice(from, end);
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({ ...body, messages: page, hasMore: from > 0, nextBefore: from > 0 ? page[0].id : null }),
+    } as Response;
+  });
   Element.prototype.scrollIntoView = vi.fn();
   await act(async () => {
     render(
@@ -49,9 +63,11 @@ describe("admin chat detail (ADM-26, design P2)", () => {
     await renderPage(chatResponse(450));
     expect(await screen.findByText("msg 449")).toBeTruthy();
     expect(screen.queryByText("msg 0")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: /Load older \(250 more\)/ }));
-    fireEvent.click(screen.getByRole("button", { name: /Load older \(50 more\)/ }));
-    expect(screen.getByText("msg 0")).toBeTruthy();
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: /Load older/ })));
+    expect(await screen.findByText("msg 50")).toBeTruthy();
+    expect(screen.queryByText("msg 49")).toBeNull();
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: /Load older/ })));
+    expect(await screen.findByText("msg 0")).toBeTruthy();
     expect(screen.queryByRole("button", { name: /Load older/ })).toBeNull();
   });
 
@@ -59,8 +75,8 @@ describe("admin chat detail (ADM-26, design P2)", () => {
     await renderPage(chatResponse(450, 3));
     await screen.findByText("msg 449");
     expect(screen.queryByText("msg 3")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: /Reported message/ }));
-    expect(screen.getByText("msg 3")).toBeTruthy();
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: /Reported message/ })));
+    expect(await screen.findByText("msg 3")).toBeTruthy();
   });
 
   it("names are isolated in the header counts", async () => {

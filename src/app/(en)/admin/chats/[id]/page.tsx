@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useCallback, useEffect, useMemo, useState } from "react";
+import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { ArrowDown, ArrowLeft, ArrowUp, Check, CheckCheck, ChevronDown, ChevronUp, Eye, Flag, Heart, Loader2, MessagesSquare, Search } from "lucide-react";
@@ -107,41 +107,91 @@ export default function AdminChatPage({ params }: { params: Promise<{ id: string
   const { id } = use(params);
   const [chat, setChat] = useState<ChatDetail | null>(null);
   const [messages, setMessages] = useState<Msg[]>([]);
-  const [truncated, setTruncated] = useState(false);
+  // Server paging (ADM-26): the newest PAGE first, «Load older» asks for the page before the oldest one loaded
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingOlder, setLoadingOlder] = useState(false);
   const [error, setError] = useState("");
   const [find, setFind] = useState("");
   const [only, setOnly] = useState("");
   const [ending, setEnding] = useState(false);
-  // How many of the newest messages are drawn (searching or filtering looks through all of them)
-  const [windowSize, setWindowSize] = useState(PAGE);
+  const [target, setTarget] = useState<string | null>(null);
   const [reportAt, setReportAt] = useState(-1);
   const confirm = useConfirm();
+  // The latest loaded state, for the loops below (state updates land after them)
+  const loaded = useRef<{ messages: Msg[]; nextBefore: string | null }>({ messages: [], nextBefore: null });
+
+  const fetchPage = useCallback(
+    async (before: string | null, limit = PAGE) => {
+      const q = new URLSearchParams({ limit: String(limit), ...(before && { before }) });
+      const res = await fetch(`/api/admin/chats/${id}/messages?${q}`);
+      if (!res.ok) throw new Error(res.status === 404 ? "Chat not found." : "Could not load the chat.");
+      return res.json() as Promise<{ chat: ChatDetail; messages?: Msg[]; hasMore?: boolean; nextBefore?: string | null }>;
+    },
+    [id],
+  );
+
+  function keep(list: Msg[], more: boolean, before: string | null) {
+    loaded.current = { messages: list, nextBefore: more ? before : null };
+    setMessages(list);
+    setHasMore(more);
+  }
 
   const load = useCallback(async () => {
     setError("");
     try {
-      const res = await fetch(`/api/admin/chats/${id}/messages`);
-      if (!res.ok) throw new Error(res.status === 404 ? "Chat not found." : "Could not load the chat.");
-      const d = await res.json();
+      const d = await fetchPage(null);
       setChat(d.chat);
-      setMessages(d.messages ?? []);
-      setTruncated(!!d.truncated);
+      keep(d.messages ?? [], !!d.hasMore, d.nextBefore ?? null);
+      return true;
     } catch (e) {
       setError((e as Error).message);
+      return false;
     }
-  }, [id]);
+  }, [fetchPage]);
 
+  /**
+   * Older pages: one («Load older»), until `msgId` is loaded, or everything (`msgId` null, capped at 3,000 like the
+   * old single page). Stops when none are left.
+   */
+  async function loadOlderUntil(msgId: string | null | "one", pageSize = PAGE) {
+    setLoadingOlder(true);
+    try {
+      let { messages: list, nextBefore: before } = loaded.current;
+      let pages = 0;
+      while (
+        before &&
+        (msgId === "one" ? pages === 0 : msgId === null ? list.length < 3000 : !list.some((m) => m.id === msgId))
+      ) {
+        pages++;
+        const d = await fetchPage(before, pageSize);
+        const seen = new Set(list.map((m) => m.id));
+        list = [...(d.messages ?? []).filter((m) => !seen.has(m.id)), ...list];
+        before = d.hasMore ? d.nextBefore ?? null : null;
+        keep(list, !!before, before);
+        if (msgId !== null && pageSize === PAGE) pageSize = 500;
+      }
+    } catch {
+      toast.error("Could not load older messages.");
+    } finally {
+      setLoadingOlder(false);
+    }
+  }
+
+  // Opened from a report («Show in chat», #msg-<id>): load back to that message, then scroll to it
   useEffect(() => {
-    load();
+    let alive = true;
+    (async () => {
+      if (!(await load()) || !alive) return;
+      if (typeof window === "undefined" || !window.location.hash.startsWith("#msg-")) return;
+      const wanted = window.location.hash.slice(5);
+      await loadOlderUntil(wanted);
+      if (alive) setTarget(wanted);
+    })();
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per chat
   }, [load]);
-
-  // Opened from a report («Show in chat», #msg-<id>): scroll to that message once the chat is on screen
-  const loadedCount = messages.length;
-  const [hashTarget, setHashTarget] = useState<string | null>(null);
-  useEffect(() => {
-    if (!loadedCount || typeof window === "undefined" || !window.location.hash.startsWith("#msg-")) return;
-    setHashTarget(window.location.hash.slice(5));
-  }, [loadedCount]);
 
   async function endChat() {
     if (!chat) return;
@@ -172,29 +222,29 @@ export default function AdminChatPage({ params }: { params: Promise<{ id: string
   const reportedIds = useMemo(() => new Set((chat?.reports ?? []).flatMap((r) => (r.messageId ? [r.messageId] : []))), [chat]);
   const term = find.trim().toLowerCase();
   const filteringNow = !!term || !!only;
-  const matching = useMemo(
-    () => messages.filter((m) => (!only || m.senderId === only) && (!term || m.body.toLowerCase().includes(term))),
-    [messages, only, term],
+  const shown = useMemo(
+    () => (filteringNow ? messages.filter((m) => (!only || m.senderId === only) && (!term || m.body.toLowerCase().includes(term))) : messages),
+    [messages, only, term, filteringNow],
   );
-  // Reported messages in the order they appear: the jump chip steps through them
-  const reportedInOrder = useMemo(() => messages.filter((m) => reportedIds.has(m.id)).map((m) => m.id), [messages, reportedIds]);
-  // Keep a message the admin jumps to inside the drawn window
-  const needIndex = (msgId: string | null) => (msgId ? messages.findIndex((m) => m.id === msgId) : -1);
-  const target = reportAt >= 0 ? reportedInOrder[reportAt] ?? null : hashTarget;
-  const targetIndex = needIndex(target);
-  const windowFrom = Math.max(0, Math.min(messages.length - windowSize, targetIndex >= 0 ? targetIndex - 20 : Number.MAX_SAFE_INTEGER));
-  const shown = filteringNow ? matching : messages.slice(windowFrom);
-  const hiddenOlder = filteringNow ? 0 : windowFrom;
+  // Reported messages oldest first; one not loaded yet is older than everything loaded
+  const reportedInOrder = useMemo(() => {
+    const at = new Map(messages.map((m, i) => [m.id, i]));
+    return [...reportedIds].sort((a, b) => (at.get(a) ?? -1) - (at.get(b) ?? -1));
+  }, [messages, reportedIds]);
 
   useEffect(() => {
     if (target) document.getElementById(`msg-${target}`)?.scrollIntoView({ block: "center" });
-  }, [target, windowFrom]);
+  }, [target, messages.length]);
 
-  function jumpReported(step: 1 | -1) {
+  async function jumpReported(step: 1 | -1) {
     if (!reportedInOrder.length) return;
     setFind("");
     setOnly("");
-    setReportAt((i) => (i < 0 ? (step === 1 ? 0 : reportedInOrder.length - 1) : (i + step + reportedInOrder.length) % reportedInOrder.length));
+    const next = reportAt < 0 ? (step === 1 ? 0 : reportedInOrder.length - 1) : (reportAt + step + reportedInOrder.length) % reportedInOrder.length;
+    const msgId = reportedInOrder[next];
+    setReportAt(next);
+    await loadOlderUntil(msgId);
+    setTarget(msgId);
   }
 
   if (error) {
@@ -269,7 +319,7 @@ export default function AdminChatPage({ params }: { params: Promise<{ id: string
             {paused
               ? ` · Paused ${fmtDateTime(chat.endedAt)} while reports are reviewed (resumes by itself if cleared)`
               : chat.endedAt && ` · Ended ${fmtDate(chat.endedAt)} ${endedByLabel(chat.endedBy)}`}
-            {` · ${messages.length} message${messages.length === 1 ? "" : "s"} (`}
+            {` · ${hasMore ? "latest " : ""}${messages.length} message${messages.length === 1 ? "" : "s"}${hasMore ? " loaded" : ""} (`}
             <bdi>{left.firstName}</bdi> {countOf(left.id)} · <bdi>{right.firstName}</bdi> {countOf(right.id)})
             {messages.length > 0 && ` · last ${fmtDate(messages[messages.length - 1].createdAt)} ${fmtTime(messages[messages.length - 1].createdAt)}`}
           </p>
@@ -294,10 +344,14 @@ export default function AdminChatPage({ params }: { params: Promise<{ id: string
               </select>
               <a
                 href="#chat-top"
-                onClick={() => {
+                onClick={async (e) => {
                   setReportAt(-1);
-                  setHashTarget(null);
-                  setWindowSize(messages.length);
+                  setTarget(null);
+                  if (!hasMore) return;
+                  // The first message is on an older page: load back to it, then go there
+                  e.preventDefault();
+                  await loadOlderUntil(null, 500);
+                  document.getElementById("chat-top")?.scrollIntoView();
                 }}
                 className="inline-flex h-9 items-center gap-1 rounded-md border px-2.5 text-sm hover:bg-muted"
               >
@@ -331,17 +385,22 @@ export default function AdminChatPage({ params }: { params: Promise<{ id: string
           )}
         </CardHeader>
         <CardContent>
-          {truncated && (
-            <p className="mb-3 rounded-md bg-amber-100 px-3 py-2 text-sm text-amber-800">Showing the latest {messages.length} messages only.</p>
+          {filteringNow && hasMore && (
+            <p className="mb-3 flex flex-wrap items-center gap-2 rounded-md bg-amber-100 px-3 py-2 text-sm text-amber-800">
+              Searching the {messages.length.toLocaleString("en-GB")} loaded messages only.
+              <Button size="sm" variant="outline" className="h-7" disabled={loadingOlder} onClick={() => loadOlderUntil(null, 500)}>
+                {loadingOlder ? <Loader2 className="h-3 w-3 animate-spin" /> : "Load all"}
+              </Button>
+            </p>
           )}
           {messages.length === 0 ? (
             <AdminEmptyState icon={MessagesSquare} title="No messages in this chat" />
           ) : (
             <div id="chat-top" className="space-y-2 rounded-lg bg-muted/30 p-3 sm:p-4">
-              {hiddenOlder > 0 && (
+              {hasMore && !filteringNow && (
                 <div className="flex justify-center pb-2">
-                  <Button size="sm" variant="outline" onClick={() => setWindowSize((n) => n + PAGE)}>
-                    <ArrowUp className="me-1 h-3.5 w-3.5" /> Load older ({hiddenOlder.toLocaleString("en-GB")} more)
+                  <Button size="sm" variant="outline" disabled={loadingOlder} onClick={() => loadOlderUntil("one")}>
+                    {loadingOlder ? <Loader2 className="me-1 h-3.5 w-3.5 animate-spin" /> : <ArrowUp className="me-1 h-3.5 w-3.5" />} Load older messages
                   </Button>
                 </div>
               )}

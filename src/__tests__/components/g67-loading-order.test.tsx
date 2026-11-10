@@ -2,6 +2,9 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, act, fireEvent } from "@testing-library/react";
 
 const router = vi.hoisted(() => ({ push: () => {}, replace: () => {}, refresh: () => {} }));
+const nav = vi.hoisted(() => ({ redirect: vi.fn() }));
+const cycle = vi.hoisted(() => ({ getCycleFlags: vi.fn() }));
+vi.mock("@/lib/settings", () => cycle);
 const data = vi.hoisted(() => ({ current: {} as Record<string, unknown> }));
 const autoSave = vi.hoisted(() => ({
   enabled: [] as boolean[],
@@ -19,6 +22,7 @@ vi.mock("next/navigation", () => ({
   useRouter: () => router,
   useSearchParams: () => new URLSearchParams(),
   usePathname: () => "/dashboard",
+  redirect: nav.redirect,
 }));
 vi.mock("@/hooks/use-auto-save", () => ({
   useAutoSave: (enabled: boolean) => {
@@ -52,26 +56,23 @@ describe("G67: pages wait for the switch flags before switch-dependent copy", ()
     expect(screen.getByText("جاري تحميل التوافقات...")).toBeTruthy();
   });
 
-  it("/dashboard/matches sends shared-suggestion members to the «توافق متبادل» tab, keeping ?match=", async () => {
-    const replace = vi.spyOn(router, "replace");
-    vi.spyOn(globalThis, "fetch").mockImplementation(() => json({ matches: [], totalPages: 1 }));
-    window.history.replaceState(null, "", "/dashboard/matches?match=m%201");
-    data.current = { ...data.current, loading: false, profile: { gender: "MALE" }, counts: { flags: newFlags } };
+  it("/dashboard/matches sends shared-suggestion members to the «توافق متبادل» tab on the server, keeping ?match= (PA-M2)", async () => {
+    nav.redirect.mockClear();
+    cycle.getCycleFlags.mockResolvedValue(newFlags);
     const { default: MatchesPage } = await import("@/app/(ar)/dashboard/matches/page");
-    render(<MatchesPage />);
-    await act(async () => {});
-    expect(replace).toHaveBeenCalledWith("/dashboard/suggestions?tab=matches&match=m%201");
-    window.history.replaceState(null, "", "/");
+    await MatchesPage({ searchParams: Promise.resolve({ match: "m 1" }) });
+    expect(nav.redirect).toHaveBeenCalledWith("/dashboard/suggestions?tab=matches&match=m%201");
   });
 
   it("/dashboard/matches still shows the list on its own when shared suggestions are off", async () => {
-    const replace = vi.spyOn(router, "replace");
+    nav.redirect.mockClear();
+    cycle.getCycleFlags.mockResolvedValue(legacyFlags);
     vi.spyOn(globalThis, "fetch").mockImplementation(() => json({ matches: [], totalPages: 1 }));
     data.current = { ...data.current, loading: false, profile: { gender: "MALE" }, counts: { flags: legacyFlags, pendingIntros: 0 } };
     const { default: MatchesPage } = await import("@/app/(ar)/dashboard/matches/page");
-    render(<MatchesPage />);
+    render(await MatchesPage({ searchParams: Promise.resolve({}) }));
     await waitFor(() => expect(screen.getByText("التوافقات المتبادلة")).toBeTruthy());
-    expect(replace).not.toHaveBeenCalled();
+    expect(nav.redirect).not.toHaveBeenCalled();
   });
 
   it("payments page shows its loader while the dashboard context is loading", async () => {

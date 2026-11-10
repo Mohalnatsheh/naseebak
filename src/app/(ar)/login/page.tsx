@@ -5,7 +5,7 @@ import Link from "@/components/shared/site-link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
 import Image from "next/image";
-import { LogIn, Loader2, Shield, HeartHandshake, Sparkles, Send, Info } from "lucide-react";
+import { LogIn, Loader2, Send, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -27,6 +27,7 @@ import { DialCodeToggle } from "@/components/shared/dial-code-toggle";
 import { COUNTRIES, type CountryCode } from "@/lib/countries";
 import { publicCopy } from "@/lib/public-copy";
 import { dialCountryFor, isPhoneFor, phoneFormatsError, phoneWord } from "@/lib/phone-field";
+import { AuthShell, AuthCardRule } from "@/components/shared/auth-shell";
 
 function LoginPageContent() {
   const router = useRouter();
@@ -218,148 +219,7 @@ function LoginPageContent() {
   }
 
   return (
-    <main id="main" tabIndex={-1} className="flex min-h-screen flex-row-reverse">
-      {/* DECORATIVE PANEL (Right side in RTL) */}
-      <div className="relative hidden lg:flex lg:w-1/2 xl:w-[55%] items-center justify-center overflow-hidden">
-        {/* Amman at blue hour under the brand blue */}
-        <Image src="/images/pages/auth.webp" alt="" fill priority sizes="55vw" className="object-cover" aria-hidden />
-        <div className="absolute inset-0 bg-gradient-to-bl from-primary/90 via-primary/80 to-primary/65" />
-
-        {/* Animated orbs */}
-        <div
-          className="absolute top-20 end-20 h-64 w-64 rounded-full bg-white/[0.04] blur-3xl"
-          style={{ animationDuration: "8s" }}
-        />
-        <div
-          className="absolute bottom-20 start-10 h-80 w-80 rounded-full bg-accent/[0.06] blur-3xl"
-          style={{ animationDuration: "10s" }}
-        />
-        <div
-          className="absolute top-1/2 start-1/2 -translate-x-1/2 -translate-y-1/2 h-96 w-96 rounded-full bg-secondary/[0.05] blur-3xl"
-          style={{ animationDuration: "12s" }}
-        />
-
-        {/* Islamic geometric pattern overlay */}
-        <div className="absolute inset-0 opacity-[0.04]">
-          <svg className="w-full h-full" viewBox="0 0 400 600" xmlns="http://www.w3.org/2000/svg">
-            <defs>
-              <pattern
-                id="loginPattern"
-                x="0"
-                y="0"
-                width="60"
-                height="60"
-                patternUnits="userSpaceOnUse"
-              >
-                <polygon
-                  points="30,3 37,12 48,12 42,22 46,33 36,30 30,39 24,30 14,33 18,22 12,12 23,12"
-                  fill="none"
-                  stroke="white"
-                  strokeWidth="0.6"
-                />
-                <polygon
-                  points="30,15 35,24 30,33 25,24"
-                  fill="none"
-                  stroke="white"
-                  strokeWidth="0.3"
-                />
-              </pattern>
-            </defs>
-            <rect width="400" height="600" fill="url(#loginPattern)" />
-          </svg>
-        </div>
-
-        {/* Dot pattern */}
-        <div className="absolute top-10 start-10 opacity-[0.08]">
-          <svg width="120" height="120" viewBox="0 0 120 120">
-            <pattern id="logindots" width="16" height="16" patternUnits="userSpaceOnUse">
-              <circle cx="8" cy="8" r="1" fill="white" />
-            </pattern>
-            <rect width="120" height="120" fill="url(#logindots)" />
-          </svg>
-        </div>
-        <div className="absolute bottom-10 end-10 opacity-[0.08]">
-          <svg width="100" height="100" viewBox="0 0 100 100">
-            <pattern id="logindots2" width="12" height="12" patternUnits="userSpaceOnUse">
-              <circle cx="6" cy="6" r="0.8" fill="white" />
-            </pattern>
-            <rect width="100" height="100" fill="url(#logindots2)" />
-          </svg>
-        </div>
-
-        {/* Floating decorative elements */}
-        <div
-          className="absolute top-[15%] end-[15%] w-16 h-16 rounded-2xl border border-white/10 backdrop-blur-sm bg-white/[0.03] rotate-12"
-        />
-        <div
-          className="absolute bottom-[20%] start-[10%] w-12 h-12 rounded-full border border-white/10 backdrop-blur-sm bg-white/[0.03]"
-        />
-        <div
-          className="absolute top-[60%] end-[8%] w-10 h-10 rounded-xl border border-white/10 backdrop-blur-sm bg-white/[0.03] -rotate-12"
-        />
-
-        {/* Content */}
-        <div className="relative z-10 flex flex-col items-center text-center text-primary-foreground px-12">
-          {/* Brand name */}
-          <div
-            className="mb-8"
-            style={{ animation: "fadeSlideDown 1s ease-out 0.2s both" }}
-          >
-            <div className="mx-auto mb-6 flex size-20 items-center justify-center rounded-full bg-white/10 backdrop-blur-sm ring-1 ring-white/20">
-              <HeartHandshake className="size-10 opacity-90" />
-            </div>
-            <Image
-              src="/images/logo.svg"
-              alt="نصيبك"
-              width={320}
-              height={140}
-              className="h-32 xl:h-40 w-auto mx-auto brightness-0 invert"
-            />
-          </div>
-
-          {/* Tagline */}
-          <p
-            className="max-w-sm text-xl leading-relaxed opacity-85 font-medium"
-            style={{ animation: "fadeSlideUp 1s ease-out 0.4s both" }}
-          >
-            {tagline}
-            <br />
-            بستر واحترام
-          </p>
-
-          {/* Decorative separator */}
-          <div
-            className="my-10 h-px w-32 bg-gradient-to-l from-transparent via-white/30 to-transparent"
-            style={{ animation: "fadeSlideUp 1s ease-out 0.6s both" }}
-          />
-
-          {/* Trust badges */}
-          <div
-            className="flex flex-col gap-4 text-sm opacity-70"
-            style={{ animation: "fadeSlideUp 1s ease-out 0.8s both" }}
-          >
-            <span className="flex items-center justify-center gap-2">
-              <Shield className="size-4" />
-              صورك مخفية حتى التوافق المتبادل
-            </span>
-            <span className="flex items-center justify-center gap-2">
-              <Sparkles className="size-4" />
-              توافق ذكي ودقيق
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* FORM PANEL (Left side in RTL) */}
-      <div className="relative flex w-full lg:w-1/2 xl:w-[45%] items-center justify-center p-6 sm:p-12">
-        {/* Subtle background */}
-        <div className="absolute inset-0 bg-gradient-to-b from-primary/[0.03] via-background to-secondary/[0.02]" />
-
-        {/* Decorative blur */}
-        <div className="absolute top-10 end-10 h-48 w-48 rounded-full bg-primary/[0.04] blur-3xl" />
-        <div className="absolute bottom-10 start-10 h-40 w-40 rounded-full bg-secondary/[0.03] blur-3xl" />
-
-        <div className="relative w-full max-w-md">
+    <AuthShell tagline={tagline}>
           {/* Mobile brand (shown only on mobile) */}
           <div
             className="mb-8 text-center lg:hidden"
@@ -392,8 +252,7 @@ function LoginPageContent() {
                 : "none",
             }}
           >
-            {/* Top gradient accent */}
-            <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-l from-primary via-secondary to-accent" />
+            <AuthCardRule />
 
             {/* Subtle pattern background */}
             <div
@@ -638,51 +497,7 @@ function LoginPageContent() {
               سياسة الخصوصية
             </Link>
           </p>
-        </div>
-      </div>
-
-      {/* Keyframe animations */}
-      <style jsx global>{`
-        @keyframes fadeSlideUp {
-          from {
-            opacity: 0;
-            transform: translateY(20px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-        @keyframes fadeSlideDown {
-          from {
-            opacity: 0;
-            transform: translateY(-16px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-        @keyframes fadeSlideRight {
-          from {
-            opacity: 0;
-            transform: translateX(16px);
-          }
-          to {
-            opacity: 1;
-            transform: translateX(0);
-          }
-        }
-        @keyframes shake {
-          0%, 100% { transform: translateX(0); }
-          10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
-          20%, 40%, 60%, 80% { transform: translateX(4px); }
-        }
-        .animate-shake {
-          animation: shake 0.6s ease-in-out;
-        }
-      `}</style>
-    </main>
+    </AuthShell>
   );
 }
 

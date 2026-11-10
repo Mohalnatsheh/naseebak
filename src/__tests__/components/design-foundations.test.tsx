@@ -206,3 +206,26 @@ describe("button and badge colour rules", () => {
     expect(screen.getByText("3").className).toContain("bg-accent");
   });
 });
+
+/* ─── One auth shell (P2-3 / DS-07 / DS-08) ─── */
+
+describe("AuthShell", () => {
+  it("the split layout with the brand panel, the form column and the gold top rule; no full-page photo behind the form", async () => {
+    const { AuthShell, AuthCardRule } = await import("@/components/shared/auth-shell");
+    const { container } = render(
+      <AuthShell tagline="سطر" width="lg">
+        <div className="relative">
+          <AuthCardRule />
+          <p>نموذج</p>
+        </div>
+      </AuthShell>
+    );
+    const main = container.querySelector("main")!;
+    expect(main.className).toContain("flex-row-reverse");
+    expect(screen.getByText("نموذج").closest(".max-w-lg")).not.toBeNull();
+    // The photo lives only in the wide-screen panel (hidden on phones)
+    const photo = container.querySelector("img[src*='auth']")!;
+    expect(photo.closest(".hidden.lg\\:flex")).not.toBeNull();
+    expect(container.innerHTML).toContain("from-accent");
+  });
+});

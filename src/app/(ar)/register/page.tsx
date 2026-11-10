@@ -38,6 +38,8 @@ import { TermsConsentText } from "@/components/shared/terms-consent-text";
 import { COUNTRIES, type CountryCode } from "@/lib/countries";
 import { dialCountryFor, isPhoneFor, phoneExampleError, phoneFormatsError, phoneWord } from "@/lib/phone-field";
 import { BRAND_HEX } from "@/lib/brand-colors";
+import { AuthShell, AuthCardRule } from "@/components/shared/auth-shell";
+import { publicCopy } from "@/lib/public-copy";
 
 /** Seconds before another verification code may be requested (the server also limits 3 per 5 minutes) */
 const RESEND_SECONDS = 60;
@@ -176,6 +178,7 @@ function RegisterPageContent() {
   /** Dial-code toggle (🇯🇴 +962 / 🇸🇦 +966), preselected from the visitor's country; the account's
    *  country is then taken from the number on the server */
   const visitorCountry = useVisitorCountry();
+  const { tagline } = publicCopy(visitorCountry);
   const [country, setCountry] = useState<CountryCode>(visitorCountry);
   /** One required tick: terms + privacy policy + 18 or older (stored as User.termsAcceptedAt) */
   const [termsAccepted, setTermsAccepted] = useState(false);
@@ -547,25 +550,22 @@ function RegisterPageContent() {
   /* Loading state while checking registration status (also what the server sends: keep a real heading in it) */
   if (statusChecking) {
     return (
-      <main id="main" tabIndex={-1} className="relative flex min-h-screen flex-col items-center justify-center gap-4 p-4 overflow-hidden">
-        <div className="fixed inset-0 -z-10 bg-gradient-to-br from-primary/10 via-background to-accent/10" />
-        <h1 className="text-xl font-bold text-primary">إنشاء حساب جديد في نصيبك</h1>
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </main>
+      <AuthShell tagline={tagline} width="lg">
+        <div className="flex flex-col items-center gap-4 py-16">
+          <h1 className="text-xl font-bold text-primary">إنشاء حساب جديد في نصيبك</h1>
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      </AuthShell>
     );
   }
 
   /* Registration closed alert */
   if (registrationClosed) {
     return (
-      <main id="main" tabIndex={-1} className="relative flex min-h-screen items-center justify-center p-4 overflow-hidden">
-        <div className="fixed inset-0 -z-10 bg-gradient-to-br from-primary/10 via-background to-accent/10" />
-        <div className="fixed inset-0 -z-10 opacity-40">
-          <div className="absolute -top-24 -right-24 h-96 w-96 rounded-full bg-primary/10 blur-3xl" />
-          <div className="absolute -bottom-24 -left-24 h-96 w-96 rounded-full bg-accent/10 blur-3xl" />
-        </div>
-        <Card className="relative w-full max-w-lg border-white/40 bg-card/80 backdrop-blur-xl shadow-2xl shadow-primary/5">
-          <CardHeader className="text-center space-y-3 pb-2">
+      <AuthShell tagline={tagline} width="lg">
+        <Card className="relative w-full overflow-hidden border-border shadow-dialog">
+          <AuthCardRule />
+          <CardHeader className="text-center space-y-3 pb-2 pt-8">
             <Link href="/" className="inline-block">
               <Image
                 src="/images/logo.svg"
@@ -597,27 +597,16 @@ function RegisterPageContent() {
             </div>
           </CardContent>
         </Card>
-      </main>
+      </AuthShell>
     );
   }
 
   return (
-    <main id="main" tabIndex={-1} className="relative flex min-h-screen items-center justify-center p-4 overflow-hidden">
-      {/* ---- Background: Amman at blue hour, faint, under the brand gradient ---- */}
-      {/* Fades out at its foot, so a long form (or the phone toolbar sliding away) never shows a hard edge (QA DS-07) */}
-      <div className="fixed inset-x-0 top-0 -z-20 h-[100lvh] [mask-image:linear-gradient(to_bottom,#000_55%,transparent)]" aria-hidden>
-        <Image src="/images/pages/auth.webp" alt="" fill priority sizes="100vw" className="object-cover opacity-25" />
-      </div>
-      <div className="fixed inset-0 -z-10 bg-gradient-to-br from-primary/10 via-background/80 to-accent/10" />
-      <div className="fixed inset-0 -z-10 opacity-40">
-        <div className="absolute -top-24 -right-24 h-96 w-96 rounded-full bg-primary/10 blur-3xl" />
-        <div className="absolute -bottom-24 -left-24 h-96 w-96 rounded-full bg-accent/10 blur-3xl" />
-        <div className="absolute top-1/2 left-1/2 h-64 w-64 -translate-x-1/2 -translate-y-1/2 rounded-full bg-secondary/8 blur-3xl" />
-      </div>
-
-      {/* ---- Main card with glassmorphism ---- */}
-      <Card className="relative w-full max-w-lg border-white/40 bg-card/80 backdrop-blur-xl shadow-2xl shadow-primary/5">
-        <CardHeader className="text-center space-y-3 pb-2">
+    <AuthShell tagline={tagline} width="lg">
+      {/* One auth shell with sign-in (design review P2-3 / DS-07 / DS-08): no full-page photo behind the form */}
+      <Card className="relative w-full overflow-hidden border-border shadow-dialog">
+        <AuthCardRule />
+        <CardHeader className="text-center space-y-3 pb-2 pt-8">
           <Link href="/" className="inline-block">
             <Image
               src="/images/logo.svg"
@@ -807,130 +796,33 @@ function RegisterPageContent() {
                   يرجى إدخال الاسم باللغة العربية فقط
                 </p>
 
-                {/* ---- Gender selection cards ---- */}
-                <div className="space-y-2">
-                  <Label className="text-xs font-semibold text-muted-foreground">
-                    الجنس
+                {/* ---- Gender: the app's picker (design review DS-21): a person icon, «رجل / امرأة», who I look for ---- */}
+                <div className="space-y-2" role="group" aria-labelledby="gender-label">
+                  <Label id="gender-label" className="text-xs font-semibold text-muted-foreground">
+                    أنا
                   </Label>
                   <div className="grid grid-cols-2 gap-3">
-                    {/* Male card */}
-                    <button
-                      type="button"
-                      onClick={() => updateField("gender", "MALE")}
-                      className={`group relative rounded-2xl border-2 p-4 text-center transition-all duration-300 overflow-hidden ${
-                        form.gender === "MALE"
-                          ? "border-transparent bg-gradient-to-br from-primary/5 to-primary/10 shadow-lg shadow-primary/10"
-                          : "border-border/60 hover:border-primary/40 hover:shadow-md bg-muted/20"
-                      }`}
-                    >
-                      {form.gender === "MALE" && (
-                        <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-primary to-secondary opacity-10" />
-                      )}
-                      {form.gender === "MALE" && (
-                        <div
-                          className="absolute inset-0 rounded-[14px] m-px"
-                          style={{
-                            background:
-                              "linear-gradient(135deg, var(--primary), var(--secondary))",
-                            mask: "linear-gradient(white 0 0) content-box, linear-gradient(white 0 0)",
-                            maskComposite: "xor",
-                            WebkitMaskComposite: "xor",
-                            padding: "2px",
-                          }}
-                        />
-                      )}
-                      <div className="relative">
-                        <div
-                          className={`mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full transition-all duration-300 ${
-                            form.gender === "MALE"
-                              ? "bg-gradient-to-br from-primary to-secondary text-white shadow-md"
-                              : "bg-muted text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary"
+                    {([
+                      { value: "MALE", title: "رجل", sub: "أبحث عن زوجة" },
+                      { value: "FEMALE", title: "امرأة", sub: "أبحث عن زوج" },
+                    ] as const).map((o) => {
+                      const on = form.gender === o.value;
+                      return (
+                        <button
+                          key={o.value}
+                          type="button"
+                          aria-pressed={on}
+                          onClick={() => updateField("gender", o.value)}
+                          className={`press flex min-h-11 flex-col items-center gap-1 rounded-2xl px-3 py-4 text-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+                            on ? "border-[1.6px] border-primary bg-primary/[0.06]" : "border border-border bg-card hover:border-primary/40"
                           }`}
                         >
-                          <svg
-                            viewBox="0 0 24 24"
-                            className="h-6 w-6"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth={2}
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          >
-                            <circle cx="10" cy="14" r="5" />
-                            <path d="M19 5l-5.4 5.4" />
-                            <path d="M15 5h4v4" />
-                          </svg>
-                        </div>
-                        <span
-                          className={`text-sm font-bold transition-colors ${
-                            form.gender === "MALE"
-                              ? "text-primary"
-                              : "text-foreground"
-                          }`}
-                        >
-                          ذكر (شاب)
-                        </span>
-                      </div>
-                    </button>
-                    {/* Female card */}
-                    <button
-                      type="button"
-                      onClick={() => updateField("gender", "FEMALE")}
-                      className={`group relative rounded-2xl border-2 p-4 text-center transition-all duration-300 overflow-hidden ${
-                        form.gender === "FEMALE"
-                          ? "border-transparent bg-gradient-to-br from-accent/10 to-accent/20 shadow-lg shadow-accent/10"
-                          : "border-border/60 hover:border-accent/50 hover:shadow-md bg-muted/20"
-                      }`}
-                    >
-                      {form.gender === "FEMALE" && (
-                        <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-accent to-accent/70 opacity-10" />
-                      )}
-                      {form.gender === "FEMALE" && (
-                        <div
-                          className="absolute inset-0 rounded-[14px] m-px"
-                          style={{
-                            background:
-                              "linear-gradient(135deg, var(--accent), var(--primary))",
-                            mask: "linear-gradient(white 0 0) content-box, linear-gradient(white 0 0)",
-                            maskComposite: "xor",
-                            WebkitMaskComposite: "xor",
-                            padding: "2px",
-                          }}
-                        />
-                      )}
-                      <div className="relative">
-                        <div
-                          className={`mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full transition-all duration-300 ${
-                            form.gender === "FEMALE"
-                              ? "bg-gradient-to-br from-accent to-accent/70 text-white shadow-md"
-                              : "bg-muted text-muted-foreground group-hover:bg-accent/15 group-hover:text-accent-foreground"
-                          }`}
-                        >
-                          <svg
-                            viewBox="0 0 24 24"
-                            className="h-6 w-6"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth={2}
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          >
-                            <circle cx="12" cy="9" r="5" />
-                            <path d="M12 14v7" />
-                            <path d="M9 18h6" />
-                          </svg>
-                        </div>
-                        <span
-                          className={`text-sm font-bold transition-colors ${
-                            form.gender === "FEMALE"
-                              ? "text-accent-foreground"
-                              : "text-foreground"
-                          }`}
-                        >
-                          أنثى (فتاة)
-                        </span>
-                      </div>
-                    </button>
+                          <PersonGlyph kind={o.value} className={on ? "text-primary" : "text-muted-ink"} />
+                          <span className="text-body font-bold text-ink">{o.title}</span>
+                          <span className="text-label font-normal text-muted-ink">{o.sub}</span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 
@@ -1208,7 +1100,7 @@ function RegisterPageContent() {
           {/*  Navigation buttons                          */}
           {/* ============================================ */}
           {step < 2 && (
-            <div className="flex items-center justify-between mt-7 gap-3">
+            <div className={`mt-7 flex items-center gap-3 ${step > 1 ? "justify-between" : ""}`}>
               {step > 1 ? (
                 <Button
                   variant="outline"
@@ -1218,14 +1110,14 @@ function RegisterPageContent() {
                   <ArrowRight className="h-4 w-4 me-2" />
                   السابق
                 </Button>
-              ) : (
-                <div />
-              )}
+              ) : null}
 
+              {/* The final «إنشاء الحساب» is the full-width 48 px main button, as on sign-in (DS-08) */}
               <Button
                 onClick={handleNext}
                 disabled={loading}
-                className="rounded-xl h-11 px-6 bg-gradient-to-l from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 shadow-md shadow-primary/15 transition-all duration-300 hover:shadow-lg hover:shadow-primary/20 hover:-translate-y-0.5 disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-md"
+                size="cta"
+                className={step === 1 ? "w-full" : "px-6"}
               >
                 {loading ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -1260,7 +1152,7 @@ function RegisterPageContent() {
           )}
         </CardContent>
       </Card>
-    </main>
+    </AuthShell>
   );
 }
 
@@ -1273,5 +1165,19 @@ export default function RegisterPage() {
     }>
       <RegisterPageContent />
     </Suspense>
+  );
+}
+
+/** A simple person icon for the gender picker (the app's man / woman icons), drawn inline */
+function PersonGlyph({ kind, className }: { kind: "MALE" | "FEMALE"; className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" width="30" height="30" aria-hidden focusable="false" className={className} fill="currentColor">
+      <circle cx="12" cy="5" r="2.6" />
+      {kind === "MALE" ? (
+        <path d="M9.2 9h5.6a1.6 1.6 0 0 1 1.6 1.6V15h-1.6v6.4h-2V16h-1.6v5.4h-2V15H7.6v-4.4A1.6 1.6 0 0 1 9.2 9Z" />
+      ) : (
+        <path d="M10.2 9h3.6a1.4 1.4 0 0 1 1.35 1.04L17 17h-2.6v4.4h-1.6V17h-1.6v4.4H9.6V17H7l1.85-6.96A1.4 1.4 0 0 1 10.2 9Z" />
+      )}
+    </svg>
   );
 }

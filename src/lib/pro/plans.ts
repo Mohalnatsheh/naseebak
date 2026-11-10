@@ -76,6 +76,35 @@ export function proOffersFor(country: unknown, plans: ProPlans | null): ProPlanO
   return offers;
 }
 
+/** How many of a plan's periods make a year: the Pro page compares the plans by what a year of each costs */
+const PERIODS_PER_YEAR: Record<ProPlanId, number> = { weekly: 52, monthly: 12, yearly: 1 };
+
+/** The plan the discounts are measured against: the shortest one offered (weekly, else monthly) */
+export function proDiscountBase(offers: Pick<ProPlanOffer, "id">[]): ProPlanId | null {
+  return PRO_PLAN_IDS.find((id) => offers.some((o) => o.id === id)) ?? null;
+}
+
+export interface ProPlanValue {
+  /** What the plan comes to per month, 2 decimals (weekly × 52 / 12, yearly / 12) */
+  perMonth: number;
+  /** Whole percent saved over a year against the shortest plan, rounded down so it is never overstated; null for none */
+  discountPercent: number | null;
+}
+
+/** The Pro page comparison: each offered plan's cost per month and its discount against the shortest plan */
+export function proPlanValues(offers: Pick<ProPlanOffer, "id" | "price">[]): Partial<Record<ProPlanId, ProPlanValue>> {
+  const base = proDiscountBase(offers);
+  const baseOffer = offers.find((o) => o.id === base);
+  const baseYear = baseOffer && base ? baseOffer.price * PERIODS_PER_YEAR[base] : 0;
+  const out: Partial<Record<ProPlanId, ProPlanValue>> = {};
+  for (const o of offers) {
+    const year = o.price * PERIODS_PER_YEAR[o.id];
+    const saved = o.id !== base && baseYear > 0 ? Math.floor((1 - year / baseYear) * 100 + 1e-9) : 0;
+    out[o.id] = { perMonth: Math.round((year / 12) * 100) / 100, discountPercent: saved >= 1 ? saved : null };
+  }
+  return out;
+}
+
 /** Payment.planName of a Pro payment */
 export function proPlanName(id: ProPlanId): string {
   return `pro_${id}`;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PRO_PLAN_LABELS, planFromName, proOffersFor, proPlanName, readProPlans } from "@/lib/pro/plans";
+import { PRO_PLAN_LABELS, planFromName, proOffersFor, proPlanName, readProPlans, proPlanValues, proDiscountBase } from "@/lib/pro/plans";
 
 describe("readProPlans", () => {
   it("drops invalid entries", () => {
@@ -64,5 +64,32 @@ describe("plan names", () => {
     expect(planFromName("launch_10")).toBeNull();
     expect(planFromName(null)).toBeNull();
     expect(PRO_PLAN_LABELS.monthly).toBe("شهري");
+  });
+});
+
+describe("proPlanValues (the Pro page comparison)", () => {
+  const o = (id: "weekly" | "monthly" | "yearly", price: number) => ({ id, price });
+
+  it("Jordan 3 / 10 / 89: a month's cost of each plan and the discount against paying weekly for a year, rounded down", () => {
+    const v = proPlanValues([o("weekly", 3), o("monthly", 10), o("yearly", 89)]);
+    expect(v.weekly).toEqual({ perMonth: 13, discountPercent: null });
+    expect(v.monthly).toEqual({ perMonth: 10, discountPercent: 23 }); // 120 vs 156 a year
+    expect(v.yearly).toEqual({ perMonth: 7.42, discountPercent: 42 }); // 89 vs 156: 42.9, never overstated
+    expect(proDiscountBase([o("weekly", 3), o("monthly", 10)])).toBe("weekly");
+  });
+
+  it("Saudi 6 / 20 / 178: the same percentages", () => {
+    const v = proPlanValues([o("weekly", 6), o("monthly", 20), o("yearly", 178)]);
+    expect(v.monthly?.discountPercent).toBe(23);
+    expect(v.yearly).toEqual({ perMonth: 14.83, discountPercent: 42 });
+  });
+
+  it("without a weekly plan the discount is against monthly; no discount when a longer plan costs as much or more", () => {
+    const v = proPlanValues([o("monthly", 10), o("yearly", 100)]);
+    expect(proDiscountBase([o("monthly", 10), o("yearly", 100)])).toBe("monthly");
+    expect(v.monthly?.discountPercent).toBeNull();
+    expect(v.yearly?.discountPercent).toBe(16); // 100 vs 120
+    expect(proPlanValues([o("weekly", 2), o("monthly", 9)]).monthly?.discountPercent).toBeNull(); // 108 vs 104
+    expect(proPlanValues([o("monthly", 10)]).monthly).toEqual({ perMonth: 10, discountPercent: null });
   });
 });

@@ -31,7 +31,8 @@ describe("ProPlanChooser (one compact Pro card)", () => {
   it("one card, monthly picked first, one subscribe button, the three features and the credits line", () => {
     render(<ProPlanChooser offers={offers} canBuy />);
     const radios = screen.getAllByRole("radio");
-    expect(radios.map((r) => r.textContent)).toEqual(["أسبوعي", "شهري", "سنوي"]);
+    // Named by plan; the price, period and discount inside each are its description
+    expect(radios.map((r) => r.getAttribute("aria-label"))).toEqual(["أسبوعي", "شهري", "سنوي"]);
     expect(radios[1].getAttribute("aria-checked")).toBe("true");
     expect(screen.getByText("في الشهر")).toBeTruthy();
     expect(screen.getByText(/4 أرصدة مجاناً كل شهر/)).toBeTruthy();
@@ -161,5 +162,25 @@ describe("ProPlanChooser: the chosen plan survives the checkout round trip (QA W
     const chip = screen.getByText("الأكثر طلباً");
     expect(chip.className).toContain("border-primary");
     expect(chip.className).not.toContain("bg-accent");
+  });
+
+  it("compares the plans: every price side by side, a month's cost, and the discount against weekly for a year", () => {
+    render(<ProPlanChooser offers={offers} canBuy />);
+    // 2 a week = 104 a year; 5 a month = 60 (42% off); 40 a year (61% off)
+    for (const name of ["أسبوعي", "شهري", "سنوي"]) expect(screen.getByRole("radio", { name })).toBeTruthy();
+    expect(screen.getByText("في الأسبوع")).toBeTruthy();
+    expect(screen.getByText("في السنة")).toBeTruthy();
+    expect(screen.getByText("حوالي 8.67 د.أ شهرياً")).toBeTruthy();
+    expect(screen.getByText("حوالي 3.33 د.أ شهرياً")).toBeTruthy();
+    expect(screen.getByText("خصم 42%")).toBeTruthy();
+    expect(screen.getByText("خصم 61%")).toBeTruthy();
+    expect(screen.getByText("أفضل قيمة")).toBeTruthy();
+    expect(screen.getByText(/الخصم مقارنةً بالاشتراك الأسبوعي لمدة سنة/)).toBeTruthy();
+  });
+
+  it("no discount line or chips when there is nothing cheaper to compare", () => {
+    render(<ProPlanChooser offers={[offer("monthly", 5, 4)]} canBuy />);
+    expect(screen.queryByText(/خصم/)).toBeNull();
+    expect(screen.queryByText("أفضل قيمة")).toBeNull();
   });
 });

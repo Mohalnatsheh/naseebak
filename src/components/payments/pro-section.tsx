@@ -13,7 +13,15 @@ import { trackEvent } from "@/lib/analytics";
 import { forViewer } from "@/lib/gendered-copy";
 import { CURRENCY_SYMBOL } from "@/lib/payments/packages";
 import { MoneyAmount, UsdLine } from "@/components/payments/money";
-import { PRO_PAGE_PATH, PRO_PLAN_IDS, PRO_PLAN_LABELS, type ProPlanId, type ProPlanOffer } from "@/lib/pro/plans";
+import {
+  PRO_PAGE_PATH,
+  PRO_PLAN_IDS,
+  PRO_PLAN_LABELS,
+  proDiscountBase,
+  proPlanValues,
+  type ProPlanId,
+  type ProPlanOffer,
+} from "@/lib/pro/plans";
 import type { MyProState } from "@/lib/pro/pro-types";
 import { arabicCount, cn } from "@/lib/utils";
 
@@ -122,61 +130,108 @@ export function ProPlanChooser({ offers, canBuy }: { offers: ProPlanOffer[]; can
     radios.current[next]?.focus();
   }
 
+  const values = proPlanValues(sorted);
+  const base = proDiscountBase(sorted);
+  const anyDiscount = sorted.some((o) => values[o.id]?.discountPercent);
+  // «أفضل قيمة»: the plan with the biggest discount, only when there is one
+  const best = anyDiscount
+    ? sorted.reduce((a, b) => ((values[b.id]?.discountPercent ?? 0) > (values[a.id]?.discountPercent ?? 0) ? b : a)).id
+    : null;
+  const symbol = CURRENCY_SYMBOL[offer.currency];
+
+  /** One plan in the comparison: its price, period, a month's cost and its discount */
+  function planBody(o: ProPlanOffer) {
+    const v = values[o.id];
+    const chip =
+      sorted.length < 2 ? null : o.id === best ? "أفضل قيمة" : o.id === "monthly" ? "الأكثر طلباً" : null;
+    return (
+      <>
+        {chip && (
+          <span
+            className={cn(
+              "absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border px-2.5 py-0.5 text-xs font-bold",
+              chip === "الأكثر طلباً" ? "border-primary/40 bg-card text-primary" : "border-primary bg-primary text-primary-foreground"
+            )}
+          >
+            {chip}
+          </span>
+        )}
+        <span className="text-label font-bold text-foreground">{PRO_PLAN_LABELS[o.id]}</span>
+        <span id={`pro-plan-${o.id}-price`} className="flex flex-col items-center gap-0.5">
+          <MoneyAmount amount={o.price} symbol={CURRENCY_SYMBOL[o.currency]} size="md" />
+          <span className="text-caption text-muted-ink">{PER_PERIOD[o.id]}</span>
+          {o.id !== "monthly" && sorted.length > 1 && v && (
+            <span className="text-caption tabular-nums text-muted-ink">{`حوالي ${v.perMonth} ${CURRENCY_SYMBOL[o.currency]} شهرياً`}</span>
+          )}
+          {v?.discountPercent ? (
+            <span className="mt-1 rounded-full bg-accent-soft px-2.5 py-0.5 text-caption font-bold tabular-nums text-accent-ink">
+              {`خصم ${v.discountPercent}%`}
+            </span>
+          ) : null}
+        </span>
+      </>
+    );
+  }
+
+  const tile = "relative flex min-h-36 flex-col items-center gap-1.5 rounded-card border bg-card px-2 pb-3 pt-5 text-center";
+
   return (
-    <div className="space-y-2.5">
-      {/* Gold only on the subscribe button (Pro design P1): a calm card, the price and the button lead */}
+    <div className="space-y-3">
+      {sorted.length > 1 ? (
+        <div
+          role="radiogroup"
+          aria-label="مدة الاشتراك"
+          className="grid gap-2 pt-3 sm:gap-3"
+          style={{ gridTemplateColumns: `repeat(${sorted.length}, minmax(0, 1fr))` }}
+        >
+          {sorted.map((o, i) => {
+            const on = o.id === offer.id;
+            return (
+              <button
+                key={o.id}
+                ref={(el) => {
+                  radios.current[i] = el;
+                }}
+                type="button"
+                role="radio"
+                aria-checked={on}
+                aria-label={PRO_PLAN_LABELS[o.id]}
+                aria-describedby={`pro-plan-${o.id}-price`}
+                tabIndex={on ? 0 : -1}
+                onClick={() => {
+                  setPicked(o.id);
+                  rememberProPlan(o.id);
+                }}
+                onKeyDown={(e) => onRadioKey(e, i)}
+                className={cn(
+                  tile,
+                  "transition-[border-color,box-shadow,background-color]",
+                  on ? "border-primary bg-primary/5 shadow-sm ring-2 ring-primary/20" : "border-border hover:border-primary/40"
+                )}
+              >
+                {planBody(o)}
+              </button>
+            );
+          })}
+        </div>
+      ) : (
+        <div className={cn(tile, "border-primary/30")}>{planBody(offer)}</div>
+      )}
+      {anyDiscount && base && (
+        <p className="text-center text-caption text-muted-ink">
+          {`الخصم مقارنةً بالاشتراك ${base === "weekly" ? "الأسبوعي" : "الشهري"} لمدة سنة.`}
+        </p>
+      )}
+
+      {/* What the chosen plan gives, and one subscribe button. Gold only marks the discounts (good news) */}
       <Card className="relative gap-0 overflow-hidden py-0 shadow-sm">
         <CardContent className="space-y-3.5 p-4 sm:p-5">
-          {sorted.length > 1 && (
-            <div
-              role="radiogroup"
-              aria-label="مدة الاشتراك"
-              className="grid gap-1 rounded-xl bg-muted p-1"
-              style={{ gridTemplateColumns: `repeat(${sorted.length}, minmax(0, 1fr))` }}
-            >
-              {sorted.map((o, i) => {
-                const on = o.id === offer.id;
-                return (
-                  <button
-                    key={o.id}
-                    ref={(el) => {
-                      radios.current[i] = el;
-                    }}
-                    type="button"
-                    role="radio"
-                    aria-checked={on}
-                    tabIndex={on ? 0 : -1}
-                    onClick={() => {
-                      setPicked(o.id);
-                      rememberProPlan(o.id);
-                    }}
-                    onKeyDown={(e) => onRadioKey(e, i)}
-                    className={cn(
-                      "h-11 rounded-lg text-sm font-bold transition-all",
-                      on ? "bg-card text-primary shadow-sm ring-1 ring-primary/25" : "text-muted-foreground hover:text-foreground"
-                    )}
-                  >
-                    {PRO_PLAN_LABELS[o.id]}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-
-          <div className="flex flex-wrap items-end justify-between gap-x-3 gap-y-1" aria-live="polite">
-            <div>
-              {/* Money typography: large price, the currency smaller and muted, the dollars as a muted line */}
-              <div className="flex items-baseline gap-1.5">
-                <MoneyAmount amount={offer.price} symbol={CURRENCY_SYMBOL[offer.currency]} size="md" />
-                <span className="text-label text-muted-ink">{PER_PERIOD[offer.id]}</span>
-              </div>
-              {offer.chargeCurrency === "usd" && (
-                <UsdLine className="mt-1" lead={forViewer(gender, "تدفع", "تدفعين")} usd={offer.chargeAmount / 100} />
-              )}
-            </div>
-            {/* Only next to other plans: on its own, "most chosen" says nothing */}
-            {offer.id === "monthly" && sorted.length > 1 && (
-              <span className="rounded-full border border-primary/40 px-2.5 py-1 text-xs font-bold text-primary">الأكثر طلباً</span>
+          <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1" aria-live="polite">
+            <p className="text-label font-bold text-foreground">
+              {`اشتراك ${PRO_PLAN_LABELS[offer.id]}: ${offer.price} ${symbol} ${PER_PERIOD[offer.id]}`}
+            </p>
+            {offer.chargeCurrency === "usd" && (
+              <UsdLine lead={forViewer(gender, "تدفع", "تدفعين")} usd={offer.chargeAmount / 100} />
             )}
           </div>
 

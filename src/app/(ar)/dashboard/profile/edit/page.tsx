@@ -195,6 +195,17 @@ function arraysEqual(a: string[], b: string[]): boolean {
   return sorted1.every((v, i) => v === sorted2[i]);
 }
 
+/** A failed check: which field (for aria-invalid / aria-describedby) and what to say */
+interface FieldIssue {
+  field: string;
+  message: string;
+}
+
+/** The guardian schema's path → the edit form's field */
+function guardianField(path: PropertyKey | undefined): string {
+  return path === "parentPhone" ? "parentPhone" : path === "relationship" ? "relationship" : path === "address" ? "parentAddress" : "parentName";
+}
+
 export default function ProfileEditPage() {
   const router = useRouter();
   const [step, setStep] = useState(1);
@@ -210,6 +221,11 @@ export default function ProfileEditPage() {
   const [reloadKey, setReloadKey] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  // The field the shown check is about (only while that message shows): aria-invalid + aria-describedby (QA PA-L9)
+  const [errorField, setErrorField] = useState<string | null>(null);
+  const invalidField = error ? errorField : null;
+  const inv = (field: string) =>
+    invalidField === field ? ({ "aria-invalid": true, "aria-describedby": "profile-edit-error" } as const) : {};
   const [success, setSuccess] = useState(false);
   const [gender, setGender] = useState<string>("");
   const [hasPendingRequest, setHasPendingRequest] = useState(false);
@@ -375,30 +391,30 @@ export default function ProfileEditPage() {
   }
 
   // Short start: only the basics are required, the rest is optional
-  function validateStep(s: number): string | null {
+  function validateIssue(s: number): FieldIssue | null {
     if (s === 1) {
-      if (!form.dateOfBirth) return "يرجى إدخال تاريخ الميلاد";
+      if (!form.dateOfBirth) return { field: "dateOfBirth", message: "يرجى إدخال تاريخ الميلاد" };
       const dobErr = dateOfBirthError(form.dateOfBirth);
-      if (dobErr) return dobErr;
-      if (!form.nationality) return "يرجى إدخال الجنسية";
-      if (!form.city) return "يرجى اختيار المدينة";
-      if (form.height && (parseInt(form.height) < 100 || parseInt(form.height) > 250)) return "الطول يجب أن يكون بين 100 و 250 سم";
-      if (form.weight && (parseInt(form.weight) < 30 || parseInt(form.weight) > 300)) return `الوزن يجب أن يكون بين 30 و 300 ${country.words.kg}`;
-      if (!form.education) return "يرجى اختيار المستوى التعليمي";
-      if (form.job === "أخرى" && !form.jobCustom) return "يرجى تحديد الوظيفة";
+      if (dobErr) return { field: "dateOfBirth", message: dobErr };
+      if (!form.nationality) return { field: "nationality", message: "يرجى إدخال الجنسية" };
+      if (!form.city) return { field: "city", message: "يرجى اختيار المدينة" };
+      if (form.height && (parseInt(form.height) < 100 || parseInt(form.height) > 250)) return { field: "height", message: "الطول يجب أن يكون بين 100 و 250 سم" };
+      if (form.weight && (parseInt(form.weight) < 30 || parseInt(form.weight) > 300)) return { field: "weight", message: `الوزن يجب أن يكون بين 30 و 300 ${country.words.kg}` };
+      if (!form.education) return { field: "education", message: "يرجى اختيار المستوى التعليمي" };
+      if (form.job === "أخرى" && !form.jobCustom) return { field: "job", message: "يرجى تحديد الوظيفة" };
     }
     if (s === 2) {
-      if (!form.maritalStatus) return "يرجى اختيار الحالة الاجتماعية";
-      if (form.maritalStatus !== "أعزب/عزباء" && !form.childrenCount) return "يرجى إدخال عدد الأبناء";
-      if (!form.religiosity) return "يرجى اختيار مستوى التدين";
+      if (!form.maritalStatus) return { field: "maritalStatus", message: "يرجى اختيار الحالة الاجتماعية" };
+      if (form.maritalStatus !== "أعزب/عزباء" && !form.childrenCount) return { field: "childrenCount", message: "يرجى إدخال عدد الأبناء" };
+      if (!form.religiosity) return { field: "religiosity", message: "يرجى اختيار مستوى التدين" };
     }
     if (s === 3) {
-      if (!form.prefAgeMin) return "يرجى إدخال العمر الأدنى المفضل";
-      if (!form.prefAgeMax) return "يرجى إدخال العمر الأقصى المفضل";
-      if (parseInt(form.prefAgeMin) > parseInt(form.prefAgeMax)) return "العمر الأدنى يجب أن يكون أقل من العمر الأقصى";
+      if (!form.prefAgeMin) return { field: "prefAgeMin", message: "يرجى إدخال العمر الأدنى المفضل" };
+      if (!form.prefAgeMax) return { field: "prefAgeMax", message: "يرجى إدخال العمر الأقصى المفضل" };
+      if (parseInt(form.prefAgeMin) > parseInt(form.prefAgeMax)) return { field: "prefAgeMin", message: "العمر الأدنى يجب أن يكون أقل من العمر الأقصى" };
     }
     if (s === 4) {
-      if (form.numberOfSiblings && (parseInt(form.numberOfSiblings) < 0 || parseInt(form.numberOfSiblings) > 20)) return "عدد الإخوة يجب أن يكون بين 0 و 20";
+      if (form.numberOfSiblings && (parseInt(form.numberOfSiblings) < 0 || parseInt(form.numberOfSiblings) > 20)) return { field: "numberOfSiblings", message: "عدد الإخوة يجب أن يكون بين 0 و 20" };
     }
     if (s === 5) {
       const guardianTouched =
@@ -409,10 +425,10 @@ export default function ProfileEditPage() {
       // New cycle: no guardian at setup, so an empty guardian step must never block other edits —
       // it is checked only once the member starts filling it in
       if (introMode && !guardianTouched) return null;
-      if (!form.parentName) return "يرجى إدخال اسم ولي الأمر";
-      if (!form.parentPhone) return `يرجى إدخال رقم ${country.words.phone} ولي الأمر`;
-      if (!form.relationship) return "يرجى اختيار صلة القرابة";
-      if (!form.parentAddress) return "يرجى إدخال العنوان";
+      if (!form.parentName) return { field: "parentName", message: "يرجى إدخال اسم ولي الأمر" };
+      if (!form.parentPhone) return { field: "parentPhone", message: `يرجى إدخال رقم ${country.words.phone} ولي الأمر` };
+      if (!form.relationship) return { field: "relationship", message: "يرجى اختيار صلة القرابة" };
+      if (!form.parentAddress) return { field: "parentAddress", message: "يرجى إدخال العنوان" };
       // Same rules as the API (the other family sees this contact) — only when it is being changed,
       // so an older entry never blocks an unrelated edit
       const guardianEdited =
@@ -426,10 +442,17 @@ export default function ProfileEditPage() {
         relationship: form.relationship,
         address: form.parentAddress,
       });
-      if (!guardian.success) return guardian.error.issues[0]?.message ?? "بيانات وليّ الأمر غير صالحة";
-      if (guardianEdited && me?.phone && normalizePhone(form.parentPhone, country.code) === me.phone) return `رقم وليّ الأمر يجب أن يختلف عن رقم ${country.words.phone}ك`;
+      if (!guardian.success) return { field: guardianField(guardian.error.issues[0]?.path[0]), message: guardian.error.issues[0]?.message ?? "بيانات وليّ الأمر غير صالحة" };
+      if (guardianEdited && me?.phone && normalizePhone(form.parentPhone, country.code) === me.phone) return { field: "parentPhone", message: `رقم وليّ الأمر يجب أن يختلف عن رقم ${country.words.phone}ك` };
     }
     return null;
+  }
+
+  /** Show a check's message and mark its field (aria-invalid + aria-describedby to the message, QA PA-L9) */
+  function showIssue(issue: FieldIssue) {
+    setError(issue.message);
+    setErrorField(issue.field);
+    scrollToError();
   }
 
   function scrollToError() {
@@ -440,10 +463,9 @@ export default function ProfileEditPage() {
   }
 
   function handleNextStep() {
-    const err = validateStep(step);
-    if (err) {
-      setError(err);
-      scrollToError();
+    const issue = validateIssue(step);
+    if (issue) {
+      showIssue(issue);
       return;
     }
     setError("");
@@ -504,11 +526,10 @@ export default function ProfileEditPage() {
     if (loadFailed) return;
     // Validate all steps before submitting
     for (let s = 1; s <= totalSteps; s++) {
-      const err = validateStep(s);
-      if (err) {
+      const issue = validateIssue(s);
+      if (issue) {
         setStep(s);
-        setError(err);
-        scrollToError();
+        showIssue(issue);
         return;
       }
     }
@@ -802,12 +823,12 @@ export default function ProfileEditPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <RequiredLabel htmlFor="edit-field-1">تاريخ الميلاد</RequiredLabel>
-                <BirthDateSelect id="edit-field-1" value={form.dateOfBirth} onChange={(v) => update("dateOfBirth", v)} />
+                <BirthDateSelect id="edit-field-1" value={form.dateOfBirth} onChange={(v) => update("dateOfBirth", v)} invalid={invalidField === "dateOfBirth"} describedBy={invalidField === "dateOfBirth" ? "profile-edit-error" : undefined} />
               </div>
               <div className="space-y-2">
                 <RequiredLabel htmlFor="edit-field-2">الجنسية</RequiredLabel>
                 <Input
-                  id="edit-field-2"
+                  id="edit-field-2" {...inv("nationality")}
                   list="edit-nationality-options"
                   value={form.nationality}
                   onChange={(e) => update("nationality", e.target.value)}
@@ -820,7 +841,7 @@ export default function ProfileEditPage() {
 
             <div className="space-y-2">
               <RequiredLabel>المدينة</RequiredLabel>
-              <div role="group" aria-label="المدينة" className="grid grid-cols-3 gap-2">
+              <div role="group" aria-label="المدينة" {...inv("city")} className="grid grid-cols-3 gap-2">
                 {cities.map((c) => (
                   <button
                     key={c}
@@ -858,7 +879,7 @@ export default function ProfileEditPage() {
               <div className="space-y-2">
                 <Label htmlFor="edit-field-4">الطول (سم) <OptionalTag /></Label>
                 <NumberInput
-                  id="edit-field-4"
+                  id="edit-field-4" {...inv("height")}
                   value={form.height}
                   onChange={(e) => update("height", e.target.value)}
                   placeholder="170"
@@ -868,7 +889,7 @@ export default function ProfileEditPage() {
               <div className="space-y-2">
                 <Label htmlFor="edit-field-5">الوزن ({country.words.kg}) <OptionalTag /></Label>
                 <NumberInput
-                  id="edit-field-5"
+                  id="edit-field-5" {...inv("weight")}
                   value={form.weight}
                   onChange={(e) => update("weight", e.target.value)}
                   placeholder="70"
@@ -896,7 +917,7 @@ export default function ProfileEditPage() {
 
             <div className="space-y-2">
               <RequiredLabel>المستوى التعليمي</RequiredLabel>
-              <div role="group" aria-label="المستوى التعليمي" className="grid grid-cols-3 gap-2">
+              <div role="group" aria-label="المستوى التعليمي" {...inv("education")} className="grid grid-cols-3 gap-2">
                 {educationLevels.map((e) => (
                   <button
                     key={e}
@@ -914,7 +935,7 @@ export default function ProfileEditPage() {
             <div className="space-y-2">
               <Label htmlFor="edit-field-6">الوظيفة <OptionalTag /></Label>
               <select
-                id="edit-field-6"
+                id="edit-field-6" {...inv("job")}
                 value={form.job}
                 onChange={(e) => {
                   update("job", e.target.value);
@@ -969,7 +990,7 @@ export default function ProfileEditPage() {
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <RequiredLabel>الحالة الاجتماعية</RequiredLabel>
-              <div role="group" aria-label="الحالة الاجتماعية" className="grid grid-cols-3 gap-2">
+              <div role="group" aria-label="الحالة الاجتماعية" {...inv("maritalStatus")} className="grid grid-cols-3 gap-2">
                 {maritalStatuses.map((s) => (
                   <button
                     key={s}
@@ -991,7 +1012,7 @@ export default function ProfileEditPage() {
               <div className="space-y-2">
                 <RequiredLabel htmlFor="edit-field-7">عدد الأبناء</RequiredLabel>
                 <NumberInput
-                  id="edit-field-7"
+                  id="edit-field-7" {...inv("childrenCount")}
                   value={form.childrenCount}
                   onChange={(e) => update("childrenCount", e.target.value)}
                   placeholder="0"
@@ -1004,7 +1025,7 @@ export default function ProfileEditPage() {
 
             <div className="space-y-2">
               <RequiredLabel>مستوى التدين</RequiredLabel>
-              <div role="group" aria-label="مستوى التدين" className="grid grid-cols-2 gap-2">
+              <div role="group" aria-label="مستوى التدين" {...inv("religiosity")} className="grid grid-cols-2 gap-2">
                 {religiosityLevels.map((r) => (
                   <button
                     key={r}
@@ -1218,7 +1239,7 @@ export default function ProfileEditPage() {
               <div className="space-y-2">
                 <RequiredLabel htmlFor="edit-field-12">العمر الأدنى</RequiredLabel>
                 <NumberInput
-                  id="edit-field-12"
+                  id="edit-field-12" {...inv("prefAgeMin")}
                   value={form.prefAgeMin}
                   onChange={(e) => update("prefAgeMin", e.target.value)}
                   placeholder="18"
@@ -1230,7 +1251,7 @@ export default function ProfileEditPage() {
               <div className="space-y-2">
                 <RequiredLabel htmlFor="edit-field-13">العمر الأقصى</RequiredLabel>
                 <NumberInput
-                  id="edit-field-13"
+                  id="edit-field-13" {...inv("prefAgeMax")}
                   value={form.prefAgeMax}
                   onChange={(e) => update("prefAgeMax", e.target.value)}
                   placeholder="40"
@@ -1436,7 +1457,7 @@ export default function ProfileEditPage() {
             <div className="space-y-2">
               <Label htmlFor="edit-field-16">عدد الإخوة والأخوات <OptionalTag /></Label>
               <NumberInput
-                id="edit-field-16"
+                id="edit-field-16" {...inv("numberOfSiblings")}
                 value={form.numberOfSiblings}
                 onChange={(e) =>
                   update("numberOfSiblings", e.target.value)
@@ -1528,7 +1549,7 @@ export default function ProfileEditPage() {
             <div className="space-y-2">
               <RequiredLabel htmlFor="edit-field-18">اسم ولي الأمر</RequiredLabel>
               <Input
-                id="edit-field-18"
+                id="edit-field-18" {...inv("parentName")}
                 value={form.parentName}
                 onChange={(e) => update("parentName", e.target.value)}
                 placeholder="الاسم الكامل لولي الأمر"
@@ -1538,7 +1559,7 @@ export default function ProfileEditPage() {
             <div className="space-y-2">
               <RequiredLabel htmlFor="edit-field-19">رقم {country.words.phone} ولي الأمر</RequiredLabel>
               <Input
-                id="edit-field-19"
+                id="edit-field-19" {...inv("parentPhone")}
                 type="tel"
                 value={form.parentPhone}
                 onChange={(e) => update("parentPhone", e.target.value)}
@@ -1550,7 +1571,7 @@ export default function ProfileEditPage() {
 
             <div className="space-y-2">
               <RequiredLabel>صلة القرابة</RequiredLabel>
-              <div role="group" aria-label="صلة القرابة" className="grid grid-cols-2 gap-2">
+              <div role="group" aria-label="صلة القرابة" {...inv("relationship")} className="grid grid-cols-2 gap-2">
                 {guardianRelationships.map((r) => (
                   <button
                     key={r.value}
@@ -1568,7 +1589,7 @@ export default function ProfileEditPage() {
             <div className="space-y-2">
               <RequiredLabel htmlFor="edit-field-20">العنوان</RequiredLabel>
               <textarea
-                id="edit-field-20"
+                id="edit-field-20" {...inv("parentAddress")}
                 value={form.parentAddress}
                 onChange={(e) => update("parentAddress", e.target.value)}
                 className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm min-h-[80px] resize-none focus:outline-none focus:ring-2 focus:ring-ring"

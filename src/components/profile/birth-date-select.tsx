@@ -23,12 +23,15 @@ export function BirthDateSelect({
   value,
   onChange,
   invalid,
+  describedBy,
   selectClassName = "",
 }: {
   id: string;
   value: string;
   onChange: (value: string) => void;
   invalid?: boolean;
+  /** The message that explains the error (aria-describedby on the three lists) */
+  describedBy?: string;
   selectClassName?: string;
 }) {
   const country = useVisitorCountry();
@@ -56,19 +59,19 @@ export function BirthDateSelect({
   return (
     <div className="space-y-1">
       <div className="grid grid-cols-[0.8fr_2fr_1.1fr] gap-1.5">
-        <select id={id} aria-label="اليوم" aria-invalid={invalid || undefined} value={parts.day} onChange={(e) => pick("day", e.target.value)} className={cls}>
+        <select id={id} aria-label="اليوم" aria-invalid={invalid || undefined} aria-describedby={describedBy} value={parts.day} onChange={(e) => pick("day", e.target.value)} className={cls}>
           <option value="">يوم</option>
           {Array.from({ length: days }, (_, i) => i + 1).map((d) => (
             <option key={d} value={String(d)}>{d}</option>
           ))}
         </select>
-        <select aria-label="الشهر" aria-invalid={invalid || undefined} value={parts.month} onChange={(e) => pick("month", e.target.value)} className={cls}>
+        <select aria-label="الشهر" aria-invalid={invalid || undefined} aria-describedby={describedBy} value={parts.month} onChange={(e) => pick("month", e.target.value)} className={cls}>
           <option value="">شهر</option>
           {birthMonths(country).map((name, i) => (
             <option key={name} value={String(i + 1)}>{`${i + 1} - ${name}`}</option>
           ))}
         </select>
-        <select aria-label="السنة" aria-invalid={invalid || undefined} value={parts.year} onChange={(e) => pick("year", e.target.value)} className={cls}>
+        <select aria-label="السنة" aria-invalid={invalid || undefined} aria-describedby={describedBy} value={parts.year} onChange={(e) => pick("year", e.target.value)} className={cls}>
           <option value="">سنة</option>
           {/* a stored year outside the list (older data) still shows instead of a blank list */}
           {parts.year && !birthYearOptions().includes(Number(parts.year)) && <option value={parts.year}>{parts.year}</option>}

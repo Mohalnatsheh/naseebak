@@ -2,12 +2,12 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ replace: vi.fn(), push: vi.fn() }) }));
-vi.mock("@/contexts/dashboard-context", () => ({
-  useDashboardData: () => ({
-    profile: { gender: "MALE" }, country: "JO",
-    counts: { flags: { introRequests: true, chat: true, mutualSuggestions: true } },
-  }),
+// One stable value, as the real context gives between updates (a new object per render re-runs the page's effects)
+const dash = vi.hoisted(() => ({
+  profile: { gender: "MALE" }, country: "JO",
+  counts: { flags: { introRequests: true, chat: true, mutualSuggestions: true } },
 }));
+vi.mock("@/contexts/dashboard-context", () => ({ useDashboardData: () => dash }));
 
 import ProfileEditPage from "@/app/(ar)/dashboard/profile/edit/page";
 
@@ -64,6 +64,30 @@ describe("edit labels follow gender (QA WA-13 review)", () => {
     expect(screen.getByRole("button", { name: "بيضاء" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "أسمر" })).toBeNull();
     expect(screen.getByRole("button", { name: "عمّان" })).toBeTruthy();
+    window.history.replaceState(null, "", "/");
+  });
+});
+
+describe("each failed check points at its field (QA PA-L9)", () => {
+  it("the field gets aria-invalid and aria-describedby to the message; the others stay clean", async () => {
+    window.history.replaceState(null, "", "/dashboard/profile/edit?step=1");
+    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      const url = String(input);
+      if (url === "/api/profile") return json({ user });
+      if (url === "/api/profile/update-request") return json({ requests: [] });
+      return json({ parentInfo: null });
+    });
+    const { fireEvent } = await import("@testing-library/react");
+    render(<ProfileEditPage />);
+    const day = await screen.findByRole("combobox", { name: "اليوم" });
+    expect(day.getAttribute("aria-invalid")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /التالي/ }));
+    await waitFor(() => expect(day.getAttribute("aria-invalid")).toBe("true"));
+    expect(day.getAttribute("aria-describedby")).toBe("profile-edit-error");
+    expect(document.getElementById("profile-edit-error")!.textContent).toContain("تاريخ الميلاد");
+    // Only the field the message is about
+    expect(screen.getByLabelText(/الجنسية/).getAttribute("aria-invalid")).toBeNull();
+    expect(screen.getByRole("group", { name: "المدينة" }).getAttribute("aria-invalid")).toBeNull();
     window.history.replaceState(null, "", "/");
   });
 });

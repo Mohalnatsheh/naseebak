@@ -11,6 +11,7 @@ import { sendFcmPush } from "@/lib/fcm";
 import { notificationUrl } from "@/lib/notification-links";
 import { sendSmsNotice, smsEventFor, type SmsNoticeEvent } from "@/lib/sms-notice";
 import type { PreferenceKey } from "@/lib/notification-prefs";
+import { toLebanese } from "@/lib/notifications/lebanese";
 
 export { CHAT_NOTICE_PREFERENCE, type PreferenceKey } from "@/lib/notification-prefs";
 
@@ -45,6 +46,8 @@ export interface NotifyInput {
   preference?: PreferenceKey | null;
   /** Which push to send: the website (OneSignal), the mobile app (FCM) or both (default). The in-app row is the same. */
   channel?: PushChannel;
+  /** Send the text exactly as written (an admin's own words): never rewritten into a member's dialect */
+  verbatim?: boolean;
 }
 
 export type PushChannel = "all" | "web" | "app";
@@ -76,8 +79,31 @@ async function pushAllowed(userId: string, type: NotificationType, override?: Pr
   return !pref || (pref as unknown as Record<string, unknown>)[key] !== false;
 }
 
+/**
+ * The body as this reader gets it: Lebanese members read it in Lebanese dialect (lib/notifications/lebanese.ts).
+ * The title stays: jobs find earlier notices by their stored title (daily limits, reminders, SMS fallback, Insights).
+ */
+function bodyFor(body: string, country: string | null | undefined): string {
+  return country === "LB" ? toLebanese(body) : body;
+}
+
+/** The reader's country, or null when unknown (the text then goes out as written) */
+async function countryOf(userId: string): Promise<string | null> {
+  try {
+    const user = await db.user.findUnique({ where: { id: userId }, select: { country: true } });
+    return user?.country ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export async function notify(input: NotifyInput): Promise<void> {
-  const { userId, type, title, body, metadata, pushOnly, collapseId, oncePerDay, channel = "all" } = input;
+  return deliver(input, input.verbatim ? null : await countryOf(input.userId));
+}
+
+async function deliver(input: NotifyInput, country: string | null): Promise<void> {
+  const { userId, type, title, metadata, pushOnly, collapseId, oncePerDay, channel = "all" } = input;
+  const body = bodyFor(input.body, country);
   const url = input.url ?? notificationUrl(type, metadata);
   try {
     if (oncePerDay) {
@@ -108,5 +134,15 @@ export async function notify(input: NotifyInput): Promise<void> {
 }
 
 export async function notifyMany(userIds: string[], input: Omit<NotifyInput, "userId">): Promise<void> {
-  await Promise.all(userIds.map((userId) => notify({ ...input, userId })));
+  // Every reader's country in one query, so each notice is worded for its reader
+  let countries = new Map<string, string>();
+  if (!input.verbatim && userIds.length > 0) {
+    try {
+      const users = await db.user.findMany({ where: { id: { in: userIds } }, select: { id: true, country: true } });
+      countries = new Map(users.map((u) => [u.id, u.country]));
+    } catch {
+      // Unknown country: the text goes out as written
+    }
+  }
+  await Promise.all(userIds.map((userId) => deliver({ ...input, userId }, countries.get(userId) ?? null)));
 }

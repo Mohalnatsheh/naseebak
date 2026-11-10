@@ -5,6 +5,7 @@
  */
 import { COUNTRIES, toCountry } from "@/lib/countries";
 import { packagesFor, formatPrice, type PackagePrices } from "@/lib/payments/packages";
+import { toLebanese } from "@/lib/notifications/lebanese";
 
 export type AutomaticChannel = "bell" | "push" | "sms" | "whatsapp";
 
@@ -1519,14 +1520,20 @@ export const AUTOMATIC_NOTIFICATIONS: AutomaticNotification[] = [
   }
 ];
 
-/** The list for one country: its smallest package and price in the top-up lines, and how its codes are delivered */
+/**
+ * The list for one country: its smallest package and price in the top-up lines, how its codes are delivered, and
+ * for Lebanon the body each member reads (notify() words a pushed notice in Lebanese dialect; titles stay)
+ */
 export function automaticNotificationsFor(country: unknown, prices?: PackagePrices | null): AutomaticNotification[] {
   const code = toCountry(country);
   const smallest = [...packagesFor(code, prices)].sort((a, b) => a.credits - b.credits)[0];
   const fill = (text: string) => text.replaceAll("{package}", smallest.name).replaceAll("{price}", formatPrice(smallest));
-  return AUTOMATIC_NOTIFICATIONS.map((n) => ({
-    ...n,
-    channels: n.whatsappInSaudi && COUNTRIES[code].otpByWhatsapp ? ["whatsapp"] : n.channels,
-    texts: n.texts.map((t) => ({ ...t, title: fill(t.title), body: fill(t.body) })),
-  }));
+  return AUTOMATIC_NOTIFICATIONS.map((n) => {
+    const viaNotify = code === "LB" && n.channels.includes("push");
+    return {
+      ...n,
+      channels: n.whatsappInSaudi && COUNTRIES[code].otpByWhatsapp ? ["whatsapp"] : n.channels,
+      texts: n.texts.map((t) => ({ ...t, title: fill(t.title), body: viaNotify ? toLebanese(fill(t.body)) : fill(t.body) })),
+    };
+  });
 }

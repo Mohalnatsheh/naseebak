@@ -25,6 +25,8 @@ import { normalizePhone } from "@/lib/phone";
 import { VEIL_CHOICES, veilChoice, veilFromChoice, type VeilChoice } from "@/lib/profile-veil";
 import { PageLoading } from "@/components/shared/page-loading";
 import { sharedGet } from "@/lib/shared-get";
+import { PageHeader } from "@/components/shared/page-header";
+import { UserPen } from "lucide-react";
 
 const asOpts = (values: readonly string[]): Opt[] => values.map((v) => ({ value: v, label: v }));
 const educationLevels = asOpts(["ثانوية عامة", "دبلوم", "بكالوريوس", "ماجستير", "دكتوراه"]);
@@ -548,7 +550,7 @@ export default function ProfileSetupPage() {
 
   if (profileFailed) {
     return (
-      <div className="max-w-2xl mx-auto py-12">
+      <div className="py-12">
         <LoadError message="تعذّر تحميل ملفك. يمكنك التحقق من اتصالك والمحاولة مرة أخرى." onRetry={loadProfile} />
       </div>
     );
@@ -568,11 +570,13 @@ export default function ProfileSetupPage() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
-      <div className="space-y-2">
-        <h1 className="text-2xl font-bold">إعداد الملف الشخصي</h1>
-        <p className="text-muted-foreground">{forViewer(gender, "أكمل بياناتك للحصول على أفضل اقتراحات التوافق", "أكملي بياناتكِ للحصول على أفضل اقتراحات التوافق")}</p>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        icon={UserPen}
+        title="إعداد الملف الشخصي"
+        description={forViewer(gender, "أكمل بياناتك للحصول على أفضل اقتراحات التوافق", "أكملي بياناتكِ للحصول على أفضل اقتراحات التوافق")}
+        className="mb-0"
+      />
 
       {/* Progress */}
       <div className="flex items-center gap-2">
@@ -581,7 +585,7 @@ export default function ProfileSetupPage() {
             <div className={`h-2 flex-1 rounded-full transition-colors ${i < step ? "bg-primary" : "bg-muted"}`} />
           </div>
         ))}
-        <span className="text-sm text-muted-foreground">{step}/{totalSteps}</span>
+        <span className="text-label tabular-nums text-muted-ink">{step} من {totalSteps}</span>
       </div>
 
       {/* Auto-save indicator */}

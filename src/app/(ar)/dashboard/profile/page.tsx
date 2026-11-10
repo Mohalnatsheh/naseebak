@@ -1,10 +1,11 @@
 "use client";
 
-import Image from "next/image";
 import { toast } from "sonner";
 import { useState, useEffect, useRef } from "react";
 import { useCountry, useDashboardData } from "@/contexts/dashboard-context";
 import { ProBadge } from "@/components/shared/pro-badge";
+import { PageHeader } from "@/components/shared/page-header";
+import { MemberAvatar } from "@/components/shared/member-avatar";
 import { selfLabel, skinColorLabel, tribeLabel } from "@/lib/profile-options";
 import { formatDate } from "@/lib/countries";
 import { compressImage } from "@/lib/image-compress";
@@ -391,123 +392,73 @@ export default function ProfilePage() {
   const hasPreferences = p && (p.prefAgeMin || p.prefAgeMax || (p.prefCity && p.prefCity.length > 0) || (p.prefEducation && p.prefEducation.length > 0) || (p.prefMaritalStatus && p.prefMaritalStatus.length > 0) || (p.prefReligiosity && p.prefReligiosity.length > 0) || (p.prefSmokingStatus && p.prefSmokingStatus.length > 0) || p.prefHijab || p.prefBeard || p.prefChildrenAcceptance);
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6 pb-8">
-      {/* ============================================ */}
-      {/*  Profile Header Banner                       */}
-      {/* ============================================ */}
-      <div
-        className="relative overflow-hidden rounded-3xl bg-gradient-to-l from-primary via-primary/90 to-primary/80 p-6 sm:p-8 text-primary-foreground shadow-xl shadow-primary/15"
-        style={{ animation: "fadeSlideIn 0.5s ease-out both" }}
-      >
-        <div className="absolute top-0 left-0 h-40 w-40 rounded-full bg-white/5 blur-2xl -translate-x-12 -translate-y-12" />
-        <div className="absolute bottom-0 right-0 h-32 w-32 rounded-full bg-white/5 blur-2xl translate-x-8 translate-y-8" />
-        <div className="absolute top-1/2 left-1/3 h-24 w-24 rounded-full bg-accent/10 blur-xl" />
+    <div className="space-y-6 pb-8">
+      {/* The one page title (design review P1-6 / DS-04), then the identity card under it */}
+      <PageHeader icon={User} title="الملف الشخصي" description="ما يراه من يُقترح عليه ملفك، وما يبقى لك وحدك.">
+        {!p?.isComplete ? (
+          <Button asChild className="h-11 rounded-xl font-semibold">
+            <Link href="/dashboard/profile/setup">إكمال الملف</Link>
+          </Button>
+        ) : (
+          <Button asChild variant="neutral" className="h-11 rounded-xl font-semibold">
+            <Link href="/dashboard/profile/edit">
+              <Send className="h-4 w-4 me-2" />
+              طلب تعديل
+            </Link>
+          </Button>
+        )}
+      </PageHeader>
 
-        <div className="relative flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5">
-          <div className="flex items-center gap-5">
-            <div className="relative group/avatar">
-              <input
-                ref={avatarInputRef}
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                className="hidden"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) handleAvatarUpload(file);
-                }}
-              />
-              <div className="h-20 w-20 rounded-2xl bg-white/15 backdrop-blur-sm flex items-center justify-center border border-white/20 shadow-lg overflow-hidden">
-                {p?.profileImageUrl ? (
-                  <Image
-                    src={p.profileImageUrl}
-                    alt="صورة الملف الشخصي"
-                    width={80}
-                    height={80}
-                    unoptimized
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <span className="text-3xl font-extrabold text-white">
-                    {user.firstName.charAt(0)}
-                  </span>
-                )}
-              </div>
-              <button
-                type="button"
-                onClick={() => avatarInputRef.current?.click()}
-                disabled={avatarUploading}
-                aria-label="تغيير الصورة"
-                className="absolute inset-0 rounded-2xl bg-black/40 opacity-0 group-hover/avatar:opacity-100 focus-visible:opacity-100 transition-all duration-300 flex items-center justify-center cursor-pointer max-md:hidden"
-              >
-                {avatarUploading ? (
-                  <Loader2 className="h-5 w-5 text-white animate-spin" />
-                ) : (
-                  <Camera className="h-5 w-5 text-white" />
-                )}
-              </button>
-              {/* Touch screens have no hover: always-visible camera badge */}
-              <button
-                type="button"
-                onClick={() => avatarInputRef.current?.click()}
-                disabled={avatarUploading}
-                aria-label="تغيير الصورة"
-                className="absolute -bottom-2.5 -start-2.5 flex h-11 w-11 items-center justify-center rounded-full bg-card text-primary shadow-md ring-2 ring-primary md:hidden"
-              >
-                <Camera className="h-4 w-4" />
-              </button>
-              {!introMode && user.identityDoc?.status === "APPROVED" && (
-                <div className="absolute -bottom-1.5 -end-1.5 h-7 w-7 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-500 flex items-center justify-center shadow-md ring-2 ring-primary">
-                  <Shield className="h-3.5 w-3.5 text-white" />
-                </div>
-              )}
+      <section aria-label="بطاقة التعريف" className="flex items-center gap-4 rounded-2xl border border-border bg-card p-4 sm:p-5">
+        <div className="relative shrink-0">
+          <input
+            ref={avatarInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) handleAvatarUpload(file);
+            }}
+          />
+          <MemberAvatar name={user.firstName} size={72} photoUrl={p?.profileImageUrl ?? null} pro={!!pro?.isPro} />
+          <button
+            type="button"
+            onClick={() => avatarInputRef.current?.click()}
+            disabled={avatarUploading}
+            aria-label="تغيير الصورة"
+            className="press absolute -bottom-2 -start-2 flex h-11 w-11 items-center justify-center rounded-full border border-border bg-card text-primary shadow-float"
+          >
+            {avatarUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
+          </button>
+          {!introMode && user.identityDoc?.status === "APPROVED" && (
+            <div className="absolute -top-1 -end-1 flex h-7 w-7 items-center justify-center rounded-full bg-emerald-600 ring-2 ring-card">
+              <Shield className="h-3.5 w-3.5 text-white" />
             </div>
-
-            <div className="space-y-2">
-              <h1 className="text-2xl sm:text-3xl font-extrabold leading-tight">
-                {user.firstName} {user.lastName}
-                {/* Display only, the same badge others see on the member's card */}
-                {pro?.isPro && <ProBadge size="md" onDark className="ms-2 align-middle" />}
-              </h1>
-              <div className="flex flex-wrap items-center gap-2">
-                {p?.dateOfBirth && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-white/15 text-white/90 border border-white/20 px-3 py-1 text-xs font-bold">
-                    {getAge(p.dateOfBirth)} سنة
-                  </span>
-                )}
-                {/* The verified badge is hidden everywhere user-facing in the new cycle */}
-                {!introMode && user.identityDoc?.status === "APPROVED" && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-white/15 text-white/90 border border-white/20 px-3 py-1 text-xs font-bold">
-                    <Shield className="h-3 w-3" />
-                    موثّق
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div className="flex gap-2 self-start sm:self-auto">
-            {!p?.isComplete && (
-              <Button
-                asChild
-                className="bg-white/15 hover:bg-white/25 text-white border border-white/20 backdrop-blur-sm rounded-xl font-semibold transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
-              >
-                <Link href="/dashboard/profile/setup">إكمال الملف</Link>
-              </Button>
+          )}
+        </div>
+        <div className="min-w-0 space-y-1.5">
+          <h2 className="text-title text-ink">
+            {user.firstName} {user.lastName}
+            {/* Display only, the same badge others see on the member's card */}
+            {pro?.isPro && <ProBadge size="md" className="ms-2 align-middle" />}
+          </h2>
+          <div className="flex flex-wrap items-center gap-2">
+            {p?.dateOfBirth && (
+              <span className="inline-flex items-center rounded-full border border-border px-3 py-0.5 text-label tabular-nums text-ink">
+                {getAge(p.dateOfBirth)} سنة
+              </span>
             )}
-            {p?.isComplete && (
-              <Button
-                asChild
-                className="bg-white/15 hover:bg-white/25 text-white border border-white/20 backdrop-blur-sm rounded-xl font-semibold transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
-              >
-                <Link href="/dashboard/profile/edit">
-                  <Send className="h-4 w-4 me-2" />
-                  طلب تعديل
-                </Link>
-              </Button>
+            {/* The verified badge is hidden everywhere user-facing in the new cycle */}
+            {!introMode && user.identityDoc?.status === "APPROVED" && (
+              <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-0.5 text-label text-emerald-800">
+                <Shield className="h-3 w-3" />
+                موثّق
+              </span>
             )}
           </div>
         </div>
-      </div>
+      </section>
 
       {/* Avatar privacy note */}
       <div className="flex items-center gap-3 p-3 bg-gradient-to-l from-primary/5 to-primary/[0.03] rounded-xl border border-primary/10 text-sm text-muted-foreground">

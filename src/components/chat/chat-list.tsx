@@ -4,13 +4,11 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { MessageCircle, Loader2, Clock, Lock, Heart } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { VerifiedBadge } from "@/components/shared/verified-badge";
 import { arabicCount, cn } from "@/lib/utils";
 import type { ChatSummary } from "@/lib/chat/service";
 import { daysLabel, daysLeft } from "@/components/intro/intro-utils";
 import { listTimeLabel } from "./chat-utils";
-import { InstallAppCard } from "@/components/shared/install-app-card";
 import { useDashboardData } from "@/contexts/dashboard-context";
 import { LoadError } from "@/components/shared/load-error";
 import { PageHeader } from "@/components/shared/page-header";
@@ -19,6 +17,8 @@ import { sharedGet } from "@/lib/shared-get";
 import { matchesHref } from "@/lib/matches/links";
 import { ProBadge } from "@/components/shared/pro-badge";
 import { isActiveChat, splitChats, type ChatTab } from "./chat-look";
+import { MemberAvatar } from "@/components/shared/member-avatar";
+import { EmptyState } from "@/components/shared/line-art";
 
 /**
  * The chats, in two tabs: «النشطة» (open chats, first) and «المنتهية» (read-only), each with its unread total.
@@ -107,7 +107,7 @@ export function ChatList({ compact = false, activeId }: { compact?: boolean; act
   }, [counts.unreadChats, unreadCount]);
 
   return (
-    <div className={compact ? "flex h-full flex-col gap-3" : "mx-auto max-w-3xl space-y-6 pb-8"}>
+    <div className={compact ? "flex h-full flex-col gap-3" : "space-y-6 pb-8"}>
       {compact ? (
         // The page's h1 while no chat is open beside it (the open chat's name is the h1 then, QA PA-L1)
         (() => {
@@ -140,28 +140,17 @@ export function ChatList({ compact = false, activeId }: { compact?: boolean; act
           <span className="sr-only">جارٍ التحميل…</span>
         </div>
       ) : chats.length === 0 ? (
-        <Card className="border-2 border-dashed border-muted-foreground/20">
-          <CardContent className="space-y-4 py-14 text-center">
-            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-primary/5">
-              <MessageCircle className="h-8 w-8 text-muted-foreground/50" />
-            </div>
-            <div>
-              <h2 className="text-lg font-semibold">لا توجد محادثات بعد</h2>
-              <p className="mx-auto mt-1 max-w-xs text-sm text-muted-foreground">
-                {counts.flags.creditOnInterest
+        <EmptyState art="cupsTray" title="لا توجد محادثات بعد" description={<>{counts.flags.creditOnInterest
                   ? "تُفتح المحادثة تلقائياً عندما يختار كلاكما «محادثة هنا أولاً» عند «مهتم»، أو بطلب محادثة من صفحة التوافقات."
                   : female
                     ? "أرسلي طلب محادثة من صفحة التوافقات. تُفتح المحادثة عند قبول الطرف الآخر."
-                    : "أرسل طلب محادثة من صفحة التوافقات. تُفتح المحادثة عند قبول الطرف الآخر."}
-              </p>
-            </div>
-            <Button asChild variant="outline" className="gap-1.5">
+                    : "أرسل طلب محادثة من صفحة التوافقات. تُفتح المحادثة عند قبول الطرف الآخر."}</>}>
+          <Button asChild variant="neutral" className="h-11 gap-1.5 rounded-xl">
               <Link href={matchesHref(counts.flags.mutualSuggestions)}>
-                <Heart className="h-4 w-4" /> التوافقات المتبادلة
+                <Heart className="h-4 w-4" /> التوافقات
               </Link>
             </Button>
-          </CardContent>
-        </Card>
+        </EmptyState>
       ) : (
         (() => {
           const split = splitChats(chats);
@@ -198,7 +187,7 @@ export function ChatList({ compact = false, activeId }: { compact?: boolean; act
                   >
                     {t.label}
                     {t.unread > 0 && (
-                      <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-accent px-1.5 text-caption font-bold text-accent-foreground">
+                      <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-caption font-bold tabular-nums text-primary-foreground">
                         {t.unread > 99 ? "99+" : t.unread}
                       </span>
                     )}
@@ -233,9 +222,7 @@ export function ChatList({ compact = false, activeId }: { compact?: boolean; act
                     current && "bg-primary/10 hover:bg-primary/10"
                   )}
                 >
-                  <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-primary/10 text-lg font-bold text-primary" aria-hidden>
-                    {c.partner.firstName.charAt(0)}
-                  </span>
+                  <MemberAvatar name={c.partner.firstName} size={48} matched={c.status === "ACTIVE"} dimmed={c.status !== "ACTIVE"} pro={!!c.partner.isPro} />
                   <span className="min-w-0 flex-1">
                     <span className="flex items-center justify-between gap-2">
                       <span className="flex min-w-0 items-center gap-2">
@@ -264,7 +251,7 @@ export function ChatList({ compact = false, activeId }: { compact?: boolean; act
                       </span>
                       {c.unread > 0 && (
                         <>
-                          <span className="flex h-5 min-w-5 flex-shrink-0 items-center justify-center rounded-full bg-accent px-1.5 text-caption font-bold text-accent-foreground" aria-hidden>
+                          <span className="flex h-5 min-w-5 flex-shrink-0 items-center justify-center rounded-full bg-primary px-1.5 text-caption font-bold tabular-nums text-primary-foreground" aria-hidden>
                             {c.unread > 99 ? "99+" : c.unread}
                           </span>
                           <span className="sr-only">
@@ -298,10 +285,6 @@ export function ChatList({ compact = false, activeId }: { compact?: boolean; act
           );
         })()
       )}
-
-      {/* After the list (the chats come first on a phone). The only notifications prompt on this page: the
-          dashboard's notification bar stays off here */}
-      {chats !== null && !compact && <InstallAppCard context="chats" />}
     </div>
   );
 }

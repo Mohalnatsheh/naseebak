@@ -27,7 +27,7 @@ export default function InstallGuidePage() {
   const [tab, setTab] = useState<Tab>("ios");
 
   return (
-    <div className="mx-auto max-w-xl space-y-6 pb-8">
+    <div className="space-y-6 pb-8">
       <PageHeader
         icon={BellRing}
         title={forViewer(gender, "فعّل الإشعارات", "فعّلي الإشعارات")}

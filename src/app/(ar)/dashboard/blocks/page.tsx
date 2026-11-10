@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Ban, Loader2, ShieldOff, UserX } from "lucide-react";
+import { Ban, Loader2, ShieldOff } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -10,6 +10,8 @@ import { PageHeader } from "@/components/shared/page-header";
 import { useDashboardData } from "@/contexts/dashboard-context";
 import { formatDate } from "@/lib/countries";
 import { LoadError } from "@/components/shared/load-error";
+import { EmptyState } from "@/components/shared/line-art";
+import { MemberAvatar } from "@/components/shared/member-avatar";
 
 interface BlockRow {
   id: string;
@@ -70,7 +72,7 @@ export default function BlocksPage() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6 pb-8">
+    <div className="space-y-6 pb-8">
       <PageHeader
         icon={Ban}
         title="المحظورون"
@@ -85,19 +87,14 @@ export default function BlocksPage() {
       ) : error ? (
         <LoadError message={error} onRetry={() => { setLoading(true); load(); }} />
       ) : blocks.length === 0 ? (
-        <Card className="border-dashed border-2 border-muted-foreground/20">
-          <CardContent className="py-14 text-center space-y-3">
-            <UserX className="h-10 w-10 mx-auto text-muted-foreground/40" />
-            <p className="font-semibold text-foreground">لا يوجد أشخاص محظورون</p>
-            <p className="text-sm text-muted-foreground">يمكنك حظر أي شخص من قائمة الخيارات في بطاقة التوافق.</p>
-          </CardContent>
-        </Card>
+        <EmptyState art="door" title="لا يوجد أشخاص محظورون" description="يمكنك حظر أي شخص من قائمة الخيارات في بطاقته." />
       ) : (
         <Card>
           <CardContent className="divide-y divide-border/60 p-0">
             {blocks.map((b) => (
               <div key={b.id} className="flex items-center justify-between gap-3 px-5 py-4">
-                <div className="min-w-0">
+                <MemberAvatar name={b.blocked.firstName} size={40} dimmed />
+                <div className="min-w-0 flex-1">
                   <p className="font-semibold text-foreground truncate">{b.blocked.firstName}</p>
                   <p className="text-xs text-muted-foreground">
                     حُظر بتاريخ {formatDate(b.createdAt, country)}

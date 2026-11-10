@@ -162,7 +162,7 @@ function ProContent() {
   if (loading || dashboardLoading) return <Loading />;
 
   return (
-    <div className="mx-auto max-w-xl space-y-6 pb-8">
+    <div className="space-y-6 pb-8">
       <FixedToast toast={toast} />
 
       <PageHeader icon={Crown} title="عضوية Pro" description={proPageDescription(state)} />

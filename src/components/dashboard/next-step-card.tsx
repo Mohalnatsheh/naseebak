@@ -109,7 +109,7 @@ export function NextStepCard({ qualifies, pendingSuggestions, credits, emptyReas
     const n = counts.likedYou ?? 0;
     step = {
       icon: Heart,
-      title: n === 1 ? g("شخص مهتم بالتحدث معك", "شخص مهتم بالتحدث معكِ") : g(`${n} أشخاص مهتمون بالتحدث معك`, `${n} أشخاص مهتمون بالتحدث معكِ`),
+      title: n === 1 ? g("شخص مهتم بك", "شخص مهتم بكِ") : g(`${n} أشخاص مهتمون بك`, `${n} أشخاص مهتمون بكِ`),
       text: g("أبدوا اهتمامهم بالتعرف إليك. «مهتم» منك هنا توافق فوري.", "أبدوا اهتمامهم بالتعرف إليكِ. «مهتم» منكِ هنا توافق فوري."),
       href: "/dashboard/suggestions?tab=interested",
       cta: g("اطّلع الآن", "اطّلعي الآن"),
@@ -118,7 +118,7 @@ export function NextStepCard({ qualifies, pendingSuggestions, credits, emptyReas
   } else if ((pendingSuggestions ?? 0) > 0) {
     step = {
       icon: Sparkles,
-      title: "لديك توافقات جديدة",
+      title: "لديك اقتراحات جديدة",
       text: g("اطّلع على الاقتراحات الجديدة.", "اطّلعي على الاقتراحات الجديدة."),
       href: "/dashboard/suggestions",
       cta: g("اكتشف الآن", "اكتشفي الآن"),
@@ -142,7 +142,7 @@ export function NextStepCard({ qualifies, pendingSuggestions, credits, emptyReas
       title: g("اختر طريقة التعارف مع توافقك", "اختاري طريقة التعارف مع توافقك"),
       text: counts.flags.chat ? "تعارف عائلي، أو محادثة قصيرة أولاً." : g("ابدأ بطلب تعارف عائلي.", "ابدئي بطلب تعارف عائلي."),
       href: matchesHref(counts.flags.mutualSuggestions),
-      cta: "التوافقات المتبادلة",
+      cta: "التوافقات",
       tone: "primary",
     };
   } else if (emptyReason === "no_candidates") {
@@ -155,16 +155,16 @@ export function NextStepCard({ qualifies, pendingSuggestions, credits, emptyReas
         "سنقترح عليكِ فور انضمام من يناسبك. يمكنكِ مراجعة شروطك الأساسية وتفضيلاتك لتوسيع الاحتمالات."
       ),
       href: "/dashboard/suggestions",
-      cta: "صفحة التوافقات",
+      cta: "صفحة الاقتراحات",
       tone: "primary",
     };
   } else if (suggestionsFailed) {
     step = {
       icon: Search,
       title: "تعذّر تحميل اقتراحاتك الآن",
-      text: g("افتح صفحة التوافقات للمحاولة مرة أخرى.", "افتحي صفحة التوافقات للمحاولة مرة أخرى."),
+      text: g("افتح صفحة الاقتراحات للمحاولة مرة أخرى.", "افتحي صفحة الاقتراحات للمحاولة مرة أخرى."),
       href: "/dashboard/suggestions",
-      cta: "صفحة التوافقات",
+      cta: "صفحة الاقتراحات",
       tone: "primary",
     };
   } else {
@@ -177,7 +177,7 @@ export function NextStepCard({ qualifies, pendingSuggestions, credits, emptyReas
           ? "تصلك حتى 3 اقتراحات مجانية كل أسبوع، وسنرسل لك إشعاراً فور وصولها."
           : "سنرسل لك إشعاراً فور وصول اقتراح جديد.",
       href: "/dashboard/suggestions",
-      cta: "صفحة التوافقات",
+      cta: "صفحة الاقتراحات",
       tone: "primary",
     };
   }

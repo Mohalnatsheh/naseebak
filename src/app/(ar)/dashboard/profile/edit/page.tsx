@@ -40,6 +40,8 @@ import { forViewer } from "@/lib/gendered-copy";
 import { VEIL_CHOICES, veilChoice, veilFromChoice } from "@/lib/profile-veil";
 import { PageLoading } from "@/components/shared/page-loading";
 import { sharedGet } from "@/lib/shared-get";
+import { PageHeader } from "@/components/shared/page-header";
+import { UserPen } from "lucide-react";
 
 const educationLevels = [
   "ثانوية عامة",
@@ -649,7 +651,7 @@ export default function ProfileEditPage() {
 
   if (!loading && loadFailed) {
     return (
-      <div className="max-w-2xl mx-auto py-8 space-y-4">
+      <div className="py-8 space-y-4">
         <LoadError
           message="تعذّر تحميل بيانات ملفك، فلا يمكن التعديل الآن. يمكنك التحقق من الاتصال والمحاولة مرة أخرى."
           onRetry={() => {
@@ -697,7 +699,7 @@ export default function ProfileEditPage() {
   // Success state
   if (success) {
     return (
-      <div className="max-w-2xl mx-auto space-y-6 pb-8">
+      <div className="space-y-6 pb-8">
         <Card className="relative overflow-hidden border-emerald-200/60 bg-gradient-to-l from-emerald-50/80 to-emerald-50/30 shadow-md">
           <div className="absolute top-0 right-0 h-32 w-32 rounded-full bg-emerald-200/20 blur-2xl translate-x-8 -translate-y-8" />
           <CardContent className="pt-8 pb-8 text-center space-y-4">
@@ -730,14 +732,13 @@ export default function ProfileEditPage() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6 pb-8">
-      {/* Header */}
-      <div className="space-y-2">
-        <h1 className="text-2xl font-bold">تعديل الملف الشخصي</h1>
-        <p className="text-muted-foreground text-sm">
-          {forViewer(gender, "عدّل البيانات التي تريد تغييرها.", "عدّلي البيانات التي تريدين تغييرها.")}
-        </p>
-      </div>
+    <div className="space-y-6 pb-8">
+      <PageHeader
+        icon={UserPen}
+        title="تعديل الملف الشخصي"
+        description={forViewer(gender, "عدّل البيانات التي تريد تغييرها.", "عدّلي البيانات التي تريدين تغييرها.")}
+        className="mb-0"
+      />
 
       {/* Info banner */}
       <div className="flex items-start gap-3 rounded-xl bg-primary/5 border border-primary/15 p-4">

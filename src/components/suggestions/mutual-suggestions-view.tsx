@@ -4,15 +4,16 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import {
-  Loader2, Sparkles, HeartHandshake, X, Search, Clock, User, GraduationCap,
+  Loader2, Sparkles, HeartHandshake, X, User, GraduationCap,
   Moon, Cigarette, Flag, ChevronLeft, ChevronRight, MoreVertical,
-  ShieldAlert, Ban, Lightbulb, Heart, Hourglass, Coins,
+  ShieldAlert, Ban, Heart, Hourglass, Coins,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { PersonCard } from "@/components/shared/person-card";
+import { PersonCard, WhyLine } from "@/components/shared/person-card";
+import { PageHeader } from "@/components/shared/page-header";
+import { EmptyState } from "@/components/shared/line-art";
 import { LoadError } from "@/components/shared/load-error";
 import { ConfirmActionDialog } from "@/components/intro/confirm-action-dialog";
 import {
@@ -507,22 +508,22 @@ export function MutualSuggestionsView({
 
   // The four categories: three feed tabs (same rules as before) + the mutual matches
   const tabs: { key: FeedTab | "matches"; label: string; subtitle: string; icon: typeof Sparkles }[] = [
-    { key: "new", label: "الجديد", subtitle: g("اطّلع على الاقتراحات الجديدة.", "اطّلعي على الاقتراحات الجديدة."), icon: Sparkles },
+    { key: "new", label: "جديدة", subtitle: g("اطّلع على الاقتراحات الجديدة.", "اطّلعي على الاقتراحات الجديدة."), icon: Sparkles },
     {
       key: "interested",
-      label: g("مهتمون بالتحدث معك", "مهتمون بالتحدث معكِ"),
+      label: g("مهتمون بك", "مهتمون بكِ"),
       subtitle: g("أشخاص أبدوا اهتمامهم بالتعرف إليك. «مهتم» منك هنا توافق فوري.", "أشخاص أبدوا اهتمامهم بالتعرف إليكِ. «مهتمة» منكِ هنا توافق فوري."),
       icon: Heart,
     },
     {
       key: "waiting",
-      label: g("أنا مهتم بالتحدث معهم", "أنا مهتمة بالتحدث معهم"),
+      label: "بانتظار ردّهم",
       subtitle: g("الأشخاص الذين أرسلت إليهم اهتمامك، حتى يقرّروا أو تنتهي المدة.", "الأشخاص الذين أرسلتِ إليهم اهتمامكِ، حتى يقرّروا أو تنتهي المدة."),
       icon: Hourglass,
     },
     {
       key: "matches",
-      label: "توافق متبادل",
+      label: "التوافقات",
       subtitle: g(
         "قال كلاكما «مهتم»: الصور والتفاصيل، والتعارف الذي اخترتماه، والخطوة التالية.",
         "قال كلاكما «مهتم»: الصور والتفاصيل، والتعارف الذي اخترتماه، والخطوة التالية."
@@ -551,24 +552,21 @@ export function MutualSuggestionsView({
   }
 
   return (
-    <div className="max-w-2xl mx-auto space-y-5 pb-8">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div className="min-w-0">
-          <h1 className="font-display text-3xl leading-tight text-primary sm:text-4xl">التوافقات</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {g("يرى الطرفان الاقتراح نفسه، ويقرّر كلٌّ منكما وحده.", "يرى الطرفان الاقتراح نفسه، ويقرّر كلٌّ منكما وحده.")}
-          </p>
-        </div>
-      </div>
+    <div className="space-y-5 pb-8">
+      <PageHeader
+        icon={Sparkles}
+        title="الاقتراحات"
+        description="يرى الطرفان الاقتراح نفسه، ويقرّر كلٌّ منكما وحده."
+        className="mb-0"
+      />
 
       {/* Four categories: 2×2 on phones (labels never clipped), one row from sm up */}
       <div>
-        <div className="grid grid-cols-2 gap-1 rounded-2xl border border-border/50 bg-muted/50 p-1 sm:grid-cols-4" role="tablist" aria-label="أقسام التوافقات">
+        <div className="grid grid-cols-2 gap-1 rounded-2xl border border-border/50 bg-muted/50 p-1 sm:grid-cols-4" role="tablist" aria-label="أقسام الاقتراحات">
           {tabs.map((t) => {
             const on = activeKey === t.key;
             const badge = badgeFor(t.key);
-            const urgent = t.key === "interested" || (t.key === "matches" && counts.pendingIntros > 0);
-            return (
+                        return (
               <button
                 key={t.key}
                 type="button"
@@ -585,14 +583,12 @@ export function MutualSuggestionsView({
                 <span>{t.label}</span>
                 {badge > 0 && (
                   <span
-                    className={`inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full px-1.5 text-caption font-bold ${
+                    className={`inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full px-1.5 text-caption font-bold tabular-nums ${
                       t.key === "matches" && counts.pendingIntros > 0
                         ? "bg-destructive text-white"
-                        : on
-                          ? "bg-primary text-primary-foreground"
-                          : urgent
-                            ? "bg-accent text-accent-foreground"
-                            : "bg-muted-foreground/20 text-muted-foreground"
+                        : t.key === "interested"
+                          ? "bg-accent text-primary-deep"
+                          : "bg-primary text-primary-foreground"
                     }`}
                   >
                     {badge}
@@ -662,13 +658,10 @@ export function MutualSuggestionsView({
       ) : loadFailed && items.length === 0 ? (
         <LoadError message="تعذّر تحميل الاقتراحات. يمكنك التحقق من الاتصال والمحاولة مرة أخرى." onRetry={() => load(tab, page)} />
       ) : items.length === 0 ? (
-        <Card className="border-dashed border-2 border-muted-foreground/20 bg-gradient-to-b from-card to-muted/30">
-          <CardContent className="text-center py-14 space-y-4">
-            <div className="mx-auto h-20 w-20 rounded-full bg-gradient-to-br from-primary/5 to-accent/5 flex items-center justify-center border-2 border-dashed border-muted-foreground/20">
-              {tab === "new" ? <Search className="h-9 w-9 text-muted-foreground/40" /> : tab === "interested" ? <Heart className="h-9 w-9 text-muted-foreground/40" /> : <Clock className="h-9 w-9 text-muted-foreground/40" />}
-            </div>
-            <h2 className="font-semibold text-lg text-foreground">
-              {tab === "interested"
+        <EmptyState
+          art={tab === "interested" ? "envelope" : tab === "waiting" ? "cupsTray" : "dallah"}
+          title={
+              tab === "interested"
                 ? "لا توجد اهتمامات جديدة حالياً"
                 : tab === "waiting"
                 ? g("لم ترسل أي اهتمام بعد", "لم ترسلي أي اهتمام بعد")
@@ -681,17 +674,16 @@ export function MutualSuggestionsView({
                         ? "اقتراحاتك المفتوحة بانتظار الطرف الآخر"
                         : "لديك اقتراحات بانتظار قرارك"
                       : "نبحث لك عن اقتراحات مناسبة"}
-            </h2>
-            <p className="text-sm text-muted-foreground max-w-xs mx-auto leading-relaxed">
+          description={<>
               {tab === "interested"
                 ? g(
-                    "استمر في استكشاف التوافقات، فقد تتعرّف إلى شخص يناسبك. من يبدي اهتمامه بك يظهر هنا.",
-                    "استمري في استكشاف التوافقات، فقد تتعرّفين إلى شخص يناسبكِ. من يبدي اهتمامه بكِ يظهر هنا."
+                    "استمر في استكشاف الاقتراحات، فقد تتعرّف إلى شخص يناسبك. من يبدي اهتمامه بك يظهر هنا.",
+                    "استمري في استكشاف الاقتراحات، فقد تتعرّفين إلى شخص يناسبكِ. من يبدي اهتمامه بكِ يظهر هنا."
                   )
                 : tab === "waiting"
                 ? g(
-                    "ابدأ باكتشاف التوافقات الجديدة. عندما تختار «مهتم» على اقتراح، يظهر هنا حتى يقرّر الطرف الآخر أو تنتهي مدته.",
-                    "ابدئي باكتشاف التوافقات الجديدة. عندما تختارين «مهتم» على اقتراح، يظهر هنا حتى يقرّر الطرف الآخر أو تنتهي مدته."
+                    "ابدأ باكتشاف الاقتراحات الجديدة. عندما تختار «مهتم» على اقتراح، يظهر هنا حتى يقرّر الطرف الآخر أو تنتهي مدته.",
+                    "ابدئي باكتشاف الاقتراحات الجديدة. عندما تختارين «مهتم» على اقتراح، يظهر هنا حتى يقرّر الطرف الآخر أو تنتهي مدته."
                   )
                 : emptyReason === "no_candidates"
                   ? "لم نجد حالياً أحداً تنطبق عليه شروطك الأساسية وتفضيلاتك. مراجعتها قد توسّع فرصك، ونبحث لك من جديد تلقائياً كلما انضم أشخاص جدد."
@@ -707,43 +699,39 @@ export function MutualSuggestionsView({
                       : creditOnInterest
                         ? "تصلك اقتراحات مجانية جديدة كلما توفّر من يناسبك، وسنرسل لك إشعاراً فور وصولها. إكمال ملفك واختبار الشخصية يجعلها أدق."
                         : "تصلك حتى 3 اقتراحات مجانية كل أسبوع، وسنرسل لك إشعاراً فور وصولها. إكمال ملفك واختبار الشخصية يجعلها أدق."}
-            </p>
+          </>}
+        >
             {tab !== "new" && totals.new > 0 && (
-              <div className="flex justify-center pt-1">
-                <Button type="button" className="h-11 rounded-xl" onClick={() => switchTab("new")}>
-                  <Sparkles className="h-4 w-4 me-1.5" aria-hidden /> {g("اكتشف الجديد", "اكتشفي الجديد")} ({totals.new})
-                </Button>
-              </div>
+              <Button type="button" className="h-11 rounded-xl" onClick={() => switchTab("new")}>
+                <Sparkles className="h-4 w-4 me-1.5" aria-hidden /> {g("اكتشف الجديدة", "اكتشفي الجديدة")} ({totals.new})
+              </Button>
             )}
             {tab === "new" && emptyReason === "pending" && totals.waiting > 0 && (
-              <div className="flex justify-center pt-1">
-                <Button type="button" variant="outline" className="h-11 rounded-xl" onClick={() => switchTab("waiting")}>
-                  عرض ما ينتظر الرد ({totals.waiting})
-                </Button>
-              </div>
+              <Button type="button" variant="neutral" className="h-11 rounded-xl" onClick={() => switchTab("waiting")}>
+                عرض ما ينتظر الرد ({totals.waiting})
+              </Button>
             )}
             {tab === "new" && emptyReason === "no_candidates" && filterTip && (
-              <p role="note" className="mx-auto max-w-md rounded-xl border border-amber-200/60 bg-amber-50/70 px-4 py-3 text-sm font-medium text-amber-900">
+              <p role="note" className="w-full max-w-md rounded-xl border border-amber-200/60 bg-amber-50/70 px-4 py-3 text-sm font-medium text-amber-900">
                 {filterTip}
               </p>
             )}
             {tab === "new" && emptyReason === "no_candidates" && (
-              <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
-                <Button asChild size="sm" className="rounded-lg max-md:min-h-11">
+              <>
+                <Button asChild className="h-11 rounded-xl">
                   <a href="#dealbreakers">شروطي الأساسية</a>
                 </Button>
-                <Button asChild size="sm" variant="outline" className="rounded-lg max-md:min-h-11">
+                <Button asChild variant="neutral" className="h-11 rounded-xl">
                   <Link href="/dashboard/profile/edit?step=3">تفضيلاتي في الملف الشخصي</Link>
                 </Button>
-              </div>
+              </>
             )}
-          </CardContent>
-        </Card>
+        </EmptyState>
       ) : (
-        <div className="space-y-6">
+        <div className="grid items-start gap-5 lg:grid-cols-2">
           {/* 0 credits: everything stays visible and «لا» is free; only «مهتم» waits for a recharge */}
           {tab === "interested" && outOfCredits && freeInterestReply ? (
-            <div role="note" className="flex flex-wrap items-center gap-3 rounded-xl border border-emerald-200/60 bg-emerald-50/70 p-4 text-sm leading-relaxed text-emerald-900">
+            <div role="note" className="lg:col-span-2 flex flex-wrap items-center gap-3 rounded-xl border border-emerald-200/60 bg-emerald-50/70 p-4 text-sm leading-relaxed text-emerald-900">
               <Heart className="h-4 w-4 shrink-0" aria-hidden="true" />
               <p className="min-w-0 flex-1">
                 <span className="font-semibold">{g("شخص مهتم بك ينتظر ردّك.", "شخص مهتم بكِ ينتظر ردّكِ.")}</span>{" "}
@@ -751,7 +739,7 @@ export function MutualSuggestionsView({
               </p>
             </div>
           ) : tab === "interested" && outOfCredits && topUp ? (
-            <div role="note" className="flex flex-wrap items-center gap-3 rounded-xl border border-amber-200/60 bg-amber-50/70 p-4 text-sm leading-relaxed text-amber-900">
+            <div role="note" className="lg:col-span-2 flex flex-wrap items-center gap-3 rounded-xl border border-amber-200/60 bg-amber-50/70 p-4 text-sm leading-relaxed text-amber-900">
               <Heart className="h-4 w-4 shrink-0" aria-hidden="true" />
               <p className="min-w-0 flex-1">
                 <span className="font-semibold">{g("شخص مهتم بك ينتظر ردّك.", "شخص مهتم بكِ ينتظر ردّكِ.")}</span>{" "}
@@ -764,7 +752,7 @@ export function MutualSuggestionsView({
               </Button>
             </div>
           ) : tab !== "waiting" && outOfCredits && (
-            <div role="note" className="flex flex-wrap items-start gap-3 rounded-xl border border-amber-200/60 bg-amber-50/70 p-4 text-sm leading-relaxed text-amber-900">
+            <div role="note" className="lg:col-span-2 flex flex-wrap items-start gap-3 rounded-xl border border-amber-200/60 bg-amber-50/70 p-4 text-sm leading-relaxed text-amber-900">
               <Coins className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
               <p className="min-w-0 flex-1">
                 <span className="font-semibold">{g("انتهى رصيدك.", "انتهى رصيدكِ.")}</span>{" "}
@@ -785,7 +773,7 @@ export function MutualSuggestionsView({
             const waiting = tab === "waiting";
             const declined = waiting && !!item.declined;
             return (
-              <div key={item.id} data-feed-card="" tabIndex={-1} className="outline-none" style={{ animation: `fadeSlideIn 0.4s ease-out ${index * 0.08}s both` }}>
+              <div key={item.id} data-feed-card="" tabIndex={-1} className="animate-appear outline-none" style={{ animationDelay: `${Math.min(index, 6) * 40}ms` }}>
                 <PersonCard
                   name={c.firstName}
                   verified={c.isVerified}
@@ -795,14 +783,11 @@ export function MutualSuggestionsView({
                   job={c.job && describeOption("job", c.job, partnerGender)}
                   score={score}
                   photoLocked
+                  pro={!!item.isPro}
+                  activity={declined ? null : item.activity}
                   badges={
                     <>
                       {item.isPro && <ProBadge />}
-                      {item.activity && !declined && (
-                        <Badge className="bg-emerald-50 text-emerald-800 border border-emerald-200/60 text-caption gap-1">
-                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden /> {item.activity}
-                        </Badge>
-                      )}
                       {declined ? (
                         <Badge className="bg-muted text-muted-foreground border border-border text-caption gap-1">
                           <X className="h-3 w-3" /> لم يحصل توافق
@@ -813,7 +798,7 @@ export function MutualSuggestionsView({
                         </Badge>
                       ) : null}
                       {(item.kind === "legacy_interest" || item.likedYou) && (
-                        <Badge className="bg-accent/15 text-accent-foreground border border-accent/25 text-caption gap-1">
+                        <Badge variant="news" className="text-caption gap-1">
                           <Heart className="h-3 w-3" /> {partnerGender === "FEMALE" ? "أبدت اهتمامها بك" : "أبدى اهتمامه بك"}
                         </Badge>
                       )}
@@ -822,8 +807,9 @@ export function MutualSuggestionsView({
                   tone={declined ? "muted" : waiting ? "pending" : "default"}
                   /* Third-person, gender-correct labels about the other person */
                   tags={[
-                    { icon: User, label: c.maritalStatus && describeOption("maritalStatus", c.maritalStatus, partnerGender) },
+                    // The first three are the card's chips (P1-4); the rest wait under the details
                     { icon: GraduationCap, label: c.education },
+                    { icon: User, label: c.maritalStatus && describeOption("maritalStatus", c.maritalStatus, partnerGender) },
                     { icon: Moon, label: c.religiosity && describeOption("religiosity", c.religiosity, partnerGender) },
                     { icon: Cigarette, label: c.smokingStatus && describeOption("smokingStatus", c.smokingStatus, partnerGender) },
                     { icon: Flag, label: nationalityLabel(c.nationality, partnerGender) },
@@ -879,7 +865,7 @@ export function MutualSuggestionsView({
                           </p>
                         )
                       )}
-                      <div className="flex gap-3">
+                      <div className="flex gap-2">
                         {!waiting && (
                           <>
                             <Button
@@ -888,17 +874,19 @@ export function MutualSuggestionsView({
                               aria-label={`${g("مهتم", "مهتمة")} · ${c.firstName}`}
                               onClick={() => onInterested(item)}
                               disabled={acting === item.id || (outOfCredits && !isFreeReply(item))}
-                              className="flex-1 h-12 bg-gradient-to-l from-primary to-secondary text-primary-foreground shadow-md shadow-primary/20 rounded-xl font-bold text-base"
+                              size="cta"
+                              className="flex-[2]"
                             >
                               {acting === item.id ? <Loader2 className="h-5 w-5 animate-spin" /> : <><HeartHandshake className="h-5 w-5 me-2" />{g("مهتم", "مهتمة")}</>}
                             </Button>
                             <Button
-                              variant="outline"
+                              variant="neutral"
+                              size="cta"
                               aria-label={`لا · ${c.firstName}`}
                               onClick={() => declineWithUndo(item, index)}
                               // «لا» is always free, also at 0 credits. Neutral, as in the app: red is for errors only (QA DS-09)
                               disabled={acting === item.id}
-                              className="h-12 px-6 rounded-xl font-bold text-foreground"
+                              className="flex-1"
                             >
                               لا
                             </Button>
@@ -907,7 +895,7 @@ export function MutualSuggestionsView({
                         <div className={waiting ? "ms-auto" : ""}>
                           <DropdownMenu dir="rtl">
                             <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" aria-label={`خيارات إضافية: ${c.firstName}`} className="h-12 w-12 rounded-xl">
+                              <Button variant="ghost" size="icon" aria-label={`خيارات إضافية: ${c.firstName}`} className="h-12 w-11 rounded-xl text-muted-ink">
                                 <MoreVertical className="h-5 w-5" />
                               </Button>
                             </DropdownMenuTrigger>
@@ -925,21 +913,20 @@ export function MutualSuggestionsView({
                     </>
                   }
                 >
-                  {/* Why this suggestion */}
-                  <div className="rounded-xl border border-accent/25 bg-accent/10 p-3.5 flex items-start gap-2.5">
-                    <Lightbulb className="h-4 w-4 mt-0.5 shrink-0 text-accent-foreground" aria-hidden="true" />
-                    <p className="text-sm leading-relaxed text-foreground/90">
-                      <span className="font-bold">لماذا هذا الاقتراح؟ </span>
+                  {/* Why this suggestion: one line in soft gold (P1-4) */}
+                  {item.reason && (
+                    <WhyLine>
+                      <span className="sr-only">لماذا هذا الاقتراح؟ </span>
                       {item.reason}
-                    </p>
-                  </div>
+                    </WhyLine>
+                  )}
                 </PersonCard>
               </div>
             );
           })}
 
           {totalPages > 1 && (
-            <div className="flex items-center justify-center gap-4 mt-8">
+            <div className="lg:col-span-2 flex items-center justify-center gap-4 mt-8">
               <Button variant="outline" className="h-11" disabled={page <= 1} onClick={() => { setPage(page - 1); window.scrollTo({ top: 0, behavior: "smooth" }); }}>
                 <ChevronRight className="h-4 w-4 me-1" /> السابق
               </Button>
@@ -1038,12 +1025,6 @@ export function MutualSuggestionsView({
         </DialogContent>
       </Dialog>
 
-      <style jsx global>{`
-        @keyframes fadeSlideIn {
-          from { opacity: 0; transform: translateY(16px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-      `}</style>
     </div>
   );
 }

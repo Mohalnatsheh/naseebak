@@ -373,7 +373,7 @@ function PaymentsContent() {
   // Show embedded checkout form
   if (checkoutSecret) {
     return (
-      <div className="max-w-2xl mx-auto space-y-6 pb-8">
+      <div className="space-y-6 pb-8">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-lg shadow-primary/20">

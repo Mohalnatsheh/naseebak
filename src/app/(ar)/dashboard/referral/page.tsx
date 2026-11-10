@@ -18,6 +18,7 @@ import { formatDate } from "@/lib/countries";
 import { LoadError } from "@/components/shared/load-error";
 import { PageHeader } from "@/components/shared/page-header";
 import { PageLoading } from "@/components/shared/page-loading";
+import { MemberAvatar } from "@/components/shared/member-avatar";
 
 interface ReferralData {
   referralCode: string;
@@ -98,7 +99,7 @@ export default function ReferralPage() {
 
   if (!data) {
     return (
-      <div className="max-w-2xl mx-auto py-8">
+      <div className="py-8">
         <LoadError
           message="تعذّر تحميل بيانات الدعوة. يمكنك التحقق من الاتصال والمحاولة مرة أخرى."
           onRetry={() => {
@@ -111,7 +112,7 @@ export default function ReferralPage() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto space-y-8 pb-8">
+    <div className="space-y-8 pb-8">
       <PageHeader
         icon={Gift}
         title={g("ادعُ صديقاً", "ادعي صديقة")}
@@ -229,13 +230,7 @@ export default function ReferralPage() {
               <Card key={referral.id} className="border-border/50">
                 <CardContent className="p-4 flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className={`h-9 w-9 rounded-full flex items-center justify-center text-sm font-bold ${
-                      referral.creditsAwarded
-                        ? "bg-emerald-500/10 text-emerald-500"
-                        : "bg-amber-500/10 text-amber-500"
-                    }`}>
-                      {referral.referee.firstName.charAt(0)}
-                    </div>
+                    <MemberAvatar name={referral.referee.firstName} size={36} dimmed={!referral.creditsAwarded} />
                     <div>
                       <p className="text-sm font-medium text-foreground">
                         {referral.referee.firstName}

@@ -45,7 +45,7 @@ export function StickyStart() {
           href="/register"
           onClick={() => trackEvent("landing_start", { place: "sticky" })}
           tabIndex={show ? 0 : -1}
-          className="inline-flex h-12 shrink-0 items-center gap-1.5 rounded-xl bg-accent px-5 text-base font-extrabold text-accent-foreground"
+          className="inline-flex h-12 shrink-0 items-center gap-1.5 rounded-xl bg-primary px-5 text-base font-extrabold text-primary-foreground"
         >
           ابدأ التسجيل
           <ArrowLeft className="h-4 w-4" aria-hidden />

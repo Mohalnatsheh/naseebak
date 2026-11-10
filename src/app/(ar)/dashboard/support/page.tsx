@@ -155,7 +155,7 @@ export default function SupportPage() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto space-y-8 pb-8">
+    <div className="space-y-8 pb-8">
       <PageHeader
         icon={LifeBuoy}
         title="الدعم والملاحظات"

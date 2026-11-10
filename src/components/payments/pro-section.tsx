@@ -201,7 +201,9 @@ export function ProPlanChooser({ offers, canBuy }: { offers: ProPlanOffer[]; can
           </ul>
 
           <Button
-            className="h-12 w-full rounded-xl border-0 bg-accent text-base font-bold text-accent-foreground hover:brightness-110"
+            size="cta"
+            // Navy on a light card: gold fill is only for navy surfaces (design review P2-4 / DS-18)
+            className="w-full"
             disabled={!canBuy || buying !== null}
             onClick={() => {
               rememberProPlan(offer.id);

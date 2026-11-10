@@ -67,6 +67,7 @@ import { countryConfig, formatDate } from "@/lib/countries";
 import { PageHeader } from "@/components/shared/page-header";
 import { markPageNotificationsRead } from "@/lib/notifications-client";
 import { veilLabel } from "@/lib/profile-veil";
+import { EmptyState } from "@/components/shared/line-art";
 
 interface Match {
   id: string;
@@ -521,7 +522,7 @@ export function MatchesView({ embedded = false }: { embedded?: boolean } = {}) {
 
   if (loadError && matches.length === 0) {
     return (
-      <div className="max-w-2xl mx-auto pb-8">
+      <div className="pb-8">
         <Card className="border-destructive/20 bg-destructive/5">
           <CardContent className="pt-8 pb-8 text-center space-y-4" role="alert">
             <div className="flex h-14 w-14 mx-auto items-center justify-center rounded-2xl bg-destructive/10">
@@ -566,30 +567,16 @@ export function MatchesView({ embedded = false }: { embedded?: boolean } = {}) {
 
       {/* Match Cards */}
       {matches.length === 0 ? (
-        <Card className="border-dashed border-2 border-muted-foreground/20 bg-gradient-to-b from-card to-primary/5">
-          <CardContent className="text-center py-16 md:py-20 space-y-5">
-            <div className="relative mx-auto w-24 h-24">
-              <div className="absolute inset-0 bg-gradient-to-br from-primary/15 to-secondary/10 rounded-full" />
-              <div className="relative h-24 w-24 rounded-full bg-gradient-to-br from-primary/5 to-secondary/5 flex items-center justify-center border-2 border-dashed border-primary/20">
-                <Users className="h-10 w-10 text-muted-foreground/40" />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <h2 className="font-semibold text-lg text-foreground">لا توجد توافقات حالياً</h2>
-              <p className="text-sm text-muted-foreground max-w-xs mx-auto leading-relaxed">
-                {introMode
+        <EmptyState art="dallah" title="لا توجد توافقات حالياً" description={<>{introMode
                   ? "عندما يكون الاهتمام متبادلاً بينك وبين أحد اقتراحاتك، يظهر التوافق هنا."
-                  : "عندما يتبادل شخصان الإعجاب، ستظهر هنا تفاصيل التوافق."}
-              </p>
-            </div>
-            <Button asChild variant="outline" className="h-11 gap-1.5 rounded-xl">
+                  : "عندما يتبادل شخصان الإعجاب، ستظهر هنا تفاصيل التوافق."}</>}>
+          <Button asChild variant="neutral" className="h-11 gap-1.5 rounded-xl">
               <Link href="/dashboard/suggestions">
                 <Sparkles className="h-4 w-4" />
                 {isFemale ? "راجعي اقتراحاتك" : "راجع اقتراحاتك"}
               </Link>
             </Button>
-          </CardContent>
-        </Card>
+        </EmptyState>
       ) : (
         <div className="space-y-6">
           {matches.map((m, index) => {
@@ -630,6 +617,8 @@ export function MatchesView({ embedded = false }: { embedded?: boolean } = {}) {
                   photoUrl={!locked && m.photosRevealed ? matchPhotos[m.id]?.[0]?.url : undefined}
                   // «الصور تظهر بعد الاهتمام المتبادل» only on an open match: a closed one never shows photos
                   photoLocked={!m.closed && !m.photosRevealed}
+                  matched={!m.closed}
+                  pro={!!m.partner.isPro}
                   tone={showVisitBanner && m.visitStatus ? visitStatusTone[m.visitStatus] ?? "default" : "default"}
                   meta={<>توافق بتاريخ {formatDate(m.createdAt, country)}</>}
                   status={

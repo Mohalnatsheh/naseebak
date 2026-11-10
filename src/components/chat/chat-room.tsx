@@ -64,6 +64,7 @@ import { composerMediaMode, type ComposerMedia, type MediaMode } from "./media-b
 import { preparePhoto } from "./photo-prepare";
 import { UNSUPPORTED_IMAGE_MESSAGE } from "@/lib/chat/media-messages";
 import type { PendingUpload } from "./chat-utils";
+import { MemberAvatar } from "@/components/shared/member-avatar";
 
 /** Id for an optimistic message until the server answers (also its clientNonce); only called from send() / sendMedia().
  *  Random, so two sends in the same millisecond (or two tabs) never share a nonce. */
@@ -883,9 +884,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
         {(() => {
           const who = (
             <>
-              <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-primary text-base font-bold text-primary-foreground">
-                {conversation.partner.firstName.charAt(0)}
-              </span>
+              <MemberAvatar name={conversation.partner.firstName} size={40} matched pro={!!conversation.partner.isPro} />
               <div className="min-w-0 flex-1">
                 <div className="flex min-w-0 items-center gap-2">
                   <h1 className="truncate font-bold leading-tight text-foreground">{conversation.partner.firstName}</h1>

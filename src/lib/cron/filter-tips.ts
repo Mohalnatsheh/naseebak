@@ -43,7 +43,7 @@ export async function sendFilterTips(now = new Date()): Promise<{ members: numbe
       userId: m.id,
       type: "SUGGESTION",
       title: FILTER_TIP_TITLE,
-      body: `${filterTipText(tip, female)} ${female ? "القرار لكِ، ويمكنكِ تعديل شروطكِ من صفحة التوافقات." : "القرار لك، ويمكنك تعديل شروطك من صفحة التوافقات."}`,
+      body: `${filterTipText(tip, female)} ${female ? "القرار لكِ، ويمكنكِ تعديل شروطكِ من صفحة الاقتراحات." : "القرار لك، ويمكنك تعديل شروطك من صفحة الاقتراحات."}`,
       url: "/dashboard/suggestions?tab=new",
       metadata: { filter: tip.key, gain: tip.gain },
       oncePerDay: "filter-tip",

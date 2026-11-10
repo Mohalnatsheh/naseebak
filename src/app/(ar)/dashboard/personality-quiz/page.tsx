@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { FirstVisitTip } from "@/components/shared/first-visit-tip";
+import { PageTip } from "@/components/shared/banner-slot";
 import { trackEvent } from "@/lib/analytics";
 import { arabicCount } from "@/lib/utils";
 import { useDashboardData } from "@/contexts/dashboard-context";
@@ -207,7 +207,7 @@ export default function PersonalityQuizPage() {
   // The questions didn't load: an empty quiz would show "0 of 0" and let an empty submit through
   if (!existingResult && (loadFailed || questions.length === 0)) {
     return (
-      <div className="max-w-2xl mx-auto py-8">
+      <div className="py-8">
         <LoadError
           message="تعذّر تحميل أسئلة الاختبار. يمكنك التحقق من الاتصال والمحاولة مرة أخرى."
           onRetry={() => {
@@ -228,7 +228,7 @@ export default function PersonalityQuizPage() {
     });
 
     return (
-      <div className="max-w-2xl mx-auto space-y-8 pb-8">
+      <div className="space-y-8 pb-8">
         <PageHeader
           icon={Brain}
           title="نتيجة اختبار الشخصية"
@@ -402,10 +402,9 @@ export default function PersonalityQuizPage() {
 
   // --- Quiz Screen ---
   return (
-    <div className="max-w-2xl mx-auto space-y-8 pb-8">
-      <FirstVisitTip
+    <div className="space-y-8 pb-8">
+      <PageTip
         storageKey="naseeb_tip_quiz"
-        icon={<Brain className="h-5 w-5 text-primary" />}
         title="اختبار الشخصية يحسّن التوافق"
         body={`اختبار قصير من ${arabicCount(questions.length, { one: "سؤال واحد", two: "سؤالين", few: "أسئلة", many: "سؤالاً" })} يساعدنا في فهم شخصيتك وتقديم اقتراحات توافق أدق. نتائجك تُستخدم لحساب نسبة التوافق مع المرشحين.`}
       />

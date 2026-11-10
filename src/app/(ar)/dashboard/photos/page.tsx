@@ -13,8 +13,8 @@ import {
   Lock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { FirstVisitTip } from "@/components/shared/first-visit-tip";
+import { PageTip } from "@/components/shared/banner-slot";
+import { EmptyState } from "@/components/shared/line-art";
 import { ImageLightbox } from "@/components/shared/image-lightbox";
 import { trackEvent } from "@/lib/analytics";
 import { useDashboardData } from "@/contexts/dashboard-context";
@@ -166,10 +166,9 @@ export default function PhotosPage() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto space-y-8 pb-8">
-      <FirstVisitTip
+    <div className="space-y-6 pb-8">
+      <PageTip
         storageKey="naseeb_tip_photos"
-        icon={<Camera className="h-5 w-5 text-primary" />}
         title="صور واضحة، فرص أكبر"
         // The privacy sentence is the banner below; the tip doesn't repeat it (QA WA-20)
         body={`${female ? "تأكدي" : "تأكد"} من إضافة صور واضحة لزيادة فرصك في التوافق.`}
@@ -209,15 +208,11 @@ export default function PhotosPage() {
         </Button>
       </PageHeader>
 
-      {/* Privacy Banner */}
-      <div className="flex items-center gap-3 p-3.5 bg-gradient-to-l from-primary/5 to-primary/5 rounded-xl border border-primary/10 text-sm text-muted-foreground">
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-          <Lock className="h-4 w-4 text-primary" />
-        </div>
-        <span className="leading-relaxed">
-          صورك الشخصية لن تظهر لأي مستخدم إلا بعد التوافق المتبادل بينكما. لا يمكن لأي شخص آخر على المنصة الاطلاع عليها
-        </span>
-      </div>
+      {/* Privacy: one quiet line, not a second banner (the slot above holds the one banner; QA DS-05) */}
+      <p className="flex items-start gap-2 text-label font-normal text-muted-ink">
+        <Lock className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden />
+        <span>صورك الشخصية لن تظهر لأي مستخدم إلا بعد التوافق المتبادل بينكما. لا يمكن لأي شخص آخر على المنصة الاطلاع عليها</span>
+      </p>
 
       {/* Photo Grid */}
       {loadFailed && photos.length === 0 ? (
@@ -229,32 +224,12 @@ export default function PhotosPage() {
           }}
         />
       ) : photos.length === 0 ? (
-        <Card className="border-dashed border-2 border-muted-foreground/20 bg-gradient-to-b from-card to-primary/5">
-          <CardContent className="text-center py-16 md:py-20 space-y-5">
-            <div className="relative mx-auto w-24 h-24">
-              <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-primary/10 rounded-full" />
-              <div className="relative h-24 w-24 rounded-full bg-gradient-to-br from-primary/5 to-primary/5 flex items-center justify-center border-2 border-dashed border-primary/20">
-                {/* An empty slot invites a photo; a broken-image icon said something failed (QA DS-11) */}
-                <ImagePlus className="h-10 w-10 text-primary/50" aria-hidden />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <h2 className="font-semibold text-lg text-foreground">لا توجد صور بعد</h2>
-              <p className="text-sm text-muted-foreground max-w-xs mx-auto leading-relaxed">
-                {female ? "أضيفي صوراً لملفكِ الشخصي لتظهر عند التوافق المتبادل مع شريك محتمل." : "أضف صوراً لملفك الشخصي لتظهر عند التوافق المتبادل مع شريك محتمل."}
-              </p>
-            </div>
-            <Button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploading}
-              variant="outline"
-              className="border-primary/20 text-primary hover:bg-primary/5 hover:border-primary/30 rounded-xl font-semibold"
-            >
-              <ImagePlus className="h-4 w-4 me-2" />
-              رفع أول صورة
-            </Button>
-          </CardContent>
-        </Card>
+        <EmptyState art="window" title="لا توجد صور بعد" description={female ? "أضيفي صوراً لملفكِ الشخصي لتظهر عند التوافق المتبادل مع شريك محتمل." : "أضف صوراً لملفك الشخصي لتظهر عند التوافق المتبادل مع شريك محتمل."}>
+          <Button onClick={() => fileInputRef.current?.click()} disabled={uploading} className="h-11 rounded-xl font-semibold">
+            <ImagePlus className="h-4 w-4 me-2" aria-hidden />
+            رفع أول صورة
+          </Button>
+        </EmptyState>
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
           {photos.map((photo, index) => (

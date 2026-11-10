@@ -128,7 +128,13 @@ export function StartForm({
         <button
           type="submit"
           disabled={going}
-          className="inline-flex h-14 items-center justify-center gap-2 rounded-2xl bg-accent px-7 text-lg font-extrabold text-accent-foreground shadow-[0_12px_30px_-12px_oklch(0.69_0.10_74/0.8)] transition-transform hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:opacity-70 motion-safe:active:scale-[0.98]"
+          className={cn(
+            "inline-flex h-14 items-center justify-center gap-2 rounded-2xl px-7 text-lg font-extrabold transition-transform hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 disabled:opacity-70 motion-safe:active:scale-[0.98]",
+            // Gold only on the navy hero / final band; navy on a light background (design review P2-4 / DS-18)
+            dark
+              ? "bg-accent text-primary-deep shadow-[0_12px_30px_-12px_oklch(0.69_0.10_74/0.8)] focus-visible:ring-white"
+              : "bg-primary text-primary-foreground focus-visible:ring-primary"
+          )}
         >
           {going ? "لحظة…" : "ابدأ التسجيل"}
           <ArrowLeft className="h-5 w-5" aria-hidden />

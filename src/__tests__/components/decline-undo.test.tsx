@@ -81,7 +81,7 @@ describe("tab counts during the undo window (QA WC-01)", () => {
   it("the reload right after «لا» doesn't bring the count back up before the «لا» is sent", async () => {
     feedItems = [item, { ...item, id: "s2", candidate: { ...candidate, id: "c2", firstName: "ليلى" } }];
     render(<MutualSuggestionsView />);
-    const tab = await screen.findByRole("tab", { name: /الجديد/ });
+    const tab = await screen.findByRole("tab", { name: /جديدة/ });
     await screen.findByText("ليلى");
     expect(tab).toHaveTextContent("2");
     fireEvent.click(screen.getAllByRole("button", { name: /^لا/ })[0]);

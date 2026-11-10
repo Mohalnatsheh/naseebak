@@ -7,7 +7,6 @@ import { useDashboardData } from "@/contexts/dashboard-context";
 import { cn } from "@/lib/utils";
 import { GuardianConsentCard } from "@/components/intro/guardian-consent-card";
 import { NextStepCard } from "@/components/dashboard/next-step-card";
-import { InstallAppCard } from "@/components/shared/install-app-card";
 import { PollCard } from "@/components/engagement/poll-card";
 import { LoadError } from "@/components/shared/load-error";
 import { listTimeLabel } from "@/components/chat/chat-utils";
@@ -18,6 +17,7 @@ import type { ChatSummary } from "@/lib/chat/service";
 import type { FeedItem } from "@/lib/suggestions/feed-types";
 import { homeZeroCreditLine } from "@/lib/suggestions/copy";
 import { ProBadge } from "@/components/shared/pro-badge";
+import { MemberAvatar } from "@/components/shared/member-avatar";
 
 /** Local time in Jordan and Saudi Arabia (both UTC+3 all year), whatever the device clock says */
 function ammanHour(): number {
@@ -111,7 +111,7 @@ export default function DashboardPage() {
     // Shaped like the page (greeting, «بانتظار ردّك», chats, profile), about as tall as it, so nothing jumps when it
     // arrives (QA WM-02 / PA-M4)
     return (
-      <div role="status" className="mx-auto max-w-3xl space-y-5 pb-8">
+      <div role="status" className="space-y-5 pb-8">
         <span className="sr-only">جارٍ تحميل صفحتك…</span>
         <div className="h-[72px] animate-pulse rounded-2xl bg-primary/15" aria-hidden />
         <div className="h-48 animate-pulse rounded-2xl bg-primary/5" aria-hidden />
@@ -187,7 +187,7 @@ export default function DashboardPage() {
       ? [{
           key: "liked",
           icon: Heart,
-          title: likedYou === 1 ? g("شخص مهتم بالتحدث معك", "شخص مهتم بالتحدث معكِ") : g(`${likedYou} أشخاص مهتمون بالتحدث معك`, `${likedYou} أشخاص مهتمون بالتحدث معكِ`),
+          title: likedYou === 1 ? g("شخص مهتم بك", "شخص مهتم بكِ") : g(`${likedYou} أشخاص مهتمون بك`, `${likedYou} أشخاص مهتمون بكِ`),
           note: freeReply
             ? g("«مهتم» منك يعني توافقاً فورياً، والرد مجاني.", "«مهتم» منكِ يعني توافقاً فورياً، والرد مجاني.")
             : g("«مهتم» منك يعني توافقاً فورياً.", "«مهتم» منكِ يعني توافقاً فورياً."),
@@ -199,7 +199,7 @@ export default function DashboardPage() {
       ? [{
           key: "new",
           icon: Sparkles,
-          title: fresh === 1 ? "توافق جديد بانتظار قرارك" : `${fresh} توافقات جديدة بانتظار قرارك`,
+          title: fresh === 1 ? "اقتراح جديد بانتظار قرارك" : `${fresh} اقتراحات جديدة بانتظار قرارك`,
           note: "«مهتم» أو «لا»، ولا يعرف «لا» إلا من أبدى اهتمامه.",
           href: "/dashboard/suggestions",
           cta: g("قرّر الآن", "قرّري الآن"),
@@ -214,13 +214,11 @@ export default function DashboardPage() {
     .slice(0, 3);
 
   return (
-    <div className="mx-auto max-w-3xl space-y-5 pb-8">
+    <div className="space-y-5 pb-8">
       {/* Greeting: the navy brand card, compact */}
       <section className="landing-night relative flex items-center gap-3 overflow-hidden rounded-2xl px-4 py-3.5 text-white shadow-md shadow-primary/15">
         <div className="landing-khatam absolute inset-0" aria-hidden />
-        <span className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-accent text-lg font-bold text-accent-foreground ring-2 ring-white/20" aria-hidden>
-          {profile.firstName?.charAt(0) || "؟"}
-        </span>
+        <MemberAvatar name={profile.firstName ?? ""} size={44} pro={!!counts.pro?.isPro} className="relative" />
         <div className="relative min-w-0 flex-1">
           <h1 className="font-display truncate text-xl leading-tight">
             {getGreeting()}، {profile.firstName}
@@ -236,16 +234,12 @@ export default function DashboardPage() {
         >
           <Bell className="h-5 w-5" aria-hidden />
           {unreadCount > 0 && (
-            <span aria-hidden className="absolute -top-1 -start-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-caption font-bold text-white">
+            <span aria-hidden className="absolute -top-1 -start-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-accent px-1 text-caption font-bold tabular-nums text-primary-deep">
               {unreadCount > 99 ? "99+" : unreadCount}
             </span>
           )}
         </Link>
       </section>
-
-      {/* Install the site on the home screen + turn notifications on: first, while this device can't get them
-          (hides itself once done, and for 3 days after «إخفاء») */}
-      <InstallAppCard />
 
       {/* Profile setup not finished: the one thing to do before suggestions start */}
       {!qualifiesForSuggestions && (
@@ -319,7 +313,7 @@ export default function DashboardPage() {
             <p className="rounded-2xl border border-dashed border-border bg-card px-4 py-4 text-sm leading-relaxed text-muted-foreground">
               {/* Open matches only: a match the other person blocked is gone from my list (QA WM-17) */}
               {(counts.openMatches ?? matchesCount) > 0
-                ? g("لا محادثة مفتوحة الآن. يمكنك طلب محادثة من التوافقات المتبادلة.", "لا محادثة مفتوحة الآن. يمكنكِ طلب محادثة من التوافقات المتبادلة.")
+                ? g("لا محادثة مفتوحة الآن. يمكنك طلب محادثة من التوافقات.", "لا محادثة مفتوحة الآن. يمكنكِ طلب محادثة من التوافقات.")
                 : "تبدأ المحادثة عندما يقول الطرفان «مهتم» ويختاران «محادثة هنا أولاً»."}
             </p>
           ) : (
@@ -327,9 +321,7 @@ export default function DashboardPage() {
               {recentChats.map((c) => (
                 <li key={c.id}>
                   <Link href={`/dashboard/chats/${c.id}`} className="flex items-center gap-3 px-3.5 py-3 hover:bg-muted/40">
-                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary/10 text-base font-bold text-primary" aria-hidden>
-                      {c.partner.firstName.charAt(0)}
-                    </span>
+                    <MemberAvatar name={c.partner.firstName} size={44} matched pro={!!c.partner.isPro} />
                     <span className="min-w-0 flex-1">
                       <span className="flex items-center justify-between gap-2">
                         {/* Name and badge together (as in the chat list), so the time keeps its place */}
@@ -344,7 +336,7 @@ export default function DashboardPage() {
                       </span>
                     </span>
                     {c.unread > 0 && (
-                      <span className="flex h-6 min-w-6 shrink-0 items-center justify-center rounded-full bg-accent px-1.5 text-xs font-bold text-accent-foreground" aria-label={`${c.unread} غير مقروءة`}>
+                      <span className="flex h-6 min-w-6 shrink-0 items-center justify-center rounded-full bg-primary px-1.5 text-caption font-bold tabular-nums text-primary-foreground" aria-label={`${c.unread} غير مقروءة`}>
                         {c.unread > 99 ? "99+" : c.unread}
                       </span>
                     )}
@@ -360,7 +352,7 @@ export default function DashboardPage() {
       {sharedFeed && qualifiesForSuggestions && (feedFailed || suggestionsFailed) && (suggested === null || suggested.length === 0) && (
         <LoadError
           className="py-5"
-          message="تعذّر تحميل التوافقات المقترحة."
+          message="تعذّر تحميل الاقتراحات الجديدة."
           onRetry={() => {
             setFeedFailed(false);
             setSuggestionsFailed(false);
@@ -371,7 +363,7 @@ export default function DashboardPage() {
       {sharedFeed && qualifiesForSuggestions && suggested !== null && !((feedFailed || suggestionsFailed) && suggested.length === 0) && (
         <section>
           <div className="mb-2 flex items-center justify-between px-1">
-            <h2 className="text-lg font-bold text-foreground">توافقات مقترحة</h2>
+            <h2 className="text-lg font-bold text-foreground">اقتراحات جديدة</h2>
             {suggested.length > 0 && (
               <Link href="/dashboard/suggestions" className="inline-flex min-h-11 items-center gap-0.5 text-sm font-semibold text-primary">
                 الكل <ChevronLeft className="h-4 w-4" aria-hidden />
@@ -382,7 +374,7 @@ export default function DashboardPage() {
             <p className="rounded-2xl border border-dashed border-border bg-card px-4 py-4 text-sm leading-relaxed text-muted-foreground">
               {emptyReason === "pending"
                 ? "لديك اقتراحات بانتظار الطرف الآخر. ستصلك اقتراحات جديدة قريباً."
-                : g("لا توافقات جديدة الآن. نُعلمك فور وصول اقتراح يناسبك.", "لا توافقات جديدة الآن. نُعلمكِ فور وصول اقتراح يناسبكِ.")}
+                : g("لا اقتراحات جديدة الآن. نُعلمك فور وصول اقتراح يناسبك.", "لا اقتراحات جديدة الآن. نُعلمكِ فور وصول اقتراح يناسبكِ.")}
             </p>
           ) : (
             <ul className="-mx-1 flex snap-x gap-2 overflow-x-auto rounded-2xl border border-border/60 bg-card px-2 py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -390,13 +382,8 @@ export default function DashboardPage() {
                 <li key={s.id} className="w-[5.25rem] shrink-0 snap-start">
                   <Link href="/dashboard/suggestions" className="flex flex-col items-center gap-1.5 rounded-xl px-1 py-1 text-center transition-colors hover:bg-muted/40">
                     <span className="relative">
-                      <span
-                        className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 text-2xl font-bold text-primary ring-2 ring-accent/60 ring-offset-2 ring-offset-card"
-                        aria-hidden
-                      >
-                        {s.candidate.firstName.charAt(0)}
-                      </span>
-                      <span className="absolute inset-x-0 -bottom-1 mx-auto w-fit rounded-full bg-accent px-1.5 text-caption font-bold leading-4 text-accent-foreground">
+                      <MemberAvatar name={s.candidate.firstName} size={64} locked pro={!!s.isPro} />
+                      <span className="absolute inset-x-0 -bottom-1 mx-auto w-fit rounded-full bg-accent px-1.5 text-caption font-bold leading-4 tabular-nums text-primary-deep">
                         {Math.round(s.compatibilityScore)}%
                       </span>
                     </span>

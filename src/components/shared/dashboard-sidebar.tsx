@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { signOutAndUnlinkPush } from "@/lib/push-client";
 import Image from "next/image";
 import {
@@ -26,10 +26,19 @@ import {
   Crown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { useDashboardData } from "@/contexts/dashboard-context";
 import { PRO_PAGE_PATH } from "@/lib/pro/plans";
+import { matchesHref } from "@/lib/matches/links";
+import { MemberAvatar } from "@/components/shared/member-avatar";
+
+/** Badge colours (design review P2-4 / DS-16): red only for "act now", navy for plain counts, gold for good news */
+type BadgeTone = "urgent" | "count" | "news";
+const BADGE_TONE: Record<BadgeTone, string> = {
+  urgent: "bg-destructive text-white",
+  count: "bg-primary text-primary-foreground",
+  news: "bg-accent text-primary-deep",
+};
 
 interface NavLink {
   href: string;
@@ -37,12 +46,14 @@ interface NavLink {
   icon: typeof Home;
   femaleOnly?: boolean;
   badge?: number;
+  tone?: BadgeTone;
 }
 
+/** One set of names on web and app (design review P1-3): الرئيسية · الاقتراحات · التوافقات · المحادثات · حسابي */
 const mainLinks: NavLink[] = [
   { href: "/dashboard", label: "الرئيسية", icon: Home },
-  { href: "/dashboard/suggestions", label: "التوافقات", icon: Sparkles },
-  { href: "/dashboard/matches", label: "التوافق المتبادل", icon: Heart },
+  { href: "/dashboard/suggestions", label: "الاقتراحات", icon: Sparkles },
+  { href: "/dashboard/matches", label: "التوافقات", icon: Heart },
   { href: "/dashboard/chats", label: "المحادثات", icon: MessageCircle },
   { href: "/dashboard/notifications", label: "الإشعارات", icon: Bell },
 ];
@@ -64,9 +75,14 @@ const accountLinks: NavLink[] = [
   { href: "/dashboard/profile#account-settings", label: "إعدادات الحساب", icon: Settings },
 ];
 
-function isActiveLink(href: string, pathname: string): boolean {
+function isActiveLink(href: string, pathname: string, matchesTab = false): boolean {
   // In-page links (e.g. the profile's account settings) never take the active state from their page
   if (href.includes("#")) return false;
+  // Shared suggestions: the matches are the «التوافقات» tab of the suggestions page (?tab=matches)
+  if (href.startsWith("/dashboard/matches") || href.includes("tab=matches")) {
+    return pathname.startsWith("/dashboard/matches") || (pathname.startsWith("/dashboard/suggestions") && matchesTab);
+  }
+  if (href === "/dashboard/suggestions") return pathname.startsWith("/dashboard/suggestions") && !matchesTab;
   // A whole path segment: /dashboard/pro is not active on /dashboard/profile
   return href === "/dashboard" ? pathname === "/dashboard" : pathname === href || pathname.startsWith(`${href}/`);
 }
@@ -74,15 +90,17 @@ function isActiveLink(href: string, pathname: string): boolean {
 function NavItem({
   link,
   pathname,
+  matchesTab,
   collapsed,
   onClick,
 }: {
   link: NavLink;
   pathname: string;
+  matchesTab: boolean;
   collapsed: boolean;
   onClick?: () => void;
 }) {
-  const isActive = isActiveLink(link.href, pathname);
+  const isActive = isActiveLink(link.href, pathname, matchesTab);
 
   return (
     <Link prefetch={false}
@@ -107,7 +125,7 @@ function NavItem({
           <link.icon className={cn("h-4 w-4", isActive && "text-primary")} />
         </div>
         {link.badge && link.badge > 0 ? (
-          <span className="absolute -top-1.5 -start-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-caption font-bold text-white shadow-sm">
+          <span className={cn("absolute -top-1.5 -start-1.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-caption font-bold tabular-nums", BADGE_TONE[link.tone ?? "count"])}>
             {link.badge > 99 ? "99+" : link.badge}
           </span>
         ) : null}
@@ -122,6 +140,7 @@ function NavItem({
 
 export function DashboardSidebar() {
   const pathname = usePathname();
+  const matchesTab = useSearchParams()?.get("tab") === "matches";
   const [collapsed, setCollapsed] = useState(false);
   const { profile, unreadCount, counts, loading } = useDashboardData();
 
@@ -135,20 +154,24 @@ export function DashboardSidebar() {
   const filterLinks = (links: NavLink[]) =>
     links.filter((l) => !l.femaleOnly || !isMale);
 
-  const badges: Record<string, number> = {
-    "/dashboard/notifications": unreadCount,
-    // Shared suggestions: the mutual matches are a tab here, so their requests count here too
-    "/dashboard/suggestions": (counts.likedYou ?? 0) + (counts.flags.mutualSuggestions ? counts.pendingIntros : 0),
-    "/dashboard/matches": counts.pendingIntros,
-    "/dashboard/chats": counts.unreadChats,
+  const badges: Record<string, { n: number; tone: BadgeTone }> = {
+    "/dashboard/notifications": { n: unreadCount, tone: "count" },
+    // Someone said «مهتم»: good news
+    "/dashboard/suggestions": { n: counts.likedYou ?? 0, tone: "news" },
+    // A family or chat request to answer: act now
+    "/dashboard/matches": { n: counts.pendingIntros, tone: "urgent" },
+    "/dashboard/chats": { n: counts.unreadChats, tone: "count" },
   };
   const mainLinksWithBadge = mainLinks
     // Chats appear once the chat switch is on (or the user already has chats to read). Until the switches load,
     // the slots are those of the switches-on cycle, so nothing is inserted or removed under the reader (QA WM-02)
     .filter((link) => link.href !== "/dashboard/chats" || loading || counts.flags.chat || counts.hasChats)
-    // Shared suggestions: mutual matches are the «توافق متبادل» tab of التوافقات
-    .filter((link) => link.href !== "/dashboard/matches" || (!loading && !counts.flags.mutualSuggestions))
-    .map((link) => (badges[link.href] ? { ...link, badge: badges[link.href] } : link));
+    // «التوافقات» opens the matches: the tab of the suggestions page with shared suggestions on, else the old page
+    .map((link) => (link.href === "/dashboard/matches" ? { ...link, href: matchesHref(counts.flags.mutualSuggestions) } : link))
+    .map((link) => {
+      const b = badges[link.href.split("?")[0]];
+      return b && b.n > 0 ? { ...link, badge: b.n, tone: b.tone } : link;
+    });
   const filteredMainLinks = filterLinks(mainLinksWithBadge);
   // Same name for the balance as the home and payments pages
   const creditsLabel = counts.flags.introRequests ? "رصيدك" : "رصيد الاقتراحات";
@@ -162,21 +185,11 @@ export function DashboardSidebar() {
       })
   );
 
-  // Bottom bar: الرئيسية · التوافقات (suggestions + mutual matches) · المحادثات (when on) · حسابي.
+  // Bottom bar: الرئيسية · الاقتراحات · التوافقات · المحادثات (when on) · حسابي, the app's names (P1-3).
   // Notifications live behind the bell in the top bar.
-  const matchesArea = (p: string) => p.startsWith("/dashboard/suggestions") || p.startsWith("/dashboard/matches");
   const bottomLinks: (NavLink & { active: (p: string) => boolean })[] = filteredMainLinks
-    .filter((l) => l.href !== "/dashboard/notifications" && l.href !== "/dashboard/matches")
-    .map((l) =>
-      l.href === "/dashboard/suggestions"
-        ? {
-            ...l,
-            // What waits for my answer: people interested in me + family/chat requests
-            badge: (counts.likedYou ?? 0) + counts.pendingIntros || undefined,
-            active: matchesArea,
-          }
-        : { ...l, active: (p: string) => isActiveLink(l.href, p) }
-    );
+    .filter((l) => l.href !== "/dashboard/notifications")
+    .map((l) => ({ ...l, active: (p: string) => isActiveLink(l.href, p, matchesTab) }));
   const accountActive = ACCOUNT_PREFIXES.some((p) => pathname.startsWith(p));
   // A chat room is full screen on phones
   const hideBottomBar = /^\/dashboard\/chats\/[^/]+/.test(pathname);
@@ -221,11 +234,7 @@ export function DashboardSidebar() {
         )}
         {!collapsed && userData && (
           <div className="flex h-[58px] items-center gap-3 p-2.5 bg-muted/40 rounded-xl border border-border/30">
-            <Avatar className="h-9 w-9 border border-primary/20 flex-shrink-0">
-              <AvatarFallback className="bg-gradient-to-br from-primary/15 to-primary/5 text-primary text-sm font-bold">
-                {userData.firstName?.charAt(0) || "؟"}
-              </AvatarFallback>
-            </Avatar>
+            <MemberAvatar name={userData.firstName ?? ""} size={36} pro={!!counts.pro?.isPro} />
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold text-foreground truncate">
                 {userData.firstName} {userData.lastName}
@@ -251,6 +260,7 @@ export function DashboardSidebar() {
               key={link.href}
               link={link}
               pathname={pathname}
+              matchesTab={matchesTab}
               collapsed={collapsed}
             />
           ))}
@@ -270,6 +280,7 @@ export function DashboardSidebar() {
               key={link.href}
               link={link}
               pathname={pathname}
+              matchesTab={matchesTab}
               collapsed={collapsed}
             />
           ))}
@@ -339,7 +350,7 @@ export function DashboardSidebar() {
               className="relative h-11 w-11 rounded-xl flex items-center justify-center hover:bg-muted/60 transition-colors">
               <Bell className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
               {unreadCount > 0 && (
-                <span aria-hidden="true" className="absolute top-1 start-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-caption font-bold text-white shadow-sm animate-in zoom-in duration-300">
+                <span aria-hidden="true" className="absolute top-1 start-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-caption font-bold tabular-nums text-primary-foreground">
                   {unreadCount > 99 ? "99+" : unreadCount}
                 </span>
               )}
@@ -348,7 +359,7 @@ export function DashboardSidebar() {
         </div>
       </header>
 
-      {/* Mobile bottom tab bar: الرئيسية · التوافقات · المحادثات · حسابي (the account page) */}
+      {/* Mobile bottom tab bar: الرئيسية · الاقتراحات · التوافقات · المحادثات · حسابي (the account page) */}
       {!hideBottomBar && (
         <nav
           aria-label="التنقل الرئيسي"
@@ -370,10 +381,10 @@ export function DashboardSidebar() {
                       active ? "font-bold text-primary" : "font-medium text-muted-foreground"
                     )}
                   >
-                    <span className={cn("relative flex h-8 w-14 items-center justify-center rounded-full transition-colors", active && "bg-primary/10")}>
+                    <span className={cn("relative flex h-8 w-12 items-center justify-center rounded-full transition-colors", active && "bg-primary/10")}>
                       <link.icon className="h-5 w-5" aria-hidden />
                       {badge > 0 ? (
-                        <span aria-hidden className="absolute -top-1 end-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-caption font-bold text-white">
+                        <span aria-hidden className={cn("absolute -top-1 end-1 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-caption font-bold tabular-nums", BADGE_TONE[link.tone ?? "count"])}>
                           {badge > 99 ? "99+" : badge}
                         </span>
                       ) : null}
@@ -392,7 +403,7 @@ export function DashboardSidebar() {
                   accountActive ? "font-bold text-primary" : "font-medium text-muted-foreground"
                 )}
               >
-                <span className={cn("flex h-8 w-14 items-center justify-center rounded-full", accountActive && "bg-primary/10")}>
+                <span className={cn("flex h-8 w-12 items-center justify-center rounded-full", accountActive && "bg-primary/10")}>
                   <User className="h-5 w-5" aria-hidden />
                 </span>
                 حسابي

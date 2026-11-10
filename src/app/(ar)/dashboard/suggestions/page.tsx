@@ -464,7 +464,7 @@ toast.success("تهانينا! لديك توافق متبادل!", {
 
   if (loadFailed) {
     return (
-      <div className="max-w-2xl mx-auto py-8">
+      <div className="py-8">
         <LoadError
           message="تعذّر تحميل الاقتراحات. يمكنك التحقق من الاتصال والمحاولة مرة أخرى."
           onRetry={() => {
@@ -478,7 +478,7 @@ toast.success("تهانينا! لديك توافق متبادل!", {
 
   if (accountComplete === false) {
     return (
-      <div className="max-w-2xl mx-auto space-y-6 pb-8">
+      <div className="space-y-6 pb-8">
         <Card className="relative overflow-hidden border-accent/40 bg-gradient-to-l from-accent/10 via-accent/5 to-transparent shadow-md">
           <div className="absolute top-0 right-0 h-32 w-32 rounded-full bg-accent/10 blur-2xl translate-x-8 -translate-y-8" />
           <CardContent className="pt-8 pb-8 text-center space-y-5">
@@ -552,7 +552,7 @@ toast.success("تهانينا! لديك توافق متبادل!", {
   ) : null;
 
   return (
-    <div className="max-w-2xl mx-auto space-y-8 pb-8">
+    <div className="space-y-8 pb-8">
       <PageHeader
         icon={Sparkles}
         title="الاقتراحات"

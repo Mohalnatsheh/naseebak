@@ -141,7 +141,7 @@ export async function applyRefund(args: {
  * The refunded payment paid the current period: Pro ends at once, on Stripe too. The refund is already recorded, so a
  * Stripe failure here still ends Pro locally and asks the admins to cancel the subscription in Stripe by hand.
  */
-async function endProAfterRefund(subscriptionId: string, payment: { id: string; currency: string }, adminId?: string) {
+async function endProAfterRefund(subscriptionId: string, payment: { id: string; userId: string | null; currency: string }, adminId?: string) {
   try {
     await cancelProNow(subscriptionId, { reason: "refund", ...(adminId && { adminId }) });
   } catch (e) {
@@ -184,9 +184,11 @@ export async function findPaymentForCharge(charge: Pick<Stripe.Charge, "payment_
   return db.payment.findFirst({ where: { providerTxId: invoiceId, provider: "STRIPE" }, select });
 }
 
-/** A payment's currency tells its country, also once the account is deleted (JO stores JOD, SA SAR, LB USD) */
+/** Without the member (account deleted), the payment's currency tells its country (JO stores JOD, SA SAR, LB USD) */
 const ALERT_COUNTRY: Record<string, CountryCode> = { JOD: "JO", SAR: "SA", USD: "LB" };
-const alertAbout = (payment: { currency: string }) => ({ country: ALERT_COUNTRY[payment.currency] ?? "JO" });
+/** Who the admin alert is about: the member's own country first, the currency only once the account is gone */
+const alertAbout = (payment: { userId: string | null; currency: string }) =>
+  payment.userId ? { userId: payment.userId } : { country: ALERT_COUNTRY[payment.currency] ?? "JO" };
 
 /** `charge.refunded`: full refund → applyRefund; partial refund → admin alert only */
 export async function handleChargeRefunded(charge: Stripe.Charge): Promise<RefundResult | "partial" | "not_ours"> {

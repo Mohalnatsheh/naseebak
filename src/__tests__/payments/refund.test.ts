@@ -142,6 +142,20 @@ describe("Stripe charge events", () => {
     const dispute: any = { id: "dp_1", payment_intent: "pi_1", reason: "fraudulent", amount: 564, currency: "usd" };
     expect(await flagDispute(dispute)).toBe("flagged");
     expect(db.payment.updateMany).toHaveBeenCalledWith({ where: { id: "p1", disputedAt: null }, data: { disputedAt: expect.any(Date) } });
-    expect(alert.sendAdminAlert).toHaveBeenCalledWith("Stripe dispute opened", expect.stringContaining("p1"), { country: "JO" });
+    expect(alert.sendAdminAlert).toHaveBeenCalledWith("Stripe dispute opened", expect.stringContaining("p1"), { userId: "u1" });
+  });
+
+  it("an alert about a member's payment goes by the member, never by the currency", async () => {
+    db.payment.findFirst.mockResolvedValue({ id: "p1", status: "COMPLETED", userId: "u1", planName: "launch_10", currency: "JOD" });
+    await flagDispute({ payment_intent: "pi_1", reason: "fraudulent", amount: 564, currency: "usd" } as never);
+    expect(alert.sendAdminAlert).toHaveBeenCalledWith("Stripe dispute opened", expect.any(String), { userId: "u1" });
+  });
+
+  it("a dollar payment whose account is gone goes to the Lebanese admins", async () => {
+    db.payment.findFirst.mockResolvedValue({ id: "p1", status: "COMPLETED", userId: null, planName: "lb_10", currency: "USD" });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const charge: any = { id: "ch_1", payment_intent: "pi_1", refunded: false, amount: 1000, amount_refunded: 100, currency: "usd" };
+    expect(await handleChargeRefunded(charge)).toBe("partial");
+    expect(alert.sendAdminAlert).toHaveBeenCalledWith("Partial Stripe refund", expect.any(String), { country: "LB" });
   });
 });

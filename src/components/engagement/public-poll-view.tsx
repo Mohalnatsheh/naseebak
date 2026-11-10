@@ -14,7 +14,18 @@ import { PollWidget, SharePollButton } from "@/components/engagement/poll-widget
  * Public «سؤال نصيبك» page (/poll, /poll/<slug>): where Instagram story links land. Anyone can answer;
  * after answering a visitor is invited to register, a member is sent back to the dashboard.
  */
-export function PublicPollView({ poll: initial, member, source }: { poll: PublicPoll | null; member: boolean; source: PollSource }) {
+export function PublicPollView({
+  poll: initial,
+  member,
+  source,
+  pollsOff = false,
+}: {
+  poll: PublicPoll | null;
+  member: boolean;
+  source: PollSource;
+  /** Polls are switched off (here or everywhere): the «no question now» page says nothing about new questions */
+  pollsOff?: boolean;
+}) {
   const [poll, setPoll] = useState(initial);
   const answered = poll?.myVote != null;
   const sa = useVisitorCountry() === "SA";
@@ -49,7 +60,9 @@ export function PublicPollView({ poll: initial, member, source }: { poll: Public
               ) : (
                 <>
                   <h1 className="font-display text-2xl leading-snug sm:text-3xl">لا يوجد سؤال مفتوح الآن</h1>
-                  <p className="text-sm leading-relaxed text-white/75">ننشر سؤالاً جديداً كل بضعة أيام على {sa ? "إنستقرام" : "انستغرام"} وهنا. ارجع قريباً.</p>
+                  {!pollsOff && (
+                    <p className="text-sm leading-relaxed text-white/75">ننشر سؤالاً جديداً كل بضعة أيام على {sa ? "إنستقرام" : "انستغرام"} وهنا. ارجع قريباً.</p>
+                  )}
                 </>
               )}
             </div>
@@ -78,7 +91,9 @@ export function PublicPollView({ poll: initial, member, source }: { poll: Public
                 >
                   سجّل الآن مجاناً
                 </Link>
-                <p className="text-center text-xs text-muted-foreground">{sa ? "وأجب عن سؤال جديد من داخل حسابك كل 3 أيام." : "وجاوب على سؤال جديد من داخل حسابك كل 3 أيام."}</p>
+                {!pollsOff && (
+                  <p className="text-center text-xs text-muted-foreground">{sa ? "وأجب عن سؤال جديد من داخل حسابك كل 3 أيام." : "وجاوب على سؤال جديد من داخل حسابك كل 3 أيام."}</p>
+                )}
               </section>
             )
           )}

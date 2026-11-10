@@ -28,6 +28,26 @@ describe("chat messages in the bell", () => {
     expect(db.notification.update).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "n1" }, data: expect.objectContaining({ body: "لديك 3 رسائل جديدة من سارة" }) }));
   });
 
+  it("reuses the chat's newest entry even once read, unread again at the top (QA A2-L7: one row per chat)", async () => {
+    db.message.count.mockResolvedValue(1);
+    db.notification.findFirst.mockResolvedValue({ id: "n1" });
+    await upsertChatBell("u2", "c1", "سارة");
+    expect(db.notification.findFirst).toHaveBeenCalledWith({
+      where: { userId: "u2", type: "CHAT", metadata: { path: ["conversationId"], equals: "c1" } },
+      orderBy: { createdAt: "desc" },
+      select: { id: true },
+    });
+    expect(db.notification.create).not.toHaveBeenCalled();
+    const data = db.notification.update.mock.calls[0][0].data;
+    expect(data.isRead).toBe(false);
+    expect(data.createdAt).toBeInstanceOf(Date);
+    // A second unread entry of the same chat (two messages at once) is folded into this one
+    expect(db.notification.updateMany).toHaveBeenCalledWith({
+      where: { userId: "u2", type: "CHAT", isRead: false, metadata: { path: ["conversationId"], equals: "c1" }, id: { not: "n1" } },
+      data: { isRead: true },
+    });
+  });
+
   it("never throws (a sent message must not fail on the bell)", async () => {
     db.message.count.mockRejectedValue(new Error("db down"));
     await expect(upsertChatBell("u2", "c1", "سارة")).resolves.toBeUndefined();

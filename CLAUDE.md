@@ -344,7 +344,7 @@ Detail: [docs/reference/suggestions-and-credits.md](docs/reference/suggestions-a
 
 ## Deployment
 
-**Production: `fb42603` (the sidebar «التوافقات» link switches the suggestions tab without a refresh; Pro, chat photos and voice, the modern chat, QA rounds 1–2, the design system), deployed 2026-11-10, slot b.**
+**Production: `c520832` (the Pro page compares the plans: cost per month and «خصم %» against weekly; the sidebar «التوافقات» fix; Pro on), deployed 2026-11-10, slot a.**
 
 Update that one line after each deploy. Don't list past versions. The live revision is in `/var/www/naseebak/REVISION`.
 

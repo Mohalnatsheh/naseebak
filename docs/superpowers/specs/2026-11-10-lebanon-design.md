@@ -28,7 +28,7 @@ turns it on in Admin → Countries. In Lebanon a family's first filter is the se
 - No cross-country pairing (Lebanese meet Lebanese only, as today's rule).
 - No SMS notices for Lebanon by default (VerifyWay sends sign-in codes only); push + bell as everywhere.
 - No Lebanese pound (LBP) pricing.
-- No new switch beyond the country's own `active` / `registrationOpen` / `purchasesEnabled` / `pricesApproved`.
+- No new switch beyond the country's own `active` / `registrationOpen` / `purchasesEnabled` / `pricesApproved`, and `lb_relaxed_matching`.
 
 ## Anti-goals (a failure even if it works)
 
@@ -58,6 +58,7 @@ turns it on in Admin → Countries. In Lebanon a family's first filter is the se
 | Sect as preference | `prefSect` (multi-select of سني / شيعي, like `prefReligiosity`), score weight 1.5, dealbreaker key `sect` «المذهب». A missing sect fails a sect dealbreaker (same rule as every key) | owner (preference), builder (weight) |
 | Sect required? | Required in the website setup and app 1.2.0 setup for LB; the server never requires it (older apps) | builder's call |
 | Sect edits after setup | Through the existing review queue like other profile fields; filling an empty value is direct | existing rule |
+| Relaxed matching | New switch `lb_relaxed_matching` (Admin → Settings, off by default), same as `sa_relaxed_matching`: Lebanese members get suggestions with no score minimum (`minSuggestionScore` = 0 for LB), best score first; «شروط أساسية», same country and test-account separation still apply | owner (2026-11-10: "like KSA … ignore preferences to show all suggestions") |
 | App | Version 1.2.0: «المذهب» in setup, edit, preferences, cards; WhatsApp wording from the server; +961 guardian phones. Lebanon opens only once 1.2.0 is live with the force update | owner ("ok go ahead with all") |
 
 ## How it fits the existing code (for the builder)

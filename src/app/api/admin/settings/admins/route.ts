@@ -21,7 +21,8 @@ export async function GET() {
       orderBy: { createdAt: "asc" },
     });
 
-    return NextResponse.json({ admins });
+    // `me`: the page hides «Remove» on your own row (the DELETE refuses it anyway)
+    return NextResponse.json({ admins, me: result.session.user.id });
   } catch (error) {
     console.error("Admin list error:", error);
     return NextResponse.json({ error: "Server error" }, { status: 500 });

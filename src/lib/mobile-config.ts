@@ -7,6 +7,7 @@
  * always hidden for test accounts — the logins given to the App Store / Google Play reviewers.
  */
 import { getMaintenanceState, getSetting, setSetting } from "@/lib/settings";
+import { versionPairError } from "@/lib/version-compare";
 import { isTestPhone } from "@/lib/test-accounts";
 import { ARABIC_CHECKOUT_KEY, arabicCheckoutMode } from "@/lib/payments/intent";
 
@@ -36,6 +37,7 @@ const key = (platform: MobilePlatform, field: keyof MobilePlatformConfig) =>
 export function isVersion(v: string): boolean {
   return VERSION.test(v);
 }
+
 
 export async function getMobileConfig(): Promise<Record<MobilePlatform, MobilePlatformConfig>> {
   const entries = await Promise.all(
@@ -135,6 +137,16 @@ export async function updateMobileConfig(input: unknown): Promise<string | null>
       if (field === "storeUrl" && value && !/^https:\/\/\S+$/.test(value)) return `${p}.storeUrl must be an https link`;
       updates.push([key(p, field), value]);
     }
+    // ADM-25: a required version above the latest one would ask everyone to update to a version that isn't out.
+    // Checked against what is stored when only one of the two is sent.
+    const sent = (field: "minVersion" | "latestVersion") => {
+      const v = (cfg as Record<string, unknown>)[field];
+      return typeof v === "string" ? v.trim() : undefined;
+    };
+    const min = sent("minVersion") ?? (await getSetting(key(p, "minVersion"))).trim();
+    const latest = sent("latestVersion") ?? (await getSetting(key(p, "latestVersion"))).trim();
+    const pairError = versionPairError(min, latest);
+    if (pairError) return `${p}: ${pairError}`;
   }
   for (const [k, v] of updates) await setSetting(k, v);
   return null;

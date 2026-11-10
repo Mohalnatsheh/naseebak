@@ -11,6 +11,7 @@ import { SettingsConfirmDialog } from "@/components/admin/settings-confirm-dialo
 import { SettingsNote } from "@/components/admin/settings-section";
 import { mobileAppChanges, type ChangeSummary } from "@/lib/admin/settings-changes";
 import type { MobilePlatform, MobilePlatformConfig } from "@/lib/mobile-config";
+import { versionPairError } from "@/lib/version-compare";
 
 type ArabicCheckout = "off" | "test" | "all";
 type Config = Record<MobilePlatform, MobilePlatformConfig> & { paymentsEnabled: boolean; androidCertSha256: string; arabicCheckout?: ArabicCheckout };
@@ -62,6 +63,15 @@ export function MobileAppCard() {
   /** Asks first, naming every change. Nothing changed = nothing to save. */
   function requestSave() {
     if (!loaded) return;
+    // Named here before the confirmation; the server refuses it too (ADM-25)
+    for (const { key, name } of PLATFORMS) {
+      const problem = versionPairError(config[key].minVersion, config[key].latestVersion);
+      if (problem) {
+        setError(`${name}: ${problem}`);
+        toast.error(`${name}: ${problem}`);
+        return;
+      }
+    }
     const changes = mobileAppChanges(loaded, config);
     if (changes.lines.length === 0) {
       toast.info("Nothing changed");
@@ -179,8 +189,12 @@ export function MobileAppCard() {
                     dir="ltr"
                     placeholder="e.g. 1.0.0"
                     value={config[key].minVersion}
+                    aria-invalid={!!versionPairError(config[key].minVersion, config[key].latestVersion)}
                     onChange={(e) => set(key, "minVersion", e.target.value)}
                   />
+                  {versionPairError(config[key].minVersion, config[key].latestVersion) && (
+                    <p className="text-xs text-destructive">Can&apos;t be above the latest version.</p>
+                  )}
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor={`${key}-latest`}>Optional update (latest version)</Label>

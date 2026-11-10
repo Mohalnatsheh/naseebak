@@ -44,6 +44,16 @@ describe("mobile app version gate", () => {
     expect((await getMobileConfig()).android.minVersion).toBe("");
   });
 
+  it("refuses a required version above the latest one, also against the stored latest (ADM-25)", async () => {
+    expect(await updateMobileConfig({ android: { minVersion: "1.3.0", latestVersion: "1.2.0" } })).toMatch(/can't be above/);
+    expect(await updateMobileConfig({ ios: { latestVersion: "1.10.0" } })).toBeNull();
+    expect(await updateMobileConfig({ ios: { minVersion: "1.9.0" } })).toBeNull();
+    expect(await updateMobileConfig({ ios: { minVersion: "1.11.0" } })).toMatch(/1\.11\.0.*1\.10\.0/);
+    expect((await getMobileConfig()).ios.minVersion).toBe("1.9.0");
+    // Nothing of a refused save is stored
+    expect((await getMobileConfig()).android).toMatchObject({ minVersion: "", latestVersion: "" });
+  });
+
   it("a stored value that isn't a version is ignored rather than blocking everyone", async () => {
     store.set("mobile_android_min_version", "latest");
     expect((await getMobileConfig()).android.minVersion).toBe("");

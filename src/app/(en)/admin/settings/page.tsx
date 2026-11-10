@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Settings, Loader2, Plus, UserPlus, BarChart3, Check, Wrench } from "lucide-react";
+import { Settings, Loader2, Plus, UserPlus, BarChart3, Check, Wrench, UserMinus } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +13,8 @@ import { MobileAppCard } from "@/components/admin/mobile-app-card";
 import { SettingsConfirmDialog } from "@/components/admin/settings-confirm-dialog";
 import { SettingsNote, SettingsSection } from "@/components/admin/settings-section";
 import { fmtDate } from "@/components/admin/admin-list-bits";
+import { AdminLoadError } from "@/components/admin/admin-states";
+import { useConfirm } from "@/components/admin/confirm-dialog";
 import { toast } from "sonner";
 
 interface AdminAccount {
@@ -34,6 +36,10 @@ export default function AdminSettingsPage() {
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [adminsError, setAdminsError] = useState("");
+  const [me, setMe] = useState<string | null>(null);
+  const [removing, setRemoving] = useState<string | null>(null);
+  const confirm = useConfirm();
 
   // Registration toggle state
   const [registrationOpen, setRegistrationOpen] = useState(true);
@@ -46,6 +52,7 @@ export default function AdminSettingsPage() {
   const [maintenanceOn, setMaintenanceOn] = useState(false);
   const [maintenanceMessage, setMaintenanceMessage] = useState("");
   const [maintLoading, setMaintLoading] = useState(true);
+  const [maintLoadFailed, setMaintLoadFailed] = useState(false);
   const [maintSaving, setMaintSaving] = useState(false);
   const [maintSaved, setMaintSaved] = useState(false);
   const [confirmMaintenance, setConfirmMaintenance] = useState(false);
@@ -58,6 +65,7 @@ export default function AdminSettingsPage() {
   const [fbSaving, setFbSaving] = useState(false);
   const [trackingError, setTrackingError] = useState("");
   const [trackingSuccess, setTrackingSuccess] = useState("");
+  const [trackingLoadFailed, setTrackingLoadFailed] = useState(false);
 
   useEffect(() => {
     fetchAdmins();
@@ -114,18 +122,26 @@ export default function AdminSettingsPage() {
         setMaintenanceOn(!!data.enabled);
         setMaintenanceMessage(data.message || "");
       } else {
-        toast.error("Could not load maintenance mode");
+        setMaintLoadFailed(true);
       }
     } catch (err) {
       console.error(err);
-      toast.error("Could not load maintenance mode");
+      setMaintLoadFailed(true);
     } finally {
       setMaintLoading(false);
     }
   }
 
   async function saveMaintenance(patch: { enabled?: boolean; message?: string }) {
-    if (patch.enabled === true && !confirm("Turn ON maintenance mode? Visitors and users will see the maintenance page until you turn it off.")) {
+    if (
+      patch.enabled === true &&
+      !(await confirm({
+        title: "Turn on maintenance mode?",
+        description: "Visitors and members see the maintenance page until you turn it off.",
+        confirmLabel: "Turn on maintenance",
+        destructive: true,
+      }))
+    ) {
       return;
     }
     setMaintSaving(true);
@@ -155,11 +171,15 @@ export default function AdminSettingsPage() {
   async function fetchTrackingSettings() {
     try {
       const res = await fetch("/api/admin/settings/tracking");
+      if (!res.ok) throw new Error(String(res.status));
       const data = await res.json();
       setGtmId(data.gtmId || "");
       setFbPixelId(data.fbPixelId || "");
+      setTrackingLoadFailed(false);
     } catch (err) {
       console.error(err);
+      // Empty fields here would read as «not set», and a save would clear the real ids
+      setTrackingLoadFailed(true);
     } finally {
       setTrackingLoading(false);
     }
@@ -201,12 +221,49 @@ export default function AdminSettingsPage() {
   async function fetchAdmins() {
     try {
       const res = await fetch("/api/admin/settings/admins");
+      if (!res.ok) throw new Error(String(res.status));
       const data = await res.json();
       setAdmins(data.admins || []);
+      setMe(data.me ?? null);
+      setAdminsError("");
     } catch (err) {
       console.error(err);
+      // Never «0 admins»: the list failed to load (ADM-04)
+      setAdminsError("Couldn't load the admin accounts.");
     } finally {
       setLoading(false);
+    }
+  }
+
+  /** Remove (demote) an admin: never yourself or the last one (ADM-08, DELETE /api/admin/settings/admins/<id>) */
+  async function handleRemove(admin: AdminAccount) {
+    const ok = await confirm({
+      title: "Remove this admin?",
+      description: (
+        <>
+          <bdi>{`${admin.firstName} ${admin.lastName}`}</bdi> ({admin.email}) loses admin access at once and is signed out.
+          The account isn&apos;t deleted: their notes and decisions keep their name. A member account stays a member; an
+          admin-only account is suspended.
+        </>
+      ),
+      confirmLabel: "Remove admin",
+      destructive: true,
+    });
+    if (!ok) return;
+    setRemoving(admin.id);
+    try {
+      const res = await fetch(`/api/admin/settings/admins/${admin.id}`, { method: "DELETE" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data.error || `Could not remove the admin (${res.status})`);
+        return;
+      }
+      toast.success("Admin removed");
+      await fetchAdmins();
+    } catch {
+      toast.error("Network error, please try again");
+    } finally {
+      setRemoving(null);
     }
   }
 
@@ -247,7 +304,7 @@ export default function AdminSettingsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold flex items-center gap-3">
+        <h1 className="text-2xl font-display flex items-center gap-3">
           <Settings className="h-7 w-7 text-primary" />
           Settings
         </h1>
@@ -321,6 +378,8 @@ export default function AdminSettingsPage() {
                   <span className="font-medium text-sm">Maintenance Mode</span>
                   {maintLoading ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+                  ) : maintLoadFailed ? (
+                    <Badge variant="outline">Unknown: couldn&apos;t load, reload the page</Badge>
                   ) : (
                     <Badge className={maintenanceOn ? "bg-amber-500 hover:bg-amber-500 text-white" : ""} variant={maintenanceOn ? "default" : "outline"}>
                       {maintenanceOn ? "ON — site under maintenance" : "Off"}
@@ -336,7 +395,7 @@ export default function AdminSettingsPage() {
               <button
                 type="button"
                 onClick={() => setConfirmMaintenance(true)}
-                disabled={maintLoading || maintSaving}
+                disabled={maintLoading || maintSaving || maintLoadFailed}
                 className="relative shrink-0 ms-4"
                 aria-label="Toggle maintenance mode"
               >
@@ -360,7 +419,7 @@ export default function AdminSettingsPage() {
                 className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
               />
               <div className="flex flex-wrap items-center gap-3">
-                <Button size="sm" variant="outline" onClick={() => saveMaintenance({ message: maintenanceMessage })} disabled={maintLoading || maintSaving}>
+                <Button size="sm" variant="outline" onClick={() => saveMaintenance({ message: maintenanceMessage })} disabled={maintLoading || maintSaving || maintLoadFailed}>
                   Save message
                 </Button>
                 {maintSaved && (
@@ -397,6 +456,8 @@ export default function AdminSettingsPage() {
               <div className="flex justify-center py-4">
                 <Loader2 className="h-5 w-5 animate-spin text-primary" />
               </div>
+            ) : trackingLoadFailed ? (
+              <AdminLoadError message="Couldn't load the tracking ids." onRetry={() => { setTrackingLoading(true); void fetchTrackingSettings(); }} />
             ) : (
               <>
                 {trackingError && (
@@ -463,7 +524,7 @@ export default function AdminSettingsPage() {
       </SettingsSection>
 
       {/* Admin Accounts */}
-      <SettingsSection id="admins" title="Admin Accounts" hint={loading ? undefined : `${admins.length} admin${admins.length === 1 ? "" : "s"}`}>
+      <SettingsSection id="admins" title="Admin Accounts" hint={loading || adminsError ? undefined : `${admins.length} admin${admins.length === 1 ? "" : "s"}`}>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0">
             <CardTitle>Admin Accounts</CardTitle>
@@ -495,21 +556,21 @@ export default function AdminSettingsPage() {
                 <form onSubmit={handleCreate} className="space-y-3">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="space-y-1">
-                      <Label>First Name</Label>
-                      <Input value={firstName} onChange={(e) => setFirstName(e.target.value)} required />
+                      <Label htmlFor="new-admin-first">First Name</Label>
+                      <Input id="new-admin-first" value={firstName} onChange={(e) => setFirstName(e.target.value)} required />
                     </div>
                     <div className="space-y-1">
-                      <Label>Last Name</Label>
-                      <Input value={lastName} onChange={(e) => setLastName(e.target.value)} required />
+                      <Label htmlFor="new-admin-last">Last Name</Label>
+                      <Input id="new-admin-last" value={lastName} onChange={(e) => setLastName(e.target.value)} required />
                     </div>
                   </div>
                   <div className="space-y-1">
-                    <Label>Email</Label>
-                    <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+                    <Label htmlFor="new-admin-email">Email</Label>
+                    <Input id="new-admin-email" type="email" autoComplete="off" value={email} onChange={(e) => setEmail(e.target.value)} required />
                   </div>
                   <div className="space-y-1">
-                    <Label>Password</Label>
-                    <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} minLength={8} required />
+                    <Label htmlFor="new-admin-password">Password</Label>
+                    <Input id="new-admin-password" type="password" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} minLength={8} required />
                     <p className="text-xs text-muted-foreground">Minimum 8 characters</p>
                   </div>
                   <div className="flex gap-2">
@@ -527,6 +588,8 @@ export default function AdminSettingsPage() {
               <div className="flex justify-center py-8">
                 <Loader2 className="h-6 w-6 animate-spin text-primary" />
               </div>
+            ) : adminsError ? (
+              <AdminLoadError message={adminsError} onRetry={() => { setLoading(true); void fetchAdmins(); }} />
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full">
@@ -535,6 +598,7 @@ export default function AdminSettingsPage() {
                       <th className="text-left p-3 text-sm font-medium">Name</th>
                       <th className="text-left p-3 text-sm font-medium">Email</th>
                       <th className="text-left p-3 text-sm font-medium">Created</th>
+                      <th className="p-3" aria-label="Actions" />
                     </tr>
                   </thead>
                   <tbody>
@@ -545,13 +609,27 @@ export default function AdminSettingsPage() {
                             <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">
                               {admin.firstName.charAt(0)}
                             </div>
-                            <span className="font-medium text-sm">{admin.firstName} {admin.lastName}</span>
-                            <Badge variant="destructive" className="text-xs">Admin</Badge>
+                            <span className="font-medium text-sm"><bdi>{`${admin.firstName} ${admin.lastName}`}</bdi></span>
+                            {admin.id === me && <Badge variant="secondary" className="text-xs">You</Badge>}
                           </div>
                         </td>
                         <td className="p-3 text-sm text-muted-foreground whitespace-nowrap">{admin.email}</td>
                         <td className="p-3 text-sm text-muted-foreground">
                           {fmtDate(admin.createdAt)}
+                        </td>
+                        <td className="p-3 text-right">
+                          {/* Never yourself or the last admin (the server refuses both too) */}
+                          {admin.id !== me && admins.length > 1 && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-muted-foreground hover:text-destructive"
+                              disabled={removing === admin.id}
+                              onClick={() => handleRemove(admin)}
+                            >
+                              {removing === admin.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <><UserMinus className="me-1 h-3.5 w-3.5" />Remove</>}
+                            </Button>
+                          )}
                         </td>
                       </tr>
                     ))}

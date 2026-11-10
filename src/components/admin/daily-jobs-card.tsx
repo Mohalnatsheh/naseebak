@@ -1,5 +1,6 @@
 "use client";
 
+import { AdminLoadError } from "@/components/admin/admin-states";
 import { useEffect, useState } from "react";
 import { CalendarClock, Loader2, Play } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -33,13 +34,25 @@ export function DailyJobsCard() {
   const [running, setRunning] = useState(false);
   const [error, setError] = useState("");
   const [showDetails, setShowDetails] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
+
+  // A failed load says so: «have not run yet» would be a wrong value (ADM-04)
+  function loadLastRun() {
+    return fetch("/api/admin/cron/run")
+      .then((r) => {
+        if (!r.ok) throw new Error(String(r.status));
+        return r.json();
+      })
+      .then((d) => {
+        setRun(d?.lastRun ?? null);
+        setLoadFailed(false);
+      })
+      .catch(() => setLoadFailed(true))
+      .finally(() => setLoading(false));
+  }
 
   useEffect(() => {
-    fetch("/api/admin/cron/run")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => setRun(d?.lastRun ?? null))
-      .catch(() => setError("Could not load the last run"))
-      .finally(() => setLoading(false));
+    void loadLastRun();
   }, []);
 
   async function runNow() {
@@ -80,6 +93,8 @@ export function DailyJobsCard() {
       <CardContent className="space-y-2 text-sm">
         {loading ? (
           <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+        ) : loadFailed && !run ? (
+          <AdminLoadError message="Couldn't load the last run." onRetry={() => { setLoading(true); void loadLastRun(); }} />
         ) : run ? (
           <>
             <p>

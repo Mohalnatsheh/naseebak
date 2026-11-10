@@ -4,8 +4,8 @@ import 'package:flutter/material.dart';
 
 import '../../core/theme/app_theme.dart';
 
-/// The chat's soft backdrop: off-white with a light brand pattern (eight-point stars, small rhombi and dots in navy
-/// at ~5%), drawn in code — no image, no faces. It sits in its own [RepaintBoundary], so scrolling the messages over
+/// The chat's soft backdrop: warm sand with a light brand pattern (eight-point stars, small rhombi and dots in navy
+/// at 4%, design P2-1), drawn in code — no image, no faces. It sits in its own [RepaintBoundary], so scrolling the messages over
 /// it never repaints it.
 class ChatBackground extends StatelessWidget {
   const ChatBackground({super.key, required this.child});
@@ -41,13 +41,13 @@ class ChatPatternPainter extends CustomPainter {
     canvas.clipRect(Offset.zero & size);
     canvas.drawRect(Offset.zero & size, Paint()..color = AppColors.chatBackdrop);
     final stroke = Paint()
-      ..color = AppColors.navy.withValues(alpha: 0.06)
+      ..color = AppColors.navy.withValues(alpha: 0.04)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.1;
-    final fill = Paint()..color = AppColors.navy.withValues(alpha: 0.05);
+    final fill = Paint()..color = AppColors.navy.withValues(alpha: 0.04);
     // Navy only, as the design says (navy at 4–6% on off-white)
     final rhombi = Paint()
-      ..color = AppColors.navy.withValues(alpha: 0.05)
+      ..color = AppColors.navy.withValues(alpha: 0.04)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.1;
     final star = _star(9);

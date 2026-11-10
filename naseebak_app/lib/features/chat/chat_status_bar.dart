@@ -118,13 +118,22 @@ class ChatStatusStrip extends StatelessWidget {
         ),
       ),
     );
-    return Material(
-      color: tone == AppColors.warning ? AppColors.warningBg : AppColors.gold.withValues(alpha: 0.10),
-      child: InkWell(
-        onTap: onTap,
-        child: DecoratedBox(
-          decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.line))),
-          child: line,
+    // The next step as a white card with a gold line at its start edge (design P2-1); amber only for a warning
+    final warn = tone == AppColors.warning;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 6, 8, 2),
+      child: Material(
+        color: warn ? AppColors.warningBg : Colors.white,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              border: BorderDirectional(start: BorderSide(color: warn ? AppColors.warning : AppColors.gold, width: 3)),
+            ),
+            child: line,
+          ),
         ),
       ),
     );

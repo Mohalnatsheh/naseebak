@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/localization/digits.dart';
 import '../../core/privacy/screen_privacy.dart';
 import '../../core/theme/app_theme.dart';
+import '../../shared/widgets/brand_kit.dart';
 import '../../shared/widgets/common.dart';
 import '../../core/auth/auth_controller.dart';
 import '../home/counts.dart';
@@ -155,7 +156,7 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> with WidgetsBindingOb
               children: [
                 SizedBox(
                   height: 440,
-                  child: MessageView(icon: Icons.forum_outlined, title: emptyTitle, body: emptyBody),
+                  child: MessageView(art: LineArtKind.cupsTray, icon: Icons.forum_outlined, title: emptyTitle, body: emptyBody),
                 ),
               ],
             )

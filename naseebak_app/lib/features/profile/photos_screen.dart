@@ -10,6 +10,7 @@ import '../../core/network/api_exception.dart';
 import '../../core/network/media_url.dart';
 import '../../core/storage/picker_files.dart';
 import '../../core/theme/app_theme.dart';
+import '../../shared/widgets/brand_kit.dart';
 import '../../shared/widgets/common.dart';
 import 'profile_repository.dart';
 
@@ -116,6 +117,10 @@ class _PhotosScreenState extends ConsumerState<PhotosScreen> {
               icon: Icons.lock_outline_rounded,
               text: 'صورك مخفية عن الجميع، ولا تظهر إلا بعد توافق متبادل. الصورة الرئيسية هي أول ما يُرى.',
             ),
+            if (list.isEmpty) ...[
+              const SizedBox(height: 12),
+              const Center(child: LineArt(LineArtKind.window)),
+            ],
             const SizedBox(height: 16),
             GridView.count(
               crossAxisCount: 2,

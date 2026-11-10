@@ -9,6 +9,7 @@ import '../../core/network/api_exception.dart';
 import '../../core/network/json.dart';
 import '../../core/push/push_permission.dart';
 import '../../core/theme/app_theme.dart';
+import '../../shared/widgets/brand_kit.dart';
 import '../../shared/widgets/common.dart';
 import '../home/counts.dart';
 
@@ -315,7 +316,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                   PushOffCard(padding: EdgeInsets.fromLTRB(16, 12, 16, 0)),
                   SizedBox(
                     height: 420,
-                    child: MessageView(icon: Icons.notifications_none_rounded, title: 'لا توجد إشعارات'),
+                    child: MessageView(art: LineArtKind.lantern, icon: Icons.notifications_none_rounded, title: 'لا توجد إشعارات'),
                   ),
                 ])
               : ListView.separated(

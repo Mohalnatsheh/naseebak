@@ -9,6 +9,7 @@ import '../../core/push/push_permission.dart';
 import '../../core/network/json.dart';
 import '../../core/localization/digits.dart';
 import '../../core/theme/app_theme.dart';
+import '../../shared/widgets/brand_kit.dart';
 import '../../shared/widgets/common.dart';
 import '../country_selection/country_providers.dart';
 import '../home/counts.dart';
@@ -404,7 +405,7 @@ class _BlocksScreenState extends ConsumerState<BlocksScreen> {
           : _blocks == null
               ? const SkeletonList(count: 3, itemHeight: 56)
               : _blocks!.isEmpty
-                  ? const MessageView(icon: Icons.block_rounded, title: 'لا يوجد أحد في قائمة الحظر')
+                  ? const MessageView(art: LineArtKind.door, icon: Icons.block_rounded, title: 'لا يوجد أحد في قائمة الحظر')
                   : ListView.separated(
                       itemCount: _blocks!.length,
                       separatorBuilder: (_, _) => const Divider(),

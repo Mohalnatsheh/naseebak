@@ -33,6 +33,16 @@ bool sameChatDay(DateTime a, DateTime b) {
   return (text: text, urgent: days <= 3);
 }
 
+/// The share of a chat's time still left, for the gold arc round the partner's avatar (S4): out of 14 days, or 21 when
+/// more than 14 are left (extended by 7). Null when the chat isn't running.
+double? chatTimeFraction(DateTime? expiresAt, {DateTime? now}) {
+  if (expiresAt == null) return null;
+  final left = expiresAt.difference(now ?? DateTime.now());
+  if (left.isNegative) return null;
+  final total = Duration(days: left > const Duration(days: 14) ? 21 : 14);
+  return (left.inMinutes / total.inMinutes).clamp(0.0, 1.0);
+}
+
 /// Layout of message [i] in [newestFirst] (the reversed list the chat draws): a day chip above it, the «رسائل جديدة»
 /// divider above it ([unreadFromId]), and whether it starts a run from one sender (the bubble's tail, 8 px above) or
 /// continues one (no tail, 2 px above). A run is broken by the other sender, a new day or the unread divider. Every

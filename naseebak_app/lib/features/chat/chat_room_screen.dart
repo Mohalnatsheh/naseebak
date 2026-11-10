@@ -18,6 +18,7 @@ import '../../core/review/store_review.dart';
 import '../../core/storage/picker_files.dart';
 import '../../core/system/app_settings.dart';
 import '../../core/theme/app_theme.dart';
+import '../../shared/widgets/brand_kit.dart';
 import '../../shared/widgets/common.dart';
 import '../home/counts.dart';
 import '../home/gendered_copy.dart';
@@ -234,6 +235,10 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
 
   /// Reported or ended in this visit: no rating sheet on leaving
   bool _reportedOrEnded = false;
+
+  /// The messages on screen when the chat opened (they don't rise in), and whether that first load is done
+  final Set<String> _shownAtOpen = {};
+  bool _loadedOnce = false;
 
   /// While the media buttons are locked (no Pro), `/api/pro` is re-read now and then: Pro bought in the browser or on
   /// another phone unlocks them without leaving the chat
@@ -508,6 +513,10 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
         _reconcile(page.messages);
       });
       _notePartnerTyping(page.partnerTyping);
+      if (!_loadedOnce) {
+        _loadedOnce = true;
+        _shownAtOpen.addAll(_messages.map((m) => m.id));
+      }
       if (!_unreadFixed) {
         _unreadFixed = true;
         _unreadFromId = firstUnreadId(page.messages);
@@ -1728,24 +1737,40 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
             padding: const EdgeInsets.symmetric(vertical: 4),
             child: Row(
               children: [
-                // The initial is decoration: the name says who it is (QA A-L08)
-                ExcludeSemantics(child: CircleAvatar(
-                  radius: 19,
-                  backgroundColor: AppColors.navy,
-                  child: Text(
-                    (chat?.partnerName ?? '').isEmpty ? '؟' : chat!.partnerName.characters.first,
-                    style: AppText.body.copyWith(color: Colors.white, fontWeight: FontWeight.w700),
+                // One avatar (P2-5) with the chat's time as a gold arc around it (S4); the initial is decoration (the
+                // name says who it is, QA A-L08). The arc's days are said on a tap, and to screen readers.
+                Semantics(
+                  label: left?.text,
+                  button: left != null,
+                  child: GestureDetector(
+                    key: const Key('chat-time-arc'),
+                    onTap: left == null ? null : () => showSnack(context, left.text),
+                    child: MemberAvatar(
+                      name: chat?.partnerName ?? '',
+                      size: 42,
+                      pro: chat?.partnerIsPro ?? false,
+                      timeLeft: chat?.status == 'ACTIVE' ? chatTimeFraction(chat?.expiresAt) : null,
+                    ),
                   ),
-                )),
+                ),
                 const SizedBox(width: 10),
                 Flexible(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      NameWithBadge(
-                        isPro: chat?.partnerIsPro ?? false,
-                        child: Text(chat?.partnerName ?? 'المحادثة', maxLines: 1, overflow: TextOverflow.ellipsis),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Flexible(
+                            child: NameWithBadge(
+                              isPro: chat?.partnerIsPro ?? false,
+                              child: Text(chat?.partnerName ?? 'المحادثة', maxLines: 1, overflow: TextOverflow.ellipsis),
+                            ),
+                          ),
+                          // The match's seal (S1), small
+                          if (chat != null) const Padding(padding: EdgeInsetsDirectional.only(start: 6), child: SealMark(size: 16)),
+                        ],
                       ),
                       ?status,
                     ],
@@ -1817,8 +1842,9 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
                             SizedBox(
                               height: 360,
                               child: !_open
-                                  ? const MessageView(icon: Icons.forum_outlined, title: 'لا توجد رسائل في هذه المحادثة')
+                                  ? const MessageView(art: LineArtKind.cupsTray, icon: Icons.forum_outlined, title: 'لا توجد رسائل في هذه المحادثة')
                                   : MessageView(
+                                      art: LineArtKind.cupsTray,
                                       icon: Icons.waving_hand_outlined,
                                       title: forViewer(female, 'ابدأ المحادثة بالسلام', 'ابدئي المحادثة بالسلام'),
                                       body: 'تعرّفا على بعض باحترام: القيم، والطموحات، وتصوّر الحياة الأسرية.',
@@ -2055,7 +2081,9 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
                   id: m.id,
                   rowsById: _rowsById,
                   child: !layout.daySeparator && !layout.unreadDivider
-                      ? row
+                      // A message that arrives or is sent while the chat is open rises 6 px into place (P2-1); none
+                      // with reduced motion, and never the ones already there when it opened
+                      ? RiseIn(enabled: _loadedOnce && !_shownAtOpen.contains(m.id), child: row)
                       : Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
@@ -2336,20 +2364,19 @@ class _MediaButton extends StatelessWidget {
               style: IconButton.styleFrom(minimumSize: const Size(48, 52)),
               icon: Icon(icon, color: locked ? AppColors.muted.withValues(alpha: 0.6) : AppColors.navy),
             ),
+          // Locked (no Pro): a small gold lock instead of a «Pro» sticker (design P2-1, DS-14); the button opens the
+          // one explanation, «عضوية Pro»
           if (locked)
             PositionedDirectional(
-              top: 4,
-              end: 2,
-              child: GestureDetector(
-                onTap: onPressed,
+              top: 8,
+              end: 6,
+              child: IgnorePointer(
                 child: Container(
                   key: tagKey,
-                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                  decoration: BoxDecoration(color: AppColors.gold, borderRadius: BorderRadius.circular(6)),
-                  child: Text(
-                    'Pro',
-                    style: AppText.caption.copyWith(color: Colors.white, fontWeight: FontWeight.w800, height: 1.2),
-                  ),
+                  width: 16,
+                  height: 16,
+                  decoration: const BoxDecoration(color: AppColors.gold, shape: BoxShape.circle),
+                  child: const Icon(Icons.lock_rounded, size: 10, color: Colors.white),
                 ),
               ),
             ),

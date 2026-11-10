@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/network/api_exception.dart';
 import '../../core/theme/app_theme.dart';
+import 'brand_kit.dart';
 
 /// The brand logo; `onDark` paints it white (navy backgrounds).
 class BrandLogo extends StatelessWidget {
@@ -88,7 +89,11 @@ class MessageView extends StatelessWidget {
     this.actionLabel,
     this.onAction,
     this.iconColor,
+    this.art,
   });
+
+  /// A line-art drawing (empty states, P2-2) in place of the icon
+  final LineArtKind? art;
 
   final IconData icon;
   final String title;
@@ -106,15 +111,18 @@ class MessageView extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              width: 72,
-              height: 72,
-              decoration: BoxDecoration(
-                color: (iconColor ?? AppColors.navy).withValues(alpha: 0.08),
-                shape: BoxShape.circle,
+            if (art != null)
+              LineArt(art!)
+            else
+              Container(
+                width: 72,
+                height: 72,
+                decoration: BoxDecoration(
+                  color: (iconColor ?? AppColors.navy).withValues(alpha: 0.08),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, size: 34, color: iconColor ?? AppColors.navy),
               ),
-              child: Icon(icon, size: 34, color: iconColor ?? AppColors.navy),
-            ),
             const SizedBox(height: 18),
             Text(title, textAlign: TextAlign.center, style: theme.textTheme.titleMedium),
             if (body != null) ...[
@@ -158,6 +166,21 @@ class ErrorView extends StatelessWidget {
   }
 }
 
+/// Card-shaped placeholders while the suggestions load (P3)
+class CardSkeletonList extends StatelessWidget {
+  const CardSkeletonList({super.key, this.count = 2});
+  final int count;
+
+  @override
+  Widget build(BuildContext context) => ListView.separated(
+        physics: const NeverScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(16),
+        itemCount: count,
+        separatorBuilder: (_, _) => const SizedBox(height: 12),
+        itemBuilder: (_, _) => const CardSkeleton(),
+      );
+}
+
 /// Grey placeholder blocks while a list loads.
 class SkeletonList extends StatelessWidget {
   const SkeletonList({super.key, this.count = 4, this.itemHeight = 120});
@@ -197,14 +220,22 @@ class _SkeletonBoxState extends State<SkeletonBox> with SingleTickerProviderStat
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Still with reduced motion
+    if (AppMotion.reduced(context)) _c.stop();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return FadeTransition(
-      opacity: Tween<double>(begin: 0.45, end: 1).animate(_c),
-      child: Container(
+    // The shimmer moves through the colour, not an opacity layer (QA A-L10: Impeller's inherited-opacity warnings)
+    return AnimatedBuilder(
+      animation: _c,
+      builder: (_, _) => Container(
         height: widget.height,
         width: widget.width,
         decoration: BoxDecoration(
-          color: AppColors.line.withValues(alpha: 0.7),
+          color: Color.lerp(AppColors.line.withValues(alpha: 0.45), AppColors.line, _c.value),
           borderRadius: BorderRadius.circular(widget.radius),
         ),
       ),

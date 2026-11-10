@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -9,6 +11,7 @@ import '../../core/network/api_exception.dart';
 import '../../core/network/json.dart';
 import '../../core/review/store_review.dart';
 import '../../core/theme/app_theme.dart';
+import '../../shared/widgets/brand_kit.dart';
 import '../../shared/widgets/common.dart';
 import '../home/counts.dart';
 import '../home/gendered_copy.dart';
@@ -144,7 +147,7 @@ class _SuggestionsScreenState extends ConsumerState<SuggestionsScreen> with Sing
         ),
       ),
       body: meta.when(
-        loading: () => const SkeletonList(count: 2, itemHeight: 260),
+        loading: () => const CardSkeletonList(),
         error: (e, _) => ErrorView(error: e, onRetry: _topUp),
         data: (m) => TabBarView(
           controller: _tabs,
@@ -321,11 +324,17 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
     final copy = matchDialogCopy(res, item.candidate.firstName, viewerFemale: _viewerFemale);
     // A happy moment: once the dialog closes, the store's rating sheet (once per install)
     final review = ref.read(storeReviewProvider);
+    // The match moment (S1): the gold seal draws itself around both initials, with a haptic
+    unawaited(HapticFeedback.heavyImpact());
+    final me = ref.read(authControllerProvider).me?.firstName ?? '';
+    String first(String n) => n.trim().isEmpty ? '' : n.trim().characters.first;
+    final initials = [first(me), first(item.candidate.firstName)].where((e) => e.isNotEmpty).join(' · ');
     showDialog<void>(
       context: context,
+      barrierLabel: 'إغلاق',
       builder: (ctx) => AlertDialog(
-        icon: const Icon(Icons.celebration_rounded, color: AppColors.gold, size: 40),
-        title: const Text('توافق متبادل!', textAlign: TextAlign.center),
+        icon: MatchSeal(initials: initials.isEmpty ? '✓' : initials, size: 104),
+        title: Text('توافق متبادل!', textAlign: TextAlign.center, style: AppText.title.copyWith(color: AppColors.navy)),
         content: Text(copy.body, textAlign: TextAlign.center),
         actions: [
           TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('لاحقاً')),
@@ -479,7 +488,7 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
     super.build(context);
     final me = ref.watch(authControllerProvider).me;
     final counts = ref.watch(countsProvider).valueOrNull;
-    if (_loading && _items.isEmpty) return const SkeletonList(count: 2, itemHeight: 260);
+    if (_loading && _items.isEmpty) return const CardSkeletonList();
     if (_error != null && _items.isEmpty) return ErrorView(error: _error!, onRetry: _load);
     final onEdit = widget.onEditPreferences;
     final outOfCredits = _outOfCredits(counts, me?.credits);
@@ -554,6 +563,7 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
     switch (widget.tab) {
       case FeedTab.interested:
         return MessageView(
+          art: LineArtKind.envelope,
           icon: Icons.favorite_border_rounded,
           title: 'لا توجد اهتمامات جديدة حالياً',
           body: _g('استمر في استكشاف التوافقات، فقد تتعرّف إلى شخص يناسبك. من يبدي اهتمامه بك يظهر هنا.',
@@ -563,6 +573,7 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
         );
       case FeedTab.waiting:
         return MessageView(
+          art: LineArtKind.envelope,
           icon: Icons.hourglass_empty_rounded,
           title: _g('لم ترسل أي اهتمام بعد', 'لم ترسلي أي اهتمام بعد'),
           body: '${_g('ابدأ', 'ابدئي')} باكتشاف التوافقات الجديدة. عندما ${_g('تختار', 'تختارين')} «مهتم» على اقتراح، '
@@ -596,6 +607,7 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
           final forMe = (counts?.likedYou ?? 0) > 0;
           return MessageView(
             key: const Key('empty-pending'),
+            art: LineArtKind.dallah,
             icon: Icons.hourglass_top_rounded,
             title: forMe ? 'لديك اقتراحات بانتظار قرارك' : 'اقتراحاتك المفتوحة بانتظار الطرف الآخر',
             body: forMe
@@ -610,6 +622,7 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
           );
         }
         return MessageView(
+          art: LineArtKind.dallah,
           icon: Icons.inbox_outlined,
           title: 'نبحث لك عن اقتراحات مناسبة',
           body: creditOnInterest

@@ -85,7 +85,7 @@ function NavItem({
   const isActive = isActiveLink(link.href, pathname);
 
   return (
-    <Link
+    <Link prefetch={false}
       href={link.href}
       onClick={onClick}
       className={cn(
@@ -190,7 +190,7 @@ export function DashboardSidebar() {
       {/* Logo + user info */}
       <div className={cn("p-4 border-b border-border/40", collapsed && "p-3")}>
         <div className="flex items-center justify-between mb-3">
-          <Link href="/dashboard" className="flex min-h-11 items-center gap-2">
+          <Link prefetch={false} href="/dashboard" className="flex min-h-11 items-center gap-2">
             <Image
               src="/images/logo.svg"
               alt="نصيبك"
@@ -310,7 +310,7 @@ export function DashboardSidebar() {
       <div className="md:hidden fixed top-[var(--app-banner-offset,0px)] inset-x-0 z-50 bg-background border-b border-border/40 shadow-sm w-full">
         <div className="h-[2px] bg-gradient-to-l from-primary via-accent to-primary/50" />
         <div className="flex items-center justify-between px-4 h-14">
-          <Link href="/dashboard" className="flex min-h-11 items-center gap-2">
+          <Link prefetch={false} href="/dashboard" className="flex min-h-11 items-center gap-2">
             <Image
               src="/images/logo.svg"
               alt="نصيبك"
@@ -323,7 +323,7 @@ export function DashboardSidebar() {
           <div className="flex items-center gap-1">
             {/* Credits at a glance: «مهتم» uses one */}
             {typeof counts.credits === "number" && (
-              <Link
+              <Link prefetch={false}
                 href="/dashboard/payments"
                 aria-label={`رصيدك ${counts.credits}`}
                 className="me-1 inline-flex h-11 items-center gap-1 rounded-full border border-accent/40 bg-accent/10 px-3 text-sm font-bold text-foreground"
@@ -332,7 +332,7 @@ export function DashboardSidebar() {
                 {counts.credits}
               </Link>
             )}
-            <Link
+            <Link prefetch={false}
               href="/dashboard/notifications"
               aria-label={unreadCount > 0 ? `الإشعارات (${unreadCount} غير مقروءة)` : "الإشعارات"}
               className="relative h-11 w-11 rounded-xl flex items-center justify-center hover:bg-muted/60 transition-colors">
@@ -359,7 +359,7 @@ export function DashboardSidebar() {
               const badge = link.badge ?? 0;
               return (
                 <li key={link.href} className="flex-1">
-                  <Link
+                  <Link prefetch={false}
                     href={link.href}
                     aria-current={active ? "page" : undefined}
                     aria-label={badge > 0 ? `${link.label} (${badge})` : undefined}
@@ -382,7 +382,7 @@ export function DashboardSidebar() {
               );
             })}
             <li className="flex-1">
-              <Link
+              <Link prefetch={false}
                 href="/dashboard/account"
                 aria-current={accountActive ? "page" : undefined}
                 className={cn(

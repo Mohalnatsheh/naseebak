@@ -15,6 +15,14 @@ import { getVisitorCountry } from "@/lib/countries/server";
 import { activeCountryCodes } from "@/lib/countries/settings";
 import { DeactivatedGate } from "./reactivate/deactivated-gate";
 import { SuspendedScreen } from "./suspended-screen";
+import { preload } from "react-dom";
+
+/**
+ * The calls every dashboard page makes first (DashboardDataProvider), started by the browser while it parses the HTML
+ * instead of after the JS has run (QA PA-M1 b): the provider's fetch()es pick up these responses. Same-origin GETs
+ * with the default credentials, which `crossOrigin: "anonymous"` matches.
+ */
+const FIRST_CALLS = ["/api/profile", "/api/notifications/unread-count", "/api/me/counts"];
 
 // Each dashboard section sets its own title in its layout.tsx (pages here are client components)
 export const metadata: Metadata = {
@@ -63,6 +71,7 @@ async function DashboardShell({ children }: { children: React.ReactNode }) {
     );
   }
 
+  for (const href of FIRST_CALLS) preload(href, { as: "fetch", crossOrigin: "anonymous" });
   return (
     <Providers session={webSession?.user?.id ? webSession : undefined}>
       <OneSignalProvider />

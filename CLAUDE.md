@@ -350,7 +350,7 @@ Detail: [docs/reference/suggestions-and-credits.md](docs/reference/suggestions-a
 
 ## Deployment
 
-**Production: `a9a3404` (Pro announced on the dashboard: the home «جديد: عضوية Pro» card and the phone top bar «Pro» pill; the Pro plan comparison; Pro on), deployed 2026-11-10, slot b.**
+**Production: `d441363` (Lebanon: `/lb`, WhatsApp codes, USD drafts, «المذهب», Lebanese dialect; Pro «أولوية في الاقتراحات» line; `--db-push` for `Profile.sect`/`prefSect`), deployed 2026-11-10, slot a. Lebanon switched on the same day (owner): active, registration open, no sales (no prices approved), polls off.**
 
 Update that one line after each deploy. Don't list past versions. The live revision is in `/var/www/naseebak/REVISION`.
 
@@ -424,7 +424,7 @@ Needs a new app version:
 - The website's «الرصيد أرخص» saving line. A live chat widget in the app.
 - Pro in the app: plans screen (calls `POST /api/pro/checkout`, opens the URL in the browser), «اشتراكي», sending photos and voice notes (picker, recorder, microphone permission), photo and voice bubbles, the Pro badge. Old apps still show media messages as text («حدّث التطبيق»). The website has all of it already.
 
-App 1.2.0 (on branch `feature/lebanon`, not built for stores): «المذهب» (setup, edit, preference, «شرط أساسي», cards), the code wording from the server's `otpChannel`, +961 guardian phones, the Pro «أولوية في الاقتراحات» line. Lebanon opens only after 1.2.0 is live in both stores with the force update. Details: [naseebak_app/CLAUDE.md](naseebak_app/CLAUDE.md).
+App 1.2.0+6 (built 2026-11-10 from `d441363`: Play bundle `~/Documents/EvoKey-Projects/naseebak-release-1.2.0/naseebak-1.2.0-6.aab`, iOS uploaded to TestFlight): «المذهب» (setup, edit, preference, «شرط أساسي», cards), the code wording from the server's `otpChannel`, +961 guardian phones, the Pro «أولوية في الاقتراحات» line. Lebanon went live before 1.2.0 reached the stores (owner, 2026-11-10): Lebanese members on 1.1.x get no «المذهب» question and see «برسالة نصية» on the code screen; once 1.2.0 is live in both stores, set the force update to 1.2.0. Details: [naseebak_app/CLAUDE.md](naseebak_app/CLAUDE.md).
 
 App 1.1.0+4 (live on Play 2026-11-10 with the force update to 1.1.0; iOS uploaded to TestFlight the same day): Pro, chat photos and voice, the modern chat, the QA round 2 fixes and the shared design (type scale, tokens, brand kit, seal, time arc, one banner slot, badge rules). Ships only after the server branch is live (hard gate: an older server strips `end:false`, so «إبلاغ فقط» would end the chat and block); update the store privacy answers first (audio and photos in chat). Details: [naseebak_app/CLAUDE.md](naseebak_app/CLAUDE.md).
 

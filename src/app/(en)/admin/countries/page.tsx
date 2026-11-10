@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import { AlertTriangle, CheckCircle2, Circle, Globe2, Loader2, Send, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronDown, Circle, Globe2, Loader2, Send, XCircle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -140,6 +140,22 @@ export default function AdminCountriesPage() {
   );
 }
 
+/** A collapsible part of a country card (design P2: the card was one long form). Closed parts keep their edits. */
+function Section({ title, hint, defaultOpen = false, children }: { title: string; hint?: string; defaultOpen?: boolean; children: ReactNode }) {
+  return (
+    <details open={defaultOpen} className="group rounded-lg border">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2.5 text-sm font-medium [&::-webkit-details-marker]:hidden">
+        <span>{title}</span>
+        <span className="flex items-center gap-2 text-xs font-normal text-muted-foreground">
+          {hint}
+          <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" aria-hidden="true" />
+        </span>
+      </summary>
+      <div className="space-y-4 border-t p-3">{children}</div>
+    </details>
+  );
+}
+
 function CountryCard({ row, onSaved }: { row: CountryRow; onSaved: () => void }) {
   const [form, setForm] = useState<Settings>(row.settings);
   const [saving, setSaving] = useState(false);
@@ -248,6 +264,23 @@ function CountryCard({ row, onSaved }: { row: CountryRow; onSaved: () => void })
             ))}
           </ul>
         )}
+        {/* Readiness first: what is done and what is missing to sell here (design P2) */}
+        {row.goLive.length > 0 && (
+          <div className={cn("rounded-lg border p-3", row.selling ? "border-emerald-200 bg-emerald-50/50" : "bg-muted/30")}>
+            <p className="text-sm font-medium">
+              {row.selling
+                ? `Live in ${row.display.name.en}: selling`
+                : `To go live in ${row.display.name.en}: ${row.goLive.filter((i) => i.done).length} of ${row.goLive.length} done`}
+            </p>
+            <ul className="mt-1.5 grid gap-1 text-xs sm:grid-cols-2 lg:grid-cols-4">
+              {row.goLive.map((item) => (
+                <li key={item.key} className={cn("flex items-center gap-1.5", item.done ? "text-emerald-700" : "text-muted-foreground")}>
+                  {item.done ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0" /> : <Circle className="h-3.5 w-3.5 shrink-0" />} {item.label}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </CardHeader>
       <CardContent className="space-y-5">
         <div className="grid gap-3 md:grid-cols-2">
@@ -263,6 +296,7 @@ function CountryCard({ row, onSaved }: { row: CountryRow; onSaved: () => void })
           )}
         </div>
 
+        <Section title="SMS, contacts and public text" hint={`SMS: ${row.sms.provider}`}>
         <div className="space-y-1.5">
           <Label htmlFor={`sms-${code}`}>SMS provider</Label>
           <select id={`sms-${code}`} value={form.smsProvider} onChange={(e) => setForm({ ...form, smsProvider: e.target.value as Provider })} className="h-9 w-full rounded-md border bg-background px-2 text-sm md:w-96">
@@ -288,6 +322,9 @@ function CountryCard({ row, onSaved }: { row: CountryRow; onSaved: () => void })
           ))}
         </div>
 
+        </Section>
+
+        <Section title="Credit packages" hint={approved ? "Prices approved" : "Prices not approved"} defaultOpen={!approved}>
         <div className="space-y-3 rounded-lg border p-3">
           <label className="flex items-start justify-between gap-3">
             <span>
@@ -308,6 +345,9 @@ function CountryCard({ row, onSaved }: { row: CountryRow; onSaved: () => void })
           <p className="text-xs text-muted-foreground">Used on the website, in the app and in the FAQ. Prices written inside blog posts don&apos;t change by themselves.</p>
         </div>
 
+        </Section>
+
+        <Section title="Pro plans" hint={form.proPlans ? `${Object.keys(form.proPlans).length} set` : "None set"} defaultOpen={!!planError}>
         <ProPlansEditor
           code={code}
           error={planError}
@@ -316,19 +356,7 @@ function CountryCard({ row, onSaved }: { row: CountryRow; onSaved: () => void })
           value={form.proPlans}
           onChange={(proPlans) => setForm({ ...form, proPlans })}
         />
-
-        {!row.selling && row.goLive.length > 0 && (
-          <div className="space-y-2 rounded-lg border p-3">
-            <p className="text-sm font-medium">To go live in {row.display.name.en}</p>
-            <ul className="grid gap-1 text-xs sm:grid-cols-2">
-              {row.goLive.map((item) => (
-                <li key={item.key} className={cn("flex items-center gap-1.5", item.done ? "text-emerald-700" : "text-muted-foreground")}>
-                  {item.done ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0" /> : <Circle className="h-3.5 w-3.5 shrink-0" />} {item.label}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
+        </Section>
 
         <div className="flex flex-wrap items-end gap-2">
           <Button onClick={requestSave} disabled={!dirty || saving}>

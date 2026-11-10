@@ -57,7 +57,7 @@ import { ChatStatusBar } from "./chat-status-bar";
 import { useDashboardData } from "@/contexts/dashboard-context";
 import { formatDate } from "@/lib/countries";
 import { checkMessage } from "@/lib/chat/filter";
-import { markPageNotificationsRead } from "@/lib/notifications-client";
+import { markPageNotificationsRead, notifyChatSent, notifyNotificationsRead } from "@/lib/notifications-client";
 import { ProOfferDialog } from "@/components/payments/pro-offer-dialog";
 import type { MyProState } from "@/lib/pro/pro-types";
 import { composerMediaMode, type ComposerMedia, type MediaMode } from "./media-buttons";
@@ -402,11 +402,12 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ upTo }),
     })
-      .then((res) => {
+      .then(async (res) => {
         if (!res.ok) return;
         const at = new Date().toISOString();
         setMessages((prev) => prev.map((m) => (!m.mine && !m.readAt && m.createdAt <= upTo ? { ...m, readAt: at } : m)));
-        window.dispatchEvent(new CustomEvent("naseeb:notifications-read"));
+        const data = (await res.json().catch(() => null)) as { unreadCount?: unknown } | null;
+        notifyNotificationsRead(typeof data?.unreadCount === "number" ? data.unreadCount : undefined);
       })
       .catch(() => {})
       .finally(() => {
@@ -556,6 +557,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
     if (res.ok) {
       setMessages((prev) => mergeMessages(prev.filter((m) => m.id !== tempId), [res.data.message]));
       wake();
+      notifyChatSent();
       return;
     }
     // Network trouble, a server error or the burst limit: the bubble stays with «إعادة المحاولة» (sent again
@@ -611,6 +613,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
     if (res?.ok && data.message) {
       const saved = data.message;
       setMessages((prev) => mergeMessages(dropLocal(prev, tempId), [saved]));
+      notifyChatSent();
       return;
     }
     // Network trouble, a server error or the burst limit: keep it with a retry button (the recording isn't lost)

@@ -43,7 +43,11 @@ export async function POST(request: Request) {
       // userId again in the update: never touches someone else's rows
       await db.notification.updateMany({ where: { id: { in: ids }, userId: result.session.user.id }, data: { isRead: true } });
     }
-    return NextResponse.json({ marked: ids.length });
+    // The bell count after this read (PA-M6): the dashboard sets it without another unread-count call
+    const unreadCount = unread.length < SCAN_LIMIT
+      ? unread.length - ids.length
+      : await db.notification.count({ where: { userId: result.session.user.id, isRead: false } });
+    return NextResponse.json({ marked: ids.length, unreadCount });
   } catch (error) {
     console.error("Read-for-page error:", error);
     return NextResponse.json({ error: "حدث خطأ في الخادم" }, { status: 500 });

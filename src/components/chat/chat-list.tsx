@@ -15,6 +15,7 @@ import { useDashboardData } from "@/contexts/dashboard-context";
 import { LoadError } from "@/components/shared/load-error";
 import { PageHeader } from "@/components/shared/page-header";
 import { markPageNotificationsRead } from "@/lib/notifications-client";
+import { sharedGet } from "@/lib/shared-get";
 import { matchesHref } from "@/lib/matches/links";
 import { ProBadge } from "@/components/shared/pro-badge";
 import { isActiveChat, splitChats, type ChatTab } from "./chat-look";
@@ -47,10 +48,17 @@ export function ChatList({ compact = false, activeId }: { compact?: boolean; act
     }
   }
 
+  // No poll of its own (QA WC2-07, PA-M6): the list reloads when the dashboard's badges or bell change (they poll every
+  // 30 s, only while the tab is visible), when something was read, after my own send, and back on the tab. A hidden
+  // tab never polls, and with Ably live nothing extra runs. Loads go through sharedGet, so overlapping triggers share
+  // one request.
+  const { unreadCount } = useDashboardData();
+  const reloadRef = useRef<() => void>(() => {});
   useEffect(() => {
     let alive = true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     const load = () =>
-      fetch("/api/chats")
+      sharedGet("/api/chats")
         .then((r) => {
           if (!r.ok) throw new Error(`chats ${r.status}`);
           return r.json();
@@ -64,16 +72,39 @@ export function ChatList({ compact = false, activeId }: { compact?: boolean; act
         .catch(() => {
           if (alive && !loaded.current) setLoadFailed(true);
         });
+    // A burst of triggers (a read, then the badges it changed) is one reload
+    const soon = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        timer = undefined;
+        void load();
+      }, 300);
+    };
+    reloadRef.current = soon;
+    const onVisible = () => {
+      if (document.visibilityState === "visible") soon();
+    };
     load();
-    const t = setInterval(load, 15000);
-    // The open chat beside the list marked messages read: the unread badges follow at once
-    window.addEventListener("naseeb:notifications-read", load);
+    window.addEventListener("naseeb:notifications-read", soon);
+    window.addEventListener("naseeb:chat-sent", soon);
+    document.addEventListener("visibilitychange", onVisible);
     return () => {
       alive = false;
-      clearInterval(t);
-      window.removeEventListener("naseeb:notifications-read", load);
+      if (timer) clearTimeout(timer);
+      reloadRef.current = () => {};
+      window.removeEventListener("naseeb:notifications-read", soon);
+      window.removeEventListener("naseeb:chat-sent", soon);
+      document.removeEventListener("visibilitychange", onVisible);
     };
   }, [reloadKey]);
+
+  // A new message elsewhere moves the unread badge or the bell: reload then (skipping the first render)
+  const seen = useRef<string | null>(null);
+  useEffect(() => {
+    const key = `${counts.unreadChats}:${unreadCount}`;
+    if (seen.current !== null && seen.current !== key) reloadRef.current();
+    seen.current = key;
+  }, [counts.unreadChats, unreadCount]);
 
   return (
     <div className={compact ? "flex h-full flex-col gap-3" : "mx-auto max-w-3xl space-y-6 pb-8"}>

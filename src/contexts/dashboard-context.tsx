@@ -138,28 +138,31 @@ export function DashboardDataProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const applyCounts = useCallback(async (countsRes: Response): Promise<boolean> => {
+    if (!countsRes.ok) return false;
+    const next = (await countsRes.json()) as Partial<CycleCounts>;
+    // The Pro lookup failed on the server (no `pro` in the answer): keep the badge as it was, never hide it
+    setCounts((prev) => ({ ...EMPTY_COUNTS, ...next, pro: next.pro ?? prev.pro }));
+    setCountsLoaded(true);
+    return true;
+  }, []);
+
+  /** Bell count and badges. Shared GETs (PA-M6): a page loading at the same moment rides on the same request */
   const refreshUnread = useCallback(async (): Promise<boolean> => {
     try {
       const [res, countsRes] = await Promise.all([
-        fetch("/api/notifications/unread-count"),
-        fetch("/api/me/counts"),
+        sharedGet("/api/notifications/unread-count"),
+        sharedGet("/api/me/counts"),
       ]);
       if (res.ok) {
         const data = await res.json();
         setUnreadCount(data.count || 0);
       }
-      if (countsRes.ok) {
-        const next = (await countsRes.json()) as Partial<CycleCounts>;
-        // The Pro lookup failed on the server (no `pro` in the answer): keep the badge as it was, never hide it
-        setCounts((prev) => ({ ...EMPTY_COUNTS, ...next, pro: next.pro ?? prev.pro }));
-        setCountsLoaded(true);
-        return true;
-      }
-      return false;
+      return await applyCounts(countsRes);
     } catch {
       return false;
     }
-  }, []);
+  }, [applyCounts]);
 
   useEffect(() => {
     refreshProfile();
@@ -182,18 +185,29 @@ export function DashboardDataProvider({ children }: { children: ReactNode }) {
     }
     document.addEventListener("visibilitychange", handleVisibility);
 
-    function handleNotificationsRead() {
-      refreshUnread();
+    // Reads come in bursts (the page's read-for-page, then the chat's read): one refresh for the lot. A read call that
+    // answered the bell count sets it at once, and only the badges are fetched again (PA-M6)
+    let readTimer: ReturnType<typeof setTimeout> | undefined;
+    function handleNotificationsRead(event: Event) {
+      const told = (event as CustomEvent<{ unreadCount?: number } | undefined>).detail?.unreadCount;
+      if (typeof told === "number") setUnreadCount(told);
+      if (readTimer) clearTimeout(readTimer);
+      readTimer = setTimeout(() => {
+        readTimer = undefined;
+        if (typeof told === "number") void sharedGet("/api/me/counts").then(applyCounts).catch(() => {});
+        else void refreshUnread();
+      }, 300);
     }
     window.addEventListener("naseeb:notifications-read", handleNotificationsRead);
 
     return () => {
       clearInterval(interval);
       if (retry) clearTimeout(retry);
+      if (readTimer) clearTimeout(readTimer);
       document.removeEventListener("visibilitychange", handleVisibility);
       window.removeEventListener("naseeb:notifications-read", handleNotificationsRead);
     };
-  }, [refreshProfile, refreshUnread]);
+  }, [refreshProfile, refreshUnread, applyCounts]);
 
   return (
     <DashboardContext.Provider value={{ profile, completeness, unreadCount, counts, country: toCountry(profile?.country), loading, profileFailed, countsFailed: countsReady && !countsLoaded, refreshProfile, refreshUnread }}>

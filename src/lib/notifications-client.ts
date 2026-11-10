@@ -19,7 +19,20 @@ export function markPageNotificationsRead(path: string, opts: { exact?: boolean 
   })
     .then((r) => (r.ok ? r.json() : null))
     .then((d) => {
-      if (d?.marked > 0) window.dispatchEvent(new Event("naseeb:notifications-read"));
+      if (d?.marked > 0) notifyNotificationsRead(typeof d.unreadCount === "number" ? d.unreadCount : undefined);
     })
     .catch(() => {});
+}
+
+/**
+ * Tells the dashboard (bell, badges) and the chat list that something was read. `unreadCount`: the bell count the
+ * read call answered (PA-M6), so nobody fetches /api/notifications/unread-count for it.
+ */
+export function notifyNotificationsRead(unreadCount?: number): void {
+  window.dispatchEvent(new CustomEvent("naseeb:notifications-read", { detail: { unreadCount } }));
+}
+
+/** My own message went out: the chat list beside the room shows it (QA WC2-07) */
+export function notifyChatSent(): void {
+  window.dispatchEvent(new Event("naseeb:chat-sent"));
 }

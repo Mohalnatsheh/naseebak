@@ -481,8 +481,11 @@ class ChatRepository {
 
   /// Ends the chat for both; with [reportReason] it is also a report (and a block). [messageId] names the message
   /// reported («إبلاغ عن الرسالة»): servers before the field ignore it, so the details still quote the message.
-  Future<void> end(String id, {String? reportReason, String? details, String? messageId}) async {
+  /// Ends the chat (with a report: also blocks). [end] false with a report is «إبلاغ فقط»: the report is filed and
+  /// the chat stays open (`end: false`, server WC2-16).
+  Future<void> end(String id, {String? reportReason, String? details, String? messageId, bool end = true}) async {
     await _api.post('/api/chats/$id/end', body: {
+      if (!end && reportReason != null) 'end': false,
       if (reportReason != null)
         'report': {
           'reason': reportReason,

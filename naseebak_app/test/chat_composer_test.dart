@@ -854,6 +854,28 @@ void main() {
       expect(report.containsKey('details'), isFalse);
     });
 
+    testWidgets('«إبلاغ فقط» files the report with end:false; the chat stays open (A-M02)', (tester) async {
+      final r = _Room();
+      await r.open(tester);
+      await tester.longPress(find.text('رسالة 1'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('menu-report')));
+      await tester.pumpAndSettle();
+      // The other choice states what it does besides the report
+      expect(find.textContaining('ويُحظر الطرف الآخر ويُغلق التوافق'), findsOneWidget);
+      await tester.tap(find.text('إزعاج أو تحرش'));
+      await tester.pump();
+      await tester.ensureVisible(find.byKey(const Key('report-only')));
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('report-only')));
+      await tester.pumpAndSettle();
+      final body = r.adapter.to('POST', '/api/chats/c1/end').single.data as Map;
+      expect(body['end'], isFalse);
+      expect((body['report'] as Map)['messageId'], 'm001');
+      expect(find.text('تم إرسال البلاغ، وسيراجعه فريق نصيبك.'), findsOneWidget);
+      expect(find.byKey(const Key('chat-input')), findsOneWidget);
+    });
+
     testWidgets('the chat menu «إبلاغ» (no message) sends no message id', (tester) async {
       final r = _Room();
       await r.open(tester);

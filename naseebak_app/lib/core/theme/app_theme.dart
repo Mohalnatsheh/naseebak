@@ -1,19 +1,38 @@
 import 'package:flutter/material.dart';
 
-/// Brand palette: deep navy + warm gold on a calm off-white.
+/// Brand palette: deep navy + warm gold on a calm off-white. One token sheet shared with the website's `@theme`
+/// (design review P1-1): the same names and values on both.
 class AppColors {
   AppColors._();
 
+  /// `primary`
   static const navy = Color(0xFF22476A);
+
+  /// `primary-deep`: dark headers, pressed states
   static const navyDeep = Color(0xFF15304A);
+
+  /// `primary-2`: gradients only (never a stray blue)
+  static const navy2 = Color(0xFF2B5A84);
+
+  /// `accent`: icons, rings, fills on navy (never text on a light background: 2.8:1)
   static const gold = Color(0xFFC19250);
   static const goldLight = Color(0xFFDDB97F);
 
-  /// Gold text on a light gold background (the «Pro» badge)
+  /// `accent-ink`: gold text on a light background (6.9:1)
   static const goldText = Color(0xFF7A5420);
+
+  /// `accent-soft`: 12% gold, the "why" line and good-news fills
+  static const goldSoft = Color(0x1FC19250);
+
+  /// `sand`: the chat, the family steps and guardian consent («مجلس» rooms)
+  static const sand = Color(0xFFF4F1EB);
   static const offWhite = Color(0xFFF7F9FB);
+
+  /// `ink`
   static const ink = Color(0xFF1A2230);
-  static const muted = Color(0xFF5E6B7D);
+
+  /// `muted-ink` (5.9:1 on white)
+  static const muted = Color(0xFF5B646F);
   static const line = Color(0xFFE3E8EE);
   static const surface = Colors.white;
   static const success = Color(0xFF2E7D5B);
@@ -23,10 +42,110 @@ class AppColors {
   static const danger = Color(0xFFB3261E);
   static const dangerBg = Color(0xFFFDECEA);
 
-  /// Chat: my bubbles in navy with white text, the other person's in white with ink text, on a warm off-white
+  /// Chat: my bubbles in navy with white text, the other person's in white with ink text, on warm sand
   static const chatMine = navy;
   static const chatTheirs = Colors.white;
-  static const chatBackdrop = Color(0xFFF4F1EB);
+  static const chatBackdrop = sand;
+}
+
+/// Badge colours (design review P2-4): red only for "act now", navy for counts, gold for good news
+enum BadgeTone { act, count, good }
+
+extension BadgeToneColors on BadgeTone {
+  Color get background => switch (this) {
+        BadgeTone.act => AppColors.danger,
+        BadgeTone.count => AppColors.navy,
+        BadgeTone.good => AppColors.gold,
+      };
+  Color get foreground => this == BadgeTone.good ? AppColors.navyDeep : Colors.white;
+}
+
+/// One Cairo type scale, nothing under 12 (design review P1-2). Feature code uses these named styles (with
+/// `copyWith` for colour or weight), never a raw `fontSize:`.
+class AppText {
+  AppText._();
+
+  static const _f = 'Cairo';
+
+  /// 28/36 800: the big greeting, the match moment
+  static const display = TextStyle(fontFamily: _f, fontSize: 28, height: 36 / 28, fontWeight: FontWeight.w800);
+
+  /// 22/30 800: names on cards, screen heroes
+  static const title = TextStyle(fontFamily: _f, fontSize: 22, height: 30 / 22, fontWeight: FontWeight.w800);
+
+  /// 18/28 700: section and card headings
+  static const headline = TextStyle(fontFamily: _f, fontSize: 18, height: 28 / 18, fontWeight: FontWeight.w700);
+
+  /// 16/26 400: reading text, inputs, buttons
+  static const body = TextStyle(fontFamily: _f, fontSize: 16, height: 26 / 16, fontWeight: FontWeight.w400);
+
+  /// 14/22 600: chips, secondary lines, list subtitles
+  static const label = TextStyle(fontFamily: _f, fontSize: 14, height: 22 / 14, fontWeight: FontWeight.w600);
+
+  /// 12/18 500: times, captions, badges (the floor)
+  static const caption = TextStyle(fontFamily: _f, fontSize: 12, height: 18 / 12, fontWeight: FontWeight.w500);
+
+  /// Fixed-width digits (rings, prices, clocks, counts)
+  static const tabular = [FontFeature.tabularFigures()];
+
+  /// A number inside a ring or tile of [box] logical pixels: scales with the box, never under the caption floor
+  static TextStyle ringValue(double box) => display.copyWith(
+        fontSize: (box * 0.27).clamp(12.0, 34.0),
+        height: 1.1,
+        fontFeatures: tabular,
+      );
+}
+
+/// Corner radius scale (P1-1): 8 / 12 / 16 cards / 24 sheets / full
+class AppRadius {
+  AppRadius._();
+  static const sm = 8.0;
+  static const md = 12.0;
+  static const card = 16.0;
+  static const sheet = 24.0;
+  static const full = 999.0;
+}
+
+/// Spacing in steps of 4 (P1-1)
+class AppSpace {
+  AppSpace._();
+  static const xs = 4.0;
+  static const sm = 8.0;
+  static const md = 12.0;
+  static const lg = 16.0;
+  static const xl = 20.0;
+  static const xxl = 24.0;
+  static const x3 = 32.0;
+  static const x4 = 40.0;
+  static const x5 = 56.0;
+}
+
+/// Shadows (P1-1): cards use a border only; floating bars and dialogs these
+class AppShadows {
+  AppShadows._();
+  static const floating = [
+    BoxShadow(color: Color(0x0F15304A), blurRadius: 2, offset: Offset(0, 1)),
+    BoxShadow(color: Color(0x0D15304A), blurRadius: 12, offset: Offset(0, 4)),
+  ];
+  static const dialog = [BoxShadow(color: Color(0x2415304A), blurRadius: 32, offset: Offset(0, 12))];
+}
+
+/// The motion system (P2-8): one easing curve and four durations, all zero when the phone asks for less motion
+/// (`MediaQuery.disableAnimations`: iOS Reduce Motion, Android "Remove animations").
+class AppMotion {
+  AppMotion._();
+
+  static const curve = Cubic(0.2, 0.7, 0.2, 1);
+  static const press = Duration(milliseconds: 120);
+  static const appear = Duration(milliseconds: 180);
+  static const sheet = Duration(milliseconds: 280);
+  static const seal = Duration(milliseconds: 600);
+
+  /// True when animations should be skipped
+  static bool reduced(BuildContext context) => MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+
+  /// [d], or zero with reduced motion
+  static Duration of(BuildContext context, Duration d) => reduced(context) ? Duration.zero : d;
 }
 
 class AppTheme {

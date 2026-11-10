@@ -19,7 +19,7 @@ import 'match_models.dart';
 import 'matches_repository.dart';
 import 'safety_actions.dart';
 
-export 'safety_actions.dart' show ReportSheet;
+export 'safety_actions.dart' show ReportAnswer, ReportSheet;
 
 final _matchProvider = FutureProvider.autoDispose.family<MatchSummary?, String>(
   (ref, id) => ref.watch(matchesRepositoryProvider).find(id),

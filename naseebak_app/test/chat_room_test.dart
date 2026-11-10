@@ -259,6 +259,17 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.textContaining('تنتهي المحادثة للطرفين'), findsOneWidget);
       expect(find.text('إبلاغ وإنهاء المحادثة'), findsOneWidget);
+      expect(find.text('إبلاغ فقط'), findsOneWidget);
+    });
+
+    test('a closed chat offers «إبلاغ وحظر», and its snack never says the chat was ended (minor 7)', () {
+      final closed = reportSheetCopy(open: false);
+      expect(closed.submitLabel, 'إبلاغ وحظر');
+      expect(closed.submitConsequence, isNot(contains('تنتهي المحادثة')));
+      expect(reportDoneText(report: true, end: true, open: false), 'تم الإبلاغ والحظر');
+      expect(reportDoneText(report: true, end: true, open: true), 'تم إنهاء المحادثة والإبلاغ');
+      expect(reportDoneText(report: true, end: false, open: true), contains('تم إرسال البلاغ'));
+      expect(reportDoneText(report: false, end: true, open: true), 'تم إنهاء المحادثة');
     });
 
     testWidgets('tapping send keeps the keyboard open for the next message', (tester) async {

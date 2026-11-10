@@ -20,7 +20,7 @@ import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/common.dart';
 import '../home/counts.dart';
 import '../home/gendered_copy.dart';
-import '../matches/match_detail_screen.dart' show ReportSheet;
+import '../matches/match_detail_screen.dart' show ReportAnswer, ReportSheet;
 import '../matches/matches_repository.dart';
 import '../pro/pro_badge.dart';
 import '../pro/pro_repository.dart';
@@ -47,6 +47,28 @@ import 'voice_recorder.dart';
 /// the API is merged in. With Ably configured on the server, live events (`ChatLive`) trigger a fetch at once and the
 /// `?after=` poll slows to a safety net every 20 s; without it the app polls every 4 s while open. A chat that can't
 /// change any more (ended, expired, blocked) has no live link and is only checked every minute.
+/// The report sheet's words (QA A-M02, final review minor 7): «إبلاغ فقط» files the report and the chat goes on; the
+/// other choice says exactly what else happens. In an open chat it ends the chat, blocks and closes the match; in a
+/// closed one (ended, expired) there is nothing to end, so it reports and blocks.
+({String description, String onlyConsequence, String submitLabel, String submitConsequence}) reportSheetCopy({required bool open}) {
+  const other = 'الطرف الآخر';
+  return (
+    description: 'يصل البلاغ إلى فريق نصيبك ويراجعه.',
+    onlyConsequence: open ? 'تبقى المحادثة مفتوحة، ولا يُحظر أحد.' : 'لا يتغير شيء آخر.',
+    submitLabel: open ? 'إبلاغ وإنهاء المحادثة' : 'إبلاغ وحظر',
+    submitConsequence: open
+        ? 'تنتهي المحادثة للطرفين ولا تُفتح مرة أخرى، ويُحظر $other ويُغلق التوافق.'
+        : 'يُحظر $other ويُغلق التوافق.',
+  );
+}
+
+/// The snack after a report or an end: never «تم إنهاء المحادثة» for a chat that was already closed
+String reportDoneText({required bool report, required bool end, required bool open}) {
+  if (!report) return 'تم إنهاء المحادثة';
+  if (!end) return 'تم إرسال البلاغ، وسيراجعه فريق نصيبك.';
+  return open ? 'تم إنهاء المحادثة والإبلاغ' : 'تم الإبلاغ والحظر';
+}
+
 class ChatRoomScreen extends ConsumerStatefulWidget {
   const ChatRoomScreen({super.key, required this.chatId, this.pollInterval = const Duration(seconds: 4)});
   final String chatId;
@@ -389,10 +411,12 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
         // Never my own echo (nor anyone's while I'm not known)
         if (who != null && me != null && who != me && _typingMute == null) _notePartnerTyping(true);
       case 'reaction':
+        // Before I'm known every reaction would read as not mine: skip it (like `typing`); the next fetch brings it
+        if (me == null) return;
         final id = asString(e.data?['messageId']);
         final i = id == null ? -1 : _messages.indexWhere((m) => m.id == id && m.state == SendState.sent);
         if (i < 0) return;
-        setState(() => _messages[i] = _messages[i].withReactions(reactionsFromLive(e.data?['reactions'], _memberId)));
+        setState(() => _messages[i] = _messages[i].withReactions(reactionsFromLive(e.data?['reactions'], me)));
         _saveCache();
       case 'message':
         final sender = asString(e.data?['senderId']);
@@ -1426,22 +1450,32 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
   Future<void> _end({bool report = false, ChatMessage? message}) async {
     String? reason;
     String? details;
+    var end = true;
+    // An open chat can end; a closed one (ended, expired, blocked) can only be reported, or reported with a block
+    final open = _open;
     if (report) {
-      final res = await showModalBottomSheet<(String, String)>(
+      final copy = reportSheetCopy(open: open);
+      final res = await showModalBottomSheet<ReportAnswer>(
         context: context,
         isScrollControlled: true,
         useSafeArea: true,
+        barrierLabel: 'إغلاق',
         builder: (_) => ReportSheet(
           title: message == null ? 'إبلاغ' : 'إبلاغ عن الرسالة',
-          description: 'يصل البلاغ إلى فريق نصيبك، وتنتهي المحادثة للطرفين ولا يمكن فتحها مرة أخرى.',
-          submitLabel: 'إبلاغ وإنهاء المحادثة',
+          description: copy.description,
+          // «إبلاغ فقط» first (owner ruling): the report is filed and the chat goes on
+          reportOnlyLabel: 'إبلاغ فقط',
+          reportOnlyConsequence: copy.onlyConsequence,
+          submitLabel: copy.submitLabel,
+          submitConsequence: copy.submitConsequence,
           // The message reported is shown as a quote and goes as `messageId` (the team sees it marked in the chat)
           reportedMessage: message == null ? null : replySnippetOf(message),
         ),
       );
       if (res == null) return;
-      reason = res.$1;
-      details = res.$2;
+      reason = res.reason;
+      details = res.details;
+      end = res.end;
     } else {
       final ok = await confirmDialog(
         context,
@@ -1453,9 +1487,15 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
       if (!ok) return;
     }
     try {
-      await _repo.end(widget.chatId, reportReason: reason, details: details, messageId: report ? message?.id : null);
-      _reportedOrEnded = true;
-      if (mounted) showSnack(context, report ? 'تم إنهاء المحادثة والإبلاغ' : 'تم إنهاء المحادثة');
+      await _repo.end(
+        widget.chatId,
+        reportReason: reason,
+        details: details,
+        messageId: report ? message?.id : null,
+        end: end,
+      );
+      if (end) _reportedOrEnded = true;
+      if (mounted) showSnack(context, reportDoneText(report: report, end: end, open: open));
       await _poll();
     } catch (e) {
       if (mounted) showSnack(context, ApiException.messageOf(e));

@@ -5,6 +5,7 @@ import { socialMetadata } from "@/lib/seo";
 import { getVisitorCountry } from "@/lib/countries/server";
 import { publicCopy } from "@/lib/public-copy";
 import { absoluteUrl } from "@/lib/site-paths";
+import { jsonLd } from "@/lib/json-ld";
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -120,11 +121,11 @@ export default async function BlogSlugLayout({ params, children }: Props) {
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(articleJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: jsonLd(articleJsonLd) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: jsonLd(breadcrumbJsonLd) }}
       />
       {children}
     </>

@@ -10,6 +10,7 @@ import { publicCopy } from "@/lib/public-copy";
 import { absoluteUrl, seoAlternates } from "@/lib/site-paths";
 import { faqJsonLd, socialMetadata } from "@/lib/seo";
 import { contentFor } from "@/components/landing/content";
+import { jsonLd } from "@/lib/json-ld";
 
 async function pageText() {
   const [flags, country] = await Promise.all([getCycleFlags(), getVisitorCountry()]);
@@ -40,7 +41,7 @@ export default async function HomePage() {
   if (!settings.active && country !== DEFAULT_COUNTRY) redirect("/?country=jo");
   return (
     <>
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd(contentFor(mode, country).faqs)) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(faqJsonLd(contentFor(mode, country).faqs)) }} />
       <LandingPage mode={mode} country={country} hero={{ title: text.heroTitle, lead: text.heroSubtitle }} />
     </>
   );

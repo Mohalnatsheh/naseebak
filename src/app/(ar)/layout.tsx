@@ -17,6 +17,7 @@ import { AppDownloadBanner } from "@/components/shared/app-download-banner";
 import { APP_BANNER_COOKIE, isAndroidUserAgent, playStoreHref } from "@/lib/app-download";
 import { getMobileConfig } from "@/lib/mobile-config";
 import { LiveChat } from "@/components/shared/live-chat";
+import { jsonLd } from "@/lib/json-ld";
 
 const cairo = Cairo({
   subsets: ["arabic", "latin"],
@@ -156,12 +157,12 @@ export default async function ArabicLayout({
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
-            __html: JSON.stringify(organizationJsonLd(country, supportEmail)),
+            __html: jsonLd(organizationJsonLd(country, supportEmail)),
           }}
         />
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd) }}
+          dangerouslySetInnerHTML={{ __html: jsonLd(websiteJsonLd) }}
         />
         {/* GA4 on public pages + dashboard (ids hidden), GTM + Meta Pixel public pages only, nothing in admin */}
         <PublicTracking country={country} />

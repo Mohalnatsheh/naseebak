@@ -7,6 +7,7 @@ import { publicCopy } from "@/lib/public-copy";
 import { countryConfig } from "@/lib/countries";
 import { absoluteUrl, seoAlternates } from "@/lib/site-paths";
 import { socialMetadata } from "@/lib/seo";
+import { jsonLd } from "@/lib/json-ld";
 
 export async function generateMetadata(): Promise<Metadata> {
   const country = await getVisitorCountry();
@@ -46,7 +47,7 @@ export default async function FaqLayout({
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: jsonLd(faqJsonLd) }}
       />
       {children}
     </>

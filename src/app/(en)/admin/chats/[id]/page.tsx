@@ -318,7 +318,7 @@ export default function AdminChatPage({ params }: { params: Promise<{ id: string
             {chat.extended && " (extended)"}
             {paused
               ? ` · Paused ${fmtDateTime(chat.endedAt)} while reports are reviewed (resumes by itself if cleared)`
-              : chat.endedAt && ` · Ended ${fmtDate(chat.endedAt)} ${endedByLabel(chat.endedBy)}`}
+              : chat.endedAt && <>{` · Ended ${fmtDate(chat.endedAt)} `}{endedByLabel(chat.endedBy)}</>}
             {` · ${hasMore ? "latest " : ""}${messages.length} message${messages.length === 1 ? "" : "s"}${hasMore ? " loaded" : ""} (`}
             <bdi>{left.firstName}</bdi> {countOf(left.id)} · <bdi>{right.firstName}</bdi> {countOf(right.id)})
             {messages.length > 0 && ` · last ${fmtDate(messages[messages.length - 1].createdAt)} ${fmtTime(messages[messages.length - 1].createdAt)}`}

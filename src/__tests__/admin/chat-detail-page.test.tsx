@@ -79,6 +79,15 @@ describe("admin chat detail (ADM-26, design P2)", () => {
     expect(await screen.findByText("msg 3")).toBeTruthy();
   });
 
+  it("an ended chat names who ended it, never «[object Object]»", async () => {
+    const body = chatResponse(2);
+    body.chat = { ...body.chat, status: "ENDED", endedAt: "2026-11-10T10:00:00Z", endedBy: "سلمى" } as typeof body.chat;
+    await renderPage(body);
+    await screen.findByText("msg 1");
+    expect(document.body.textContent).not.toContain("[object Object]");
+    expect(document.body.textContent).toContain("by سلمى");
+  });
+
   it("names are isolated in the header counts", async () => {
     await renderPage(chatResponse(3));
     await screen.findByText("msg 2");

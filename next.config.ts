@@ -18,6 +18,22 @@ const nextConfig: NextConfig = {
       { source: "/reset-password", destination: "/login", permanent: false },
     ];
   },
+  /**
+   * Caching (QA PA-L6, 2026-11-11). Every API answer is personal unless it says otherwise: `private, no-store` by
+   * default, so no browser or proxy keeps a member's data. A route's own Cache-Control wins (the public settings and
+   * country routes keep theirs); the public blog list and stats (the country is in the URL) are cached briefly.
+   * Site images in /public/images change rarely: a week, revalidated in the background.
+   */
+  async headers() {
+    const cache = (value: string) => [{ key: "Cache-Control", value }];
+    return [
+      { source: "/api/:path*", headers: cache("private, no-store") },
+      { source: "/api/blog", headers: cache("public, max-age=60, stale-while-revalidate=300") },
+      { source: "/api/blog/:path*", headers: cache("public, max-age=60, stale-while-revalidate=300") },
+      { source: "/api/stats/public", headers: cache("public, max-age=300, stale-while-revalidate=600") },
+      { source: "/images/:path*", headers: cache("public, max-age=604800, stale-while-revalidate=86400") },
+    ];
+  },
   // Saudi URLs (src/lib/site-paths.ts LOCALIZED_PATHS, blog posts and poll questions): src/proxy.ts tells the page the country, this finds the page
   async rewrites() {
     return {
@@ -30,6 +46,8 @@ const nextConfig: NextConfig = {
     };
   },
   images: {
+    // Optimised site images (member photos are `unoptimized`): a week instead of Next's 4 hours (QA PA-L6)
+    minimumCacheTTL: 604800,
     remotePatterns: [
       { protocol: "https", hostname: "cdn.naseebak.com" },
     ],

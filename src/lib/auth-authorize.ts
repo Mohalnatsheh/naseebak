@@ -11,6 +11,7 @@ import { normalizePhone, VERIFIED_OTP_WINDOW_MS } from "@/lib/validations/auth";
 import { toLatinDigits } from "@/lib/digits";
 import { touchLastActive } from "@/lib/activity";
 import { RATE_LIMITED_CODE } from "@/lib/login-limit";
+import { clientIp } from "@/lib/rate-limit";
 
 export const LOGIN_MAX_FAILURES = 5;
 export const LOGIN_WINDOW_MS = 15 * 60 * 1000;
@@ -75,25 +76,59 @@ export async function authorizePhoneLogin(credentials: Partial<Record<string, un
   });
 }
 
-export async function authorizeAdminLogin(credentials: Partial<Record<string, unknown>> | undefined) {
-  const email = credentials?.email as string | undefined;
-  const password = credentials?.password as string | undefined;
-  if (!email || !password) return null;
+/**
+ * Admin sign-in limits (QA ADM-07, 2026-11-11). Failures count in three buckets, so a stranger can't lock the real
+ * admin out from one address and one address can't try many accounts:
+ * - email + IP: 5 failures per 15 minutes (the usual typo limit, only for that address);
+ * - IP: 20 failures per 15 minutes, whatever email;
+ * - email from every IP: 50 failures per 15 minutes (a spread-out attack on one account).
+ */
+export const ADMIN_EMAIL_IP_MAX_FAILURES = LOGIN_MAX_FAILURES;
+export const ADMIN_IP_MAX_FAILURES = 20;
+export const ADMIN_EMAIL_MAX_FAILURES = 50;
 
-  return guarded(`admin-login:${email.trim().toLowerCase()}`, async () => {
-    const user = await db.user.findUnique({ where: { email } });
-    if (!user || user.role !== "ADMIN" || !user.passwordHash) return null;
+export function adminLoginBuckets(email: string, ip: string): { key: string; max: number }[] {
+  return [
+    { key: `admin-login:${email}:${ip}`, max: ADMIN_EMAIL_IP_MAX_FAILURES },
+    { key: `admin-login-ip:${ip}`, max: ADMIN_IP_MAX_FAILURES },
+    { key: `admin-login:${email}`, max: ADMIN_EMAIL_MAX_FAILURES },
+  ];
+}
 
-    const isValid = await bcrypt.compare(password, user.passwordHash);
-    if (!isValid) return null;
+export async function authorizeAdminLogin(
+  credentials: Partial<Record<string, unknown>> | undefined,
+  request?: Request,
+) {
+  const rawEmail = credentials?.email;
+  const password = credentials?.password;
+  if (typeof rawEmail !== "string" || typeof password !== "string" || !rawEmail.trim() || !password) return null;
+  const email = rawEmail.trim().toLowerCase();
+  const ip = request ? clientIp(request) : "unknown";
+  const buckets = adminLoginBuckets(email, ip);
 
-    return {
-      id: user.id,
-      email: user.email,
-      name: user.firstName,
-      role: user.role,
-      gender: user.gender,
-      isVerified: user.isVerified,
-    };
+  for (const bucket of buckets) {
+    const { blocked, resetAt } = await rateLimitDbBlocked(bucket.key, bucket.max);
+    if (blocked) throw loginRateLimited(resetAt);
+  }
+
+  // Stored emails may carry capitals from before lowercasing: match without case
+  const user = await db.user.findFirst({
+    where: { email: { equals: email, mode: "insensitive" }, role: "ADMIN" },
   });
+  const isValid = !!user?.passwordHash && (await bcrypt.compare(password, user.passwordHash));
+  if (!user || !isValid) {
+    for (const bucket of buckets) {
+      await rateLimitDb(bucket.key, { maxAttempts: bucket.max, windowMs: LOGIN_WINDOW_MS });
+    }
+    return null;
+  }
+
+  return {
+    id: user.id,
+    email: user.email,
+    name: user.firstName,
+    role: user.role,
+    gender: user.gender,
+    isVerified: user.isVerified,
+  };
 }

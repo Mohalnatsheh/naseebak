@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const db = vi.hoisted(() => ({
   otp: { findFirst: vi.fn(), deleteMany: vi.fn() },
-  user: { findUnique: vi.fn() },
+  user: { findUnique: vi.fn(), findFirst: vi.fn() },
 }));
 const limits = vi.hoisted(() => ({ rateLimitDb: vi.fn(), rateLimitDbBlocked: vi.fn() }));
 
@@ -51,21 +51,54 @@ describe("member sign-in limit (G54)", () => {
   });
 });
 
-describe("admin sign-in limit (G54)", () => {
+describe("admin sign-in limit (G54, ADM-07)", () => {
+  const req = (ip: string) => new Request("http://x/api/auth", { headers: { "x-real-ip": ip } });
   beforeEach(() => {
-    db.user.findUnique.mockResolvedValue({ id: "a1", role: "ADMIN", passwordHash: "h", email: "a@x.jo" });
+    db.user.findFirst.mockResolvedValue({ id: "a1", role: "ADMIN", passwordHash: "h", email: "a@x.jo" });
   });
 
-  it("counts a wrong password only", async () => {
-    expect(await authorizeAdminLogin({ email: "a@x.jo", password: "right" })).toMatchObject({ id: "a1" });
+  it("counts a wrong password only, in the email+IP, IP and email buckets", async () => {
+    expect(await authorizeAdminLogin({ email: "a@x.jo", password: "right" }, req("1.2.3.4"))).toMatchObject({ id: "a1" });
     expect(limits.rateLimitDb).not.toHaveBeenCalled();
-    expect(await authorizeAdminLogin({ email: "a@x.jo", password: "wrong" })).toBeNull();
-    expect(limits.rateLimitDb).toHaveBeenCalledWith("admin-login:a@x.jo", expect.any(Object));
+    expect(await authorizeAdminLogin({ email: "a@x.jo", password: "wrong" }, req("1.2.3.4"))).toBeNull();
+    expect(limits.rateLimitDb).toHaveBeenCalledWith("admin-login:a@x.jo:1.2.3.4", { maxAttempts: 5, windowMs: 15 * 60 * 1000 });
+    expect(limits.rateLimitDb).toHaveBeenCalledWith("admin-login-ip:1.2.3.4", { maxAttempts: 20, windowMs: 15 * 60 * 1000 });
+    expect(limits.rateLimitDb).toHaveBeenCalledWith("admin-login:a@x.jo", { maxAttempts: 50, windowMs: 15 * 60 * 1000 });
   });
 
-  it("is refused while blocked", async () => {
-    limits.rateLimitDbBlocked.mockResolvedValue({ blocked: true, resetAt: Date.now() + 60_000 });
-    await expect(authorizeAdminLogin({ email: "a@x.jo", password: "right" })).rejects.toMatchObject({ code: "rate_limited:1" });
+  it("looks the email up lowercased and without case", async () => {
+    await authorizeAdminLogin({ email: "  A@X.JO ", password: "right" }, req("1.2.3.4"));
+    expect(db.user.findFirst).toHaveBeenCalledWith({
+      where: { email: { equals: "a@x.jo", mode: "insensitive" }, role: "ADMIN" },
+    });
+    expect(limits.rateLimitDbBlocked).toHaveBeenCalledWith("admin-login:a@x.jo:1.2.3.4", 5);
+  });
+
+  it("a lockout from one address doesn't lock the email from another", async () => {
+    limits.rateLimitDbBlocked.mockImplementation(async (key: string) =>
+      key === "admin-login:a@x.jo:6.6.6.6" ? { blocked: true, resetAt: Date.now() + 60_000 } : { blocked: false, resetAt: 0 },
+    );
+    await expect(authorizeAdminLogin({ email: "a@x.jo", password: "right" }, req("6.6.6.6"))).rejects.toMatchObject({ code: "rate_limited:1" });
+    expect(await authorizeAdminLogin({ email: "a@x.jo", password: "right" }, req("1.2.3.4"))).toMatchObject({ id: "a1" });
+  });
+
+  it("is refused while the address is blocked, whatever email", async () => {
+    limits.rateLimitDbBlocked.mockImplementation(async (key: string) =>
+      key.startsWith("admin-login-ip:") ? { blocked: true, resetAt: Date.now() + 60_000 } : { blocked: false, resetAt: 0 },
+    );
+    await expect(authorizeAdminLogin({ email: "b@x.jo", password: "right" }, req("6.6.6.6"))).rejects.toMatchObject({ code: "rate_limited:1" });
+    expect(db.user.findFirst).not.toHaveBeenCalled();
+  });
+
+  it("refuses non-string credentials without throwing", async () => {
+    expect(await authorizeAdminLogin({ email: "a@x.jo", password: 123 }, req("1.2.3.4"))).toBeNull();
+    expect(await authorizeAdminLogin({ email: ["a"], password: "x" })).toBeNull();
+  });
+
+  it("counts an unknown or non-admin email as a failure", async () => {
+    db.user.findFirst.mockResolvedValue(null);
+    expect(await authorizeAdminLogin({ email: "nobody@x.jo", password: "right" }, req("1.2.3.4"))).toBeNull();
+    expect(limits.rateLimitDb).toHaveBeenCalledTimes(3);
   });
 });
 

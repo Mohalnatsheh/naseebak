@@ -23,6 +23,7 @@ import { useInView } from "@/hooks/use-in-view";
 import { PageHeroPhoto } from "@/components/shared/page-hero-photo";
 import { IslamicPatternBg } from "@/components/shared/islamic-pattern";
 import { useVisitorCountry } from "@/components/shared/visitor-country";
+import { PRO_LEGAL_UPDATED, withProTerms } from "@/lib/pro/legal-copy";
 import { FREE_REPLY_LINE } from "@/lib/suggestions/copy";
 
 /* ──────────────────── DATA ──────────────────── */
@@ -307,9 +308,19 @@ function buildSaSections(coi: boolean, freeReply = false) {
 /*            TERMS & CONDITIONS PAGE                    */
 /* ══════════════════════════════════════════════════════ */
 
-export function TermsView({ creditOnInterest, freeInterestReply = false }: { creditOnInterest: boolean; freeInterestReply?: boolean }) {
+export function TermsView({
+  creditOnInterest,
+  freeInterestReply = false,
+  proSold = { JO: false, SA: false },
+}: {
+  creditOnInterest: boolean;
+  freeInterestReply?: boolean;
+  /** Pro on sale per country: the «no subscription» line then describes Pro (QA WP2-01) */
+  proSold?: { JO: boolean; SA: boolean };
+}) {
   const sa = useVisitorCountry() === "SA";
-  const sections = sa ? buildSaSections(creditOnInterest, freeInterestReply) : buildSections(creditOnInterest, freeInterestReply);
+  const withPro = sa ? proSold.SA : proSold.JO;
+  const sections = withProTerms(sa ? buildSaSections(creditOnInterest, freeInterestReply) : buildSections(creditOnInterest, freeInterestReply), withPro);
   const { ref: introRef, inView: introInView } = useInView(0.15);
   const { ref: sectionsRef, inView: sectionsInView } = useInView(0.1);
   const { ref: contactRef, inView: contactInView } = useInView(0.15);
@@ -376,7 +387,7 @@ export function TermsView({ creditOnInterest, freeInterestReply = false }: { cre
               className="mx-auto mt-4 text-sm text-muted-foreground/70"
               style={{ animation: "fadeSlideUp 0.8s ease-out 0.6s both" }}
             >
-              آخر تحديث: {sa ? "24 أكتوبر 2026" : "17 أكتوبر 2026"}
+              آخر تحديث: {withPro ? PRO_LEGAL_UPDATED : sa ? "24 أكتوبر 2026" : "17 أكتوبر 2026"}
             </p>
           </div>
         </section>

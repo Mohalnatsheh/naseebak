@@ -9,6 +9,7 @@ import {
   Mail,
   AlertTriangle,
   ArrowLeft,
+  Crown,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -18,6 +19,10 @@ import { useInView } from "@/hooks/use-in-view";
 import { PageHeroPhoto } from "@/components/shared/page-hero-photo";
 import { IslamicPatternBg } from "@/components/shared/islamic-pattern";
 import { useVisitorCountry } from "@/components/shared/visitor-country";
+import { PRO_LEGAL_UPDATED, PRO_REFUND_SECTION, refundIntro, withProRefund } from "@/lib/pro/legal-copy";
+
+/** The «عضوية Pro» section, shown only while Pro is sold in the visitor's country (QA WP2-01) */
+const proSection = { icon: Crown, ...PRO_REFUND_SECTION };
 
 /* ──────────────────── DATA ──────────────────── */
 
@@ -142,9 +147,10 @@ const saSections = [
 /*               REFUND POLICY PAGE                      */
 /* ══════════════════════════════════════════════════════ */
 
-export default function RefundPolicyPage() {
+export function RefundPolicyView({ proSold }: { proSold: { JO: boolean; SA: boolean } }) {
   const sa = useVisitorCountry() === "SA";
-  const sections = sa ? saSections : joSections;
+  const withPro = sa ? proSold.SA : proSold.JO;
+  const sections = withProRefund(sa ? saSections : joSections, withPro, proSection);
   const { ref: introRef, inView: introInView } = useInView(0.15);
   const { ref: sectionsRef, inView: sectionsInView } = useInView(0.1);
   const { ref: contactRef, inView: contactInView } = useInView(0.15);
@@ -210,7 +216,7 @@ export default function RefundPolicyPage() {
               className="mx-auto mt-4 text-sm text-muted-foreground/70"
               style={{ animation: "fadeSlideUp 0.8s ease-out 0.6s both" }}
             >
-              آخر تحديث: {sa ? "24 أكتوبر 2026" : "22 أكتوبر 2026"}
+              آخر تحديث: {withPro ? PRO_LEGAL_UPDATED : sa ? "24 أكتوبر 2026" : "22 أكتوبر 2026"}
             </p>
           </div>
         </section>
@@ -235,12 +241,7 @@ export default function RefundPolicyPage() {
                   </div>
                   <div className="space-y-3">
                     <h2 className="text-xl font-bold">مقدمة</h2>
-                    <p className="text-sm leading-relaxed text-muted-foreground">
-                      سياسة الاسترداد هذه جزء من شروط استخدام منصة نصيبك، وتنطبق على جميع
-                      عمليات شراء الأرصدة عبر المنصة. الأرصدة خدمة رقمية تُضاف إلى
-                      حسابك فور الدفع، لذلك نوضح هنا بدقة الحالات التي يحق لك فيها
-                      استرداد المبلغ وكيفية طلبه.
-                    </p>
+                    <p className="text-sm leading-relaxed text-muted-foreground">{refundIntro(withPro)}</p>
                   </div>
                 </div>
               </CardContent>

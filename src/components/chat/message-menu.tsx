@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef } from "react";
 import { ChevronDown, Copy, Flag, Reply } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -12,6 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { UiMessage } from "./chat-utils";
+import { useRowTabIndex } from "./row-focus";
 
 /** What a member can do with one message (the room decides what the chat allows) */
 export interface MessageActions {
@@ -64,6 +66,9 @@ export function MessageMenu({
   onOpenChange: (open: boolean) => void;
 }) {
   const items = menuItemsFor(message, actions.canInteract);
+  const rowTab = useRowTabIndex();
+  // «رد» / «إبلاغ» move the focus on (the composer, the dialog): the menu doesn't pull it back to its button (PA-L7)
+  const movesFocus = useRef(false);
   if (!items.reply && !items.react && !items.copy && !items.report) return null;
   const mine = message.mine;
   const myEmoji = message.reactions.find((r) => r.mine)?.emoji;
@@ -72,20 +77,46 @@ export function MessageMenu({
       <DropdownMenuTrigger asChild>
         <button
           type="button"
+          tabIndex={rowTab}
           aria-label="خيارات الرسالة"
           className={cn(
-            "absolute top-0.5 z-10 flex h-7 w-7 items-center justify-center rounded-full opacity-0 transition-opacity focus-visible:opacity-100 group-hover/bubble:opacity-100 data-[state=open]:opacity-100",
-            "end-0.5 pointer-coarse:pointer-events-none",
-            mine ? "bg-primary text-primary-foreground/80" : "bg-card text-muted-foreground"
+            "absolute top-0 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-card text-muted-foreground shadow-sm ring-1 ring-border/60 opacity-0 transition-opacity focus-visible:opacity-100 group-hover/bubble:opacity-100 data-[state=open]:opacity-100",
+            // Beside the bubble, on its free side, never over the time on a short message (QA WC2-14)
+            mine ? "-end-8" : "-start-8",
+            "pointer-coarse:pointer-events-none"
           )}
         >
           <ChevronDown className="h-4 w-4" aria-hidden />
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align={mine ? "start" : "end"} className="w-56">
+      <DropdownMenuContent
+        align={mine ? "start" : "end"}
+        className="w-56"
+        onCloseAutoFocus={(e) => {
+          if (!movesFocus.current) return;
+          movesFocus.current = false;
+          e.preventDefault();
+        }}
+      >
         {items.react && (
           <>
-            <div role="group" aria-label="تفاعل" className="flex items-center justify-between gap-1 px-1 py-1">
+            <div
+              role="group"
+              aria-label="تفاعل"
+              className="flex items-center justify-between gap-1 px-1 py-1"
+              // The emoji row is a row: ← / → move along it too (RTL: ← is the next one), not only ↑ / ↓ (PA-L7)
+              onKeyDown={(e) => {
+                if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+                const all = Array.from(e.currentTarget.querySelectorAll<HTMLElement>("[role=menuitem]"));
+                const i = all.indexOf(document.activeElement as HTMLElement);
+                if (i < 0) return;
+                const rtl = getComputedStyle(e.currentTarget).direction === "rtl";
+                const step = (e.key === "ArrowLeft") === rtl ? 1 : -1;
+                e.preventDefault();
+                e.stopPropagation();
+                all[(i + step + all.length) % all.length]?.focus();
+              }}
+            >
               {REACTION_EMOJI.map((emoji) => (
                 <DropdownMenuItem
                   key={emoji}
@@ -105,7 +136,13 @@ export function MessageMenu({
           </>
         )}
         {items.reply && (
-          <DropdownMenuItem onSelect={() => actions.onReply(message)} className="min-h-11">
+          <DropdownMenuItem
+            onSelect={() => {
+              movesFocus.current = true;
+              actions.onReply(message);
+            }}
+            className="min-h-11"
+          >
             <Reply className="h-4 w-4" /> رد
           </DropdownMenuItem>
         )}
@@ -115,7 +152,14 @@ export function MessageMenu({
           </DropdownMenuItem>
         )}
         {items.report && (
-          <DropdownMenuItem variant="destructive" onSelect={() => actions.onReport(message)} className="min-h-11">
+          <DropdownMenuItem
+            variant="destructive"
+            onSelect={() => {
+              movesFocus.current = true;
+              actions.onReport(message);
+            }}
+            className="min-h-11"
+          >
             <Flag className="h-4 w-4" /> إبلاغ عن الرسالة
           </DropdownMenuItem>
         )}

@@ -1,12 +1,12 @@
 "use client";
 
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
+import { forwardRef, useEffect, useId, useImperativeHandle, useRef, useState } from "react";
 import { ChevronRight, ChevronUp, Loader2, Lock, Mic, SendHorizontal, Square, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ReplyQuote } from "@/lib/chat/reply";
 import { MAX_RECORD_SEC } from "./voice-recorder";
 import { PhotoButton, ProTag, clockLabel, useVoiceRecording, type ComposerMedia } from "./media-buttons";
-import { holdGesture } from "./chat-interactions";
+import { holdGesture, holdReleaseSends } from "./chat-interactions";
 import { ReplyStrip } from "./reply-strip";
 import { StarterChips } from "./starter-chips";
 import { LiveLevel } from "./live-level";
@@ -52,6 +52,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, {
   const [sending, setSending] = useState(false);
   const [hint, setHint] = useState<string | null>(null);
   const area = useRef<HTMLTextAreaElement>(null);
+  const micHintId = useId();
   const voice = useVoiceRecording(media);
   const phase = voice.state.phase;
 
@@ -164,8 +165,46 @@ export const ChatComposer = forwardRef<ChatComposerHandle, {
     const h = hold.current;
     if (!h || e.pointerId !== h.id) return;
     endHold();
-    if (phase === "recording") void voice.send();
+    // Released far from the mic (the finger wandered off): stop and wait, like the app — never a silent send
+    const near = holdReleaseSends({ dx: e.clientX - h.x, dy: e.clientY - h.y });
+    if (phase === "recording") void (near ? voice.send() : voice.pause("interrupted"));
     else if (phase === "starting") releasedEarly.current = true;
+  }
+
+  // One announcement per change (QA PA-L3 / WC2-11): the ticking clock is never read out
+  // (state adjusted while rendering, not in an effect)
+  const [said, setSaid] = useState("");
+  const [lastPhase, setLastPhase] = useState(phase);
+  if (phase !== lastPhase) {
+    setLastPhase(phase);
+    if (phase === "recording") setSaid("بدأ التسجيل");
+    else if (phase === "stopped") setSaid("توقف التسجيل · جاهز للإرسال");
+  }
+
+  const roundButton = useRef<HTMLButtonElement>(null);
+  /** «إيقاف التسجيل»: its button goes away, so the focus moves to «إرسال الرسالة الصوتية» (QA PA-M9) */
+  function stopByHand() {
+    void voice.pause("manual");
+    requestAnimationFrame(() => roundButton.current?.focus());
+  }
+  function cancelRecording() {
+    voice.cancel();
+    setSaid("أُلغي التسجيل");
+    requestAnimationFrame(() => area.current?.focus());
+  }
+
+  /** Esc: cancel a recording, else drop the reply (QA WC2-10) */
+  function onComposerKey(e: React.KeyboardEvent<HTMLDivElement>) {
+    if (e.key !== "Escape" || e.nativeEvent.isComposing) return;
+    if (busyVoice || phase === "starting") {
+      e.preventDefault();
+      endHold();
+      cancelRecording();
+    } else if (replyTo && onCancelReply) {
+      e.preventDefault();
+      onCancelReply();
+      area.current?.focus();
+    }
   }
 
   async function submit() {
@@ -205,12 +244,20 @@ export const ChatComposer = forwardRef<ChatComposerHandle, {
 
   return (
     <div
+      onKeyDown={onComposerKey}
       className={cn(
         "relative border-t border-border/60 bg-card/95 px-2.5 pt-2 backdrop-blur supports-[backdrop-filter]:bg-card/80 sm:px-3",
         keyboardOpen ? "pb-2" : "pb-[max(0.75rem,env(safe-area-inset-bottom))]"
       )}
     >
-      {error && <p className="mb-2 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
+      <span role="status" className="sr-only">
+        {said}
+      </span>
+      {error && (
+        <p role="alert" className="mb-2 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          {error}
+        </p>
+      )}
       {hint && (
         <p role="status" className="mb-2 rounded-lg bg-muted px-3 py-2 text-center text-sm text-muted-foreground">
           {hint}
@@ -230,7 +277,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, {
           )}
         >
           {holding ? (
-            <div className="flex min-h-11 flex-1 items-center gap-2 overflow-hidden px-3" role="status" aria-live="polite">
+            <div className="flex min-h-11 flex-1 items-center gap-2 overflow-hidden px-3">
               <span className="h-2.5 w-2.5 flex-shrink-0 animate-pulse rounded-full bg-destructive" aria-hidden />
               {clock}
               <span
@@ -242,10 +289,10 @@ export const ChatComposer = forwardRef<ChatComposerHandle, {
               </span>
             </div>
           ) : recordingView || stoppedView ? (
-            <div className="flex min-h-11 flex-1 items-center gap-1.5 ps-1 pe-1" role="status">
+            <div className="flex min-h-11 flex-1 items-center gap-1.5 ps-1 pe-1">
               <button
                 type="button"
-                onClick={voice.cancel}
+                onClick={cancelRecording}
                 aria-label="إلغاء التسجيل"
                 className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full text-destructive hover:bg-destructive/10"
               >
@@ -258,7 +305,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, {
                   <LiveLevel stream={voice.stream} className="mx-1 min-w-0 flex-1" />
                   <button
                     type="button"
-                    onClick={() => void voice.pause("manual")}
+                    onClick={stopByHand}
                     aria-label="إيقاف التسجيل"
                     className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full text-destructive hover:bg-destructive/10"
                   >
@@ -277,6 +324,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, {
           ) : (
             <>
               <textarea
+                id="chat-composer"
                 ref={area}
                 value={text}
                 rows={1}
@@ -297,7 +345,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, {
                 }}
                 className="max-h-36 min-h-11 min-w-0 flex-1 resize-none bg-transparent py-2.5 ps-4 pe-1 text-base leading-relaxed outline-none"
               />
-              {media && <PhotoButton media={media} />}
+              {media && <PhotoButton media={media} tagOnMic={showMic} />}
             </>
           )}
         </div>
@@ -312,6 +360,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, {
             </div>
           )}
           <button
+            ref={roundButton}
             type="button"
             onClick={onRoundClick}
             onPointerDown={(e) => {
@@ -334,11 +383,11 @@ export const ChatComposer = forwardRef<ChatComposerHandle, {
                 : showMic || holding
                   ? media?.mode === "locked"
                     ? "تسجيل رسالة صوتية · متاح لأعضاء Pro"
-                    : female
-                      ? "تسجيل رسالة صوتية (اضغطي مطولاً)"
-                      : "تسجيل رسالة صوتية (اضغط مطولاً)"
+                    : "تسجيل رسالة صوتية"
                   : "إرسال"
             }
+            // How to record, for keyboards and screen readers too (QA PA-L3): Enter records hands-free
+            aria-describedby={showMic && media?.mode === "enabled" ? micHintId : undefined}
             className={cn(
               "relative flex h-11 w-11 touch-none select-none items-center justify-center rounded-full transition-all [-webkit-touch-callout:none] disabled:opacity-40",
               showMic && media?.mode === "locked"
@@ -356,6 +405,11 @@ export const ChatComposer = forwardRef<ChatComposerHandle, {
             )}
             {showMic && media?.mode === "locked" && <ProTag />}
           </button>
+          <span id={micHintId} className="sr-only">
+            {female
+              ? "اضغطي مطولاً للتسجيل وارفعي إصبعكِ للإرسال، أو اضغطي Enter للتسجيل ثم الإرسال، وEsc للإلغاء"
+              : "اضغط مطولاً للتسجيل وارفع إصبعك للإرسال، أو اضغط Enter للتسجيل ثم الإرسال، وEsc للإلغاء"}
+          </span>
         </div>
       </div>
       {!busyVoice && text.length > 800 && (

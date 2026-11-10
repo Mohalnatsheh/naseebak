@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { VerifiedBadge } from "@/components/shared/verified-badge";
 import { ProBadge } from "@/components/shared/pro-badge";
-import { cn } from "@/lib/utils";
+import { arabicCount, cn } from "@/lib/utils";
 import type { ChatSummary, ChatMessage } from "@/lib/chat/service";
 import type { IntroState } from "@/lib/intro/requests";
 import { FREE_REQUEST_NOTE, IntroConfirmDialog } from "@/components/intro/intro-confirm-dialog";
@@ -45,7 +45,7 @@ import {
 import type { ChatReaction } from "@/lib/chat/reactions";
 import type { ReplyQuote } from "@/lib/chat/reply";
 import { forPartner } from "@/lib/gendered-copy";
-import { EndChatDialog, type ReportReasonValue } from "./end-chat-dialog";
+import { EndChatDialog, reportDoneText, type ReportReasonValue } from "./end-chat-dialog";
 import { ConfirmActionDialog } from "@/components/intro/confirm-action-dialog";
 import { dayLabel, mergeMessages, timeLabel, type UiMessage } from "./chat-utils";
 import { useChatChannel } from "./use-chat-channel";
@@ -180,6 +180,13 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
   const [loadingOlder, setLoadingOlder] = useState(false);
   const loadingOlderRef = useRef(false);
   const [composerError, setComposerError] = useState<string | null>(null);
+  // A message the filter refused: an inline note in the thread, with the way to family (chat design P1, QA WC2-04)
+  const [refusal, setRefusal] = useState<string | null>(null);
+  // Roving focus in the message list: the row that is its one Tab stop (null: the newest)
+  const [activeRow, setActiveRow] = useState<string | null>(null);
+  // Where the focus goes back to when the end / report / extend dialog closes (the menu that opened it is gone, PA-M9)
+  const returnFocus = useRef<HTMLElement | null>(null);
+  const optionsButton = useRef<HTMLButtonElement>(null);
   const [intro, setIntro] = useState<IntroState | null>(null);
   const [familyDialog, setFamilyDialog] = useState(false);
   const [endDialog, setEndDialog] = useState<null | "end" | "report">(null);
@@ -257,6 +264,17 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
   const [unreadFromId, setUnreadFromId] = useState<string | null>(null);
   const dividerPending = useRef(false);
 
+  // Reactions sent and not answered yet: a poll or live event already on its way must not undo them for a moment
+  // (final review minor 8); the server's answer settles them
+  const reactingNow = useRef(new Map<string, UiMessage["reactions"]>());
+  const keepMyReactions = useCallback((list: UiMessage[]): UiMessage[] => {
+    if (reactingNow.current.size === 0) return list;
+    return list.map((m) => {
+      const mine = reactingNow.current.get(m.id);
+      return mine ? { ...m, reactions: mine } : m;
+    });
+  }, []);
+
   const applyResponse = useCallback((data: ChatResponse, mode: "replace" | "merge") => {
     if (mode === "replace") {
       const id = firstUnreadId(data.messages);
@@ -269,9 +287,9 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
     if (data.starters) setStarters(data.starters);
     if (data.partnerTyping) markTyping();
     else if (data.partnerTyping === false) clearTyping();
-    setMessages((prev) => (mode === "replace" ? data.messages : mergeMessages(prev, data.messages)));
+    setMessages((prev) => (mode === "replace" ? data.messages : keepMyReactions(mergeMessages(prev, data.messages))));
     if (mode === "replace") setHasMore(data.hasMore);
-  }, [markTyping, clearTyping]);
+  }, [markTyping, clearTyping, keepMyReactions]);
 
   const applyLatest = useCallback(
     (result: LatestResult, mode: "replace" | "merge") => {
@@ -314,7 +332,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
     const updates = result.data.reactionUpdates;
     const reacted = applyReactionUpdates(messagesRef.current, updates).changed;
     applyLatest(result, "merge");
-    if (reacted) setMessages((prev) => applyReactionUpdates(prev, updates).messages);
+    if (reacted) setMessages((prev) => keepMyReactions(applyReactionUpdates(prev, updates).messages));
     if (read) {
       setMessages((prev) =>
         prev.map((m) => (m.mine && !m.readAt && !m.pending && m.createdAt <= read.createdAt ? { ...m, readAt: read.readAt } : m))
@@ -322,7 +340,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
     }
     // While the other person types, keep the fast pace (their message is on its way)
     return fresh || reacted || !!result.data.partnerTyping;
-  }, [conversationId, applyLatest, fetchLatest]);
+  }, [conversationId, applyLatest, fetchLatest, keepMyReactions]);
 
   const loadIntro = useCallback(async (matchId: string) => {
     const data = await requestIntro(matchId);
@@ -372,7 +390,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
     onReaction: (e) => {
       if (!partnerId) return;
       const reactions = e.reactions.map((r) => ({ emoji: r.emoji, mine: r.userId !== partnerId }));
-      setMessages((prev) => prev.map((m) => (m.id === e.messageId ? { ...m, reactions } : m)));
+      setMessages((prev) => keepMyReactions(prev.map((m) => (m.id === e.messageId ? { ...m, reactions } : m))));
     },
     onTyping: (e) => {
       if (partnerId && e.userId === partnerId) markTyping();
@@ -531,9 +549,10 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
     // Same rules as the server, for instant feedback (the server still checks every message)
     const pre = checkMessage(text);
     if (!pre.ok) {
-      setComposerError(pre.message);
+      showRefusal(pre.message);
       return false;
     }
+    setRefusal(null);
     const tempId = retryId ?? tempMessageId();
     setUnreadFromId(null);
     typing.reset();
@@ -569,9 +588,21 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
     }
     // Refused (filter, closed chat …): not kept on screen; the text goes back into the box to edit
     setMessages((prev) => prev.filter((m) => m.id !== tempId));
-    setComposerError(res.data.error ?? "تعذّر إرسال الرسالة");
+    if (res.data.code === "FILTERED") showRefusal(res.data.error ?? "لا يمكن إرسال هذه الرسالة");
+    else setComposerError(res.data.error ?? "تعذّر إرسال الرسالة");
     composer.current?.fill(text, { onlyIfEmpty: true });
     if (res.data.code === "EXPIRED" || res.data.code === "NOT_ALLOWED" || res.data.code === "DISABLED") fetchLatest("merge");
+  }
+
+  /** The filter's refusal as a note at the end of the thread (scrolled into view) */
+  function showRefusal(message: string) {
+    setComposerError(null);
+    setRefusal(message);
+    stickToBottom.current = true;
+    requestAnimationFrame(() => {
+      const el = scroller.current;
+      if (el) el.scrollTop = el.scrollHeight;
+    });
   }
 
   /** A photo or voice note: shown at once from this device, uploaded, then swapped for the saved copy. */
@@ -662,8 +693,11 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
   async function react(target: UiMessage, emoji: string) {
     const before = messagesRef.current.find((m) => m.id === target.id)?.reactions ?? target.reactions;
     const next = nextReaction(before, emoji);
-    setMessages((prev) => prev.map((m) => (m.id === target.id ? { ...m, reactions: applyMyReaction(before, next) } : m)));
+    const optimistic = applyMyReaction(before, next);
+    reactingNow.current.set(target.id, optimistic);
+    setMessages((prev) => prev.map((m) => (m.id === target.id ? { ...m, reactions: optimistic } : m)));
     const res = await postJson<{ reactions: UiMessage["reactions"] }>(`/api/chats/${conversationId}/messages/${target.id}/reaction`, { emoji: next });
+    if (reactingNow.current.get(target.id) === optimistic) reactingNow.current.delete(target.id);
     if (res.ok) {
       setMessages((prev) => prev.map((m) => (m.id === target.id ? { ...m, reactions: res.data.reactions } : m)));
       return;
@@ -683,15 +717,25 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
     } else toast.error(res.data.error ?? "تعذّر التمديد");
   }
 
-  async function end(report?: { reason: ReportReasonValue; details?: string }): Promise<boolean> {
+  /**
+   * «إنهاء المحادثة», or a report: «إبلاغ فقط» (`end: false`: filed, the chat goes on, nobody blocked) or «إبلاغ
+   * وإنهاء المحادثة» (ends the chat, blocks and closes the match; in a closed chat: reports and blocks).
+   */
+  async function end(report?: { reason: ReportReasonValue; details?: string; end: boolean }): Promise<boolean> {
     setBusy(true);
-    // «إبلاغ عن الرسالة»: the message goes by id (the server checks it belongs to this chat)
-    const body = report ? { report: { ...report, ...(reportMessage && { messageId: reportMessage.id }) } } : {};
+    const wasOpen = conversation?.status === "ACTIVE" && !conversation.blocked;
+    // «إبلاغ عن الرسالة»: the message goes by id (the server checks it is the partner's message in this chat)
+    const body = report
+      ? {
+          ...(!report.end && { end: false }),
+          report: { reason: report.reason, ...(report.details && { details: report.details }), ...(reportMessage && { messageId: reportMessage.id }) },
+        }
+      : {};
     const res = await postJson(`/api/chats/${conversationId}/end`, body);
     setBusy(false);
     setEndDialog(null);
     if (res.ok) {
-      toast.success(report ? (conversation?.status === "ENDED" ? "تم إرسال البلاغ" : "تم إنهاء المحادثة وإرسال البلاغ") : "تم إنهاء المحادثة");
+      toast.success(reportDoneText({ report: !!report, end: !report || report.end, open: wasOpen }));
       fetchLatest("merge");
     } else toast.error(res.data.error ?? "حدث خطأ");
     return res.ok;
@@ -710,6 +754,16 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
   }
 
   const pushChip = useChatPushChip();
+
+  // Desktop: the composer has the focus when a chat opens, as in WhatsApp Web (QA PA-M7). Not on phones: the keyboard
+  // would cover the thread
+  const focusedOnOpen = useRef<string | null>(null);
+  const writable = !!conversation && conversation.status === "ACTIVE" && !conversation.blocked && chatEnabled;
+  useEffect(() => {
+    if (!writable || focusedOnOpen.current === conversationId) return;
+    focusedOnOpen.current = conversationId;
+    if (window.matchMedia("(min-width: 768px) and (pointer: fine)").matches) composer.current?.focus();
+  }, [writable, conversationId]);
 
   if (notFound) {
     return (
@@ -777,6 +831,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
     pushOff: pushChip.pushOff,
     pushDismissed: pushChip.dismissed,
     keyboardOpen: !!viewport?.keyboard,
+    bothWrote: messages.some((m) => m.mine && !m.pending) && messages.some((m) => !m.mine),
   });
   const activity = open && !conversation.blocked ? conversation.partner.activityLabel : null;
   const startersShown = showStarters({ starters, canSend, messages });
@@ -787,10 +842,12 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
     canInteract: canSend,
     onReply: (m) => {
       setReplyTo(quoteOf(m));
-      composer.current?.focus();
+      // After the menu has closed (it would pull the focus back to its button, PA-L7)
+      requestAnimationFrame(() => composer.current?.focus());
     },
     onReact: (m, emoji) => void react(m, emoji),
     onReport: (m) => {
+      returnFocus.current = scroller.current?.querySelector<HTMLElement>(`[data-message-id="${CSS.escape(m.id)}"]`) ?? null;
       setReportMessage({ id: m.id, snippet: quoteOf(m).snippet });
       setEndDialog("report");
     },
@@ -817,7 +874,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
       {/* Header: who, and how long the chat stays open */}
       <header className="flex items-center gap-2 border-b border-border/60 px-2 pb-2.5 pt-[max(0.625rem,env(safe-area-inset-top))] sm:px-4">
         {/* Desktop shows the list beside the chat: no way back needed there */}
-        <Button asChild variant="ghost" size="icon" aria-label="رجوع" className="shrink-0 lg:hidden">
+        <Button asChild variant="ghost" size="icon" aria-label="رجوع" className="size-11 shrink-0 lg:hidden">
           <Link href="/dashboard/chats">
             <ArrowRight className="h-5 w-5" />
           </Link>
@@ -868,7 +925,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
         })()}
         <DropdownMenu dir="rtl">
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" aria-label="خيارات" className="shrink-0">
+            <Button ref={optionsButton} variant="ghost" size="icon" aria-label="خيارات المحادثة" className="size-11 shrink-0">
               <MoreVertical className="h-5 w-5" />
             </Button>
           </DropdownMenuTrigger>
@@ -883,7 +940,13 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
               </>
             )}
             {conversation.canExtend && (
-              <DropdownMenuItem onClick={() => setExtendConfirm(true)} disabled={busy}>
+              <DropdownMenuItem
+                onClick={() => {
+                  returnFocus.current = optionsButton.current;
+                  setExtendConfirm(true);
+                }}
+                disabled={busy}
+              >
                 <CalendarPlus className="h-4 w-4" /> تمديد 7 أيام
               </DropdownMenuItem>
             )}
@@ -897,7 +960,12 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
             {endable && (
               <>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => setEndDialog("end")}>
+                <DropdownMenuItem
+                  onClick={() => {
+                    returnFocus.current = optionsButton.current;
+                    setEndDialog("end");
+                  }}
+                >
                   <XCircle className="h-4 w-4" /> إنهاء المحادثة
                 </DropdownMenuItem>
               </>
@@ -905,11 +973,12 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
             <DropdownMenuItem
               variant="destructive"
               onClick={() => {
+                returnFocus.current = optionsButton.current;
                 setReportMessage(null);
                 setEndDialog("report");
               }}
             >
-              <Flag className="h-4 w-4" /> {endable ? "إنهاء وإبلاغ" : "إبلاغ"}
+              <Flag className="h-4 w-4" /> إبلاغ
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -938,8 +1007,32 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
       />
 
       {/* Messages */}
+      {canSend && (
+        // Past the whole thread in one step (QA WC2-06 / PA-M7)
+        <a
+          href="#chat-composer"
+          onClick={(e) => {
+            e.preventDefault();
+            composer.current?.focus();
+          }}
+          className="sr-only focus:not-sr-only focus:absolute focus:start-3 focus:top-20 focus:z-30 focus:rounded-xl focus:bg-primary focus:px-4 focus:py-3 focus:font-bold focus:text-primary-foreground"
+        >
+          الانتقال إلى مربع الرسالة
+        </a>
+      )}
       <div className="relative min-h-0 flex-1">
-      <div ref={scroller} onScroll={onScroll} style={CHAT_BACKDROP_STYLE} className="h-full overflow-y-auto overscroll-contain px-1.5 py-3 sm:px-4">
+      <div
+        ref={scroller}
+        onScroll={onScroll}
+        style={CHAT_BACKDROP_STYLE}
+        // New messages are read out as they arrive; who wrote each is in the bubble (QA WC2-05)
+        role="log"
+        aria-live="polite"
+        aria-label={`المحادثة مع ${conversation.partner.firstName}`}
+        aria-busy={loadingOlder}
+        data-message-list=""
+        className="h-full overflow-y-auto overscroll-contain px-1.5 py-3 sm:px-4"
+      >
         {/* Shown once at the top of every chat (most members chat on phones) */}
         <p className="mx-auto mb-1 flex w-fit max-w-full items-center gap-1.5 rounded-full bg-card/90 px-3 py-1.5 text-xs text-muted-foreground shadow-sm ring-1 ring-border/50">
           <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-primary" aria-hidden />
@@ -982,6 +1075,8 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
                   )}
                   <MessageBubble
                     message={m}
+                    rowActive={(activeRow && messages.some((x) => x.id === activeRow) ? activeRow : messages[messages.length - 1]?.id) === m.id}
+                    onRowFocus={setActiveRow}
                     tail={layout.tail}
                     onRetry={() => (m.upload ? sendMedia(m.upload, m.id, m.replyTo) : send(m.body, m.id, m.replyTo))}
                     actions={messageActions}
@@ -993,6 +1088,33 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
             })}
           </section>
         ))}
+
+        {/* The filter refused a message: a note in the thread, and the way contact details are shared — the family
+            introduction (chat design P1, QA WC2-04) */}
+        {refusal && (
+          <div
+            data-testid="chat-refusal"
+            role="alert"
+            className="mx-auto my-3 max-w-sm rounded-2xl border border-accent/40 bg-accent/10 px-4 py-3 text-center text-sm leading-relaxed text-foreground shadow-sm"
+          >
+            <p className="flex items-start justify-center gap-1.5">
+              <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-accent-ink" aria-hidden />
+              <span>{refusal}</span>
+            </p>
+            {canSend && familyStep === "offer" ? (
+              <Button size="sm" onClick={() => setFamilyDialog(true)} className="mt-2 min-h-11 gap-1.5">
+                <Users className="h-4 w-4" aria-hidden="true" /> تعارف عائلي
+              </Button>
+            ) : familyStep && familyStep !== "offer" && !conversation.matchHidden ? (
+              <Link
+                href={`/dashboard/matches?match=${conversation.matchId}`}
+                className="mt-1 inline-flex min-h-11 items-center font-semibold text-primary underline-offset-4 hover:underline"
+              >
+                التعارف العائلي في صفحة التوافق
+              </Link>
+            ) : null}
+          </div>
+        )}
       </div>
         {/* Back to the newest message after scrolling up (with what arrived meanwhile) */}
         {away && (
@@ -1002,7 +1124,11 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
               const el = scroller.current;
               if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
             }}
-            aria-label={unseen > 0 ? `${unseen} رسائل جديدة — انتقل لآخر رسالة` : "انتقل لآخر رسالة"}
+            aria-label={
+              unseen > 0
+                ? `${arabicCount(unseen, { one: "رسالة جديدة", two: "رسالتان جديدتان", few: "رسائل جديدة", many: "رسالة جديدة" })} · الانتقال لآخر رسالة`
+                : "الانتقال لآخر رسالة"
+            }
             className="absolute bottom-3 end-3 flex h-11 w-11 items-center justify-center rounded-full border border-border/60 bg-card text-primary shadow-lg transition-transform active:scale-95"
           >
             <ChevronDown className="h-5 w-5" aria-hidden />
@@ -1025,6 +1151,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
           error={composerError}
           onTyping={() => {
             if (composerError) setComposerError(null);
+            if (refusal) setRefusal(null);
             typing.notify();
             // Polling (no Ably): someone composing is in a live exchange, so the next poll comes at the fast pace
             // (it brings their «يكتب الآن…» and the reply sooner). A wake never postpones a poll already due
@@ -1089,6 +1216,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
         onConfirm={requestFamily}
       />
       <ConfirmActionDialog
+        returnFocus={returnFocus}
         open={extendConfirm}
         onOpenChange={(o) => !busy && setExtendConfirm(o)}
         title="تمديد المحادثة 7 أيام؟"
@@ -1099,6 +1227,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
       />
       <PhotoViewer photos={viewerPhotos} openId={viewerId} onClose={() => setViewerId(null)} />
       <EndChatDialog
+        returnFocus={returnFocus}
         open={!!endDialog}
         onOpenChange={(o) => {
           if (o) return;
@@ -1112,7 +1241,8 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
         busy={busy}
         ended={!endable}
         onConfirm={(report) => {
-          end(report).then((ok) => ok && report && router.push("/dashboard/chats"));
+          // «إبلاغ فقط» stays in the chat; a report that ends or blocks goes back to the list
+          end(report).then((ok) => ok && report?.end && router.push("/dashboard/chats"));
         }}
       />
     </div>

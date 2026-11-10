@@ -6,7 +6,7 @@ import { MessageCircle, Loader2, Clock, Lock, Heart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { VerifiedBadge } from "@/components/shared/verified-badge";
-import { cn } from "@/lib/utils";
+import { arabicCount, cn } from "@/lib/utils";
 import type { ChatSummary } from "@/lib/chat/service";
 import { daysLabel, daysLeft } from "@/components/intro/intro-utils";
 import { listTimeLabel } from "./chat-utils";
@@ -109,9 +109,15 @@ export function ChatList({ compact = false, activeId }: { compact?: boolean; act
   return (
     <div className={compact ? "flex h-full flex-col gap-3" : "mx-auto max-w-3xl space-y-6 pb-8"}>
       {compact ? (
-        <h2 className="flex items-center gap-2 px-1 pt-1 text-lg font-bold text-foreground">
-          <MessageCircle className="h-5 w-5 text-primary" aria-hidden /> المحادثات
-        </h2>
+        // The page's h1 while no chat is open beside it (the open chat's name is the h1 then, QA PA-L1)
+        (() => {
+          const Heading = activeId ? "h2" : "h1";
+          return (
+            <Heading className="flex items-center gap-2 px-1 pt-1 text-lg font-bold text-foreground">
+              <MessageCircle className="h-5 w-5 text-primary" aria-hidden /> المحادثات
+            </Heading>
+          );
+        })()
       ) : (
         <PageHeader
           icon={MessageCircle}
@@ -219,7 +225,7 @@ export function ChatList({ compact = false, activeId }: { compact?: boolean; act
                 <Link
                   href={`/dashboard/chats/${c.id}`}
                   aria-current={current ? "page" : undefined}
-                  aria-label={c.unread > 0 ? `${c.partner.firstName}، ${c.unread} رسائل غير مقروءة` : c.partner.firstName}
+                  // No aria-label: the row reads as it shows — name, time, preview, unread, time left (QA WC2-13)
                   className={cn(
                     "flex items-center gap-3 px-3.5 py-3.5 transition-colors hover:bg-muted/40",
                     c.unread > 0 && "bg-primary/[0.03]",
@@ -256,9 +262,16 @@ export function ChatList({ compact = false, activeId }: { compact?: boolean; act
                         )}
                       </span>
                       {c.unread > 0 && (
-                        <span className="flex h-5 min-w-5 flex-shrink-0 items-center justify-center rounded-full bg-accent px-1.5 text-[11px] font-bold text-accent-foreground" aria-hidden>
-                          {c.unread > 99 ? "99+" : c.unread}
-                        </span>
+                        <>
+                          <span className="flex h-5 min-w-5 flex-shrink-0 items-center justify-center rounded-full bg-accent px-1.5 text-[11px] font-bold text-accent-foreground" aria-hidden>
+                            {c.unread > 99 ? "99+" : c.unread}
+                          </span>
+                          <span className="sr-only">
+                            {"، "}
+                            {arabicCount(c.unread, { one: "رسالة غير مقروءة", two: "رسالتان غير مقروءتين", few: "رسائل غير مقروءة", many: "رسالة غير مقروءة" })}
+                            {"، "}
+                          </span>
+                        </>
                       )}
                     </span>
                     <span className="mt-1 block">

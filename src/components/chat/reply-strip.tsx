@@ -3,6 +3,7 @@
 import { Reply, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ReplyQuote } from "@/lib/chat/reply";
+import { useRowTabIndex } from "./row-focus";
 
 /** Who wrote the quoted message, as the quote shows it */
 export function quoteAuthor(quote: Pick<ReplyQuote, "mine">, partnerName: string): string {
@@ -45,17 +46,22 @@ export function BubbleQuote({
   mine: boolean;
   onOpen?: (id: string) => void;
 }) {
+  const rowTab = useRowTabIndex();
+  const author = quoteAuthor(quote, partnerName);
   return (
     <button
       type="button"
+      tabIndex={rowTab}
       onClick={() => onOpen?.(quote.id)}
-      aria-label={`الرسالة الأصلية: ${quote.snippet}`}
+      // The author is in the name too (QA PA-L7)
+      aria-label={`ردّ على ${author}: ${quote.snippet}`}
       className={cn(
         "mb-1 block w-full min-w-32 rounded-lg border-s-[3px] border-accent px-2 py-1 text-start",
         mine ? "bg-primary-foreground/12 hover:bg-primary-foreground/18" : "bg-primary/6 hover:bg-primary/10"
       )}
     >
-      <span className={cn("block truncate text-xs font-bold", mine ? "text-accent" : "text-primary")}>{quoteAuthor(quote, partnerName)}</span>
+      {/* In my navy bubble the author is light (gold on navy measured 2.4:1, QA PA-M8) */}
+      <span className={cn("block truncate text-xs font-bold", mine ? "text-primary-foreground" : "text-primary")}>{author}</span>
       <span dir="auto" className={cn("block truncate text-[13px]", mine ? "text-primary-foreground/80" : "text-muted-foreground")}>
         {quote.snippet}
       </span>

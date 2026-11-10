@@ -85,14 +85,24 @@ describe("chatStatusBar: one bar, by priority", () => {
     expect(chatStatusBar({ ...base, daysLeft: 0, canExtend: true })).toBe("expiry");
   });
 
-  it("(2) the family step beats an expiry that can't be extended (it states the days left itself)", () => {
+  it("(2) a family step to act on (offer, request received) beats an expiry that can't be extended", () => {
     expect(chatStatusBar({ ...base, daysLeft: 2, family: "offer", pushOff: true })).toBe("family");
     expect(chatStatusBar({ ...base, daysLeft: 1, family: "pending_received" })).toBe("family");
     expect(chatStatusBar({ ...base, family: "pending_sent", pushOff: true })).toBe("family");
   });
 
-  it("(3) ending soon with no action still beats the push chip", () => {
+  it("(3) ending soon with no action beats the push chip and a family step with nothing to do (as the app)", () => {
     expect(chatStatusBar({ ...base, daysLeft: 2, pushOff: true })).toBe("expiry");
+    expect(chatStatusBar({ ...base, daysLeft: 2, family: "pending_sent" })).toBe("expiry");
+    expect(chatStatusBar({ ...base, daysLeft: 1, family: "accepted" })).toBe("expiry");
+  });
+
+  it("the family offer waits until both have written (chat design P1)", () => {
+    expect(chatStatusBar({ ...base, family: "offer", bothWrote: false })).toBe("none");
+    expect(chatStatusBar({ ...base, family: "offer", bothWrote: false, pushOff: true })).toBe("push");
+    expect(chatStatusBar({ ...base, family: "offer", bothWrote: true })).toBe("family");
+    // A request received is an action: it shows at once
+    expect(chatStatusBar({ ...base, family: "pending_received", bothWrote: false })).toBe("family");
   });
 
   it("(4) the push chip until dismissed", () => {

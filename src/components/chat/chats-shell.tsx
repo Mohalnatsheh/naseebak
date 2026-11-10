@@ -46,7 +46,7 @@ export function ChatsShell({ children }: { children: React.ReactNode }) {
             <span className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/5">
               <MessageCircle className="h-8 w-8 text-primary/60" aria-hidden />
             </span>
-            <p className="font-semibold text-foreground">اختر محادثة لعرضها</p>
+            <p className="font-semibold text-foreground">يمكنك اختيار محادثة لعرضها</p>
             <p className="max-w-xs text-sm text-muted-foreground">رسائلك خاصة، والمحادثة نصية ومحدودة المدة.</p>
           </div>
         ) : (

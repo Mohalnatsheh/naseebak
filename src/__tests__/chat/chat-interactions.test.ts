@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  holdReleaseSends,
   CANCEL_SLIDE_PX,
   LOCK_SLIDE_PX,
   applyMyReaction,
@@ -159,5 +160,14 @@ describe("the empty chat hint", () => {
     expect(emptyChatHint({ female: true, starters: true })).toBe("ابدئي المحادثة برسالة، أو اختاري أحد الاقتراحات بالأسفل.");
     expect(emptyChatHint({ female: false, starters: false })).toBe("ابدأ المحادثة برسالة.");
     expect(emptyChatHint({ female: true, starters: false })).toBe("ابدئي المحادثة برسالة.");
+  });
+});
+
+describe("holdReleaseSends (final review minor 3: the app's holdLeaveDistance)", () => {
+  it("a release near the mic sends; one far away pauses and waits", () => {
+    expect(holdReleaseSends({ dx: 10, dy: -20 })).toBe(true);
+    expect(holdReleaseSends({ dx: 72, dy: 0 })).toBe(true);
+    expect(holdReleaseSends({ dx: 60, dy: 60 })).toBe(false);
+    expect(holdReleaseSends({ dx: 0, dy: 120 })).toBe(false);
   });
 });

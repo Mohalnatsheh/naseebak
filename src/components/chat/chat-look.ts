@@ -87,12 +87,14 @@ export type ChatBar = "none" | "expiry" | "family" | "push";
 export const EXPIRY_SOON_DAYS = 3;
 
 /**
- * The one slim bar under the header, by priority (owner ruling 2026-11-10, same order in the app):
+ * The one slim bar under the header, by priority (owner ruling 2026-11-10, the same order as the app's
+ * `chatStatusBar`):
  * 1. ending soon while it can still be extended (the bar carries «تمديد 7 أيام»);
- * 2. the family step (in the last days it also states the days left, so the way to family stays visible);
- * 3. ending soon with nothing to do about it;
+ * 2. a family step to act on — the offer, or a request received — which then also states the days left;
+ * 3. ending soon with nothing to do about it, above a family step with nothing to do (sent, accepted);
  * 4. the push chip, until dismissed.
- * Nothing in a chat that can't be written in, nor while the phone keyboard is open.
+ * The family offer waits until both have written (chat design P1): an empty chat opens on the conversation, not on a
+ * family button. Nothing in a chat that can't be written in, nor while the phone keyboard is open.
  */
 export function chatStatusBar(input: {
   open: boolean;
@@ -102,12 +104,16 @@ export function chatStatusBar(input: {
   pushOff: boolean;
   pushDismissed: boolean;
   keyboardOpen?: boolean;
+  /** Both people have sent at least one message; `false` hides the family offer (undefined: shown) */
+  bothWrote?: boolean;
 }): ChatBar {
   if (!input.open || input.keyboardOpen) return "none";
+  const family = input.family === "offer" && input.bothWrote === false ? null : input.family;
   const endingSoon = input.daysLeft <= EXPIRY_SOON_DAYS;
   if (endingSoon && input.canExtend) return "expiry";
-  if (input.family) return "family";
+  if (family === "offer" || family === "pending_received") return "family";
   if (endingSoon) return "expiry";
+  if (family) return "family";
   if (input.pushOff && !input.pushDismissed) return "push";
   return "none";
 }
@@ -128,8 +134,8 @@ export function splitChats<T extends Pick<ChatSummary, "status" | "blocked" | "u
 }
 
 /**
- * The soft backdrop behind the messages (same pattern as the app's ChatPatternPainter): eight-point stars in navy and
- * small rhombi in gold at a few percent, with dots, on a warm off-white. A small inline SVG tile: no file to serve,
+ * The soft backdrop behind the messages (the app's ChatPatternPainter: navy at about 5%, per the spec): eight-point
+ * stars, small rhombi and dots, on a warm off-white. A small inline SVG tile: no file to serve,
  * no photo, no faces.
  */
 const PATTERN_TILE = [
@@ -138,7 +144,7 @@ const PATTERN_TILE = [
   `<path d="M31 22 22 31 13 22 22 13Z M28.4 15.6V28.4H15.6V15.6Z"/>`,
   `<path d="M75 66 66 75 57 66 66 57Z M72.4 59.6V72.4H59.6V59.6Z"/>`,
   `</g>`,
-  `<g fill="none" stroke="#c19250" stroke-opacity=".12" stroke-width="1.1">`,
+  `<g fill="none" stroke="#22476a" stroke-opacity=".05" stroke-width="1.1">`,
   `<path d="M66 16 70 22 66 28 62 22Z"/><path d="M22 60 26 66 22 72 18 66Z"/>`,
   `</g>`,
   `<g fill="#22476a" fill-opacity=".05"><circle cx="44" cy="11" r="1.4"/><circle cx="0" cy="55" r="1.4"/><circle cx="88" cy="55" r="1.4"/></g>`,

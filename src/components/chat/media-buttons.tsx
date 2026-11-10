@@ -59,7 +59,7 @@ const ROUND_BUTTON =
   "relative flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full transition-all active:scale-95";
 
 /** The photo picker button (a hidden `accept="image/*"` input behind it) */
-export function PhotoButton({ media, disabled }: { media: ComposerMedia; disabled?: boolean }) {
+export function PhotoButton({ media, disabled, tagOnMic = false }: { media: ComposerMedia; disabled?: boolean; /** The mic beside it shows the «Pro» tag */ tagOnMic?: boolean }) {
   const input = useRef<HTMLInputElement>(null);
   const locked = media.mode === "locked";
   return (
@@ -76,7 +76,9 @@ export function PhotoButton({ media, disabled }: { media: ComposerMedia; disable
         )}
       >
         <ImagePlus className="h-5 w-5" aria-hidden />
-        {locked && <ProTag />}
+        {/* One «Pro» tag on the composer, on the mic (QA DS-14: two tags collided with the box and the mic); while
+            text hides the mic, the greyed photo button carries it */}
+        {locked && !tagOnMic && <ProTag />}
       </button>
       {!locked && (
         <input

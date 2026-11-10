@@ -29,6 +29,17 @@ export function holdGesture({ dx, dy, rtl }: { dx: number; dy: number; rtl: bool
   return "hold";
 }
 
+/**
+ * How far a held finger may wander from the mic and still send on release (the app's `holdLeaveDistance`). With
+ * pointer capture `pointerleave` never fires, so a release far away pauses and waits instead (final review minor 3).
+ */
+export const HOLD_LEAVE_PX = 72;
+
+/** A release this far from where the press began still sends */
+export function holdReleaseSends({ dx, dy }: { dx: number; dy: number }): boolean {
+  return Math.hypot(dx, dy) <= HOLD_LEAVE_PX;
+}
+
 export type ReactionChip = { emoji: string; count: number; mine: boolean };
 
 /** Chips under a bubble: one per emoji, in the order first used, with a count and whether one is mine */

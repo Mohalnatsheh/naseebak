@@ -83,6 +83,7 @@ beforeEach(() => {
   db.message.count.mockResolvedValue(0);
   db.conversation.updateMany.mockResolvedValue({ count: 1 });
   db.messageReaction.findMany.mockResolvedValue([]);
+  db.messageReaction.deleteMany.mockResolvedValue({ count: 1 });
   db.messageReaction.findUnique.mockResolvedValue(null);
   db.proSubscription.findFirst.mockResolvedValue(null);
   auth.requireUser.mockResolvedValue({ session: { user: { id: "u1" } } });
@@ -267,6 +268,17 @@ describe("reactions", () => {
     db.messageReaction.deleteMany.mockClear();
     await setReaction({ conversationId: c.id, messageId: "msg1", userId: "u1", emoji: null });
     expect(db.messageReaction.deleteMany).toHaveBeenCalledWith({ where: { messageId: "msg1", userId: "u1" } });
+  });
+
+  it("clearing a reaction that wasn't there changes nothing: no stamp, no live event (final review minor 1)", async () => {
+    const c = conv();
+    db.conversation.findUnique.mockResolvedValue(c);
+    db.message.findUnique.mockResolvedValue(msgOf(c.id));
+    db.messageReaction.deleteMany.mockResolvedValue({ count: 0 });
+    const out = await setReaction({ conversationId: c.id, messageId: "msg1", userId: "u1", emoji: null });
+    expect(out).toEqual({ reactions: [] });
+    expect(db.message.updateMany).not.toHaveBeenCalled();
+    expect(ably.publishChatEvent).not.toHaveBeenCalledWith(c.id, "reaction", expect.anything());
   });
 
   it("refused in an ENDED or EXPIRED chat, nothing saved or broadcast", async () => {

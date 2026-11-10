@@ -6,6 +6,7 @@ import { ImageOff, Loader2, Pause, Play } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ChatMedia } from "@/lib/chat/service";
 import { clockLabel } from "./media-buttons";
+import { useRowTabIndex } from "./row-focus";
 import { hasPlayedVoice, markVoicePlayed, nextVoiceSpeed, seekFraction, voiceBars, type VoiceSpeed } from "./voice-wave";
 
 /** Shown photo width in the bubble; the height follows the photo's own shape */
@@ -32,6 +33,7 @@ export function PhotoBubble({
   /** Tap: the chat's full-screen photo viewer (photo-viewer.tsx) */
   onOpen?: () => void;
 }) {
+  const rowTab = useRowTabIndex();
   // The address that failed (a new url, the server's copy after the preview, starts fresh) and the retry count
   const [failedUrl, setFailedUrl] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
@@ -60,7 +62,7 @@ export function PhotoBubble({
       );
     }
     return (
-      <button type="button" style={style} className={cn(box, "flex-col gap-1")} onClick={() => setAttempt((n) => n + 1)}>
+      <button type="button" tabIndex={rowTab} style={style} className={cn(box, "flex-col gap-1")} onClick={() => setAttempt((n) => n + 1)}>
         <span>تعذّر عرض الصورة</span>
         <span className="text-xs underline underline-offset-2">اضغط لإعادة المحاولة</span>
       </button>
@@ -70,6 +72,7 @@ export function PhotoBubble({
   return (
     <button
       type="button"
+      tabIndex={rowTab}
       onClick={onOpen}
       aria-label="عرض الصورة بالحجم الكامل"
       style={style}
@@ -103,6 +106,7 @@ let playing: HTMLAudioElement | null = null;
  * other person's notes until played in this browser.
  */
 export function VoiceBubble({ media, mine, messageId }: { media: ChatMedia; mine: boolean; messageId: string }) {
+  const rowTab = useRowTabIndex();
   const audio = useRef<HTMLAudioElement>(null);
   const wave = useRef<HTMLDivElement>(null);
   const [state, setState] = useState<"idle" | "loading" | "playing" | "paused">("idle");
@@ -181,6 +185,7 @@ export function VoiceBubble({ media, mine, messageId }: { media: ChatMedia; mine
     <div className="flex min-w-56 items-center gap-1.5 py-0.5">
       <button
         type="button"
+        tabIndex={rowTab}
         onClick={toggle}
         // «لم تُسمع بعد» is read with the button (the dot itself is decoration)
         aria-label={state === "playing" ? "إيقاف مؤقت" : played ? "تشغيل الرسالة الصوتية" : "تشغيل الرسالة الصوتية · لم تُسمع بعد"}
@@ -204,7 +209,7 @@ export function VoiceBubble({ media, mine, messageId }: { media: ChatMedia; mine
         <div
           ref={wave}
           role="slider"
-          tabIndex={0}
+          tabIndex={rowTab ?? 0}
           aria-label="موضع التشغيل"
           aria-valuemin={0}
           aria-valuemax={100}
@@ -257,6 +262,7 @@ export function VoiceBubble({ media, mine, messageId }: { media: ChatMedia; mine
             setSpeed(next);
             if (audio.current) applySpeed(audio.current, next);
           }}
+          tabIndex={rowTab}
           aria-label={`سرعة التشغيل ${speed}×`}
           className="flex h-11 w-11 flex-shrink-0 items-center justify-center"
         >

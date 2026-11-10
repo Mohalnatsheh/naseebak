@@ -9,6 +9,7 @@ import { PhotoBubble, VoiceBubble } from "./media-bubble";
 import { MessageMenu, menuItemsFor, type MessageActions } from "./message-menu";
 import { BubbleQuote } from "./reply-strip";
 import { groupReactions } from "./chat-interactions";
+import { RowTabContext, rowAfterKey } from "./row-focus";
 
 /** A press this long on a touch screen opens the message menu */
 const LONG_PRESS_MS = 450;
@@ -27,6 +28,8 @@ export function MessageBubble({
   actions,
   partnerName = "",
   highlighted = false,
+  rowActive,
+  onRowFocus,
 }: {
   message: UiMessage;
   /** First of a run from one sender (chatRowLayout) */
@@ -37,6 +40,13 @@ export function MessageBubble({
   partnerName?: string;
   /** Briefly marked after a tap on a quote that points here */
   highlighted?: boolean;
+  /**
+   * Roving focus (QA WC2-06): this row is the list's one Tab stop. Undefined: no roving (a bubble on its own); false:
+   * the row and its controls are out of the Tab order.
+   */
+  rowActive?: boolean;
+  /** Focus moved into this row (it becomes the list's Tab stop) */
+  onRowFocus?: (id: string) => void;
 }) {
   const mine = message.mine;
   const { country } = useDashboardData();
@@ -44,6 +54,7 @@ export function MessageBubble({
   const media = (message.kind === "IMAGE" || message.kind === "VOICE") && message.media ? message.media : null;
   const photo = !!media && message.kind === "IMAGE";
   const chips = groupReactions(message.reactions);
+  const rowTab = rowActive === false ? -1 : undefined;
 
   const [menuOpen, setMenuOpen] = useState(false);
   const hasMenu = !!actions && Object.values(menuItemsFor(message, actions.canInteract)).some(Boolean);
@@ -83,11 +94,30 @@ export function MessageBubble({
     </span>
   );
 
+  const roving = rowActive !== undefined;
   return (
+    <RowTabContext.Provider value={roving && !rowActive ? -1 : undefined}>
     <div
       data-message-id={message.id}
+      {...(roving && {
+        "data-message-row": "",
+        tabIndex: rowActive ? 0 : -1,
+        onFocus: () => onRowFocus?.(message.id),
+        onKeyDown: (e: React.KeyboardEvent<HTMLDivElement>) => {
+          if (e.target !== e.currentTarget) return;
+          const next = rowAfterKey(e.currentTarget, e.key);
+          if (next) {
+            e.preventDefault();
+            next.focus();
+            next.scrollIntoView({ block: "nearest" });
+          } else if (hasMenu && (e.key === "Enter" || e.key === "ContextMenu" || (e.key === "F10" && e.shiftKey))) {
+            e.preventDefault();
+            setMenuOpen(true);
+          }
+        },
+      })}
       className={cn(
-        "flex animate-bubble-in px-2 transition-colors duration-700",
+        "flex animate-bubble-in px-2 transition-colors duration-700 outline-none focus-visible:bg-primary/10 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40",
         mine ? "justify-start" : "justify-end",
         tail ? "mt-2" : "mt-0.5",
         chips.length > 0 && "mb-3",
@@ -151,6 +181,8 @@ export function MessageBubble({
               )}
             />
           )}
+          {/* Who wrote it, for screen readers (QA WC2-05): the side and colour say it to sighted readers */}
+          <span className="sr-only">{mine ? "أنت:" : partnerName ? `${partnerName}:` : ""} </span>
           {message.replyTo && (
             <BubbleQuote quote={message.replyTo} partnerName={partnerName} mine={mine} onOpen={actions?.onOpenQuote} />
           )}
@@ -178,6 +210,7 @@ export function MessageBubble({
                 <button
                   key={c.emoji}
                   type="button"
+                  tabIndex={rowTab}
                   disabled={!actions?.canInteract}
                   onClick={() => actions?.onReact(message, c.emoji)}
                   aria-label={`${c.emoji} ${c.count}${c.mine ? " · تفاعلك" : ""}`}
@@ -195,11 +228,12 @@ export function MessageBubble({
           )}
         </div>
         {message.pending === "failed" && (
-          <button type="button" onClick={onRetry} className="mt-0.5 inline-flex min-h-9 items-center gap-1 px-1 text-xs font-semibold text-destructive hover:underline">
+          <button type="button" tabIndex={rowTab} onClick={onRetry} className="mt-0.5 inline-flex min-h-9 items-center gap-1 px-1 text-xs font-semibold text-destructive hover:underline">
             <RotateCcw className="h-3 w-3" /> لم تُرسل · إعادة المحاولة
           </button>
         )}
       </div>
     </div>
+    </RowTabContext.Provider>
   );
 }

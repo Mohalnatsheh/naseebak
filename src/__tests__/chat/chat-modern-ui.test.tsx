@@ -8,7 +8,7 @@ import { MessageBubble } from "@/components/chat/message-bubble";
 import type { MessageActions } from "@/components/chat/message-menu";
 import { ChatComposer } from "@/components/chat/chat-composer";
 import { ChatStatusBar } from "@/components/chat/chat-status-bar";
-import { EndChatDialog } from "@/components/chat/end-chat-dialog";
+import { EndChatDialog, reportDoneText } from "@/components/chat/end-chat-dialog";
 import { PhotoViewer } from "@/components/chat/photo-viewer";
 import { usePartnerTyping, useTypingSignal } from "@/components/chat/use-typing";
 import type { UiMessage } from "@/components/chat/chat-utils";
@@ -139,7 +139,7 @@ describe("reply quote and reactions in the bubble", () => {
         partnerName="سلمى"
       />
     );
-    const quote = screen.getByRole("button", { name: /الرسالة الأصلية/ });
+    const quote = screen.getByRole("button", { name: /^ردّ على / });
     expect(quote.textContent).toContain("سلمى");
     expect(quote.textContent).toContain("ما خططك؟");
     fireEvent.click(quote);
@@ -294,13 +294,40 @@ describe("«إبلاغ عن الرسالة»", () => {
     );
     expect(screen.getByTestId("reported-message").textContent).toContain("نص مسيء");
     expect((screen.getByPlaceholderText("تفاصيل إضافية (اختياري)") as HTMLTextAreaElement).value).toBe("");
-    fireEvent.click(screen.getByRole("button", { name: "إنهاء وإبلاغ" }));
-    expect(onConfirm).toHaveBeenCalledWith({ reason: "HARASSMENT", details: undefined });
+    fireEvent.click(screen.getByRole("button", { name: "إبلاغ وإنهاء المحادثة" }));
+    expect(onConfirm).toHaveBeenCalledWith({ reason: "HARASSMENT", details: undefined, end: true });
   });
 
   it("a report from the menu (no message) shows no quote", () => {
     render(<EndChatDialog open onOpenChange={vi.fn()} report partnerName="سلمى" busy={false} onConfirm={vi.fn()} />);
     expect(screen.queryByTestId("reported-message")).toBeNull();
+  });
+});
+
+describe("«إبلاغ فقط» (owner ruling, final review Important 1)", () => {
+  it("two choices, each saying what it does: «إبلاغ فقط» keeps the chat; the other ends it, blocks and closes the match", () => {
+    const onConfirm = vi.fn();
+    render(<EndChatDialog open onOpenChange={vi.fn()} report partnerName="سلمى" busy={false} onConfirm={onConfirm} reportedMessage="x" />);
+    const only = screen.getByRole("button", { name: "إبلاغ فقط" });
+    expect(only.textContent).toContain("تبقى المحادثة مفتوحة، ولا يُحظر أحد.");
+    const both = screen.getByRole("button", { name: "إبلاغ وإنهاء المحادثة" });
+    expect(both.textContent).toContain("تنتهي المحادثة للطرفين");
+    expect(both.textContent).toContain("يُحظر الطرف الآخر ويُغلق التوافق");
+    fireEvent.click(only);
+    expect(onConfirm).toHaveBeenCalledWith({ reason: "HARASSMENT", details: undefined, end: false });
+  });
+
+  it("in a closed chat the second choice reports and blocks (nothing left to end)", () => {
+    render(<EndChatDialog open onOpenChange={vi.fn()} report ended partnerName="سلمى" busy={false} onConfirm={vi.fn()} />);
+    expect(screen.getByRole("button", { name: "إبلاغ وحظر" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "إبلاغ فقط" }).textContent).toContain("لا يتغير شيء آخر.");
+  });
+
+  it("the toast never says the chat ended when it didn't", () => {
+    expect(reportDoneText({ report: true, end: false, open: true })).toBe("تم إرسال البلاغ، وسيراجعه فريق نصيبك.");
+    expect(reportDoneText({ report: true, end: true, open: true })).toBe("تم إنهاء المحادثة والإبلاغ");
+    expect(reportDoneText({ report: true, end: true, open: false })).toBe("تم الإبلاغ والحظر");
+    expect(reportDoneText({ report: false, end: true, open: true })).toBe("تم إنهاء المحادثة");
   });
 });
 
@@ -313,13 +340,52 @@ describe("review polish (Task 3+4 minors)", () => {
     expect(screen.getByRole("menuitem", { name: "تفاعل 👍" }).getAttribute("aria-pressed")).toBeNull();
   });
 
-  it("the mic's name follows the viewer's gender", () => {
+  it("the mic is «تسجيل رسالة صوتية»; how to record (hold, or Enter hands-free) is its gendered description (PA-L3)", () => {
     const media = { mode: "enabled" as const, onPhoto: vi.fn(), onVoice: vi.fn(), onLocked: vi.fn(), onError: vi.fn() };
     render(<ChatComposer onSend={vi.fn(async () => true)} error={null} onTyping={vi.fn()} media={media} female />);
-    expect(screen.getByRole("button", { name: "تسجيل رسالة صوتية (اضغطي مطولاً)" })).toBeTruthy();
+    const mic = screen.getByRole("button", { name: "تسجيل رسالة صوتية" });
+    expect(document.getElementById(mic.getAttribute("aria-describedby")!)!.textContent).toContain("اضغطي مطولاً");
+    expect(document.getElementById(mic.getAttribute("aria-describedby")!)!.textContent).toContain("Enter");
     cleanup();
     render(<ChatComposer onSend={vi.fn(async () => true)} error={null} onTyping={vi.fn()} media={media} />);
-    expect(screen.getByRole("button", { name: "تسجيل رسالة صوتية (اضغط مطولاً)" })).toBeTruthy();
+    const his = screen.getByRole("button", { name: "تسجيل رسالة صوتية" });
+    expect(document.getElementById(his.getAttribute("aria-describedby")!)!.textContent).toContain("اضغط مطولاً");
+  });
+
+  it("a composer error is an alert; Esc drops the reply strip (WC2-10, WC2-11)", () => {
+    const onCancelReply = vi.fn();
+    render(
+      <ChatComposer
+        onSend={vi.fn(async () => true)}
+        error="خطأ"
+        onTyping={vi.fn()}
+        replyTo={{ id: "m1", mine: false, kind: "TEXT", snippet: "مرحبا" }}
+        partnerName="سلمى"
+        onCancelReply={onCancelReply}
+      />
+    );
+    expect(screen.getByRole("alert").textContent).toBe("خطأ");
+    fireEvent.keyDown(screen.getByRole("textbox"), { key: "Escape" });
+    expect(onCancelReply).toHaveBeenCalled();
+  });
+
+  it("only one «Pro» tag on a locked composer (DS-14)", () => {
+    const media = { mode: "locked" as const, onPhoto: vi.fn(), onVoice: vi.fn(), onLocked: vi.fn(), onError: vi.fn() };
+    const { container } = render(<ChatComposer onSend={vi.fn(async () => true)} error={null} onTyping={vi.fn()} media={media} />);
+    expect(Array.from(container.querySelectorAll("span")).filter((x) => x.textContent === "Pro")).toHaveLength(1);
+  });
+
+  it("each bubble says who wrote it to screen readers (WC2-05); the quote names its author (PA-L7)", () => {
+    render(
+      <MessageBubble
+        message={message({ mine: false, replyTo: { id: "q", mine: true, kind: "TEXT", snippet: "سؤالي" } })}
+        tail
+        actions={actions()}
+        partnerName="سلمى"
+      />
+    );
+    expect(screen.getByText("سلمى:")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "ردّ على أنت: سؤالي" })).toBeTruthy();
   });
 });
 

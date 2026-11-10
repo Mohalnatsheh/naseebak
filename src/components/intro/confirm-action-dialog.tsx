@@ -1,6 +1,7 @@
 "use client";
 
-import type { ReactNode } from "react";
+import type { ReactNode, RefObject } from "react";
+import { returnFocusTo } from "@/lib/dialog-focus";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,6 +25,8 @@ interface Props {
   /** Extra content between the description and the buttons (e.g. a reason picker) */
   children?: ReactNode;
   onConfirm: () => void;
+  /** Opened from a menu: where the focus goes back on close (the menu's button) */
+  returnFocus?: RefObject<HTMLElement | null>;
 }
 
 /** A small "are you sure?" dialog for match actions (cancel a request, block, unblock). */
@@ -37,10 +40,11 @@ export function ConfirmActionDialog({
   busy,
   children,
   onConfirm,
+  returnFocus,
 }: Props) {
   return (
     <Dialog open={open} onOpenChange={(o) => !busy && onOpenChange(o)}>
-      <DialogContent dir="rtl" className="sm:max-w-md text-right">
+      <DialogContent dir="rtl" className="sm:max-w-md text-right" onCloseAutoFocus={returnFocus ? returnFocusTo(returnFocus) : undefined}>
         <DialogHeader className="text-right sm:text-right">
           <DialogTitle className="text-lg">{title}</DialogTitle>
           <DialogDescription className="text-right leading-relaxed">{description}</DialogDescription>

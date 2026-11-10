@@ -863,7 +863,9 @@ export async function setReaction(args: {
   const where = { messageId_userId: { messageId, userId } };
   const current = emoji ? await db.messageReaction.findUnique({ where, select: { emoji: true } }) : null;
   if (!emoji || current?.emoji === emoji) {
-    await db.messageReaction.deleteMany({ where: { messageId, userId } });
+    const { count } = await db.messageReaction.deleteMany({ where: { messageId, userId } });
+    // Clearing a reaction that wasn't there: nothing changed, so no stamp and no live event (final review minor 1)
+    if (count === 0) return { reactions: reactionsFor(await reactionRows(messageId), userId) };
   } else {
     try {
       await db.messageReaction.upsert({ where, create: { messageId, userId, emoji }, update: { emoji } });
@@ -875,13 +877,17 @@ export async function setReaction(args: {
   }
   // Polling clients (no Ably) ask for messages whose reactions changed since their last poll
   await db.message.updateMany({ where: { id: messageId }, data: { reactedAt: new Date() } });
-  const rows = await db.messageReaction.findMany({
+  const rows = await reactionRows(messageId);
+  await publishChatEvent(conversationId, "reaction", { messageId, reactions: rows });
+  return { reactions: reactionsFor(rows, userId) };
+}
+
+function reactionRows(messageId: string) {
+  return db.messageReaction.findMany({
     where: { messageId },
     select: { emoji: true, userId: true },
     orderBy: { createdAt: "asc" },
   });
-  await publishChatEvent(conversationId, "reaction", { messageId, reactions: rows });
-  return { reactions: reactionsFor(rows, userId) };
 }
 
 /**

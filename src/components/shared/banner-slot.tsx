@@ -241,6 +241,11 @@ export function PageTip({ storageKey, title, body }: { storageKey: string; title
   );
 }
 
+/** Home places the slot itself, under its greeting in the main column (P2-6); every other page has it on top */
+export function slotInPage(pathname: string): boolean {
+  return pathname === "/dashboard";
+}
+
 /**
  * The dashboard's content column: one of the two widths for this page, the banner slot on top, then the page.
  */
@@ -254,7 +259,7 @@ export function DashboardColumn({ children }: { children: ReactNode }) {
         "mx-auto min-h-[calc(100dvh-58px-4rem)] px-4 py-6 md:min-h-dvh md:px-6 md:py-8",
       )}
     >
-      <BannerSlot />
+      {!slotInPage(pathname) && <BannerSlot />}
       {children}
     </div>
   );

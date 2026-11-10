@@ -5,6 +5,8 @@ import { render, screen, fireEvent, waitFor, act } from "@testing-library/react"
 const data = vi.hoisted(() => ({ current: {} as Record<string, unknown> }));
 vi.mock("@/components/dashboard/next-step-card", () => ({ NextStepCard: () => <div>next-step</div> }));
 vi.mock("@/components/intro/guardian-consent-card", () => ({ GuardianConsentCard: () => null }));
+// Home places the banner slot itself (P2-6); its push state needs a real browser
+vi.mock("@/components/shared/banner-slot", () => ({ BannerSlot: () => null, requestsWaiting: (n: number) => `${n} طلبات تعارف` }));
 
 import { DashboardDataProvider, useDashboardData } from "@/contexts/dashboard-context";
 

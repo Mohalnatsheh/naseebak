@@ -344,7 +344,7 @@ Detail: [docs/reference/suggestions-and-credits.md](docs/reference/suggestions-a
 
 ## Deployment
 
-**Production: `c520832` (the Pro page compares the plans: cost per month and «خصم %» against weekly; the sidebar «التوافقات» fix; Pro on), deployed 2026-11-10, slot a.**
+**Production: `a9a3404` (Pro announced on the dashboard: the home «جديد: عضوية Pro» card and the phone top bar «Pro» pill; the Pro plan comparison; Pro on), deployed 2026-11-10, slot b.**
 
 Update that one line after each deploy. Don't list past versions. The live revision is in `/var/www/naseebak/REVISION`.
 

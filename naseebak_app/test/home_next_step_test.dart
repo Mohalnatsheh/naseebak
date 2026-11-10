@@ -152,4 +152,74 @@ void homeLayoutTests() {
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('no-home-suggestions')), findsOneWidget);
   });
+
+  testWidgets('right after setup: cards on home but counts said 0 → the counts are read again, once (QA A-L01)',
+      (tester) async {
+    var countsReads = 0;
+    final adapter = FakeAdapter()
+      ..on('GET', '/api/notifications/unread-count', const FakeResponse(200, {'count': 0}));
+    adapter.handlers['GET /api/me/counts'] = (_) {
+      countsReads++;
+      // The feed created the card meanwhile
+      return FakeResponse(200, {'flags': {'mutualSuggestions': true}, 'newSuggestions': countsReads == 1 ? 0 : 1});
+    };
+    adapter.handlers['GET /api/suggestions/feed'] = (_) => const FakeResponse(200, {
+          'items': [
+            {
+              'kind': 'mutual',
+              'id': '1',
+              'compatibilityScore': 80,
+              'reason': '',
+              'candidate': {'id': 'u2', 'firstName': 'عمر', 'age': 31},
+            },
+          ],
+          'page': 1,
+          'totalPages': 1,
+        });
+    final overrides = await testOverrides(adapter, store: MemoryTokenStore('t1'));
+    await tester.pumpWidget(ProviderScope(
+      overrides: [...overrides, pushAllowedProvider.overrideWith((ref) async => true)],
+      child: rtlApp(const HomeScreen()),
+    ));
+    await tester.pumpAndSettle();
+    expect(countsReads, 2);
+    expect(find.descendant(of: find.byKey(const Key('status-new')), matching: find.text('1')), findsOneWidget);
+  });
+
+  test('unread chats are counted as chats, the Arabic way (QA A2-L3)', () {
+    String body(int n) => nextStepFor(Counts.fromJson({'flags': {}, 'unreadChats': n})).body;
+    expect(body(1), 'لديك رسائل جديدة في محادثة واحدة.');
+    expect(body(2), 'لديك رسائل جديدة في محادثتين.');
+    expect(body(5), 'لديك رسائل جديدة في 5 محادثات.');
+    expect(body(12), 'لديك رسائل جديدة في 12 محادثة.');
+  });
+
+  testWidgets('home at 2× text on a 360 dp phone lays out without overflow (QA A-M05, A-L14)', (tester) async {
+    tester.view.physicalSize = const Size(360, 780);
+    tester.view.devicePixelRatio = 1;
+    tester.platformDispatcher.textScaleFactorTestValue = 2.0;
+    addTearDown(tester.view.reset);
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    final adapter = FakeAdapter()
+      ..on('GET', '/api/me/counts', const FakeResponse(200, {
+        'flags': {'mutualSuggestions': true},
+        'newSuggestions': 3,
+        'likedYou': 2,
+        'actionableMatches': 1,
+        'credits': 4,
+      }))
+      ..on('GET', '/api/notifications/unread-count', const FakeResponse(200, {'count': 12}))
+      ..on('GET', '/api/suggestions/feed', const FakeResponse(200, {'items': [], 'page': 1, 'totalPages': 1}));
+    final overrides = await testOverrides(adapter, store: MemoryTokenStore('t1'));
+    await tester.pumpWidget(ProviderScope(
+      overrides: [...overrides, pushAllowedProvider.overrideWith((ref) async => true)],
+      child: rtlApp(const HomeScreen()),
+    ));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    await tester.scrollUntilVisible(find.text('توافقات تنتظرك'), 200);
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(find.text('توافقات تنتظرك'), findsOneWidget);
+  });
 }

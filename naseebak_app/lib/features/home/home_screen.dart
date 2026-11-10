@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/auth/auth_controller.dart';
+import '../../core/localization/arabic_count.dart';
 import '../../core/push/push_permission.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/common.dart';
@@ -43,7 +44,9 @@ NextStep nextStepFor(Counts? c, {bool viewerFemale = false}) {
         '/suggestions?tab=interested', Icons.favorite_rounded);
   }
   if (c != null && c.unreadChats > 0) {
-    return NextStep('رسائل جديدة', 'لديك ${c.unreadChats} رسائل غير مقروءة.', 'فتح المحادثات', '/chats',
+    // Counts chats with something unread, not messages (QA A2-L3: «لديك 1 رسائل»)
+    final chats = arabicCount(c.unreadChats, one: 'محادثة واحدة', two: 'محادثتين', few: 'محادثات', many: 'محادثة');
+    return NextStep('رسائل جديدة', 'لديك رسائل جديدة في $chats.', 'فتح المحادثات', '/chats',
         Icons.chat_bubble_rounded);
   }
   if (c != null && c.actionableMatches > 0) {
@@ -68,9 +71,27 @@ String greetingFor(DateTime now, String? name) {
 /// The first new suggestions, shown on home (without the top-up the suggestions screen runs). Reloads with the counts,
 /// so a decision taken on the suggestions tab (which refreshes them) is reflected here too.
 final homeSuggestionsProvider = FutureProvider<List<FeedItem>>((ref) async {
-  await ref.watch(countsProvider.future);
+  final counts = await ref.watch(countsProvider.future);
   final page = await ref.watch(suggestionsRepositoryProvider).feed(FeedTab.newTab);
+  // Right after setup the counts are read before the feed creates the first cards: «اقتراحات جديدة 0» and no tab
+  // badge over a list of cards (QA A-L01). Then the counts are read again, once per member.
+  if (page.items.isNotEmpty && (counts.newSuggestions ?? 0) == 0) {
+    final once = ref.read(_homeCountsResync);
+    if (!once.done) {
+      once.done = true;
+      Future.microtask(() => ref.invalidate(countsProvider));
+    }
+  }
   return page.items.take(8).toList();
+});
+
+class _Once {
+  bool done = false;
+}
+
+final _homeCountsResync = Provider<_Once>((ref) {
+  ref.watch(currentMemberIdProvider);
+  return _Once();
 });
 
 class HomeScreen extends ConsumerWidget {
@@ -122,20 +143,24 @@ class HomeScreen extends ConsumerWidget {
                       const BrandLogo(height: 30, onDark: true),
                       const Spacer(),
                       if (credits != null) _CreditsPill(credits: credits),
-                      Stack(
-                        clipBehavior: Clip.none,
-                        children: [
-                          IconButton(
-                            key: const Key('open-notifications'),
-                            tooltip: 'الإشعارات',
-                            onPressed: () async {
-                              await context.push('/notifications');
-                              ref.invalidate(unreadNotificationsProvider);
-                            },
-                            icon: const Icon(Icons.notifications_none_rounded, color: Colors.white),
+                      // The count sits on the bell's corner and never grows over it (QA A2-L3)
+                      IconButton(
+                        key: const Key('open-notifications'),
+                        tooltip: unread > 0 ? 'الإشعارات، $unread غير مقروءة' : 'الإشعارات',
+                        onPressed: () async {
+                          await context.push('/notifications');
+                          ref.invalidate(unreadNotificationsProvider);
+                        },
+                        icon: MediaQuery.withNoTextScaling(
+                          child: Badge(
+                            key: const Key('bell-badge'),
+                            isLabelVisible: unread > 0,
+                            backgroundColor: AppColors.gold,
+                            textColor: AppColors.navyDeep,
+                            label: Text(unread > 99 ? '99+' : '$unread'),
+                            child: const Icon(Icons.notifications_none_rounded, color: Colors.white),
                           ),
-                          if (unread > 0) PositionedDirectional(top: 4, end: 2, child: CountBadge(count: unread)),
-                        ],
+                        ),
                       ),
                     ],
                   ),
@@ -199,7 +224,8 @@ class HomeScreen extends ConsumerWidget {
                     ),
                     const SizedBox(height: 12),
                   ],
-                  Row(
+                  IntrinsicHeight(child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       Expanded(
                         child: _StatusChip(
@@ -233,7 +259,7 @@ class HomeScreen extends ConsumerWidget {
                         ),
                       ),
                     ],
-                  ),
+                  )),
                   const SizedBox(height: 20),
                   SectionTitle(
                     'اقتراحات اليوم',
@@ -335,10 +361,12 @@ class _StatusChip extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(value, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: AppColors.navy)),
+              // Two lines at large text: «توافقات تنتظرك» is never cut to «توافقات تنتظ…» (QA A-L14)
               Text(label,
-                  maxLines: 1,
+                  maxLines: 2,
+                  textAlign: TextAlign.center,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: AppColors.muted, fontSize: 12.5)),
+                  style: AppText.caption.copyWith(color: AppColors.muted)),
             ],
           ),
         ),

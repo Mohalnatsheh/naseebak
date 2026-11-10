@@ -44,6 +44,8 @@ class _PersonDetailsViewState extends State<PersonDetailsView> {
         _Fact(Icons.favorite_border_rounded, 'الحالة الاجتماعية',
             '${_d('maritalStatus', p.maritalStatus)}${p.childrenCount > 0 ? ' · ${_children(p.childrenCount)}' : ''}'),
       if (p.religiosity != null) _Fact(Icons.mosque_outlined, 'التدين', _d('religiosity', p.religiosity)),
+      if (p.sect != null && p.sect!.isNotEmpty && p.sect != sectUndisclosed)
+        _Fact(Icons.menu_book_outlined, 'المذهب', _d('sect', p.sect)),
     ];
     final more = <_Fact>[
       if (p.nationality != null) _Fact(Icons.flag_outlined, 'الجنسية', p.nationality!),

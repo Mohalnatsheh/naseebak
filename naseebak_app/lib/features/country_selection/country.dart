@@ -23,6 +23,7 @@ class Country {
     required this.tribeWord,
     required this.nationalityMale,
     required this.nationalityFemale,
+    this.otpChannel = 'sms',
   });
 
   factory Country.fromJson(Map<String, dynamic> j) {
@@ -54,6 +55,8 @@ class Country {
       tribeWord: asStringOr(words['tribe'], 'العائلة'),
       nationalityMale: asStringOr(words['nationalityMale']),
       nationalityFemale: asStringOr(words['nationalityFemale']),
+      // Servers before Lebanon send no channel: Saudi codes went by WhatsApp, the others by SMS
+      otpChannel: asStringOr(j['otpChannel'], code == 'SA' ? 'whatsapp' : 'sms'),
     );
   }
 
@@ -81,6 +84,11 @@ class Country {
   final String tribeWord;
   final String nationalityMale;
   final String nationalityFemale;
+
+  /// How the sign-in code is sent: "whatsapp" or "sms"
+  final String otpChannel;
+
+  bool get otpByWhatsapp => otpChannel == 'whatsapp';
 
   /// Dial code digits without "+", e.g. "962".
   String get dialDigits => dialCode.replaceAll(RegExp(r'[^0-9]'), '');

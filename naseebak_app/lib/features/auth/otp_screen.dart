@@ -148,7 +148,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
           AuthHero(
             showBack: true,
             title: 'رمز التحقق',
-            subtitle: 'أرسلنا رمزاً من 6 أرقام ${pending.countryCode == 'SA' ? 'عبر واتساب' : 'برسالة نصية'} إلى \u2066${pending.phone}\u2069',
+            subtitle: 'أرسلنا رمزاً من 6 أرقام ${pending.otpByWhatsapp ? 'عبر واتساب' : 'برسالة نصية'} إلى \u2066${pending.phone}\u2069',
             // With the keyboard open the subtitle folds away: the number stays
             compactLine: 'إلى \u2066${pending.phone}\u2069',
           ),

@@ -39,7 +39,7 @@ String? dateOfBirthError(DateTime? dob, {DateTime? now}) {
 }
 
 /// The short setup: only what the web wizard requires (birth date, nationality, city, education,
-/// marital status (+children), religiosity, partner age range). Legacy mode (intro requests off) also
+/// marital status (+children), religiosity, «المذهب» where the country asks it, partner age range). Legacy mode (intro requests off) also
 /// needs the guardian before the profile counts as complete, like the web's step 5.
 class SetupScreen extends ConsumerStatefulWidget {
   const SetupScreen({super.key});
@@ -57,6 +57,10 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
   String? _marital;
   final _children = TextEditingController();
   String? _religiosity;
+  String? _sect;
+
+  /// «المذهب» choices of the member's country (`options.sect`, Lebanon only); empty = not asked
+  List<String> _sectOptions = const [];
   final _ageMin = TextEditingController();
   final _ageMax = TextEditingController();
   final _guardian = GuardianFields();
@@ -98,6 +102,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
     _education = asString(p.field('education'));
     _marital = asString(p.field('maritalStatus'));
     _religiosity = asString(p.field('religiosity'));
+    _sect = asString(p.field('sect'));
     final kids = asInt(p.field('childrenCount'));
     if (kids != null && kids > 0) _children.text = '$kids';
     final min = asInt(p.field('prefAgeMin'));
@@ -127,6 +132,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
           }
         }
         if (_religiosity == null) e['religiosity'] = 'مستوى التدين مطلوب';
+        if (_sectOptions.isNotEmpty && !_sectOptions.contains(_sect)) e['sect'] = 'المذهب مطلوب';
       case 2:
         final min = int.tryParse(toLatinDigits(_ageMin.text.trim()));
         final max = int.tryParse(toLatinDigits(_ageMax.text.trim()));
@@ -168,6 +174,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
         'maritalStatus': _marital,
         if (_marital != null) 'childrenCount': single ? 0 : number(_children),
         'religiosity': _religiosity,
+        if (_sectOptions.isNotEmpty) 'sect': _sect,
         'prefAgeMin': number(_ageMin),
         'prefAgeMax': number(_ageMax),
       };
@@ -180,6 +187,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
       'maritalStatus': _marital,
       'childrenCount': single ? 0 : (int.tryParse(toLatinDigits(_children.text.trim())) ?? 0),
       'religiosity': _religiosity,
+      if (_sectOptions.isNotEmpty) 'sect': _sect,
       'prefAgeMin': int.parse(toLatinDigits(_ageMin.text.trim())),
       'prefAgeMax': int.parse(toLatinDigits(_ageMax.text.trim())),
     };
@@ -220,7 +228,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
     final p = _payload(partial: true);
     final fields = switch (step) {
       0 => ['dateOfBirth', 'nationality', 'city', 'education'],
-      1 => ['maritalStatus', 'childrenCount', 'religiosity'],
+      1 => ['maritalStatus', 'childrenCount', 'religiosity', 'sect'],
       2 => ['prefAgeMin', 'prefAgeMax'],
       _ => const <String>[],
     };
@@ -335,6 +343,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
       );
     }
     final lists = details.requireValue.lists;
+    _sectOptions = lists.option('sect');
     final p = profile.valueOrNull;
     final guardianStep = _guardianStep(counts.valueOrNull);
     final total = guardianStep ? 4 : 3;
@@ -480,6 +489,17 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
             _errors['religiosity'],
             labelOf: (v) => OptionLabels.self('religiosity', v, female: female),
           ),
+          if (_sectOptions.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            _label('المذهب'),
+            _chips(
+              _sectOptions,
+              _sect,
+              (v) => setState(() => _sect = v),
+              _errors['sect'],
+              labelOf: (v) => OptionLabels.self('sect', v, female: female),
+            ),
+          ],
         ];
       case 2:
         return [

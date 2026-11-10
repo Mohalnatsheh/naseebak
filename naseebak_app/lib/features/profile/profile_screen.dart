@@ -50,6 +50,8 @@ class ProfileScreen extends ConsumerWidget {
             ('الوظيفة', v('job')),
             ('الحالة الاجتماعية', v('maritalStatus') == null ? null : OptionLabels.self('maritalStatus', v('maritalStatus')!, female: female)),
             ('التدين', v('religiosity') == null ? null : OptionLabels.self('religiosity', v('religiosity')!, female: female)),
+            // Lebanon only; my own «أفضّل عدم الذكر» shows here (never to others)
+            ('المذهب', v('sect') == null ? null : OptionLabels.self('sect', v('sect')!, female: female)),
             if (female) ('الحجاب', hijabLabel(asBool(p.field('hijab')), asBool(p.field('niqab')))),
             ('العمر المناسب للشريك',
                 p.field('prefAgeMin') == null ? null : '${asInt(p.field('prefAgeMin'))} – ${asInt(p.field('prefAgeMax'))}'),
@@ -242,6 +244,7 @@ Map<String, dynamic> requiredPayload(MyProfile p) {
     'education': p.field('education'),
     'maritalStatus': p.field('maritalStatus'),
     'religiosity': p.field('religiosity'),
+    'sect': p.field('sect'),
     'childrenCount': asInt(p.field('childrenCount')) ?? 0,
     'prefAgeMin': asInt(p.field('prefAgeMin')),
     'prefAgeMax': asInt(p.field('prefAgeMax')),

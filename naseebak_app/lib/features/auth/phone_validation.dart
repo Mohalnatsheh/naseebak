@@ -3,14 +3,15 @@ import '../country_selection/country.dart';
 
 /// The national part of a typed number (no dial code, no leading 0), digits only.
 ///
-/// Accepts Arabic-Indic digits, spaces, dashes, "+962…", "00962…" and "07…".
+/// Accepts Arabic-Indic digits, spaces, dashes, "+962…", "00962…" and "07…". A number starting with the dial code
+/// and at least 7 more digits is international (Lebanon's 3XXXXXX has 7; no national number starts with its dial code).
 String nationalNumber(String input, Country country) {
   var v = toLatinDigits(input).replaceAll(RegExp(r'[^0-9+]'), '');
   final dial = country.dialDigits;
   if (v.startsWith('+')) v = v.substring(1);
   if (v.startsWith('00$dial')) {
     v = v.substring(2 + dial.length);
-  } else if (dial.isNotEmpty && v.startsWith(dial) && v.length > dial.length + 7) {
+  } else if (dial.isNotEmpty && v.startsWith(dial) && v.length >= dial.length + 7) {
     v = v.substring(dial.length);
   }
   v = v.replaceAll('+', '');
@@ -37,7 +38,12 @@ String? validatePhone(String input, Country country) {
 }
 
 /// The number as the backend's forms accept it: local format with the leading 0 ("0791234567").
-String localPhone(String input, Country country) => '0${nationalNumber(input, country)}';
+String localPhone(String input, Country country) => withTrunkZero(nationalNumber(input, country), country.dialDigits);
+
+/// A national number as it is written at home: "0" first, except Lebanon's 7x and 81 numbers, which have none (only
+/// 3XXXXXX is written 03…), like the website's `localPhone`.
+String withTrunkZero(String national, String dialDigits) =>
+    dialDigits == '961' && !national.startsWith('3') ? national : '0$national';
 
 /// A 6-digit code typed with any digits → Western digits, or null when it isn't 6 digits.
 String? normalizeOtp(String input) {

@@ -22,6 +22,7 @@ class PersonDetails {
     this.maritalStatus,
     this.childrenCount = 0,
     this.religiosity,
+    this.sect,
     this.smokingStatus,
     this.aboutMe,
     this.hobbies,
@@ -59,6 +60,7 @@ class PersonDetails {
         maritalStatus: asString(j['maritalStatus']),
         childrenCount: asInt(j['childrenCount']) ?? 0,
         religiosity: asString(j['religiosity']),
+        sect: asString(j['sect']),
         smokingStatus: asString(j['smokingStatus']),
         aboutMe: asString(j['aboutMe']),
         hobbies: asString(j['hobbies']),
@@ -97,6 +99,9 @@ class PersonDetails {
   final String? maritalStatus;
   final int childrenCount;
   final String? religiosity;
+
+  /// «المذهب» (Lebanon only); null when not answered or «أفضّل عدم الذكر» (the server never sends that one)
+  final String? sect;
   final String? smokingStatus;
   final String? aboutMe;
   final String? hobbies;
@@ -116,6 +121,10 @@ class PersonDetails {
   final String? willingToRelocate;
   final String? familyValues;
 }
+
+/// The «المذهب» answer never shown to other members (the server already sends null for it) and never a partner
+/// preference. The sect values come from the country's `options` (`sect`, `prefSect`): Lebanon only.
+const sectUndisclosed = 'أفضّل عدم الذكر';
 
 /// Her answer to «الحجاب»: «منتقبة» when niqab, else «محجبة» / «غير محجبة»; null when not answered.
 String? hijabLabel(bool? hijab, bool? niqab) {
@@ -140,6 +149,7 @@ class OptionLabels {
     },
     'maritalStatus': {'أعزب/عزباء': 'عزباء', 'مطلق/مطلقة': 'مطلقة', 'أرمل/أرملة': 'أرملة'},
     'religiosity': {'ملتزم جداً': 'ملتزمة جداً', 'ملتزم': 'ملتزمة', 'متوسط': 'متوسطة', 'غير ملتزم': 'غير ملتزمة'},
+    'sect': {'سني': 'سنية', 'شيعي': 'شيعية'},
     'lifestyle': {'نشيط': 'نشيطة', 'هادئ': 'هادئة', 'متوازن': 'متوازنة', 'اجتماعي': 'اجتماعية'},
     'smokingStatus': {'لا أدخن': 'غير مدخنة', 'أدخن': 'مدخنة', 'أدخن أحياناً': 'تدخن أحياناً', 'تركت التدخين': 'تركت التدخين'},
     'cookingAbility': {'لا أطبخ': 'لا تطبخ', 'أطبخ قليلاً': 'تطبخ قليلاً', 'أطبخ جيداً': 'تطبخ جيداً', 'أطبخ ممتازاً': 'تطبخ بإتقان'},

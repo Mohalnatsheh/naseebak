@@ -98,7 +98,13 @@ class _PhoneFormState extends ConsumerState<PhoneForm> {
       if (!mounted) return;
       ref.read(analyticsProvider).otpRequested(mode.name);
       ref.read(pendingAuthProvider.notifier).set(
-            PendingAuth(phone: phone, countryCode: country.code, mode: mode, userExists: exists),
+            PendingAuth(
+              phone: phone,
+              countryCode: country.code,
+              mode: mode,
+              otpByWhatsapp: country.otpByWhatsapp,
+              userExists: exists,
+            ),
           );
       if (mounted) context.push('/auth/otp');
     } on ApiException catch (e) {
@@ -260,7 +266,7 @@ class _PhoneFormState extends ConsumerState<PhoneForm> {
                   const Icon(Icons.sms_outlined, size: 16, color: AppColors.muted),
                   const SizedBox(width: 6),
                   Expanded(
-                    child: Text('سنرسل رمز تحقق من 6 أرقام ${widget.country.code == 'SA' ? 'عبر واتساب' : 'برسالة نصية'}.',
+                    child: Text('سنرسل رمز تحقق من 6 أرقام ${widget.country.otpByWhatsapp ? 'عبر واتساب' : 'برسالة نصية'}.',
                         style: AppText.labelRegular.copyWith(color: AppColors.muted.withValues(alpha: 0.9))),
                   ),
                 ]),

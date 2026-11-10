@@ -8,6 +8,7 @@ class PendingAuth {
     required this.phone,
     required this.countryCode,
     required this.mode,
+    this.otpByWhatsapp = false,
     this.userExists,
     this.code,
   });
@@ -16,6 +17,9 @@ class PendingAuth {
   final String phone;
   final String countryCode;
   final OtpContext mode;
+
+  /// The code goes by WhatsApp in this country (`Country.otpByWhatsapp`), for the code screen's wording
+  final bool otpByWhatsapp;
 
   /// Whether the number is already a member: from `/api/auth/verify-otp` once the code is verified (older servers: from
   /// send-otp in the login context)
@@ -28,6 +32,7 @@ class PendingAuth {
     phone: phone,
     countryCode: countryCode,
     mode: mode,
+    otpByWhatsapp: otpByWhatsapp,
     userExists: userExists ?? this.userExists,
     code: code,
   );

@@ -106,13 +106,30 @@ const saJson = {
   'words': {'phone': 'جوال', 'tribe': 'القبيلة', 'nationalityMale': 'سعودي', 'nationalityFemale': 'سعودية'},
 };
 
+const lbJson = {
+  'code': 'LB',
+  'name': {'ar': 'لبنان', 'en': 'Lebanon'},
+  'inName': 'في لبنان',
+  'flag': {'emoji': '🇱🇧', 'id': 'lb'},
+  'dialCode': '+961',
+  'phone': {'placeholder': '3XXXXXX', 'example': '03123456', 'nationalPattern': r'^(?:3\d{6}|7[01689]\d{6}|81\d{6})$'},
+  'otpChannel': 'whatsapp',
+  'currency': {'code': 'USD', 'symbol': r'$'},
+  'isDefault': false,
+  'active': true,
+  'registrationOpen': true,
+  'purchasesEnabled': false,
+  'features': {'polls': true},
+  'words': {'phone': 'هاتف', 'tribe': 'العائلة', 'nationalityMale': 'لبناني', 'nationalityFemale': 'لبنانية'},
+};
+
 Map<String, dynamic> meJson({String country = 'JO', bool complete = true, bool deactivated = false, int credits = 10}) => {
       'id': 'u1',
       'firstName': 'سارة',
       'lastName': 'أحمد',
       'gender': 'FEMALE',
       'phone': '962796922292',
-      'country': country == 'JO' ? joJson : saJson,
+      'country': switch (country) { 'JO' => joJson, 'LB' => lbJson, _ => saJson },
       'credits': credits,
       'status': 'VERIFIED',
       'deactivated': deactivated,

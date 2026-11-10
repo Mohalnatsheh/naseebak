@@ -29,6 +29,7 @@ const profileFieldLabels = <String, String>{
   'maritalStatus': 'الحالة الاجتماعية',
   'childrenCount': 'عدد الأبناء',
   'religiosity': 'مستوى التدين',
+  'sect': 'المذهب',
   'height': 'الطول',
   'weight': 'الوزن',
   'skinColor': 'لون البشرة',
@@ -62,7 +63,8 @@ const _numberLimits = <String, (int, int)>{
 };
 
 /// Single-choice fields the website's edit page requires (`validateStep`): a chip can be changed, never cleared
-const requiredChoices = {'nationality', 'city', 'education', 'maritalStatus', 'religiosity'};
+/// («المذهب» only shows where the country asks it)
+const requiredChoices = {'nationality', 'city', 'education', 'maritalStatus', 'religiosity', 'sect'};
 
 /// The area kept after a city change: only if it is one of the new city's areas (the website's `handleCityChange`)
 String? areaAfterCityChange(String? area, List<String> newCityAreas) =>
@@ -210,6 +212,8 @@ class _ProfileEditFormState extends ConsumerState<ProfileEditForm> {
     if (dobError != null) return (null, dobError);
     final missing = missingRequiredChoice(out);
     if (missing != null) return (null, missing);
+    final sects = widget.lists.option('sect');
+    if (sects.isNotEmpty && !sects.contains(out['sect'])) return (null, 'يرجى اختيار المذهب');
     if (out['maritalStatus'] == ProfileOptions.single) out['childrenCount'] = 0;
     if (out['maritalStatus'] != ProfileOptions.single && out['childrenCount'] == null) {
       return (null, 'عدد الأبناء مطلوب');
@@ -488,6 +492,7 @@ class _ProfileEditFormState extends ConsumerState<ProfileEditForm> {
           _choice('maritalStatus', lists.option('maritalStatus'), labelOf: (v) => self('maritalStatus', v)),
           if (_v['maritalStatus'] != null && _v['maritalStatus'] != ProfileOptions.single) _field('childrenCount'),
           _choice('religiosity', lists.option('religiosity'), labelOf: (v) => self('religiosity', v)),
+          if (lists.option('sect').isNotEmpty) _choice('sect', lists.option('sect'), labelOf: (v) => self('sect', v)),
         ]),
         _section('المظهر والعمل', [
           _field('height', title: 'الطول (سم)'),

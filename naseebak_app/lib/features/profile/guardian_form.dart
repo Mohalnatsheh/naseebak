@@ -26,7 +26,7 @@ class GuardianFields {
   void fill(GuardianInfo g, String dialDigits) {
     stored = g;
     name.text = g.name;
-    phone.text = g.phone.startsWith(dialDigits) ? '0${g.phone.substring(dialDigits.length)}' : g.phone;
+    phone.text = g.phone.startsWith(dialDigits) ? withTrunkZero(g.phone.substring(dialDigits.length), dialDigits) : g.phone;
     address.text = g.address;
     relationship = g.relationship.isEmpty ? null : g.relationship;
     consent = g.consented;

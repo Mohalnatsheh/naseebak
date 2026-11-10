@@ -54,6 +54,7 @@ class PreferencesScreen extends ConsumerWidget {
         cities: details.requireValue.lists.cities,
         female: me?.isFemale ?? false,
         withDealbreakers: counts.requireValue.flags.mutualSuggestions,
+        sectOptions: details.requireValue.lists.option('prefSect'),
       );
     }
     return Scaffold(appBar: AppBar(title: const Text('تفضيلات الشريك')), body: body);
@@ -67,12 +68,16 @@ class PreferencesForm extends ConsumerStatefulWidget {
     required this.cities,
     required this.female,
     required this.withDealbreakers,
+    this.sectOptions = const [],
   });
 
   final PartnerPrefs initial;
   final List<String> cities;
   final bool female;
   final bool withDealbreakers;
+
+  /// «المذهب» choices (`options.prefSect` of the member's country, Lebanon only); empty = not asked
+  final List<String> sectOptions;
 
   @override
   ConsumerState<PreferencesForm> createState() => _PreferencesFormState();
@@ -85,6 +90,7 @@ class _PreferencesFormState extends ConsumerState<PreferencesForm> {
   late final _education = {...widget.initial.education};
   late final _marital = {...widget.initial.maritalStatus};
   late final _religiosity = {...widget.initial.religiosity};
+  late final _sect = {...widget.initial.sect};
   late final _smoking = {...widget.initial.smoking};
   late String? _yesNo = widget.female ? widget.initial.beard : widget.initial.hijab;
   late String? _children = widget.initial.children;
@@ -103,6 +109,7 @@ class _PreferencesFormState extends ConsumerState<PreferencesForm> {
         education: ProfileOptions.education.where(_education.contains).toList(),
         maritalStatus: _marital.toList(),
         religiosity: _religiosity.toList(),
+        sect: widget.sectOptions.where(_sect.contains).toList(),
         smoking: _smoking.toList(),
         hijab: widget.female ? null : _yesNo,
         beard: widget.female ? _yesNo : null,
@@ -140,7 +147,12 @@ class _PreferencesFormState extends ConsumerState<PreferencesForm> {
     try {
       await ref
           .read(profileRepositoryProvider)
-          .savePartnerPrefs(prefs, female: widget.female, withDealbreakers: widget.withDealbreakers);
+          .savePartnerPrefs(
+            prefs,
+            female: widget.female,
+            withDealbreakers: widget.withDealbreakers,
+            withSect: widget.sectOptions.isNotEmpty,
+          );
       container.invalidate(partnerPrefsProvider);
       if (mounted) showSnack(context, 'تم حفظ تفضيلاتك');
     } on ApiException catch (e) {
@@ -267,6 +279,10 @@ class _PreferencesFormState extends ConsumerState<PreferencesForm> {
         _title('مستوى التدين', 'religiosity', filled: _religiosity.isNotEmpty),
         _multi(ProfileOptions.religiosity, _religiosity,
             labelOf: (v) => OptionLabels.describe('religiosity', v, female: _partnerFemale)),
+        if (widget.sectOptions.isNotEmpty) ...[
+          _title('المذهب', 'sect', filled: _sect.isNotEmpty),
+          _multi(widget.sectOptions, _sect, labelOf: (v) => OptionLabels.describe('sect', v, female: _partnerFemale)),
+        ],
         _title('التدخين', 'smokingStatus', filled: _smoking.isNotEmpty),
         _multi(ProfileOptions.smokingStatus, _smoking,
             labelOf: (v) => OptionLabels.describe('smokingStatus', v, female: _partnerFemale)),

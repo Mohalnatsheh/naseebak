@@ -74,6 +74,7 @@ class PartnerPrefs {
     this.education = const [],
     this.maritalStatus = const [],
     this.religiosity = const [],
+    this.sect = const [],
     this.smoking = const [],
     this.hijab,
     this.beard,
@@ -88,6 +89,7 @@ class PartnerPrefs {
         education: asStringList(p['prefEducation']),
         maritalStatus: asStringList(p['prefMaritalStatus']),
         religiosity: asStringList(p['prefReligiosity']),
+        sect: asStringList(p['prefSect']),
         smoking: asStringList(p['prefSmokingStatus']),
         hijab: p['prefHijab'] == ProfileOptions.niqab ? ProfileOptions.niqab : _yesNo(p['prefHijab']),
         beard: _yesNo(p['prefBeard']),
@@ -111,6 +113,9 @@ class PartnerPrefs {
   final List<String> education;
   final List<String> maritalStatus;
   final List<String> religiosity;
+
+  /// «المذهب» wanted (Lebanon only, `prefSect`)
+  final List<String> sect;
   final List<String> smoking;
   final String? hijab;
   final String? beard;
@@ -125,6 +130,7 @@ class PartnerPrefs {
         'education' => education.isNotEmpty,
         'maritalStatus' => maritalStatus.isNotEmpty,
         'religiosity' => religiosity.isNotEmpty,
+        'sect' => sect.isNotEmpty,
         'smokingStatus' => smoking.isNotEmpty,
         'hijab' => !female && (hijab == 'نعم' || hijab == 'لا' || hijab == ProfileOptions.niqab),
         'beard' => female && (beard == 'نعم' || beard == 'لا'),
@@ -137,14 +143,16 @@ class PartnerPrefs {
   List<String> activeDealbreakers({required bool female}) =>
       [for (final k in dealbreakers) if (dealbreakerFilled(k, female: female)) k];
 
-  /// The `changes` for `POST /api/profile/update-request` (preferences only, so the server saves them at once)
-  Map<String, dynamic> toChanges({required bool female}) => {
+  /// The `changes` for `POST /api/profile/update-request` (preferences only, so the server saves them at once).
+  /// [withSect]: the country offers «المذهب» (older servers and other countries never get `prefSect`).
+  Map<String, dynamic> toChanges({required bool female, bool withSect = false}) => {
         'prefAgeMin': ageMin,
         'prefAgeMax': ageMax,
         'prefCity': cities,
         'prefEducation': education,
         'prefMaritalStatus': maritalStatus,
         'prefReligiosity': religiosity,
+        if (withSect) 'prefSect': sect,
         'prefSmokingStatus': smoking,
         if (female) 'prefBeard': beard ?? '' else 'prefHijab': hijab ?? '',
         'prefChildrenAcceptance': children ?? '',
@@ -204,8 +212,13 @@ class ProfileRepository {
       PartnerPrefs.fromJson(asMap((await _api.get('/api/profile/dealbreakers'))['profile']));
 
   /// Preferences save directly (no review); «شروطي الأساسية» only when shared suggestions are on.
-  Future<void> savePartnerPrefs(PartnerPrefs prefs, {required bool female, required bool withDealbreakers}) async {
-    await _api.post('/api/profile/update-request', body: {'changes': prefs.toChanges(female: female)});
+  Future<void> savePartnerPrefs(
+    PartnerPrefs prefs, {
+    required bool female,
+    required bool withDealbreakers,
+    bool withSect = false,
+  }) async {
+    await _api.post('/api/profile/update-request', body: {'changes': prefs.toChanges(female: female, withSect: withSect)});
     if (withDealbreakers) {
       await _api.put('/api/profile/dealbreakers', body: {'keys': prefs.activeDealbreakers(female: female)});
     }

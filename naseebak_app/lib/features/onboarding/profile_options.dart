@@ -17,9 +17,9 @@ class ProfileOptions {
   static const niqab = 'منتقبة';
   static const prefHijab = ['نعم', niqab, 'لا', 'لا يهم'];
 
-  /// «شروطي الأساسية» keys (score.ts DEALBREAKER_KEYS)
+  /// «شروطي الأساسية» keys (score.ts DEALBREAKER_KEYS); "sect" only where the country offers «المذهب»
   static const dealbreakerKeys = [
-    'age', 'city', 'education', 'maritalStatus', 'religiosity', 'smokingStatus', 'hijab', 'beard', 'children',
+    'age', 'city', 'education', 'maritalStatus', 'religiosity', 'sect', 'smokingStatus', 'hijab', 'beard', 'children',
   ];
 
   static const relationships = {

@@ -14,6 +14,7 @@ const dealbreakerNames = {
   'education': 'التعليم',
   'maritalStatus': 'الحالة الاجتماعية',
   'religiosity': 'التدين',
+  'sect': 'المذهب',
   'smokingStatus': 'التدخين',
   'hijab': 'الحجاب',
   'beard': 'اللحية',

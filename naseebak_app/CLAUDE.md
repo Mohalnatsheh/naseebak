@@ -64,8 +64,12 @@ needed a release.
   Test it with `FakeAdapter.hold` (`test/leave_mid_request_test.dart`).
 - **No Hero animations:** a `FloatingActionButton` needs `heroTag: null` (its default Hero crashed between two support
   screens, `RenderBox was not laid out`).
-- **Saudi sign-in code wording** («عبر واتساب») is chosen in the app from the country, not from the server's channel.
-  If Saudi codes ever go back to SMS (VerifyWay key removed or provider changed), the app text needs a new version.
+- **Sign-in code wording** («عبر واتساب» / «برسالة نصية») follows the country's `otpChannel` from `GET /api/countries`
+  (`Country.otpByWhatsapp`, since 1.2.0; Saudi Arabia and Lebanon "whatsapp"). An older server sends none: Saudi =
+  WhatsApp, the others SMS. Builds before 1.2.0 decide it from the country code (Saudi only).
+- **«المذهب» (1.2.0, Lebanon only):** asked only when the country detail's `options` carries `sect` (setup step 2 after
+  religiosity, required; profile edit; partner `prefSect` + «شرط أساسي» `sect` when `options.prefSect` is there). Cards
+  show `sect` when the payload has one (the server sends null for «أفضّل عدم الذكر»); female labels «سنية» / «شيعية».
 
 ## Integrations
 

@@ -68,19 +68,24 @@ String visitStatusLabel(String status) => switch (status) {
     };
 
 /// A guardian's number as the website shows it (`formatGuardianPhone` in src/components/intro/intro-utils.ts):
-/// "+962 79 123 4567". A local "07…" number takes [dialCode] (the member's country).
+/// "+962 79 123 4567". A local "07…" number takes [dialCode] (the member's country). Lebanon's shorter numbers are
+/// grouped too: "+961 71 123 456", "+961 3 123 456".
 String formatGuardianPhone(String raw, {String dialCode = '962'}) {
   final digits = raw.replaceAll(RegExp(r'\D'), '');
   String? known;
-  for (final d in const ['962', '966']) {
-    if (digits.startsWith(d) && digits.length > 10) known = d;
+  for (final d in const ['962', '966', '961']) {
+    // Lebanon's 3XXXXXX is 10 digits with its dial code
+    if (digits.startsWith(d) && digits.length > (d == '961' ? 9 : 10)) known = d;
   }
   final dial = known ?? dialCode;
   final intl = known != null ? digits : digits.startsWith('0') ? '$dial${digits.substring(1)}' : digits;
   final local = intl.startsWith(dial) ? intl.substring(dial.length) : intl;
-  return local.length == 9
-      ? '+$dial ${local.substring(0, 2)} ${local.substring(2, 5)} ${local.substring(5)}'
-      : '+$intl';
+  if (local.length == 9) return '+$dial ${local.substring(0, 2)} ${local.substring(2, 5)} ${local.substring(5)}';
+  if (dial == '961' && (local.length == 8 || local.length == 7)) {
+    final head = local.length - 6;
+    return '+$dial ${local.substring(0, head)} ${local.substring(head, head + 3)} ${local.substring(head + 3)}';
+  }
+  return '+$intl';
 }
 
 class GuardianContact {

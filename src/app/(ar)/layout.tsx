@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import type { CountryCode } from "@/lib/countries";
+import { HREFLANG } from "@/lib/site-paths";
 import { Cairo } from "next/font/google";
 import "../globals.css";
 import PublicTracking from "@/components/shared/public-tracking";
@@ -152,7 +153,7 @@ export default async function ArabicLayout({
       : null;
 
   return (
-    <html lang={country === "SA" ? "ar-SA" : "ar-JO"} dir="rtl">
+    <html lang={HREFLANG[country]} dir="rtl">
       <body className={`${cairo.className} antialiased`}>
         {/* The first Tab stop on every page: straight past the navigation (QA PA-M7 / WM-21) */}
         <a href="#main" className="skip-link">

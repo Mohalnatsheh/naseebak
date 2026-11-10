@@ -1,32 +1,25 @@
 /**
  * Country URLs for SEO (db-free; proxy, server and client).
  * Jordan keeps the root (`/`, `/faq`, …) so existing rankings and links stay; Saudi Arabia lives under
- * `/sa` (`/sa`, `/sa/faq`, …). The proxy rewrites `/sa/...` to the same page and tells it the country
- * through the SITE_COUNTRY_HEADER request header. Every localized page declares both versions to
- * search engines (hreflang ar-JO / ar-SA, x-default = Jordan) and its own canonical URL.
+ * `/sa` (`/sa`, `/sa/faq`, …), Lebanon under `/lb`. next.config.ts rewrites `/sa/...` and `/lb/...` to the same page and the
+ * proxy tells it the country through the SITE_COUNTRY_HEADER request header. Every localized page declares the open
+ * countries' versions to search engines (hreflang ar-JO / ar-SA / ar-LB, x-default = Jordan) and its own canonical URL.
  * The blog and «سؤال نصيبك» have one too, with their own content per country (`/blog/...`, `/sa/blog/...`,
- * `/poll/...`, `/sa/poll/...`).
+ * `/poll/...`, `/sa/poll/...`, `/lb/poll/...`).
  * Pages that follow the account or are shared (dashboard, login, register) have no country URL.
  */
 import { COUNTRY_CODES, DEFAULT_COUNTRY, type CountryCode } from "@/lib/countries";
+import { COUNTRY_PREFIX as PREFIX, LOCALIZED_PATHS } from "@/lib/site-path-list";
+
+export { LOCALIZED_PATHS };
 
 export const SITE_URL = "https://naseebak.com";
 
 /** Request header the proxy sets on localized pages: the country the URL belongs to */
 export const SITE_COUNTRY_HEADER = "x-site-country";
 
-/** URL prefix per country (Jordan = root) */
-const PREFIX: Record<CountryCode, string> = {
-  JO: "",
-  SA: "/sa",
-  LB: "/lb", // TODO(LB task 3): URLs (rewrites, LOCALIZED_PATHS); inactive until the country row exists
-};
-
 /** hreflang of each country's pages */
 export const HREFLANG: Record<CountryCode, string> = { JO: "ar-JO", SA: "ar-SA", LB: "ar-LB" };
-
-/** Public pages that exist once per country */
-export const LOCALIZED_PATHS = ["/", "/faq", "/about", "/contact", "/terms", "/privacy", "/refund-policy", "/blog", "/poll"] as const;
 
 export function isLocalizedPath(path: string): boolean {
   return (LOCALIZED_PATHS as readonly string[]).includes(path === "" ? "/" : path) || path.startsWith("/blog/") || path.startsWith("/poll/");
@@ -34,7 +27,7 @@ export function isLocalizedPath(path: string): boolean {
 
 /**
  * `/sa/faq` → { country: "SA", path: "/faq" }; `/faq` → { country: null, path: "/faq" }.
- * Only the exact segment "sa" counts (`/sales` is not Saudi).
+ * Only the exact segment counts (`/sales` is not Saudi, `/lbx` is not Lebanese).
  */
 export function splitCountryPath(pathname: string): { country: CountryCode | null; path: string } {
   for (const c of COUNTRY_CODES) {
@@ -79,9 +72,10 @@ export function absoluteUrl(path: string, country: CountryCode): string {
 
 /**
  * Metadata `alternates` for a localized page: its own canonical + every open country's version + x-default.
- * `countries` = the countries switched on in Admin → Countries (a closed country's URLs are never advertised).
+ * `countries` = the countries switched on in Admin → Countries (`activeCountryCodes()`), required: a closed country's
+ * URLs are never advertised.
  */
-export function seoAlternates(path: string, country: CountryCode, countries: readonly CountryCode[] = COUNTRY_CODES) {
+export function seoAlternates(path: string, country: CountryCode, countries: readonly CountryCode[]) {
   const languages: Record<string, string> = {};
   for (const c of countries) languages[HREFLANG[c]] = absoluteUrl(path, c);
   languages["x-default"] = absoluteUrl(path, DEFAULT_COUNTRY);

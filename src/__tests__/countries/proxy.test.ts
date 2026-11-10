@@ -49,11 +49,40 @@ describe("proxy", () => {
 });
 
 describe("country URLs (SEO)", () => {
-  it("next.config routes every Saudi URL to its page, and nothing else", async () => {
+  it.each([
+    ["SA", "/sa"],
+    ["LB", "/lb"],
+  ] as const)("next.config routes every %s URL to its page, and nothing else", async (code, prefix) => {
+    const rewrites = await nextConfig.rewrites!();
+    const list = ((Array.isArray(rewrites) ? rewrites : rewrites.beforeFiles) ?? []).filter((r) => r.source === prefix || r.source.startsWith(`${prefix}/`));
+    expect(list.map((r) => r.source).sort()).toEqual([...LOCALIZED_PATHS.map((p) => localizedPath(p, code)), `${prefix}/blog/:slug`, `${prefix}/poll/:slug`].sort());
+    for (const r of list) expect(`${prefix}${r.destination === "/" ? "" : r.destination}`).toBe(r.source);
+  });
+
+  it("next.config has no rewrite besides /sa and /lb", async () => {
     const rewrites = await nextConfig.rewrites!();
     const list = (Array.isArray(rewrites) ? rewrites : rewrites.beforeFiles) ?? [];
-    expect(list.map((r) => r.source).sort()).toEqual([...LOCALIZED_PATHS.map((p) => localizedPath(p, "SA")), "/sa/blog/:slug", "/sa/poll/:slug"].sort());
-    for (const r of list) expect(`/sa${r.destination === "/" ? "" : r.destination}`).toBe(r.source);
+    for (const r of list) expect(r.source).toMatch(/^\/(sa|lb)(\/|$)/);
+  });
+
+  it("/lb/faq passes on with the site-country header and remembers the choice", async () => {
+    const res = await call("https://naseebak.com/lb/faq");
+    expect(res.headers.get("x-middleware-rewrite")).toBeNull();
+    expect(res.headers.get("x-middleware-request-x-site-country")).toBe("LB");
+    expect(res.headers.get("set-cookie") ?? "").toContain("naseeb_country=LB");
+  });
+
+  it("/lb/register redirects to /register and remembers Lebanon; /lbx is not a Lebanese URL", async () => {
+    const res = await call("https://naseebak.com/lb/register");
+    expect(new URL(res.headers.get("location")!).pathname).toBe("/register");
+    expect(res.headers.get("set-cookie") ?? "").toContain("naseeb_country=LB");
+    expect((await call("https://naseebak.com/lbx")).headers.get("x-middleware-request-x-site-country")).toBeNull();
+  });
+
+  it("?country=lb on a localized page redirects to its Lebanese URL", async () => {
+    const res = await call("https://naseebak.com/faq?country=lb");
+    expect(new URL(res.headers.get("location")!).pathname).toBe("/lb/faq");
+    expect(res.headers.get("set-cookie") ?? "").toContain("naseeb_country=LB");
   });
 
   // A rewrite from the proxy carries the public host, which Next treats as another site behind Nginx: it fetched

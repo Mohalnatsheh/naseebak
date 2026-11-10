@@ -1,6 +1,6 @@
 /**
  * The visitor's country choice on public pages (db-free, safe in client components and the proxy).
- * Set by the navbar flag switcher, or by `?country=sa|jo` on any page (ad links): the proxy stores
+ * Set by the navbar flag switcher, or by `?country=sa|jo|lb` on any page (ad links): the proxy stores
  * the cookie and redirects to the same URL without the parameter.
  */
 import { COUNTRY_COOKIE, isCountryCode, type CountryCode } from "@/lib/countries";

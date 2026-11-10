@@ -40,6 +40,14 @@ describe("a country switched off in Admin → Countries", () => {
     expect(await getGeoCountry()).toBe("SA");
   });
 
+  it("Lebanon's /lb URL falls back to Jordan while it is off, and works once on", async () => {
+    req.headers.set(SITE_COUNTRY_HEADER.toLowerCase(), "LB");
+    req.active = ["JO", "SA"];
+    expect(await getVisitorCountry()).toBe("JO");
+    req.active = ["JO", "SA", "LB"];
+    expect(await getVisitorCountry()).toBe("LB");
+  });
+
   it("is not advertised to search engines (hreflang)", () => {
     const off = seoAlternates("/faq", "JO", ["JO"]);
     expect(Object.keys(off.languages).sort()).toEqual(["ar-JO", "x-default"]);

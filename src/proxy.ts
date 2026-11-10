@@ -11,7 +11,7 @@ import { isBackgroundRequest, withoutSessionCookie } from "@/lib/proxy-session";
 const { auth } = NextAuth({ ...authConfig, callbacks: serverAuthCallbacks });
 
 /**
- * Render the page for `country`: the page reads the country from SITE_COUNTRY_HEADER. /sa/... reaches its page through
+ * Render the page for `country`: the page reads the country from SITE_COUNTRY_HEADER. /sa/... and /lb/... reach their page through
  * next.config.ts, never a rewrite here: behind Nginx that one carries the public host, so Next fetches the public site
  * (`/` without this header, Jordan).
  */
@@ -28,10 +28,10 @@ function redirectWithCountry(url: URL, country: CountryCode) {
 }
 
 /**
- * 1. Country URLs (SEO, src/lib/site-paths.ts): Jordan at the root, Saudi Arabia under /sa.
- *    `/sa/faq` is rendered as `/faq` for Saudi Arabia (and remembers the choice); `/sa/register` and
+ * 1. Country URLs (SEO, src/lib/site-paths.ts): Jordan at the root, Saudi Arabia under /sa, Lebanon under /lb.
+ *    `/sa/faq` is rendered as `/faq` for Saudi Arabia (and remembers the choice), `/lb/faq` likewise; `/sa/register` and
  *    other shared pages redirect to the plain URL with the choice stored.
- * 2. `?country=sa|jo` (ad links): a localized page redirects to that country's URL; any other page
+ * 2. `?country=sa|jo|lb` (ad links): a localized page redirects to that country's URL; any other page
  *    stores the choice and drops the parameter.
  * 3. Route protection (authConfig.authorized). When `authorized` answers with a redirect, NextAuth
  *    returns it without calling this handler.

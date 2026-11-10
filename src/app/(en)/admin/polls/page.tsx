@@ -27,6 +27,7 @@ import {
   type PollStatusValue,
 } from "@/lib/engagement/poll-types";
 import type { OptionBreakdown } from "@/lib/engagement/poll-admin";
+import { localizedPath } from "@/lib/site-paths";
 
 type PollCountry = "JO" | "SA";
 const COUNTRY_NAMES: Record<PollCountry, string> = { JO: "Jordan", SA: "Saudi Arabia" };
@@ -378,7 +379,7 @@ export default function AdminPollsPage() {
                       {p.question}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {COUNTRY_NAMES[p.country]} · {p.country === "SA" ? "/sa" : ""}/poll/{p.slug} · created {fmtDate(p.createdAt)}
+                      {COUNTRY_NAMES[p.country]} · {localizedPath(`/poll/${p.slug}`, p.country)} · created {fmtDate(p.createdAt)}
                       {p.startedAt && ` · started ${fmtDate(p.startedAt)}`}
                       {p.status === "ACTIVE" && p.endsAt && ` · next question ${fmtDate(p.endsAt)}`}
                       {p.closedAt && ` · closed ${fmtDate(p.closedAt)}`}

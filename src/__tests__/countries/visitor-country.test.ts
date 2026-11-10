@@ -11,6 +11,11 @@ describe("?country= on a public URL", () => {
     expect(r?.url.href).toBe("https://naseebak.com/faq?utm_source=ig#x");
     expect(countryQueryRedirect(new URL("https://naseebak.com/?country=JO"))?.url.href).toBe("https://naseebak.com/");
   });
+  it("accepts ?country=lb", () => {
+    const r = countryQueryRedirect(new URL("https://naseebak.com/faq?country=lb"));
+    expect(r?.country).toBe("LB");
+    expect(r?.url.href).toBe("https://naseebak.com/faq");
+  });
   it("leaves other URLs and unknown countries alone", () => {
     expect(countryQueryRedirect(new URL("https://naseebak.com/faq"))).toBeNull();
     expect(countryQueryRedirect(new URL("https://naseebak.com/faq?country=eg"))).toBeNull();

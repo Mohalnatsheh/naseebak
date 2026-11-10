@@ -24,12 +24,38 @@ describe("country URLs", () => {
   });
 
   it("declares every country version (hreflang) with its own canonical", () => {
-    expect(seoAlternates("/faq", "SA")).toEqual({
+    expect(seoAlternates("/faq", "SA", ["JO", "SA", "LB"])).toEqual({
       canonical: "https://naseebak.com/sa/faq",
       languages: { "ar-JO": "https://naseebak.com/faq", "ar-SA": "https://naseebak.com/sa/faq", "ar-LB": "https://naseebak.com/lb/faq", "x-default": "https://naseebak.com/faq" },
     });
     expect(absoluteUrl("/", "JO")).toBe("https://naseebak.com");
     expect(absoluteUrl("/", "SA")).toBe("https://naseebak.com/sa");
+  });
+});
+
+describe("Lebanon URLs", () => {
+  it("lives under /lb, and only the exact segment counts", () => {
+    expect(splitCountryPath("/lb/faq")).toEqual({ country: "LB", path: "/faq" });
+    expect(splitCountryPath("/lb")).toEqual({ country: "LB", path: "/" });
+    expect(splitCountryPath("/lbx")).toEqual({ country: null, path: "/lbx" });
+    expect(localizedPath("/faq", "LB")).toBe("/lb/faq");
+    expect(localizedPath("/", "LB")).toBe("/lb");
+    expect(localizedPath("/lb/faq", "SA")).toBe("/sa/faq");
+    expect(absoluteUrl("/", "LB")).toBe("https://naseebak.com/lb");
+  });
+
+  it("switches between Jordan and Lebanon, and posts and questions go to the list", () => {
+    expect(switchCountryPath("/faq", "LB")).toBe("/lb/faq");
+    expect(switchCountryPath("/lb/faq", "JO")).toBe("/faq");
+    expect(switchCountryPath("/blog/x", "LB")).toBe("/lb/blog");
+    expect(switchCountryPath("/lb/poll/x", "JO")).toBe("/poll");
+    expect(switchCountryPath("/login", "LB")).toBeNull();
+  });
+
+  it("is advertised (hreflang ar-LB) only while it is open", () => {
+    expect(Object.keys(seoAlternates("/faq", "JO", ["JO", "SA"]).languages).sort()).toEqual(["ar-JO", "ar-SA", "x-default"]);
+    expect(Object.keys(seoAlternates("/faq", "JO", ["JO"]).languages).sort()).toEqual(["ar-JO", "x-default"]);
+    expect(seoAlternates("/faq", "LB", ["JO", "LB"]).languages["ar-LB"]).toBe("https://naseebak.com/lb/faq");
   });
 });
 

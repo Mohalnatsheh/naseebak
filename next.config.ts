@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { countryRewrites } from "./src/lib/site-path-list";
 
 const nextConfig: NextConfig = {
   experimental: {
@@ -35,13 +36,10 @@ const nextConfig: NextConfig = {
       { source: "/images/:path*", headers: cache("public, max-age=604800, stale-while-revalidate=86400") },
     ];
   },
-  // Saudi URLs (src/lib/site-paths.ts LOCALIZED_PATHS, blog posts and poll questions): src/proxy.ts tells the page the country, this finds the page
+  // Saudi and Lebanese URLs, /sa/... and /lb/... (src/lib/site-path-list.ts: LOCALIZED_PATHS, blog posts and poll questions): src/proxy.ts tells the page the country, this finds the page
   async rewrites() {
     return {
-      beforeFiles: [
-        { source: "/sa", destination: "/" },
-        ...["/faq", "/about", "/contact", "/terms", "/privacy", "/refund-policy", "/blog", "/blog/:slug", "/poll", "/poll/:slug"].map((path) => ({ source: `/sa${path}`, destination: path })),
-      ],
+      beforeFiles: countryRewrites(),
       afterFiles: [],
       fallback: [],
     };

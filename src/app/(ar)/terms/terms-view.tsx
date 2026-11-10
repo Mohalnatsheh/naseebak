@@ -23,6 +23,7 @@ import { useInView } from "@/hooks/use-in-view";
 import { IslamicPatternBg } from "@/components/shared/islamic-pattern";
 import { useVisitorCountry } from "@/components/shared/visitor-country";
 import type { CountryCode } from "@/lib/countries";
+import { PLATFORM_KIND } from "@/lib/countries/platform-kind";
 import { PRO_LEGAL_UPDATED, withProTerms } from "@/lib/pro/legal-copy";
 import { FREE_REPLY_LINE } from "@/lib/suggestions/copy";
 
@@ -444,18 +445,6 @@ const BUILD_SECTIONS: Record<CountryCode, typeof buildSections> = { JO: buildSec
 /** «آخر تحديث» of each country's terms without Pro */
 const UPDATED: Record<CountryCode, string> = { JO: "17 أكتوبر 2026", SA: "24 أكتوبر 2026", LB: "10 نوفمبر 2026" };
 
-/**
- * «نصيبك منصة … تقترح على مستخدميها»: the platform's nationality; Lebanon names none, and the intro's first sentence
- * already says «لتيسير الزواج», so its sentence reads «نصيبك منصة تقترح…» (the JSX puts no space before this word)
- */
-const PLATFORM_KIND: Record<CountryCode, string> = {
-  JO: "أردنية",
-  // [NEEDS LEGAL REVIEW: KSA]
-  SA: "سعودية",
-  // LB draft: owner's legal review pending
-  LB: "",
-};
-
 /* ══════════════════════════════════════════════════════ */
 /*            TERMS & CONDITIONS PAGE                    */
 /* ══════════════════════════════════════════════════════ */
@@ -552,8 +541,7 @@ export function TermsView({
                       مرحباً بك في منصة نصيبك لتيسير الزواج. تحكم هذه الشروط
                       والأحكام استخدامك للمنصة وجميع خدماتها، وبتسجيلك في المنصة
                       أو استخدامها بأي شكل فإنك توافق على الالتزام بها كاملة؛ فإن
-                      لم توافق على أي منها فيُرجى عدم استخدام المنصة. نصيبك منصة
-                      {PLATFORM_KIND[country]} تقترح على مستخدميها شركاء مناسبين، ولا يتم التوافق
+                      لم توافق على أي منها فيُرجى عدم استخدام المنصة. نصيبك منصة{PLATFORM_KIND[country]} تقترح على مستخدميها شركاء مناسبين، ولا يتم التوافق
                       إلا بموافقة الطرفين، ثم يكون التعارف بين العائلتين أو عبر
                       محادثة نصية قصيرة داخل المنصة قبل الزيارة العائلية. وهي ليست
                       تطبيق مواعدة، ولا تتولى ترتيب الزيارات بين العائلات.

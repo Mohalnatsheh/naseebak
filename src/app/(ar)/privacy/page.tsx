@@ -21,6 +21,7 @@ import { useInView } from "@/hooks/use-in-view";
 import { IslamicPatternBg } from "@/components/shared/islamic-pattern";
 import { useVisitorCountry } from "@/components/shared/visitor-country";
 import type { CountryCode } from "@/lib/countries";
+import { PLATFORM_KIND } from "@/lib/countries/platform-kind";
 
 /* ──────────────────── DATA ──────────────────── */
 
@@ -343,8 +344,6 @@ const lbSections = [
 
 const SECTIONS: Record<CountryCode, typeof joSections> = { JO: joSections, SA: saSections, LB: lbSections };
 
-/** «منصة … متخصصة في تيسير الزواج»: the platform's nationality; Lebanon names none */
-const PLATFORM_KIND: Record<CountryCode, string> = { JO: "أردنية", SA: "سعودية", LB: "" };
 
 /** «وفقاً …»: the law the policy follows */
 const GOVERNING_LAW: Record<CountryCode, string> = {
@@ -437,8 +436,7 @@ export default function PrivacyPage() {
                   <div className="space-y-3">
                     <h2 className="text-xl font-bold">مقدمة</h2>
                     <p className="text-sm leading-relaxed text-muted-foreground">
-                      منصة نصيبك (&ldquo;نحن&rdquo; أو &ldquo;المنصة&rdquo;) منصة
-                      {PLATFORM_KIND[country]} متخصصة في تيسير الزواج. نحترم خصوصية مستخدمينا
+                      منصة نصيبك (&ldquo;نحن&rdquo; أو &ldquo;المنصة&rdquo;) منصة{PLATFORM_KIND[country]} متخصصة في تيسير الزواج. نحترم خصوصية مستخدمينا
                       ونلتزم بحماية بياناتهم الشخصية وفقاً{" "}
                       {GOVERNING_LAW[country]}
                       . تنطبق هذه السياسة على جميع

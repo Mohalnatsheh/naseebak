@@ -1,3 +1,4 @@
+import { paymentPlanLabel } from "@/lib/admin/pro-labels";
 import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { requireAdmin } from "@/lib/auth";
@@ -78,9 +79,10 @@ export async function GET(request: Request) {
     const [dayBefore, yesterday, today] = last(3);
     const d7 = sumDays(last(7)), p7 = sumDays(last(7, 7));
     const d30 = sumDays(last(30)), p30 = sumDays(last(30, 30));
+    // Pro payments by name, never the stored id («pro_monthly» → «Pro · Monthly», ADM-18)
     const label = (id: string | null) => {
       const p = findAnyPackage(id);
-      return p ? `${p.credits} credits · ${p.currency}` : id ?? "—";
+      return p ? `${p.credits} credits · ${p.currency}` : paymentPlanLabel(id);
     };
 
     return NextResponse.json({

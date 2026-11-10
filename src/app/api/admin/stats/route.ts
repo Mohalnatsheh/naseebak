@@ -1,3 +1,4 @@
+import { paymentPlanLabel } from "@/lib/admin/pro-labels";
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -172,7 +173,7 @@ export async function GET(request: Request) {
     for (const p of recentPayments) {
       recentActivity.push({
         type: "payment",
-        description: `${p.user ? `${p.user.firstName} ${p.user.lastName}` : "Deleted account"} paid ${p.amount} ${p.currency} (${p.planName})`,
+        description: `${p.user ? `${p.user.firstName} ${p.user.lastName}` : "Deleted account"} paid ${p.amount} ${p.currency} (${paymentPlanLabel(p.planName)})`,
         date: p.createdAt.toISOString(),
       });
     }

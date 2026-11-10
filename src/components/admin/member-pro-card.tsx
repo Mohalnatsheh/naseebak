@@ -8,7 +8,15 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { proPlanLabel } from "@/lib/admin/pro-labels";
-import { fmtDateTime } from "@/components/admin/admin-list-bits";
+import { StateBadge, fmtDateTime } from "@/components/admin/admin-list-bits";
+
+/** Words and the shared status colours, never the stored enum (ADM-18) */
+const SUB_STATUS: Record<Subscription["status"], { label: string; tone: string }> = {
+  ACTIVE: { label: "Active", tone: "ACTIVE" },
+  PAST_DUE: { label: "Payment due", tone: "PENDING" },
+  CANCELED: { label: "Cancelled", tone: "ENDED" },
+  ENDED: { label: "Ended", tone: "ENDED" },
+};
 
 interface Subscription {
   id: string;
@@ -89,7 +97,7 @@ export function MemberProCard({ userId }: { userId: string }) {
               <div key={s.id} className="space-y-1 rounded-lg border p-3">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-medium">{proPlanLabel(s.plan)}</span>
-                  <Badge variant={live ? "default" : "secondary"}>{s.status}</Badge>
+                  <StateBadge value={SUB_STATUS[s.status]?.tone ?? s.status} label={SUB_STATUS[s.status]?.label ?? s.status} />
                   {live && s.cancelAtPeriodEnd && <Badge variant="outline">Won&apos;t renew</Badge>}
                   <span className="text-xs text-muted-foreground">
                     {Number(s.price)} {s.currency} · {s.creditsPerGrant} credits{s.plan === "YEARLY" ? " a month" : " per grant"}

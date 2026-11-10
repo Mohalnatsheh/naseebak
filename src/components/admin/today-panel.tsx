@@ -1,5 +1,6 @@
 "use client";
 
+import { AdminLoadError } from "@/components/admin/admin-states";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowDownRight, ArrowUpRight, CheckCircle2, ClipboardEdit, Flag, Inbox, LifeBuoy, ShieldCheck, AlertTriangle, Minus } from "lucide-react";
@@ -87,6 +88,7 @@ function Trend({ pct, lowerIsBetter }: { pct: number | null; lowerIsBetter?: boo
 export function TodayPanel() {
   const [data, setData] = useState<Today | null>(null);
   const [failed, setFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -101,10 +103,10 @@ export function TodayPanel() {
       cancelled = true;
       clearInterval(timer);
     };
-  }, []);
+  }, [attempt]);
 
   if (failed && !data) {
-    return <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">Could not load today&apos;s numbers. Refresh the page.</div>;
+    return <AdminLoadError message="Couldn't load today's numbers." onRetry={() => setAttempt((n) => n + 1)} />;
   }
   if (!data) return <div className="h-64 animate-pulse rounded-xl bg-muted" />;
 
@@ -121,8 +123,10 @@ export function TodayPanel() {
 
   return (
     <div className="space-y-6">
+      {/* To-do and job health side by side: what needs a hand, and whether the scheduler is healthy (design P2) */}
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
       {/* To do */}
-      <section className="space-y-3">
+      <section className="space-y-3 xl:col-span-2">
         <div className="flex items-baseline justify-between gap-3">
           <h2 className="text-lg font-semibold">To do</h2>
           {waiting === 0 ? (
@@ -135,7 +139,7 @@ export function TodayPanel() {
             </Link>
           )}
         </div>
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
           {todo.map((t) => {
             const n = data.todo[t.key];
             return (
@@ -157,10 +161,45 @@ export function TodayPanel() {
           })}
         </div>
       </section>
+        {/* Health */}
+        <Card className="self-start">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-lg">
+              {jobsOk ? <CheckCircle2 className="h-5 w-5 text-emerald-600" /> : <AlertTriangle className="h-5 w-5 text-amber-600" />}
+              Scheduled jobs
+            </CardTitle>
+            <p className="text-xs text-muted-foreground">{jobsOk ? "Everything ran on time with no errors." : "Something needs a look — see below."}</p>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {jobs.map((j) => (
+              <div key={j.label} className="flex items-start gap-3 rounded-lg border p-3">
+                <span
+                  className={cn(
+                    "mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full",
+                    j.state === "ok" ? "bg-emerald-500" : j.state === "errors" ? "bg-destructive" : "bg-amber-500"
+                  )}
+                />
+                <div className="min-w-0 text-sm">
+                  <p className="font-medium">{j.label}</p>
+                  <p className="text-xs text-muted-foreground">{j.does}</p>
+                  <p className={cn("mt-0.5 text-xs", j.state === "ok" ? "text-muted-foreground" : "font-semibold text-amber-700")}>
+                    {j.state === "never"
+                      ? "Has not run yet"
+                      : `Last run ${ago(j.job!.finishedAt, now)}${j.state === "errors" ? ` · ${j.job!.errors} task error${j.job!.errors === 1 ? "" : "s"}` : j.state === "late" ? " · late" : ""}`}
+                  </p>
+                </div>
+              </div>
+            ))}
+            <Link href="/admin/settings" className="block text-xs text-primary hover:underline">
+              Job details and «Run now» in Settings
+            </Link>
+          </CardContent>
+        </Card>
+      </div>
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+      <div>
         {/* Today's numbers */}
-        <Card className="xl:col-span-2">
+        <Card>
           <CardHeader className="pb-2">
             <div className="flex items-baseline justify-between gap-3">
               <CardTitle className="text-lg">Today&apos;s numbers</CardTitle>
@@ -218,40 +257,6 @@ export function TodayPanel() {
           </CardContent>
         </Card>
 
-        {/* Health */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-lg">
-              {jobsOk ? <CheckCircle2 className="h-5 w-5 text-emerald-600" /> : <AlertTriangle className="h-5 w-5 text-amber-600" />}
-              Scheduled jobs
-            </CardTitle>
-            <p className="text-xs text-muted-foreground">{jobsOk ? "Everything ran on time with no errors." : "Something needs a look — see below."}</p>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {jobs.map((j) => (
-              <div key={j.label} className="flex items-start gap-3 rounded-lg border p-3">
-                <span
-                  className={cn(
-                    "mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full",
-                    j.state === "ok" ? "bg-emerald-500" : j.state === "errors" ? "bg-destructive" : "bg-amber-500"
-                  )}
-                />
-                <div className="min-w-0 text-sm">
-                  <p className="font-medium">{j.label}</p>
-                  <p className="text-xs text-muted-foreground">{j.does}</p>
-                  <p className={cn("mt-0.5 text-xs", j.state === "ok" ? "text-muted-foreground" : "font-semibold text-amber-700")}>
-                    {j.state === "never"
-                      ? "Has not run yet"
-                      : `Last run ${ago(j.job!.finishedAt, now)}${j.state === "errors" ? ` · ${j.job!.errors} task error(s)` : j.state === "late" ? " · late" : ""}`}
-                  </p>
-                </div>
-              </div>
-            ))}
-            <Link href="/admin/settings" className="block text-xs text-primary hover:underline">
-              Job details and «Run now» in Settings
-            </Link>
-          </CardContent>
-        </Card>
       </div>
     </div>
   );

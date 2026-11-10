@@ -88,7 +88,12 @@ function Bars({ days, cur }: { days: Day[]; cur: string }) {
         {days.map((d, i) => {
           const last = i === days.length - 1;
           return (
-            <div key={d.day} className="group relative flex h-full flex-1 flex-col justify-end">
+            <div
+              key={d.day}
+              role="img"
+              aria-label={`${dayName(d.day)}: ${jod(d.revenue)}, ${d.paid} paid of ${d.started} checkouts`}
+              className="group relative flex h-full flex-1 flex-col justify-end"
+            >
               <span className="pointer-events-none absolute -top-1 left-1/2 z-10 hidden -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-md border bg-popover px-2 py-1 text-xs shadow-md group-hover:block">
                 <span className="text-muted-foreground">{dayName(d.day)}</span> · <b>{jod(d.revenue)}</b> · {d.paid} paid / {d.started} checkouts
               </span>
@@ -101,12 +106,19 @@ function Bars({ days, cur }: { days: Day[]; cur: string }) {
           );
         })}
       </div>
-      <div className="mt-1 flex gap-1.5">
-        {days.map((d, i) => (
-          <span key={d.day} className="flex-1 text-center text-[10px] text-muted-foreground">
-            {i % 2 === days.length % 2 || i === days.length - 1 ? new Date(`${d.day}T12:00:00Z`).getUTCDate() : ""}
-          </span>
-        ))}
+      {/* Every day's date, the month under the first day and where it changes (design P2: 14-day chart labels) */}
+      <div className="mt-1 flex gap-1.5" aria-hidden="true">
+        {days.map((d, i) => {
+          const date = new Date(`${d.day}T12:00:00Z`);
+          const month = date.toLocaleDateString("en-GB", { month: "short", timeZone: "UTC" });
+          const newMonth = i === 0 || new Date(`${days[i - 1].day}T12:00:00Z`).getUTCMonth() !== date.getUTCMonth();
+          return (
+            <span key={d.day} className={cn("flex-1 text-center text-[10px] leading-tight tabular-nums", i === days.length - 1 ? "font-semibold text-foreground" : "text-muted-foreground")}>
+              {date.getUTCDate()}
+              {newMonth && <span className="block">{month}</span>}
+            </span>
+          );
+        })}
       </div>
     </div>
   );

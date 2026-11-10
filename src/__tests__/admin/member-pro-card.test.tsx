@@ -51,7 +51,7 @@ describe("MemberProCard (admin): cancel now", () => {
     const post = fetchMock.mock.calls.find(([, init]) => (init as RequestInit | undefined)?.method === "POST")!;
     expect(post[0]).toBe("/api/admin/users/u1/pro");
     expect(JSON.parse((post[1] as RequestInit).body as string)).toEqual({ action: "cancel_now", subscriptionId: "ps1" });
-    expect(await screen.findByText("ENDED")).toBeTruthy();
+    expect(await screen.findByText("Ended")).toBeTruthy(); // a word, not the enum (ADM-18)
     expect(screen.queryByRole("button", { name: "Cancel now" })).toBeNull();
   });
 

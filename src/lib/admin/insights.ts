@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { startOfAmmanDay } from "@/lib/amman-day";
 import { UNPAID_TITLE } from "@/lib/cron/payment-reminders";
 import { findAnyPackage } from "@/lib/payments/packages";
+import { paymentPlanLabel } from "@/lib/admin/pro-labels";
 import { isTestPhone } from "@/lib/test-accounts";
 import { isUnavailable } from "@/lib/matches/state";
 import { getCycleFlags } from "@/lib/settings";
@@ -70,7 +71,7 @@ export async function paymentInsights(country: AdminCountry, now = new Date()) {
   const packages = new Map<string, { name: string; count: number; money: Money }>();
   for (const s of sales) {
     const key = s.planName ?? "unknown";
-    const row = packages.get(key) ?? { name: findAnyPackage(key)?.name ?? key, count: 0, money: [] };
+    const row = packages.get(key) ?? { name: findAnyPackage(key)?.name ?? paymentPlanLabel(key), count: 0, money: [] };
     row.count++;
     addMoney(row.money, s.currency, Number(s.amount));
     packages.set(key, row);

@@ -1,5 +1,6 @@
 "use client";
 
+import { AdminLoadError } from "@/components/admin/admin-states";
 import { useEffect, useState } from "react";
 import { TrendingUp } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -31,17 +32,22 @@ function Cell({ n, of, strong }: { n: number; of: number; strong?: boolean }) {
 export function GrowthPanel() {
   const [data, setData] = useState<Growth | null>(null);
   const [failed, setFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let live = true;
     fetch("/api/admin/growth")
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
-      .then((d: Growth) => live && setData(d))
+      .then((d: Growth) => {
+        if (!live) return;
+        setData(d);
+        setFailed(false);
+      })
       .catch(() => live && setFailed(true));
     return () => {
       live = false;
     };
-  }, []);
+  }, [attempt]);
 
   return (
     <Card>
@@ -52,13 +58,13 @@ export function GrowthPanel() {
         <p className="text-xs text-muted-foreground">Weeks start on Saturday (Amman). Percentages of the members who joined that week.</p>
       </CardHeader>
       <CardContent className="space-y-6">
-        {failed && <p className="text-sm text-destructive">Could not load the growth numbers.</p>}
+        {failed && <AdminLoadError message="Couldn't load the growth numbers." onRetry={() => setAttempt((n) => n + 1)} />}
         {!data && !failed && <div className="h-40 animate-pulse rounded-lg bg-muted" />}
         {data && (
           <>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               {[
-                ["Active today", data.active.d1],
+                ["Active in 24 h", data.active.d1],
                 ["Active 7 days", data.active.d7],
                 ["Active 30 days", data.active.d30],
                 ["Open accounts", data.active.total],

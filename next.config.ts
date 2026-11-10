@@ -21,8 +21,8 @@ const nextConfig: NextConfig = {
   /**
    * Caching (QA PA-L6, 2026-11-11). Every API answer is personal unless it says otherwise: `private, no-store` by
    * default, so no browser or proxy keeps a member's data. These headers override a route's own, so the public routes
-   * that set theirs (countries, registration status, tracking) are left out of the default; the public blog list and
-   * stats (the country is in the URL) are cached briefly.
+   * that set theirs are left out of the default: countries, registration status, tracking, and the blog and public
+   * stats, which set a short public cache on success only (src/lib/public-cache.ts), so an error is never cached.
    * Site images in /public/images change rarely: a week, revalidated in the background.
    */
   async headers() {
@@ -32,9 +32,6 @@ const nextConfig: NextConfig = {
         source: "/api/:path((?!countries(?:/|$)|settings/registration-status$|settings/tracking$|blog(?:/|$)|stats/public$).*)",
         headers: cache("private, no-store"),
       },
-      { source: "/api/blog", headers: cache("public, max-age=60, stale-while-revalidate=300") },
-      { source: "/api/blog/:path*", headers: cache("public, max-age=60, stale-while-revalidate=300") },
-      { source: "/api/stats/public", headers: cache("public, max-age=300, stale-while-revalidate=600") },
       { source: "/images/:path*", headers: cache("public, max-age=604800, stale-while-revalidate=86400") },
     ];
   },

@@ -95,10 +95,12 @@ const WHOLE_WORD_MAX = 5;
 /** "line: ahmad99", "line id ahmad" (the app): never the word "line" in a sentence */
 const LINE_APP_RE = /\bline\s*(?:[:：=]|\s(?:id|اي دي)\b)/;
 /**
- * Signal only with context (QA WC2-09): "signal: ahmad99", "signal id", "on signal", "signal ahmad99" — never
+ * Signal only with context (QA WC2-09): "signal: ahmad99", "signal id", "on signal", "signal ahmad99", "my signal is
+ * ahmad99" — never
  * "signal was weak in the mountains". Read after the look-alike swap (l → i)
  */
-const SIGNAL_APP_RE = /\bsignai\s*(?:[:：=]|\s(?:id|me)\b|\s+@?[a-z][a-z0-9_.]*\d)|\bon\s+signai\b/;
+const SIGNAL_APP_RE =
+  /\bsignai\s*(?:[:：=]|\s(?:id|me)\b|\s+(?:(?:is|هو|name|username|handie)\s+){0,2}@?[a-z][a-z0-9_.]*\d)|\bon\s+signai\b/;
 /** Kik only with context ("kik: ahmad", "on kik", "kik me", «كيك:»): «كيك» alone is cake */
 const KIK_RE = /\bkik\s*[:：=]|\bon\s+kik\b|\bkik\s+me\b|كيك\s*[:：=]/;
 // Short names only blocked as a whole word ("ig", not "big"; "وتس", not "وتسلم" / "وتسعين"; «لاين», not «اونلاين»)

@@ -36,6 +36,13 @@ describe("GET /api/pro while paused (QA WP2-02, A-M01)", () => {
     await GET(web);
     expect(requireUser).toHaveBeenCalledWith({ allowDeactivated: true });
   });
+
+  it("a paused member sees their state but nothing to buy (checkout refuses while paused)", async () => {
+    db.user.findUnique.mockResolvedValue({ country: "JO", isDeactivated: true });
+    const body = await (await GET(web)).json();
+    expect(body).toMatchObject({ canBuy: false, offers: [] });
+    expect(body.enabled).toBe(true);
+  });
 });
 
 describe("GET /api/pro", () => {

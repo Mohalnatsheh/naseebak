@@ -419,6 +419,8 @@ describe("QA round 2: glued, spaced and transliterated (WC2-01, WC2-02, WC2-09, 
     // WC2-09: signal with context still blocked
     "signal: ahmad99",
     "add me on signal",
+    "my signal is ahmad99",
+    "signal username ahmad_7",
     // A-H01: English number words in Arabic letters
     "زيرو سفن ناين ون تو ثري فور فايف سكس سفن",
     "زيروو سيفن ناين وان تو تري فور فايڤ سيكس سيفن",

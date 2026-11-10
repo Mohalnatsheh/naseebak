@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPublishedPost } from "@/lib/blog";
+import { PUBLIC_SHORT_CACHE } from "@/lib/public-cache";
 
 export async function GET(
   _req: NextRequest,
@@ -14,7 +15,7 @@ export async function GET(
       return NextResponse.json({ error: "المقال غير موجود" }, { status: 404 });
     }
 
-    return NextResponse.json({ post });
+    return NextResponse.json({ post }, { headers: PUBLIC_SHORT_CACHE });
   } catch (error) {
     console.error("Blog post error:", error);
     return NextResponse.json({ error: "حدث خطأ في الخادم" }, { status: 500 });

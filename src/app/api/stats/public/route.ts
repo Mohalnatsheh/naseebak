@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { toCountry, type CountryCode } from "@/lib/countries";
+import { PUBLIC_STATS_CACHE } from "@/lib/public-cache";
 
 // Real platform numbers for the landing page (aggregate counts only, no personal data), per country
 // (`?country=SA`, Jordan by default: a Saudi visitor never sees Jordan's numbers as Saudi ones).
@@ -15,7 +16,7 @@ export async function GET(request: Request) {
   const country = toCountry(new URL(request.url).searchParams.get("country"));
   const hit = cache.get(country);
   if (hit && Date.now() - hit.at < CACHE_MS) {
-    return NextResponse.json(hit.data);
+    return NextResponse.json(hit.data, { headers: PUBLIC_STATS_CACHE });
   }
   try {
     const [users, matches, visits] = await Promise.all([
@@ -25,7 +26,7 @@ export async function GET(request: Request) {
     ]);
     const data = { users, matches, visits };
     cache.set(country, { at: Date.now(), data });
-    return NextResponse.json(data);
+    return NextResponse.json(data, { headers: PUBLIC_STATS_CACHE });
   } catch (error) {
     console.error("Public stats error:", error);
     // Serve the last known numbers if the database is briefly unavailable

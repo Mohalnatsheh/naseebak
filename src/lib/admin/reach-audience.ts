@@ -31,6 +31,8 @@ export interface NotificationSend {
   sentAt: Date;
   recipients: number;
   read: number;
+  /** Sent from Admin → Notifications (marked since 11 Nov 2026); false = an automatic notice or an older admin send */
+  admin: boolean;
   /** Who it went to, when it went to one person */
   user: { id: string; firstName: string; lastName: string } | null;
 }
@@ -41,6 +43,7 @@ export async function recentNotificationSends(country: AdminCountry): Promise<No
   const rows = await db.$queryRaw<(Omit<NotificationSend, "user"> & { userId: string })[]>`
     WITH recent AS (
       SELECT n.title, n.body, n."isRead", n."createdAt", n."userId",
+        COALESCE(n.metadata->>'adminSend', '') = 'true' AS admin,
         CASE WHEN n."createdAt" - LAG(n."createdAt") OVER (PARTITION BY n.title, n.body ORDER BY n."createdAt")
              <= make_interval(mins => ${SEND_GAP_MINUTES}::int) THEN 0 ELSE 1 END AS starts
       FROM notifications n JOIN users u ON u.id = n."userId"
@@ -50,7 +53,7 @@ export async function recentNotificationSends(country: AdminCountry): Promise<No
       FROM recent
     )
     SELECT title, body, MIN("createdAt") AS "sentAt", COUNT(*)::int AS recipients,
-      (COUNT(*) FILTER (WHERE "isRead"))::int AS read, MIN("userId") AS "userId"
+      (COUNT(*) FILTER (WHERE "isRead"))::int AS read, MIN("userId") AS "userId", BOOL_OR(admin) AS admin
     FROM numbered GROUP BY title, body, send ORDER BY "sentAt" DESC LIMIT ${MAX_SENDS}`;
 
   const singles = rows.filter((r) => r.recipients === 1).map((r) => r.userId);

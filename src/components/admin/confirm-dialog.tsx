@@ -67,15 +67,16 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
   const settled = useRef(false);
   const fieldId = useId();
 
-  const confirm = useCallback(
-    ((opts: ConfirmOptions) =>
+  const ask = useCallback(
+    (opts: ConfirmOptions) =>
       new Promise<boolean | string | null>((resolve) => {
         settled.current = false;
         setText(opts.input?.defaultValue ?? "");
         setPending({ opts, resolve });
-      })) as Confirm,
+      }),
     [],
   );
+  const confirm = ask as Confirm;
 
   function finish(ok: boolean) {
     if (!pending || settled.current) return;

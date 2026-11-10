@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useId } from "react";
 import { Bell, Loader2, Send, Users as UsersIcon, User } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { fmtDateTime, PersonLink } from "@/components/admin/admin-list-bits";
+import { AdminEmptyState, AdminLoadError } from "@/components/admin/admin-states";
+import { useConfirm } from "@/components/admin/confirm-dialog";
 
 /** One send: a broadcast or a single notification (src/lib/admin/reach-audience.ts) */
 interface SendItem {
@@ -16,6 +18,8 @@ interface SendItem {
   sentAt: string;
   recipients: number;
   read: number;
+  /** Sent from this page (marked since 11 Nov 2026); false = automatic notice or an older admin send */
+  admin?: boolean;
   user: { id: string; firstName: string; lastName: string } | null;
 }
 
@@ -40,14 +44,33 @@ export default function AdminNotificationsPage() {
   const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null);
   const [userSearch, setUserSearch] = useState("");
   const [searchingUsers, setSearchingUsers] = useState(false);
+  const [loadError, setLoadError] = useState("");
+  const [kind, setKind] = useState<"admin" | "auto" | "all">("admin");
+  const confirm = useConfirm();
+  const fid = useId();
+
+  function loadSends() {
+    return fetch("/api/admin/notifications")
+      .then((r) => {
+        if (!r.ok) throw new Error(String(r.status));
+        return r.json();
+      })
+      .then((notifData) => {
+        setSends(notifData.sends || []);
+        setLoadError("");
+      })
+      .catch((err) => {
+        console.error(err);
+        setLoadError("Couldn't load the recent notifications.");
+      })
+      .finally(() => setLoading(false));
+  }
 
   useEffect(() => {
-    fetch("/api/admin/notifications")
-      .then((r) => r.json())
-      .then((notifData) => setSends(notifData.sends || []))
-      .catch(console.error)
-      .finally(() => setLoading(false));
+    void loadSends();
   }, []);
+
+  const shown = sends.filter((n) => kind === "all" || (kind === "admin" ? n.admin : !n.admin));
 
   // Server-side user search (debounced) so every user can be reached, not only the first page
   useEffect(() => {
@@ -78,15 +101,30 @@ export default function AdminNotificationsPage() {
     const audience = await fetch(`/api/admin/notifications/audience?channel=${channel}`)
       .then((r) => (r.ok ? r.json() : null))
       .catch(() => null);
-    if (!audience) return confirm(`Could not count the recipients. Send this notification to ALL active users${via} of the selected country anyway?`);
+    if (!audience) {
+      return confirm({
+        title: "Send to everyone?",
+        description: `The recipients couldn't be counted. Send this notification to ALL active users${via} of the selected country anyway?`,
+        confirmLabel: "Send anyway",
+        destructive: true,
+      });
+    }
     const where = audience.country ? `in ${audience.country}` : "in all countries";
-    return confirm(`Send this notification to ${audience.count.toLocaleString("en-GB")} active users${via} ${where}?`);
+    return confirm({
+      title: "Send this notification?",
+      description: `${audience.count.toLocaleString("en-GB")} active ${audience.count === 1 ? "user" : "users"}${via} ${where} get it.`,
+      confirmLabel: "Send",
+    });
   }
 
   async function handleSend(e: React.FormEvent) {
     e.preventDefault();
     if (!title || !body) return;
-    if (!sendAll && !selectedUser) return;
+    if (!sendAll && !selectedUser) {
+      // «Specific user» with nobody picked used to do nothing at all (ADM-21)
+      setResult({ ok: false, text: "Choose the member first: search, then pick them in the list." });
+      return;
+    }
     if (sendAll && !(await confirmBroadcast())) return;
 
     setSending(true);
@@ -114,9 +152,7 @@ export default function AdminNotificationsPage() {
       setUrl("/dashboard");
 
       // Refresh list
-      const notifRes = await fetch("/api/admin/notifications");
-      const notifData = await notifRes.json();
-      setSends(notifData.sends || []);
+      await loadSends();
     } catch {
       setResult({ ok: false, text: "Failed to send notification" });
     } finally {
@@ -127,7 +163,7 @@ export default function AdminNotificationsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold flex items-center gap-3">
+        <h1 className="text-2xl font-display flex items-center gap-3">
           <Bell className="h-7 w-7 text-primary" />
           Notifications
         </h1>
@@ -142,7 +178,7 @@ export default function AdminNotificationsPage() {
         <CardContent>
           <form onSubmit={handleSend} className="space-y-4">
             {result && (
-              <div className={`rounded-lg p-3 text-sm ${
+              <div role={result.ok ? "status" : "alert"} className={`rounded-lg p-3 text-sm ${
                 result.ok ? "bg-green-50 text-green-800 border border-green-200" : "bg-destructive/10 text-destructive"
               }`}>
                 {result.text}
@@ -150,11 +186,12 @@ export default function AdminNotificationsPage() {
             )}
 
             {/* Toggle */}
-            <div className="flex gap-2">
+            <div role="group" aria-label="Recipients" className="flex gap-2">
               <Button
                 type="button"
                 variant={sendAll ? "default" : "outline"}
                 size="sm"
+                aria-pressed={sendAll}
                 onClick={() => setSendAll(true)}
               >
                 <UsersIcon className="h-4 w-4 me-2" /> All Users
@@ -163,6 +200,7 @@ export default function AdminNotificationsPage() {
                 type="button"
                 variant={!sendAll ? "default" : "outline"}
                 size="sm"
+                aria-pressed={!sendAll}
                 onClick={() => setSendAll(false)}
               >
                 <User className="h-4 w-4 me-2" /> Specific User
@@ -171,9 +209,10 @@ export default function AdminNotificationsPage() {
 
             {!sendAll && (
               <div className="space-y-2">
-                <Label>Select User</Label>
+                <Label htmlFor={`${fid}-search`}>Find the member</Label>
                 <div className="relative">
                   <Input
+                    id={`${fid}-search`}
                     value={userSearch}
                     onChange={(e) => { setUserSearch(e.target.value); setSelectedUser(""); }}
                     placeholder="Search by name or phone..."
@@ -182,7 +221,9 @@ export default function AdminNotificationsPage() {
                     <Loader2 className="absolute end-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
                   )}
                 </div>
+                <Label htmlFor={`${fid}-user`} className="sr-only">Member</Label>
                 <select
+                  id={`${fid}-user`}
                   value={selectedUser}
                   onChange={(e) => setSelectedUser(e.target.value)}
                   className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
@@ -198,8 +239,8 @@ export default function AdminNotificationsPage() {
             )}
 
             <div className="space-y-2">
-              <Label>Send to</Label>
-              <div className="flex flex-wrap gap-2">
+              <Label id={`${fid}-to`}>Send to</Label>
+              <div role="group" aria-labelledby={`${fid}-to`} className="flex flex-wrap gap-2">
                 {([
                   ["all", "Website + App"],
                   ["web", "Website only"],
@@ -210,6 +251,7 @@ export default function AdminNotificationsPage() {
                     type="button"
                     variant={channel === value ? "default" : "outline"}
                     size="sm"
+                    aria-pressed={channel === value}
                     onClick={() => setChannel(value)}
                   >
                     {label}
@@ -226,8 +268,10 @@ export default function AdminNotificationsPage() {
             </div>
 
             <div className="space-y-2">
-              <Label>Title</Label>
+              <Label htmlFor={`${fid}-title`}>Title</Label>
               <Input
+                id={`${fid}-title`}
+                dir="auto"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="Notification title..."
@@ -236,8 +280,10 @@ export default function AdminNotificationsPage() {
             </div>
 
             <div className="space-y-2">
-              <Label>Body</Label>
+              <Label htmlFor={`${fid}-body`}>Body</Label>
               <textarea
+                id={`${fid}-body`}
+                dir="auto"
                 className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm min-h-[80px]"
                 value={body}
                 onChange={(e) => setBody(e.target.value)}
@@ -247,8 +293,9 @@ export default function AdminNotificationsPage() {
             </div>
 
             <div className="space-y-2">
-              <Label>Route (where user goes when tapping the notification)</Label>
+              <Label htmlFor={`${fid}-route`}>Route (where user goes when tapping the notification)</Label>
               <select
+                id={`${fid}-route`}
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
                 className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
@@ -280,23 +327,42 @@ export default function AdminNotificationsPage() {
       {/* Recent Notifications */}
       <Card>
         <CardHeader>
-          <CardTitle>Recent System Notifications</CardTitle>
-          <CardDescription>Last 90 days. Same title and text sent together count as one send.</CardDescription>
+          <CardTitle>Recent notifications</CardTitle>
+          <CardDescription>
+            Last 90 days. Same title and text sent together count as one send. Admin sends are marked since 11 Nov 2026;
+            earlier ones show under «Automatic».
+          </CardDescription>
+          <div role="group" aria-label="Which notifications" className="flex flex-wrap gap-2 pt-2">
+            {([
+              ["admin", "Sent by admins"],
+              ["auto", "Automatic"],
+              ["all", "All"],
+            ] as const).map(([value, label]) => (
+              <Button key={value} type="button" size="sm" variant={kind === value ? "default" : "outline"} aria-pressed={kind === value} onClick={() => setKind(value)}>
+                {label}
+              </Button>
+            ))}
+          </div>
         </CardHeader>
         <CardContent>
           {loading ? (
             <div className="flex justify-center py-8">
               <Loader2 className="h-6 w-6 animate-spin text-primary" />
             </div>
-          ) : sends.length === 0 ? (
-            <p className="text-center text-muted-foreground py-8">No system notifications sent yet</p>
+          ) : loadError ? (
+            <AdminLoadError message={loadError} onRetry={() => { setLoading(true); void loadSends(); }} />
+          ) : shown.length === 0 ? (
+            <AdminEmptyState icon={Bell} title={kind === "admin" ? "No admin sends in the last 90 days" : "Nothing here in the last 90 days"} />
           ) : (
             <div className="space-y-3">
-              {sends.map((n) => (
+              {shown.map((n) => (
                 <div key={`${n.sentAt}-${n.title}`} className="border rounded-lg p-3 text-sm space-y-1">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="font-medium">{n.title}</span>
+                    <span className="font-medium" dir="auto">{n.title}</span>
                     <div className="flex items-center gap-2 shrink-0">
+                      {kind === "all" && (
+                        <Badge variant="secondary" className="text-xs">{n.admin ? "Admin" : "Automatic"}</Badge>
+                      )}
                       {n.recipients === 1 ? (
                         <Badge variant={n.read ? "outline" : "default"} className="text-xs">
                           {n.read ? "Read" : "Unread"}
@@ -309,7 +375,7 @@ export default function AdminNotificationsPage() {
                       <span className="text-xs text-muted-foreground">{fmtDateTime(n.sentAt)}</span>
                     </div>
                   </div>
-                  <p className="text-muted-foreground break-words">{n.body}</p>
+                  <p className="text-muted-foreground break-words" dir="auto">{n.body}</p>
                   <p className="text-xs text-muted-foreground">
                     {n.recipients === 1 ? (
                       n.user ? <>To: <PersonLink p={n.user} /></> : "To: one member"

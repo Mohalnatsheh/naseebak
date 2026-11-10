@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { readFromBunny } from "@/lib/bunny";
 import { parseRange } from "@/lib/chat/media";
 import { readMediaCached } from "@/lib/chat/media-cache";
+import { shouldLogMediaView } from "@/lib/admin/media-view-log";
 
 /**
  * A chat photo or voice note, streamed to one of the two members (web session or app Bearer) or to an
@@ -39,7 +40,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       if ("error" in admin) return notFound();
       adminId = admin.session.user.id;
     }
-    if (adminId) console.info(`[admin-chat-view] admin=${adminId} chat=${id} media=${messageId} at=${new Date().toISOString()}`);
+    // Once per admin and file per minute: one play is several Range requests (ADM-28)
+    if (adminId && shouldLogMediaView(adminId, messageId)) console.info(`[admin-chat-view] admin=${adminId} chat=${id} media=${messageId} at=${new Date().toISOString()}`);
 
     // Several Range requests per play: the bytes are read from Bunny once and kept for a minute
     const mediaPath = message.mediaPath;

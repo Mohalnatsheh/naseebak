@@ -157,6 +157,12 @@ describe("notifications broadcast", () => {
     });
     expect(notifyMock.notifyMany).toHaveBeenCalledWith(["a", "b"], expect.objectContaining({ type: "SYSTEM", url: "/dashboard" }));
   });
+
+  it("marks admin sends so «Recent» can tell them from automatic notices (ADM-27)", async () => {
+    db.user.findMany.mockResolvedValue([{ id: "a" }]);
+    await sendNotification(jsonReq({ title: "t", body: "b" }));
+    expect(notifyMock.notifyMany).toHaveBeenCalledWith(["a"], expect.objectContaining({ metadata: { adminSend: true } }));
+  });
 });
 
 describe("deletion cancel", () => {

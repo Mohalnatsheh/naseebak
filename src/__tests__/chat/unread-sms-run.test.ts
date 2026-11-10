@@ -14,3 +14,13 @@ describe("runUnreadSms (narrowed SMS, 2026-11-07)", () => {
     expect(db.chatSmsNotice.upsert).not.toHaveBeenCalled();
   });
 });
+
+describe("sendChatSmsNow with notice SMS off (ADM-20)", () => {
+  it("refuses before sending and records nothing, so the row never reads «switched off» as a result", async () => {
+    const { getSetting } = await import("@/lib/settings");
+    vi.mocked(getSetting).mockResolvedValueOnce("false");
+    const { sendChatSmsNow } = await import("@/lib/chat/unread-sms");
+    expect(await sendChatSmsNow("c1", "admin1")).toEqual({ ok: false, reason: "sms_off" });
+    expect(db.chatSmsNotice.upsert).not.toHaveBeenCalled();
+  });
+});

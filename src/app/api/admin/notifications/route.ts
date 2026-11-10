@@ -50,7 +50,8 @@ export async function POST(request: Request) {
     if (!(["all", "web", "app"] as const).includes(channel)) {
       return NextResponse.json({ error: "channel must be all, web or app" }, { status: 400 });
     }
-    const input = { type: "SYSTEM" as const, title, body: notifBody, url: safeUrl(body.url), channel };
+    // `adminSend` tells admin sends apart from automatic SYSTEM notices in «Recent» (ADM-27)
+    const input = { type: "SYSTEM" as const, title, body: notifBody, url: safeUrl(body.url), channel, metadata: { adminSend: true } };
     // Sends only reach the admin's selected country ("ALL" = every country)
     const country = await getAdminCountry(request);
 

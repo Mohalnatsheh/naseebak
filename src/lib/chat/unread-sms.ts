@@ -166,6 +166,8 @@ export async function runUnreadSms(now = new Date()) {
  * one-SMS-per-day cap still applies: "already_today" stays retryable, so the automatic run sends it on a later day.
  */
 export async function sendChatSmsNow(conversationId: string, adminId: string, now = new Date()) {
+  // Notice SMS switched off: say so instead of «sending» and recording "disabled" as the final result (ADM-20)
+  if (!(await smsNoticesEnabled())) return { ok: false as const, reason: "sms_off" };
   const c = await db.conversation.findUnique({ where: { id: conversationId }, select: chatSelect });
   if (!c) return { ok: false as const, reason: "not_found" };
   const targets = chatSmsTargets({ ...c.match, createdAt: c.createdAt, messages: c.messages }, now, true);

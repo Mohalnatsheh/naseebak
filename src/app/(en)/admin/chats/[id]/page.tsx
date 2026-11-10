@@ -3,7 +3,7 @@
 import { use, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowDown, ArrowLeft, ArrowUp, Check, CheckCheck, Eye, Flag, Heart, Loader2, MessagesSquare, Search } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowUp, Check, CheckCheck, ChevronDown, ChevronUp, Eye, Flag, Heart, Loader2, MessagesSquare, Search } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,6 +11,9 @@ import { cn } from "@/lib/utils";
 import { fmtDate, fmtDateTime, PersonLink, StateBadge, type PersonRef } from "@/components/admin/admin-list-bits";
 import { enumLabel } from "@/lib/admin/enum-labels";
 import { fmtLeft } from "@/lib/admin/matching-time";
+import { AdminEmptyState, AdminLoadError } from "@/components/admin/admin-states";
+import { useConfirm } from "@/components/admin/confirm-dialog";
+import { clockLabel } from "@/components/chat/media-buttons";
 
 interface ChatDetail {
   id: string;
@@ -58,13 +61,35 @@ function AdminMedia({ m }: { m: Msg }) {
       </a>
     );
   }
+  return <AdminVoice url={m.media.url} declared={m.media.durationSec} />;
+}
+
+/**
+ * Same length as the member sees (WC2-15): the file's own once its metadata loads (members' VoiceBubble), the
+ * declared length (rounded up when sent) until then. preload="none": each fetch is a logged view.
+ */
+function AdminVoice({ url, declared }: { url: string; declared: number | null }) {
+  const [fileLength, setFileLength] = useState<number | null>(null);
+  const length = fileLength ?? declared;
   return (
     <div className="mt-1">
-      <audio controls preload="none" src={m.media.url} className="h-10 w-60 max-w-full" />
-      {m.media.durationSec != null && <p className="text-[11px] opacity-70">Voice note · {m.media.durationSec}s</p>}
+      <audio
+        controls
+        preload="none"
+        src={url}
+        className="h-10 w-60 max-w-full"
+        onLoadedMetadata={(e) => {
+          const d = e.currentTarget.duration;
+          if (Number.isFinite(d) && d > 0) setFileLength(d);
+        }}
+      />
+      {length != null && <p className="text-[11px] opacity-70">Voice note · {clockLabel(length)}</p>}
     </div>
   );
 }
+
+/** Messages drawn at first; «Load older» adds this many more (ADM-26: long chats no longer render 3,000 at once) */
+const PAGE = 200;
 
 function fmtTime(d: string) {
   return new Date(d).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Amman" });
@@ -74,7 +99,7 @@ function fmtTime(d: string) {
 function endedByLabel(by: string | null) {
   if (by === "admin") return "by admin";
   if (by === "system") return "by the system";
-  return by ? `by ${by}` : "";
+  return by ? <>by <bdi>{by}</bdi></> : "";
 }
 
 /** Full message history of one chat, oldest first. The first person is shown on the left. */
@@ -87,8 +112,13 @@ export default function AdminChatPage({ params }: { params: Promise<{ id: string
   const [find, setFind] = useState("");
   const [only, setOnly] = useState("");
   const [ending, setEnding] = useState(false);
+  // How many of the newest messages are drawn (searching or filtering looks through all of them)
+  const [windowSize, setWindowSize] = useState(PAGE);
+  const [reportAt, setReportAt] = useState(-1);
+  const confirm = useConfirm();
 
   const load = useCallback(async () => {
+    setError("");
     try {
       const res = await fetch(`/api/admin/chats/${id}/messages`);
       if (!res.ok) throw new Error(res.status === 404 ? "Chat not found." : "Could not load the chat.");
@@ -107,14 +137,26 @@ export default function AdminChatPage({ params }: { params: Promise<{ id: string
 
   // Opened from a report («Show in chat», #msg-<id>): scroll to that message once the chat is on screen
   const loadedCount = messages.length;
+  const [hashTarget, setHashTarget] = useState<string | null>(null);
   useEffect(() => {
     if (!loadedCount || typeof window === "undefined" || !window.location.hash.startsWith("#msg-")) return;
-    document.getElementById(window.location.hash.slice(1))?.scrollIntoView({ block: "center" });
+    setHashTarget(window.location.hash.slice(5));
   }, [loadedCount]);
 
   async function endChat() {
     if (!chat) return;
-    if (!confirm(`End the chat between ${chat.people.map((p) => p.firstName).join(" & ")}? Both are told.`)) return;
+    const ok = await confirm({
+      title: "End this chat?",
+      description: (
+        <>
+          The chat between <bdi>{chat.people[0]?.firstName}</bdi> &amp; <bdi>{chat.people[1]?.firstName}</bdi> ends now.
+          Both are told. This can&apos;t be undone.
+        </>
+      ),
+      confirmLabel: "End chat",
+      destructive: true,
+    });
+    if (!ok) return;
     setEnding(true);
     const res = await fetch(`/api/admin/chats/${id}/end`, { method: "POST" }).catch(() => null);
     if (res?.ok) {
@@ -129,12 +171,42 @@ export default function AdminChatPage({ params }: { params: Promise<{ id: string
 
   const reportedIds = useMemo(() => new Set((chat?.reports ?? []).flatMap((r) => (r.messageId ? [r.messageId] : []))), [chat]);
   const term = find.trim().toLowerCase();
-  const shown = useMemo(
+  const filteringNow = !!term || !!only;
+  const matching = useMemo(
     () => messages.filter((m) => (!only || m.senderId === only) && (!term || m.body.toLowerCase().includes(term))),
     [messages, only, term],
   );
+  // Reported messages in the order they appear: the jump chip steps through them
+  const reportedInOrder = useMemo(() => messages.filter((m) => reportedIds.has(m.id)).map((m) => m.id), [messages, reportedIds]);
+  // Keep a message the admin jumps to inside the drawn window
+  const needIndex = (msgId: string | null) => (msgId ? messages.findIndex((m) => m.id === msgId) : -1);
+  const target = reportAt >= 0 ? reportedInOrder[reportAt] ?? null : hashTarget;
+  const targetIndex = needIndex(target);
+  const windowFrom = Math.max(0, Math.min(messages.length - windowSize, targetIndex >= 0 ? targetIndex - 20 : Number.MAX_SAFE_INTEGER));
+  const shown = filteringNow ? matching : messages.slice(windowFrom);
+  const hiddenOlder = filteringNow ? 0 : windowFrom;
 
-  if (error) return <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>;
+  useEffect(() => {
+    if (target) document.getElementById(`msg-${target}`)?.scrollIntoView({ block: "center" });
+  }, [target, windowFrom]);
+
+  function jumpReported(step: 1 | -1) {
+    if (!reportedInOrder.length) return;
+    setFind("");
+    setOnly("");
+    setReportAt((i) => (i < 0 ? (step === 1 ? 0 : reportedInOrder.length - 1) : (i + step + reportedInOrder.length) % reportedInOrder.length));
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-4">
+        <Link href="/admin/chats" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
+          <ArrowLeft className="h-4 w-4" /> All chats
+        </Link>
+        <AdminLoadError message={error} onRetry={error === "Chat not found." ? undefined : load} />
+      </div>
+    );
+  }
   if (!chat) {
     return (
       <div className="flex justify-center py-20">
@@ -197,13 +269,15 @@ export default function AdminChatPage({ params }: { params: Promise<{ id: string
             {paused
               ? ` · Paused ${fmtDateTime(chat.endedAt)} while reports are reviewed (resumes by itself if cleared)`
               : chat.endedAt && ` · Ended ${fmtDate(chat.endedAt)} ${endedByLabel(chat.endedBy)}`}
-            {` · ${messages.length} messages (${left.firstName} ${countOf(left.id)} · ${right.firstName} ${countOf(right.id)})`}
+            {` · ${messages.length} message${messages.length === 1 ? "" : "s"} (`}
+            <bdi>{left.firstName}</bdi> {countOf(left.id)} · <bdi>{right.firstName}</bdi> {countOf(right.id)})
             {messages.length > 0 && ` · last ${fmtDate(messages[messages.length - 1].createdAt)} ${fmtTime(messages[messages.length - 1].createdAt)}`}
           </p>
           {messages.length > 0 && (
             <div className="flex flex-wrap items-center gap-2">
               <label className="relative min-w-0 flex-1 basis-56">
                 <Search className="pointer-events-none absolute start-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <span className="sr-only">Search in this chat</span>
                 <input
                   id="chat-find"
                   value={find}
@@ -213,13 +287,45 @@ export default function AdminChatPage({ params }: { params: Promise<{ id: string
                   className="h-9 w-full rounded-md border bg-background ps-8 pe-3 text-sm"
                 />
               </label>
-              <select id="chat-only" value={only} onChange={(e) => setOnly(e.target.value)} className="h-9 rounded-md border bg-background px-2 text-sm">
+              <select id="chat-only" aria-label="Whose messages" value={only} onChange={(e) => setOnly(e.target.value)} className="h-9 rounded-md border bg-background px-2 text-sm">
                 <option value="">Both people</option>
-                <option value={left.id}>Only {left.firstName}</option>
-                <option value={right.id}>Only {right.firstName}</option>
+                <option value={left.id}>Only {"\u2068"}{left.firstName}{"\u2069"}</option>
+                <option value={right.id}>Only {"\u2068"}{right.firstName}{"\u2069"}</option>
               </select>
-              <a href="#chat-top" className="inline-flex h-9 items-center gap-1 rounded-md border px-2.5 text-sm hover:bg-muted"><ArrowUp className="h-3.5 w-3.5" /> First</a>
+              <a
+                href="#chat-top"
+                onClick={() => {
+                  setReportAt(-1);
+                  setHashTarget(null);
+                  setWindowSize(messages.length);
+                }}
+                className="inline-flex h-9 items-center gap-1 rounded-md border px-2.5 text-sm hover:bg-muted"
+              >
+                <ArrowUp className="h-3.5 w-3.5" /> First
+              </a>
               <a href="#chat-end" className="inline-flex h-9 items-center gap-1 rounded-md border px-2.5 text-sm hover:bg-muted"><ArrowDown className="h-3.5 w-3.5" /> Latest</a>
+              {reportedInOrder.length > 0 && (
+                <span className="inline-flex h-9 items-center rounded-md border border-accent bg-accent/10 text-sm">
+                  <button
+                    type="button"
+                    onClick={() => jumpReported(1)}
+                    className="inline-flex h-full items-center gap-1.5 px-2.5 font-medium text-foreground hover:bg-accent/20"
+                  >
+                    <Flag className="h-3.5 w-3.5 text-accent" aria-hidden="true" />
+                    Reported message{reportedInOrder.length > 1 ? ` ${reportAt >= 0 ? reportAt + 1 : "–"} of ${reportedInOrder.length}` : ""}
+                  </button>
+                  {reportedInOrder.length > 1 && (
+                    <>
+                      <button type="button" aria-label="Previous reported message" onClick={() => jumpReported(-1)} className="inline-flex h-full items-center border-s border-accent/40 px-1.5 hover:bg-accent/20">
+                        <ChevronUp className="h-4 w-4" />
+                      </button>
+                      <button type="button" aria-label="Next reported message" onClick={() => jumpReported(1)} className="inline-flex h-full items-center border-s border-accent/40 px-1.5 hover:bg-accent/20">
+                        <ChevronDown className="h-4 w-4" />
+                      </button>
+                    </>
+                  )}
+                </span>
+              )}
               {filtering && <span className="text-xs text-muted-foreground">{shown.length} of {messages.length} shown</span>}
             </div>
           )}
@@ -229,9 +335,16 @@ export default function AdminChatPage({ params }: { params: Promise<{ id: string
             <p className="mb-3 rounded-md bg-amber-100 px-3 py-2 text-sm text-amber-800">Showing the latest {messages.length} messages only.</p>
           )}
           {messages.length === 0 ? (
-            <p className="py-10 text-center text-sm text-muted-foreground">No messages in this chat.</p>
+            <AdminEmptyState icon={MessagesSquare} title="No messages in this chat" />
           ) : (
             <div id="chat-top" className="space-y-2 rounded-lg bg-muted/30 p-3 sm:p-4">
+              {hiddenOlder > 0 && (
+                <div className="flex justify-center pb-2">
+                  <Button size="sm" variant="outline" onClick={() => setWindowSize((n) => n + PAGE)}>
+                    <ArrowUp className="me-1 h-3.5 w-3.5" /> Load older ({hiddenOlder.toLocaleString("en-GB")} more)
+                  </Button>
+                </div>
+              )}
               {filtering && shown.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">No message matches.</p>}
               {shown.map((m, i) => {
                 const day = fmtDate(m.createdAt);
@@ -245,15 +358,17 @@ export default function AdminChatPage({ params }: { params: Promise<{ id: string
                         className={cn(
                           "max-w-[80%] rounded-2xl px-3 py-2 shadow-sm",
                           mine ? "rounded-bl-sm bg-background" : "rounded-br-sm bg-primary text-primary-foreground",
-                          reportedIds.has(m.id) && "ring-2 ring-destructive ring-offset-2"
+                          // Gold, not red: the reported message is evidence to read, not an error (design P2)
+                          reportedIds.has(m.id) && "ring-2 ring-accent ring-offset-2",
+                          m.id === target && "outline-2 outline-offset-4 outline-accent"
                         )}
                       >
                         {reportedIds.has(m.id) && (
-                          <p className="mb-1 inline-flex items-center gap-1 rounded-full bg-destructive px-2 py-0.5 text-[11px] font-semibold text-white">
+                          <p className="mb-1 inline-flex items-center gap-1 rounded-full bg-accent px-2 py-0.5 text-[11px] font-semibold text-accent-foreground">
                             <Flag className="h-3 w-3" /> Reported message
                           </p>
                         )}
-                        <p className={cn("text-xs font-semibold", mine ? "text-primary" : "text-primary-foreground/80")}>{nameOf(m.senderId)}</p>
+                        <p className={cn("text-xs font-semibold", mine ? "text-primary" : "text-primary-foreground/80")}><bdi>{nameOf(m.senderId)}</bdi></p>
                         {m.replyTo && (
                           <a
                             href={`#msg-${m.replyTo.id}`}
@@ -262,7 +377,7 @@ export default function AdminChatPage({ params }: { params: Promise<{ id: string
                               mine ? "border-primary bg-muted" : "border-primary-foreground/60 bg-primary-foreground/10"
                             )}
                           >
-                            <span className="font-semibold">Reply to {nameOf(m.replyTo.senderId)}: </span>
+                            <span className="font-semibold">Reply to <bdi>{nameOf(m.replyTo.senderId)}</bdi>: </span>
                             <span dir="auto">{m.replyTo.snippet}</span>
                           </a>
                         )}
@@ -279,7 +394,7 @@ export default function AdminChatPage({ params }: { params: Promise<{ id: string
                           <p className={cn("mt-1 flex flex-wrap gap-1 text-[11px]", mine ? "text-muted-foreground" : "text-primary-foreground/80")}>
                             {m.reactions.map((r) => (
                               <span key={r.userId} className="rounded-full bg-background/80 px-1.5 py-0.5 text-foreground">
-                                {r.emoji} {nameOf(r.userId)}
+                                {r.emoji} <bdi>{nameOf(r.userId)}</bdi>
                               </span>
                             ))}
                           </p>

@@ -17,6 +17,7 @@ import type { ChatSummary } from "@/lib/chat/service";
 import type { FeedItem } from "@/lib/suggestions/feed-types";
 import { homeZeroCreditLine } from "@/lib/suggestions/copy";
 import { ProBadge } from "@/components/shared/pro-badge";
+import { ProIntroCard, proIntroShown } from "@/components/payments/pro-intro-card";
 import { MemberAvatar } from "@/components/shared/member-avatar";
 import { BannerSlot, requestsWaiting } from "@/components/shared/banner-slot";
 
@@ -370,6 +371,11 @@ export default function DashboardPage() {
               </ul>
             )}
           </section>
+        )}
+
+        {/* «جديد: عضوية Pro»: only for a member who can buy it and isn't Pro, after setup; ✕ hides it on this device */}
+        {qualifiesForSuggestions && proIntroShown(counts.pro) && (
+          <ProIntroCard gender={profile.gender} chatOn={!!counts.flags.chat} />
         )}
 
         {/* «سؤال الأسبوع»: the same question as on Instagram and /poll (switch engagement_polls_enabled) */}

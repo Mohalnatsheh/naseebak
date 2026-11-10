@@ -4,6 +4,7 @@ import { requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { isPro } from "@/lib/pro/status";
 import { cancelProNow } from "@/lib/pro/manage";
+import { nextGrantOf } from "@/lib/pro/my-state";
 
 /** A member's Pro memberships for the admin user page, newest first, and whether they are Pro now */
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -12,7 +13,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     if ("error" in result) return result.error;
     const { id } = await params;
 
-    const [pro, subscriptions] = await Promise.all([
+    const [pro, subs] = await Promise.all([
       isPro(id),
       db.proSubscription.findMany({
         where: { userId: id },
@@ -20,10 +21,29 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
         select: {
           id: true, plan: true, status: true, country: true, price: true, currency: true, creditsPerGrant: true,
           currentPeriodEnd: true, cancelAtPeriodEnd: true, endedAt: true, createdAt: true,
-          stripeSubscriptionId: true, stripeCustomerId: true,
+          stripeSubscriptionId: true, stripeCustomerId: true, nextCreditGrantAt: true,
         },
       }),
     ]);
+    // Grants made so far per membership (taken-back ones excluded) and the next one (QA WP2-18, admin side)
+    const made = subs.length
+      ? await db.proCreditGrant.groupBy({
+          by: ["subscriptionId"],
+          where: { subscriptionId: { in: subs.map((s) => s.id) }, takenBack: false },
+          _count: { _all: true },
+          _sum: { credits: true },
+        })
+      : [];
+    const madeOf = new Map(made.map((g) => [g.subscriptionId, { count: g._count._all, credits: g._sum.credits ?? 0 }]));
+    const subscriptions = subs.map(({ nextCreditGrantAt, ...s }) => {
+      const live = s.status === "ACTIVE" || s.status === "PAST_DUE";
+      return {
+        ...s,
+        grantsMade: madeOf.get(s.id)?.count ?? 0,
+        creditsGranted: madeOf.get(s.id)?.credits ?? 0,
+        nextGrantAt: live ? nextGrantOf({ ...s, nextCreditGrantAt }) : null,
+      };
+    });
     return NextResponse.json({ isPro: pro, subscriptions });
   } catch (error) {
     console.error("Admin Pro status error:", error);

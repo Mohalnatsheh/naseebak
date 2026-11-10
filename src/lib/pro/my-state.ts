@@ -49,7 +49,7 @@ export async function getMyProState(
  * The next credits (QA WP2-18): yearly plans drip monthly (`nextCreditGrantAt`, while still inside the paid year);
  * weekly and monthly ones grant on the renewal, which won't come if it was cancelled or the payment is failing.
  */
-function nextGrantOf(sub: { plan: ProPlan; creditsPerGrant: number; nextCreditGrantAt: Date | null; currentPeriodEnd: Date; cancelAtPeriodEnd: boolean; status: string }): string | null {
+export function nextGrantOf(sub: { plan: ProPlan; creditsPerGrant: number; nextCreditGrantAt: Date | null; currentPeriodEnd: Date; cancelAtPeriodEnd: boolean; status: string }): string | null {
   if (sub.creditsPerGrant <= 0) return null;
   if (sub.plan === "YEARLY") {
     const next = sub.nextCreditGrantAt;

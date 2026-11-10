@@ -4,6 +4,7 @@ process.env.STRIPE_SECRET_KEY ??= "sk_test_dummy";
 
 const db = vi.hoisted(() => ({
   proSubscription: { findFirst: vi.fn(), findMany: vi.fn() },
+  proCreditGrant: { groupBy: vi.fn() },
   payment: { findUnique: vi.fn() },
 }));
 const manage = vi.hoisted(() => ({ cancelPro: vi.fn(), resumePro: vi.fn(), cancelProNow: vi.fn() }));
@@ -80,6 +81,20 @@ describe("member cancel / resume", () => {
 });
 
 describe("admin Pro panel", () => {
+  it("lists grants made and the next grant per membership (QA WP2-18, admin side)", async () => {
+    const end = new Date("2027-11-09T10:00:00.000Z");
+    db.proSubscription.findMany.mockResolvedValue([
+      { id: "y1", plan: "YEARLY", status: "ACTIVE", creditsPerGrant: 8, currentPeriodEnd: end, cancelAtPeriodEnd: false, nextCreditGrantAt: new Date("2026-12-09T10:00:00.000Z") },
+      { id: "m0", plan: "MONTHLY", status: "ENDED", creditsPerGrant: 4, currentPeriodEnd: new Date("2026-10-01"), cancelAtPeriodEnd: false, nextCreditGrantAt: null },
+    ]);
+    db.proCreditGrant.groupBy.mockResolvedValue([{ subscriptionId: "y1", _count: { _all: 2 }, _sum: { credits: 16 } }]);
+    const body = await (await adminGet(new Request("http://x"), params("u1"))).json();
+    expect(db.proCreditGrant.groupBy.mock.calls[0][0].where).toEqual({ subscriptionId: { in: ["y1", "m0"] }, takenBack: false });
+    expect(body.subscriptions[0]).toMatchObject({ grantsMade: 2, creditsGranted: 16, nextGrantAt: "2026-12-09T10:00:00.000Z" });
+    expect(body.subscriptions[0]).not.toHaveProperty("nextCreditGrantAt");
+    expect(body.subscriptions[1]).toMatchObject({ grantsMade: 0, creditsGranted: 0, nextGrantAt: null });
+  });
+
   it("only admins", async () => {
     auth.requireAdmin.mockResolvedValue({ error: new Response(null, { status: 403 }) });
     expect((await adminGet(new Request("http://x"), params("u1"))).status).toBe(403);

@@ -32,6 +32,10 @@ interface Subscription {
   createdAt: string;
   stripeSubscriptionId: string | null;
   stripeCustomerId: string | null;
+  /** Credit grants made so far (taken-back ones excluded) and their credits; the next grant, or null (QA WP2-18) */
+  grantsMade?: number;
+  creditsGranted?: number;
+  nextGrantAt?: string | null;
 }
 
 const LIVE = ["ACTIVE", "PAST_DUE"];
@@ -114,6 +118,13 @@ export function MemberProCard({ userId }: { userId: string }) {
                   {" · started "}
                   {fmtDateTime(s.createdAt)}
                 </p>
+                {typeof s.grantsMade === "number" && s.creditsPerGrant > 0 && (
+                  <p data-testid="pro-grants" className="text-xs text-muted-foreground">
+                    Grants made: {s.grantsMade} ({s.creditsGranted ?? 0} credits)
+                    {" · "}
+                    {s.nextGrantAt ? `Next grant ${fmtDateTime(s.nextGrantAt)} (${s.creditsPerGrant} credits)` : "No next grant"}
+                  </p>
+                )}
                 {s.stripeSubscriptionId && (
                   <p className="break-all font-mono text-xs text-muted-foreground" dir="ltr">
                     {s.stripeSubscriptionId}

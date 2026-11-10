@@ -111,3 +111,23 @@ describe("ProPlansEditor: what goes to the server", () => {
     expect(document.getElementById("pro-SA-weekly-price")).toBeTruthy();
   });
 });
+
+describe("MemberProCard (admin): grants (QA WP2-18)", () => {
+  it("shows grants made and the next grant", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify({ isPro: true, subscriptions: [sub({ grantsMade: 3, creditsGranted: 24, nextGrantAt: "2026-12-09T10:00:00.000Z" })] }), { status: 200 }))
+    );
+    render(<MemberProCard userId="u1" />);
+    const line = await screen.findByTestId("pro-grants");
+    expect(line.textContent).toContain("Grants made: 3 (24 credits)");
+    expect(line.textContent).toContain("Next grant");
+    expect(line.textContent).toContain("(8 credits)");
+  });
+
+  it("no next grant once the renewal is off", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ isPro: true, subscriptions: [sub({ grantsMade: 1, creditsGranted: 8, nextGrantAt: null, cancelAtPeriodEnd: true })] }), { status: 200 })));
+    render(<MemberProCard userId="u1" />);
+    expect((await screen.findByTestId("pro-grants")).textContent).toContain("No next grant");
+  });
+});

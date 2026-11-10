@@ -8,6 +8,18 @@ import { scoringSelect } from "@/lib/matching/auto-suggest";
 import { mutuallyAcceptable, type UserForScoring } from "@/lib/matching/score";
 import { isEngaged } from "@/lib/intro/followup";
 import { DEFAULT_COUNTRY, countryConfig } from "@/lib/countries";
+import { meetsSuggestionGate } from "@/lib/profile-completeness";
+import { getCycleFlags } from "@/lib/settings";
+
+/** What `meetsSuggestionGate` reads (both cycles) */
+const gateSelect = {
+  id: true,
+  profile: true,
+  personalityResult: { select: { vector: true, personalityType: true } },
+  photos: { select: { id: true } },
+  identityDoc: { select: { status: true } },
+  parentInfo: { select: { id: true, parentName: true } },
+} as const;
 
 export interface PairError {
   error: string;
@@ -55,6 +67,18 @@ export async function checkSuggestionPair(recipientId: string, candidateId: stri
   const a = scoring.find((u) => u.id === recipientId);
   const b = scoring.find((u) => u.id === candidateId);
   if (!a?.profile || !b?.profile) return { error: "One of them has no profile yet", status: 400 };
+  // QA ADM-09: the same gate as automatic suggestions, for both people (a member mid-setup gets no cards)
+  const { introRequests } = await getCycleFlags();
+  const gated = await db.user.findMany({ where: { id: { in: [recipientId, candidateId] } }, select: gateSelect });
+  for (const id of [recipientId, candidateId]) {
+    const u = gated.find((g) => g.id === id);
+    if (!u || !meetsSuggestionGate(u, introRequests)) {
+      return {
+        error: `${id === recipientId ? "The member" : "The candidate"} hasn't finished the setup, so they can't get suggestions yet`,
+        status: 409,
+      };
+    }
+  }
   if (!mutuallyAcceptable(a, b)) {
     return { error: "This pair breaks a dealbreaker (شروطي الأساسية) of one of them", status: 409 };
   }

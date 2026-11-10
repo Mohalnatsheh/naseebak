@@ -12,11 +12,12 @@ vi.mock("@/lib/intro/followup", () => followup);
 const score = vi.hoisted(() => ({ mutuallyAcceptable: vi.fn(() => true) }));
 vi.mock("@/lib/matching/score", () => score);
 vi.mock("@/lib/matching/auto-suggest", () => ({ scoringSelect: { id: true, gender: true, profile: true } }));
+vi.mock("@/lib/settings", () => ({ getCycleFlags: vi.fn(async () => ({ introRequests: true })) }));
 
 import { checkSuggestionPair } from "@/lib/admin/suggestion-pair";
 
 const person = (id: string, gender: string, over: object = {}) => ({
-  id, gender, role: "USER", status: "VERIFIED", isDeactivated: false, isFlagged: false, profile: {}, ...over,
+  id, gender, role: "USER", status: "VERIFIED", isDeactivated: false, isFlagged: false, profile: { isComplete: true }, ...over,
 });
 
 beforeEach(() => {
@@ -30,6 +31,19 @@ beforeEach(() => {
 });
 
 describe("checkSuggestionPair, the cycle's rules (G62)", () => {
+  it("refuses a member whose setup isn't finished (ADM-09)", async () => {
+    db.user.findMany.mockResolvedValue([person("a", "FEMALE", { profile: { isComplete: false } }), person("b", "MALE")]);
+    const r = await checkSuggestionPair("a", "b");
+    expect(r).toMatchObject({ status: 409 });
+    expect(r?.error).toMatch(/The member hasn't finished the setup/);
+  });
+
+  it("refuses a candidate whose setup isn't finished (ADM-09)", async () => {
+    db.user.findMany.mockResolvedValue([person("a", "FEMALE"), person("b", "MALE", { profile: { isComplete: false } })]);
+    const r = await checkSuggestionPair("a", "b");
+    expect(r?.error).toMatch(/The candidate hasn't finished the setup/);
+  });
+
   it("refuses a pair that breaks one side's dealbreakers, with a clear message", async () => {
     score.mutuallyAcceptable.mockReturnValue(false);
     const r = await checkSuggestionPair("a", "b");

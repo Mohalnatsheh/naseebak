@@ -31,6 +31,7 @@ export async function GET(request: Request) {
         personalityResult: { select: { vector: true } },
         photos: { select: { id: true } },
         identityDoc: { select: { status: true } },
+        parentInfo: { select: { id: true, parentName: true } },
       },
     });
 
@@ -42,6 +43,17 @@ export async function GET(request: Request) {
     const oppositeGender = targetUser.gender === "MALE" ? "FEMALE" : "MALE";
     // Same gate as auto-suggest and Generate; suspended users are never candidates
     const { introRequests } = await getCycleFlags();
+    // QA ADM-09: a member who doesn't meet the gate can't be hand-picked a suggestion either (the POST refuses it):
+    // `recipientReady: false` lets the page hide «Assign» and say why
+    if (!meetsSuggestionGate(targetUser, introRequests)) {
+      return NextResponse.json({
+        user: { id: targetUser.id, firstName: targetUser.firstName, lastName: targetUser.lastName, gender: targetUser.gender, profile: targetUser.profile ? { city: targetUser.profile.city } : null },
+        candidates: [],
+        total: 0,
+        recipientReady: false,
+        reason: "This member hasn't finished the setup, so they can't get suggestions yet",
+      });
+    }
     const eligibleUsers = (
       await db.user.findMany({
         where: {
@@ -149,6 +161,7 @@ export async function GET(request: Request) {
       },
       candidates: scored.slice(0, limit),
       total: scored.length,
+      recipientReady: true,
     });
   } catch (error) {
     console.error("Admin candidates error:", error);

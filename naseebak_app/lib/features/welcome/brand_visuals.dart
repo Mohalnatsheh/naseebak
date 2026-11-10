@@ -131,6 +131,16 @@ class _FadeSlideInState extends State<FadeSlideIn> with SingleTickerProviderStat
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Reduced motion: in place at once (design P2-8)
+    if (AppMotion.reduced(context)) {
+      _start?.cancel();
+      _c.value = 1;
+    }
+  }
+
+  @override
   void dispose() {
     _start?.cancel();
     _c.dispose();

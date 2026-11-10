@@ -84,6 +84,13 @@ void main() {
     expect(tester.hasRunningAnimations, isFalse);
   });
 
+  testWidgets('the seal keeps its own size in a dialog\'s icon slot (it was stretched to the dialog\'s width)',
+      (tester) async {
+    await tester.pumpWidget(rtlApp(const AlertDialog(icon: MatchSeal(initials: 'س · ر', size: 104), title: Text('توافق متبادل!'))));
+    await tester.pumpAndSettle();
+    expect(tester.getSize(find.descendant(of: find.byKey(const Key('match-seal')), matching: find.byType(CustomPaint)).first).width, 104);
+  });
+
   testWidgets('a hidden photo is a veil with the initial and a lock, never an image', (tester) async {
     await tester.pumpWidget(rtlApp(const Center(child: MemberAvatar(name: 'ريم', size: 56, locked: true, pro: true))));
     expect(find.text('ر'), findsOneWidget);

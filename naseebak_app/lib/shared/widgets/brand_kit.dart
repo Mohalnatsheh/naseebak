@@ -110,16 +110,20 @@ class _Veil extends StatelessWidget {
         child: Stack(
           alignment: Alignment.center,
           children: [
-            SizedBox.square(
-              dimension: size * 0.5,
+            Padding(
+              padding: EdgeInsets.only(bottom: locked ? size * 0.12 : 0),
+              child: SizedBox.square(
+              dimension: size * 0.46,
               child: FittedBox(
                 child: Text(initial, style: AppText.title.copyWith(color: dimmed ? AppColors.muted : Colors.white, height: 1.1)),
               ),
             ),
+            ),
             if (locked && size >= 36)
-              PositionedDirectional(
-                bottom: size * 0.08,
-                child: Icon(Icons.lock_rounded, size: size * 0.2, color: AppColors.goldLight),
+              // Below the initial, never over it
+              Positioned(
+                bottom: size * 0.04,
+                child: Icon(Icons.lock_rounded, size: size * 0.17, color: AppColors.goldLight),
               ),
           ],
         ),
@@ -230,7 +234,11 @@ class MatchSeal extends StatelessWidget {
         tween: Tween(begin: d == Duration.zero ? 1 : 0, end: 1),
         duration: d,
         curve: AppMotion.curve,
-        builder: (context, t, _) => SizedBox.square(
+        // Its own size wherever it sits (a dialog's icon slot stretches its child to the dialog's width)
+        builder: (context, t, _) => Align(
+          widthFactor: 1,
+          heightFactor: 1,
+          child: SizedBox.square(
           dimension: size,
           child: CustomPaint(
             painter: _SealPainter(progress: t),
@@ -249,6 +257,7 @@ class MatchSeal extends StatelessWidget {
               ),
             ),
           ),
+        ),
         ),
       ),
     );

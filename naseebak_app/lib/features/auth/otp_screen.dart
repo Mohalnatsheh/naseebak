@@ -156,7 +156,10 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
             child: ListView(
               padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
               children: [
+                // Keyed: an error line inserted above must not restart the entrance (the button vanished for a second
+                // after every wrong code)
                 FadeSlideIn(
+                  key: const ValueKey('otp-code-in'),
                   delay: const Duration(milliseconds: 250),
                   child: Directionality(
                     textDirection: TextDirection.ltr,
@@ -207,6 +210,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                 ],
                 const SizedBox(height: 24),
                 FadeSlideIn(
+                  key: const ValueKey('otp-verify-in'),
                   delay: const Duration(milliseconds: 350),
                   child: LoadingButton(
                     key: const Key('verify-otp'),

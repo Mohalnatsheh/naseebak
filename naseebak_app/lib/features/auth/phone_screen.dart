@@ -146,6 +146,7 @@ class _PhoneFormState extends ConsumerState<PhoneForm> {
             padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
             children: [
               FadeSlideIn(
+                key: const ValueKey('phone-in-1'),
                 delay: const Duration(milliseconds: 200),
                 child: _ModeSwitch(register: register, onChanged: _switchMode),
               ),
@@ -165,12 +166,14 @@ class _PhoneFormState extends ConsumerState<PhoneForm> {
                 const SizedBox(height: 16),
               ],
               FadeSlideIn(
+                key: const ValueKey('phone-in-2'),
                 delay: const Duration(milliseconds: 300),
                 child: Text('رقم ${country.phoneWord}',
                     style: AppText.body.copyWith(fontWeight: FontWeight.w700, color: AppColors.ink)),
               ),
               const SizedBox(height: 10),
               FadeSlideIn(
+                key: const ValueKey('phone-in-3'),
                 delay: const Duration(milliseconds: 340),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 220),
@@ -251,6 +254,7 @@ class _PhoneFormState extends ConsumerState<PhoneForm> {
               ),
               const SizedBox(height: 8),
               FadeSlideIn(
+                key: const ValueKey('phone-in-4'),
                 delay: const Duration(milliseconds: 380),
                 child: Row(children: [
                   const Icon(Icons.sms_outlined, size: 16, color: AppColors.muted),
@@ -267,6 +271,7 @@ class _PhoneFormState extends ConsumerState<PhoneForm> {
               ],
               const SizedBox(height: 24),
               FadeSlideIn(
+                key: const ValueKey('phone-in-5'),
                 delay: const Duration(milliseconds: 440),
                 child: _GoldButton(
                   key: const Key('send-otp'),
@@ -276,7 +281,8 @@ class _PhoneFormState extends ConsumerState<PhoneForm> {
                 ),
               ),
               const SizedBox(height: 28),
-              const FadeSlideIn(
+              FadeSlideIn(
+                key: const ValueKey('phone-in-6'),
                 delay: Duration(milliseconds: 520),
                 child: Row(children: [
                   Expanded(child: _Promise(icon: Icons.verified_user_outlined, text: 'رقم مؤكَّد\nلكل حساب')),

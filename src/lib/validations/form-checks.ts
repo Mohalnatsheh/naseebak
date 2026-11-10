@@ -18,8 +18,8 @@ export function contactFormIssue(
   country: CountryCode = DEFAULT_COUNTRY,
 ): FieldIssue | null {
   const cfg = COUNTRIES[country];
-  const phoneWord = country === "SA" ? "الجوال" : "الهاتف";
-  const yourPhone = country === "SA" ? "جوالك" : "هاتفك";
+  const phoneWord = `ال${cfg.words.phone}`;
+  const yourPhone = `${cfg.words.phone}ك`;
   const name = (v.name ?? "").trim();
   if (name.length < 2) return { field: "name", message: "يرجى إدخال اسمك" };
   if (name.length > 80) return { field: "name", message: "الاسم طويل جداً" };

@@ -5,7 +5,7 @@
  * Design: docs/superpowers/specs/2026-10-26-multi-country-design.md
  */
 
-export const COUNTRY_CODES = ["JO", "SA"] as const;
+export const COUNTRY_CODES = ["JO", "SA", "LB"] as const;
 export type CountryCode = (typeof COUNTRY_CODES)[number];
 
 /** Every existing member and every visitor without a choice */
@@ -34,7 +34,11 @@ export interface CountryConfig {
     placeholder: string;
     /** Local example with the trunk 0 */
     example: string;
+    /** Local form of a number: "always" = trunk 0 before it (JO, SA); "if3" = only when it starts with 3 (Lebanon) */
+    trunkZero: "always" | "if3";
   };
+  /** Sign-in codes go by WhatsApp (true) or SMS (false) */
+  otpByWhatsapp: boolean;
   currency: { code: string; symbol: string };
   /** Always Gregorian with Western digits (plain "ar-SA" is the Hijri calendar) */
   dateLocale: string;
@@ -62,7 +66,8 @@ export const COUNTRIES: Record<CountryCode, CountryConfig> = {
     nameEn: "Jordan",
     flag: "🇯🇴",
     dialCode: "962",
-    phone: { national: /^7[789]\d{7}$/, placeholder: "7XXXXXXXX", example: "0791234567" },
+    phone: { national: /^7[789]\d{7}$/, placeholder: "7XXXXXXXX", example: "0791234567", trunkZero: "always" },
+    otpByWhatsapp: false,
     currency: { code: "JOD", symbol: "د.أ" },
     dateLocale: "ar-JO-u-nu-latn",
     timeZone: "Asia/Amman",
@@ -75,11 +80,26 @@ export const COUNTRIES: Record<CountryCode, CountryConfig> = {
     nameEn: "Saudi Arabia",
     flag: "🇸🇦",
     dialCode: "966",
-    phone: { national: /^5\d{8}$/, placeholder: "5XXXXXXXX", example: "0512345678" },
+    phone: { national: /^5\d{8}$/, placeholder: "5XXXXXXXX", example: "0512345678", trunkZero: "always" },
+    otpByWhatsapp: true,
     currency: { code: "SAR", symbol: "ر.س" },
     dateLocale: "ar-SA-u-ca-gregory-nu-latn",
     timeZone: "Asia/Riyadh",
     words: { phone: "جوال", tribe: "القبيلة أو الأسرة", area: "الحي", kg: "كجم", nationalityMale: "سعودي", nationalityFemale: "سعودية" },
+  },
+  LB: {
+    code: "LB",
+    name: "لبنان",
+    inName: "في لبنان",
+    nameEn: "Lebanon",
+    flag: "🇱🇧",
+    dialCode: "961",
+    phone: { national: /^(?:3\d{6}|7[01689]\d{6}|81\d{6})$/, placeholder: "3XXXXXX", example: "03123456", trunkZero: "if3" },
+    otpByWhatsapp: true,
+    currency: { code: "USD", symbol: "$" },
+    dateLocale: "ar-LB-u-nu-latn",
+    timeZone: "Asia/Beirut",
+    words: { phone: "هاتف", tribe: "العائلة", area: "المنطقة", kg: "كغ", nationalityMale: "لبناني", nationalityFemale: "لبنانية" },
   },
 };
 

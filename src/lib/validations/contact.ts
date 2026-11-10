@@ -12,8 +12,8 @@ const emailCheck = z.email();
  */
 export function contactSchemaFor(country: CountryCode = DEFAULT_COUNTRY) {
   const cfg = COUNTRIES[country];
-  const phoneWord = country === "SA" ? "الجوال" : "الهاتف";
-  const yourPhone = country === "SA" ? "جوالك" : "هاتفك";
+  const phoneWord = `ال${cfg.words.phone}`;
+  const yourPhone = `${cfg.words.phone}ك`;
   return z
     .object({
       name: z.string().trim().min(2, "يرجى إدخال اسمك").max(80, "الاسم طويل جداً"),

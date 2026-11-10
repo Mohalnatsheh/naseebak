@@ -68,13 +68,19 @@ const PACKAGES: Record<CountryCode, readonly CreditPackage[]> = {
   // Opening offer (owner decision 2026-10-23): 10 credits for 3 JD, the bigger packages a little cheaper per credit
   JO: [jo("launch_10", "10 أرصدة", 10, 3, 423), jo("launch_25", "25 رصيداً", 25, 6, 846, true), jo("launch_50", "50 رصيداً", 50, 10, 1410)],
   SA: [sa("sa_10", "10 أرصدة", 10, 15), sa("sa_25", "25 رصيداً", 25, 30, true), sa("sa_50", "50 رصيداً", 50, 50)],
+  // TODO(LB task 4): Lebanese USD packages; placeholder = Jordan's until then (LB is inactive, never sold)
+  LB: [jo("launch_10", "10 أرصدة", 10, 3, 423), jo("launch_25", "25 رصيداً", 25, 6, 846, true), jo("launch_50", "50 رصيداً", 50, 10, 1410)],
 };
 
 /**
  * Whether a country's prices are approved until Admin → Countries says otherwise. Saudi prices above are a draft:
  * Saudi purchases stay off even if an admin switches them on, until «Prices approved» is on there.
  */
-export const PRICES_APPROVED: Record<CountryCode, boolean> = { JO: true, SA: false };
+export const PRICES_APPROVED: Record<CountryCode, boolean> = {
+  JO: true,
+  SA: false,
+  LB: true, // TODO(LB task 4): placeholder = Jordan; Lebanon stays off with no country row, real value in the money task
+};
 
 /** Jordanian packages no longer sold: kept so a refund of an older purchase takes back the right credits */
 const RETIRED_PACKAGES: readonly CreditPackage[] = [

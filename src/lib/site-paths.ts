@@ -16,10 +16,14 @@ export const SITE_URL = "https://naseebak.com";
 export const SITE_COUNTRY_HEADER = "x-site-country";
 
 /** URL prefix per country (Jordan = root) */
-const PREFIX: Record<CountryCode, string> = { JO: "", SA: "/sa" };
+const PREFIX: Record<CountryCode, string> = {
+  JO: "",
+  SA: "/sa",
+  LB: "/lb", // TODO(LB task 3): URLs (rewrites, LOCALIZED_PATHS); inactive until the country row exists
+};
 
 /** hreflang of each country's pages */
-export const HREFLANG: Record<CountryCode, string> = { JO: "ar-JO", SA: "ar-SA" };
+export const HREFLANG: Record<CountryCode, string> = { JO: "ar-JO", SA: "ar-SA", LB: "ar-LB" };
 
 /** Public pages that exist once per country */
 export const LOCALIZED_PATHS = ["/", "/faq", "/about", "/contact", "/terms", "/privacy", "/refund-policy", "/blog", "/poll"] as const;

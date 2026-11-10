@@ -68,7 +68,11 @@ const SA: PublicCopy = {
   footerMadeIn: "لعائلات المملكة",
 };
 
-const COPY: Record<CountryCode, PublicCopy> = { JO, SA };
+const COPY: Record<CountryCode, PublicCopy> = {
+  JO,
+  SA,
+  LB: JO, // TODO(LB task 5): Lebanese public copy; placeholder = Jordan's until then
+};
 
 export function publicCopy(country: CountryCode): PublicCopy {
   return COPY[country] ?? JO;

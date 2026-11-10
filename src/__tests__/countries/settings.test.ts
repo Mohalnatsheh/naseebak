@@ -34,7 +34,7 @@ describe("defaults (no row)", () => {
   it("a row from the database wins over the defaults", async () => {
     db.countrySetting.findMany.mockResolvedValue([{ ...defaultCountrySettings("SA"), active: true, createdAt: new Date(), updatedAt: new Date(), updatedById: null }]);
     expect((await getCountrySettings("SA")).active).toBe(true);
-    expect((await listCountrySettings()).map((s) => s.code)).toEqual(["JO", "SA"]);
+    expect((await listCountrySettings()).map((s) => s.code)).toEqual(["JO", "SA", "LB"]);
   });
 
   it("falls back to the safe defaults when the database can't be read", async () => {

@@ -11,7 +11,10 @@ export const jordanPhoneRegex = /^(?:00962|0?0?\+?962|0)?7[789]\d{7}$/;
 // Saudi mobile formats: 05XXXXXXXX, 5XXXXXXXX, 9665XXXXXXXX, +9665XXXXXXXX, 009665XXXXXXXX
 export const saudiPhoneRegex = /^(?:00966|\+966|966|0)?5\d{8}$/;
 
-const PHONE_REGEX: Record<CountryCode, RegExp> = { JO: jordanPhoneRegex, SA: saudiPhoneRegex };
+// Lebanese mobile formats: 03XXXXXX, 3XXXXXX, 7[01689]XXXXXX, 81XXXXXX (no trunk 0 on the 7x / 81 forms), 961…, +961…, 00961…
+export const lebanonPhoneRegex = /^(?:00961|\+961|961|0)?(?:3\d{6}|7[01689]\d{6}|81\d{6})$/;
+
+const PHONE_REGEX: Record<CountryCode, RegExp> = { JO: jordanPhoneRegex, SA: saudiPhoneRegex, LB: lebanonPhoneRegex };
 
 export function cleanPhone(v: string): string {
   return toLatinDigits(v).replace(/[\s\-()]/g, "");
@@ -25,13 +28,13 @@ export function isValidPhone(v: string, country?: CountryCode): boolean {
 
 /**
  * The country a typed number belongs to: by its international prefix, else by its local shape
- * (7[789]… = Jordan, 5… = Saudi Arabia), else `fallback`.
+ * (7[789]XXXXXXX = Jordan, 5… = Saudi Arabia, 3… / 7[01689]… / 81… with 7 or 8 digits = Lebanon), else `fallback`.
  */
 export function phoneInputCountry(v: string, fallback?: CountryCode): CountryCode | null {
   const cleaned = cleanPhone(v);
   for (const c of COUNTRY_CODES) {
     const dial = COUNTRIES[c].dialCode;
-    if (cleaned.startsWith(`00${dial}`) || cleaned.startsWith(`+${dial}`) || (cleaned.startsWith(dial) && cleaned.length > 10)) return c;
+    if (cleaned.startsWith(`00${dial}`) || cleaned.startsWith(`+${dial}`) || (cleaned.startsWith(dial) && cleaned.length >= dial.length + 7)) return c;
   }
   for (const c of COUNTRY_CODES) if (PHONE_REGEX[c].test(cleaned)) return c;
   return fallback ?? null;
@@ -56,7 +59,9 @@ export function normalizePhone(phone: string, country?: CountryCode): string {
 export function localPhone(phone: string, country?: CountryCode): string {
   const intl = normalizePhone(phone, country);
   const c = phoneInputCountry(intl, country) ?? "JO";
-  return `0${intl.slice(COUNTRIES[c].dialCode.length)}`;
+  const national = intl.slice(COUNTRIES[c].dialCode.length);
+  // Lebanon writes the trunk 0 only before 3XXXXXX (Touch / alfa 03, 3x): 7x and 81 numbers have none
+  return COUNTRIES[c].phone.trunkZero === "if3" && !national.startsWith("3") ? national : `0${national}`;
 }
 
 /** Arabic letters and spaces; digits of any kind (٣, ۳, 3) are refused (QA WA-12) */

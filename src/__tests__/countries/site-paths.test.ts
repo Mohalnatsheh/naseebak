@@ -26,7 +26,7 @@ describe("country URLs", () => {
   it("declares every country version (hreflang) with its own canonical", () => {
     expect(seoAlternates("/faq", "SA")).toEqual({
       canonical: "https://naseebak.com/sa/faq",
-      languages: { "ar-JO": "https://naseebak.com/faq", "ar-SA": "https://naseebak.com/sa/faq", "x-default": "https://naseebak.com/faq" },
+      languages: { "ar-JO": "https://naseebak.com/faq", "ar-SA": "https://naseebak.com/sa/faq", "ar-LB": "https://naseebak.com/lb/faq", "x-default": "https://naseebak.com/faq" },
     });
     expect(absoluteUrl("/", "JO")).toBe("https://naseebak.com");
     expect(absoluteUrl("/", "SA")).toBe("https://naseebak.com/sa");

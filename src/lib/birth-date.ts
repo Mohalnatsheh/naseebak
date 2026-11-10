@@ -25,7 +25,7 @@ const SAUDI_MONTHS = ["يناير", "فبراير", "مارس", "أبريل", "�
 
 /** The month names a country uses */
 export function birthMonths(country: unknown): readonly string[] {
-  return country === "SA" ? SAUDI_MONTHS : BIRTH_MONTHS;
+  return country === "SA" ? SAUDI_MONTHS : BIRTH_MONTHS; // Lebanon uses the Levantine names, like Jordan
 }
 
 export interface DobParts {

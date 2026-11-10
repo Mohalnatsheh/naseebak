@@ -8,7 +8,7 @@ import { isValidPhone } from "@/lib/phone";
 
 /** «الهاتف» / «الجوال» */
 export function phoneWord(country: CountryCode): string {
-  return country === "SA" ? "الجوال" : "الهاتف";
+  return `ال${COUNTRIES[country].words.phone}`;
 }
 
 /** The formats a member may type, e.g. "07X, 7X, 9627X, +9627X, 009627X" */
@@ -26,9 +26,9 @@ export function phoneFormatsError(country: CountryCode): string {
 /** Before sending the code: "… أدخل رقماً أردنياً مثل 0791234567" / "… أدخل رقم جوال سعودي مثل 0512345678" */
 export function phoneExampleError(country: CountryCode): string {
   const example = COUNTRIES[country].phone.example;
-  return country === "SA"
-    ? `رقم الجوال غير صالح. أدخل رقم جوال سعودي مثل ${example}`
-    : `رقم الهاتف غير صالح. أدخل رقماً أردنياً مثل ${example}`;
+  if (country === "SA") return `رقم الجوال غير صالح. أدخل رقم جوال سعودي مثل ${example}`;
+  if (country === "LB") return `رقم الهاتف غير صالح. أدخل رقماً لبنانياً مثل ${example}`;
+  return `رقم الهاتف غير صالح. أدخل رقماً أردنياً مثل ${example}`;
 }
 
 /** A mobile of `country` in any of its formats (spaces, dashes and brackets ignored, Arabic digits accepted) */

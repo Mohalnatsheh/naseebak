@@ -120,7 +120,7 @@ describe("admin countries", () => {
     vi.unstubAllEnvs();
     const text = await res.text();
     const body = JSON.parse(text);
-    expect(body.countries.map((c: { settings: { code: string } }) => c.settings.code)).toEqual(["JO", "SA"]);
+    expect(body.countries.map((c: { settings: { code: string } }) => c.settings.code)).toEqual(["JO", "SA", "LB"]);
     expect(body.countries[0].members.total).toBe(900);
     expect(body.countries[1].pricesApproved).toBe(false);
     expect(typeof body.server.broadnet).toBe("boolean");

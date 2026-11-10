@@ -100,6 +100,10 @@ describe("a second Pro subscription while one is live", () => {
     expect(told).toHaveLength(1);
     expect(told[0][0]).toMatchObject({ userId: "u1", url: "/dashboard/pro", sms: false });
     expect(told[0][0].body).toContain("اشتراك Pro ثانٍ");
+    // The team's refund is promised (WP2-03) and the credits are in this notice, not a separate «رصيد Pro» (WP2-08)
+    expect(told[0][0].body).toContain("سيستردّ فريق نصيبك مبلغ هذه الدفعة إلى بطاقتك.");
+    expect(told[0][0].body).toContain("أُضيف 8 أرصدة إلى رصيدك من هذه الدفعة، ويُزال عند استردادها.");
+    expect(notifyMock.notify.mock.calls.filter((c) => c[0].title === "رصيد Pro")).toHaveLength(0);
     expect(payment("pay2")).toMatchObject({ proNotLive: "duplicate" });
     expect(payment("pay1")?.proNotLive).toBeUndefined();
   });
@@ -121,7 +125,8 @@ describe("a second Pro subscription while one is live", () => {
     notifyMock.notify.mockClear();
     await applyRefund({ paymentId: "pay2", adminId: "admin1" });
     const body = notifyMock.notify.mock.calls.find((c) => c[0].title === "تم استرداد المبلغ")![0].body as string;
-    expect(body).toMatch(/^تم استرداد .+ من اشتراك Pro إلى بطاقتك\.$/);
+    // It paid the current period, so Pro ended with it (QA WP2-04)
+    expect(body).toMatch(/^تم استرداد .+ من اشتراك Pro إلى بطاقتك\. وانتهت عضوية Pro\.$/);
     expect(body).not.toContain("وأُزيل");
   });
 

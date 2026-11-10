@@ -8,6 +8,7 @@
  *   monthly grant of that paid year), and a refund of the membership's latest payment ends Pro at once.
  * - `flagDispute`: `charge.dispute.created` marks the payment (`disputedAt`) and alerts the admins.
  */
+import { PRO_REFUND_ENDED_LINE } from "@/lib/pro/notices";
 import type Stripe from "stripe";
 import { db } from "@/lib/db";
 import { notify } from "@/lib/notify";
@@ -115,10 +116,14 @@ export async function applyRefund(args: {
       title: "تم استرداد المبلغ",
       // Charged in USD (shown in JOD): say what actually goes back to the card
       body: proPlan
-        ? refunded.deducted
-          ? `تم استرداد ${formatPaidAmount(payment)} من اشتراك Pro إلى بطاقتك، وأُزيل رصيده من حسابك.`
-          : // Nothing was taken back (the payment granted nothing, or the balance was already 0)
-            `تم استرداد ${formatPaidAmount(payment)} من اشتراك Pro إلى بطاقتك.`
+        ? [
+            refunded.deducted
+              ? `تم استرداد ${formatPaidAmount(payment)} من اشتراك Pro إلى بطاقتك، وأُزيل رصيده من حسابك.`
+              : // Nothing was taken back (the payment granted nothing, or the balance was already 0)
+                `تم استرداد ${formatPaidAmount(payment)} من اشتراك Pro إلى بطاقتك.`,
+            // It paid the current period: Pro ended with it (QA WP2-04)
+            ...(refunded.endsPro && payment.proSubscriptionId ? [PRO_REFUND_ENDED_LINE] : []),
+          ].join(" ")
         : pkg
           ? `تم استرداد ${formatPaidAmount(payment)} (قيمة باقة ${pkg.name}) إلى بطاقتك، وأُزيل رصيد الباقة من حسابك.`
           : "تم استرداد قيمة عملية الدفع إلى بطاقتك.",

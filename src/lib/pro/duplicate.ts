@@ -15,7 +15,8 @@ import { db } from "@/lib/db";
 import { notify } from "@/lib/notify";
 import { sendAdminAlert } from "@/lib/admin-alert";
 import { cancelOnStripe } from "@/lib/pro/manage";
-import { PRO_AFTER_END_BODY, PRO_DUPLICATE_BODY, PRO_NOT_LIVE_TITLE } from "@/lib/pro/notices";
+import { PRO_AFTER_END_BODY, PRO_DUPLICATE_BODY, PRO_NOT_LIVE_TITLE, proNotLiveCreditsLine } from "@/lib/pro/notices";
+import { arabicCount } from "@/lib/utils";
 import { PRO_PAGE_PATH } from "@/lib/pro/plans";
 
 const isMock = (id: string) => id.startsWith("mock_");
@@ -64,7 +65,12 @@ export async function settleNotLiveProInvoice(a: {
         userId: a.userId,
         type: "PAYMENT",
         title: PRO_NOT_LIVE_TITLE,
-        body: ended ? PRO_AFTER_END_BODY : PRO_DUPLICATE_BODY,
+        body: [
+          ended ? PRO_AFTER_END_BODY : PRO_DUPLICATE_BODY,
+          ...(a.credits > 0
+            ? [proNotLiveCreditsLine(arabicCount(a.credits, { one: "رصيد واحد", two: "رصيدان", few: "أرصدة", many: "رصيداً" }))]
+            : []),
+        ].join(" "),
         url: PRO_PAGE_PATH,
         metadata: { paymentId: a.paymentId },
         sms: false,
@@ -89,7 +95,7 @@ export async function settleNotLiveProInvoice(a: {
         ? "Local mock: nothing was sent to Stripe."
         : `Subscription ${a.stripeSubscriptionId} was ${problems.length ? "NOT " : ""}cancelled in Stripe, so it does not charge again.`,
       a.credits > 0 ? `The payment's ${a.credits} credits were granted, as for any paid invoice.` : "No credits were granted now.",
-      `Nothing was refunded. To refund, use Admin → Payments on payment ${a.paymentId}: it takes back that payment's credits.`,
+      `Nothing was refunded. The member was told the team will refund this payment (the policy refunds a payment that didn't make Pro live): use Admin → Payments on payment ${a.paymentId}; it takes back that payment's credits.`,
       ...problems,
     ].join("\n"),
     { userId: a.userId },

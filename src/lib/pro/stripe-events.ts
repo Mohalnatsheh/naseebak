@@ -268,7 +268,8 @@ export async function handleProInvoicePaid(invoice: Stripe.Invoice): Promise<Pro
     // Credits only, keyed by the invoice (once whatever repeats); no yearly drip and no «started»: Pro is not live
     let granted = false;
     if ((invoice.amount_paid ?? 0) > 0) {
-      granted = (await grantProCredits({ subscriptionId: sub.id, paymentId, key: `invoice:${invoice.id}`, credits: sub.creditsPerGrant })) === "granted";
+      // Told in the «دفعة Pro إضافية» notice below, not in a separate «رصيد Pro» (QA WP2-08)
+      granted = (await grantProCredits({ subscriptionId: sub.id, paymentId, key: `invoice:${invoice.id}`, credits: sub.creditsPerGrant, silent: true })) === "granted";
     }
     await settleNotLiveProInvoice({
       reason: step.notLive,

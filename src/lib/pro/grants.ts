@@ -33,8 +33,10 @@ export async function grantProCredits(args: {
    * year) restarts at 1. Only when the grant happens: a re-delivered invoice resets nothing.
    */
   restartYear?: boolean;
+  /** No «رصيد Pro» notice: the caller tells the member in its own (a payment that didn't make Pro live, QA WP2-08) */
+  silent?: boolean;
 }): Promise<"granted" | "already"> {
-  const { subscriptionId, paymentId, key, credits, advanceNextTo, restartYear } = args;
+  const { subscriptionId, paymentId, key, credits, advanceNextTo, restartYear, silent } = args;
   if (credits <= 0) return "already";
 
   let userId: string;
@@ -63,6 +65,7 @@ export async function grantProCredits(args: {
     throw e;
   }
 
+  if (silent) return "granted";
   const count = arabicCount(credits, { one: "رصيد واحد", two: "رصيدان", few: "أرصدة", many: "رصيداً" });
   try {
     await notify({

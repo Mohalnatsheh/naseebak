@@ -1455,6 +1455,11 @@ export const AUTOMATIC_NOTIFICATIONS: AutomaticNotification[] = [
         "variant": "no credits taken back",
         "title": "تم استرداد المبلغ",
         "body": "تم استرداد {amount} من اشتراك Pro إلى بطاقتك."
+      },
+      {
+        "variant": "the payment of the current period (either text, then)",
+        "title": "تم استرداد المبلغ",
+        "body": "تم استرداد {amount} من اشتراك Pro إلى بطاقتك، وأُزيل رصيده من حسابك. وانتهت عضوية Pro."
       }
     ]
   },
@@ -1483,7 +1488,7 @@ export const AUTOMATIC_NOTIFICATIONS: AutomaticNotification[] = [
   {
     "key": "pro-not-live-payment",
     "group": "pro",
-    "when": "A paid Pro invoice did not make Pro live: a second subscription paid while one was live, or a renewal paid after Pro ended. Admins get an email to decide on a refund.",
+    "when": "A paid Pro invoice did not make Pro live: a second subscription paid while one was live, or a renewal paid after Pro ended. The team refunds it by hand (Admin → Payments; admins get an email). The credits line shows only when the payment granted credits (no separate «رصيد Pro» notice then).",
     "who": "The member who paid",
     "channels": [
       "bell",
@@ -1493,12 +1498,12 @@ export const AUTOMATIC_NOTIFICATIONS: AutomaticNotification[] = [
       {
         "variant": "duplicate",
         "title": "دفعة Pro إضافية",
-        "body": "وصلتنا دفعة لاشتراك Pro ثانٍ بينما اشتراكك فعّال، فأوقفنا الاشتراك الثاني. سيراجع فريق نصيبك هذه الدفعة ويُعلمك بقرار استردادها."
+        "body": "وصلتنا دفعة لاشتراك Pro ثانٍ بينما اشتراكك فعّال، فأوقفنا الاشتراك الثاني. سيستردّ فريق نصيبك مبلغ هذه الدفعة إلى بطاقتك. أُضيف {count} إلى رصيدك من هذه الدفعة، ويُزال عند استردادها."
       },
       {
         "variant": "after the end",
         "title": "دفعة Pro إضافية",
-        "body": "وصلتنا دفعة تجديد بعد انتهاء عضوية Pro، ولم تُستأنف العضوية. سيراجع فريق نصيبك هذه الدفعة ويُعلمك بقرار استردادها."
+        "body": "وصلتنا دفعة تجديد بعد انتهاء عضوية Pro، ولم تُستأنف العضوية. سيستردّ فريق نصيبك مبلغ هذه الدفعة إلى بطاقتك. أُضيف {count} إلى رصيدك من هذه الدفعة، ويُزال عند استردادها."
       }
     ]
   }

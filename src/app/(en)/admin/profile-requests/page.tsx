@@ -152,7 +152,7 @@ export default function AdminProfileRequestsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold flex items-center gap-3">
+        <h1 className="text-2xl font-display flex items-center gap-3">
           <ClipboardEdit className="h-7 w-7 text-primary" />
           Profile Update Requests
         </h1>

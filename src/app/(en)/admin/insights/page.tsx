@@ -445,7 +445,7 @@ export default function InsightsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="flex items-center gap-3 text-2xl font-bold">
+        <h1 className="flex items-center gap-3 text-2xl font-display">
           <BarChart3 className="h-7 w-7 text-primary" />
           Insights
         </h1>

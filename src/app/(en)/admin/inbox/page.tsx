@@ -65,7 +65,7 @@ export default function AdminInboxPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="flex items-center gap-3 text-2xl font-bold">
+        <h1 className="flex items-center gap-3 text-2xl font-display">
           <Inbox className="h-7 w-7 text-primary" /> Inbox
         </h1>
         <p className="mt-1 text-muted-foreground">Everything waiting for an admin, oldest first</p>

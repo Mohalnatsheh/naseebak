@@ -143,7 +143,7 @@ export default function AdminDashboardPage() {
       <div className="relative space-y-8 pb-8">
         <div className="flex flex-wrap items-end justify-between gap-2">
           <div>
-            <h1 className="text-2xl font-bold">Today</h1>
+            <h1 className="text-2xl font-display">Today</h1>
             <p className="text-sm text-muted-foreground">
               {new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", timeZone: "Asia/Amman" })} · what needs you, and how the day is going
             </p>

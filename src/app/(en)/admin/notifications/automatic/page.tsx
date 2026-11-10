@@ -64,7 +64,7 @@ export default function AutomaticNotificationsPage() {
         <Link href="/admin/notifications" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
           <ArrowLeft className="h-4 w-4" /> Notifications
         </Link>
-        <h1 className="mt-2 text-2xl font-bold">Automatic messages</h1>
+        <h1 className="mt-2 text-2xl font-display">Automatic messages</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Everything members get on their own, what triggers it and its exact text. To change a text, ask for a code change: this page only shows them.
         </p>

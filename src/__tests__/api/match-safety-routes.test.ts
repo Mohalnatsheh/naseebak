@@ -106,6 +106,24 @@ describe("GET /api/matches", () => {
     expect(byId.m4).toMatchObject({ closed: "inactive", photosRevealed: false });
   });
 
+  it("each match carries the viewer's next step (additive `nextStep`)", async () => {
+    const soon = new Date(Date.now() + 3 * 86400000);
+    const rows = [
+      { ...listMatch("m1", "f1"), introRequests: [{ type: "FAMILY", status: "PENDING", expiresAt: soon, senderId: "f1" }] },
+      { ...listMatch("m2", "f2"), introRequests: [{ type: "CHAT", status: "PENDING", expiresAt: soon, senderId: "u1" }] },
+      { ...listMatch("m3", "f3"), conversation: { status: "ACTIVE", expiresAt: soon } },
+      listMatch("m4", "f4"),
+      { ...listMatch("m5", "f5"), femaleOutcome: "NOT_A_MATCH", maleOutcome: null },
+    ].map((r) => ({ femaleOutcome: null, maleOutcome: null, ...r }));
+    db.mutualMatch.findMany.mockResolvedValue(rows);
+    db.mutualMatch.count.mockResolvedValue(rows.length);
+    const data = await (await getMatches(new Request("http://x/api/matches?page=1"))).json();
+    const step = Object.fromEntries(data.matches.map((m: { id: string; nextStep: string | null }) => [m.id, m.nextStep]));
+    expect(step).toEqual({ m1: "reply_family", m2: "waiting_chat", m3: "chat_open", m4: "choose", m5: null });
+    // The list query reads who sent each request
+    expect(JSON.stringify(db.mutualMatch.findMany.mock.calls[0][0].include.introRequests)).toContain("senderId");
+  });
+
   it("an ended match («لم يحصل نصيب») keeps only name, age and city", async () => {
     const profile = { dateOfBirth: new Date("1995-01-01"), city: "عمان", job: "مهندسة", aboutMe: "نبذة", childrenCount: 0 };
     const row = { ...listMatch("m1", "f1", { ...active, profile }), femaleOutcome: "NOT_A_MATCH", maleOutcome: null };

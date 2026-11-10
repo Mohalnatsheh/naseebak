@@ -6,6 +6,7 @@ import { MATCHES_ORDER, pageForMatch, visibleMatchesWhere } from "@/lib/matches/
 import { hiddenPartnerIds, loadMatchStates } from "@/lib/matches/state";
 import { getCycleFlags } from "@/lib/settings";
 import { proUserIds } from "@/lib/pro/status";
+import { matchNextStep } from "@/lib/matches/next-step";
 
 export async function GET(request: Request) {
   try {
@@ -77,6 +78,9 @@ export async function GET(request: Request) {
           visitRequest: {
             select: { id: true, status: true, scheduledDate: true },
           },
+          // For `nextStep` (additive): who asked what, and the chat
+          introRequests: { select: { type: true, status: true, expiresAt: true, senderId: true } },
+          conversation: { select: { status: true, expiresAt: true } },
         },
         orderBy: MATCHES_ORDER,
         skip,
@@ -131,6 +135,14 @@ export async function GET(request: Request) {
         visitStatus: m.visitRequest?.status || null,
         scheduledDate: m.visitRequest?.scheduledDate || null,
         compatibilityScore: m.suggestionId ? (scoreMap.get(m.suggestionId) ?? 0) : 0,
+        // The viewer's next step on this match (additive, for the app's matches list); null when closed or nothing waits
+        nextStep: matchNextStep({
+          viewerId: session.user.id,
+          closed,
+          actionable: state?.actionable ?? false,
+          requests: m.introRequests ?? [],
+          conversation: m.conversation ?? null,
+        }),
         partner: {
           id: otherUser.id,
           firstName: otherUser.firstName,

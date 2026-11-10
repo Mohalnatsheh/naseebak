@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/common.dart';
+import '../../shared/widgets/alpha_fade.dart';
 
 /// Endless background motion only in the real app: never under `flutter test` (pumpAndSettle would wait forever)
 /// nor when the phone asks for reduced motion.
@@ -157,7 +158,8 @@ class _FadeSlideInState extends State<FadeSlideIn> with SingleTickerProviderStat
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: _curve,
-      builder: (_, child) => Opacity(
+      // AlphaFade, not Opacity: no inherited opacity into the fields, buttons and shadows (QA A-L10)
+      builder: (_, child) => AlphaFade(
         opacity: _curve.value,
         child: Transform.translate(offset: Offset(0, (1 - _curve.value) * widget.offset), child: child),
       ),

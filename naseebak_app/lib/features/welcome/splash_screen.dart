@@ -8,6 +8,7 @@ import '../../app/providers.dart';
 import '../../core/auth/auth_controller.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/theme/app_theme.dart';
+import '../../shared/widgets/alpha_fade.dart';
 import '../../shared/widgets/common.dart';
 import 'brand_visuals.dart';
 import 'welcome_state.dart';
@@ -95,23 +96,27 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerPr
                     child: Stack(
                       alignment: Alignment.center,
                       children: [
-                        // Soft gold glow behind the logo
-                        Opacity(
-                          opacity: _glow.value * 0.9,
-                          child: Container(
-                            width: 150,
-                            height: 150,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              boxShadow: [BoxShadow(color: AppColors.gold.withValues(alpha: 0.35), blurRadius: 60, spreadRadius: 6)],
-                            ),
+                        // Soft gold glow behind the logo; its fade is in the shadow's own colour (no opacity layer
+                        // over a blurred shadow: QA A-L10)
+                        Container(
+                          width: 150,
+                          height: 150,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppColors.gold.withValues(alpha: 0.35 * _glow.value * 0.9),
+                                blurRadius: 60,
+                                spreadRadius: 6,
+                              ),
+                            ],
                           ),
                         ),
                         CustomPaint(size: const Size(190, 190), painter: _RingPainter(_ring.value)),
                         Transform.translate(
                           offset: Offset(0, (1 - _logo.value) * 18),
-                          child: Opacity(
-                            opacity: _logo.value.clamp(0, 1),
+                          child: AlphaFade(
+                            opacity: _logo.value.clamp(0, 1).toDouble(),
                             child: Transform.scale(scale: 0.85 + 0.15 * _logo.value, child: const BrandLogo(height: 70, onDark: true)),
                           ),
                         ),
@@ -119,7 +124,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerPr
                     ),
                   ),
                   const SizedBox(height: 18),
-                  Opacity(
+                  AlphaFade(
                     opacity: _tagline.value,
                     child: Transform.translate(
                       offset: Offset(0, (1 - _tagline.value) * 14),

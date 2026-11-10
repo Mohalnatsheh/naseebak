@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/theme/app_theme.dart';
 import 'brand_visuals.dart';
 import 'welcome_state.dart';
+import '../../shared/widgets/alpha_fade.dart';
 
 class IntroPage {
   const IntroPage({required this.image, required this.kicker, required this.title, required this.body, required this.points});
@@ -115,9 +116,10 @@ class _IntroScreenState extends ConsumerState<IntroScreen> {
                   Text('${index + 1} من ${introPages.length}',
                       style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontWeight: FontWeight.w600)),
                   const Spacer(),
-                  AnimatedOpacity(
-                    opacity: last ? 0 : 1,
+                  TweenAnimationBuilder<double>(
+                    tween: Tween(end: last ? 0 : 1),
                     duration: const Duration(milliseconds: 250),
+                    builder: (_, t, child) => AlphaFade(opacity: t, child: child!),
                     child: TextButton(
                       key: const Key('intro-skip'),
                       onPressed: last ? null : _finish,
@@ -223,7 +225,7 @@ class _IntroSlide extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 26),
-            Opacity(
+            AlphaFade(
               opacity: visible,
               child: Transform.translate(
                 offset: Offset(0, d.abs() * 30),

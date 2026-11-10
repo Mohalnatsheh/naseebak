@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const db = vi.hoisted(() => ({
-  user: { findMany: vi.fn() },
+  user: { findMany: vi.fn(), count: vi.fn() },
   suggestion: { findMany: vi.fn(), create: vi.fn(), groupBy: vi.fn() },
   mutualMatch: { findMany: vi.fn() },
   block: { findMany: vi.fn() },
@@ -24,7 +24,14 @@ vi.mock("@/lib/matching/score", () => ({
   mutuallyAcceptable: () => true,
 }));
 
-import { POST as generate } from "@/app/api/admin/suggestions/generate/route";
+import { GET as progress, POST as generate } from "@/app/api/admin/suggestions/generate/route";
+import { currentGenerateJob, resetGenerateJob, startGenerateJob } from "@/lib/admin/generate-job";
+
+/** Waits for the background run started by POST to finish */
+async function finished() {
+  await vi.waitFor(() => expect(currentGenerateJob()?.status).not.toBe("running"));
+  return currentGenerateJob()!;
+}
 
 /** Admin request; `country` = the admin_country cookie (none → Jordan) */
 const req = (country?: string) =>
@@ -49,29 +56,60 @@ beforeEach(() => {
   db.mutualMatch.findMany.mockResolvedValue([]);
   db.block.findMany.mockResolvedValue([]);
   auto.autoSuggestForUser.mockResolvedValue(0);
+  db.user.count.mockResolvedValue(0);
+  resetGenerateJob();
 });
 
-describe("admin Generate with shared suggestions on", () => {
-  it("runs the automatic top-up for each eligible, active user (new-cycle rules, once-a-day notices)", async () => {
+describe("admin Generate with shared suggestions on (background, ADM-10)", () => {
+  it("answers 202 at once and runs the automatic top-up for each eligible, active user in the background", async () => {
     db.user.findMany.mockResolvedValue([{ id: "m1" }, { id: "f1" }, { id: "f2" }]);
+    db.user.count.mockResolvedValue(3);
     auto.autoSuggestForUser.mockImplementation(async (id: string) => (id === "m1" ? 2 : id === "f1" ? 1 : 0));
     const res = (await generate(req()))!;
-    expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ count: 3 });
+    expect(res.status).toBe(202);
+    expect(await res.json()).toMatchObject({ started: true, job: { total: 3, status: "running" } });
+    const job = await finished();
+    expect(job).toMatchObject({ status: "done", done: 3, created: 3, failed: 0 });
     expect(auto.autoSuggestForUser.mock.calls.map((c) => c[0])).toEqual(["m1", "f1", "f2"]);
-    const where = db.user.findMany.mock.calls[0][0].where;
-    expect(where).toMatchObject({ role: "USER", isDeactivated: false, isFlagged: false, profile: { isComplete: true } });
-    // Idle 30+ days are left out (activeWhere)
-    expect(where.OR).toHaveLength(2);
+    const query = db.user.findMany.mock.calls[0][0];
+    expect(query.where).toMatchObject({ role: "USER", isDeactivated: false, isFlagged: false, profile: { isComplete: true } });
+    // Idle 30+ days are left out (activeWhere), and the run is capped like the morning job
+    expect(query.where.OR).toHaveLength(2);
+    expect(query.take).toBe(600);
     // Nothing is created or announced outside autoSuggestForUser
     expect(db.suggestion.create).not.toHaveBeenCalled();
     expect(notifyMod.notify).not.toHaveBeenCalled();
+    // GET reads the progress
+    expect((await (await progress())!.json()).job).toMatchObject({ status: "done", created: 3 });
+  });
+
+  it("refuses a second run while one is going", async () => {
+    let release: () => void = () => {};
+    db.user.findMany.mockResolvedValue([{ id: "m1" }]);
+    auto.autoSuggestForUser.mockImplementation(() => new Promise<number>((r) => { release = () => r(1); }));
+    expect((await generate(req()))!.status).toBe(202);
+    const again = (await generate(req()))!;
+    expect(again.status).toBe(409);
+    expect((await again.json()).code).toBe("ALREADY_RUNNING");
+    await vi.waitFor(() => expect(auto.autoSuggestForUser).toHaveBeenCalled());
+    release();
+    expect((await finished()).created).toBe(1);
+  });
+
+  it("caps the run at the limit, most recently active first", async () => {
+    db.user.findMany.mockResolvedValue([{ id: "m1" }]);
+    db.user.count.mockResolvedValue(900);
+    const { job, run } = await startGenerateJob("JO", "admin1", 1);
+    await run;
+    expect(db.user.findMany.mock.calls[0][0]).toMatchObject({ take: 1, orderBy: { lastActiveAt: { sort: "desc", nulls: "last" } } });
+    expect(job).toMatchObject({ eligible: 900, total: 1, done: 1 });
   });
 
   it("same path with credit on interest off (per-request shared flow)", async () => {
     flags.getCycleFlags.mockResolvedValue({ ...on, creditOnInterest: false });
     db.user.findMany.mockResolvedValue([{ id: "m1" }]);
     await generate(req());
+    await finished();
     expect(auto.autoSuggestForUser).toHaveBeenCalledWith("m1");
     expect(db.suggestion.create).not.toHaveBeenCalled();
   });
@@ -83,9 +121,8 @@ describe("admin Generate with shared suggestions on", () => {
       if (id === "bad") throw new Error("boom");
       return 1;
     });
-    const res = (await generate(req()))!;
-    expect(res.status).toBe(200);
-    expect((await res.json()).count).toBe(1);
+    expect((await generate(req()))!.status).toBe(202);
+    expect(await finished()).toMatchObject({ created: 1, failed: 1, done: 2 });
     spy.mockRestore();
   });
 });
@@ -108,10 +145,13 @@ describe("admin Generate per country (multi-country)", () => {
   it("shared flow: runs only for the admin's selected country (Jordan by default, every country with ALL)", async () => {
     db.user.findMany.mockResolvedValue([]);
     await generate(req());
+    await finished();
     expect(db.user.findMany.mock.calls[0][0].where.country).toBe("JO");
     await generate(req("SA"));
+    await finished();
     expect(db.user.findMany.mock.calls[1][0].where.country).toBe("SA");
     await generate(req("ALL"));
+    await finished();
     expect(db.user.findMany.mock.calls[2][0].where).not.toHaveProperty("country");
   });
 

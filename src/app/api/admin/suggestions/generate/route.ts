@@ -2,48 +2,24 @@ import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { calculateCompatibility } from "@/lib/matching/score";
-import { autoSuggestForUser, minSuggestionScore } from "@/lib/matching/auto-suggest";
+import { minSuggestionScore } from "@/lib/matching/auto-suggest";
+import { currentGenerateJob, startGenerateJob } from "@/lib/admin/generate-job";
 import { notify } from "@/lib/notify";
 import { meetsSuggestionGate } from "@/lib/profile-completeness";
 import { notifyCreditsExhausted, recordCredit, reserveCredits, WEEKLY_FREE_SUGGESTIONS } from "@/lib/credits";
 import { isTestPhone } from "@/lib/test-accounts";
 import { getCycleFlags } from "@/lib/settings";
-import { activeWhere } from "@/lib/activity";
-import { getAdminCountry, userCountryWhere, type AdminCountry } from "@/lib/countries/server";
+import { getAdminCountry, userCountryWhere } from "@/lib/countries/server";
 
 /**
- * Shared suggestions on (`new_suggestions_flow`, with or without `credit_on_interest`): the same run
- * as the automatic top-up, for every user who could get one. `autoSuggestForUser` applies every new-cycle
- * rule (active, not engaged, open cap / weekly cap, min score, dealbreakers, a full candidate gets the
- * card hidden instead of being skipped, re-suggest rules) and sends at most one notice a day per person.
+ * Shared suggestions on (`new_suggestions_flow`): the same run as the automatic top-up (`autoSuggestForUser` applies
+ * every new-cycle rule and sends at most one notice a day per person), as a capped background task (QA ADM-10):
+ * POST starts it and answers 202 with the job; GET reads the progress. See src/lib/admin/generate-job.ts.
  */
-async function generateSharedSuggestions(country: AdminCountry): Promise<{ created: number; users: number; failed: number }> {
-  const users = await db.user.findMany({
-    where: {
-      // Admin's selected country ("ALL" = everyone); autoSuggestForUser only pairs within one country
-      ...userCountryWhere(country),
-      role: "USER",
-      isDeactivated: false,
-      status: { not: "SUSPENDED" },
-      isFlagged: false,
-      profile: { isComplete: true },
-      ...activeWhere(30),
-    },
-    select: { id: true },
-    orderBy: { lastActiveAt: { sort: "desc", nulls: "last" } },
-  });
-  let created = 0;
-  let failed = 0;
-  // One at a time: each run re-reads everyone's open counts, so later users see the cards made before
-  for (const u of users) {
-    try {
-      created += await autoSuggestForUser(u.id);
-    } catch (error) {
-      failed++;
-      console.error("[admin generate] suggestions for", u.id, error);
-    }
-  }
-  return { created, users: users.length, failed };
+export async function GET() {
+  const result = await requireAdmin();
+  if ("error" in result) return result.error;
+  return NextResponse.json({ job: currentGenerateJob() }, { headers: { "Cache-Control": "private, no-store" } });
 }
 
 export async function POST(request: Request) {
@@ -57,11 +33,22 @@ export async function POST(request: Request) {
     const { introRequests: perRequestCredits, mutualSuggestions: mutual } = flags;
 
     if (mutual) {
-      const { created, failed } = await generateSharedSuggestions(country);
-      return NextResponse.json({
-        message: `Generated ${created} suggestions${failed > 0 ? ` (${failed} users failed, see logs)` : ""}`,
-        count: created,
-      });
+      const { job, started, run } = await startGenerateJob(country, session.user.id);
+      void run;
+      if (!started) {
+        return NextResponse.json(
+          { error: "A run is already going", code: "ALREADY_RUNNING", job },
+          { status: 409 },
+        );
+      }
+      return NextResponse.json(
+        {
+          started: true,
+          job,
+          message: `Started for ${job.total} members${job.eligible > job.total ? ` (the ${job.total} most recently active of ${job.eligible})` : ""}`,
+        },
+        { status: 202 },
+      );
     }
 
     // Older flows below (shared suggestions off): legacy and per-request mode

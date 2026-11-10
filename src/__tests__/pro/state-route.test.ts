@@ -9,7 +9,8 @@ const m = vi.hoisted(() => ({
   currentProSubscription: vi.fn(),
 }));
 vi.mock("@/lib/db", () => ({ db }));
-vi.mock("@/lib/auth", () => ({ requireUser: async () => ({ session: { user: { id: "u1" } } }) }));
+const requireUser = vi.hoisted(() => vi.fn(async () => ({ session: { user: { id: "u1" } } })));
+vi.mock("@/lib/auth", () => ({ requireUser }));
 vi.mock("@/lib/mobile-config", () => ({ appPaymentsFor: m.appPaymentsFor }));
 vi.mock("@/lib/settings", () => ({ getProEnabled: m.getProEnabled }));
 vi.mock("@/lib/countries/settings", () => ({ getCountrySettings: m.getCountrySettings, purchasesAvailable: m.purchasesAvailable }));
@@ -28,6 +29,13 @@ beforeEach(() => {
   m.getCountrySettings.mockResolvedValue({ proPlans: { monthly: { enabled: true, price: 4, credits: 8 } } });
   m.currentProSubscription.mockResolvedValue(null);
   db.user.findUnique.mockResolvedValue({ country: "JO" });
+});
+
+describe("GET /api/pro while paused (QA WP2-02, A-M01)", () => {
+  it("is read-only, so a paused member may read it", async () => {
+    await GET(web);
+    expect(requireUser).toHaveBeenCalledWith({ allowDeactivated: true });
+  });
 });
 
 describe("GET /api/pro", () => {

@@ -39,6 +39,15 @@ beforeEach(() => {
   refundMod.applyRefund.mockResolvedValue("refunded");
 });
 
+describe("paused members (QA WP2-02)", () => {
+  it("may cancel the renewal while paused, but resume waits for reactivation", async () => {
+    await cancel();
+    expect(auth.requireUser).toHaveBeenLastCalledWith({ allowDeactivated: true });
+    await resume();
+    expect(auth.requireUser).toHaveBeenLastCalledWith({ allowDeactivated: false });
+  });
+});
+
 describe("member cancel / resume", () => {
   it("cancels and resumes for the signed-in member", async () => {
     expect((await cancel()).status).toBe(200);

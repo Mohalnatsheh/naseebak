@@ -500,7 +500,7 @@ describe("report a message (Report.messageId)", () => {
   it("a message of this chat goes with the report", async () => {
     const c = conv();
     db.conversation.findUnique.mockResolvedValue(c);
-    db.message.findUnique.mockResolvedValue({ id: "bad", conversationId: c.id });
+    db.message.findUnique.mockResolvedValue({ id: "bad", conversationId: c.id, senderId: "f1" });
     await endConversation({ conversationId: c.id, userId: "u1", report: { reason: "HARASSMENT", messageId: "bad" } });
     expect(fileReport).toHaveBeenCalledWith(expect.objectContaining({ conversationId: c.id, messageId: "bad", reportedId: "f1" }));
   });
@@ -508,7 +508,8 @@ describe("report a message (Report.messageId)", () => {
   it("a message of another chat (or one that is gone) is refused with 400 before anything is ended", async () => {
     const c = conv();
     db.conversation.findUnique.mockResolvedValue(c);
-    for (const found of [{ id: "x", conversationId: "someone-elses" }, null]) {
+    // My own message (WC2-16), a message of another chat, or one that is gone
+    for (const found of [{ id: "x", conversationId: c.id, senderId: "u1" }, { id: "x", conversationId: "someone-elses", senderId: "f1" }, null]) {
       vi.mocked(fileReport).mockClear();
       db.conversation.update.mockClear();
       db.message.findUnique.mockResolvedValue(found);
@@ -531,13 +532,55 @@ describe("report a message (Report.messageId)", () => {
   it("the end route takes report.messageId (optional, a short string)", async () => {
     const c = conv();
     db.conversation.findUnique.mockResolvedValue(c);
-    db.message.findUnique.mockResolvedValue({ id: "bad", conversationId: c.id });
+    db.message.findUnique.mockResolvedValue({ id: "bad", conversationId: c.id, senderId: "f1" });
     const call = (body: unknown) =>
       endRoute(new Request("http://x", { method: "POST", body: JSON.stringify(body) }), { params: Promise.resolve({ id: c.id }) });
     expect((await call({ report: { reason: "HARASSMENT", messageId: "bad" } })).status).toBe(200);
     expect(fileReport).toHaveBeenCalledWith(expect.objectContaining({ messageId: "bad" }));
     expect((await call({ report: { reason: "HARASSMENT", messageId: "x".repeat(200) } })).status).toBe(400);
     expect((await call({ report: { reason: "HARASSMENT" } })).status).toBe(200);
+  });
+});
+
+describe("«إبلاغ فقط»: report without ending the chat (end: false)", () => {
+  beforeEach(() => {
+    db.introRequest.updateMany.mockResolvedValue({ count: 0 });
+  });
+
+  it("files the report with the message and leaves the chat open, unblocked, requests untouched", async () => {
+    const c = conv();
+    db.conversation.findUnique.mockResolvedValue(c);
+    db.message.findUnique.mockResolvedValue({ id: "bad", conversationId: c.id, senderId: "f1" });
+    await endConversation({ conversationId: c.id, userId: "u1", report: { reason: "HARASSMENT", messageId: "bad" }, end: false });
+    expect(fileReport).toHaveBeenCalledWith(expect.objectContaining({ conversationId: c.id, messageId: "bad", reportedId: "f1", reporterId: "u1" }));
+    expect(db.conversation.update).not.toHaveBeenCalled();
+    expect(db.block.create).not.toHaveBeenCalled();
+    expect(db.introRequest.updateMany).not.toHaveBeenCalled();
+    expect(ably.publishChatEvent).not.toHaveBeenCalled();
+  });
+
+  it("refuses my own message there too, and needs a report", async () => {
+    const c = conv();
+    db.conversation.findUnique.mockResolvedValue(c);
+    db.message.findUnique.mockResolvedValue({ id: "mine", conversationId: c.id, senderId: "u1" });
+    await expect(
+      endConversation({ conversationId: c.id, userId: "u1", report: { reason: "SPAM", messageId: "mine" }, end: false }),
+    ).rejects.toBeInstanceOf(IntroError);
+    await expect(endConversation({ conversationId: c.id, userId: "u1", end: false })).rejects.toBeInstanceOf(IntroError);
+    expect(fileReport).not.toHaveBeenCalled();
+  });
+
+  it("the end route takes end:false, answers ended:false, and refuses end:false without a report", async () => {
+    const c = conv();
+    db.conversation.findUnique.mockResolvedValue(c);
+    db.message.findUnique.mockResolvedValue({ id: "bad", conversationId: c.id, senderId: "f1" });
+    const call = (body: unknown) =>
+      endRoute(new Request("http://x", { method: "POST", body: JSON.stringify(body) }), { params: Promise.resolve({ id: c.id }) });
+    const ok = await call({ end: false, report: { reason: "HARASSMENT", messageId: "bad" } });
+    expect(ok.status).toBe(200);
+    expect(await ok.json()).toMatchObject({ ended: false, message: "تم إرسال البلاغ" });
+    expect(db.conversation.update).not.toHaveBeenCalled();
+    expect((await call({ end: false })).status).toBe(400);
   });
 });
 

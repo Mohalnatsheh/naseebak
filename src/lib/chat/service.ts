@@ -951,20 +951,42 @@ export async function endConversation(args: {
   userId: string;
   /** `messageId`: «إبلاغ عن الرسالة», a message of this chat (else INVALID, 400, and nothing is ended or filed) */
   report?: { reason: ReportReason; details?: string; messageId?: string };
+  /**
+   * «إبلاغ فقط» (owner ruling, modern chat): `false` files the report and nothing else: the chat stays open, nobody is
+   * blocked and no request is cancelled (admins act by hand). Needs a report. Default true (end, and with a report block).
+   */
+  end?: boolean;
 }): Promise<void> {
   const { conversationId, userId, report } = args;
+  const end = args.end !== false;
+  if (!end && !report) throw new IntroError("INVALID", "اختر سبب البلاغ");
   // Read-only access is enough: someone the other person blocked can still report this chat
   const c = await loadForUser(conversationId, userId, { readOnly: true });
   const partner = partnerOf(c, userId);
   if (report?.messageId) {
-    const target = await db.message.findUnique({ where: { id: report.messageId }, select: { id: true, conversationId: true } });
-    if (!target || target.conversationId !== conversationId) throw new IntroError("INVALID", "لا يمكن الإبلاغ عن هذه الرسالة");
+    const target = await db.message.findUnique({
+      where: { id: report.messageId },
+      select: { id: true, conversationId: true, senderId: true },
+    });
+    // Only the partner's message can be reported (QA WC2-16): never my own, never one from another chat
+    if (!target || target.conversationId !== conversationId || target.senderId !== partner.id) {
+      throw new IntroError("INVALID", "لا يمكن الإبلاغ عن هذه الرسالة");
+    }
   }
   // Only an open chat can be ended (and the partner told): not an expired or ended one, and not across
   // a block — a blocked person must not push «أنهى الطرف الآخر المحادثة» to the blocker. Reporting
   // («إبلاغ») stays possible on any chat.
   const open = c.status === "ACTIVE" && c.expiresAt.getTime() > Date.now() && !(await isBlocked(userId, partner.id));
   if (!open && !report) throw new IntroError("NOT_ALLOWED", "لا يمكن إنهاء هذه المحادثة الآن");
+
+  if (!end && report) {
+    // «إبلاغ فقط»: the same filing (reopens a repeat report, emails the admins), and the chat goes on
+    await fileReport({
+      reporterId: userId, reportedId: partner.id, reason: report.reason, details: report.details, conversationId,
+      ...(report.messageId && { messageId: report.messageId }),
+    });
+    return;
+  }
 
   if (open) {
     await db.conversation.update({

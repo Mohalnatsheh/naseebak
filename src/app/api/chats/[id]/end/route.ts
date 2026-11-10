@@ -13,9 +13,14 @@ const schema = z.object({
       messageId: z.string().min(1).max(64).optional(),
     })
     .optional(),
+  /** «إبلاغ فقط»: false files the report without ending the chat or blocking (needs `report`). Default true */
+  end: z.boolean().optional(),
 });
 
-/** End the chat for both sides; with a report it also blocks the other person */
+/**
+ * End the chat for both sides; with a report it also blocks the other person.
+ * `{ end: false, report }` («إبلاغ فقط») only files the report: the chat stays open and nobody is blocked.
+ */
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const result = await requireUser();
@@ -23,8 +28,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const { id } = await params;
     const parsed = schema.safeParse((await request.json().catch(() => ({}))) ?? {});
     if (!parsed.success) return NextResponse.json({ error: "بيانات غير صالحة" }, { status: 400 });
-    await endConversation({ conversationId: id, userId: result.session.user.id, report: parsed.data.report });
-    return NextResponse.json({ message: parsed.data.report ? "تم إنهاء المحادثة والإبلاغ" : "تم إنهاء المحادثة" });
+    const { report, end } = parsed.data;
+    if (end === false && !report) return NextResponse.json({ error: "اختر سبب البلاغ" }, { status: 400 });
+    await endConversation({ conversationId: id, userId: result.session.user.id, report, end });
+    const message = end === false ? "تم إرسال البلاغ" : report ? "تم إنهاء المحادثة والإبلاغ" : "تم إنهاء المحادثة";
+    return NextResponse.json({ message, ended: end !== false });
   } catch (error) {
     return introErrorResponse(error, "End chat");
   }

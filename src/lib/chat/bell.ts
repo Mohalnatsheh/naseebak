@@ -7,25 +7,30 @@ import { arabicCount } from "@/lib/utils";
 
 const MESSAGES = { one: "رسالة جديدة", two: "رسالتان جديدتان", few: "رسائل جديدة", many: "رسالة جديدة" };
 
-const forChat = (userId: string, conversationId: string) => ({
+// Only the bell rows this file writes (`chatBell: true`, written since 7ef2f00). The chat's own notices share
+// type CHAT and `conversationId` (family nudge, «تنتهي المحادثة قريباً», «انتهت مدة المحادثة», «تم تمديد المحادثة»,
+// end, moderation, leave, reports) and must never be rewritten or marked read by a new message (final review I1).
+const bellRows = (userId: string, conversationId: string) => ({
   userId,
   type: "CHAT" as const,
-  isRead: false,
-  metadata: { path: ["conversationId"], equals: conversationId },
+  AND: [
+    { metadata: { path: ["conversationId"], equals: conversationId } },
+    { metadata: { path: ["chatBell"], equals: true } },
+  ],
 });
 
-/** Every bell entry of this chat for this member, read or not */
-const anyForChat = (userId: string, conversationId: string) => ({
-  userId,
-  type: "CHAT" as const,
-  metadata: { path: ["conversationId"], equals: conversationId },
-});
+/** The unread bell row(s) of this chat for this member */
+const forChat = (userId: string, conversationId: string) => ({ ...bellRows(userId, conversationId), isRead: false });
+
+/** Every bell row of this chat for this member, read or not */
+const anyForChat = bellRows;
 
 /**
  * After a message: the recipient's one bell entry for this chat, created or brought up to date (QA A2-L7). The newest
- * entry is reused even once read, so a live chat read as it goes keeps one row (it used to add a row per message:
- * the read entry was skipped and a new one made); it comes back unread at the top. Any other unread entry of the
- * chat (two messages at the same moment) is marked read. Same row shape, so every client reads it as before.
+ * bell entry (never one of the chat's notices) is reused even once read, so a live chat read as it goes keeps one row
+ * (it used to add a row per message: the read entry was skipped and a new one made); it comes back unread at the top.
+ * Any other unread bell entry of the chat (two messages at the same moment) is marked read. Same row shape, so every
+ * client reads it as before.
  */
 export async function upsertChatBell(recipientId: string, conversationId: string, senderName: string): Promise<void> {
   try {
@@ -57,7 +62,7 @@ export async function upsertChatBell(recipientId: string, conversationId: string
   }
 }
 
-/** The member read the chat: their bell entry for it is done */
+/** The member read the chat: their bell entry for it is done (the chat's notices stay as they are) */
 export async function clearChatBell(userId: string, conversationId: string): Promise<void> {
   try {
     await db.notification.updateMany({ where: forChat(userId, conversationId), data: { isRead: true } });

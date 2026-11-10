@@ -92,7 +92,7 @@ export default async function PaymentReturnPage({ searchParams }: { searchParams
         </p>
       )}
       {device !== "android" && (
-        <Link href="/dashboard/payments" className="text-sm font-semibold text-primary hover:underline">
+        <Link href="/dashboard/payments" className="inline-flex min-h-11 items-center text-sm font-semibold text-primary hover:underline">
           أو افتح صفحة الرصيد على الموقع
         </Link>
       )}

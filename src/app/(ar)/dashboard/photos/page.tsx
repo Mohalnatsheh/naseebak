@@ -239,7 +239,7 @@ export default function PhotosPage() {
               </div>
             </div>
             <div className="space-y-2">
-              <h3 className="font-semibold text-lg text-foreground">لا توجد صور بعد</h3>
+              <h2 className="font-semibold text-lg text-foreground">لا توجد صور بعد</h2>
               <p className="text-sm text-muted-foreground max-w-xs mx-auto leading-relaxed">
                 {female ? "أضيفي صوراً لملفكِ الشخصي لتظهر عند التوافق المتبادل مع شريك محتمل." : "أضف صوراً لملفك الشخصي لتظهر عند التوافق المتبادل مع شريك محتمل."}
               </p>

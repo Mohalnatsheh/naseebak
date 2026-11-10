@@ -467,7 +467,7 @@ export default function NotificationsPage() {
               </div>
             </div>
             <div className="space-y-2">
-              <h3 className="font-semibold text-lg text-foreground">لا توجد إشعارات</h3>
+              <h2 className="font-semibold text-lg text-foreground">لا توجد إشعارات</h2>
               <p className="text-sm text-muted-foreground max-w-xs mx-auto leading-relaxed">
                 ستظهر الإشعارات هنا عند وجود تحديثات جديدة على حسابك مثل الاقتراحات والتوافقات وطلبات التعارف.
               </p>
@@ -529,7 +529,7 @@ export default function NotificationsPage() {
                       {/* Content */}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start justify-between gap-2 mb-1">
-                          <h3
+                          <h2
                             className={`text-sm leading-snug ${
                               !n.isRead
                                 ? "font-bold text-foreground"
@@ -537,7 +537,7 @@ export default function NotificationsPage() {
                             }`}
                           >
                             {n.title}
-                          </h3>
+                          </h2>
                           <div className="flex items-center gap-1.5 shrink-0">
                             {/* Time badge */}
                             <span className="inline-flex items-center gap-1 rounded-lg bg-muted/60 border border-border/50 px-2 py-0.5 text-xs text-muted-foreground font-medium">

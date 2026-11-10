@@ -335,7 +335,7 @@ export default function SupportPage() {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <h3 className="font-semibold text-lg text-foreground">لا توجد تذاكر</h3>
+                  <h2 className="font-semibold text-lg text-foreground">لا توجد تذاكر</h2>
                   <p className="text-sm text-muted-foreground max-w-xs mx-auto leading-relaxed">
                     {female ? "لم ترسلي أي تذاكر دعم بعد. يمكنكِ إرسال تذكرة جديدة من التبويب الأول." : "لم ترسل أي تذاكر دعم بعد. يمكنك إرسال تذكرة جديدة من التبويب الأول."}
                   </p>
@@ -355,7 +355,7 @@ export default function SupportPage() {
                     <CardContent className="p-4 md:p-5 space-y-3">
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex-1 min-w-0">
-                          <h3 className="font-semibold text-foreground truncate">{ticket.subject}</h3>
+                          <h2 className="font-semibold text-foreground truncate">{ticket.subject}</h2>
                           <div className="flex items-center gap-2 mt-1">
                             <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary">
                               {typeLabels[ticket.type] || ticket.type}

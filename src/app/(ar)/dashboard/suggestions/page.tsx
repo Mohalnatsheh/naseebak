@@ -487,7 +487,7 @@ toast.success("تهانينا! لديك توافق متبادل!", {
               <AlertCircle className="h-8 w-8 text-accent-foreground" />
             </div>
             <div className="space-y-2">
-              <h3 className="text-lg font-bold text-foreground">{forViewer(me?.gender, "أكمل حسابك لتلقي الاقتراحات", "أكملي حسابكِ لتلقي الاقتراحات")}</h3>
+              <h2 className="text-lg font-bold text-foreground">{forViewer(me?.gender, "أكمل حسابك لتلقي الاقتراحات", "أكملي حسابكِ لتلقي الاقتراحات")}</h2>
               <p className="text-sm text-muted-foreground max-w-sm mx-auto leading-relaxed">
                 {perRequestCredits ? (
                   incompleteSections.length === 0 ? (
@@ -645,7 +645,7 @@ toast.success("تهانينا! لديك توافق متبادل!", {
                     <CreditCard className="h-5 w-5" />
                   </div>
                   <div className="min-w-0">
-                    <h3 className="font-bold text-amber-900 text-sm sm:text-base">انتهى رصيد اقتراحاتك</h3>
+                    <h2 className="font-bold text-amber-900 text-sm sm:text-base">انتهى رصيد اقتراحاتك</h2>
                     <p className="text-xs text-amber-800/80 mt-0.5 leading-relaxed">
                       لن تصلك اقتراحات جديدة حتى تشحن رصيدك. كل اقتراح يستخدم رصيداً واحداً.
                     </p>
@@ -670,7 +670,7 @@ toast.success("تهانينا! لديك توافق متبادل!", {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <h3 className="font-semibold text-lg text-foreground">نبحث لك عن اقتراحات مناسبة</h3>
+                  <h2 className="font-semibold text-lg text-foreground">نبحث لك عن اقتراحات مناسبة</h2>
                   <p className="text-sm text-muted-foreground max-w-xs mx-auto leading-relaxed">
                     لا توجد اقتراحات جديدة الآن. سنرسل لك إشعاراً فور وصول اقتراح يناسبك، وإكمال ملفك واختبار الشخصية يجعل الاقتراحات أدق.
                   </p>
@@ -824,7 +824,7 @@ toast.success("تهانينا! لديك توافق متبادل!", {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <h3 className="font-semibold text-lg text-foreground">لم ترسل أي طلبات بعد</h3>
+                  <h2 className="font-semibold text-lg text-foreground">لم ترسل أي طلبات بعد</h2>
                   <p className="text-sm text-muted-foreground max-w-xs mx-auto leading-relaxed">
                     عند قبول اقتراح، سيظهر هنا حتى تتمكن من متابعة حالته.
                   </p>
@@ -924,7 +924,7 @@ toast.success("تهانينا! لديك توافق متبادل!", {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <h3 className="font-semibold text-lg text-foreground">لا توجد طلبات اهتمام حالياً</h3>
+                  <h2 className="font-semibold text-lg text-foreground">لا توجد طلبات اهتمام حالياً</h2>
                   <p className="text-sm text-muted-foreground max-w-xs mx-auto leading-relaxed">
                     سيتم إعلامك عندما يبدي شخص ما اهتماماً بملفك الشخصي. تأكد من إكمال ملفك للحصول على أفضل النتائج.
                   </p>

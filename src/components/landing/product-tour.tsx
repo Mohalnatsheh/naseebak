@@ -57,7 +57,7 @@ export function LandingProductTour({ content }: { content: LandingContent }) {
                     tabIndex={on ? 0 : -1}
                     onClick={() => setActive(i)}
                     className={cn(
-                      "rounded-full border px-4 py-2 text-sm font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent lg:rounded-2xl lg:px-5 lg:py-4 lg:text-start",
+                      "min-h-11 rounded-full border px-4 py-2 text-sm font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent lg:rounded-2xl lg:px-5 lg:py-4 lg:text-start",
                       on
                         ? "border-primary bg-primary text-primary-foreground lg:shadow-[0_18px_40px_-24px_oklch(0.39_0.07_249/0.7)]"
                         : "border-border bg-card text-foreground hover:border-primary/40"

@@ -53,7 +53,9 @@ export function guardianFormIssues(
   else if (name.length > 80) out.parentName = "اسم ولي الأمر طويل جداً";
   else if (!/^[؀-ۿ\s]+$/.test(name)) out.parentName = "يرجى كتابة اسم ولي الأمر باللغة العربية";
   const phone = toLatinDigits(v.parentPhone).replace(/[\s\-()]/g, "");
-  if (!isValidPhone(phone, c.code)) out.parentPhone = `رقم ${c.words.phone} ولي الأمر غير صالح. مثال: ${c.phone.example}`;
+  // Empty is «مطلوب», not «غير صالح» (QA WM-10)
+  if (!phone) out.parentPhone = `رقم ${c.words.phone} ولي الأمر مطلوب`;
+  else if (!isValidPhone(phone, c.code)) out.parentPhone = `رقم ${c.words.phone} ولي الأمر غير صالح. مثال: ${c.phone.example}`;
   if (!["father", "mother", "brother", "guardian"].includes(v.relationship)) out.relationship = "صلة القرابة مطلوبة";
   const address = v.address.trim();
   if (address.length < 3) out.address = "العنوان مطلوب";

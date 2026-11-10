@@ -104,8 +104,8 @@ export function FaqContent({
               className="mx-auto mt-6 max-w-xl text-lg leading-relaxed text-muted-foreground"
               style={{ animation: "fadeSlideUp 0.8s ease-out 0.4s both" }}
             >
-              كل ما تحتاج معرفته عن منصة نصيبك وكيفية عملها. إذا لم تجد
-              إجابتك، لا تتردد في التواصل معنا.
+              كل ما تحتاج معرفته عن منصة نصيبك وكيفية عملها. وإذا لم تجد
+              إجابتك، يمكنك التواصل معنا.
             </p>
           </div>
         </section>
@@ -117,11 +117,13 @@ export function FaqContent({
               {faqCategories.map((cat) => (
                 <button
                   key={cat.id}
+                  type="button"
+                  aria-pressed={activeCategory === cat.id}
                   onClick={() => {
                     setActiveCategory(cat.id);
                     setOpenFaq(null);
                   }}
-                  className={`inline-flex shrink-0 items-center gap-2 rounded-full px-5 py-2.5 text-sm font-medium transition-all duration-300 ${
+                  className={`inline-flex min-h-11 shrink-0 items-center gap-2 rounded-full px-5 py-2.5 text-sm font-medium transition-all duration-300 ${
                     activeCategory === cat.id
                       ? "bg-primary text-primary-foreground shadow-md shadow-primary/20"
                       : "bg-muted/60 hover:bg-muted text-muted-foreground"

@@ -490,13 +490,21 @@ export function MatchesView({ embedded = false }: { embedded?: boolean } = {}) {
     const id = new URLSearchParams(window.location.search).get("match");
     if (!id || loading || focusShown.current) return;
     const el = document.getElementById(`match-${id}`);
-    if (!el) return;
+    if (!el) {
+      // A link to a match that is no longer mine to see (the other person blocked, or it closed): say so instead of
+      // landing silently on the list (QA WM-17)
+      if (!loadError) {
+        focusShown.current = true;
+        toast.info("هذا التوافق لم يعد متاحاً.");
+      }
+      return;
+    }
     focusShown.current = true;
     setFocusMatchId(id);
     el.scrollIntoView({ behavior: "smooth", block: "start" });
     const t = setTimeout(() => setFocusMatchId(null), 4000);
     return () => clearTimeout(t);
-  }, [loading, matches]);
+  }, [loading, matches, loadError]);
 
   if (loading || switchesLoading) {
     return (
@@ -521,7 +529,7 @@ export function MatchesView({ embedded = false }: { embedded?: boolean } = {}) {
               <AlertCircle className="h-7 w-7 text-destructive" aria-hidden="true" />
             </div>
             <div className="space-y-1">
-              <h3 className="text-lg font-bold text-foreground">تعذّر تحميل التوافقات</h3>
+              <h2 className="text-lg font-bold text-foreground">تعذّر تحميل التوافقات</h2>
               <p className="text-sm text-muted-foreground">يمكنك التحقق من اتصالك والمحاولة مرة أخرى.</p>
             </div>
             <Button
@@ -568,7 +576,7 @@ export function MatchesView({ embedded = false }: { embedded?: boolean } = {}) {
               </div>
             </div>
             <div className="space-y-2">
-              <h3 className="font-semibold text-lg text-foreground">لا توجد توافقات بعد</h3>
+              <h2 className="font-semibold text-lg text-foreground">لا توجد توافقات حالياً</h2>
               <p className="text-sm text-muted-foreground max-w-xs mx-auto leading-relaxed">
                 {introMode
                   ? "عندما يكون الاهتمام متبادلاً بينك وبين أحد اقتراحاتك، يظهر التوافق هنا."
@@ -737,7 +745,7 @@ export function MatchesView({ embedded = false }: { embedded?: boolean } = {}) {
                     )}
 
                     {/* Photos toggle */}
-                    {m.photosRevealed && showPhotos[m.id] && (
+                    {m.photosRevealed && !m.closed && showPhotos[m.id] && (
                       <div className="mx-5 md:mx-6 mb-4">
                         {loadingPhotos[m.id] ? (
                           <div className="flex flex-col items-center justify-center gap-2 p-6 bg-muted/30 rounded-xl border border-border/40">
@@ -804,7 +812,10 @@ export function MatchesView({ embedded = false }: { embedded?: boolean } = {}) {
                   }
                   actions={locked ? undefined :
                       <div className="flex gap-3">
-                        {m.photosRevealed ? (
+                        {/* A closed match never shows photos (the API refuses them): no «عرض الصور» then (QA WM-12) */}
+                        {m.closed ? (
+                          <span className="flex-1" />
+                        ) : m.photosRevealed ? (
                           <Button
                             variant="outline"
                             className={`flex-1 h-11 rounded-xl font-semibold transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] ${
@@ -882,7 +893,7 @@ export function MatchesView({ embedded = false }: { embedded?: boolean } = {}) {
                   ) : m.closed === "inactive" ? (
                     <MatchClosedNote reason="inactive" />
                   ) : (
-                    <MatchIntroPanel matchId={m.id} partnerName={c.firstName} />
+                    <MatchIntroPanel matchId={m.id} partnerName={c.firstName} onClosed={() => setReloadKey((k) => k + 1)} />
                   )}
                 </PersonCard>
               </div>

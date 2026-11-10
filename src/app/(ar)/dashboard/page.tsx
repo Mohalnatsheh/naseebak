@@ -318,7 +318,8 @@ export default function DashboardPage() {
           </div>
           {recentChats.length === 0 ? (
             <p className="rounded-2xl border border-dashed border-border bg-card px-4 py-4 text-sm leading-relaxed text-muted-foreground">
-              {matchesCount > 0
+              {/* Open matches only: a match the other person blocked is gone from my list (QA WM-17) */}
+              {(counts.openMatches ?? matchesCount) > 0
                 ? g("لا محادثة مفتوحة الآن. يمكنك طلب محادثة من التوافقات المتبادلة.", "لا محادثة مفتوحة الآن. يمكنكِ طلب محادثة من التوافقات المتبادلة.")
                 : "تبدأ المحادثة عندما يقول الطرفان «مهتم» ويختاران «محادثة هنا أولاً»."}
             </p>

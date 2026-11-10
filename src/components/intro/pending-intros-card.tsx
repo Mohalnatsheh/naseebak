@@ -22,13 +22,13 @@ export function PendingIntrosCard() {
             <Inbox className="h-5 w-5" />
           </div>
           <div className="flex-1 min-w-0">
-            <h3 className="font-bold text-foreground text-sm sm:text-base">
+            <h2 className="font-bold text-foreground text-sm sm:text-base">
               {n === 1
                 ? "لديك طلب تعارف بانتظار ردك"
                 : n === 2
                   ? "لديك طلبا تعارف بانتظار ردك"
                   : `لديك ${n} ${n % 100 >= 3 && n % 100 <= 10 ? "طلبات تعارف" : "طلب تعارف"} بانتظار ردك`}
-            </h3>
+            </h2>
             <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
               الطلبات تنتهي بعد 7 أيام من إرسالها.
             </p>

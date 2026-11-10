@@ -196,7 +196,7 @@ export function PersonCard({
             <Avatar name={name} photoUrl={photoUrl} photoLocked={photoLocked} mark={avatarMark} compact={compact} />
             <div className="flex-1 min-w-0">
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                <h3 className={cn("font-display text-primary truncate max-w-full", compact ? "text-lg" : "text-xl sm:text-2xl")}>{name}</h3>
+                <h2 className={cn("font-display text-primary truncate max-w-full", compact ? "text-lg" : "text-xl sm:text-2xl")}>{name}</h2>
                 <VerifiedBadge verified={verified} />
                 {badges}
               </div>

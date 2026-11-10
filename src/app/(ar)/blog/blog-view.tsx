@@ -188,8 +188,10 @@ export default function BlogView({ initial }: { initial: BlogInitial }) {
             <div className="flex flex-wrap items-center justify-center gap-2">
               {/* "All" button */}
               <button
+                type="button"
+                aria-pressed={activeCategory === "all"}
                 onClick={() => handleCategoryChange("all")}
-                className={`inline-flex shrink-0 items-center gap-2 rounded-full px-5 py-2.5 text-sm font-medium transition-all duration-300 ${
+                className={`inline-flex min-h-11 shrink-0 items-center gap-2 rounded-full px-5 py-2.5 text-sm font-medium transition-all duration-300 ${
                   activeCategory === "all"
                     ? "bg-primary text-primary-foreground shadow-md shadow-primary/20"
                     : "bg-muted/60 hover:bg-muted text-muted-foreground"
@@ -205,8 +207,10 @@ export default function BlogView({ initial }: { initial: BlogInitial }) {
                 return (
                   <button
                     key={cat.id}
+                    type="button"
+                    aria-pressed={activeCategory === cat.slug}
                     onClick={() => handleCategoryChange(cat.slug)}
-                    className={`inline-flex shrink-0 items-center gap-2 rounded-full px-5 py-2.5 text-sm font-medium transition-all duration-300 ${
+                    className={`inline-flex min-h-11 shrink-0 items-center gap-2 rounded-full px-5 py-2.5 text-sm font-medium transition-all duration-300 ${
                       activeCategory === cat.slug
                         ? "bg-primary text-primary-foreground shadow-md shadow-primary/20"
                         : "bg-muted/60 hover:bg-muted text-muted-foreground"
@@ -241,7 +245,8 @@ export default function BlogView({ initial }: { initial: BlogInitial }) {
             ) : posts.length === 0 ? (
               <div className="py-20 text-center">
                 <p className="text-lg text-muted-foreground">
-                  لا توجد مقالات في هذا التصنيف حالياً.
+                  {/* «الكل» is not a category (QA WM-22) */}
+                  {activeCategory === "all" ? "لا توجد مقالات حالياً." : "لا توجد مقالات في هذا التصنيف حالياً."}
                 </p>
               </div>
             ) : (
@@ -363,7 +368,7 @@ export default function BlogView({ initial }: { initial: BlogInitial }) {
                   هل لديك قصة نجاح؟
                 </h2>
                 <p className="mx-auto mt-4 max-w-lg text-lg leading-relaxed opacity-85">
-                  شاركنا تجربتك الملهمة وساعد الآخرين في اتخاذ خطوة نحو
+                  يمكنك مشاركتنا تجربتك الملهمة لتساعد الآخرين على اتخاذ خطوة نحو
                   مستقبل سعيد. قصتك قد تكون مصدر إلهام لعائلة تبحث عن نصيبها.
                 </p>
                 <Button
@@ -374,7 +379,7 @@ export default function BlogView({ initial }: { initial: BlogInitial }) {
                 >
                   <Link href="/contact">
                     <span className="flex items-center gap-2">
-                      شاركنا قصتك
+                      مشاركة قصتك
                       <ArrowLeft className="size-4 transition-transform duration-300 group-hover:-translate-x-1" />
                     </span>
                   </Link>

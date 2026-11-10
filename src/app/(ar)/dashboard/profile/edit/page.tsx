@@ -433,6 +433,7 @@ export default function ProfileEditPage() {
   function scrollToError() {
     setTimeout(() => {
       errorRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      errorRef.current?.focus({ preventScroll: true });
     }, 50);
   }
 
@@ -529,7 +530,7 @@ export default function ProfileEditPage() {
     const needsReview = Object.keys(requestChanges).some((k) => !k.startsWith("pref"));
 
     if (hasPendingRequest && needsReview) {
-      setError("تغيير بيانات محفوظة سابقاً يحتاج مراجعة، ولديك طلب تعديل قيد المراجعة. اسحب الطلب الحالي أولاً أو أبقِ هذه البيانات كما هي.");
+      setError("تغيير بيانات محفوظة سابقاً يحتاج مراجعة، ولديك طلب تعديل قيد المراجعة. يمكنك سحب الطلب الحالي أولاً أو إبقاء هذه البيانات كما هي.");
       scrollToError();
       return;
     }
@@ -620,11 +621,20 @@ export default function ProfileEditPage() {
 
   const totalSteps = 5;
   const availableAreas = form.city ? areasFor(country.code)[form.city] || [] : [];
+  // One answer is one change: «الحجاب» is stored as hijab + niqab but asked once (QA WM-09)
+  const fieldCount = (fields: Record<string, unknown>) => {
+    const keys = Object.keys(fields);
+    return keys.length - (keys.includes("hijab") && keys.includes("niqab") ? 1 : 0);
+  };
+  const currentChanges = getChangedFields();
   const changedCount =
-    Object.keys(getChangedFields()).length +
+    fieldCount(currentChanges) +
     (hasGuardianChanges() ? 1 : 0) +
     (showDealbreakers && !arraysEqual(dealbreakers, originalDealbreakers) ? 1 : 0);
-  const willNeedReview = Object.keys(splitProfileEdit(getChangedFields(), storedProfile ?? {}).reviewed).length > 0;
+  const reviewedCount = fieldCount(splitProfileEdit(currentChanges, storedProfile ?? {}).reviewed);
+  const willNeedReview = reviewedCount > 0;
+  // The button counts what it sends for review when there is a review; the fills are saved with it
+  const buttonCount = willNeedReview ? reviewedCount : changedCount;
   const partnerGender = oppositeGender(gender);
   /** "شرط أساسي" chip for one preference; disabled until that preference is filled in. */
   const dealbreaker = (key: DealbreakerKey, fieldId: string) =>
@@ -695,9 +705,9 @@ export default function ProfileEditPage() {
               <CheckCircle2 className="h-8 w-8 text-emerald-600" />
             </div>
             <div className="space-y-2">
-              <h3 className="text-lg font-bold text-emerald-900">
+              <h2 className="text-lg font-bold text-emerald-900">
                 {reviewSent ? "تم إرسال طلب التعديل بنجاح" : "تم حفظ التعديلات"}
-              </h3>
+              </h2>
               <p className="text-sm text-emerald-700/80 max-w-sm mx-auto leading-relaxed">
                 {reviewSent
                   ? "سيقوم فريق الإدارة بمراجعة التعديلات المطلوبة وسيتم إعلامك بالنتيجة عبر الإشعارات."
@@ -768,12 +778,13 @@ export default function ProfileEditPage() {
           </div>
         ))}
         <span className="text-sm text-muted-foreground">
-          {step}/{totalSteps}
+          {step} من {totalSteps}
         </span>
       </div>
 
       {error && (
-        <div ref={errorRef} className="rounded-lg bg-destructive/10 border border-destructive/20 p-3 text-sm text-destructive">
+        // Read out and focused when it appears (QA PA-L9): the member hears what to fix
+        <div ref={errorRef} id="profile-edit-error" role="alert" tabIndex={-1} className="rounded-lg bg-destructive/10 border border-destructive/20 p-3 text-sm text-destructive outline-none">
           {error}
         </div>
       )}
@@ -808,13 +819,14 @@ export default function ProfileEditPage() {
 
             <div className="space-y-2">
               <RequiredLabel>المدينة</RequiredLabel>
-              <div className="grid grid-cols-3 gap-2">
+              <div role="group" aria-label="المدينة" className="grid grid-cols-3 gap-2">
                 {cities.map((c) => (
                   <button
                     key={c}
                     type="button"
                     onClick={() => handleCityChange(c)}
-                    className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.city === c ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
+                    aria-pressed={form.city === c}
+                    className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.city === c ? "border-primary bg-primary/15 ring-1 ring-primary text-primary font-bold" : "border-border hover:border-primary/50"}`}
                   >
                     {c}
                   </button>
@@ -866,13 +878,14 @@ export default function ProfileEditPage() {
 
             <div className="space-y-2">
               <Label>لون البشرة <OptionalTag /></Label>
-              <div className="grid grid-cols-4 gap-2">
+              <div role="group" aria-label="لون البشرة" className="grid grid-cols-4 gap-2">
                 {skinColors.map((c) => (
                   <button
                     key={c}
                     type="button"
                     onClick={() => update("skinColor", c)}
-                    className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.skinColor === c ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
+                    aria-pressed={form.skinColor === c}
+                    className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.skinColor === c ? "border-primary bg-primary/15 ring-1 ring-primary text-primary font-bold" : "border-border hover:border-primary/50"}`}
                   >
                     {skinColorLabel(c, gender)}
                   </button>
@@ -882,13 +895,14 @@ export default function ProfileEditPage() {
 
             <div className="space-y-2">
               <RequiredLabel>المستوى التعليمي</RequiredLabel>
-              <div className="grid grid-cols-3 gap-2">
+              <div role="group" aria-label="المستوى التعليمي" className="grid grid-cols-3 gap-2">
                 {educationLevels.map((e) => (
                   <button
                     key={e}
                     type="button"
                     onClick={() => update("education", e)}
-                    className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.education === e ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
+                    aria-pressed={form.education === e}
+                    className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.education === e ? "border-primary bg-primary/15 ring-1 ring-primary text-primary font-bold" : "border-border hover:border-primary/50"}`}
                   >
                     {e}
                   </button>
@@ -925,13 +939,14 @@ export default function ProfileEditPage() {
 
             <div className="space-y-2">
               <Label>مستوى الدخل <OptionalTag /></Label>
-              <div className="grid grid-cols-3 gap-2">
+              <div role="group" aria-label="مستوى الدخل" className="grid grid-cols-3 gap-2">
                 {incomeRanges.map((r) => (
                   <button
                     key={r}
                     type="button"
                     onClick={() => update("incomeRange", r)}
-                    className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.incomeRange === r ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
+                    aria-pressed={form.incomeRange === r}
+                    className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.incomeRange === r ? "border-primary bg-primary/15 ring-1 ring-primary text-primary font-bold" : "border-border hover:border-primary/50"}`}
                   >
                     {r}
                   </button>
@@ -953,7 +968,7 @@ export default function ProfileEditPage() {
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <RequiredLabel>الحالة الاجتماعية</RequiredLabel>
-              <div className="grid grid-cols-3 gap-2">
+              <div role="group" aria-label="الحالة الاجتماعية" className="grid grid-cols-3 gap-2">
                 {maritalStatuses.map((s) => (
                   <button
                     key={s}
@@ -963,7 +978,7 @@ export default function ProfileEditPage() {
                       update("maritalStatus", s);
                       if (s === "أعزب/عزباء") update("childrenCount", "0");
                     }}
-                    className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.maritalStatus === s ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
+                    className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.maritalStatus === s ? "border-primary bg-primary/15 ring-1 ring-primary text-primary font-bold" : "border-border hover:border-primary/50"}`}
                   >
                     {selfLabel("maritalStatus", s, gender)}
                   </button>
@@ -988,14 +1003,14 @@ export default function ProfileEditPage() {
 
             <div className="space-y-2">
               <RequiredLabel>مستوى التدين</RequiredLabel>
-              <div className="grid grid-cols-2 gap-2">
+              <div role="group" aria-label="مستوى التدين" className="grid grid-cols-2 gap-2">
                 {religiosityLevels.map((r) => (
                   <button
                     key={r}
                     aria-pressed={form.religiosity === r}
                     type="button"
                     onClick={() => update("religiosity", r)}
-                    className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.religiosity === r ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
+                    className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.religiosity === r ? "border-primary bg-primary/15 ring-1 ring-primary text-primary font-bold" : "border-border hover:border-primary/50"}`}
                   >
                     {selfLabel("religiosity", r, gender)}
                   </button>
@@ -1005,14 +1020,14 @@ export default function ProfileEditPage() {
 
             <div className="space-y-2">
               <Label>التدخين <OptionalTag /></Label>
-              <div className="grid grid-cols-2 gap-2">
+              <div role="group" aria-label="التدخين" className="grid grid-cols-2 gap-2">
                 {smokingStatuses.map((s) => (
                   <button
                     key={s}
                     aria-pressed={form.smokingStatus === s}
                     type="button"
                     onClick={() => update("smokingStatus", s)}
-                    className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.smokingStatus === s ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
+                    className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.smokingStatus === s ? "border-primary bg-primary/15 ring-1 ring-primary text-primary font-bold" : "border-border hover:border-primary/50"}`}
                   >
                     {selfLabel("smokingStatus", s, gender)}
                   </button>
@@ -1023,7 +1038,7 @@ export default function ProfileEditPage() {
             {gender === "FEMALE" && (
               <div className="space-y-2">
                 <Label>الحجاب <OptionalTag /></Label>
-                <div className="grid grid-cols-3 gap-2">
+                <div role="group" aria-label="الحجاب" className="grid grid-cols-3 gap-2">
                   {VEIL_CHOICES.map((v) => {
                     const on = veilChoice(form.hijab, form.niqab) === v;
                     return (
@@ -1042,7 +1057,7 @@ export default function ProfileEditPage() {
                             niqab: next.niqab || prev.niqab !== null || !next.hijab ? next.niqab : prev.niqab,
                           }));
                         }}
-                        className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${on ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
+                        className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${on ? "border-primary bg-primary/15 ring-1 ring-primary text-primary font-bold" : "border-border hover:border-primary/50"}`}
                       >
                         {v}
                       </button>
@@ -1055,14 +1070,14 @@ export default function ProfileEditPage() {
             {gender === "MALE" && (
               <div className="space-y-2">
                 <Label>اللحية <OptionalTag /></Label>
-                <div className="grid grid-cols-2 gap-2">
+                <div role="group" aria-label="اللحية" className="grid grid-cols-2 gap-2">
                   {([true, false] as const).map((v) => (
                     <button
                       key={String(v)}
                       aria-pressed={form.beard === v}
                       type="button"
                       onClick={() => update("beard", v)}
-                      className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.beard === v ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
+                      className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.beard === v ? "border-primary bg-primary/15 ring-1 ring-primary text-primary font-bold" : "border-border hover:border-primary/50"}`}
                     >
                       {v ? "ملتحٍ" : "غير ملتحٍ"}
                     </button>
@@ -1073,14 +1088,14 @@ export default function ProfileEditPage() {
 
             <div className="space-y-2">
               <Label>مهارة الطبخ <OptionalTag /></Label>
-              <div className="grid grid-cols-2 gap-2">
+              <div role="group" aria-label="مهارة الطبخ" className="grid grid-cols-2 gap-2">
                 {cookingLevels.map((c) => (
                   <button
                     key={c}
                     aria-pressed={form.cookingAbility === c}
                     type="button"
                     onClick={() => update("cookingAbility", c)}
-                    className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.cookingAbility === c ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
+                    className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.cookingAbility === c ? "border-primary bg-primary/15 ring-1 ring-primary text-primary font-bold" : "border-border hover:border-primary/50"}`}
                   >
                     {selfLabel("cookingAbility", c, gender)}
                   </button>
@@ -1092,10 +1107,10 @@ export default function ProfileEditPage() {
               <Label>رخصة قيادة <OptionalTag /></Label>
               <button
                 type="button"
-                  role="switch"
-                  aria-checked={!!form.drivingLicense}
+                role="switch"
+                aria-checked={!!form.drivingLicense}
                 onClick={() => update("drivingLicense", !form.drivingLicense)}
-                className={`w-full rounded-xl border px-4 py-3 text-sm transition-all flex items-center justify-between ${form.drivingLicense ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
+                className={`w-full rounded-xl border px-4 py-3 text-sm transition-all flex items-center justify-between ${form.drivingLicense ? "border-primary bg-primary/15 ring-1 ring-primary text-primary font-bold" : "border-border hover:border-primary/50"}`}
               >
                 <span>لدي رخصة قيادة</span>
                 {/* Logical alignment: the knob sits at the start when off and moves to the end when on (RTL-safe) */}
@@ -1181,9 +1196,9 @@ export default function ProfileEditPage() {
 
             {/* Preferences section */}
             <div className="pt-4 border-t">
-              <h3 className="text-base font-semibold mb-3">
+              <h2 className="text-base font-semibold mb-3">
                 تفضيلات الشريك
-              </h3>
+              </h2>
               {showDealbreakers && (
                 <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
                   {gender === "FEMALE"
@@ -1230,13 +1245,14 @@ export default function ProfileEditPage() {
                 <Label className="block min-w-0 flex-1 leading-relaxed">المدن المفضلة <span className="text-xs text-muted-foreground">(يمكن اختيار أكثر من مدينة)</span> <OptionalTag /></Label>
                 {dealbreaker("city", "prefCity")}
               </div>
-              <div className="grid grid-cols-3 gap-2">
+              <div role="group" aria-label="المدن المفضلة" className="grid grid-cols-3 gap-2">
                 {cities.map((c) => (
                   <button
                     key={c}
                     type="button"
                     onClick={() => toggleArray("prefCity", c)}
-                    className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.prefCity.includes(c) ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
+                    aria-pressed={form.prefCity.includes(c)}
+                    className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.prefCity.includes(c) ? "border-primary bg-primary/15 ring-1 ring-primary text-primary font-bold" : "border-border hover:border-primary/50"}`}
                   >
                     {c}
                   </button>
@@ -1249,13 +1265,14 @@ export default function ProfileEditPage() {
                 <Label className="block min-w-0 flex-1 leading-relaxed">المستوى التعليمي المفضل <span className="text-xs text-muted-foreground">(كل مستوى يشمل ما فوقه)</span> <OptionalTag /></Label>
                 {dealbreaker("education", "prefEducation")}
               </div>
-              <div className="grid grid-cols-3 gap-2">
+              <div role="group" aria-label="المستوى التعليمي المفضل" className="grid grid-cols-3 gap-2">
                 {educationLevels.map((e) => (
                   <button
                     key={e}
                     type="button"
                     onClick={() => toggleArray("prefEducation", e)}
-                    className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.prefEducation.includes(e) ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
+                    aria-pressed={form.prefEducation.includes(e)}
+                    className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.prefEducation.includes(e) ? "border-primary bg-primary/15 ring-1 ring-primary text-primary font-bold" : "border-border hover:border-primary/50"}`}
                   >
                     {e}
                   </button>
@@ -1268,13 +1285,14 @@ export default function ProfileEditPage() {
                 <Label className="block min-w-0 flex-1 leading-relaxed">الحالة الاجتماعية المفضلة <span className="text-xs text-muted-foreground">(يمكن اختيار أكثر من حالة)</span> <OptionalTag /></Label>
                 {dealbreaker("maritalStatus", "prefMaritalStatus")}
               </div>
-              <div className="grid grid-cols-3 gap-2">
+              <div role="group" aria-label="الحالة الاجتماعية المفضلة" className="grid grid-cols-3 gap-2">
                 {maritalStatuses.map((s) => (
                   <button
                     key={s}
                     type="button"
                     onClick={() => toggleArray("prefMaritalStatus", s)}
-                    className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.prefMaritalStatus.includes(s) ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
+                    aria-pressed={form.prefMaritalStatus.includes(s)}
+                    className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.prefMaritalStatus.includes(s) ? "border-primary bg-primary/15 ring-1 ring-primary text-primary font-bold" : "border-border hover:border-primary/50"}`}
                   >
                     {describeOption("maritalStatus", s, partnerGender)}
                   </button>
@@ -1288,10 +1306,11 @@ export default function ProfileEditPage() {
                 <Label className="block min-w-0 flex-1 leading-relaxed">هل تفضل محجبة؟ <OptionalTag /></Label>
                 {dealbreaker("hijab", "prefHijab")}
               </div>
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <div role="group" aria-label="هل تفضل محجبة؟" className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                   {hijabPrefOptions.map((o) => (
                     <button key={o} type="button" onClick={() => update("prefHijab", o)}
-                      className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.prefHijab === o ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
+                      aria-pressed={form.prefHijab === o}
+                      className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.prefHijab === o ? "border-primary bg-primary/15 ring-1 ring-primary text-primary font-bold" : "border-border hover:border-primary/50"}`}
                     >{o}</button>
                   ))}
                 </div>
@@ -1304,10 +1323,11 @@ export default function ProfileEditPage() {
                 <Label className="block min-w-0 flex-1 leading-relaxed">هل تفضلين ملتحياً؟ <OptionalTag /></Label>
                 {dealbreaker("beard", "prefBeard")}
               </div>
-                <div className="grid grid-cols-3 gap-2">
+                <div role="group" aria-label="هل تفضلين ملتحياً؟" className="grid grid-cols-3 gap-2">
                   {preferenceOptions.map((o) => (
                     <button key={o} type="button" onClick={() => update("prefBeard", o)}
-                      className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.prefBeard === o ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
+                      aria-pressed={form.prefBeard === o}
+                      className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.prefBeard === o ? "border-primary bg-primary/15 ring-1 ring-primary text-primary font-bold" : "border-border hover:border-primary/50"}`}
                     >{o}</button>
                   ))}
                 </div>
@@ -1319,10 +1339,11 @@ export default function ProfileEditPage() {
                 <Label className="block min-w-0 flex-1 leading-relaxed">مستوى التدين المفضل <span className="text-xs text-muted-foreground">(يمكن اختيار أكثر من مستوى)</span> <OptionalTag /></Label>
                 {dealbreaker("religiosity", "prefReligiosity")}
               </div>
-              <div className="grid grid-cols-2 gap-2">
+              <div role="group" aria-label="مستوى التدين المفضل" className="grid grid-cols-2 gap-2">
                 {religiosityLevels.map((r) => (
                   <button key={r} type="button" onClick={() => toggleArray("prefReligiosity", r)}
-                    className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.prefReligiosity.includes(r) ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
+                    aria-pressed={form.prefReligiosity.includes(r)}
+                    className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.prefReligiosity.includes(r) ? "border-primary bg-primary/15 ring-1 ring-primary text-primary font-bold" : "border-border hover:border-primary/50"}`}
                   >{describeOption("religiosity", r, partnerGender)}</button>
                 ))}
               </div>
@@ -1333,10 +1354,11 @@ export default function ProfileEditPage() {
                 <Label className="block min-w-0 flex-1 leading-relaxed">التدخين لدى الشريك <span className="text-xs text-muted-foreground">(يمكن اختيار أكثر من حالة)</span> <OptionalTag /></Label>
                 {dealbreaker("smokingStatus", "prefSmokingStatus")}
               </div>
-              <div className="grid grid-cols-2 gap-2">
+              <div role="group" aria-label="التدخين لدى الشريك" className="grid grid-cols-2 gap-2">
                 {smokingStatuses.map((s) => (
                   <button key={s} type="button" onClick={() => toggleArray("prefSmokingStatus", s)}
-                    className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.prefSmokingStatus.includes(s) ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
+                    aria-pressed={form.prefSmokingStatus.includes(s)}
+                    className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.prefSmokingStatus.includes(s) ? "border-primary bg-primary/15 ring-1 ring-primary text-primary font-bold" : "border-border hover:border-primary/50"}`}
                   >{describeOption("smokingStatus", s, partnerGender)}</button>
                 ))}
               </div>
@@ -1347,10 +1369,11 @@ export default function ProfileEditPage() {
                 <Label className="block min-w-0 flex-1 leading-relaxed">قبول وجود أبناء من زواج سابق <OptionalTag /></Label>
                 {dealbreaker("children", "prefChildrenAcceptance")}
               </div>
-              <div className="grid grid-cols-3 gap-2">
+              <div role="group" aria-label="قبول وجود أبناء من زواج سابق" className="grid grid-cols-3 gap-2">
                 {preferenceOptions.map((o) => (
                   <button key={o} type="button" onClick={() => update("prefChildrenAcceptance", o)}
-                    className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.prefChildrenAcceptance === o ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
+                    aria-pressed={form.prefChildrenAcceptance === o}
+                    className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.prefChildrenAcceptance === o ? "border-primary bg-primary/15 ring-1 ring-primary text-primary font-bold" : "border-border hover:border-primary/50"}`}
                   >{o}</button>
                 ))}
               </div>
@@ -1358,13 +1381,14 @@ export default function ProfileEditPage() {
 
             <div className="space-y-2">
               <Label>الاستعداد للانتقال <OptionalTag /></Label>
-              <div className="grid grid-cols-3 gap-2">
+              <div role="group" aria-label="الاستعداد للانتقال" className="grid grid-cols-3 gap-2">
                 {relocateOptions.map((r) => (
                   <button
                     key={r.value}
                     type="button"
                     onClick={() => update("willingToRelocate", r.value)}
-                    className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.willingToRelocate === r.value ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
+                    aria-pressed={form.willingToRelocate === r.value}
+                    className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.willingToRelocate === r.value ? "border-primary bg-primary/15 ring-1 ring-primary text-primary font-bold" : "border-border hover:border-primary/50"}`}
                   >
                     {r.label}
                   </button>
@@ -1425,13 +1449,14 @@ export default function ProfileEditPage() {
 
             <div className="space-y-2">
               <Label>نوع السكن <OptionalTag /></Label>
-              <div className="grid grid-cols-3 gap-2">
+              <div role="group" aria-label="نوع السكن" className="grid grid-cols-3 gap-2">
                 {housingTypes.map((h) => (
                   <button
                     key={h}
                     type="button"
                     onClick={() => update("housingType", h)}
-                    className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.housingType === h ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
+                    aria-pressed={form.housingType === h}
+                    className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.housingType === h ? "border-primary bg-primary/15 ring-1 ring-primary text-primary font-bold" : "border-border hover:border-primary/50"}`}
                   >
                     {h}
                   </button>
@@ -1441,13 +1466,14 @@ export default function ProfileEditPage() {
 
             <div className="space-y-2">
               <Label>المصاريف الشهرية <OptionalTag /></Label>
-              <div className="grid grid-cols-2 gap-2">
+              <div role="group" aria-label="المصاريف الشهرية" className="grid grid-cols-2 gap-2">
                 {expenseRanges.map((e) => (
                   <button
                     key={e}
                     type="button"
                     onClick={() => update("monthlyExpenses", e)}
-                    className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.monthlyExpenses === e ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
+                    aria-pressed={form.monthlyExpenses === e}
+                    className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.monthlyExpenses === e ? "border-primary bg-primary/15 ring-1 ring-primary text-primary font-bold" : "border-border hover:border-primary/50"}`}
                   >
                     {e}
                   </button>
@@ -1523,13 +1549,14 @@ export default function ProfileEditPage() {
 
             <div className="space-y-2">
               <RequiredLabel>صلة القرابة</RequiredLabel>
-              <div className="grid grid-cols-2 gap-2">
+              <div role="group" aria-label="صلة القرابة" className="grid grid-cols-2 gap-2">
                 {guardianRelationships.map((r) => (
                   <button
                     key={r.value}
                     type="button"
                     onClick={() => update("relationship", r.value)}
-                    className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.relationship === r.value ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
+                    aria-pressed={form.relationship === r.value}
+                    className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.relationship === r.value ? "border-primary bg-primary/15 ring-1 ring-primary text-primary font-bold" : "border-border hover:border-primary/50"}`}
                   >
                     {r.label}
                   </button>
@@ -1623,7 +1650,7 @@ export default function ProfileEditPage() {
             ) : (
               <>
                 <Send className="h-4 w-4 me-2" />
-                {willNeedReview ? "إرسال طلب التعديل" : "حفظ التعديلات"} ({changedCount})
+                {willNeedReview ? "إرسال طلب التعديل" : "حفظ التعديلات"} ({buttonCount})
               </>
             )}
           </Button>

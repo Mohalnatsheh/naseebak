@@ -34,7 +34,7 @@ export function Footer() {
 
           {/* Column 1: Brand + Newsletter */}
           <div className="sm:col-span-2 lg:col-span-1 space-y-5">
-            <Link href="/" className="inline-flex items-center gap-2">
+            <Link href="/" className="inline-flex min-h-11 items-center gap-2">
               <Image
                 src="/images/logo.svg"
                 alt="نصيبك"

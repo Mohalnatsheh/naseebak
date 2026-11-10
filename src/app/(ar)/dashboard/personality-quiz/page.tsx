@@ -253,9 +253,9 @@ export default function PersonalityQuizPage() {
           >
             <div className="flex items-center gap-2 justify-center mb-2">
               <BarChart3 className="h-5 w-5 text-primary/70" />
-              <h3 className="text-sm font-semibold text-muted-foreground">
+              <h2 className="text-sm font-semibold text-muted-foreground">
                 تفاصيل الأبعاد الخمسة
-              </h3>
+              </h2>
             </div>
 
             <div className="space-y-3">
@@ -325,7 +325,7 @@ export default function PersonalityQuizPage() {
                   <User className="h-6 w-6 text-primary" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h3 className="text-sm font-bold text-foreground">اطّلع على ملفك الشخصي</h3>
+                  <h2 className="text-sm font-bold text-foreground">اطّلع على ملفك الشخصي</h2>
                   <p className="text-xs text-muted-foreground mt-0.5">راجع ملفك الشخصي وأكمل ما ينقصه</p>
                 </div>
                 <Button asChild size="sm" className="bg-gradient-to-l from-primary to-secondary text-white rounded-xl font-semibold shadow-sm hover:shadow-md transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]">

@@ -121,7 +121,16 @@ async function fetchIntroState(matchId: string): Promise<IntroLoadResult> {
  * "خطوات التعارف" on a mutual match: family introduction and chat requests.
  * Renders nothing while the new cycle switch is off.
  */
-export function MatchIntroPanel({ matchId, partnerName }: { matchId: string; partnerName: string }) {
+export function MatchIntroPanel({
+  matchId,
+  partnerName,
+  onClosed,
+}: {
+  matchId: string;
+  partnerName: string;
+  /** The match just closed here («إنهاء التوافق», «تمت الخطبة»): the list reloads, so its photos go too (QA WM-12) */
+  onClosed?: () => void;
+}) {
   const router = useRouter();
   const { refreshUnread, refreshProfile, profile } = useDashboardData();
   // Partner gender = opposite of the viewer's
@@ -284,6 +293,7 @@ export function MatchIntroPanel({ matchId, partnerName }: { matchId: string; par
     );
     setState(res.data);
     refreshUnread();
+    if (res.data.closed) onClosed?.();
   }
 
   async function cancelRequest() {
@@ -449,7 +459,7 @@ export function MatchIntroPanel({ matchId, partnerName }: { matchId: string; par
   return (
     <section className="mt-4 rounded-2xl border border-primary/15 bg-gradient-to-b from-primary/[0.04] to-transparent p-4 md:p-5">
       <div className="flex items-center justify-between gap-3">
-        <h4 className="font-bold text-foreground">خطوات التعارف</h4>
+        <h3 className="font-bold text-foreground">خطوات التعارف</h3>
         {freeRequests ? (
           <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
             <Gift className="h-3.5 w-3.5 text-accent" />
@@ -570,7 +580,9 @@ export function MatchIntroPanel({ matchId, partnerName }: { matchId: string; par
         ))}
       </div>
 
-      {family.status === "accepted" && (
+      {/* Only once the contacts are there: while a mixed match waits for both guardians, the family tile's chip
+          («بانتظار مشاركة بيانات وليّ الأمر») says it, and a second «تم قبول…» box contradicted it (QA WM-13) */}
+      {family.status === "accepted" && family.contacts && (
         <div className="mt-3">
           <GuardianContactCard contact={family.contacts} partnerName={partnerName} />
         </div>

@@ -64,9 +64,9 @@ export function MyProCard({ state, onChanged }: { state: MyProState; onChanged: 
     <Card className="gap-0 overflow-hidden py-0">
       <CardContent className="space-y-4 p-5 md:p-6">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="flex items-center gap-2 text-lg font-bold text-foreground">
+          <h2 className="flex items-center gap-2 text-lg font-bold text-foreground">
             اشتراكي <ProBadge size="md" />
-          </h3>
+          </h2>
           <span className="flex flex-wrap items-center gap-2">
             <span data-testid="pro-status" className={`rounded-full border px-3 py-1 text-sm font-bold ${status.tone}`}>
               {status.label}

@@ -142,7 +142,11 @@ export function parentInfoSchemaFor(country: unknown) {
     // Arabic keyboards type ٠٧٩…: convert before checking, like the login phone
     .transform((v) => toLatinDigits(v).replace(/[\s\-()]/g, ""))
     .pipe(
-      z.string().refine((v) => isValidPhone(v, c.code), `رقم ${c.words.phone} ولي الأمر غير صالح. مثال: ${c.phone.example}`),
+      z
+        .string()
+        // Empty is «مطلوب», not «غير صالح» (QA WM-10)
+        .min(1, `رقم ${c.words.phone} ولي الأمر مطلوب`)
+        .refine((v) => !v || isValidPhone(v, c.code), `رقم ${c.words.phone} ولي الأمر غير صالح. مثال: ${c.phone.example}`),
     ),
   relationship: z.enum(["father", "mother", "brother", "guardian"], { message: "صلة القرابة مطلوبة" }),
   address: z.string().trim().min(3, "العنوان مطلوب").max(300, "العنوان طويل جداً"),

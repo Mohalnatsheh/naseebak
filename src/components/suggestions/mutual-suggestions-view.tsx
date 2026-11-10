@@ -667,7 +667,7 @@ export function MutualSuggestionsView({
             <div className="mx-auto h-20 w-20 rounded-full bg-gradient-to-br from-primary/5 to-accent/5 flex items-center justify-center border-2 border-dashed border-muted-foreground/20">
               {tab === "new" ? <Search className="h-9 w-9 text-muted-foreground/40" /> : tab === "interested" ? <Heart className="h-9 w-9 text-muted-foreground/40" /> : <Clock className="h-9 w-9 text-muted-foreground/40" />}
             </div>
-            <h3 className="font-semibold text-lg text-foreground">
+            <h2 className="font-semibold text-lg text-foreground">
               {tab === "interested"
                 ? "لا توجد اهتمامات جديدة حالياً"
                 : tab === "waiting"
@@ -681,7 +681,7 @@ export function MutualSuggestionsView({
                         ? "اقتراحاتك المفتوحة بانتظار الطرف الآخر"
                         : "لديك اقتراحات بانتظار قرارك"
                       : "نبحث لك عن اقتراحات مناسبة"}
-            </h3>
+            </h2>
             <p className="text-sm text-muted-foreground max-w-xs mx-auto leading-relaxed">
               {tab === "interested"
                 ? g(

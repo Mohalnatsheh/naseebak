@@ -56,7 +56,7 @@ function Strip({
         body
       )}
       {action && (
-        <Button size="xs" variant="ghost" onClick={action.onClick} disabled={action.disabled} className="shrink-0 font-bold text-primary">
+        <Button size="xs" variant="ghost" onClick={action.onClick} disabled={action.disabled} className="min-h-11 shrink-0 font-bold text-primary">
           {action.label}
         </Button>
       )}

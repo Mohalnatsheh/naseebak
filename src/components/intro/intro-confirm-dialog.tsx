@@ -176,7 +176,14 @@ export function IntroConfirmDialog({
           </label>
         )}
 
-        <DialogFooter className="gap-2 sm:flex-row-reverse sm:justify-start">
+        {/* Why the button waits: the guardian form above comes first (QA WM-11) */}
+        {missingGuardian && !noCredits && (
+          <p role="note" className="text-xs leading-relaxed text-muted-foreground">
+            يمكنك حفظ بيانات وليّ الأمر أولاً، ثم {mode === "send" ? "إرسال الطلب" : "القبول"}.
+          </p>
+        )}
+        {/* Phones: the main button first, «إلغاء» under it (the default footer put «إلغاء» on top, QA WM-11) */}
+        <DialogFooter className="flex-col gap-2 sm:flex-row-reverse sm:justify-start">
           {noCredits ? (
             <Button asChild className="flex-1 sm:flex-none">
               <Link href="/dashboard/payments">{viewerFemale ? "اشحني رصيدكِ" : "اشحن رصيدك"}</Link>

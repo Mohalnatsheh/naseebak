@@ -187,6 +187,13 @@ function RegisterPageContent() {
   const [fromLogin, setFromLogin] = useState(false);
   // «حساب جديد» with a number that already has an account: signed in to it, and told so (QA WA-17)
   const [existingAccount, setExistingAccount] = useState(false);
+  // The number already had an account: the notice comes into view and takes the focus, and the form is done (QA WM-15)
+  const existingRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!existingAccount) return;
+    existingRef.current?.scrollIntoView({ block: "center" });
+    existingRef.current?.focus({ preventScroll: true });
+  }, [existingAccount]);
 
   // Toggle for referral code input
   const [showReferral, setShowReferral] = useState(false);
@@ -272,10 +279,39 @@ function RegisterPageContent() {
     setPhotoPreview(URL.createObjectURL(file));
   }
 
+  /** Which field the current error is about, so that field says it is invalid and points at the message (QA PA-L9) */
+  const errorField: "firstName" | "lastName" | "phone" | "otp" | null = !error
+    ? null
+    : error.includes("الاسم الأول")
+      ? "firstName"
+      : error.includes("اسم العائلة")
+        ? "lastName"
+        : error.includes("رمز")
+          ? "otp"
+          : error.includes("رقم") || error.includes("الجوال") || error.includes("الهاتف")
+            ? "phone"
+            : null;
+  const fieldError = (id: "firstName" | "lastName" | "phone" | "otp") =>
+    errorField === id ? { "aria-invalid": true as const, "aria-describedby": "register-error" } : {};
+
+  /** The names' problem, or null: checked before a code is sent too, not only after it (QA WM-16) */
+  function namesError(): string | null {
+    if (arabicLetterCount(form.firstName) < 2) return form.firstName.trim() ? "الاسم الأول يجب أن يكون حرفين على الأقل" : "الاسم الأول مطلوب";
+    if (!isArabicName(form.firstName)) return "الاسم الأول يجب أن يكون بالعربية فقط، بلا أرقام أو رموز";
+    if (arabicLetterCount(form.lastName) < 2) return form.lastName.trim() ? "اسم العائلة يجب أن يكون حرفين على الأقل" : "اسم العائلة مطلوب";
+    if (!isArabicName(form.lastName)) return "اسم العائلة يجب أن يكون بالعربية فقط، بلا أرقام أو رموز";
+    return null;
+  }
+
   async function handleSendOtp() {
     setError("");
     setOtpNotice("");
     if (resendIn > 0) return;
+    const names = namesError();
+    if (names) {
+      setError(names);
+      return;
+    }
     // Say what is wrong with the number here, instead of the server's generic "invalid data"
     if (!isPhoneFor(form.phone, country)) {
       setError(phoneExampleError(country));
@@ -319,20 +355,9 @@ function RegisterPageContent() {
   function validateStep1(): boolean {
     setError("");
 
-    if (arabicLetterCount(form.firstName) < 2) {
-      setError(form.firstName.trim() ? "الاسم الأول يجب أن يكون حرفين على الأقل" : "الاسم الأول مطلوب");
-      return false;
-    }
-    if (!isArabicName(form.firstName)) {
-      setError("الاسم الأول يجب أن يكون بالعربية فقط، بلا أرقام أو رموز");
-      return false;
-    }
-    if (arabicLetterCount(form.lastName) < 2) {
-      setError(form.lastName.trim() ? "اسم العائلة يجب أن يكون حرفين على الأقل" : "اسم العائلة مطلوب");
-      return false;
-    }
-    if (!isArabicName(form.lastName)) {
-      setError("اسم العائلة يجب أن يكون بالعربية فقط، بلا أرقام أو رموز");
+    const names = namesError();
+    if (names) {
+      setError(names);
       return false;
     }
     if (!form.gender) {
@@ -685,7 +710,7 @@ function RegisterPageContent() {
           {/*  Error display                               */}
           {/* ============================================ */}
           {existingAccount && (
-            <div role="status" className="mb-5 space-y-3 rounded-xl border border-primary/20 bg-primary/10 p-4 text-sm text-primary">
+            <div ref={existingRef} tabIndex={-1} role="status" className="mb-5 space-y-3 rounded-xl border border-primary/20 bg-primary/10 p-4 text-sm text-primary outline-none">
               <p className="flex items-start gap-2">
                 <Info className="mt-0.5 size-4 shrink-0" aria-hidden />
                 هذا الرقم مسجّل بحساب سابق، وتم تسجيل الدخول إليه. لم يتغيّر الاسم المسجّل في الحساب.
@@ -702,7 +727,7 @@ function RegisterPageContent() {
             </div>
           )}
           {error && (
-            <div ref={errorRef} tabIndex={-1} role="alert" className="outline-none rounded-xl bg-destructive/10 border border-destructive/20 p-3.5 text-sm text-destructive mb-5 flex items-center gap-2 animate-[shake_0.4s_ease-in-out]">
+            <div ref={errorRef} id="register-error" tabIndex={-1} role="alert" className="outline-none rounded-xl bg-destructive/10 border border-destructive/20 p-3.5 text-sm text-destructive mb-5 flex items-center gap-2 animate-[shake_0.4s_ease-in-out]">
               <div className="h-2 w-2 rounded-full bg-destructive shrink-0" />
               {error}
             </div>
@@ -720,6 +745,8 @@ function RegisterPageContent() {
           {/* ============================================ */}
           {/*  Animated step container                     */}
           {/* ============================================ */}
+          {/* Signed in to the existing account: nothing left to fill or send here (QA WM-15) */}
+          <fieldset disabled={existingAccount} hidden={existingAccount} className="contents">
           <div
             className={`transition-all duration-300 ease-out ${
               animating
@@ -745,6 +772,7 @@ function RegisterPageContent() {
                     </Label>
                     <Input
                       id="firstName"
+                      {...fieldError("firstName")}
                       value={form.firstName}
                       onChange={(e) => {
                         const val = e.target.value.replace(/[^\u0600-\u06FF\s]/g, "");
@@ -765,6 +793,7 @@ function RegisterPageContent() {
                     </Label>
                     <Input
                       id="lastName"
+                      {...fieldError("lastName")}
                       value={form.lastName}
                       onChange={(e) => {
                         const val = e.target.value.replace(/[^\u0600-\u06FF\s]/g, "");
@@ -921,7 +950,7 @@ function RegisterPageContent() {
                       <DialCodeToggle
                         country={country}
                         disabled={otpAlreadyVerified}
-                        className="h-8 text-xs"
+                        className="h-11 text-xs"
                         onChange={(c) => {
                           setCountry(c);
                           if (otpSent) {
@@ -935,6 +964,7 @@ function RegisterPageContent() {
                     </div>
                     <Input
                       id="phone"
+                      {...fieldError("phone")}
                       type="tel"
                       placeholder={COUNTRIES[country].phone.placeholder}
                       value={form.phone}
@@ -987,6 +1017,7 @@ function RegisterPageContent() {
                     </Label>
                     <Input
                       id="otp"
+                      {...fieldError("otp")}
                       type="text"
                       inputMode="numeric"
                       placeholder="000000"
@@ -1064,13 +1095,15 @@ function RegisterPageContent() {
 
                 {/* ---- Optional photo upload ---- */}
                 <div className="space-y-3">
-                  <div className="flex items-center gap-3">
+                  {/* The whole row is the 44 px target, not the 18 px switch alone (QA WM-03 / PA-M10) */}
+                  <div className="flex min-h-11 items-center gap-3">
                     <Switch
                       id="wants-photo"
                       checked={wantsPhoto}
                       onCheckedChange={setWantsPhoto}
+                      className="relative after:absolute after:-inset-x-2 after:-inset-y-3 after:content-['']"
                     />
-                    <Label htmlFor="wants-photo" className="cursor-pointer text-sm font-medium text-foreground/80">
+                    <Label htmlFor="wants-photo" className="flex min-h-11 flex-1 cursor-pointer items-center text-sm font-medium text-foreground/80">
                       أرغب بإضافة صورة شخصية
                     </Label>
                   </div>
@@ -1214,15 +1247,17 @@ function RegisterPageContent() {
             </div>
           )}
 
+          </fieldset>
+
           {/* Login link */}
-          {step === 1 && (
+          {step === 1 && !existingAccount && (
             <p className="mt-7 text-center text-sm text-muted-foreground">
               لديك حساب بالفعل؟{" "}
               <Link
                 href="/login"
-                className="text-primary font-semibold hover:underline underline-offset-4 transition-colors"
+                className="inline-flex min-h-11 items-center text-primary font-semibold hover:underline underline-offset-4 transition-colors"
               >
-                سجّل الدخول
+                تسجيل الدخول
               </Link>
             </p>
           )}

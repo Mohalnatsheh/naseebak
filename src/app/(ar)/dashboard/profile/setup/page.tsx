@@ -585,8 +585,13 @@ export default function ProfileSetupPage() {
       </div>
 
       {/* Auto-save indicator */}
-      <div className={`flex items-center gap-1.5 text-xs text-muted-foreground transition-opacity duration-300 ${savedIndicatorVisible ? "opacity-100" : "opacity-0"}`}>
-        <Save className="h-3 w-3" />
+      {/* Hidden from screen readers while faded out (QA WM-19); announced politely when it shows */}
+      <div
+        role="status"
+        aria-hidden={!savedIndicatorVisible}
+        className={`flex items-center gap-1.5 text-xs text-muted-foreground transition-opacity duration-300 ${savedIndicatorVisible ? "opacity-100" : "opacity-0"}`}
+      >
+        <Save className="h-3 w-3" aria-hidden />
         <span>تم الحفظ التلقائي</span>
       </div>
 
@@ -790,7 +795,7 @@ export default function ProfileSetupPage() {
 
             {/* Preferences section */}
             <div className="pt-4 border-t space-y-1">
-              <h3 className="text-base font-semibold">تفضيلات الشريك</h3>
+              <h2 className="text-base font-semibold">تفضيلات الشريك</h2>
               {showDealbreakers && (
                 <p className="text-xs leading-relaxed text-muted-foreground">
                   {gender === "FEMALE"

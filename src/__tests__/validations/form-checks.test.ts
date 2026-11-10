@@ -51,7 +51,13 @@ describe("zod-free form checks agree with the server schemas (QA WC-19 / WA-10)"
     ["Saudi number in JO", { ...okGuardian, parentPhone: "0512345678" }, "JO"],
     ["Saudi ok", { ...okGuardian, parentPhone: "0512345678" }, "SA"],
     ["short address", { ...okGuardian, address: "عم" }, "JO"],
+    ["empty phone", { ...okGuardian, parentPhone: "" }, "SA"],
   ] as const)("guardian: %s", (_label, v, country) => {
     expect(guardianFormIssues(v, country)).toEqual(zodGuardian(v, country));
+  });
+
+  it("an empty guardian phone is «مطلوب», not «غير صالح» (QA WM-10)", () => {
+    expect(guardianFormIssues({ ...okGuardian, parentPhone: "" }, "JO").parentPhone).toBe("رقم هاتف ولي الأمر مطلوب");
+    expect(guardianFormIssues({ ...okGuardian, parentPhone: "079" }, "JO").parentPhone).toContain("غير صالح");
   });
 });

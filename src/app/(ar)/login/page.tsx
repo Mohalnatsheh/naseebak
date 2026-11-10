@@ -437,13 +437,14 @@ function LoginPageContent() {
                     style={{ animation: "fadeSlideDown 0.3s ease-out both" }}
                   >
                     <Info className="size-4 shrink-0" />
-                    رقم {phoneWord(country)} مسجل مسبقاً. سجّل دخولك من هنا
+                    رقم {phoneWord(country)} مسجل مسبقاً. يمكنك تسجيل الدخول من هنا
                   </div>
                 )}
 
                 {/* Error message */}
                 {error && (
                   <div
+                    id="login-error"
                     role="alert"
                     className="rounded-xl bg-destructive/10 border border-destructive/20 p-4 text-sm text-destructive flex items-center gap-2"
                     style={{ animation: "fadeSlideDown 0.3s ease-out both" }}
@@ -482,6 +483,9 @@ function LoginPageContent() {
                     <Input
                       id="phone"
                       type="tel"
+                      // The error names this field until the code is sent (QA PA-L9)
+                      aria-invalid={!!error && !otpSent}
+                      aria-describedby={error && !otpSent ? "login-error" : undefined}
                       placeholder={COUNTRIES[country].phone.placeholder}
                       value={phone}
                       onChange={(e) => {
@@ -496,7 +500,7 @@ function LoginPageContent() {
                       }}
                       required
                       dir="ltr"
-                      className="text-left h-12 pl-[7.5rem] border-border/60 bg-background/50 backdrop-blur-sm rounded-xl transition-all duration-300 focus:border-primary/50 focus:ring-2 focus:ring-primary/20 focus:shadow-lg focus:shadow-primary/[0.04] hover:border-border"
+                      className="text-left h-12 pl-[7.5rem] border-border/60 bg-background/50 backdrop-blur-sm rounded-xl transition-all duration-300 focus:border-primary/50 focus:ring-2 focus:ring-primary/50 focus:shadow-lg focus:shadow-primary/[0.04] hover:border-border"
                     />
                     <div className="absolute inset-0 rounded-xl bg-gradient-to-l from-primary/5 to-secondary/5 opacity-0 transition-opacity duration-300 group-focus-within:opacity-100 pointer-events-none" />
                   </div>
@@ -545,6 +549,8 @@ function LoginPageContent() {
                           ref={otpInputRef}
                           id="otp"
                           type="text"
+                          aria-invalid={!!error && otpSent}
+                          aria-describedby={error && otpSent ? "login-error" : undefined}
                           inputMode="numeric"
                           placeholder="000000"
                           maxLength={6}
@@ -552,7 +558,7 @@ function LoginPageContent() {
                           onChange={(e) => setOtp(toLatinDigits(e.target.value).replace(/\D/g, "").slice(0, 6))}
                           required
                           dir="ltr"
-                          className="text-center text-lg tracking-[0.3em] font-mono h-12 border-border/60 bg-background/50 backdrop-blur-sm rounded-xl transition-all duration-300 focus:border-primary/50 focus:ring-2 focus:ring-primary/20 focus:shadow-lg focus:shadow-primary/[0.04] hover:border-border"
+                          className="text-center text-lg tracking-[0.3em] font-mono h-12 border-border/60 bg-background/50 backdrop-blur-sm rounded-xl transition-all duration-300 focus:border-primary/50 focus:ring-2 focus:ring-primary/50 focus:shadow-lg focus:shadow-primary/[0.04] hover:border-border"
                         />
                         <div className="absolute inset-0 rounded-xl bg-gradient-to-l from-primary/5 to-secondary/5 opacity-0 transition-opacity duration-300 group-focus-within:opacity-100 pointer-events-none" />
                       </div>

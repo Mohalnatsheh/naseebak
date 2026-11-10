@@ -64,7 +64,7 @@ export function GuardianConsentCard() {
           <ShieldCheck className="h-6 w-6" />
         </div>
         <div className="flex-1 min-w-0 space-y-1">
-          <h3 className="font-bold text-foreground">التعارف العائلي أصبح أسهل</h3>
+          <h2 className="font-bold text-foreground">التعارف العائلي أصبح أسهل</h2>
           <p className="text-sm leading-relaxed text-muted-foreground">
             {female
               ? "عند بدء تعارف عائلي تتبادل العائلتان بيانات وليّ الأمر مباشرة. هل توافقين على مشاركة اسم ورقم وليّ أمركِ مع العائلة الأخرى في هذه الحالة فقط؟"

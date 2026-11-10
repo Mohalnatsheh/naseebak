@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { ShieldCheck } from "lucide-react";
+import { ShieldCheck, Check } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import type { Opt } from "@/lib/profile-options";
 
@@ -82,8 +82,10 @@ export function ChoiceGroup({
             type="button"
             aria-pressed={on}
             onClick={() => onSelect(o.value)}
-            className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${on ? "border-primary bg-primary/10 text-primary font-medium" : "border-border hover:border-primary/50"}`}
+            className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${on ? "border-primary bg-primary/15 ring-1 ring-primary text-primary font-bold" : "border-border hover:border-primary/50"}`}
           >
+            {/* A check as well as the colour: the choice is visible at a glance (QA WM-23) */}
+            {on && <Check className="me-1 inline h-3.5 w-3.5 align-[-2px]" aria-hidden />}
             {o.label}
             {multiple && <span className="sr-only">{on ? " (مختار)" : ""}</span>}
           </button>

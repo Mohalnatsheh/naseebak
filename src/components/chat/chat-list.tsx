@@ -146,7 +146,7 @@ export function ChatList({ compact = false, activeId }: { compact?: boolean; act
               <MessageCircle className="h-8 w-8 text-muted-foreground/50" />
             </div>
             <div>
-              <h3 className="text-lg font-semibold">لا توجد محادثات بعد</h3>
+              <h2 className="text-lg font-semibold">لا توجد محادثات بعد</h2>
               <p className="mx-auto mt-1 max-w-xs text-sm text-muted-foreground">
                 {counts.flags.creditOnInterest
                   ? "تُفتح المحادثة تلقائياً عندما يختار كلاكما «محادثة هنا أولاً» عند «مهتم»، أو بطلب محادثة من صفحة التوافقات."

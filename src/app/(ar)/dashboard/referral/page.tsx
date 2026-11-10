@@ -167,7 +167,7 @@ export default function ReferralPage() {
             <div className="h-9 w-9 rounded-xl bg-accent/10 flex items-center justify-center">
               <Sparkles className="h-5 w-5 text-accent-foreground" />
             </div>
-            <h3 className="font-bold text-foreground">المكافآت والرصيد</h3>
+            <h2 className="font-bold text-foreground">المكافآت والرصيد</h2>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -221,9 +221,9 @@ export default function ReferralPage() {
       {/* Referral List */}
       {data.referrals.length > 0 && (
         <div className="space-y-3">
-          <h3 className="text-sm font-semibold text-muted-foreground px-1">
+          <h2 className="text-sm font-semibold text-muted-foreground px-1">
             سجل الدعوات
-          </h3>
+          </h2>
           <div className="space-y-2">
             {data.referrals.map((referral) => (
               <Card key={referral.id} className="border-border/50">

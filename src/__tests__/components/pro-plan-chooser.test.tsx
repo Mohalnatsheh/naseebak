@@ -39,6 +39,7 @@ describe("ProPlanChooser (one compact Pro card)", () => {
     expect(screen.getByText("إرسال الصور في المحادثة")).toBeTruthy();
     expect(screen.getByText("الرسائل الصوتية في المحادثة")).toBeTruthy();
     expect(screen.getByText("شارة Pro على بطاقتك")).toBeTruthy();
+    expect(screen.getByText("أولوية في الاقتراحات")).toBeTruthy();
     // Gendered copy for a woman
     expect(screen.getAllByRole("button", { name: "اشتركي الآن" })).toHaveLength(1);
     expect(screen.getByText(/تدفعين 7.05\$ بالدولار/)).toBeTruthy();
@@ -135,7 +136,7 @@ describe("ProBadge", () => {
 
 describe("proPitch / proCreditsLine", () => {
   it("mentions the free credits only when a plan has some", () => {
-    expect(proPitch([{ credits: 0 }])).toBe("مع Pro يمكنك إرسال الصور والرسائل الصوتية في المحادثة.");
+    expect(proPitch([{ credits: 0 }])).toBe("مع Pro يمكنك إرسال الصور والرسائل الصوتية في المحادثة وأولوية في الاقتراحات.");
     expect(proPitch([{ credits: 0 }, { credits: 3 }])).toContain("ويصلك رصيد مجاني مع الاشتراك");
   });
   it("counts the credits in Arabic, with the plan's rhythm", () => {

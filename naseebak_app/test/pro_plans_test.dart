@@ -184,6 +184,7 @@ void main() {
     expect(find.textContaining('تدفعين'), findsOneWidget);
     expect(find.textContaining('5.64\$'), findsOneWidget);
     expect(find.text('إرسال الصور في المحادثة'), findsOneWidget);
+    expect(find.text('أولوية في الاقتراحات'), findsOneWidget);
     // Weekly sits on the right in RTL
     final weekly = tester.getCenter(find.text('أسبوعي')).dx;
     final yearly = tester.getCenter(find.text('سنوي')).dx;

@@ -14,7 +14,7 @@ import type { MyProState } from "@/lib/pro/pro-types";
 import { arabicCount } from "@/lib/utils";
 
 /** What every Pro plan gives (plan cards and «اشتراكي») */
-export const PRO_FEATURE_LABELS = ["إرسال الصور في المحادثة", "الرسائل الصوتية في المحادثة", "شارة Pro على بطاقتك"] as const;
+export const PRO_FEATURE_LABELS = ["إرسال الصور في المحادثة", "الرسائل الصوتية في المحادثة", "شارة Pro على بطاقتك", "أولوية في الاقتراحات"] as const;
 
 /** «اشتراكي»: the member's live Pro subscription, its renewal or end date, and cancel / resume */
 export function MyProCard({ state, onChanged }: { state: MyProState; onChanged: () => void }) {

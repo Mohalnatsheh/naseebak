@@ -33,7 +33,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { SUGGESTIONS_MIN_COMPLETENESS, missingSetupSteps, qualifiesForSuggestions as qualifiesForSuggestionsGate } from "@/lib/profile-completeness";
-import { PersonCard } from "@/components/shared/person-card";
+import { CardSkeleton, PersonCard } from "@/components/shared/person-card";
 import { LoadError } from "@/components/shared/load-error";
 import { ConfirmActionDialog } from "@/components/intro/confirm-action-dialog";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -456,13 +456,15 @@ toast.success("تهانينا! لديك توافق متبادل!", {
 
   if (loading) {
     return (
-      <div role="status" className="flex min-h-[70vh] flex-col items-center justify-center py-20 gap-4">
-        <div className="relative">
-          <div className="h-16 w-16 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" aria-hidden />
-          </div>
-          </div>
-        <p className="text-sm text-muted-foreground">جاري تحميل الاقتراحات...</p>
+      // The title and cards' shapes while the page decides what to show (P3: skeletons like the new card)
+      <div role="status" className="min-h-[70vh] space-y-5">
+        <span className="sr-only">جاري تحميل الاقتراحات...</span>
+        <div className="h-16 w-64 animate-pulse rounded-2xl bg-primary/10" aria-hidden />
+        <div className="h-12 animate-pulse rounded-2xl bg-muted/60" aria-hidden />
+        <div className="grid gap-4 lg:grid-cols-2">
+          <CardSkeleton />
+          <CardSkeleton />
+        </div>
       </div>
     );
   }

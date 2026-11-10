@@ -11,7 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { PersonCard, WhyLine } from "@/components/shared/person-card";
+import { CardSkeleton, PersonCard, WhyLine } from "@/components/shared/person-card";
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/line-art";
 import { LoadError } from "@/components/shared/load-error";
@@ -692,9 +692,13 @@ export function MutualSuggestionsView({
       ) : (
       <div id="feed-panel" role="tabpanel" tabIndex={-1} aria-labelledby={`feed-tab-${tab}`} className="outline-none">
       {loading ? (
-        <div role="status" className="flex min-h-[50vh] flex-col items-center justify-center py-16 gap-4">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" aria-hidden />
-          <p className="text-sm text-muted-foreground">جاري التحميل...</p>
+        // Shaped like the cards (P3): two per row on desktop, as the cards
+        <div role="status" className="grid min-h-[50vh] content-start gap-4 lg:grid-cols-2">
+          <span className="sr-only">جارٍ تحميل الاقتراحات…</span>
+          <CardSkeleton />
+          <CardSkeleton />
+          <CardSkeleton />
+          <CardSkeleton />
         </div>
       ) : loadFailed && items.length === 0 ? (
         <LoadError message="تعذّر تحميل الاقتراحات. يمكنك التحقق من الاتصال والمحاولة مرة أخرى." onRetry={() => load(tab, page)} />

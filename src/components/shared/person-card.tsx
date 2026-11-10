@@ -289,3 +289,34 @@ export function PersonCard({
     </Card>
   );
 }
+
+/**
+ * A loading placeholder shaped like the suggestion card (design P3; the app's `CardSkeleton`): avatar, name lines,
+ * score ring, three chips, the why line and the buttons, so nothing jumps when the cards arrive.
+ */
+export function CardSkeleton() {
+  const bar = "animate-pulse rounded-full bg-primary/10";
+  return (
+    <div data-slot="card-skeleton" aria-hidden className="grid gap-3 rounded-2xl border border-border bg-card p-4">
+      <div className="flex items-center gap-3">
+        <span className="h-12 w-12 shrink-0 animate-pulse rounded-full bg-primary/15" />
+        <span className="min-w-0 flex-1 space-y-2">
+          <span className={`block h-5 w-28 ${bar}`} />
+          <span className={`block h-3 w-40 ${bar}`} />
+        </span>
+        <span className="h-14 w-14 shrink-0 animate-pulse rounded-full bg-accent/15" />
+      </div>
+      <div className="flex gap-2">
+        {[20, 16, 18].map((w) => (
+          <span key={w} className={`h-7 ${bar}`} style={{ width: `${w * 4}px` }} />
+        ))}
+      </div>
+      <span className="block h-10 animate-pulse rounded-xl bg-accent/10" />
+      <div className="flex gap-2">
+        <span className="h-12 flex-[2] animate-pulse rounded-xl bg-primary/15" />
+        <span className="h-12 flex-1 animate-pulse rounded-xl bg-primary/10" />
+        <span className="h-12 w-11 shrink-0" />
+      </div>
+    </div>
+  );
+}

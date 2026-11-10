@@ -108,6 +108,9 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
   /// Conversation starters from the server (only while I haven't written anything)
   List<String> _starters = const [];
 
+  /// The server said both have written (the whole chat); it never goes back to false
+  bool _serverBothWrote = false;
+
   /// «يكتب الآن…» in the header until then (live `typing` event or the poll's `partnerTyping`)
   DateTime? _partnerTypingUntil;
   Timer? _typingTimer;
@@ -515,6 +518,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
         _chat = page.conversation;
         _chatEnabled = page.chatEnabled;
         _starters = page.starters;
+        if (page.bothWrote == true) _serverBothWrote = true;
         _mergeLatest(page);
         // A text kept as failed (offline) that the server saved after all
         _reconcile(page.messages);
@@ -654,6 +658,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
         _chat = page.conversation;
         _chatEnabled = page.chatEnabled;
         _starters = page.starters;
+        if (page.bothWrote == true) _serverBothWrote = true;
         // A message from them ends their «يكتب الآن…»
         if (fresh.any((m) => !m.mine)) _partnerSent();
         if (after == null) {
@@ -1917,6 +1922,10 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
       family: chat.matchHidden ? null : _family,
       pushOff: pushOff,
       pushDismissed: ref.read(sharedPreferencesProvider).getBool(_pushChipKey) ?? false,
+      // The family offer waits for both to have written (X3 minor 3): the server counts the whole chat, the loaded
+      // messages cover my first message sent since its last answer (and servers before the field)
+      bothWrote: _serverBothWrote ||
+          (_messages.any((m) => m.mine && m.state == SendState.sent) && _messages.any((m) => !m.mine)),
     );
     String g(String m, String f) => forViewer(female, m, f);
     // In the last days the family bar also says how long is left («تبقّى يومان»). Only the offer and a received

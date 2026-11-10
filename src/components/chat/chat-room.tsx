@@ -119,6 +119,8 @@ interface ChatResponse {
   partnerTyping?: boolean;
   /** Conversation starters while I haven't written anything in an open chat */
   starters?: string[];
+  /** Both members have written somewhere in the chat (the whole chat, not the loaded page) */
+  bothWrote?: boolean;
   /** The server's time when it answered: the next poll asks for reaction changes since then (less an overlap) */
   polledAt?: string;
   /** Polls with reactionsSince: older messages whose reactions changed (the polling fallback for the live event) */
@@ -214,6 +216,8 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
   // The full-screen photo viewer (the photo's message id)
   const [viewerId, setViewerId] = useState<string | null>(null);
   const [starters, setStarters] = useState<string[]>([]);
+  // The server's answer counts the whole chat; it never goes back to false once true
+  const [serverBothWrote, setServerBothWrote] = useState(false);
   const partnerTyping = usePartnerTyping();
   const { mark: markTyping, clear: clearTyping } = partnerTyping;
 
@@ -291,6 +295,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
     setConversation(data.conversation);
     setChatEnabled(data.chatEnabled);
     if (data.starters) setStarters(data.starters);
+    if (data.bothWrote) setServerBothWrote(true);
     if (data.partnerTyping) markTyping();
     else if (data.partnerTyping === false) clearTyping();
     setMessages((prev) => (mode === "replace" ? data.messages : keepMyReactions(mergeMessages(prev, data.messages))));
@@ -838,7 +843,8 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
     pushOff: pushChip.pushOff,
     pushDismissed: pushChip.dismissed,
     keyboardOpen: !!viewport?.keyboard,
-    bothWrote: messages.some((m) => m.mine && !m.pending) && messages.some((m) => !m.mine),
+    // The server counts the whole chat (X3 minor 3); the loaded messages cover a first message sent since the last answer
+    bothWrote: serverBothWrote || (messages.some((m) => m.mine && !m.pending) && messages.some((m) => !m.mine)),
   });
   const activity = open && !conversation.blocked ? conversation.partner.activityLabel : null;
   const startersShown = showStarters({ starters, canSend, messages });

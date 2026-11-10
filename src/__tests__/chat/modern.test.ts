@@ -435,6 +435,24 @@ describe("conversation starters", () => {
     expect((await getConversation(c.id, "u1")).starters).toEqual([]);
   });
 
+  it("GET says bothWrote only once each side has written in the whole chat (X3 minor 3)", async () => {
+    const c = conv();
+    db.conversation.findUnique.mockResolvedValue(c);
+    const wrote = (ids: string[]) =>
+      db.message.count.mockImplementation(async ({ where }: { where: { senderId?: unknown } }) =>
+        typeof where.senderId === "string" && ids.includes(where.senderId) ? 1 : 0);
+    wrote([]);
+    expect((await getConversation(c.id, "u1")).bothWrote).toBe(false);
+    wrote(["u1"]);
+    expect((await getConversation(c.id, "u1")).bothWrote).toBe(false);
+    expect((await getConversation(c.id, "f1")).bothWrote).toBe(false);
+    wrote(["u1", "f1"]);
+    expect((await getConversation(c.id, "u1")).bothWrote).toBe(true);
+    // The loaded page may hold only one side: the answer counts the whole chat
+    db.message.findMany.mockResolvedValue([]);
+    expect((await getConversation(c.id, "f1")).bothWrote).toBe(true);
+  });
+
   it("no starters in a chat that is not open", async () => {
     db.conversation.findUnique.mockResolvedValue(conv({ status: "EXPIRED" }));
     expect((await getConversation("c", "u1")).starters).toEqual([]);

@@ -28,6 +28,7 @@ FamilyStep? familyStepOf(String familyStatus, {required bool introRequests, Stri
 /// 3. the chat ending soon with no action (no extension left), above a family step with nothing to do;
 /// 4. the push chip (until dismissed).
 /// In the last days a non-extendable expiry no longer hides the only way forward: the family introduction.
+/// The family offer waits until both have written ([bothWrote], as on the website); a request already made shows.
 /// Nothing in a chat that can't be written in.
 ChatBar chatStatusBar({
   required bool open,
@@ -36,13 +37,15 @@ ChatBar chatStatusBar({
   FamilyStep? family,
   bool pushOff = false,
   bool pushDismissed = false,
+  bool bothWrote = true,
 }) {
   if (!open) return ChatBar.none;
+  final step = family == FamilyStep.offer && !bothWrote ? null : family;
   final urgent = left != null && left.urgent;
   if (urgent && canExtend) return ChatBar.expiry;
-  if (family == FamilyStep.offer || family == FamilyStep.pendingReceived) return ChatBar.family;
+  if (step == FamilyStep.offer || step == FamilyStep.pendingReceived) return ChatBar.family;
   if (urgent) return ChatBar.expiryInfo;
-  if (family != null) return ChatBar.family;
+  if (step != null) return ChatBar.family;
   if (pushOff && !pushDismissed) return ChatBar.push;
   return ChatBar.none;
 }

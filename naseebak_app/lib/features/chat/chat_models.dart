@@ -363,6 +363,7 @@ class ChatPage {
     this.chatEnabled = true,
     this.partnerTyping = false,
     this.starters = const [],
+    this.bothWrote,
     this.polledAt,
     this.reactionUpdates,
   });
@@ -376,6 +377,10 @@ class ChatPage {
 
   /// Conversation starters, sent only while I haven't written anything in an open chat
   final List<String> starters;
+
+  /// Both members have written somewhere in the chat (the whole chat, not this page); null from servers before the
+  /// field, when the loaded messages decide
+  final bool? bothWrote;
 
   /// The server's time when it answered (null from servers before the field): the next poll sends it back, less a
   /// few seconds, as `reactionsSince`
@@ -422,6 +427,7 @@ class ChatRepository {
       chatEnabled: asBool(j['chatEnabled']) ?? true,
       partnerTyping: asBool(j['partnerTyping']) ?? false,
       starters: asStringList(j['starters']).where((s) => s.trim().isNotEmpty).toList(),
+      bothWrote: asBool(j['bothWrote']),
       polledAt: asDate(j['polledAt']),
       reactionUpdates: parseReactionUpdates(j['reactionUpdates']),
     );

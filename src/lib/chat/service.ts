@@ -497,6 +497,9 @@ export async function getConversation(
   partnerTyping: boolean;
   /** Conversation starters while I haven't written anything in an open chat, else [] */
   starters: string[];
+  /** Both members have written at least once in the whole chat (not only the loaded page): the family offer in the
+   *  status bar waits for it. Additive; older clients ignore it */
+  bothWrote: boolean;
   /** The server's time when it answered: a polling client sends it back (less a few seconds) as `reactionsSince` */
   polledAt: string;
   /** Polls (?after=) with `reactionsSince` only: every message whose reactions changed since then, with all of them
@@ -538,7 +541,7 @@ export async function getConversation(
 
   const partnerId = partnerOf(c, userId).id;
   const reactionsSince = opts.after && opts.reactionsSince ? new Date(opts.reactionsSince) : null;
-  const [unread, blocked, blockedMe, partnerPro, lastRead, sentByMe, reacted] = await Promise.all([
+  const [unread, blocked, blockedMe, partnerPro, lastRead, sentByMe, reacted, sentByPartner] = await Promise.all([
     db.message.count({ where: { conversationId: id, readAt: null, senderId: { not: userId } } }),
     isBlocked(userId, partnerId),
     db.block.findFirst({ where: { blockerId: partnerId, blockedId: userId }, select: { id: true } }),
@@ -560,6 +563,7 @@ export async function getConversation(
           take: 200,
         })
       : null,
+    db.message.count({ where: { conversationId: id, senderId: partnerId }, take: 1 }),
   ]);
   const last = messages.length ? messages[messages.length - 1] : null;
   const open = c.status === "ACTIVE" && !blocked && !blockedMe;
@@ -569,6 +573,7 @@ export async function getConversation(
     hasMore,
     partnerTyping: open && isTyping(id, partnerId),
     starters: open && sentByMe === 0 ? chatStarters(userId === c.match.femaleId ? "FEMALE" : "MALE") : [],
+    bothWrote: sentByMe > 0 && sentByPartner > 0,
     polledAt,
     ...(reacted && { reactionUpdates: reacted.map((m) => ({ messageId: m.id, reactions: reactionsFor(m.reactions, userId) })) }),
     ...(opts.after && {

@@ -103,6 +103,13 @@ void main() {
       expect(chatStatusBar(open: true, left: far, family: null, pushOff: false), ChatBar.none);
     });
 
+    test('the family offer waits until both have written; a request already made shows (X3 minor 3)', () {
+      expect(chatStatusBar(open: true, left: far, family: FamilyStep.offer, bothWrote: false), ChatBar.none);
+      expect(chatStatusBar(open: true, left: far, family: FamilyStep.offer, bothWrote: false, pushOff: true), ChatBar.push);
+      expect(chatStatusBar(open: true, left: far, family: FamilyStep.offer, bothWrote: true), ChatBar.family);
+      expect(chatStatusBar(open: true, left: far, family: FamilyStep.pendingReceived, bothWrote: false), ChatBar.family);
+    });
+
     test('a dismissed push chip stays away; a closed chat shows no bar', () {
       expect(chatStatusBar(open: true, left: far, pushOff: true, pushDismissed: true), ChatBar.none);
       expect(chatStatusBar(open: false, left: soon, canExtend: true, family: FamilyStep.offer, pushOff: true), ChatBar.none);
@@ -174,7 +181,7 @@ void main() {
 
     testWidgets('one bar: the family step shows while the chat is far from its end', (tester) async {
       final adapter = FakeAdapter()
-        ..on('GET', '/api/chats/c1', FakeResponse(200, page([1])))
+        ..on('GET', '/api/chats/c1', FakeResponse(200, {...page([1]), 'bothWrote': true}))
         ..on('GET', '/api/matches/x1/intro', const FakeResponse(200, {
           'flags': {'introRequests': true, 'chat': true},
           'family': {'status': 'none'},
@@ -184,6 +191,31 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('chat-bar-family')), findsOneWidget);
       expect(find.byKey(const Key('chat-bar-expiry')), findsNothing);
+    });
+
+    testWidgets('the family offer waits until both have written: the server counts the whole chat (X3 minor 3)',
+        (tester) async {
+      Map<String, dynamic> intro() => {
+            'flags': {'introRequests': true, 'chat': true},
+            'family': {'status': 'none'},
+            'chat': {'status': 'open'},
+          };
+      // Only the partner's message is loaded and the server says I haven't written: no offer yet
+      var adapter = FakeAdapter()
+        ..on('GET', '/api/chats/c1', FakeResponse(200, {...page([1]), 'bothWrote': false}))
+        ..on('GET', '/api/matches/x1/intro', FakeResponse(200, intro()));
+      await openRoom(tester, adapter, MemoryChatCache());
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('chat-bar-family')), findsNothing);
+      await tester.pumpWidget(const SizedBox.shrink());
+
+      // The same page, but my messages are older than it: the server's count shows the offer
+      adapter = FakeAdapter()
+        ..on('GET', '/api/chats/c1', FakeResponse(200, {...page([1]), 'bothWrote': true}))
+        ..on('GET', '/api/matches/x1/intro', FakeResponse(200, intro()));
+      await openRoom(tester, adapter, MemoryChatCache());
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('chat-bar-family')), findsOneWidget);
     });
 
     testWidgets('one bar: expiry soon (extendable) wins over the family step', (tester) async {
@@ -211,6 +243,7 @@ void main() {
       final adapter = FakeAdapter()
         ..on('GET', '/api/chats/c1', FakeResponse(200, {
           ...page([1]),
+          'bothWrote': true,
           'conversation': {...conv, 'expiresAt': soon, 'canExtend': false},
         }))
         ..on('GET', '/api/matches/x1/intro', const FakeResponse(200, {
@@ -306,7 +339,7 @@ void main() {
     testWidgets('the family bar follows a request that arrives while the chat is open (checked about once a minute)',
         (tester) async {
       var family = 'none';
-      final adapter = FakeAdapter()..on('GET', '/api/chats/c1', FakeResponse(200, page([1])));
+      final adapter = FakeAdapter()..on('GET', '/api/chats/c1', FakeResponse(200, {...page([1]), 'bothWrote': true}));
       adapter.handlers['GET /api/matches/x1/intro'] = (_) => FakeResponse(200, {
             'flags': {'introRequests': true, 'chat': true},
             'family': {'status': family},

@@ -104,8 +104,9 @@ class _PausedScreenState extends ConsumerState<PausedScreen> {
     final payments = ref.watch(appPaymentsProvider);
     // A refused or failed read never shows the value from before the pause (an AsyncError keeps the previous data)
     final proAsync = payments ? ref.watch(proStateProvider) : null;
-    final pro = proAsync == null || proAsync.hasError ? null : proAsync.valueOrNull;
-    final stopped = payments && ref.watch(proPauseNoteProvider).stopped(me?.id);
+    // …nor while it reloads (the value kept meanwhile is from before the pause)
+    final pro = proAsync == null || proAsync.hasError || proAsync.isLoading ? null : proAsync.valueOrNull;
+    final stopped = payments && ref.watch(proPauseNoteProvider).stopped(me?.id, pro: pro);
     final proText = payments ? pausedProText(pro, female: female, stoppedByPause: stopped) : null;
     return Scaffold(
       body: SafeArea(

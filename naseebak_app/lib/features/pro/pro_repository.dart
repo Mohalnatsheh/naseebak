@@ -153,18 +153,37 @@ MediaButtons mediaButtonsMode({
 }
 
 /// Pausing the account stopped the Pro renewal (the deactivate answer's `proRenewalStopped`, QA A-M01 / A2-H1).
-/// Remembered per member on the phone, so the paused page (also after a cold start, before `/api/pro` answers) and
-/// «اشتراكي» after reactivating say why Pro no longer renews, instead of «ألغيت التجديد». Cleared when the member
-/// resumes the renewal.
+/// Remembered per member on the phone with the paid period's end, so the paused page (also after a cold start, before
+/// `/api/pro` answers) and «اشتراكي» after reactivating say why Pro no longer renews, instead of «ألغيت التجديد».
+///
+/// It only speaks for the subscription it was written for (review A2 #1): it is stale, and cleared, once that period
+/// has ended, or once `/api/pro` says Pro is gone or renewing again (a resume, a new subscription), and it is cleared
+/// when the member cancels or resumes in the app.
 class ProPauseNote {
   const ProPauseNote(this._prefs);
   final SharedPreferences _prefs;
 
   static String _key(String memberId) => 'pro_stopped_by_pause:$memberId';
 
-  bool stopped(String? memberId) => memberId != null && (_prefs.getBool(_key(memberId)) ?? false);
+  /// Whether the note still applies. [pro]: the latest `/api/pro` answer, when there is one.
+  bool stopped(String? memberId, {MyProState? pro, DateTime? now}) {
+    if (memberId == null) return false;
+    final raw = _prefs.get(_key(memberId));
+    if (raw == null) return false;
+    // A note from the first build (a bare true) has no date: it still follows the server's answer
+    final end = raw is int && raw > 0 ? DateTime.fromMillisecondsSinceEpoch(raw) : null;
+    final stale = (end != null && !(now ?? DateTime.now()).isBefore(end)) ||
+        (pro != null && (!pro.isPro || !pro.cancelAtPeriodEnd));
+    if (stale) {
+      _prefs.remove(_key(memberId));
+      return false;
+    }
+    return true;
+  }
 
-  Future<void> mark(String memberId) => _prefs.setBool(_key(memberId), true);
+  /// [periodEnd]: when the paid period of the subscription that stopped renewing ends
+  Future<void> mark(String memberId, {DateTime? periodEnd}) =>
+      _prefs.setInt(_key(memberId), periodEnd?.millisecondsSinceEpoch ?? 0);
 
   Future<void> clear(String memberId) => _prefs.remove(_key(memberId));
 }

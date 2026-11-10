@@ -3,13 +3,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:naseebak_app/app/providers.dart';
 import 'package:naseebak_app/core/auth/auth_controller.dart';
 import 'package:naseebak_app/core/storage/token_store.dart';
 import 'package:naseebak_app/features/auth/paused_screen.dart';
 import 'package:naseebak_app/features/pro/pro_repository.dart';
 import 'package:naseebak_app/features/pro/pro_section.dart';
 import 'package:naseebak_app/features/settings/settings_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'helpers/fake_api.dart';
 
@@ -28,8 +28,12 @@ void main() {
 
   test('«اشتراكي» says why the renewal is off, and that resuming waits while paused', () {
     expect(myProEndingText(stoppedByPause: true, paused: false), startsWith('توقّف التجديد عند إيقاف حسابك'));
-    expect(myProEndingText(stoppedByPause: false, paused: false), startsWith('ألغيت التجديد'));
+    expect(myProEndingText(stoppedByPause: false, paused: false), startsWith('ألغيتَ التجديد'));
     expect(myProEndingText(stoppedByPause: true, paused: true), contains('بعد إعادة تفعيل حسابك'));
+    // Gendered like the paused page beside it (review A2 minor 6)
+    expect(myProEndingText(stoppedByPause: true, paused: true, female: true),
+        allOf(contains('حسابكِ'), contains('يمكنكِ')));
+    expect(myProEndingText(stoppedByPause: false, paused: false, female: true), startsWith('ألغيتِ التجديد'));
   });
 
   test('the deactivate answer: proRenewalStopped wins, an older server falls back to what was renewing', () {
@@ -41,6 +45,51 @@ void main() {
 
   test('the delete dialog line says the renewal stops, no refund', () {
     expect(deleteProLine(end), allOf(contains('يتوقف تجديد اشتراك Pro'), contains('2026'), contains('دون استرداد')));
+  });
+
+  group('the pause note follows the subscription it was written for (review A2 #1)', () {
+    final periodEnd = DateTime(2026, 12, 10);
+    final now = DateTime(2026, 11, 20);
+    Future<ProPauseNote> noted() async {
+      SharedPreferences.setMockInitialValues({});
+      final note = ProPauseNote(await SharedPreferences.getInstance());
+      await note.mark('u1', periodEnd: periodEnd);
+      return note;
+    }
+
+    MyProState ending() => MyProState(isPro: true, cancelAtPeriodEnd: true, renewsAt: periodEnd);
+
+    test('applies while that period runs and Pro is still ending', () async {
+      final note = await noted();
+      expect(note.stopped('u1', now: now), isTrue);
+      expect(note.stopped('u1', pro: ending(), now: now), isTrue);
+      expect(note.stopped('u2', now: now), isFalse);
+    });
+
+    test('stale once the period has ended (a later subscription is never explained by it)', () async {
+      final note = await noted();
+      expect(note.stopped('u1', now: DateTime(2026, 12, 11)), isFalse);
+      // …and gone for good
+      expect(note.stopped('u1', now: now), isFalse);
+    });
+
+    test('stale once the server says Pro is gone', () async {
+      final note = await noted();
+      expect(note.stopped('u1', pro: const MyProState(), now: now), isFalse);
+      expect(note.stopped('u1', now: now), isFalse);
+    });
+
+    test('stale once Pro renews again (resumed elsewhere, or a new subscription)', () async {
+      final note = await noted();
+      expect(note.stopped('u1', pro: MyProState(isPro: true, renewsAt: periodEnd), now: now), isFalse);
+      expect(note.stopped('u1', now: now), isFalse);
+    });
+
+    test('cleared when the member cancels or resumes in the app', () async {
+      final note = await noted();
+      await note.clear('u1');
+      expect(note.stopped('u1', now: now), isFalse);
+    });
   });
 
   testWidgets('pausing with a renewing Pro remembers why, and the paused page reads it after the screen changed',
@@ -92,7 +141,7 @@ void main() {
     final container = ProviderContainer(overrides: await testOverrides(adapter, store: MemoryTokenStore('t1')));
     addTearDown(container.dispose);
     await tester.runAsync(() => settled(container));
-    await container.read(sharedPreferencesProvider).setBool('pro_stopped_by_pause:u1', true);
+    await container.read(proPauseNoteProvider).mark('u1', periodEnd: DateTime.now().add(const Duration(days: 20)));
     final state = MyProState.fromJson({
       'enabled': true,
       'isPro': true,

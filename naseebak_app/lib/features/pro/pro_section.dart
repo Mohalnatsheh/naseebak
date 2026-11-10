@@ -46,9 +46,14 @@ String proCreditsLine(ProOffer o) => '${creditsCount(o.credits)} مجاناً ${
 
 /// «اشتراكي» once the renewal is off: why (the member cancelled, or pausing the account stopped it) and, while still
 /// paused, that resuming waits for reactivation (QA A-M01)
-String myProEndingText({required bool stoppedByPause, required bool paused}) {
-  final why = stoppedByPause ? 'توقّف التجديد عند إيقاف حسابك' : 'ألغيت التجديد';
-  final next = paused ? 'يمكنك متابعة الاشتراك بعد إعادة تفعيل حسابك.' : 'يمكنك متابعة الاشتراك قبل ذلك.';
+String myProEndingText({required bool stoppedByPause, required bool paused, bool female = false}) {
+  final can = female ? 'يمكنكِ' : 'يمكنك';
+  final why = stoppedByPause
+      ? 'توقّف التجديد عند إيقاف ${female ? 'حسابكِ' : 'حسابك'}'
+      : (female ? 'ألغيتِ التجديد' : 'ألغيتَ التجديد');
+  final next = paused
+      ? '$can متابعة الاشتراك بعد إعادة تفعيل ${female ? 'حسابكِ' : 'حسابك'}.'
+      : '$can متابعة الاشتراك قبل ذلك.';
   return '$why، وتبقى مزايا Pro حتى هذا التاريخ. $next';
 }
 
@@ -436,7 +441,8 @@ class _MyProCardState extends ConsumerState<MyProCard> {
     try {
       cancel ? await repo.cancel() : await repo.resume();
       final memberId = container.read(authControllerProvider).me?.id;
-      if (!cancel && memberId != null) await container.read(proPauseNoteProvider).clear(memberId);
+      // Either way the member decided it now: the note about the pause no longer explains anything
+      if (memberId != null) await container.read(proPauseNoteProvider).clear(memberId);
       container.invalidate(proStateProvider);
       container.invalidate(countsProvider);
       if (mounted) showSnack(context, cancel ? 'تم إلغاء التجديد.' : 'تمت متابعة الاشتراك.');
@@ -455,7 +461,7 @@ class _MyProCardState extends ConsumerState<MyProCard> {
     final date = _date;
     final me = ref.watch(authControllerProvider).me;
     final paused = me?.deactivated ?? false;
-    final stoppedByPause = ref.watch(proPauseNoteProvider).stopped(me?.id);
+    final stoppedByPause = ref.watch(proPauseNoteProvider).stopped(me?.id, pro: s);
     final planOffer = s.offers.where((o) => o.id == s.plan).firstOrNull;
     return Card(
       key: const Key('my-pro'),
@@ -529,7 +535,7 @@ class _MyProCardState extends ConsumerState<MyProCard> {
                 if (s.cancelAtPeriodEnd && !s.pastDue) ...[
                   const SizedBox(height: 6),
                   Text(
-                    myProEndingText(stoppedByPause: stoppedByPause, paused: paused),
+                    myProEndingText(stoppedByPause: stoppedByPause, paused: paused, female: widget.female),
                     key: const Key('pro-ending-text'),
                     style: AppText.labelRegular.copyWith(color: AppColors.muted),
                   ),

@@ -42,7 +42,7 @@ class AccountScreen extends ConsumerWidget {
     try {
       final j = await container.read(apiClientProvider).post('/api/profile/deactivate', body: {'action': 'pause'});
       if (memberId != null && pro != null && pro.isPro && pauseStoppedRenewal(j, wasRenewing: renewing)) {
-        await container.read(proPauseNoteProvider).mark(memberId);
+        await container.read(proPauseNoteProvider).mark(memberId, periodEnd: pro.renewsAt);
       }
       container
         ..invalidate(proStateProvider)
@@ -69,7 +69,7 @@ class AccountScreen extends ConsumerWidget {
           .post('/api/profile/delete', body: {if (reason.isNotEmpty) 'reason': reason});
       if (context.mounted) showSnack(context, asStringOr(j['message'], 'تم استلام طلب الحذف'));
       if (memberId != null && renewing && pauseStoppedRenewal(j, wasRenewing: renewing)) {
-        await container.read(proPauseNoteProvider).mark(memberId);
+        await container.read(proPauseNoteProvider).mark(memberId, periodEnd: pro.renewsAt);
       }
       container.invalidate(proStateProvider);
       // The account is paused at once: the router shows the paused page with the deletion date

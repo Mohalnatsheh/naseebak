@@ -11,7 +11,12 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ["ably", "heic-convert", "ffmpeg-static"],
   // Identity verification was removed; old links (e.g. notifications) go to the dashboard
   async redirects() {
-    return [{ source: "/dashboard/identity", destination: "/dashboard", permanent: false }];
+    return [
+      { source: "/dashboard/identity", destination: "/dashboard", permanent: false },
+      // Sign-in is by phone code: these old pages only sent visitors to /login, from the browser (QA PA-M2)
+      { source: "/forgot-password", destination: "/login", permanent: false },
+      { source: "/reset-password", destination: "/login", permanent: false },
+    ];
   },
   // Saudi URLs (src/lib/site-paths.ts LOCALIZED_PATHS, blog posts and poll questions): src/proxy.ts tells the page the country, this finds the page
   async rewrites() {

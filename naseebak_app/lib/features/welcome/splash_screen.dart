@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
@@ -70,7 +71,9 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerPr
     final auth = ref.watch(authControllerProvider);
     final failed = auth.status == AuthStatus.restoreFailed;
     final done = ref.watch(splashDoneProvider);
-    return Scaffold(
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light,
+      child: Scaffold(
       backgroundColor: AppColors.navyDeep,
       body: NightBackdrop(
         child: SafeArea(
@@ -151,7 +154,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerPr
           ),
         ),
       ),
-    );
+    ));
   }
 }
 

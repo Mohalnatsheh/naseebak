@@ -297,6 +297,18 @@ class AppTheme {
         backgroundColor: AppColors.ink,
         contentTextStyle: TextStyle(fontFamily: fontFamily, color: Colors.white, fontSize: 14),
       ),
+      // An off switch is still visible (QA A-L09: its grey track and thumb were under 3:1 on white)
+      switchTheme: SwitchThemeData(
+        thumbColor: WidgetStateProperty.resolveWith(
+          (s) => s.contains(WidgetState.selected) ? Colors.white : AppColors.muted,
+        ),
+        trackColor: WidgetStateProperty.resolveWith(
+          (s) => s.contains(WidgetState.selected) ? AppColors.navy : AppColors.surface,
+        ),
+        trackOutlineColor: WidgetStateProperty.resolveWith(
+          (s) => s.contains(WidgetState.selected) ? AppColors.navy : AppColors.muted,
+        ),
+      ),
       dividerTheme: const DividerThemeData(color: AppColors.line, space: 1, thickness: 1),
       bottomSheetTheme: const BottomSheetThemeData(
         backgroundColor: AppColors.surface,

@@ -60,7 +60,15 @@ class _PhoneFormState extends ConsumerState<PhoneForm> {
     _focus.addListener(() => setState(() {}));
     _controller.addListener(() {
       final ok = validatePhone(_controller.text, widget.country) == null;
-      if (ok != _valid) setState(() => _valid = ok);
+      // An error from the last «متابعة» goes once the number is fixed (QA A2-L2: «رقم الهاتف مطلوب» stayed under a
+      // valid number)
+      final clear = ok && _fieldError != null;
+      if (ok != _valid || clear) {
+        setState(() {
+          _valid = ok;
+          if (clear) _fieldError = null;
+        });
+      }
     });
   }
   String? _fieldError;

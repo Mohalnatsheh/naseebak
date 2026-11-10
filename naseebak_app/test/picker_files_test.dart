@@ -74,6 +74,19 @@ void main() {
     expect(tmp.existsSync(), isTrue);
   });
 
+  test('a scaled Android copy takes its full-size original in cache/<uuid>/ with it (QA A2-L6)', () {
+    final uuid = Directory('${tmp.path}/123e4567-e89b-12d3-a456-426614174000')..createSync();
+    final original = File('${uuid.path}/IMG_2.jpg')..writeAsBytesSync([1]);
+    final other = Directory('${tmp.path}/223e4567-e89b-12d3-a456-426614174000')..createSync();
+    final keep = File('${other.path}/IMG_3.jpg')..writeAsBytesSync([1]);
+    final scaled = File('${tmp.path}/scaled_IMG_2.jpg')..writeAsBytesSync([1]);
+    deletePickedFile(scaled.path);
+    expect(scaled.existsSync(), isFalse);
+    expect(original.existsSync(), isFalse);
+    expect(uuid.existsSync(), isFalse);
+    expect(keep.existsSync(), isTrue);
+  });
+
   test('sign-out wipes chat drafts and the picker copies', () async {
     var cleaned = 0;
     final adapter = FakeAdapter()

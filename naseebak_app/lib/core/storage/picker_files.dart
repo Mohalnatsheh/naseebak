@@ -12,13 +12,25 @@ bool isPickerFileName(String name) => name.startsWith('image_picker') || name.st
 
 String _name(String path) => path.split(Platform.pathSeparator).last;
 
-/// One picked photo, once uploaded: the file, and Android's `<uuid>` folder around it when nothing else is left there
+/// One picked photo, once sent or cancelled: the file, and Android's `<uuid>` folder around it when nothing else is
+/// left there. A scaled copy (`cache/scaled_<name>`) also takes its original (`cache/<uuid>/<name>`) with it (QA
+/// A2-L6: the full-size original stayed in the cache).
 void deletePickedFile(String path) {
   try {
     final f = File(path);
     if (f.existsSync()) f.deleteSync();
     final dir = f.parent;
     if (_uuid.hasMatch(_name(dir.path)) && dir.existsSync() && dir.listSync().isEmpty) dir.deleteSync();
+    final name = _name(path);
+    if (name.startsWith('scaled_') && dir.existsSync()) {
+      final original = name.substring('scaled_'.length);
+      for (final e in dir.listSync()) {
+        if (e is! Directory || !_uuid.hasMatch(_name(e.path))) continue;
+        final copy = File('${e.path}${Platform.pathSeparator}$original');
+        if (copy.existsSync()) copy.deleteSync();
+        if (e.listSync().isEmpty) e.deleteSync();
+      }
+    }
   } catch (_) {}
 }
 
@@ -65,9 +77,11 @@ final pickerFilesCleanerProvider = Provider<Future<void> Function()>((ref) => ()
       }
     });
 
-/// At start: voice notes left by a previous run (killed while recording or sending)
+/// At start: voice notes and picked photos left by a previous run (killed while recording, picking or sending)
 Future<void> sweepVoiceFilesAtStart() async {
   try {
-    await clearVoiceFiles(await getTemporaryDirectory());
+    final tmp = await getTemporaryDirectory();
+    await clearVoiceFiles(tmp);
+    await clearPickerFiles(tmp);
   } catch (_) {}
 }

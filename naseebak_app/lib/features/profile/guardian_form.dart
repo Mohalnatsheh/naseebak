@@ -141,6 +141,9 @@ Map<String, String?> validateGuardian(GuardianFields f) {
 }
 
 /// «بيانات وليّ الأمر» (also opened from a family step that answered `GUARDIAN_REQUIRED`).
+/// What the guardian screen returns when it saved (null: left without saving)
+enum GuardianSaved { saved, consented }
+
 class GuardianScreen extends ConsumerStatefulWidget {
   const GuardianScreen({super.key});
 
@@ -208,7 +211,8 @@ class _GuardianScreenState extends ConsumerState<GuardianScreen> {
       ref.invalidate(myProfileProvider);
       if (mounted) {
         showSnack(context, 'تم حفظ بيانات وليّ الأمر');
-        Navigator.of(context).maybePop();
+        // Opened from a family step: it goes on with what was saved (and whether sharing was agreed here)
+        Navigator.of(context).maybePop(_fields.consent ? GuardianSaved.consented : GuardianSaved.saved);
       }
     } on ApiException catch (e) {
       if (mounted) setState(() => _error = e.message);

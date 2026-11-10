@@ -198,9 +198,15 @@ class _PhotoTile extends StatelessWidget {
               ),
             ),
           PositionedDirectional(
-            top: 4,
-            end: 4,
+            top: 0,
+            end: 0,
+            // A 48 pt target around the small white dot (QA A-L13: about 30 pt)
             child: PopupMenuButton<String>(
+              key: const Key('photo-menu'),
+              tooltip: 'خيارات الصورة',
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 140),
+              style: IconButton.styleFrom(minimumSize: const Size(48, 48)),
               enabled: !busy,
               icon: const CircleAvatar(radius: 16, backgroundColor: Colors.white, child: Icon(Icons.more_vert, size: 18, color: AppColors.navy)),
               onSelected: (v) => v == 'main' ? onMain() : onDelete(),

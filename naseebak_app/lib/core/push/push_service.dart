@@ -184,7 +184,7 @@ class PushService with WidgetsBindingObserver {
     if (url != null && _ref.read(routerProvider).state.uri.toString() == appRouteForLink(url: url)) return;
     final tag = n.android?.tag ?? m.collapseKey ?? m.threadId;
     _local.show(
-      id: (tag ?? m.messageId ?? '${n.title}${n.body}').hashCode,
+      id: foregroundNoticeId(tag: tag, messageId: m.messageId, title: n.title, body: n.body),
       title: n.title,
       body: n.body,
       payload: m.data['url'] as String?,
@@ -211,7 +211,7 @@ class PushService with WidgetsBindingObserver {
     );
   }
 
-  /// Opens the push's screen once the app is past the splash / sign-in screens (a cold start lands on the splash).
+    /// Opens the push's screen once the app is past the splash / sign-in screens (a cold start lands on the splash).
   void _open(String? url) {
     final route = appRouteForLink(url: url);
     final router = _ref.read(routerProvider);
@@ -236,3 +236,8 @@ class PushService with WidgetsBindingObserver {
     router.routerDelegate.addListener(listener);
   }
 }
+
+/// Android tells notices apart by tag and id together, and FCM's own tray notice for a tagged push has id 0: a tagged
+/// banner uses id 0 too, so it replaces the tray notice of the same chat instead of showing beside it (QA A2-L7)
+int foregroundNoticeId({String? tag, String? messageId, String? title, String? body}) =>
+    tag != null ? 0 : (messageId ?? '$title$body').hashCode;

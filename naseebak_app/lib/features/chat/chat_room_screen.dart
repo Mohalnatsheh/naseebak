@@ -764,6 +764,23 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
   }
 
   /// Sticky date chip: the day of the topmost message row on screen, shown while scrolling and briefly after
+  /// The rows move after the notification (the keyboard closing mid-scroll resizes the list): the day is read again
+  /// once they are laid out, so the chip never shows the day before (QA A2-L8)
+  bool _stickyCheckQueued = false;
+  void _stickyAfterLayout() {
+    if (_stickyCheckQueued) return;
+    _stickyCheckQueued = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _stickyCheckQueued = false;
+      if (!mounted || !_scrolling) return;
+      final day = _topDay();
+      if (day != null && day != _stickyDay) setState(() => _stickyDay = day);
+    });
+  }
+
+  @override
+  void didChangeMetrics() => _stickyAfterLayout();
+
   void _onScrollNotification(ScrollNotification n) {
     if (n.depth != 0) return;
     if (n is ScrollStartNotification || n is ScrollUpdateNotification) {
@@ -775,7 +792,9 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
           _stickyDay = day;
         });
       }
+      _stickyAfterLayout();
     } else if (n is ScrollEndNotification) {
+      _stickyAfterLayout();
       _stickyHide?.cancel();
       _stickyHide = Timer(const Duration(milliseconds: 1400), () {
         if (mounted && _scrolling) setState(() => _scrolling = false);
@@ -2056,12 +2075,14 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
           start: 0,
           end: 0,
           child: IgnorePointer(
-            child: AnimatedOpacity(
-              opacity: _scrolling && _stickyDay != null ? 1 : 0,
-              duration: const Duration(milliseconds: 180),
-              child: _stickyDay == null
+            // Faded through its own colours, not an opacity layer over a bordered box (QA A-L10: Impeller's
+            // «SetInheritedOpacity» warnings)
+            child: TweenAnimationBuilder<double>(
+              tween: Tween(end: _scrolling && _stickyDay != null ? 1 : 0),
+              duration: AppMotion.of(context, AppMotion.appear),
+              builder: (_, fade, _) => _stickyDay == null || fade == 0
                   ? const SizedBox.shrink()
-                  : _DayChip(key: const Key('chat-sticky-day'), label: _stickyDay!, floating: true),
+                  : _DayChip(key: const Key('chat-sticky-day'), label: _stickyDay!, floating: true, fade: fade),
             ),
           ),
         ),
@@ -2340,26 +2361,44 @@ class _MediaButton extends StatelessWidget {
 
 /// «اليوم» / «أمس» / a date between the messages of two days; [floating] is the copy kept at the top while scrolling
 class _DayChip extends StatelessWidget {
-  const _DayChip({super.key, required this.label, this.floating = false});
+  const _DayChip({super.key, required this.label, this.floating = false, this.fade = 1});
   final String label;
   final bool floating;
 
+  /// 0–1: how far faded in (applied to its colours)
+  final double fade;
+
   @override
   Widget build(BuildContext context) {
+    // One pill style for days and «رسائل جديدة» (design review P2-1)
     return Padding(
       padding: floating ? EdgeInsets.zero : const EdgeInsets.only(top: 12, bottom: 4),
       child: Center(
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.92),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: AppColors.line),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-            child: Text(label, style: const TextStyle(fontSize: 12, color: AppColors.muted, fontWeight: FontWeight.w700)),
-          ),
-        ),
+        child: ChatPill(label: label, fade: fade),
+      ),
+    );
+  }
+}
+
+/// The chat's one pill: a day, «رسائل جديدة» ([accent]), the floating day while scrolling
+class ChatPill extends StatelessWidget {
+  const ChatPill({super.key, required this.label, this.fade = 1, this.accent = false});
+  final String label;
+  final double fade;
+  final bool accent;
+
+  @override
+  Widget build(BuildContext context) {
+    final ink = accent ? AppColors.navy : AppColors.muted;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: accent ? AppColors.navy.withValues(alpha: 0.08 * fade) : Colors.white.withValues(alpha: 0.94 * fade),
+        borderRadius: BorderRadius.circular(AppRadius.full),
+        border: Border.all(color: (accent ? AppColors.navy.withValues(alpha: 0.25) : AppColors.line).withValues(alpha: fade)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
+        child: Text(label, style: AppText.caption.copyWith(color: ink.withValues(alpha: fade), fontWeight: FontWeight.w700)),
       ),
     );
   }
@@ -2371,17 +2410,15 @@ class _UnreadDivider extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      key: const Key('chat-unread-divider'),
-      padding: const EdgeInsets.only(top: 10, bottom: 2),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 5),
-        color: Colors.white.withValues(alpha: 0.75),
-        alignment: Alignment.center,
-        child: const Text(
-          'رسائل جديدة',
-          style: TextStyle(fontSize: 12.5, color: AppColors.navy, fontWeight: FontWeight.w700),
-        ),
+    return const Padding(
+      key: Key('chat-unread-divider'),
+      padding: EdgeInsets.only(top: 10, bottom: 2),
+      child: Row(
+        children: [
+          Expanded(child: Divider(color: AppColors.gold, thickness: 0.8)),
+          Padding(padding: EdgeInsets.symmetric(horizontal: 8), child: ChatPill(label: 'رسائل جديدة', accent: true)),
+          Expanded(child: Divider(color: AppColors.gold, thickness: 0.8)),
+        ],
       ),
     );
   }

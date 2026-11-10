@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -99,6 +100,9 @@ class _IntroScreenState extends ConsumerState<IntroScreen> {
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) _pages.previousPage(duration: const Duration(milliseconds: 420), curve: Curves.easeOutCubic);
       },
+      // Light status-bar icons over the navy pages (QA A-L02: they were dark on navy)
+      child: AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light,
       child: Scaffold(
       backgroundColor: AppColors.navyDeep,
       body: NightBackdrop(
@@ -160,6 +164,7 @@ class _IntroScreenState extends ConsumerState<IntroScreen> {
             ],
           ),
         ),
+      ),
       ),
       ),
     );

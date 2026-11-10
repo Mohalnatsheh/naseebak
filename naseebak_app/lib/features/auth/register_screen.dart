@@ -167,7 +167,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
           ),
           Expanded(
             child: ListView(
-              padding: const EdgeInsets.fromLTRB(24, 4, 24, 32),
+              // Room above the first field: its floating label (raised with an error) sits half over the border and
+              // was clipped by the list's edge (QA A2-L10)
+              padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
               children: [
                 TextField(
                   key: const Key('first-name'),

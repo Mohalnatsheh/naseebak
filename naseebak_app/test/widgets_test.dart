@@ -91,8 +91,10 @@ void main() {
     expect(find.textContaining('رقم هاتف غير صالح'), findsOneWidget);
     expect(adapter.to('POST', '/api/auth/send-otp'), isEmpty);
 
-    // Arabic-Indic digits are accepted and sent as Western digits
+    // Arabic-Indic digits are accepted and sent as Western digits; the error goes once the number is valid (A2-L2)
     await tester.enterText(find.byKey(const Key('phone-field')), '٠٧٩٦٩٢٢٢٩٢');
+    await tester.pumpAndSettle();
+    expect(find.textContaining('رقم هاتف غير صالح'), findsNothing);
     await tester.tap(find.byKey(const Key('send-otp')));
     await tester.pumpAndSettle();
     final body = adapter.to('POST', '/api/auth/send-otp').single.data as Map;

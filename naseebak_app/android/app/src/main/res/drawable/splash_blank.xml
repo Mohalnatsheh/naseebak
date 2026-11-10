@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 12+ system splash icon: nothing, so the first screen is the same plain navy Flutter's splash starts on
+     (QA A2-M6: the system's icon tile, then a different Flutter splash) -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="@android:color/transparent" />
+    <size android:width="1dp" android:height="1dp" />
+</shape>

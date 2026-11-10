@@ -15,6 +15,7 @@ import '../../shared/widgets/person_details_view.dart';
 import '../home/counts.dart';
 import '../home/gendered_copy.dart';
 import '../pro/pro_badge.dart';
+import '../profile/guardian_form.dart' show GuardianSaved;
 import 'match_models.dart';
 import 'matches_repository.dart';
 import 'safety_actions.dart';
@@ -385,6 +386,17 @@ class _IntroPanelState extends ConsumerState<IntroPanel> {
     }
   }
 
+  /// A family step needs a guardian: without one the form opens first (QA A2-M4: consent was asked, then the server
+  /// said the guardian was missing). Returns whether to go on, and whether the form already recorded the consent.
+  Future<({bool go, bool consented})> _guardianFirst(IntroState s) async {
+    if (s.guardianExists) return (go: true, consented: false);
+    final container = ProviderScope.containerOf(context, listen: false);
+    final saved = await context.push<GuardianSaved>('/profile/guardian');
+    container.invalidate(introStateProvider(widget.matchId));
+    if (saved == null || !mounted) return (go: false, consented: false);
+    return (go: true, consented: saved == GuardianSaved.consented);
+  }
+
   Future<bool> _consent(String title) => confirmDialog(
         context,
         title: title,
@@ -514,8 +526,10 @@ class _IntroPanelState extends ConsumerState<IntroPanel> {
               busy: _busy,
               keyPrefix: 'f',
               onAccept: () async {
+                final guardian = await _guardianFirst(s);
+                if (!guardian.go) return;
                 final needConsent = !s.guardianConsented;
-                if (needConsent && !await _consent('قبول التعارف العائلي')) return;
+                if (needConsent && !guardian.consented && !await _consent('قبول التعارف العائلي')) return;
                 await _run('f-yes', () => repo.respond(s.familyRequestId!, accept: true, consent: needConsent ? true : null).then((_) => _answered('FAMILY', true)),
                     success: 'تم قبول التعارف العائلي');
               },
@@ -546,7 +560,9 @@ class _IntroPanelState extends ConsumerState<IntroPanel> {
                 icon: Icons.family_restroom_rounded,
                 loading: _busy == 'family',
                 onPressed: () async {
-                  if (!await _consent('طلب تعارف عائلي')) return;
+                  final guardian = await _guardianFirst(s);
+                  if (!guardian.go) return;
+                  if (!guardian.consented && !await _consent('طلب تعارف عائلي')) return;
                   await _run('family', () => repo.sendIntro(widget.matchId, 'FAMILY', consent: true).then((_) => _requested('FAMILY')),
                       success: 'تم إرسال طلب التعارف العائلي');
                 },
@@ -622,7 +638,9 @@ class _IntroPanelState extends ConsumerState<IntroPanel> {
                   onPressed: _busy != null
                       ? null
                       : () async {
-                          if (!await _consent('مشاركة بيانات وليّ الأمر')) return;
+                          final guardian = await _guardianFirst(s);
+                          if (!guardian.go) return;
+                          if (!guardian.consented && !await _consent('مشاركة بيانات وليّ الأمر')) return;
                           await _run('share', () async => repo.shareGuardian(widget.matchId), success: 'تمت المشاركة');
                         },
                   child: const Text('مشاركة الآن'),

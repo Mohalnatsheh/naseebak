@@ -200,14 +200,6 @@ class _InterestSheetState extends State<InterestSheet> {
                 icon: Icons.account_balance_wallet_outlined,
               ),
             ],
-            if (_error != null) ...[
-              const SizedBox(height: 12),
-              InfoBanner(
-                text: _error!,
-                tone: BannerTone.danger,
-                action: _errorAction(context),
-              ),
-            ],
           ],
         ),
             ),
@@ -219,6 +211,17 @@ class _InterestSheetState extends State<InterestSheet> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  // The error and its way out sit above «إرسال», always in view (QA A-L04: «إضافة بيانات وليّ الأمر»
+                  // was half hidden behind the send button at the end of the scrolling choices)
+                  if (_error != null) ...[
+                    InfoBanner(
+                      key: const Key('interest-error'),
+                      text: _error!,
+                      tone: BannerTone.danger,
+                      action: _errorAction(context),
+                    ),
+                    const SizedBox(height: 10),
+                  ],
                   LoadingButton(key: const Key('send-interest'), label: 'إرسال «مهتم»', loading: _busy, onPressed: _send),
                   const SizedBox(height: 4),
                   TextButton(
@@ -247,12 +250,20 @@ class _InterestSheetState extends State<InterestSheet> {
           child: Text(_g('اشحن رصيدك', 'اشحني رصيدك')),
         );
       case 'GUARDIAN_REQUIRED':
-        return TextButton(
+        // A gold-outline action (design review P2): the way on, not a link lost in the error text
+        return OutlinedButton.icon(
+          key: const Key('interest-add-guardian'),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: AppColors.goldText,
+            side: const BorderSide(color: AppColors.gold, width: 1.4),
+            minimumSize: const Size(0, 44),
+          ),
+          icon: const Icon(Icons.family_restroom_rounded, size: 18),
+          label: const Text('إضافة بيانات وليّ الأمر'),
           onPressed: () async {
             await context.push('/profile/guardian');
             if (mounted) setState(() => _error = null);
           },
-          child: const Text('إضافة بيانات وليّ الأمر'),
         );
       default:
         return null;

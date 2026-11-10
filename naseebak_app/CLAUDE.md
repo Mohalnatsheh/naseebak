@@ -222,7 +222,7 @@ Changing one of these on the server must keep old app versions working (members 
   (not uploaded yet). iOS: uploaded to App Store Connect / TestFlight the same day with `xcodebuild -exportArchive`
   (ExportOptions from `flutter build ipa`, `destination` = `upload`, `manageAppVersionAndBuildNumber` = false; uses
   the Xcode account, no API key). The 1.0.1 notes above say Play has 1.0.1 live; the App Store had only 1.0.0 then.
-- **1.1.0+4 (Pro, branch `feature/pro-membership`, not built for the stores yet):** Pro plans and «اشتراكي» on their
+- **1.1.0+4 (Pro, merged into `feature/fcm-push` 2026-11-11, not built for the stores yet):** Pro plans and «اشتراكي» on their
   own screen `/pro` (link card on the credits screen, entry in «حسابي»), photos and voice notes in chat (Pro to send, everyone to view and play), the Pro badge on cards,
   chats and home, `ChatCache` v2 (drops 1.0.x caches), image cache cleared on sign-out. The modern chat (2026-11-10,
   above): new look, one status bar, pill composer with hold-to-record, reply, reactions, typing, starters, the

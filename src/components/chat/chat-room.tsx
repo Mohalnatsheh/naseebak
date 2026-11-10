@@ -51,7 +51,7 @@ import { dayLabel, mergeMessages, timeLabel, type UiMessage } from "./chat-utils
 import { useChatChannel } from "./use-chat-channel";
 import { useChatPushChip } from "./chat-push-banner";
 import {
-  CHAT_BACKDROP_STYLE, EXPIRY_SOON_DAYS, chatRowLayout, chatStatusBar, closedChatFamilyNote, familyStepOf, firstUnreadId, groupByDay,
+  EXPIRY_SOON_DAYS, chatRowLayout, chatStatusBar, closedChatFamilyNote, familyStepOf, firstUnreadId, groupByDay,
 } from "./chat-look";
 import { ChatStatusBar } from "./chat-status-bar";
 import { useDashboardData } from "@/contexts/dashboard-context";
@@ -64,7 +64,9 @@ import { composerMediaMode, type ComposerMedia, type MediaMode } from "./media-b
 import { preparePhoto } from "./photo-prepare";
 import { UNSUPPORTED_IMAGE_MESSAGE } from "@/lib/chat/media-messages";
 import type { PendingUpload } from "./chat-utils";
-import { MemberAvatar } from "@/components/shared/member-avatar";
+import { MemberAvatar, chatTimeFraction } from "@/components/shared/member-avatar";
+import { SealMark } from "@/components/shared/match-seal";
+import { TimeArcButton } from "./time-arc-button";
 
 /** Id for an optimistic message until the server answers (also its clientNonce); only called from send() / sendMedia().
  *  Random, so two sends in the same millisecond (or two tabs) never share a nonce. */
@@ -75,6 +77,9 @@ function tempMessageId() {
       : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`;
   return `tmp-${random}`;
 }
+
+/** One pill for the day labels and «رسائل جديدة» (P2-1) */
+const CHAT_PILL = "rounded-full bg-card/95 px-3 py-1 text-caption font-semibold text-muted-ink shadow-sm ring-1 ring-border/50";
 
 /** Polls ask from this long before the newest message they have */
 const POLL_OVERLAP_MS = 5000;
@@ -863,6 +868,8 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
       media: m.media!,
       caption: `${m.mine ? "أنت" : conversation.partner.firstName} · ${timeLabel(m.createdAt, country)}`,
     }));
+  // The list's one Tab stop, worked out once per render (not per row: review X3 minor 4)
+  const activeRowId = activeRow && messages.some((x) => x.id === activeRow) ? activeRow : messages[messages.length - 1]?.id;
   const familyOpenUntil = family?.openUntil
     ? formatDate(family.openUntil, country, { day: "numeric", month: "long" })
     : null;
@@ -884,10 +891,11 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
         {(() => {
           const who = (
             <>
-              <MemberAvatar name={conversation.partner.firstName} size={40} matched pro={!!conversation.partner.isPro} />
               <div className="min-w-0 flex-1">
                 <div className="flex min-w-0 items-center gap-2">
                   <h1 className="truncate font-bold leading-tight text-foreground">{conversation.partner.firstName}</h1>
+                  {/* The match's seal (S1), small; gone with the match */}
+                  {!conversation.matchHidden && <SealMark size={16} />}
                   <VerifiedBadge verified={conversation.partner.isVerified} />
                   {conversation.partner.isPro && <ProBadge />}
                 </div>
@@ -910,10 +918,31 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
               </div>
             </>
           );
+          // The partner's avatar with the chat's days as a gold arc (S4); «متبقي N أيام» on tap or hover. It sits
+          // outside the match link (no button inside a link). One Pro marker in the header: the badge by the name.
+          const avatar = (
+            <TimeArcButton
+              daysLeftLabel={open ? `متبقي ${daysLabel(left)}` : null}
+              avatar={
+                <MemberAvatar
+                  name={conversation.partner.firstName}
+                  size={42}
+                  matched={!open}
+                  dimmed={!open}
+                  timeLeft={open ? chatTimeFraction(conversation.expiresAt) ?? 0 : null}
+                />
+              }
+            />
+          );
           // Tapping the name opens the match (not for someone the other person blocked)
           return conversation.matchHidden ? (
-            <div className="flex min-w-0 flex-1 items-center gap-2.5">{who}</div>
+            <div className="flex min-w-0 flex-1 items-center gap-2.5">
+              {avatar}
+              {who}
+            </div>
           ) : (
+            <div className="flex min-w-0 flex-1 items-center gap-1.5">
+            {avatar}
             <Link
               href={`/dashboard/matches?match=${conversation.matchId}`}
               aria-label={`عرض توافق ${conversation.partner.firstName}`}
@@ -921,6 +950,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
             >
               {who}
             </Link>
+            </div>
           );
         })()}
         <DropdownMenu dir="rtl">
@@ -1024,14 +1054,16 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
       <div
         ref={scroller}
         onScroll={onScroll}
-        style={CHAT_BACKDROP_STYLE}
-        // New messages are read out as they arrive; who wrote each is in the bubble (QA WC2-05)
+        // New messages are read out as they arrive (additions only: reactions and read ticks are not read out, review X3
+        // minor 1); who wrote each is in the bubble (QA WC2-05)
         role="log"
         aria-live="polite"
+        aria-relevant="additions"
         aria-label={`المحادثة مع ${conversation.partner.firstName}`}
         aria-busy={loadingOlder}
         data-message-list=""
-        className="h-full overflow-y-auto overscroll-contain px-1.5 py-3 sm:px-4"
+        // The «majlis» (S3, P2-1): warm sand with the gold star at 4%, as in the app
+        className="majlis h-full overflow-y-auto overscroll-contain px-1.5 py-3 sm:px-4"
       >
         {/* Shown once at the top of every chat (most members chat on phones) */}
         <p className="mx-auto mb-1 flex w-fit max-w-full items-center gap-1.5 rounded-full bg-card/90 px-3 py-1.5 text-xs text-muted-foreground shadow-sm ring-1 ring-border/50">
@@ -1060,7 +1092,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
         {groupByDay(messages).map((day) => (
           <section key={day.key} className="pb-1">
             <div className="sticky top-1 z-10 my-2 flex justify-center">
-              <span className="rounded-lg bg-card/95 px-3 py-1 text-caption font-semibold text-muted-foreground shadow-sm">
+              <span className={CHAT_PILL}>
                 {dayLabel(day.items[0].createdAt, country)}
               </span>
             </div>
@@ -1069,13 +1101,13 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
               return (
                 <Fragment key={m.id}>
                   {layout.unreadDivider && (
-                    <div data-unread-divider role="separator" className="my-3 flex justify-center bg-accent/15 py-1">
-                      <span className="rounded-full bg-card px-3 py-0.5 text-xs font-bold text-primary shadow-sm">رسائل جديدة</span>
+                    <div data-unread-divider role="separator" className="my-3 flex justify-center">
+                      <span className={cn(CHAT_PILL, "text-primary")}>رسائل جديدة</span>
                     </div>
                   )}
                   <MessageBubble
                     message={m}
-                    rowActive={(activeRow && messages.some((x) => x.id === activeRow) ? activeRow : messages[messages.length - 1]?.id) === m.id}
+                    rowActive={activeRowId === m.id}
                     onRowFocus={setActiveRow}
                     tail={layout.tail}
                     onRetry={() => (m.upload ? sendMedia(m.upload, m.id, m.replyTo) : send(m.body, m.id, m.replyTo))}
@@ -1094,7 +1126,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
         {refusal && (
           <div
             data-testid="chat-refusal"
-            role="alert"
+            // Inside the log: read out once as an addition (a nested alert was read twice, review X3 minor 1)
             className="mx-auto my-3 max-w-sm rounded-2xl border border-accent/40 bg-accent/10 px-4 py-3 text-center text-sm leading-relaxed text-foreground shadow-sm"
           >
             <p className="flex items-start justify-center gap-1.5">

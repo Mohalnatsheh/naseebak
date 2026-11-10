@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ImagePlus } from "lucide-react";
+import { ImagePlus, Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   MAX_RECORD_SEC,
@@ -16,7 +16,7 @@ import {
  * Photo and voice in the chat composer (Pro).
  * - `enabled`: a Pro member in an open chat.
  * - `locked`: not Pro, but this member could buy it now (`canBuy` from GET /api/pro): the buttons look greyed
- *   with a small «Pro» tag and open the offer.
+ *   with one small gold lock and open the offer.
  * Hidden otherwise (the composer gets no `media` prop): no offer that ends in «غير متاح».
  */
 export type MediaMode = "enabled" | "locked";
@@ -44,13 +44,18 @@ export function clockLabel(totalSec: number): string {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
 
-export function ProTag() {
+/**
+ * One small gold lock on a locked Pro button (DS-14: the «Pro» stickers collided with the box and the mic). The button's
+ * name says «متاح لأعضاء Pro»; the lock is decoration.
+ */
+export function ProLock() {
   return (
     <span
       aria-hidden
-      className="pointer-events-none absolute -top-1 -end-1 rounded-full border border-accent/40 bg-accent px-1.5 py-px text-caption font-bold leading-none text-accent-foreground shadow-sm"
+      data-slot="pro-lock"
+      className="pointer-events-none absolute -top-0.5 -end-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-accent text-primary-deep ring-2 ring-card"
     >
-      Pro
+      <Lock className="h-2.5 w-2.5" strokeWidth={3} />
     </span>
   );
 }
@@ -78,7 +83,7 @@ export function PhotoButton({ media, disabled, tagOnMic = false }: { media: Comp
         <ImagePlus className="h-5 w-5" aria-hidden />
         {/* One «Pro» tag on the composer, on the mic (QA DS-14: two tags collided with the box and the mic); while
             text hides the mic, the greyed photo button carries it */}
-        {locked && !tagOnMic && <ProTag />}
+        {locked && !tagOnMic && <ProLock />}
       </button>
       {!locked && (
         <input

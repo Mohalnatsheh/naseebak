@@ -2,7 +2,6 @@
  * The chat's look, as plain functions (db-free, shared by the room and the list; same rules as the app's
  * chat_format.dart / chat_status_bar.dart): runs and tails, the «رسائل جديدة» divider, the one status bar, the tabs.
  */
-import { BRAND_HEX } from "@/lib/brand-colors";
 import type { ChatSummary } from "@/lib/chat/service";
 import { sameDay, type UiMessage } from "./chat-utils";
 
@@ -134,26 +133,3 @@ export function splitChats<T extends Pick<ChatSummary, "status" | "blocked" | "u
   return { active, ended, activeUnread: unread(active), endedUnread: unread(ended) };
 }
 
-/**
- * The soft backdrop behind the messages (the app's ChatPatternPainter: navy at about 5%, per the spec): eight-point
- * stars, small rhombi and dots, on a warm off-white. A small inline SVG tile: no file to serve,
- * no photo, no faces.
- */
-const PATTERN_TILE = [
-  `<svg xmlns="http://www.w3.org/2000/svg" width="88" height="88" viewBox="0 0 88 88">`,
-  `<g fill="none" stroke="${BRAND_HEX.primary}" stroke-opacity=".05" stroke-width="1.1">`,
-  `<path d="M31 22 22 31 13 22 22 13Z M28.4 15.6V28.4H15.6V15.6Z"/>`,
-  `<path d="M75 66 66 75 57 66 66 57Z M72.4 59.6V72.4H59.6V59.6Z"/>`,
-  `</g>`,
-  `<g fill="none" stroke="${BRAND_HEX.primary}" stroke-opacity=".05" stroke-width="1.1">`,
-  `<path d="M66 16 70 22 66 28 62 22Z"/><path d="M22 60 26 66 22 72 18 66Z"/>`,
-  `</g>`,
-  `<g fill="${BRAND_HEX.primary}" fill-opacity=".05"><circle cx="44" cy="11" r="1.4"/><circle cx="0" cy="55" r="1.4"/><circle cx="88" cy="55" r="1.4"/></g>`,
-  `</svg>`,
-].join("");
-
-export const CHAT_BACKDROP_STYLE = {
-  backgroundColor: "color-mix(in oklch, var(--accent) 7%, var(--background))",
-  backgroundImage: `url("data:image/svg+xml,${encodeURIComponent(PATTERN_TILE)}")`,
-  backgroundSize: "88px 88px",
-} as const;

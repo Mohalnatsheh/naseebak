@@ -5,7 +5,7 @@ import { ChevronRight, ChevronUp, Loader2, Lock, Mic, SendHorizontal, Square, Tr
 import { cn } from "@/lib/utils";
 import type { ReplyQuote } from "@/lib/chat/reply";
 import { MAX_RECORD_SEC } from "./voice-recorder";
-import { PhotoButton, ProTag, clockLabel, useVoiceRecording, type ComposerMedia } from "./media-buttons";
+import { PhotoButton, ProLock, clockLabel, useVoiceRecording, type ComposerMedia } from "./media-buttons";
 import { holdGesture, holdReleaseSends } from "./chat-interactions";
 import { ReplyStrip } from "./reply-strip";
 import { StarterChips } from "./starter-chips";
@@ -403,7 +403,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, {
             ) : (
               <SendHorizontal className="h-5 w-5 -scale-x-100" aria-hidden />
             )}
-            {showMic && media?.mode === "locked" && <ProTag />}
+            {showMic && media?.mode === "locked" && <ProLock />}
           </button>
           <span id={micHintId} className="sr-only">
             {female

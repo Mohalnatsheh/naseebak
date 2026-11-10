@@ -2,8 +2,8 @@
 
 import { useSyncExternalStore } from "react";
 import { useSelectedLayoutSegment } from "next/navigation";
-import { MessageCircle } from "lucide-react";
 import { ChatList } from "./chat-list";
+import { LineArt } from "@/components/shared/line-art";
 
 /** Two panes from this width up (list + chat); below it, one pane as before */
 export const TWO_PANE_QUERY = "(min-width: 1024px)";
@@ -42,10 +42,9 @@ export function ChatsShell({ children }: { children: React.ReactNode }) {
       )}
       <div className={twoPanes ? "flex min-w-0 flex-1" : "contents"}>
         {twoPanes && !openId ? (
-          <div className="flex flex-1 flex-col items-center justify-center gap-3 rounded-2xl border border-border/60 bg-card text-center">
-            <span className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/5">
-              <MessageCircle className="h-8 w-8 text-primary/60" aria-hidden />
-            </span>
+          // The majlis (S3) waiting for a chat, with the cups-on-a-tray drawing (S5)
+          <div className="majlis flex flex-1 flex-col items-center justify-center gap-3 rounded-2xl border border-border/60 text-center">
+            <LineArt kind="cupsTray" />
             <p className="font-semibold text-foreground">يمكنك اختيار محادثة لعرضها</p>
             <p className="max-w-xs text-sm text-muted-foreground">رسائلك خاصة، والمحادثة نصية ومحدودة المدة.</p>
           </div>

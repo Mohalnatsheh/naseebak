@@ -43,8 +43,9 @@ function Strip({
       aria-label="تنبيه المحادثة"
       data-testid={testId}
       className={cn(
-        "flex min-h-11 items-center gap-2 border-b border-border/50 px-3 text-label font-semibold",
-        tone === "warning" ? "bg-amber-50" : "bg-accent/10",
+        // The next step is a white card with a gold rule on its start side (P2-1); warnings stay amber
+        "mx-2 my-1.5 flex min-h-11 items-center gap-2 rounded-xl border px-3 text-label font-semibold shadow-float",
+        tone === "warning" ? "border-amber-200 bg-amber-50" : "border-border/60 border-s-[3px] border-s-accent bg-card",
         toneText
       )}
     >

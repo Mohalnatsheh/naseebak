@@ -16,7 +16,7 @@ export function ReplyStrip({ quote, partnerName, onClose }: { quote: ReplyQuote;
     <div data-testid="reply-strip" className="mb-2 flex items-center gap-2 rounded-xl bg-muted/60 ps-3">
       <Reply className="h-4 w-4 shrink-0 text-primary" aria-hidden />
       <div className="min-w-0 flex-1 border-s-[3px] border-accent py-1.5 ps-2">
-        <p className="truncate text-xs font-bold text-primary">{quoteAuthor(quote, partnerName)}</p>
+        <p className="truncate text-xs font-bold text-accent-ink">{quoteAuthor(quote, partnerName)}</p>
         <p dir="auto" className="truncate text-sm text-muted-foreground">
           {quote.snippet}
         </p>
@@ -60,8 +60,8 @@ export function BubbleQuote({
         mine ? "bg-primary-foreground/12 hover:bg-primary-foreground/18" : "bg-primary/6 hover:bg-primary/10"
       )}
     >
-      {/* In my navy bubble the author is light (gold on navy measured 2.4:1, QA PA-M8) */}
-      <span className={cn("block truncate text-xs font-bold", mine ? "text-primary-foreground" : "text-primary")}>{author}</span>
+      {/* The author in dark gold (accent-ink, P2-1); in my navy bubble it stays light (gold on navy measured 2.4:1, QA PA-M8) */}
+      <span className={cn("block truncate text-xs font-bold", mine ? "text-primary-foreground" : "text-accent-ink")}>{author}</span>
       <span dir="auto" className={cn("block truncate text-label", mine ? "text-primary-foreground/80" : "text-muted-foreground")}>
         {quote.snippet}
       </span>

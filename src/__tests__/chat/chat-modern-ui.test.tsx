@@ -369,10 +369,12 @@ describe("review polish (Task 3+4 minors)", () => {
     expect(onCancelReply).toHaveBeenCalled();
   });
 
-  it("only one «Pro» tag on a locked composer (DS-14)", () => {
+  it("one small gold lock on a locked composer, no «Pro» stickers (DS-14)", () => {
     const media = { mode: "locked" as const, onPhoto: vi.fn(), onVoice: vi.fn(), onLocked: vi.fn(), onError: vi.fn() };
     const { container } = render(<ChatComposer onSend={vi.fn(async () => true)} error={null} onTyping={vi.fn()} media={media} />);
-    expect(Array.from(container.querySelectorAll("span")).filter((x) => x.textContent === "Pro")).toHaveLength(1);
+    expect(container.querySelectorAll("[data-slot=pro-lock]")).toHaveLength(1);
+    expect(container.querySelector("[data-slot=pro-lock]")!.className).toContain("bg-accent");
+    expect(Array.from(container.querySelectorAll("span")).filter((x) => x.textContent === "Pro")).toHaveLength(0);
   });
 
   it("each bubble says who wrote it to screen readers (WC2-05); the quote names its author (PA-L7)", () => {

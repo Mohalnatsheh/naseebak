@@ -125,3 +125,41 @@ describe("GET /api/admin/chats/[id]/messages", () => {
     expect(JSON.stringify(d)).not.toContain("سر");
   });
 });
+
+describe("GET /api/admin/chats/[id]/messages paging (ADM-26)", () => {
+  const chatWith = (ids: string[]) => ({
+    id: "c1", status: "ACTIVE", createdAt: new Date(), expiresAt: new Date(Date.now() + 864e5), extended: false,
+    endedById: null, endedByAdminId: null, endedAt: null,
+    match: { id: "mm1", female: { id: "f1", firstName: "س", lastName: "أ", status: "VERIFIED" }, male: { id: "m1", firstName: "ي", lastName: "ب", status: "VERIFIED" } },
+    // newest first, as the query returns them
+    messages: ids.map((id, i) => ({ id, senderId: "f1", body: id, readAt: null, createdAt: new Date(Date.now() - i * 1000) })),
+  });
+  const get = (qs: string) => GET(new Request(`http://x/api/admin/chats/c1/messages${qs}`), { params: Promise.resolve({ id: "c1" }) }) as Promise<Response>;
+
+  beforeEach(() => {
+    vi.spyOn(console, "info").mockImplementation(() => {});
+  });
+
+  it("?limit=2 gives the newest two oldest first, with hasMore and the cursor for older ones", async () => {
+    db.conversation.findUnique.mockResolvedValue(chatWith(["m5", "m4", "m3"]));
+    const d = await (await get("?limit=2")).json();
+    expect(db.conversation.findUnique.mock.calls[0][0].select.messages.take).toBe(3);
+    expect(d.messages.map((m: { id: string }) => m.id)).toEqual(["m4", "m5"]);
+    expect(d).toMatchObject({ hasMore: true, nextBefore: "m4", truncated: true });
+  });
+
+  it("?before= reads the page older than that message, by cursor", async () => {
+    db.conversation.findUnique.mockResolvedValue(chatWith(["m3"]));
+    const d = await (await get("?limit=2&before=m4")).json();
+    const q = db.conversation.findUnique.mock.calls[0][0].select.messages;
+    expect(q).toMatchObject({ cursor: { id: "m4" }, skip: 1, take: 3, orderBy: [{ createdAt: "desc" }, { id: "desc" }] });
+    expect(d).toMatchObject({ hasMore: false, nextBefore: null });
+  });
+
+  it("caps the page at 500 and refuses a bad limit", async () => {
+    db.conversation.findUnique.mockResolvedValue(chatWith([]));
+    await get("?limit=9999");
+    expect(db.conversation.findUnique.mock.calls[0][0].select.messages.take).toBe(501);
+    expect((await get("?limit=abc")).status).toBe(400);
+  });
+});

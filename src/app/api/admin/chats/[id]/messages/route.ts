@@ -9,13 +9,30 @@ import { replySnippet } from "@/lib/chat/reply";
 const person = { select: { id: true, firstName: true, lastName: true, status: true } } as const;
 /** There is no daily cap, so very long chats keep their newest messages (`truncated` marks the cut). */
 const MAX_MESSAGES = 3000;
+/** Largest page with `?limit=` (QA ADM-26) */
+const MAX_PAGE = 500;
 
-/** One chat with its full message history, oldest first. Every view is logged (admin id + chat id). */
-export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+/**
+ * One chat with its message history, oldest first. Every view is logged (admin id + chat id).
+ *
+ * Paging (QA ADM-26, additive; without parameters the answer is as before: the newest 3,000):
+ * - `?limit=N` (1–500): the newest N messages;
+ * - `?limit=N&before=<messageId>`: the N messages just older than that message of this chat («load older»).
+ * The answer adds `hasMore` (older messages exist) and `nextBefore` (the id to pass as `before` next, or null).
+ */
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const result = await requireAdmin();
     if ("error" in result) return result.error;
     const { id } = await params;
+    const url = new URL(request.url);
+    const rawLimit = url.searchParams.get("limit");
+    const parsedLimit = rawLimit === null ? null : Number.parseInt(rawLimit, 10);
+    if (parsedLimit !== null && (!Number.isFinite(parsedLimit) || parsedLimit < 1)) {
+      return NextResponse.json({ error: "limit must be a positive number" }, { status: 400 });
+    }
+    const pageSize = parsedLimit === null ? MAX_MESSAGES : Math.min(parsedLimit, MAX_PAGE);
+    const before = url.searchParams.get("before")?.slice(0, 64) || null;
 
     const chat = await db.conversation.findUnique({
       where: { id },
@@ -24,8 +41,10 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
         endedById: true, endedByAdminId: true, endedAt: true,
         match: { select: { id: true, female: person, male: person } },
         messages: {
-          orderBy: { createdAt: "desc" },
-          take: MAX_MESSAGES,
+          orderBy: before ? [{ createdAt: "desc" }, { id: "desc" }] : { createdAt: "desc" },
+          // One extra tells whether older messages remain
+          take: pageSize + 1,
+          ...(before && { cursor: { id: before }, skip: 1 }),
           // Never mediaPath: a photo or voice note is fetched through the members-only route (admins pass by web session)
           select: {
             id: true, senderId: true, body: true, readAt: true, createdAt: true,
@@ -37,6 +56,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       },
     });
     if (!chat) return NextResponse.json({ error: "Chat not found" }, { status: 404 });
+    const hasMore = chat.messages.length > pageSize;
+    const page = hasMore ? chat.messages.slice(0, pageSize) : chat.messages;
 
     console.info(`[admin-chat-view] admin=${result.session.user.id} chat=${id} at=${new Date().toISOString()}`);
 
@@ -62,7 +83,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
         reports,
       },
       // newest MAX_MESSAGES, shown oldest first
-      messages: [...chat.messages].reverse().map(({ mediaType, mediaDurationSec, mediaWidth, mediaHeight, replyTo, reactions, ...m }) => ({
+      messages: [...page].reverse().map(({ mediaType, mediaDurationSec, mediaWidth, mediaHeight, replyTo, reactions, ...m }) => ({
         ...m,
         kind: m.kind ?? "TEXT",
         // Read-only: the quote (same chat only, as members see it) and who reacted with what
@@ -73,7 +94,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
         // The same shape as the member chat (lib/chat/media messageMedia)
         media: messageMedia({ id: m.id, conversationId: chat.id, kind: m.kind, mediaType, mediaDurationSec, mediaWidth, mediaHeight }),
       })),
-      truncated: chat.messages.length === MAX_MESSAGES,
+      truncated: hasMore,
+      hasMore,
+      nextBefore: hasMore ? page[page.length - 1].id : null,
     });
   } catch (error) {
     console.error("Admin chat messages error:", error);

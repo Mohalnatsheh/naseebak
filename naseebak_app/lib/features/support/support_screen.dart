@@ -153,7 +153,7 @@ class SupportScreen extends ConsumerWidget {
             ? const MessageView(
                 icon: Icons.support_agent_rounded,
                 title: 'لا توجد تذاكر بعد',
-                body: 'واجهتك مشكلة أو لديك اقتراح؟ أرسل تذكرة وسيرد عليك فريق نصيبك هنا.',
+                body: 'واجهتك مشكلة أو لديك اقتراح؟ يمكنك إرسال تذكرة وسيرد عليك فريق نصيبك هنا.',
               )
             : RefreshIndicator(
                 onRefresh: () async => ref.invalidate(supportTicketsProvider),

@@ -143,7 +143,7 @@ class ChatBubble extends StatelessWidget {
         padding: EdgeInsets.only(left: tailRight ? 10 : ChatBubble.tailWidth + 10, right: tailRight ? ChatBubble.tailWidth + 10 : 10),
         child: Semantics(
           button: mine != null && onReactionTap != null,
-          label: mine != null ? 'التفاعلات $label، اضغط لإزالة تفاعلك' : 'التفاعلات $label',
+          label: mine != null ? 'التفاعلات $label، يمكنك إزالة تفاعلك' : 'التفاعلات $label',
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
             onTap: mine != null ? onReactionTap : null,

@@ -9,6 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:naseebak_app/features/chat/chat_cache.dart';
 import 'package:naseebak_app/features/chat/chat_live.dart';
 import 'package:naseebak_app/features/chat/chat_media_picker.dart';
+import 'package:naseebak_app/features/chat/chat_room_screen.dart' show micRefusedText;
 import 'package:naseebak_app/features/chat/hold_to_record.dart';
 import 'package:naseebak_app/features/chat/media_bubbles.dart';
 import 'package:naseebak_app/features/chat/voice_recorder.dart';
@@ -214,7 +215,13 @@ void main() {
       final g = await _hold(tester);
       expect(r.rec.started, isTrue);
       expect(find.byKey(const Key('voice-hold-bar')), findsOneWidget);
-      expect(find.text('اسحب للإلغاء'), findsOneWidget);
+      expect(find.text('اسحبي للإلغاء'), findsOneWidget);
+      // The chevron points the way to slide (towards the start edge, the right in Arabic), and the hint has its own
+      // lane beside the level bars (QA A-M03)
+      expect(tester.widget<Icon>(find.byKey(const Key('voice-slide-chevron'))).icon, Icons.chevron_right_rounded);
+      final lane = tester.getRect(find.byKey(const Key('voice-slide-lane')));
+      final bars = tester.getRect(find.byKey(const Key('voice-level')));
+      expect(lane.overlaps(bars), isFalse);
       expect(find.byKey(const Key('voice-lock-hint')), findsOneWidget);
       r.rec.now = const Duration(milliseconds: 1500);
       await tester.pump(const Duration(milliseconds: 300));
@@ -763,6 +770,21 @@ void main() {
       expect(r.rec.cancelled, isTrue);
       expect(r.uploads, isEmpty);
       expect(find.byKey(const Key('voice-hold-bar')), findsNothing);
+      await r.leave(tester);
+    });
+
+    testWidgets('a first «لا» to the microphone during a hold still says why (QA A2-L5)', (tester) async {
+      final r = _Room();
+      final answer = Completer<bool>();
+      r.permission = () => answer.future;
+      await r.open(tester);
+      final g = await _hold(tester);
+      await g.up();
+      await tester.pump();
+      answer.complete(false);
+      await _frames(tester);
+      expect(find.text(micRefusedText), findsOneWidget);
+      expect(r.rec.started, isFalse);
       await r.leave(tester);
     });
 

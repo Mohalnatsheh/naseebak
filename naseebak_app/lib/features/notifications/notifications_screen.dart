@@ -253,7 +253,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
   void _restore(int i, AppNotification n) {
     if (!mounted) return;
     setState(() => _items.insert(i.clamp(0, _items.length), n));
-    showSnack(context, 'تعذّر حذف الإشعار، حاول مرة أخرى');
+    showSnack(context, 'تعذّر حذف الإشعار، يُرجى المحاولة مرة أخرى');
   }
 
   Future<void> _deleteAll() async {

@@ -329,7 +329,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
       return Scaffold(
         appBar: AppBar(title: const Text('إكمال ملفك')),
         body: ErrorView(
-          error: details.error ?? ApiException(kind: ApiErrorKind.server, message: 'تعذّر تحميل قائمة المدن. حاول مرة أخرى.'),
+          error: details.error ?? ApiException(kind: ApiErrorKind.server, message: 'تعذّر تحميل قائمة المدن. يُرجى المحاولة مرة أخرى.'),
           onRetry: () => ref.invalidate(countryDetailsProvider(me?.country.code ?? 'JO')),
         ),
       );
@@ -427,7 +427,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
                 errorText: _errors['dob'],
                 suffixIcon: const Icon(Icons.calendar_month_outlined),
               ),
-              child: Text(_dob == null ? forViewer(female, 'اختر التاريخ', 'اختاري التاريخ') : formatDate(_dob!),
+              child: Text(_dob == null ? 'اختيار التاريخ' : formatDate(_dob!),
                   style: TextStyle(color: _dob == null ? AppColors.muted : AppColors.ink)),
             ),
           ),

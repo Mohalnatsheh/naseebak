@@ -78,7 +78,7 @@ class _PhotosScreenState extends ConsumerState<PhotosScreen> {
     try {
       bytes = await _pick();
     } catch (_) {
-      if (mounted) showSnack(context, 'تعذّر فتح الصور. تحقق من إذن الوصول إلى الصور');
+      if (mounted) showSnack(context, 'تعذّر فتح الصور. يُرجى التحقق من إذن الوصول إلى الصور');
       return;
     }
     if (bytes == null || !mounted) return;

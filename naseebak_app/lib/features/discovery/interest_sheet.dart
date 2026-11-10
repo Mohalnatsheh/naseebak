@@ -153,7 +153,7 @@ class _InterestSheetState extends State<InterestSheet> {
                 selected: _pref == 'CHAT',
                 icon: Icons.chat_bubble_outline_rounded,
                 title: 'محادثة قصيرة داخل التطبيق',
-                body: 'نصية فقط ومراقبة، لمدة 14 يوماً، ويمكن الانتقال للتعارف العائلي لاحقاً.',
+                body: 'مراقبة ولمدة 14 يوماً، ويمكن الانتقال للتعارف العائلي لاحقاً.',
                 onTap: _busy ? null : () => setState(() => _pick('CHAT')),
               ),
             if (widget.chatAvailable) const SizedBox(height: 10),

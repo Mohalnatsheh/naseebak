@@ -258,7 +258,9 @@ void main() {
           )
           .properties;
       expect(slider().slider, isTrue);
-      expect(slider().increasedValue, '25%');
+      // Time, not a percent, and whose note it is (QA A-L08)
+      expect(slider().increasedValue, startsWith('0:05 من '));
+      expect(slider().label, 'رسالة صوتية من الطرف الآخر');
       slider().onIncrease!();
       await tester.pump();
       final s = c.read(voicePlaybackProvider).sessionFor('v1')!;

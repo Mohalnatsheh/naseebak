@@ -168,7 +168,7 @@ class _PreferencesFormState extends ConsumerState<PreferencesForm> {
               onSelected: filled || _dealbreakers.contains(key)
                   ? (on) => setState(() => on ? _dealbreakers.add(key) : _dealbreakers.remove(key))
                   : null,
-              tooltip: filled ? null : 'اختر تفضيلاً أولاً',
+              tooltip: filled ? null : 'يلزم اختيار تفضيل أولاً',
             ),
         ],
       ),

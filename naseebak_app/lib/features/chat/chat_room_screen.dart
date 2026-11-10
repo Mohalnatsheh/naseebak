@@ -1118,12 +1118,14 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
       allowed = await rec.hasPermission();
     } catch (_) {}
     if (_askingMic == rec) _askingMic = null;
-    if (_recorder != rec || !mounted || !_voiceAllowed) return _drop(rec);
+    // A refusal is said even when the hold already ended (the finger lifted to answer the prompt): the first
+    // «لا» used to vanish with the dropped recorder (QA A2-L5)
     if (!allowed) {
       _drop(rec);
-      _micRefused();
+      if (mounted) _micRefused();
       return;
     }
+    if (_recorder != rec || !mounted || !_voiceAllowed) return _drop(rec);
     try {
       await rec.start();
     } catch (_) {
@@ -1700,14 +1702,15 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
             padding: const EdgeInsets.symmetric(vertical: 4),
             child: Row(
               children: [
-                CircleAvatar(
+                // The initial is decoration: the name says who it is (QA A-L08)
+                ExcludeSemantics(child: CircleAvatar(
                   radius: 19,
                   backgroundColor: AppColors.navy,
                   child: Text(
                     (chat?.partnerName ?? '').isEmpty ? '؟' : chat!.partnerName.characters.first,
                     style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 16),
                   ),
-                ),
+                )),
                 const SizedBox(width: 10),
                 Flexible(
                   child: Column(
@@ -2117,6 +2120,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
                                 levels: _levels,
                                 slide: (Directionality.of(context) == TextDirection.rtl ? _holdDrag.dx : -_holdDrag.dx)
                                     .clamp(0.0, holdCancelDistance),
+                                female: female,
                               )
                             : _pill(female, media, locked),
                       ),

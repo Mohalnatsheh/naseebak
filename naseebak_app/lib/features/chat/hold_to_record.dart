@@ -23,6 +23,16 @@ const holdLeaveDistance = 72.0;
 
 enum HoldSlide { none, cancel, lock }
 
+/// The mic's screen-reader hint: what a double-tap does (QA A-L08, final review minor 6)
+const holdMicHint = 'يبدأ التسجيل، ثم يمكنك الإرسال أو الإلغاء';
+
+/// «اسحب للإلغاء» / «اسحبي للإلغاء» (QA A-L03)
+String holdSlideText(bool female) => female ? 'اسحبي للإلغاء' : 'اسحب للإلغاء';
+
+/// The chevron that points the way to slide: towards the start edge (the right in Arabic, QA A-M03)
+IconData holdSlideChevron(TextDirection direction) =>
+    direction == TextDirection.rtl ? Icons.chevron_right_rounded : Icons.chevron_left_rounded;
+
 /// What a slide of [delta] from the press point means. The start edge is the right in Arabic, the left in English.
 HoldSlide holdSlideFor(Offset delta, TextDirection direction) {
   final towardStart = direction == TextDirection.rtl ? delta.dx : -delta.dx;
@@ -140,7 +150,8 @@ class _HoldToRecordDetectorState extends State<HoldToRecordDetector> {
     return Semantics(
       button: true,
       label: widget.label,
-      hint: 'اضغط مطولاً للتسجيل',
+      // A screen reader's double-tap records hands-free (never a "press and hold" command it cannot do)
+      hint: holdMicHint,
       onTap: widget.onTap,
       child: ExcludeSemantics(
         child: Listener(
@@ -159,7 +170,13 @@ class _HoldToRecordDetectorState extends State<HoldToRecordDetector> {
 /// In place of the text box while the mic is held: the red dot and the clock, the live level, and «اسحب للإلغاء»
 /// moving with the finger. A lock hint floats above the mic (see [HoldLockHint]).
 class HoldRecordBar extends StatelessWidget {
-  const HoldRecordBar({super.key, required this.elapsed, required this.levels, required this.slide});
+  const HoldRecordBar({
+    super.key,
+    required this.elapsed,
+    required this.levels,
+    required this.slide,
+    this.female = false,
+  });
   final Duration elapsed;
 
   /// The latest levels, 0..1, oldest first
@@ -167,10 +184,15 @@ class HoldRecordBar extends StatelessWidget {
 
   /// How far the finger moved towards the start edge (0..holdCancelDistance)
   final double slide;
+  final bool female;
+
+  /// The hint's own lane at the end side: it slides inside it and never over the level bars (QA A-M03)
+  static const hintLane = 132.0;
 
   @override
   Widget build(BuildContext context) {
     final progress = (slide / holdCancelDistance).clamp(0.0, 1.0);
+    final direction = Directionality.of(context);
     return Container(
       key: const Key('voice-hold-bar'),
       height: 48,
@@ -187,28 +209,43 @@ class HoldRecordBar extends StatelessWidget {
           Text(
             formatVoiceDuration(elapsed),
             key: const Key('voice-clock'),
-            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16, color: AppColors.ink),
+            style: AppText.body.copyWith(fontWeight: FontWeight.w700, color: AppColors.ink, fontFeatures: AppText.tabular),
           ),
           const SizedBox(width: 8),
+          // The bars fade as the finger nears cancel
           Expanded(
             child: Opacity(
               opacity: 1 - progress * 0.7,
-              child: Row(
-                children: [
-                  Expanded(child: LevelBars(key: const Key('voice-level'), levels: levels)),
-                  const SizedBox(width: 6),
-                  Transform.translate(
-                    // Follows the finger towards the start edge
-                    offset: Offset((Directionality.of(context) == TextDirection.rtl ? 1 : -1) * slide * 0.4, 0),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.chevron_left_rounded, size: 18, color: AppColors.muted),
-                        Text('اسحب للإلغاء', style: TextStyle(fontSize: 13, color: AppColors.muted)),
-                      ],
-                    ),
+              child: LevelBars(key: const Key('voice-level'), levels: levels),
+            ),
+          ),
+          const SizedBox(width: 8),
+          SizedBox(
+            key: const Key('voice-slide-lane'),
+            width: hintLane,
+            child: ClipRect(
+              child: Transform.translate(
+                // Follows the finger towards the start edge, inside its lane
+                offset: Offset((direction == TextDirection.rtl ? 1 : -1) * slide * 0.4, 0),
+                child: Opacity(
+                  opacity: 1 - progress * 0.5,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(holdSlideChevron(direction), key: const Key('voice-slide-chevron'), size: 18, color: AppColors.muted),
+                      Flexible(
+                        child: Text(
+                          holdSlideText(female),
+                          maxLines: 1,
+                          overflow: TextOverflow.fade,
+                          softWrap: false,
+                          style: AppText.label.copyWith(fontWeight: FontWeight.w500, color: AppColors.muted),
+                        ),
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
             ),
           ),

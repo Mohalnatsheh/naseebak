@@ -40,7 +40,7 @@ void main() {
     await tester.pumpWidget(card(feed(pro: true)));
     expect(find.byType(ProBadge), findsOneWidget);
     expect(find.text('Pro'), findsOneWidget);
-    expect(find.byWidgetPredicate((w) => w is Semantics && w.properties.label == 'عضو Pro'), findsOneWidget);
+    expect(find.byWidgetPredicate((w) => w is Semantics && w.properties.label == 'عضوية Pro'), findsOneWidget);
     await tester.pumpWidget(card(feed(pro: false)));
     expect(find.byType(ProBadge), findsNothing);
   });

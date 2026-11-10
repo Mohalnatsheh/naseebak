@@ -121,7 +121,7 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> with WidgetsBindingOb
               items: active,
               female: female,
               emptyTitle: 'لا توجد محادثات نشطة',
-              emptyBody: 'تُفتح المحادثة بعد التوافق المتبادل وقبول طلب المحادثة. نصية فقط، ولمدة محدودة.',
+              emptyBody: 'تُفتح المحادثة بعد التوافق المتبادل وقبول طلب المحادثة. مراقبة ولمدة محدودة.',
             ),
             _list(
               key: const PageStorageKey('chats-ended'),

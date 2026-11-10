@@ -81,7 +81,7 @@ void main() {
     final adapter = FakeAdapter()..on('GET', '/api/countries/SA', FakeResponse(200, saDetails(lists: null)));
     await tester.pumpWidget(scopedApp(await signedInSa(adapter), const SetupScreen()));
     await tester.pumpAndSettle();
-    expect(find.text('تعذّر تحميل قائمة المدن. حاول مرة أخرى.'), findsOneWidget);
+    expect(find.text('تعذّر تحميل قائمة المدن. يُرجى المحاولة مرة أخرى.'), findsOneWidget);
   });
 
   testWidgets('an answered setup question loses its error at once', (tester) async {

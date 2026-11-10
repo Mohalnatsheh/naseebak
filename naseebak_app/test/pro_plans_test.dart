@@ -262,7 +262,7 @@ void main() {
     await _pump(tester, pro);
     await _subscribe(tester);
     expect(pro.opened, isEmpty);
-    expect(find.text('حدث خطأ غير متوقع. حاول مرة أخرى.'), findsOneWidget);
+    expect(find.text('حدث خطأ غير متوقع. يُرجى المحاولة مرة أخرى.'), findsOneWidget);
   });
 
   testWidgets('local mock checkout (debug + local backend): finished in the app, then Pro is read', (tester) async {
@@ -294,7 +294,7 @@ void main() {
     await _subscribe(tester);
     expect(find.byKey(const Key('mock-pro-pay')), findsNothing);
     expect(pro.opened, isEmpty);
-    expect(find.text('حدث خطأ غير متوقع. حاول مرة أخرى.'), findsOneWidget);
+    expect(find.text('حدث خطأ غير متوقع. يُرجى المحاولة مرة أخرى.'), findsOneWidget);
   });
 
   testWidgets('back from the browser: polls until Pro is on, then a success snack', (tester) async {

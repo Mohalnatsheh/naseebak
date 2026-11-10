@@ -22,4 +22,27 @@ void main() {
       }
     });
   }
+
+  // Shared texts every member sees, whatever the gender (QA round 2 A-L03, A2-L1, A-L07)
+  test('shared messages and labels say «يمكنك …» or a neutral form', () {
+    const phrases = [
+      '. تحقق من',
+      'حاول مرة أخرى',
+      'سجّل الدخول من جديد',
+      'اضغط لإزالة',
+      'اضغط مطولاً',
+      'أرسل تذكرة',
+      'اختر تفضيلاً',
+      'ويحصل هو',
+      'اختر التاريخ',
+      'نصية فقط',
+      "'عضو Pro'",
+    ];
+    for (final f in Directory('lib').listSync(recursive: true).whereType<File>().where((f) => f.path.endsWith('.dart'))) {
+      final text = f.readAsStringSync();
+      for (final p in phrases) {
+        expect(text.contains(p), isFalse, reason: '${f.path} has «$p»');
+      }
+    }
+  });
 }

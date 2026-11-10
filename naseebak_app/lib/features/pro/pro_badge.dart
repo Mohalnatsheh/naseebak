@@ -12,7 +12,7 @@ class ProBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Semantics(
-      label: 'عضو Pro',
+      label: 'عضوية Pro',
       excludeSemantics: true,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1.5),

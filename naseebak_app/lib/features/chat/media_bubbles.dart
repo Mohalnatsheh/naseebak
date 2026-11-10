@@ -459,6 +459,12 @@ class VoiceWaveformPainter extends CustomPainter {
 /// once started, and a dot on the partner's notes I have not played yet. The player lives in [VoicePlayback] (made on
 /// the first play), so the note keeps playing when its bubble scrolls out of view. A failed load shows
 /// «تعذّر تشغيل الرسالة», which a tap tries again; a 401 also goes through the app's sign-out path.
+/// The waveform slider's screen-reader name: whose note it is (QA A-L08)
+String voiceSliderLabel({required bool mine}) => mine ? 'رسالتك الصوتية' : 'رسالة صوتية من الطرف الآخر';
+
+/// The slider's value as time, «0:12 من 0:45», never a percent (QA A-L08)
+String voiceSliderValue(Duration at, Duration total) => '${formatVoiceDuration(at)} من ${formatVoiceDuration(total)}';
+
 class VoiceBubble extends ConsumerStatefulWidget {
   const VoiceBubble({super.key, required this.message, this.color = AppColors.ink, this.waveSeed});
   final ChatMessage message;
@@ -583,15 +589,13 @@ class _VoiceBubbleState extends ConsumerState<VoiceBubble> {
           _seekTo(((at + ms).clamp(0, total.inMilliseconds)) / total.inMilliseconds, total);
         }
 
-        String pct(int ms) => total <= Duration.zero
-            ? '0%'
-            : '${((ms.clamp(0, total.inMilliseconds) / total.inMilliseconds) * 100).round()}%';
+        String time(int ms) => voiceSliderValue(Duration(milliseconds: ms.clamp(0, total.inMilliseconds)), total);
         return Semantics(
-          label: 'موضع التشغيل',
+          label: voiceSliderLabel(mine: widget.message.mine),
           slider: true,
-          value: '${(progress * 100).round()}%',
-          increasedValue: pct(at + step),
-          decreasedValue: pct(at - step),
+          value: time(at),
+          increasedValue: time(at + step),
+          decreasedValue: time(at - step),
           onIncrease: () => seekBy(step),
           onDecrease: () => seekBy(-step),
           child: GestureDetector(

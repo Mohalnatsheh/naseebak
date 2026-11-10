@@ -65,7 +65,7 @@ class _CountryPickerScreenState extends ConsumerState<CountryPickerScreen> {
                   return const MessageView(
                     icon: Icons.public_off_rounded,
                     title: 'لا توجد دول متاحة الآن',
-                    body: 'حاول مرة أخرى لاحقاً.',
+                    body: 'يُرجى المحاولة لاحقاً.',
                   );
                 }
                 return ListView.separated(

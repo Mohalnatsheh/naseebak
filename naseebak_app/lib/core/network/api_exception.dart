@@ -61,8 +61,8 @@ class ApiException implements Exception {
   /// The whole JSON error body (e.g. `retryAfterMinutes`, `fields`).
   final Map<String, dynamic>? data;
 
-  static const String networkMessage = 'تعذّر الاتصال بالخادم. تحقق من الإنترنت وحاول مرة أخرى.';
-  static const String genericMessage = 'حدث خطأ غير متوقع. حاول مرة أخرى.';
+  static const String networkMessage = 'تعذّر الاتصال بالخادم. يُرجى التحقق من الإنترنت والمحاولة مرة أخرى.';
+  static const String genericMessage = 'حدث خطأ غير متوقع. يُرجى المحاولة مرة أخرى.';
 
   bool get isNetwork => kind == ApiErrorKind.network;
 
@@ -115,10 +115,10 @@ class ApiException implements Exception {
   }
 
   static String _fallbackMessage(int status) {
-    if (status == 401) return 'انتهت الجلسة. سجّل الدخول من جديد.';
+    if (status == 401) return 'انتهت الجلسة. يُرجى تسجيل الدخول من جديد.';
     if (status == 404) return 'غير موجود';
-    if (status == 429) return 'محاولات كثيرة. حاول مرة أخرى بعد قليل.';
-    if (status == 503) return 'الخدمة غير متاحة مؤقتاً. حاول مرة أخرى بعد قليل.';
+    if (status == 429) return 'محاولات كثيرة. يُرجى المحاولة بعد قليل.';
+    if (status == 503) return 'الخدمة غير متاحة مؤقتاً. يُرجى المحاولة بعد قليل.';
     return genericMessage;
   }
 

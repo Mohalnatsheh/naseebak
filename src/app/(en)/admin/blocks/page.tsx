@@ -7,6 +7,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { PersonLink, fmtDate } from "@/components/admin/admin-list-bits";
+import { AdminLoadError } from "@/components/admin/admin-states";
+import { useConfirm } from "@/components/admin/confirm-dialog";
 
 interface BlockRow {
   id: string;
@@ -24,6 +26,7 @@ export default function AdminBlocksPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [removing, setRemoving] = useState<string | null>(null);
+  const confirm = useConfirm();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -50,7 +53,13 @@ export default function AdminBlocksPage() {
   }, [load]);
 
   async function handleRemove(blockId: string) {
-    if (!confirm("Remove this block? Both users will be able to see each other again.")) return;
+    const ok = await confirm({
+      title: "Remove this block?",
+      description: "Both members will be able to see each other again.",
+      confirmLabel: "Remove block",
+      destructive: true,
+    });
+    if (!ok) return;
     setRemoving(blockId);
     try {
       const res = await fetch(`/api/admin/blocks/${blockId}`, { method: "DELETE" });
@@ -73,7 +82,7 @@ export default function AdminBlocksPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold flex items-center gap-3">
+        <h1 className="text-2xl font-display flex items-center gap-3">
           <Ban className="h-7 w-7 text-primary" />
           Block Management
         </h1>
@@ -83,10 +92,7 @@ export default function AdminBlocksPage() {
       <Card>
         <CardContent className="p-0">
           {loadError ? (
-            <div className="flex flex-wrap items-center justify-between gap-3 p-4 text-sm text-destructive">
-              <span>{loadError}</span>
-              <Button variant="outline" size="sm" onClick={load}>Try again</Button>
-            </div>
+            <AdminLoadError message={loadError} onRetry={load} className="m-3" />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full">
@@ -159,10 +165,10 @@ export default function AdminBlocksPage() {
             <div className="flex items-center justify-between p-3 border-t">
               <p className="text-sm text-muted-foreground">Page {page} of {totalPages}</p>
               <div className="flex gap-2">
-                <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>
+                <Button variant="outline" size="sm" aria-label="Previous page" disabled={page <= 1} onClick={() => setPage(page - 1)}>
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
-                <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>
+                <Button variant="outline" size="sm" aria-label="Next page" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>
                   <ChevronRight className="h-4 w-4" />
                 </Button>
               </div>

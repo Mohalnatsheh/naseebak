@@ -5,7 +5,9 @@ import { Trash2, Loader2, Undo2, Clock, User } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Pager, PersonLink } from "@/components/admin/admin-list-bits";
+import { Pager, PersonLink, fmtDate, plural } from "@/components/admin/admin-list-bits";
+import { AdminEmptyState, AdminLoadError } from "@/components/admin/admin-states";
+import { useConfirm } from "@/components/admin/confirm-dialog";
 
 interface DeletionRequest {
   id: string;
@@ -29,6 +31,8 @@ export default function AdminDeletionsPage() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
+  const [loadError, setLoadError] = useState("");
+  const confirm = useConfirm();
 
   useEffect(() => {
     fetchRequests(page);
@@ -36,8 +40,13 @@ export default function AdminDeletionsPage() {
 
   async function fetchRequests(p: number) {
     setLoading(true);
+    setLoadError("");
     try {
       const res = await fetch(`/api/admin/deletions?page=${p}`);
+      if (!res.ok) {
+        setLoadError(`Couldn't load the deletion requests (${res.status}).`);
+        return;
+      }
       const data = await res.json();
       const items: DeletionRequest[] = data.requests || [];
       // The last item of a page was removed elsewhere: step back instead of showing an empty page
@@ -50,13 +59,20 @@ export default function AdminDeletionsPage() {
       setTotalPages(data.totalPages || 1);
     } catch (err) {
       console.error(err);
+      setLoadError("Couldn't load the deletion requests. Check your connection.");
     } finally {
       setLoading(false);
     }
   }
 
   async function handleCancel(requestId: string) {
-    if (!confirm("Cancel this deletion request and reactivate the user's account?")) return;
+    const ok = await confirm({
+      title: "Cancel this deletion?",
+      description: "The member's account is reactivated and won't be deleted.",
+      confirmLabel: "Cancel deletion",
+      cancelLabel: "Keep it",
+    });
+    if (!ok) return;
     setCancelling(requestId);
     setError("");
     try {
@@ -84,7 +100,7 @@ export default function AdminDeletionsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold flex items-center gap-3">
+        <h1 className="text-2xl font-display flex items-center gap-3">
           <Trash2 className="h-7 w-7 text-primary" />
           Account Deletion Requests
         </h1>
@@ -102,14 +118,10 @@ export default function AdminDeletionsPage() {
         <div className="flex justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
+      ) : loadError ? (
+        <AdminLoadError message={loadError} onRetry={() => fetchRequests(page)} />
       ) : requests.length === 0 ? (
-        <Card>
-          <CardContent className="text-center py-12">
-            <Trash2 className="h-12 w-12 mx-auto text-muted-foreground/30 mb-3" />
-            <h3 className="font-medium text-lg">No Pending Deletions</h3>
-            <p className="text-sm text-muted-foreground">There are no active account deletion requests.</p>
-          </CardContent>
-        </Card>
+        <AdminEmptyState icon={Trash2} title="No pending deletions" hint="There are no active account deletion requests." />
       ) : (
         <div className="space-y-4">
           {requests.map((req) => {
@@ -136,20 +148,20 @@ export default function AdminDeletionsPage() {
                       className={"shrink-0 " + (days <= 3 ? "bg-destructive/10 text-destructive" : days <= 10 ? "bg-amber-100 text-amber-800" : "bg-primary/10 text-primary")}
                     >
                       <Clock className="h-3 w-3 me-1" />
-                      {days} days remaining
+                      {plural(days, "day")} remaining
                     </Badge>
                   </div>
 
                   {req.reason && (
                     <div className="mt-3 bg-muted/50 rounded-lg p-3 text-sm">
-                      <span className="font-medium">Reason:</span> {req.reason}
+                      <span className="font-medium">Reason:</span> <bdi>{req.reason}</bdi>
                     </div>
                   )}
 
                   <div className="mt-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-xs text-muted-foreground">
                     <div className="flex flex-wrap gap-x-4 gap-y-1">
-                      <span>Requested: {new Date(req.createdAt).toLocaleDateString()}</span>
-                      <span>Scheduled: {new Date(req.scheduledAt).toLocaleDateString()}</span>
+                      <span>Requested: {fmtDate(req.createdAt)}</span>
+                      <span>Scheduled: {fmtDate(req.scheduledAt)}</span>
                     </div>
                     <Button
                       variant="outline"

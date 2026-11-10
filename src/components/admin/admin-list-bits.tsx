@@ -1,5 +1,6 @@
 "use client";
 
+import type React from "react";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -33,6 +34,11 @@ export function fmtDateTime(d: string | Date | null | undefined) {
   });
 }
 
+/** «1 credit» / «3 credits» (ADM-23). `many` for irregular words (`plural(2, "person", "people")`). */
+export function plural(n: number, one: string, many = `${one}s`) {
+  return `${n.toLocaleString("en-GB")} ${n === 1 ? one : many}`;
+}
+
 /** «3 h ago» / «2 days ago» — for last active, waiting since */
 export function fmtAgo(d: string | Date | null | undefined, now = new Date()) {
   if (!d) return "—";
@@ -44,10 +50,18 @@ export function fmtAgo(d: string | Date | null | undefined, now = new Date()) {
   return `${Math.round(h / 24)} days ago`;
 }
 
+/**
+ * A member's name inside English text: `<bdi>` keeps an Arabic name from flipping the words
+ * around it («سلمى → ماجد · 3 messages»). Use it for every name in an admin string (ADM-05).
+ */
+export function NameText({ children, className }: { children: React.ReactNode; className?: string }) {
+  return <bdi className={className}>{children}</bdi>;
+}
+
 export function PersonLink({ p, hash }: { p: PersonRef; hash?: string }) {
   return (
     <Link href={`/admin/users/${p.id}${hash ?? ""}`} className="font-medium text-primary hover:underline">
-      {p.firstName} {p.lastName}
+      <bdi>{`${p.firstName} ${p.lastName}`.trim()}</bdi>
       {p.status === "SUSPENDED" && <span className="ms-1 text-xs font-normal text-destructive">(suspended)</span>}
     </Link>
   );

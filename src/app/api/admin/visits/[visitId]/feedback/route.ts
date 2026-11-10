@@ -25,6 +25,6 @@ export async function GET(
     return NextResponse.json({ feedbacks });
   } catch (error) {
     console.error("Admin visit feedback GET error:", error);
-    return NextResponse.json({ error: "حدث خطأ في الخادم" }, { status: 500 });
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }

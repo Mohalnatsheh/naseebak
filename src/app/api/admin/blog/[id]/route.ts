@@ -1,3 +1,4 @@
+import { invalidFields } from "@/lib/admin/invalid-fields";
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -16,7 +17,7 @@ export async function PUT(
     const body = await req.json();
     const parsed = createBlogPostSchema.safeParse(body);
     if (!parsed.success) {
-      return NextResponse.json({ error: "بيانات غير صالحة", details: parsed.error.issues }, { status: 400 });
+      return NextResponse.json({ error: invalidFields(parsed.error.issues), details: parsed.error.issues }, { status: 400 });
     }
 
     const existing = await db.blogPost.findUnique({ where: { id } });
@@ -52,7 +53,7 @@ export async function PUT(
       return NextResponse.json({ error: "Slug already exists" }, { status: 409 });
     }
     console.error("Admin blog update error:", error);
-    return NextResponse.json({ error: "حدث خطأ في الخادم" }, { status: 500 });
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }
 
@@ -79,6 +80,6 @@ export async function DELETE(
       return NextResponse.json({ error: "Slug already exists" }, { status: 409 });
     }
     console.error("Admin blog delete error:", error);
-    return NextResponse.json({ error: "حدث خطأ في الخادم" }, { status: 500 });
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }

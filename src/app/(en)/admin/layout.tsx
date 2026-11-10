@@ -1,6 +1,8 @@
 import { auth } from "@/lib/auth";
 import { AdminSidebar } from "@/components/shared/admin-sidebar";
 import { Toaster } from "@/components/ui/sonner";
+import { DialogCloseLabelProvider } from "@/components/ui/dialog";
+import { ConfirmProvider } from "@/components/admin/confirm-dialog";
 import { AdminCountrySelect } from "@/components/admin/admin-country-select";
 import { getCycleFlags } from "@/lib/settings";
 import { getAdminCountry } from "@/lib/countries/server";
@@ -20,6 +22,9 @@ export default async function AdminLayout({
   const [{ introRequests }, country] = await Promise.all([getCycleFlags(), getAdminCountry()]);
 
   return (
+    // English admin: every dialog's X is «Close» (ADM-13), and `useConfirm()` replaces window.confirm (ADM-12)
+    <DialogCloseLabelProvider label="Close">
+    <ConfirmProvider>
     <div className="flex min-h-screen">
       <AdminSidebar legacyGrouped={introRequests} />
       <main className="flex-1 min-w-0 p-4 pt-20 sm:p-6 sm:pt-20 lg:p-8 lg:pt-6">
@@ -31,5 +36,7 @@ export default async function AdminLayout({
       {/* Admin pages report saves and failures with toast() from "sonner" */}
       <Toaster position="top-right" richColors />
     </div>
+    </ConfirmProvider>
+    </DialogCloseLabelProvider>
   );
 }

@@ -17,6 +17,9 @@ import {
 } from "@/components/ui/dialog";
 import { enumLabel } from "@/lib/admin/enum-labels";
 import { toast } from "sonner";
+import { fmtDate } from "@/components/admin/admin-list-bits";
+import { AdminEmptyState, AdminLoadError } from "@/components/admin/admin-states";
+import { useConfirm } from "@/components/admin/confirm-dialog";
 
 /* ──────────────────── Types ──────────────────── */
 
@@ -66,10 +69,13 @@ export default function AdminBlogPage() {
   const [postsPage, setPostsPage] = useState(1);
   const [postsTotalPages, setPostsTotalPages] = useState(1);
   const [postsLoading, setPostsLoading] = useState(true);
+  const [postsError, setPostsError] = useState("");
+  const confirm = useConfirm();
 
   /* ── Categories state ── */
   const [categories, setCategories] = useState<Category[]>([]);
   const [catsLoading, setCatsLoading] = useState(true);
+  const [catsError, setCatsError] = useState("");
 
   /* ── Post dialog ── */
   const [postDialogOpen, setPostDialogOpen] = useState(false);
@@ -99,14 +105,20 @@ export default function AdminBlogPage() {
 
   const fetchPosts = useCallback(async () => {
     setPostsLoading(true);
+    setPostsError("");
     try {
       const res = await fetch(`/api/admin/blog?page=${postsPage}`);
+      if (!res.ok) {
+        setPostsError(`Couldn't load the posts (${res.status}).`);
+        return;
+      }
       const data = await res.json();
       setPosts(data.posts || []);
       setBarCountry(data.adminCountry ?? "ALL");
       setPostsTotalPages(data.totalPages || 1);
     } catch {
       console.error("Failed to fetch posts");
+      setPostsError("Couldn't load the posts. Check your connection.");
     } finally {
       setPostsLoading(false);
     }
@@ -116,12 +128,18 @@ export default function AdminBlogPage() {
 
   async function fetchCategories() {
     setCatsLoading(true);
+    setCatsError("");
     try {
       const res = await fetch("/api/admin/blog/categories");
+      if (!res.ok) {
+        setCatsError(`Couldn't load the categories (${res.status}).`);
+        return;
+      }
       const data = await res.json();
       setCategories(data.categories || []);
     } catch {
       console.error("Failed to fetch categories");
+      setCatsError("Couldn't load the categories. Check your connection.");
     } finally {
       setCatsLoading(false);
     }
@@ -180,7 +198,14 @@ export default function AdminBlogPage() {
   }
 
   async function deletePost(id: string) {
-    if (!confirm("Are you sure you want to delete this post?")) return;
+    const post = posts.find((p) => p.id === id);
+    const ok = await confirm({
+      title: "Delete this post?",
+      description: post ? <>«<bdi>{post.title}</bdi>» is removed from the blog. This can&apos;t be undone.</> : "This can't be undone.",
+      confirmLabel: "Delete post",
+      destructive: true,
+    });
+    if (!ok) return;
     try {
       const res = await fetch(`/api/admin/blog/${id}`, { method: "DELETE" });
       if (!res.ok) {
@@ -249,7 +274,8 @@ export default function AdminBlogPage() {
   }
 
   async function deleteCategory(id: string) {
-    if (!confirm("Are you sure you want to delete this category?")) return;
+    const ok = await confirm({ title: "Delete this category?", description: "This can't be undone.", confirmLabel: "Delete category", destructive: true });
+    if (!ok) return;
     try {
       const res = await fetch(`/api/admin/blog/categories/${id}`, { method: "DELETE" });
       if (!res.ok) {
@@ -271,7 +297,7 @@ export default function AdminBlogPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold flex items-center gap-3">
+        <h1 className="text-2xl font-display flex items-center gap-3">
           <FileText className="h-7 w-7 text-primary" />
           Blog Management
         </h1>
@@ -291,7 +317,7 @@ export default function AdminBlogPage() {
               {/* Header */}
               <div className="flex items-center justify-between p-4 border-b">
                 <p className="text-sm text-muted-foreground">
-                  {posts.length} post{posts.length !== 1 && "s"}
+                  {postsError ? "—" : `${posts.length} post${posts.length !== 1 ? "s" : ""}`}
                 </p>
                 <Button size="sm" onClick={openNewPost}>
                   <Plus className="h-4 w-4 mr-1" />
@@ -321,17 +347,23 @@ export default function AdminBlogPage() {
                           </td>
                         </tr>
                       ))
+                    ) : postsError ? (
+                      <tr>
+                        <td colSpan={6} className="p-3">
+                          <AdminLoadError message={postsError} onRetry={fetchPosts} />
+                        </td>
+                      </tr>
                     ) : posts.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="text-center p-8 text-muted-foreground">
-                          No posts yet
+                        <td colSpan={6} className="p-3">
+                          <AdminEmptyState icon={FileText} title="No posts yet" hint="«New Post» writes the first one." />
                         </td>
                       </tr>
                     ) : (
                       posts.map((post) => (
                         <tr key={post.id} className="border-b hover:bg-muted/30 transition-colors">
                           <td className="p-3">
-                            <p className="font-medium text-sm">{post.title}</p>
+                            <p className="font-medium text-sm" dir="auto">{post.title}</p>
                             <p className="text-xs text-muted-foreground mt-0.5 break-all">/{post.slug}</p>
                           </td>
                           <td className="p-3 text-sm">{post.country === "SA" ? "Saudi Arabia" : "Jordan"}</td>
@@ -349,16 +381,14 @@ export default function AdminBlogPage() {
                             </Badge>
                           </td>
                           <td className="p-3 text-sm text-muted-foreground">
-                            {post.publishedAt
-                              ? new Date(post.publishedAt).toLocaleDateString()
-                              : "—"}
+                            {fmtDate(post.publishedAt)}
                           </td>
                           <td className="p-3">
                             <div className="flex gap-1">
-                              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditPost(post)}>
+                              <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Edit post" title="Edit post" onClick={() => openEditPost(post)}>
                                 <Pencil className="h-3.5 w-3.5" />
                               </Button>
-                              <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => deletePost(post.id)}>
+                              <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" aria-label="Delete post" title="Delete post" onClick={() => deletePost(post.id)}>
                                 <Trash2 className="h-3.5 w-3.5" />
                               </Button>
                             </div>
@@ -375,10 +405,10 @@ export default function AdminBlogPage() {
                 <div className="flex items-center justify-between p-3 border-t">
                   <p className="text-sm text-muted-foreground">Page {postsPage} of {postsTotalPages}</p>
                   <div className="flex gap-2">
-                    <Button variant="outline" size="sm" disabled={postsPage <= 1} onClick={() => setPostsPage(postsPage - 1)}>
+                    <Button variant="outline" size="sm" aria-label="Previous page" disabled={postsPage <= 1} onClick={() => setPostsPage(postsPage - 1)}>
                       <ChevronLeft className="h-4 w-4" />
                     </Button>
-                    <Button variant="outline" size="sm" disabled={postsPage >= postsTotalPages} onClick={() => setPostsPage(postsPage + 1)}>
+                    <Button variant="outline" size="sm" aria-label="Next page" disabled={postsPage >= postsTotalPages} onClick={() => setPostsPage(postsPage + 1)}>
                       <ChevronRight className="h-4 w-4" />
                     </Button>
                   </div>
@@ -457,10 +487,16 @@ export default function AdminBlogPage() {
                           </td>
                         </tr>
                       ))
+                    ) : catsError ? (
+                      <tr>
+                        <td colSpan={5} className="p-3">
+                          <AdminLoadError message={catsError} onRetry={fetchCategories} />
+                        </td>
+                      </tr>
                     ) : categories.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="text-center p-8 text-muted-foreground">
-                          No categories yet
+                        <td colSpan={5} className="p-3">
+                          <AdminEmptyState icon={FolderOpen} title="No categories yet" />
                         </td>
                       </tr>
                     ) : (
@@ -514,6 +550,7 @@ export default function AdminBlogPage() {
                                   className="h-8 w-8"
                                   onClick={() => openEditCategory(cat)}
                                   title="Edit category"
+                                  aria-label="Edit category"
                                 >
                                   <Pencil className="h-3.5 w-3.5" />
                                 </Button>
@@ -524,6 +561,7 @@ export default function AdminBlogPage() {
                                   disabled={cat._count.posts > 0}
                                   onClick={() => deleteCategory(cat.id)}
                                   title={cat._count.posts > 0 ? "Cannot delete category with posts" : "Delete category"}
+                                  aria-label="Delete category"
                                 >
                                   <Trash2 className="h-3.5 w-3.5" />
                                 </Button>

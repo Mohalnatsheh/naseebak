@@ -15,7 +15,7 @@ const db = vi.hoisted(() => ({
   payment: { findUnique: vi.fn() },
   user: { findMany: vi.fn(), findUnique: vi.fn() },
   visitRequest: { findUnique: vi.fn(), update: vi.fn() },
-  supportTicket: { update: vi.fn(), findMany: vi.fn(), count: vi.fn() },
+  supportTicket: { update: vi.fn(), findMany: vi.fn(), count: vi.fn(), findUnique: vi.fn() },
   accountDeletionRequest: { findUnique: vi.fn() },
   profileUpdateRequest: { findUnique: vi.fn() },
 }));
@@ -103,6 +103,14 @@ describe("visits PATCH", () => {
 describe("support", () => {
   beforeEach(() => {
     db.supportTicket.update.mockResolvedValue({ id: "t1", userId: "u1", subject: "s" });
+    db.supportTicket.findUnique.mockResolvedValue({ id: "t1" });
+  });
+
+  it("an unknown ticket id is a 404, not a 500 (ADM-16)", async () => {
+    db.supportTicket.findUnique.mockResolvedValue(null);
+    const res = await patchTicket(jsonReq({ ticketId: "nope", status: "IN_PROGRESS" }));
+    expect(res?.status).toBe(404);
+    expect(db.supportTicket.update).not.toHaveBeenCalled();
   });
 
   it("keeps the admin note when none is sent and notifies with a relative URL", async () => {

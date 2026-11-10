@@ -211,6 +211,6 @@ export async function GET(request: Request) {
     });
   } catch (error) {
     console.error("Admin stats error:", error);
-    return NextResponse.json({ error: "حدث خطأ في الخادم" }, { status: 500 });
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }

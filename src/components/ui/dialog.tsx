@@ -7,6 +7,16 @@ import { Dialog as DialogPrimitive } from "radix-ui"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 
+/**
+ * Screen-reader name of every dialog's X button below it. The site is Arabic («إغلاق»); the
+ * English admin layout wraps its pages in `<DialogCloseLabelProvider label="Close">`.
+ */
+const DialogCloseLabelContext = React.createContext("إغلاق")
+
+function DialogCloseLabelProvider({ label, children }: { label: string; children: React.ReactNode }) {
+  return <DialogCloseLabelContext.Provider value={label}>{children}</DialogCloseLabelContext.Provider>
+}
+
 function Dialog({
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Root>) {
@@ -51,13 +61,14 @@ function DialogContent({
   className,
   children,
   showCloseButton = true,
-  closeLabel = "إغلاق",
+  closeLabel,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean
-  /** Screen-reader name of the X button (the site is Arabic; the English admin may pass "Close") */
+  /** Screen-reader name of the X button (default: `DialogCloseLabelProvider`, else «إغلاق») */
   closeLabel?: string
 }) {
+  const contextLabel = React.useContext(DialogCloseLabelContext)
   return (
     <DialogPortal data-slot="dialog-portal">
       <DialogOverlay />
@@ -76,7 +87,7 @@ function DialogContent({
             className="ring-offset-background focus:ring-ring data-[state=open]:text-muted-foreground absolute top-2 end-2 inline-flex size-11 items-center justify-center rounded-md opacity-70 hover:bg-muted transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4"
           >
             <XIcon />
-            <span className="sr-only">{closeLabel}</span>
+            <span className="sr-only">{closeLabel ?? contextLabel}</span>
           </DialogPrimitive.Close>
         )}
       </DialogPrimitive.Content>
@@ -150,6 +161,7 @@ function DialogDescription({
 export {
   Dialog,
   DialogClose,
+  DialogCloseLabelProvider,
   DialogContent,
   DialogDescription,
   DialogFooter,

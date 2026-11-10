@@ -7,6 +7,8 @@ import { Gift, ChevronLeft, ChevronRight, X } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { fmtDate } from "@/components/admin/admin-list-bits";
+import { AdminLoadError } from "@/components/admin/admin-states";
 
 interface Person { id: string; firstName: string; lastName: string; phone: string | null }
 
@@ -29,7 +31,7 @@ interface Data {
 function PersonCell({ p }: { p: Person }) {
   return (
     <Link href={`/admin/users/${p.id}`} className="block hover:underline">
-      <p className="font-medium text-sm">{p.firstName} {p.lastName}</p>
+      <p className="font-medium text-sm"><bdi>{`${p.firstName} ${p.lastName}`}</bdi></p>
       <p className="text-xs text-muted-foreground">{p.phone || "—"}</p>
     </Link>
   );
@@ -51,15 +53,19 @@ function ReferralsView() {
   const [data, setData] = useState<Data | null>(null);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadError("");
     try {
       const q = new URLSearchParams({ page: String(page), ...(referrer && { referrer }) });
       const res = await fetch(`/api/admin/referrals?${q}`);
       if (res.ok) setData(await res.json());
+      else setLoadError(`Couldn't load the referrals (${res.status}).`);
     } catch (err) {
       console.error(err);
+      setLoadError("Couldn't load the referrals. Check your connection.");
     } finally {
       setLoading(false);
     }
@@ -75,7 +81,7 @@ function ReferralsView() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold flex items-center gap-3">
+        <h1 className="text-2xl font-display flex items-center gap-3">
           <Gift className="h-7 w-7 text-primary" />
           Referrals
         </h1>
@@ -95,7 +101,7 @@ function ReferralsView() {
           <Card key={label as string}>
             <CardContent className="pt-6">
               <p className="text-sm text-muted-foreground">{label}</p>
-              <p className="text-2xl font-bold">{value ?? "…"}</p>
+              <p className="text-2xl font-bold">{value ?? (loadError ? "—" : "…")}</p>
             </CardContent>
           </Card>
         ))}
@@ -108,7 +114,7 @@ function ReferralsView() {
             {data.topInviters.map((p) => (
               <Link key={p.id} href={`/admin/referrals?referrer=${p.id}`}>
                 <Badge variant="secondary" className="text-sm py-1 px-3 cursor-pointer">
-                  {p.firstName} {p.lastName} · {p.count}
+                  <bdi>{`${p.firstName} ${p.lastName}`}</bdi> · {p.count}
                 </Badge>
               </Link>
             ))}
@@ -118,13 +124,16 @@ function ReferralsView() {
 
       {referrer && (
         <div className="flex items-center gap-2 text-sm">
-          <span>Invited by {inviter ? `${inviter.firstName} ${inviter.lastName}` : "this member"}</span>
+          <span>Invited by {inviter ? <bdi>{`${inviter.firstName} ${inviter.lastName}`}</bdi> : "this member"}</span>
           <Button variant="ghost" size="sm" onClick={() => { setPage(1); router.push("/admin/referrals"); }}>
             <X className="h-3 w-3 me-1" />Show all
           </Button>
         </div>
       )}
 
+      {loadError ? (
+        <AdminLoadError message={loadError} onRetry={load} />
+      ) : (
       <Card>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
@@ -151,13 +160,13 @@ function ReferralsView() {
                 ) : (
                   data.referrals.map((r) => (
                     <tr key={r.id} className="border-b hover:bg-muted/30 transition-colors">
-                      <td className="p-3 text-sm text-muted-foreground whitespace-nowrap">{new Date(r.createdAt).toLocaleDateString()}</td>
+                      <td className="p-3 text-sm text-muted-foreground whitespace-nowrap">{fmtDate(r.createdAt)}</td>
                       <td className="p-3"><PersonCell p={r.referrer} /></td>
                       <td className="p-3"><PersonCell p={r.referee} /></td>
                       <td className="p-3 text-sm whitespace-nowrap">
                         {r.creditsAwarded ? (
                           <Badge className="bg-green-100 text-green-800">
-                            Paid{r.awardedAt ? ` ${new Date(r.awardedAt).toLocaleDateString()}` : ""}
+                            Paid{r.awardedAt ? ` ${fmtDate(r.awardedAt)}` : ""}
                           </Badge>
                         ) : (
                           <Badge variant="outline">{r.referee.setupDone ? "Not paid" : "Waiting for setup"}</Badge>
@@ -174,10 +183,10 @@ function ReferralsView() {
             <div className="flex items-center justify-between p-3 border-t">
               <p className="text-sm text-muted-foreground">Page {page} of {data?.totalPages}</p>
               <div className="flex gap-2">
-                <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>
+                <Button variant="outline" size="sm" aria-label="Previous page" disabled={page <= 1} onClick={() => setPage(page - 1)}>
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
-                <Button variant="outline" size="sm" disabled={page >= (data?.totalPages ?? 1)} onClick={() => setPage(page + 1)}>
+                <Button variant="outline" size="sm" aria-label="Next page" disabled={page >= (data?.totalPages ?? 1)} onClick={() => setPage(page + 1)}>
                   <ChevronRight className="h-4 w-4" />
                 </Button>
               </div>
@@ -185,6 +194,7 @@ function ReferralsView() {
           )}
         </CardContent>
       </Card>
+      )}
     </div>
   );
 }

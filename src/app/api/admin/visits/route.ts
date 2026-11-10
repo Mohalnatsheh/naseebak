@@ -77,7 +77,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ visits, total, page, totalPages: Math.ceil(total / pageSize), counts });
   } catch (error) {
     console.error("Admin visits error:", error);
-    return NextResponse.json({ error: "حدث خطأ في الخادم" }, { status: 500 });
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }
 
@@ -106,12 +106,12 @@ export async function PATCH(request: Request) {
 
     const body = await request.json().catch(() => null);
     if (!body || typeof body !== "object") {
-      return NextResponse.json({ error: "بيانات غير صالحة" }, { status: 400 });
+      return NextResponse.json({ error: "Invalid data" }, { status: 400 });
     }
     const { visitId, status, scheduledDate, location, adminNotes } = body;
 
     if (!visitId || typeof visitId !== "string" || !status) {
-      return NextResponse.json({ error: "معرف الزيارة والحالة مطلوبان" }, { status: 400 });
+      return NextResponse.json({ error: "Visit id and status are required" }, { status: 400 });
     }
     if (!VISIT_STATUSES.includes(status)) {
       return NextResponse.json({ error: "Invalid status" }, { status: 400 });
@@ -158,6 +158,6 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ message: "تم تحديث الزيارة", visit });
   } catch (error) {
     console.error("Admin visit update error:", error);
-    return NextResponse.json({ error: "حدث خطأ في الخادم" }, { status: 500 });
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }

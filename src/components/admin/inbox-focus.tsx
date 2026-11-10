@@ -35,11 +35,4 @@ export function FocusBanner({ onClear }: { onClear: () => void }) {
 }
 
 /** Load-error state of a queue page, so a failed load never reads as an empty list */
-export function LoadError({ message, onRetry }: { message: string; onRetry: () => void }) {
-  return (
-    <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-      <span>{message}</span>
-      <Button size="sm" variant="outline" onClick={onRetry}>Try again</Button>
-    </div>
-  );
-}
+export { AdminLoadError as LoadError } from "@/components/admin/admin-states";

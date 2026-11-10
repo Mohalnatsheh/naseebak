@@ -94,6 +94,13 @@ export async function PATCH(request: Request) {
       data.resolvedAt = new Date();
     }
 
+    if (typeof ticketId !== "string") {
+      return NextResponse.json({ error: "Missing data" }, { status: 400 });
+    }
+    // An unknown id is a 404, not a server error (ADM-16)
+    const exists = await db.supportTicket.findUnique({ where: { id: ticketId }, select: { id: true } });
+    if (!exists) return NextResponse.json({ error: "Ticket not found" }, { status: 404 });
+
     const ticket = await db.supportTicket.update({
       where: { id: ticketId },
       data,

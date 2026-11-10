@@ -207,6 +207,26 @@ describe("«عضوية Pro» in the navigation", () => {
     }
   });
 
+  it("phone top bar: a «Pro» pill after the balance, only for a member who can buy Pro and isn't Pro", async () => {
+    const { DashboardSidebar } = await import("@/components/shared/dashboard-sidebar");
+    nav.pathname = "/dashboard";
+    context({ isPro: false, cancelAtPeriodEnd: false, showPage: true });
+    render(<DashboardSidebar />);
+    const pill = screen.getByRole("link", { name: "اشتراك Pro" });
+    expect(pill.getAttribute("href")).toBe("/dashboard/pro");
+    // Right after the balance, before the bell
+    const balance = screen.getByRole("link", { name: "رصيدك 2" });
+    expect(balance.nextElementSibling).toBe(pill);
+    cleanup();
+
+    for (const pro of [{ isPro: true, cancelAtPeriodEnd: false, showPage: true }, { isPro: false, cancelAtPeriodEnd: false, showPage: false }, undefined]) {
+      context(pro);
+      render(<DashboardSidebar />);
+      expect(screen.queryByRole("link", { name: "اشتراك Pro" })).toBeNull();
+      cleanup();
+    }
+  });
+
   it("«حسابي»: shown only under the rule", async () => {
     const { default: AccountPage } = await import("@/app/(ar)/dashboard/account/page");
     nav.pathname = "/dashboard/account";

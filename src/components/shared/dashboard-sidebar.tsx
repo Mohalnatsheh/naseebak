@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
+import { proIntroShown } from "@/components/payments/pro-intro-card";
 import { signOutAndUnlinkPush } from "@/lib/push-client";
 import Image from "next/image";
 import {
@@ -343,6 +344,17 @@ export function DashboardSidebar() {
               >
                 <Coins className="h-3.5 w-3.5 text-accent-foreground" />
                 {counts.credits}
+              </Link>
+            )}
+            {/* «Pro» next to the balance: a way to buy, only for a member who can buy it and isn't Pro (owner, 2026-11-10) */}
+            {proIntroShown(counts.pro) && (
+              <Link prefetch={false}
+                href={PRO_PAGE_PATH}
+                aria-label="اشتراك Pro"
+                className="me-1 inline-flex h-11 items-center gap-1 rounded-full bg-primary px-3 text-sm font-bold text-primary-foreground shadow-sm"
+              >
+                <Crown className="h-3.5 w-3.5 text-accent" aria-hidden="true" />
+                Pro
               </Link>
             )}
             <Link prefetch={false}

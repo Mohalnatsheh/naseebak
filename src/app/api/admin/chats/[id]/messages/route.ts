@@ -33,6 +33,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     }
     const pageSize = parsedLimit === null ? MAX_MESSAGES : Math.min(parsedLimit, MAX_PAGE);
     const before = url.searchParams.get("before")?.slice(0, 64) || null;
+    if (before) {
+      const anchor = await db.message.findUnique({ where: { id: before }, select: { conversationId: true } });
+      if (anchor?.conversationId !== id) return NextResponse.json({ error: "before must be a message of this chat" }, { status: 400 });
+    }
 
     const chat = await db.conversation.findUnique({
       where: { id },
@@ -41,7 +45,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         endedById: true, endedByAdminId: true, endedAt: true,
         match: { select: { id: true, female: person, male: person } },
         messages: {
-          orderBy: before ? [{ createdAt: "desc" }, { id: "desc" }] : { createdAt: "desc" },
+          // Paged: one stable order (time, then id), so messages with the same time never repeat or go missing at an edge
+          orderBy: parsedLimit !== null || before ? [{ createdAt: "desc" }, { id: "desc" }] : { createdAt: "desc" },
           // One extra tells whether older messages remain
           take: pageSize + 1,
           ...(before && { cursor: { id: before }, skip: 1 }),

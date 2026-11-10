@@ -73,7 +73,7 @@ describe("Remove admin (ADM-08)", () => {
 
   it("never removes the last admin", async () => {
     tx.user.findUnique.mockResolvedValue({ id: "a2", role: "ADMIN", phone: null });
-    tx.user.count.mockResolvedValue(1);
+    tx.user.count.mockResolvedValue(0);
     const res = await del("a2");
     expect(res.status).toBe(409);
     expect((await res.json()).code).toBe("LAST_ADMIN");
@@ -82,13 +82,25 @@ describe("Remove admin (ADM-08)", () => {
 
   it("demotes an admin-only account, suspends it and revokes its sessions", async () => {
     tx.user.findUnique.mockResolvedValue({ id: "a2", role: "ADMIN", phone: null });
-    tx.user.count.mockResolvedValue(2);
+    tx.user.count.mockResolvedValue(1);
     expect((await del("a2")).status).toBe(200);
+    // Only admins who can still sign in count, in a serializable transaction
+    expect(tx.user.count).toHaveBeenCalledWith({
+      where: { role: "ADMIN", id: { not: "a2" }, status: { not: "SUSPENDED" }, isDeactivated: false, passwordHash: { not: null } },
+    });
+    expect(db.$transaction.mock.calls[0][1]).toEqual({ isolationLevel: "Serializable" });
     expect(tx.user.update).toHaveBeenCalledWith({
       where: { id: "a2" },
       data: { role: "USER", passwordHash: null, status: "SUSPENDED" },
     });
     expect(revoke).toHaveBeenCalledWith("a2");
+  });
+
+  it("a concurrent removal refused by Postgres answers 409 RETRY", async () => {
+    db.$transaction.mockRejectedValueOnce(Object.assign(new Error("serialization"), { code: "P2034" }));
+    const res = await del("a2");
+    expect(res.status).toBe(409);
+    expect((await res.json()).code).toBe("RETRY");
   });
 
   it("a member made admin keeps their member account", async () => {

@@ -96,6 +96,14 @@ describe("admin Generate with shared suggestions on (background, ADM-10)", () =>
     expect((await finished()).created).toBe(1);
   });
 
+  it("a double click starts one run: the job is claimed before the first await", async () => {
+    db.user.findMany.mockResolvedValue([{ id: "m1" }]);
+    const [a, b] = await Promise.all([generate(req()), generate(req())]);
+    expect([a!.status, b!.status].sort()).toEqual([202, 409]);
+    await finished();
+    expect(auto.autoSuggestForUser).toHaveBeenCalledTimes(1);
+  });
+
   it("caps the run at the limit, most recently active first", async () => {
     db.user.findMany.mockResolvedValue([{ id: "m1" }]);
     db.user.count.mockResolvedValue(900);

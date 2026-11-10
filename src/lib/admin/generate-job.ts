@@ -53,6 +53,21 @@ export async function startGenerateJob(
 ): Promise<{ job: GenerateJob; started: boolean; run: Promise<void> }> {
   const existing = currentGenerateJob();
   if (existing?.status === "running") return { job: existing, started: false, run: Promise.resolve() };
+  // Claimed before any await, so a second POST right after (a double click) sees it running (review X1)
+  const job: GenerateJob = {
+    id: `gen-${Date.now().toString(36)}`,
+    status: "running",
+    country,
+    startedBy: adminId,
+    startedAt: new Date().toISOString(),
+    finishedAt: null,
+    total: 0,
+    eligible: 0,
+    done: 0,
+    created: 0,
+    failed: 0,
+  };
+  store.__naseebGenerateJob = job;
 
   const where = {
     ...userCountryWhere(country),
@@ -63,7 +78,10 @@ export async function startGenerateJob(
     profile: { isComplete: true },
     ...activeWhere(30),
   };
-  const [eligible, users] = await Promise.all([
+  let eligible: number;
+  let users: { id: string }[];
+  try {
+    [eligible, users] = await Promise.all([
     db.user.count({ where }),
     db.user.findMany({
       where,
@@ -71,22 +89,14 @@ export async function startGenerateJob(
       orderBy: { lastActiveAt: { sort: "desc", nulls: "last" } },
       take: limit,
     }),
-  ]);
-
-  const job: GenerateJob = {
-    id: `gen-${Date.now().toString(36)}`,
-    status: "running",
-    country,
-    startedBy: adminId,
-    startedAt: new Date().toISOString(),
-    finishedAt: null,
-    total: users.length,
-    eligible,
-    done: 0,
-    created: 0,
-    failed: 0,
-  };
-  store.__naseebGenerateJob = job;
+    ]);
+  } catch (error) {
+    job.status = "failed";
+    job.finishedAt = new Date().toISOString();
+    throw error;
+  }
+  job.total = users.length;
+  job.eligible = eligible;
 
   const run = (async () => {
     try {

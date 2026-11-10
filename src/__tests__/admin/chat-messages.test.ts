@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextResponse } from "next/server";
 
-const db = vi.hoisted(() => ({ conversation: { findUnique: vi.fn() }, report: { findMany: vi.fn() } }));
+const db = vi.hoisted(() => ({ conversation: { findUnique: vi.fn() }, report: { findMany: vi.fn() }, message: { findUnique: vi.fn() } }));
 const auth = vi.hoisted(() => ({ requireAdmin: vi.fn() }));
 vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/auth", () => auth);
@@ -143,12 +143,19 @@ describe("GET /api/admin/chats/[id]/messages paging (ADM-26)", () => {
   it("?limit=2 gives the newest two oldest first, with hasMore and the cursor for older ones", async () => {
     db.conversation.findUnique.mockResolvedValue(chatWith(["m5", "m4", "m3"]));
     const d = await (await get("?limit=2")).json();
-    expect(db.conversation.findUnique.mock.calls[0][0].select.messages.take).toBe(3);
+    expect(db.conversation.findUnique.mock.calls[0][0].select.messages).toMatchObject({ take: 3, orderBy: [{ createdAt: "desc" }, { id: "desc" }] });
     expect(d.messages.map((m: { id: string }) => m.id)).toEqual(["m4", "m5"]);
     expect(d).toMatchObject({ hasMore: true, nextBefore: "m4", truncated: true });
   });
 
+  it("?before= from another chat is refused", async () => {
+    db.message.findUnique.mockResolvedValue({ conversationId: "other" });
+    expect((await get("?limit=2&before=x")).status).toBe(400);
+    expect(db.conversation.findUnique).not.toHaveBeenCalled();
+  });
+
   it("?before= reads the page older than that message, by cursor", async () => {
+    db.message.findUnique.mockResolvedValue({ conversationId: "c1" });
     db.conversation.findUnique.mockResolvedValue(chatWith(["m3"]));
     const d = await (await get("?limit=2&before=m4")).json();
     const q = db.conversation.findUnique.mock.calls[0][0].select.messages;

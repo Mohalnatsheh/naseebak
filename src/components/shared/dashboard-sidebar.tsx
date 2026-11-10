@@ -308,7 +308,7 @@ export function DashboardSidebar() {
       </aside>
 
       {/* Mobile top bar: logo, balance, bell */}
-      <div className="md:hidden fixed top-[var(--app-banner-offset,0px)] inset-x-0 z-50 bg-background border-b border-border/40 shadow-sm w-full">
+      <header className="md:hidden fixed top-[var(--app-banner-offset,0px)] inset-x-0 z-50 bg-background border-b border-border/40 shadow-sm w-full">
         <div className="h-[2px] bg-gradient-to-l from-primary via-accent to-primary/50" />
         <div className="flex items-center justify-between px-4 h-14">
           <Link prefetch={false} href="/dashboard" className="flex min-h-11 items-center gap-2">
@@ -346,7 +346,7 @@ export function DashboardSidebar() {
             </Link>
           </div>
         </div>
-      </div>
+      </header>
 
       {/* Mobile bottom tab bar: الرئيسية · التوافقات · المحادثات · حسابي (the account page) */}
       {!hideBottomBar && (

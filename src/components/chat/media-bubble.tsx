@@ -64,7 +64,7 @@ export function PhotoBubble({
     return (
       <button type="button" tabIndex={rowTab} style={style} className={cn(box, "flex-col gap-1")} onClick={() => setAttempt((n) => n + 1)}>
         <span>تعذّر عرض الصورة</span>
-        <span className="text-xs underline underline-offset-2">اضغط لإعادة المحاولة</span>
+        <span className="text-xs underline underline-offset-2">إعادة المحاولة</span>
       </button>
     );
   }

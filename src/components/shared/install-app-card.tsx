@@ -80,7 +80,7 @@ export function InstallAppCard({ context = "dashboard" }: { context?: "dashboard
             {blocked ? <BellOff className="h-6 w-6" /> : <BellRing className="h-6 w-6" />}
           </div>
           <div className="min-w-0 flex-1">
-            <h3 className="font-display text-lg text-foreground">{title}</h3>
+            <h2 className="font-display text-lg text-foreground">{title}</h2>
             <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{lead}</p>
           </div>
         </div>

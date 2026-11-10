@@ -487,7 +487,7 @@ toast.success("تهانينا! لديك توافق متبادل!", {
               <AlertCircle className="h-8 w-8 text-accent-foreground" />
             </div>
             <div className="space-y-2">
-              <h2 className="text-lg font-bold text-foreground">{forViewer(me?.gender, "أكمل حسابك لتلقي الاقتراحات", "أكملي حسابكِ لتلقي الاقتراحات")}</h2>
+              <h1 className="text-lg font-bold text-foreground">{forViewer(me?.gender, "أكمل حسابك لتلقي الاقتراحات", "أكملي حسابكِ لتلقي الاقتراحات")}</h1>
               <p className="text-sm text-muted-foreground max-w-sm mx-auto leading-relaxed">
                 {perRequestCredits ? (
                   incompleteSections.length === 0 ? (

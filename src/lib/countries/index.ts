@@ -1,7 +1,10 @@
 /**
  * Countries the platform serves (db-free, safe in client components).
- * Adding a country = one entry here + its copy/legal files + its SMS provider (src/lib/sms.ts)
- * + its credit packages (src/lib/payments/packages.ts) + its places (src/lib/countries/places.ts).
+ * Adding a country = one entry here (incl. otpByWhatsapp, phone trunkZero, currency) + its copy/legal files
+ * + its SMS provider (src/lib/sms.ts) + its credit packages and Pro currency (src/lib/payments/packages.ts, pro/plans.ts)
+ * + its places (src/lib/countries/places.ts) + its URL prefix (site-paths.ts PREFIX/HREFLANG, next.config.ts rewrites)
+ * + blog/poll/admin country unions. Use `Record<CountryCode, ...>` so tsc lists the gaps; never pick a country's text with a Saudi-versus-Jordan ternary.
+ * It stays inactive until Admin → Countries turns it on (test numbers in EXTRA_TEST_PHONES pass the gate).
  * Design: docs/superpowers/specs/2026-10-26-multi-country-design.md
  */
 

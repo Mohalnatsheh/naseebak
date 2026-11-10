@@ -70,6 +70,7 @@ needed a release.
 - **«المذهب» (1.2.0, Lebanon only):** asked only when the country detail's `options` carries `sect` (setup step 2 after
   religiosity, required; profile edit; partner `prefSect` + «شرط أساسي» `sect` when `options.prefSect` is there). Cards
   show `sect` when the payload has one (the server sends null for «أفضّل عدم الذكر»); female labels «سنية» / «شيعية».
+- **Pro priority line (1.2.0):** the plans screen lists «أولوية في الاقتراحات» like the website (text only; Pro never touches suggestions yet).
 
 ## Integrations
 

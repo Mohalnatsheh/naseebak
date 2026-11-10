@@ -31,6 +31,7 @@ Rules for working on Naseebak (نصيبك). This file holds what you need in eve
 - Two more switches, both **on** in production since 2026-11-07, both off by default: `feed_active_first` (the «جديدة» order, Admin → Settings) and `sms_notices_enabled` (notice SMS, set in `system_settings`: no admin button yet, Admin → Notifications → Automatic only shows it).
 - `free_interest_reply` (Admin → Settings, off by default, **on** in production since 2026-11-09, needs `credit_on_interest`, 2026-11-08): answering «مهتم» on a card the other side already said «مهتم» on (`likedYou`) costs no credit, also at 0 credits; the first «مهتم» still costs 1. The chat/family choice and guardian consent still apply (`decideSuggestion`: `introChoice` vs `charge`). The notices say the reply is free (`replyNoticeLine`). App 1.0.1+ handles it; 1.0.0 at 0 credits still locks «مهتم». Android requires 1.1.0 since 2026-11-10 (`mobile_android_min_version`, 1.0.1 from 2026-11-09); iPhone has no minimum until 1.0.1 is on the App Store.
 - `sa_relaxed_matching` (Admin → Settings, off by default, 2026-11-08): Saudi members get suggestions with no score minimum (`minSuggestionScore(flags, country)` = 0), best score first. «شروط أساسية», same country and test-account separation still apply. Jordan unchanged.
+- `lb_relaxed_matching` (Admin → Settings, off by default, 2026-11-10): the same for Lebanese members (`minSuggestionScore` = 0 for LB), «شروط أساسية» incl. the sect kept.
 - `pro_enabled` (Admin → Settings, off by default, 2026-11-09): Pro membership. It gates new sales and offers only (checkout, `/api/pro` offers and `canBuy`, the Pro page `/dashboard/pro` and its links, the chat's greyed buttons and offer). The badge and media sending follow `isPro()` whatever the switch. Subscribers keep Pro and their credits while it is off (`isPro()` never reads it). **On** in production since 2026-11-10 (Jordan 3 / 10 / 89 JOD, Saudi 6 / 20 / 178 SAR; 5 / 20 / 20-a-month credits).
 
 ## Commands
@@ -188,18 +189,21 @@ src/
 - PM2 stays one fork process on purpose: auto-suggest locks and the chat limits live in memory.
 - In a server `.env`, a `$` in a value is written `\$`, or Next expands it.
 
-## Countries and `/sa` routing
+## Countries and `/sa` and `/lb` routing
 
-- Countries: JO and SA. Fixed facts in `src/lib/countries/index.ts`, admin settings in `country_settings` (Admin → Countries, 30s cache).
+- Countries: JO, SA and LB (Lebanon, 2026-11-10, built switched off: no `/lb` page, switcher entry, sign-up or sale until Admin → Countries turns it on). Fixed facts in `src/lib/countries/index.ts`, admin settings in `country_settings` (Admin → Countries, 30s cache).
 - A member's country follows the phone number and never changes. Members are paired only within one country.
-- Jordan sits at the root, Saudi Arabia under `/sa`.
+- Jordan sits at the root, Saudi Arabia under `/sa`, Lebanon under `/lb` (same rewrites, same traps; an inactive country falls back to Jordan).
 - `/sa/...` reaches its page through `rewrites()` in `next.config.ts`. `src/proxy.ts` only sets `x-site-country`.
 - **Never `NextResponse.rewrite` in `src/proxy.ts`.** On production it carries the public host, so Next fetches naseebak.com as an external site and the header is lost. It works on localhost, so test with `Host: naseebak.com` against `next start`.
 - A new localized path goes in both `LOCALIZED_PATHS` (`src/lib/site-paths.ts`) and `next.config.ts`.
 - The country switcher does a full page load: `/sa` and `/` are one route to the client router.
 - Blog posts and polls belong to a country. A post opens only under its own country.
 - The dashboard follows the member's country, not the last public page.
-- Saudi purchases stay off until «Prices approved» is on in Admin → Countries. SAR prices are drafts until then. Meanwhile the payments page (website and app) says buying isn't available and disables the buttons (`purchasesEnabled` from `/api/payments/plans`).
+- Saudi purchases stay off until «Prices approved» is on in Admin → Countries. SAR prices are drafts until then. Lebanon is the same: shown and charged in USD («$»), draft packages `lb_10` / `lb_25` / `lb_50` (3 / 6 / 10 $), not approved; Pro plans only once set. Meanwhile the payments page (website and app) says buying isn't available and disables the buttons (`purchasesEnabled` from `/api/payments/plans`).
+- Sign-in codes by WhatsApp are `CountryConfig.otpByWhatsapp` (SA and LB), never `country === "SA"`. Lebanon's notice-SMS provider defaults to NONE (no notice SMS) until the owner picks one.
+- Numbers in `EXTRA_TEST_PHONES` pass the closed-country sign-up gate (`countrySignupBlock`), so Lebanon can be walked on production while off. Admin «Send a test SMS» sends a real WhatsApp code for a WhatsApp country (checks VerifyWay to +961).
+- **«المذهب»** (Lebanon only, `src/lib/profile-sect.ts`): `Profile.sect` سني / شيعي / «أفضّل عدم الذكر», `prefSect` (سني / شيعي), «شرط أساسي» key `sect`. «أفضّل عدم الذكر» is never shown on a card, never a preference, and fails a sect «شرط أساسي». The server strips `sect`, `prefSect` and the `sect` key for non-LB members. Required in the website and app 1.2.0 setup, never by the server (older apps).
 - More: [docs/reference/countries-and-app.md](docs/reference/countries-and-app.md).
 
 ## Money and credits
@@ -234,7 +238,7 @@ src/
   - A second paid subscription while one is live is never live: it is cancelled at Stripe at once, its invoice grants its credits, the older one stays the member's Pro, and the admins are emailed both payments to refund by hand. A renewal paid after Pro ended here is handled the same way: Pro does not come back (`lib/pro/duplicate.ts`).
   - Pro checkout sessions expire after `CHECKOUT_TTL_MS` (35 min); a new Pro checkout expires the member's other open ones. The unpaid-checkout reminder skips `pro_*` rows. The webhook reads both Stripe payload shapes (before and after API 2025-03-31).
   - Webhook cases come before `fulfilCheckoutSession` and ignore anything without our metadata (`kind: "pro"`).
-  - Sales need `purchasesAvailable` and `pro_enabled` and an enabled plan with a price. Pro never touches suggestions, score or order.
+  - Sales need `purchasesAvailable` and `pro_enabled` and an enabled plan with a price. Pro never touches suggestions, score or order. The plans list «أولوية في الاقتراحات» (owner, 2026-11-10): text only, the priority is owed, not built.
   - Detail: [docs/reference/payments.md](docs/reference/payments.md#pro-membership).
 - More: [docs/reference/payments.md](docs/reference/payments.md), [docs/reference/suggestions-and-credits.md](docs/reference/suggestions-and-credits.md).
 
@@ -263,7 +267,7 @@ src/
 - **Guard test:** the list of automatic messages is `src/lib/notifications/automatic.ts`, and the texts stay at their call sites. `src/__tests__/lib/automatic-notifications.test.ts` fails when they differ, so change both.
 - Keep `UNPAID_TITLE` and the «صفر: اشح» top-up line. Admin Insights count them by text.
 - **Notice SMS, narrowed** (owner, 2026-11-07; off 2026-10-29 to 11-07). `sms_notices_enabled` is **on** in production since 2026-11-07: only a match or a «مهتم» (`SMS_NOTICE_EVENTS`), only to members with no push seen in the last 14 days, one per day, each text one Arabic SMS (≤ 70 characters). No automatic chat or expiry SMS. Admin «send now» is not narrowed.
-- Saudi sign-in codes go by WhatsApp (`sendOtpCode`, VerifyWay). The reply repeats the code, so it is never logged.
+- Saudi and Lebanese sign-in codes go by WhatsApp (`sendOtpCode`, VerifyWay). The reply repeats the code, so it is never logged.
 - A chat push reads «رسالة جديدة من <name>», never the message text. The bell keeps one row per chat (`upsertChatBell` reuses the chat's newest row, even a read one).
 - Ask push permission with `requestPushPermission()` and sign out with `signOutAndUnlinkPush()`, never the bare browser prompt or `signOut()`.
 - More: [docs/reference/notifications-and-sms.md](docs/reference/notifications-and-sms.md).
@@ -417,6 +421,8 @@ Needs a new app version:
 - The filter tip on the app's empty «جديدة» page.
 - The website's «الرصيد أرخص» saving line. A live chat widget in the app.
 - Pro in the app: plans screen (calls `POST /api/pro/checkout`, opens the URL in the browser), «اشتراكي», sending photos and voice notes (picker, recorder, microphone permission), photo and voice bubbles, the Pro badge. Old apps still show media messages as text («حدّث التطبيق»). The website has all of it already.
+
+App 1.2.0 (on branch `feature/lebanon`, not built for stores): «المذهب» (setup, edit, preference, «شرط أساسي», cards), the code wording from the server's `otpChannel`, +961 guardian phones, the Pro «أولوية في الاقتراحات» line. Lebanon opens only after 1.2.0 is live in both stores with the force update. Details: [naseebak_app/CLAUDE.md](naseebak_app/CLAUDE.md).
 
 App 1.1.0+4 (live on Play 2026-11-10 with the force update to 1.1.0; iOS uploaded to TestFlight the same day): Pro, chat photos and voice, the modern chat, the QA round 2 fixes and the shared design (type scale, tokens, brand kit, seal, time arc, one banner slot, badge rules). Ships only after the server branch is live (hard gate: an older server strips `end:false`, so «إبلاغ فقط» would end the chat and block); update the store privacy answers first (audio and photos in chat). Details: [naseebak_app/CLAUDE.md](naseebak_app/CLAUDE.md).
 

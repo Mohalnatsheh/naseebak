@@ -26,6 +26,12 @@ const pageLinks = [
   { href: "/faq", label: "الأسئلة الشائعة" },
 ];
 
+/** Public pages whose top is the landing's navy band (P2-7 / DS-20) */
+const NAVY_TOP = ["/about", "/faq", "/contact", "/privacy", "/terms", "/refund-policy", "/blog"];
+export function opensOnNavy(path: string): boolean {
+  return path === "/" || NAVY_TOP.some((p) => path === p || path.startsWith(`${p}/`));
+}
+
 export function Navbar() {
   // Without the country part: /sa is the home page too
   const { path: pathname } = splitCountryPath(usePathname());
@@ -34,8 +40,9 @@ export function Navbar() {
   const [activeSection, setActiveSection] = useState("");
   const [mobileOpen, setMobileOpen] = useState(false);
   const [registrationClosed, setRegistrationClosed] = useState(false);
-  // At the top of the home page the bar sits over the navy hero: light text, white logo
-  const onDark = isHome && !scrolled;
+  // At the top of the home page and the public pages that share its navy hero (P2-7) the bar sits over navy: light
+  // text, white logo
+  const onDark = opensOnNavy(pathname) && !scrolled;
 
   useEffect(() => {
     fetch("/api/settings/registration-status")

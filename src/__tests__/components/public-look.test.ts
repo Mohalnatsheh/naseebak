@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { BLOG_COVERS, blogCover } from "@/lib/blog-covers";
+import { opensOnNavy } from "@/components/shared/navbar";
 
 /* P2-7 / DS-19 / DS-20: the public pages share the landing's navy band; blog covers vary, from the brand photos only */
 
@@ -25,6 +26,11 @@ describe("public pages share the landing look", () => {
       expect(src, p).toContain("landing-khatam");
       expect(src, p).not.toContain("PageHeroPhoto");
     }
+  });
+
+  it("the bar opens light-on-navy over those heroes, never on member or auth pages", () => {
+    for (const p of ["/", "/about", "/faq", "/contact", "/privacy", "/terms", "/refund-policy", "/blog", "/blog/some-post"]) expect(opensOnNavy(p), p).toBe(true);
+    for (const p of ["/login", "/register", "/poll", "/blogger", "/dashboard"]) expect(opensOnNavy(p), p).toBe(false);
   });
 
   it("one FAQ toggle: the landing's + that turns into ✕", () => {

@@ -222,7 +222,8 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> with WidgetsBindingOb
                 Icon(
                   c.lastRead ? Icons.done_all_rounded : Icons.done_rounded,
                   size: 16,
-                  color: c.lastRead ? AppColors.gold : AppColors.muted,
+                  // On the white list: accent-ink (gold itself is for navy surfaces)
+                  color: c.lastRead ? AppColors.goldText : AppColors.muted,
                   semanticLabel: c.lastRead ? 'مقروءة' : 'أُرسلت',
                 ),
                 const SizedBox(width: 4),

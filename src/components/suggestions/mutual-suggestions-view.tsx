@@ -28,7 +28,7 @@ import { DealbreakersCard } from "@/components/suggestions/dealbreakers-card";
 import { MatchesView } from "@/components/matches/matches-view";
 import { useSearchParams } from "next/navigation";
 import { InterestDialog, rechargeToContinue, type IntroPreferenceChoice } from "@/components/suggestions/interest-dialog";
-import { freeReplyShort } from "@/lib/suggestions/copy";
+import { FREE_REPLY_SHORT } from "@/lib/suggestions/copy";
 import { trackEvent } from "@/lib/analytics";
 import { useDashboardData } from "@/contexts/dashboard-context";
 import { formatDate } from "@/lib/countries";
@@ -57,6 +57,8 @@ type DecideResult = { ok: true } | { ok: false; dialogError?: string };
 
 /** How long «لا» can be undone before it is sent */
 const DECLINE_UNDO_MS = 5000;
+/** After «شروطي الأساسية» is saved: time for the server's sweep before the list reloads */
+const DEALBREAKERS_RELOAD_MS = 1200;
 
 /** Which endpoint answers a card: simultaneous rows, or legacy items still in flight. */
 function decisionRequest(item: OpenFeedItem, interested: boolean, choice?: IntroChoice): { url: string; body?: string } {
@@ -207,6 +209,12 @@ export function MutualSuggestionsView({
   const [totals, setTotals] = useState<Record<FeedTab, number>>({ new: 0, interested: 0, waiting: 0 });
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  // The tab and page on screen now, for callbacks that run later (the «لا» undo toast and its timer): they must
+  // reload what is shown, not the tab the card was on when «لا» was tapped
+  const shown = useRef({ tab, page });
+  useEffect(() => {
+    shown.current = { tab, page };
+  }, [tab, page]);
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -387,7 +395,7 @@ export function MutualSuggestionsView({
         refreshUnread();
       } else {
         toast.error("تعذّر حفظ قرارك، يمكنك المحاولة مرة أخرى");
-        load(tab, page);
+        load(shown.current.tab, shown.current.page);
       }
     }, DECLINE_UNDO_MS);
     pendingDeclines.current.set(item.id, { item, from, timer });
@@ -400,10 +408,27 @@ export function MutualSuggestionsView({
           if (!pending) return;
           clearTimeout(pending.timer);
           pendingDeclines.current.delete(item.id);
-          load(tab, page);
+          load(shown.current.tab, shown.current.page);
         },
       },
     });
+  }
+
+  /**
+   * «شروطي الأساسية» saved: the server closes the open cards that break a condition and fills the list again in the
+   * background, so reload shortly after (with the top-up, which also says again why «جديدة» is empty).
+   */
+  const dealbreakersTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (dealbreakersTimer.current) clearTimeout(dealbreakersTimer.current);
+  }, []);
+  function onDealbreakersSaved() {
+    if (dealbreakersTimer.current) clearTimeout(dealbreakersTimer.current);
+    dealbreakersTimer.current = setTimeout(() => {
+      dealbreakersTimer.current = null;
+      toppedUp.current = false;
+      void load(shown.current.tab, shown.current.page, { quiet: true });
+    }, DEALBREAKERS_RELOAD_MS);
   }
 
   function switchTab(t: FeedTab | "matches") {
@@ -560,13 +585,21 @@ export function MutualSuggestionsView({
     setReportDetails("");
   }
 
+  /** Closing the report dialog clears what was typed: the next report (another person) starts empty */
+  function closeReport() {
+    if (reportSubmitting) return;
+    setReport(null);
+    setReportReason("FAKE_PROFILE");
+    setReportDetails("");
+  }
+
   // The four categories: three feed tabs (same rules as before) + the mutual matches
   const tabs: { key: FeedTab | "matches"; label: string; subtitle: string; icon: typeof Sparkles }[] = [
     { key: "new", label: "جديدة", subtitle: g("اطّلع على الاقتراحات الجديدة.", "اطّلعي على الاقتراحات الجديدة."), icon: Sparkles },
     {
       key: "interested",
       label: g("مهتمون بك", "مهتمون بكِ"),
-      subtitle: g("أشخاص أبدوا اهتمامهم بالتعرف إليك. «مهتم» منك هنا توافق فوري.", "أشخاص أبدوا اهتمامهم بالتعرف إليكِ. «مهتمة» منكِ هنا توافق فوري."),
+      subtitle: g("أشخاص أبدوا اهتمامهم بالتعرف إليك. «مهتم» منك هنا توافق فوري.", "أشخاص أبدوا اهتمامهم بالتعرف إليكِ. «مهتم» منكِ هنا توافق فوري."),
       icon: Heart,
     },
     {
@@ -656,7 +689,7 @@ export function MutualSuggestionsView({
       </div>
 
       {/* «الجديد»: what I won't compromise on, as a filter bar right above the new suggestions */}
-      {!showMatches && tab === "new" && <DealbreakersCard />}
+      {!showMatches && tab === "new" && <DealbreakersCard onSaved={onDealbreakersSaved} />}
 
       {/* Result of the last decision */}
       {notice && (
@@ -794,7 +827,7 @@ export function MutualSuggestionsView({
               <Heart className="h-4 w-4 shrink-0" aria-hidden="true" />
               <p className="min-w-0 flex-1">
                 <span className="font-semibold">{g("شخص مهتم بك ينتظر ردّك.", "شخص مهتم بكِ ينتظر ردّكِ.")}</span>{" "}
-                {g("الرد بـ«مهتم» مجاني حتى برصيد صفر.", "الرد بـ«مهتمة» مجاني حتى برصيد صفر.")}
+                الرد بـ«مهتم» مجاني حتى برصيد صفر.
               </p>
             </div>
           ) : tab === "interested" && outOfCredits && topUp ? (
@@ -802,7 +835,7 @@ export function MutualSuggestionsView({
               <Heart className="h-4 w-4 shrink-0" aria-hidden="true" />
               <p className="min-w-0 flex-1">
                 <span className="font-semibold">{g("شخص مهتم بك ينتظر ردّك.", "شخص مهتم بكِ ينتظر ردّكِ.")}</span>{" "}
-                {g("انتهى رصيدك، اشحن لتردّ بـ«مهتم».", "انتهى رصيدكِ، اشحني لتردّي بـ«مهتمة».")}
+                {g("انتهى رصيدك، اشحن لتردّ بـ«مهتم».", "انتهى رصيدكِ، اشحني لتردّي بـ«مهتم».")}
               </p>
               <Button asChild size="sm" className="h-10 rounded-lg">
                 <Link href={`/dashboard/payments?buy=${encodeURIComponent(topUp.id)}`}>
@@ -817,10 +850,11 @@ export function MutualSuggestionsView({
                 <span className="font-semibold">{g("انتهى رصيدك.", "انتهى رصيدكِ.")}</span>{" "}
                 {g(
                   "يمكنك تصفّح اقتراحاتك والرد بـ«لا» مجاناً، واشحن رصيدك لتختار «مهتم».",
-                  "يمكنكِ تصفّح اقتراحاتكِ والرد بـ«لا» مجاناً، واشحني رصيدكِ لتختاري «مهتمة»."
+                  "يمكنكِ تصفّح اقتراحاتكِ والرد بـ«لا» مجاناً، واشحني رصيدكِ لتختاري «مهتم»."
                 )}
               </p>
-              <Link href="/dashboard/payments" className="font-semibold underline underline-offset-4">
+              {/* 44px tap target on phones; the negative margin keeps the banner's height */}
+              <Link href="/dashboard/payments" className="font-semibold underline underline-offset-4 max-md:-my-2.5 max-md:inline-flex max-md:min-h-11 max-md:items-center">
                 {g("اشحن رصيدك", "اشحني رصيدك")}
               </Link>
             </div>
@@ -901,27 +935,28 @@ export function MutualSuggestionsView({
                       )}
                       {tab === "interested" && (!outOfCredits || isFreeReply(item)) && (
                         <p className="mb-3 flex items-center gap-1.5 text-xs font-medium text-foreground/85">
-                          <Heart className="h-3.5 w-3.5 text-accent" aria-hidden="true" />
-                          {g("«مهتم» الآن توافق فوري", "«مهتمة» الآن توافق فوري")}
+                          <Heart className="h-3.5 w-3.5 text-accent-ink" aria-hidden="true" />
+                          «مهتم» الآن توافق فوري
                         </p>
                       )}
                       {!waiting && creditOnInterest && (
                         isFreeReply(item) ? (
                           <p className="mb-3 flex items-center gap-1.5 text-xs font-medium text-emerald-700">
                             <Coins className="h-3.5 w-3.5" aria-hidden="true" />
-                            {freeReplyShort(viewerFemale)}
+                            {FREE_REPLY_SHORT}
                           </p>
                         ) : outOfCredits ? (
-                          <p className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-amber-800">
+                          <p className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-amber-800 max-md:mb-0">
                             <Coins className="h-3.5 w-3.5" aria-hidden="true" />
-                            <Link href="/dashboard/payments" className="font-semibold underline underline-offset-4">
+                            {/* 44px tap target on phones (it takes the line's bottom margin, so the card grows little) */}
+                            <Link href="/dashboard/payments" className="font-semibold underline underline-offset-4 max-md:inline-flex max-md:min-h-11 max-md:items-center">
                               {rechargeToContinue(viewerFemale)}
                             </Link>
                           </p>
                         ) : (
                           <p className="mb-3 flex items-center gap-1.5 text-xs text-muted-foreground">
-                            <Coins className="h-3.5 w-3.5 text-accent" aria-hidden="true" />
-                            «{g("مهتم", "مهتمة")}» يستخدم رصيداً واحداً
+                            <Coins className="h-3.5 w-3.5 text-accent-ink" aria-hidden="true" />
+                            «مهتم» يستخدم رصيداً واحداً
                           </p>
                         )
                       )}
@@ -931,13 +966,13 @@ export function MutualSuggestionsView({
                             <Button
                               data-primary-action=""
                               // The person's name in the button's name: one «مهتم» per card on the page (QA PA-L2)
-                              aria-label={`${g("مهتم", "مهتمة")} · ${c.firstName}`}
+                              aria-label={`مهتم · ${c.firstName}`}
                               onClick={() => onInterested(item)}
                               disabled={acting === item.id || (outOfCredits && !isFreeReply(item))}
                               size="cta"
                               className="flex-[2]"
                             >
-                              {acting === item.id ? <Loader2 className="h-5 w-5 animate-spin" /> : <><HeartHandshake className="h-5 w-5 me-2" />{g("مهتم", "مهتمة")}</>}
+                              {acting === item.id ? <Loader2 className="h-5 w-5 animate-spin" /> : <><HeartHandshake className="h-5 w-5 me-2" />مهتم</>}
                             </Button>
                             <Button
                               variant="neutral"
@@ -1046,7 +1081,7 @@ export function MutualSuggestionsView({
         onConfirm={() => blockFor && block(blockFor)}
       />
 
-      <Dialog open={!!report} onOpenChange={(o) => !o && setReport(null)}>
+      <Dialog open={!!report} onOpenChange={(o) => !o && closeReport()}>
         <DialogContent dir="rtl">
           <DialogHeader>
             <DialogTitle>إبلاغ وحظر {report?.name}</DialogTitle>
@@ -1080,7 +1115,7 @@ export function MutualSuggestionsView({
             <Button onClick={submitReport} disabled={reportSubmitting} className="rounded-xl">
               {reportSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "إبلاغ وحظر"}
             </Button>
-            <Button variant="outline" onClick={() => setReport(null)} className="rounded-xl">إلغاء</Button>
+            <Button variant="outline" onClick={closeReport} disabled={reportSubmitting} className="rounded-xl">إلغاء</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

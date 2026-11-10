@@ -33,7 +33,7 @@ NextStep nextStepFor(Counts? c, {bool viewerFemale = false}) {
   if (c != null && c.pendingIntros > 0) {
     return NextStep(
       'طلب تعارف بانتظار ردك',
-      'لديك ${c.pendingIntros == 1 ? 'طلب' : '${c.pendingIntros} طلبات'} على توافقاتك.',
+      'لديك ${arabicCount(c.pendingIntros, one: 'طلب', two: 'طلبان', few: 'طلبات', many: 'طلباً')} على توافقاتك.',
       'عرض الطلب',
       c.pendingIntroMatchId != null ? '/matches/${c.pendingIntroMatchId}' : '/matches',
       Icons.family_restroom_rounded,
@@ -115,17 +115,20 @@ class HomeScreen extends ConsumerWidget {
     final credits = c?.credits ?? me?.credits;
     String count(int? n) => counts.isLoading && c == null ? '…' : '${n ?? 0}';
     return Scaffold(
-      // Status bar: dark icons over the page, light ones over the navy header while it is under them
+      // The navy header runs up under the status bar. A strip of the same navy, as high as the status bar, stays
+      // there: at rest it is part of the header, and once the page scrolls nothing (the tiles, the cards) is readable
+      // under the clock or the Dynamic Island. Light status icons over it, always.
       body: AnnotatedRegion<SystemUiOverlayStyle>(
-        value: SystemUiOverlayStyle.dark,
-        child: RefreshIndicator(
+        value: SystemUiOverlayStyle.light,
+        child: Stack(children: [
+        RefreshIndicator(
+        // The spinner comes down from under the strip, not behind it
+        edgeOffset: MediaQuery.paddingOf(context).top,
         onRefresh: () => _refresh(ref),
         child: ListView(
           padding: EdgeInsets.zero,
           children: [
-            AnnotatedRegion<SystemUiOverlayStyle>(
-              value: SystemUiOverlayStyle.light,
-              child: Container(
+            Container(
               decoration: const BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
@@ -208,7 +211,7 @@ class HomeScreen extends ConsumerWidget {
                   ),
                 ],
               ),
-            )),
+            ),
             Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
@@ -234,7 +237,7 @@ class HomeScreen extends ConsumerWidget {
                           icon: Icons.auto_awesome_rounded,
                           value: count(c?.newSuggestions),
                           label: 'اقتراحات جديدة',
-                          onTap: () => context.go('/suggestions?tab=new'),
+                          onTap: () => openAppRoute(GoRouter.of(context), '/suggestions?tab=new'),
                         ),
                       ),
                       const SizedBox(width: 10),
@@ -245,7 +248,7 @@ class HomeScreen extends ConsumerWidget {
                           value: count(c?.likedYou),
                           label: 'مهتمون بك',
                           highlight: (c?.likedYou ?? 0) > 0,
-                          onTap: () => context.go('/suggestions?tab=interested'),
+                          onTap: () => openAppRoute(GoRouter.of(context), '/suggestions?tab=interested'),
                         ),
                       ),
                       const SizedBox(width: 10),
@@ -266,7 +269,7 @@ class HomeScreen extends ConsumerWidget {
                     'اقتراحات اليوم',
                     trailing: TextButton(
                       key: const Key('all-suggestions'),
-                      onPressed: () => context.go('/suggestions?tab=new'),
+                      onPressed: () => openAppRoute(GoRouter.of(context), '/suggestions?tab=new'),
                       child: const Text('عرض الكل'),
                     ),
                   ),
@@ -282,7 +285,15 @@ class HomeScreen extends ConsumerWidget {
             ),
           ],
         ),
-      )),
+      ),
+        PositionedDirectional(
+          top: 0,
+          start: 0,
+          end: 0,
+          height: MediaQuery.paddingOf(context).top,
+          child: const IgnorePointer(child: ColoredBox(key: Key('home-status-strip'), color: AppColors.navyDeep)),
+        ),
+      ])),
     );
   }
 }
@@ -301,7 +312,12 @@ class _CreditsPill extends StatelessWidget {
         key: const Key('credits-pill'),
         borderRadius: BorderRadius.circular(20),
         onTap: () => context.push('/credits'),
-        child: Container(
+        // The pill keeps its size; the area that takes the tap is at least 44 high
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 44, minWidth: 44),
+          child: Center(
+            widthFactor: 1,
+            child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(20),
@@ -315,6 +331,8 @@ class _CreditsPill extends StatelessWidget {
               const SizedBox(width: 6),
               Text('$credits', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
             ],
+          ),
+        ),
           ),
         ),
       ),
@@ -358,7 +376,7 @@ class _StatusChip extends StatelessWidget {
                 width: 38,
                 height: 38,
                 decoration: BoxDecoration(color: AppColors.gold.withValues(alpha: 0.13), shape: BoxShape.circle),
-                child: Icon(icon, color: AppColors.gold, size: 20),
+                child: Icon(icon, color: AppColors.goldText, size: 20),
               ),
               const SizedBox(height: 8),
               Text(value, style: AppText.title.copyWith(fontWeight: FontWeight.w800, color: AppColors.navy)),
@@ -407,7 +425,11 @@ class _SuggestionsStrip extends ConsumerWidget {
           leading: const Icon(Icons.wifi_off_rounded, color: AppColors.muted),
           title: const Text('تعذّر تحميل الاقتراحات'),
           trailing: TextButton(
-            onPressed: () => ref.invalidate(homeSuggestionsProvider),
+            // The strip waits for the counts: when they are what failed, only reading them again helps
+            onPressed: () {
+              ref.invalidate(countsProvider);
+              ref.invalidate(homeSuggestionsProvider);
+            },
             child: const Text('إعادة المحاولة'),
           ),
         ),
@@ -457,7 +479,7 @@ class _SuggestionPreview extends ConsumerWidget {
         child: InkWell(
           key: Key('home-suggestion-${item.id}'),
           borderRadius: BorderRadius.circular(18),
-          onTap: () => context.go('/suggestions?tab=new'),
+          onTap: () => openAppRoute(GoRouter.of(context), '/suggestions?tab=new'),
           child: Padding(
             padding: const EdgeInsets.all(12),
             child: Column(

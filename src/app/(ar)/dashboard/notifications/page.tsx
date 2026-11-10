@@ -259,18 +259,23 @@ export default function NotificationsPage() {
 
   async function markAllRead() {
     try {
-      await fetch("/api/notifications/all/read", { method: "PATCH" });
+      const res = await fetch("/api/notifications/all/read", { method: "PATCH" });
+      // Never shown as read when it wasn't saved
+      if (!res.ok) throw new Error(`read all ${res.status}`);
       setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
       setUnreadCount(0);
       window.dispatchEvent(new CustomEvent("naseeb:notifications-read"));
     } catch (err) {
       console.error(err);
+      toast.error("تعذّر تحديث الإشعارات، يمكنك المحاولة مرة أخرى");
     }
   }
 
   async function markRead(id: string) {
     try {
-      await fetch(`/api/notifications/${id}/read`, { method: "PATCH" });
+      const res = await fetch(`/api/notifications/${id}/read`, { method: "PATCH" });
+      // Opened from a card on its way to another page: a failure stays quiet, and the row stays unread
+      if (!res.ok) throw new Error(`read ${res.status}`);
       setNotifications((prev) =>
         prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
       );
@@ -287,8 +292,14 @@ export default function NotificationsPage() {
       const res = await fetch(`/api/notifications/${id}/read`, { method: "DELETE" });
       if (res.ok) {
         const wasUnread = notifications.find((n) => n.id === id && !n.isRead);
-        setNotifications((prev) => prev.filter((n) => n.id !== id));
+        const remaining = notifications.filter((n) => n.id !== id);
+        setNotifications(remaining);
         if (wasUnread) setUnreadCount((c) => Math.max(0, c - 1));
+        // The page's last row went while other pages hold more: load them, never «لا توجد إشعارات» over a full list
+        if (remaining.length === 0 && totalPages > 1) {
+          if (page > 1) setPage(page - 1);
+          else setReloadKey((k) => k + 1);
+        }
         window.dispatchEvent(new CustomEvent("naseeb:notifications-read"));
       } else {
         toast.error("تعذّر حذف الإشعار");

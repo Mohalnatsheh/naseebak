@@ -51,7 +51,8 @@ export default function AccountPage() {
       disabled={signingOut}
       onClick={() => {
         setSigningOut(true);
-        void signOutAndUnlinkPush("/login");
+        // A failed sign-out (offline) gives the button back instead of a spinner that never ends
+        signOutAndUnlinkPush("/login").catch(() => setSigningOut(false));
       }}
       className={cn(
         "flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl border border-destructive/20 bg-destructive/5 text-sm font-bold text-destructive transition-colors hover:bg-destructive/10",

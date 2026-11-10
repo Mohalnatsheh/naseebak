@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useEffectEvent, useCallback, Suspense } from "react";
+import { useState, useEffect, useEffectEvent, useCallback, useRef, Suspense } from "react";
 import Link from "@/components/shared/site-link";
 import { useRouter, useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
@@ -147,6 +147,8 @@ function PaymentsContent() {
   const [matchCredits, setMatchCredits] = useState(0);
   // Plans/history didn't load: never show a balance of 0 or an empty package list as if real
   const [loadFailed, setLoadFailed] = useState(false);
+  // A history page turn failed: said in the history section only, never as an empty history
+  const [histFailed, setHistFailed] = useState(false);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [histPage, setHistPage] = useState(1);
@@ -162,7 +164,10 @@ function PaymentsContent() {
   const [checkoutPackage, setCheckoutPackage] = useState<CreditPackage | null>(null);
   const [checkoutPaymentId, setCheckoutPaymentId] = useState<string | null>(null);
 
-  const loadData = useCallback(async (p = histPage) => {
+  // The history page on screen, read by every reload (a ref: turning a page must not rebuild loadData and load twice)
+  const histPageRef = useRef(1);
+  const purchasingRef = useRef(false);
+  const loadData = useCallback(async (p = histPageRef.current) => {
     try {
       const [plansRes, histRes] = await Promise.all([
         fetch("/api/payments/plans"),
@@ -179,11 +184,28 @@ function PaymentsContent() {
       setPayments(histData.payments || []);
       setMatchCredits(histData.matchCredits ?? 0);
       setHistTotalPages(histData.totalPages || 1);
+      setHistFailed(false);
     } catch (err) {
       console.error(err);
       setLoadFailed(true);
     }
-  }, [histPage]);
+  }, []);
+
+  /** A history page turn: its own load, so a failure shows only in the history section (balance and packages stay) */
+  const loadHistory = useCallback(async (p: number) => {
+    try {
+      const res = await fetch(`/api/payments/history?page=${p}`);
+      if (!res.ok) throw new Error(`history ${res.status}`);
+      const histData = await res.json();
+      setPayments(histData.payments || []);
+      setMatchCredits(histData.matchCredits ?? 0);
+      setHistTotalPages(histData.totalPages || 1);
+      setHistFailed(false);
+    } catch (err) {
+      console.error(err);
+      setHistFailed(true);
+    }
+  }, []);
 
   useEffect(() => {
     async function init() {
@@ -211,10 +233,17 @@ function PaymentsContent() {
   useEffect(() => {
     const sessionId = searchParams.get("session_id");
     if (sessionId) {
-      fetch(`/api/payments/session-status?session_id=${sessionId}`)
-        .then((res) => res.json())
-        .then((data) => {
-          if (data.status === "complete" && data.paymentStatus === "paid") {
+      // The check itself failed (server or Stripe error, signed out): the payment may well be in, so never «لم تكتمل»
+      const unsure = () => {
+        setToast({ type: "info", message: "جارٍ التأكد من الدفع. إن اكتمل فسيظهر رصيدك هنا خلال دقائق." });
+        loadData();
+      };
+      fetch(`/api/payments/session-status?session_id=${encodeURIComponent(sessionId)}`)
+        .then(async (res) => ({ ok: res.ok, data: await res.json().catch(() => ({})) }))
+        .then(({ ok, data }) => {
+          if (!ok || typeof data.status !== "string") {
+            unsure();
+          } else if (data.status === "complete" && data.paymentStatus === "paid") {
             trackPaid();
             setToast({
               type: "success",
@@ -230,6 +259,7 @@ function PaymentsContent() {
           router.replace("/dashboard/payments");
         })
         .catch(() => {
+          unsure();
           router.replace("/dashboard/payments");
         });
     }
@@ -255,6 +285,9 @@ function PaymentsContent() {
   }, [buyId, packagesReady]);
 
   async function handlePurchase(packageId: string, packageName: string) {
+    // One checkout at a time: a second tap (another pack) while the first is starting would open a second session
+    if (purchasingRef.current) return;
+    purchasingRef.current = true;
     setPurchasing(packageId);
     try {
       const res = await fetch("/api/payments/checkout", {
@@ -299,6 +332,7 @@ function PaymentsContent() {
       console.error(err);
       setToast({ type: "error", message: "حدث خطأ في الاتصال" });
     } finally {
+      purchasingRef.current = false;
       setPurchasing(null);
     }
   }
@@ -341,7 +375,15 @@ function PaymentsContent() {
         body: JSON.stringify({ paymentId }),
       });
       if (!res.ok) throw new Error(`cancel ${res.status}`);
-      setToast({ type: "info", message: "تم إلغاء عملية الدفع" });
+      const data = await res.json().catch(() => ({}));
+      if (data.paid) {
+        // Paid in the meantime: the route credited it instead of cancelling
+        setToast({ type: "success", message: "تم الدفع بنجاح! تمت إضافة الرصيد" });
+        refreshUnread();
+        refreshProfile();
+      } else {
+        setToast({ type: "info", message: "تم إلغاء عملية الدفع" });
+      }
       loadData();
     } catch (err) {
       console.error(err);
@@ -676,7 +718,7 @@ function PaymentsContent() {
                     // Navy on every pack: gold fills belong on navy surfaces only (P2-4 / DS-18)
                     className="w-full rounded-xl text-base font-bold"
                     onClick={() => handlePurchase(pkg.id, pkg.name)}
-                    disabled={purchasing === pkg.id || !purchasesEnabled}
+                    disabled={purchasing !== null || !purchasesEnabled}
                     // The package in the name: three «شراء الآن» on one page (QA PA-L2)
                     aria-label={purchasesEnabled ? `شراء الآن: ${pkg.name}` : undefined}
                   >
@@ -707,12 +749,12 @@ function PaymentsContent() {
       </p>
 
       {/* No payments yet: the wallet drawing (no faces) */}
-      {payments.length === 0 && (
+      {!histFailed && payments.length === 0 && (
         <EmptyState art="wallet" title="لا مدفوعات بعد" description="تظهر هنا كل عملية شراء للرصيد أو اشتراك Pro." />
       )}
 
       {/* Payment History */}
-      {payments.length > 0 && (
+      {(payments.length > 0 || histFailed) && (
         <div className="space-y-5">
           <div
             className="flex items-center gap-3"
@@ -731,6 +773,14 @@ function PaymentsContent() {
             </div>
           </div>
 
+          {histFailed ? (
+            // Only this section: the balance and the packages above stay on screen
+            <LoadError
+              message="تعذّر تحميل سجل المدفوعات. يمكنك التحقق من الاتصال والمحاولة مرة أخرى."
+              onRetry={() => loadHistory(histPageRef.current)}
+              className="py-6"
+            />
+          ) : (
           <div className="space-y-3">
             {payments.map((p, index) => {
               const isCompleted = p.status === "COMPLETED";
@@ -778,7 +828,7 @@ function PaymentsContent() {
                             ) : isRefunded ? (
                               <ArrowRight className="h-5 w-5 text-muted-foreground" />
                             ) : (
-                              <Clock className="h-5 w-5 text-accent" />
+                              <Clock className="h-5 w-5 text-accent-ink" />
                             )}
                           </div>
                           <div>
@@ -851,16 +901,17 @@ function PaymentsContent() {
               );
             })}
           </div>
+          )}
           {histTotalPages > 1 && (
             <div className="flex items-center justify-center gap-4 mt-8">
-              <Button variant="outline" size="sm" disabled={histPage <= 1} onClick={() => { const p = histPage - 1; setHistPage(p); loadData(p); }}>
+              <Button variant="outline" size="sm" disabled={histPage <= 1} onClick={() => { const p = histPage - 1; histPageRef.current = p; setHistPage(p); loadHistory(p); }}>
                 <ChevronRight className="h-4 w-4 me-1" />
                 السابق
               </Button>
               <span className="text-sm text-muted-foreground">
                 صفحة {histPage} من {histTotalPages}
               </span>
-              <Button variant="outline" size="sm" disabled={histPage >= histTotalPages} onClick={() => { const p = histPage + 1; setHistPage(p); loadData(p); }}>
+              <Button variant="outline" size="sm" disabled={histPage >= histTotalPages} onClick={() => { const p = histPage + 1; histPageRef.current = p; setHistPage(p); loadHistory(p); }}>
                 التالي
                 <ChevronLeft className="h-4 w-4 ms-1" />
               </Button>

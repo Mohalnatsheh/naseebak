@@ -51,13 +51,13 @@ import { dayLabel, mergeMessages, timeLabel, type UiMessage } from "./chat-utils
 import { useChatChannel } from "./use-chat-channel";
 import { useChatPushChip } from "./chat-push-banner";
 import {
-  EXPIRY_SOON_DAYS, chatRowLayout, chatStatusBar, closedChatFamilyNote, familyStepOf, firstUnreadId, groupByDay,
+  EXPIRY_SOON_DAYS, chatRowLayout, chatStatusBar, closedChatFamilyNote, endedChatNote, familyStepOf, firstUnreadId, groupByDay,
 } from "./chat-look";
 import { ChatStatusBar } from "./chat-status-bar";
 import { useDashboardData } from "@/contexts/dashboard-context";
 import { formatDate } from "@/lib/countries";
 import { checkMessage } from "@/lib/chat/filter";
-import { markPageNotificationsRead, notifyChatSent, notifyNotificationsRead } from "@/lib/notifications-client";
+import { markPageNotificationsRead, notifyChatChanged, notifyChatSent, notifyNotificationsRead } from "@/lib/notifications-client";
 import { ProOfferDialog } from "@/components/payments/pro-offer-dialog";
 import type { MyProState } from "@/lib/pro/pro-types";
 import { composerMediaMode, type ComposerMedia, type MediaMode } from "./media-buttons";
@@ -83,6 +83,9 @@ const CHAT_PILL = "rounded-full bg-card/95 px-3 py-1 text-caption font-semibold 
 
 /** Polls ask from this long before the newest message they have */
 const POLL_OVERLAP_MS = 5000;
+
+/** How many messages one `?after=` answer holds at most (getConversation's `take`) */
+const NEWER_PAGE_SIZE = 100;
 
 /** Same pace as the server's burst limit (5 messages in 5 s): queued sends wait instead of being refused */
 const SEND_BURST = 5;
@@ -349,6 +352,14 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
         prev.map((m) => (m.mine && !m.readAt && !m.pending && m.createdAt <= read.createdAt ? { ...m, readAt: read.readAt } : m))
       );
     }
+    // A full page (the server's cap): more came while away, so keep paging forward until caught up
+    let page = result.data.messages;
+    for (let i = 0; i < 10 && page.length >= NEWER_PAGE_SIZE; i++) {
+      const more = await requestLatest(conversationId, page[page.length - 1].createdAt);
+      if (more.kind !== "ok") break;
+      applyLatest(more, "merge");
+      page = more.data.messages;
+    }
     // While the other person types, keep the fast pace (their message is on its way)
     return fresh || reacted || !!result.data.partnerTyping;
   }, [conversationId, applyLatest, fetchLatest, keepMyReactions]);
@@ -412,6 +423,9 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
     },
     onStatus: (e) => {
       setConversation((c) => (c ? { ...c, status: e.status as ChatSummary["status"], expiresAt: e.expiresAt ?? c.expiresAt } : c));
+      // The event carries no "who": the chat's own answer says who ended it (`endedBy`); the list beside the room follows
+      if (e.status !== "ACTIVE") void fetchNewer();
+      notifyChatChanged();
     },
     poll: fetchNewer,
   });
@@ -448,11 +462,13 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
     const onVisible = () => {
       if (document.visibilityState !== "visible") return;
       setVisibleTick((t) => t + 1);
-      fetchLatest("merge");
+      // From the last saved message on, not the newest page: more than a page may have arrived while the tab was
+      // hidden (written in the app, say), and merging only the newest page left a hole nothing filled afterwards
+      void fetchNewer();
     };
     document.addEventListener("visibilitychange", onVisible);
     return () => document.removeEventListener("visibilitychange", onVisible);
-  }, [fetchLatest]);
+  }, [fetchNewer]);
 
   // Keep the newest message in view unless the user scrolled up to read history
   useEffect(() => {
@@ -725,6 +741,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
     if (res.ok) {
       setConversation((c) => (c ? { ...c, ...res.data.conversation, lastMessage: c.lastMessage } : c));
       toast.success("تم تمديد المحادثة 7 أيام");
+      notifyChatChanged();
     } else toast.error(res.data.error ?? "تعذّر التمديد");
   }
 
@@ -748,6 +765,8 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
     if (res.ok) {
       toast.success(reportDoneText({ report: !!report, end: !report || report.end, open: wasOpen }));
       fetchLatest("merge");
+      // The list beside the room (two panes) moves the chat to «المنتهية»
+      notifyChatChanged();
     } else toast.error(res.data.error ?? "حدث خطأ");
     return res.ok;
   }
@@ -1209,9 +1228,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
             : intro?.chat.paused
             ? "المحادثة متوقفة مؤقتاً لمراجعة من فريق نصيبك. سنُعلمك عند استئنافها."
             : conversation.status === "ENDED"
-            ? conversation.endedByMe
-              ? "أنهيت هذه المحادثة."
-              : "أنهى الطرف الآخر هذه المحادثة."
+            ? endedChatNote(conversation)
             : conversation.status === "EXPIRED"
               ? family?.status === "none" && intro?.flags.introRequests && !intro.closed
                 ? `انتهت مدة المحادثة. هل تنتقلان لتعارف عائلي؟${familyFree ? " الانتقال مجاني" : ""}${familyOpenUntil ? ` ومتاح حتى ${familyOpenUntil}` : ""}.`

@@ -292,6 +292,20 @@ describe("expiry warning", () => {
     const res = await getConversation("c", "u1");
     expect(res.conversation.blocked).toBe(true);
   });
+
+  it.each([
+    ["me", { status: "ENDED", endedById: "u1" }, true],
+    ["partner", { status: "ENDED", endedById: "f1" }, false],
+    // An admin, or an account paused or leaving: endedById stays null, so nobody is named
+    ["system", { status: "ENDED", endedById: null, endedByAdminId: "admin1" }, false],
+    [null, { status: "ACTIVE" }, false],
+  ] as const)("says who ended the chat: %s (endedBy, next to endedByMe)", async (endedBy, over, endedByMe) => {
+    db.conversation.findUnique.mockResolvedValue(conv(over));
+    db.block.findFirst.mockResolvedValue(null);
+    const res = await getConversation("c", "u1");
+    expect(res.conversation.endedBy).toBe(endedBy);
+    expect(res.conversation.endedByMe).toBe(endedByMe);
+  });
 });
 
 describe("extendConversation", () => {

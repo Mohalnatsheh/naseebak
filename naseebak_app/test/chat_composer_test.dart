@@ -9,7 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:naseebak_app/features/chat/chat_cache.dart';
 import 'package:naseebak_app/features/chat/chat_live.dart';
 import 'package:naseebak_app/features/chat/chat_media_picker.dart';
-import 'package:naseebak_app/features/chat/chat_room_screen.dart' show micRefusedText;
+import 'package:naseebak_app/features/chat/chat_room_screen.dart' show composerHintGap, micRefusedText;
 import 'package:naseebak_app/features/chat/hold_to_record.dart';
 import 'package:naseebak_app/features/chat/media_bubbles.dart';
 import 'package:naseebak_app/features/chat/voice_recorder.dart';
@@ -208,6 +208,46 @@ void main() {
     });
   });
 
+  group('composer on an iPhone (simulator QA D1, D2)', () {
+    testWidgets('the hint starts a little after the cursor edge, so its first letter is never under the cursor',
+        (tester) async {
+      final r = _Room();
+      await r.open(tester);
+      await tester.tap(_input);
+      await tester.pump();
+      final field = tester.getRect(find.descendant(of: _input, matching: find.byType(EditableText)));
+      final hint = tester.getRect(find.byKey(const Key('chat-input-hint')));
+      // Arabic: the cursor of an empty field stands at the right edge
+      expect(field.right - hint.right, greaterThanOrEqualTo(composerHintGap));
+      expect(find.text('اكتبي رسالتكِ…'), findsOneWidget);
+      await tester.enterText(_input, 'س');
+      await tester.pump();
+      await r.leave(tester);
+    });
+
+    testWidgets('the home-indicator inset sits under the composer only while the keyboard is closed', (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      tester.view.padding = const FakeViewPadding(bottom: 34);
+      tester.view.viewPadding = const FakeViewPadding(bottom: 34);
+      addTearDown(tester.view.reset);
+      final r = _Room();
+      await r.open(tester);
+      final row = find.byKey(const ValueKey('composer-row'));
+      expect(tester.getRect(row).bottom, 844 - 34);
+      // The keyboard comes up while the view still reports a bottom padding: no empty strip above it
+      tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+      await tester.pump();
+      await tester.pump();
+      expect(tester.getRect(row).bottom, 844 - 300);
+      tester.view.viewInsets = FakeViewPadding.zero;
+      await tester.pump();
+      await tester.pump();
+      expect(tester.getRect(row).bottom, 844 - 34);
+      await r.leave(tester);
+    });
+  });
+
   group('hold to record', () {
     testWidgets('hold, then release after 1.5 s: one voice note goes up', (tester) async {
       final r = _Room();
@@ -219,6 +259,10 @@ void main() {
       // The chevron points the way to slide (towards the start edge, the right in Arabic), and the hint has its own
       // lane beside the level bars (QA A-M03)
       expect(tester.widget<Icon>(find.byKey(const Key('voice-slide-chevron'))).icon, Icons.chevron_right_rounded);
+      // Chevrons mirror themselves in Arabic: drawn left to right, this one really points right (towards cancel)
+      expect(tester.widget<Icon>(find.byKey(const Key('voice-slide-chevron'))).textDirection, TextDirection.ltr);
+      // The hint and the bars fade through their colours, never an opacity layer (QA A-L10)
+      expect(find.descendant(of: find.byKey(const Key('voice-hold-bar')), matching: find.byType(Opacity)), findsNothing);
       final lane = tester.getRect(find.byKey(const Key('voice-slide-lane')));
       final bars = tester.getRect(find.byKey(const Key('voice-level')));
       expect(lane.overlaps(bars), isFalse);
@@ -770,6 +814,24 @@ void main() {
       expect(r.rec.cancelled, isTrue);
       expect(r.uploads, isEmpty);
       expect(find.byKey(const Key('voice-hold-bar')), findsNothing);
+      await r.leave(tester);
+    });
+
+    testWidgets('a blocked microphone answers while the mic is held: letting go keeps the reason on screen',
+        (tester) async {
+      final r = _Room();
+      r.permission = () async => false;
+      await r.open(tester);
+      final g = await _hold(tester);
+      await _frames(tester);
+      expect(find.text(micRefusedText), findsOneWidget);
+      await g.up();
+      await _frames(tester);
+      // Not replaced by «الرسالة قصيرة جداً»: the refusal and its «الإعدادات» stay
+      expect(find.text(holdTooShortText), findsNothing);
+      expect(find.text(micRefusedText), findsOneWidget);
+      expect(find.text('الإعدادات'), findsOneWidget);
+      expect(r.uploads, isEmpty);
       await r.leave(tester);
     });
 

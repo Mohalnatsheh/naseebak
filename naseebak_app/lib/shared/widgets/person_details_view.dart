@@ -132,7 +132,7 @@ class _FactRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(fact.icon, size: 18, color: AppColors.gold),
+          Icon(fact.icon, size: 18, color: AppColors.goldText),
           const SizedBox(width: 10),
           SizedBox(
             width: 110,

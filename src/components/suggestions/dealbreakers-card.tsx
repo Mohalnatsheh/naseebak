@@ -36,7 +36,7 @@ const HASH = "#dealbreakers";
  * «تعديل» opening a bottom sheet with one switch per condition (the preferences that must be met before
  * anyone is suggested). Same API as before (GET/PUT /api/profile/dealbreakers); private to the member.
  */
-export function DealbreakersCard() {
+export function DealbreakersCard({ onSaved }: { /** The conditions were saved: the server is closing and refilling cards, so the list should reload */ onSaved?: () => void } = {}) {
   const { profile, country } = useDashboardData();
   const gender: string | undefined = profile?.gender;
   // The «المذهب» condition exists for Lebanese members only
@@ -116,6 +116,7 @@ export function DealbreakersCard() {
     if (res?.ok) {
       setSaved(new Set(keys));
       setJustSaved(true);
+      onSaved?.();
     } else {
       setError("تعذّر الحفظ. يمكنك المحاولة مرة أخرى.");
     }
@@ -131,7 +132,7 @@ export function DealbreakersCard() {
           onClick={openEditor}
           aria-haspopup="dialog"
           className={cn(
-            "inline-flex h-10 shrink-0 items-center gap-1.5 rounded-full border px-3.5 text-sm font-bold transition-colors",
+            "inline-flex h-10 max-md:min-h-11 shrink-0 items-center gap-1.5 rounded-full border px-3.5 text-sm font-bold transition-colors",
             active.length > 0 ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card text-foreground hover:border-primary/40"
           )}
         >

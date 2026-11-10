@@ -5,12 +5,8 @@ export const CREDIT_ON_INTEREST_LINE = "يُستخدم رصيد واحد عند 
 export const FREE_REPLY_LINE = "الرد بـ«مهتم» على من أبدى اهتمامه مجاني.";
 
 /** Short line under a card that already says «أبدى اهتمامه بك» (switch `free_interest_reply`). */
+/** The answer is «مهتم» for everyone, as on the button, home, the dialog and the app (owner, 2026-11-10) */
 export const FREE_REPLY_SHORT = "الرد بـ«مهتم» مجاني";
-
-/** The same line next to the viewer's own button, in her words when the button says «مهتمة» (QA WM-14) */
-export function freeReplyShort(female: boolean): string {
-  return female ? "الرد بـ«مهتمة» مجاني" : FREE_REPLY_SHORT;
-}
 
 /** The credit rule line, plus the free-reply line while `free_interest_reply` is on. */
 export function creditLine(freeReply = false): string {

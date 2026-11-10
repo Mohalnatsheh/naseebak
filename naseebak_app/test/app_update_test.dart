@@ -10,7 +10,7 @@ Map<String, dynamic> config({String min = '', String latest = '', String store =
       'ios': {'minVersion': '9.9.9', 'latestVersion': '', 'storeUrl': ''},
     };
 
-Future<void> pumpGate(WidgetTester tester, FakeAdapter adapter, {String version = '1.0.0'}) async {
+Future<void> pumpGate(WidgetTester tester, FakeAdapter adapter, {String version = '1.0.0', bool withCard = false}) async {
   final overrides = await testOverrides(adapter);
   await tester.pumpWidget(ProviderScope(
     overrides: [
@@ -18,7 +18,12 @@ Future<void> pumpGate(WidgetTester tester, FakeAdapter adapter, {String version 
       appVersionProvider.overrideWith((ref) async => version),
       appPlatformProvider.overrideWithValue('android'),
     ],
-    child: rtlApp(const UpdateGate(child: Scaffold(body: Text('التطبيق')))),
+    // [withCard]: the tab shell's place for the optional-update card
+    child: rtlApp(UpdateGate(
+      child: Scaffold(
+        body: Column(children: [const Text('التطبيق'), if (withCard) const OptionalUpdateCard()]),
+      ),
+    )),
   ));
   await tester.pumpAndSettle();
 }
@@ -46,11 +51,18 @@ void main() {
 
   testWidgets('an optional update shows a card; «لاحقاً» hides it for that version', (tester) async {
     final adapter = FakeAdapter()..on('GET', '/api/mobile/config', FakeResponse(200, config(latest: '1.1.0')));
-    await pumpGate(tester, adapter);
+    await pumpGate(tester, adapter, withCard: true);
     expect(find.text('التطبيق'), findsOneWidget);
     expect(find.byKey(const Key('update-optional')), findsOneWidget);
     await tester.tap(find.byKey(const Key('update-later')));
     await tester.pumpAndSettle();
+    expect(find.byKey(const Key('update-optional')), findsNothing);
+  });
+
+  testWidgets('the gate itself never floats the optional card over other screens (chat, sign-in, setup)', (tester) async {
+    final adapter = FakeAdapter()..on('GET', '/api/mobile/config', FakeResponse(200, config(latest: '1.1.0')));
+    await pumpGate(tester, adapter);
+    expect(find.text('التطبيق'), findsOneWidget);
     expect(find.byKey(const Key('update-optional')), findsNothing);
   });
 

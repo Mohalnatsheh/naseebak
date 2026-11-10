@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/auth/auth_controller.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/common.dart';
+import 'logout_button.dart';
 import '../country_selection/country_providers.dart';
 
 /// A suspended account (`/api/mobile/me` → 403 `SUSPENDED`): nothing works for it, so instead of a retry loop the
@@ -73,12 +74,7 @@ class _SuspendedScreenState extends ConsumerState<SuspendedScreen> {
               onPressed: _checkAgain,
             ),
             const SizedBox(height: 12),
-            LoadingButton(
-              key: const Key('suspended-logout'),
-              label: 'تسجيل الخروج',
-              outlined: true,
-              onPressed: _checking ? null : () => ref.read(authControllerProvider.notifier).logout(),
-            ),
+            LogoutButton(key: const Key('suspended-logout'), enabled: !_checking),
           ],
         ),
       ),

@@ -52,6 +52,9 @@ class InterestSheet extends StatefulWidget {
   static Future<Object?> show(BuildContext context, InterestSheet sheet) {
     return showModalBottomSheet<Object>(
       context: context,
+      // Over the tab bar: opened from a tab, inside the tab's own navigator, the sheet sat under the bar and «إلغاء»
+      // was cut off behind it
+      useRootNavigator: true,
       isScrollControlled: true,
       useSafeArea: true,
       builder: (_) => sheet,

@@ -93,7 +93,14 @@ class _ResumeRefreshState extends ConsumerState<ResumeRefresh> with WidgetsBindi
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) ref.read(authControllerProvider.notifier).refreshOnResume();
+    if (state != AppLifecycleState.resumed) return;
+    ref.read(authControllerProvider.notifier).refreshOnResume();
+    // What arrived while the app was away (a «مهتم», a match, a message): the badges, home's next step and the bell
+    // follow at once. No timer: only on coming back, and on a push while open (`PushService`).
+    if (ref.read(authControllerProvider).isSignedIn) {
+      ref.invalidate(countsProvider);
+      ref.invalidate(unreadNotificationsProvider);
+    }
   }
 
   @override

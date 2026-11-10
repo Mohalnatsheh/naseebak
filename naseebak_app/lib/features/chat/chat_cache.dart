@@ -78,6 +78,8 @@ abstract class ChatCache {
           error: f['error'] is String ? f['error'] as String : null,
           filtered: f['filtered'] == true,
           maybeSent: f['maybeSent'] == true,
+          // A failed reply keeps its quote: «إعادة الإرسال» still sends `replyToId`
+          replyTo: m.replyTo,
         ));
       }
     }

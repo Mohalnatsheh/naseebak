@@ -52,7 +52,7 @@ function PayButton({ priceLabel, returnUrl }: { priceLabel: string; returnUrl: s
         className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary text-base font-bold text-primary-foreground disabled:opacity-60"
       >
         {busy ? <Loader2 className="h-5 w-5 animate-spin" aria-hidden /> : <Lock className="h-4 w-4" aria-hidden />}
-        {busy ? "جارٍ الدفع…" : `ادفع ${priceLabel}`}
+        {busy ? "جارٍ الدفع…" : `إتمام الدفع · ${priceLabel}`}
       </button>
     </form>
   );

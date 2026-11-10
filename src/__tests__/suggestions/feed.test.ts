@@ -172,6 +172,29 @@ describe("getSuggestionFeed — ordering", () => {
     }
   });
 
+  it("asks the database for the tab's own cards, so «مهتمون بك» never loses one past the source limit", async () => {
+    // Filtering after `take` dropped a «مهتم» ranked under 50 undecided cards of its activity group (the badge counted it)
+    await getSuggestionFeed("me", "interested", 1);
+    for (const call of db.suggestion.findMany.mock.calls.slice(0, 3)) {
+      expect(call[0].where.AND[2]).toEqual({
+        OR: [
+          { recipientId: "me", candidateDecision: "INTERESTED" },
+          { candidateId: "me", recipientDecision: "INTERESTED" },
+        ],
+      });
+    }
+    db.suggestion.findMany.mockClear();
+    await getSuggestionFeed("me", "new", 1);
+    for (const call of db.suggestion.findMany.mock.calls.slice(0, 3)) {
+      expect(call[0].where.AND[2]).toEqual({
+        OR: [
+          { recipientId: "me", candidateDecision: null },
+          { candidateId: "me", recipientDecision: null },
+        ],
+      });
+    }
+  });
+
   it("the «interested» tab doesn't depend on the credit-on-interest flag", async () => {
     const liked = { ...mutualRow("liked", person("f2", "FEMALE")), recipientDecision: "INTERESTED" };
     db.suggestion.findMany.mockResolvedValueOnce([liked]).mockResolvedValueOnce([]);

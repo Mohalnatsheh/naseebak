@@ -265,12 +265,21 @@ export async function getSuggestionFeed(
 
   if (tab === "new" || tab === "interested") {
     const interestedTab = tab === "interested";
+    // The tab's own cards only, in the query (as countMutualTabs counts them): filtering after `take` dropped a
+    // «مهتم» ranked under SOURCE_LIMIT undecided cards of its activity group, while the badge still counted it
+    const theirs = interestedTab ? ("INTERESTED" as const) : null;
+    const tabWhere: Prisma.SuggestionWhereInput = {
+      OR: [
+        { recipientId: userId, candidateDecision: theirs },
+        { candidateId: userId, recipientDecision: theirs },
+      ],
+    };
     const [mutualGroups, legacy, likes, myResponses] = await Promise.all([
       // Each activity group on its own, so a member with many cards never loses the active ones past the limit
       Promise.all(
         Array.from({ length: groupDays.length + 1 }, (_, group) => group).map((group) =>
           db.suggestion.findMany({
-            where: { AND: [openMutualWhere(userId, now), otherInGroupWhere(userId, group, now, groupDays)] },
+            where: { AND: [openMutualWhere(userId, now), otherInGroupWhere(userId, group, now, groupDays), tabWhere] },
             select: mutualSelect,
             orderBy: order,
             take: SOURCE_LIMIT,

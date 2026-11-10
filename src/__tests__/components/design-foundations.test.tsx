@@ -51,6 +51,16 @@ describe("banner slot priority", () => {
     expect(pickBanner({ ...base, pathname: "/dashboard", pushNeeded: true })).toBe("push");
   });
 
+  it("suggestions at 0 credits: no push line above the page's own zero-credit note", () => {
+    const zero = { ...base, pathname: "/dashboard/suggestions", credits: 0, pushNeeded: true };
+    expect(pickBanner(zero)).toBeNull();
+    // With credit the nudge shows there as before; other pages keep it at 0 credits; a family request still shows
+    expect(pickBanner({ ...zero, credits: 1 })).toBe("push");
+    expect(pickBanner({ ...zero, pathname: "/dashboard/photos" })).toBe("push");
+    expect(pickBanner({ ...zero, creditOnInterest: false })).toBe("push");
+    expect(pickBanner({ ...zero, pendingIntros: 1 })).toBe("familyRequest");
+  });
+
   it("no slot in a chat room, the install guide or the setup itself", () => {
     for (const pathname of ["/dashboard/chats/abc", "/dashboard/install", "/dashboard/profile/setup"]) {
       expect(pickBanner({ ...base, pathname, setupDone: false, pushNeeded: true })).toBeNull();

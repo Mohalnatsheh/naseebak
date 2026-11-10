@@ -1473,7 +1473,7 @@ export default function ProfilePage() {
                     <AlertCircle className="h-5 w-5 text-destructive" />
                   </div>
                   <p className="text-sm font-bold text-destructive">
-                    هل أنت متأكد من رغبتك في حذف حسابك نهائياً؟
+                    {isMale ? "هل أنت متأكد من رغبتك في حذف حسابك نهائياً؟" : "هل أنتِ متأكدة من رغبتكِ في حذف حسابكِ نهائياً؟"}
                   </p>
                 </div>
                 <p className="text-xs text-muted-foreground leading-relaxed">

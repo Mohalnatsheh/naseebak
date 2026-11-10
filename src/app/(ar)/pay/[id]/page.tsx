@@ -60,13 +60,13 @@ export default async function PayPage({
     select: { id: true, status: true, payToken: true, stripePaymentIntentId: true, planName: true, amount: true, currency: true },
   });
   if (!payment || !payment.stripePaymentIntentId || !tokenMatches(payment.payToken, t)) {
-    return <Message title="رابط الدفع غير صالح" body="افتح صفحة الرصيد واختر الباقة من جديد." href={back.href} cta={back.cta} />;
+    return <Message title="رابط الدفع غير صالح" body="يمكنك فتح صفحة الرصيد واختيار الباقة من جديد." href={back.href} cta={back.cta} />;
   }
   if (payment.status === "COMPLETED") {
     return <Message title="تم الدفع مسبقاً" body="أُضيف الرصيد إلى حسابك." href={back.href} cta={back.cta} />;
   }
   if (payment.status !== "PENDING") {
-    return <Message title="انتهت عملية الدفع هذه" body="اختر الباقة من جديد لبدء عملية دفع جديدة." href={back.href} cta={back.cta} />;
+    return <Message title="انتهت عملية الدفع هذه" body="يمكنك اختيار الباقة من جديد لبدء عملية دفع جديدة." href={back.href} cta={back.cta} />;
   }
 
   const intent = await getStripe().paymentIntents.retrieve(payment.stripePaymentIntentId);
@@ -75,7 +75,7 @@ export default async function PayPage({
     return <Message title="تم الدفع" body="أُضيف الرصيد إلى حسابك." href={back.href} cta={back.cta} />;
   }
   if (intent.status === "canceled" || !intent.client_secret) {
-    return <Message title="انتهت عملية الدفع هذه" body="اختر الباقة من جديد لبدء عملية دفع جديدة." href={back.href} cta={back.cta} />;
+    return <Message title="انتهت عملية الدفع هذه" body="يمكنك اختيار الباقة من جديد لبدء عملية دفع جديدة." href={back.href} cta={back.cta} />;
   }
 
   const pkg = findAnyPackage(payment.planName);
@@ -89,7 +89,7 @@ export default async function PayPage({
     <Shell>
       <div className="space-y-5">
         <div className="rounded-2xl border border-border/70 bg-card p-5">
-          <p className="text-sm text-muted-foreground">تشتري من نصيبك</p>
+          <p className="text-sm text-muted-foreground">الشراء من نصيبك</p>
           <div className="mt-1 flex items-baseline justify-between gap-3">
             <h1 className="text-xl font-bold text-foreground">{pkg?.name ?? "رصيد"}</h1>
             <p className="text-2xl font-bold text-primary">{price}</p>

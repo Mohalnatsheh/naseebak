@@ -32,11 +32,17 @@ final introStateProvider = FutureProvider.autoDispose.family<IntroState, String>
 
 /// After any action on a match: the header (pill, photos, closed state), the next step, the badges and the
 /// matches list all reload.
-void refreshMatch(WidgetRef ref, String matchId) {
-  ref.invalidate(introStateProvider(matchId));
-  ref.invalidate(_matchProvider(matchId));
-  ref.invalidate(countsProvider);
-  ref.read(matchesListVersionProvider.notifier).state++;
+void refreshMatch(WidgetRef ref, String matchId) =>
+    refreshMatchIn(ProviderScope.containerOf(ref.context, listen: false), matchId);
+
+/// The same through the container, taken before a request: it still works when the screen was left meanwhile
+/// (a `ref` used after its widget is gone throws).
+void refreshMatchIn(ProviderContainer container, String matchId) {
+  container
+    ..invalidate(introStateProvider(matchId))
+    ..invalidate(_matchProvider(matchId))
+    ..invalidate(countsProvider);
+  container.read(matchesListVersionProvider.notifier).state++;
 }
 
 /// One match: partner details, photos (revealed after the match), and the next step.
@@ -137,15 +143,18 @@ class _MatchView extends ConsumerWidget {
     final coi = ref.read(countsProvider).valueOrNull?.flags.creditOnInterest ?? false;
     final run = action == 'block' ? confirmAndBlock : reportAndBlock;
     final body = action == 'block' ? _blockBody(female, coi) : _reportBody(female, coi);
+    // Taken before the request: the match still reloads if the page was left meanwhile
+    final container = ProviderScope.containerOf(context, listen: false);
     final done = await run(context, ref, userId: p.id, name: p.firstName, viewerFemale: female, body: body);
     // Stays open on the now blocked match (with «إلغاء الحظر»), like the website's card
-    if (done) refreshMatch(ref, match.id);
+    if (done) refreshMatchIn(container, match.id);
   }
 
   Future<void> _unblock(BuildContext context, WidgetRef ref) async {
     if (match.blockId == null) return;
+    final container = ProviderScope.containerOf(context, listen: false);
     if (await confirmAndUnblock(context, ref, blockId: match.blockId!, name: match.partner.firstName)) {
-      refreshMatch(ref, match.id);
+      refreshMatchIn(container, match.id);
     }
   }
 
@@ -361,15 +370,26 @@ class _IntroPanelState extends ConsumerState<IntroPanel> {
   String _g(String m, String f) => forViewer(_viewerFemale, m, f);
   String _p(String m, String f) => forPartner(_viewerFemale, m, f);
 
-  void _requested(String type) => ref.read(analyticsProvider).introRequestSent(type);
-  void _answered(String type, bool accepted) => ref.read(analyticsProvider).introRequestAnswered(type: type, accepted: accepted);
+  /// Read once, at the start: the analytics calls below run after a request, when the page may be gone
+  late final AppAnalytics _analytics;
+
+  @override
+  void initState() {
+    super.initState();
+    _analytics = ref.read(analyticsProvider);
+  }
+
+  void _requested(String type) => _analytics.introRequestSent(type);
+  void _answered(String type, bool accepted) => _analytics.introRequestAnswered(type: type, accepted: accepted);
 
   Future<void> _run(String key, Future<void> Function() action, {String? success}) async {
     if (_busy != null) return;
     setState(() => _busy = key);
+    // Taken before the request: leaving the page mid-request still reloads the match, the list and the badges
+    final container = ProviderScope.containerOf(context, listen: false);
     try {
       await action();
-      refreshMatch(ref, widget.matchId);
+      refreshMatchIn(container, widget.matchId);
       if (success != null && mounted) showSnack(context, success);
     } on ApiException catch (e) {
       if (!mounted) return;
@@ -423,7 +443,8 @@ class _IntroPanelState extends ConsumerState<IntroPanel> {
       );
       if (!ok || !mounted) return;
     }
-    await _run('outcome', () async => ref.read(matchesRepositoryProvider).outcome(widget.matchId, outcome),
+    final repo = ref.read(matchesRepositoryProvider);
+    await _run('outcome', () async => repo.outcome(widget.matchId, outcome),
         success: outcome == 'NOT_A_MATCH' ? 'انتهى التوافق' : 'شكراً، تم الحفظ');
   }
 

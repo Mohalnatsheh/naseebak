@@ -422,7 +422,7 @@ class _Promise extends StatelessWidget {
         border: Border.all(color: AppColors.line),
       ),
       child: Column(children: [
-        Icon(icon, color: AppColors.gold, size: 22),
+        Icon(icon, color: AppColors.goldText, size: 22),
         const SizedBox(height: 6),
         Text(text, textAlign: TextAlign.center, style: AppText.caption.copyWith(height: 1.45, color: AppColors.ink)),
       ]),
@@ -445,7 +445,10 @@ class _CountryChip extends StatelessWidget {
         key: const Key('change-country'),
         customBorder: const StadiumBorder(),
         onTap: onTap,
-        child: Padding(
+        // At least 44 high: a comfortable tap target
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 44),
+          child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
           child: Row(mainAxisSize: MainAxisSize.min, children: [
             Text(country.flagEmoji, style: AppText.body),
@@ -453,6 +456,7 @@ class _CountryChip extends StatelessWidget {
             Text(country.nameAr, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
             const Icon(Icons.expand_more_rounded, color: Colors.white70, size: 18),
           ]),
+        ),
         ),
       ),
     );

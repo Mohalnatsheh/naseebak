@@ -5,6 +5,18 @@ import 'package:go_router/go_router.dart';
 import '../../core/theme/app_theme.dart';
 import '../profile/profile_repository.dart';
 
+/// The line under a section's name: what is still missing, never the section's own name again (the quiz section's
+/// only missing item is «اختبار الشخصية» itself); then what the section adds, where there is something to say.
+String? strengthSubtitle(StrengthSection s) {
+  final missing = s.missing.where((m) => m.trim() != s.label.trim()).take(3).join('، ');
+  if (missing.isNotEmpty) return missing;
+  return switch (s.key) {
+    'quiz' => 'أسئلة قصيرة تجعل نسبة التوافق أدق',
+    'photos' => 'تظهر بعد التوافق المتبادل فقط',
+    _ => null,
+  };
+}
+
 /// «قوة ملفك» on home while the profile is under 100%: the unfinished sections, each opening its screen.
 class ProfileStrengthCard extends ConsumerWidget {
   const ProfileStrengthCard({super.key});
@@ -42,7 +54,9 @@ class ProfileStrengthCard extends ConsumerWidget {
                 contentPadding: EdgeInsets.zero,
                 dense: true,
                 title: Text(s.label, style: const TextStyle(fontWeight: FontWeight.w700)),
-                subtitle: s.missing.isEmpty ? null : Text(s.missing.take(3).join('، '), maxLines: 1, overflow: TextOverflow.ellipsis),
+                subtitle: strengthSubtitle(s) == null
+                    ? null
+                    : Text(strengthSubtitle(s)!, maxLines: 1, overflow: TextOverflow.ellipsis),
                 trailing: const Icon(Icons.chevron_right, color: AppColors.muted),
                 onTap: () async {
                   await context.push(s.route);

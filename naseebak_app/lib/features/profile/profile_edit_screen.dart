@@ -239,7 +239,7 @@ class _ProfileEditFormState extends ConsumerState<ProfileEditForm> {
       return;
     }
     if (plan.reviewed.isNotEmpty && widget.pending != null) {
-      setState(() => _error = 'لديك طلب تعديل قيد المراجعة. اسحبه أولاً لتغيير بيانات محفوظة، أو احفظ الحقول الفارغة فقط.');
+      setState(() => _error = 'لديك طلب تعديل قيد المراجعة. يمكنك سحبه أولاً لتغيير بيانات محفوظة، أو حفظ الحقول الفارغة فقط.');
       return;
     }
     setState(() => _saving = true);

@@ -16,7 +16,7 @@ export type ProErrorCode = "DISABLED" | "UNAVAILABLE" | "ALREADY_PRO" | "UNKNOWN
 export const PRO_ERROR_MESSAGES: Record<ProErrorCode, string> = {
   DISABLED: "الاشتراك في Pro غير متاح حالياً",
   UNAVAILABLE: "الشراء غير متاح في دولتك حالياً",
-  ALREADY_PRO: "أنت مشترك في Pro بالفعل",
+  ALREADY_PRO: "لديك اشتراك Pro فعّال بالفعل",
   UNKNOWN_PLAN: "الباقة غير صالحة",
 };
 

@@ -130,9 +130,14 @@ void main() {
       playback.attach('a');
       await playback.toggle('a', _src);
       expect(players, isEmpty);
+      // Not started: the bubble must not count the note as played
+      expect(playback.isStarted('a'), isFalse);
       recording = false;
       await playback.toggle('a', _src);
       expect(players.single.plays, 1);
+      expect(playback.isStarted('a'), isTrue);
+      await playback.toggle('a', _src);
+      expect(playback.isStarted('a'), isFalse);
     });
 
     test('closeAll disposes every player', () async {

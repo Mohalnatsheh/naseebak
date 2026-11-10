@@ -48,6 +48,8 @@ Future<bool> reportAndBlock(
 }) async {
   final res = await showModalBottomSheet<ReportAnswer>(
     context: context,
+    // Over the tab bar (also opened from a suggestion card, inside a tab): its send button is never under the bar
+    useRootNavigator: true,
     isScrollControlled: true,
     useSafeArea: true,
     barrierLabel: 'إغلاق',
@@ -161,7 +163,8 @@ class _ReportSheetState extends State<ReportSheet> {
     return Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
       child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+        // The last button stays clear of the home indicator (0 while the keyboard is up)
+        padding: EdgeInsets.fromLTRB(20, 0, 20, 24 + MediaQuery.paddingOf(context).bottom),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [

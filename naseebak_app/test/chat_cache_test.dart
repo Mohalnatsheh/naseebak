@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:naseebak_app/features/chat/chat_cache.dart';
 import 'package:naseebak_app/features/chat/chat_models.dart';
+import 'package:naseebak_app/features/chat/chat_room_screen.dart' show olderCursorOf;
 
 final _t0 = DateTime.utc(2026, 10, 30, 10);
 
@@ -110,6 +111,46 @@ void main() {
     await Future.wait([w, r]);
     expect(await cache.read('u1', 'c1'), isNull);
   });
+
+  test('a failed reply keeps its quote through the cache (a retry still sends replyToId)', () {
+    const quote = ReplyQuote(id: 'm1', mine: false, kind: MessageKind.text, snippet: 'رسالة 1');
+    final c = CachedChat(
+      conversation: chat([]).conversation,
+      messages: [
+        ...chat([1]).messages,
+        ChatMessage(
+          id: 'local-n1',
+          body: 'نعم',
+          createdAt: _t0.add(const Duration(minutes: 2)),
+          mine: true,
+          state: SendState.failed,
+          nonce: 'n1',
+          maybeSent: true,
+          replyTo: quote,
+        ),
+      ],
+      hasMore: false,
+    );
+    final back = ChatCache.decode(ChatCache.encode(c))!;
+    final failed = back.messages.singleWhere((m) => m.state == SendState.failed);
+    expect(failed.replyTo!.id, 'm1');
+    expect(failed.replyTo!.snippet, 'رسالة 1');
+    expect(failed.maybeSent, isTrue);
+  });
+
+  test('older messages page from the oldest saved message, never from a failed bubble above it', () {
+    final failed = ChatMessage(
+      id: 'local-n1',
+      body: 'x',
+      createdAt: _t0.subtract(const Duration(days: 1)),
+      mine: true,
+      state: SendState.failed,
+      nonce: 'n1',
+    );
+    final sorted = sortedForChat([...chat([5, 6]).messages, failed]);
+    expect(sorted.first.id, 'local-n1');
+    expect(olderCursorOf(sorted)!.id, 'm5');
+    expect(olderCursorOf([failed]), isNull);
+    expect(olderCursorOf(const []), isNull);
+  });
 }
-
-

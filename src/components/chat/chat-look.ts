@@ -81,6 +81,16 @@ export function closedChatFamilyNote(step: FamilyStep | null, viewerGender?: str
   return null;
 }
 
+/**
+ * The footer of an ended chat: who ended it. `endedBy` "system" (an admin, or an account paused or leaving) names
+ * nobody; an answer without `endedBy` (an older server, or only the live status event so far) reads as before.
+ */
+export function endedChatNote(c: Pick<ChatSummary, "endedByMe" | "endedBy">): string {
+  if (c.endedByMe || c.endedBy === "me") return "أنهيت هذه المحادثة.";
+  if (c.endedBy === "system") return "انتهت هذه المحادثة.";
+  return "أنهى الطرف الآخر هذه المحادثة.";
+}
+
 export type ChatBar = "none" | "expiry" | "family" | "push";
 
 /** Under this many days left, the chat counts as ending soon */

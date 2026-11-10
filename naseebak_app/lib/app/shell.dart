@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../core/theme/app_theme.dart';
+import '../core/update/app_update.dart';
 import '../features/alerts/alert_gate.dart';
 import '../features/home/counts.dart';
 
@@ -42,7 +43,13 @@ class AppShell extends ConsumerWidget {
       },
       child: Scaffold(
       // The admin's popup alert, over whichever tab is open
-      body: TabBackScope(handlesBack: shell.currentIndex != 0, child: AlertGate(child: shell)),
+      body: Stack(
+        children: [
+          TabBackScope(handlesBack: shell.currentIndex != 0, child: AlertGate(child: shell)),
+          // An optional update: one card just above the tab bar, on the tabs only
+          const PositionedDirectional(start: 12, end: 12, bottom: 12, child: OptionalUpdateCard()),
+        ],
+      ),
       // The tab bar keeps one line: its text grows only a little with the system size, and a narrow phone shows
       // the selected tab's label only (QA A2-M5: «الاقتراحات» wrapped at 320 dp)
       bottomNavigationBar: MediaQuery.withClampedTextScaling(

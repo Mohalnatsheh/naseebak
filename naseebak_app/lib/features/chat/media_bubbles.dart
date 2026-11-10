@@ -13,6 +13,10 @@ import 'voice_played_store.dart';
 
 export 'voice_playback.dart';
 
+/// Ink at 8% and 6%: a photo still loading, and the box behind a media placeholder
+final Color _mediaLoadingTint = AppColors.ink.withValues(alpha: 0.08);
+final Color _mediaPlaceholderTint = AppColors.ink.withValues(alpha: 0.06);
+
 const photoErrorText = 'تعذّر عرض الصورة';
 const voiceErrorText = 'تعذّر تشغيل الرسالة';
 
@@ -109,7 +113,7 @@ class _PhotoBubbleState extends ConsumerState<PhotoBubble> {
                     return const _MediaPlaceholder(icon: Icons.broken_image_outlined, text: photoErrorText);
                   }
                   final provider = _provider(snap.data);
-                  if (provider == null) return const ColoredBox(color: Color(0x14000000));
+                  if (provider == null) return ColoredBox(color: _mediaLoadingTint);
                   return GestureDetector(
                     onTap: () => _openViewer(context),
                     child: Semantics(
@@ -125,7 +129,7 @@ class _PhotoBubbleState extends ConsumerState<PhotoBubble> {
                         width: size.width,
                         height: size.height,
                         frameBuilder: (context, child, frame, sync) => frame == null && !sync
-                            ? const ColoredBox(color: Color(0x14000000), child: SizedBox.expand())
+                            ? ColoredBox(color: _mediaLoadingTint, child: const SizedBox.expand())
                             : child,
                         errorBuilder: (context, error, _) {
                           _onError(error, snap.data);
@@ -352,7 +356,7 @@ class _MediaPlaceholder extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ColoredBox(
-      color: const Color(0x0F000000),
+      color: _mediaPlaceholderTint,
       child: Center(
         child: Padding(
           padding: const EdgeInsets.all(12),
@@ -555,7 +559,8 @@ class _VoiceBubbleState extends ConsumerState<VoiceBubble> {
         ? () async => (uri: Uri.file(local), headers: null)
         : () => authedMedia(ref, url!).then((m) => (uri: m.uri, headers: m.headers));
     final ok = await _playback.toggle(_key, source);
-    if (ok && played != null) unawaited(_played.markPlayed(played));
+    // Only when it was really started: a tap while a recording blocks playback (or during a load) plays nothing
+    if (ok && played != null && _playback.isStarted(_key)) unawaited(_played.markPlayed(played));
     // Signed out (401) → the API client's sign-out path; gone (404) stays a placeholder
     if (!ok && mounted && local == null) unawaited(probeMediaAccess(ref, url!));
   }
@@ -733,7 +738,8 @@ class _VoiceBubbleState extends ConsumerState<VoiceBubble> {
                                       label: 'لم تُسمع بعد',
                                       child: const DecoratedBox(
                                         key: Key('voice-unplayed'),
-                                        decoration: BoxDecoration(color: AppColors.gold, shape: BoxShape.circle),
+                                        // On the partner's white bubble: accent-ink, not the pale gold fill
+                                        decoration: BoxDecoration(color: AppColors.goldText, shape: BoxShape.circle),
                                         child: SizedBox(width: 8, height: 8),
                                       ),
                                     ),

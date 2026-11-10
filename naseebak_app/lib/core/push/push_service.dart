@@ -7,6 +7,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
+import '../../features/home/counts.dart';
 import '../../features/notifications/notifications_screen.dart';
 import '../routing/router.dart';
 
@@ -178,6 +179,10 @@ class PushService with WidgetsBindingObserver {
   /// iOS presents it only while AppDelegate is the notification center delegate (`UNUserNotificationCenter.current()
   /// .delegate = self`), so that firebase_messaging leaves local notifications to this plugin.
   void _showForeground(RemoteMessage m) {
+    // Something changed for this member: the badges, home's next step and the bell re-read (also for a push about
+    // the screen already open, and a data-only one)
+    _ref.invalidate(countsProvider);
+    _ref.invalidate(unreadNotificationsProvider);
     final n = m.notification;
     if (n == null) return;
     final url = m.data['url'] as String?;

@@ -8,6 +8,7 @@ import '../../core/localization/digits.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/common.dart';
+import 'logout_button.dart';
 import '../chat/chat_models.dart' show chatListProvider;
 import '../home/counts.dart';
 import '../home/home_screen.dart' show homeSuggestionsProvider;
@@ -183,11 +184,7 @@ class _PausedScreenState extends ConsumerState<PausedScreen> {
               onPressed: _reactivate,
             ),
             const SizedBox(height: 12),
-            LoadingButton(
-              label: 'تسجيل الخروج',
-              outlined: true,
-              onPressed: _busy ? null : () => ref.read(authControllerProvider.notifier).logout(),
-            ),
+            LogoutButton(enabled: !_busy),
           ],
         ),
       ),

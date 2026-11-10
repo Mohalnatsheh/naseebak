@@ -45,6 +45,10 @@ class ProScreen extends ConsumerStatefulWidget {
 /// What a member who may not see Pro gets on `/pro` (an old link, a notice): no plan, no price, no button
 const proUnavailableText = 'عضوية Pro غير متاحة حالياً.';
 
+/// Back from a paid checkout whose confirmation hasn't landed yet, and from one the member cancelled
+const proActivatingText = 'سيتم تفعيل العضوية خلال لحظات';
+const proCheckoutCancelledText = 'لم يكتمل الاشتراك، ولم يُخصم شيء.';
+
 class _ProScreenState extends ConsumerState<ProScreen> with WidgetsBindingObserver {
   /// A checkout is being started, and a checkout page was opened from this screen (polled on return)
   bool _subscribing = false;
@@ -55,6 +59,10 @@ class _ProScreenState extends ConsumerState<ProScreen> with WidgetsBindingObserv
   /// is re-read and a spinner shows until it answers
   bool _opening = true;
 
+  /// How the checkout opened from this screen sent the member back (Stripe's return link), when the app got it
+  ProReturn? _return;
+  ProviderSubscription<ProReturn?>? _returns;
+
   @override
   void initState() {
     super.initState();
@@ -64,6 +72,7 @@ class _ProScreenState extends ConsumerState<ProScreen> with WidgetsBindingObserv
     // Only a state read before this screen can be stale (otherwise this screen's own first read is fresh). After the
     // first frame: invalidating while the tree builds would rebuild the screens that watch it mid-build.
     final kept = ref.exists(proStateProvider);
+    _returns = ref.listenManual(proReturnProvider, (_, next) => _onReturn(next));
     WidgetsBinding.instance.addPostFrameCallback((_) => _refreshOnOpen(stale: kept));
   }
 
@@ -83,6 +92,7 @@ class _ProScreenState extends ConsumerState<ProScreen> with WidgetsBindingObserv
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _returns?.close();
     _pollRun++;
     super.dispose();
   }
@@ -96,6 +106,19 @@ class _ProScreenState extends ConsumerState<ProScreen> with WidgetsBindingObserv
       // Pro may have changed elsewhere meanwhile (website, admin): one re-read
       ref.invalidate(proStateProvider);
     }
+  }
+
+  /// The return link of the checkout this screen opened. Cancelled: nothing to wait for, so the polling stops and a
+  /// plain line says nothing was charged (one last re-read, in case it was paid after all). Paid: remembered, so a
+  /// webhook that is late gets «سيتم تفعيل العضوية خلال لحظات».
+  void _onReturn(ProReturn? result) {
+    if (result == null || !mounted || !_checkoutOpened) return;
+    _return = result;
+    if (result != ProReturn.cancel) return;
+    _checkoutOpened = false;
+    _pollRun++;
+    ref.invalidate(proStateProvider);
+    showSnack(context, proCheckoutCancelledText);
   }
 
   /// «اشترك الآن»: a Pro checkout opened in the browser (https only); the return to the app is polled ([_poll])
@@ -132,6 +155,8 @@ class _ProScreenState extends ConsumerState<ProScreen> with WidgetsBindingObserv
       }
       final url = start.url!;
       // Set before the browser opens: the return to the app (resumed) may come before launch answers
+      _return = null;
+      ref.read(proReturnProvider.notifier).state = null;
       _checkoutOpened = true;
       final open = widget.openCheckout ?? (u) => launchUrl(u, mode: LaunchMode.externalApplication);
       final ok = await open(url).catchError((_) => false);
@@ -178,7 +203,8 @@ class _ProScreenState extends ConsumerState<ProScreen> with WidgetsBindingObserv
     }
     if (run != _pollRun || !mounted) return;
     _checkoutOpened = false;
-    showSnack(context, 'سيتم تفعيل العضوية خلال لحظات');
+    // Only when Stripe said it was paid: a checkout the member left (no return link) promises nothing
+    if (_return == ProReturn.success) showSnack(context, proActivatingText);
   }
 
   Widget _unavailable() => const MessageView(

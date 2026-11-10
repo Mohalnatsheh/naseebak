@@ -463,12 +463,12 @@ export function MatchIntroPanel({
         <h3 className="font-bold text-foreground">خطوات التعارف</h3>
         {freeRequests ? (
           <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-            <Gift className="h-3.5 w-3.5 text-accent" />
+            <Gift className="h-3.5 w-3.5 text-accent-ink" />
             الطلبات مجانية
           </span>
         ) : (
           <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-            <Coins className="h-3.5 w-3.5 text-accent" />
+            <Coins className="h-3.5 w-3.5 text-accent-ink" />
             رصيدك: <span className="font-bold text-foreground">{state.credits}</span>
           </span>
         )}

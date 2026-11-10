@@ -11,6 +11,7 @@ import '../../core/localization/digits.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/brand_kit.dart';
 import '../../shared/widgets/common.dart';
+import '../auth/logout_button.dart';
 import '../country_selection/country_providers.dart';
 import '../home/counts.dart';
 import '../pro/pro_repository.dart';
@@ -163,16 +164,7 @@ class AccountScreen extends ConsumerWidget {
             ]),
           ),
           const SizedBox(height: 16),
-          LoadingButton(
-            key: const Key('logout'),
-            label: 'تسجيل الخروج',
-            icon: Icons.logout_rounded,
-            outlined: true,
-            onPressed: () async {
-              final ok = await confirmDialog(context, title: 'تسجيل الخروج', body: 'تسجيل الخروج من هذا الجهاز؟', confirmLabel: 'خروج');
-              if (ok) await ref.read(authControllerProvider.notifier).logout();
-            },
-          ),
+          const LogoutButton(key: Key('logout'), confirm: true, icon: Icons.logout_rounded),
           const SizedBox(height: 12),
           Center(child: Text('تغيير الدولة متاح قبل تسجيل الدخول فقط.', style: AppText.caption.copyWith(color: AppColors.muted))),
         ],

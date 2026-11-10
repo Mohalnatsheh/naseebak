@@ -155,6 +155,68 @@ void main() {
     });
   });
 
+  testWidgets('a link to a tab switches to it even when the address already names it (the member had swiped away)',
+      (tester) async {
+    final h = Harness();
+    await h.pump(tester);
+    TabController tabs() => tester.widget<TabBar>(find.byType(TabBar)).controller!;
+    // Swiped to «بانتظار ردّهم»: the screen's address still says «جديدة»
+    await tester.tap(find.byKey(const Key('feed-tab-waiting')));
+    await pumpFor(tester);
+    expect(tabs().index, FeedTab.waiting.index);
+    // Home's «اقتراحات جديدة», a notice or a push asks for «جديدة» again (`openAppRoute`)
+    feedTabRequest.ask(FeedTab.newTab);
+    await pumpFor(tester);
+    expect(tabs().index, FeedTab.newTab.index);
+  });
+
+  testWidgets('after a decision the pages already loaded are read again: the member keeps their place', (tester) async {
+    final h = Harness();
+    await h.pump(tester);
+    // Two pages of «جديدة»: 10 cards, then 2
+    final gone = <String>{};
+    List<Map<String, dynamic>> all() => [for (var i = 1; i <= 12; i++) if (!gone.contains('n$i')) card('n$i')];
+    h.adapter.handlers['GET /api/suggestions/feed'] = (r) {
+      final page = int.parse('${r.queryParameters['page'] ?? 1}');
+      final list = r.queryParameters['tab'] == 'new' ? all() : <Map<String, dynamic>>[];
+      return FakeResponse(200, {
+        'items': list.skip((page - 1) * 10).take(10).toList(),
+        'page': page,
+        'total': list.length,
+        'totalPages': (list.length / 10).ceil(),
+      });
+    };
+    h.adapter.handlers['POST /api/suggestions/n12/decide'] = (_) {
+      gone.add('n12');
+      return const FakeResponse(200, {'match': false});
+    };
+    int page2() => h.adapter
+        .to('GET', '/api/suggestions/feed')
+        .where((r) => r.queryParameters['tab'] == 'new' && '${r.queryParameters['page']}' == '2')
+        .length;
+    // Pull-to-refresh starts from the first page only
+    final refreshed = tester.state<RefreshIndicatorState>(find.byType(RefreshIndicator).first).show();
+    await pumpFor(tester, 30);
+    await refreshed;
+    expect(page2(), 0);
+    // Down to the end: the second page loads
+    for (var i = 0; i < 12 && find.byKey(const Key('decline-n12')).evaluate().isEmpty; i++) {
+      await tester.drag(find.byType(ListView).first, const Offset(0, -900));
+      await pumpFor(tester, 10);
+    }
+    expect(page2(), 1);
+    await tester.ensureVisible(find.byKey(const Key('decline-n12')));
+    await pumpFor(tester, 5);
+    await tester.tap(find.byKey(const Key('decline-n12')));
+    await pumpFor(tester);
+    await tester.tap(find.text('نعم، لا يناسبني'));
+    await pumpFor(tester, 30);
+    // The reload after the decision read page 2 again, and the card before it is still there
+    expect(page2(), 2);
+    expect(find.byKey(const Key('decline-n12')), findsNothing);
+    expect(find.byKey(const Key('decline-n11')), findsOneWidget);
+  });
+
   group('«مهتم» sheet errors', () {
     testWidgets('404: the sheet closes, the card leaves and the server message shows', (tester) async {
       final h = Harness();

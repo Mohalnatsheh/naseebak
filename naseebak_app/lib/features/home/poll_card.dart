@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
 import '../../core/auth/auth_controller.dart';
+import '../../core/localization/arabic_count.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/network/json.dart';
 import '../../core/theme/app_theme.dart';
@@ -108,7 +109,7 @@ class _PollCardState extends ConsumerState<PollCard> {
           children: [
             Row(
               children: [
-                const Icon(Icons.how_to_vote_outlined, color: AppColors.gold),
+                const Icon(Icons.how_to_vote_outlined, color: AppColors.goldText),
                 const SizedBox(width: 8),
                 const Expanded(child: Text('سؤال نصيبك', style: TextStyle(fontWeight: FontWeight.w800, color: AppColors.goldText))),
                 if (!poll.answered && poll.offerCredits > 0) Pill(text: '+${poll.offerCredits} رصيد', color: AppColors.success),
@@ -128,7 +129,8 @@ class _PollCardState extends ConsumerState<PollCard> {
               const SizedBox(height: 8),
             ],
             if (poll.answered && poll.percents == null && poll.votesNeeded > 0)
-              Text('تظهر النتائج بعد ${poll.votesNeeded} أصوات أخرى.',
+              Text(
+                  'تظهر النتائج بعد ${arabicCount(poll.votesNeeded, one: 'صوت واحد آخر', two: 'صوتين آخرين', few: 'أصوات أخرى', many: 'صوتاً آخر')}.',
                   style: AppText.labelRegular.copyWith(color: AppColors.muted)),
             if (poll.note != null && poll.note!.isNotEmpty)
               Text(poll.note!, style: AppText.labelRegular.copyWith(color: AppColors.muted)),

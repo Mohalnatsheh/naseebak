@@ -11,7 +11,7 @@ export function StarterChips({ starters, onPick }: { starters: readonly string[]
   return (
     <div data-testid="starter-chips" className="mb-2">
       <p className="mb-1.5 flex items-center justify-center gap-1 text-xs font-semibold text-muted-foreground">
-        <Sparkles className="h-3.5 w-3.5 text-accent" aria-hidden />
+        <Sparkles className="h-3.5 w-3.5 text-accent-ink" aria-hidden />
         اقتراحات لبدء المحادثة
       </p>
       <div className="flex flex-wrap justify-center gap-2">

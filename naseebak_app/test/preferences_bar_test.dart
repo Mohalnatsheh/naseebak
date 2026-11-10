@@ -25,7 +25,7 @@ void main() {
     await pumpBar(tester, adapter(mutual: true), () => edits++);
 
     expect(find.text('تفضيلاتي وشروطي الأساسية'), findsOneWidget);
-    expect(find.text('العمر 25–35 · 2 شروط أساسية'), findsOneWidget);
+    expect(find.text('العمر 25–35 · شرطان أساسيان'), findsOneWidget);
     expect(find.widgetWithText(Chip, 'العمر'), findsOneWidget);
     expect(find.widgetWithText(Chip, 'المدينة'), findsOneWidget);
 

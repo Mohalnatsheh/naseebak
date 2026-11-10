@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 
 import '../../features/notifications/notifications_screen.dart' show appRouteForLink;
+import '../../features/pro/pro_repository.dart' show ProReturn;
 
 /// A naseebak.com link opened in the app (Android App Links / iOS Universal Links): the member pages
 /// (`/dashboard/...`, mapped like a notification's link) and the referral link (`/register?invitationCode=`).
@@ -23,6 +24,17 @@ class WebsiteLink {
     }
     return null;
   }
+}
+
+/// Stripe's return link from a Pro checkout: `/dashboard/pro?pro=success` (paid) or `?pro=cancel` (backed out). Null
+/// for any other link.
+ProReturn? proReturnOf(Uri uri) {
+  if (uri.path != '/dashboard/pro') return null;
+  return switch (uri.queryParameters['pro']) {
+    'success' => ProReturn.success,
+    'cancel' => ProReturn.cancel,
+    _ => null,
+  };
 }
 
 /// Where a referral link's invitation code waits for the sign-up screen (shared preferences)

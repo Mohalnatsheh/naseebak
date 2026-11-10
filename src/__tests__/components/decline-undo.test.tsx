@@ -38,6 +38,8 @@ beforeEach(() => {
 afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
+  // A tab switch writes ?tab= to the URL: the next test starts on «جديدة» again
+  window.history.replaceState(null, "", "/");
 });
 
 const decideCalls = () => fetchMock.mock.calls.filter(([url]) => String(url).includes("/decide"));
@@ -74,6 +76,25 @@ describe("«لا» with undo", () => {
     fireEvent.click(await screen.findByRole("button", { name: /^لا/ }));
     unmount();
     expect(decideCalls()).toHaveLength(1);
+  });
+});
+
+describe("«تراجع» after switching tab", () => {
+  it("reloads the tab on screen, never the tab the card was on", async () => {
+    render(<MutualSuggestionsView />);
+    fireEvent.click(await screen.findByRole("button", { name: /^لا/ }));
+    const undo = toastMock.mock.calls[0][1].action.onClick as () => void;
+    fireEvent.click(screen.getByRole("tab", { name: /مهتمون بك/ }));
+    await screen.findByText("لا توجد اهتمامات جديدة حالياً");
+    fetchMock.mockClear();
+    await act(async () => {
+      undo();
+    });
+    const lists = fetchMock.mock.calls.map(([url]) => String(url)).filter((url) => url.includes("/feed") && !url.includes("count=1"));
+    expect(lists).toEqual(["/api/suggestions/feed?tab=interested&page=1"]);
+    // The «جديدة» card must not show under «مهتمون بك» (where «مهتم» reads as an instant match)
+    expect(screen.queryByText("سارة")).not.toBeInTheDocument();
+    expect(screen.getByText("لا توجد اهتمامات جديدة حالياً")).toBeInTheDocument();
   });
 });
 

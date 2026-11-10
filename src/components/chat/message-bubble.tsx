@@ -228,7 +228,7 @@ export function MessageBubble({
           )}
         </div>
         {message.pending === "failed" && (
-          <button type="button" tabIndex={rowTab} onClick={onRetry} className="mt-0.5 inline-flex min-h-9 items-center gap-1 px-1 text-xs font-semibold text-destructive hover:underline">
+          <button type="button" tabIndex={rowTab} onClick={onRetry} className="mt-0.5 inline-flex min-h-11 items-center gap-1 px-1 text-xs font-semibold text-destructive hover:underline">
             <RotateCcw className="h-3 w-3" /> لم تُرسل · إعادة المحاولة
           </button>
         )}

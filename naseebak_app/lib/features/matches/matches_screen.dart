@@ -37,42 +37,53 @@ class _MatchesScreenState extends ConsumerState<MatchesScreen> {
     _load();
   }
 
+  /// Bumped by every reload from page 1, so a «عرض المزيد» answer for the older list is dropped
+  int _generation = 0;
+
   Future<void> _load() async {
+    final generation = ++_generation;
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
       final res = await ref.read(matchesRepositoryProvider).list();
-      if (!mounted) return;
+      if (!mounted || generation != _generation) return;
       setState(() {
         _items
           ..clear()
           ..addAll(res.items);
         _page = res.page;
+        _loadingMore = false;
       });
     } catch (e) {
-      if (mounted) setState(() => _error = e);
+      if (!mounted || generation != _generation) return;
+      setState(() => _error = e);
+      // Matches already on screen stay, but never silently: the refresh failed
+      if (_items.isNotEmpty) showSnack(context, ApiException.messageOf(e));
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted && generation == _generation) setState(() => _loading = false);
     }
   }
 
   Future<void> _more() async {
     final p = _page;
     if (p == null || !p.hasMore || _loadingMore) return;
+    final generation = _generation;
     setState(() => _loadingMore = true);
     try {
       final res = await ref.read(matchesRepositoryProvider).list(page: p.page + 1);
-      if (!mounted) return;
+      // The list was reloaded meanwhile: this page belongs to the older one
+      if (!mounted || generation != _generation) return;
+      final known = _items.map((e) => e.id).toSet();
       setState(() {
-        _items.addAll(res.items);
+        _items.addAll(res.items.where((e) => known.add(e.id)));
         _page = res.page;
       });
     } catch (e) {
-      if (mounted) showSnack(context, ApiException.messageOf(e));
+      if (mounted && generation == _generation) showSnack(context, ApiException.messageOf(e));
     } finally {
-      if (mounted) setState(() => _loadingMore = false);
+      if (mounted && generation == _generation) setState(() => _loadingMore = false);
     }
   }
 

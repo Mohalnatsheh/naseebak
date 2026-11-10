@@ -4,6 +4,7 @@ import {
   chatStatusBar,
   familyStepOf,
   closedChatFamilyNote,
+  endedChatNote,
   firstUnreadId,
   groupByDay,
   isActiveChat,
@@ -171,5 +172,21 @@ describe("closedChatFamilyNote: an expired chat keeps its family links (Task 2 r
   it("nothing for the offer (the footer has its own button) or no step", () => {
     expect(closedChatFamilyNote("offer", "MALE")).toBeNull();
     expect(closedChatFamilyNote(null, "MALE")).toBeNull();
+  });
+});
+
+describe("endedChatNote", () => {
+  it("names me or the partner only when one of us ended it", () => {
+    expect(endedChatNote({ endedByMe: true, endedBy: "me" })).toBe("أنهيت هذه المحادثة.");
+    expect(endedChatNote({ endedByMe: false, endedBy: "partner" })).toBe("أنهى الطرف الآخر هذه المحادثة.");
+  });
+
+  it("names nobody when an admin or a paused account closed it", () => {
+    expect(endedChatNote({ endedByMe: false, endedBy: "system" })).toBe("انتهت هذه المحادثة.");
+  });
+
+  it("reads an answer without endedBy as before", () => {
+    expect(endedChatNote({ endedByMe: true })).toBe("أنهيت هذه المحادثة.");
+    expect(endedChatNote({ endedByMe: false })).toBe("أنهى الطرف الآخر هذه المحادثة.");
   });
 });

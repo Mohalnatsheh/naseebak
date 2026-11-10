@@ -170,7 +170,7 @@ export function ReactivatePanel({ firstName, isFemale, country, deletionSchedule
           </div>
 
           <div className="flex items-center justify-center gap-2 border-t border-border/50 pt-4 text-xs text-muted-foreground">
-            <ShieldCheck className="h-4 w-4 text-accent" />
+            <ShieldCheck className="h-4 w-4 text-accent-ink" />
             {deleting
               ? isFemale
                 ? "يبقى حسابكِ مخفياً عن الجميع حتى تلغي الطلب أو يحين موعد الحذف."

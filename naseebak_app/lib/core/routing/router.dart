@@ -25,6 +25,7 @@ import '../../features/notifications/mark_page_read.dart';
 import '../../features/chat/last_chat.dart';
 import '../../features/notifications/notifications_screen.dart';
 import '../../features/onboarding/setup_screen.dart';
+import '../../features/pro/pro_repository.dart' show proReturnProvider;
 import '../../features/pro/pro_screen.dart';
 import '../../features/profile/guardian_form.dart';
 import '../../features/profile/photos_screen.dart';
@@ -154,6 +155,9 @@ final routerProvider = Provider<GoRouter>((ref) {
     final link = WebsiteLink.parse(uri);
     final route = link?.route;
     if (link == null || route == null || link.invitationCode != null) return false;
+    // Back from a Pro checkout: the Pro screen (already on top) learns whether it was paid or cancelled
+    final proReturn = proReturnOf(uri);
+    if (proReturn != null) ref.read(proReturnProvider.notifier).state = proReturn;
     String current;
     try {
       current = router.state.uri.path;

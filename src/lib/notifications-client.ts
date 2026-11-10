@@ -36,3 +36,8 @@ export function notifyNotificationsRead(unreadCount?: number): void {
 export function notifyChatSent(): void {
   window.dispatchEvent(new Event("naseeb:chat-sent"));
 }
+
+/** A chat ended, was extended or changed state: the chat list beside the room reloads (the same signal as a send) */
+export function notifyChatChanged(): void {
+  window.dispatchEvent(new Event("naseeb:chat-sent"));
+}

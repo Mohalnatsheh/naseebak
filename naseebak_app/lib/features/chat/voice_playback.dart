@@ -236,6 +236,13 @@ class VoicePlayback {
     return s;
   }
 
+  /// [key] is the note asked to play right now (playing, or about to): false after a pause, while a recording blocks
+  /// playback, or when another note took over. What «played» means for the unplayed dot.
+  bool isStarted(String key) {
+    final s = _sessions[key];
+    return s != null && !s.closed && _current == key && s._wantPlay;
+  }
+
   /// The session for [key], if one is live (no attach)
   VoiceSession? sessionFor(String key) => _sessions[key];
 

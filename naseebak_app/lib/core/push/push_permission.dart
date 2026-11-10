@@ -65,14 +65,17 @@ Future<void> openNotificationSettings() async {
 /// is left at that; the «الإشعارات غير مفعّلة» card stays for later, no second sheet at once.
 Future<void> enablePushNotifications(BuildContext context, WidgetRef ref, {bool explainIfRefused = true}) async {
   var allowed = false;
+  // Taken before the system prompt (it can stay up as long as the member likes): the card that asked may be gone
+  // by the answer, and a `ref` used after its widget is gone throws
+  final container = ProviderScope.containerOf(context, listen: false);
   try {
     final s = await FirebaseMessaging.instance.requestPermission();
     allowed = s.authorizationStatus == AuthorizationStatus.authorized ||
         s.authorizationStatus == AuthorizationStatus.provisional;
   } catch (_) {}
-  ref.invalidate(pushAllowedProvider);
+  container.invalidate(pushAllowedProvider);
   if (allowed) {
-    ref.read(pushServiceProvider).start();
+    container.read(pushServiceProvider).start();
     return;
   }
   if (!context.mounted || !explainIfRefused) return;
@@ -131,7 +134,7 @@ class PushStepsSheet extends StatelessWidget {
                       radius: 13,
                       backgroundColor: AppColors.gold.withValues(alpha: 0.15),
                       child: Text('${i + 1}',
-                          style: AppText.label.copyWith(color: AppColors.gold, fontWeight: FontWeight.w800)),
+                          style: AppText.label.copyWith(color: AppColors.goldText, fontWeight: FontWeight.w800)),
                     ),
                     const SizedBox(width: 10),
                     Expanded(child: Text(steps[i], style: const TextStyle(height: 1.6))),
@@ -227,7 +230,6 @@ class _PushOffCardState extends ConsumerState<PushOffCard> with WidgetsBindingOb
                 if (widget.dismissible)
                   IconButton(
                     tooltip: 'لاحقاً',
-                    visualDensity: VisualDensity.compact,
                     onPressed: () => snoozePushCard(ref),
                     icon: const Icon(Icons.close_rounded, size: 20, color: AppColors.muted),
                   ),
@@ -314,7 +316,7 @@ class PushAskSheet extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Icon(Icons.notifications_active_outlined, color: AppColors.gold, size: 40),
+            const Icon(Icons.notifications_active_outlined, color: AppColors.goldText, size: 40),
             const SizedBox(height: 10),
             Text('الإشعارات', textAlign: TextAlign.center, style: AppText.headline.copyWith(fontWeight: FontWeight.w800)),
             const SizedBox(height: 6),

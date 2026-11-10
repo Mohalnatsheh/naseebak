@@ -79,6 +79,15 @@ String reportDoneText({required bool report, required bool end, required bool op
   return open ? 'تم إنهاء المحادثة والإبلاغ' : 'تم الإبلاغ والحظر';
 }
 
+/// The cursor for «older messages»: the oldest message held that the server saved (never a failed or sending bubble
+/// of mine); null when none is
+ChatMessage? olderCursorOf(List<ChatMessage> oldestFirst) {
+  for (final m in oldestFirst) {
+    if (m.state == SendState.sent) return m;
+  }
+  return null;
+}
+
 class ChatRoomScreen extends ConsumerStatefulWidget {
   const ChatRoomScreen({super.key, required this.chatId, this.pollInterval = const Duration(seconds: 4)});
   final String chatId;
@@ -87,6 +96,9 @@ class ChatRoomScreen extends ConsumerStatefulWidget {
   @override
   ConsumerState<ChatRoomScreen> createState() => _ChatRoomScreenState();
 }
+
+/// The room kept between the composer's start edge (where the cursor stands) and its hint
+const composerHintGap = 6.0;
 
 /// A failed photo or voice note whose file the phone has since removed
 const mediaFileGoneText = 'لم يعد الملف موجوداً على الهاتف، يمكنك إرساله من جديد';
@@ -157,6 +169,9 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
   bool _background = false;
   StreamSubscription<void>? _live;
   bool _liveConnected = false;
+
+  /// The server said live chat isn't available (no token): polling only, asked again when the app comes back
+  bool _liveUnavailable = false;
   static const _livePollInterval = Duration(seconds: 20);
   static const _readOnlyPollInterval = Duration(seconds: 60);
 
@@ -372,6 +387,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     }
     if (state == AppLifecycleState.resumed) {
       _background = false;
+      _liveUnavailable = false;
       // Pro may have changed elsewhere meanwhile (the buttons follow it)
       if (ref.read(appPaymentsProvider)) ref.invalidate(proStateProvider);
       // Not before the chat is known (the first load starts watching itself)
@@ -414,13 +430,17 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
   }
 
   void _startLive() {
-    if (_live != null || !mounted || _background) return;
+    if (_live != null || _liveUnavailable || !mounted || _background) return;
     _live = ref.read(chatLiveProvider).events(widget.chatId, connected: (on) {
       if (!mounted || on == _liveConnected) return;
       _liveConnected = on;
       _startPolling();
       if (on) _poll();
-    }).listen(_onLive, onDone: () => _live = null);
+    }).listen(_onLive, onDone: () {
+      // The stream only ends by itself when the server has no live chat: not asked again on every poll
+      _live = null;
+      _liveUnavailable = true;
+    });
   }
 
   /// A live event: typing and reactions carry what changed; anything else (a message, a read tick) fetches
@@ -807,7 +827,25 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
   }
 
   @override
-  void didChangeMetrics() => _stickyAfterLayout();
+  void didChangeMetrics() {
+    _stickyAfterLayout();
+    _followKeyboard();
+  }
+
+  /// The keyboard is up: the composer sits right on it, with no home-indicator inset under it (simulator QA D2).
+  /// Read from the view, not the Scaffold's body (whose keyboard inset is already taken out); only a change rebuilds.
+  bool _keyboardOpen = false;
+  void _followKeyboard() {
+    if (!mounted) return;
+    final open = (View.maybeOf(context)?.viewInsets.bottom ?? 0) > 0;
+    if (open != _keyboardOpen) setState(() => _keyboardOpen = open);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _keyboardOpen = (View.maybeOf(context)?.viewInsets.bottom ?? 0) > 0;
+  }
 
   void _onScrollNotification(ScrollNotification n) {
     if (n.depth != 0) return;
@@ -884,10 +922,12 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
   }
 
   Future<void> _loadOlder() async {
-    if (!_hasMore || _loadingOlder || _messages.isEmpty) return;
+    // The oldest message the server knows: a failed bubble above it has a local id and the phone's time, and paging
+    // from it would skip everything between it and the loaded page
+    final first = olderCursorOf(_messages);
+    if (!_hasMore || _loadingOlder || first == null) return;
     setState(() => _loadingOlder = true);
     try {
-      final first = _messages.first;
       final page = await _repo.load(widget.chatId, before: first.createdAt, beforeId: first.id);
       if (!mounted) return;
       final known = _messages.map((m) => m.id).toSet();
@@ -941,10 +981,12 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     // The next keystroke tells the other person again at once
     _typingThrottle.reset();
     _toNewest();
+    // Taken before the request: `ref` can't be used once the chat was left meanwhile
+    final container = ProviderScope.containerOf(context, listen: false);
     try {
       final sent = await _repo.send(widget.chatId, text, nonce: nonce, replyToId: reply?.id);
       _confirmedIds.add(sent.id);
-      if (first) ref.read(analyticsProvider).chatStarted();
+      if (first) container.read(analyticsProvider).chatStarted();
       if (!mounted) return;
       setState(() {
         _messages.removeWhere((m) => m.nonce == nonce || m.id == sent.id);
@@ -1175,6 +1217,9 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     // A refusal is said even when the hold already ended (the finger lifted to answer the prompt): the first
     // «لا» used to vanish with the dropped recorder (QA A2-L5)
     if (!allowed) {
+      // The hold is over: the finger lifting afterwards must not say «الرسالة قصيرة جداً» over the refusal and its
+      // «الإعدادات» action (a blocked microphone answers at once, while the mic is still held)
+      _holding = false;
       _drop(rec);
       if (mounted) _micRefused();
       return;
@@ -1427,6 +1472,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     final busy = _voice == _Voice.stopping;
     return SafeArea(
       top: false,
+      bottom: !_keyboardOpen,
       child: Container(
         padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
         decoration: const BoxDecoration(color: Colors.white, border: Border(top: BorderSide(color: AppColors.line))),
@@ -2192,6 +2238,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     final starters = !holdUi && _replyTo == null && !_messages.any((m) => m.mine) ? _starters : const <String>[];
     return SafeArea(
       top: false,
+      bottom: !_keyboardOpen,
       child: Container(
         decoration: const BoxDecoration(color: Colors.white, border: Border(top: BorderSide(color: AppColors.line))),
         child: ValueListenableBuilder<TextEditingValue>(
@@ -2268,7 +2315,18 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
               onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
               style: AppText.body,
               decoration: InputDecoration(
-                hintText: forViewer(female, 'اكتب رسالتك…', 'اكتبي رسالتكِ…'),
+                // A little room at the start: the cursor of the empty, focused field stands at the very edge and
+                // would cover the hint's first letter, a thin «ا» («كتب رسالتك», simulator QA D1)
+                hint: Padding(
+                  padding: const EdgeInsetsDirectional.only(start: composerHintGap),
+                  child: Text(
+                    forViewer(female, 'اكتب رسالتك…', 'اكتبي رسالتكِ…'),
+                    key: const Key('chat-input-hint'),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppText.body.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                  ),
+                ),
                 counterText: '',
                 filled: false,
                 isDense: true,

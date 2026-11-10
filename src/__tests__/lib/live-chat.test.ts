@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { bubbleMisplaced, isLiveChatOffPath, tawkStyle } from "@/lib/live-chat";
+import { bubbleMisplaced, isLiveChatHidden, isLiveChatOffPath, tawkStyle } from "@/lib/live-chat";
 
 describe("isLiveChatOffPath", () => {
   it.each(["/admin", "/admin/users/1", "/pay/p1", "/payments/return", "/dashboard/chats", "/dashboard/chats/c1", "/dashboard/payments", "/dashboard/pro"])("hides on %s", (p) => {
@@ -8,6 +8,22 @@ describe("isLiveChatOffPath", () => {
 
   it.each(["/", "/contact", "/login", "/dashboard", "/dashboard/suggestions", "/payment-terms"])("shows on %s", (p) => {
     expect(isLiveChatOffPath(p)).toBe(false);
+  });
+});
+
+describe("isLiveChatHidden", () => {
+  it("hides on the suggestions page on phones only (it covered the zero-credit banner and the top-up link)", () => {
+    expect(isLiveChatHidden("/dashboard/suggestions", 390)).toBe(true);
+    expect(isLiveChatHidden("/dashboard/suggestions", 767)).toBe(true);
+    expect(isLiveChatHidden("/dashboard/suggestions", 768)).toBe(false);
+    expect(isLiveChatHidden("/dashboard/suggestions", 1280)).toBe(false);
+  });
+
+  it("keeps the off pages off at every width, and other pages on", () => {
+    expect(isLiveChatHidden("/dashboard/payments", 1280)).toBe(true);
+    expect(isLiveChatHidden("/dashboard/chats/c1", 390)).toBe(true);
+    expect(isLiveChatHidden("/dashboard", 390)).toBe(false);
+    expect(isLiveChatHidden("/dashboard/matches", 390)).toBe(false);
   });
 });
 

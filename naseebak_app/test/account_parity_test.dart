@@ -129,7 +129,7 @@ void main() {
     await tester.tap(find.byKey(const Key('save-profile')));
     await tester.pumpAndSettle();
     expect(adapter.requests, isEmpty);
-    expect(find.textContaining('اسحبه أولاً'), findsOneWidget);
+    expect(find.textContaining('يمكنك سحبه أولاً'), findsOneWidget);
   });
 
   group('support', () {

@@ -67,5 +67,8 @@ export function pickBanner(i: BannerInput): BannerKind | null {
   if (slotHidden(i.pathname)) return null;
   const top = BANNER_PRIORITY.find((k) => wants(k, i));
   if (!top) return null;
+  // The suggestions page shows its own zero-credit note whenever the balance is 0 (also with nobody's «مهتم»
+  // waiting, which is not a slot item): the notifications nudge never stacks above it (owner, 2026-11-10)
+  if (top === "push" && i.creditOnInterest && i.credits <= 0 && i.pathname.startsWith("/dashboard/suggestions")) return null;
   return coveredBy(i.pathname).includes(top) ? null : top;
 }

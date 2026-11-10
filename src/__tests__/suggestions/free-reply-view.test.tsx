@@ -39,18 +39,19 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("free «مهتم» reply on the website", () => {
-  it("at 0 credits a card that liked you keeps «مهتمة» usable and says the reply is free", async () => {
+  it("at 0 credits a card that liked you keeps «مهتم» usable and says the reply is free", async () => {
     render(<MutualSuggestionsView creditOnInterest freeInterestReply credits={0} chatEnabled />);
-    const btn = await screen.findByRole("button", { name: /^مهتمة/ });
+    const btn = await screen.findByRole("button", { name: /^مهتم ·/ });
     expect(btn).toBeEnabled();
-    // Her own button says «مهتمة», and so does the line next to it (QA WM-14)
-    expect(screen.getAllByText(/الرد بـ«مهتمة» مجاني/).length).toBeGreaterThan(0);
+    // One label for everyone, «مهتم», on the button and on every line that quotes it (owner, 2026-11-10)
+    expect(screen.getAllByText(/الرد بـ«مهتم» مجاني/).length).toBeGreaterThan(0);
+    expect(document.body.textContent).not.toContain("مهتمة");
     expect(screen.queryByText(/اشحني لتردّي/)).not.toBeInTheDocument();
   });
 
   it("the dialog confirms a free reply at 0 credits and the balance stays as the server says", async () => {
     render(<MutualSuggestionsView creditOnInterest freeInterestReply credits={0} chatEnabled />);
-    fireEvent.click(await screen.findByRole("button", { name: /^مهتمة/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /^مهتم ·/ }));
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).queryByText("انتهى رصيدك")).not.toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole("radio", { name: /محادثة هنا أولاً/ }));
@@ -60,7 +61,7 @@ describe("free «مهتم» reply on the website", () => {
 
   it("switch off: at 0 credits the same card stays locked", async () => {
     render(<MutualSuggestionsView creditOnInterest credits={0} chatEnabled />);
-    expect(await screen.findByRole("button", { name: /^مهتمة/ })).toBeDisabled();
+    expect(await screen.findByRole("button", { name: /^مهتم ·/ })).toBeDisabled();
   });
 });
 

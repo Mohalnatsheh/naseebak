@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 import '../../core/network/json.dart';
 import '../../shared/person.dart';
 
@@ -22,6 +24,20 @@ extension FeedTabX on FeedTab {
         _ => FeedTab.newTab,
       };
 }
+
+/// A link asked for a tab of the suggestions screen (home's chips, a notice, a push). The screen only learns its tab
+/// from the route when the route changes, and going to the address it is already on changes nothing: without this,
+/// a member who had swiped to another tab stayed there (`openAppRoute` calls [ask] on every such link).
+class FeedTabRequest extends ChangeNotifier {
+  FeedTab? tab;
+
+  void ask(FeedTab t) {
+    tab = t;
+    notifyListeners();
+  }
+}
+
+final feedTabRequest = FeedTabRequest();
 
 /// `mutual` (shared suggestion: `/decide`) · `legacy_suggestion` (`/like`, `/reject`) ·
 /// `legacy_interest` (`/api/interests/{id}/accept|reject`) · `legacy_sent` (read only).

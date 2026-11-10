@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/common.dart';
+import '../auth/paused_screen.dart' show daysLeftLabel;
 import 'profile_repository.dart';
 
 const quizScale = ['لا أوافق إطلاقاً', 'لا أوافق', 'محايد', 'أوافق', 'أوافق بشدة'];
@@ -98,7 +99,7 @@ class _QuizScreenState extends ConsumerState<QuizScreen> {
         if (r.canRetake)
           LoadingButton(label: 'إعادة الاختبار', outlined: true, onPressed: () => setState(() => _retaking = true))
         else
-          Text('يمكنك إعادة الاختبار بعد ${r.daysRemaining} يوم', style: const TextStyle(color: AppColors.muted)),
+          Text('يمكنك إعادة الاختبار ${daysLeftLabel(r.daysRemaining)}', style: const TextStyle(color: AppColors.muted)),
       ],
     );
   }

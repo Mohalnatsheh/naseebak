@@ -88,7 +88,14 @@ class UpdateCheck extends Notifier<UpdateStatus> {
 
 final updateCheckProvider = NotifierProvider<UpdateCheck, UpdateStatus>(UpdateCheck.new);
 
-/// Wraps the whole app (MaterialApp.builder): a required update replaces every screen, an optional one shows a card.
+/// The store page of the app (https, or the stores' own schemes)
+Future<void> openStoreLink(String url) async {
+  if (url.isEmpty || !isSafeExternalLink(url, extraSchemes: const {'itms-apps', 'market'})) return;
+  await launchUrl(Uri.parse(url.trim()), mode: LaunchMode.externalApplication).catchError((_) => false);
+}
+
+/// Wraps the whole app (MaterialApp.builder): a required update replaces every screen. An optional one is the tab
+/// shell's [OptionalUpdateCard].
 class UpdateGate extends ConsumerStatefulWidget {
   const UpdateGate({super.key, required this.child});
   final Widget child;
@@ -116,11 +123,6 @@ class _UpdateGateState extends ConsumerState<UpdateGate> with WidgetsBindingObse
     if (state == AppLifecycleState.resumed) ref.read(updateCheckProvider.notifier).check();
   }
 
-  Future<void> _openStore(String url) async {
-    if (url.isEmpty || !isSafeExternalLink(url, extraSchemes: const {'itms-apps', 'market'})) return;
-    await launchUrl(Uri.parse(url.trim()), mode: LaunchMode.externalApplication).catchError((_) => false);
-  }
-
   @override
   Widget build(BuildContext context) {
     final status = ref.watch(updateCheckProvider);
@@ -128,22 +130,10 @@ class _UpdateGateState extends ConsumerState<UpdateGate> with WidgetsBindingObse
     return Directionality(
       textDirection: TextDirection.rtl,
       child: switch (status.level) {
-        UpdateLevel.required => _RequiredUpdate(status: status, onUpdate: () => _openStore(status.storeUrl)),
-        UpdateLevel.optional => Stack(
-            children: [
-              widget.child,
-              PositionedDirectional(
-                start: 12,
-                end: 12,
-                bottom: 12 + MediaQuery.paddingOf(context).bottom + 72,
-                child: _OptionalUpdate(
-                  onUpdate: () => _openStore(status.storeUrl),
-                  onLater: () => ref.read(updateCheckProvider.notifier).dismiss(),
-                ),
-              ),
-            ],
-          ),
-        UpdateLevel.none => widget.child,
+        UpdateLevel.required => _RequiredUpdate(status: status, onUpdate: () => openStoreLink(status.storeUrl)),
+        // An optional update is a card over the tabs only (`OptionalUpdateCard` in the tab shell): floating here,
+        // above every screen, it covered the chat, the sign-in and the setup pages
+        UpdateLevel.optional || UpdateLevel.none => widget.child,
       },
     );
   }
@@ -206,13 +196,17 @@ class _RequiredUpdate extends StatelessWidget {
   }
 }
 
-class _OptionalUpdate extends StatelessWidget {
-  const _OptionalUpdate({required this.onUpdate, required this.onLater});
-  final VoidCallback onUpdate;
-  final VoidCallback onLater;
+/// «يتوفر إصدار جديد»: shown by the tab shell just above the tab bar while an optional update waits; nothing
+/// otherwise. «لاحقاً» hides it until a newer version is announced.
+class OptionalUpdateCard extends ConsumerWidget {
+  const OptionalUpdateCard({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final status = ref.watch(updateCheckProvider);
+    if (status.level != UpdateLevel.optional) return const SizedBox.shrink();
+    void onUpdate() => openStoreLink(status.storeUrl);
+    void onLater() => ref.read(updateCheckProvider.notifier).dismiss();
     return Material(
       key: const Key('update-optional'),
       elevation: 6,

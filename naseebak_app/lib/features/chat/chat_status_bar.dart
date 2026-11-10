@@ -107,14 +107,14 @@ class ChatStatusStrip extends StatelessWidget {
             if (onTap != null && onAction == null)
               const Padding(
                 padding: EdgeInsetsDirectional.only(end: 8),
-                // RTL: «التالي» points left
-                child: Icon(Icons.chevron_left_rounded, size: 20, color: AppColors.muted),
+                // «التالي»: Flutter mirrors chevrons in Arabic, so this one points left there (like every other row)
+                child: Icon(Icons.chevron_right_rounded, size: 20, color: AppColors.muted),
               ),
             if (onClose != null)
               IconButton(
                 tooltip: 'إخفاء',
                 onPressed: onClose,
-                visualDensity: VisualDensity.compact,
+                style: IconButton.styleFrom(minimumSize: const Size(44, 44)),
                 icon: const Icon(Icons.close_rounded, size: 18, color: AppColors.muted),
               ),
           ],

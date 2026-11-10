@@ -57,6 +57,8 @@ class MyProState {
     this.plan,
     this.renewsAt,
     this.offers = const [],
+    this.creditsPerGrant,
+    this.nextGrantAt,
   });
 
   factory MyProState.fromJson(Map<String, dynamic> j) => MyProState(
@@ -68,6 +70,8 @@ class MyProState {
         plan: asString(j['plan']),
         renewsAt: asDate(j['renewsAt']),
         offers: asMapList(j['offers']).map(ProOffer.fromJson).toList(),
+        creditsPerGrant: asInt(j['creditsPerGrant']),
+        nextGrantAt: asDate(j['nextGrantAt']),
       );
 
   final bool enabled;
@@ -78,6 +82,13 @@ class MyProState {
   final String? plan;
   final DateTime? renewsAt;
   final List<ProOffer> offers;
+
+  /// A Pro member's own subscription: the credits of each grant as they were when it was bought (today's offers apply
+  /// to new subscribers only). Null when not Pro, and from servers before the field.
+  final int? creditsPerGrant;
+
+  /// When the next credits come; null when none are due (cancelled, failing, or the paid time is used up)
+  final DateTime? nextGrantAt;
 }
 
 /// A started Pro checkout: the Stripe page, or (local mock only) the payment to finish in the app
@@ -126,6 +137,12 @@ class ProRepository {
     await _api.post('/api/pro/resume');
   }
 }
+
+/// How the Pro checkout page sent the member back (`…/dashboard/pro?pro=success|cancel`, Stripe's return link opened
+/// in the app): the router writes it, the Pro screen reads it for the checkout it opened and clears it before the next
+final proReturnProvider = StateProvider<ProReturn?>((ref) => null);
+
+enum ProReturn { success, cancel }
 
 final proRepositoryProvider = Provider<ProRepository>((ref) => ProRepository(ref.watch(apiClientProvider)));
 

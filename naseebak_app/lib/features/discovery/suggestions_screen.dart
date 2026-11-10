@@ -71,6 +71,19 @@ class _SuggestionsScreenState extends ConsumerState<SuggestionsScreen> with Sing
   }
 
   @override
+  void initState() {
+    super.initState();
+    feedTabRequest.addListener(_onTabAsked);
+  }
+
+  /// A link asked for a tab while this screen is alive: shown even when the address did not change (the member had
+  /// swiped away from the tab the address names)
+  void _onTabAsked() {
+    final tab = feedTabRequest.tab;
+    if (tab != null && mounted && _tabs.index != tab.index) _tabs.animateTo(tab.index);
+  }
+
+  @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     final router = GoRouter.maybeOf(context);
@@ -99,6 +112,7 @@ class _SuggestionsScreenState extends ConsumerState<SuggestionsScreen> with Sing
 
   @override
   void dispose() {
+    feedTabRequest.removeListener(_onTabAsked);
     _router?.routerDelegate.removeListener(_onRoute);
     _tabs.dispose();
     super.dispose();
@@ -218,18 +232,23 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
   @override
   void didUpdateWidget(covariant FeedList oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.reload != widget.reload) _load();
+    if (oldWidget.reload != widget.reload) {
+      // After a top-up (a decision, a return to the tab): the pages already loaded are read again, so the member
+      // keeps their place. Only pull-to-refresh starts over from the first page.
+      _load(keepPages: !_fromTop);
+      _fromTop = false;
+    }
   }
+
+  /// Bumped by every reload: an answer for an older list (a slower reload, a «عرض المزيد») is dropped
+  int _generation = 0;
+
+  /// The next reload starts from page 1 (pull-to-refresh)
+  bool _fromTop = false;
 
   bool get _viewerFemale => ref.read(authControllerProvider).me?.isFemale ?? false;
   String _g(String m, String f) => forViewer(_viewerFemale, m, f);
   String _p(String m, String f) => forPartner(_viewerFemale, m, f);
-
-  /// Credit on interest is on (unknown counts: assume on, the server then just ignores the choice)
-  bool get _creditOnInterest {
-    final counts = ref.read(countsProvider).valueOrNull;
-    return counts == null || counts.flags.creditOnInterest;
-  }
 
   /// 0 credits under credit on interest: «مهتم» is disabled, «لا» stays free (website outOfCredits)
   bool _outOfCredits(Counts? counts, int? credits) =>
@@ -241,34 +260,51 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
 
   static const _freeReplyNote = 'الرد بـ«مهتم» مجاني';
 
-  Future<void> _load() async {
+  /// [keepPages]: read every page already loaded again (in order) instead of only the first
+  Future<void> _load({bool keepPages = false}) async {
+    final generation = ++_generation;
+    final pages = keepPages ? (_page?.page ?? 1) : 1;
+    final repo = ref.read(suggestionsRepositoryProvider);
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
-      final res = await ref.read(suggestionsRepositoryProvider).feed(widget.tab);
-      if (!mounted) return;
+      final items = <FeedItem>[];
+      final seen = <String>{};
+      PageInfo? last;
+      for (var p = 1; p <= pages; p++) {
+        final res = await repo.feed(widget.tab, page: p);
+        if (!mounted || generation != _generation) return;
+        items.addAll(res.items.where((e) => seen.add(e.id)));
+        last = res.page;
+        if (!res.page.hasMore) break;
+      }
       setState(() {
         _items
           ..clear()
-          ..addAll(res.items);
-        _page = res.page;
+          ..addAll(items);
+        _page = last;
       });
     } catch (e) {
-      if (mounted) setState(() => _error = e);
+      if (!mounted || generation != _generation) return;
+      setState(() => _error = e);
+      // Cards already on screen stay, but never silently: the refresh failed
+      if (_items.isNotEmpty) showSnack(context, ApiException.messageOf(e));
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted && generation == _generation) setState(() => _loading = false);
     }
   }
 
   Future<void> _loadMore() async {
     final page = _page;
     if (page == null || !page.hasMore || _loadingMore) return;
+    final generation = _generation;
     setState(() => _loadingMore = true);
     try {
       final res = await ref.read(suggestionsRepositoryProvider).feed(widget.tab, page: page.page + 1);
-      if (!mounted) return;
+      // The list was reloaded meanwhile: this page belongs to the older one
+      if (!mounted || generation != _generation) return;
       final known = _items.map((e) => e.id).toSet();
       setState(() {
         _items.addAll(res.items.where((e) => !known.contains(e.id)));
@@ -283,7 +319,10 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
 
   Future<void> _refresh() async {
     final topUp = widget.onTopUp;
-    if (topUp != null) return topUp();
+    if (topUp != null) {
+      _fromTop = true;
+      return topUp();
+    }
     ref.invalidate(countsProvider);
     await _load();
   }
@@ -300,6 +339,8 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
   }
 
   void _afterAnswer(FeedItem item, DecisionResult res, {required bool interested}) {
+    // The screen went away while the answer was on its way (signed out, paused): nothing here to update
+    if (!mounted) return;
     if (res.creditsLeft != null) ref.read(authControllerProvider.notifier).updateCredits(res.creditsLeft!);
     ref.read(authControllerProvider.notifier).refreshMe();
     final analytics = ref.read(analyticsProvider);
@@ -308,7 +349,6 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
         : analytics.suggestionDeclined();
     if (res.match) analytics.matchCreated(res.intro ?? 'NONE');
     _removeAndTopUp(item);
-    if (!mounted) return;
     if (res.match) {
       _showMatch(item, res);
     } else {
@@ -382,10 +422,25 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
   Future<void> _interested(FeedItem item) async {
     if (_busy.contains(item.id)) return;
     final repo = ref.read(suggestionsRepositoryProvider);
+    var counts = ref.read(countsProvider).valueOrNull;
+    // The switches aren't known (the counts failed or are still loading): read them first. Guessing showed the
+    // sheet with «تعارف عائلي» as the only, already chosen, way
+    if (item.kind == FeedKind.mutual && counts == null) {
+      setState(() => _busy.add(item.id));
+      try {
+        if (ref.read(countsProvider).hasError) ref.invalidate(countsProvider);
+        counts = await ref.read(countsProvider.future);
+      } catch (e) {
+        if (mounted) showSnack(context, ApiException.messageOf(e));
+        return;
+      } finally {
+        if (mounted) setState(() => _busy.remove(item.id));
+      }
+      if (!mounted) return;
+    }
     // Chat / family is only asked (and charged) under credit on interest; otherwise the server ignores the choice
     // and «مهتم» goes straight through, like the website
-    if (item.kind == FeedKind.mutual && _creditOnInterest) {
-      final counts = ref.read(countsProvider).valueOrNull;
+    if (item.kind == FeedKind.mutual && (counts?.flags.creditOnInterest ?? false)) {
       final me = ref.read(authControllerProvider).me;
       setState(() => _busy.add(item.id));
       try {

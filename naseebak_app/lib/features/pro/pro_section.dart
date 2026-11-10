@@ -44,6 +44,21 @@ String creditsCount(int n) {
 /// «8 أرصدة مجاناً كل شهر»
 String proCreditsLine(ProOffer o) => '${creditsCount(o.credits)} مجاناً ${_creditsEvery[o.id] ?? 'كل شهر'}';
 
+/// «اشتراكي»: the credits of the member's own subscription (`creditsPerGrant`, as bought), with the next grant's date
+/// when one is due, like the website («8 أرصدة كل شهر · الدفعة القادمة في 10 ديسمبر»). A server before the field: the
+/// plan's offer of today. Null when the subscription gives no credits.
+String? myProCreditsLine(MyProState s) {
+  final own = s.creditsPerGrant;
+  if (own == null) {
+    final offer = s.offers.where((o) => o.id == s.plan).firstOrNull;
+    return offer != null && offer.credits > 0 ? proCreditsLine(offer) : null;
+  }
+  if (own <= 0) return null;
+  final next = s.nextGrantAt;
+  return '${creditsCount(own)} ${_creditsEvery[s.plan] ?? 'كل شهر'}'
+      '${next == null ? '' : ' · الدفعة القادمة في ${formatDate(next, withYear: false)}'}';
+}
+
 /// «اشتراكي» once the renewal is off: why (the member cancelled, or pausing the account stopped it) and, while still
 /// paused, that resuming waits for reactivation (QA A-M01)
 String myProEndingText({required bool stoppedByPause, required bool paused, bool female = false}) {
@@ -279,7 +294,7 @@ class _ProPlansCardState extends State<ProPlansCard> {
                 if (offer.credits > 0)
                   _FeatureLine(
                     icon: Icons.auto_awesome_rounded,
-                    color: AppColors.gold,
+                    color: AppColors.goldText,
                     text: proCreditsLine(offer),
                     strong: true,
                   ),
@@ -462,7 +477,7 @@ class _MyProCardState extends ConsumerState<MyProCard> {
     final me = ref.watch(authControllerProvider).me;
     final paused = me?.deactivated ?? false;
     final stoppedByPause = ref.watch(proPauseNoteProvider).stopped(me?.id, pro: s);
-    final planOffer = s.offers.where((o) => o.id == s.plan).firstOrNull;
+    final creditsLine = myProCreditsLine(s);
     return Card(
       key: const Key('my-pro'),
       clipBehavior: Clip.antiAlias,
@@ -541,13 +556,13 @@ class _MyProCardState extends ConsumerState<MyProCard> {
                   ),
                 ],
                 const SizedBox(height: 10),
-                // The plan's free credits, as on the plans card (QA A-L11)
-                if (planOffer != null && planOffer.credits > 0)
+                // The subscription's own free credits (QA A-L11), not today's offer
+                if (creditsLine != null)
                   _FeatureLine(
                     key: const Key('my-pro-credits'),
                     icon: Icons.auto_awesome_rounded,
-                    color: AppColors.gold,
-                    text: proCreditsLine(planOffer),
+                    color: AppColors.goldText,
+                    text: creditsLine,
                     strong: true,
                   ),
                 for (final f in proFeatureLabels)

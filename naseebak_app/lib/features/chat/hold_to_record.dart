@@ -29,7 +29,8 @@ const holdMicHint = 'يبدأ التسجيل، ثم يمكنك الإرسال أ
 /// «اسحب للإلغاء» / «اسحبي للإلغاء» (QA A-L03)
 String holdSlideText(bool female) => female ? 'اسحبي للإلغاء' : 'اسحب للإلغاء';
 
-/// The chevron that points the way to slide: towards the start edge (the right in Arabic, QA A-M03)
+/// The chevron that points the way to slide: towards the start edge (the right in Arabic, QA A-M03). Chevrons are
+/// `matchTextDirection` icons, so the `Icon` showing it must set `textDirection: TextDirection.ltr`, or it is mirrored
 IconData holdSlideChevron(TextDirection direction) =>
     direction == TextDirection.rtl ? Icons.chevron_right_rounded : Icons.chevron_left_rounded;
 
@@ -193,6 +194,7 @@ class HoldRecordBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final progress = (slide / holdCancelDistance).clamp(0.0, 1.0);
     final direction = Directionality.of(context);
+    final hintInk = AppColors.muted.withValues(alpha: 1 - progress * 0.5);
     return Container(
       key: const Key('voice-hold-bar'),
       height: 48,
@@ -213,10 +215,12 @@ class HoldRecordBar extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           // The bars fade as the finger nears cancel
+          // (through their colour, never an opacity layer: QA A-L10)
           Expanded(
-            child: Opacity(
-              opacity: 1 - progress * 0.7,
-              child: LevelBars(key: const Key('voice-level'), levels: levels),
+            child: LevelBars(
+              key: const Key('voice-level'),
+              levels: levels,
+              color: AppColors.navy.withValues(alpha: 1 - progress * 0.7),
             ),
           ),
           const SizedBox(width: 8),
@@ -227,24 +231,29 @@ class HoldRecordBar extends StatelessWidget {
               child: Transform.translate(
                 // Follows the finger towards the start edge, inside its lane
                 offset: Offset((direction == TextDirection.rtl ? 1 : -1) * slide * 0.4, 0),
-                child: Opacity(
-                  opacity: 1 - progress * 0.5,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(holdSlideChevron(direction), key: const Key('voice-slide-chevron'), size: 18, color: AppColors.muted),
-                      Flexible(
-                        child: Text(
-                          holdSlideText(female),
-                          maxLines: 1,
-                          overflow: TextOverflow.fade,
-                          softWrap: false,
-                          style: AppText.label.copyWith(fontWeight: FontWeight.w500, color: AppColors.muted),
-                        ),
+                // Fades through its colours as the finger nears cancel (no opacity layer, QA A-L10)
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      holdSlideChevron(direction),
+                      key: const Key('voice-slide-chevron'),
+                      size: 18,
+                      color: hintInk,
+                      // Drawn as named: Flutter mirrors chevrons in Arabic, which would point away from cancel
+                      textDirection: TextDirection.ltr,
+                    ),
+                    Flexible(
+                      child: Text(
+                        holdSlideText(female),
+                        maxLines: 1,
+                        overflow: TextOverflow.fade,
+                        softWrap: false,
+                        style: AppText.label.copyWith(fontWeight: FontWeight.w500, color: hintInk),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
             ),

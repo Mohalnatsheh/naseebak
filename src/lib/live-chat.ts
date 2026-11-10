@@ -11,6 +11,15 @@ export function isLiveChatOffPath(pathname: string): boolean {
   );
 }
 
+/** Pages where the bubble is off on phones only: it sat over the zero-credit banner and the card's top-up link (owner, 2026-11-10) */
+const PHONE_OFF_PATHS = ["/dashboard/suggestions"];
+
+/** Hidden here: an off page at any width, or a phone-only off page below the phone layout's width */
+export function isLiveChatHidden(pathname: string, viewportWidth: number): boolean {
+  if (isLiveChatOffPath(pathname)) return true;
+  return viewportWidth < 768 && PHONE_OFF_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+}
+
 /** Tawk reads this once, at load. Phones sit above the bottom bars: 64px + the iPhone home-indicator area (up to 34px) */
 export function tawkStyle(viewportWidth: number) {
   const above = { position: "br", xOffset: 12, yOffset: 104 };

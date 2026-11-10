@@ -12,6 +12,7 @@ import '../../core/theme/app_theme.dart';
 import '../../shared/person.dart';
 import '../../shared/widgets/common.dart';
 import '../auth/pending_auth.dart';
+import '../auth/logout_button.dart';
 import '../auth/phone_validation.dart';
 import '../country_selection/country.dart';
 import '../country_selection/country_providers.dart';
@@ -370,10 +371,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
               ? IconButton(tooltip: 'السابق', icon: const Icon(Icons.arrow_back_rounded), onPressed: _back)
               : null,
           actions: [
-            TextButton(
-              onPressed: () => ref.read(authControllerProvider.notifier).logout(),
-              child: const Text('خروج'),
-            ),
+            const LogoutButton(compact: true),
           ],
         ),
         body: SafeArea(

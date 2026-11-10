@@ -46,8 +46,8 @@ export function ProIntroCard({ gender, chatOn }: { gender?: string | null; /** c
   }
 
   const gives = chatOn
-    ? "صور ورسائل صوتية في المحادثة، شارة Pro على بطاقتك، وأولوية في الاقتراحات، ورصيد مجاني مع كل اشتراك."
-    : "شارة Pro على بطاقتك، وأولوية في الاقتراحات، ورصيد مجاني مع كل اشتراك.";
+    ? "صور ورسائل صوتية في المحادثة، شارة Pro على بطاقتك، وأولوية في الاقتراحات."
+    : "شارة Pro على بطاقتك، وأولوية في الاقتراحات.";
 
   return (
     <section
@@ -76,7 +76,8 @@ export function ProIntroCard({ gender, chatOn }: { gender?: string | null; /** c
             </h2>
           </div>
           <p className="mt-1.5 text-sm leading-relaxed text-white/80">{gives}</p>
-          <p className="mt-1 text-xs text-white/60">خطط أسبوعية وشهرية وسنوية، والشهري والسنوي بخصم.</p>
+          {/* No plan facts here: plans, prices and credits are set per country in Admin → Countries; the Pro page shows them */}
+          <p className="mt-1 text-xs text-white/60">يمكنك الاطلاع على الباقات وأسعارها في صفحة العضوية.</p>
         </div>
       </div>
       <Link

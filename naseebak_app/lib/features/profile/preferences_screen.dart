@@ -17,7 +17,7 @@ const prefAgeLimit = 70;
 
 /// The web's age-range rule for preferences: both ends 18–70, min ≤ max.
 String? prefAgeError(int? min, int? max) {
-  if (min == null || max == null) return 'حدّد العمر الأدنى والأقصى';
+  if (min == null || max == null) return 'يُرجى تحديد العمر الأدنى والأقصى';
   if (min < 18 || max < 18 || min > prefAgeLimit || max > prefAgeLimit) return 'العمر يجب أن يكون بين 18 و$prefAgeLimit';
   if (min > max) return 'العمر الأدنى يجب أن يكون أقل من العمر الأقصى';
   return null;

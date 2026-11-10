@@ -11,6 +11,7 @@ import '../../core/push/push_permission.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/brand_kit.dart';
 import '../../shared/widgets/common.dart';
+import '../discovery/suggestion_models.dart';
 import '../home/counts.dart';
 
 class AppNotification {
@@ -61,6 +62,11 @@ void openAppRoute(GoRouter router, String route) {
   // Pro for a test or review account (payments hidden) is home: switched to as the tab it is, so «الرئيسية» is the
   // selected tab and not the one the link arrived on (QA A-L06; pushing `/pro` and redirecting kept «حسابي» selected)
   if (Uri.parse(route).path == '/pro' && !linkPaymentsShown()) route = '/home';
+  // A tab of the suggestions screen: asked for even when the address is already this one (the member may have swiped
+  // to another tab since)
+  final target = Uri.parse(route);
+  final tab = target.queryParameters['tab'];
+  if (target.path == '/suggestions' && tab != null) feedTabRequest.ask(FeedTabX.parse(tab));
   if (router.state.uri.toString() == route) return;
   appTabRoots.contains(Uri.parse(route).path) ? router.go(route) : router.push(route);
 }

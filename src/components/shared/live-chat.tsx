@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { usePathname } from "next/navigation";
-import { TAWK_SRC, bubbleMisplaced, isLiveChatOffPath, tawkStyle } from "@/lib/live-chat";
+import { TAWK_SRC, bubbleMisplaced, isLiveChatHidden, tawkStyle } from "@/lib/live-chat";
 
 interface TawkApi {
   customStyle?: ReturnType<typeof tawkStyle>;
@@ -21,7 +21,7 @@ function syncBubble() {
   const w = window as unknown as TawkWindow;
   const api = w.Tawk_API;
   if (
-    isLiveChatOffPath(window.location.pathname) ||
+    isLiveChatHidden(window.location.pathname, window.innerWidth) ||
     document.body.hasAttribute(SCROLL_LOCK) ||
     bubbleMisplaced(w.naseebTawkWidth ?? window.innerWidth, window.innerWidth)
   )
@@ -53,7 +53,7 @@ export function LiveChat() {
       syncBubble();
       return;
     }
-    if (isLiveChatOffPath(pathname)) return;
+    if (isLiveChatHidden(pathname, window.innerWidth)) return;
     w.naseebTawkWidth = window.innerWidth;
     w.Tawk_API = { customStyle: tawkStyle(window.innerWidth), onLoad: syncBubble };
     // Added when the browser is idle after the page has loaded (QA PA-L11), not on mount

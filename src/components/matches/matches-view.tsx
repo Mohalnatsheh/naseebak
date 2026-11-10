@@ -396,6 +396,14 @@ export function MatchesView({ embedded = false }: { embedded?: boolean } = {}) {
     }
   }
 
+  /** Closing the report dialog clears what was typed: the next report (another person) starts empty */
+  function closeReport() {
+    if (reportSubmitting) return;
+    setReportDialog(null);
+    setReportReason("FAKE_PROFILE");
+    setReportDetails("");
+  }
+
   async function handleBlock() {
     if (!blockDialog || safetyBusy) return;
     setSafetyBusy(true);
@@ -905,7 +913,7 @@ export function MatchesView({ embedded = false }: { embedded?: boolean } = {}) {
       )}
 
       {/* Report Dialog */}
-      <Dialog open={!!reportDialog} onOpenChange={(o) => !o && !reportSubmitting && setReportDialog(null)}>
+      <Dialog open={!!reportDialog} onOpenChange={(o) => !o && closeReport()}>
         <DialogContent dir="rtl" className="sm:max-w-sm text-start space-y-2">
           <DialogHeader className="text-start sm:text-start">
             <DialogTitle>إبلاغ وحظر {reportDialog?.name}</DialogTitle>
@@ -946,7 +954,7 @@ export function MatchesView({ embedded = false }: { embedded?: boolean } = {}) {
             >
               {reportSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "إبلاغ وحظر"}
             </Button>
-            <Button variant="outline" onClick={() => setReportDialog(null)} disabled={reportSubmitting} className="rounded-xl">
+            <Button variant="outline" onClick={closeReport} disabled={reportSubmitting} className="rounded-xl">
               إلغاء
             </Button>
           </div>

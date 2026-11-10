@@ -85,7 +85,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     if (errors.values.any((e) => e != null) || _busy) return;
     final code = pending.code;
     if (code == null) {
-      setState(() => _error = 'انتهت صلاحية الرمز. ابدأ من جديد.');
+      setState(() => _error = 'انتهت صلاحية الرمز. يُرجى البدء من جديد.');
       return;
     }
     setState(() => _busy = true);

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:naseebak_app/core/routing/website_links.dart';
+import 'package:naseebak_app/features/pro/pro_repository.dart' show ProReturn;
 
 void main() {
   group('naseebak.com links → app screens', () {
@@ -12,6 +13,16 @@ void main() {
       expect(WebsiteLink.parse(Uri.parse('https://naseebak.com/dashboard'))!.route, '/home');
       expect(WebsiteLink.parse(Uri.parse('https://naseebak.com/dashboard/pro'))!.route, '/pro');
       expect(WebsiteLink.parse(Uri.parse('https://naseebak.com/dashboard/payments'))!.route, '/credits');
+    });
+
+    test("a Pro checkout's return link says paid or cancelled; nothing else does", () {
+      expect(proReturnOf(Uri.parse('https://naseebak.com/dashboard/pro?pro=success')), ProReturn.success);
+      expect(proReturnOf(Uri.parse('https://naseebak.com/dashboard/pro?pro=cancel')), ProReturn.cancel);
+      expect(proReturnOf(Uri.parse('https://naseebak.com/dashboard/pro')), isNull);
+      expect(proReturnOf(Uri.parse('https://naseebak.com/dashboard/pro?pro=other')), isNull);
+      expect(proReturnOf(Uri.parse('https://naseebak.com/dashboard/profile?pro=success')), isNull);
+      // The screen itself opens as before
+      expect(WebsiteLink.parse(Uri.parse('https://naseebak.com/dashboard/pro?pro=cancel'))!.route, '/pro');
     });
 
     test('a referral link keeps its invitation code; other pages stay on the website', () {

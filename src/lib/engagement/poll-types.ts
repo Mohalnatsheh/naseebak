@@ -39,7 +39,7 @@ export const POLL_COPY: Record<CountryCode, PollCopy> = {
     nextQuestion: "ننشر سؤالاً جديداً كل بضعة أيام على انستغرام وهنا. ارجع قريباً.",
     notDating: "نصيبك منصة زواج جاد، مش تطبيق تعارف",
     answerInAccount: "وجاوب على سؤال جديد من داخل حسابك كل 3 أيام.",
-    share: "شو رأيك؟ جاوب على سؤال نصيبك:",
+    share: "شو رأيك؟ سؤال نصيبك:",
   },
   SA: {
     title: "سؤال نصيبك: أجب واطّلع على رأي الناس | نصيبك",
@@ -48,7 +48,7 @@ export const POLL_COPY: Record<CountryCode, PollCopy> = {
     nextQuestion: "ننشر سؤالاً جديداً كل بضعة أيام على إنستقرام وهنا. ارجع قريباً.",
     notDating: "نصيبك منصة زواج جاد، وليست تطبيق تعارف",
     answerInAccount: "وأجب عن سؤال جديد من داخل حسابك كل 3 أيام.",
-    share: "ما رأيك؟ أجب عن سؤال نصيبك:",
+    share: "ما رأيك؟ سؤال نصيبك:",
   },
   // No Lebanese Instagram account yet: the questions are published here only. Lebanese dialect, no gendered command
   LB: {

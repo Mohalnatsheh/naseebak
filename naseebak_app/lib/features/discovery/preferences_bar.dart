@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/auth/auth_controller.dart';
+import '../../core/localization/arabic_count.dart';
 import '../../core/theme/app_theme.dart';
 import '../home/counts.dart';
 import '../home/gendered_copy.dart';
@@ -54,7 +55,7 @@ class PreferencesBar extends ConsumerWidget {
             children: [
               Row(
                 children: [
-                  const Icon(Icons.tune_rounded, color: AppColors.gold, size: 22),
+                  const Icon(Icons.tune_rounded, color: AppColors.goldText, size: 22),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Column(
@@ -67,7 +68,10 @@ class PreferencesBar extends ConsumerWidget {
                         Text(
                           prefs == null
                               ? 'الاقتراحات تُختار حسب ما ${forViewer(female, 'تبحث', 'تبحثين')} عنه'
-                              : [?age, active.isEmpty ? 'لا شروط أساسية' : '${active.length} شروط أساسية'].join(' · '),
+                              : [?age, active.isEmpty
+                                  ? 'لا شروط أساسية'
+                                  : arabicCount(active.length,
+                                      one: 'شرط أساسي واحد', two: 'شرطان أساسيان', few: 'شروط أساسية', many: 'شرطاً أساسياً')].join(' · '),
                           style: AppText.labelRegular.copyWith(color: Theme.of(context).hintColor),
                         ),
                       ],

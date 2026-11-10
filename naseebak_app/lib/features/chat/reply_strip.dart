@@ -192,6 +192,7 @@ class _SwipeToReplyState extends State<SwipeToReply> {
   Widget build(BuildContext context) {
     if (!widget.enabled) return widget.child;
     final rtl = Directionality.of(context) == TextDirection.rtl;
+    final fade = (_shift / SwipeToReply.trigger).clamp(0.0, 1.0);
     // A cancelled pointer ends an accepted drag like a release would (onEnd): the listener, which sees the cancel
     // first, disarms it so only a real release replies
     return Listener(
@@ -207,13 +208,11 @@ class _SwipeToReplyState extends State<SwipeToReply> {
               // Uncovered where the bubble left from: the start side
               PositionedDirectional(
                 start: 4,
-                child: Opacity(
-                  opacity: (_shift / SwipeToReply.trigger).clamp(0.0, 1.0),
-                  child: const CircleAvatar(
-                    radius: 15,
-                    backgroundColor: Colors.white,
-                    child: Icon(Icons.reply_rounded, size: 18, color: AppColors.navy),
-                  ),
+                // Fades in through its colours (no opacity layer, QA A-L10)
+                child: CircleAvatar(
+                  radius: 15,
+                  backgroundColor: Colors.white.withValues(alpha: fade),
+                  child: Icon(Icons.reply_rounded, size: 18, color: AppColors.navy.withValues(alpha: fade)),
                 ),
               ),
             Transform.translate(offset: Offset(rtl ? -_shift : _shift, 0), child: widget.child),

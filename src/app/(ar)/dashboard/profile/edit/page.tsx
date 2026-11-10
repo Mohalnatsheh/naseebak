@@ -1666,7 +1666,7 @@ export default function ProfileEditPage() {
       {/* Changes indicator */}
       {changedCount > 0 && (
         <div className="flex items-center gap-2 rounded-xl bg-accent/10 border border-accent/30 p-3 text-sm text-accent-foreground">
-          <CheckCircle2 className="h-4 w-4 text-accent shrink-0" />
+          <CheckCircle2 className="h-4 w-4 text-accent-ink shrink-0" />
           <span>
             {changedCount === 1 ? (
               <>تم تعديل <strong>حقل واحد</strong></>

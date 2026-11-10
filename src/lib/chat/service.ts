@@ -72,6 +72,11 @@ export interface ChatSummary {
   canExtend: boolean;
   /** Who ended it, when ENDED */
   endedByMe: boolean;
+  /**
+   * Who ended it, when ENDED (additive; older clients read `endedByMe`): "system" = neither member did (an admin, or
+   * an account paused or leaving), so nobody is named. Null while the chat isn't ENDED
+   */
+  endedBy?: "me" | "partner" | "system" | null;
   /** One side blocked the other: read-only */
   blocked: boolean;
   /** The match page isn't available to me (the other person blocked me): hide links to it */
@@ -302,6 +307,7 @@ function summarise(
     expiresAt: c.expiresAt.toISOString(),
     canExtend: c.status === "ACTIVE" && !c.extended && left <= EXTEND_WINDOW_DAYS * DAY_MS,
     endedByMe: c.status === "ENDED" && c.endedById === userId,
+    endedBy: c.status !== "ENDED" ? null : c.endedById === userId ? "me" : c.endedById ? "partner" : "system",
     blocked,
     matchHidden,
     lastMessage: last

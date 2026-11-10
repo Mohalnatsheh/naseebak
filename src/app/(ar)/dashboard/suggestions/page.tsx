@@ -170,7 +170,8 @@ const STATUS_CONFIG = {
 export default function SuggestionsPage() {
   // New cycle: suggestions are free, so no "out of credits" banner here
   const router = useRouter();
-  const { counts: cycleCounts, profile: me, loading: switchesLoading, country } = useDashboardData();
+  const { counts: cycleCounts, profile: me, loading: switchesLoading, country, countsFailed, refreshUnread } = useDashboardData();
+  const [retryingCounts, setRetryingCounts] = useState(false);
   const perRequestCredits = cycleCounts.flags.introRequests;
   // Shared suggestions (QA WM-07): the view is decided from the switches the dashboard already has. No legacy
   // /api/suggestions call first: the shared view's own first feed request tops up (`topup=1`) and says why it's empty.
@@ -454,6 +455,26 @@ toast.success("تهانينا! لديك توافق متبادل!", {
     } finally {
       setActing(null);
     }
+  }
+
+  // The switches never loaded (as on home, QA WA-02): `cycleCounts` holds the switches-off defaults, so the page would
+  // apply the older flow's 50% gate and wording. Say so with a retry instead.
+  if (!switchesLoading && countsFailed) {
+    return (
+      <div className="py-8">
+        <LoadError
+          message="تعذّر تحميل الاقتراحات. يمكنك التحقق من الاتصال والمحاولة مرة أخرى."
+          onRetry={
+            retryingCounts
+              ? undefined
+              : () => {
+                  setRetryingCounts(true);
+                  refreshUnread().finally(() => setRetryingCounts(false));
+                }
+          }
+        />
+      </div>
+    );
   }
 
   if (loading) {

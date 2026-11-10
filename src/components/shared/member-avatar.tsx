@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useFirstReveal } from "@/lib/photo-reveal";
 
 /**
  * One avatar for every member everywhere (design review P2-5 / DS-24; the app's `MemberAvatar`): always a circle.
@@ -40,13 +41,14 @@ export function MemberAvatar({
    * gives way to it). null / undefined: no arc.
    */
   timeLeft?: number | null;
-  /** S2: the photo fades from blurred to sharp once (300 ms) — the first time it shows after a match */
+  /** S2: the photo fades from blurred to sharp (300 ms), once per photo and session — the first time it shows */
   reveal?: boolean;
   className?: string;
 }) {
+  const revealNow = useFirstReveal(photoUrl, reveal);
   const initial = name.trim().charAt(0) || "؟";
   const arc = typeof timeLeft === "number" ? Math.min(1, Math.max(0, timeLeft)) : null;
-  if (arc !== null) return <ArcAvatar {...{ name, size, photoUrl, locked, pro, dimmed, onNavy, reveal, className }} fraction={arc} />;
+  if (arc !== null) return <ArcAvatar {...{ name, size, photoUrl, locked, pro, dimmed, onNavy, className }} reveal={revealNow} fraction={arc} />;
   const inner = matched ? size - 6 : size;
   const showLock = locked && !photoUrl && size >= 36;
   return (
@@ -67,7 +69,7 @@ export function MemberAvatar({
           unoptimized
           draggable={false}
           onContextMenu={(e) => e.preventDefault()}
-          className={cn("h-full w-full rounded-full object-cover", reveal && "photo-reveal")}
+          className={cn("h-full w-full rounded-full object-cover", revealNow && "photo-reveal")}
         />
       ) : (
         <span

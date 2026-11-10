@@ -53,9 +53,11 @@ describe("login errors are announced (QA WA-16)", () => {
 });
 
 describe("register errors point at their field by state, not wording (review X3 minor 5)", () => {
-  it("an empty last name marks only the last name; a server error from the code request marks the phone", async () => {
+  it("an empty last name marks only the last name; a refused number marks the phone, a rate limit no field", async () => {
     const { fireEvent } = await import("@testing-library/react");
-    vi.spyOn(globalThis, "fetch").mockResolvedValue({ ok: false, status: 429, json: async () => ({ error: "محاولات كثيرة" }) } as Response);
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: false, status: 400, json: async () => ({ error: "هذا الرقم لا يتبع الدولة المختارة", code: "COUNTRY_MISMATCH" }),
+    } as Response);
     render(<RegisterPage />);
     await waitFor(() => expect(document.getElementById("firstName")).not.toBeNull());
     const first = document.getElementById("firstName") as HTMLInputElement;
@@ -73,8 +75,15 @@ describe("register errors point at their field by state, not wording (review X3 
     await act(async () => {
       fireEvent.click(screen.getAllByRole("button", { name: /رمز/ })[0]);
     });
-    // «محاولات كثيرة» names no field: it still points at the number it was about
+    // The refusal names no field in its words: it still points at the number it was about
     await waitFor(() => expect(phone.getAttribute("aria-invalid")).toBe("true"));
     expect(last.getAttribute("aria-invalid")).toBeNull();
+    // A rate limit is about the request, not the number (review X4b minor 9)
+    fetchSpy.mockResolvedValue({ ok: false, status: 429, json: async () => ({ error: "محاولات كثيرة" }) } as Response);
+    await act(async () => {
+      fireEvent.click(screen.getAllByRole("button", { name: /رمز/ })[0]);
+    });
+    await waitFor(() => expect(screen.getByRole("alert").textContent).toContain("محاولات كثيرة"));
+    expect(phone.getAttribute("aria-invalid")).toBeNull();
   });
 });

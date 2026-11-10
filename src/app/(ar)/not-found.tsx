@@ -9,7 +9,9 @@ export const metadata = { title: "الصفحة غير موجودة" };
  * The branded Arabic 404. Kept free of client components on purpose (QA PA-L10): this boundary is part of every page
  * under the (ar) layout, so the public Navbar and Footer it used to render shipped their code — and the landing page's
  * chunk they shared — to every dashboard page. Country-aware plain links and the logo only. «لوحة التحكم» shows only to someone
- * signed in (design P3).
+ * signed in (design P3). It reads the session cookie: safe because the (ar) layout already reads headers() and
+ * cookies(), so every route under it (and this boundary, e.g. an unknown blog slug) renders per request, never from
+ * a prerendered or cached copy (review X4b minor 4).
  */
 export default async function NotFound() {
   const session = await auth().catch(() => null);

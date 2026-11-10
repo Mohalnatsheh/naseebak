@@ -11,7 +11,7 @@ import { matchesHref } from "@/lib/matches/links";
 import { pickBanner, PUSH_SNOOZE_MS, type BannerKind } from "@/lib/banner-slot";
 import { pageWidth, PAGE_WIDTH_CLASS } from "@/lib/page-width";
 import { PushSetupSheet, usePushState } from "@/components/shared/push-setup";
-import { OPEN_PUSH_SETUP_EVENT } from "@/components/shared/notification-bar";
+import { OPEN_PUSH_SETUP_EVENT, openPushSetup } from "@/components/shared/notification-bar";
 import { arabicCount, cn } from "@/lib/utils";
 
 /* ─── Remembered dismissals (localStorage, read only in the browser) ─── */
@@ -113,26 +113,18 @@ function ActionLink({ href, children }: { href: string; children: ReactNode }) {
 
 /**
  * The one banner slot (P1-5): picks the most important line for this member on this page and shows only that, above
- * the page title. Also hosts the guided notifications sheet (opened by any `openPushSetup()`).
+ * the page title. Its push line opens the guided notifications sheet, which `PushSetupHost` keeps mounted for every
+ * dashboard page and state (review X4b minor 3: home places the slot itself and has loading / failed states).
  */
 export function BannerSlot() {
   const pathname = usePathname() ?? "";
   const { profile, completeness, counts, loading } = useDashboardData();
   const { stage } = usePushState();
   const pushSnoozed = useSyncExternalStore(subscribeStore, readPushSnoozed, () => true);
-  const [sheetOpen, setSheetOpen] = useState(false);
   const gender = profile?.gender;
   const known = gender === "MALE" || gender === "FEMALE";
   // The profile didn't load (no gender yet): words that fit everyone, never a masculine command (QA WM-08)
   const v = (m: string, f: string, neutral = m) => (known ? forViewer(gender, m, f) : neutral);
-
-  useEffect(() => {
-    const onOpen = () => setSheetOpen(true);
-    window.addEventListener(OPEN_PUSH_SETUP_EVENT, onOpen);
-    return () => window.removeEventListener(OPEN_PUSH_SETUP_EVENT, onOpen);
-  }, []);
-
-  const sheet = <PushSetupSheet open={sheetOpen} onOpenChange={setSheetOpen} gender={gender} />;
 
   // Until the profile and the switches load, nothing (a banner that appears and is replaced would jump)
   const kind =
@@ -200,7 +192,7 @@ export function BannerSlot() {
         title={blocked ? "الإشعارات مغلقة على هذا الجهاز." : "الإشعارات غير مفعّلة."}
         body={v("لن تعرف بالتوافق والرسائل فور حدوثها.", "لن تعرفي بالتوافق والرسائل فور حدوثها.", "")}
         action={
-          <button type="button" onClick={() => setSheetOpen(true)} className={ACTION}>
+          <button type="button" onClick={openPushSetup} className={ACTION}>
             {blocked ? "طريقة فتحها" : v("فعّلها الآن", "فعّليها الآن", "تفعيل الإشعارات")}
           </button>
         }
@@ -209,12 +201,19 @@ export function BannerSlot() {
     );
   }
 
-  return (
-    <>
-      {line}
-      {sheet}
-    </>
-  );
+  return line;
+}
+
+/** The guided notifications sheet, opened by any `openPushSetup()`: mounted once by `DashboardColumn` */
+export function PushSetupHost() {
+  const { profile } = useDashboardData();
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    const onOpen = () => setOpen(true);
+    window.addEventListener(OPEN_PUSH_SETUP_EVENT, onOpen);
+    return () => window.removeEventListener(OPEN_PUSH_SETUP_EVENT, onOpen);
+  }, []);
+  return <PushSetupSheet open={open} onOpenChange={setOpen} gender={profile?.gender} />;
 }
 
 /** «طلب تعارف» counted (review X4a minor 2): «طلب تعارف» · «طلبا تعارف» · «3 طلبات تعارف» · «11 طلباً للتعارف» */
@@ -261,6 +260,7 @@ export function DashboardColumn({ children }: { children: ReactNode }) {
     >
       {!slotInPage(pathname) && <BannerSlot />}
       {children}
+      <PushSetupHost />
     </div>
   );
 }

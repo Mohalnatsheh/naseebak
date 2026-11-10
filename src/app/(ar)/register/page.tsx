@@ -337,7 +337,10 @@ function RegisterPageContent() {
       }
 
       if (!res.ok) {
-        setError(data.error || "حدث خطأ أثناء إرسال رمز التحقق", "phone");
+        // Only an answer about the number marks the phone field (an invalid number, or its country: 400 / COUNTRY_*);
+        // a rate limit, maintenance or a server error is about the request, not the field (review X4b minor 9)
+        const aboutNumber = res.status === 400 || (typeof data.code === "string" && data.code.startsWith("COUNTRY_"));
+        setError(data.error || "حدث خطأ أثناء إرسال رمز التحقق", aboutNumber ? "phone" : null);
         return;
       }
 

@@ -68,6 +68,26 @@ describe("suggestions page fetch rules (WM-07)", () => {
     expect(urls().filter((u) => u.startsWith("/api/suggestions?"))).toEqual([]);
   });
 
+  it("a failed first «جديدة» request: the retry carries the top-up again (review X4b minor 1)", async () => {
+    let failed = false;
+    const base = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation(async (url: string) => {
+      if (!failed && url.includes("topup=1")) {
+        failed = true;
+        return { ok: false, status: 500, json: async () => ({}) };
+      }
+      return base(url);
+    });
+    await openPage();
+    const { fireEvent } = await import("@testing-library/react");
+    fireEvent.click(await screen.findByRole("button", { name: /حاول|إعادة/ }));
+    expect(await screen.findByText("لا يوجد حالياً من يطابق شروطك")).toBeInTheDocument();
+    expect(urls().filter((u) => u.includes("topup=1"))).toEqual([
+      "/api/suggestions/feed?tab=new&page=1&topup=1",
+      "/api/suggestions/feed?tab=new&page=1&topup=1",
+    ]);
+  });
+
   it("switches off: the legacy list is still loaded from /api/suggestions", async () => {
     dash.value = { ...dash.value, counts: { ...(dash.value.counts as object), flags: { introRequests: false, chat: false, mutualSuggestions: false } } };
     fetchMock.mockImplementation(async (url: string) => {

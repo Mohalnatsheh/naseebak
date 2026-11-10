@@ -1,6 +1,6 @@
 /**
  * Opening the guided notifications setup from anywhere (the chat status bar, the home page, the banner slot). The
- * sheet itself lives in the dashboard's banner slot (`banner-slot.tsx`), which also shows the one «الإشعارات غير
+ * sheet itself is `PushSetupHost` (`banner-slot.tsx`, mounted on every dashboard page); the banner slot shows the one «الإشعارات غير
  * مفعّلة» line when nothing more important is waiting (design review P1-5; it replaced the bar that sat on every
  * page). Db-free.
  */

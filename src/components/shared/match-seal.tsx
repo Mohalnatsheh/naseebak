@@ -43,17 +43,19 @@ export function MatchSeal({
   initials,
   size = 104,
   animate = true,
+  decorative = false,
   className,
 }: {
   initials: string;
   size?: number;
   animate?: boolean;
+  /** Next to visible words that already say it (the match moment's «توافق متبادل!»): hidden from screen readers */
+  decorative?: boolean;
   className?: string;
 }) {
   return (
     <span
-      role="img"
-      aria-label="توافق متبادل"
+      {...(decorative ? { "aria-hidden": true } : { role: "img", "aria-label": "توافق متبادل" })}
       data-slot="match-seal"
       data-animate={animate || undefined}
       className={cn("relative inline-flex shrink-0 items-center justify-center", className)}

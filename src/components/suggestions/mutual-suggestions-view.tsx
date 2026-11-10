@@ -129,6 +129,10 @@ export function MutualSuggestionsView({
     toppedUp.current = true;
     return `${base}&topup=1`;
   }, []);
+  // The top-up request failed: the next «جديدة» request (the retry) carries topup=1 again (review X4b minor 1)
+  const topUpFailed = useCallback((url: string) => {
+    if (url.includes("topup=1")) toppedUp.current = false;
+  }, []);
   const readEmpty = useCallback((url: string, body: unknown) => {
     if (!url.includes("topup=1") || !body) return;
     const data = body as { emptyReason?: SuggestEmptyReason | null; nextSuggestionsAt?: string | null };
@@ -233,13 +237,20 @@ export function MutualSuggestionsView({
           const d = await r.json();
           readEmpty(curUrl, d);
           return d;
+        }).catch((e) => {
+          topUpFailed(curUrl);
+          throw e;
         }),
         ...others.map((k) => {
           const u = urlFor(k, `/api/suggestions/feed?tab=${k}&page=1&count=1`);
           return fetch(u).then(async (r) => {
+            if (!r.ok) topUpFailed(u);
             const d = (r.ok ? await r.json() : { total: 0 }) as { total?: number };
             readEmpty(u, d);
             return d;
+          }).catch((e) => {
+            topUpFailed(u);
+            throw e;
           });
         }),
       ]);
@@ -258,7 +269,7 @@ export function MutualSuggestionsView({
     } finally {
       if (seq === loadSeq.current) setLoading(false);
     }
-  }, [newTabUrl, readEmpty]);
+  }, [newTabUrl, readEmpty, topUpFailed]);
 
   // «توافق متبادل» shows the matches list: only the tab counts are needed, not the hidden feed page (QA WM-07)
   const loadCounts = useCallback(async () => {
@@ -270,10 +281,14 @@ export function MutualSuggestionsView({
         return fetch(u)
           .then((r) => (r.ok ? r.json() : null) as Promise<{ total?: number } | null>)
           .then((d) => {
+            if (!d) topUpFailed(u);
             readEmpty(u, d);
             return d;
           })
-          .catch(() => null);
+          .catch(() => {
+            topUpFailed(u);
+            return null;
+          });
       })
     );
     if (seq !== loadSeq.current) return;
@@ -284,7 +299,7 @@ export function MutualSuggestionsView({
       });
       return next;
     });
-  }, [newTabUrl, readEmpty]);
+  }, [newTabUrl, readEmpty, topUpFailed]);
 
   useEffect(() => {
     if (showMatches) void loadCounts();
@@ -661,7 +676,7 @@ export function MutualSuggestionsView({
           {notice.kind === "match" && (
             // The match moment (S1): the gold seal draws itself around both initials (static with reduced motion)
             <div data-testid="match-moment" className="flex flex-col items-center gap-2 py-2 text-center">
-              <MatchSeal initials={sealInitials(profile?.firstName, notice.name)} />
+              <MatchSeal decorative initials={sealInitials(profile?.firstName, notice.name)} />
               <p className="text-title text-primary">توافق متبادل!</p>
               <p className="font-semibold text-ink">تهانينا! الاهتمام متبادل وأصبح لديك توافق جديد.</p>
               <Button size="cta" className="mt-1 rounded-xl px-6" onClick={() => openMatch(notice.matchId)}>

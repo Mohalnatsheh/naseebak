@@ -3,6 +3,8 @@
 import Image from "next/image";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { hasShownRows } from "@/components/shared/section-rows";
+import { useFirstReveal } from "@/lib/photo-reveal";
+import { cn } from "@/lib/utils";
 import {
   Loader2,
   Heart,
@@ -756,17 +758,7 @@ export function MatchesView({ embedded = false }: { embedded?: boolean } = {}) {
                                 }}
                               >
                                 <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent z-10 pointer-events-none rounded-lg" />
-                                <Image
-                                  src={photo.url}
-                                  alt="صورة الشريك"
-                                  fill
-                                  unoptimized
-                                  sizes="50vw"
-                                  // S2: blurred to sharp in 300 ms the first time they show
-                                  className="photo-reveal object-cover rounded-lg"
-                                  draggable={false}
-                                  onContextMenu={(e) => e.preventDefault()}
-                                />
+                                <RevealedPhoto url={photo.url} />
                               </div>
                             ))}
                           </div>
@@ -1075,5 +1067,22 @@ export function MatchesView({ embedded = false }: { embedded?: boolean } = {}) {
         }
       `}</style>
     </div>
+  );
+}
+
+/** A matched partner's photo; S2: blurred to sharp in 300 ms the first time it shows this session */
+function RevealedPhoto({ url }: { url: string }) {
+  const reveal = useFirstReveal(url, true);
+  return (
+    <Image
+      src={url}
+      alt="صورة الشريك"
+      fill
+      unoptimized
+      sizes="50vw"
+      className={cn("object-cover rounded-lg", reveal && "photo-reveal")}
+      draggable={false}
+      onContextMenu={(e) => e.preventDefault()}
+    />
   );
 }

@@ -41,7 +41,10 @@ describe("the match moment", () => {
     render(<MutualSuggestionsView />);
     fireEvent.click(await screen.findByRole("button", { name: /^مهتم/ }));
     const moment = await screen.findByTestId("match-moment");
-    const seal = within(moment).getByRole("img", { name: "توافق متبادل" });
+    // Decorative: the visible «توافق متبادل!» is what is announced, once (review X4b minor 6)
+    expect(within(moment).queryByRole("img", { name: "توافق متبادل" })).toBeNull();
+    const seal = moment.querySelector<HTMLElement>("[data-slot=match-seal]")!;
+    expect(seal.getAttribute("aria-hidden")).toBe("true");
     expect(seal.textContent).toContain("س · ر");
     seal.querySelectorAll("path").forEach((p) => expect(p.getAttribute("class")).toContain("animate-seal-draw"));
     expect(within(moment).getByText("توافق متبادل!")).toBeInTheDocument();

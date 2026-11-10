@@ -935,7 +935,8 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
                   size={42}
                   matched={!open}
                   dimmed={!open}
-                  timeLeft={open ? chatTimeFraction(conversation.expiresAt) ?? 0 : null}
+                  // No end date (or none left): the plain avatar, never an empty gold track (review X4b minor 7)
+                  timeLeft={open ? chatTimeFraction(conversation.expiresAt) : null}
                 />
               }
             />

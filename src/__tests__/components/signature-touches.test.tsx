@@ -47,13 +47,37 @@ describe("S1 match seal", () => {
   });
 });
 
+describe("S1 seal at the match moment", () => {
+  it("is decorative next to the visible «توافق متبادل!», so the moment is announced once (review X4b minor 6)", () => {
+    const { container } = render(<MatchSeal decorative initials="س · ر" />);
+    const seal = container.querySelector("[data-slot=match-seal]")!;
+    expect(seal.getAttribute("aria-hidden")).toBe("true");
+    expect(seal.getAttribute("role")).toBeNull();
+    expect(seal.getAttribute("aria-label")).toBeNull();
+  });
+});
+
 describe("S2 veil and reveal", () => {
   it("a hidden photo is the veil (initial, star pattern, lock); a revealed photo fades in from a blur", () => {
     const { container, rerender } = render(<MemberAvatar name="ليلى" locked size={64} />);
     expect(container.querySelector(".member-veil")).not.toBeNull();
     expect(container.querySelector("svg.lucide-lock")).not.toBeNull();
+    window.sessionStorage.clear();
     rerender(<MemberAvatar name="ليلى" photoUrl="https://cdn.naseebak.com/a.jpg" reveal size={64} />);
     expect(container.querySelector("img")!.className).toContain("photo-reveal");
+  });
+
+  it("the reveal plays once per photo and session, not on every visit (review X4b minor 2)", () => {
+    window.sessionStorage.clear();
+    const url = "https://cdn.naseebak.com/once.jpg";
+    const first = render(<MemberAvatar name="ليلى" photoUrl={url} reveal size={64} />);
+    expect(first.container.querySelector("img")!.className).toContain("photo-reveal");
+    first.unmount();
+    const again = render(<MemberAvatar name="ليلى" photoUrl={url} reveal size={64} />);
+    expect(again.container.querySelector("img")!.className).not.toContain("photo-reveal");
+    // Another photo still gets its first reveal
+    again.rerender(<MemberAvatar name="ليلى" photoUrl="https://cdn.naseebak.com/other.jpg" reveal size={64} />);
+    expect(again.container.querySelector("img")!.className).toContain("photo-reveal");
   });
 
   it("the reveal is 300 ms from blur(8px), and instant under reduced motion", () => {

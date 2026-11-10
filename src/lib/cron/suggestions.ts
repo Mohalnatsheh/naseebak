@@ -14,6 +14,7 @@ import { WEEKLY_FREE_SUGGESTIONS } from "@/lib/credits";
 import { refundUnansweredInterests } from "@/lib/suggestions/mutual";
 import { startOfAmmanDay } from "@/lib/amman-day";
 import { replyNoticeLine } from "@/lib/payments/topup-prompt";
+import { WEEKLY_SUGGEST_LIMIT } from "@/lib/cron/suggest-limit";
 
 /** Same titles as the waiting nudge and the hidden-card reveal in suggestions/mutual.ts */
 const WAITING_TITLE = "اقتراح بانتظار قرارك";
@@ -22,12 +23,8 @@ export const LIKED_WAITING_TITLE = "شخص ينتظر ردّك";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 export const SUGGESTION_REMIND_BEFORE_DAYS = 2;
-/**
- * Users handed to autoSuggestForUser per run (sequential, most recently active first; the rest are picked up the next
- * day or lazily). 150 until 2026-11-07, when it left 129 of 279 active members un-topped-up, and their hidden cards
- * unrevealed, every morning. About 0.14 s each on production, so 600 stays well inside the 5-minute request.
- */
-export const WEEKLY_SUGGEST_LIMIT = 600;
+// One source for the cap (db-free, shared with the admin page): see suggest-limit.ts
+export { WEEKLY_SUGGEST_LIMIT };
 const BATCH = 500;
 /** One run of the expiry reminder: about 2,000 cards a day expire, this leaves room for a backlog */
 const MAX_REMINDER_PAGES = 20;

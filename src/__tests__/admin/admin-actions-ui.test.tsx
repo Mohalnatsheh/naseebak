@@ -16,7 +16,11 @@ function routeFetch(routes: [RegExp, (init?: RequestInit) => Response][]) {
 
 const admin = (id: string, firstName: string) => ({ id, firstName, lastName: "x", email: `${id}@a.b`, createdAt: "2026-01-01T00:00:00Z" });
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  // A failed assertion inside a fake-timer test must not leave fake timers to the next test (review X2)
+  vi.useRealTimers();
+  vi.restoreAllMocks();
+});
 
 describe("Settings: remove an admin (ADM-08 UI)", () => {
   async function renderSettings(admins: ReturnType<typeof admin>[]) {

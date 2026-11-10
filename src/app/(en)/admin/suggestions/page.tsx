@@ -17,6 +17,7 @@ import { enumLabel } from "@/lib/admin/enum-labels";
 import { fmtLeft } from "@/lib/admin/matching-time";
 import { AdminEmptyState, AdminLoadError } from "@/components/admin/admin-states";
 import { useConfirm } from "@/components/admin/confirm-dialog";
+import { WEEKLY_SUGGEST_LIMIT } from "@/lib/cron/suggest-limit";
 
 /** Admin «Generate All» background run (src/lib/admin/generate-job.ts, GET /api/admin/suggestions/generate) */
 interface GenerateJob {
@@ -51,8 +52,8 @@ interface CycleFlags {
 }
 
 /** Live numbers from the server (src/lib/matching/auto-suggest.ts, src/lib/credits.ts) */
-/** WEEKLY_SUGGEST_LIMIT (src/lib/cron/suggestions.ts, a db module): the cap of one «Generate All» run */
-const GENERATE_CAP = 600;
+/** The cap of one «Generate All» run: the morning job's own limit, from its db-free module */
+const GENERATE_CAP = WEEKLY_SUGGEST_LIMIT;
 
 interface GenerateNumbers {
   minScore: number;

@@ -84,6 +84,8 @@ export async function GET(
             status: true,
             disputedAt: true,
             failureReason: true,
+            // A paid Pro invoice that never made Pro live: the «Refund decision» badge (WP2-09)
+            proNotLive: true,
             createdAt: true,
           },
         },

@@ -20,7 +20,10 @@ import { CountryFlag } from "@/components/shared/country-flag";
 import { MemberProCard } from "@/components/admin/member-pro-card";
 import { MemberDevicesCard } from "@/components/admin/member-devices-card";
 import { MembersSuggestStatus } from "@/components/admin/members-suggest-status";
-import { PersonLink, fmtDateTime } from "@/components/admin/admin-list-bits";
+import { PersonLink, fmtDate, fmtDateTime, plural } from "@/components/admin/admin-list-bits";
+import { AdminEmptyState, AdminLoadError } from "@/components/admin/admin-states";
+import { useConfirm } from "@/components/admin/confirm-dialog";
+import { toLatinDigits } from "@/lib/digits";
 import { FAILURE_LABELS } from "@/lib/payments/failure-labels";
 import { CREDIT_REASON_LABELS, paymentPlanLabel } from "@/lib/admin/pro-labels";
 
@@ -72,6 +75,8 @@ interface PaymentRow {
   status: string;
   disputedAt: string | null;
   failureReason: string | null;
+  /** "duplicate" | "ended": a paid Pro invoice that never made Pro live (refund decision needed) */
+  proNotLive?: string | null;
   createdAt: string;
 }
 
@@ -154,8 +159,12 @@ const decisionLabel: Record<string, { text: string; className: string }> = {
 
 const creditReasonLabel = CREDIT_REASON_LABELS;
 
-function formatDate(d: string | null) {
-  return d ? new Date(d).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "—";
+/** Amman dates, like every admin page */
+const formatDate = (d: string | null) => fmtDate(d);
+
+/** The sign-up placeholder email of phone accounts (`phone_…@naseeb.local`) is not a real address (ADM-22) */
+function displayEmail(email: string): string {
+  return /@naseeb\.local$/i.test(email) ? "None (signed up by phone)" : email;
 }
 
 /** "Card declined · insufficient funds", "Cancelled by the member", … */
@@ -197,6 +206,9 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
   } | null>(null);
   const [sugFailed, setSugFailed] = useState(false);
   const [cycle, setCycle] = useState<CycleData | null>(null);
+  const [cycleFailed, setCycleFailed] = useState(false);
+  const [loadError, setLoadError] = useState("");
+  const confirm = useConfirm();
 
   // Links like #chats or #chat-<id> (from the reports page) point into sections that load later
   useEffect(() => {
@@ -207,11 +219,13 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
   const fetchCycle = useCallback(async () => {
     try {
       const res = await fetch(`/api/admin/users/${id}/cycle`);
-      if (res.ok) setCycle(await res.json());
-      else toast.error("Could not load the requests, chats and credit history");
+      if (res.ok) {
+        setCycle(await res.json());
+        setCycleFailed(false);
+      } else setCycleFailed(true);
     } catch (err) {
       console.error(err);
-      toast.error("Could not load the requests, chats and credit history");
+      setCycleFailed(true);
     }
   }, [id]);
 
@@ -219,11 +233,13 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
     try {
       const res = await fetch(`/api/admin/users/${id}`);
       const data = await res.json().catch(() => ({}));
-      if (res.ok) setUser(data.user);
-      else if (res.status !== 404) toast.error(data.error || "Could not load this member");
+      if (res.ok) {
+        setUser(data.user);
+        setLoadError("");
+      } else if (res.status !== 404) setLoadError(`Couldn't load this member (${res.status}).`);
     } catch (err) {
       console.error(err);
-      toast.error("Could not load this member. Check your connection and try again.");
+      setLoadError("Couldn't load this member. Check your connection.");
     } finally {
       setLoading(false);
     }
@@ -234,6 +250,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
       const res = await fetch(`/api/admin/suggestions/user/${id}`);
       if (!res.ok) throw new Error(String(res.status));
       setSuggestions(await res.json());
+      setSugFailed(false);
     } catch (err) {
       console.error(err);
       setSugFailed(true);
@@ -249,7 +266,17 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
   async function handleSuspend() {
     if (!user) return;
     const suspend = user.status !== "SUSPENDED";
-    if (suspend && !confirm("Suspend this user? Their active chats will be ended and they will be signed out of the app.")) return;
+    if (
+      suspend &&
+      !(await confirm({
+        title: "Suspend this member?",
+        description: <><bdi>{`${user.firstName} ${user.lastName}`}</bdi> can&apos;t use the site or the app until unsuspended.</>,
+        warning: "Their active chats end now (both sides are told) and they are signed out of the app.",
+        confirmLabel: "Suspend",
+        destructive: true,
+      }))
+    )
+      return;
     setSuspending(true);
     setActionError("");
     try {
@@ -276,7 +303,8 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
   }
 
   async function handleSaveCredits() {
-    const trimmed = creditsDelta.trim();
+    // Arabic-Indic digits and the Arabic minus count too (ADM-15)
+    const trimmed = toLatinDigits(creditsDelta).replace(/[−–]/g, "-").replace(/\s+/g, "");
     const delta = Number(trimmed);
     if (!/^[+-]?\d+$/.test(trimmed) || delta === 0) {
       setCreditsError("Enter a non-zero whole number, e.g. +3 or -1");
@@ -347,7 +375,13 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
   }
 
   async function handleEndChat(chatId: string) {
-    if (!confirm("End this chat for both people? They will be notified. This can't be undone.")) return;
+    const ok = await confirm({
+      title: "End this chat?",
+      description: "It ends for both people, and both are told. This can't be undone.",
+      confirmLabel: "End chat",
+      destructive: true,
+    });
+    if (!ok) return;
     setEndingChatId(chatId);
     setActionError("");
     try {
@@ -369,13 +403,15 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
     if (!user) return;
     let reason: string | null = null;
     if (!user.isFlagged) {
-      reason = prompt("Why are you flagging this member? They get no new automatic suggestions until the flag is cleared.");
+      // A textarea in the shared dialog, never window.prompt (ADM-12)
+      reason = await confirm({
+        title: "Flag this member?",
+        description: "They get no new automatic suggestions until the flag is cleared. The reason is shown on this page only.",
+        input: { label: "Why are you flagging this member?", multiline: true, required: true, maxLength: 500 },
+        confirmLabel: "Flag member",
+        destructive: true,
+      });
       if (reason === null) return;
-      reason = reason.trim();
-      if (!reason) {
-        toast.error("Add a reason to flag this member");
-        return;
-      }
     }
     setFlagging(true);
     setActionError("");
@@ -410,6 +446,17 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
     );
   }
 
+  if (!user && loadError) {
+    return (
+      <div className="space-y-4">
+        <Button variant="ghost" size="sm" onClick={() => router.push("/admin/users")}>
+          <ArrowLeft className="h-4 w-4 me-2" /> Back to Users
+        </Button>
+        <AdminLoadError message={loadError} onRetry={fetchUser} />
+      </div>
+    );
+  }
+
   if (!user) {
     return (
       <div className="text-center py-12">
@@ -431,14 +478,15 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
         <ArrowLeft className="h-4 w-4 me-2" /> Back to Users
       </Button>
 
-      {/* Header */}
+      {/* Header: stays on screen while scrolling, with the actions and jumps to each section (design P2) */}
+      <div className="sticky top-[60px] z-30 -mx-4 space-y-3 border-b bg-background/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:-mx-6 sm:px-6 lg:top-0 lg:-mx-8 lg:px-8">
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div className="flex min-w-0 items-center gap-4">
           <div className="h-12 w-12 sm:h-16 sm:w-16 shrink-0 rounded-full bg-primary/10 flex items-center justify-center text-xl font-bold text-primary">
             {user.firstName.charAt(0)}{user.lastName.charAt(0)}
           </div>
           <div className="min-w-0">
-            <h1 className="text-2xl font-bold [overflow-wrap:anywhere]">{user.firstName} {user.lastName}</h1>
+            <h1 className="text-2xl font-display [overflow-wrap:anywhere]"><bdi>{`${user.firstName} ${user.lastName}`}</bdi></h1>
             <div className="flex flex-wrap items-center gap-2 mt-1">
               {/* Verified / Unverified belong to the legacy identity flow: only a suspension is news */}
               {user.status === "SUSPENDED" && <Badge className={userStatusColors[user.status] || ""}>{enumLabel("userStatus", user.status)}</Badge>}
@@ -458,7 +506,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
               )}
             </div>
             {user.isFlagged && user.flagReason && (
-              <p className="text-sm text-destructive mt-1 [overflow-wrap:anywhere]">{user.flagReason}</p>
+              <p dir="auto" className="text-sm text-destructive mt-1 [overflow-wrap:anywhere] whitespace-pre-line">{user.flagReason}</p>
             )}
           </div>
         </div>
@@ -496,9 +544,25 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
             size="sm"
             onClick={openCreditsEditor}
           >
-            <CreditCard className="h-4 w-4 me-2" /> Credits: {user.matchCredits}
+            <CreditCard className="h-4 w-4 me-2" /> {plural(user.matchCredits, "credit")}
           </Button>
         </div>
+      </div>
+      <nav aria-label="Sections" className="flex flex-wrap gap-1.5 text-xs">
+        {[
+          ["suggestions", "Suggestions"],
+          ["profile", "Profile"],
+          ["photos", "Photos"],
+          ["requests", "Requests"],
+          ["chats", "Chats"],
+          ["credits", "Credit history"],
+          ["payments", "Payments"],
+        ].map(([anchor, label]) => (
+          <a key={anchor} href={`#${anchor}`} className="rounded-full border bg-card px-2.5 py-1 text-muted-foreground hover:bg-muted hover:text-foreground">
+            {label}
+          </a>
+        ))}
+      </nav>
       </div>
 
       {actionError && (
@@ -550,7 +614,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
               <label htmlFor="credits-delta" className="text-sm font-medium">Change credits by:</label>
               <Input
                 id="credits-delta"
-                inputMode="numeric"
+                inputMode="text"
                 placeholder="+3 or -1"
                 value={creditsDelta}
                 onChange={(e) => setCreditsDelta(e.target.value)}
@@ -571,8 +635,10 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
             </div>
             <p className="text-xs text-muted-foreground">
               Current balance: {user.matchCredits}
-              {/^[+-]?\d+$/.test(creditsDelta.trim()) && Number(creditsDelta) !== 0 &&
-                ` → ${user.matchCredits + Number(creditsDelta)}`}
+              {(() => {
+                const t = toLatinDigits(creditsDelta).replace(/[−–]/g, "-").replace(/\s+/g, "");
+                return /^[+-]?\d+$/.test(t) && Number(t) !== 0 ? ` → ${user.matchCredits + Number(t)}` : "";
+              })()}
             </p>
             {creditsError && <p className="text-sm text-destructive">{creditsError}</p>}
           </CardContent>
@@ -587,7 +653,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
       <div className="min-w-0"><MemberDevicesCard userId={id} /></div>
       <div className="min-w-0"><MemberProCard userId={id} /></div>
 
-      <SuggestionsCard suggestions={suggestions} failed={sugFailed} />
+      <SuggestionsCard suggestions={suggestions} failed={sugFailed} onRetry={fetchSuggestions} />
 
       {/* Info Grid: min-w-0 lets a child with long text shrink inside its column on a phone */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 [&>*]:min-w-0">
@@ -595,16 +661,16 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
         <Card>
           <CardHeader><CardTitle className="flex items-center gap-2"><User className="h-5 w-5" /> Basic Info</CardTitle></CardHeader>
           <CardContent className="space-y-2 text-sm">
-            <InfoRow icon={<Mail className="h-4 w-4" />} label="Email" value={user.email} />
+            <InfoRow icon={<Mail className="h-4 w-4" />} label="Email" value={displayEmail(user.email)} />
             <InfoRow icon={<Phone className="h-4 w-4" />} label="Phone" value={user.phone || "—"} />
             <InfoRow label="Country" value={countryConfig(user.country).nameEn} />
             <InfoRow icon={<Calendar className="h-4 w-4" />} label="Joined" value={formatDate(user.createdAt)} />
-            <InfoRow icon={<CreditCard className="h-4 w-4" />} label="Credits" value={String(user.matchCredits)} />
+            <InfoRow icon={<CreditCard className="h-4 w-4" />} label="Credits" value={plural(user.matchCredits, "credit")} />
             {user.referralsReceived && (
               <div className="flex items-start gap-2">
                 <span className="text-muted-foreground min-w-[100px] shrink-0">Invited by:</span>
                 <Link href={`/admin/users/${user.referralsReceived.referrer.id}`} className="font-medium hover:underline">
-                  {user.referralsReceived.referrer.firstName} {user.referralsReceived.referrer.lastName}
+                  <bdi>{`${user.referralsReceived.referrer.firstName} ${user.referralsReceived.referrer.lastName}`}</bdi>
                 </Link>
                 <span className="text-xs text-muted-foreground">{user.referralsReceived.creditsAwarded ? "(reward paid)" : "(reward after setup)"}</span>
               </div>
@@ -621,7 +687,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
         </Card>
 
         {/* Profile Details */}
-        <Card>
+        <Card id="profile" className="scroll-mt-40">
           <CardHeader><CardTitle className="flex items-center gap-2"><Heart className="h-5 w-5" /> Profile</CardTitle></CardHeader>
           <CardContent className="space-y-2 text-sm">
             {p ? (
@@ -691,7 +757,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
         )}
 
         {/* Photos */}
-        <Card id="photos" className="scroll-mt-20">
+        <Card id="photos" className="scroll-mt-40">
           <CardHeader><CardTitle className="flex items-center gap-2"><Camera className="h-5 w-5" /> Photos ({user.photos.length})</CardTitle></CardHeader>
           <CardContent>
             {user.photos.length > 0 ? (
@@ -767,7 +833,13 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
         </Card>
       </div>
 
-      {cycle && <CycleSections cycle={cycle} onEndChat={handleEndChat} endingChatId={endingChatId} />}
+      {cycle ? (
+        <CycleSections cycle={cycle} onEndChat={handleEndChat} endingChatId={endingChatId} />
+      ) : cycleFailed ? (
+        <div id="requests" className="scroll-mt-40">
+          <AdminLoadError message="Couldn't load the requests, chats and credit history." onRetry={fetchCycle} />
+        </div>
+      ) : null}
 
       <PaymentsCard user={user} />
     </div>
@@ -827,18 +899,20 @@ function SuggestionTable({ rows, side, otherLabel }: { rows: SuggestionRow[]; si
 function SuggestionsCard({
   suggestions,
   failed,
+  onRetry,
 }: {
   suggestions: { asRecipient: SuggestionRow[]; asCandidate: SuggestionRow[] } | null;
   failed: boolean;
+  onRetry: () => void;
 }) {
   return (
-    <Card>
+    <Card id="suggestions" className="scroll-mt-40">
       <CardHeader>
         <CardTitle className="flex items-center gap-2"><Sparkles className="h-5 w-5" /> Suggestions</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         {failed ? (
-          <p className="text-sm text-destructive">Could not load the suggestions.</p>
+          <AdminLoadError message="Couldn't load the suggestions." onRetry={onRetry} />
         ) : !suggestions ? (
           <div className="h-16 animate-pulse rounded-lg bg-muted" />
         ) : (
@@ -871,7 +945,7 @@ function PaymentsCard({ user }: { user: UserDetail }) {
   // The list is found by phone; a member always has one, this is only for odd old rows
   const allHref = `/admin/payments${user.phone ? `?search=${user.phone}` : ""}`;
   return (
-    <Card id="payments" className="scroll-mt-20">
+    <Card id="payments" className="scroll-mt-40">
       <CardHeader>
         <div className="flex items-center justify-between gap-3">
           <CardTitle className="flex items-center gap-2"><CreditCard className="h-5 w-5" /> Payments ({user._count.payments})</CardTitle>
@@ -880,7 +954,7 @@ function PaymentsCard({ user }: { user: UserDetail }) {
       </CardHeader>
       <CardContent>
         {payments.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No payments</p>
+          <AdminEmptyState icon={CreditCard} title="No payments" />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -896,7 +970,18 @@ function PaymentsCard({ user }: { user: UserDetail }) {
                 {payments.map((pay) => (
                   <tr key={pay.id} className="border-b align-top">
                     <td className="p-2 text-muted-foreground whitespace-nowrap">{fmtDateTime(pay.createdAt)}</td>
-                    <td className="p-2">{paymentPlanLabel(pay.planName)}</td>
+                    <td className="p-2">
+                      {paymentPlanLabel(pay.planName)}
+                      {pay.proNotLive && pay.status === "COMPLETED" && (
+                        <Badge
+                          variant="outline"
+                          className="ms-1 border-amber-300 bg-amber-50 text-amber-800"
+                          title={pay.proNotLive === "duplicate" ? "A second subscription paid while one was live: never made Pro live" : "A renewal paid after Pro ended: Pro did not come back"}
+                        >
+                          Refund decision
+                        </Badge>
+                      )}
+                    </td>
                     <td className="p-2 font-medium whitespace-nowrap">{Number(pay.amount).toFixed(2)} {pay.currency}</td>
                     <td className="p-2">
                       <Badge className={`text-xs ${paymentStatusColors[pay.status] || ""}`}>{enumLabel("paymentStatus", pay.status)}</Badge>
@@ -966,7 +1051,7 @@ function CycleSections({
 }) {
   return (
     <>
-      <Card>
+      <Card id="requests" className="scroll-mt-40">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <HeartHandshake className="h-5 w-5" /> Introduction requests ({cycle.introRequests.length})
@@ -996,7 +1081,7 @@ function CycleSections({
                       <td className="p-2 text-muted-foreground">{r.direction === "sent" ? "Sent to" : "Received from"}</td>
                       <td className="p-2">
                         <Link href={`/admin/users/${r.other.id}`} className="text-primary hover:underline">
-                          {r.other.firstName} {r.other.lastName}
+                          <bdi>{`${r.other.firstName} ${r.other.lastName}`}</bdi>
                         </Link>
                       </td>
                       <td className="p-2"><Badge className={`text-xs ${cycleStatusColors[r.status] || ""}`}>{enumLabel("requestStatus", r.status)}</Badge></td>
@@ -1012,7 +1097,7 @@ function CycleSections({
         </CardContent>
       </Card>
 
-      <Card id="chats" className="scroll-mt-20">
+      <Card id="chats" className="scroll-mt-40">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <MessagesSquare className="h-5 w-5" /> Chats ({cycle.chats.length})
@@ -1042,7 +1127,7 @@ function CycleSections({
                     <tr key={c.id} id={`chat-${c.id}`} className="border-b target:bg-primary/5">
                       <td className="p-2">
                         <Link href={`/admin/users/${c.other.id}`} className="text-primary hover:underline">
-                          {c.other.firstName} {c.other.lastName}
+                          <bdi>{`${c.other.firstName} ${c.other.lastName}`}</bdi>
                         </Link>
                       </td>
                       <td className="p-2"><Badge className={`text-xs ${cycleStatusColors[c.status] || ""}`}>{enumLabel("chatStatus", c.status)}</Badge></td>
@@ -1084,7 +1169,7 @@ function CycleSections({
         </CardContent>
       </Card>
 
-      <Card id="credits" className="scroll-mt-20">
+      <Card id="credits" className="scroll-mt-40">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <History className="h-5 w-5" /> Credit history

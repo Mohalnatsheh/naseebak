@@ -67,9 +67,16 @@ export function MemberDevicesCard({ userId }: { userId: string }) {
             <div className="grid gap-3 sm:grid-cols-3">
               <div className="rounded-lg border border-border/60 p-3">
                 <p className="text-xs text-muted-foreground">Last device</p>
-                <p className="font-semibold">{data.lastDevice ? SOURCE_LABEL[data.lastDevice.source] ?? data.lastDevice.source : "Not recorded yet"}</p>
+                <p className="font-semibold">
+                  {data.lastDevice
+                    ? SOURCE_LABEL[data.lastDevice.source] ?? data.lastDevice.source
+                    : data.app.signedIn
+                      ? "The app (from its sign-in)"
+                      : "Not recorded yet"}
+                </p>
                 <p className="text-xs text-muted-foreground">
-                  {data.lastDevice ? dayName(data.lastDevice.day) : "Counting since 4 Nov 2026"} · last seen {when(data.lastActiveAt)}
+                  {/* No activity day yet, but an app sign-in says where (ADM-22) */}
+                  {data.lastDevice ? dayName(data.lastDevice.day) : data.app.signedIn ? `last used ${when(data.app.lastUsedAt)}` : "Counting since 4 Nov 2026"} · last seen {when(data.lastActiveAt)}
                 </p>
               </div>
               <div className="rounded-lg border border-border/60 p-3">

@@ -1,4 +1,18 @@
 /** Admin → Payments refund confirmation text (client-safe) */
+import { chargeFor } from "@/lib/payments/packages";
+
+/**
+ * «6.00 JOD (8.46 USD charged)»: Jordan shows dinars but the card paid dollars, and Stripe refunds what was charged
+ * (WP2-07). Riyals are charged as shown; other (old) currencies come back as stored.
+ */
+export function refundAmountText(p: { amount: string | number; currency: string }): string {
+  const shown = `${Number(p.amount).toFixed(2)} ${p.currency}`;
+  if (p.currency !== "JOD") return shown;
+  const charge = chargeFor(Number(p.amount), "JOD");
+  return `${shown} (${(charge.chargeAmount / 100).toFixed(2)} USD charged)`;
+}
+
+const credits = (n: number) => `${n} ${n === 1 ? "credit" : "credits"}`;
 export interface RefundPreviewRow {
   amount: string;
   currency: string;
@@ -9,12 +23,12 @@ export interface RefundPreviewRow {
 
 /** "Refund 5.00 JOD…": what the admin is about to do, with a warning when the balance can't cover it */
 export function refundQuestion(p: RefundPreviewRow): { title: string; lines: string[] } {
-  const title = `Refund ${Number(p.amount).toFixed(2)} ${p.currency} to ${p.user ? `${p.user.firstName} ${p.user.lastName}` : "this deleted account"}?`;
+  const title = `Refund ${refundAmountText(p)} to ${p.user ? `${p.user.firstName} ${p.user.lastName}` : "this deleted account"}?`;
   const lines: string[] = [];
   if (p.user) {
-    lines.push(`${p.credits} credit(s) will be taken back. Current balance: ${p.user.matchCredits}.`);
+    lines.push(`${credits(p.credits)} will be taken back. Current balance: ${p.user.matchCredits}.`);
     if (p.user.matchCredits < p.credits) {
-      lines.push(`Warning: the balance is lower than the credits, so it stops at 0 and ${p.credits - p.user.matchCredits} credit(s) already used stay used.`);
+      lines.push(`Warning: the balance is lower than the credits, so it stops at 0 and ${credits(p.credits - p.user.matchCredits)} already used stay used.`);
     }
   }
   if (p.endsPro) lines.push("This payment paid the current Pro period: Pro ends now, and the subscription is cancelled at Stripe.");

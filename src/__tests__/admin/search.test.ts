@@ -14,4 +14,8 @@ describe("personSearch", () => {
     const w = personSearch("0777000002")!;
     expect(w.OR).toContainEqual({ phone: { contains: "962777000002" } });
   });
+  it("reads a phone typed in Arabic-Indic digits (ADM-15)", () => {
+    const w = personSearch("٠٧٧٧٠٠٠٠٠٢")!;
+    expect(w.OR).toContainEqual({ phone: { contains: "962777000002" } });
+  });
 });

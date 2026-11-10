@@ -126,7 +126,10 @@ export function MemberProCard({ userId }: { userId: string }) {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Cancel Pro now?</DialogTitle>
-            <DialogDescription>Ends Pro immediately; no refund. Use Payments → Refund to refund.</DialogDescription>
+            <DialogDescription>
+              Ends Pro immediately; no refund. The member is notified; Pro paid until{" "}
+              {confirming ? fmtDateTime(confirming.currentPeriodEnd) : "the period end"} is lost. Use Payments → Refund to refund.
+            </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setConfirming(null)} disabled={cancelling}>Keep Pro</Button>

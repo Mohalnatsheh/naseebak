@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useEffectEvent, useRef } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Users, ShieldCheck, ChevronLeft, ChevronRight, Ban, Loader2, CreditCard, Flag, CheckSquare, Square, Images, ExternalLink, Download } from "lucide-react";
@@ -9,7 +10,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { fmtAgo, fmtDate, fmtDateTime } from "@/components/admin/admin-list-bits";
+import { fmtAgo, fmtDate, fmtDateTime, plural } from "@/components/admin/admin-list-bits";
+import { AdminEmptyState, AdminLoadError } from "@/components/admin/admin-states";
+import { useConfirm } from "@/components/admin/confirm-dialog";
 import { countryConfig, toCountry } from "@/lib/countries";
 import { CountryFlag } from "@/components/shared/country-flag";
 
@@ -118,6 +121,8 @@ export default function AdminUsersPage() {
   const [bulkSuspending, setBulkSuspending] = useState(false);
   // Only the newest request may fill the list: a slow older one must not overwrite it
   const lastRequest = useRef(0);
+  const [loadError, setLoadError] = useState("");
+  const confirm = useConfirm();
 
   // Reloads when the page, a filter or the applied search changes
   const onListChange = useEffectEvent(() => {
@@ -149,6 +154,7 @@ export default function AdminUsersPage() {
   async function fetchUsers() {
     const request = ++lastRequest.current;
     setLoading(true);
+    setLoadError("");
     try {
       const params = new URLSearchParams({ page: String(page), sort });
       if (query) params.set("search", query);
@@ -160,7 +166,7 @@ export default function AdminUsersPage() {
       const data = await res.json().catch(() => ({}));
       if (request !== lastRequest.current) return;
       if (!res.ok) {
-        toast.error(data.error || "Could not load users");
+        setLoadError(`Couldn't load the users (${res.status}).`);
         setUsers([]);
         return;
       }
@@ -169,7 +175,7 @@ export default function AdminUsersPage() {
       setTotal(data.total ?? null);
     } catch (err) {
       console.error(err);
-      toast.error("Could not load users. Check your connection and try again.");
+      if (request === lastRequest.current) setLoadError("Couldn't load the users. Check your connection.");
     } finally {
       if (request === lastRequest.current) setLoading(false);
     }
@@ -196,7 +202,19 @@ export default function AdminUsersPage() {
   async function handleBulkSuspend(action: "suspend" | "unsuspend") {
     if (selectedIds.size === 0) return;
     const count = selectedIds.size;
-    if (!confirm(`Are you sure you want to ${action} ${count} user(s)?`)) return;
+    const ok = await confirm(
+      action === "suspend"
+        ? {
+            title: `Suspend ${plural(count, "member")}?`,
+            description: "They can't use the site or the app until unsuspended.",
+            // ADM-23: say what else happens
+            warning: "Their active chats end now (both sides are told) and they are signed out of the app.",
+            confirmLabel: `Suspend ${plural(count, "member")}`,
+            destructive: true,
+          }
+        : { title: `Unsuspend ${plural(count, "member")}?`, description: "They can sign in and use the site again.", confirmLabel: "Unsuspend" },
+    );
+    if (!ok) return;
     setBulkSuspending(true);
     try {
       const res = await fetch("/api/admin/users/bulk-suspend", {
@@ -210,7 +228,7 @@ export default function AdminUsersPage() {
         return;
       }
       const verb = action === "suspend" ? "Suspended" : "Unsuspended";
-      const parts = [`${verb} ${data.changed} user(s)`];
+      const parts = [`${verb} ${plural(data.changed ?? 0, "member")}`];
       if (data.unchanged) parts.push(`${data.unchanged} already ${action === "suspend" ? "suspended" : "active"}`);
       if (data.failed?.length) parts.push(`${data.failed.length} failed (${data.failed[0].error})`);
       if (data.failed?.length) toast.error(parts.join(" · "));
@@ -228,7 +246,17 @@ export default function AdminUsersPage() {
   async function handleSuspend(e: React.MouseEvent, user: UserRow) {
     e.stopPropagation();
     const suspend = user.status !== "SUSPENDED";
-    if (suspend && !confirm("Suspend this user? Their active chats will be ended and they will be signed out of the app.")) return;
+    if (
+      suspend &&
+      !(await confirm({
+        title: "Suspend this member?",
+        description: <><bdi>{`${user.firstName} ${user.lastName}`}</bdi> can&apos;t use the site or the app until unsuspended.</>,
+        warning: "Their active chats end now (both sides are told) and they are signed out of the app.",
+        confirmLabel: "Suspend",
+        destructive: true,
+      }))
+    )
+      return;
     setSuspendingId(user.id);
     try {
       const res = await fetch(`/api/admin/users/${user.id}/suspend`, { method: "PUT" });
@@ -269,7 +297,7 @@ export default function AdminUsersPage() {
   function photosButton(u: UserRow) {
     if (u._count.photos === 0) return <span className="text-xs text-muted-foreground whitespace-nowrap">No photos</span>;
     return (
-      <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" onClick={(e) => { e.stopPropagation(); setPhotoUser(u); }}>
+      <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" aria-label={`Photos of ${u.firstName}: ${u._count.photos}`} onClick={(e) => { e.stopPropagation(); setPhotoUser(u); }}>
         <Images className="h-3.5 w-3.5" />
         {u._count.photos}
       </Button>
@@ -280,7 +308,7 @@ export default function AdminUsersPage() {
     <div className="space-y-6">
       <div>
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h1 className="text-2xl font-bold flex items-center gap-3">
+          <h1 className="text-2xl font-display flex items-center gap-3">
             <Users className="h-7 w-7 text-primary" />
             User Management
           </h1>
@@ -299,6 +327,7 @@ export default function AdminUsersPage() {
       <form onSubmit={(e) => e.preventDefault()} className="flex flex-wrap gap-3">
         <div className="flex-1 min-w-[200px]">
           <Input
+            aria-label="Search users"
             placeholder="Name, phone (07…), email or user id"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -368,8 +397,10 @@ export default function AdminUsersPage() {
                   <div className="h-16 bg-muted animate-pulse rounded" />
                 </div>
               ))
+            ) : loadError ? (
+              <AdminLoadError message={loadError} onRetry={fetchUsers} className="m-3" />
             ) : users.length === 0 ? (
-              <p className="p-8 text-center text-muted-foreground">No users found</p>
+              <AdminEmptyState icon={Users} title="No users found" hint="Try another search or filter." className="m-3" />
             ) : (
               users.map((u) => (
                 <div key={u.id} className="space-y-2 p-3" onClick={() => router.push(`/admin/users/${u.id}`)}>
@@ -377,7 +408,8 @@ export default function AdminUsersPage() {
                     {u.role !== "ADMIN" && (
                       <button
                         onClick={(e) => { e.stopPropagation(); toggleSelect(u.id); }}
-                        aria-label="Select"
+                        aria-label={`Select ${u.firstName} ${u.lastName}`}
+                        aria-pressed={selectedIds.has(u.id)}
                         className="p-2 -m-2 text-muted-foreground"
                       >
                         {selectedIds.has(u.id) ? <CheckSquare className="h-4 w-4 text-primary" /> : <Square className="h-4 w-4" />}
@@ -385,13 +417,15 @@ export default function AdminUsersPage() {
                     )}
                     <Avatar u={u} />
                     <div className="min-w-0 flex-1">
-                      <p className="break-words text-sm font-medium">{u.firstName} {u.lastName}</p>
+                      <Link href={`/admin/users/${u.id}`} onClick={(e) => e.stopPropagation()} className="break-words text-sm font-medium text-primary hover:underline">
+                        <bdi>{`${u.firstName} ${u.lastName}`}</bdi>
+                      </Link>
                       <p className="text-sm text-muted-foreground">{u.phone || "—"}</p>
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-1"><AccountBadges u={u} /></div>
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                    <span className="inline-flex items-center gap-1"><CreditCard className="h-3 w-3" />{u.matchCredits} {u.matchCredits === 1 ? "credit" : "credits"}</span>
+                    <span className="inline-flex items-center gap-1"><CreditCard className="h-3 w-3" />{plural(u.matchCredits, "credit")}</span>
                     <span title={fmtDateTime(u.lastActiveAt)}>{u.lastActiveAt ? `Active ${fmtAgo(u.lastActiveAt)}` : "No activity yet"}</span>
                   </div>
                   <UsesBadges uses={u.uses} />
@@ -409,7 +443,12 @@ export default function AdminUsersPage() {
               <thead>
                 <tr className="border-b bg-muted/50">
                   <th className="p-3 w-10">
-                    <button onClick={toggleSelectAll} aria-label="Select all" className="text-muted-foreground hover:text-foreground">
+                    <button
+                      onClick={toggleSelectAll}
+                      aria-label="Select all on this page"
+                      aria-pressed={selectedIds.size > 0 && selectedIds.size === users.filter((u) => u.role !== "ADMIN").length}
+                      className="text-muted-foreground hover:text-foreground"
+                    >
                       {selectedIds.size > 0 && selectedIds.size === users.filter((u) => u.role !== "ADMIN").length ? (
                         <CheckSquare className="h-4 w-4" />
                       ) : (
@@ -440,10 +479,16 @@ export default function AdminUsersPage() {
                       </td>
                     </tr>
                   ))
+                ) : loadError ? (
+                  <tr>
+                    <td colSpan={13} className="p-3">
+                      <AdminLoadError message={loadError} onRetry={fetchUsers} />
+                    </td>
+                  </tr>
                 ) : users.length === 0 ? (
                   <tr>
-                    <td colSpan={13} className="text-center p-8 text-muted-foreground">
-                      No users found
+                    <td colSpan={13} className="p-3">
+                      <AdminEmptyState icon={Users} title="No users found" hint="Try another search or filter." />
                     </td>
                   </tr>
                 ) : (
@@ -455,7 +500,12 @@ export default function AdminUsersPage() {
                     >
                       <td className="p-3" onClick={(e) => e.stopPropagation()}>
                         {u.role !== "ADMIN" && (
-                          <button onClick={() => toggleSelect(u.id)} aria-label="Select" className="p-2 -m-2 text-muted-foreground hover:text-foreground">
+                          <button
+                            onClick={() => toggleSelect(u.id)}
+                            aria-label={`Select ${u.firstName} ${u.lastName}`}
+                            aria-pressed={selectedIds.has(u.id)}
+                            className="p-2 -m-2 text-muted-foreground hover:text-foreground"
+                          >
                             {selectedIds.has(u.id) ? <CheckSquare className="h-4 w-4 text-primary" /> : <Square className="h-4 w-4" />}
                           </button>
                         )}
@@ -464,7 +514,14 @@ export default function AdminUsersPage() {
                         <div className="flex items-center gap-2">
                           <Avatar u={u} />
                           <div>
-                            <p className="font-medium text-sm whitespace-nowrap">{u.firstName} {u.lastName}</p>
+                            {/* A real link: rows open by keyboard and in a new tab (ADM-11) */}
+                            <Link
+                              href={`/admin/users/${u.id}`}
+                              onClick={(e) => e.stopPropagation()}
+                              className="font-medium text-sm whitespace-nowrap text-primary hover:underline"
+                            >
+                              <bdi>{`${u.firstName} ${u.lastName}`}</bdi>
+                            </Link>
                             <div className="flex flex-wrap gap-1 empty:hidden"><AccountBadges u={u} /></div>
                           </div>
                         </div>
@@ -509,10 +566,10 @@ export default function AdminUsersPage() {
             <div className="flex items-center justify-between p-3 border-t">
               <p className="text-sm text-muted-foreground">Page {page} of {totalPages}</p>
               <div className="flex gap-2">
-                <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>
+                <Button variant="outline" size="sm" aria-label="Previous page" disabled={page <= 1} onClick={() => setPage(page - 1)}>
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
-                <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>
+                <Button variant="outline" size="sm" aria-label="Next page" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>
                   <ChevronRight className="h-4 w-4" />
                 </Button>
               </div>
@@ -526,7 +583,7 @@ export default function AdminUsersPage() {
         <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              {photoUser?.firstName} {photoUser?.lastName} · {photoUser?.photos.length} photo{photoUser?.photos.length === 1 ? "" : "s"}
+              <bdi>{`${photoUser?.firstName ?? ""} ${photoUser?.lastName ?? ""}`}</bdi> · {plural(photoUser?.photos.length ?? 0, "photo")}
             </DialogTitle>
           </DialogHeader>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">

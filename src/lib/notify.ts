@@ -12,6 +12,7 @@ import { notificationUrl } from "@/lib/notification-links";
 import { sendSmsNotice, smsEventFor, type SmsNoticeEvent } from "@/lib/sms-notice";
 import type { PreferenceKey } from "@/lib/notification-prefs";
 import { toLebanese } from "@/lib/notifications/lebanese";
+import { activeCountryCodes } from "@/lib/countries/settings";
 
 export { CHAT_NOTICE_PREFERENCE, type PreferenceKey } from "@/lib/notification-prefs";
 
@@ -48,6 +49,8 @@ export interface NotifyInput {
   channel?: PushChannel;
   /** Send the text exactly as written (an admin's own words): never rewritten into a member's dialect */
   verbatim?: boolean;
+  /** The reader's country when the caller already has it: saves looking it up */
+  country?: string | null;
 }
 
 export type PushChannel = "all" | "web" | "app";
@@ -87,6 +90,18 @@ function bodyFor(body: string, country: string | null | undefined): string {
   return country === "LB" ? toLebanese(body) : body;
 }
 
+/**
+ * Whether any active country reads notices in a dialect (only Lebanon). While none does, readers' countries are not
+ * looked up at all, so Jordanian and Saudi notices cost no extra query (country settings are cached for 30 s).
+ */
+async function dialectInUse(): Promise<boolean> {
+  try {
+    return (await activeCountryCodes()).includes("LB");
+  } catch {
+    return false;
+  }
+}
+
 /** The reader's country, or null when unknown (the text then goes out as written) */
 async function countryOf(userId: string): Promise<string | null> {
   try {
@@ -98,7 +113,9 @@ async function countryOf(userId: string): Promise<string | null> {
 }
 
 export async function notify(input: NotifyInput): Promise<void> {
-  return deliver(input, input.verbatim ? null : await countryOf(input.userId));
+  if (input.verbatim) return deliver(input, null);
+  if (input.country !== undefined) return deliver(input, input.country);
+  return deliver(input, (await dialectInUse()) ? await countryOf(input.userId) : null);
 }
 
 async function deliver(input: NotifyInput, country: string | null): Promise<void> {
@@ -136,7 +153,7 @@ async function deliver(input: NotifyInput, country: string | null): Promise<void
 export async function notifyMany(userIds: string[], input: Omit<NotifyInput, "userId">): Promise<void> {
   // Every reader's country in one query, so each notice is worded for its reader
   let countries = new Map<string, string>();
-  if (!input.verbatim && userIds.length > 0) {
+  if (!input.verbatim && userIds.length > 0 && (await dialectInUse())) {
     try {
       const users = await db.user.findMany({ where: { id: { in: userIds } }, select: { id: true, country: true } });
       countries = new Map(users.map((u) => [u.id, u.country]));

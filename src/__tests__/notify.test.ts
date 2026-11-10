@@ -3,6 +3,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const db = vi.hoisted(() => ({
   notification: { create: vi.fn(), findFirst: vi.fn() },
   notificationPreference: { findUnique: vi.fn() },
+  // No country rows: only Jordan is active, so notify() reads no reader country
+  countrySetting: { findMany: vi.fn(async () => []) },
 }));
 const push = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/db", () => ({ db }));

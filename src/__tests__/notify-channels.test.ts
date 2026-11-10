@@ -4,6 +4,8 @@ const db = vi.hoisted(() => ({
   notification: { create: vi.fn(), findFirst: vi.fn() },
   notificationPreference: { findUnique: vi.fn() },
   user: { findMany: vi.fn(), findUnique: vi.fn() },
+  // No country rows: only Jordan is active, so notify() reads no reader country
+  countrySetting: { findMany: vi.fn(async () => []) },
 }));
 const web = vi.hoisted(() => vi.fn());
 const app = vi.hoisted(() => vi.fn());

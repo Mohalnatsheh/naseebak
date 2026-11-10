@@ -7,7 +7,9 @@
  * Admin Insights).
  *
  * Each pair is a sentence or a piece between placeholders, so names, numbers, dates and prices pass through
- * untouched. Rules: everyday Lebanese, warm and respectful; no gendered command in a text written for everyone
+ * untouched. A sentence that carries a value (an amount, a count from arabicCount, a ticket title) is one pair with
+ * a `{}` slot for each value: the words around it anchor the match, and the value is copied as it is, never rewritten
+ * (a bare «رصيدان» or «لديك» pair would also rewrite «رصيدان» inside an interpolated count). Rules: everyday Lebanese, warm and respectful; no gendered command in a text written for everyone
  * (gendered variants get their own pairs); product terms («مهتم», «التوافقات», «المحادثات», tab names, «Pro»,
  * «نصيبك») and quoted button labels unchanged; Western digits. «صفر: اشح» stays: Admin Insights counts the top-up line by that text.
  *
@@ -20,8 +22,8 @@ const PAIRS: ReadonlyArray<readonly [msa: string, lb: string]> = [
   // Suggestions
   ["يمكنك الاطلاع عليه الآن.", "ناطرك بصفحة الاقتراحات."],
   ["يمكنك الاطلاع عليها الآن.", "ناطرينك بصفحة الاقتراحات."],
-  ["اقتراحا توافق جديدان", "اقتراحين توافق جداد"],
-  ["لديك", "عندك"],
+  ["اقتراحا توافق جديدان", "اقتراحين جداد"],
+  ["لديك اقتراح توافق جديد", "عندك اقتراح توافق جديد"],
   ["من شخص مهتم بكِ.", "من شخص مهتم فيكِ."],
   ["من شخص مهتم بك.", "من شخص مهتم فيك."],
   ["اطّلعي عليه وقرّري قبل أن تنتهي مدته.", "شوفيه وقرّري قبل ما تخلص مدّته."],
@@ -114,8 +116,7 @@ const PAIRS: ReadonlyArray<readonly [msa: string, lb: string]> = [
   // Payments and credits
   ["تمت إضافة الأرصدة إلى حسابك (", "انضافت الأرصدة على حسابك ("],
   ["تم استرداد قيمة عملية الدفع إلى بطاقتك.", "رجّعنا قيمة الدفعة على بطاقتك."],
-  ["تم استرداد", "رجّعنا"],
-  [") إلى بطاقتك، وأُزيل رصيد الباقة من حسابك.", ") على بطاقتك، وشلنا رصيد الباقة من حسابك."],
+  ["تم استرداد {} (قيمة باقة {}) إلى بطاقتك، وأُزيل رصيد الباقة من حسابك.", "رجّعنا {} (قيمة باقة {}) على بطاقتك، وشلنا رصيد الباقة من حسابك."],
   ["اخترتِ باقة ولم يكتمل الدفع.", "اخترتي باقة وما كمل الدفع."],
   ["اخترت باقة ولم يكتمل الدفع.", "اخترت باقة وما كمل الدفع."],
   ["أكملي الدفع في ثوانٍ، والرصيد يعود لكِ تلقائياً إذا لم يردّ الطرف الآخر.", "كمّلي الدفع بثواني، والرصيد بيرجعلكِ تلقائياً إذا الطرف التاني ما ردّ."],
@@ -163,23 +164,19 @@ const PAIRS: ReadonlyArray<readonly [msa: string, lb: string]> = [
   ["القرار لك، ويمكنك تعديل شروطك من صفحة الاقتراحات.", "القرار إلك، وفيك تعدّل شروطك من صفحة الاقتراحات."],
 
   // Support
-  ['تم تحديث حالة تذكرتك "', 'صارت حالة تذكرتك "'],
-  ['" إلى: ', '": '],
+  ['تم تحديث حالة تذكرتك "{}" إلى: ', 'صارت حالة تذكرتك "{}": '],
 
   // Pro membership
   ["يمكنك الآن إرسال الصور والرسائل الصوتية في المحادثات.", "إرسال الصور والرسائل الصوتية في المحادثات صار متاح إلك هلّق."],
-  ["أُضيف", "انضاف"],
-  ["رصيدان", "رصيدين"],
-  ["رصيداً", "رصيد"],
-  [" إلى رصيدك من اشتراك Pro.", " لرصيدك من اشتراك Pro."],
+  ["أُضيف {} إلى رصيدك من اشتراك Pro.", "انضاف {} لرصيدك من اشتراك Pro."],
   ["سنحاول الدفع مرة أخرى خلال الأيام القادمة.", "رح نجرّب الدفع مرة تانية بالأيام الجاية."],
   [
     "إن انتهت العضوية يمكنك الاشتراك من جديد ببطاقة أخرى من صفحة عضوية Pro.",
     "إذا خلصت العضوية، الاشتراك من جديد ببطاقة تانية متاح من صفحة عضوية Pro.",
   ],
   ["يمكنك الاشتراك في Pro من جديد في أي وقت من صفحة عضوية Pro.", "الاشتراك بـ Pro من جديد متاح بأي وقت من صفحة عضوية Pro."],
-  [" من اشتراك Pro إلى بطاقتك، وأُزيل رصيده من حسابك.", " من اشتراك Pro على بطاقتك، وشلنا رصيده من حسابك."],
-  [" من اشتراك Pro إلى بطاقتك.", " من اشتراك Pro على بطاقتك."],
+  ["تم استرداد {} من اشتراك Pro إلى بطاقتك، وأُزيل رصيده من حسابك.", "رجّعنا {} من اشتراك Pro على بطاقتك، وشلنا رصيده من حسابك."],
+  ["تم استرداد {} من اشتراك Pro إلى بطاقتك.", "رجّعنا {} من اشتراك Pro على بطاقتك."],
   ["وانتهت عضوية Pro.", "وخلصت عضوية Pro."],
   ["أوقفت حسابك مؤقتاً، فأوقفنا تجديد اشتراك Pro دون استرداد.", "وقّفت حسابك مؤقتاً، فوقّفنا تجديد اشتراك Pro بلا استرداد."],
   ["طلبت حذف حسابك، فأوقفنا تجديد اشتراك Pro دون استرداد.", "طلبت حذف حسابك، فوقّفنا تجديد اشتراك Pro بلا استرداد."],
@@ -204,18 +201,38 @@ const PAIRS: ReadonlyArray<readonly [msa: string, lb: string]> = [
   ],
   ["وصلتنا دفعة تجديد بعد انتهاء عضوية Pro، ولم تُستأنف العضوية.", "وصلتنا دفعة تجديد بعد ما خلصت عضوية Pro، وما رجعت العضوية."],
   ["سيستردّ فريق نصيبك مبلغ هذه الدفعة إلى بطاقتك.", "فريق نصيبك رح يرجّع مبلغ هالدفعة على بطاقتك."],
-  ["إلى رصيدك من هذه الدفعة، ويُزال عند استردادها.", "لرصيدك من هالدفعة، وبينشال لما تنردّ."],
+  ["أُضيف {} إلى رصيدك من هذه الدفعة، ويُزال عند استردادها.", "انضاف {} لرصيدك من هالدفعة، وبينشال لما تنردّ."],
 ];
 
 /** MSA piece → Lebanese piece, longest first (a sentence wins over a piece inside it) */
 export const LB_DIALECT: ReadonlyArray<readonly [msa: string, lb: string]> = [...PAIRS].sort((a, b) => b[0].length - a[0].length);
 
-const LOOKUP = new Map(LB_DIALECT);
+const SLOT = "{}";
 const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/** Each pair as one regex alternative; a `{}` slot captures the value it stands for (one line, at least a character) */
+const ALTERNATIVES = LB_DIALECT.map(([msa, lb]) => {
+  const parts = msa.split(SLOT);
+  return { source: parts.map(escape).join("(.+?)"), slots: parts.length - 1, lbParts: lb.split(SLOT) };
+});
 /** One pass, longest alternative first: a replaced piece is never scanned again */
-const PATTERN = new RegExp(LB_DIALECT.map(([msa]) => escape(msa)).join("|"), "g");
+const PATTERN = new RegExp(ALTERNATIVES.map((a) => a.source).join("|"), "g");
+/** Where each alternative's captured values start among a match's groups */
+const FIRST_GROUP: number[] = [];
+let groupCount = 0;
+for (const a of ALTERNATIVES) {
+  FIRST_GROUP.push(groupCount);
+  groupCount += a.slots;
+}
+const LOOKUP = new Map(LB_DIALECT);
 
 /** The notice in Lebanese dialect: every known MSA piece replaced, everything else (names, numbers, dates) kept */
 export function toLebanese(text: string): string {
-  return text.replace(PATTERN, (msa) => LOOKUP.get(msa) ?? msa);
+  return text.replace(PATTERN, (msa: string, ...rest: unknown[]) => {
+    const groups = rest.slice(0, groupCount) as (string | undefined)[];
+    const i = ALTERNATIVES.findIndex((a, k) => a.slots > 0 && groups[FIRST_GROUP[k]] !== undefined);
+    if (i < 0) return LOOKUP.get(msa) ?? msa; // a plain piece
+    const values = groups.slice(FIRST_GROUP[i], FIRST_GROUP[i] + ALTERNATIVES[i].slots);
+    return ALTERNATIVES[i].lbParts.map((part, k) => (k === 0 ? part : `${values[k - 1]}${part}`)).join("");
+  });
 }

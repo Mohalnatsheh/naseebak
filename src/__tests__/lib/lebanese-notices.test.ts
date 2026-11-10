@@ -4,6 +4,7 @@ const db = vi.hoisted(() => ({
   notification: { create: vi.fn(), findFirst: vi.fn() },
   notificationPreference: { findUnique: vi.fn() },
   user: { findUnique: vi.fn(), findMany: vi.fn() },
+  countrySetting: { findMany: vi.fn() },
 }));
 const web = vi.hoisted(() => vi.fn());
 const app = vi.hoisted(() => vi.fn());
@@ -14,7 +15,9 @@ vi.mock("@/lib/sms-notice", () => ({ sendSmsNotice: vi.fn(), smsEventFor: () => 
 
 import { AUTOMATIC_NOTIFICATIONS, automaticNotificationsFor } from "@/lib/notifications/automatic";
 import { LB_DIALECT, toLebanese } from "@/lib/notifications/lebanese";
+import { arabicCount } from "@/lib/utils";
 import { notify, notifyMany } from "@/lib/notify";
+import { clearCountrySettingsCache } from "@/lib/countries/settings";
 
 /** Masculine-only commands that must not reach a woman or a text written for everyone */
 const MASCULINE_COMMANDS = ["اضغط", "ادخل", "تصفح", "شاهد", "راجع", "أكمل", "اشحن", "افتح", "اطّلع", "شوف", "فوت"];
@@ -59,6 +62,25 @@ describe("Lebanese notices", () => {
     }
   });
 
+  it("keeps a real interpolated value word for word, even one made of MSA words («رصيدان», «20 رصيداً», «لديك»)", () => {
+    const CREDITS = { one: "رصيد واحد", two: "رصيدان", few: "أرصدة", many: "رصيداً" };
+    const values = [arabicCount(2, CREDITS), arabicCount(20, CREDITS), arabicCount(5, CREDITS), "لديك سؤال"];
+    expect(values.slice(0, 2)).toEqual(["رصيدان", "20 رصيداً"]);
+    for (const value of values) {
+      for (const b of bodies.filter((x) => /\{[^}]*\}/.test(x.body))) {
+        const text = b.body.replace(/\{[^}]*\}/g, value);
+        const expected = (text.match(new RegExp(value, "g")) ?? []).length;
+        expect((toLebanese(text).match(new RegExp(value, "g")) ?? []).length, `${b.key} with «${value}»`).toBe(expected);
+      }
+    }
+    // The call sites themselves (pro/grants.ts, pro/notices.ts, a support ticket's title)
+    expect(toLebanese(`أُضيف ${arabicCount(20, CREDITS)} إلى رصيدك من اشتراك Pro.`)).toBe("انضاف 20 رصيداً لرصيدك من اشتراك Pro.");
+    expect(toLebanese(`أُضيف ${arabicCount(2, CREDITS)} إلى رصيدك من هذه الدفعة، ويُزال عند استردادها.`)).toBe(
+      "انضاف رصيدان لرصيدك من هالدفعة، وبينشال لما تنردّ.",
+    );
+    expect(toLebanese('تم تحديث حالة تذكرتك "لديك رصيدان" إلى: مغلقة')).toBe('صارت حالة تذكرتك "لديك رصيدان": مغلقة');
+  });
+
   it("is idempotent, and no Lebanese piece contains an MSA one", () => {
     for (const b of bodies) {
       const once = toLebanese(filled(b.body).text);
@@ -95,6 +117,26 @@ describe("notify() in Lebanese dialect", () => {
     db.notification.create.mockResolvedValue({});
     db.notification.findFirst.mockResolvedValue(null);
     db.notificationPreference.findUnique.mockResolvedValue(null);
+    // Lebanon active: readers' countries are looked up
+    clearCountrySettingsCache();
+    db.countrySetting.findMany.mockResolvedValue([{ code: "LB", active: true }]);
+  });
+
+  it("while Lebanon is off, nobody's country is read: Jordanian and Saudi notices cost no extra query", async () => {
+    clearCountrySettingsCache();
+    db.countrySetting.findMany.mockResolvedValue([]);
+    db.user.findUnique.mockResolvedValue({ country: "LB" });
+    await notify({ userId: "u1", type: "MATCH", title: TITLE, body: BODY });
+    await notifyMany(["a", "b"], { type: "MATCH", title: TITLE, body: BODY });
+    expect(db.user.findUnique).not.toHaveBeenCalled();
+    expect(db.user.findMany).not.toHaveBeenCalled();
+    expect(db.notification.create.mock.calls.map((c) => c[0].data.body)).toEqual([BODY, BODY, BODY]);
+  });
+
+  it("a caller that knows the reader's country saves the lookup", async () => {
+    await notify({ userId: "u1", type: "MATCH", title: TITLE, body: BODY, country: "LB" });
+    expect(db.user.findUnique).not.toHaveBeenCalled();
+    expect(db.notification.create.mock.calls[0][0].data.body).toBe(toLebanese(BODY));
   });
 
   it.each(["JO", "SA"])("a %s member gets the text unchanged", async (country) => {

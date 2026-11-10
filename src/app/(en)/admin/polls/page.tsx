@@ -73,6 +73,9 @@ export default function AdminPollsPage() {
   const [detail, setDetail] = useState<{ options: OptionBreakdown[]; testVotes: number } | null>(null);
   const [copied, setCopied] = useState(false);
   const confirm = useConfirm();
+  // Settings, the switch and the question form only appear once the real values loaded (ADM-04): a save after a
+  // failed load would write the defaults (3 days, 1 credit, switch off) over them
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     load();
@@ -87,6 +90,7 @@ export default function AdminPollsPage() {
         return;
       }
       setError("");
+      setLoaded(true);
       setPolls(data.polls || []);
       setBarCountry(data.adminCountry ?? "ALL");
       if (data.adminCountry && data.adminCountry !== "ALL") setCountry(data.adminCountry);
@@ -226,12 +230,28 @@ export default function AdminPollsPage() {
         </div>
         <label className="flex items-center gap-3 rounded-lg border bg-card px-3 py-2 text-sm font-medium">
           Show to visitors and members
-          <Switch checked={enabled} disabled={busy === "switch"} onCheckedChange={toggle} />
+          {loaded ? (
+            <Switch checked={enabled} disabled={busy === "switch"} onCheckedChange={toggle} />
+          ) : (
+            <span className="text-xs font-normal text-muted-foreground">{loading ? "Loading…" : "Unknown"}</span>
+          )}
         </label>
       </div>
 
-      {error && <AdminLoadError message={error} onRetry={load} />}
+      {error && (
+        <AdminLoadError
+          message={loaded ? `${error} The values below may be out of date.` : error}
+          onRetry={() => {
+            setLoading(true);
+            void load();
+          }}
+        />
+      )}
 
+      {!loaded ? (
+        loading && <Loader2 className="mx-auto h-6 w-6 animate-spin text-primary" />
+      ) : (
+      <>
       <Card>
         <CardContent className="flex flex-wrap items-end gap-4 p-4">
           <div className="space-y-1">
@@ -345,7 +365,7 @@ export default function AdminPollsPage() {
 
       {loading ? (
         <Loader2 className="mx-auto h-6 w-6 animate-spin text-primary" />
-      ) : error ? null : polls.length === 0 ? (
+      ) : polls.length === 0 ? (
         <AdminEmptyState icon={MessageCircleQuestion} title="No questions yet" hint="Write the first one above." />
       ) : (
         <div className="space-y-3">
@@ -406,6 +426,8 @@ export default function AdminPollsPage() {
             </Card>
           ))}
         </div>
+      )}
+      </>
       )}
     </div>
   );

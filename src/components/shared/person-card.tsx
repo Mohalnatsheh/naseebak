@@ -273,6 +273,8 @@ export function PersonCard({
               type="button"
               onClick={onToggleExpand}
               aria-expanded={!!expanded}
+              // The person's name in it: one such button per card on the page (QA PA-L2)
+              aria-label={`${expanded ? "إخفاء التفاصيل" : "عرض جميع التفاصيل"}: ${name}`}
               className="w-full min-h-11 flex items-center justify-center gap-2 py-2.5 rounded-xl border border-border/50 bg-muted/30 hover:bg-muted/50 transition-colors text-sm font-semibold text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               {expanded ? (

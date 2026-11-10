@@ -1032,7 +1032,7 @@ export function MatchesView({ embedded = false }: { embedded?: boolean } = {}) {
                   onClick={() => setFeedbackRating(star)}
                   className="p-1 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
-                  <Star aria-hidden="true" className={`h-8 w-8 transition-colors ${star <= feedbackRating ? "text-accent fill-accent" : "text-muted-foreground/30"}`} />
+                  <Star aria-hidden="true" className={`h-8 w-8 transition-colors ${star <= feedbackRating ? "text-accent-ink fill-accent" : "text-muted-foreground/50"}`} />
                 </button>
               ))}
             </div>

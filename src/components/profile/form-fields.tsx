@@ -128,7 +128,7 @@ export function DealbreakerToggle({
         aria-describedby={`${id}-label`}
         className="h-3.5 w-3.5 accent-[var(--accent)]"
       />
-      <ShieldCheck className={`h-3.5 w-3.5 ${checked && !disabled ? "text-accent" : ""}`} />
+      <ShieldCheck className={`h-3.5 w-3.5 ${checked && !disabled ? "text-accent-ink" : ""}`} />
       شرط أساسي
     </label>
   );

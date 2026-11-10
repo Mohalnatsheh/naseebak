@@ -78,7 +78,7 @@ export function PollWidget({
                   />
                 )}
                 <span className="relative flex items-center gap-2">
-                  {mine && <Check className="h-4 w-4 shrink-0 text-accent" aria-label="إجابتك" />}
+                  {mine && <Check className={cn("h-4 w-4 shrink-0", dark ? "text-accent" : "text-accent-ink")} aria-label="إجابتك" />}
                   <span className={cn("min-w-0 flex-1 font-semibold", dark ? "text-white" : "text-foreground")}>{o.label}</span>
                   {results && <span className={cn("shrink-0 text-sm font-bold", dark ? "text-white" : "text-primary")}>{pct}%</span>}
                 </span>

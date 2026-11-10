@@ -26,6 +26,7 @@ import { blockConfirmText, reportBlockText } from "@/lib/gendered-copy";
 import { CandidateDetails } from "@/components/suggestions/candidate-details";
 import { DealbreakersCard } from "@/components/suggestions/dealbreakers-card";
 import { MatchesView } from "@/components/matches/matches-view";
+import { useSearchParams } from "next/navigation";
 import { InterestDialog, rechargeToContinue, type IntroPreferenceChoice } from "@/components/suggestions/interest-dialog";
 import { freeReplyShort } from "@/lib/suggestions/copy";
 import { trackEvent } from "@/lib/analytics";
@@ -306,19 +307,17 @@ export function MutualSuggestionsView({
     else void load(tab, page);
   }, [load, loadCounts, showMatches, tab, page]);
 
-  // The tab lives in the URL (?tab=new|interested|waiting): notice links, the home cards, refresh and
-  // back/forward all land on the right category
-  useEffect(() => {
-    const fromUrl = () => {
-      const wanted = new URLSearchParams(window.location.search).get("tab");
-      setShowMatches(wanted === "matches");
-      if (wanted !== "matches") setTab(wanted === "interested" || wanted === "waiting" ? wanted : "new");
-      setPage(1);
-    };
-    // The first tab comes from the URL in useState; this follows back/forward afterwards
-    window.addEventListener("popstate", fromUrl);
-    return () => window.removeEventListener("popstate", fromUrl);
-  }, []);
+  // The tab lives in the URL (?tab=new|interested|waiting|matches): notice links, the home cards, refresh,
+  // back/forward and a sidebar link while already on this page (no reload, no popstate) all land on the right
+  // category. The first tab comes from the URL in useState; this follows every later change of ?tab=.
+  const urlTab = useSearchParams()?.get("tab") ?? null;
+  const [seenUrlTab, setSeenUrlTab] = useState(urlTab);
+  if (urlTab !== seenUrlTab) {
+    setSeenUrlTab(urlTab);
+    setShowMatches(urlTab === "matches");
+    if (urlTab !== "matches") setTab(urlTab === "interested" || urlTab === "waiting" ? urlTab : "new");
+    setPage(1);
+  }
 
   // Leaving the page inside the undo window still sends the «لا» (keepalive survives the navigation)
   useEffect(() => {

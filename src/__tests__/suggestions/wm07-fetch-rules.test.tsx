@@ -18,7 +18,10 @@ const dash = vi.hoisted(() => ({
   } as Record<string, unknown>,
 }));
 vi.mock("@/contexts/dashboard-context", () => ({ useDashboardData: () => dash.value }));
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(window.location.search),
+}));
 vi.mock("sonner", () => ({ toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() }) }));
 vi.mock("@/components/suggestions/dealbreakers-card", () => ({ DealbreakersCard: () => null }));
 vi.mock("@/components/matches/matches-view", () => ({ MatchesView: () => <div>matches-list</div> }));

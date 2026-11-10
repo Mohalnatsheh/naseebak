@@ -26,7 +26,7 @@ class AppShell extends ConsumerWidget {
       },
       child: Scaffold(
       // The admin's popup alert, over whichever tab is open
-      body: AlertGate(child: shell),
+      body: TabBackScope(handlesBack: shell.currentIndex != 0, child: AlertGate(child: shell)),
       bottomNavigationBar: NavigationBar(
         selectedIndex: shell.currentIndex,
         onDestinationSelected: (i) {
@@ -44,4 +44,47 @@ class AppShell extends ConsumerWidget {
     ),
     );
   }
+}
+
+/// Keeps Android's predictive back (Android 14, `enableOnBackInvokedCallback`) asking the app while a tab other than
+/// home is open (QA A2-M1). Each tab's own navigator reports "nothing to pop" on its first page; that report rises
+/// past the shell's [PopScope] to the root and tells the system to handle back itself, which closed the app. While
+/// [handlesBack], such a report is replaced by one saying the app handles back, so the [PopScope] goes home.
+class TabBackScope extends StatefulWidget {
+  const TabBackScope({super.key, required this.handlesBack, required this.child});
+  final bool handlesBack;
+  final Widget child;
+
+  @override
+  State<TabBackScope> createState() => _TabBackScopeState();
+}
+
+class _TabBackScopeState extends State<TabBackScope> {
+  @override
+  void didUpdateWidget(TabBackScope old) {
+    super.didUpdateWidget(old);
+    if (widget.handlesBack && !old.handlesBack) _claim();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.handlesBack) _claim();
+  }
+
+  void _claim() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && widget.handlesBack) const NavigationNotification(canHandlePop: true).dispatch(context);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => NotificationListener<NavigationNotification>(
+        onNotification: (n) {
+          if (!widget.handlesBack || n.canHandlePop) return false;
+          const NavigationNotification(canHandlePop: true).dispatch(context);
+          return true;
+        },
+        child: widget.child,
+      );
 }

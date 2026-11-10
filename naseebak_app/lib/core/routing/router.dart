@@ -22,6 +22,7 @@ import '../../features/matches/match_detail_screen.dart';
 import '../../features/matches/match_models.dart';
 import '../../features/matches/matches_screen.dart';
 import '../../features/notifications/mark_page_read.dart';
+import '../../features/chat/last_chat.dart';
 import '../../features/notifications/notifications_screen.dart';
 import '../../features/onboarding/setup_screen.dart';
 import '../../features/pro/pro_screen.dart';
@@ -122,6 +123,8 @@ final rootNavigatorKey = GlobalKey<NavigatorState>();
 final routerProvider = Provider<GoRouter>((ref) {
   final refresh = _RouterRefresh(ref);
   ref.onDispose(refresh.dispose);
+  linkPaymentsShown = () => ref.read(appPaymentsProvider);
+  ref.onDispose(() => linkPaymentsShown = () => true);
 
   // A naseebak.com link waiting for the home screen: one that opened the app before it could show it (splash,
   // sign-in), or a detail screen (a chat, a match), which is pushed over home so «رجوع» returns there. One slot: a
@@ -181,6 +184,8 @@ final routerProvider = Provider<GoRouter>((ref) {
       pendingLink = earlyLink.route;
     }
   }
+  // No link: the chat the app was showing when the system ended it in the background reopens over home
+  pendingLink ??= LastChat.take(ref.read(sharedPreferencesProvider));
 
   router = GoRouter(
     navigatorKey: rootNavigatorKey,

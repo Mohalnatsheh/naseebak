@@ -40,13 +40,57 @@ void refreshMatch(WidgetRef ref, String matchId) {
 
 /// One match: partner details, photos (revealed after the match), and the next step.
 /// The list's copy (`initial`) only shows while the match itself is fetched: the fetched one always wins.
-class MatchDetailScreen extends ConsumerWidget {
+class MatchDetailScreen extends ConsumerStatefulWidget {
   const MatchDetailScreen({super.key, required this.matchId, this.initial});
   final String matchId;
   final MatchSummary? initial;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<MatchDetailScreen> createState() => _MatchDetailScreenState();
+}
+
+/// What, in the counts, says something on a match may have moved (a request answered, a chat opened or ended)
+(int, int, int) matchSignals(Counts? c) => (c?.pendingIntros ?? 0, c?.actionableMatches ?? 0, c?.unreadChats ?? 0);
+
+/// Never stale (QA A-M04): the match re-reads on coming back to the app, on coming back from its chat (a report or a
+/// block there), and when the counts say something moved (the partner accepted, a notice arrived).
+class _MatchDetailScreenState extends ConsumerState<MatchDetailScreen> with WidgetsBindingObserver {
+  ProviderSubscription<(int, int, int)>? _signals;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _signals = ref.listenManual(countsProvider.select((c) => matchSignals(c.valueOrNull)), (prev, next) {
+      if (prev != null && prev != next) _reread();
+    });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _signals?.close();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _reread();
+      ref.invalidate(countsProvider);
+    }
+  }
+
+  void _reread() {
+    if (!mounted) return;
+    ref.invalidate(introStateProvider(widget.matchId));
+    ref.invalidate(_matchProvider(widget.matchId));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final matchId = widget.matchId;
+    final initial = widget.initial;
     final match = ref.watch(_matchProvider(matchId));
     if (match.hasValue) {
       final m = match.value;
@@ -57,7 +101,7 @@ class MatchDetailScreen extends ConsumerWidget {
             )
           : _MatchView(match: m);
     }
-    if (initial != null) return _MatchView(match: initial!);
+    if (initial != null) return _MatchView(match: initial);
     return match.hasError
         ? Scaffold(
             appBar: AppBar(),
@@ -300,6 +344,16 @@ class IntroPanel extends ConsumerStatefulWidget {
 }
 
 class _IntroPanelState extends ConsumerState<IntroPanel> {
+  /// Opens the chat; back here, the match re-reads (a report, a block or an end in the chat changed it)
+  Future<void> _openChat(String conversationId) async {
+    final container = ProviderScope.containerOf(context, listen: false);
+    await context.push('/chats/$conversationId');
+    container
+      ..invalidate(introStateProvider(widget.matchId))
+      ..invalidate(_matchProvider(widget.matchId))
+      ..invalidate(countsProvider);
+  }
+
   String? _busy;
 
   bool get _viewerFemale => ref.read(authControllerProvider).me?.isFemale ?? false;
@@ -408,7 +462,7 @@ class _IntroPanelState extends ConsumerState<IntroPanel> {
           children.add(LoadingButton(
             label: s.chatPaused ? 'المحادثة متوقفة مؤقتاً للمراجعة' : 'فتح المحادثة',
             icon: Icons.chat_bubble_outline_rounded,
-            onPressed: () => context.push('/chats/${s.conversationId}'),
+            onPressed: () => _openChat(s.conversationId!),
           ));
           if (s.chatExpiresAt != null) {
             gap();
@@ -421,7 +475,7 @@ class _IntroPanelState extends ConsumerState<IntroPanel> {
             label: s.chatPaused ? 'المحادثة متوقفة مؤقتاً للمراجعة' : 'عرض المحادثة السابقة',
             outlined: true,
             icon: Icons.history_rounded,
-            onPressed: () => context.push('/chats/${s.conversationId}'),
+            onPressed: () => _openChat(s.conversationId!),
           ));
           gap();
         }

@@ -76,6 +76,9 @@ void main() {
       await tester.pumpAndSettle();
       expect(await cache.read('u1', 'c1'), isNull);
       expect(find.text('رسالة 1'), findsNothing);
+      // A retry can't bring it back: the way to the chats list instead (QA A-L12)
+      expect(find.byKey(const Key('chat-gone')), findsOneWidget);
+      expect(find.text('إعادة المحاولة'), findsNothing);
     });
 
     testWidgets('offline with a device copy: the copy stays on screen', (tester) async {

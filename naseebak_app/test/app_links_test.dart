@@ -105,9 +105,13 @@ void main() {
   testWidgets('a test or review account (payments hidden) reaching /pro lands on home: Pro is never named',
       (tester) async {
     final (_, router) = await _app(tester, appPayments: false);
+    router.go('/account');
+    await tester.pump(const Duration(milliseconds: 400));
     await _link(tester, 'https://naseebak.com/dashboard/pro');
     expect(find.byType(ProScreen, skipOffstage: false), findsNothing);
     expect(router.state.uri.path, '/home');
+    // «الرئيسية» is the selected tab, not «حسابي» where the link arrived (QA A-L06)
+    expect(tester.widget<NavigationBar>(find.byType(NavigationBar)).selectedIndex, 0);
   });
 
   testWidgets('a paused member sees the Pro renewal and can open «عضوية Pro» from the paused page', (tester) async {

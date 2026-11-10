@@ -81,6 +81,17 @@ class Harness {
 }
 
 void main() {
+  testWidgets('back in the app, the match re-reads: the partner\'s answer shows without pulling (QA A-M04)',
+      (tester) async {
+    final h = Harness(match: matchJson(), intro: introJson());
+    await h.pump(tester);
+    final before = h.adapter.to('GET', '/api/matches/m1/intro').length;
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await pumpFor(tester);
+    expect(h.adapter.to('GET', '/api/matches/m1/intro').length, greaterThan(before));
+  });
+
   testWidgets('«إبلاغ وحظر» reports and blocks, then the match reloads as blocked with «إلغاء الحظر»', (tester) async {
     final h = Harness(match: matchJson(), intro: introJson());
     h.adapter.handlers['POST /api/blocks'] = (_) {

@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/providers.dart';
@@ -34,6 +35,7 @@ import 'chat_media_picker.dart';
 import 'chat_models.dart';
 import 'chat_status_bar.dart';
 import 'hold_to_record.dart';
+import 'last_chat.dart';
 import 'media_bubbles.dart' show ChatPhotoGallery, formatVoiceDuration;
 import 'message_menu.dart';
 import 'photo_preview_screen.dart';
@@ -223,6 +225,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
   late final ChatDrafts _drafts;
   late final int _draftsGeneration;
   late final StoreReview _review;
+  late final SharedPreferences _prefs;
   late final String? _draftOwner;
 
   /// The member who opened this chat is no longer signed in (a sign-out, a 401): nothing is kept or asked any more
@@ -261,6 +264,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     // What was typed here before (back, or the app killed in the background)
     _drafts = ref.read(chatDraftsProvider);
     _review = ref.read(storeReviewProvider);
+    _prefs = ref.read(sharedPreferencesProvider);
     _draftsGeneration = _drafts.generation;
     _draftOwner = _memberId;
     // Heard before the router removes this screen after a sign-out (its dispose then keeps nothing)
@@ -294,6 +298,8 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _saveDraft();
+    // Left normally: a later cold start opens home, not this chat
+    unawaited(LastChat.forget(_prefs, widget.chatId));
     // A real conversation (both have written): the store's rating sheet, once per install, as the chat is left
     // Not after a sign-out (it would show over the sign-in page), nor after a report, an end or a block
     final sent = _messages.where((m) => m.state == SendState.sent);
@@ -338,8 +344,9 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     // A private note never plays on outside the app (Android keeps playing in the background otherwise)
     if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) {
       _playback.pauseCurrent();
-      // Android may kill the app in the background: what was typed stays
+      // Android may kill the app in the background: what was typed stays, and so does which chat was open
       _saveDraft();
+      if (!_signedOut) unawaited(LastChat.remember(_prefs, widget.chatId));
     }
     // Backgrounded or locked mid-recording: Android would record silence and iOS cuts the microphone, so stop now,
     // keep what was really recorded and wait for «إرسال» or «إلغاء»
@@ -1759,7 +1766,23 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
         screenshotNote: 'المحادثة خاصة بينكما، ومشاركتها خارج نصيبك مخالفة للشروط.',
         child: Builder(builder: (context) {
           if (_loading && chat == null) return const Center(child: CircularProgressIndicator());
-          if (_error != null && chat == null) return ErrorView(error: _error!, onRetry: _load);
+          if (_error != null && chat == null) {
+            // Gone for good (a link to a chat that isn't there or isn't mine): a retry can't help (QA A-L12)
+            final gone = _error is ApiException &&
+                ((_error as ApiException).kind == ApiErrorKind.notFound ||
+                    (_error as ApiException).kind == ApiErrorKind.forbidden);
+            if (gone) {
+              return MessageView(
+                key: const Key('chat-gone'),
+                icon: Icons.forum_outlined,
+                title: 'المحادثة غير متاحة',
+                body: 'ربما انتهت أو لم تعد متاحة لك.',
+                actionLabel: 'المحادثات',
+                onAction: () => context.go('/chats'),
+              );
+            }
+            return ErrorView(error: _error!, onRetry: _load);
+          }
           final items = _messages.reversed.toList();
           final safety = _open ? _safetyChip(female) : null;
           return Column(

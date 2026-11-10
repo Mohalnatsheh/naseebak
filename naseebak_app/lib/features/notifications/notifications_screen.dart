@@ -48,12 +48,18 @@ class AppNotification {
 /// Maps a notification (its web `metadata.url`, else its type) to an app screen.
 String appRouteFor(AppNotification n) => appRouteForLink(url: n.url, type: n.type);
 
+/// Whether the app shows payments to the signed-in member (`appPayments`); the router provider wires it to the session
+bool Function() linkPaymentsShown = () => true;
+
 /// The app's tab roots: switched to with `go` (pushing one over the tab shell duplicates its page key)
 const appTabRoots = ['/home', '/suggestions', '/matches', '/chats', '/account'];
 
 /// Opens a notification's screen (in-app list and push taps): a tab is switched to, anything else is pushed, and
 /// the screen already on top (e.g. the chat being read) is left as it is.
 void openAppRoute(GoRouter router, String route) {
+  // Pro for a test or review account (payments hidden) is home: switched to as the tab it is, so «الرئيسية» is the
+  // selected tab and not the one the link arrived on (QA A-L06; pushing `/pro` and redirecting kept «حسابي» selected)
+  if (Uri.parse(route).path == '/pro' && !linkPaymentsShown()) route = '/home';
   if (router.state.uri.toString() == route) return;
   appTabRoots.contains(Uri.parse(route).path) ? router.go(route) : router.push(route);
 }

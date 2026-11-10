@@ -11,14 +11,14 @@
         android:enableOnBackInvokedCallback="true"
         android:allowBackup="false"
         android:fullBackupContent="false">
-        <!-- singleTask: one Naseebak in recents; a link or a push while the app runs reaches it through onNewIntent
-             (singleTop with the empty affinity opened a second task per link) -->
+        <!-- singleTask with the app's own (default) task affinity: one Naseebak in recents; a link or a push while the
+             app runs reaches it through onNewIntent. An empty taskAffinity made each launch its own task, several
+             Naseebak cards in recents (QA A2-M2) -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTask"
             android:screenOrientation="portrait"
-            android:taskAffinity=""
             android:theme="@style/LaunchTheme"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
             android:hardwareAccelerated="true"

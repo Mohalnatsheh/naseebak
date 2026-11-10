@@ -170,6 +170,9 @@ export default function SuggestionsPage() {
   const router = useRouter();
   const { counts: cycleCounts, profile: me, loading: switchesLoading, country } = useDashboardData();
   const perRequestCredits = cycleCounts.flags.introRequests;
+  // Shared suggestions (QA WM-07): the view is decided from the switches the dashboard already has. No legacy
+  // /api/suggestions call first: the shared view's own first feed request tops up (`topup=1`) and says why it's empty.
+  const sharedFeed = !!cycleCounts.flags.mutualSuggestions;
   // Candidates are the other gender: describe their options in third person
   const partnerGender = oppositeGender(me?.gender);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
@@ -276,9 +279,10 @@ export default function SuggestionsPage() {
     if (switchesLoading) return;
     async function init() {
       setLoadFailed(false);
-      // The list starts together with the profile, not after it (QA WM-07: one round instead of two)
-      const suggestionsReq = startSuggestions();
-      suggestionsReq.catch(() => {});
+      // The list starts together with the profile, not after it (QA WM-07: one round instead of two); with shared
+      // suggestions there is no legacy list at all
+      const suggestionsReq = sharedFeed ? null : startSuggestions();
+      suggestionsReq?.catch(() => {});
       try {
         const res = await sharedGet("/api/profile");
         if (!res.ok) throw new Error(`profile ${res.status}`);
@@ -305,7 +309,8 @@ export default function SuggestionsPage() {
           })
         );
 
-        await loadSuggestions(suggestionsReq);
+        if (suggestionsReq) await loadSuggestions(suggestionsReq);
+        else setLoading(false);
       } catch {
         // A failed load is not an incomplete profile: show an error with retry
         setLoadFailed(true);
@@ -314,7 +319,7 @@ export default function SuggestionsPage() {
     }
     init();
     // Re-check once the new-cycle switches arrive (the gate differs per mode)
-  }, [perRequestCredits, switchesLoading, reloadKey]);
+  }, [perRequestCredits, sharedFeed, switchesLoading, reloadKey]);
 
   async function fetchSuggestions(p = sugPage, started?: Promise<Response>) {
     try {
@@ -522,6 +527,18 @@ toast.success("تهانينا! لديك توافق متبادل!", {
           </CardContent>
         </Card>
       </div>
+    );
+  }
+
+  if (sharedFeed) {
+    return (
+      <MutualSuggestionsView
+        topUpOnOpen
+        creditOnInterest={!!cycleCounts.flags.creditOnInterest}
+        freeInterestReply={!!cycleCounts.flags.freeInterestReply}
+        chatEnabled={cycleCounts.flags.chat !== false}
+        credits={cycleCounts.credits ?? me?.matchCredits ?? 0}
+      />
     );
   }
 

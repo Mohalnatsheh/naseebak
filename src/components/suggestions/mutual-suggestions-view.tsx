@@ -90,12 +90,13 @@ function formatNextDate(iso: string, country: unknown): string {
 }
 
 export function MutualSuggestionsView({
-  emptyReason = null,
-  nextSuggestionsAt = null,
+  emptyReason: emptyReasonProp = null,
+  nextSuggestionsAt: nextSuggestionsAtProp = null,
   creditOnInterest = false,
   freeInterestReply = false,
   chatEnabled = true,
   credits = 0,
+  topUpOnOpen = false,
 }: {
   /** Why no new suggestion came on the last run (from page 1 of /api/suggestions) */
   emptyReason?: SuggestEmptyReason | null;
@@ -109,8 +110,30 @@ export function MutualSuggestionsView({
   chatEnabled?: boolean;
   /** Balance when the page loaded (from /api/suggestions) */
   credits?: number;
+  /**
+   * QA WM-07: the page skipped the legacy /api/suggestions call. The first feed request for «جديدة» (the tab itself, or
+   * its count) carries `topup=1`, which tops up and answers why it is empty; `emptyReason` / `nextSuggestionsAt` then
+   * come from there.
+   */
+  topUpOnOpen?: boolean;
 } = {}) {
   const { profile, counts, refreshProfile, refreshUnread, country } = useDashboardData();
+  // The top-up on open (topUpOnOpen): sent once, with the first request that touches «جديدة»
+  const toppedUp = useRef(!topUpOnOpen);
+  const [openEmpty, setOpenEmpty] = useState<{ reason: SuggestEmptyReason | null; nextAt: string | null } | null>(null);
+  const emptyReason = topUpOnOpen ? openEmpty?.reason ?? null : emptyReasonProp;
+  const nextSuggestionsAt = topUpOnOpen ? openEmpty?.nextAt ?? null : nextSuggestionsAtProp;
+  /** The «جديدة» URL; the first one carries the top-up */
+  const newTabUrl = useCallback((base: string) => {
+    if (toppedUp.current) return base;
+    toppedUp.current = true;
+    return `${base}&topup=1`;
+  }, []);
+  const readEmpty = useCallback((url: string, body: unknown) => {
+    if (!url.includes("topup=1") || !body) return;
+    const data = body as { emptyReason?: SuggestEmptyReason | null; nextSuggestionsAt?: string | null };
+    setOpenEmpty({ reason: data.emptyReason ?? null, nextAt: data.nextSuggestionsAt ?? null });
+  }, []);
   // Opening this page clears the bell for the notifications that lead here
   useEffect(() => {
     markPageNotificationsRead("/dashboard/suggestions");
@@ -202,12 +225,23 @@ export function MutualSuggestionsView({
     setLoadFailed(false);
     try {
       const others = TAB_KEYS.filter((k) => k !== t);
+      const urlFor = (k: FeedTab, base: string) => (k === "new" ? newTabUrl(base) : base);
+      const curUrl = urlFor(t, `/api/suggestions/feed?tab=${t}&page=${p}`);
       const [cur, ...rest] = await Promise.all([
-        fetch(`/api/suggestions/feed?tab=${t}&page=${p}`).then((r) => {
+        fetch(curUrl).then(async (r) => {
           if (!r.ok) throw new Error(`feed ${r.status}`);
-          return r.json();
+          const d = await r.json();
+          readEmpty(curUrl, d);
+          return d;
         }),
-        ...others.map((k) => fetch(`/api/suggestions/feed?tab=${k}&page=1&count=1`).then((r) => (r.ok ? r.json() : { total: 0 }) as Promise<{ total?: number }>)),
+        ...others.map((k) => {
+          const u = urlFor(k, `/api/suggestions/feed?tab=${k}&page=1&count=1`);
+          return fetch(u).then(async (r) => {
+            const d = (r.ok ? await r.json() : { total: 0 }) as { total?: number };
+            readEmpty(u, d);
+            return d;
+          });
+        }),
       ]);
       if (seq !== loadSeq.current) return;
       setItems(((cur.items ?? []) as FeedItem[]).filter((i) => !pendingDeclines.current.has(i.id)));
@@ -224,18 +258,23 @@ export function MutualSuggestionsView({
     } finally {
       if (seq === loadSeq.current) setLoading(false);
     }
-  }, []);
+  }, [newTabUrl, readEmpty]);
 
   // «توافق متبادل» shows the matches list: only the tab counts are needed, not the hidden feed page (QA WM-07)
   const loadCounts = useCallback(async () => {
     const seq = ++loadSeq.current;
     setLoading(false);
     const all = await Promise.all(
-      TAB_KEYS.map((k) =>
-        fetch(`/api/suggestions/feed?tab=${k}&page=1&count=1`)
+      TAB_KEYS.map((k) => {
+        const u = k === "new" ? newTabUrl(`/api/suggestions/feed?tab=${k}&page=1&count=1`) : `/api/suggestions/feed?tab=${k}&page=1&count=1`;
+        return fetch(u)
           .then((r) => (r.ok ? r.json() : null) as Promise<{ total?: number } | null>)
-          .catch(() => null)
-      )
+          .then((d) => {
+            readEmpty(u, d);
+            return d;
+          })
+          .catch(() => null);
+      })
     );
     if (seq !== loadSeq.current) return;
     setTotals((prev) => {
@@ -245,7 +284,7 @@ export function MutualSuggestionsView({
       });
       return next;
     });
-  }, []);
+  }, [newTabUrl, readEmpty]);
 
   useEffect(() => {
     if (showMatches) void loadCounts();

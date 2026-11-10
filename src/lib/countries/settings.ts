@@ -14,6 +14,7 @@ import { COUNTRIES, COUNTRY_CODES, DEFAULT_COUNTRY, countryConfig, countryOfPhon
 import { PRICES_APPROVED, packagesFor, readPackagePrices, type PackagePrices } from "@/lib/payments/packages";
 import { readProPlans, type ProPlans } from "@/lib/pro/plans";
 import { localizedPath } from "@/lib/site-paths";
+import { isTestPhone } from "@/lib/test-accounts";
 import { parseEmailList } from "@/lib/validations/country-settings";
 import { areasFor, citiesFor } from "@/lib/countries/places";
 import { HOUSING_TYPES, OPTION_VALUES, SKIN_COLORS, expenseRangesFor, incomeRangesFor, nationalityOptions, tribeLabel } from "@/lib/profile-options";
@@ -112,12 +113,14 @@ export function mockSmsAllowed(env: NodeJS.ProcessEnv = process.env): boolean {
   return env.SMS_MOCK === "true" && /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/.test(url);
 }
 
+const DEFAULT_SMS_PROVIDER: Record<CountryCode, ResolvedSmsProvider> = { JO: "BROADNET", SA: "UNIFONIC", LB: "NONE" };
+
 /** The provider a country's SMS go through, after DEFAULT and the dev-only mock switch are resolved */
 export function resolveSmsProvider(code: CountryCode, setting: SmsProviderKind, env: NodeJS.ProcessEnv = process.env): ResolvedSmsProvider {
   // Local runs: SMS_MOCK=true sends every SMS to the mock outbox, whatever the country is set to
   if (env.SMS_MOCK === "true" && mockSmsAllowed(env)) return "MOCK";
   if (setting === "MOCK") return mockSmsAllowed(env) ? "MOCK" : "NONE";
-  if (setting === "DEFAULT") return code === "SA" ? "UNIFONIC" : "BROADNET";
+  if (setting === "DEFAULT") return DEFAULT_SMS_PROVIDER[code];
   return setting;
 }
 
@@ -149,7 +152,7 @@ export function purchasesAvailable(s: CountrySettings): boolean {
 export function goLiveChecklist(s: CountrySettings, env: NodeJS.ProcessEnv = process.env) {
   const code = s.code as CountryCode;
   const provider = resolveSmsProvider(code, s.smsProvider, env);
-  const codes = providerConfigured(provider, env) || (code === "SA" && !!env.VERIFYWAY_API_KEY);
+  const codes = providerConfigured(provider, env) || (COUNTRIES[code].otpByWhatsapp && !!env.VERIFYWAY_API_KEY);
   return [
     { key: "codes", label: "Sign-in codes can be sent", done: codes },
     { key: "stripe", label: "Stripe key is set", done: !!env.STRIPE_SECRET_KEY },
@@ -171,11 +174,12 @@ export function countryWarnings(s: CountrySettings, env: NodeJS.ProcessEnv = pro
   const code = s.code as CountryCode;
   const out: CountryWarning[] = [];
   const provider = resolveSmsProvider(code, s.smsProvider, env);
-  if (s.active && s.registrationOpen && provider === "NONE") {
+  const codesByWhatsapp = COUNTRIES[code].otpByWhatsapp && !!env.VERIFYWAY_API_KEY;
+  if (s.active && s.registrationOpen && provider === "NONE" && !codesByWhatsapp) {
     out.push({ level: "error", message: "Registration is open but no SMS provider is set: sign-up codes will fail (only test numbers work)." });
   }
-  if (code === "SA" && env.VERIFYWAY_API_KEY && provider === "UNIFONIC" && !providerConfigured(provider, env)) {
-    out.push({ level: "warning", message: "Sign-in codes go by WhatsApp (VerifyWay). Unifonic isn't set, so «Send a test SMS» and SMS notices won't work." });
+  if (codesByWhatsapp && (provider === "UNIFONIC" || provider === "BROADNET") && !providerConfigured(provider, env)) {
+    out.push({ level: "warning", message: `Sign-in codes go by WhatsApp (VerifyWay). ${provider === "UNIFONIC" ? "Unifonic" : "Broadnet"} isn't set, so «Send a test SMS» and SMS notices won't work.` });
   } else if (provider !== "NONE" && provider !== "MOCK" && !providerConfigured(provider, env)) {
     out.push({
       level: s.active ? "error" : "warning",
@@ -223,6 +227,8 @@ export function publicCountry(s: CountrySettings) {
     purchasesEnabled: purchasesAvailable(s),
     features: { polls: s.pollsEnabled },
     words: c.words,
+    /** Display hint for the app: how this country's sign-in code travels */
+    otpChannel: c.otpByWhatsapp ? ("whatsapp" as const) : ("sms" as const),
   };
 }
 
@@ -286,6 +292,8 @@ export async function countrySignupBlock(
   if (claimed && claimed.toUpperCase() !== country) {
     return { status: 400, error: "هذا الرقم لا يتبع الدولة المختارة", code: "COUNTRY_MISMATCH" };
   }
+  // Test numbers may sign up before the country is open
+  if (isTestPhone(phone)) return null;
   const s = await getCountrySettings(country);
   if (!s.active) return { status: 403, error: "نصيبك غير متاح في هذه الدولة حالياً", code: "COUNTRY_INACTIVE" };
   if (!s.registrationOpen) return { status: 403, error: "التسجيل مغلق حالياً في هذه الدولة", code: "COUNTRY_REGISTRATION_CLOSED" };

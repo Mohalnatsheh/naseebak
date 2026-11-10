@@ -17,7 +17,7 @@ import { ProPlansEditor } from "@/components/admin/pro-plans-editor";
 import { proPlansError } from "@/lib/validations/country-settings";
 import type { ProPlans } from "@/lib/pro/plans";
 import { formatCharge, packagesFor } from "@/lib/payments/packages";
-import type { CountryCode } from "@/lib/countries";
+import { countryConfig, type CountryCode } from "@/lib/countries";
 import { toDecimalText } from "@/lib/digits";
 import { AdminLoadError } from "@/components/admin/admin-states";
 
@@ -220,6 +220,7 @@ function CountryCard({ row, onSaved }: { row: CountryRow; onSaved: () => void })
     const data = await res?.json().catch(() => ({}));
     setTesting(false);
     if (!res?.ok) setMessage({ ok: false, text: data?.error || "Test failed" });
+    else if (data.message) setMessage({ ok: !!data.sent, text: data.sent ? `${data.message} (${data.to})` : "WhatsApp code was not accepted (see server log)" });
     else setMessage({ ok: !!data.sent, text: data.sent ? `Test SMS accepted by ${data.provider} for ${data.to}` : `${data.provider} did not accept the test SMS (see server log)` });
   }
 
@@ -365,7 +366,7 @@ function CountryCard({ row, onSaved }: { row: CountryRow; onSaved: () => void })
           <div className="ms-auto flex items-end gap-2">
             <div className="space-y-1.5">
               <Label htmlFor={`test-${code}`}>Send a test SMS</Label>
-              <Input id={`test-${code}`} dir="ltr" className="w-44" placeholder={code === "SA" ? "05XXXXXXXX" : "07XXXXXXXX"} value={testPhone} onChange={(e) => setTestPhone(e.target.value)} />
+              <Input id={`test-${code}`} dir="ltr" className="w-44" placeholder={countryConfig(code).phone.example} value={testPhone} onChange={(e) => setTestPhone(e.target.value)} />
             </div>
             <Button variant="outline" onClick={sendTest} disabled={testing || !testPhone.trim()}>
               {testing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Send test

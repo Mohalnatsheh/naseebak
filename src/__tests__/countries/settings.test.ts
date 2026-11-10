@@ -7,6 +7,7 @@ import {
   clearCountrySettingsCache,
   countrySignupBlock,
   countryWarnings,
+  goLiveChecklist,
   defaultCountrySettings,
   getCountrySettings,
   listCountrySettings,
@@ -126,5 +127,40 @@ describe("country detail lists (the app's profile forms)", () => {
     expect(jo.options.skinColor).toContain("حنطي");
     expect(jo.options.job).toContain("أخرى");
     expect(jo.options.education[0]).toBe("ثانوية عامة");
+  });
+});
+
+describe("Lebanon: WhatsApp codes and the closed-country gate", () => {
+  const lb = { ...defaultCountrySettings("LB"), active: true, registrationOpen: true };
+
+  it("LB DEFAULT provider is NONE; JO and SA are unchanged", () => {
+    expect(resolveSmsProvider("LB", "DEFAULT", env({}))).toBe("NONE");
+    expect(resolveSmsProvider("JO", "DEFAULT", env({}))).toBe("BROADNET");
+    expect(resolveSmsProvider("SA", "DEFAULT", env({}))).toBe("UNIFONIC");
+  });
+
+  it("codes count as sendable with the VerifyWay key, and no error is raised for open registration", () => {
+    expect(goLiveChecklist(lb, env({ VERIFYWAY_API_KEY: "k" })).find((k) => k.key === "codes")?.done).toBe(true);
+    expect(goLiveChecklist(lb, env({})).find((k) => k.key === "codes")?.done).toBe(false);
+    expect(countryWarnings(lb, env({ VERIFYWAY_API_KEY: "k" })).some((w) => w.level === "error")).toBe(false);
+    expect(countryWarnings(lb, env({})).some((w) => w.level === "error")).toBe(true);
+  });
+
+  it("test numbers pass the closed-country gate; others and mismatches do not", async () => {
+    const saved = process.env.EXTRA_TEST_PHONES;
+    process.env.EXTRA_TEST_PHONES = "96171999999";
+    try {
+      expect(await countrySignupBlock("96171999999")).toBeNull();
+      expect(await countrySignupBlock("96171888888")).toMatchObject({ code: "COUNTRY_INACTIVE" });
+      expect(await countrySignupBlock("96171999999", "JO")).toMatchObject({ code: "COUNTRY_MISMATCH" });
+    } finally {
+      if (saved === undefined) delete process.env.EXTRA_TEST_PHONES;
+      else process.env.EXTRA_TEST_PHONES = saved;
+    }
+  });
+
+  it("publicCountry tells the app how codes travel", () => {
+    expect(publicCountry(lb).otpChannel).toBe("whatsapp");
+    expect(publicCountry(defaultCountrySettings("JO")).otpChannel).toBe("sms");
   });
 });

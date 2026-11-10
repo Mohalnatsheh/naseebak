@@ -13,7 +13,7 @@ vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/sms", () => sms);
 vi.mock("@/lib/settings", () => settings);
 vi.mock("@/lib/rate-limit-db", () => ({ rateLimitDb: vi.fn(async () => ({ success: true })) }));
-vi.mock("@/lib/test-accounts", () => ({ TEST_OTP: "111111", hasFixedOtp: () => false }));
+vi.mock("@/lib/test-accounts", () => ({ TEST_OTP: "111111", hasFixedOtp: () => false, isTestPhone: () => false }));
 
 import { POST } from "@/app/api/auth/send-otp/route";
 

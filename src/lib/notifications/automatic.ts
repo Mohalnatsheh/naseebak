@@ -3,7 +3,7 @@
  * code sends: the texts live at their call sites, and src/__tests__/lib/automatic-notifications.test.ts fails when a
  * text here no longer matches the code. Change both together. {package} and {price} are filled per country.
  */
-import { toCountry } from "@/lib/countries";
+import { COUNTRIES, toCountry } from "@/lib/countries";
 import { packagesFor, formatPrice, type PackagePrices } from "@/lib/payments/packages";
 
 export type AutomaticChannel = "bell" | "push" | "sms" | "whatsapp";
@@ -21,7 +21,7 @@ export interface AutomaticNotification {
   who: string;
   channels: AutomaticChannel[];
   texts: AutomaticText[];
-  /** Saudi numbers get this code by WhatsApp through a template kept at VerifyWay */
+  /** Numbers of a country whose codes go by WhatsApp (Saudi Arabia, Lebanon) get this code that way through a template kept at VerifyWay */
   whatsappInSaudi?: boolean;
 }
 
@@ -1526,7 +1526,7 @@ export function automaticNotificationsFor(country: unknown, prices?: PackagePric
   const fill = (text: string) => text.replaceAll("{package}", smallest.name).replaceAll("{price}", formatPrice(smallest));
   return AUTOMATIC_NOTIFICATIONS.map((n) => ({
     ...n,
-    channels: n.whatsappInSaudi && code === "SA" ? ["whatsapp"] : n.channels,
+    channels: n.whatsappInSaudi && COUNTRIES[code].otpByWhatsapp ? ["whatsapp"] : n.channels,
     texts: n.texts.map((t) => ({ ...t, title: fill(t.title), body: fill(t.body) })),
   }));
 }

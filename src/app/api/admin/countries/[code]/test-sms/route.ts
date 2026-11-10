@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
+import { randomInt } from "node:crypto";
 import { z } from "zod/v4";
 import { requireAdmin } from "@/lib/auth";
 import { countryOfPhone, isCountryCode } from "@/lib/countries";
 import { getCountrySettings, resolveSmsProvider } from "@/lib/countries/settings";
 import { normalizePhone } from "@/lib/validations/auth";
 import { rateLimitDb } from "@/lib/rate-limit-db";
-import { sendSms } from "@/lib/sms";
+import { otpChannel, sendOtpCode, sendSms } from "@/lib/sms";
 import { maskPhone } from "@/lib/sms-mock";
 
 const bodySchema = z.object({ phone: z.string().min(6).max(20) });
@@ -31,6 +32,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ cod
     if (!limit.success) return NextResponse.json({ error: "Too many test messages. Try again later." }, { status: 429 });
 
     const provider = resolveSmsProvider(code, (await getCountrySettings(code)).smsProvider);
+    // Where codes go by WhatsApp the test is a real sign-in code (never logged or returned)
+    if ((await otpChannel(phone)) === "whatsapp") {
+      const sent = await sendOtpCode(phone, String(randomInt(100000, 1000000)));
+      console.log(`[admin countries] test code ${code} by ${result.session.user.id} to ${maskPhone(phone)}: channel=whatsapp sent=${sent}`);
+      return NextResponse.json({ sent, provider: "WHATSAPP", to: maskPhone(phone), message: "A real sign-in code was sent by WhatsApp." });
+    }
     const sent = await sendSms(phone, TEST_TEXT);
     console.log(`[admin countries] test SMS ${code} by ${result.session.user.id} to ${maskPhone(phone)}: provider=${provider} sent=${sent}`);
     return NextResponse.json({ sent, provider, to: maskPhone(phone) });

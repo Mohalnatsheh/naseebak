@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const db = vi.hoisted(() => ({ countrySetting: { findMany: vi.fn(), upsert: vi.fn() }, user: { groupBy: vi.fn() } }));
 const admin = vi.hoisted(() => ({ ok: true }));
-const sms = vi.hoisted(() => ({ sendSms: vi.fn() }));
+const sms = vi.hoisted(() => ({ sendSms: vi.fn(), sendOtpCode: vi.fn(), otpChannel: vi.fn(async () => "sms") }));
 vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/auth", () => ({
   requireAdmin: async () =>
@@ -157,5 +157,16 @@ describe("admin countries", () => {
     const body = await res.json();
     expect(body).toEqual({ sent: true, provider: expect.any(String), to: "96279****567" });
     expect(sms.sendSms).toHaveBeenCalledWith("962791234567", expect.stringContaining("رسالة تجربة"));
+  });
+
+  it("test code: a WhatsApp country gets a real 6-digit code, never echoed back", async () => {
+    sms.otpChannel.mockResolvedValueOnce("whatsapp");
+    sms.sendOtpCode.mockResolvedValue(true);
+    const res = await testSms(req({ phone: "03123456" }), p("LB"));
+    const text = JSON.stringify(await res.json());
+    const sentCode = sms.sendOtpCode.mock.calls[0][1];
+    expect(sms.sendOtpCode).toHaveBeenCalledWith("9613123456", expect.stringMatching(/^\d{6}$/));
+    expect(text).not.toContain(sentCode);
+    expect(sms.sendSms).not.toHaveBeenCalled();
   });
 });

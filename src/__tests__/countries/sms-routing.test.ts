@@ -5,7 +5,7 @@ vi.mock("@/lib/countries/settings", async (orig) => {
   const real = await orig<typeof import("@/lib/countries/settings")>();
   return {
     ...real,
-    getCountrySettings: async (code: "JO" | "SA") => ({ ...real.defaultCountrySettings(code), smsProvider: settings.provider, smsSenderId: settings.senderId }),
+    getCountrySettings: async (code: "JO" | "SA" | "LB") => ({ ...real.defaultCountrySettings(code), smsProvider: settings.provider, smsSenderId: settings.senderId }),
   };
 });
 
@@ -104,6 +104,13 @@ describe("sendOtpCode: Saudi codes by WhatsApp", () => {
     expect(String(fetchMock.mock.calls[0][0])).toContain("broadnet");
     expect(await otpChannel("962791234567")).toBe("sms");
     log.mockRestore();
+  });
+
+  it("sends Lebanese codes by WhatsApp with the key, SMS without it; LB DEFAULT provider is NONE", async () => {
+    process.env.VERIFYWAY_API_KEY = "key";
+    expect(await otpChannel("96171123456")).toBe("whatsapp");
+    process.env.VERIFYWAY_API_KEY = "";
+    expect(await otpChannel("96171123456")).toBe("sms");
   });
 
   it("stays on SMS without a key", async () => {

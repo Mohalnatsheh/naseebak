@@ -11,7 +11,7 @@
  * Used for OTP codes (send-otp) and the SMS notice fallback (lib/sms-notice.ts).
  * Saudi sign-in codes go by WhatsApp through VerifyWay when VERIFYWAY_API_KEY is set (owner 2026-11-06, `sendOtpCode`).
  */
-import { countryOfPhone } from "@/lib/countries";
+import { COUNTRIES, countryOfPhone } from "@/lib/countries";
 import { getCountrySettings, resolveSmsProvider } from "@/lib/countries/settings";
 import { maskPhone, sendMockSms } from "@/lib/sms-mock";
 
@@ -40,7 +40,7 @@ export async function sendSms(phone: string, text: string): Promise<boolean> {
 /** How a number's sign-in code travels; `sendOtpCode` follows it, and the sign-up page says so */
 export async function otpChannel(phone: string): Promise<"whatsapp" | "sms"> {
   const country = countryOfPhone(phone);
-  if (country !== "SA" || !process.env.VERIFYWAY_API_KEY) return "sms";
+  if (!country || !COUNTRIES[country].otpByWhatsapp || !process.env.VERIFYWAY_API_KEY) return "sms";
   const { smsProvider } = await getCountrySettings(country);
   return resolveSmsProvider(country, smsProvider) === "MOCK" ? "sms" : "whatsapp";
 }

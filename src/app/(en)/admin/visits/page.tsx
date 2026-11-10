@@ -9,6 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { enumLabel } from "@/lib/admin/enum-labels";
 import { Pager } from "@/components/admin/admin-list-bits";
+import { AdminLoadError } from "@/components/admin/admin-states";
+import { fmtDate } from "@/components/admin/admin-list-bits";
 
 interface Feedback {
   id: string;
@@ -58,6 +60,7 @@ export default function AdminVisitsPage() {
       .catch(() => {});
   }, []);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [updating, setUpdating] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState("");
   const [editValues, setEditValues] = useState<Record<string, { date: string; location: string; notes: string }>>({});
@@ -80,10 +83,15 @@ export default function AdminVisitsPage() {
   }
 
   async function fetchVisits(p: number, status: string) {
+    setLoadError("");
     try {
       const params = new URLSearchParams({ page: String(p) });
       if (status) params.set("status", status);
       const res = await fetch(`/api/admin/visits?${params}`);
+      if (!res.ok) {
+        setLoadError(`Couldn't load the visit requests (${res.status}).`);
+        return;
+      }
       const data = await res.json();
       // A status change can move the last visit of a page out of the filter: step back
       if ((data.visits || []).length === 0 && p > 1) {
@@ -105,6 +113,7 @@ export default function AdminVisitsPage() {
       setEditValues(initVals);
     } catch (err) {
       console.error(err);
+      setLoadError("Couldn't load the visit requests. Check your connection.");
     } finally {
       setLoading(false);
     }
@@ -189,7 +198,7 @@ export default function AdminVisitsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold flex items-center gap-3">
+        <h1 className="text-2xl font-display flex items-center gap-3">
           <CalendarHeart className="h-7 w-7 text-primary" />
           Visit Request Management
         </h1>
@@ -235,6 +244,8 @@ export default function AdminVisitsPage() {
         <div className="flex justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
+      ) : loadError ? (
+        <AdminLoadError message={loadError} onRetry={() => { setLoading(true); void fetchVisits(page, statusFilter); }} />
       ) : visits.length === 0 ? (
         <Card>
           <CardContent className="text-center py-12">
@@ -256,10 +267,10 @@ export default function AdminVisitsPage() {
                   <div className="flex items-start justify-between gap-2">
                     <div className="space-y-1">
                       <h3 className="font-semibold">
-                        {v.match.female.firstName} {v.match.female.lastName} & {v.match.male.firstName} {v.match.male.lastName}
+                        <bdi>{`${v.match.female.firstName} ${v.match.female.lastName}`}</bdi> &amp; <bdi>{`${v.match.male.firstName} ${v.match.male.lastName}`}</bdi>
                       </h3>
                       <p className="text-xs text-muted-foreground">
-                        Created {new Date(v.createdAt).toLocaleDateString()}
+                        Created {fmtDate(v.createdAt)}
                       </p>
                     </div>
                     <Badge className={`shrink-0 ${currentStatus?.color || ""}`}>
@@ -386,13 +397,13 @@ export default function AdminVisitsPage() {
                             <div key={fb.id} className="bg-muted/50 rounded-lg p-3 text-sm space-y-1">
                               <div className="flex flex-wrap items-center justify-between gap-2">
                                 <span className="font-medium">
-                                  {fb.user.firstName} {fb.user.lastName}
+                                  <bdi>{`${fb.user.firstName} ${fb.user.lastName}`}</bdi>
                                   <Badge variant="secondary" className="ms-2 text-xs">
                                     {fb.user.gender === "MALE" ? "Male" : "Female"}
                                   </Badge>
                                 </span>
                                 <span className="text-xs text-muted-foreground">
-                                  {new Date(fb.createdAt).toLocaleDateString()}
+                                  {fmtDate(fb.createdAt)}
                                 </span>
                               </div>
                               <div className="flex items-center gap-3">

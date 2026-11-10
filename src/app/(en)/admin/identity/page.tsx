@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { enumLabel } from "@/lib/admin/enum-labels";
+import { AdminLoadError } from "@/components/admin/admin-states";
+import { fmtDate } from "@/components/admin/admin-list-bits";
 
 interface IdentityDoc {
   id: string;
@@ -122,7 +124,7 @@ export default function AdminIdentityPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold flex items-center gap-3">
+        <h1 className="text-2xl font-display flex items-center gap-3">
           <ShieldCheck className="h-7 w-7 text-primary" />
           Identity Verification
         </h1>
@@ -148,16 +150,12 @@ export default function AdminIdentityPage() {
         </Button>
       </div>
 
-      {loadError && (
-        <p className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-          {loadError}
-        </p>
-      )}
-
       {loading ? (
         <div className="flex justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
+      ) : loadError ? (
+        <AdminLoadError message={loadError} onRetry={fetchDocs} />
       ) : docs.length === 0 ? (
         <Card>
           <CardContent className="text-center py-12">
@@ -187,7 +185,7 @@ export default function AdminIdentityPage() {
                       <User className="h-6 w-6 text-primary" />
                     </div>
                     <div className="min-w-0">
-                      <h3 className="font-semibold">{doc.user.firstName} {doc.user.lastName}</h3>
+                      <h3 className="font-semibold"><bdi>{`${doc.user.firstName} ${doc.user.lastName}`}</bdi></h3>
                       <p className="text-sm text-muted-foreground break-all">{doc.user.email}</p>
                       <div className="flex gap-2 mt-1">
                         <Badge variant="outline" className="text-xs">
@@ -201,7 +199,7 @@ export default function AdminIdentityPage() {
                     </div>
                   </div>
                   <span className="text-xs text-muted-foreground shrink-0">
-                    {new Date(doc.createdAt).toLocaleDateString()}
+                    {fmtDate(doc.createdAt)}
                   </span>
                 </div>
 
@@ -328,7 +326,7 @@ export default function AdminIdentityPage() {
                   {docs.map((doc) => (
                     <tr key={doc.id} className="border-b hover:bg-muted/30 transition-colors">
                       <td className="p-3">
-                        <p className="font-medium text-sm">{doc.user.firstName} {doc.user.lastName}</p>
+                        <p className="font-medium text-sm"><bdi>{`${doc.user.firstName} ${doc.user.lastName}`}</bdi></p>
                         <p className="text-xs text-muted-foreground break-all">{doc.user.email}</p>
                       </td>
                       <td className="p-3 text-sm">{documentTypeLabel(doc.documentType)}</td>
@@ -340,7 +338,7 @@ export default function AdminIdentityPage() {
                         {doc.reviewedBy ? `${doc.reviewedBy.firstName} ${doc.reviewedBy.lastName}` : "—"}
                       </td>
                       <td className="p-3 text-sm text-muted-foreground whitespace-nowrap">
-                        {doc.reviewedAt ? new Date(doc.reviewedAt).toLocaleDateString() : "—"}
+                        {fmtDate(doc.reviewedAt)}
                       </td>
                     </tr>
                   ))}

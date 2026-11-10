@@ -8,6 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Pager, PersonLink, fmtDateTime } from "@/components/admin/admin-list-bits";
 import { FocusBanner, LoadError, useFocusId } from "@/components/admin/inbox-focus";
+import { AdminEmptyState } from "@/components/admin/admin-states";
+import { useConfirm } from "@/components/admin/confirm-dialog";
 import { enumLabel } from "@/lib/admin/enum-labels";
 
 interface Report {
@@ -58,11 +60,18 @@ function ReportPerson({ user, saved }: { user: { id: string; firstName: string; 
   if (user) return <PersonLink p={user} />;
   return (
     <span className="font-medium text-foreground">
-      {saved?.name ?? "Unknown"} {saved?.phone && <span className="font-normal">({saved.phone})</span>}{" "}
+      {<bdi>{saved?.name ?? "Unknown"}</bdi>} {saved?.phone && <span className="font-normal">({saved.phone})</span>}{" "}
       <span className="text-xs font-normal text-destructive">deleted account</span>
     </span>
   );
 }
+
+/** Left rule of each report card: pending amber, handled green, dismissed muted */
+const STATUS_RULE: Record<string, string> = {
+  PENDING: "border-s-amber-400",
+  REVIEWED: "border-s-emerald-500",
+  DISMISSED: "border-s-muted-foreground/30",
+};
 
 const statusStyles: Record<string, string> = {
   PENDING: "bg-amber-100 text-amber-800",
@@ -83,6 +92,7 @@ export default function AdminReportsPage() {
   const [suspendReported, setSuspendReported] = useState(false);
   const [endChat, setEndChat] = useState(false);
   const [loadError, setLoadError] = useState("");
+  const confirm = useConfirm();
   const { ready, focusId, clearFocus } = useFocusId();
 
   const load = useCallback(async () => {
@@ -124,7 +134,17 @@ export default function AdminReportsPage() {
   }
 
   async function handleReview(reportId: string, status: "REVIEWED" | "DISMISSED") {
-    if (suspendReported && !confirm("Suspend the reported user? Their active chats end and they can't use the site until unsuspended.")) return;
+    if (
+      suspendReported &&
+      !(await confirm({
+        title: "Suspend the reported member?",
+        description: "They can't use the site or the app until unsuspended.",
+        warning: "Their active chats end now (both sides are told) and they are signed out of the app.",
+        confirmLabel: "Suspend and save",
+        destructive: true,
+      }))
+    )
+      return;
     setUpdating(true);
     try {
       const res = await fetch("/api/admin/reports", {
@@ -151,7 +171,7 @@ export default function AdminReportsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold flex items-center gap-3">
+        <h1 className="text-2xl font-display flex items-center gap-3">
           <Flag className="h-7 w-7 text-primary" />
           Reports
         </h1>
@@ -185,11 +205,12 @@ export default function AdminReportsPage() {
               <Loader2 className="h-6 w-6 animate-spin text-primary" />
             </div>
           ) : loadError ? null : reports.length === 0 ? (
-            <p className="text-center text-muted-foreground py-8">No reports found</p>
+            <AdminEmptyState icon={Flag} title="No reports found" hint="Nothing waits in this filter." />
           ) : (
             <div className="space-y-3">
               {reports.map((report) => (
-                <div key={report.id} className="border rounded-lg p-4 space-y-2">
+                // A coloured left rule by status: waiting reports stand out in a long list (design P2)
+                <div key={report.id} className={`border rounded-lg border-s-4 p-4 space-y-2 ${STATUS_RULE[report.status] ?? "border-s-border"}`}>
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex items-center gap-3">
                       <span className={`text-xs font-medium px-2 py-1 rounded-full ${statusStyles[report.status] || ""}`}>
@@ -231,16 +252,16 @@ export default function AdminReportsPage() {
                     </div>
                   )}
                   {report.reportedMessage && (
-                    <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs">
-                      <p className="flex flex-wrap items-center gap-x-2 font-medium text-destructive">
+                    <div className="rounded-md border border-accent/50 bg-accent/10 px-3 py-2 text-xs">
+                      <p className="flex flex-wrap items-center gap-x-2 font-medium text-foreground">
                         <Flag className="h-3 w-3" /> Reported message
                         <span className="font-normal text-muted-foreground">
                           {report.reportedMessage.fromReported ? "by the reported user" : "by the reporter"} · {fmtDateTime(report.reportedMessage.at)}
                         </span>
                         {report.chat && (
-                          <Link href={`/admin/chats/${report.chat.id}#msg-${report.reportedMessage.id}`} className="font-normal text-primary hover:underline">
-                            Show in chat
-                          </Link>
+                          <Button asChild size="sm" variant="outline" className="ms-auto h-7 px-2 text-xs">
+                            <Link href={`/admin/chats/${report.chat.id}#msg-${report.reportedMessage.id}`}>Show in chat</Link>
+                          </Button>
                         )}
                       </p>
                       <p dir="auto" className="mt-1 break-words text-sm text-foreground"><bdi>{report.reportedMessage.snippet}</bdi></p>
@@ -269,12 +290,12 @@ export default function AdminReportsPage() {
                     </details>
                   )}
                   {report.details && (
-                    <p className="text-sm text-muted-foreground bg-muted/50 rounded p-2 break-words">{report.details}</p>
+                    <p dir="auto" className="text-sm text-muted-foreground bg-muted/50 rounded p-2 break-words">{report.details}</p>
                   )}
                   {report.reviewedAt && (
                     <p className="text-xs text-muted-foreground">
                       {report.status === "DISMISSED" ? "Dismissed" : "Reviewed"} {fmtDateTime(report.reviewedAt)}
-                      {report.reviewedBy && <> by {report.reviewedBy}</>}
+                      {report.reviewedBy && <> by <bdi>{report.reviewedBy}</bdi></>}
                     </p>
                   )}
                   {report.reported?.status === "SUSPENDED" && (
@@ -303,7 +324,7 @@ export default function AdminReportsPage() {
                                   checked={suspendReported}
                                   onChange={(e) => setSuspendReported(e.target.checked)}
                                 />
-                                Suspend {report.reported.firstName} {report.reported.lastName}
+                                Suspend <bdi>{`${report.reported.firstName} ${report.reported.lastName}`}</bdi>
                               </label>
                             )}
                             {report.chat?.status === "ACTIVE" && (

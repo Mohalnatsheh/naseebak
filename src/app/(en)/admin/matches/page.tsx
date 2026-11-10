@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { fmtDate, Pager, PersonLink, SearchBox, StateBadge, type PersonRef } from "@/components/admin/admin-list-bits";
 import { enumLabel } from "@/lib/admin/enum-labels";
 import { cn } from "@/lib/utils";
+import { AdminEmptyState, AdminLoadError } from "@/components/admin/admin-states";
 
 interface RequestState {
   status: string;
@@ -57,7 +58,8 @@ function MatchesList() {
   const [search, setSearch] = useState(initialSearch);
   const [stalled, setStalled] = useState("");
   // The list is loading until the request for the current page + filters has settled
-  const requestKey = `${page}\n${search}\n${stalled}`;
+  const [attempt, setAttempt] = useState(0);
+  const requestKey = `${page}\n${search}\n${stalled}\n${attempt}`;
   const [settled, setSettled] = useState<{ key: string; error: string } | null>(null);
   const loading = settled?.key !== requestKey;
   const error = settled?.key === requestKey ? settled.error : "";
@@ -92,7 +94,7 @@ function MatchesList() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="flex items-center gap-3 text-2xl font-bold">
+        <h1 className="flex items-center gap-3 text-2xl font-display">
           <Heart className="h-7 w-7 text-primary" />
           Matches
         </h1>
@@ -121,13 +123,14 @@ function MatchesList() {
           </div>
         </CardHeader>
         <CardContent>
-          {error && <p className="mb-3 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
           {loading ? (
             <div className="flex justify-center py-10">
               <Loader2 className="h-6 w-6 animate-spin text-primary" />
             </div>
+          ) : error ? (
+            <AdminLoadError message={error} onRetry={() => setAttempt((n) => n + 1)} />
           ) : rows.length === 0 ? (
-            <p className="py-10 text-center text-sm text-muted-foreground">No matches.</p>
+            <AdminEmptyState icon={Heart} title="No matches" hint={search || stalled ? "Try another filter or clear the search." : undefined} />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -156,7 +159,7 @@ function MatchesList() {
                             <span className="text-xs text-muted-foreground">{m.family.auto ? "automatic (both chose)" : `from ${sender(m, m.family)}`}</span>
                             {m.guardianShared && (
                               <span className="text-xs text-muted-foreground">
-                                Guardian shared: {m.people[0].firstName} {m.guardianShared.female ? "✓" : "✗"} · {m.people[1].firstName} {m.guardianShared.male ? "✓" : "✗"}
+                                Guardian shared: <bdi>{m.people[0].firstName}</bdi> {m.guardianShared.female ? "✓" : "✗"} · <bdi>{m.people[1].firstName}</bdi> {m.guardianShared.male ? "✓" : "✗"}
                               </span>
                             )}
                           </span>

@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { enumLabel } from "@/lib/admin/enum-labels";
 import { fmtLeft } from "@/lib/admin/matching-time";
+import { AdminEmptyState, AdminLoadError } from "@/components/admin/admin-states";
+import { PersonLink, fmtDate } from "@/components/admin/admin-list-bits";
 
 interface Person {
   id: string;
@@ -43,17 +45,8 @@ const STATUS_STYLE: Record<IntroRow["status"], string> = {
   CANCELLED: "bg-muted text-muted-foreground",
 };
 
-function fmt(d: string | null) {
-  return d ? new Date(d).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "—";
-}
-
-function PersonLink({ p }: { p: Person }) {
-  return (
-    <Link href={`/admin/users/${p.id}`} className="font-medium text-primary hover:underline">
-      {p.firstName} {p.lastName}
-    </Link>
-  );
-}
+/** Amman dates, as on every admin page */
+const fmt = (d: string | null) => fmtDate(d);
 
 export default function AdminIntroductionsPage() {
   const [stats, setStats] = useState<Stats | null>(null);
@@ -65,7 +58,8 @@ export default function AdminIntroductionsPage() {
   const [query, setQuery] = useState("");
   const [search, setSearch] = useState("");
   // The list is loading until the request for the current filters has settled
-  const requestKey = [page, type, status, search].join("\n");
+  const [attempt, setAttempt] = useState(0);
+  const requestKey = [page, type, status, search, attempt].join("\n");
   const [settled, setSettled] = useState<{ key: string; failed: boolean } | null>(null);
   const loading = settled?.key !== requestKey;
   const loadError = settled?.key === requestKey && settled.failed;
@@ -120,7 +114,7 @@ export default function AdminIntroductionsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="flex items-center gap-3 text-2xl font-bold">
+        <h1 className="flex items-center gap-3 text-2xl font-display">
           <HeartHandshake className="h-7 w-7 text-primary" />
           Introductions
         </h1>
@@ -203,9 +197,9 @@ export default function AdminIntroductionsPage() {
               <Loader2 className="h-6 w-6 animate-spin text-primary" />
             </div>
           ) : loadError ? (
-            <p className="py-10 text-center text-sm text-destructive">Could not load requests.</p>
+            <AdminLoadError message="Couldn't load the requests." onRetry={() => setAttempt((n) => n + 1)} />
           ) : rows.length === 0 ? (
-            <p className="py-10 text-center text-sm text-muted-foreground">{search ? "No requests for this person." : "No requests yet."}</p>
+            <AdminEmptyState icon={HeartHandshake} title={search ? "No requests for this person" : "No requests yet"} />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">

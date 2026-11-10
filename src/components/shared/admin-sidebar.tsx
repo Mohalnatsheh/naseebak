@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { signOut } from "next-auth/react";
+import { signOutAndUnlinkPush } from "@/lib/push-client";
 import { BarChart3, LayoutDashboard, Users, ShieldCheck, Sparkles, CalendarHeart, FileText, Menu, LogOut, Flag, ClipboardEdit, CreditCard, Bell, BellRing, Ban, Trash2, Settings, LifeBuoy, HeartHandshake, Archive, ChevronDown, Heart, MessagesSquare, Inbox, MessageCircleQuestion, Globe2, Megaphone, Gift } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
@@ -200,7 +200,7 @@ export function AdminSidebar({ legacyGrouped = false }: { legacyGrouped?: boolea
         </div>
         <div className="p-3 border-t">
           <button
-            onClick={() => signOut({ callbackUrl: "/admin/login" })}
+            onClick={() => void signOutAndUnlinkPush("/admin/login")}
             className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-destructive transition-colors"
           >
             <LogOut className="h-4 w-4" />
@@ -234,7 +234,7 @@ export function AdminSidebar({ legacyGrouped = false }: { legacyGrouped?: boolea
             </div>
             <div className="mt-auto p-3 border-t">
               <button
-                onClick={() => signOut({ callbackUrl: "/admin/login" })}
+                onClick={() => void signOutAndUnlinkPush("/admin/login")}
                 className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-destructive transition-colors"
               >
                 <LogOut className="h-4 w-4" />

@@ -72,7 +72,6 @@ const sidebarGroups: { title: string | null; links: SidebarLink[] }[] = [
     title: "Setup",
     links: [
       { href: "/admin/countries", label: "Countries", icon: Globe2 },
-      { href: "/admin/settings", label: "Settings", icon: Settings },
     ],
   },
   {
@@ -84,6 +83,9 @@ const sidebarGroups: { title: string | null; links: SidebarLink[] }[] = [
   },
 ];
 const sidebarLinks = sidebarGroups.flatMap((g) => g.links);
+
+/** Pinned under the scrolling nav, next to Sign Out: always one click away (the nav is ~960 px tall, design P2) */
+const SETTINGS_LINK: SidebarLink = { href: "/admin/settings", label: "Settings", icon: Settings };
 
 /** To-do counts for the badges, refreshed every minute */
 function useTodoCounts(): TodoCounts {
@@ -134,7 +136,8 @@ function NavLink({ link, onNavigate, nested, counts }: { link: SidebarLink; onNa
       <link.icon className="h-4 w-4" />
       {link.label}
       {n > 0 && (
-        <span className="ms-auto rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white tabular-nums">{n}</span>
+        // Gold action badge (brand accent), readable on the active blue row too
+        <span className="ms-auto rounded-full bg-accent px-1.5 py-0.5 text-[10px] font-bold leading-none text-accent-foreground tabular-nums">{n}</span>
       )}
     </Link>
   );
@@ -198,7 +201,8 @@ export function AdminSidebar({ legacyGrouped = false }: { legacyGrouped?: boolea
         <div className="flex-1 overflow-y-auto px-3">
           <SidebarNav legacyGrouped={legacyGrouped} />
         </div>
-        <div className="p-3 border-t">
+        <div className="space-y-1 border-t p-3">
+          <NavLink link={SETTINGS_LINK} counts={{}} />
           <button
             onClick={() => void signOutAndUnlinkPush("/admin/login")}
             className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-destructive transition-colors"
@@ -232,7 +236,8 @@ export function AdminSidebar({ legacyGrouped = false }: { legacyGrouped?: boolea
             <div className="px-3 overflow-y-auto">
               <SidebarNav legacyGrouped={legacyGrouped} onNavigate={() => setMenuOpen(false)} />
             </div>
-            <div className="mt-auto p-3 border-t">
+            <div className="mt-auto space-y-1 border-t p-3">
+              <NavLink link={SETTINGS_LINK} onNavigate={() => setMenuOpen(false)} counts={{}} />
               <button
                 onClick={() => void signOutAndUnlinkPush("/admin/login")}
                 className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-destructive transition-colors"

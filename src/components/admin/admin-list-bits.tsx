@@ -67,14 +67,37 @@ export function PersonLink({ p, hash }: { p: PersonRef; hash?: string }) {
   );
 }
 
+/**
+ * The one status palette of the admin panel (design P3): waiting = amber, done well = green, being handled = brand
+ * blue, refused or broken = destructive, over = muted. Every enum badge reads its colour here.
+ */
 export const STATE_STYLE: Record<string, string> = {
+  // waiting
   PENDING: "bg-amber-100 text-amber-800",
+  OPEN: "bg-amber-100 text-amber-800",
+  PAST_DUE: "bg-amber-100 text-amber-800",
+  // done well
   ACCEPTED: "bg-emerald-100 text-emerald-800",
   ACTIVE: "bg-emerald-100 text-emerald-800",
+  COMPLETED: "bg-emerald-100 text-emerald-800",
+  VERIFIED: "bg-emerald-100 text-emerald-800",
+  REVIEWED: "bg-emerald-100 text-emerald-800",
+  RESOLVED: "bg-emerald-100 text-emerald-800",
+  // being handled / money back
+  IN_PROGRESS: "bg-primary/10 text-primary",
+  REFUNDED: "bg-primary/10 text-primary",
+  // refused or broken
   DECLINED: "bg-destructive/10 text-destructive",
+  REJECTED: "bg-destructive/10 text-destructive",
+  FAILED: "bg-destructive/10 text-destructive",
+  SUSPENDED: "bg-destructive/10 text-destructive",
+  // over
   ENDED: "bg-muted text-muted-foreground",
   EXPIRED: "bg-muted text-muted-foreground",
   CANCELLED: "bg-muted text-muted-foreground",
+  CANCELED: "bg-muted text-muted-foreground",
+  CLOSED: "bg-muted text-muted-foreground",
+  DISMISSED: "bg-muted text-muted-foreground",
 };
 
 export function StateBadge({

@@ -1066,11 +1066,11 @@ export default function AdminSuggestionsPage() {
 
                                   <div className="grid grid-cols-2 gap-4 mt-3">
                                     <div>
-                                      <p className="text-xs font-medium text-muted-foreground mb-1.5">{selectedUser.firstName}</p>
+                                      <p className="text-xs font-medium text-muted-foreground mb-1.5"><bdi>{selectedUser.firstName}</bdi></p>
                                       <QualityChecklist detail={b.qualityUserDetail} />
                                     </div>
                                     <div>
-                                      <p className="text-xs font-medium text-muted-foreground mb-1.5">{c.user.firstName}</p>
+                                      <p className="text-xs font-medium text-muted-foreground mb-1.5"><bdi>{c.user.firstName}</bdi></p>
                                       <QualityChecklist detail={b.qualityCandidateDetail} />
                                     </div>
                                   </div>

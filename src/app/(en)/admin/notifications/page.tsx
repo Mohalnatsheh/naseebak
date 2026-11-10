@@ -231,7 +231,7 @@ export default function AdminNotificationsPage() {
                   <option value="">{users.length ? "Select user..." : "No users found"}</option>
                   {users.map((u) => (
                     <option key={u.id} value={u.id}>
-                      {u.firstName} {u.lastName} ({u.phone || u.id.slice(0, 8)})
+                      {"\u2068"}{u.firstName} {u.lastName}{"\u2069"} ({u.phone || u.id.slice(0, 8)})
                     </option>
                   ))}
                 </select>

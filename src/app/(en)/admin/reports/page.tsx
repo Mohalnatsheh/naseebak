@@ -6,7 +6,7 @@ import { Flag, Loader2, Eye, MessagesSquare } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Pager, PersonLink, fmtDateTime } from "@/components/admin/admin-list-bits";
+import { Pager, PersonLink, STATE_STYLE, fmtDateTime } from "@/components/admin/admin-list-bits";
 import { FocusBanner, LoadError, useFocusId } from "@/components/admin/inbox-focus";
 import { AdminEmptyState } from "@/components/admin/admin-states";
 import { useConfirm } from "@/components/admin/confirm-dialog";
@@ -73,11 +73,8 @@ const STATUS_RULE: Record<string, string> = {
   DISMISSED: "border-s-muted-foreground/30",
 };
 
-const statusStyles: Record<string, string> = {
-  PENDING: "bg-amber-100 text-amber-800",
-  REVIEWED: "bg-green-100 text-green-800",
-  DISMISSED: "bg-muted text-muted-foreground",
-};
+/** The shared admin status palette (design P3) */
+const statusStyles: Record<string, string> = STATE_STYLE;
 
 export default function AdminReportsPage() {
   const [reports, setReports] = useState<Report[]>([]);

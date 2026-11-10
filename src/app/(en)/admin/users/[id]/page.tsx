@@ -20,7 +20,7 @@ import { CountryFlag } from "@/components/shared/country-flag";
 import { MemberProCard } from "@/components/admin/member-pro-card";
 import { MemberDevicesCard } from "@/components/admin/member-devices-card";
 import { MembersSuggestStatus } from "@/components/admin/members-suggest-status";
-import { PersonLink, fmtDate, fmtDateTime, plural } from "@/components/admin/admin-list-bits";
+import { PersonLink, STATE_STYLE, fmtDate, fmtDateTime, plural } from "@/components/admin/admin-list-bits";
 import { AdminEmptyState, AdminLoadError } from "@/components/admin/admin-states";
 import { useConfirm } from "@/components/admin/confirm-dialog";
 import { toLatinDigits } from "@/lib/digits";
@@ -112,12 +112,8 @@ interface CycleData {
   }[];
 }
 
-const suggestionStatusColors: Record<string, string> = {
-  PENDING: "bg-amber-100 text-amber-800",
-  ACCEPTED: "bg-green-100 text-green-800",
-  REJECTED: "bg-destructive/10 text-destructive",
-  EXPIRED: "bg-muted text-muted-foreground",
-};
+/** The shared admin status palette (design P3) */
+const suggestionStatusColors: Record<string, string> = STATE_STYLE;
 
 /** Account status: PENDING is a normal active account without an approved ID, so it is neutral, not amber. */
 const userStatusColors: Record<string, string> = {
@@ -127,30 +123,15 @@ const userStatusColors: Record<string, string> = {
   SUSPENDED: "bg-destructive/10 text-destructive",
 };
 
-const statusColors: Record<string, string> = {
-  PENDING: "bg-amber-100 text-amber-800",
-  VERIFIED: "bg-green-100 text-green-800",
-  REJECTED: "bg-destructive/10 text-destructive",
-  SUSPENDED: "bg-destructive/10 text-destructive",
-};
+/** The shared admin status palette (design P3) */
+const statusColors: Record<string, string> = STATE_STYLE;
 
 /** Intro requests and chats (effective statuses from cycle-stats). */
-const cycleStatusColors: Record<string, string> = {
-  PENDING: "bg-amber-100 text-amber-800",
-  ACCEPTED: "bg-green-100 text-green-800",
-  ACTIVE: "bg-green-100 text-green-800",
-  DECLINED: "bg-destructive/10 text-destructive",
-  ENDED: "bg-muted text-muted-foreground",
-  EXPIRED: "bg-muted text-muted-foreground",
-  CANCELLED: "bg-muted text-muted-foreground",
-};
+/** The shared admin status palette (design P3) */
+const cycleStatusColors: Record<string, string> = STATE_STYLE;
 
-const paymentStatusColors: Record<string, string> = {
-  PENDING: "bg-amber-100 text-amber-800",
-  COMPLETED: "bg-green-100 text-green-800",
-  FAILED: "bg-destructive/10 text-destructive",
-  REFUNDED: "bg-primary/10 text-primary",
-};
+/** The shared admin status palette (design P3) */
+const paymentStatusColors: Record<string, string> = STATE_STYLE;
 
 const decisionLabel: Record<string, { text: string; className: string }> = {
   INTERESTED: { text: "Interested", className: "text-emerald-600" },

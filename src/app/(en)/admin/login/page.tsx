@@ -49,12 +49,21 @@ export default function AdminLoginPage() {
   }
 
   return (
-    <Card className="w-full max-w-sm">
+    // Brand panel with the white logo beside the form (design P3); the panel hides on phones
+    <div className="grid w-full max-w-3xl overflow-hidden rounded-2xl border bg-card shadow-sm md:grid-cols-2">
+      <div className="hidden flex-col justify-between bg-gradient-to-br from-primary to-secondary p-8 text-primary-foreground md:flex">
+        <Image src="/images/logo.svg" alt="Naseeb" width={140} height={61} className="h-12 w-auto self-start brightness-0 invert" />
+        <div className="space-y-2">
+          <p className="font-display text-2xl">Admin Panel</p>
+          <p className="text-sm text-primary-foreground/80">Members, matches, payments and settings for every country.</p>
+        </div>
+      </div>
+    <Card className="w-full rounded-none border-0 shadow-none">
       <CardHeader className="text-center">
-        <div className="mx-auto mb-2">
+        <div className="mx-auto mb-2 md:hidden">
           <Image src="/images/logo.svg" alt="Naseeb" width={140} height={61} className="h-12 w-auto mx-auto" />
         </div>
-        <CardTitle className="text-lg font-bold text-muted-foreground">Admin Panel</CardTitle>
+        <CardTitle className="font-display text-lg">Sign in</CardTitle>
         <CardDescription>Sign in to the management panel</CardDescription>
       </CardHeader>
       <CardContent>
@@ -83,7 +92,7 @@ export default function AdminLoginPage() {
           </div>
 
           {error && (
-            <p className="text-sm text-destructive text-center">{error}</p>
+            <p role="alert" className="text-sm text-destructive text-center">{error}</p>
           )}
 
           <Button type="submit" className="w-full" disabled={loading}>
@@ -99,5 +108,6 @@ export default function AdminLoginPage() {
         </form>
       </CardContent>
     </Card>
+    </div>
   );
 }

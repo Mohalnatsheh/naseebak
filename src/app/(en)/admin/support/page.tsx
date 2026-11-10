@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Pager, PersonLink, fmtDateTime } from "@/components/admin/admin-list-bits";
+import { Pager, PersonLink, STATE_STYLE, fmtDateTime } from "@/components/admin/admin-list-bits";
 import { FocusBanner, LoadError, useFocusId } from "@/components/admin/inbox-focus";
 import { enumLabel } from "@/lib/admin/enum-labels";
 
@@ -32,12 +32,8 @@ const STATUS_FILTERS: [string, string][] = [
   ["", "All"],
 ];
 
-const statusStyles: Record<string, string> = {
-  OPEN: "bg-amber-100 text-amber-800",
-  IN_PROGRESS: "bg-primary/10 text-primary",
-  RESOLVED: "bg-green-100 text-green-800",
-  CLOSED: "bg-muted text-muted-foreground",
-};
+/** The shared admin status palette (design P3) */
+const statusStyles: Record<string, string> = STATE_STYLE;
 
 const typeStyles: Record<string, string> = {
   ISSUE: "bg-destructive/10 text-destructive",
@@ -121,7 +117,7 @@ export default function AdminSupportPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold flex items-center gap-3">
+        <h1 className="text-2xl font-display flex items-center gap-3">
           <LifeBuoy className="h-7 w-7 text-primary" />
           Support Tickets
         </h1>

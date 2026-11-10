@@ -101,7 +101,7 @@ export default function AdminMessagesPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold flex items-center gap-3">
+        <h1 className="text-2xl font-display flex items-center gap-3">
           <Inbox className="h-7 w-7 text-primary" />
           Contact Messages
         </h1>
@@ -147,7 +147,7 @@ export default function AdminMessagesPage() {
                   <div className="min-w-0">
                     <h3 className="font-semibold" dir="auto">{m.subject}</h3>
                     <p className="text-sm text-muted-foreground" dir="auto">
-                      {m.user ? <PersonLink p={m.user} /> : m.name} ·{" "}
+                      {m.user ? <PersonLink p={m.user} /> : <bdi>{m.name}</bdi>} ·{" "}
                       {m.email ? (
                         <a href={`mailto:${m.email}?subject=${encodeURIComponent("Re: " + m.subject)}`} className="text-primary hover:underline" dir="ltr">
                           {m.email}

@@ -8,7 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { PersonLink, SearchBox, fmtDateTime } from "@/components/admin/admin-list-bits";
+import { PersonLink, STATE_STYLE, SearchBox, fmtDateTime } from "@/components/admin/admin-list-bits";
 import { paymentPlanLabel as planLabel } from "@/lib/admin/pro-labels";
 import { enumLabel } from "@/lib/admin/enum-labels";
 import { FAILURE_LABELS } from "@/lib/payments/failure-labels";
@@ -58,12 +58,8 @@ function amounts(rows: Summary["revenue"], key: "total" | "monthly"): string {
   return rows.map((r) => `${r[key].toFixed(2)} ${r.currency}`).join(" · ");
 }
 
-const statusStyles: Record<string, string> = {
-  PENDING: "bg-amber-100 text-amber-800",
-  COMPLETED: "bg-green-100 text-green-800",
-  FAILED: "bg-destructive/10 text-destructive",
-  REFUNDED: "bg-primary/10 text-primary",
-};
+/** The shared admin status palette (design P3) */
+const statusStyles: Record<string, string> = STATE_STYLE;
 
 
 export default function AdminPaymentsPage() {
@@ -154,7 +150,7 @@ function PaymentsView() {
     <div className="space-y-6">
       <div>
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h1 className="text-2xl font-bold flex items-center gap-3">
+          <h1 className="text-2xl font-display flex items-center gap-3">
             <CreditCard className="h-7 w-7 text-primary" />
             Payment Management
           </h1>

@@ -13,7 +13,7 @@ extension FeedTabX on FeedTab {
   String get label => switch (this) {
         FeedTab.newTab => 'جديدة',
         FeedTab.interested => 'مهتمون بك',
-        FeedTab.waiting => 'بانتظار الرد',
+        FeedTab.waiting => 'بانتظار ردّهم',
       };
 
   static FeedTab parse(String? v) => switch (v) {

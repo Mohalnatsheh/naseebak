@@ -29,6 +29,17 @@ function syncBubble() {
   else api?.showWidget?.();
 }
 
+/** Runs `fn` once the page has loaded and the browser is idle (a timer where requestIdleCallback is missing) */
+function whenIdleAfterLoad(fn: () => void) {
+  const idle = () => {
+    const w = window as Window & { requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number };
+    if (w.requestIdleCallback) w.requestIdleCallback(fn, { timeout: 4000 });
+    else setTimeout(fn, 1500);
+  };
+  if (document.readyState === "complete") idle();
+  else window.addEventListener("load", idle, { once: true });
+}
+
 /**
  * Tawk.to bubble. Loads on the first page that may show it, once: it can't be unloaded, so a client-side move to a
  * page without it hides the bubble. The member's identity is never passed to Tawk.
@@ -45,13 +56,18 @@ export function LiveChat() {
     if (isLiveChatOffPath(pathname)) return;
     w.naseebTawkWidth = window.innerWidth;
     w.Tawk_API = { customStyle: tawkStyle(window.innerWidth), onLoad: syncBubble };
-    w.Tawk_LoadStart = new Date();
-    const script = document.createElement("script");
-    script.async = true;
-    script.src = TAWK_SRC;
-    script.charset = "UTF-8";
-    script.setAttribute("crossorigin", "*");
-    document.body.appendChild(script);
+    // Added when the browser is idle after the page has loaded (QA PA-L11), not on mount
+    const add = () => {
+      if (document.querySelector(`script[src="${TAWK_SRC}"]`)) return;
+      w.Tawk_LoadStart = new Date();
+      const script = document.createElement("script");
+      script.async = true;
+      script.src = TAWK_SRC;
+      script.charset = "UTF-8";
+      script.setAttribute("crossorigin", "*");
+      document.body.appendChild(script);
+    };
+    whenIdleAfterLoad(add);
   }, [pathname]);
 
   useEffect(() => {

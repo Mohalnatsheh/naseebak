@@ -54,7 +54,8 @@ export default function PublicTracking({ country }: { country: string }) {
   if (isAnalyticsOffPath(pathname)) return null;
   return (
     <>
-      <Script src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`} strategy="afterInteractive" />
+      {/* When the browser is idle after load (QA PA-L11): calls made before it wait in dataLayer, in order */}
+      <Script src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`} strategy="lazyOnload" />
       {publicSeen && <TrackingScripts />}
     </>
   );

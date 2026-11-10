@@ -154,6 +154,10 @@ export default async function ArabicLayout({
   return (
     <html lang={country === "SA" ? "ar-SA" : "ar-JO"} dir="rtl">
       <body className={`${cairo.className} antialiased`}>
+        {/* The first Tab stop on every page: straight past the navigation (QA PA-M7 / WM-21) */}
+        <a href="#main" className="skip-link">
+          الانتقال إلى المحتوى
+        </a>
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{

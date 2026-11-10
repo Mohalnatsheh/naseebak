@@ -121,7 +121,7 @@ export default function ContactPage() {
     <>
       <Navbar />
 
-      <main className="overflow-hidden">
+      <main id="main" tabIndex={-1} className="overflow-hidden">
         {/* ═══════════════ HERO SECTION ═══════════════ */}
         <section className="relative min-h-[40vh] flex items-center justify-center pt-24">
           <PageHeroPhoto src="/images/pages/contact.webp" />

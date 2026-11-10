@@ -218,7 +218,7 @@ function LoginPageContent() {
   }
 
   return (
-    <main className="flex min-h-screen flex-row-reverse">
+    <main id="main" tabIndex={-1} className="flex min-h-screen flex-row-reverse">
       {/* DECORATIVE PANEL (Right side in RTL) */}
       <div className="relative hidden lg:flex lg:w-1/2 xl:w-[55%] items-center justify-center overflow-hidden">
         {/* Amman at blue hour under the brand blue */}

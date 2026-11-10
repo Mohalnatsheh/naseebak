@@ -126,7 +126,7 @@ export default function BlogView({ initial }: { initial: BlogInitial }) {
     <>
       <Navbar />
 
-      <main className="overflow-hidden">
+      <main id="main" tabIndex={-1} className="overflow-hidden">
         {/* ═══════════════ HERO BANNER ═══════════════ */}
         <section className="relative min-h-[40vh] flex items-center justify-center pt-20">
           <PageHeroPhoto src="/images/pages/blog.webp" />

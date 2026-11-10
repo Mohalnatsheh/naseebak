@@ -10,7 +10,7 @@ export default function NotFound() {
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <Navbar />
-      <main className="flex flex-1 items-center justify-center px-4 py-20">
+      <main id="main" tabIndex={-1} className="flex flex-1 items-center justify-center px-4 py-20">
         <div className="max-w-md text-center">
           <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 text-primary">
             <Compass className="h-8 w-8" />

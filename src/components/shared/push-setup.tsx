@@ -1,5 +1,6 @@
 "use client";
 
+import { focusDialogItself } from "@/lib/dialog-focus";
 import { useCallback, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
 import Image from "next/image";
 import {
@@ -554,9 +555,10 @@ export function PushSetupSheet({
       <SheetContent
         side="bottom"
         closeLabel="لاحقاً"
-        // No focus ring on the first link when it opens by itself (phones)
-        onOpenAutoFocus={(e) => e.preventDefault()}
-        className="max-h-[92dvh] overflow-y-auto rounded-t-3xl px-5 pt-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:mx-auto sm:max-w-lg"
+        // No focus ring on the first link when it opens by itself (phones): the sheet itself takes the focus, so the
+        // keyboard is inside it and its title is read (QA PA-H1)
+        onOpenAutoFocus={focusDialogItself}
+        className="outline-none max-h-[92dvh] overflow-y-auto rounded-t-3xl px-5 pt-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:mx-auto sm:max-w-lg"
       >
         <SheetTitle className="sr-only">تفعيل الإشعارات</SheetTitle>
         <SheetDescription className="sr-only">خطوات تفعيل إشعارات نصيبك على هذا الجهاز</SheetDescription>

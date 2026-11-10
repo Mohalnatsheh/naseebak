@@ -6,7 +6,7 @@ const DEFAULT_MESSAGE = "نعمل حالياً على تحسينات لتقدي�
 /** Full-page screen shown to visitors and users while maintenance mode is on. */
 export function MaintenanceScreen({ message }: { message?: string }) {
   return (
-    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-gradient-to-br from-primary/10 via-background to-accent/10 p-6">
+    <main id="main" tabIndex={-1} className="relative flex min-h-screen items-center justify-center overflow-hidden bg-gradient-to-br from-primary/10 via-background to-accent/10 p-6">
       <div className="absolute -top-32 -right-32 h-96 w-96 rounded-full bg-primary/10 blur-3xl" />
       <div className="absolute -bottom-32 -left-32 h-96 w-96 rounded-full bg-accent/10 blur-3xl" />
 

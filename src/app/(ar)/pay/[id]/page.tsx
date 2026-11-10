@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <main dir="rtl" className="mx-auto min-h-[100dvh] max-w-md px-5 py-8">
+    <main id="main" tabIndex={-1} dir="rtl" className="mx-auto min-h-[100dvh] max-w-md px-5 py-8">
       <div className="mb-6 flex items-center justify-center">
         {/* The site's own logo (navbar): the wordmark with the gold dot */}
         <Image src="/images/logo.svg" alt="نصيبك" width={138} height={60} className="h-12 w-auto" priority />

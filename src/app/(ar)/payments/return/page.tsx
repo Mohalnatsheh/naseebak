@@ -42,7 +42,7 @@ export default async function PaymentReturnPage({ searchParams }: { searchParams
   }
   if (from === "web") {
     return (
-      <main dir="rtl" className="mx-auto flex min-h-[70vh] max-w-md flex-col items-center justify-center gap-4 px-6 text-center">
+      <main id="main" tabIndex={-1} dir="rtl" className="mx-auto flex min-h-[70vh] max-w-md flex-col items-center justify-center gap-4 px-6 text-center">
         <h1 className="text-2xl font-bold text-foreground">{ok ? "تم الدفع بنجاح" : processing ? "الدفع قيد التأكيد" : "لم تكتمل عملية الدفع"}</h1>
         <p className="text-muted-foreground">
           {ok
@@ -68,7 +68,7 @@ export default async function PaymentReturnPage({ searchParams }: { searchParams
   const device = webDeviceFromUserAgent((await headers()).get("user-agent"));
 
   return (
-    <main dir="rtl" className="mx-auto flex min-h-[70vh] max-w-md flex-col items-center justify-center gap-4 px-6 text-center">
+    <main id="main" tabIndex={-1} dir="rtl" className="mx-auto flex min-h-[70vh] max-w-md flex-col items-center justify-center gap-4 px-6 text-center">
       <h1 className="text-2xl font-bold text-foreground">{ok ? "تم استلام الدفع" : processing ? "الدفع قيد التأكيد" : "لم تكتمل عملية الدفع"}</h1>
       <p className="text-muted-foreground">
         {ok

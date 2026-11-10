@@ -52,7 +52,7 @@ async function DashboardShell({ children }: { children: React.ReactNode }) {
   if (gate === "suspended") {
     return (
       <Providers>
-        <main className="min-h-screen bg-gradient-to-b from-primary/5 via-background to-background">
+        <main id="main" tabIndex={-1} className="min-h-screen bg-gradient-to-b from-primary/5 via-background to-background">
           <SuspendedScreen />
         </main>
       </Providers>
@@ -63,7 +63,7 @@ async function DashboardShell({ children }: { children: React.ReactNode }) {
   if (gate === "deactivated") {
     return (
       <Providers>
-        <main className="min-h-screen bg-gradient-to-b from-primary/5 via-background to-background">
+        <main id="main" tabIndex={-1} className="min-h-screen bg-gradient-to-b from-primary/5 via-background to-background">
               <DeactivatedGate>{children}</DeactivatedGate>
         </main>
         <Toaster position="top-center" dir="rtl" richColors closeButton />
@@ -78,7 +78,7 @@ async function DashboardShell({ children }: { children: React.ReactNode }) {
       <DashboardDataProvider>
         <div className={`flex min-h-screen overflow-x-hidden`}>
           <DashboardSidebar />
-          <main className="flex-1 md:pt-0 pt-[58px] pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0 min-w-0">
+          <main id="main" tabIndex={-1} className="flex-1 md:pt-0 pt-[58px] pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0 min-w-0">
             <div className="max-w-5xl mx-auto px-4 md:px-6 py-6 md:py-8">
               {/* Every page, until notifications are on (replaces the one-time popup) */}
               <NotificationBar />

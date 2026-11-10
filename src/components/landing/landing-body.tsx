@@ -16,7 +16,7 @@ import { StickyStart } from "./sticky-start";
 export function LandingBody({ content }: { content: LandingContent }) {
   const [lookingFor, setLookingFor] = useState<StartGender | null>(null);
   return (
-    <main className="overflow-x-clip">
+    <main id="main" tabIndex={-1} className="overflow-x-clip">
       <LandingHero content={content} lookingFor={lookingFor} onLookingFor={setLookingFor} />
       <LandingSteps content={content} />
       <LandingProductTour content={content} />

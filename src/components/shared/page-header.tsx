@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 
 /**
  * The one page title for dashboard pages: a small gold-ringed icon, the title in the display face
- * (Reem Kufi, `font-display`), an optional count and a short line under it. Actions (buttons, tabs)
+ * (Cairo extra bold, `font-display`), an optional count and a short line under it. Actions (buttons, tabs)
  * go in `children`, after the text on wide screens and under it on phones. No box, no gradient text.
  */
 export function PageHeader({

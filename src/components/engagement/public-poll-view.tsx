@@ -33,7 +33,7 @@ export function PublicPollView({
   return (
     <>
       <Navbar />
-      <main className="min-h-[70vh] bg-background px-4 pb-16 pt-24 sm:pt-28">
+      <main id="main" tabIndex={-1} className="min-h-[70vh] bg-background px-4 pb-16 pt-24 sm:pt-28">
         <div className="mx-auto max-w-xl space-y-5">
           <section className="landing-night relative overflow-hidden rounded-3xl px-5 py-6 text-white shadow-lg shadow-primary/20 sm:px-7 sm:py-8">
             <div className="landing-khatam absolute inset-0" aria-hidden />

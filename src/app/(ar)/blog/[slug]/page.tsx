@@ -47,7 +47,7 @@ export default async function BlogDetailPage({ params }: { params: Promise<{ slu
     <>
       <Navbar />
 
-      <main className="overflow-hidden">
+      <main id="main" tabIndex={-1} className="overflow-hidden">
         {/* ═══════════════ MINI HERO ═══════════════ */}
         <section className={`relative overflow-hidden pt-20 bg-gradient-to-bl ${categoryGradients[post.category.slug] || defaultGradient}`}>
           <PageHeroPhoto src="/images/pages/post.webp" strength="opacity-60" />

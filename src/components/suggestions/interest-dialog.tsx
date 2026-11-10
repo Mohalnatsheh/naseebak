@@ -1,5 +1,6 @@
 "use client";
 
+import { focusDialogItself } from "@/lib/dialog-focus";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Coins, HeartHandshake, Info, Loader2, MessageCircle, Users } from "lucide-react";
@@ -136,8 +137,9 @@ export function InterestDialog({ open, onOpenChange, partnerGender, credits, cha
 
   return (
     <Dialog open={open} onOpenChange={(o) => !busy && onOpenChange(o)}>
-      {/* No auto-focus on the first option: its focus ring looked like a default choice */}
-      <DialogContent dir="rtl" className="sm:max-w-md text-right" onOpenAutoFocus={(e) => e.preventDefault()}>
+      {/* The focus goes to the dialog itself, not the first option (its ring looked like a default choice), so the
+          keyboard is inside and the title is read (QA PA-H1) */}
+      <DialogContent dir="rtl" className="sm:max-w-md text-right" onOpenAutoFocus={focusDialogItself}>
         <DialogHeader className="text-right sm:text-right">
           <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/15 to-accent/15">
             <HeartHandshake className="h-6 w-6 text-primary" aria-hidden="true" />

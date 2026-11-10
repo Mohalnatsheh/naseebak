@@ -10,7 +10,7 @@ const appearance = {
   theme: "stripe" as const,
   variables: {
     colorPrimary: "#22476a",
-    colorText: "#1f2937",
+    colorText: "#1a2230",
     fontFamily: "Cairo, system-ui, sans-serif",
     borderRadius: "12px",
     spacingUnit: "4px",

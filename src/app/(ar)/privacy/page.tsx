@@ -252,7 +252,7 @@ export default function PrivacyPage() {
     <>
       <Navbar />
 
-      <main className="overflow-hidden">
+      <main id="main" tabIndex={-1} className="overflow-hidden">
         {/* ═══════════════ HERO SECTION ═══════════════ */}
         <section className="relative min-h-[50vh] flex items-center justify-center pt-24">
           <PageHeroPhoto src="/images/pages/privacy.webp" />

@@ -96,6 +96,17 @@ async function proOutcome(
   // Every invoice of this subscription has its own Payment: their count numbers the next mock invoice
   const n = await db.payment.count({ where: { proSubscriptionId: sub.id } });
 
+  // Like Stripe: a subscription set to cancel at the period end never renews, it ends there (QA round 2 test note)
+  if (outcome === "renew" && sub.cancelAtPeriodEnd) {
+    const result = await handleProSubscriptionChanged(
+      fakeProSubscription({
+        id: subscriptionId, metadata, status: "canceled", periodEnd: seconds(sub.currentPeriodEnd), cancelAtPeriodEnd: true,
+        endedAt: seconds(sub.currentPeriodEnd), customerId,
+      }),
+      "deleted"
+    );
+    return NextResponse.json({ result, renewed: false, ended: true });
+  }
   if (outcome === "renew") {
     const start = sub.currentPeriodEnd;
     const result = await handleProInvoicePaid(

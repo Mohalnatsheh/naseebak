@@ -68,6 +68,16 @@ describe("POST /api/dev/mock-checkout/[id] for Pro", () => {
     expect(pro.handleProCheckoutCompleted).not.toHaveBeenCalled();
   });
 
+  it("«renew» of a subscription set to cancel at the period end ends it there instead, like Stripe", async () => {
+    db.proSubscription.findFirst.mockResolvedValue({ id: "ps1", country: "JO", currentPeriodEnd: periodEnd, cancelAtPeriodEnd: true });
+    const res = await post("renew");
+    expect(await res.json()).toMatchObject({ renewed: false, ended: true });
+    expect(pro.handleProInvoicePaid).not.toHaveBeenCalled();
+    const [sub, kind] = pro.handleProSubscriptionChanged.mock.calls[0];
+    expect(kind).toBe("deleted");
+    expect(sub).toMatchObject({ id: "mock_sub_pay1", status: "canceled" });
+  });
+
   it("«fail» and «end» call the failed and deleted handlers", async () => {
     await post("fail");
     const failed = pro.handleProInvoiceFailed.mock.calls[0][0];

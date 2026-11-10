@@ -50,7 +50,8 @@ export function GuardianConsentCard() {
   }
 
   return (
-    <Card className="relative overflow-hidden border-primary/20 bg-gradient-to-l from-primary/[0.06] to-transparent">
+    // Guardian consent sits in the majlis (S3), like the family steps
+    <Card data-room="majlis" className="majlis majlis-rule relative overflow-hidden border-accent/30">
       <button
         type="button"
         onClick={later}

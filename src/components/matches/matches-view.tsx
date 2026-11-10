@@ -58,6 +58,7 @@ import { Badge } from "@/components/ui/badge";
 import { ImageLightbox } from "@/components/shared/image-lightbox";
 import { MatchClosedNote, MatchIntroPanel } from "@/components/intro/match-intro-panel";
 import { ConfirmActionDialog } from "@/components/intro/confirm-action-dialog";
+import { SealMark } from "@/components/shared/match-seal";
 import { ProBadge } from "@/components/shared/pro-badge";
 import { PersonCard, type PersonCardTone } from "@/components/shared/person-card";
 import { describeOption, nationalityLabel, skinColorLabel, tribeLabel } from "@/lib/profile-options";
@@ -612,7 +613,8 @@ export function MatchesView({ embedded = false }: { embedded?: boolean } = {}) {
                   city={c.city}
                   area={c.area}
                   job={c.job && describeOption("job", c.job, isFemale ? "MALE" : "FEMALE")}
-                  badges={m.partner.isPro ? <ProBadge /> : undefined}
+                  // The match's seal (S1), small, on an open match; then the Pro pill
+                  badges={!m.closed || m.partner.isPro ? <>{!m.closed && <SealMark />}{m.partner.isPro && <ProBadge />}</> : undefined}
                   score={score}
                   photoUrl={!locked && m.photosRevealed ? matchPhotos[m.id]?.[0]?.url : undefined}
                   // «الصور تظهر بعد الاهتمام المتبادل» only on an open match: a closed one never shows photos
@@ -760,7 +762,8 @@ export function MatchesView({ embedded = false }: { embedded?: boolean } = {}) {
                                   fill
                                   unoptimized
                                   sizes="50vw"
-                                  className="object-cover rounded-lg transition-transform duration-300"
+                                  // S2: blurred to sharp in 300 ms the first time they show
+                                  className="photo-reveal object-cover rounded-lg"
                                   draggable={false}
                                   onContextMenu={(e) => e.preventDefault()}
                                 />

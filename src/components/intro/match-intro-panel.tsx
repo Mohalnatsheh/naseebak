@@ -457,7 +457,8 @@ export function MatchIntroPanel({
   const { outcome, myGuardian } = state;
 
   return (
-    <section className="mt-4 rounded-2xl border border-primary/15 bg-gradient-to-b from-primary/[0.04] to-transparent p-4 md:p-5">
+    // The family steps sit in the majlis (S3): sand, the gold star at 4%, a gold rule on top
+    <section data-room="majlis" className="majlis majlis-rule mt-4 rounded-2xl border border-accent/30 p-4 md:p-5">
       <div className="flex items-center justify-between gap-3">
         <h3 className="font-bold text-foreground">خطوات التعارف</h3>
         {freeRequests ? (

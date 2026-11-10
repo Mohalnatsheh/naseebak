@@ -36,9 +36,10 @@ import type { FeedItem, FeedTab, OpenFeedItem } from "@/lib/suggestions/feed-typ
 import type { SuggestEmptyReason } from "@/lib/matching/auto-suggest";
 import { markPageNotificationsRead } from "@/lib/notifications-client";
 import { ProBadge } from "@/components/shared/pro-badge";
+import { MatchSeal, sealInitials } from "@/components/shared/match-seal";
 
 type Notice =
-  | { kind: "match"; matchId?: string }
+  | { kind: "match"; matchId?: string; name?: string }
   | { kind: "interested" }
   | { kind: "declined" }
   | { kind: "no_credits" }
@@ -421,7 +422,7 @@ export function MutualSuggestionsView({
       // A legacy interest answered "yes" is always a match; a legacy suggestion "yes" waits like a mutual one
       const waitsNow = interested && !data.match;
       setTotals((t) => ({ ...t, [tab]: Math.max(0, t[tab] - 1), waiting: t.waiting + (waitsNow ? 1 : 0) }));
-      setNotice(data.match ? { kind: "match", matchId: data.matchId } : interested ? { kind: "interested" } : { kind: "declined" });
+      setNotice(data.match ? { kind: "match", matchId: data.matchId, name: item.candidate.firstName } : interested ? { kind: "interested" } : { kind: "declined" });
       return { ok: true };
     } catch {
       if (fromDialog) return { ok: false, dialogError: DECIDE_FAILED };
@@ -610,7 +611,7 @@ export function MutualSuggestionsView({
           role="status"
           className={`rounded-xl border p-4 text-sm leading-relaxed ${
             notice.kind === "match"
-              ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+              ? "majlis majlis-rule border-accent/40 text-ink"
               : notice.kind === "error"
                 ? "border-destructive/30 bg-destructive/5 text-destructive"
                 : notice.kind === "no_credits"
@@ -619,11 +620,12 @@ export function MutualSuggestionsView({
           }`}
         >
           {notice.kind === "match" && (
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <span className="flex items-center gap-2 font-semibold">
-                <Heart className="h-4 w-4" /> تهانينا! الاهتمام متبادل وأصبح لديك توافق جديد.
-              </span>
-              <Button size="sm" className="rounded-lg" onClick={() => openMatch(notice.matchId)}>
+            // The match moment (S1): the gold seal draws itself around both initials (static with reduced motion)
+            <div data-testid="match-moment" className="flex flex-col items-center gap-2 py-2 text-center">
+              <MatchSeal initials={sealInitials(profile?.firstName, notice.name)} />
+              <p className="text-title text-primary">توافق متبادل!</p>
+              <p className="font-semibold text-ink">تهانينا! الاهتمام متبادل وأصبح لديك توافق جديد.</p>
+              <Button size="cta" className="mt-1 rounded-xl px-6" onClick={() => openMatch(notice.matchId)}>
                 عرض التوافق <ChevronLeft className="h-4 w-4 ms-1" />
               </Button>
             </div>

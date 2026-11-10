@@ -193,7 +193,8 @@ export function PersonCard({
         <div className={cn(pad, compact ? "pt-4 pb-3" : "pt-4 pb-3 sm:pt-5")}>
           <div className="flex items-center gap-3">
             <span className="relative shrink-0">
-              <MemberAvatar name={name} size={compact ? 44 : 48} photoUrl={photoUrl} locked={photoLocked} matched={matched} pro={pro} />
+              {/* S2: a matched photo fades in from the veil's blur */}
+              <MemberAvatar name={name} size={compact ? 44 : 48} photoUrl={photoUrl} locked={photoLocked} matched={matched} pro={pro} reveal={matched} />
               {avatarMark && <span className="absolute -top-1.5 -end-1.5">{avatarMark}</span>}
             </span>
             <div className="min-w-0 flex-1">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useEffectEvent, useRef } from "react";
 import { useDashboardData } from "@/contexts/dashboard-context";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -258,6 +258,10 @@ export default function ProfileEditPage() {
     if (s >= 1 && s <= 5) setStep(s);
   }, []);
 
+  // Not an effect dependency: the load runs once per reloadKey. Keyed on the router's identity it ran again on every
+  // render where that identity changed, and each run set state (a render loop under an unstable router).
+  const toSetup = useEffectEvent(() => router.replace("/dashboard/profile/setup"));
+
   useEffect(() => {
     async function load() {
       setLoadFailed(false);
@@ -289,7 +293,7 @@ export default function ProfileEditPage() {
         // directly. Here the first answers would wait for an admin review — and with no profile row the save
         // failed outright (P2025 in update-request).
         if (!user?.profile?.isComplete) {
-          router.replace("/dashboard/profile/setup");
+          toSetup();
           return;
         }
         if (user?.gender) setGender(user.gender);
@@ -365,7 +369,7 @@ export default function ProfileEditPage() {
       }
     }
     load();
-  }, [reloadKey, router]);
+  }, [reloadKey]);
 
   function update(field: string, value: string | boolean) {
     setForm((prev) => ({ ...prev, [field]: value }));

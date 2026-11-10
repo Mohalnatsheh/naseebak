@@ -91,3 +91,32 @@ describe("each failed check points at its field (QA PA-L9)", () => {
     window.history.replaceState(null, "", "/");
   });
 });
+
+describe("empty stored fields load once (the edit loop)", () => {
+  // The router mock above is a new object per render, the harshest case: the load must not follow its identity
+  it.each([
+    ["nationality", { nationality: "" }],
+    ["every select field", {
+      nationality: "", area: "", education: "", job: "", skinColor: "", incomeRange: "", maritalStatus: "",
+      religiosity: "", smokingStatus: "", cookingAbility: "", housingType: "", monthlyExpenses: "",
+      willingToRelocate: "", prefHijab: "", prefBeard: "", prefChildrenAcceptance: "", dateOfBirth: "",
+    }],
+  ])("empty %s: the profile is fetched once and the form shows, with no render loop", async (_label, empty) => {
+    window.history.replaceState(null, "", "/dashboard/profile/edit?step=1");
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      const url = String(input);
+      if (url === "/api/profile") return json({ user: { ...user, profile: { ...user.profile, ...empty } } });
+      if (url === "/api/profile/update-request") return json({ requests: [] });
+      return json({ parentInfo: null });
+    });
+    render(<ProfileEditPage />);
+    const nationality = (await screen.findByLabelText(/الجنسية/)) as HTMLInputElement;
+    await new Promise((r) => setTimeout(r, 100));
+    expect(err.mock.calls.filter((c) => /Maximum update depth/.test(String(c[0])))).toEqual([]);
+    expect(fetchSpy.mock.calls.filter(([u]) => String(u) === "/api/profile/update-request")).toHaveLength(1);
+    // An empty stored nationality shows the country's default, never a blank required field
+    expect(nationality.value).not.toBe("");
+    window.history.replaceState(null, "", "/");
+  });
+});

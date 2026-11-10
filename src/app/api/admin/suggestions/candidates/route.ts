@@ -28,7 +28,7 @@ export async function GET(request: Request) {
         gender: true,
         country: true,
         profile: true,
-        personalityResult: { select: { vector: true } },
+        personalityResult: { select: { vector: true, personalityType: true } },
         photos: { select: { id: true } },
         identityDoc: { select: { status: true } },
         parentInfo: { select: { id: true, parentName: true } },

@@ -21,6 +21,8 @@ export function MemberAvatar({
   pro = false,
   dimmed = false,
   onNavy = false,
+  timeLeft,
+  reveal = false,
   className,
 }: {
   name: string;
@@ -33,9 +35,18 @@ export function MemberAvatar({
   dimmed?: boolean;
   /** Sits on a navy card (the home greeting, the account identity card): a light veil so it doesn't vanish */
   onNavy?: boolean;
+  /**
+   * S4, the time arc: 0–1, what is left of the chat's time, drawn as a thin gold arc around the avatar (the gold ring
+   * gives way to it). null / undefined: no arc.
+   */
+  timeLeft?: number | null;
+  /** S2: the photo fades from blurred to sharp once (300 ms) — the first time it shows after a match */
+  reveal?: boolean;
   className?: string;
 }) {
   const initial = name.trim().charAt(0) || "؟";
+  const arc = typeof timeLeft === "number" ? Math.min(1, Math.max(0, timeLeft)) : null;
+  if (arc !== null) return <ArcAvatar {...{ name, size, photoUrl, locked, pro, dimmed, onNavy, reveal, className }} fraction={arc} />;
   const inner = matched ? size - 6 : size;
   const showLock = locked && !photoUrl && size >= 36;
   return (
@@ -56,7 +67,7 @@ export function MemberAvatar({
           unoptimized
           draggable={false}
           onContextMenu={(e) => e.preventDefault()}
-          className="h-full w-full rounded-full object-cover"
+          className={cn("h-full w-full rounded-full object-cover", reveal && "photo-reveal")}
         />
       ) : (
         <span
@@ -86,4 +97,66 @@ export function MemberAvatar({
       )}
     </span>
   );
+}
+
+/** The avatar inside the S4 arc: a faint gold track and the gold share of time left, starting at the top */
+function ArcAvatar({
+  fraction,
+  size,
+  className,
+  ...face
+}: {
+  fraction: number;
+  name: string;
+  size: number;
+  photoUrl?: string | null;
+  locked: boolean;
+  pro: boolean;
+  dimmed: boolean;
+  onNavy: boolean;
+  reveal: boolean;
+  className?: string;
+}) {
+  const stroke = 2.5;
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  return (
+    <span
+      data-slot="time-arc"
+      data-fraction={fraction.toFixed(2)}
+      className={cn("relative inline-flex shrink-0 items-center justify-center", className)}
+      style={{ width: size, height: size }}
+    >
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden className="absolute inset-0 -rotate-90">
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--accent)" strokeOpacity={0.2} strokeWidth={stroke} />
+        {fraction > 0 && (
+          <circle
+            data-arc=""
+            cx={size / 2}
+            cy={size / 2}
+            r={r}
+            fill="none"
+            stroke="var(--accent)"
+            strokeWidth={stroke}
+            strokeLinecap="round"
+            strokeDasharray={`${c * fraction} ${c}`}
+          />
+        )}
+      </svg>
+      <MemberAvatar {...face} size={size - 8} />
+    </span>
+  );
+}
+
+/**
+ * Share of a chat's time still left (the app's `chatTimeFraction`): 14 days, or 21 once extended (more than 14 left).
+ * null when there is no end or it has passed.
+ */
+export function chatTimeFraction(expiresAt: string | Date | null | undefined, now: number = Date.now()): number | null {
+  if (!expiresAt) return null;
+  const left = new Date(expiresAt).getTime() - now;
+  if (!(left > 0)) return null;
+  const day = 24 * 60 * 60 * 1000;
+  const total = (left > 14 * day ? 21 : 14) * day;
+  return Math.min(1, Math.max(0, left / total));
 }

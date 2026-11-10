@@ -1,7 +1,9 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:naseebak_app/core/theme/app_theme.dart';
 import 'package:naseebak_app/features/country_selection/country.dart';
 import 'package:naseebak_app/features/profile/guardian_form.dart';
 import 'package:naseebak_app/features/profile/preferences_screen.dart';
@@ -141,6 +143,30 @@ void main() {
       // Her lock is on his beard; his would be on her hijab
       expect(q.activeDealbreakers(female: true).toSet(), {'beard', 'children'});
       expect(q.activeDealbreakers(female: false).toSet(), {'hijab', 'children'});
+    });
+
+    testWidgets('«شرط أساسي» reads clearly on and off (owner report 2026-11-10: white on pale gold)', (tester) async {
+      phone(tester);
+      final adapter = FakeAdapter()..on('GET', '/api/profile/dealbreakers', const FakeResponse(200, {'profile': {}}));
+      await tester.pumpWidget(scoped(
+        await testOverrides(adapter),
+        const Scaffold(
+          body: PreferencesForm(
+            initial: PartnerPrefs(ageMin: 24, ageMax: 34, cities: ['إربد'], dealbreakers: {'age'}),
+            cities: ['عمّان', 'إربد'],
+            female: true,
+            withDealbreakers: true,
+          ),
+        ),
+      ));
+      await tester.pumpAndSettle();
+      Color? labelOf(String key) => tester
+          .renderObject<RenderParagraph>(find.descendant(of: find.byKey(Key('db-$key')), matching: find.text('شرط أساسي')))
+          .text
+          .style
+          ?.color;
+      expect(labelOf('age'), AppColors.navy); // on
+      expect(labelOf('city'), AppColors.navy); // off
     });
 
     testWidgets('emptying a preference unticks its lock; the save never sends it', (tester) async {

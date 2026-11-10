@@ -165,6 +165,8 @@ class _PreferencesFormState extends ConsumerState<PreferencesForm> {
               selected: _dealbreakers.contains(key),
               showCheckmark: false,
               selectedColor: AppColors.gold.withValues(alpha: 0.22),
+              // Pale gold when on: the theme's white picked label would vanish, so navy both ways
+              labelStyle: const TextStyle(color: AppColors.navy),
               onSelected: filled || _dealbreakers.contains(key)
                   ? (on) => setState(() => on ? _dealbreakers.add(key) : _dealbreakers.remove(key))
                   : null,

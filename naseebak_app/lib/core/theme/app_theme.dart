@@ -279,10 +279,13 @@ class AppTheme {
         side: WidgetStateBorderSide.resolveWith(
           (states) => BorderSide(color: states.contains(WidgetState.selected) ? AppColors.navy : AppColors.line),
         ),
-        labelStyle: WidgetStateTextStyle.resolveWith(
-          (states) => AppText.label.copyWith(
-            color: states.contains(WidgetState.selected) ? Colors.white : AppColors.ink,
-            fontWeight: states.contains(WidgetState.selected) ? FontWeight.w700 : FontWeight.w500,
+        // A plain style with a state colour: Flutter's chip resolves only `labelStyle.color` by state. A
+        // WidgetStateTextStyle here was never resolved, so every label had no colour and iOS painted it white
+        // (owner report 2026-11-10: unselected chips looked empty)
+        labelStyle: AppText.label.copyWith(
+          fontWeight: FontWeight.w600,
+          color: WidgetStateColor.resolveWith(
+            (states) => states.contains(WidgetState.selected) ? Colors.white : AppColors.ink,
           ),
         ),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),

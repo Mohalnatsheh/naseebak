@@ -335,4 +335,20 @@ describe("emptyFilterFields", () => {
     const { emptyFilterFields } = await import("@/lib/profile-completeness");
     expect(emptyFilterFields(null, "MALE")).toEqual([]);
   });
+
+  it("lists an empty «المذهب» for a Lebanese member only", async () => {
+    const { emptyFilterFields } = await import("@/lib/profile-completeness");
+    const filled = { beard: true, smokingStatus: "مدخن", religiosity: "متوسط" };
+    expect(emptyFilterFields({ ...filled, sect: null }, "MALE", "LB")).toEqual([{ key: "sect", label: "المذهب", step: 2 }]);
+    expect(emptyFilterFields({ ...filled, sect: null }, "MALE", "JO")).toEqual([]);
+    expect(emptyFilterFields({ ...filled, sect: null }, "MALE", "SA")).toEqual([]);
+    expect(emptyFilterFields({ ...filled, sect: null }, "MALE")).toEqual([]);
+  });
+
+  it("never mentions a chosen sect, «أفضّل عدم الذكر» included", async () => {
+    const { emptyFilterFields } = await import("@/lib/profile-completeness");
+    const filled = { hijab: true, smokingStatus: "مدخن", religiosity: "متوسط" };
+    expect(emptyFilterFields({ ...filled, sect: "سني" }, "FEMALE", "LB")).toEqual([]);
+    expect(emptyFilterFields({ ...filled, sect: "أفضّل عدم الذكر" }, "FEMALE", "LB")).toEqual([]);
+  });
 });

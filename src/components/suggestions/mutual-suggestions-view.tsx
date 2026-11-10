@@ -870,6 +870,7 @@ export function MutualSuggestionsView({
                     { icon: GraduationCap, label: c.education },
                     { icon: User, label: c.maritalStatus && describeOption("maritalStatus", c.maritalStatus, partnerGender) },
                     { icon: Moon, label: c.religiosity && describeOption("religiosity", c.religiosity, partnerGender) },
+                    { icon: Moon, label: c.sect && describeOption("sect", c.sect, partnerGender) },
                     { icon: Cigarette, label: c.smokingStatus && describeOption("smokingStatus", c.smokingStatus, partnerGender) },
                     { icon: Flag, label: nationalityLabel(c.nationality, partnerGender) },
                   ]}

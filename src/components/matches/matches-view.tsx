@@ -104,6 +104,8 @@ interface Match {
     maritalStatus: string | null;
     childrenCount: number;
     religiosity: string | null;
+    /** «المذهب»: Lebanese members only, null when not shown */
+    sect?: string | null;
     smokingStatus: string | null;
     aboutMe: string | null;
     hobbies: string | null;
@@ -637,6 +639,7 @@ export function MatchesView({ embedded = false }: { embedded?: boolean } = {}) {
                     { icon: User, label: c.maritalStatus && describeOption("maritalStatus", c.maritalStatus, isFemale ? "MALE" : "FEMALE") },
                     { icon: GraduationCap, label: c.education },
                     { icon: Moon, label: c.religiosity && describeOption("religiosity", c.religiosity, isFemale ? "MALE" : "FEMALE") },
+                    { icon: Moon, label: c.sect && describeOption("sect", c.sect, isFemale ? "MALE" : "FEMALE") },
                     { icon: Flag, label: nationalityLabel(c.nationality, isFemale ? "MALE" : "FEMALE") },
                   ]}
                   aboutMe={c.aboutMe}
@@ -673,6 +676,7 @@ export function MatchesView({ embedded = false }: { embedded?: boolean } = {}) {
 
                         <Section title="الدين ونمط الحياة" icon={Moon} defaultOpen={true}>
                           <InfoRow icon={Moon} label="مستوى التدين" value={c.religiosity && describeOption("religiosity", c.religiosity, isFemale ? "MALE" : "FEMALE")} />
+                          <InfoRow icon={Moon} label="المذهب" value={c.sect && describeOption("sect", c.sect, isFemale ? "MALE" : "FEMALE")} />
                           <InfoRow icon={Cigarette} label="التدخين" value={c.smokingStatus && describeOption("smokingStatus", c.smokingStatus, isFemale ? "MALE" : "FEMALE")} />
                           <InfoRow icon={Activity} label="نمط الحياة" value={c.lifestyle && describeOption("lifestyle", c.lifestyle, isFemale ? "MALE" : "FEMALE")} />
                           <InfoRow icon={UtensilsCrossed} label="القدرة على الطبخ" value={c.cookingAbility && describeOption("cookingAbility", c.cookingAbility, isFemale ? "MALE" : "FEMALE")} />

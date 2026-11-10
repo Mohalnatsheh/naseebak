@@ -72,6 +72,7 @@ interface Suggestion {
     maritalStatus: string | null;
     childrenCount: number;
     religiosity: string | null;
+    sect?: string | null;
     smokingStatus: string | null;
     aboutMe: string | null;
     hobbies: string | null;
@@ -114,6 +115,7 @@ interface Interest {
     maritalStatus: string | null;
     childrenCount: number;
     religiosity: string | null;
+    sect?: string | null;
     smokingStatus: string | null;
     aboutMe: string | null;
     hobbies: string | null;
@@ -744,6 +746,7 @@ toast.success("تهانينا! لديك توافق متبادل!", {
                         { icon: User, label: c.maritalStatus && describeOption("maritalStatus", c.maritalStatus, partnerGender) },
                         { icon: GraduationCap, label: c.education },
                         { icon: Moon, label: c.religiosity && describeOption("religiosity", c.religiosity, partnerGender) },
+                        { icon: Moon, label: c.sect && describeOption("sect", c.sect, partnerGender) },
                         { icon: Cigarette, label: c.smokingStatus && describeOption("smokingStatus", c.smokingStatus, partnerGender) },
                         { icon: Flag, label: nationalityLabel(c.nationality, partnerGender) },
                       ]}
@@ -980,6 +983,7 @@ toast.success("تهانينا! لديك توافق متبادل!", {
                         { icon: User, label: c.maritalStatus && describeOption("maritalStatus", c.maritalStatus, partnerGender) },
                         { icon: GraduationCap, label: c.education },
                         { icon: Moon, label: c.religiosity && describeOption("religiosity", c.religiosity, partnerGender) },
+                        { icon: Moon, label: c.sect && describeOption("sect", c.sect, partnerGender) },
                         { icon: Flag, label: nationalityLabel(c.nationality, partnerGender) },
                       ]}
                       aboutMe={c.aboutMe}

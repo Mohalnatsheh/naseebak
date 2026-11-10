@@ -28,6 +28,8 @@ export interface CandidateDetailsData {
   maritalStatus: string | null;
   childrenCount: number;
   religiosity: string | null;
+  /** «المذهب»: Lebanese members only, null when not shown */
+  sect?: string | null;
   smokingStatus: string | null;
   hobbies: string | null;
   interests: string | null;
@@ -143,6 +145,7 @@ export function CandidateDetails({ c }: { c: CandidateDetailsData }) {
       </Section>
       <Section title="الدين ونمط الحياة" icon={Moon} defaultOpen={true}>
         <InfoRow icon={Moon} label="مستوى التدين" value={c.religiosity && describeOption("religiosity", c.religiosity, partnerGender)} />
+        <InfoRow icon={Moon} label="المذهب" value={c.sect && describeOption("sect", c.sect, partnerGender)} />
         <InfoRow icon={Cigarette} label="التدخين" value={c.smokingStatus && describeOption("smokingStatus", c.smokingStatus, partnerGender)} />
         <InfoRow icon={Activity} label="نمط الحياة" value={c.lifestyle && describeOption("lifestyle", c.lifestyle, partnerGender)} />
         <InfoRow icon={UtensilsCrossed} label="القدرة على الطبخ" value={c.cookingAbility && describeOption("cookingAbility", c.cookingAbility, partnerGender)} />

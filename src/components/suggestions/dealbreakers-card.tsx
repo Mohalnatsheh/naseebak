@@ -9,6 +9,7 @@ import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetT
 import { DEALBREAKER_KEYS, DEALBREAKER_LABELS } from "@/lib/matching/score";
 import { dealbreakerSummary } from "@/lib/matching/dealbreaker-summary";
 import { useDashboardData } from "@/contexts/dashboard-context";
+import { sectApplies } from "@/lib/profile-sect";
 import { cn } from "@/lib/utils";
 
 interface Prefs {
@@ -20,6 +21,8 @@ interface Prefs {
   prefMaritalStatus: string[];
   prefReligiosity: string[];
   prefSmokingStatus: string[];
+  /** «المذهب لدى الشريك»: Lebanese members only */
+  prefSect?: string[] | null;
   prefHijab: string | null;
   prefBeard: string | null;
   prefChildrenAcceptance: string | null;
@@ -34,7 +37,10 @@ const HASH = "#dealbreakers";
  * anyone is suggested). Same API as before (GET/PUT /api/profile/dealbreakers); private to the member.
  */
 export function DealbreakersCard() {
-  const gender: string | undefined = useDashboardData().profile?.gender;
+  const { profile, country } = useDashboardData();
+  const gender: string | undefined = profile?.gender;
+  // The «المذهب» condition exists for Lebanese members only
+  const sectOn = sectApplies(country);
   const [open, setOpen] = useState(false);
   const [prefs, setPrefs] = useState<Prefs | null>(null);
   /** What is saved on the server (the chips) */
@@ -76,7 +82,9 @@ export function DealbreakersCard() {
   }, []);
 
   const available = prefs
-    ? DEALBREAKER_KEYS.map((k) => ({ key: k, summary: dealbreakerSummary(k, prefs, gender) })).filter((x) => x.summary)
+    ? DEALBREAKER_KEYS.filter((k) => k !== "sect" || sectOn)
+        .map((k) => ({ key: k, summary: dealbreakerSummary(k, prefs, gender) }))
+        .filter((x) => x.summary)
     : [];
   const active = available.filter((a) => saved.has(a.key));
 

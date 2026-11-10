@@ -280,19 +280,21 @@ export interface MissingSetupStep {
  * is filled but the last step was never saved. The guardian is not a setup step in the new cycle
  * (it is asked for when choosing a family introduction).
  */
-export function missingSetupSteps(user: { profile?: Record<string, unknown> | null }): MissingSetupStep[] {
+export function missingSetupSteps(user: { profile?: Record<string, unknown> | null; country?: string | null }): MissingSetupStep[] {
   const p = user.profile ?? {};
   const has = (key: string) => p[key] !== null && p[key] !== undefined && p[key] !== "";
   const missing: MissingSetupStep[] = [];
   if (!["dateOfBirth", "nationality", "city", "education"].every(has)) missing.push({ step: 1, label: "المعلومات الأساسية" });
-  if (!["maritalStatus", "religiosity"].every(has)) missing.push({ step: 2, label: "الحالة الاجتماعية والتدين" });
+  // «المذهب» is required for Lebanese members only
+  const step2 = sectApplies(user.country) ? ["maritalStatus", "religiosity", "sect"] : ["maritalStatus", "religiosity"];
+  if (!step2.every(has)) missing.push({ step: 2, label: "الحالة الاجتماعية والتدين" });
   if (!["prefAgeMin", "prefAgeMax"].every(has)) missing.push({ step: 3, label: "العمر المناسب للشريك" });
   return missing;
 }
 
 /** An optional field of my own that other members can make a «شرط أساسي». */
 export interface EmptyFilterField {
-  key: "smokingStatus" | "religiosity" | "hijab" | "beard";
+  key: "smokingStatus" | "religiosity" | "hijab" | "beard" | "sect";
   label: string;
   /** Profile edit step that holds the field */
   step: number;
@@ -305,8 +307,10 @@ export interface EmptyFilterField {
  * Db-free: client pages import it.
  */
 export function emptyFilterFields(
-  profile: { smokingStatus?: string | null; religiosity?: string | null; hijab?: boolean | null; beard?: boolean | null } | null | undefined,
+  profile: { smokingStatus?: string | null; religiosity?: string | null; hijab?: boolean | null; beard?: boolean | null; sect?: string | null } | null | undefined,
   gender: string | null | undefined,
+  /** The member's country: «المذهب» counts for Lebanese members only */
+  country?: string | null,
 ): EmptyFilterField[] {
   if (!profile) return [];
   const blank = (v: unknown) => v === null || v === undefined || v === "";
@@ -315,5 +319,7 @@ export function emptyFilterFields(
   if (gender === "MALE" && blank(profile.beard)) out.push({ key: "beard", label: "اللحية", step: 2 });
   if (blank(profile.smokingStatus)) out.push({ key: "smokingStatus", label: "التدخين", step: 2 });
   if (blank(profile.religiosity)) out.push({ key: "religiosity", label: "مستوى التدين", step: 2 });
+  // «أفضّل عدم الذكر» is an answer the member chose, so only an empty sect is mentioned
+  if (sectApplies(country) && blank(profile.sect)) out.push({ key: "sect", label: "المذهب", step: 2 });
   return out;
 }

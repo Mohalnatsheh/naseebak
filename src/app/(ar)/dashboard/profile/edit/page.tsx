@@ -38,6 +38,7 @@ import { normalizePhone } from "@/lib/phone";
 import { splitProfileEdit, buildFillBody } from "@/lib/profile-edit-split";
 import { forViewer } from "@/lib/gendered-copy";
 import { VEIL_CHOICES, veilChoice, veilFromChoice } from "@/lib/profile-veil";
+import { PREF_SECT_VALUES, SECT_VALUES, sectApplies } from "@/lib/profile-sect";
 import { PageLoading } from "@/components/shared/page-loading";
 import { sharedGet } from "@/lib/shared-get";
 import { PageHeader } from "@/components/shared/page-header";
@@ -105,6 +106,8 @@ interface ProfileForm {
   willingToRelocate: string;
   maritalStatus: string;
   religiosity: string;
+  /** «المذهب»: Lebanese members only (sectApplies) */
+  sect: string;
   /** null = never answered (only «نعم» / «لا» fill it) */
   hijab: boolean | null;
   /** null = never answered; true only with hijab true (one question «الحجاب», three answers) */
@@ -131,6 +134,7 @@ interface ProfileForm {
   prefHijab: string;
   prefBeard: string;
   prefReligiosity: string[];
+  prefSect: string[];
   prefSmokingStatus: string[];
   prefChildrenAcceptance: string;
   // Guardian fields
@@ -156,6 +160,7 @@ const emptyForm: ProfileForm = {
   willingToRelocate: "",
   maritalStatus: "",
   religiosity: "",
+  sect: "",
   hijab: null,
   niqab: null,
   beard: null,
@@ -180,6 +185,7 @@ const emptyForm: ProfileForm = {
   prefHijab: "",
   prefBeard: "",
   prefReligiosity: [],
+  prefSect: [],
   prefSmokingStatus: [],
   prefChildrenAcceptance: "",
   parentName: "",
@@ -247,6 +253,8 @@ export default function ProfileEditPage() {
   // Places, money, wording and the guardian's phone follow the member's country (from the loaded profile)
   const [loadedCountry, setLoadedCountry] = useState<CountryCode | null>(null);
   const country = COUNTRIES[toCountry(loadedCountry ?? contextCountry)];
+  // «المذهب» is asked of Lebanese members only
+  const sectOn = sectApplies(country.code);
   const cities = citiesFor(country.code);
   const incomeRanges = incomeRangesFor(country.code);
   const expenseRanges = expenseRangesFor(country.code);
@@ -322,6 +330,7 @@ export default function ProfileEditPage() {
             willingToRelocate: p.willingToRelocate || "",
             maritalStatus: p.maritalStatus || "",
             religiosity: p.religiosity || "",
+            sect: p.sect || "",
             hijab: typeof p.hijab === "boolean" ? p.hijab : null,
             niqab: typeof p.niqab === "boolean" ? p.niqab : null,
             beard: typeof p.beard === "boolean" ? p.beard : null,
@@ -347,6 +356,7 @@ export default function ProfileEditPage() {
             prefHijab: p.prefHijab || "",
             prefBeard: p.prefBeard || "",
             prefReligiosity: Array.isArray(p.prefReligiosity) ? p.prefReligiosity : [],
+            prefSect: Array.isArray(p.prefSect) ? p.prefSect : [],
             prefSmokingStatus: Array.isArray(p.prefSmokingStatus) ? p.prefSmokingStatus : [],
             prefChildrenAcceptance: p.prefChildrenAcceptance || "",
             parentName: pi?.parentName || "",
@@ -375,7 +385,7 @@ export default function ProfileEditPage() {
     setForm((prev) => ({ ...prev, [field]: value }));
   }
 
-  function toggleArray(field: "prefCity" | "prefEducation" | "prefMaritalStatus" | "prefReligiosity" | "prefSmokingStatus", value: string) {
+  function toggleArray(field: "prefCity" | "prefEducation" | "prefMaritalStatus" | "prefReligiosity" | "prefSect" | "prefSmokingStatus", value: string) {
     setForm((prev) => {
       const arr = prev[field];
       if (arr.includes(value)) {
@@ -411,6 +421,7 @@ export default function ProfileEditPage() {
       if (!form.maritalStatus) return { field: "maritalStatus", message: "يرجى اختيار الحالة الاجتماعية" };
       if (form.maritalStatus !== "أعزب/عزباء" && !form.childrenCount) return { field: "childrenCount", message: "يرجى إدخال عدد الأبناء" };
       if (!form.religiosity) return { field: "religiosity", message: "يرجى اختيار مستوى التدين" };
+      if (sectOn && !form.sect) return { field: "sect", message: "يرجى اختيار المذهب" };
     }
     if (s === 3) {
       if (!form.prefAgeMin) return { field: "prefAgeMin", message: "يرجى إدخال العمر الأدنى المفضل" };
@@ -479,7 +490,7 @@ export default function ProfileEditPage() {
 
   function getChangedFields(): Record<string, unknown> {
     const changes: Record<string, unknown> = {};
-    const arrayFields = ["prefCity", "prefEducation", "prefMaritalStatus", "prefReligiosity", "prefSmokingStatus"] as const;
+    const arrayFields = ["prefCity", "prefEducation", "prefMaritalStatus", "prefReligiosity", "prefSect", "prefSmokingStatus"] as const;
     const guardianFields = ["parentName", "parentPhone", "relationship", "parentAddress"];
 
     for (const key of Object.keys(form) as (keyof ProfileForm)[]) {
@@ -1044,6 +1055,25 @@ export default function ProfileEditPage() {
               </div>
             </div>
 
+            {sectOn && (
+              <div className="space-y-2">
+                <RequiredLabel>المذهب</RequiredLabel>
+                <div role="group" aria-label="المذهب" {...inv("sect")} className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  {SECT_VALUES.map((v) => (
+                    <button
+                      key={v}
+                      aria-pressed={form.sect === v}
+                      type="button"
+                      onClick={() => update("sect", v)}
+                      className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.sect === v ? "border-primary bg-primary/15 ring-1 ring-primary text-primary font-bold" : "border-border hover:border-primary/50"}`}
+                    >
+                      {selfLabel("sect", v, gender)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="space-y-2">
               <Label>التدخين <OptionalTag /></Label>
               <div role="group" aria-label="التدخين" className="grid grid-cols-2 gap-2">
@@ -1374,6 +1404,23 @@ export default function ProfileEditPage() {
                 ))}
               </div>
             </div>
+
+            {sectOn && (
+              <div className="space-y-2">
+                <div className="flex items-start justify-between gap-3">
+                  <Label className="block min-w-0 flex-1 leading-relaxed">المذهب لدى الشريك <span className="text-xs text-muted-foreground">(يمكن اختيار أكثر من مذهب)</span> <OptionalTag /></Label>
+                  {dealbreaker("sect", "prefSect")}
+                </div>
+                <div role="group" aria-label="المذهب لدى الشريك" className="grid grid-cols-2 gap-2">
+                  {PREF_SECT_VALUES.map((v) => (
+                    <button key={v} type="button" onClick={() => toggleArray("prefSect", v)}
+                      aria-pressed={form.prefSect.includes(v)}
+                      className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${form.prefSect.includes(v) ? "border-primary bg-primary/15 ring-1 ring-primary text-primary font-bold" : "border-border hover:border-primary/50"}`}
+                    >{describeOption("sect", v, partnerGender)}</button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div className="space-y-2">
               <div className="flex items-start justify-between gap-3">

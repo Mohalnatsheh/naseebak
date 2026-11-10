@@ -18,4 +18,16 @@ describe("missingSetupSteps", () => {
   it("nothing when every required field is filled, guardian or not", () => {
     expect(missingSetupSteps({ profile: { ...basics, ...status, ...prefs } })).toEqual([]);
   });
+
+  it("«المذهب» is required in step 2 for a Lebanese member", () => {
+    expect(missingSetupSteps({ country: "LB", profile: { ...basics, ...status, ...prefs } })).toEqual([
+      { step: 2, label: "الحالة الاجتماعية والتدين" },
+    ]);
+    expect(missingSetupSteps({ country: "LB", profile: { ...basics, ...status, ...prefs, sect: "أفضّل عدم الذكر" } })).toEqual([]);
+  });
+
+  it("«المذهب» is never required in Jordan or Saudi Arabia", () => {
+    expect(missingSetupSteps({ country: "JO", profile: { ...basics, ...status, ...prefs } })).toEqual([]);
+    expect(missingSetupSteps({ country: "SA", profile: { ...basics, ...status, ...prefs } })).toEqual([]);
+  });
 });

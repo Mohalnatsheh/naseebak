@@ -31,7 +31,7 @@ Rules for working on Naseebak (نصيبك). This file holds what you need in eve
 - Two more switches, both **on** in production since 2026-11-07, both off by default: `feed_active_first` (the «جديدة» order, Admin → Settings) and `sms_notices_enabled` (notice SMS, set in `system_settings`: no admin button yet, Admin → Notifications → Automatic only shows it).
 - `free_interest_reply` (Admin → Settings, off by default, **on** in production since 2026-11-09, needs `credit_on_interest`, 2026-11-08): answering «مهتم» on a card the other side already said «مهتم» on (`likedYou`) costs no credit, also at 0 credits; the first «مهتم» still costs 1. The chat/family choice and guardian consent still apply (`decideSuggestion`: `introChoice` vs `charge`). The notices say the reply is free (`replyNoticeLine`). App 1.0.1+ handles it; 1.0.0 at 0 credits still locks «مهتم». Android requires 1.0.1 since 2026-11-09 (`mobile_android_min_version`); iPhone has no minimum until 1.0.1 is on the App Store.
 - `sa_relaxed_matching` (Admin → Settings, off by default, 2026-11-08): Saudi members get suggestions with no score minimum (`minSuggestionScore(flags, country)` = 0), best score first. «شروط أساسية», same country and test-account separation still apply. Jordan unchanged.
-- `pro_enabled` (Admin → Settings, off by default, 2026-11-09): Pro membership. It gates new sales and offers only (checkout, `/api/pro` offers and `canBuy`, the Pro page `/dashboard/pro` and its links, the chat's greyed buttons and offer). The badge and media sending follow `isPro()` whatever the switch. Subscribers keep Pro and their credits while it is off (`isPro()` never reads it). Deployed 2026-11-10 with the switch off.
+- `pro_enabled` (Admin → Settings, off by default, 2026-11-09): Pro membership. It gates new sales and offers only (checkout, `/api/pro` offers and `canBuy`, the Pro page `/dashboard/pro` and its links, the chat's greyed buttons and offer). The badge and media sending follow `isPro()` whatever the switch. Subscribers keep Pro and their credits while it is off (`isPro()` never reads it). **On** in production since 2026-11-10 (Jordan 3 / 10 / 89 JOD, Saudi 6 / 20 / 178 SAR; 5 / 20 / 20-a-month credits).
 
 ## Commands
 
@@ -224,7 +224,7 @@ src/
 - Test accounts never see payments in the app.
 - Pausing the account, or asking to delete it, stops a live Pro renewal at the period end, no refund, with a notice (`stopProRenewalOnLeave`). Reactivating never resumes it (2026-11-10). A renewal already failing (`PAST_DUE`) ends at once instead. A paused member can read `/api/pro` and cancel; checkout and resume stay refused.
 - A paid Pro invoice that never made Pro live (a duplicate, or a renewal after the end) tells the member and is marked `Payment.proNotLive` («Refund decision» in Admin → Payments).
-- **Pro membership** (switch `pro_enabled`, code `src/lib/pro/`, deployed 2026-11-10, switch off):
+- **Pro membership** (switch `pro_enabled`, code `src/lib/pro/`, **on** in production since 2026-11-10):
   - Its own dashboard page `/dashboard/pro` (owner, 2026-11-10): plans or «اشتراكي», the Stripe return (`?pro=success|cancel`) and Pro notices land there. `/dashboard/payments` keeps credit packages and history plus one small «عضوية Pro» link card; that card and the «عضوية Pro» nav entries show only when the member can buy a plan or is Pro (`proPageShown`, `counts.pro.showPage`).
   - Weekly, monthly or yearly Stripe subscription (Checkout `mode: "subscription"`, inline `price_data`). Plans, prices and credits per plan are set per country in Admin → Countries and apply to new subscribers only. No trial, no plan switching (cancel, then subscribe again after it ends).
   - Credits are granted once per paid invoice (ledger `PRO_GRANT`, `ProCreditGrant.key`). Yearly gives a monthly amount: the first month on the invoice, the rest by the morning job (`runYearlyProGrants`), every month of every paid year. Unused credits carry over.
@@ -344,7 +344,7 @@ Detail: [docs/reference/suggestions-and-credits.md](docs/reference/suggestions-a
 
 ## Deployment
 
-**Production: `3593127` (Pro membership with the switch off, chat photos and voice, the modern chat, QA rounds 1–2, the design system, daily notifications prompt), deployed 2026-11-10 with `--db-push`, slot a.**
+**Production: `fb42603` (the sidebar «التوافقات» link switches the suggestions tab without a refresh; Pro, chat photos and voice, the modern chat, QA rounds 1–2, the design system), deployed 2026-11-10, slot b.**
 
 Update that one line after each deploy. Don't list past versions. The live revision is in `/var/www/naseebak/REVISION`.
 
@@ -370,7 +370,7 @@ ssh -i ~/.ssh/naseebak_vps_ed25519 -o IdentitiesOnly=yes root@146.103.57.224 nas
 - **Stale `.next` cache trap:** `naseebak-deploy` keeps `.next` between runs, and a stale webpack cache silently drops new Tailwind classes. The cure is step 2 above.
 - A build failing with `Cannot read properties of null (reading '1')` under `nextFontGoogleFontLoader` is a bad Google Fonts download. The live site is untouched: run the deploy again.
 - Before `--db-push`, check what it will run: `npx prisma migrate diff --from-config-datasource --to-schema <file> --script` in `/var/www/naseebak` with `.env` loaded (read-only).
-- **Pro went live 2026-11-10 (`3593127`, `pro_enabled` off).** Done then: `--db-push` (all additive, diff checked), the idle slot's cache cleared, `pnpm install --frozen-lockfile` brought `ffmpeg-static`, `heic-convert`, `sharp@0.34.5`. Nginx (`/etc/nginx/sites-available/naseebak`, backup in `/root/nginx-naseebak-*.bak`): `client_max_body_size 11m`, a `location ~ ^/api/chats/[^/]+/media` with `proxy_read_timeout 120s`, and `Permissions-Policy` `microphone=(self)` (it was `microphone=()`, which blocks website voice notes). `X-Real-IP` was already set. Before turning `pro_enabled` on: the four Stripe webhook events (`invoice.paid`, `invoice.payment_failed`, `customer.subscription.updated`, `customer.subscription.deleted`), the endpoint's API version and the Billing "after all retries fail" setting, Pro prices in Admin → Countries, the owner's refund/terms wording. Detail: [docs/reference/payments.md](docs/reference/payments.md#pro-membership).
+- **Pro went live 2026-11-10 (`3593127`); `pro_enabled` turned on the same day with the owner's prices.** Done then: `--db-push` (all additive, diff checked), the idle slot's cache cleared, `pnpm install --frozen-lockfile` brought `ffmpeg-static`, `heic-convert`, `sharp@0.34.5`. Nginx (`/etc/nginx/sites-available/naseebak`, backup in `/root/nginx-naseebak-*.bak`): `client_max_body_size 11m`, a `location ~ ^/api/chats/[^/]+/media` with `proxy_read_timeout 120s`, and `Permissions-Policy` `microphone=(self)` (it was `microphone=()`, which blocks website voice notes). `X-Real-IP` was already set. Before turning `pro_enabled` on: the four Stripe webhook events (`invoice.paid`, `invoice.payment_failed`, `customer.subscription.updated`, `customer.subscription.deleted`), the endpoint's API version and the Billing "after all retries fail" setting, Pro prices in Admin → Countries, the owner's refund/terms wording. Detail: [docs/reference/payments.md](docs/reference/payments.md#pro-membership).
 - Env: `/var/www/naseebak/.env`. `NEXT_PUBLIC_*` needs a rebuild. Any other `.env` change: `sudo -u naseebak pm2 restart naseebak-a --update-env` (use the live slot).
 - Logs: `/var/log/naseebak/out.log`, `error.log`, `deploy.log`, `cron.log`. Requests: `/var/log/nginx/naseebak.access.log` (`rt=`, `urt=`).
 - Never use `/root/backups/naseebak-deploy-20261103-2112.bak`: it no longer works.
@@ -402,7 +402,6 @@ Parked, or waiting for the owner:
 - The cap on hidden cards per recipient (G53) and a popular member at 0 credits holding many paid «مهتم» cards (G57).
 - Comparing «مهتم» → match by feed order on or after 2026-11-18, and by score band.
 - About 2026-11-14, measure `feed_active_first` and the SMS: «مهتم» → match by how many «مهتم» already waited on the other side (before, 24 Oct – 4 Nov: 32% with none, 12% with 1–4, 6% with 5–9, 3% with 20+), and the answer rate for members without push (before: 25%, 44% with push). 64% of «مهتم» went unanswered.
-- Before `pro_enabled` goes on: the owner approves the Pro wording in the refund policy and terms (WP2-01), including the open 14-day refund question.
 - Device checks still needed for app 1.1.0+4: Android 14 predictive back and one task in recents (A2-M1, A2-M2), Android frame times on a real phone (A2-M6), no Impeller opacity warnings at launch and sign-in (A-L10).
 - Everything else open: [docs/platform-review-2026-11-06.md](docs/platform-review-2026-11-06.md).
 

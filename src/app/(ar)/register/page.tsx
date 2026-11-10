@@ -880,7 +880,8 @@ function RegisterPageContent() {
                   <Button
                     type="button"
                     onClick={handleSendOtp}
-                    className="w-full h-11 rounded-xl text-sm font-semibold bg-gradient-to-l from-primary to-primary/90 shadow-md shadow-primary/15 hover:shadow-lg hover:shadow-primary/20 transition-all duration-300"
+                    // Wraps at large text instead of running out of the button (QA WM-05)
+                    className="w-full h-auto min-h-11 whitespace-normal py-2 rounded-xl text-sm font-semibold bg-gradient-to-l from-primary to-primary/90 shadow-md shadow-primary/15 hover:shadow-lg hover:shadow-primary/20 transition-all duration-300"
                     disabled={sendingOtp || !form.phone}
                   >
                     {sendingOtp ? (
@@ -941,7 +942,7 @@ function RegisterPageContent() {
                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10">
                     <Shield className="h-4 w-4 text-primary" />
                   </div>
-                  <span className="leading-relaxed text-xs">
+                  <span className="min-w-0 leading-relaxed text-xs">
                     اسمك الكامل ورقم {country === "SA" ? "جوالك" : "هاتفك"} محميان بالكامل ولن يظهرا لأي مستخدم آخر على المنصة. يُعرض فقط الاسم الأول للمستخدمين الآخرين
                   </span>
                 </div>

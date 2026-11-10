@@ -356,11 +356,11 @@ export default function DashboardPage() {
                     <Link href="/dashboard/suggestions" className="flex flex-col items-center gap-1.5 rounded-xl px-1 py-1 text-center transition-colors hover:bg-muted/40">
                       <span className="relative">
                         <MemberAvatar name={s.candidate.firstName} size={64} locked pro={!!s.isPro} />
-                        <span className="absolute inset-x-0 -bottom-1 mx-auto w-fit rounded-full bg-accent px-1.5 text-caption font-bold leading-4 tabular-nums text-primary-deep">
+                        <span className="absolute inset-x-0 -bottom-3 mx-auto w-fit rounded-full bg-accent px-1.5 text-caption font-bold leading-4 tabular-nums text-primary-deep">
                           {Math.round(s.compatibilityScore)}%
                         </span>
                       </span>
-                      <span className="mt-1 w-full truncate text-sm font-semibold text-foreground">{s.candidate.firstName}</span>
+                      <span className="mt-3 w-full truncate text-sm font-semibold text-foreground">{s.candidate.firstName}</span>
                       <span className="w-full truncate text-caption text-muted-foreground">
                         {[s.candidate.age ? `${s.candidate.age} سنة` : null, s.candidate.city].filter(Boolean).join(" · ") || " "}
                       </span>

@@ -33,6 +33,12 @@ needed a release.
 
 ## Rules
 
+- **Design tokens** live in `core/theme/app_theme.dart` (same names as the website's `@theme`): `AppColors` (gold text
+  is `goldText`, never `gold` on a light background), the Cairo scale `AppText` (display, title, headline, body, label,
+  caption; nothing under 12), `AppRadius`, `AppSpace`, `AppMotion` (every animation off with
+  `MediaQuery.disableAnimations`). Feature code never writes a raw `fontSize:` (`test/design_kit_test.dart`).
+  Shared pieces (one avatar with the veil and the chat's time arc, the match seal, line-art empty states, press shrink,
+  card skeletons) are in `shared/widgets/brand_kit.dart`. No faces, ever.
 - **Never test against production by accident.** Every build defaults to `https://naseebak.com`; local runs need
   `--dart-define=API_BASE_URL=http://10.0.2.2:3020` (emulator) and a local backend (see README).
 - **Parity with the website:** the app covers every member page. Form lists and options come from

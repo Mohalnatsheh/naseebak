@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../app/providers.dart';
+import '../../core/auth/auth_controller.dart';
 import '../../core/network/api_client.dart';
 import '../../core/network/json.dart';
 
@@ -128,7 +129,35 @@ class ProRepository {
 
 final proRepositoryProvider = Provider<ProRepository>((ref) => ProRepository(ref.watch(apiClientProvider)));
 
-final proStateProvider = FutureProvider.autoDispose<MyProState>((ref) => ref.watch(proRepositoryProvider).state());
+final proStateProvider = FutureProvider.autoDispose<MyProState>((ref) async {
+  final state = await ref.watch(proRepositoryProvider).state();
+  // Remembered for the next «حسابي» paint (smoke QA: the «عضوية Pro» row arrived after first paint and moved the list)
+  final memberId = ref.read(authControllerProvider).me?.id;
+  if (memberId != null) await ref.read(proMenuMemoryProvider).save(memberId, state);
+  return state;
+});
+
+/// The last `/api/pro` answer's menu facts per member on this device, so «حسابي» draws the «عضوية Pro» row (or
+/// leaves it out) in its first frame while `/api/pro` reloads, instead of adding it a moment later. The live answer
+/// always wins once it arrives; only `canBuy` and `isPro` are kept.
+class ProMenuMemory {
+  const ProMenuMemory(this._prefs);
+  final SharedPreferences _prefs;
+
+  static String _key(String memberId) => 'pro_menu:$memberId';
+
+  /// null: nothing remembered yet for this member
+  ({bool canBuy, bool isPro})? read(String memberId) {
+    final raw = _prefs.getInt(_key(memberId));
+    if (raw == null) return null;
+    return (canBuy: raw & 1 != 0, isPro: raw & 2 != 0);
+  }
+
+  Future<void> save(String memberId, MyProState s) =>
+      _prefs.setInt(_key(memberId), (s.canBuy ? 1 : 0) | (s.isPro ? 2 : 0));
+}
+
+final proMenuMemoryProvider = Provider<ProMenuMemory>((ref) => ProMenuMemory(ref.watch(sharedPreferencesProvider)));
 
 /// The Pro screen, its menu entry and the link card on the credits screen: only where the app shows payments, to
 /// buyers (the server says they can buy) and to current Pro members. A test or review account (app payments off)

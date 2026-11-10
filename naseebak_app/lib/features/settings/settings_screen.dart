@@ -86,8 +86,17 @@ class AccountScreen extends ConsumerWidget {
     // «عضوية Pro» only where payments show (never a test or review account, even a Pro one) and Pro can be bought or
     // is held; `/api/pro` isn't even read otherwise
     final payments = ref.watch(appPaymentsProvider);
-    final pro = payments ? ref.watch(proStateProvider).valueOrNull : null;
-    final showPro = pro != null && showPlans(pro, payments);
+    final proAsync = payments ? ref.watch(proStateProvider) : null;
+    final pro = proAsync?.valueOrNull;
+    // While `/api/pro` loads, the last answer on this device draws the row in the first frame, so the list doesn't
+    // jump when it arrives (smoke QA). Still only where payments show: a test account never gets it.
+    final remembered = payments && pro == null && proAsync!.isLoading && me != null
+        ? ref.read(proMenuMemoryProvider).read(me.id)
+        : null;
+    final showPro = pro != null
+        ? showPlans(pro, payments)
+        : payments && remembered != null && (remembered.canBuy || remembered.isPro);
+    final proActive = pro?.isPro ?? remembered?.isPro ?? false;
     Widget tile(IconData icon, String title, VoidCallback onTap, {Color? color, String? subtitle}) => ListTile(
           minVerticalPadding: 12,
           leading: Icon(icon, color: color ?? AppColors.navy),
@@ -114,7 +123,7 @@ class AccountScreen extends ConsumerWidget {
                 KeyedSubtree(
                   key: const Key('menu-pro'),
                   child: tile(Icons.workspace_premium_rounded, 'عضوية Pro', () => context.push('/pro'),
-                      subtitle: pro.isPro ? proActiveText : null),
+                      subtitle: proActive ? proActiveText : null),
                 ),
               ],
               const Divider(),

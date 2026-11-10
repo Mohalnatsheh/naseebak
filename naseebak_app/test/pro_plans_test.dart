@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -522,6 +524,57 @@ void main() {
       final cantBuy = FakePro()..canBuy = false;
       await pumpMenu(tester, cantBuy);
       expect(find.byKey(const Key('menu-pro')), findsNothing);
+    });
+
+    // Smoke QA: the row arrived after first paint and moved the list. The last answer on this device draws it (or
+    // leaves it out) in the first frame while /api/pro reloads.
+    Future<GoRouter> pumpMenuThenAway(WidgetTester tester, FakePro pro) async {
+      final container = await _signIn(tester, pro);
+      final router = GoRouter(
+        initialLocation: '/account',
+        routes: [
+          GoRoute(path: '/account', builder: (_, _) => const AccountScreen()),
+          GoRoute(path: '/away', builder: (_, _) => const Scaffold(body: Text('away'))),
+        ],
+      );
+      await tester.pumpWidget(UncontrolledProviderScope(container: container, child: rtlRouterApp(router)));
+      await tester.pumpAndSettle();
+      // Away and back: the screen's Pro state is gone (autoDispose) and reloads
+      router.go('/away');
+      await tester.pumpAndSettle();
+      return router;
+    }
+
+    testWidgets('the remembered row is there in the first frame, before /api/pro answers', (tester) async {
+      final pro = FakePro()..isPro = true;
+      final router = await pumpMenuThenAway(tester, pro);
+      final gate = Completer<void>();
+      pro.adapter.hold('GET', '/api/pro', gate.future);
+      router.go('/account');
+      await tester.pump();
+      await tester.pump();
+      expect(find.byKey(const Key('menu-pro')), findsOneWidget);
+      expect(find.text('مزايا Pro فعّالة في حسابك.'), findsOneWidget);
+      final top = tester.getTopLeft(find.text('تعديل ملفي')).dy;
+      gate.complete();
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('menu-pro')), findsOneWidget);
+      expect(tester.getTopLeft(find.text('تعديل ملفي')).dy, top);
+    });
+
+    testWidgets('a remembered «no row» stays out while loading; the live answer still wins', (tester) async {
+      final pro = FakePro()..canBuy = false;
+      final router = await pumpMenuThenAway(tester, pro);
+      final gate = Completer<void>();
+      pro.adapter.hold('GET', '/api/pro', gate.future);
+      pro.canBuy = true;
+      router.go('/account');
+      await tester.pump();
+      await tester.pump();
+      expect(find.byKey(const Key('menu-pro')), findsNothing);
+      gate.complete();
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('menu-pro')), findsOneWidget);
     });
   });
 

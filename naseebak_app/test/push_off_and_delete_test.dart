@@ -89,6 +89,18 @@ void main() {
     await tester.tap(find.byTooltip('لاحقاً'));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('push-off-card')), findsNothing);
+
+    // «لاحقاً» lasts 7 days, also after the app restarts (design P1-5)
+    final overrides = await testOverrides(FakeAdapter(), prefs: {
+      pushCardHiddenUntilKey: DateTime.now().add(const Duration(days: 6)).millisecondsSinceEpoch,
+    });
+    await tester.pumpWidget(ProviderScope(
+      key: UniqueKey(),
+      overrides: [...overrides, pushAllowedProvider.overrideWith((ref) async => false)],
+      child: rtlApp(const Scaffold(body: PushOffCard(dismissible: true))),
+    ));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('push-off-card')), findsNothing);
   });
 
   testWidgets('the steps sheet speaks to her and names the iPhone switch', (tester) async {

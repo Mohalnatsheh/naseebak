@@ -185,14 +185,13 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> with WidgetsBindingOb
     return ListTile(
       minVerticalPadding: 12,
       contentPadding: const EdgeInsetsDirectional.fromSTEB(16, 0, 16, 0),
-      // The same avatar as the chat header: navy with a white initial (muted once the chat is over)
-      leading: CircleAvatar(
-        radius: 26,
-        backgroundColor: ended ? AppColors.muted.withValues(alpha: 0.18) : AppColors.navy,
-        child: Text(
-          c.partnerName.isEmpty ? '؟' : c.partnerName.characters.first,
-          style: AppText.headline.copyWith(color: ended ? AppColors.muted : Colors.white, fontWeight: FontWeight.w700),
-        ),
+      // The same avatar as the chat header (P2-5): the days left as a gold arc, grey once the chat is over
+      leading: MemberAvatar(
+        name: c.partnerName,
+        size: 52,
+        dimmed: ended,
+        pro: c.partnerIsPro,
+        timeLeft: ended || c.status != 'ACTIVE' ? null : chatTimeFraction(c.expiresAt),
       ),
       title: Row(
         children: [

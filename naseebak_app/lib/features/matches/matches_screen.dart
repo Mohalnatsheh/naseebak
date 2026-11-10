@@ -7,6 +7,7 @@ import '../../core/localization/digits.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/network/json.dart';
 import '../../core/theme/app_theme.dart';
+import '../../shared/widgets/brand_kit.dart';
 import '../../shared/widgets/common.dart';
 import '../../shared/widgets/person_details_view.dart';
 import '../home/gendered_copy.dart';
@@ -149,27 +150,14 @@ class _MatchTile extends StatelessWidget {
     final closed = match.closedLabel;
     return Card(
       child: InkWell(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(AppRadius.card),
         onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Row(
             children: [
-              Container(
-                width: 50,
-                height: 50,
-                decoration: BoxDecoration(
-                  color: closed != null ? AppColors.line : AppColors.gold.withValues(alpha: 0.15),
-                  shape: BoxShape.circle,
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  p.firstName.isEmpty ? '؟' : p.firstName.characters.first,
-                  style: AppText.title.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: closed != null ? AppColors.muted : AppColors.navy),
-                ),
-              ),
+              // One avatar (P2-5): a gold ring while the match is on, grey once it's closed
+              MemberAvatar(name: p.firstName, size: 52, matched: closed == null, dimmed: closed != null, pro: p.isPro),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -205,7 +193,14 @@ class _MatchTile extends StatelessWidget {
                     else if (match.visitStatus != null)
                       Pill(text: visitStatusLabel(match.visitStatus!), color: AppColors.success, icon: Icons.family_restroom_rounded)
                     else
-                      const Pill(text: 'توافق متبادل', color: AppColors.success, icon: Icons.favorite_rounded),
+                      // The seal (S1) and where the next step is
+                      const Row(
+                        children: [
+                          SealMark(size: 18),
+                          SizedBox(width: 6),
+                          Flexible(child: Pill(text: 'توافق متبادل · خطوتك التالية هنا', color: AppColors.success)),
+                        ],
+                      ),
                   ],
                 ),
               ),

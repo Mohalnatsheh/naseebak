@@ -26,8 +26,22 @@ final pushAllowedProvider = FutureProvider<bool?>((ref) async {
   }
 });
 
-/// «لاحقاً» on the home card: hidden until the app is opened again (the notifications screens always show it)
-final pushCardHiddenProvider = StateProvider<bool>((ref) => false);
+/// «لاحقاً» on the home card: hidden for 7 days (design P1-5; the notifications screens always show it)
+const pushCardHiddenUntilKey = 'push_card_hidden_until';
+const pushCardSnooze = Duration(days: 7);
+
+final pushCardHiddenProvider = StateProvider<bool>((ref) {
+  final until = ref.watch(sharedPreferencesProvider).getInt(pushCardHiddenUntilKey);
+  return until != null && DateTime.now().millisecondsSinceEpoch < until;
+});
+
+/// «لاحقاً»: hidden now, and for the next 7 days
+void snoozePushCard(WidgetRef ref) {
+  ref.read(pushCardHiddenProvider.notifier).state = true;
+  ref
+      .read(sharedPreferencesProvider)
+      .setInt(pushCardHiddenUntilKey, DateTime.now().add(pushCardSnooze).millisecondsSinceEpoch);
+}
 
 const _system = MethodChannel('naseebak/system');
 
@@ -210,7 +224,7 @@ class _PushOffCardState extends ConsumerState<PushOffCard> with WidgetsBindingOb
                   IconButton(
                     tooltip: 'لاحقاً',
                     visualDensity: VisualDensity.compact,
-                    onPressed: () => ref.read(pushCardHiddenProvider.notifier).state = true,
+                    onPressed: () => snoozePushCard(ref),
                     icon: const Icon(Icons.close_rounded, size: 20, color: AppColors.muted),
                   ),
               ],

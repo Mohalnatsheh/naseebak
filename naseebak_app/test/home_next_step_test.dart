@@ -222,4 +222,15 @@ void homeLayoutTests() {
     expect(tester.takeException(), isNull);
     expect(find.text('توافقات تنتظرك'), findsOneWidget);
   });
+
+  test('one banner slot: 0 credits with someone waiting beats the push nudge (design P1-5)', () {
+    Counts c(Map<String, dynamic> j) => Counts.fromJson({'flags': {'creditOnInterest': true}, ...j});
+    expect(homeBannerFor(c({'credits': 0, 'likedYou': 2})), HomeBanner.noCreditsWithInterest);
+    expect(homeBannerFor(c({'credits': 3, 'likedYou': 2})), HomeBanner.pushOff);
+    expect(homeBannerFor(c({'credits': 0, 'likedYou': 0})), HomeBanner.pushOff);
+    expect(
+      homeBannerFor(Counts.fromJson({'flags': {'creditOnInterest': true, 'freeInterestReply': true}, 'credits': 0, 'likedYou': 1})),
+      HomeBanner.pushOff,
+    );
+  });
 }

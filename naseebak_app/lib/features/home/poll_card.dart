@@ -110,7 +110,7 @@ class _PollCardState extends ConsumerState<PollCard> {
               children: [
                 const Icon(Icons.how_to_vote_outlined, color: AppColors.gold),
                 const SizedBox(width: 8),
-                const Expanded(child: Text('سؤال نصيبك', style: TextStyle(fontWeight: FontWeight.w800, color: AppColors.gold))),
+                const Expanded(child: Text('سؤال نصيبك', style: TextStyle(fontWeight: FontWeight.w800, color: AppColors.goldText))),
                 if (!poll.answered && poll.offerCredits > 0) Pill(text: '+${poll.offerCredits} رصيد', color: AppColors.success),
               ],
             ),

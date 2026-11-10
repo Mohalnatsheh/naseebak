@@ -120,7 +120,7 @@ class _Stat extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(children: [
-            Text('$value', style: AppText.title.copyWith(fontWeight: FontWeight.w800, color: AppColors.gold)),
+            Text('$value', style: AppText.title.copyWith(fontWeight: FontWeight.w800, color: AppColors.goldText)),
             Text(label, style: const TextStyle(color: AppColors.muted)),
           ]),
         ),

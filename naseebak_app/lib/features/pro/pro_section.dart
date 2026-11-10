@@ -6,6 +6,7 @@ import '../../core/auth/auth_controller.dart';
 import '../../core/localization/digits.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/theme/app_theme.dart';
+import '../../shared/widgets/brand_kit.dart';
 import '../../shared/widgets/common.dart';
 import '../home/counts.dart';
 import '../home/gendered_copy.dart';
@@ -284,10 +285,11 @@ class _ProPlansCardState extends State<ProPlansCard> {
                   height: 48,
                   child: FilledButton(
                     key: const Key('pro-subscribe'),
+                    // Navy on a light card: gold fills sit only on navy (design P2-4, DS-18)
                     style: FilledButton.styleFrom(
-                      backgroundColor: AppColors.gold,
+                      backgroundColor: AppColors.navy,
                       foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
                     ),
                     onPressed: !widget.canBuy || widget.busy ? null : () => widget.onSubscribe(offer),
                     child: widget.busy
@@ -478,6 +480,9 @@ class _MyProCardState extends ConsumerState<MyProCard> {
               children: [
                 Row(
                   children: [
+                    // A gold seal (design P2) on «اشتراكي»
+                    const SealMark(size: 34, icon: Icons.workspace_premium_rounded, label: 'عضوية Pro'),
+                    const SizedBox(width: 10),
                     Expanded(
                       child: Text(
                         'اشتراكي',
@@ -487,6 +492,19 @@ class _MyProCardState extends ConsumerState<MyProCard> {
                     if (s.plan != null) Pill(text: 'الباقة: ${proPlanLabels[s.plan] ?? s.plan}'),
                   ],
                 ),
+                // The renewal state is clear at a glance: renewing, or ending on a date
+                if (!s.pastDue) ...[
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    child: Pill(
+                      key: const Key('pro-renewal-state'),
+                      text: s.cancelAtPeriodEnd ? 'لا يتجدد' : 'يتجدد تلقائياً',
+                      color: s.cancelAtPeriodEnd ? AppColors.warning : AppColors.success,
+                      icon: s.cancelAtPeriodEnd ? Icons.event_busy_rounded : Icons.autorenew_rounded,
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 10),
                 if (s.pastDue)
                   const InfoBanner(

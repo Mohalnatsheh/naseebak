@@ -291,6 +291,8 @@ class Pill extends StatelessWidget {
   final Color color;
   final IconData? icon;
 
+  Color get ink => color == AppColors.gold ? AppColors.goldText : color;
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -303,7 +305,8 @@ class Pill extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (icon != null) ...[Icon(icon, size: 14, color: color), const SizedBox(width: 4)],
-          Text(text, style: AppText.caption.copyWith(color: color, fontWeight: FontWeight.w700)),
+          // Gold text on a light pill is accent-ink (DS-02: gold measures 2.8:1)
+          Text(text, style: AppText.caption.copyWith(color: ink, fontWeight: FontWeight.w700)),
         ],
       ),
     );
@@ -312,7 +315,7 @@ class Pill extends StatelessWidget {
 
 /// Number badge for counts.
 class CountBadge extends StatelessWidget {
-  const CountBadge({super.key, required this.count, this.color = AppColors.gold});
+  const CountBadge({super.key, required this.count, this.color = AppColors.navy});
   final int count;
   final Color color;
 
@@ -325,6 +328,7 @@ class CountBadge extends StatelessWidget {
       decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(12)),
       child: Text(
         count > 99 ? '99+' : '$count',
+        textScaler: MediaQuery.textScalerOf(context).clamp(maxScaleFactor: 1.2),
         textAlign: TextAlign.center,
         style: AppText.caption.copyWith(color: Colors.white, fontWeight: FontWeight.w700),
       ),

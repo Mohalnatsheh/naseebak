@@ -22,7 +22,11 @@ class MemberAvatar extends StatelessWidget {
     this.matched = false,
     this.pro = false,
     this.timeLeft,
+    this.dimmed = false,
   });
+
+  /// Over (an ended chat, a closed match): the veil in muted grey
+  final bool dimmed;
 
   final String name;
   final double size;
@@ -45,7 +49,7 @@ class MemberAvatar extends StatelessWidget {
     final ring = timeLeft != null || matched;
     final inner = ring ? size - 8 : size;
     Widget face = photo == null
-        ? _Veil(initial: initial, size: inner, locked: locked)
+        ? _Veil(initial: initial, size: inner, locked: locked, dimmed: dimmed)
         : _PhotoFadeIn(image: photo!, size: inner);
     face = ClipOval(child: SizedBox(width: inner, height: inner, child: face));
     return ExcludeSemantics(
@@ -85,19 +89,20 @@ class MemberAvatar extends StatelessWidget {
 }
 
 class _Veil extends StatelessWidget {
-  const _Veil({required this.initial, required this.size, required this.locked});
+  const _Veil({required this.initial, required this.size, required this.locked, this.dimmed = false});
   final String initial;
   final double size;
   final bool locked;
+  final bool dimmed;
 
   @override
   Widget build(BuildContext context) {
     return DecoratedBox(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [AppColors.navy, AppColors.navy2],
+          colors: dimmed ? const [AppColors.line, AppColors.line] : const [AppColors.navy, AppColors.navy2],
         ),
       ),
       child: CustomPaint(
@@ -107,7 +112,9 @@ class _Veil extends StatelessWidget {
           children: [
             SizedBox.square(
               dimension: size * 0.5,
-              child: FittedBox(child: Text(initial, style: AppText.title.copyWith(color: Colors.white, height: 1.1))),
+              child: FittedBox(
+                child: Text(initial, style: AppText.title.copyWith(color: dimmed ? AppColors.muted : Colors.white, height: 1.1)),
+              ),
             ),
             if (locked && size >= 36)
               PositionedDirectional(
@@ -277,19 +284,21 @@ class _SealPainter extends CustomPainter {
 
 /// A small «توافق متبادل» seal for a match card or the chat header (S1, once drawn)
 class SealMark extends StatelessWidget {
-  const SealMark({super.key, this.size = 18});
+  const SealMark({super.key, this.size = 18, this.icon = Icons.check_rounded, this.label = 'توافق متبادل'});
   final double size;
+  final IconData icon;
+  final String label;
 
   @override
   Widget build(BuildContext context) => Semantics(
-        label: 'توافق متبادل',
+        label: label,
         child: CustomPaint(
           key: const Key('seal-mark'),
           size: Size.square(size),
           painter: _SealPainter(progress: 1),
           child: SizedBox.square(
             dimension: size,
-            child: Center(child: Icon(Icons.check_rounded, size: size * 0.5, color: AppColors.navy)),
+            child: Center(child: Icon(icon, size: size * 0.5, color: AppColors.navy)),
           ),
         ),
       );

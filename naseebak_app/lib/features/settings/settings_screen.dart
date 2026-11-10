@@ -406,16 +406,25 @@ class _BlocksScreenState extends ConsumerState<BlocksScreen> {
               ? const SkeletonList(count: 3, itemHeight: 56)
               : _blocks!.isEmpty
                   ? const MessageView(art: LineArtKind.door, icon: Icons.block_rounded, title: 'لا يوجد أحد في قائمة الحظر')
+                  // Cards with the initial and the date (design review P2)
                   : ListView.separated(
+                      padding: const EdgeInsets.all(AppSpace.lg),
                       itemCount: _blocks!.length,
-                      separatorBuilder: (_, _) => const Divider(),
+                      separatorBuilder: (_, _) => const SizedBox(height: AppSpace.sm),
                       itemBuilder: (_, i) {
                         final b = _blocks![i];
-                        return ListTile(
-                          title: Text(asStringOr(asMap(b['blocked'])['firstName'], 'عضو')),
-                          trailing: TextButton(
-                            onPressed: _busy != null ? null : () => _unblock(b),
-                            child: const Text('إلغاء الحظر'),
+                        final name = asStringOr(asMap(b['blocked'])['firstName'], 'عضو');
+                        final at = asDate(b['createdAt']);
+                        return Card(
+                          child: ListTile(
+                            minVerticalPadding: 12,
+                            leading: MemberAvatar(name: name, size: 44, dimmed: true),
+                            title: Text(name, style: AppText.body.copyWith(fontWeight: FontWeight.w700)),
+                            subtitle: at == null ? null : Text('حُظر في ${formatDate(at)}'),
+                            trailing: TextButton(
+                              onPressed: _busy != null ? null : () => _unblock(b),
+                              child: const Text('إلغاء الحظر'),
+                            ),
                           ),
                         );
                       },

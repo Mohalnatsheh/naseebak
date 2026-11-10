@@ -215,7 +215,8 @@ class HomeScreen extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   const PushAskGate(),
-                  const PushOffCard(dismissible: true, padding: EdgeInsets.only(bottom: 12)),
+                  // One banner slot (design P1-5): only the most urgent line shows
+                  _BannerSlot(counts: c, female: female),
                   if (counts.hasError && c == null) ...[
                     InfoBanner(
                       text: 'تعذّر تحميل آخر المستجدات.',
@@ -507,5 +508,67 @@ class _SuggestionPreview extends ConsumerWidget {
         ),
       ),
     );
+  }
+}
+
+/// What the home's one banner slot shows, most urgent first (design P1-5): 0 credits while someone's «مهتم» waits
+/// (and a reply costs a credit), else notifications off. A family request waiting is the hero's next step already.
+enum HomeBanner { noCreditsWithInterest, pushOff }
+
+HomeBanner homeBannerFor(Counts? c) {
+  final waiting = (c?.likedYou ?? 0) > 0;
+  final broke = c?.credits == 0 && (c?.flags.creditOnInterest ?? false) && !(c?.flags.freeInterestReply ?? false);
+  return waiting && broke ? HomeBanner.noCreditsWithInterest : HomeBanner.pushOff;
+}
+
+class _BannerSlot extends ConsumerWidget {
+  const _BannerSlot({required this.counts, required this.female});
+  final Counts? counts;
+  final bool female;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    switch (homeBannerFor(counts)) {
+      case HomeBanner.noCreditsWithInterest:
+        final payments = ref.watch(appPaymentsProvider);
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: Container(
+            key: const Key('home-banner-credits'),
+            constraints: const BoxConstraints(minHeight: 56),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(AppRadius.md),
+              border: Border.all(color: AppColors.line),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(color: AppColors.navy, borderRadius: BorderRadius.circular(10)),
+                  child: const Icon(Icons.favorite_rounded, size: 18, color: Colors.white),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    forViewer(female, 'رصيدك صفر وهناك من ينتظر ردك.', 'رصيدكِ صفر وهناك من ينتظر ردكِ.'),
+                    style: AppText.label.copyWith(color: AppColors.ink),
+                  ),
+                ),
+                if (payments)
+                  FilledButton(
+                    style: FilledButton.styleFrom(minimumSize: const Size(0, 44), padding: const EdgeInsets.symmetric(horizontal: 14)),
+                    onPressed: () => context.push('/credits'),
+                    child: Text(forViewer(female, 'اشحن', 'اشحني')),
+                  ),
+              ],
+            ),
+          ),
+        );
+      case HomeBanner.pushOff:
+        return const PushOffCard(dismissible: true, padding: EdgeInsets.only(bottom: 12));
+    }
   }
 }

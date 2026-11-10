@@ -142,6 +142,9 @@ class SupportScreen extends ConsumerWidget {
         // No Hero: it flew between two support screens opened on top of each other and crashed before layout
         // (Crashlytics: RenderBox was not laid out, _HeroFlightManifest._boundingBoxFor)
         heroTag: null,
+        // Brand navy, not Material's default tint (design review P2)
+        backgroundColor: AppColors.navy,
+        foregroundColor: Colors.white,
         onPressed: () => _new(context, ref),
         icon: const Icon(Icons.add_comment_outlined),
         label: const Text('تذكرة جديدة'),

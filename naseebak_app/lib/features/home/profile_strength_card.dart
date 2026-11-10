@@ -25,7 +25,7 @@ class ProfileStrengthCard extends ConsumerWidget {
               Expanded(
                 child: Text('قوة ملفك', style: AppText.body.copyWith(fontWeight: FontWeight.w800)),
               ),
-              Text('${p.completeness}%', style: const TextStyle(fontWeight: FontWeight.w800, color: AppColors.gold)),
+              Text('${p.completeness}%', style: const TextStyle(fontWeight: FontWeight.w800, color: AppColors.goldText)),
             ]),
             const SizedBox(height: 8),
             LinearProgressIndicator(

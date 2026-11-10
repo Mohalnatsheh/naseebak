@@ -69,7 +69,7 @@ String proFootnote(List<ProOffer> offers) {
 /// One line on what Pro gives; the free credits only when a plan has some
 String proPitch(List<ProOffer> offers) {
   final credits = offers.any((o) => o.credits > 0) ? '، ويصلك رصيد مجاني مع الاشتراك' : '';
-  return 'مع Pro يمكنك إرسال الصور والرسائل الصوتية في المحادثة وأولوية في الاقتراحات$credits.';
+  return 'مع Pro يمكنك إرسال الصور والرسائل الصوتية في المحادثة، ولك أولوية في الاقتراحات$credits.';
 }
 
 /// The Pro screen's content: «اشتراكي» for a Pro member, otherwise the plans card.
@@ -614,7 +614,7 @@ class ProLinkCard extends StatelessWidget {
           child: const Icon(Icons.workspace_premium_rounded, color: Colors.white, size: 22),
         ),
         title: const Text('عضوية Pro', style: TextStyle(fontWeight: FontWeight.w800)),
-        subtitle: Text(isPro ? proActiveText : 'إرسال الصور والرسائل الصوتية في المحادثة وأولوية في الاقتراحات'),
+        subtitle: Text(isPro ? proActiveText : 'إرسال الصور والرسائل الصوتية في المحادثة، وأولوية في الاقتراحات'),
         trailing: const Icon(Icons.chevron_right, color: AppColors.muted),
         onTap: () => context.push('/pro'),
       ),

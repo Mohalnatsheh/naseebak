@@ -32,7 +32,7 @@ const CREDITS_EVERY: Record<ProPlanId, string> = { weekly: "كل أسبوع", mo
 /** One line on what Pro gives; the free credits only when a plan has some */
 export function proPitch(offers: Pick<ProPlanOffer, "credits">[]): string {
   const credits = offers.some((o) => o.credits > 0) ? "، ويصلك رصيد مجاني مع الاشتراك" : "";
-  return `مع Pro يمكنك إرسال الصور والرسائل الصوتية في المحادثة وأولوية في الاقتراحات${credits}.`;
+  return `مع Pro يمكنك إرسال الصور والرسائل الصوتية في المحادثة، ولك أولوية في الاقتراحات${credits}.`;
 }
 
 /** «8 أرصدة مجاناً كل شهر» */
@@ -350,7 +350,7 @@ export function ProLinkCard({ isPro, chatOn = true }: { isPro: boolean; /** chat
           {isPro
             ? "مزايا Pro فعّالة في حسابك. إدارة اشتراكك."
             : chatOn
-              ? "إرسال الصور والرسائل الصوتية في المحادثة وأولوية في الاقتراحات، والباقات وأسعارها."
+              ? "إرسال الصور والرسائل الصوتية في المحادثة، وأولوية في الاقتراحات، والباقات وأسعارها."
               : "مزايا عضوية Pro وباقاتها وأسعارها."}
         </span>
       </span>

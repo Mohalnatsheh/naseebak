@@ -591,6 +591,20 @@ void main() {
     expect(proFootnote(none), contains('يتجدد الاشتراك تلقائياً'));
   });
 
+  test('the pitch reads as one sentence, the free credits only when a plan has some', () {
+    final withCredits = MyProState.fromJson({'enabled': true, 'canBuy': true, 'offers': _offers}).offers;
+    final none = MyProState.fromJson({
+      'enabled': true,
+      'canBuy': true,
+      'offers': [for (final o in _offers) {...o, 'credits': 0}],
+    }).offers;
+    expect(proPitch(none), 'مع Pro يمكنك إرسال الصور والرسائل الصوتية في المحادثة، ولك أولوية في الاقتراحات.');
+    expect(
+      proPitch(withCredits),
+      'مع Pro يمكنك إرسال الصور والرسائل الصوتية في المحادثة، ولك أولوية في الاقتراحات، ويصلك رصيد مجاني مع الاشتراك.',
+    );
+  });
+
   testWidgets('a failed cancel (subscription already gone, 404) reloads «اشتراكي»', (tester) async {
     final pro = FakePro()..isPro = true;
     pro.adapter.handlers['POST /api/pro/cancel'] = (_) {

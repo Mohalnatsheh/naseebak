@@ -136,7 +136,7 @@ describe("ProBadge", () => {
 
 describe("proPitch / proCreditsLine", () => {
   it("mentions the free credits only when a plan has some", () => {
-    expect(proPitch([{ credits: 0 }])).toBe("مع Pro يمكنك إرسال الصور والرسائل الصوتية في المحادثة وأولوية في الاقتراحات.");
+    expect(proPitch([{ credits: 0 }])).toBe("مع Pro يمكنك إرسال الصور والرسائل الصوتية في المحادثة، ولك أولوية في الاقتراحات.");
     expect(proPitch([{ credits: 0 }, { credits: 3 }])).toContain("ويصلك رصيد مجاني مع الاشتراك");
   });
   it("counts the credits in Arabic, with the plan's rhythm", () => {

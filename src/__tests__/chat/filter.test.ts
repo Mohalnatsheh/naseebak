@@ -480,3 +480,15 @@ describe("final review I2: «و» glued to a short number is a separator, not a 
     "صفر و7 و9 و5 و5 و1 و2 و3 و4",
   ])("a phone number with «و» glued between short pieces is still blocked: %s", (t) => expect(reason(t)).toBe("CONTACT"));
 });
+
+describe("final review minor 1: «أميل» and «سناب شوت» are ordinary words", () => {
+  it.each(["أميل إلى الهدوء", "أنا أميل للبيت أكثر", "عندي سناب شوت قديمة", "بحب الفاميلي", "فاميلي كبيرة الحمدلله"])(
+    "passes: %s",
+    (t) => expect(checkMessage(t).ok, t).toBe(true),
+  );
+
+  it.each(["كلمني سناب", "سنابي ahmad", "ايميلي", "اميلي", "ابعتلي اميل", "ابعتلي على الاميل", "عالاميل", "اميلك شو", "إيميل", "س ن ا ب"])(
+    "still blocked: %s",
+    (t) => expect(blocked(t)).toBe("CONTACT"),
+  );
+});

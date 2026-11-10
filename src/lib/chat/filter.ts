@@ -70,14 +70,28 @@ function hasUsernameShape(lower: string): boolean {
 const SOCIAL_KEYWORDS_AR = [
   "واتس", "واتس اب", "وات ساب", "وات س اب", "وتس اب", "وتساب", "وتسب",
   "انستا", "انستغرام", "انستقرام", "انستجرام", "انستكرام", "اينستا", "انستغرم",
-  "سناب",
   "تلغرام", "تيليجرام", "تلجرام", "تيلجرام", "تيليغرام", "تليغرام", "تلقرام", "تيليقرام",
   "فيسبوك", "فيس بوك", "ماسنجر", "مسنجر",
   "تيك توك", "تيكتوك",
   "فايبر", "تويتر", "سيجنال", "ديسكورد",
   "سكايب", "ويتشات", "وي شات", "ويشات", "بوتيم", "لينكدان", "لينكد ان", "فيس تايم", "فيستايم",
-  "ايميل", "اميل",
+  "ايميل",
 ];
+// «سناب» anywhere except "snapshot" («سناب شوت», final review minor 1)
+const SNAP_AR_RE = /سناب(?!\s?شوت)/u;
+// «اميل» (email without the ي) is also the verb «أميل» ("I lean": «أميل إلى الهدوء») and sits inside «فاميلي»
+// (family), so it counts only as its own word (final review minor 1): with «ال» or a suffix («الاميل»,
+// «اميلي», «عالاميل»), or bare unless the next word makes it the verb («إلى», «لل…»)
+const EMAIL_AR_WORD = /^(?:[وب]?ال|عال|عل)?اميل(?:ي|ك|كم|ه|ها|نا|ات|اتي|اتك)?$/u;
+function hasEmailWordAr(lower: string): boolean {
+  const list = lower.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+  return list.some((w, i) => {
+    if (!EMAIL_AR_WORD.test(w)) return false;
+    if (w !== "اميل" && w !== "واميل") return true;
+    const next = list[i + 1] ?? "";
+    return !(next === "الى" || next === "الي" || next.startsWith("ل"));
+  });
+}
 // Latin names: long ones anywhere, short ones (≤ 5 letters) only as a whole word, so "instant coffee",
 // "snapshot" and "big" pass. Read after the look-alike swap (l / 1 / | / ! → i, 0 → o): "lnstagram" is Instagram
 const SOCIAL_KEYWORDS_LATIN = [
@@ -126,6 +140,7 @@ function hasSocialKeyword(text: string): boolean {
 
 function hasSocialKeywordIn(lower: string): boolean {
   if (SOCIAL_KEYWORDS_AR.some((k) => lower.includes(normaliseArabic(k)))) return true;
+  if (SNAP_AR_RE.test(lower) || hasEmailWordAr(lower)) return true;
   if (LINE_APP_RE.test(lower) || KIK_RE.test(lower)) return true;
   const latin = lookAlikeLatin(lower);
   if (SIGNAL_APP_RE.test(latin)) return true;

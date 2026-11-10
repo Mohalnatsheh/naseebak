@@ -99,6 +99,13 @@ describe("ProPlansEditor: what goes to the server", () => {
     expect(proPlansError({ monthly: { enabled: true, price: 4, credits: 2.5 } }, "JO")).toBe("Monthly: Pro credits must be a whole number");
     expect(proPlansError({ monthly: { enabled: true, price: 1, credits: 2 } }, "SA")).toBe("A Saudi Pro plan price must be at least 2 SAR");
     expect(proPlansError({ monthly: { enabled: true, price: 4, credits: 8 } }, "JO")).toBeNull();
+    // Every bad field, not only the first (WP2-13)
+    expect(
+      proPlansError({ weekly: { enabled: true, price: 0, credits: 2 }, yearly: { enabled: true, price: 5, credits: 200 } }, "JO"),
+    ).toBe("Weekly: A Pro plan price must be above 0 · Yearly: Pro credits are at most 100");
+    expect(
+      proPlansError({ weekly: { enabled: true, price: 1, credits: 2 }, monthly: { enabled: true, price: 1.5, credits: 2 } }, "SA"),
+    ).toBe("A Saudi Pro plan price must be at least 2 SAR (Weekly, Monthly)");
     render(<ProPlansEditor code="SA" country="Saudi Arabia" currency="SAR" value={null} onChange={vi.fn()} error="Weekly: A Pro plan price must be above 0" />);
     expect(screen.getByRole("alert").textContent).toContain("Weekly");
     expect(document.getElementById("pro-SA-weekly-price")).toBeTruthy();

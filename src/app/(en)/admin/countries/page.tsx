@@ -18,6 +18,8 @@ import { proPlansError } from "@/lib/validations/country-settings";
 import type { ProPlans } from "@/lib/pro/plans";
 import { formatCharge, packagesFor } from "@/lib/payments/packages";
 import type { CountryCode } from "@/lib/countries";
+import { toDecimalText } from "@/lib/digits";
+import { AdminLoadError } from "@/components/admin/admin-states";
 
 type Provider = "DEFAULT" | "BROADNET" | "UNIFONIC" | "MOCK" | "NONE";
 
@@ -103,7 +105,7 @@ export default function AdminCountriesPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="flex items-center gap-3 text-2xl font-bold">
+        <h1 className="flex items-center gap-3 text-2xl font-display">
           <Globe2 className="h-7 w-7 text-primary" /> Countries
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -127,9 +129,10 @@ export default function AdminCountriesPage() {
         </div>
       )}
 
-      {error && <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
       {loading ? (
         <Loader2 className="mx-auto h-6 w-6 animate-spin text-primary" />
+      ) : error ? (
+        <AdminLoadError message={error} onRetry={() => { setLoading(true); void load(); }} />
       ) : (
         rows.map((row) => <CountryCard key={row.settings.code} row={row} onSaved={load} />)
       )}
@@ -230,8 +233,11 @@ function CountryCard({ row, onSaved }: { row: CountryRow; onSaved: () => void })
           </span>
         </CardTitle>
         <p className="text-xs text-muted-foreground">
-          Members: <b className="text-foreground">{row.members.total}</b> · active in 7 days {row.members.active7d} · new in 7 days {row.members.new7d} · SMS goes through{" "}
-          <b className="text-foreground">{row.sms.provider}</b> {row.sms.provider !== "NONE" && (row.sms.configured ? "(credentials set)" : "(credentials missing)")} · selling: {row.selling ? "yes" : "no"}
+          Members (accounts, admins not counted): <b className="text-foreground">{row.members.total}</b> · active in 7 days {row.members.active7d} · new in 7 days {row.members.new7d} · SMS goes through{" "}
+          <b className="text-foreground">{row.sms.provider}</b>{" "}
+          {row.sms.provider === "MOCK"
+            ? "(mock: nothing is really sent)"
+            : row.sms.provider !== "NONE" && (row.sms.configured ? "(credentials set)" : "(credentials missing)")} · selling: {row.selling ? "yes" : "no"}
         </p>
         {row.warnings.length > 0 && (
           <ul className="space-y-1">
@@ -294,7 +300,7 @@ function CountryCard({ row, onSaved }: { row: CountryRow; onSaved: () => void })
             {packagesFor(code, form.packagePrices).map((p) => (
               <div key={p.id} className="space-y-1.5">
                 <Label htmlFor={`${p.id}-price`}>{p.credits} credits ({p.currency})</Label>
-                <Input id={`${p.id}-price`} dir="ltr" type="number" min={1} step="any" inputMode="decimal" value={priceTexts[p.id] ?? ""} onChange={(e) => setPrice(p.id, e.target.value)} />
+                <Input id={`${p.id}-price`} dir="ltr" type="text" inputMode="decimal" value={priceTexts[p.id] ?? ""} onChange={(e) => setPrice(p.id, toDecimalText(e.target.value))} />
                 {p.chargeCurrency === "usd" && <p className="text-xs text-muted-foreground">Card is charged {formatCharge(p)}</p>}
               </div>
             ))}

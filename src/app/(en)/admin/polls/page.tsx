@@ -7,10 +7,13 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { NumberInput } from "@/components/shared/number-input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
-import { fmtDate } from "@/components/admin/admin-list-bits";
+import { StateBadge, fmtDate, plural } from "@/components/admin/admin-list-bits";
+import { AdminEmptyState, AdminLoadError } from "@/components/admin/admin-states";
+import { useConfirm } from "@/components/admin/confirm-dialog";
 import {
   MIN_POLL_RESULTS,
   POLL_NOTE_MAX,
@@ -45,11 +48,8 @@ interface PollRow {
   allVotes: number;
 }
 
-const STATUS_STYLE: Record<PollStatusValue, string> = {
-  DRAFT: "bg-muted text-muted-foreground",
-  ACTIVE: "bg-emerald-100 text-emerald-800",
-  CLOSED: "bg-primary/10 text-primary",
-};
+/** Words, not enum ids (ADM-18); `tone` picks the shared admin status colours */
+const STATUS_TONE: Record<PollStatusValue, string> = { DRAFT: "PENDING", ACTIVE: "ACTIVE", CLOSED: "ENDED" };
 
 const noSubscribe = () => () => {};
 
@@ -72,6 +72,7 @@ export default function AdminPollsPage() {
   const [open, setOpen] = useState<string | null>(null);
   const [detail, setDetail] = useState<{ options: OptionBreakdown[]; testVotes: number } | null>(null);
   const [copied, setCopied] = useState(false);
+  const confirm = useConfirm();
 
   useEffect(() => {
     load();
@@ -137,7 +138,13 @@ export default function AdminPollsPage() {
       ? await call("save", `/api/admin/polls/${editing}`, { method: "PATCH", body: JSON.stringify({ action: "edit", poll: body }) })
       : await call("save", "/api/admin/polls", { method: "POST", body: JSON.stringify({ ...body, country }) });
     if (data) {
-      toast.success(!editing && barCountry !== "ALL" && country !== barCountry ? `Saved for ${COUNTRY_NAMES[country]}. Switch the admin country to see it.` : "Question saved");
+      toast.success(
+        !editing && barCountry !== "ALL" && country !== barCountry
+          ? `Saved for ${COUNTRY_NAMES[country]}. Switch the admin country to see it.`
+          : !editing && !runningIn(country)
+            ? `Published now: nothing was running in ${COUNTRY_NAMES[country]}.`
+            : "Question saved",
+      );
       setForm(emptyForm);
       setEditing(null);
       load();
@@ -146,16 +153,22 @@ export default function AdminPollsPage() {
 
   async function act(id: string, action: "activate" | "close") {
     const country = polls.find((p) => p.id === id)?.country;
-    if (action === "activate" && polls.some((p) => p.status === "ACTIVE" && p.id !== id && p.country === country) && !confirmClose()) return;
+    if (
+      action === "activate" &&
+      polls.some((p) => p.status === "ACTIVE" && p.id !== id && p.country === country) &&
+      !(await confirm({
+        title: "Start this question now?",
+        description: "The question running now is closed.",
+        confirmLabel: "Start now",
+      }))
+    )
+      return;
     if (await call(id, `/api/admin/polls/${id}`, { method: "PATCH", body: JSON.stringify({ action }) })) load();
   }
 
-  function confirmClose() {
-    return window.confirm("Activating this question closes the one running now. Continue?");
-  }
-
   async function remove(id: string) {
-    if (!window.confirm("Delete this question? This can't be undone.")) return;
+    const ok = await confirm({ title: "Delete this question?", description: "This can't be undone.", confirmLabel: "Delete question", destructive: true });
+    if (!ok) return;
     if (await call(id, `/api/admin/polls/${id}`, { method: "DELETE" })) {
       toast.success("Question deleted");
       load();
@@ -180,6 +193,15 @@ export default function AdminPollsPage() {
   }
 
   const active = polls.find((p) => p.status === "ACTIVE");
+  /**
+   * Is a question running in this country? Unknown (null) when the list shows another country. With nothing running,
+   * a saved question goes live at once (rotatePollsIfDue), so the button says «Publish now» (ADM-02).
+   */
+  function runningIn(c: PollCountry): boolean | null {
+    if (barCountry !== "ALL" && barCountry !== c) return null;
+    return polls.some((p) => p.status === "ACTIVE" && p.country === c);
+  }
+  const publishesNow = !editing && runningIn(country) === false;
   // Queue order = oldest draft first (the list itself is newest first)
   const queueOf = (country: PollCountry) => polls.filter((p) => p.status === "DRAFT" && p.country === country).map((p) => ({ id: p.id, at: p.createdAt })).sort((a, b) => a.at.localeCompare(b.at)).map((p) => p.id);
   const origin = useSyncExternalStore(noSubscribe, () => window.location.origin, () => "");
@@ -195,7 +217,7 @@ export default function AdminPollsPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="flex items-center gap-2 text-2xl font-bold">
+          <h1 className="flex items-center gap-2 text-2xl font-display">
             <MessageCircleQuestion className="h-6 w-6 text-primary" /> Naseebak Question <span dir="rtl" className="text-base font-medium text-muted-foreground">(سؤال نصيبك)</span>
           </h1>
           <p className="text-sm text-muted-foreground">
@@ -208,17 +230,17 @@ export default function AdminPollsPage() {
         </label>
       </div>
 
-      {error && <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
+      {error && <AdminLoadError message={error} onRetry={load} />}
 
       <Card>
         <CardContent className="flex flex-wrap items-end gap-4 p-4">
           <div className="space-y-1">
             <Label htmlFor="days">Days per question</Label>
-            <Input id="days" type="number" min={1} max={30} className="w-28" value={roundDays} onChange={(e) => setRoundDays(e.target.value)} />
+            <NumberInput id="days" maxLength={2} className="w-28" value={roundDays} onChange={(e) => setRoundDays(e.target.value)} />
           </div>
           <div className="space-y-1">
             <Label htmlFor="reward">Credits per answer (members, 0 = off)</Label>
-            <Input id="reward" type="number" min={0} max={5} className="w-28" value={reward} onChange={(e) => setReward(e.target.value)} />
+            <NumberInput id="reward" maxLength={1} className="w-28" value={reward} onChange={(e) => setReward(e.target.value)} />
           </div>
           <Button variant="outline" onClick={saveSettings} disabled={busy === "settings"}>
             {busy === "settings" && <Loader2 className="h-4 w-4 animate-spin" />} Save settings
@@ -249,7 +271,15 @@ export default function AdminPollsPage() {
       <Card>
         <CardContent className="space-y-3 p-4">
           <h2 className="font-semibold">{editing ? "Edit question" : "New question"}</h2>
-          {!editing && <p className="text-xs text-muted-foreground">Queued questions go live on their own, oldest first, when the running one has had its {roundDays} days.</p>}
+          {!editing && (
+            <p className={publishesNow ? "rounded-md bg-amber-100 px-2 py-1 text-xs text-amber-800" : "text-xs text-muted-foreground"}>
+              {publishesNow
+                ? `Nothing is running in ${COUNTRY_NAMES[country]}: this question goes live as soon as it's saved.`
+                : runningIn(country) === null
+                  ? `Queued questions go live on their own, oldest first. If nothing is running in ${COUNTRY_NAMES[country]}, it goes live at once.`
+                  : `Queued questions go live on their own, oldest first, when the running one has had its ${roundDays} days.`}
+            </p>
+          )}
           {!editing && (
             <div className="space-y-1">
               <Label htmlFor="poll-country">Country</Label>
@@ -264,13 +294,14 @@ export default function AdminPollsPage() {
             <Input id="q" dir="rtl" maxLength={POLL_QUESTION_MAX} value={form.question} onChange={(e) => setForm({ ...form, question: e.target.value })} placeholder="برأيك، التعارف الأحسن يبدأ…" />
           </div>
           <div className="space-y-2">
-            <Label>
+            <p className="text-sm font-medium" id="poll-options-label">
               Options ({POLL_OPTIONS_MIN}–{POLL_OPTIONS_MAX})
-            </Label>
+            </p>
             {form.options.map((o, i) => (
               <div key={i} className="flex gap-2">
                 <Input
                   dir="rtl"
+                  aria-label={`Option ${i + 1}`}
                   maxLength={POLL_OPTION_MAX}
                   value={o}
                   onChange={(e) => setForm({ ...form, options: form.options.map((x, j) => (j === i ? e.target.value : x)) })}
@@ -291,11 +322,11 @@ export default function AdminPollsPage() {
           </div>
           <div className="space-y-1">
             <Label htmlFor="note">Line shown after voting (optional, Arabic)</Label>
-            <Input id="note" dir="rtl" maxLength={POLL_NOTE_MAX} value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} placeholder="على نصيبك إنت بتختار: محادثة محمية أو تعارف عائلي." />
+            <Input id="note" dir="rtl" maxLength={POLL_NOTE_MAX} value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} placeholder="على نصيبك يمكنك أن تختار: محادثة محمية أو تعارف عائلي." />
           </div>
           <div className="flex gap-2">
             <Button onClick={save} disabled={busy === "save"}>
-              {busy === "save" && <Loader2 className="h-4 w-4 animate-spin" />} {editing ? "Save changes" : "Add to queue"}
+              {busy === "save" && <Loader2 className="h-4 w-4 animate-spin" />} {editing ? "Save changes" : publishesNow ? "Publish now" : "Add to queue"}
             </Button>
             {editing && (
               <Button
@@ -314,8 +345,8 @@ export default function AdminPollsPage() {
 
       {loading ? (
         <Loader2 className="mx-auto h-6 w-6 animate-spin text-primary" />
-      ) : polls.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No questions yet.</p>
+      ) : error ? null : polls.length === 0 ? (
+        <AdminEmptyState icon={MessageCircleQuestion} title="No questions yet" hint="Write the first one above." />
       ) : (
         <div className="space-y-3">
           {polls.map((p) => (
@@ -333,8 +364,11 @@ export default function AdminPollsPage() {
                       {p.closedAt && ` · closed ${fmtDate(p.closedAt)}`}
                     </p>
                   </div>
-                  <Badge className={STATUS_STYLE[p.status]}>{p.status === "DRAFT" ? (queueOf(p.country).indexOf(p.id) === 0 ? "NEXT" : `QUEUE #${queueOf(p.country).indexOf(p.id) + 1}`) : p.status}</Badge>
-                  <Badge variant="outline">{p.votes} votes</Badge>
+                  <StateBadge
+                    value={STATUS_TONE[p.status]}
+                    label={p.status === "DRAFT" ? (queueOf(p.country).indexOf(p.id) === 0 ? "Next" : `Queue #${queueOf(p.country).indexOf(p.id) + 1}`) : p.status === "ACTIVE" ? "Live" : "Closed"}
+                  />
+                  <Badge variant="outline">{plural(p.votes, "vote")}</Badge>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {p.status !== "ACTIVE" && (

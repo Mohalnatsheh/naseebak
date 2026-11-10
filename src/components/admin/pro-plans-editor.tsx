@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { PRO_PLAN_IDS, type ProPlanId, type ProPlans } from "@/lib/pro/plans";
+import { toDecimalText, toLatinDigits } from "@/lib/digits";
 
 const NAMES: Record<ProPlanId, string> = { weekly: "Weekly", monthly: "Monthly", yearly: "Yearly" };
 
@@ -53,7 +54,7 @@ export function ProPlansEditor({
   code: string;
   country: string;
   currency: string;
-  /** The first problem with the plans, shown here before any confirmation (QA WEB-PAY-10) */
+  /** Every problem with the plans («a · b»), listed here before any confirmation (QA WEB-PAY-10, WP2-13) */
   error?: string | null;
   value: ProPlans | null;
   onChange: (plans: ProPlans | null) => void;
@@ -84,9 +85,11 @@ export function ProPlansEditor({
         </p>
       </div>
       {error && (
-        <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-          {error}
-        </p>
+        <ul role="alert" className="list-inside list-disc space-y-0.5 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+          {error.split(" · ").map((line) => (
+            <li key={line}>{line}</li>
+          ))}
+        </ul>
       )}
       <div className="grid gap-3 sm:grid-cols-3">
         {PRO_PLAN_IDS.map((id) => (
@@ -103,7 +106,7 @@ export function ProPlansEditor({
                 type="text"
                 inputMode="decimal"
                 value={drafts[id].price}
-                onChange={(e) => update(id, { price: e.target.value })}
+                onChange={(e) => update(id, { price: toDecimalText(e.target.value) })}
               />
             </div>
             <div className="space-y-1.5">
@@ -114,7 +117,7 @@ export function ProPlansEditor({
                 type="text"
                 inputMode="numeric"
                 value={drafts[id].credits}
-                onChange={(e) => update(id, { credits: e.target.value })}
+                onChange={(e) => update(id, { credits: toLatinDigits(e.target.value).replace(/\D/g, "") })}
               />
             </div>
           </div>

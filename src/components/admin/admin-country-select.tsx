@@ -47,7 +47,23 @@ export function AdminCountrySelect({ current }: { current: AdminCountryValue }) 
           {active.label}
         </span>
       </div>
-      <div role="radiogroup" aria-label="Country" className={cn("ms-auto flex flex-wrap gap-1 rounded-lg bg-muted p-1", pending && "opacity-60")}>
+      {/* Phones: one select instead of three wrapping buttons (DS-28) */}
+      <label className="ms-auto sm:hidden">
+        <span className="sr-only">Country</span>
+        <select
+          value={current}
+          disabled={pending}
+          onChange={(e) => choose(e.target.value as AdminCountryValue)}
+          className={cn("h-11 rounded-md border bg-background px-3 text-base font-medium", pending && "opacity-60")}
+        >
+          {OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <div role="radiogroup" aria-label="Country" className={cn("ms-auto hidden flex-wrap gap-1 rounded-lg bg-muted p-1 sm:flex", pending && "opacity-60")}>
         {OPTIONS.map((o) => (
           <button
             key={o.value}

@@ -21,7 +21,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ co
     const parsed = countrySettingsSchema.safeParse(await request.json().catch(() => null));
     if (!parsed.success) {
       const issue = parsed.error.issues[0];
-      return NextResponse.json({ error: issue?.message ?? "Invalid settings", field: issue?.path?.[0] ?? null }, { status: 400 });
+      // Every invalid field in one message (WP2-13); `field` stays the first
+      const all = [...new Set(parsed.error.issues.map((i) => i.message))].join(" · ");
+      return NextResponse.json({ error: all || "Invalid settings", field: issue?.path?.[0] ?? null }, { status: 400 });
     }
     const data = parsed.data;
     if (code === DEFAULT_COUNTRY && data.active === false) {

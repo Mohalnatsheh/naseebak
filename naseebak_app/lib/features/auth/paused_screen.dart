@@ -8,6 +8,9 @@ import '../../core/localization/digits.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/common.dart';
+import '../chat/chat_models.dart' show chatListProvider;
+import '../home/counts.dart';
+import '../home/home_screen.dart' show homeSuggestionsProvider;
 import '../pro/pro_repository.dart';
 
 /// Whole days until [date], never negative (the website's reactivate panel `daysLeft`).
@@ -24,16 +27,37 @@ String daysLeftLabel(int days) => days == 1
         : 'بعد $days ${days <= 10 ? 'أيام' : 'يوماً'}';
 
 /// Pro on the paused page: pausing stops the renewal (the server sets it to end with the period, no refund), and
-/// reactivating doesn't resume it (the member resumes on «عضوية Pro»). Null = nothing to say (not Pro).
-String? pausedProText(MyProState pro, {required bool female}) {
+/// reactivating doesn't resume it (the member resumes on «عضوية Pro»). [stoppedByPause]: this phone saw the pause
+/// stop it; it also covers a cold start before `/api/pro` answers ([pro] null). Null = nothing to say (not Pro).
+String? pausedProText(MyProState? pro, {required bool female, bool stoppedByPause = false}) {
+  final can = female ? 'يمكنكِ' : 'يمكنك';
+  if (pro == null) {
+    return stoppedByPause
+        ? 'توقّف تجديد اشتراك Pro عند إيقاف ${female ? 'حسابكِ' : 'حسابك'}، ويبقى فعّالاً حتى نهاية مدته.'
+        : null;
+  }
   if (!pro.isPro) return null;
   final end = pro.renewsAt;
+  final until = end == null ? '' : '، ويبقى فعّالاً حتى ${formatDate(end)}';
   if (pro.cancelAtPeriodEnd) {
-    return 'اشتراك Pro لا يتجدد بعد الآن${end == null ? '' : '، ويبقى فعّالاً حتى ${formatDate(end)}'}. '
-        '${female ? 'يمكنكِ' : 'يمكنك'} متابعته من «اشتراكي في Pro».';
+    if (stoppedByPause) {
+      return 'توقّف تجديد اشتراك Pro عند إيقاف ${female ? 'حسابكِ' : 'حسابك'}$until. '
+          '$can متابعته من «اشتراكي في Pro» بعد إعادة التفعيل.';
+    }
+    return 'اشتراك Pro لا يتجدد بعد الآن$until. $can متابعته من «اشتراكي في Pro» بعد إعادة التفعيل.';
   }
   return 'اشتراك Pro ما زال يتجدد${end == null ? '' : ' في ${formatDate(end)}'}. '
-      '${female ? 'يمكنكِ' : 'يمكنك'} إيقاف التجديد من «اشتراكي».';
+      '$can إيقاف التجديد من «اشتراكي».';
+}
+
+/// After «إعادة تفعيل حسابي»: everything read (and refused) while paused reloads
+void reloadAfterReactivate(ProviderContainer container) {
+  container
+    ..invalidate(countsProvider)
+    ..invalidate(unreadNotificationsProvider)
+    ..invalidate(homeSuggestionsProvider)
+    ..invalidate(chatListProvider)
+    ..invalidate(proStateProvider);
 }
 
 /// A paused account (`deactivated: true`) can only reactivate or sign out (and reach «عضوية Pro» to see or stop the
@@ -55,10 +79,13 @@ class _PausedScreenState extends ConsumerState<PausedScreen> {
       _busy = true;
       _error = null;
     });
+    // Taken before the request: the router leaves this page when `me` changes, and every list read while paused
+    // (refused) must still reload (QA A2-M3: home stayed on errors and the Pro badge was gone)
+    final container = ProviderScope.containerOf(context, listen: false);
     try {
       await ref.read(authRepositoryProvider).reactivate();
-      await ref.read(authControllerProvider.notifier).refreshMe();
-      if (mounted) ref.invalidate(proStateProvider);
+      reloadAfterReactivate(container);
+      await container.read(authControllerProvider.notifier).refreshMe();
     } on ApiException catch (e) {
       if (mounted) setState(() => _error = e.message);
     } finally {
@@ -75,8 +102,11 @@ class _PausedScreenState extends ConsumerState<PausedScreen> {
     final days = deletion == null ? 0 : daysUntil(deletion);
     // Where payments show (never a test or review account): the Pro renewal, and the way to «اشتراكي»
     final payments = ref.watch(appPaymentsProvider);
-    final pro = payments ? ref.watch(proStateProvider).valueOrNull : null;
-    final proText = pro == null ? null : pausedProText(pro, female: female);
+    // A refused or failed read never shows the value from before the pause (an AsyncError keeps the previous data)
+    final proAsync = payments ? ref.watch(proStateProvider) : null;
+    final pro = proAsync == null || proAsync.hasError ? null : proAsync.valueOrNull;
+    final stopped = payments && ref.watch(proPauseNoteProvider).stopped(me?.id);
+    final proText = payments ? pausedProText(pro, female: female, stoppedByPause: stopped) : null;
     return Scaffold(
       body: SafeArea(
         child: ListView(

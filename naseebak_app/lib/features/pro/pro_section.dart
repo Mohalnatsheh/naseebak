@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/auth/auth_controller.dart';
 import '../../core/localization/digits.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/theme/app_theme.dart';
@@ -41,6 +42,14 @@ String creditsCount(int n) {
 
 /// «8 أرصدة مجاناً كل شهر»
 String proCreditsLine(ProOffer o) => '${creditsCount(o.credits)} مجاناً ${_creditsEvery[o.id] ?? 'كل شهر'}';
+
+/// «اشتراكي» once the renewal is off: why (the member cancelled, or pausing the account stopped it) and, while still
+/// paused, that resuming waits for reactivation (QA A-M01)
+String myProEndingText({required bool stoppedByPause, required bool paused}) {
+  final why = stoppedByPause ? 'توقّف التجديد عند إيقاف حسابك' : 'ألغيت التجديد';
+  final next = paused ? 'يمكنك متابعة الاشتراك بعد إعادة تفعيل حسابك.' : 'يمكنك متابعة الاشتراك قبل ذلك.';
+  return '$why، وتبقى مزايا Pro حتى هذا التاريخ. $next';
+}
 
 /// A Pro member's one line («حسابي», the Pro screen and the credits card)
 const proActiveText = 'مزايا Pro فعّالة في حسابك.';
@@ -352,7 +361,7 @@ class _Segment extends StatelessWidget {
 }
 
 class _FeatureLine extends StatelessWidget {
-  const _FeatureLine({required this.icon, required this.color, required this.text, this.strong = false});
+  const _FeatureLine({super.key, required this.icon, required this.color, required this.text, this.strong = false});
   final IconData icon;
   final Color color;
   final String text;
@@ -434,6 +443,8 @@ class _MyProCardState extends ConsumerState<MyProCard> {
     setState(() => _busy = true);
     try {
       cancel ? await repo.cancel() : await repo.resume();
+      final memberId = container.read(authControllerProvider).me?.id;
+      if (!cancel && memberId != null) await container.read(proPauseNoteProvider).clear(memberId);
       container.invalidate(proStateProvider);
       container.invalidate(countsProvider);
       if (mounted) showSnack(context, cancel ? 'تم إلغاء التجديد.' : 'تمت متابعة الاشتراك.');
@@ -450,6 +461,10 @@ class _MyProCardState extends ConsumerState<MyProCard> {
   Widget build(BuildContext context) {
     final s = widget.state;
     final date = _date;
+    final me = ref.watch(authControllerProvider).me;
+    final paused = me?.deactivated ?? false;
+    final stoppedByPause = ref.watch(proPauseNoteProvider).stopped(me?.id);
+    final planOffer = s.offers.where((o) => o.id == s.plan).firstOrNull;
     return Card(
       key: const Key('my-pro'),
       clipBehavior: Clip.antiAlias,
@@ -505,17 +520,29 @@ class _MyProCardState extends ConsumerState<MyProCard> {
                   ),
                 if (s.cancelAtPeriodEnd && !s.pastDue) ...[
                   const SizedBox(height: 6),
-                  const Text(
-                    'ألغيت التجديد، وتبقى مزايا Pro حتى هذا التاريخ. يمكنك متابعة الاشتراك قبل ذلك.',
-                    style: TextStyle(color: AppColors.muted, fontSize: 13),
+                  Text(
+                    myProEndingText(stoppedByPause: stoppedByPause, paused: paused),
+                    key: const Key('pro-ending-text'),
+                    style: const TextStyle(color: AppColors.muted, fontSize: 13),
                   ),
                 ],
                 const SizedBox(height: 10),
+                // The plan's free credits, as on the plans card (QA A-L11)
+                if (planOffer != null && planOffer.credits > 0)
+                  _FeatureLine(
+                    key: const Key('my-pro-credits'),
+                    icon: Icons.auto_awesome_rounded,
+                    color: AppColors.gold,
+                    text: proCreditsLine(planOffer),
+                    strong: true,
+                  ),
                 for (final f in proFeatureLabels)
                   _FeatureLine(icon: Icons.check_circle_outline_rounded, color: AppColors.navy, text: f),
                 const SizedBox(height: 12),
+                // Paused: resume is refused until reactivation, so no button (the line above says when)
+                if (!(paused && s.cancelAtPeriodEnd))
                 SizedBox(
-                  height: 44,
+                  height: 48,
                   child: s.cancelAtPeriodEnd
                       ? FilledButton(
                           key: const Key('pro-resume'),

@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../app/providers.dart';
 import '../../core/network/api_client.dart';
@@ -150,3 +151,27 @@ MediaButtons mediaButtonsMode({
   if (appPayments && canBuy) return MediaButtons.locked;
   return MediaButtons.hidden;
 }
+
+/// Pausing the account stopped the Pro renewal (the deactivate answer's `proRenewalStopped`, QA A-M01 / A2-H1).
+/// Remembered per member on the phone, so the paused page (also after a cold start, before `/api/pro` answers) and
+/// «اشتراكي» after reactivating say why Pro no longer renews, instead of «ألغيت التجديد». Cleared when the member
+/// resumes the renewal.
+class ProPauseNote {
+  const ProPauseNote(this._prefs);
+  final SharedPreferences _prefs;
+
+  static String _key(String memberId) => 'pro_stopped_by_pause:$memberId';
+
+  bool stopped(String? memberId) => memberId != null && (_prefs.getBool(_key(memberId)) ?? false);
+
+  Future<void> mark(String memberId) => _prefs.setBool(_key(memberId), true);
+
+  Future<void> clear(String memberId) => _prefs.remove(_key(memberId));
+}
+
+final proPauseNoteProvider = Provider<ProPauseNote>((ref) => ProPauseNote(ref.watch(sharedPreferencesProvider)));
+
+/// Whether the deactivate answer says the renewal stopped. An older server sends no field: then a renewing Pro
+/// ([wasRenewing]) is taken as stopped, which is what pausing does.
+bool pauseStoppedRenewal(Map<String, dynamic> answer, {required bool wasRenewing}) =>
+    asBool(answer['proRenewalStopped']) ?? wasRenewing;

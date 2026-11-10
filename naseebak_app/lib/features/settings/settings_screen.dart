@@ -34,26 +34,45 @@ class AccountScreen extends ConsumerWidget {
       confirmLabel: 'إيقاف',
     );
     if (!ok || !context.mounted) return;
+    // Taken before the request: once `me` says paused the router replaces this screen, and the Pro state must
+    // still reload (QA A-M01 / A2-H1: the paused page said «ما زال يتجدد» from the stale value)
+    final container = ProviderScope.containerOf(context, listen: false);
+    final memberId = ref.read(authControllerProvider).me?.id;
     try {
-      await ref.read(apiClientProvider).post('/api/profile/deactivate', body: {'action': 'pause'});
-      await ref.read(authControllerProvider.notifier).refreshMe();
-      if (context.mounted) ref.invalidate(proStateProvider);
+      final j = await container.read(apiClientProvider).post('/api/profile/deactivate', body: {'action': 'pause'});
+      if (memberId != null && pro != null && pro.isPro && pauseStoppedRenewal(j, wasRenewing: renewing)) {
+        await container.read(proPauseNoteProvider).mark(memberId);
+      }
+      container
+        ..invalidate(proStateProvider)
+        ..invalidate(countsProvider);
+      await container.read(authControllerProvider.notifier).refreshMe();
     } catch (e) {
       if (context.mounted) showSnack(context, ApiException.messageOf(e));
     }
   }
 
-  Future<void> _delete(BuildContext context, WidgetRef ref) async {
+  Future<void> _delete(BuildContext context, WidgetRef ref, MyProState? pro) async {
+    final renewing = pro != null && pro.isPro && !pro.cancelAtPeriodEnd;
     // null = cancelled; '' = no reason given (optional, like the website)
-    final reason = await showDialog<String>(context: context, builder: (_) => const DeleteAccountDialog());
+    final reason = await showDialog<String>(
+      context: context,
+      builder: (_) => DeleteAccountDialog(proRenewing: renewing, proRenewsAt: pro?.renewsAt),
+    );
     if (reason == null || !context.mounted) return;
+    final container = ProviderScope.containerOf(context, listen: false);
+    final memberId = ref.read(authControllerProvider).me?.id;
     try {
-      final j = await ref
+      final j = await container
           .read(apiClientProvider)
           .post('/api/profile/delete', body: {if (reason.isNotEmpty) 'reason': reason});
       if (context.mounted) showSnack(context, asStringOr(j['message'], 'تم استلام طلب الحذف'));
+      if (memberId != null && renewing && pauseStoppedRenewal(j, wasRenewing: renewing)) {
+        await container.read(proPauseNoteProvider).mark(memberId);
+      }
+      container.invalidate(proStateProvider);
       // The account is paused at once: the router shows the paused page with the deletion date
-      await ref.read(authControllerProvider.notifier).refreshMe();
+      await container.read(authControllerProvider.notifier).refreshMe();
     } catch (e) {
       if (context.mounted) showSnack(context, ApiException.messageOf(e));
     }
@@ -130,7 +149,7 @@ class AccountScreen extends ConsumerWidget {
             child: Column(children: [
               tile(Icons.pause_circle_outline_rounded, 'إيقاف الحساب مؤقتاً', () => _pause(context, ref, pro), color: AppColors.warning),
               const Divider(),
-              tile(Icons.delete_outline_rounded, 'حذف الحساب', () => _delete(context, ref), color: AppColors.danger),
+              tile(Icons.delete_outline_rounded, 'حذف الحساب', () => _delete(context, ref, pro), color: AppColors.danger),
             ]),
           ),
           const SizedBox(height: 16),
@@ -154,8 +173,16 @@ class AccountScreen extends ConsumerWidget {
 
 /// «حذف الحساب»: what happens, and an optional reason (`POST /api/profile/delete` `{ reason }`, like the website).
 /// Pops the trimmed reason ('' for none), or null when cancelled.
+/// The delete dialog's Pro line (QA A-L05): a deletion request pauses the account, which stops the renewal
+String deleteProLine(DateTime? end) =>
+    'يتوقف تجديد اشتراك Pro${end == null ? '' : '، ويبقى فعّالاً حتى ${formatDate(end)}'}، دون استرداد.';
+
 class DeleteAccountDialog extends StatefulWidget {
-  const DeleteAccountDialog({super.key});
+  const DeleteAccountDialog({super.key, this.proRenewing = false, this.proRenewsAt});
+
+  /// A renewing Pro subscription: the dialog says the renewal stops
+  final bool proRenewing;
+  final DateTime? proRenewsAt;
 
   @override
   State<DeleteAccountDialog> createState() => _DeleteAccountDialogState();
@@ -180,6 +207,14 @@ class _DeleteAccountDialogState extends State<DeleteAccountDialog> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const Text('يُوقف حسابك الآن ويُحذف نهائياً بعد 30 يوماً. يمكنك التراجع خلال هذه المدة بإعادة التفعيل.'),
+            if (widget.proRenewing) ...[
+              const SizedBox(height: 10),
+              InfoBanner(
+                key: const Key('delete-pro'),
+                icon: Icons.workspace_premium_rounded,
+                text: deleteProLine(widget.proRenewsAt),
+              ),
+            ],
             const SizedBox(height: 16),
             TextField(
               key: const Key('delete-reason'),

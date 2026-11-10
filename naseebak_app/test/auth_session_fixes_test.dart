@@ -16,14 +16,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'helpers/fake_api.dart';
 
-Future<AuthState> settled(ProviderContainer c) async {
-  c.read(authControllerProvider);
-  for (var i = 0; i < 50 && c.read(authControllerProvider).status == AuthStatus.unknown; i++) {
-    await Future<void>.delayed(const Duration(milliseconds: 5));
-  }
-  return c.read(authControllerProvider);
-}
-
 Future<void> idle() => Future<void>.delayed(const Duration(milliseconds: 20));
 
 const suspended = FakeResponse(403, {'error': 'تم إيقاف حسابك', 'code': 'SUSPENDED'});

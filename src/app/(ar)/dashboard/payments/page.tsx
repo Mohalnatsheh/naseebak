@@ -694,14 +694,19 @@ function PaymentsContent() {
                     }`}
                     onClick={() => handlePurchase(pkg.id, pkg.name)}
                     disabled={purchasing === pkg.id || !purchasesEnabled}
+                    // The package in the name: three «شراء الآن» on one page (QA PA-L2)
+                    aria-label={purchasesEnabled ? `شراء الآن: ${pkg.name}` : undefined}
                   >
                     {purchasing === pkg.id ? (
                       <Loader2 className="h-5 w-5 animate-spin" />
-                    ) : (
+                    ) : purchasesEnabled ? (
                       <>
                         <TrendingUp className="h-5 w-5 me-2" />
                         شراء الآن
                       </>
+                    ) : (
+                      // Saudi prices not approved yet: the button says why it is off (QA WP2-14)
+                      "غير متاح حالياً"
                     )}
                   </Button>
                 </CardContent>
@@ -718,7 +723,7 @@ function PaymentsContent() {
         ) : (
           <>الأسعار بالدينار الأردني، ويتم الخصم بما يعادلها بالدولار الأمريكي (يظهر في كشف الحساب باسم LOGICCR). البائع: LOGIC CENTER FOR WEBSITE DESIGN ·{" "}</>
         )}
-        <Link href="/refund-policy" className="font-semibold text-primary underline-offset-4 hover:underline">
+        <Link href="/refund-policy" className="inline-flex min-h-11 items-center font-semibold text-primary underline-offset-4 hover:underline">
           سياسة الاسترداد
         </Link>
       </p>

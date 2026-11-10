@@ -68,6 +68,24 @@ export function defaultProPlan(offers: Pick<ProPlanOffer, "id">[]): ProPlanId | 
   return offers.find((o) => o.id === "monthly")?.id ?? offers[0]?.id ?? null;
 }
 
+/** The plan chosen before leaving for the checkout: still chosen on coming back from it (QA WP2-17) */
+const CHOSEN_PLAN_KEY = "naseeb:pro-plan";
+export function rememberProPlan(id: ProPlanId) {
+  try {
+    sessionStorage.setItem(CHOSEN_PLAN_KEY, id);
+  } catch {
+    // private mode: the choice simply isn't kept
+  }
+}
+export function rememberedProPlan(): ProPlanId | null {
+  try {
+    const id = typeof window === "undefined" ? null : sessionStorage.getItem(CHOSEN_PLAN_KEY);
+    return (PRO_PLAN_IDS as readonly string[]).includes(id ?? "") ? (id as ProPlanId) : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Pro as ONE compact card (the Pro page and the chat's offer dialog): a weekly / monthly / yearly selector
  * (monthly first), the chosen plan's price, its free credits, what Pro gives and one subscribe button.
@@ -78,7 +96,7 @@ export function ProPlanChooser({ offers, canBuy }: { offers: ProPlanOffer[]; can
   const gender = profile?.gender;
   const { buying, error, buy } = useProCheckout();
   const sorted = [...offers].sort((a, b) => PRO_PLAN_IDS.indexOf(a.id) - PRO_PLAN_IDS.indexOf(b.id));
-  const [picked, setPicked] = useState<ProPlanId | null>(null);
+  const [picked, setPicked] = useState<ProPlanId | null>(() => rememberedProPlan());
   const radios = useRef<(HTMLButtonElement | null)[]>([]);
   const offer = sorted.find((o) => o.id === picked) ?? sorted.find((o) => o.id === defaultProPlan(sorted));
   if (!offer) return null;
@@ -99,13 +117,14 @@ export function ProPlanChooser({ offers, canBuy }: { offers: ProPlanOffer[]; can
     else return;
     e.preventDefault();
     setPicked(sorted[next].id);
+    rememberProPlan(sorted[next].id);
     radios.current[next]?.focus();
   }
 
   return (
     <div className="space-y-2.5">
-      <Card className="relative gap-0 overflow-hidden border-accent/40 py-0 shadow-md shadow-accent/10">
-        <div className="h-1.5 bg-gradient-to-l from-accent to-accent/60" aria-hidden />
+      {/* Gold only on the subscribe button (Pro design P1): a calm card, the price and the button lead */}
+      <Card className="relative gap-0 overflow-hidden py-0 shadow-sm">
         <CardContent className="space-y-3.5 p-4 sm:p-5">
           {sorted.length > 1 && (
             <div
@@ -126,11 +145,14 @@ export function ProPlanChooser({ offers, canBuy }: { offers: ProPlanOffer[]; can
                     role="radio"
                     aria-checked={on}
                     tabIndex={on ? 0 : -1}
-                    onClick={() => setPicked(o.id)}
+                    onClick={() => {
+                      setPicked(o.id);
+                      rememberProPlan(o.id);
+                    }}
                     onKeyDown={(e) => onRadioKey(e, i)}
                     className={cn(
                       "h-11 rounded-lg text-sm font-bold transition-all",
-                      on ? "bg-card text-primary shadow-sm ring-1 ring-accent/40" : "text-muted-foreground hover:text-foreground"
+                      on ? "bg-card text-primary shadow-sm ring-1 ring-primary/25" : "text-muted-foreground hover:text-foreground"
                     )}
                   >
                     {PRO_PLAN_LABELS[o.id]}
@@ -155,14 +177,14 @@ export function ProPlanChooser({ offers, canBuy }: { offers: ProPlanOffer[]; can
             </div>
             {/* Only next to other plans: on its own, "most chosen" says nothing */}
             {offer.id === "monthly" && sorted.length > 1 && (
-              <span className="rounded-full bg-accent px-2.5 py-1 text-xs font-bold text-accent-foreground">الأكثر طلباً</span>
+              <span className="rounded-full border border-primary/40 px-2.5 py-1 text-xs font-bold text-primary">الأكثر طلباً</span>
             )}
           </div>
 
           <ul className="space-y-1.5 text-sm text-muted-foreground">
             {offer.credits > 0 && (
               <li className="flex items-center gap-2.5 font-semibold text-foreground">
-                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent/15 text-accent-foreground">
+                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
                   <Sparkles className="h-3 w-3" aria-hidden="true" />
                 </span>
                 {proCreditsLine(offer)}
@@ -181,7 +203,10 @@ export function ProPlanChooser({ offers, canBuy }: { offers: ProPlanOffer[]; can
           <Button
             className="h-12 w-full rounded-xl border-0 bg-accent text-base font-bold text-accent-foreground hover:brightness-110"
             disabled={!canBuy || buying !== null}
-            onClick={() => buy(offer)}
+            onClick={() => {
+              rememberProPlan(offer.id);
+              void buy(offer);
+            }}
           >
             {buying === offer.id ? <Loader2 className="h-5 w-5 animate-spin" /> : forViewer(gender, "اشترك الآن", "اشتركي الآن")}
           </Button>
@@ -258,7 +283,7 @@ export function ProLinkCard({ isPro, chatOn = true }: { isPro: boolean; /** chat
       href={PRO_PAGE_PATH}
       className="flex min-h-16 items-center gap-3 rounded-2xl border border-accent/40 bg-accent/5 px-4 py-3 transition-colors hover:bg-accent/10"
     >
-      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-accent to-accent/70 text-white shadow-sm shadow-accent/20">
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-accent to-accent/70 text-accent-foreground shadow-sm shadow-accent/20">
         <Crown className="h-5 w-5" aria-hidden="true" />
       </span>
       <span className="min-w-0 flex-1">

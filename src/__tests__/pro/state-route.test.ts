@@ -61,6 +61,20 @@ describe("GET /api/pro", () => {
     const s = await (await GET(web)).json();
     expect(s).toMatchObject({ isPro: true, plan: "monthly", cancelAtPeriodEnd: true, canBuy: false, pastDue: false, renewsAt: "2026-12-01T00:00:00.000Z" });
   });
+  it("credits per grant and the next grant: monthly on the renewal, none once cancelled; yearly on the drip date (QA WP2-18)", async () => {
+    m.currentProSubscription.mockResolvedValue({
+      plan: "MONTHLY", status: "ACTIVE", currentPeriodEnd: new Date("2026-12-01T00:00:00Z"), cancelAtPeriodEnd: false, creditsPerGrant: 5, nextCreditGrantAt: null,
+    });
+    expect(await (await GET(web)).json()).toMatchObject({ creditsPerGrant: 5, nextGrantAt: "2026-12-01T00:00:00.000Z" });
+    m.currentProSubscription.mockResolvedValue({
+      plan: "MONTHLY", status: "ACTIVE", currentPeriodEnd: new Date("2026-12-01T00:00:00Z"), cancelAtPeriodEnd: true, creditsPerGrant: 5, nextCreditGrantAt: null,
+    });
+    expect((await (await GET(web)).json()).nextGrantAt).toBeNull();
+    m.currentProSubscription.mockResolvedValue({
+      plan: "YEARLY", status: "ACTIVE", currentPeriodEnd: new Date("2027-10-01T00:00:00Z"), cancelAtPeriodEnd: true, creditsPerGrant: 8, nextCreditGrantAt: new Date("2026-12-10T00:00:00Z"),
+    });
+    expect(await (await GET(web)).json()).toMatchObject({ creditsPerGrant: 8, nextGrantAt: "2026-12-10T00:00:00.000Z" });
+  });
   it("past due is flagged", async () => {
     m.currentProSubscription.mockResolvedValue({ plan: "WEEKLY", status: "PAST_DUE", currentPeriodEnd: new Date(), cancelAtPeriodEnd: false });
     expect((await (await GET(web)).json()).pastDue).toBe(true);

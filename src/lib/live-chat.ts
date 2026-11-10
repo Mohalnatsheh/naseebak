@@ -1,9 +1,14 @@
 /** Tawk.to live chat (owner request 2026-11-06) */
 export const TAWK_SRC = "https://embed.tawk.to/6aedb7d654e0763c2fcf47b0/1k6o9c7pn";
 
-/** No bubble in admin, on the card and payment pages, or over the member chat's message box */
+/**
+ * No bubble in admin, on the card and payment pages, over the member chat's message box, or on the credits and Pro
+ * pages, whose footer links it covered on phones (QA WP2-15)
+ */
 export function isLiveChatOffPath(pathname: string): boolean {
-  return ["/admin", "/pay", "/payments", "/dashboard/chats"].some((p) => pathname === p || pathname.startsWith(`${p}/`));
+  return ["/admin", "/pay", "/payments", "/dashboard/chats", "/dashboard/payments", "/dashboard/pro"].some(
+    (p) => pathname === p || pathname.startsWith(`${p}/`)
+  );
 }
 
 /** Tawk reads this once, at load. Phones sit above the bottom bars: 64px + the iPhone home-indicator area (up to 34px) */

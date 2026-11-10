@@ -11,6 +11,7 @@ import { formatDate } from "@/lib/countries";
 import { forViewer } from "@/lib/gendered-copy";
 import { PRO_PLAN_LABELS } from "@/lib/pro/plans";
 import type { MyProState } from "@/lib/pro/pro-types";
+import { arabicCount } from "@/lib/utils";
 
 /** What every Pro plan gives (plan cards and «اشتراكي») */
 export const PRO_FEATURE_LABELS = ["إرسال الصور في المحادثة", "الرسائل الصوتية في المحادثة", "شارة Pro على بطاقتك"] as const;
@@ -24,6 +25,21 @@ export function MyProCard({ state, onChanged }: { state: MyProState; onChanged: 
   const [error, setError] = useState<string | null>(null);
 
   const date = state.renewsAt ? formatDate(state.renewsAt, country, { year: "numeric", month: "long", day: "numeric" }) : null;
+  const nextGrant = state.nextGrantAt ? formatDate(state.nextGrantAt, country, { month: "long", day: "numeric" }) : null;
+  const perGrant = state.creditsPerGrant ?? 0;
+  // «8 أرصدة كل شهر · الدفعة القادمة في 10 ديسمبر» (QA WP2-18)
+  const creditsLine =
+    perGrant > 0 && state.plan
+      ? `${arabicCount(perGrant, { one: "رصيد واحد", two: "رصيدان", few: "أرصدة", many: "رصيداً" })} ${state.plan === "weekly" ? "كل أسبوع" : "كل شهر"}${
+          nextGrant ? ` · الدفعة القادمة في ${nextGrant}` : ""
+        }`
+      : null;
+  // The status chip (Pro design P1): the state in one word, the date as the anchor under it
+  const status = state.pastDue
+    ? { label: "تعذّر التجديد", tone: "border-amber-300 bg-amber-50 text-amber-900" }
+    : state.cancelAtPeriodEnd
+      ? { label: "ينتهي قريباً", tone: "border-border bg-muted text-foreground" }
+      : { label: "فعّال", tone: "border-emerald-200 bg-emerald-50 text-emerald-800" };
 
   async function manage(action: "cancel" | "resume") {
     setBusy(action);
@@ -45,37 +61,47 @@ export function MyProCard({ state, onChanged }: { state: MyProState; onChanged: 
   }
 
   return (
-    <Card className="gap-0 overflow-hidden border-accent/40 py-0 ring-1 ring-accent/15">
-      <div className="h-1.5 bg-gradient-to-l from-accent to-accent/60" />
+    <Card className="gap-0 overflow-hidden py-0">
       <CardContent className="space-y-4 p-5 md:p-6">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="flex items-center gap-2 text-lg font-bold text-foreground">
             اشتراكي <ProBadge size="md" />
           </h3>
-          {state.plan && (
-            <span className="rounded-full bg-primary/5 px-3 py-1 text-sm font-semibold text-primary">
-              الباقة: {PRO_PLAN_LABELS[state.plan]}
+          <span className="flex flex-wrap items-center gap-2">
+            <span data-testid="pro-status" className={`rounded-full border px-3 py-1 text-sm font-bold ${status.tone}`}>
+              {status.label}
             </span>
-          )}
+            {state.plan && (
+              <span className="rounded-full bg-primary/5 px-3 py-1 text-sm font-semibold text-primary">
+                الباقة: {PRO_PLAN_LABELS[state.plan]}
+              </span>
+            )}
+          </span>
         </div>
 
-        {state.pastDue ? (
+        {/* The date first: when it renews, or ends */}
+        {date && (
+          <p className="flex items-center gap-2 text-base font-bold text-foreground">
+            <CalendarClock className="h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
+            {state.pastDue ? `مزايا Pro مستمرة حتى ${date}` : state.cancelAtPeriodEnd ? `ينتهي في ${date}` : `يتجدد في ${date}`}
+          </p>
+        )}
+        {creditsLine && (
+          <p data-testid="pro-credits-line" className="-mt-2 text-sm text-muted-foreground">
+            {creditsLine}
+          </p>
+        )}
+
+        {state.pastDue && (
+          // One headline, then what happens (Pro design P1); the paid period's end is the date above (WEB-PAY-04)
           <div role="status" className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-relaxed text-amber-900">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
             <span>
-              لم ينجح تجديد الدفع. سنحاول مرة أخرى تلقائياً خلال الأيام القادمة، وإن لم ينجح الدفع ينتهي الاشتراك. يمكنك التأكد من بطاقتك
-              أو رصيدها، وإن انتهى الاشتراك يمكنك الاشتراك من جديد ببطاقة أخرى.
-              {/* The paid period's end stays visible while Stripe retries (QA WEB-PAY-04) */}
-              {date && <span className="mt-1 block font-semibold">مزايا Pro مستمرة حتى {date}.</span>}
+              <span className="block font-bold">لم ينجح تجديد الدفع.</span>
+              سنحاول مرة أخرى تلقائياً خلال الأيام القادمة، وإن لم ينجح الدفع ينتهي الاشتراك. يمكنك التأكد من بطاقتك أو رصيدها، وإن
+              انتهى الاشتراك يمكنك الاشتراك من جديد ببطاقة أخرى.
             </span>
           </div>
-        ) : (
-          date && (
-            <p className="flex items-center gap-2 text-sm font-semibold text-foreground">
-              <CalendarClock className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
-              {state.cancelAtPeriodEnd ? `ينتهي في ${date}` : `يتجدد في ${date}`}
-            </p>
-          )
         )}
 
         {state.cancelAtPeriodEnd && !state.pastDue && (

@@ -39,9 +39,23 @@ export async function getMyProState(
     renewsAt: sub ? sub.currentPeriodEnd.toISOString() : null,
     cancelAtPeriodEnd: sub?.cancelAtPeriodEnd ?? false,
     pastDue: sub?.status === "PAST_DUE",
+    ...(sub && { creditsPerGrant: sub.creditsPerGrant, nextGrantAt: nextGrantOf(sub) }),
     canBuy: enabled && sellable && purchasesAvailable(countrySettings) && !sub && offers.length > 0,
     offers,
   };
+}
+
+/**
+ * The next credits (QA WP2-18): yearly plans drip monthly (`nextCreditGrantAt`, while still inside the paid year);
+ * weekly and monthly ones grant on the renewal, which won't come if it was cancelled or the payment is failing.
+ */
+function nextGrantOf(sub: { plan: ProPlan; creditsPerGrant: number; nextCreditGrantAt: Date | null; currentPeriodEnd: Date; cancelAtPeriodEnd: boolean; status: string }): string | null {
+  if (sub.creditsPerGrant <= 0) return null;
+  if (sub.plan === "YEARLY") {
+    const next = sub.nextCreditGrantAt;
+    return next && next < sub.currentPeriodEnd ? next.toISOString() : null;
+  }
+  return sub.cancelAtPeriodEnd || sub.status === "PAST_DUE" ? null : sub.currentPeriodEnd.toISOString();
 }
 
 /** The request came from the app (its Bearer token), not the website session */

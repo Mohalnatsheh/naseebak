@@ -21,7 +21,11 @@ const offer = (id: ProPlanOffer["id"], price: number, credits: number): ProPlanO
 // Out of order on purpose: the selector still reads weekly, monthly, yearly
 const offers = [offer("yearly", 40, 8), offer("weekly", 2, 1), offer("monthly", 5, 4)];
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  // The chosen plan is remembered for the checkout round trip (WP2-17): every test starts fresh
+  sessionStorage.clear();
+});
 
 describe("ProPlanChooser (one compact Pro card)", () => {
   it("one card, monthly picked first, one subscribe button, the three features and the credits line", () => {
@@ -138,5 +142,24 @@ describe("proPitch / proCreditsLine", () => {
     expect(proCreditsLine({ id: "monthly", credits: 2 })).toBe("رصيدان مجاناً كل شهر");
     expect(proCreditsLine({ id: "yearly", credits: 5 })).toBe("5 أرصدة مجاناً كل شهر");
     expect(proCreditsLine({ id: "monthly", credits: 12 })).toBe("12 رصيداً مجاناً كل شهر");
+  });
+});
+
+describe("ProPlanChooser: the chosen plan survives the checkout round trip (QA WP2-17)", () => {
+  it("a plan picked before leaving is still picked on coming back", () => {
+    sessionStorage.clear();
+    const first = render(<ProPlanChooser offers={offers} canBuy />);
+    fireEvent.click(screen.getByRole("radio", { name: "سنوي" }));
+    first.unmount();
+    render(<ProPlanChooser offers={offers} canBuy />);
+    expect(screen.getByRole("radio", { name: "سنوي" }).getAttribute("aria-checked")).toBe("true");
+    sessionStorage.clear();
+  });
+
+  it("«الأكثر طلباً» is an outlined primary chip; gold is only on the button (Pro design P1)", () => {
+    render(<ProPlanChooser offers={offers} canBuy />);
+    const chip = screen.getByText("الأكثر طلباً");
+    expect(chip.className).toContain("border-primary");
+    expect(chip.className).not.toContain("bg-accent");
   });
 });

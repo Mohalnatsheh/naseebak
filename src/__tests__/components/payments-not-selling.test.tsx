@@ -38,8 +38,10 @@ describe("payments page when the country is not selling", () => {
     await waitFor(() => expect(screen.getByText(/شراء الرصيد غير متاح في دولتك حالياً/)).toBeTruthy());
     // No promise of a notice that nothing sends (QA WEB-PAY-13)
     expect(screen.queryByText(/سنُعلمك/)).toBeNull();
-    const buy = screen.getByRole("button", { name: /شراء الآن/ }) as HTMLButtonElement;
+    // The off button says why, not «شراء الآن» (QA WP2-14)
+    const buy = screen.getByRole("button", { name: "غير متاح حالياً" }) as HTMLButtonElement;
     expect(buy.disabled).toBe(true);
+    expect(screen.queryByRole("button", { name: /شراء الآن/ })).toBeNull();
   });
 
   it("keeps buying open when the country sells", async () => {
@@ -47,7 +49,8 @@ describe("payments page when the country is not selling", () => {
     plans(true);
     const { default: PaymentsPage } = await import("@/app/(ar)/dashboard/payments/page");
     render(<PaymentsPage />);
-    const buy = (await screen.findByRole("button", { name: /شراء الآن/ })) as HTMLButtonElement;
+    // The package is in the button's name (QA PA-L2)
+    const buy = (await screen.findByRole("button", { name: "شراء الآن: 10 أرصدة" })) as HTMLButtonElement;
     expect(buy.disabled).toBe(false);
     expect(screen.queryByText(/شراء الرصيد غير متاح/)).toBeNull();
   });

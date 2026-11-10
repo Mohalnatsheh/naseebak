@@ -189,11 +189,11 @@ function ProContent() {
 
       {state && (state.enabled || state.isPro) && (
         <p className="text-center text-xs leading-relaxed text-muted-foreground">
-          <Link href="/dashboard/payments" className="font-semibold text-primary underline-offset-4 hover:underline">
+          <Link href="/dashboard/payments" className="inline-flex min-h-11 items-center font-semibold text-primary underline-offset-4 hover:underline">
             الرصيد وسجل المدفوعات
           </Link>
           {" · "}
-          <Link href="/refund-policy" className="font-semibold text-primary underline-offset-4 hover:underline">
+          <Link href="/refund-policy" className="inline-flex min-h-11 items-center font-semibold text-primary underline-offset-4 hover:underline">
             سياسة الاسترداد
           </Link>
         </p>

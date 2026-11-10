@@ -9,6 +9,8 @@ const limits = vi.hoisted(() => ({ rateLimitDb: vi.fn(), rateLimitDbBlocked: vi.
 vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/rate-limit-db", () => limits);
 vi.mock("@/lib/activity", () => ({ touchLastActive: vi.fn() }));
+const alert = vi.hoisted(() => ({ sendAdminAlert: vi.fn(async () => {}) }));
+vi.mock("@/lib/admin-alert", () => alert);
 vi.mock("next-auth", () => ({
   CredentialsSignin: class extends Error {
     code = "credentials";
@@ -57,13 +59,47 @@ describe("admin sign-in limit (G54, ADM-07)", () => {
     db.user.findFirst.mockResolvedValue({ id: "a1", role: "ADMIN", passwordHash: "h", email: "a@x.jo" });
   });
 
-  it("counts a wrong password only, in the email+IP, IP and email buckets", async () => {
+  it("counts a wrong password only, in the email+IP and IP buckets, and the email-wide signal", async () => {
     expect(await authorizeAdminLogin({ email: "a@x.jo", password: "right" }, req("1.2.3.4"))).toMatchObject({ id: "a1" });
     expect(limits.rateLimitDb).not.toHaveBeenCalled();
     expect(await authorizeAdminLogin({ email: "a@x.jo", password: "wrong" }, req("1.2.3.4"))).toBeNull();
     expect(limits.rateLimitDb).toHaveBeenCalledWith("admin-login:a@x.jo:1.2.3.4", { maxAttempts: 5, windowMs: 15 * 60 * 1000 });
     expect(limits.rateLimitDb).toHaveBeenCalledWith("admin-login-ip:1.2.3.4", { maxAttempts: 20, windowMs: 15 * 60 * 1000 });
     expect(limits.rateLimitDb).toHaveBeenCalledWith("admin-login:a@x.jo", { maxAttempts: 50, windowMs: 15 * 60 * 1000 });
+  });
+
+  it("failures from 3 addresses never lock out the right password from a 4th (review X1)", async () => {
+    // A real counter: every bucket counts its failures
+    const counts = new Map<string, number>();
+    limits.rateLimitDb.mockImplementation(async (key: string, o: { maxAttempts: number }) => {
+      const n = (counts.get(key) ?? 0) + 1;
+      counts.set(key, n);
+      return { success: n <= o.maxAttempts, remaining: Math.max(0, o.maxAttempts - n), resetAt: Date.now() + 60_000 };
+    });
+    limits.rateLimitDbBlocked.mockImplementation(async (key: string, max: number) => ({
+      blocked: (counts.get(key) ?? 0) >= max,
+      resetAt: Date.now() + 60_000,
+    }));
+    for (const ip of ["6.6.6.1", "6.6.6.2", "6.6.6.3"]) {
+      for (let i = 0; i < 30; i++) {
+        await authorizeAdminLogin({ email: "a@x.jo", password: "wrong" }, req(ip)).catch(() => null);
+      }
+    }
+    // Each address stopped at its own limit; the email-wide count passed 50 only across them
+    expect(counts.get("admin-login:a@x.jo")).toBeGreaterThanOrEqual(15);
+    expect(await authorizeAdminLogin({ email: "a@x.jo", password: "right" }, req("1.2.3.4"))).toMatchObject({ id: "a1" });
+  });
+
+  it("past 50 failures on one email the admins are emailed once, and the right password still works", async () => {
+    limits.rateLimitDb.mockImplementation(async (key: string) =>
+      key === "admin-login:alert@x.jo" ? { success: false, remaining: 0, resetAt: Date.now() + 60_000 } : { success: true, remaining: 1, resetAt: 0 },
+    );
+    db.user.findFirst.mockResolvedValue({ id: "a1", role: "ADMIN", passwordHash: "h", email: "alert@x.jo" });
+    await authorizeAdminLogin({ email: "alert@x.jo", password: "wrong" }, req("7.7.7.1"));
+    await authorizeAdminLogin({ email: "alert@x.jo", password: "wrong" }, req("7.7.7.2"));
+    expect(alert.sendAdminAlert).toHaveBeenCalledTimes(1);
+    expect(limits.rateLimitDbBlocked).not.toHaveBeenCalledWith("admin-login:alert@x.jo", expect.anything());
+    expect(await authorizeAdminLogin({ email: "alert@x.jo", password: "right" }, req("7.7.7.3"))).toMatchObject({ id: "a1" });
   });
 
   it("looks the email up lowercased and without case", async () => {

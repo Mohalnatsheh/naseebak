@@ -39,7 +39,7 @@ interface Step {
 
 /** The one thing worth doing next, so the dashboard never leaves the user guessing. */
 export function NextStepCard({ qualifies, pendingSuggestions, credits, emptyReason, suggestionsFailed, variant = "card" }: Props) {
-  const { counts, profile } = useDashboardData();
+  const { counts, profile, country } = useDashboardData();
   const newCycle = counts.flags.introRequests;
   const actionableMatches = counts.actionableMatches ?? 0;
   // Credit on interest: "مهتم" costs 1 credit; requests are free
@@ -53,8 +53,9 @@ export function NextStepCard({ qualifies, pendingSuggestions, credits, emptyReas
 
   let step: Step;
   if (!qualifies) {
-    // Say exactly which required step is left
-    const missing = newCycle && profile ? missingSetupSteps(profile) : [];
+    // Say exactly which required step is left, by the member's country («المذهب» is required in Lebanon only),
+    // as the suggestions page does
+    const missing = newCycle && profile ? missingSetupSteps({ profile: profile.profile, country }) : [];
     const setupText = missing.length > 0
         ? `بقي: ${missing.map((s) => s.label).join("، ")}. لن تبدأ اقتراحاتك قبل إكمالها.`
         : "خطوات قصيرة فقط، والباقي اختياري يمكنك إكماله لاحقاً.";

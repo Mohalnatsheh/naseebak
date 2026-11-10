@@ -34,7 +34,7 @@ const START_COPY: Record<CountryCode, StartCopy> = {
   SA: START_JO,
   LB: {
     lookingFor: "عم دوّر على",
-    pickFirst: "أول شي: زوجة أو زوج؟",
+    pickFirst: "أول شي: زوج أو زوجة؟",
     badPhone: (handset, example) => `رقم ال${handset} مش صحيح. مثال: ${example}`,
     optional: "(اختياري هلّق)",
     start: "يلّا نبلّش",

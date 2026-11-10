@@ -21,20 +21,30 @@ export function daysLabel(n: number): string {
   return `${n} يوماً`;
 }
 
+const LEBANON_DIAL = COUNTRIES.LB.dialCode;
+
 /**
  * A stored guardian mobile of any served country → { display, tel, wa }:
- * 9627XXXXXXXX → "+962 7X XXX XXXX", 9665XXXXXXXX → "+966 5X XXX XXXX". A local number (0…) takes
- * the dial code of `country` (the viewer's; Jordan when unknown).
+ * 9627XXXXXXXX → "+962 7X XXX XXXX", 9665XXXXXXXX → "+966 5X XXX XXXX", 96171XXXXXX → "+961 71 XXX XXX",
+ * 9613XXXXXX → "+961 3 XXX XXX" (as the app's formatGuardianPhone). A local number (0…) takes the dial code of
+ * `country` (the viewer's; Jordan when unknown).
  */
 export function formatGuardianPhone(raw: string, country?: unknown) {
   const digits = raw.replace(/\D/g, "");
-  const known = COUNTRY_CODES.map((c) => COUNTRIES[c].dialCode).find((d) => digits.startsWith(d) && digits.length > 10);
+  // Lebanon's 3XXXXXX is 10 digits with its dial code (71XXXXXX is 11); Jordan and Saudi Arabia are 12
+  const known = COUNTRY_CODES.map((c) => COUNTRIES[c].dialCode).find(
+    (d) => digits.startsWith(d) && digits.length > (d === LEBANON_DIAL ? 9 : 10),
+  );
   const dial = known ?? countryConfig(country).dialCode;
   const intl = known ? digits : digits.startsWith("0") ? `${dial}${digits.slice(1)}` : digits;
   const local = intl.startsWith(dial) ? intl.slice(dial.length) : intl;
-  const display = local.length === 9
-    ? `+${dial} ${local.slice(0, 2)} ${local.slice(2, 5)} ${local.slice(5)}`
-    : `+${intl}`;
+  let display = `+${intl}`;
+  if (local.length === 9) display = `+${dial} ${local.slice(0, 2)} ${local.slice(2, 5)} ${local.slice(5)}`;
+  else if (dial === LEBANON_DIAL && (local.length === 8 || local.length === 7)) {
+    // As the app groups them: "+961 71 123 456", "+961 3 123 456"
+    const head = local.length - 6;
+    display = `+${dial} ${local.slice(0, head)} ${local.slice(head, head + 3)} ${local.slice(head + 3)}`;
+  }
   return { display, tel: `+${intl}`, wa: intl };
 }
 

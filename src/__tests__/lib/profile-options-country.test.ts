@@ -66,6 +66,17 @@ describe("guardian phone display", () => {
     expect(formatGuardianPhone("966512345678")).toEqual({ display: "+966 51 234 5678", tel: "+966512345678", wa: "966512345678" });
     expect(formatGuardianPhone("0512345678", "SA").display).toBe("+966 51 234 5678");
   });
+
+  it("formats Lebanese numbers as the app does (10 or 11 digits with 961)", () => {
+    expect(formatGuardianPhone("96171123456")).toEqual({ display: "+961 71 123 456", tel: "+96171123456", wa: "96171123456" });
+    expect(formatGuardianPhone("9613123456")).toEqual({ display: "+961 3 123 456", tel: "+9613123456", wa: "9613123456" });
+    expect(formatGuardianPhone("+961 81 123 456").display).toBe("+961 81 123 456");
+    expect(formatGuardianPhone("03123456", "LB").display).toBe("+961 3 123 456");
+    expect(formatGuardianPhone("071123456", "LB").display).toBe("+961 71 123 456");
+    // Jordan and Saudi Arabia unchanged, also seen by a Lebanese viewer
+    expect(formatGuardianPhone("962791234567", "LB").display).toBe("+962 79 123 4567");
+    expect(formatGuardianPhone("966512345678", "LB").display).toBe("+966 51 234 5678");
+  });
 });
 
 describe("chat time labels", () => {

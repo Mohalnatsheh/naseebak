@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { parsePagination } from "@/lib/utils";
+import { visibleSect } from "@/lib/profile-sect";
 
 export async function GET(request: Request) {
   try {
@@ -69,6 +70,7 @@ export async function GET(request: Request) {
                   childrenCount: true,
                   religiosity: true,
                   smokingStatus: true,
+                  sect: true,
                   aboutMe: true,
                   hobbies: true,
                   interests: true,
@@ -141,6 +143,7 @@ export async function GET(request: Request) {
             childrenCount: l.fromUser.profile?.childrenCount ?? 0,
             religiosity: l.fromUser.profile?.religiosity,
             smokingStatus: l.fromUser.profile?.smokingStatus,
+            sect: visibleSect(l.fromUser.profile?.sect),
             aboutMe: l.fromUser.profile?.aboutMe,
             hobbies: l.fromUser.profile?.hobbies,
             interests: l.fromUser.profile?.interests,

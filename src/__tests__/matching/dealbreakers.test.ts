@@ -90,3 +90,23 @@ describe("niqab dealbreaker", () => {
     expect(passesDealbreakers(owner, { beard: true }, "MALE")).toBe(true);
   });
 });
+
+describe("sect «شرط أساسي» (Lebanon)", () => {
+  const owner = { dealbreakers: ["sect"], prefSect: ["سني"] };
+
+  it("passes the asked sect only", () => {
+    expect(passesDealbreakers(owner, { sect: "سني" }, "FEMALE")).toBe(true);
+    expect(passesDealbreakers(owner, { sect: "شيعي" }, "FEMALE")).toBe(false);
+  });
+
+  it("«أفضّل عدم الذكر» and a missing sect fail like a missing value", () => {
+    expect(passesDealbreakers(owner, { sect: "أفضّل عدم الذكر" }, "FEMALE")).toBe(false);
+    expect(passesDealbreakers(owner, { sect: null }, "FEMALE")).toBe(false);
+    expect(passesDealbreakers(owner, {}, "FEMALE")).toBe(false);
+  });
+
+  it("is ignored while the sect preference is empty", () => {
+    expect(passesDealbreakers({ dealbreakers: ["sect"] }, { sect: "شيعي" }, "FEMALE")).toBe(true);
+    expect(passesDealbreakers({ dealbreakers: ["sect"], prefSect: [] }, {}, "FEMALE")).toBe(true);
+  });
+});

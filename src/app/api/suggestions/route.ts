@@ -7,6 +7,7 @@ import { touchLastActive } from "@/lib/activity";
 import { recordActivityDay } from "@/lib/activity-days";
 import { getCycleFlags } from "@/lib/settings";
 import { countNewItems, hasOpenMutual, suggestionOrder } from "@/lib/suggestions/feed";
+import { visibleSect } from "@/lib/profile-sect";
 
 export async function GET(request: Request) {
   try {
@@ -111,6 +112,7 @@ export async function GET(request: Request) {
                   childrenCount: true,
                   religiosity: true,
                   smokingStatus: true,
+                  sect: true,
                   aboutMe: true,
                   hobbies: true,
                   interests: true,
@@ -167,6 +169,7 @@ export async function GET(request: Request) {
           childrenCount: s.candidate.profile?.childrenCount ?? 0,
           religiosity: s.candidate.profile?.religiosity,
           smokingStatus: s.candidate.profile?.smokingStatus,
+          sect: visibleSect(s.candidate.profile?.sect),
           aboutMe: s.candidate.profile?.aboutMe,
           hobbies: s.candidate.profile?.hobbies,
           interests: s.candidate.profile?.interests,

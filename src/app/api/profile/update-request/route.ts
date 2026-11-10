@@ -6,6 +6,7 @@ import { refreshOpenSuggestionsInBackground } from "@/lib/suggestions/refresh";
 import { sendAdminAlert } from "@/lib/admin-alert";
 import { arabicIssueMessage } from "@/lib/validations/issue-message";
 import { applyNiqabRule } from "@/lib/profile-veil";
+import { stripSectUnlessLebanon } from "@/lib/profile-sect";
 
 /**
  * Partner preferences are a private matching filter (like «شروط أساسية»): they save directly, no
@@ -13,9 +14,9 @@ import { applyNiqabRule } from "@/lib/profile-veil";
  */
 const PREF_KEYS = [
   "prefAgeMin", "prefAgeMax", "prefCity", "prefEducation", "prefMaritalStatus",
-  "prefHijab", "prefBeard", "prefReligiosity", "prefSmokingStatus", "prefChildrenAcceptance",
+  "prefHijab", "prefBeard", "prefReligiosity", "prefSmokingStatus", "prefSect", "prefChildrenAcceptance",
 ] as const;
-const LIST_PREFS = new Set(["prefCity", "prefEducation", "prefMaritalStatus", "prefReligiosity", "prefSmokingStatus"]);
+const LIST_PREFS = new Set(["prefCity", "prefEducation", "prefMaritalStatus", "prefReligiosity", "prefSmokingStatus", "prefSect"]);
 
 /** Clean values for the profile columns; null when the value doesn't fit. */
 function prefValue(key: string, v: unknown): unknown {
@@ -48,9 +49,15 @@ export async function POST(request: Request) {
         { status: 400 },
       );
     }
-    const { changes, message } = parsed.data;
-
+    const { message } = parsed.data;
     const userId = session.user.id;
+    // «المذهب» is a Lebanese field: other countries never store it or its preference (nor ask for it)
+    const member = await db.user.findUnique({ where: { id: userId }, select: { country: true } });
+    const changes = stripSectUnlessLebanon(member?.country, parsed.data.changes);
+    if (Object.keys(changes).length === 0) {
+      return NextResponse.json({ error: "يرجى تحديد التعديلات المطلوبة" }, { status: 400 });
+    }
+
     const prefs: Record<string, unknown> = {};
     let reviewed: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(changes as Record<string, unknown>)) {

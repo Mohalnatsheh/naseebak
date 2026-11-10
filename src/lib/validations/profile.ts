@@ -5,6 +5,7 @@ import { toLatinDigits } from "@/lib/digits";
 // Both are db-free (pure value lists), safe for the client wizards that import this file
 import { OPTION_VALUES } from "@/lib/profile-options";
 import { EDUCATION_ORDER } from "@/lib/matching/score";
+import { PREF_SECT_VALUES, SECT_VALUES } from "@/lib/profile-sect";
 
 /** Marriage platform: members must be adults */
 export const MIN_MEMBER_AGE = 18;
@@ -45,6 +46,9 @@ const maritalEnum = z.enum(OPTION_VALUES.maritalStatus, { message: "الحالة
 const religiosityEnum = z.enum(OPTION_VALUES.religiosity, { message: "مستوى التدين غير صالح" });
 const smokingEnum = z.enum(OPTION_VALUES.smokingStatus, { message: "قيمة التدخين غير صالحة" });
 const cookingEnum = z.enum(OPTION_VALUES.cookingAbility, { message: "قيمة الطبخ غير صالحة" });
+// «المذهب» (Lebanon only: the routes drop it for other countries, stripSectUnlessLebanon)
+const sectEnum = z.enum(SECT_VALUES, { message: "قيمة المذهب غير صالحة" });
+const prefSectEnum = z.enum(PREF_SECT_VALUES, { message: "قيمة مذهب الشريك غير صالحة" });
 const prefAgeMinField = z.number().int().min(18, "العمر الأدنى يجب أن يكون 18 على الأقل").max(PREF_AGE_MAX, `العمر الأدنى يجب أن يكون ${PREF_AGE_MAX} كحد أقصى`);
 const prefAgeMaxField = z.number().int().min(18, "العمر الأقصى يجب أن يكون 18 على الأقل").max(PREF_AGE_MAX, `العمر الأقصى يجب أن يكون ${PREF_AGE_MAX} كحد أقصى`);
 /** Free-text limits: these strings are shown on other members' cards */
@@ -96,6 +100,7 @@ export const profileSchema = z.object({
   hijab: z.boolean().nullable().optional(),
   niqab: z.boolean().nullable().optional(),
   smokingStatus: smokingEnum.optional(),
+  sect: sectEnum.optional(),
   aboutMe: longText().optional(),
   area: shortText().optional(),
   latitude: z.number().optional(),
@@ -120,6 +125,7 @@ export const profileSchema = z.object({
   prefBeard: shortText().optional(),
   prefReligiosity: list(religiosityEnum).optional(),
   prefSmokingStatus: list(smokingEnum).optional(),
+  prefSect: list(prefSectEnum).optional(),
   prefChildrenAcceptance: shortText().optional(),
 }).refine(ageRangeOk, { message: AGE_RANGE_MESSAGE, path: ["prefAgeMin"] });
 
@@ -188,6 +194,7 @@ export const profileDraftFields = z.object({
   hijab: z.boolean().nullable().optional(),
   niqab: z.boolean().nullable().optional(),
   smokingStatus: smokingEnum.optional(),
+  sect: sectEnum.optional(),
   aboutMe: longText().optional(),
   area: shortText().optional(),
   latitude: z.number().optional(),
@@ -211,6 +218,7 @@ export const profileDraftFields = z.object({
   prefBeard: shortText().optional(),
   prefReligiosity: list(shortText()).optional(),
   prefSmokingStatus: list(shortText()).optional(),
+  prefSect: list(prefSectEnum).optional(),
   prefChildrenAcceptance: shortText().optional(),
 });
 
@@ -242,6 +250,7 @@ const updateChangeFields = profileDraftFields
     maritalStatus: maritalEnum,
     religiosity: religiosityEnum,
     smokingStatus: smokingEnum.or(z.literal("")),
+    sect: sectEnum.or(z.literal("")),
     cookingAbility: cookingEnum.or(z.literal("")),
     height: numberField(100, 250, "الطول يجب أن يكون بين 100 و250 سم"),
     weight: numberField(30, 300, "الوزن يجب أن يكون بين 30 و300 كغ"),
@@ -253,6 +262,7 @@ const updateChangeFields = profileDraftFields
     prefMaritalStatus: list(maritalEnum),
     prefReligiosity: list(religiosityEnum),
     prefSmokingStatus: list(smokingEnum),
+    prefSect: list(prefSectEnum),
   }).shape;
 
 export const profileUpdateChangesSchema = z.strictObject(

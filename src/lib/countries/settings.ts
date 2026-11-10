@@ -17,6 +17,7 @@ import { localizedPath } from "@/lib/site-paths";
 import { isTestPhone } from "@/lib/test-accounts";
 import { parseEmailList } from "@/lib/validations/country-settings";
 import { areasFor, citiesFor } from "@/lib/countries/places";
+import { PREF_SECT_VALUES, SECT_VALUES, sectApplies } from "@/lib/profile-sect";
 import { HOUSING_TYPES, OPTION_VALUES, SKIN_COLORS, expenseRangesFor, incomeRangesFor, nationalityOptions, tribeLabel } from "@/lib/profile-options";
 import { EDUCATION_ORDER } from "@/lib/matching/score";
 
@@ -274,6 +275,8 @@ export function publicCountryDetail(s: CountrySettings, content: { heroTitle: st
       lifestyle: OPTION_VALUES.lifestyle,
       skinColor: SKIN_COLORS,
       housingType: HOUSING_TYPES,
+      // «المذهب»: Lebanon only (absent elsewhere, so the app shows no sect question there)
+      ...(sectApplies(code) && { sect: SECT_VALUES, prefSect: PREF_SECT_VALUES }),
     },
   };
 }

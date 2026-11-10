@@ -1,7 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
+const member = vi.hoisted(() => ({ country: "JO" }));
 const db = vi.hoisted(() => ({
   profile: { findUnique: vi.fn(), upsert: vi.fn() },
+  // The member's country: «المذهب» is kept for Lebanon only
+  user: { findUnique: vi.fn(async () => ({ country: member.country })) },
 }));
 vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/auth", () => ({
@@ -29,6 +32,7 @@ const patch = async (body: unknown): Promise<Response> =>
 
 beforeEach(() => {
   vi.clearAllMocks();
+  member.country = "JO";
   db.profile.upsert.mockResolvedValue({ id: "p1" });
 });
 
@@ -104,5 +108,24 @@ describe("PATCH /api/profile/draft — niqab", () => {
     db.profile.findUnique.mockResolvedValue({ ...stored, isComplete: false });
     await patch({ hijab: true });
     expect("niqab" in db.profile.upsert.mock.calls[0][0].update).toBe(false);
+  });
+});
+
+describe("PATCH /api/profile/draft: «المذهب» (Lebanon only)", () => {
+  it("saves a Lebanese member's sect and preference", async () => {
+    member.country = "LB";
+    db.profile.findUnique.mockResolvedValue({ ...stored, isComplete: false });
+    expect((await patch({ sect: "أفضّل عدم الذكر", prefSect: ["شيعي"] })).status).toBe(200);
+    expect(db.profile.upsert.mock.calls[0][0].update).toMatchObject({ sect: "أفضّل عدم الذكر", prefSect: ["شيعي"] });
+  });
+
+  it("drops them for a Saudi member", async () => {
+    member.country = "SA";
+    db.profile.findUnique.mockResolvedValue({ ...stored, isComplete: false });
+    expect((await patch({ city: "الرياض", sect: "سني", prefSect: ["سني"] })).status).toBe(200);
+    const update = db.profile.upsert.mock.calls[0][0].update;
+    expect(update).toMatchObject({ city: "الرياض" });
+    expect(update).not.toHaveProperty("sect");
+    expect(update).not.toHaveProperty("prefSect");
   });
 });

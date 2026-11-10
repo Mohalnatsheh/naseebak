@@ -10,6 +10,7 @@ import { needsReviewBody, reviewedChanges } from "@/lib/profile-review";
 import { getCycleFlags } from "@/lib/settings";
 import { arabicIssueMessage } from "@/lib/validations/issue-message";
 import { applyNiqabRule } from "@/lib/profile-veil";
+import { stripSectUnlessLebanon } from "@/lib/profile-sect";
 
 /** The fields `profileSchema` requires (the short setup). */
 const REQUIRED_BASICS = [
@@ -90,12 +91,17 @@ export async function PUT(request: Request) {
     if ("error" in result) return result.error;
     const { session } = result;
 
-    const body = await request.json();
-    if (!body || typeof body !== "object" || Array.isArray(body)) {
+    const raw = await request.json();
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
       return NextResponse.json({ error: "بيانات غير صالحة" }, { status: 400 });
     }
 
-    const existing = await db.profile.findUnique({ where: { userId: session.user.id } });
+    const [existing, member] = await Promise.all([
+      db.profile.findUnique({ where: { userId: session.user.id } }),
+      db.user.findUnique({ where: { id: session.user.id }, select: { country: true } }),
+    ]);
+    // «المذهب» is a Lebanese field: other countries never store it, its preference or its «شرط أساسي»
+    const body = stripSectUnlessLebanon(member?.country, raw);
     // Finished profile: a required basic the save leaves out stays as stored. The app keeps the
     // profile it loaded at the start of the setup, so its «تعديل ملفي» fills arrive without the
     // basics saved since (partner ages, or all of them) and failed with Zod's English message.
@@ -110,11 +116,11 @@ export async function PUT(request: Request) {
       dateOfBirth, city, nationality, education, fieldOfStudy, job, incomeRange,
       height, weight, skinColor, childrenCount, willingToRelocate, maritalStatus, religiosity,
       familyValues, partnerExpectations, hobbies, interests, lifestyle,
-      smokingStatus, aboutMe,
+      smokingStatus, sect, aboutMe,
       area, latitude, longitude, tribe, familyOriginArea, numberOfSiblings, housingType,
       beard, cookingAbility, drivingLicense, healthConditions, monthlyExpenses, wantsPhoto,
       prefAgeMin, prefAgeMax, prefCity, prefEducation, prefMaritalStatus,
-      prefHijab, prefBeard, prefReligiosity, prefSmokingStatus, prefChildrenAcceptance,
+      prefHijab, prefBeard, prefReligiosity, prefSmokingStatus, prefSect, prefChildrenAcceptance,
     } = body;
 
     // niqab ⇒ hijab; hijab false ⇒ no niqab; a body without niqab (app 1.0.0) leaves it as stored
@@ -135,7 +141,7 @@ export async function PUT(request: Request) {
       skinColor, childrenCount: childrenCount != null ? parseInt(childrenCount) : undefined,
       willingToRelocate, maritalStatus, religiosity,
       familyValues, partnerExpectations, hobbies, interests, lifestyle,
-      hijab, niqab, smokingStatus, aboutMe,
+      hijab, niqab, smokingStatus, sect, aboutMe,
       area,
       latitude: latitude ? parseFloat(latitude) : undefined,
       longitude: longitude ? parseFloat(longitude) : undefined,
@@ -155,6 +161,7 @@ export async function PUT(request: Request) {
       prefBeard: prefBeard ?? undefined,
       prefReligiosity: Array.isArray(prefReligiosity) ? prefReligiosity : undefined,
       prefSmokingStatus: Array.isArray(prefSmokingStatus) ? prefSmokingStatus : undefined,
+      prefSect: Array.isArray(prefSect) ? prefSect : undefined,
       prefChildrenAcceptance: prefChildrenAcceptance ?? undefined,
     };
 
@@ -184,7 +191,7 @@ export async function PUT(request: Request) {
         skinColor, childrenCount: childrenCount != null ? parseInt(childrenCount) : 0,
         willingToRelocate, maritalStatus, religiosity,
         familyValues, partnerExpectations, hobbies, interests, lifestyle,
-        hijab, niqab, smokingStatus, aboutMe,
+        hijab, niqab, smokingStatus, sect, aboutMe,
         area,
         latitude: latitude ? parseFloat(latitude) : null,
         longitude: longitude ? parseFloat(longitude) : null,
@@ -204,6 +211,7 @@ export async function PUT(request: Request) {
         prefBeard: prefBeard ?? null,
         prefReligiosity: Array.isArray(prefReligiosity) ? prefReligiosity : [],
         prefSmokingStatus: Array.isArray(prefSmokingStatus) ? prefSmokingStatus : [],
+        prefSect: Array.isArray(prefSect) ? prefSect : [],
         prefChildrenAcceptance: prefChildrenAcceptance ?? null,
         ...(dealbreakers && { dealbreakers }),
         isComplete: true,

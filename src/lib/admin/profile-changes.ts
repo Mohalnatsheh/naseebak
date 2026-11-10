@@ -8,7 +8,7 @@ import { applyNiqabRule } from "@/lib/profile-veil";
 
 const STRING_FIELDS = [
   "city", "area", "nationality", "education", "fieldOfStudy", "job", "incomeRange",
-  "maritalStatus", "religiosity", "smokingStatus", "aboutMe", "partnerExpectations",
+  "maritalStatus", "religiosity", "smokingStatus", "sect", "aboutMe", "partnerExpectations",
   "hobbies", "interests", "lifestyle", "familyValues", "tribe", "familyOriginArea",
   "housingType", "monthlyExpenses", "healthConditions", "cookingAbility", "skinColor",
   "willingToRelocate", "prefHijab", "prefBeard", "prefChildrenAcceptance",
@@ -18,7 +18,7 @@ const INT_FIELDS = ["height", "weight", "numberOfSiblings", "childrenCount", "pr
 const FLOAT_FIELDS = ["latitude", "longitude"] as const;
 const BOOL_FIELDS = ["hijab", "niqab", "beard", "drivingLicense", "wantsPhoto"] as const;
 const ARRAY_FIELDS = [
-  "prefCity", "prefEducation", "prefMaritalStatus", "prefReligiosity", "prefSmokingStatus",
+  "prefCity", "prefEducation", "prefMaritalStatus", "prefReligiosity", "prefSmokingStatus", "prefSect",
 ] as const;
 
 /** Non-nullable columns: the value used when the user cleared the field. */

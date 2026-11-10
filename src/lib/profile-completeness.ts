@@ -2,6 +2,7 @@
  * Profile completeness calculator — field-level scoring with section weights.
  */
 import { countryConfig } from "@/lib/countries";
+import { sectApplies } from "@/lib/profile-sect";
 
 /** The `tribe` field's label in a country (same as profile-options' tribeLabel, without its option tables) */
 function tribeLabel(country: unknown): string {
@@ -30,6 +31,9 @@ interface ProfileData {
   prefMaritalStatus?: string[] | null;
   prefReligiosity?: string[] | null;
   prefSmokingStatus?: string[] | null;
+  /** «المذهب» and the partner's, counted for Lebanese members only */
+  sect?: string | null;
+  prefSect?: string[] | null;
   tribe?: string | null;
   familyOriginArea?: string | null;
   numberOfSiblings?: number | null;
@@ -113,6 +117,8 @@ export function calculateCompleteness(user: UserForCompleteness): CompletenessRe
     ["الوزن", profile?.weight, "weight"],
     ["الحالة الاجتماعية", profile?.maritalStatus, "maritalStatus"],
     ["نبذة عني", profile?.aboutMe, "aboutMe"],
+    // «أفضّل عدم الذكر» is an answer too
+    ...(sectApplies(user.country) ? [["المذهب", profile?.sect, "sect"] as [string, unknown, string]] : []),
   ];
   const basicFilled = basicFields.filter(([, val]) => hasValue(val)).length;
   const basicMissing = basicFields
@@ -136,6 +142,7 @@ export function calculateCompleteness(user: UserForCompleteness): CompletenessRe
     ["الحالة الاجتماعية المفضلة", profile?.prefMaritalStatus, "prefMaritalStatus"],
     ["مستوى التدين المفضل", profile?.prefReligiosity, "prefReligiosity"],
     ["التدخين لدى الشريك", profile?.prefSmokingStatus, "prefSmokingStatus"],
+    ...(sectApplies(user.country) ? [["المذهب لدى الشريك", profile?.prefSect, "prefSect"] as [string, unknown, string]] : []),
   ];
   const prefFilled = prefFields.filter(([, val]) => hasValue(val)).length;
   const prefMissing = prefFields

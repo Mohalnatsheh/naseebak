@@ -7,6 +7,8 @@
  *   Profile quality bonus: 20% (completeness of both profiles)
  */
 
+import { visibleSect } from "@/lib/profile-sect";
+
 // --- Detailed breakdown types ---
 
 export interface PreferenceDetail {
@@ -51,6 +53,8 @@ export interface ProfileForScoring {
   maritalStatus?: string | null;
   religiosity?: string | null;
   smokingStatus?: string | null;
+  /** «المذهب», Lebanese members only */
+  sect?: string | null;
   hijab?: boolean | null;
   niqab?: boolean | null;
   beard?: boolean | null;
@@ -63,6 +67,7 @@ export interface ProfileForScoring {
   prefMaritalStatus?: string[];
   prefReligiosity?: string[];
   prefSmokingStatus?: string[];
+  prefSect?: string[];
   prefHijab?: string | null;
   prefBeard?: string | null;
   prefChildrenAcceptance?: string | null;
@@ -230,6 +235,12 @@ export function checkPreferenceMatchDetailed(
     details.push({ field: "smokingStatus", label: "Smoking", matched: profile.prefSmokingStatus.includes(otherProfile.smokingStatus), weight: 1, userPref: profile.prefSmokingStatus.join(", "), candidateValue: otherProfile.smokingStatus });
   }
 
+  // Sect preference (Lebanon only). «أفضّل عدم الذكر» scores as unknown, like an empty value
+  const otherSect = visibleSect(otherProfile.sect);
+  if (profile.prefSect && profile.prefSect.length > 0 && otherSect) {
+    details.push({ field: "sect", label: "Sect", matched: profile.prefSect.includes(otherSect), weight: 1.5, userPref: profile.prefSect.join(", "), candidateValue: otherSect });
+  }
+
   // Hijab preference
   const hijabPref = prefYesNo(profile.prefHijab);
   if (hijabPref && otherGender === "FEMALE" && otherProfile.hijab !== null && otherProfile.hijab !== undefined) {
@@ -384,7 +395,7 @@ export function minEducation(pref: readonly string[] | null | undefined): string
 
 /** Preference keys a user can mark as "شرط أساسي". */
 export const DEALBREAKER_KEYS = [
-  "age", "city", "education", "maritalStatus", "religiosity", "smokingStatus", "hijab", "beard", "children",
+  "age", "city", "education", "maritalStatus", "religiosity", "smokingStatus", "hijab", "beard", "children", "sect",
 ] as const;
 export type DealbreakerKey = (typeof DEALBREAKER_KEYS)[number];
 
@@ -398,6 +409,7 @@ export const DEALBREAKER_LABELS: Record<DealbreakerKey, string> = {
   hijab: "الحجاب",
   beard: "اللحية",
   children: "الأبناء",
+  sect: "المذهب",
 };
 
 const inList = (pref: string[] | undefined, value: string | null | undefined) =>
@@ -430,6 +442,8 @@ function dealbreakerHolds(key: DealbreakerKey, owner: ProfileForScoring, other: 
     case "children":
       if (!wantsNoChildren(owner.prefChildrenAcceptance)) return null;
       return (other.childrenCount ?? 0) === 0;
+    // «أفضّل عدم الذكر» is never in a preference (PREF_SECT_VALUES), so it fails like a missing value
+    case "sect": return inList(owner.prefSect, other.sect);
   }
 }
 

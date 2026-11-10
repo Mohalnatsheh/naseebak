@@ -5,6 +5,7 @@ import { profileDraftSchema } from "@/lib/validations/profile";
 import { needsReviewBody, reviewedChanges } from "@/lib/profile-review";
 import { arabicIssueMessage } from "@/lib/validations/issue-message";
 import { applyNiqabRule } from "@/lib/profile-veil";
+import { stripSectUnlessLebanon } from "@/lib/profile-sect";
 
 export async function PATCH(request: Request) {
   try {
@@ -12,7 +13,9 @@ export async function PATCH(request: Request) {
     if ("error" in result) return result.error;
     const { session } = result;
 
-    const body = await request.json();
+    const member = await db.user.findUnique({ where: { id: session.user.id }, select: { country: true } });
+    // «المذهب» is a Lebanese field: other countries never store it or its preference
+    const body = stripSectUnlessLebanon(member?.country, await request.json());
 
     const validation = profileDraftSchema.safeParse(body);
     if (!validation.success) {
@@ -52,6 +55,7 @@ export async function PATCH(request: Request) {
     if (updateData.hijab === undefined) delete updateData.hijab;
     if (updateData.niqab === undefined) delete updateData.niqab;
     if (data.smokingStatus !== undefined) updateData.smokingStatus = data.smokingStatus || null;
+    if (data.sect !== undefined) updateData.sect = data.sect || null;
     if (data.aboutMe !== undefined) updateData.aboutMe = data.aboutMe || null;
     if (data.area !== undefined) updateData.area = data.area || null;
     if (data.latitude !== undefined) updateData.latitude = data.latitude;
@@ -75,6 +79,7 @@ export async function PATCH(request: Request) {
     if (data.prefBeard !== undefined) updateData.prefBeard = data.prefBeard || null;
     if (data.prefReligiosity !== undefined) updateData.prefReligiosity = data.prefReligiosity;
     if (data.prefSmokingStatus !== undefined) updateData.prefSmokingStatus = data.prefSmokingStatus;
+    if (data.prefSect !== undefined) updateData.prefSect = data.prefSect;
     if (data.prefChildrenAcceptance !== undefined) updateData.prefChildrenAcceptance = data.prefChildrenAcceptance || null;
 
     // Setup autosave only (useAutoSave in the setup wizard). Once the setup is finished, same rule

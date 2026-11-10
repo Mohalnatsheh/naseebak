@@ -23,6 +23,8 @@ export interface FeedCandidate {
   childrenCount: number;
   religiosity: string | null;
   smokingStatus: string | null;
+  /** «المذهب» (Lebanon); null when empty or «أفضّل عدم الذكر» (`visibleSect`) */
+  sect: string | null;
   aboutMe: string | null;
   hobbies: string | null;
   interests: string | null;

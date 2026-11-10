@@ -6,6 +6,7 @@
  */
 
 import { countryConfig, toCountry, type CountryCode } from "@/lib/countries";
+import { PREF_SECT_VALUES, SECT_VALUES } from "@/lib/profile-sect";
 
 export interface Opt {
   value: string;
@@ -29,6 +30,8 @@ export const OPTION_VALUES = {
   smokingStatus: ["لا أدخن", "أدخن", "أدخن أحياناً", "تركت التدخين"],
   cookingAbility: ["لا أطبخ", "أطبخ قليلاً", "أطبخ جيداً", "أطبخ ممتازاً"],
   lifestyle: ["نشيط", "هادئ", "متوازن", "اجتماعي"],
+  /** «المذهب», Lebanese members only (`sectApplies`) */
+  sect: SECT_VALUES,
 } as const;
 
 export type OptionField = keyof typeof OPTION_VALUES;
@@ -76,6 +79,7 @@ const SELF: Record<G, Labels> = {
     maritalStatus: { "أعزب/عزباء": "عزباء", "مطلق/مطلقة": "مطلقة", "أرمل/أرملة": "أرملة" },
     religiosity: { "ملتزم جداً": "ملتزمة جداً", "ملتزم": "ملتزمة", "متوسط": "متوسطة", "غير ملتزم": "غير ملتزمة" },
     lifestyle: { "نشيط": "نشيطة", "هادئ": "هادئة", "متوازن": "متوازنة", "اجتماعي": "اجتماعية" },
+    sect: { "سني": "سنية", "شيعي": "شيعية" },
   },
 };
 
@@ -182,5 +186,7 @@ export function ownOptions(field: OptionField, gender: string | null | undefined
 /** Options for a partner preference, written about the partner (the other gender). */
 export function partnerOptions(field: OptionField, myGender: string | null | undefined): Opt[] {
   const partner = oppositeGender(myGender);
-  return OPTION_VALUES[field].map((value) => ({ value, label: describeOption(field, value, partner) }));
+  // A sect preference never offers «أفضّل عدم الذكر»
+  const values: readonly string[] = field === "sect" ? PREF_SECT_VALUES : OPTION_VALUES[field];
+  return values.map((value) => ({ value, label: describeOption(field, value, partner) }));
 }

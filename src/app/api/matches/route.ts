@@ -7,6 +7,7 @@ import { hiddenPartnerIds, loadMatchStates } from "@/lib/matches/state";
 import { getCycleFlags } from "@/lib/settings";
 import { proUserIds } from "@/lib/pro/status";
 import { matchNextStep } from "@/lib/matches/next-step";
+import { visibleSect } from "@/lib/profile-sect";
 
 export async function GET(request: Request) {
   try {
@@ -46,6 +47,7 @@ export async function GET(request: Request) {
       childrenCount: true,
       religiosity: true,
       smokingStatus: true,
+      sect: true,
       aboutMe: true,
       hobbies: true,
       interests: true,
@@ -163,6 +165,8 @@ export async function GET(request: Request) {
           childrenCount: locked ? 0 : (profile?.childrenCount ?? 0),
           religiosity: detail(profile?.religiosity ?? null),
           smokingStatus: detail(profile?.smokingStatus ?? null),
+          // «أفضّل عدم الذكر» is never shown (as if empty)
+          sect: detail(visibleSect(profile?.sect)),
           aboutMe: detail(profile?.aboutMe ?? null),
           hobbies: detail(profile?.hobbies ?? null),
           interests: detail(profile?.interests ?? null),

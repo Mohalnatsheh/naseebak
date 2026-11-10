@@ -1,8 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
+const member = vi.hoisted(() => ({ country: "JO" }));
 const db = vi.hoisted(() => ({
   profile: { findUnique: vi.fn(), upsert: vi.fn() },
   parentInfo: { findUnique: vi.fn() },
+  // The member's country: «المذهب» is kept for Lebanon only
+  user: { findUnique: vi.fn(async () => ({ country: member.country })) },
 }));
 vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/auth", () => ({
@@ -59,6 +62,7 @@ const put = async (body: unknown): Promise<Response> =>
 
 beforeEach(() => {
   vi.clearAllMocks();
+  member.country = "JO";
   flags.introRequests = false;
   db.parentInfo.findUnique.mockResolvedValue({ id: "g1" });
   db.profile.upsert.mockResolvedValue({ id: "p1" });
@@ -217,5 +221,37 @@ describe("PUT /api/profile — niqab", () => {
     const res = await put({ ...body, niqab: false });
     expect(res.status).toBe(409);
     expect((await res.json()).fields).toEqual(["niqab"]);
+  });
+});
+
+describe("PUT /api/profile: «المذهب» (Lebanon only)", () => {
+  const withSect = { ...payload, sect: "سني", prefSect: ["سني"], dealbreakers: ["age", "sect"] };
+
+  it("a Lebanese member's sect, preference and «شرط أساسي» are saved", async () => {
+    member.country = "LB";
+    db.profile.findUnique.mockResolvedValue(null);
+    expect((await put(withSect)).status).toBe(200);
+    const { create, update } = db.profile.upsert.mock.calls[0][0];
+    expect(create).toMatchObject({ sect: "سني", prefSect: ["سني"], dealbreakers: ["age", "sect"] });
+    expect(update).toMatchObject({ sect: "سني", prefSect: ["سني"], dealbreakers: ["age", "sect"] });
+  });
+
+  it("a Jordanian member's sect, preference and «شرط أساسي» are dropped", async () => {
+    db.profile.findUnique.mockResolvedValue(null);
+    expect((await put(withSect)).status).toBe(200);
+    const { create, update } = db.profile.upsert.mock.calls[0][0];
+    expect(create.sect).toBeUndefined();
+    expect(create.prefSect).toEqual([]);
+    expect(create.dealbreakers).toEqual(["age"]);
+    expect(update.sect).toBeUndefined();
+    expect(update.prefSect).toBeUndefined();
+    expect(update.dealbreakers).toEqual(["age"]);
+  });
+
+  it("refuses a sect outside the three values", async () => {
+    member.country = "LB";
+    db.profile.findUnique.mockResolvedValue(null);
+    expect((await put({ ...payload, sect: "درزي" })).status).toBe(400);
+    expect((await put({ ...payload, prefSect: ["أفضّل عدم الذكر"] })).status).toBe(400);
   });
 });

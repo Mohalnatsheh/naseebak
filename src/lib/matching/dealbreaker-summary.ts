@@ -13,6 +13,7 @@ export interface DealbreakerPrefs {
   prefMaritalStatus?: string[] | null;
   prefReligiosity?: string[] | null;
   prefSmokingStatus?: string[] | null;
+  prefSect?: string[] | null;
   prefHijab?: string | null;
   prefBeard?: string | null;
   prefChildrenAcceptance?: string | null;
@@ -51,6 +52,7 @@ export function dealbreakerSummary(key: DealbreakerKey, p: DealbreakerPrefs, myG
       return v ? (v === "yes" ? "ملتحٍ" : "بدون لحية") : null;
     }
     case "children": return wantsNoChildren(p.prefChildrenAcceptance) ? "بدون أبناء" : null;
+    case "sect": return list(p.prefSect, "sect");
   }
 }
 

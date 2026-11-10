@@ -4,6 +4,7 @@ import {
   prefYesNo,
   wantsNiqab,
   checkPreferenceMatch,
+  checkPreferenceMatchDetailed,
   profileQualityScore,
   calculateCompatibility,
   type ProfileForScoring,
@@ -307,5 +308,34 @@ describe("niqab preference", () => {
 
   it("«نعم» still matches a woman with niqab (she wears hijab)", () => {
     expect(checkPreferenceMatch({ prefHijab: "نعم" }, { hijab: true, niqab: true }, "FEMALE")).toBe(1);
+  });
+});
+
+describe("sect preference (Lebanon)", () => {
+  it("scores a stated sect", () => {
+    const hit = checkPreferenceMatchDetailed({ prefSect: ["شيعي"] }, { sect: "شيعي" }, "FEMALE");
+    expect(hit.details).toEqual([expect.objectContaining({ field: "sect", label: "Sect", weight: 1.5, matched: true })]);
+    const miss = checkPreferenceMatchDetailed({ prefSect: ["شيعي"] }, { sect: "سني" }, "FEMALE");
+    expect(miss.details[0]).toMatchObject({ field: "sect", matched: false });
+    expect(miss.score).toBe(0);
+  });
+
+  it("«أفضّل عدم الذكر» or no sect scores as unknown (no detail)", () => {
+    expect(checkPreferenceMatchDetailed({ prefSect: ["شيعي"] }, { sect: "أفضّل عدم الذكر" }, "FEMALE").details).toEqual([]);
+    expect(checkPreferenceMatchDetailed({ prefSect: ["شيعي"] }, { sect: null }, "FEMALE").details).toEqual([]);
+  });
+
+  it("an empty sect preference adds nothing, so Jordan and Saudi scores are unchanged", () => {
+    const a = { prefAgeMin: 20, prefAgeMax: 40, prefCity: ["عمان"], city: "عمان", sect: "سني" };
+    const b = { prefAgeMin: 20, prefAgeMax: 40, prefCity: ["عمان"], city: "عمان", sect: "شيعي" };
+    const withoutSect = { ...a, sect: undefined };
+    const detailed = checkPreferenceMatchDetailed(a, b, "FEMALE");
+    expect(detailed.details.some((d) => d.field === "sect")).toBe(false);
+    expect(detailed).toEqual(checkPreferenceMatchDetailed(withoutSect, { ...b, sect: undefined }, "FEMALE"));
+    const userA = { id: "a", gender: "MALE", profile: a };
+    const userB = { id: "b", gender: "FEMALE", profile: b };
+    expect(calculateCompatibility(userA, userB)).toBe(
+      calculateCompatibility({ ...userA, profile: { ...a, sect: undefined } }, { ...userB, profile: { ...b, sect: undefined } }),
+    );
   });
 });

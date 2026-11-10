@@ -37,6 +37,7 @@ const FIELD_LABELS: Record<string, string> = {
   hijab: "الحجاب",
   niqab: "النقاب",
   smokingStatus: "التدخين",
+  sect: "المذهب",
   aboutMe: "نبذة عني",
   area: "المنطقة",
   tribe: "العائلة أو القبيلة",
@@ -57,6 +58,7 @@ const FIELD_LABELS: Record<string, string> = {
   prefBeard: "لحية الشريك",
   prefReligiosity: "تدين الشريك",
   prefSmokingStatus: "تدخين الشريك",
+  prefSect: "مذهب الشريك",
   prefChildrenAcceptance: "قبول الأبناء",
   message: "الملاحظة",
 };

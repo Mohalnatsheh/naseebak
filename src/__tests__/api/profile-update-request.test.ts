@@ -1,8 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
+const member = vi.hoisted(() => ({ country: "JO" }));
 const db = vi.hoisted(() => ({
   profile: { update: vi.fn(), upsert: vi.fn(), findUnique: vi.fn() },
   profileUpdateRequest: { findFirst: vi.fn(), create: vi.fn(), updateMany: vi.fn() },
+  // The member's country: «المذهب» is kept for Lebanon only
+  user: { findUnique: vi.fn(async () => ({ country: member.country })) },
 }));
 const requireUser = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/db", () => ({ db }));
@@ -20,6 +23,7 @@ const req = (changes: Record<string, unknown>) =>
 
 beforeEach(() => {
   vi.clearAllMocks();
+  member.country = "JO";
   requireUser.mockResolvedValue({ session: { user: { id: "u1" } } });
   db.profileUpdateRequest.findFirst.mockResolvedValue(null);
   db.profileUpdateRequest.create.mockResolvedValue({ id: "r1" });
@@ -140,5 +144,32 @@ describe("POST /api/profile/update-request — niqab", () => {
     const res = await POST(req({ prefHijab: "منتقبة" }));
     expect(res.status).toBe(200);
     expect(db.profile.upsert.mock.calls[0][0].update).toEqual({ prefHijab: "منتقبة" });
+  });
+});
+
+describe("POST /api/profile/update-request: «المذهب» (Lebanon only)", () => {
+  it("Lebanon: sect is reviewed, the sect preference saves directly", async () => {
+    member.country = "LB";
+    const res = await POST(req({ sect: "شيعي", prefSect: ["شيعي"] }));
+    expect(res.status).toBe(200);
+    expect(db.profile.upsert).toHaveBeenCalledWith({
+      where: { userId: "u1" },
+      create: { userId: "u1", prefSect: ["شيعي"] },
+      update: { prefSect: ["شيعي"] },
+    });
+    expect(db.profileUpdateRequest.create.mock.calls[0][0].data.changes).toEqual({ sect: "شيعي" });
+  });
+
+  it("Jordan: sect and its preference are dropped (nothing left = nothing to request)", async () => {
+    const res = await POST(req({ sect: "شيعي", prefSect: ["شيعي"] }));
+    expect(res.status).toBe(400);
+    expect(db.profile.upsert).not.toHaveBeenCalled();
+    expect(db.profileUpdateRequest.create).not.toHaveBeenCalled();
+  });
+
+  it("Jordan: the rest of the request still goes through", async () => {
+    const res = await POST(req({ job: "طبيب", sect: "سني" }));
+    expect(res.status).toBe(200);
+    expect(db.profileUpdateRequest.create.mock.calls[0][0].data.changes).toEqual({ job: "طبيب" });
   });
 });

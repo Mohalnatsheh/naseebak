@@ -13,6 +13,7 @@
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { calculateCompatibility } from "@/lib/matching/score";
+import { visibleSect } from "@/lib/profile-sect";
 import { suggestionReason } from "@/lib/matching/reasons";
 import { expireMutualSuggestions, openMutualWhere } from "@/lib/suggestions/mutual";
 import { isUnavailable } from "@/lib/matches/state";
@@ -165,7 +166,9 @@ export function toFeedCandidate(p: Person): FeedCandidate {
     isVerified: p.isVerified,
     age,
     childrenCount: (prof.childrenCount as number | undefined) ?? 0,
-    ...(fields as Omit<FeedCandidate, "id" | "firstName" | "isVerified" | "age" | "childrenCount">),
+    ...(fields as Omit<FeedCandidate, "id" | "firstName" | "isVerified" | "age" | "childrenCount" | "sect">),
+    // «أفضّل عدم الذكر» is never shown (as if empty)
+    sect: visibleSect(prof.sect as string | null | undefined),
   };
 }
 

@@ -1,10 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
+const member = vi.hoisted(() => ({ country: "JO" }));
 const db = vi.hoisted(() => ({
   mutualMatch: { findUnique: vi.fn() },
   block: { findFirst: vi.fn() },
   profile: { update: vi.fn(), upsert: vi.fn(), findUnique: vi.fn() },
   profileUpdateRequest: { findFirst: vi.fn(), create: vi.fn() },
+  // The member's country: «المذهب» is kept for Lebanon only
+  user: { findUnique: vi.fn(async () => ({ country: member.country })) },
 }));
 vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/auth", () => ({ requireUser: vi.fn(async () => ({ session: { user: { id: "u1" } } })) }));
@@ -20,6 +23,7 @@ const post = (body: unknown) =>
 
 beforeEach(() => {
   vi.clearAllMocks();
+  member.country = "JO";
   db.block.findFirst.mockResolvedValue(null);
   db.profileUpdateRequest.findFirst.mockResolvedValue(null);
   db.profileUpdateRequest.create.mockResolvedValue({ id: "r1" });

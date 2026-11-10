@@ -19,7 +19,7 @@ export interface CreditPackage {
   credits: number;
   /** Display price, in `currency` */
   price: number;
-  currency: "JOD" | "SAR";
+  currency: "JOD" | "SAR" | "USD";
   /** What Stripe charges: currency + amount in minor units (cents / halalas) */
   chargeCurrency: "usd" | "sar";
   chargeAmount: number;
@@ -38,7 +38,9 @@ const USD_CENTS_PER_JOD = 141;
 export const chargeFor = (price: number, currency: CreditPackage["currency"]) =>
   currency === "JOD"
     ? { chargeCurrency: "usd" as const, chargeAmount: Math.round(price * USD_CENTS_PER_JOD) }
-    : { chargeCurrency: "sar" as const, chargeAmount: Math.round(price * 100) };
+    : currency === "USD"
+      ? { chargeCurrency: "usd" as const, chargeAmount: Math.round(price * 100) } // Lebanon: dollars shown and charged
+      : { chargeCurrency: "sar" as const, chargeAmount: Math.round(price * 100) };
 
 /** Prices set in admin, by package id */
 export type PackagePrices = Record<string, number>;
@@ -64,12 +66,16 @@ const sa = (id: string, name: string, credits: number, price: number, popular = 
   id, country: "SA", name, credits, price, currency: "SAR", chargeCurrency: "sar", chargeAmount: price * 100, ...(popular && { popular }),
 });
 
+const lb = (id: string, name: string, credits: number, price: number, popular = false): CreditPackage => ({
+  id, country: "LB", name, credits, price, currency: "USD", chargeCurrency: "usd", chargeAmount: Math.round(price * 100), ...(popular && { popular }),
+});
+
 const PACKAGES: Record<CountryCode, readonly CreditPackage[]> = {
   // Opening offer (owner decision 2026-10-23): 10 credits for 3 JD, the bigger packages a little cheaper per credit
   JO: [jo("launch_10", "10 أرصدة", 10, 3, 423), jo("launch_25", "25 رصيداً", 25, 6, 846, true), jo("launch_50", "50 رصيداً", 50, 10, 1410)],
   SA: [sa("sa_10", "10 أرصدة", 10, 15), sa("sa_25", "25 رصيداً", 25, 30, true), sa("sa_50", "50 رصيداً", 50, 50)],
-  // TODO(LB task 4): Lebanese USD packages; placeholder = Jordan's until then (LB is inactive, never sold)
-  LB: [jo("launch_10", "10 أرصدة", 10, 3, 423), jo("launch_25", "25 رصيداً", 25, 6, 846, true), jo("launch_50", "50 رصيداً", 50, 10, 1410)],
+  // Draft prices in dollars (never sold until «Prices approved» is on in Admin → Countries)
+  LB: [lb("lb_10", "10 أرصدة", 10, 3), lb("lb_25", "25 رصيداً", 25, 6, true), lb("lb_50", "50 رصيداً", 50, 10)],
 };
 
 /**
@@ -79,7 +85,7 @@ const PACKAGES: Record<CountryCode, readonly CreditPackage[]> = {
 export const PRICES_APPROVED: Record<CountryCode, boolean> = {
   JO: true,
   SA: false,
-  LB: true, // TODO(LB task 4): placeholder = Jordan; Lebanon stays off with no country row, real value in the money task
+  LB: false, // draft, like Saudi Arabia
 };
 
 /** Jordanian packages no longer sold: kept so a refund of an older purchase takes back the right credits */
@@ -114,7 +120,7 @@ export function findAnyPackage(id: string | null | undefined): CreditPackage | u
   return findPackage(id) ?? (id ? RETIRED_PACKAGES.find((p) => p.id === id) : undefined);
 }
 
-export const CURRENCY_SYMBOL = { JOD: "د.أ", SAR: "ر.س" } as const;
+export const CURRENCY_SYMBOL = { JOD: "د.أ", SAR: "ر.س", USD: "$" } as const;
 const SYMBOL = CURRENCY_SYMBOL;
 
 /** «3 د.أ» / «15 ر.س» */
@@ -137,14 +143,14 @@ export function formatUsd(cents: number): string {
   return `${(cents / 100).toFixed(2)}$`;
 }
 
-/** What the card is actually charged: «4.23$» (Jordan) / «15 ر.س» (Saudi Arabia) */
+/** What the card is actually charged: «4.23$» (Jordan, Lebanon) / «15 ر.س» (Saudi Arabia) */
 export function formatCharge(p: Pick<CreditPackage, "chargeCurrency" | "chargeAmount">): string {
   return p.chargeCurrency === "usd" ? formatUsd(p.chargeAmount) : `${(p.chargeAmount / 100).toLocaleString("en-US")} ر.س`;
 }
 
 /** What a past payment was charged, from its stored display price (prices may have changed since) */
 export function formatPaidCharge(payment: { amount: unknown; currency: string }): string {
-  return formatCharge(chargeFor(Number(payment.amount), payment.currency === "SAR" ? "SAR" : "JOD"));
+  return formatCharge(chargeFor(Number(payment.amount), payment.currency === "SAR" ? "SAR" : payment.currency === "USD" ? "USD" : "JOD"));
 }
 
 /**
@@ -152,8 +158,9 @@ export function formatPaidCharge(payment: { amount: unknown; currency: string })
  * Rows in another currency (old USD rows) come back as stored.
  */
 export function formatPaidAmount(payment: { amount: unknown; currency: string }): string {
-  if (payment.currency !== "JOD" && payment.currency !== "SAR") return formatPaidCharge(payment);
+  if (payment.currency !== "JOD" && payment.currency !== "SAR" && payment.currency !== "USD") return formatPaidCharge(payment);
   const shown = `${Number(payment.amount).toLocaleString("en-US")} ${SYMBOL[payment.currency]}`;
+  if (payment.currency === "USD") return shown; // shown and charged in dollars
   const charged = formatPaidCharge(payment);
   return charged === shown ? shown : `${shown} (${charged})`;
 }

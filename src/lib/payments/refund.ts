@@ -14,6 +14,7 @@ import { db } from "@/lib/db";
 import { notify } from "@/lib/notify";
 import { recordCredit } from "@/lib/credits";
 import { sendAdminAlert } from "@/lib/admin-alert";
+import type { CountryCode } from "@/lib/countries";
 import { findAnyPackage, formatPaidAmount } from "@/lib/payments/packages";
 import { PRO_PAGE_PATH, planFromName } from "@/lib/pro/plans";
 import { cancelProNow, endProLocally } from "@/lib/pro/manage";
@@ -183,8 +184,9 @@ export async function findPaymentForCharge(charge: Pick<Stripe.Charge, "payment_
   return db.payment.findFirst({ where: { providerTxId: invoiceId, provider: "STRIPE" }, select });
 }
 
-/** A payment's currency tells its country, also once the account is deleted */
-const alertAbout = (payment: { currency: string }) => ({ country: payment.currency === "SAR" ? "SA" : "JO" });
+/** A payment's currency tells its country, also once the account is deleted (JO stores JOD, SA SAR, LB USD) */
+const ALERT_COUNTRY: Record<string, CountryCode> = { JOD: "JO", SAR: "SA", USD: "LB" };
+const alertAbout = (payment: { currency: string }) => ({ country: ALERT_COUNTRY[payment.currency] ?? "JO" });
 
 /** `charge.refunded`: full refund → applyRefund; partial refund → admin alert only */
 export async function handleChargeRefunded(charge: Stripe.Charge): Promise<RefundResult | "partial" | "not_ours"> {

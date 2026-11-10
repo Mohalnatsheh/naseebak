@@ -68,7 +68,7 @@ const PLAN_NAMES: Record<string, string> = { weekly: "Weekly", monthly: "Monthly
 /**
  * Every problem with a country's Pro plans, named by plan («Monthly: A Pro plan price must be above 0 · Yearly: …»), or null.
  * The same rules as the server, so Admin → Countries says it before the confirmation dialog (QA WEB-PAY-10):
- * the schema above, and Stripe's smallest charge (Saudi Arabia: 2 SAR; Jordan, charged in dollars: 0.36 JOD).
+ * the schema above, and Stripe's smallest charge (Saudi Arabia: 2 SAR; Jordan, charged in dollars: 0.36 JOD; Lebanon: 0.5 USD).
  */
 export function proPlansError(plans: unknown, code: string): string | null {
   if (plans == null) return null;
@@ -84,7 +84,12 @@ export function proPlansError(plans: unknown, code: string): string | null {
   const priced = Object.entries(parsed.data).filter(([, p]) => p) as [string, { price: number }][];
   const under = (min: number) => priced.filter(([, p]) => p.price < min).map(([id]) => PLAN_NAMES[id] ?? id);
   // Saudi: Stripe's 2 SAR minimum. Jordan is charged in dollars (dinar × 1.41): below 0.36 JOD is under 0.50 USD
-  const [min, label] = code === "SA" ? [2, "A Saudi Pro plan price must be at least 2 SAR"] : code === "JO" ? [0.36, "A Jordan Pro plan price must be at least 0.36 JOD"] : [0, ""];
+  // Lebanon is charged in dollars as shown: Stripe's 0.50 USD minimum
+  const [min, label] =
+    code === "SA" ? [2, "A Saudi Pro plan price must be at least 2 SAR"]
+    : code === "JO" ? [0.36, "A Jordan Pro plan price must be at least 0.36 JOD"]
+    : code === "LB" ? [0.5, "A Lebanon Pro plan price must be at least 0.5 USD"]
+    : [0, ""];
   const low = min ? under(min) : [];
   if (low.length === 1 && priced.length === 1) return label;
   return low.length ? `${label} (${low.join(", ")})` : null;

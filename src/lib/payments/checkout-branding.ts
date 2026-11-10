@@ -32,7 +32,8 @@ const ltr = (s: string) => `${LRI}${s}${PDI}`;
 /** The Arabic line above the pay button */
 export function checkoutMessage(pkg: Pick<CreditPackage, "price" | "country" | "chargeCurrency" | "chargeAmount" | "name">): string {
   const price = displayPrice(pkg);
-  const charged = pkg.chargeCurrency === "usd" ? `، تُخصم ${ltr(formatCharge(pkg))} بالدولار` : "";
+  // Lebanon is shown in dollars already: no second «تُخصم» amount
+  const charged = pkg.chargeCurrency === "usd" && countryConfig(toCountry(pkg.country)).currency.code !== "USD" ? `، تُخصم ${ltr(formatCharge(pkg))} بالدولار` : "";
   // The package's own name («10 أرصدة», «25 رصيداً»): already in correct Arabic
   return `${RLI}أنت تدفع لـ «نصيبك»: ${pkg.name} مقابل ${price}${charged}. يظهر في كشف البنك باسم ${ltr("LOGICCR* NASEEBAK")}.${PDI}`;
 }

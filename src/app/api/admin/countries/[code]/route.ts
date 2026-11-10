@@ -34,6 +34,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ co
     if (code === "SA" && Object.values(data.packagePrices ?? {}).some((price) => price < 2)) {
       return NextResponse.json({ error: "A Saudi package price must be at least 2 SAR" }, { status: 400 });
     }
+    // Lebanon is charged in dollars as shown: Stripe's smallest charge is 0.50 USD
+    if (code === "LB" && Object.values(data.packagePrices ?? {}).some((price) => price < 0.5)) {
+      return NextResponse.json({ error: "A Lebanon package price must be at least 0.5 USD" }, { status: 400 });
+    }
     const planError = proPlansError(data.proPlans, code);
     if (planError) return NextResponse.json({ error: planError }, { status: 400 });
     const unknownPackage = Object.keys(data.packagePrices ?? {}).find((id) => !packagesFor(code).some((p) => p.id === id));

@@ -230,7 +230,7 @@ export function ProPlanChooser({ offers, canBuy }: { offers: ProPlanOffer[]; can
             <p className="text-label font-bold text-foreground">
               {`اشتراك ${PRO_PLAN_LABELS[offer.id]}: ${offer.price} ${symbol} ${PER_PERIOD[offer.id]}`}
             </p>
-            {offer.chargeCurrency === "usd" && (
+            {offer.chargeCurrency === "usd" && offer.currency !== "USD" && (
               <UsdLine lead={forViewer(gender, "تدفع", "تدفعين")} usd={offer.chargeAmount / 100} />
             )}
           </div>

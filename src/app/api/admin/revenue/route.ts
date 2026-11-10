@@ -14,7 +14,7 @@ const num = (v: unknown) => Number(v ?? 0);
 
 /**
  * Admin dashboard → Revenue for the admin's selected country, in its currency (Amman and Riyadh are both UTC+3, so
- * one day boundary serves both): today, yesterday, the day before, the last 14 days, 7 / 30 days with the change from
+ * one day boundary serves both; Beirut is UTC+2 in winter, so its day boundary can be an hour off then): today, yesterday, the day before, the last 14 days, 7 / 30 days with the change from
  * the period before, all time, today's packages, and the latest payments. «All countries» shows the default country,
  * never a sum of different currencies.
  */

@@ -13,7 +13,7 @@ import type { Prisma, ProPlan, ProSubscription } from "@prisma/client";
 import type { CountrySettings } from "@/lib/countries/settings";
 import { db } from "@/lib/db";
 import { notify } from "@/lib/notify";
-import { toCountry } from "@/lib/countries";
+import { countryConfig, toCountry } from "@/lib/countries";
 import { getCountrySettings } from "@/lib/countries/settings";
 import { grantProCredits } from "@/lib/pro/grants";
 import { PRO_ENDED_BODY, PRO_ENDED_TITLE, PRO_FAILED_BODY, PRO_FAILED_TITLE } from "@/lib/pro/notices";
@@ -115,7 +115,7 @@ async function createRow(
     // The checkout's row is missing: the plan's price now is the best record left
     const offer = proOffersFor(country, settings.proPlans).find((o) => o.id === a.plan);
     price = offer?.price ?? config?.price ?? 0;
-    currency = offer?.currency ?? (country === "SA" ? "SAR" : "JOD");
+    currency = offer?.currency ?? countryConfig(country).currency.code;
     console.warn("[pro] subscription without its checkout payment:", a.stripeSubscriptionId, a.meta.paymentId);
   }
   // A member deleted meanwhile: the row is kept for the records, with no member

@@ -3,7 +3,7 @@
  * Prices and credits are set in Admin → Countries (`country_settings.proPlans`); this module only reads and shapes them.
  * Jordan: shown in JOD, charged in USD cents. Saudi Arabia: SAR.
  */
-import { toCountry } from "@/lib/countries";
+import { countryConfig, toCountry } from "@/lib/countries";
 import { chargeFor } from "@/lib/payments/packages";
 
 export type ProPlanId = "weekly" | "monthly" | "yearly";
@@ -32,7 +32,7 @@ export type ProPlans = Partial<Record<ProPlanId, ProPlanConfig>>;
 export interface ProPlanOffer {
   id: ProPlanId;
   price: number;
-  currency: "JOD" | "SAR";
+  currency: "JOD" | "SAR" | "USD";
   chargeCurrency: "usd" | "sar";
   chargeAmount: number;
   credits: number;
@@ -66,7 +66,7 @@ export function readProPlans(value: unknown): ProPlans | null {
  */
 export function proOffersFor(country: unknown, plans: ProPlans | null): ProPlanOffer[] {
   if (!plans) return [];
-  const currency = toCountry(country) === "SA" ? "SAR" : "JOD";
+  const currency = countryConfig(toCountry(country)).currency.code as ProPlanOffer["currency"];
   const offers: ProPlanOffer[] = [];
   for (const id of PRO_PLAN_IDS) {
     const c = plans[id];

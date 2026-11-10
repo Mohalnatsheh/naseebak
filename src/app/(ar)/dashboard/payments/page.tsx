@@ -692,7 +692,9 @@ function PaymentsContent() {
       </div>
 
       <p className="text-center text-xs leading-relaxed text-muted-foreground">
-        {country.code === "SA" ? (
+        {country.code === "LB" ? (
+          <>الأسعار بالدولار الأمريكي، ويتم الدفع بالدولار عبر Stripe ·{" "}</>
+        ) : country.code === "SA" ? (
           // [NEEDS INPUT] statement descriptor and seller name for the Saudi Stripe account
           <>الأسعار بالريال السعودي، ويتم الدفع بالريال عبر Stripe ·{" "}</>
         ) : (

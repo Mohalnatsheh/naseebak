@@ -27,7 +27,7 @@ export async function GET() {
       /** «د.أ» / «ر.س» */
       currencySymbol: cfg.currency.symbol,
       /** What the card is actually charged, when it differs from the display price (Jordan: USD) */
-      ...(p.chargeCurrency === "usd" && { chargeUsd: p.chargeAmount / 100 }),
+      ...(p.chargeCurrency === "usd" && p.currency !== "USD" && { chargeUsd: p.chargeAmount / 100 }),
       chargeLabel: formatCharge(p),
       ...(p.popular && { popular: true }),
       /** Opening offer: the old price, shown struck through */

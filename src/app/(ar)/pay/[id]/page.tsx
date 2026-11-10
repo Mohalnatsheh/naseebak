@@ -81,7 +81,7 @@ export default async function PayPage({
   const pkg = findAnyPackage(payment.planName);
   // This checkout's own price: the package's may have changed since it started
   const price = pkg ? displayPrice({ ...pkg, price: Number(payment.amount) }) : "";
-  const charged = pkg && pkg.chargeCurrency === "usd" ? formatPaidCharge(payment) : null;
+  const charged = pkg && pkg.chargeCurrency === "usd" && pkg.currency !== "USD" ? formatPaidCharge(payment) : null;
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://naseebak.com";
   const returnUrl = `${appUrl}/payments/return?status=success&pid=${encodeURIComponent(payment.id)}&from=${from === "app" ? "app" : "web"}`;
 

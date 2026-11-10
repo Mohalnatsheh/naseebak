@@ -21,7 +21,8 @@ const handlers = (poll: () => Promise<boolean>) => ({ onMessage: vi.fn(), onRead
 describe("useChatChannel polling (QA chat WC-06)", () => {
   it("backs off while quiet and is fast again after activity", () => {
     expect(nextPollDelay(POLL_MIN_MS, false)).toBe(6000);
-    expect(nextPollDelay(25000, false)).toBe(POLL_MAX_MS);
+    expect(nextPollDelay(7000, false)).toBe(POLL_MAX_MS);
+    expect(POLL_MAX_MS).toBe(8000);
     expect(nextPollDelay(POLL_MAX_MS, true)).toBe(POLL_MIN_MS);
   });
 

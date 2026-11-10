@@ -21,9 +21,13 @@ export interface ChannelHandlers {
   poll: () => Promise<boolean> | void;
 }
 
-/** Polling starts every 4 s, slows down by half each quiet poll up to 30 s, and is back at 4 s on activity */
+/**
+ * Polling starts every 4 s, slows down by half each quiet poll up to 8 s, and is back at 4 s on activity. The cap was
+ * 30 s until QA WC2-03 (2026-11-11): an idle reader missed «يكتب الآن…» (shown TYPING_SHOW_MS on the server). A
+ * poll is about 1 KB, and a hidden tab doesn't poll at all.
+ */
 export const POLL_MIN_MS = 4000;
-export const POLL_MAX_MS = 30000;
+export const POLL_MAX_MS = 8000;
 
 export function nextPollDelay(current: number, gotSomething: boolean): number {
   return gotSomething ? POLL_MIN_MS : Math.min(POLL_MAX_MS, Math.round(current * 1.5));

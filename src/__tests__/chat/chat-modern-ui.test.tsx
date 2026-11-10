@@ -246,14 +246,14 @@ describe("typing", () => {
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
-  it("the other side shows for 5 s after the last signal, or until cleared", () => {
+  it("the other side shows for 8 s after the last signal (WC2-03), or until cleared", () => {
     vi.useFakeTimers();
     const { result } = renderHook(() => usePartnerTyping());
     act(() => result.current.mark());
     expect(result.current.typing).toBe(true);
     act(() => void vi.advanceTimersByTime(4000));
     act(() => result.current.mark());
-    act(() => void vi.advanceTimersByTime(4000));
+    act(() => void vi.advanceTimersByTime(7000));
     expect(result.current.typing).toBe(true);
     act(() => void vi.advanceTimersByTime(1000));
     expect(result.current.typing).toBe(false);

@@ -2,7 +2,8 @@
  * «يكتب الآن…»: who is typing in which chat, in memory only (one PM2 process, CLAUDE.md). Nothing is stored.
  * Clients signal at most every 3 s; the indicator shows for TYPING_SHOW_MS after the last signal.
  */
-export const TYPING_SHOW_MS = 5000;
+/** 8 s (5 s until QA WC2-03): a polling reader (every ≤ 8 s while visible) still sees it */
+export const TYPING_SHOW_MS = 8000;
 /**
  * A live `typing` event is published at most this often per member and chat. Known cost: app 1.0.x refetches the chat
  * on any Ably event, so a typing partner makes it fetch about every 3 s (the client's signal pace) while they type.

@@ -331,6 +331,7 @@ Detail: [docs/reference/suggestions-and-credits.md](docs/reference/suggestions-a
   - Report: «إبلاغ فقط» (`end: false`) files the report and the chat stays open, no block; «إبلاغ وإنهاء المحادثة» (no `end`, old apps) ends it, blocks and closes the match. A reported `messageId` must be the partner's. A closed chat offers «إبلاغ وحظر».
   - Filter (2026-11-11): also digits glued to number words, spaced or dotted app names, English number words in Arabic letters, «signal» only with context. A refused message shows as a gold note with the family button.
   - Polling without Ably: 4 s, slowing to at most 8 s while visible, paused when hidden; typing shows 8 s. The chats list doesn't poll on its own: it follows the badges and my sends.
+- `ChatSummary.endedBy` (`me` | `partner` | `system`, 2026-11-10) sits next to `endedByMe`: an admin's end or the member's own pause reads «انتهت هذه المحادثة.», never «أنهى الطرف الآخر». Older apps read `endedByMe` only.
 - Admin chat views are logged (`[admin-chat-view]`).
 - A block ends the chat for good and keeps it read-only for the blocked person, so reports stay possible.
 - Reports never act on their own (owner, 2026-11-07): no automatic flag, no automatic chat pause. Every report emails the admins, who flag, end the chat or suspend by hand. Report evidence survives account deletion.
@@ -350,7 +351,7 @@ Detail: [docs/reference/suggestions-and-credits.md](docs/reference/suggestions-a
 
 ## Deployment
 
-**Production: `d441363` (Lebanon: `/lb`, WhatsApp codes, USD drafts, «المذهب», Lebanese dialect; Pro «أولوية في الاقتراحات» line; `--db-push` for `Profile.sect`/`prefSect`), deployed 2026-11-10, slot a. Lebanon switched on the same day (owner): active, registration open, no sales (no prices approved), polls off.**
+**Production: `2595f3f` (audit fixes on top of Lebanon `d441363`: suggestions «تراجع» and «شروطي الأساسية» reloads, payment status check, chat catch-up, `endedBy`, «مهتم» for everyone on the suggestions page, one banner at 0 credits there, support bubble off on phones there), deployed 2026-11-10, slot b. Lebanon is on since the same day (owner): active, registration open, no sales (no prices approved), polls off.**
 
 Update that one line after each deploy. Don't list past versions. The live revision is in `/var/www/naseebak/REVISION`.
 
@@ -429,6 +430,8 @@ App 1.2.0+6 (built 2026-11-10 from `d441363`: Play bundle `~/Documents/EvoKey-Pr
 App 1.1.0+4 (live on Play 2026-11-10 with the force update to 1.1.0; iOS uploaded to TestFlight the same day): Pro, chat photos and voice, the modern chat, the QA round 2 fixes and the shared design (type scale, tokens, brand kit, seal, time arc, one banner slot, badge rules). Ships only after the server branch is live (hard gate: an older server strips `end:false`, so «إبلاغ فقط» would end the chat and block); update the store privacy answers first (audio and photos in chat). Details: [naseebak_app/CLAUDE.md](naseebak_app/CLAUDE.md).
 
 App 1.0.1+2 (built 2026-11-09, not uploaded yet; Play has 1.0.0): free «مهتم» reply, niqab answer, chat tabs «النشطة» / «المنتهية», six Crashlytics fixes, `X-App-Platform`, the activity label on cards, the WhatsApp wording for Saudi codes. Once it is live, turn on the force update to 1.0.1. Details: [naseebak_app/CLAUDE.md](naseebak_app/CLAUDE.md).
+
+App 1.2.1+7 (built 2026-11-10 from the audit fixes, Play bundle built and iOS uploaded to TestFlight the same day): the app side of the 2026-11-10 audit (crash on leaving the match page mid-action, counts refreshed on resume and push, tab links, sheets above the tab bar, chat recorder and reply fixes, Pro return reads success/cancel). Details: [naseebak_app/CLAUDE.md](naseebak_app/CLAUDE.md).
 
 API changes must keep old app versions working. Members update slowly.
 

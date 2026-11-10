@@ -51,3 +51,30 @@ describe("login errors are announced (QA WA-16)", () => {
     await waitFor(() => expect(screen.getByRole("alert").textContent).toContain("خطأ تجريبي"));
   });
 });
+
+describe("register errors point at their field by state, not wording (review X3 minor 5)", () => {
+  it("an empty last name marks only the last name; a server error from the code request marks the phone", async () => {
+    const { fireEvent } = await import("@testing-library/react");
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({ ok: false, status: 429, json: async () => ({ error: "محاولات كثيرة" }) } as Response);
+    render(<RegisterPage />);
+    await waitFor(() => expect(document.getElementById("firstName")).not.toBeNull());
+    const first = document.getElementById("firstName") as HTMLInputElement;
+    const last = document.getElementById("lastName") as HTMLInputElement;
+    const phone = document.getElementById("phone") as HTMLInputElement;
+    fireEvent.change(first, { target: { value: "سامي" } });
+    fireEvent.change(phone, { target: { value: "0771000103" } });
+    await act(async () => {
+      fireEvent.click(screen.getAllByRole("button", { name: /رمز/ })[0]);
+    });
+    await waitFor(() => expect(last.getAttribute("aria-invalid")).toBe("true"));
+    expect(last.getAttribute("aria-describedby")).toBe("register-error");
+    expect(first.getAttribute("aria-invalid")).toBeNull();
+    fireEvent.change(last, { target: { value: "خالد" } });
+    await act(async () => {
+      fireEvent.click(screen.getAllByRole("button", { name: /رمز/ })[0]);
+    });
+    // «محاولات كثيرة» names no field: it still points at the number it was about
+    await waitFor(() => expect(phone.getAttribute("aria-invalid")).toBe("true"));
+    expect(last.getAttribute("aria-invalid")).toBeNull();
+  });
+});

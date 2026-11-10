@@ -69,6 +69,16 @@ const typeLabels: Record<string, string> = {
 
 export default function SupportPage() {
   const [tab, setTab] = useState<"new" | "list">("new");
+  function onTabKey(e: React.KeyboardEvent<HTMLButtonElement>) {
+    const order = ["new", "list"] as const;
+    const i = order.indexOf(tab);
+    const next =
+      e.key === "Home" ? 0 : e.key === "End" ? 1 : e.key === "ArrowLeft" || e.key === "ArrowRight" ? (i + 1) % 2 : -1;
+    if (next < 0) return;
+    e.preventDefault();
+    setTab(order[next]);
+    document.getElementById(`support-tab-${order[next]}`)?.focus();
+  }
   const [tickets, setTickets] = useState<Ticket[]>([]);
   // The list failed to load: say so with a retry, never «لا توجد تذاكر» (QA WM-01)
   const [listFailed, setListFailed] = useState(false);
@@ -162,12 +172,17 @@ export default function SupportPage() {
         description="يمكنك إرسال تذكرة دعم أو اقتراح، وسنتواصل معك في أقرب وقت"
       />
 
-      {/* Tabs */}
+      {/* Tabs: the full pattern (tablist, roving focus, tabpanel) */}
       <div role="tablist" aria-label="الدعم" className="flex gap-2 bg-muted/50 p-1 rounded-xl border border-border/50">
         <button
           type="button"
           role="tab"
+          id="support-tab-new"
           aria-selected={tab === "new"}
+          aria-controls="support-panel"
+          // One Tab stop for the pair; ← / → / Home / End move between them (review X3 minor 7)
+          tabIndex={tab === "new" ? 0 : -1}
+          onKeyDown={onTabKey}
           onClick={() => setTab("new")}
           className={cn(
             "flex-1 min-h-11 py-2.5 px-4 rounded-lg text-sm font-semibold transition-all duration-200",
@@ -181,7 +196,12 @@ export default function SupportPage() {
         <button
           type="button"
           role="tab"
+          id="support-tab-list"
           aria-selected={tab === "list"}
+          aria-controls="support-panel"
+          // One Tab stop for the pair; ← / → / Home / End move between them (review X3 minor 7)
+          tabIndex={tab === "list" ? 0 : -1}
+          onKeyDown={onTabKey}
           onClick={() => setTab("list")}
           className={cn(
             "flex-1 min-h-11 py-2.5 px-4 rounded-lg text-sm font-semibold transition-all duration-200",
@@ -194,6 +214,7 @@ export default function SupportPage() {
         </button>
       </div>
 
+      <div id="support-panel" role="tabpanel" aria-labelledby={`support-tab-${tab}`}>
       {tab === "new" ? (
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Type selector */}
@@ -424,6 +445,7 @@ export default function SupportPage() {
           )}
         </div>
       )}
+      </div>
 
       <style jsx global>{`
         @keyframes fadeSlideIn {

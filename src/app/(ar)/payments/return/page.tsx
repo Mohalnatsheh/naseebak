@@ -88,7 +88,7 @@ export default async function PaymentReturnPage({ searchParams }: { searchParams
       )}
       {device === "iphone" && (
         <p className="rounded-xl bg-muted px-4 py-3 text-sm text-foreground">
-          للعودة اضغط «◀ نصيبك» أعلى يسار الشاشة، أو افتح التطبيق من الشاشة الرئيسية.
+          يمكنك العودة بالضغط على «◀ نصيبك» أعلى يسار الشاشة، أو بفتح التطبيق من الشاشة الرئيسية.
         </p>
       )}
       {device !== "android" && (

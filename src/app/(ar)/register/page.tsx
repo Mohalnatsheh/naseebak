@@ -240,7 +240,13 @@ function RegisterPageContent() {
   const [otpSent, setOtpSent] = useState(false);
   const [sendingOtp, setSendingOtp] = useState(false);
 
-  const [error, setError] = useState("");
+  const [error, setErrorText] = useState("");
+  // The field the error is about, stored with it (review X3 minor 5: never guessed from the wording)
+  const [errorAt, setErrorAt] = useState<RegisterField | null>(null);
+  const setError = (message: string, field: RegisterField | null = null) => {
+    setErrorText(message);
+    setErrorAt(field);
+  };
   const [loading, setLoading] = useState(false);
   // The error box sits above the form; on a phone the button is far below it, so bring it into view (QA WA-08)
   const errorRef = useRef<HTMLDivElement>(null);
@@ -283,26 +289,18 @@ function RegisterPageContent() {
   }
 
   /** Which field the current error is about, so that field says it is invalid and points at the message (QA PA-L9) */
-  const errorField: "firstName" | "lastName" | "phone" | "otp" | null = !error
-    ? null
-    : error.includes("الاسم الأول")
-      ? "firstName"
-      : error.includes("اسم العائلة")
-        ? "lastName"
-        : error.includes("رمز")
-          ? "otp"
-          : error.includes("رقم") || error.includes("الجوال") || error.includes("الهاتف")
-            ? "phone"
-            : null;
-  const fieldError = (id: "firstName" | "lastName" | "phone" | "otp") =>
+  const errorField: RegisterField | null = error ? errorAt : null;
+  const fieldError = (id: RegisterField) =>
     errorField === id ? { "aria-invalid": true as const, "aria-describedby": "register-error" } : {};
 
   /** The names' problem, or null: checked before a code is sent too, not only after it (QA WM-16) */
-  function namesError(): string | null {
-    if (arabicLetterCount(form.firstName) < 2) return form.firstName.trim() ? "الاسم الأول يجب أن يكون حرفين على الأقل" : "الاسم الأول مطلوب";
-    if (!isArabicName(form.firstName)) return "الاسم الأول يجب أن يكون بالعربية فقط، بلا أرقام أو رموز";
-    if (arabicLetterCount(form.lastName) < 2) return form.lastName.trim() ? "اسم العائلة يجب أن يكون حرفين على الأقل" : "اسم العائلة مطلوب";
-    if (!isArabicName(form.lastName)) return "اسم العائلة يجب أن يكون بالعربية فقط، بلا أرقام أو رموز";
+  function namesError(): { message: string; field: RegisterField } | null {
+    if (arabicLetterCount(form.firstName) < 2)
+      return { field: "firstName", message: form.firstName.trim() ? "الاسم الأول يجب أن يكون حرفين على الأقل" : "الاسم الأول مطلوب" };
+    if (!isArabicName(form.firstName)) return { field: "firstName", message: "الاسم الأول يجب أن يكون بالعربية فقط، بلا أرقام أو رموز" };
+    if (arabicLetterCount(form.lastName) < 2)
+      return { field: "lastName", message: form.lastName.trim() ? "اسم العائلة يجب أن يكون حرفين على الأقل" : "اسم العائلة مطلوب" };
+    if (!isArabicName(form.lastName)) return { field: "lastName", message: "اسم العائلة يجب أن يكون بالعربية فقط، بلا أرقام أو رموز" };
     return null;
   }
 
@@ -312,12 +310,12 @@ function RegisterPageContent() {
     if (resendIn > 0) return;
     const names = namesError();
     if (names) {
-      setError(names);
+      setError(names.message, names.field);
       return;
     }
     // Say what is wrong with the number here, instead of the server's generic "invalid data"
     if (!isPhoneFor(form.phone, country)) {
-      setError(phoneExampleError(country));
+      setError(phoneExampleError(country), "phone");
       return;
     }
     setSendingOtp(true);
@@ -339,7 +337,7 @@ function RegisterPageContent() {
       }
 
       if (!res.ok) {
-        setError(data.error || "حدث خطأ أثناء إرسال رمز التحقق");
+        setError(data.error || "حدث خطأ أثناء إرسال رمز التحقق", "phone");
         return;
       }
 
@@ -360,7 +358,7 @@ function RegisterPageContent() {
 
     const names = namesError();
     if (names) {
-      setError(names);
+      setError(names.message, names.field);
       return false;
     }
     if (!form.gender) {
@@ -368,19 +366,19 @@ function RegisterPageContent() {
       return false;
     }
     if (!form.phone) {
-      setError(`يرجى إدخال رقم ${phoneWord(country)}`);
+      setError(`يرجى إدخال رقم ${phoneWord(country)}`, "phone");
       return false;
     }
     if (!isPhoneFor(form.phone, country)) {
-      setError(phoneFormatsError(country));
+      setError(phoneFormatsError(country), "phone");
       return false;
     }
     if (!otpSent) {
-      setError("يرجى إرسال رمز التحقق أولاً");
+      setError("يرجى إرسال رمز التحقق أولاً", "otp");
       return false;
     }
     if (!form.otp || form.otp.length !== 6) {
-      setError("يرجى إدخال رمز التحقق المكون من 6 أرقام");
+      setError("يرجى إدخال رمز التحقق المكون من 6 أرقام", "otp");
       return false;
     }
     if (!termsAccepted) {
@@ -437,7 +435,7 @@ function RegisterPageContent() {
         }
 
         if (!verifyRes.ok) {
-          setError(verifyData.error || "رمز التحقق غير صالح");
+          setError(verifyData.error || "رمز التحقق غير صالح", "otp");
           return;
         }
       }
@@ -1155,6 +1153,9 @@ function RegisterPageContent() {
     </AuthShell>
   );
 }
+
+/** The register fields an error can point at (aria-invalid + aria-describedby) */
+type RegisterField = "firstName" | "lastName" | "phone" | "otp";
 
 export default function RegisterPage() {
   return (

@@ -29,7 +29,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const parsed = schema.safeParse((await request.json().catch(() => ({}))) ?? {});
     if (!parsed.success) return NextResponse.json({ error: "بيانات غير صالحة" }, { status: 400 });
     const { report, end } = parsed.data;
-    if (end === false && !report) return NextResponse.json({ error: "اختر سبب البلاغ" }, { status: 400 });
+    if (end === false && !report) return NextResponse.json({ error: "يمكنك اختيار سبب البلاغ" }, { status: 400 });
     await endConversation({ conversationId: id, userId: result.session.user.id, report, end });
     const message = end === false ? "تم إرسال البلاغ" : report ? "تم إنهاء المحادثة والإبلاغ" : "تم إنهاء المحادثة";
     return NextResponse.json({ message, ended: end !== false });

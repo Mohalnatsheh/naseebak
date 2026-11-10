@@ -28,4 +28,20 @@ describe("support «تذاكري» load error (QA WM-01)", () => {
     expect(tabs[0].getAttribute("aria-selected")).toBe("true");
     for (const t of tabs) expect(t.className).toContain("min-h-11");
   });
+
+  it("the full tab pattern: one Tab stop, arrows and Home / End move, the panel names its tab (review X3 minor 7)", () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({ ok: true, json: async () => ({ tickets: [] }) } as Response);
+    render(<SupportPage />);
+    const [fresh, list] = screen.getAllByRole("tab");
+    expect(fresh.tabIndex).toBe(0);
+    expect(list.tabIndex).toBe(-1);
+    expect(fresh.getAttribute("aria-controls")).toBe("support-panel");
+    expect(screen.getByRole("tabpanel").getAttribute("aria-labelledby")).toBe("support-tab-new");
+    fireEvent.keyDown(fresh, { key: "ArrowLeft" });
+    expect(list.getAttribute("aria-selected")).toBe("true");
+    expect(document.activeElement).toBe(list);
+    expect(screen.getByRole("tabpanel").getAttribute("aria-labelledby")).toBe("support-tab-list");
+    fireEvent.keyDown(list, { key: "Home" });
+    expect(fresh.getAttribute("aria-selected")).toBe("true");
+  });
 });

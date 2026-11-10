@@ -965,7 +965,7 @@ export async function endConversation(args: {
 }): Promise<void> {
   const { conversationId, userId, report } = args;
   const end = args.end !== false;
-  if (!end && !report) throw new IntroError("INVALID", "اختر سبب البلاغ");
+  if (!end && !report) throw new IntroError("INVALID", "يمكنك اختيار سبب البلاغ");
   // Read-only access is enough: someone the other person blocked can still report this chat
   const c = await loadForUser(conversationId, userId, { readOnly: true });
   const partner = partnerOf(c, userId);

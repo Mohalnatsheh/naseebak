@@ -29,6 +29,8 @@ describe("S1 match seal", () => {
     // Reduced motion: every animation finishes instantly, so the star is simply drawn (static)
     expect(reducedBlock).toContain("@media (prefers-reduced-motion: reduce)");
     expect(reducedBlock).toContain("animation-duration: 0.01ms !important");
+    // …and no delay keeps anything hidden (review X3 minor 2)
+    expect(reducedBlock).toContain("animation-delay: 0s !important");
   });
 
   it("the small mark is already drawn and never animates", () => {

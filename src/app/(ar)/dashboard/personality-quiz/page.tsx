@@ -325,8 +325,8 @@ export default function PersonalityQuizPage() {
                   <User className="h-6 w-6 text-primary" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h2 className="text-sm font-bold text-foreground">اطّلع على ملفك الشخصي</h2>
-                  <p className="text-xs text-muted-foreground mt-0.5">راجع ملفك الشخصي وأكمل ما ينقصه</p>
+                  <h2 className="text-sm font-bold text-foreground">{female ? "ملفكِ الشخصي" : "ملفك الشخصي"}</h2>
+                  <p className="text-xs text-muted-foreground mt-0.5">{female ? "يمكنكِ مراجعة ملفكِ وإكمال ما ينقصه" : "يمكنك مراجعة ملفك وإكمال ما ينقصه"}</p>
                 </div>
                 <Button asChild size="sm" className="bg-gradient-to-l from-primary to-secondary text-white rounded-xl font-semibold shadow-sm hover:shadow-md transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]">
                   <Link href="/dashboard/profile">

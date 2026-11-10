@@ -590,14 +590,15 @@ export default function ProfileSetupPage() {
       </div>
 
       {/* Auto-save indicator */}
-      {/* Hidden from screen readers while faded out (QA WM-19); announced politely when it shows */}
-      <div
-        role="status"
-        aria-hidden={!savedIndicatorVisible}
-        className={`flex items-center gap-1.5 text-xs text-muted-foreground transition-opacity duration-300 ${savedIndicatorVisible ? "opacity-100" : "opacity-0"}`}
-      >
-        <Save className="h-3 w-3" aria-hidden />
-        <span>تم الحفظ التلقائي</span>
+      {/* The text is put in only while it shows, so the status changes and is announced politely each time (review X3
+          minor 6); the line keeps its height either way */}
+      <div role="status" className="flex min-h-[18px] items-center gap-1.5 text-xs text-muted-foreground">
+        {savedIndicatorVisible && (
+          <>
+            <Save className="h-3 w-3" aria-hidden />
+            <span className="animate-appear">تم الحفظ التلقائي</span>
+          </>
+        )}
       </div>
 
       {error && (

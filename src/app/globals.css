@@ -376,6 +376,8 @@ img.protected-photo {
   *::before,
   *::after {
     animation-duration: 0.01ms !important;
+    /* No waiting either: «… both» with a delay kept cards and public sections hidden until it ended (review X3 minor 2) */
+    animation-delay: 0s !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;

@@ -2,7 +2,6 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 
 vi.mock("@/contexts/dashboard-context", () => ({ useDashboardData: () => ({ country: "JO", profile: { gender: "MALE" } }) }));
-vi.mock("@/components/shared/first-visit-tip", () => ({ FirstVisitTip: () => null }));
 vi.mock("sonner", () => ({ toast: Object.assign(vi.fn(), { error: vi.fn(), info: vi.fn(), success: vi.fn() }) }));
 
 import PhotosPage from "@/app/(ar)/dashboard/photos/page";

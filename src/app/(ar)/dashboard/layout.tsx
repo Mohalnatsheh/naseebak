@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { DashboardSidebar } from "@/components/shared/dashboard-sidebar";
 import { Providers } from "@/components/shared/providers";
 import { OneSignalProvider } from "@/components/shared/onesignal-provider";
-import { NotificationBar } from "@/components/shared/notification-bar";
+import { DashboardColumn } from "@/components/shared/banner-slot";
 import { AlertPopup } from "@/components/shared/alert-popup";
 import { DashboardDataProvider } from "@/contexts/dashboard-context";
 import { Toaster } from "@/components/ui/sonner";
@@ -81,13 +81,12 @@ async function DashboardShell({ children }: { children: React.ReactNode }) {
           <main id="main" tabIndex={-1} className="flex-1 md:pt-0 pt-[58px] pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0 min-w-0">
             {/* At least a screen tall: the footer stays below the fold while a page loads, instead of sitting under the
                 spinner and jumping when the content arrives (QA PA-M4) */}
-            <div className="max-w-5xl mx-auto min-h-[calc(100dvh-58px-4rem)] px-4 md:min-h-dvh md:px-6 py-6 md:py-8">
-              {/* Every page, until notifications are on (replaces the one-time popup) */}
-              <NotificationBar />
+            {/* One of two widths per page, with the one banner slot above the title (design review P1-5 / P1-6) */}
+            <DashboardColumn>
               {/* The admin's popup alert, once per member (admin → Popup Alerts) */}
               <AlertPopup />
               {children}
-            </div>
+            </DashboardColumn>
             <DashboardFooter />
           </main>
         </div>

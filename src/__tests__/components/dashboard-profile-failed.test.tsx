@@ -5,7 +5,6 @@ import { render, screen, fireEvent, waitFor, act } from "@testing-library/react"
 const data = vi.hoisted(() => ({ current: {} as Record<string, unknown> }));
 vi.mock("@/components/dashboard/next-step-card", () => ({ NextStepCard: () => <div>next-step</div> }));
 vi.mock("@/components/intro/guardian-consent-card", () => ({ GuardianConsentCard: () => null }));
-vi.mock("@/components/shared/install-app-card", () => ({ InstallAppCard: () => null }));
 
 import { DashboardDataProvider, useDashboardData } from "@/contexts/dashboard-context";
 
@@ -199,7 +198,7 @@ describe("dashboard home when the counts failed (QA WA-02)", () => {
     const { default: DashboardPage } = await import("@/app/(ar)/dashboard/page");
     render(<DashboardPage />);
     await waitFor(() => expect(screen.getByText("تعذّر تحميل المحادثات.")).toBeTruthy());
-    await waitFor(() => expect(screen.getByText("تعذّر تحميل التوافقات المقترحة.")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("تعذّر تحميل الاقتراحات الجديدة.")).toBeTruthy());
     expect(screen.queryByText(/تبدأ المحادثة عندما/)).toBeNull();
     expect(screen.queryByText(/لديك اقتراحات بانتظار الطرف الآخر/)).toBeNull();
     vi.doUnmock("@/contexts/dashboard-context");

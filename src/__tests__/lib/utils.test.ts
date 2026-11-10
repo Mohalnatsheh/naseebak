@@ -51,3 +51,11 @@ describe("parsePagination with bad input", () => {
     expect(parsePagination(new URLSearchParams("page=abc"), 20)).toEqual({ page: 1, pageSize: 20, skip: 0 });
   });
 });
+
+describe("cn knows the design tokens", () => {
+  it("keeps a type-scale size next to a text colour", async () => {
+    const { cn } = await import("@/lib/utils");
+    expect(cn("text-caption", "text-accent-foreground")).toBe("text-caption text-accent-foreground");
+    expect(cn("text-sm", "text-label")).toBe("text-label");
+  });
+});

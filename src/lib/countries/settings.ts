@@ -180,7 +180,7 @@ export function countryWarnings(s: CountrySettings, env: NodeJS.ProcessEnv = pro
     out.push({ level: "error", message: "Registration is open but no SMS provider is set: sign-up codes will fail (only test numbers work)." });
   }
   if (codesByWhatsapp && (provider === "UNIFONIC" || provider === "BROADNET") && !providerConfigured(provider, env)) {
-    out.push({ level: "warning", message: `Sign-in codes go by WhatsApp (VerifyWay). ${provider === "UNIFONIC" ? "Unifonic" : "Broadnet"} isn't set, so «Send a test SMS» and SMS notices won't work.` });
+    out.push({ level: "warning", message: `Sign-in codes go by WhatsApp (VerifyWay). ${provider === "UNIFONIC" ? "Unifonic" : "Broadnet"} isn't set, so SMS notices won't work and «Send a test SMS» sends a real sign-in code by WhatsApp instead.` });
   } else if (provider !== "NONE" && provider !== "MOCK" && !providerConfigured(provider, env)) {
     out.push({
       level: s.active ? "error" : "warning",

@@ -220,7 +220,7 @@ function CountryCard({ row, onSaved }: { row: CountryRow; onSaved: () => void })
     const data = await res?.json().catch(() => ({}));
     setTesting(false);
     if (!res?.ok) setMessage({ ok: false, text: data?.error || "Test failed" });
-    else if (data.message) setMessage({ ok: !!data.sent, text: data.sent ? `${data.message} (${data.to})` : "WhatsApp code was not accepted (see server log)" });
+    else if (data.message) setMessage({ ok: !!data.sent, text: data.sent ? `${data.message} (${data.to})` : "No SMS provider is set; the WhatsApp sign-in code was not accepted (see server log)" });
     else setMessage({ ok: !!data.sent, text: data.sent ? `Test SMS accepted by ${data.provider} for ${data.to}` : `${data.provider} did not accept the test SMS (see server log)` });
   }
 
@@ -339,7 +339,8 @@ function CountryCard({ row, onSaved }: { row: CountryRow; onSaved: () => void })
               <div key={p.id} className="space-y-1.5">
                 <Label htmlFor={`${p.id}-price`}>{p.credits} credits ({p.currency})</Label>
                 <Input id={`${p.id}-price`} dir="ltr" type="text" inputMode="decimal" value={priceTexts[p.id] ?? ""} onChange={(e) => setPrice(p.id, toDecimalText(e.target.value))} />
-                {p.chargeCurrency === "usd" && <p className="text-xs text-muted-foreground">Card is charged {formatCharge(p)}</p>}
+                {/* Only where the shown currency differs from the charged one (Jordan: dinar shown, dollars charged) */}
+                {p.chargeCurrency === "usd" && p.currency !== "USD" && <p className="text-xs text-muted-foreground">Card is charged {formatCharge(p)}</p>}
               </div>
             ))}
           </div>

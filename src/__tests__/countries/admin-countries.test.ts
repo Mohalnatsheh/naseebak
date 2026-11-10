@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const db = vi.hoisted(() => ({ countrySetting: { findMany: vi.fn(), upsert: vi.fn() }, user: { groupBy: vi.fn() } }));
 const admin = vi.hoisted(() => ({ ok: true }));
@@ -168,5 +168,38 @@ describe("admin countries", () => {
     expect(sms.sendOtpCode).toHaveBeenCalledWith("9613123456", expect.stringMatching(/^\d{6}$/));
     expect(text).not.toContain(sentCode);
     expect(sms.sendSms).not.toHaveBeenCalled();
+  });
+
+  describe("test SMS where codes go by WhatsApp", () => {
+    beforeEach(() => {
+      vi.stubEnv("SMS_MOCK", "");
+      vi.stubEnv("VERIFYWAY_API_KEY", "vw-key");
+      sms.otpChannel.mockResolvedValue("whatsapp");
+      sms.sendSms.mockResolvedValue(true);
+      sms.sendOtpCode.mockResolvedValue(true);
+    });
+    afterEach(() => {
+      vi.unstubAllEnvs();
+      sms.otpChannel.mockResolvedValue("sms");
+    });
+
+    it("Saudi Arabia with Unifonic configured keeps testing Unifonic by SMS", async () => {
+      vi.stubEnv("UNIFONIC_APP_SID", "sid");
+      vi.stubEnv("UNIFONIC_SENDER_ID", "Naseebak");
+      const res = await testSms(req({ phone: "0501234567" }), p("SA"));
+      expect(await res.json()).toEqual({ sent: true, provider: "UNIFONIC", to: expect.any(String) });
+      expect(sms.sendSms).toHaveBeenCalledWith("966501234567", expect.stringContaining("رسالة تجربة"));
+      expect(sms.sendOtpCode).not.toHaveBeenCalled();
+    });
+
+    it("Lebanon with no SMS provider gets a real WhatsApp code, never echoed back", async () => {
+      const res = await testSms(req({ phone: "71123456" }), p("LB"));
+      const body = await res.json();
+      expect(body).toMatchObject({ sent: true, provider: "WHATSAPP" });
+      const sentCode = sms.sendOtpCode.mock.calls[0][1];
+      expect(sms.sendOtpCode).toHaveBeenCalledWith("96171123456", expect.stringMatching(/^\d{6}$/));
+      expect(JSON.stringify(body)).not.toContain(sentCode);
+      expect(sms.sendSms).not.toHaveBeenCalled();
+    });
   });
 });

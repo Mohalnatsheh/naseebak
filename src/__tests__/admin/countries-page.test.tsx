@@ -46,4 +46,31 @@ describe("Admin → Countries (design P2)", () => {
     expect(screen.getByText("Credit packages").closest("details")?.open).toBe(true);
     expect(firstSection.closest("details")?.open).toBe(false);
   });
+
+  it("says what the card is charged only where it differs from the price shown (Jordan, not Lebanon's dollars)", async () => {
+    const row = (code: "JO" | "LB", en: string, currency: string) => ({
+      settings: { ...settings, code, pricesApproved: false },
+      display: { name: { ar: en, en }, flag: { emoji: "" }, dialCode: "", currency: { code: currency }, isDefault: code === "JO" },
+      warnings: [],
+      sms: { provider: "NONE", configured: false },
+      packages: [],
+      pricesApproved: false,
+      goLive: [],
+      selling: false,
+      members: { total: 0, active7d: 0, new7d: 0 },
+    });
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ countries: [row("JO", "Jordan", "JOD"), row("LB", "Lebanon", "USD")], server: null }),
+    } as Response);
+    await act(async () => {
+      render(<AdminCountriesPage />);
+    });
+    const jordan = (await screen.findAllByText(/credits \(JOD\)/)).length;
+    expect(jordan).toBeGreaterThan(0);
+    expect(screen.getAllByText(/credits \(USD\)/).length).toBeGreaterThan(0);
+    // One «Card is charged» line per Jordanian package, none for Lebanon's
+    expect(screen.queryAllByText(/^Card is charged/)).toHaveLength(jordan);
+  });
 });

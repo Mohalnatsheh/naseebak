@@ -3,11 +3,8 @@
 import { useState, useEffect, useEffectEvent, useCallback, Suspense } from "react";
 import Link from "@/components/shared/site-link";
 import { useRouter, useSearchParams } from "next/navigation";
+import dynamic from "next/dynamic";
 import { getStripe } from "@/lib/stripe-client";
-import {
-  EmbeddedCheckoutProvider,
-  EmbeddedCheckout,
-} from "@stripe/react-stripe-js";
 import {
   Loader2,
   CheckCircle2,
@@ -44,6 +41,16 @@ import { PRO_PAGE_PATH } from "@/lib/pro/plans";
 import { PageLoading } from "@/components/shared/page-loading";
 import { FixedToast, type FixedToastMessage } from "@/components/shared/fixed-toast";
 import { isLocalHostname } from "@/lib/local-host";
+
+/** Stripe's embedded checkout and Stripe.js load only once a checkout has started (QA PA-M3, WP2-06) */
+const StripeEmbeddedCheckout = dynamic(() => import("@/components/payments/embedded-checkout"), {
+  ssr: false,
+  loading: () => (
+    <div className="flex min-h-[400px] items-center justify-center">
+      <Loader2 className="h-6 w-6 animate-spin text-primary" aria-label="جارٍ التحميل…" />
+    </div>
+  ),
+});
 
 /** The currency symbol of a history row, as on the package cards (QA WEB-PAY-08): «د.أ», «ر.س», «$» for old USD rows */
 const CURRENCY_SYMBOLS: Record<string, string> = { JOD: "د.أ", SAR: "ر.س", USD: "$" };
@@ -424,12 +431,7 @@ function PaymentsContent() {
 
         <Card className="overflow-hidden border-primary/20">
           <CardContent className="p-0">
-            <EmbeddedCheckoutProvider
-              stripe={getStripe()}
-              options={{ clientSecret: checkoutSecret }}
-            >
-              <EmbeddedCheckout className="min-h-[400px]" />
-            </EmbeddedCheckoutProvider>
+            <StripeEmbeddedCheckout clientSecret={checkoutSecret} />
           </CardContent>
         </Card>
       </div>

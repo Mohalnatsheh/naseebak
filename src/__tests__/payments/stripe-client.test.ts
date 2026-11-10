@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 
 const loadStripe = vi.hoisted(() => vi.fn(async () => ({})));
-vi.mock("@stripe/stripe-js", () => ({ loadStripe }));
+vi.mock("@stripe/stripe-js/pure", () => ({ loadStripe }));
 
 describe("getStripe (QA WA-18 / WEB-PAY-18)", () => {
   it("never loads Stripe at import, and answers null without a publishable key", async () => {

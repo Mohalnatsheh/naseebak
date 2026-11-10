@@ -1,4 +1,7 @@
-import { loadStripe, type Stripe } from "@stripe/stripe-js";
+// The `pure` entry adds Stripe's script only when loadStripe() is called: the main entry adds it as soon as this module
+// is imported (QA WP2-06)
+import { loadStripe } from "@stripe/stripe-js/pure";
+import type { Stripe } from "@stripe/stripe-js";
 
 /**
  * Stripe.js, loaded only when a checkout actually needs it (QA WA-18 / WEB-PAY-18): never at import, so a page

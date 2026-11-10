@@ -45,6 +45,10 @@ Dual auth: phone+OTP for users, email+password for admins. Providers in `src/lib
 
 **Admin:** `signIn("admin-credentials", { email, password })` → bcrypt verify → `/admin`. Seed (local only): see `prisma/seed.mjs`. Production uses a random password kept in `/root/.naseebak-admin-pass` on the server — never run the seed against production.
 
+- **Admin sign-in limits (2026-11-11, ADM-07, `src/lib/auth-authorize.ts`):** failures are counted in Postgres over 15 minutes: 5 per email + IP and 20 per IP lock that sign-in for the rest of the window (signIn answers `rate_limited:<minutes>`). 50 failures for one email across addresses never refuse a correct password: they only email the admins, once per window. The email is matched without case.
+- **Admin sign-out** revokes every web session, as for members (`User.sessionsRevokedAt`, ADM-01). `requireAdmin` re-reads the role on every request.
+- **Removing an admin** (Admin → Settings, `DELETE /api/admin/settings/admins/[id]`): demotes, never deletes (role → USER, admin password cleared, web sessions revoked; an account with no phone is also suspended), so notes and decisions keep their author. Refused for yourself (400 `SELF`) and for the last admin who can still sign in (409 `LAST_ADMIN`; the count and the change run in one serializable transaction). Add Admin is validated with zod.
+
 **Route protection** (`src/lib/auth.config.ts`, run by `src/proxy.ts` — Next 16 name for middleware): `/admin/*` → admin role required. `/dashboard/*` → auth required. `/login`, `/register` → redirect if logged in.
 
 ## Database schema

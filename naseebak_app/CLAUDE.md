@@ -38,7 +38,14 @@ needed a release.
   caption; nothing under 12), `AppRadius`, `AppSpace`, `AppMotion` (every animation off with
   `MediaQuery.disableAnimations`). Feature code never writes a raw `fontSize:` (`test/design_kit_test.dart`).
   Shared pieces (one avatar with the veil and the chat's time arc, the match seal, line-art empty states, press shrink,
-  card skeletons) are in `shared/widgets/brand_kit.dart`. No faces, ever.
+  card skeletons) are in `shared/widgets/brand_kit.dart`. No faces, ever. The website uses the same names and rules:
+  `../docs/reference/design-system.md`.
+- **No opacity layers in animations (QA A-L10):** an `Opacity` / `FadeTransition` / `AnimatedOpacity` between 0 and 1
+  makes Impeller log «SetInheritedOpacity should never be called…» every frame. Fade with `AlphaFade`
+  (`shared/widgets/alpha_fade.dart`, a colour filter that scales alpha and drops itself at 1 while keeping the subtree)
+  or put the alpha in the colours (text, shadows, fills).
+- **Badges by meaning** (`BadgeTone`): red act now (requests), gold good news, navy counts. The «الاقتراحات» tab shows who
+  said «مهتم» in gold when any, else the new cards in navy (`suggestionsBadgeOf`, same rule as the website).
 - **Never test against production by accident.** Every build defaults to `https://naseebak.com`; local runs need
   `--dart-define=API_BASE_URL=http://10.0.2.2:3020` (emulator) and a local backend (see README).
 - **Parity with the website:** the app covers every member page. Form lists and options come from
@@ -139,7 +146,8 @@ needed a release.
     active) / the time left while not urgent.
   - **Status bar:** one slim bar by priority (`chatStatusBar`, same as the website): (1) ending soon, only when it can
     be extended; (2) the family step to act on (offer or request received), with «تبقّى …» inline in the last days; (3)
-    ending soon with no action; (4) the push chip until dismissed. The family step is re-read on open, on return from
+    ending soon with no action; (4) a family step with nothing to do; (5) the push chip until dismissed. The **offer**
+    waits until both have written: the chat GET's `bothWrote` (whole chat; older servers: the loaded messages decide). The family step is re-read on open, on return from
     the match page and about once a minute while the chat is open.
   - **Composer:** a pill field with the photo button inside, one round button: mic when empty, send with text. Starter
     chips (from the server's `starters`) only while I haven't written and no reply is open; a tap fills the field.
@@ -153,7 +161,9 @@ needed a release.
     tints it. A swipe the system cancels never replies.
   - **Menu (long-press a sent message):** reactions ❤️ 👍 😊 🤲 and «رد» while the chat is open, «نسخ» for text,
     «إبلاغ عن الرسالة» for the partner's messages: the sheet quotes the message and `POST /api/chats/{id}/end` sends
-    `report.messageId` (the details stay the member's own). No delete.
+    `report.messageId` (the details stay the member's own). No delete. The report sheet offers «إبلاغ فقط» (`end: false`,
+    the chat stays open) or «إبلاغ وإنهاء المحادثة» (says it blocks and closes the match); a closed chat offers
+    «إبلاغ وحظر» and never says it ended. An older server ignores `end: false` and ends the chat.
   - **Reactions:** optimistic, then the server's list, reverted on failure; a chip under the bubble (tap mine to
     remove, ≥ 44 px). Live `reaction` events update without a fetch; without Ably every poll sends `reactionsSince` (the
     last answer's `polledAt` less 5 s, server time only) and applies `reactionUpdates` to older messages.
@@ -229,6 +239,17 @@ Changing one of these on the server must keep old app versions working (members 
   `ALLOW_BUILTIN_TEST_PHONES=false` to see Pro in the app (codes then come from `/api/dev/sms-outbox`), and the mock
   Pro checkout returns a relative url the app refuses (https only), so finish it with
   `POST /api/dev/mock-checkout/<paymentId> {"outcome":"paid"}`.
+  **Also in 1.1.0+4 (QA round 2 and the design pass, 2026-11-10/11):** one Cairo type scale and the token sheet,
+  brand kit (one avatar with the veil and the time arc, the match seal drawn in the match dialog with a haptic, line
+  art, card skeletons), the shared suggestion card, sand «مجلس» rooms (chat, family steps, guardian), one banner slot on
+  home and suggestions, badge colours by meaning, the names «الاقتراحات / التوافقات / بانتظار ردّهم», each match tile's
+  next step (server `nextStep`), report only vs report and end, the family offer after both wrote, a paused member's
+  Pro note and cancel, family steps open the guardian form first, Android 14 back goes home first and one task in
+  recents (`taskAffinity` removed), the last chat reopens after process death (30 min), system text up to 2×, Arabic
+  Material labels («إغلاق»), no opacity layers in the splash, sign-in and intro (`AlphaFade`).
+  **Device checks still needed before upload:** predictive back and recents on an Android 14 phone (A2-M1, A2-M2),
+  frame times on a real Android phone (A2-M6), and the launch / sign-in log on a device with Impeller free of
+  «SetInheritedOpacity» (A-L10). The report-only option needs the server branch live first.
 - **Planned, not built (next version):** a `purchase` analytics event, and popup taps:
   `features/alerts/alert_gate.dart` posts `/api/alerts/{id}/dismiss` with no body, so admin → Popup Alerts can't tell an
   app tap from a close — send `{ "action": "TAPPED" | "CLOSED" }` like the website does (the server already accepts it;

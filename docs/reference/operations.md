@@ -36,6 +36,8 @@ Server, cron, backups, Nginx, images and performance. Deploy steps are in `CLAUD
 - `/api/suggestions/feed?count=1` returns only `total` (slim select, no cards): the suggestions page uses it for the two tabs not shown; the app never sends it.
 - `countNewItems` uses `countMutualTabs` with credit on interest.
 - The daily job logs each task's time (`[cron] task <name>: <ms>ms` in `out.log`, `out-0.log` before 5 Nov); a run takes 47–60s and `naseebak-daily-job` goes through nginx (`proxy_read_timeout 60s`), so curl can log a 504 while the job finishes in Node — point the script at `127.0.0.1:3000` or raise the timeout for `/api/cron/` (not done, needs the owner's OK).
+- **Caching (2026-11-11, PA-L6, `next.config.ts` `headers()`):** every `/api/*` answer is `private, no-store` unless it is one of the public routes that set their own (countries, registration status, tracking, blog, public stats); `headers()` overrides a route's own header, so those are left out of the default. The blog and public stats cache briefly only on success (`src/lib/public-cache.ts`). `/images/*`: a week, revalidated in the background.
+- **First load (PA-M1, PA-L11):** the dashboard layout preloads its first API calls while the HTML parses; nav links no longer prefetch every route; the Google tag and Tawk load when the browser is idle after load; Stripe.js loads only on pages with a checkout; the (ar) 404 is server-only (it used to ship the landing's client code to every dashboard page).
 - Still slow but left: `/api/auth/send-otp` (Broadnet SMS, ~1.5s), `/api/admin/stats` (loads every suggestion row, admin only), weekly suggestions in the daily job (each `autoSuggestForUser` reloads the candidate pool).
 
 ## App path and logs

@@ -130,7 +130,9 @@ src/
 - `DashboardDataProvider` shares `profile`, `counts` and unread data, polling `/api/me/counts` every 30s while the tab is visible.
 - Member cards share `src/components/shared/person-card.tsx`.
 - `src/lib/auth.ts`: `requireUser()` accepts the web session or an app `Authorization: Bearer` token. Admin routes never accept Bearer.
-- Website sign-out (`signOutAndUnlinkPush` → `POST /api/auth/logout`) stamps `User.sessionsRevokedAt`: every web session signed in before it is refused in the `jwt` callback (`src/lib/session-revocation.ts`, routes and proxy). Prefetch/RSC answers never refresh the session cookie (2026-11-10). App Bearer sessions are separate.
+- Website sign-out (`signOutAndUnlinkPush` → `POST /api/auth/logout`) stamps `User.sessionsRevokedAt`: every web session signed in before it is refused in the `jwt` callback (`src/lib/session-revocation.ts`, routes and proxy). Prefetch/RSC answers never refresh the session cookie (2026-11-10). Admin sign-out does the same (2026-11-11). App Bearer sessions are separate.
+- Admin sign-in: 5 failures per email + IP or 20 per IP in 15 minutes lock it; 50 per email across addresses only email the admins and never refuse a correct password. Removing an admin demotes (never yourself, never the last admin who can sign in). Detail: [docs/reference/member-rules.md](docs/reference/member-rules.md#auth).
+- Caching: every `/api/*` answer is `private, no-store` by default (`next.config.ts` `headers()`, which overrides a route's own, so the public routes that set theirs are excluded); `/images/*` a week. A new public cached route must be added to that exclusion.
 
 ## Brand and colours
 
@@ -151,6 +153,7 @@ src/
 - Gradients: `from-primary to-secondary`, `from-accent to-accent/70`. Subtle: `bg-primary/5`, `bg-primary/10`.
 - Photos: warm editorial, brand blue and gold, **never people's faces** (hands, homes, objects, Amman scenery). Always `next/image`, WebP ≤ ~180 KB. Dashboard pages have no photos.
 - Page titles use `PageHeader`, never hand-built gradient boxes.
+- **Design system (2026-11-11, website and app share the names):** gold text or icons on a light background use `accent-ink` (gold fills only on navy); `sand` for the chat and family rooms; one type scale (`text-display` … `text-caption`, nothing under 12 px); radius 8/12/16/24; motion tokens, all instant under reduced motion; two page widths; **one banner slot** above the title (`pickBanner` priority); badges red = act, gold = good news, navy = count. A guard test fails on raw hex, forbidden palettes, text under 12 px. One set of names: «الاقتراحات», «التوافقات», «المحادثات»; tabs «جديدة», «مهتمون بك», «بانتظار ردّهم». Detail: [docs/reference/design-system.md](docs/reference/design-system.md).
 
 ## Arabic and RTL
 
@@ -219,7 +222,7 @@ src/
 - Past payments report their own amount (`formatPaidCharge`), never today's price.
 - `arabic_checkout` (Payment Element on `/pay/<id>`) is off by default. Its state on production is set in Admin → Settings.
 - Test accounts never see payments in the app.
-- Pausing the account, or asking to delete it, stops a live Pro renewal at the period end, no refund, with a notice (`stopProRenewalOnLeave`). Reactivating never resumes it (2026-11-10).
+- Pausing the account, or asking to delete it, stops a live Pro renewal at the period end, no refund, with a notice (`stopProRenewalOnLeave`). Reactivating never resumes it (2026-11-10). A renewal already failing (`PAST_DUE`) ends at once instead. A paused member can read `/api/pro` and cancel; checkout and resume stay refused.
 - A paid Pro invoice that never made Pro live (a duplicate, or a renewal after the end) tells the member and is marked `Payment.proNotLive` («Refund decision» in Admin → Payments).
 - **Pro membership** (switch `pro_enabled`, code `src/lib/pro/`, not deployed yet):
   - Its own dashboard page `/dashboard/pro` (owner, 2026-11-10): plans or «اشتراكي», the Stripe return (`?pro=success|cancel`) and Pro notices land there. `/dashboard/payments` keeps credit packages and history plus one small «عضوية Pro» link card; that card and the «عضوية Pro» nav entries show only when the member can buy a plan or is Pro (`proPageShown`, `counts.pro.showPage`).
@@ -261,13 +264,13 @@ src/
 - Keep `UNPAID_TITLE` and the «صفر: اشح» top-up line. Admin Insights count them by text.
 - **Notice SMS, narrowed** (owner, 2026-11-07; off 2026-10-29 to 11-07). `sms_notices_enabled` is **on** in production since 2026-11-07: only a match or a «مهتم» (`SMS_NOTICE_EVENTS`), only to members with no push seen in the last 14 days, one per day, each text one Arabic SMS (≤ 70 characters). No automatic chat or expiry SMS. Admin «send now» is not narrowed.
 - Saudi sign-in codes go by WhatsApp (`sendOtpCode`, VerifyWay). The reply repeats the code, so it is never logged.
-- A chat push reads «رسالة جديدة من <name>», never the message text.
+- A chat push reads «رسالة جديدة من <name>», never the message text. The bell keeps one row per chat (`upsertChatBell` reuses the chat's newest row, even a read one).
 - Ask push permission with `requestPushPermission()` and sign out with `signOutAndUnlinkPush()`, never the bare browser prompt or `signOut()`.
 - More: [docs/reference/notifications-and-sms.md](docs/reference/notifications-and-sms.md).
 
 ## Suggestion flow
 
-Feed tabs: `new` = «جديدة» (website «الجديد»), `interested` = «مهتمون بك» (website «مهتمون بالتحدث معك»), `waiting` = «بانتظار ردهم» (website «أنا مهتم بالتحدث معهم»). A fourth website tab, «توافق متبادل», lists matches.
+Feed tabs (one set of names on the website and the app since 2026-11-11): `new` = «جديدة», `interested` = «مهتمون بك», `waiting` = «بانتظار ردّهم». A fourth website tab, «التوافقات», lists matches.
 
 | Constant | Value | Where |
 |---|---|---|
@@ -290,7 +293,7 @@ Feed tabs: `new` = «جديدة» (website «الجديد»), `interested` = «�
 - Every «مهتم» on an undecided visible card tells the other person «شخص أبدى اهتمامه بك» (`notifyInterestShown`, once per Amman day).
 - `lastActiveAt` is used for sorting and never sent to clients. `activityLabel` sends only «نشط اليوم» or «نشط هذا الأسبوع».
 - **`memberSuggestStatus`** (`src/lib/admin/members-suggest-reason.ts`) is read-only and **must mirror `generate`** (`src/lib/matching/auto-suggest.ts`). Change one, change the other.
-- Cards top up on page open, on save, after a decision, on expiry and in the daily job. The morning job handles up to `WEEKLY_SUGGEST_LIMIT` (600, `cron/suggestions.ts`) members, most recently active first; the top-up also reveals their hidden cards.
+- Cards top up on page open, on save, after a decision, on expiry and in the daily job. The morning job and Admin «Generate All» (a background run with progress) handle up to `WEEKLY_SUGGEST_LIMIT` (600, `cron/suggest-limit.ts`, db-free) members, most recently active first; the top-up also reveals their hidden cards. On the website the page-open top-up rides on the first «جديدة» feed request (`?topup=1`, which also returns `emptyReason`); the app keeps calling `GET /api/suggestions`.
 
 Current notes:
 
@@ -318,7 +321,10 @@ Detail: [docs/reference/suggestions-and-credits.md](docs/reference/suggestions-a
   - Reply: `replyToId` (same chat, else 400) → `replyTo {id, mine, kind, snippet}`. Reactions ❤️ 👍 😊 🤲, one per member: `POST …/messages/[messageId]/reaction {emoji|null}`. Typing: `POST …/typing` (3 s client pace, 5 s shown, in memory). Starters in the GET while I haven't written. None of these in an ended or blocked chat; reactions make no push.
   - «إبلاغ عن الرسالة» sends `report.messageId` to `/api/chats/[id]/end` (`Report.messageId`, same chat only).
   - Without Ably: the GET returns `partnerTyping` and `polledAt`; a poll with `reactionsSince` (last `polledAt` − 5 s) gets `reactionUpdates`. Own typing wakes the fast poll.
-  - Status bar, one line by priority: expiry while extendable, family step (+ days left), expiry, push chip. Mic: hold to record, slide to cancel, slide up to lock; stops and waits at 3 min or in the background.
+  - Status bar, one line by priority (`chatStatusBar`, website and app): expiry while extendable; the family offer or a request received (+ days left); expiry with no action; another family step; push chip. The offer waits until both have written (`bothWrote` in the chat GET, whole chat). Mic: hold to record, slide to cancel, slide up to lock; stops and waits at 3 min or in the background.
+  - Report: «إبلاغ فقط» (`end: false`) files the report and the chat stays open, no block; «إبلاغ وإنهاء المحادثة» (no `end`, old apps) ends it, blocks and closes the match. A reported `messageId` must be the partner's. A closed chat offers «إبلاغ وحظر».
+  - Filter (2026-11-11): also digits glued to number words, spaced or dotted app names, English number words in Arabic letters, «signal» only with context. A refused message shows as a gold note with the family button.
+  - Polling without Ably: 4 s, slowing to at most 8 s while visible, paused when hidden; typing shows 8 s. The chats list doesn't poll on its own: it follows the badges and my sends.
 - Admin chat views are logged (`[admin-chat-view]`).
 - A block ends the chat for good and keeps it read-only for the blocked person, so reports stay possible.
 - Reports never act on their own (owner, 2026-11-07): no automatic flag, no automatic chat pause. Every report emails the admins, who flag, end the chat or suspend by hand. Report evidence survives account deletion.
@@ -365,6 +371,7 @@ ssh -i ~/.ssh/naseebak_vps_ed25519 -o IdentitiesOnly=yes root@146.103.57.224 nas
 - A build failing with `Cannot read properties of null (reading '1')` under `nextFontGoogleFontLoader` is a bad Google Fonts download. The live site is untouched: run the deploy again.
 - Before `--db-push`, check what it will run: `npx prisma migrate diff --from-config-datasource --to-schema <file> --script` in `/var/www/naseebak` with `.env` loaded (read-only).
 - **Before the Pro deploy:** `--db-push` (additive: new tables `pro_subscriptions`, `pro_credit_grants`, an enum value, new `Message` columns). Add four events to the Stripe webhook endpoint: `invoice.paid`, `invoice.payment_failed`, `customer.subscription.updated`, `customer.subscription.deleted` (without them nothing renews). New dependencies `heic-convert`, `ffmpeg-static` (its postinstall downloads about 70 MB from github.com; `FFMPEG_PATH` overrides) and the pinned `sharp@0.34.5` arrive only through `pnpm install --frozen-lockfile`: confirm the deploy runs it. PM2's cwd must be the slot directory (`heic-worker.mjs` is found via `process.cwd()`). Nginx: `client_max_body_size` at least 11m and a `proxy_read_timeout` of at least 120s on `/api/chats/*/media` (HEIC and ffmpeg jobs queue). The owner checks the webhook endpoint's API version and the Billing "after all retries fail" setting. Set Pro prices in Admin → Countries first, with `pro_enabled` still off. Detail: [docs/reference/payments.md](docs/reference/payments.md#pro-membership).
+- **The `feature/pro-qa` deploy (Pro + modern chat + QA round 2):** `--db-push` adds, all additive: tables `pro_subscriptions`, `pro_credit_grants`, `message_reactions`; enums `ProPlan`, `ProStatus`, `MessageKind` and the ledger value `PRO_GRANT`; columns `User.sessionsRevokedAt`, `Message.kind/mediaPath/mediaType/mediaDurationSec/mediaWidth/mediaHeight/replyToId/reactedAt`, `Report.messageId`, `Payment.proSubscriptionId/proNotLive`, `country_settings.proPlans`. Check the diff first (above). Clear the idle slot's `.next/cache` (step 2): the design pass added many Tailwind classes.
 - Env: `/var/www/naseebak/.env`. `NEXT_PUBLIC_*` needs a rebuild. Any other `.env` change: `sudo -u naseebak pm2 restart naseebak-a --update-env` (use the live slot).
 - Logs: `/var/log/naseebak/out.log`, `error.log`, `deploy.log`, `cron.log`. Requests: `/var/log/nginx/naseebak.access.log` (`rt=`, `urt=`).
 - Never use `/root/backups/naseebak-deploy-20261103-2112.bak`: it no longer works.
@@ -396,6 +403,8 @@ Parked, or waiting for the owner:
 - The cap on hidden cards per recipient (G53) and a popular member at 0 credits holding many paid «مهتم» cards (G57).
 - Comparing «مهتم» → match by feed order on or after 2026-11-18, and by score band.
 - About 2026-11-14, measure `feed_active_first` and the SMS: «مهتم» → match by how many «مهتم» already waited on the other side (before, 24 Oct – 4 Nov: 32% with none, 12% with 1–4, 6% with 5–9, 3% with 20+), and the answer rate for members without push (before: 25%, 44% with push). 64% of «مهتم» went unanswered.
+- Before `pro_enabled` goes on: the owner approves the Pro wording in the refund policy and terms (WP2-01), including the open 14-day refund question.
+- Device checks still needed for app 1.1.0+4: Android 14 predictive back and one task in recents (A2-M1, A2-M2), Android frame times on a real phone (A2-M6), no Impeller opacity warnings at launch and sign-in (A-L10).
 - Everything else open: [docs/platform-review-2026-11-06.md](docs/platform-review-2026-11-06.md).
 
 ## What needs an app version
@@ -410,6 +419,8 @@ Needs a new app version:
 - The filter tip on the app's empty «جديدة» page.
 - The website's «الرصيد أرخص» saving line. A live chat widget in the app.
 - Pro in the app: plans screen (calls `POST /api/pro/checkout`, opens the URL in the browser), «اشتراكي», sending photos and voice notes (picker, recorder, microphone permission), photo and voice bubbles, the Pro badge. Old apps still show media messages as text («حدّث التطبيق»). The website has all of it already.
+
+App 1.1.0+4 (branch, not built for the stores): Pro, chat photos and voice, the modern chat, the QA round 2 fixes and the shared design (type scale, tokens, brand kit, seal, time arc, one banner slot, badge rules). Ships only after the server branch is live; update the store privacy answers first (audio and photos in chat). Details: [naseebak_app/CLAUDE.md](naseebak_app/CLAUDE.md).
 
 App 1.0.1+2 (built 2026-11-09, not uploaded yet; Play has 1.0.0): free «مهتم» reply, niqab answer, chat tabs «النشطة» / «المنتهية», six Crashlytics fixes, `X-App-Platform`, the activity label on cards, the WhatsApp wording for Saudi codes. Once it is live, turn on the force update to 1.0.1. Details: [naseebak_app/CLAUDE.md](naseebak_app/CLAUDE.md).
 

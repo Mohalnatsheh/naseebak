@@ -36,7 +36,8 @@ Config via env: `BROADNET_USER`, `BROADNET_PASS`, `BROADNET_SENDER_ID` (`naseeba
 - Always use `notify()` / `notifyMany()` from `src/lib/notify.ts`: stores the in-app row with `metadata.url` and sends push only when the user's preference allows (SYSTEM always; `preference:` overrides the type's key).
 - Chat status notices (expiry, 2 days left, day-7 nudge, extended, ended, paused) are CHAT rows but pass `preference: CHAT_NOTICE_PREFERENCE` (`introRequests`, `src/lib/notification-prefs.ts`), so turning off «رسائل المحادثات» only mutes message pushes.
 - Links resolve via `notificationUrl()` in `src/lib/notification-links.ts`.
-- Chat messages are push-only (no in-app row), collapsed per conversation and throttled to 1 per 3 minutes; the push reads «رسالة جديدة من <name>», never the message text (lock screens).
+- Chat message pushes are push-only (`pushOnly`), collapsed per conversation and throttled to 1 per 3 minutes; the push reads «رسالة جديدة من <name>», never the message text (lock screens).
+- The bell gets **one CHAT row per chat and member** (`upsertChatBell`, `src/lib/chat/bell.ts`): each message rewrites the chat's newest row, even one already read, which comes back unread at the top («لديك N رسائل جديدة من <name>»); a second unread row of the same chat is marked read; reading the chat marks it read (`clearChatBell`). Same row shape for every client (QA A2-L7, 2026-11-11). In the app, a tagged in-app banner replaces FCM's tray notice for the same chat.
 - `sendPushNotification` turns same-site paths into full `https://naseebak.com/...` URLs (OneSignal needs one for a tap to open the page).
 - Only devices that allowed notifications are reachable (check with OneSignal's `GET /apps/{app}/users/by/external_id/{userId}`); test accounts are excluded from announcements.
 

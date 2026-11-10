@@ -10,6 +10,7 @@ Detail moved out of `CLAUDE.md`, one file per area. If a file here and `CLAUDE.m
 - [Payments](payments.md): Stripe flow, checkout page, prices and conversion work. Failure reasons are in admin-panel.md.
 - [Operations](operations.md): Server, cron, backups, Nginx, images and performance. Deploy steps are in `CLAUDE.md`.
 - [Website UI](website-ui.md): Dashboard and landing page patterns.
+- [Design system](design-system.md): Tokens, type scale, banner slot, shared components, signature touches and the one set of names (website and app).
 - [Marketing and content](marketing-and-content.md): Polls, blog, SEO, analytics, live chat and the Pixel.
 - [Admin panel](admin-panel.md): Admin pages, moderation, dashboards and reports.
 - [Countries and the mobile app](countries-and-app.md): Multi-country rules and how the server serves the app. The app's own rules are in `naseebak_app/CLAUDE.md`.

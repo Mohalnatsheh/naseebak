@@ -10,7 +10,7 @@ export async function compressImage(file: File, maxSide = 1600, quality = 0.82):
     const img = await new Promise<HTMLImageElement>((resolve, reject) => {
       const el = new Image();
       el.onload = () => resolve(el);
-      el.onerror = () => reject(new Error("تعذّر قراءة الصورة. جرّب صورة بصيغة JPG أو PNG"));
+      el.onerror = () => reject(new Error("تعذّر قراءة الصورة. يمكنك تجربة صورة بصيغة JPG أو PNG"));
       el.src = url;
     });
     const scale = Math.min(1, maxSide / Math.max(img.naturalWidth, img.naturalHeight));

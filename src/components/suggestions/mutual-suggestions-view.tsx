@@ -26,7 +26,7 @@ import { CandidateDetails } from "@/components/suggestions/candidate-details";
 import { DealbreakersCard } from "@/components/suggestions/dealbreakers-card";
 import { MatchesView } from "@/components/matches/matches-view";
 import { InterestDialog, rechargeToContinue, type IntroPreferenceChoice } from "@/components/suggestions/interest-dialog";
-import { FREE_REPLY_SHORT } from "@/lib/suggestions/copy";
+import { freeReplyShort } from "@/lib/suggestions/copy";
 import { trackEvent } from "@/lib/analytics";
 import { useDashboardData } from "@/contexts/dashboard-context";
 import { formatDate } from "@/lib/countries";
@@ -224,9 +224,31 @@ export function MutualSuggestionsView({
     }
   }, []);
 
+  // «توافق متبادل» shows the matches list: only the tab counts are needed, not the hidden feed page (QA WM-07)
+  const loadCounts = useCallback(async () => {
+    const seq = ++loadSeq.current;
+    setLoading(false);
+    const all = await Promise.all(
+      TAB_KEYS.map((k) =>
+        fetch(`/api/suggestions/feed?tab=${k}&page=1&count=1`)
+          .then((r) => (r.ok ? r.json() : null) as Promise<{ total?: number } | null>)
+          .catch(() => null)
+      )
+    );
+    if (seq !== loadSeq.current) return;
+    setTotals((prev) => {
+      const next = { ...prev };
+      TAB_KEYS.forEach((k, i) => {
+        if (typeof all[i]?.total === "number") next[k] = all[i]!.total!;
+      });
+      return next;
+    });
+  }, []);
+
   useEffect(() => {
-    load(tab, page);
-  }, [load, tab, page]);
+    if (showMatches) void loadCounts();
+    else void load(tab, page);
+  }, [load, loadCounts, showMatches, tab, page]);
 
   // The tab lives in the URL (?tab=new|interested|waiting): notice links, the home cards, refresh and
   // back/forward all land on the right category
@@ -271,8 +293,31 @@ export function MutualSuggestionsView({
     return !!res?.ok;
   }
 
+  /**
+   * After a decision the card leaves: the focus goes to the next card's «مهتم» (or the card, or the list), never the
+   * page body (QA PA-M9). `nextFocus` is the index the next card will have.
+   */
+  const nextFocus = useRef<number | null>(null);
+  // The «مهتم» dialog closed after a decision: it must not pull the focus back to the button that is gone
+  const decidedInDialog = useRef(false);
+  const focusNextCard = useCallback(() => {
+    const index = nextFocus.current;
+    if (index === null) return;
+    nextFocus.current = null;
+    requestAnimationFrame(() => {
+      const cards = Array.from(document.querySelectorAll<HTMLElement>("[data-feed-card]"));
+      const card = cards[Math.min(index, cards.length - 1)];
+      const target = card?.querySelector<HTMLElement>("[data-primary-action]:not(:disabled)") ?? card ?? document.getElementById("feed-panel");
+      target?.focus();
+    });
+  }, []);
+  useEffect(() => {
+    if (!interestFor) focusNextCard();
+  }, [items, interestFor, focusNextCard]);
+
   /** «لا»: hide the card now, offer «تراجع» for a few seconds, then send it */
-  function declineWithUndo(item: OpenFeedItem) {
+  function declineWithUndo(item: OpenFeedItem, index = 0) {
+    nextFocus.current = index;
     setNotice(null);
     removeAndRefill(item.id);
     // The count of the tab the card was on (a «لا» on «مهتمون بالتحدث معك» used to lower «الجديد»)
@@ -466,7 +511,7 @@ export function MutualSuggestionsView({
     {
       key: "interested",
       label: g("مهتمون بالتحدث معك", "مهتمون بالتحدث معكِ"),
-      subtitle: g("أشخاص أبدوا اهتمامهم بالتعرف إليك. «مهتم» منك هنا توافق فوري.", "أشخاص أبدوا اهتمامهم بالتعرف إليكِ. «مهتم» منكِ هنا توافق فوري."),
+      subtitle: g("أشخاص أبدوا اهتمامهم بالتعرف إليك. «مهتم» منك هنا توافق فوري.", "أشخاص أبدوا اهتمامهم بالتعرف إليكِ. «مهتمة» منكِ هنا توافق فوري."),
       icon: Heart,
     },
     {
@@ -608,10 +653,10 @@ export function MutualSuggestionsView({
           <MatchesView embedded />
         </div>
       ) : (
-      <div id="feed-panel" role="tabpanel" aria-labelledby={`feed-tab-${tab}`}>
+      <div id="feed-panel" role="tabpanel" tabIndex={-1} aria-labelledby={`feed-tab-${tab}`} className="outline-none">
       {loading ? (
-        <div className="flex flex-col items-center justify-center py-16 gap-4">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <div role="status" className="flex min-h-[50vh] flex-col items-center justify-center py-16 gap-4">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" aria-hidden />
           <p className="text-sm text-muted-foreground">جاري التحميل...</p>
         </div>
       ) : loadFailed && items.length === 0 ? (
@@ -684,10 +729,10 @@ export function MutualSuggestionsView({
             )}
             {tab === "new" && emptyReason === "no_candidates" && (
               <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
-                <Button asChild size="sm" className="rounded-lg">
+                <Button asChild size="sm" className="rounded-lg max-md:min-h-11">
                   <a href="#dealbreakers">شروطي الأساسية</a>
                 </Button>
-                <Button asChild size="sm" variant="outline" className="rounded-lg">
+                <Button asChild size="sm" variant="outline" className="rounded-lg max-md:min-h-11">
                   <Link href="/dashboard/profile/edit?step=3">تفضيلاتي في الملف الشخصي</Link>
                 </Button>
               </div>
@@ -702,7 +747,7 @@ export function MutualSuggestionsView({
               <Heart className="h-4 w-4 shrink-0" aria-hidden="true" />
               <p className="min-w-0 flex-1">
                 <span className="font-semibold">{g("شخص مهتم بك ينتظر ردّك.", "شخص مهتم بكِ ينتظر ردّكِ.")}</span>{" "}
-                {g("الرد بـ«مهتم» مجاني حتى برصيد صفر.", "الرد بـ«مهتم» مجاني حتى برصيد صفر.")}
+                {g("الرد بـ«مهتم» مجاني حتى برصيد صفر.", "الرد بـ«مهتمة» مجاني حتى برصيد صفر.")}
               </p>
             </div>
           ) : tab === "interested" && outOfCredits && topUp ? (
@@ -710,7 +755,7 @@ export function MutualSuggestionsView({
               <Heart className="h-4 w-4 shrink-0" aria-hidden="true" />
               <p className="min-w-0 flex-1">
                 <span className="font-semibold">{g("شخص مهتم بك ينتظر ردّك.", "شخص مهتم بكِ ينتظر ردّكِ.")}</span>{" "}
-                {g("انتهى رصيدك، اشحن لتردّ بـ«مهتم».", "انتهى رصيدكِ، اشحني لتردّي بـ«مهتم».")}
+                {g("انتهى رصيدك، اشحن لتردّ بـ«مهتم».", "انتهى رصيدكِ، اشحني لتردّي بـ«مهتمة».")}
               </p>
               <Button asChild size="sm" className="h-10 rounded-lg">
                 <Link href={`/dashboard/payments?buy=${encodeURIComponent(topUp.id)}`}>
@@ -725,7 +770,7 @@ export function MutualSuggestionsView({
                 <span className="font-semibold">{g("انتهى رصيدك.", "انتهى رصيدكِ.")}</span>{" "}
                 {g(
                   "يمكنك تصفّح اقتراحاتك والرد بـ«لا» مجاناً، واشحن رصيدك لتختار «مهتم».",
-                  "يمكنكِ تصفّح اقتراحاتكِ والرد بـ«لا» مجاناً، واشحني رصيدكِ لتختاري «مهتم»."
+                  "يمكنكِ تصفّح اقتراحاتكِ والرد بـ«لا» مجاناً، واشحني رصيدكِ لتختاري «مهتمة»."
                 )}
               </p>
               <Link href="/dashboard/payments" className="font-semibold underline underline-offset-4">
@@ -740,7 +785,7 @@ export function MutualSuggestionsView({
             const waiting = tab === "waiting";
             const declined = waiting && !!item.declined;
             return (
-              <div key={item.id} style={{ animation: `fadeSlideIn 0.4s ease-out ${index * 0.08}s both` }}>
+              <div key={item.id} data-feed-card="" tabIndex={-1} className="outline-none" style={{ animation: `fadeSlideIn 0.4s ease-out ${index * 0.08}s both` }}>
                 <PersonCard
                   name={c.firstName}
                   verified={c.isVerified}
@@ -811,14 +856,14 @@ export function MutualSuggestionsView({
                       {tab === "interested" && (!outOfCredits || isFreeReply(item)) && (
                         <p className="mb-3 flex items-center gap-1.5 text-xs font-medium text-foreground/85">
                           <Heart className="h-3.5 w-3.5 text-accent" aria-hidden="true" />
-                          {g("«مهتم» الآن توافق فوري", "«مهتم» الآن توافق فوري")}
+                          {g("«مهتم» الآن توافق فوري", "«مهتمة» الآن توافق فوري")}
                         </p>
                       )}
                       {!waiting && creditOnInterest && (
                         isFreeReply(item) ? (
                           <p className="mb-3 flex items-center gap-1.5 text-xs font-medium text-emerald-700">
                             <Coins className="h-3.5 w-3.5" aria-hidden="true" />
-                            {FREE_REPLY_SHORT}
+                            {freeReplyShort(viewerFemale)}
                           </p>
                         ) : outOfCredits ? (
                           <p className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-amber-800">
@@ -838,6 +883,9 @@ export function MutualSuggestionsView({
                         {!waiting && (
                           <>
                             <Button
+                              data-primary-action=""
+                              // The person's name in the button's name: one «مهتم» per card on the page (QA PA-L2)
+                              aria-label={`${g("مهتم", "مهتمة")} · ${c.firstName}`}
                               onClick={() => onInterested(item)}
                               disabled={acting === item.id || (outOfCredits && !isFreeReply(item))}
                               className="flex-1 h-12 bg-gradient-to-l from-primary to-secondary text-primary-foreground shadow-md shadow-primary/20 rounded-xl font-bold text-base"
@@ -846,12 +894,13 @@ export function MutualSuggestionsView({
                             </Button>
                             <Button
                               variant="outline"
-                              onClick={() => declineWithUndo(item)}
-                              // «لا» is always free, also at 0 credits
+                              aria-label={`لا · ${c.firstName}`}
+                              onClick={() => declineWithUndo(item, index)}
+                              // «لا» is always free, also at 0 credits. Neutral, as in the app: red is for errors only (QA DS-09)
                               disabled={acting === item.id}
-                              className="h-12 px-6 border-destructive/30 text-destructive/80 hover:bg-destructive/5 hover:text-destructive rounded-xl font-bold"
+                              className="h-12 px-6 rounded-xl font-bold text-foreground"
                             >
-                              <X className="h-5 w-5 me-1" />لا
+                              لا
                             </Button>
                           </>
                         )}
@@ -916,12 +965,23 @@ export function MutualSuggestionsView({
           costOnly={!!interestFor && interestFor.kind !== "mutual"}
           free={!!interestFor && isFreeReply(interestFor)}
           likedYou={!!interestFor?.likedYou}
+          onCloseAutoFocus={(e) => {
+            if (!decidedInDialog.current) return;
+            decidedInDialog.current = false;
+            e.preventDefault();
+            focusNextCard();
+          }}
           onConfirm={async (choice) => {
             const item = interestFor;
             if (!item) return false;
             // The dialog stays open (busy) until the server answers; fixable errors are shown in it
+            const index = items.findIndex((i) => i.id === item.id);
             const result = await decide(item, true, choice, true);
             if (!result.ok && result.dialogError) return result.dialogError;
+            if (result.ok) {
+              nextFocus.current = Math.max(0, index);
+              decidedInDialog.current = true;
+            }
             setInterestFor(null);
             return result.ok;
           }}

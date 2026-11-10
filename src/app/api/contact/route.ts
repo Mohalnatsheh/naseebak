@@ -39,7 +39,7 @@ export async function POST(request: Request) {
     const byEmail = email ? rateLimit(`contact:email:${email.toLowerCase()}`, { maxAttempts: 3, windowMs: hour }) : { success: true };
     const byPhone = phone ? rateLimit(`contact:phone:${phone}`, { maxAttempts: 3, windowMs: hour }) : { success: true };
     if (!byIp.success || !byEmail.success || !byPhone.success) {
-      return NextResponse.json({ error: "أرسلت عدة رسائل مؤخراً. حاول مرة أخرى بعد قليل." }, { status: 429 });
+      return NextResponse.json({ error: "أرسلت عدة رسائل مؤخراً. يمكنك المحاولة مرة أخرى بعد قليل." }, { status: 429 });
     }
 
     const { message } = parsed.data;
@@ -54,6 +54,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true }, { status: 201 });
   } catch (error) {
     console.error("Contact form error:", error);
-    return NextResponse.json({ error: "تعذّر إرسال رسالتك. حاول مرة أخرى." }, { status: 500 });
+    return NextResponse.json({ error: "تعذّر إرسال رسالتك. يمكنك المحاولة مرة أخرى." }, { status: 500 });
   }
 }

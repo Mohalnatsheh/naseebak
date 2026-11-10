@@ -1,6 +1,12 @@
 /**
  * Profile completeness calculator — field-level scoring with section weights.
  */
+import { countryConfig } from "@/lib/countries";
+
+/** The `tribe` field's label in a country (same as profile-options' tribeLabel, without its option tables) */
+function tribeLabel(country: unknown): string {
+  return countryConfig(country).words.tribe;
+}
 
 /** Minimum completeness (%) a user needs before they can receive suggestions. */
 export const SUGGESTIONS_MIN_COMPLETENESS = 50;
@@ -53,6 +59,8 @@ export interface UserForCompleteness {
   identityDoc?: IdentityDocData | null;
   personalityResult?: PersonalityResultData | null;
   photos?: PhotoData[] | null;
+  /** The member's country: field names follow it (absent: Jordan) */
+  country?: string | null;
 }
 
 export interface CompletenessSection {
@@ -166,7 +174,8 @@ export function calculateCompleteness(user: UserForCompleteness): CompletenessRe
 
   // Section 5: Family & Guardian (10%)
   const familyFields: [string, unknown, string][] = [
-    ["القبيلة/العائلة", profile?.tribe, "tribe"],
+    // The field's own name in the member's country («العشيرة» / «القبيلة أو الأسرة», QA WM-20)
+    [tribeLabel(user.country), profile?.tribe, "tribe"],
     ["منطقة أصل العائلة", profile?.familyOriginArea, "familyOriginArea"],
     ["عدد الإخوة", profile?.numberOfSiblings, "numberOfSiblings"],
     ["معلومات ولي الأمر", user.parentInfo?.id, "parentInfo"],

@@ -102,7 +102,7 @@ function LoginPageContent() {
         data = await res.json();
       } catch {
         // Nginx may return HTML on 503 rate limit
-        setError("الخادم مشغول حالياً. حاول مرة أخرى بعد قليل.");
+        setError("الخادم مشغول حالياً. يمكنك المحاولة مرة أخرى بعد قليل.");
         setShake(true);
         setTimeout(() => setShake(false), 600);
         return;
@@ -120,7 +120,7 @@ function LoginPageContent() {
       setOtpByWhatsapp(data.channel === "whatsapp");
       trackEvent("otp_requested", { context: "login" });
     } catch {
-      setError("حدث خطأ غير متوقع. حاول مرة أخرى.");
+      setError("حدث خطأ غير متوقع. يمكنك المحاولة مرة أخرى.");
       setShake(true);
       setTimeout(() => setShake(false), 600);
     } finally {
@@ -164,7 +164,7 @@ function LoginPageContent() {
       try {
         verifyData = await verifyRes.json();
       } catch {
-        setError("الخادم مشغول حالياً. حاول مرة أخرى بعد قليل.");
+        setError("الخادم مشغول حالياً. يمكنك المحاولة مرة أخرى بعد قليل.");
         setShake(true);
         setTimeout(() => setShake(false), 600);
         return;
@@ -192,13 +192,13 @@ function LoginPageContent() {
       if (result?.error) {
         const waitMinutes = rateLimitedMinutes(result.code);
         if (waitMinutes) {
-          setError(`محاولات دخول كثيرة غير ناجحة. حاول مرة أخرى بعد ${arabicCount(waitMinutes, { one: "دقيقة", two: "دقيقتين", few: "دقائق", many: "دقيقة" })}.`);
+          setError(`محاولات دخول كثيرة غير ناجحة. يمكنك المحاولة مرة أخرى بعد ${arabicCount(waitMinutes, { one: "دقيقة", two: "دقيقتين", few: "دقائق", many: "دقيقة" })}.`);
           setShake(true);
           setTimeout(() => setShake(false), 600);
           return;
         }
         // User exists but login failed (suspended, or the code was used up)
-        setError("فشل تسجيل الدخول. قد يكون حسابك معلقاً أو حاول مرة أخرى لاحقاً.");
+        setError("فشل تسجيل الدخول. قد يكون حسابك معلقاً، أو يمكنك المحاولة مرة أخرى لاحقاً.");
         setShake(true);
         setTimeout(() => setShake(false), 600);
         return;
@@ -209,7 +209,7 @@ function LoginPageContent() {
         router.refresh();
       }
     } catch {
-      setError("حدث خطأ غير متوقع. حاول مرة أخرى.");
+      setError("حدث خطأ غير متوقع. يمكنك المحاولة مرة أخرى.");
       setShake(true);
       setTimeout(() => setShake(false), 600);
     } finally {
@@ -620,7 +620,7 @@ function LoginPageContent() {
 
           {/* Footer text */}
           <p
-            className="mt-8 px-4 text-center text-xs leading-relaxed text-muted-foreground/60 text-balance"
+            className="mt-8 px-4 text-center text-xs leading-relaxed text-muted-foreground text-balance"
             style={{
               animation: mounted
                 ? "fadeSlideUp 0.5s ease-out 0.6s both"
@@ -628,10 +628,10 @@ function LoginPageContent() {
             }}
           >
             بتسجيل دخولك فإنك توافق على{" "}
-            <Link href="/terms" className="hover:underline text-muted-foreground/80">
+            <Link href="/terms" className="hover:underline text-muted-foreground">
               شروط الاستخدام
             </Link>{" "}
-            و<Link href="/privacy" className="hover:underline text-muted-foreground/80">
+            و<Link href="/privacy" className="hover:underline text-muted-foreground">
               سياسة الخصوصية
             </Link>
           </p>

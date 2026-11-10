@@ -280,7 +280,7 @@ export function Navbar() {
 
               {/* Bottom decoration: in the flow, so it never sits on top of the buttons */}
               <div className="mt-auto flex shrink-0 justify-center pb-8 pt-4">
-                <p className="text-xs text-muted-foreground/40">
+                <p className="text-xs text-muted-foreground">
                   الزواج بالحلال
                 </p>
               </div>

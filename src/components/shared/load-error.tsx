@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
  * A load failed: say so (instead of a misleading empty state) and offer a retry.
  */
 export function LoadError({
-  message = "تعذّر تحميل البيانات. تحقّق من الاتصال وحاول مرة أخرى.",
+  message = "تعذّر تحميل البيانات. يمكنك التحقق من الاتصال والمحاولة مرة أخرى.",
   onRetry,
   className = "",
 }: {

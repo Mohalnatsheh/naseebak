@@ -306,7 +306,7 @@ export default function PrivacyPage() {
             </p>
 
             <p
-              className="mx-auto mt-4 text-sm text-muted-foreground/70"
+              className="mx-auto mt-4 text-sm text-muted-foreground"
               style={{ animation: "fadeSlideUp 0.8s ease-out 0.6s both" }}
             >
               آخر تحديث: 6 نوفمبر 2026

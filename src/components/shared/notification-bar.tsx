@@ -79,38 +79,50 @@ export function NotificationBar() {
 
   const blocked = stage === "blocked";
   const Icon = blocked ? BellOff : BellRing;
+  // The profile didn't load (no gender yet): words that fit everyone, never a masculine command (QA WM-08)
+  const known = gender === "MALE" || gender === "FEMALE";
   const text = blocked
-    ? forViewer(
-        gender,
-        "الإشعارات مغلقة على هذا الجهاز، فلن تعرف بالتوافق والرسائل فور حدوثها.",
-        "الإشعارات مغلقة على هذا الجهاز، فلن تعرفي بالتوافق والرسائل فور حدوثها."
-      )
-    : forViewer(
-        gender,
-        "الإشعارات غير مفعّلة: لن تعرف بالاقتراحات والتوافق فور حدوثها.",
-        "الإشعارات غير مفعّلة: لن تعرفي بالاقتراحات والتوافق فور حدوثها."
-      );
+    ? known
+      ? forViewer(
+          gender,
+          "الإشعارات مغلقة على هذا الجهاز، فلن تعرف بالتوافق والرسائل فور حدوثها.",
+          "الإشعارات مغلقة على هذا الجهاز، فلن تعرفي بالتوافق والرسائل فور حدوثها."
+        )
+      : "الإشعارات مغلقة على هذا الجهاز."
+    : known
+      ? forViewer(
+          gender,
+          "الإشعارات غير مفعّلة: لن تعرف بالاقتراحات والتوافق فور حدوثها.",
+          "الإشعارات غير مفعّلة: لن تعرفي بالاقتراحات والتوافق فور حدوثها."
+        )
+      : "الإشعارات غير مفعّلة على هذا الجهاز.";
 
   return (
     <>
       <div
         role="region"
         aria-label="الإشعارات"
-        className="mb-4 flex items-center gap-2.5 rounded-xl border border-accent/40 bg-accent/10 px-3 py-2.5 text-xs sm:gap-3 sm:text-sm"
+        // Wraps instead of squeezing: at 200% text the line keeps its width and the button and ✕ go under it (QA WM-05)
+        className="mb-4 flex flex-wrap items-center gap-2.5 rounded-xl border border-accent/40 bg-accent/10 px-3 py-2.5 text-xs sm:gap-3 sm:text-sm"
       >
         <Icon className="h-5 w-5 flex-shrink-0 text-accent-foreground" aria-hidden="true" />
-        <p className="min-w-0 flex-1 leading-relaxed text-foreground/90">{text}</p>
-        <Button onClick={() => setOpen(true)} className="h-11 flex-shrink-0">
-          {forViewer(gender, "فعّلها الآن", "فعّليها الآن")}
-        </Button>
-        <button
-          type="button"
-          onClick={hide}
-          aria-label="لاحقاً"
-          className="-me-1 flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted"
-        >
-          <X className="h-4 w-4" aria-hidden="true" />
-        </button>
+        <p className="min-w-0 flex-1 basis-48 leading-relaxed text-foreground/90">{text}</p>
+        <div className="ms-auto flex flex-shrink-0 items-center gap-1">
+          <Button
+            onClick={() => setOpen(true)}
+            className="h-auto min-h-11 whitespace-normal focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+          >
+            {known ? forViewer(gender, "فعّلها الآن", "فعّليها الآن") : "تفعيل الإشعارات"}
+          </Button>
+          <button
+            type="button"
+            onClick={hide}
+            aria-label="لاحقاً"
+            className="-me-1 flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          >
+            <X className="h-4 w-4" aria-hidden="true" />
+          </button>
+        </div>
       </div>
       {sheet}
     </>

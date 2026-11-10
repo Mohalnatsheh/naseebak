@@ -32,7 +32,7 @@ export function MyProCard({ state, onChanged }: { state: MyProState; onChanged: 
       const res = await fetch(`/api/pro/${action}`, { method: "POST" });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(data.error || "تعذّر تحديث الاشتراك الآن. حاول مرة أخرى بعد قليل.");
+        setError(data.error || "تعذّر تحديث الاشتراك الآن. يمكنك المحاولة مرة أخرى بعد قليل.");
         return;
       }
       setConfirmOpen(false);

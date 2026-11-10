@@ -780,7 +780,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
     return (
       <div className="mx-auto max-w-md py-20 text-center">
         <p className="font-semibold">تعذّر تحميل المحادثة</p>
-        <p className="mt-1 text-sm text-muted-foreground">تحقق من اتصالك وحاول مرة أخرى.</p>
+        <p className="mt-1 text-sm text-muted-foreground">يمكنك التحقق من اتصالك والمحاولة مرة أخرى.</p>
         <Button variant="outline" className="mt-4" onClick={() => fetchLatest("replace")}>
           إعادة المحاولة
         </Button>
@@ -790,8 +790,9 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
 
   if (!conversation) {
     return (
-      <div className="flex h-[60vh] items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div role="status" className="flex h-[60vh] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" aria-hidden />
+        <span className="sr-only">جارٍ التحميل…</span>
       </div>
     );
   }

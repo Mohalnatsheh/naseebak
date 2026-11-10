@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Loader2, Sparkles, Heart, Bell, ChevronLeft, Zap, Inbox, Coins } from "lucide-react";
+import { Sparkles, Heart, Bell, ChevronLeft, Zap, Inbox, Coins } from "lucide-react";
 import { useDashboardData } from "@/contexts/dashboard-context";
 import { cn } from "@/lib/utils";
 import { GuardianConsentCard } from "@/components/intro/guardian-consent-card";
@@ -108,10 +108,15 @@ export default function DashboardPage() {
   }, [loading, chatOn, chatsTry]);
 
   if (loading) {
+    // Shaped like the page (greeting, «بانتظار ردّك», chats, profile), about as tall as it, so nothing jumps when it
+    // arrives (QA WM-02 / PA-M4)
     return (
-      <div className="flex flex-col items-center justify-center py-24 gap-4">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" aria-hidden />
-        <p className="text-sm text-muted-foreground">جارٍ تحميل صفحتك…</p>
+      <div role="status" className="mx-auto max-w-3xl space-y-5 pb-8">
+        <span className="sr-only">جارٍ تحميل صفحتك…</span>
+        <div className="h-[72px] animate-pulse rounded-2xl bg-primary/15" aria-hidden />
+        <div className="h-48 animate-pulse rounded-2xl bg-primary/5" aria-hidden />
+        <div className="h-56 animate-pulse rounded-2xl bg-primary/5" aria-hidden />
+        <div className="h-28 animate-pulse rounded-2xl bg-primary/5" aria-hidden />
       </div>
     );
   }
@@ -121,7 +126,7 @@ export default function DashboardPage() {
     return (
       <div className="py-12">
         <LoadError
-          message={profileFailed ? "تعذّر تحميل بياناتك. تحقّق من الاتصال وحاول مرة أخرى." : "تعذّر تحميل البيانات. حاول مرة أخرى."}
+          message={profileFailed ? "تعذّر تحميل بياناتك. يمكنك التحقق من الاتصال والمحاولة مرة أخرى." : "تعذّر تحميل البيانات. يمكنك المحاولة مرة أخرى."}
           onRetry={
             retrying
               ? undefined
@@ -140,7 +145,7 @@ export default function DashboardPage() {
     return (
       <div className="py-12">
         <LoadError
-          message="تعذّر تحميل صفحتك. تحقّق من الاتصال وحاول مرة أخرى."
+          message="تعذّر تحميل صفحتك. يمكنك التحقق من الاتصال والمحاولة مرة أخرى."
           onRetry={
             retrying
               ? undefined
@@ -227,11 +232,11 @@ export default function DashboardPage() {
         <Link
           href="/dashboard/notifications"
           aria-label={unreadCount > 0 ? `الإشعارات (${unreadCount} غير مقروءة)` : "الإشعارات"}
-          className="relative hidden h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/10 hover:bg-white/15 md:flex"
+          className="relative hidden h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/10 hover:bg-white/15 md:flex"
         >
           <Bell className="h-5 w-5" aria-hidden />
           {unreadCount > 0 && (
-            <span aria-hidden className="absolute -top-1 -start-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-white">
+            <span aria-hidden className="absolute -top-1 -start-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-[11px] font-bold text-white">
               {unreadCount > 99 ? "99+" : unreadCount}
             </span>
           )}
@@ -279,7 +284,7 @@ export default function DashboardPage() {
                 </span>
                 <Link
                   href={w.href}
-                  className="inline-flex h-10 shrink-0 items-center gap-1 rounded-xl bg-primary px-3.5 text-sm font-bold text-primary-foreground transition hover:bg-primary/90"
+                  className="inline-flex h-11 shrink-0 items-center gap-1 rounded-xl bg-primary px-3.5 text-sm font-bold text-primary-foreground transition hover:bg-primary/90"
                 >
                   {w.cta}
                   <ChevronLeft className="h-4 w-4" aria-hidden />
@@ -289,7 +294,7 @@ export default function DashboardPage() {
           </ul>
           {/* «مهتم» needs a credit: say so here, before the member taps through */}
           {outOfCredits && zeroLine && (
-            <Link href="/dashboard/payments" className="flex items-center gap-2 border-t border-border/60 bg-amber-50/70 px-4 py-2.5 text-xs font-semibold text-amber-900">
+            <Link href="/dashboard/payments" className="flex min-h-11 items-center gap-2 border-t border-border/60 bg-amber-50/70 px-4 py-2.5 text-xs font-semibold text-amber-900">
               <Coins className="h-4 w-4 shrink-0" aria-hidden />
               {zeroLine}
             </Link>
@@ -391,7 +396,7 @@ export default function DashboardPage() {
                       >
                         {s.candidate.firstName.charAt(0)}
                       </span>
-                      <span className="absolute inset-x-0 -bottom-1 mx-auto w-fit rounded-full bg-accent px-1.5 text-[10px] font-bold leading-4 text-accent-foreground">
+                      <span className="absolute inset-x-0 -bottom-1 mx-auto w-fit rounded-full bg-accent px-1.5 text-[11px] font-bold leading-4 text-accent-foreground">
                         {Math.round(s.compatibilityScore)}%
                       </span>
                     </span>
@@ -423,10 +428,13 @@ export default function DashboardPage() {
               role="img"
               aria-label={`اكتمال الملف ${completionPercent}%`}
             >
-              <span className="absolute inset-1 flex items-center justify-center rounded-full bg-card text-xs font-bold text-primary">{completionPercent}%</span>
+              <span dir="ltr" className="absolute inset-1 flex items-center justify-center rounded-full bg-card text-xs font-bold text-primary">{completionPercent}%</span>
             </div>
             <div className="min-w-0 flex-1">
-              <h2 className="font-bold text-foreground">{g("ملفك", "ملفكِ")} مكتمل {completionPercent}%</h2>
+              <h2 className="font-bold text-foreground">
+                {/* «31%», never «%31» in RTL (QA WM-24) */}
+                {g("ملفك", "ملفكِ")} مكتمل <bdi dir="ltr">{completionPercent}%</bdi>
+              </h2>
               <p className="text-sm text-muted-foreground">{g("كلما اكتمل ملفك كانت توافقاتك أدق.", "كلما اكتمل ملفكِ كانت توافقاتكِ أدق.")}</p>
             </div>
           </div>
@@ -434,7 +442,7 @@ export default function DashboardPage() {
             <Link href={topTip.link} className="mt-3 flex min-h-11 items-center gap-3 rounded-xl border border-accent/30 bg-accent/10 px-3 py-2.5 hover:bg-accent/15">
               <Zap className="h-4 w-4 shrink-0 text-accent-foreground" aria-hidden />
               <span className="min-w-0 flex-1 text-sm font-semibold text-foreground">{topTip.message}</span>
-              <span className="shrink-0 text-xs font-bold text-primary">+{topTip.impact}%</span>
+              <span dir="ltr" className="shrink-0 text-xs font-bold text-primary">+{topTip.impact}%</span>
               <ChevronLeft className="h-4 w-4 shrink-0 text-primary/60" aria-hidden />
             </Link>
           )}

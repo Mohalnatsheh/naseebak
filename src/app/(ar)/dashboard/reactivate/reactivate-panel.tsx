@@ -43,7 +43,7 @@ export function ReactivatePanel({ firstName, isFemale, country, deletionSchedule
       const res = await fetch("/api/profile/reactivate", { method: "POST" });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        toast.error(data.error || "تعذّرت إعادة تفعيل الحساب. حاول مرة أخرى.");
+        toast.error(data.error || "تعذّرت إعادة تفعيل الحساب. يمكنك المحاولة مرة أخرى.");
         setLoading(false);
         return;
       }
@@ -51,7 +51,7 @@ export function ReactivatePanel({ firstName, isFemale, country, deletionSchedule
       // Full reload so the dashboard layout re-reads the account state
       window.location.href = "/dashboard";
     } catch {
-      toast.error("حدث خطأ في الاتصال. حاول مرة أخرى.");
+      toast.error("حدث خطأ في الاتصال. يمكنك المحاولة مرة أخرى.");
       setLoading(false);
     }
   }

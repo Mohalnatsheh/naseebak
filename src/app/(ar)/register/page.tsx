@@ -55,7 +55,7 @@ function Sparkles() {
         duration: 1.8 + Math.random() * 1.5,
         size: 4 + Math.random() * 6,
         // Brand palette: deep blue + warm gold
-        color: ["#22476a", "#c19250", "#3a6a95", "#d9b27a", "#22476a", "#c19250"][Math.floor(Math.random() * 6)],
+        color: ["#22476a", "#c19250", "#2b5a84", "#c19250", "#22476a", "#15304a"][Math.floor(Math.random() * 6)],
       }))
   );
 
@@ -295,7 +295,7 @@ function RegisterPageContent() {
       try {
         data = await res.json();
       } catch {
-        setError("الخادم مشغول حالياً. حاول مرة أخرى بعد قليل.");
+        setError("الخادم مشغول حالياً. يمكنك المحاولة مرة أخرى بعد قليل.");
         return;
       }
 
@@ -310,7 +310,7 @@ function RegisterPageContent() {
       setOtpNotice(`أرسلنا رمز التحقق ${data.channel === "whatsapp" ? "عبر واتساب" : "برسالة نصية"} إلى ${form.phone}`);
       setResendIn(RESEND_SECONDS);
     } catch {
-      setError("حدث خطأ غير متوقع. حاول مرة أخرى.");
+      setError("حدث خطأ غير متوقع. يمكنك المحاولة مرة أخرى.");
     } finally {
       setSendingOtp(false);
     }
@@ -404,7 +404,7 @@ function RegisterPageContent() {
         try {
           verifyData = await verifyRes.json();
         } catch {
-          setError("الخادم مشغول حالياً. حاول مرة أخرى بعد قليل.");
+          setError("الخادم مشغول حالياً. يمكنك المحاولة مرة أخرى بعد قليل.");
           return;
         }
 
@@ -432,7 +432,7 @@ function RegisterPageContent() {
       try {
         data = await res.json();
       } catch {
-        setError("الخادم مشغول حالياً. حاول مرة أخرى بعد قليل.");
+        setError("الخادم مشغول حالياً. يمكنك المحاولة مرة أخرى بعد قليل.");
         return;
       }
 
@@ -508,7 +508,7 @@ function RegisterPageContent() {
       // Move to success step
       goToStep(2);
     } catch {
-      setError("حدث خطأ غير متوقع. حاول مرة أخرى.");
+      setError("حدث خطأ غير متوقع. يمكنك المحاولة مرة أخرى.");
     } finally {
       setLoading(false);
     }
@@ -522,7 +522,7 @@ function RegisterPageContent() {
   /* Loading state while checking registration status (also what the server sends: keep a real heading in it) */
   if (statusChecking) {
     return (
-      <main className="relative flex min-h-screen flex-col items-center justify-center gap-4 p-4 overflow-hidden">
+      <main id="main" tabIndex={-1} className="relative flex min-h-screen flex-col items-center justify-center gap-4 p-4 overflow-hidden">
         <div className="fixed inset-0 -z-10 bg-gradient-to-br from-primary/10 via-background to-accent/10" />
         <h1 className="text-xl font-bold text-primary">إنشاء حساب جديد في نصيبك</h1>
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -533,7 +533,7 @@ function RegisterPageContent() {
   /* Registration closed alert */
   if (registrationClosed) {
     return (
-      <main className="relative flex min-h-screen items-center justify-center p-4 overflow-hidden">
+      <main id="main" tabIndex={-1} className="relative flex min-h-screen items-center justify-center p-4 overflow-hidden">
         <div className="fixed inset-0 -z-10 bg-gradient-to-br from-primary/10 via-background to-accent/10" />
         <div className="fixed inset-0 -z-10 opacity-40">
           <div className="absolute -top-24 -right-24 h-96 w-96 rounded-full bg-primary/10 blur-3xl" />
@@ -577,9 +577,10 @@ function RegisterPageContent() {
   }
 
   return (
-    <main className="relative flex min-h-screen items-center justify-center p-4 overflow-hidden">
+    <main id="main" tabIndex={-1} className="relative flex min-h-screen items-center justify-center p-4 overflow-hidden">
       {/* ---- Background: Amman at blue hour, faint, under the brand gradient ---- */}
-      <div className="fixed inset-0 -z-20" aria-hidden>
+      {/* Fades out at its foot, so a long form (or the phone toolbar sliding away) never shows a hard edge (QA DS-07) */}
+      <div className="fixed inset-x-0 top-0 -z-20 h-[100lvh] [mask-image:linear-gradient(to_bottom,#000_55%,transparent)]" aria-hidden>
         <Image src="/images/pages/auth.webp" alt="" fill priority sizes="100vw" className="object-cover opacity-25" />
       </div>
       <div className="fixed inset-0 -z-10 bg-gradient-to-br from-primary/10 via-background/80 to-accent/10" />
@@ -646,7 +647,7 @@ function RegisterPageContent() {
                       )}
                     </div>
                     <span
-                      className={`text-[10px] font-medium whitespace-nowrap transition-colors duration-300 ${
+                      className={`text-xs font-medium whitespace-nowrap transition-colors duration-300 ${
                         isActive
                           ? "text-primary"
                           : isCompleted
@@ -1041,7 +1042,7 @@ function RegisterPageContent() {
                       htmlFor="referralCode"
                       className="text-xs font-semibold text-muted-foreground"
                     >
-                      رمز الدعوة <span className="text-muted-foreground/60">(اختياري)</span>
+                      رمز الدعوة <span className="text-muted-foreground">(اختياري)</span>
                     </Label>
                     <Input
                       id="referralCode"
@@ -1146,7 +1147,7 @@ function RegisterPageContent() {
                       ? "ابدئي الآن بإعداد ملفكِ الشخصي ومواصفات الشريك الذي تبحثين عنه."
                       : "ابدأ الآن بإعداد ملفك الشخصي ومواصفات الشريك الذي تبحث عنه."}
                   </p>
-                  <p className="text-xs text-muted-foreground/70">
+                  <p className="text-xs text-muted-foreground">
                     {newCycle
                       ? "إعداد قصير من 4 خطوات، وبعده تبدأ اقتراحاتك المجانية مباشرة، ومعك رصيد مجاني للتعارف."
                       : "إكمال ملفك الشخصي بنسبة 50% يتيح لك البدء بتلقي اقتراحات التوافق، ومعك رصيد مجاني للبدء"}

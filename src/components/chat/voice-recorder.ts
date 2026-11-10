@@ -29,13 +29,13 @@ export class RecorderError extends Error {
 export function recorderErrorMessage(code: RecorderErrorCode): string {
   switch (code) {
     case "unsupported":
-      return "المتصفح لا يدعم تسجيل الصوت. جرّب متصفحاً آخر.";
+      return "المتصفح لا يدعم تسجيل الصوت. يمكنك تجربة متصفح آخر.";
     case "denied":
       return "لم يُسمح باستخدام الميكروفون. يمكنك السماح به من إعدادات المتصفح ثم المحاولة مرة أخرى.";
     case "too_short":
       return "الرسالة قصيرة جداً";
     default:
-      return "تعذّر تسجيل الصوت. حاول مرة أخرى.";
+      return "تعذّر تسجيل الصوت. يمكنك المحاولة مرة أخرى.";
   }
 }
 

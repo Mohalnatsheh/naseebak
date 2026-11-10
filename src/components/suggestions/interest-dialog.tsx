@@ -29,6 +29,8 @@ const CONSENT_LABEL = "أوافق على مشاركة اسم ورقم ولي ا�
 const CONFIRM_FAILED = "تعذّر حفظ قرارك، يمكنك المحاولة مرة أخرى";
 
 interface Props {
+  /** Where the focus goes when it closes (the card it was opened from may be gone) */
+  onCloseAutoFocus?: (e: Event) => void;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** The other person's gender; the viewer is the opposite one */
@@ -58,7 +60,7 @@ interface Props {
  * Credit on interest: "مهتم" on a shared suggestion asks how the introduction should start if the
  * interest is mutual — chat here first, or a family introduction straight away (needs guardian consent).
  */
-export function InterestDialog({ open, onOpenChange, partnerGender, credits, chatEnabled, guardian: guardianProp, costOnly = false, free = false, likedYou = false, onConfirm }: Props) {
+export function InterestDialog({ open, onOpenChange, partnerGender, credits, chatEnabled, guardian: guardianProp, costOnly = false, free = false, likedYou = false, onConfirm, onCloseAutoFocus }: Props) {
   const [choice, setChoice] = useState<IntroPreferenceChoice | null>(null);
   // Added here through GuardianQuickForm before the shared data catches up. The form saves only the
   // contact (no share consent): saving it is the consent, sent with the «مهتم» itself and stored by the
@@ -139,7 +141,7 @@ export function InterestDialog({ open, onOpenChange, partnerGender, credits, cha
     <Dialog open={open} onOpenChange={(o) => !busy && onOpenChange(o)}>
       {/* The focus goes to the dialog itself, not the first option (its ring looked like a default choice), so the
           keyboard is inside and the title is read (QA PA-H1) */}
-      <DialogContent dir="rtl" className="sm:max-w-md text-right" onOpenAutoFocus={focusDialogItself}>
+      <DialogContent dir="rtl" className="sm:max-w-md text-right" onOpenAutoFocus={focusDialogItself} onCloseAutoFocus={onCloseAutoFocus}>
         <DialogHeader className="text-right sm:text-right">
           <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/15 to-accent/15">
             <HeartHandshake className="h-6 w-6 text-primary" aria-hidden="true" />

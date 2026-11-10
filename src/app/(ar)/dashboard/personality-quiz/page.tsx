@@ -209,7 +209,7 @@ export default function PersonalityQuizPage() {
     return (
       <div className="max-w-2xl mx-auto py-8">
         <LoadError
-          message="تعذّر تحميل أسئلة الاختبار. تحقّق من الاتصال وحاول مرة أخرى."
+          message="تعذّر تحميل أسئلة الاختبار. يمكنك التحقق من الاتصال والمحاولة مرة أخرى."
           onRetry={() => {
             setLoading(true);
             setReloadKey((k) => k + 1);

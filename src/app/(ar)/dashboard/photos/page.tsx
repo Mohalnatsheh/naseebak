@@ -10,7 +10,6 @@ import {
   Trash2,
   Star,
   ImagePlus,
-  ImageOff,
   Lock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -111,7 +110,7 @@ export default function PhotosPage() {
       await fetchPhotos();
     } catch (err) {
       console.error("Upload failed", err);
-      toast.error("تعذّر رفع الصور، حاول مرة أخرى");
+      toast.error("تعذّر رفع الصور، يمكنك المحاولة مرة أخرى");
     } finally {
       setUploading(false);
     }
@@ -156,7 +155,7 @@ export default function PhotosPage() {
       }
     } catch (err) {
       console.error("Delete failed", err);
-      toast.error("تعذّر حذف الصورة، تحقّق من الاتصال وحاول مرة أخرى");
+      toast.error("تعذّر حذف الصورة، يمكنك التحقق من الاتصال والمحاولة مرة أخرى");
     } finally {
       setDeletingId(null);
     }
@@ -180,9 +179,12 @@ export default function PhotosPage() {
         title="صوري الشخصية"
         description={female ? "أضيفي صوراً لملفكِ الشخصي. سيتم عرضها فقط عند التوافق المتبادل" : "أضف صوراً لملفك الشخصي. سيتم عرضها فقط عند التوافق المتبادل"}
       >
-        <span className="inline-flex h-7 min-w-7 items-center justify-center rounded-full border border-accent/40 bg-accent/10 px-3 text-sm font-bold text-foreground">
-          {photos.length} / {MAX_PHOTOS}
-        </span>
+        {/* «2 من 5» reads in order in RTL («5 / 2» didn't, QA DS-10); nothing to count while the list failed (WM-18) */}
+        {!loadFailed && (
+          <span className="inline-flex h-7 min-w-7 items-center justify-center rounded-full border border-accent/40 bg-accent/10 px-3 text-sm font-bold text-foreground">
+            {photos.length} من {MAX_PHOTOS}
+          </span>
+        )}
         <input
           ref={fileInputRef}
           type="file"
@@ -190,11 +192,12 @@ export default function PhotosPage() {
           multiple
           className="hidden"
           onChange={handleUpload}
-          disabled={photos.length >= MAX_PHOTOS || uploading}
+          disabled={loadFailed || photos.length >= MAX_PHOTOS || uploading}
         />
         <Button
           onClick={() => fileInputRef.current?.click()}
-          disabled={photos.length >= MAX_PHOTOS || uploading}
+          // Never upload over a list that didn't load: the count (and the 5-photo limit) would be wrong (QA WM-18)
+          disabled={loadFailed || loading || photos.length >= MAX_PHOTOS || uploading}
           className="h-11 rounded-xl font-semibold"
         >
           {uploading ? (
@@ -219,7 +222,7 @@ export default function PhotosPage() {
       {/* Photo Grid */}
       {loadFailed && photos.length === 0 ? (
         <LoadError
-          message="تعذّر تحميل صورك. تحقّق من الاتصال وحاول مرة أخرى."
+          message="تعذّر تحميل صورك. يمكنك التحقق من الاتصال والمحاولة مرة أخرى."
           onRetry={() => {
             setLoading(true);
             fetchPhotos();
@@ -231,7 +234,8 @@ export default function PhotosPage() {
             <div className="relative mx-auto w-24 h-24">
               <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-primary/10 rounded-full animate-pulse" />
               <div className="relative h-24 w-24 rounded-full bg-gradient-to-br from-primary/5 to-primary/5 flex items-center justify-center border-2 border-dashed border-primary/20">
-                <ImageOff className="h-10 w-10 text-muted-foreground/40" />
+                {/* An empty slot invites a photo; a broken-image icon said something failed (QA DS-11) */}
+                <ImagePlus className="h-10 w-10 text-primary/50" aria-hidden />
               </div>
             </div>
             <div className="space-y-2">
@@ -277,7 +281,7 @@ export default function PhotosPage() {
 
                 {/* Primary badge, or make this one the main photo */}
                 {photo.isPrimary ? (
-                  <div className="absolute top-2 start-2 inline-flex items-center gap-1 rounded-full bg-accent/90 backdrop-blur-sm text-accent-foreground px-2.5 py-1 text-[10px] font-bold shadow-md">
+                  <div className="absolute top-2 start-2 inline-flex items-center gap-1 rounded-full bg-accent/90 backdrop-blur-sm text-accent-foreground px-2.5 py-1 text-xs font-bold shadow-md">
                     <Star className="h-3 w-3 fill-current" />
                     رئيسية
                   </div>

@@ -384,7 +384,7 @@ export function TermsView({
             </p>
 
             <p
-              className="mx-auto mt-4 text-sm text-muted-foreground/70"
+              className="mx-auto mt-4 text-sm text-muted-foreground"
               style={{ animation: "fadeSlideUp 0.8s ease-out 0.6s both" }}
             >
               آخر تحديث: {withPro ? PRO_LEGAL_UPDATED : sa ? "24 أكتوبر 2026" : "17 أكتوبر 2026"}

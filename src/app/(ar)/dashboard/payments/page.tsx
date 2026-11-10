@@ -95,10 +95,10 @@ export default function PaymentsPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex flex-col items-center justify-center py-20 gap-4">
+        <div role="status" className="flex min-h-[70vh] flex-col items-center justify-center py-20 gap-4">
           <div className="relative">
             <div className="h-16 w-16 rounded-full bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <Loader2 className="h-8 w-8 animate-spin text-primary" aria-hidden />
             </div>
             <div className="absolute inset-0 h-16 w-16 rounded-full bg-primary/10 animate-ping" />
           </div>
@@ -269,7 +269,7 @@ function PaymentsContent() {
       }
       if (res.ok && result.clientSecret && !getStripe()) {
         // No publishable key on this site: never open a checkout that can't load (QA WA-18)
-        setToast({ type: "error", message: "الدفع غير متاح حالياً. حاول مرة أخرى لاحقاً." });
+        setToast({ type: "error", message: "الدفع غير متاح حالياً. يمكنك المحاولة مرة أخرى لاحقاً." });
         if (result.paymentId) void fetch("/api/payments/cancel", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ paymentId: result.paymentId }) }).then(() => loadData());
         return;
       }
@@ -336,7 +336,7 @@ function PaymentsContent() {
       loadData();
     } catch (err) {
       console.error(err);
-      setToast({ type: "error", message: "تعذّر إلغاء عملية الدفع، حاول مرة أخرى" });
+      setToast({ type: "error", message: "تعذّر إلغاء عملية الدفع، يمكنك المحاولة مرة أخرى" });
     } finally {
       setCancellingId(null);
     }
@@ -469,7 +469,7 @@ function PaymentsContent() {
 
       {loadFailed && (
         <LoadError
-          message="تعذّر تحميل رصيدك والباقات. تحقّق من الاتصال وحاول مرة أخرى."
+          message="تعذّر تحميل رصيدك والباقات. يمكنك التحقق من الاتصال والمحاولة مرة أخرى."
           onRetry={() => loadData()}
         />
       )}
@@ -816,7 +816,7 @@ function PaymentsContent() {
                           </span>
                           <div className="flex items-center gap-2">
                             <span
-                              className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2.5 py-0.5 rounded-full ${
+                              className={`inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-0.5 rounded-full ${
                                 isCompleted
                                   ? "bg-emerald-500/10 text-emerald-600"
                                   : isFailed

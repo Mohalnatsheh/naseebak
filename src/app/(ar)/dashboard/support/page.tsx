@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils";
 import { useDashboardData } from "@/contexts/dashboard-context";
 import { formatDate } from "@/lib/countries";
 import { PageHeader } from "@/components/shared/page-header";
+import { LoadError } from "@/components/shared/load-error";
 
 interface Ticket {
   id: string;
@@ -69,6 +70,8 @@ const typeLabels: Record<string, string> = {
 export default function SupportPage() {
   const [tab, setTab] = useState<"new" | "list">("new");
   const [tickets, setTickets] = useState<Ticket[]>([]);
+  // The list failed to load: say so with a retry, never «لا توجد تذاكر» (QA WM-01)
+  const [listFailed, setListFailed] = useState(false);
   const [loading, setLoading] = useState(false);
   const [ticketPage, setTicketPage] = useState(1);
   const [ticketTotalPages, setTicketTotalPages] = useState(1);
@@ -94,13 +97,15 @@ export default function SupportPage() {
 
   async function loadTickets() {
     setLoading(true);
+    setListFailed(false);
     try {
       const res = await fetch(`/api/support?page=${ticketPage}`);
+      if (!res.ok) throw new Error(`support ${res.status}`);
       const data = await res.json();
       setTickets(data.tickets || []);
       setTicketTotalPages(data.totalPages || 1);
     } catch {
-      console.error("Failed to load tickets");
+      setListFailed(true);
     } finally {
       setLoading(false);
     }
@@ -158,11 +163,14 @@ export default function SupportPage() {
       />
 
       {/* Tabs */}
-      <div className="flex gap-2 bg-muted/50 p-1 rounded-xl border border-border/50">
+      <div role="tablist" aria-label="الدعم" className="flex gap-2 bg-muted/50 p-1 rounded-xl border border-border/50">
         <button
+          type="button"
+          role="tab"
+          aria-selected={tab === "new"}
           onClick={() => setTab("new")}
           className={cn(
-            "flex-1 py-2.5 px-4 rounded-lg text-sm font-semibold transition-all duration-200",
+            "flex-1 min-h-11 py-2.5 px-4 rounded-lg text-sm font-semibold transition-all duration-200",
             tab === "new"
               ? "bg-card text-primary shadow-sm border border-border/50"
               : "text-muted-foreground hover:text-foreground"
@@ -171,9 +179,12 @@ export default function SupportPage() {
           إرسال تذكرة جديدة
         </button>
         <button
+          type="button"
+          role="tab"
+          aria-selected={tab === "list"}
           onClick={() => setTab("list")}
           className={cn(
-            "flex-1 py-2.5 px-4 rounded-lg text-sm font-semibold transition-all duration-200",
+            "flex-1 min-h-11 py-2.5 px-4 rounded-lg text-sm font-semibold transition-all duration-200",
             tab === "list"
               ? "bg-card text-primary shadow-sm border border-border/50"
               : "text-muted-foreground hover:text-foreground"
@@ -304,14 +315,16 @@ export default function SupportPage() {
       ) : (
         <div className="space-y-3">
           {loading ? (
-            <div className="flex flex-col items-center justify-center py-16 gap-4">
+            <div role="status" className="flex min-h-[40vh] flex-col items-center justify-center py-16 gap-4">
               <div className="relative">
                 <div className="h-16 w-16 rounded-full bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center">
-                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" aria-hidden />
                 </div>
               </div>
               <p className="text-sm text-muted-foreground animate-pulse">جاري تحميل التذاكر...</p>
             </div>
+          ) : listFailed ? (
+            <LoadError message="تعذّر تحميل تذاكرك. يمكنك التحقق من الاتصال والمحاولة مرة أخرى." onRetry={() => void loadTickets()} />
           ) : tickets.length === 0 ? (
             <Card className="border-dashed border-2 border-muted-foreground/20 bg-gradient-to-b from-card to-primary/5">
               <CardContent className="text-center py-16 space-y-5">

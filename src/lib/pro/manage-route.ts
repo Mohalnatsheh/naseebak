@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 
 export const NO_PRO_ERROR = "لا يوجد اشتراك Pro فعّال.";
-export const PRO_MANAGE_FAILED = "تعذّر تحديث الاشتراك الآن. حاول مرة أخرى بعد قليل.";
+export const PRO_MANAGE_FAILED = "تعذّر تحديث الاشتراك الآن. يمكنك المحاولة مرة أخرى بعد قليل.";
 
 /**
  * POST /api/pro/cancel and /api/pro/resume (website session or app Bearer). `allowDeactivated`: cancel only — a paused

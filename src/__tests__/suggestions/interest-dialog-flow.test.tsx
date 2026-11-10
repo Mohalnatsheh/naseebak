@@ -42,7 +42,7 @@ afterEach(() => vi.unstubAllGlobals());
 
 async function openAndConfirmChat() {
   render(<MutualSuggestionsView creditOnInterest credits={3} chatEnabled />);
-  fireEvent.click(await screen.findByRole("button", { name: /^مهتم$/ }));
+  fireEvent.click(await screen.findByRole("button", { name: /^مهتم ·/ }));
   const dialog = await screen.findByRole("dialog");
   fireEvent.click(within(dialog).getByRole("radio", { name: /محادثة هنا أولاً/ }));
   const btn = within(dialog).getByRole("button", { name: /تأكيد «مهتم»/ });

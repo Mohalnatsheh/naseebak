@@ -103,14 +103,14 @@ export default function ContactPage() {
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        setError({ message: data.error || "تعذّر إرسال رسالتك. حاول مرة أخرى.", field: data.field ?? null });
+        setError({ message: data.error || "تعذّر إرسال رسالتك. يمكنك المحاولة مرة أخرى.", field: data.field ?? null });
         setStatus("idle");
         return;
       }
       setStatus("sent");
       setFormData({ name: "", phone: "", email: "", subject: "", message: "" });
     } catch {
-      setError({ message: "تعذّر الاتصال. تحقق من الإنترنت وحاول مرة أخرى.", field: null });
+      setError({ message: "تعذّر الاتصال. يمكنك التحقق من الإنترنت والمحاولة مرة أخرى.", field: null });
       setStatus("idle");
     }
   }

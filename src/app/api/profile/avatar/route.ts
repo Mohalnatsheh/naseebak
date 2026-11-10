@@ -73,7 +73,7 @@ export async function POST(request: Request) {
     } catch (err) {
       console.error("Bunny avatar upload error:", err);
       return NextResponse.json(
-        { error: "فشل رفع الصورة. حاول مرة أخرى" },
+        { error: "فشل رفع الصورة. يمكنك المحاولة مرة أخرى" },
         { status: 500 }
       );
     }

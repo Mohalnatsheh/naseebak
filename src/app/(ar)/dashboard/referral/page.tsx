@@ -100,7 +100,7 @@ export default function ReferralPage() {
     return (
       <div className="max-w-2xl mx-auto py-8">
         <LoadError
-          message="تعذّر تحميل بيانات الدعوة. تحقّق من الاتصال وحاول مرة أخرى."
+          message="تعذّر تحميل بيانات الدعوة. يمكنك التحقق من الاتصال والمحاولة مرة أخرى."
           onRetry={() => {
             setLoading(true);
             setReloadKey((k) => k + 1);

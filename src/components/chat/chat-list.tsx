@@ -128,15 +128,16 @@ export function ChatList({ compact = false, activeId }: { compact?: boolean; act
 
       {chats === null && loadFailed ? (
         <LoadError
-          message="تعذّر تحميل المحادثات. تحقّق من الاتصال وحاول مرة أخرى."
+          message="تعذّر تحميل المحادثات. يمكنك التحقق من الاتصال والمحاولة مرة أخرى."
           onRetry={() => {
             setLoadFailed(false);
             setReloadKey((k) => k + 1);
           }}
         />
       ) : chats === null ? (
-        <div className="flex justify-center py-16">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <div role="status" className="flex min-h-[50vh] justify-center py-16">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" aria-hidden />
+          <span className="sr-only">جارٍ التحميل…</span>
         </div>
       ) : chats.length === 0 ? (
         <Card className="border-2 border-dashed border-muted-foreground/20">

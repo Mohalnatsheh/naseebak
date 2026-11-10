@@ -229,7 +229,7 @@ export default function NotificationsPage() {
     } catch {
       // Roll back: the switch must never look saved when it wasn't
       setPrefs((cur) => (cur ? { ...cur, [key]: !newVal } : cur));
-      toast.error("تعذّر حفظ الإعداد، حاول مرة أخرى");
+      toast.error("تعذّر حفظ الإعداد، يمكنك المحاولة مرة أخرى");
     }
   }
 
@@ -295,7 +295,7 @@ export default function NotificationsPage() {
       }
     } catch (err) {
       console.error(err);
-      toast.error("تعذّر حذف الإشعار، تحقّق من الاتصال");
+      toast.error("تعذّر حذف الإشعار، يمكنك التحقق من الاتصال");
     } finally {
       setDeletingId(null);
     }
@@ -311,11 +311,11 @@ export default function NotificationsPage() {
         setDeleteAllConfirm(false);
         window.dispatchEvent(new CustomEvent("naseeb:notifications-read"));
       } else {
-        toast.error("تعذّر حذف الإشعارات، حاول مرة أخرى");
+        toast.error("تعذّر حذف الإشعارات، يمكنك المحاولة مرة أخرى");
       }
     } catch (err) {
       console.error(err);
-      toast.error("تعذّر حذف الإشعارات، تحقّق من الاتصال");
+      toast.error("تعذّر حذف الإشعارات، يمكنك التحقق من الاتصال");
     } finally {
       setDeletingAll(false);
     }
@@ -323,10 +323,11 @@ export default function NotificationsPage() {
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 gap-4">
+      // The page's height while it loads, so the footer doesn't jump when the list arrives (QA WM-02)
+      <div role="status" className="flex min-h-[70vh] flex-col items-center justify-center py-20 gap-4">
         <div className="relative">
           <div className="h-16 w-16 rounded-full bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <Loader2 className="h-8 w-8 animate-spin text-primary" aria-hidden />
           </div>
           <div className="absolute inset-0 h-16 w-16 rounded-full bg-primary/10 animate-ping" />
         </div>
@@ -386,8 +387,9 @@ export default function NotificationsPage() {
               )) : prefsFailed ? (
                 <LoadError message="تعذّر تحميل إعدادات الإشعارات." onRetry={fetchPrefs} className="py-6" />
               ) : (
-                <div className="flex justify-center py-12">
-                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                <div role="status" className="flex justify-center py-12">
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" aria-hidden />
+                  <span className="sr-only">جارٍ التحميل…</span>
                 </div>
               )}
 
@@ -441,7 +443,7 @@ export default function NotificationsPage() {
           <Button
             variant="ghost"
             onClick={() => setDeleteAllConfirm(true)}
-            className="h-11 text-destructive/80 hover:text-destructive hover:bg-destructive/5 rounded-xl gap-2 font-medium"
+            className="h-11 text-destructive hover:text-destructive hover:bg-destructive/5 rounded-xl gap-2 font-medium"
           >
             <Trash2 className="h-4 w-4" />
             حذف الكل
@@ -452,7 +454,7 @@ export default function NotificationsPage() {
       {/* Notification Cards */}
       {loadFailed ? (
         <LoadError
-          message="تعذّر تحميل الإشعارات. تحقّق من الاتصال وحاول مرة أخرى."
+          message="تعذّر تحميل الإشعارات. يمكنك التحقق من الاتصال والمحاولة مرة أخرى."
           onRetry={() => setReloadKey((k) => k + 1)}
         />
       ) : notifications.length === 0 ? (
@@ -470,7 +472,7 @@ export default function NotificationsPage() {
                 ستظهر الإشعارات هنا عند وجود تحديثات جديدة على حسابك مثل الاقتراحات والتوافقات وطلبات التعارف.
               </p>
             </div>
-            <div className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground/60 pt-2">
+            <div className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground pt-2">
               <Bell className="h-3.5 w-3.5" />
               <span>سيتم إعلامك فور وصول أي تحديث</span>
             </div>
@@ -538,7 +540,7 @@ export default function NotificationsPage() {
                           </h3>
                           <div className="flex items-center gap-1.5 shrink-0">
                             {/* Time badge */}
-                            <span className="inline-flex items-center gap-1 rounded-lg bg-muted/60 border border-border/50 px-2 py-0.5 text-[10px] text-muted-foreground font-medium">
+                            <span className="inline-flex items-center gap-1 rounded-lg bg-muted/60 border border-border/50 px-2 py-0.5 text-xs text-muted-foreground font-medium">
                               <Clock className="h-2.5 w-2.5" />
                               {timeAgo(n.createdAt, country)}
                             </span>
@@ -561,7 +563,7 @@ export default function NotificationsPage() {
                           className={`text-sm leading-relaxed ${
                             !n.isRead
                               ? "text-muted-foreground"
-                              : "text-muted-foreground/70"
+                              : "text-muted-foreground"
                           }`}
                         >
                           {n.body}

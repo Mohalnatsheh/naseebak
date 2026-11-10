@@ -87,7 +87,7 @@ export async function POST(request: Request) {
       cdnUrl = await uploadBase64ToBunny(photoData, path);
     } catch (err) {
       console.error("Bunny photo upload error:", err);
-      return NextResponse.json({ error: "فشل رفع الصورة. حاول مرة أخرى" }, { status: 500 });
+      return NextResponse.json({ error: "فشل رفع الصورة. يمكنك المحاولة مرة أخرى" }, { status: 500 });
     }
 
     // If this photo is set as primary, unset other primary photos

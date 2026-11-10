@@ -25,8 +25,9 @@ const isLocalHost = () => isLocalHostname(window.location.hostname);
 
 function Loading() {
   return (
-    <div className="flex justify-center py-24">
-      <Loader2 className="h-8 w-8 animate-spin text-primary" aria-label="جاري التحميل" />
+    <div role="status" className="flex min-h-[60vh] justify-center py-24">
+      <Loader2 className="h-8 w-8 animate-spin text-primary" aria-hidden />
+      <span className="sr-only">جارٍ التحميل…</span>
     </div>
   );
 }

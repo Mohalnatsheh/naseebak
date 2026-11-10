@@ -32,7 +32,7 @@ function PayButton({ priceLabel, returnUrl }: { priceLabel: string; returnUrl: s
     // (3-D Secure) open it first. Errors here are shown in Arabic by Stripe itself.
     const { error: failure } = await stripe.confirmPayment({ elements, confirmParams: { return_url: returnUrl } });
     if (failure) {
-      setError(failure.message || "تعذّر إتمام الدفع. تأكّد من بيانات البطاقة وحاول مرة أخرى.");
+      setError(failure.message || "تعذّر إتمام الدفع. يمكنك التأكد من بيانات البطاقة والمحاولة مرة أخرى.");
       setBusy(false);
     }
   }
@@ -62,7 +62,7 @@ export function ArabicPayForm({ clientSecret, priceLabel, returnUrl }: { clientS
   // Stripe's own fields in Arabic, right to left (Payment Element supports `ar`; Stripe Checkout does not)
   const stripe = getStripe("ar");
   if (!stripe) {
-    return <p role="alert" className="text-center text-sm text-destructive">الدفع غير متاح حالياً. حاول مرة أخرى لاحقاً.</p>;
+    return <p role="alert" className="text-center text-sm text-destructive">الدفع غير متاح حالياً. يمكنك المحاولة مرة أخرى لاحقاً.</p>;
   }
   return (
     <Elements

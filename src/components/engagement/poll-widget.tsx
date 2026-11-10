@@ -41,13 +41,13 @@ export function PollWidget({
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.poll) {
-        setError(data.error || "تعذّر تسجيل صوتك. حاول مرة أخرى.");
+        setError(data.error || "تعذّر تسجيل صوتك. يمكنك المحاولة مرة أخرى.");
         return;
       }
       setPoll(data.poll);
       onVoted?.(data.poll);
     } catch {
-      setError("تعذّر الاتصال. تحقق من الإنترنت وحاول مرة أخرى.");
+      setError("تعذّر الاتصال. يمكنك التحقق من الإنترنت والمحاولة مرة أخرى.");
     } finally {
       setBusy(null);
     }

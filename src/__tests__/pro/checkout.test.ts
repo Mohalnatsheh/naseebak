@@ -171,7 +171,7 @@ describe("POST /api/pro/checkout", () => {
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
     const res = await post({ plan: "monthly" });
     expect(res.status).toBe(502);
-    expect(await res.json()).toEqual({ error: "تعذّر بدء عملية الدفع الآن. حاول مرة أخرى بعد قليل.", code: "CHECKOUT_FAILED" });
+    expect(await res.json()).toEqual({ error: "تعذّر بدء عملية الدفع الآن. يمكنك المحاولة مرة أخرى بعد قليل.", code: "CHECKOUT_FAILED" });
     spy.mockRestore();
   });
 });

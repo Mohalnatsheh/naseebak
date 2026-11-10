@@ -24,7 +24,7 @@ import { VOICE_MAX_SEC, baseMime } from "@/lib/chat/media";
 export const VOICE_TRANSCODE_TIMEOUT_MS = 30_000;
 /** Transcodes waiting or running at once: more are refused at once («حاول مرة أخرى»), so a burst can't queue past the proxy timeout */
 export const VOICE_QUEUE_MAX = 4;
-export const VOICE_PROCESS_FAILED_MESSAGE = "تعذّر تجهيز الرسالة الصوتية، حاول مرة أخرى";
+export const VOICE_PROCESS_FAILED_MESSAGE = "تعذّر تجهيز الرسالة الصوتية، يمكنك المحاولة مرة أخرى";
 
 /** The ffmpeg demuxer for each accepted voice MIME (lib/chat/media VOICE_TYPES). Anything else is refused */
 const INPUT_FORMAT: Record<string, string> = {

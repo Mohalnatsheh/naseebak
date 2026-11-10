@@ -192,7 +192,7 @@ function InfoRow({
         <Icon className="h-3.5 w-3.5 text-primary/60" />
       </div>
       <div className="flex-1 min-w-0">
-        <span className="text-[11px] text-muted-foreground/70 block leading-tight">{label}</span>
+        <span className="text-xs text-muted-foreground block leading-tight">{label}</span>
         <span className="text-sm font-semibold text-foreground truncate block">{value}</span>
       </div>
     </div>
@@ -500,10 +500,10 @@ export function MatchesView({ embedded = false }: { embedded?: boolean } = {}) {
 
   if (loading || switchesLoading) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 gap-4">
+      <div role="status" className="flex min-h-[50vh] flex-col items-center justify-center py-20 gap-4">
         <div className="relative">
           <div className="h-16 w-16 rounded-full bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <Loader2 className="h-8 w-8 animate-spin text-primary" aria-hidden />
           </div>
           <div className="absolute inset-0 h-16 w-16 rounded-full bg-primary/10 animate-ping" />
         </div>
@@ -692,7 +692,7 @@ export function MatchesView({ embedded = false }: { embedded?: boolean } = {}) {
                           <Section title="الهوايات والاهتمامات" icon={Sparkles} defaultOpen={true}>
                             {c.hobbies && (
                               <div className="col-span-2 py-2">
-                                <span className="text-[11px] text-muted-foreground/70 block mb-2">الهوايات</span>
+                                <span className="text-xs text-muted-foreground block mb-2">الهوايات</span>
                                 <div className="flex flex-wrap gap-1.5">
                                   {c.hobbies.split("،").map((h, i) => (
                                     <span key={`h-${i}`} className="inline-flex items-center rounded-full bg-accent/10 border border-accent/20 px-3 py-1 text-xs font-medium text-accent-foreground">{h.trim()}</span>
@@ -702,7 +702,7 @@ export function MatchesView({ embedded = false }: { embedded?: boolean } = {}) {
                             )}
                             {c.interests && (
                               <div className="col-span-2 py-2">
-                                <span className="text-[11px] text-muted-foreground/70 block mb-2">الاهتمامات</span>
+                                <span className="text-xs text-muted-foreground block mb-2">الاهتمامات</span>
                                 <div className="flex flex-wrap gap-1.5">
                                   {c.interests.split("،").map((interest, i) => (
                                     <span key={`i-${i}`} className="inline-flex items-center rounded-full bg-primary/5 border border-primary/15 px-3 py-1 text-xs font-medium text-primary">{interest.trim()}</span>

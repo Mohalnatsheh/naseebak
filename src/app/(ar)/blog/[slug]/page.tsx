@@ -55,7 +55,7 @@ export default async function BlogDetailPage({ params }: { params: Promise<{ slu
             {/* Back link */}
             <Link
               href="/blog"
-              className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors mb-8"
+              className="inline-flex min-h-11 items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors mb-8"
             >
               <ArrowRight className="size-4" />
               العودة للمدونة
@@ -115,7 +115,7 @@ export default async function BlogDetailPage({ params }: { params: Promise<{ slu
           <div className="container mx-auto max-w-3xl px-4">
             <Link
               href="/blog"
-              className="inline-flex items-center gap-2 text-sm font-semibold text-primary hover:underline transition-colors"
+              className="inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-primary hover:underline transition-colors"
             >
               <ArrowRight className="size-4" />
               العودة للمدونة

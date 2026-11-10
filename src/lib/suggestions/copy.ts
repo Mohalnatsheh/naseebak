@@ -7,6 +7,11 @@ export const FREE_REPLY_LINE = "الرد بـ«مهتم» على من أبدى �
 /** Short line under a card that already says «أبدى اهتمامه بك» (switch `free_interest_reply`). */
 export const FREE_REPLY_SHORT = "الرد بـ«مهتم» مجاني";
 
+/** The same line next to the viewer's own button, in her words when the button says «مهتمة» (QA WM-14) */
+export function freeReplyShort(female: boolean): string {
+  return female ? "الرد بـ«مهتمة» مجاني" : FREE_REPLY_SHORT;
+}
+
 /** The credit rule line, plus the free-reply line while `free_interest_reply` is on. */
 export function creditLine(freeReply = false): string {
   return freeReply ? `${CREDIT_ON_INTEREST_LINE} ${FREE_REPLY_LINE}` : CREDIT_ON_INTEREST_LINE;

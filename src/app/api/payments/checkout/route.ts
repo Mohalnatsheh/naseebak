@@ -120,7 +120,7 @@ export async function POST(request: Request) {
           userId: session.user.id,
           packageId: pkg.id,
         });
-        return NextResponse.json({ error: "تعذّر بدء عملية الدفع الآن. حاول مرة أخرى بعد قليل." }, { status: 502 });
+        return NextResponse.json({ error: "تعذّر بدء عملية الدفع الآن. يمكنك المحاولة مرة أخرى بعد قليل." }, { status: 502 });
       }
     }
 

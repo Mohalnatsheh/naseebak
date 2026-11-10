@@ -12,7 +12,7 @@ export {
 const phoneSchema = z
   .string()
   .transform((v) => cleanPhone(v))
-  .pipe(z.string().refine((v) => isValidPhone(v), "الرقم غير صالح. تحقّق منه وحاول مرة أخرى."));
+  .pipe(z.string().refine((v) => isValidPhone(v), "الرقم غير صالح. يمكنك التحقق منه والمحاولة مرة أخرى."));
 
 const otpCodeSchema = z
   .string()

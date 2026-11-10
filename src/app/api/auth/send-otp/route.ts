@@ -21,7 +21,7 @@ export async function POST(request: Request) {
 
     if (!ipAllowed) {
       return NextResponse.json(
-        { error: "تم تجاوز الحد المسموح من هذا الجهاز. حاول مرة أخرى بعد 15 دقيقة." },
+        { error: "تم تجاوز الحد المسموح من هذا الجهاز. يمكنك المحاولة مرة أخرى بعد 15 دقيقة." },
         { status: 429 }
       );
     }
@@ -51,7 +51,7 @@ export async function POST(request: Request) {
 
     if (!success) {
       return NextResponse.json(
-        { error: "تم تجاوز الحد المسموح. حاول مرة أخرى بعد 5 دقائق." },
+        { error: "تم تجاوز الحد المسموح. يمكنك المحاولة مرة أخرى بعد 5 دقائق." },
         { status: 429 }
       );
     }
@@ -114,7 +114,7 @@ export async function POST(request: Request) {
         console.warn(`[SMS] Failed to send OTP to ${phone}`);
         await db.otp.delete({ where: { id: stored.id } }).catch(() => {});
         return NextResponse.json(
-          { error: "تعذّر إرسال رمز التحقق الآن. حاول مرة أخرى بعد دقيقة." },
+          { error: "تعذّر إرسال رمز التحقق الآن. يمكنك المحاولة مرة أخرى بعد دقيقة." },
           { status: 502 }
         );
       }

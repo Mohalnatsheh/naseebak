@@ -45,7 +45,7 @@ const decideCalls = () => fetchMock.mock.calls.filter(([url]) => String(url).inc
 describe("«لا» with undo", () => {
   it("hides the card at once and sends the decision only after the undo window", async () => {
     render(<MutualSuggestionsView />);
-    fireEvent.click(await screen.findByRole("button", { name: /^لا$/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /^لا/ }));
     expect(screen.queryByText("سارة")).not.toBeInTheDocument();
     expect(decideCalls()).toHaveLength(0);
     await act(async () => {
@@ -57,7 +57,7 @@ describe("«لا» with undo", () => {
 
   it("«تراجع» cancels the decision and brings the card back", async () => {
     render(<MutualSuggestionsView />);
-    fireEvent.click(await screen.findByRole("button", { name: /^لا$/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /^لا/ }));
     const undo = toastMock.mock.calls[0][1].action.onClick as () => void;
     await act(async () => {
       undo();
@@ -71,7 +71,7 @@ describe("«لا» with undo", () => {
 
   it("leaving the page inside the window still sends it", async () => {
     const { unmount } = render(<MutualSuggestionsView />);
-    fireEvent.click(await screen.findByRole("button", { name: /^لا$/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /^لا/ }));
     unmount();
     expect(decideCalls()).toHaveLength(1);
   });
@@ -84,7 +84,7 @@ describe("tab counts during the undo window (QA WC-01)", () => {
     const tab = await screen.findByRole("tab", { name: /الجديد/ });
     await screen.findByText("ليلى");
     expect(tab).toHaveTextContent("2");
-    fireEvent.click(screen.getAllByRole("button", { name: /^لا$/ })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: /^لا/ })[0]);
     // The quiet reload answers with the server's total, which still counts the card
     await act(async () => {
       await vi.advanceTimersByTimeAsync(100);

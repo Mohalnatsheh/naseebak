@@ -107,7 +107,7 @@ function NavItem({
           <link.icon className={cn("h-4 w-4", isActive && "text-primary")} />
         </div>
         {link.badge && link.badge > 0 ? (
-          <span className="absolute -top-1.5 -start-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-white shadow-sm">
+          <span className="absolute -top-1.5 -start-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[11px] font-bold text-white shadow-sm">
             {link.badge > 99 ? "99+" : link.badge}
           </span>
         ) : null}
@@ -123,7 +123,7 @@ function NavItem({
 export function DashboardSidebar() {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
-  const { profile, unreadCount, counts } = useDashboardData();
+  const { profile, unreadCount, counts, loading } = useDashboardData();
 
   const userData = profile ? {
     firstName: profile.firstName,
@@ -143,10 +143,11 @@ export function DashboardSidebar() {
     "/dashboard/chats": counts.unreadChats,
   };
   const mainLinksWithBadge = mainLinks
-    // Chats appear once the chat switch is on (or the user already has chats to read)
-    .filter((link) => link.href !== "/dashboard/chats" || counts.flags.chat || counts.hasChats)
+    // Chats appear once the chat switch is on (or the user already has chats to read). Until the switches load,
+    // the slots are those of the switches-on cycle, so nothing is inserted or removed under the reader (QA WM-02)
+    .filter((link) => link.href !== "/dashboard/chats" || loading || counts.flags.chat || counts.hasChats)
     // Shared suggestions: mutual matches are the «توافق متبادل» tab of التوافقات
-    .filter((link) => link.href !== "/dashboard/matches" || !counts.flags.mutualSuggestions)
+    .filter((link) => link.href !== "/dashboard/matches" || (!loading && !counts.flags.mutualSuggestions))
     .map((link) => (badges[link.href] ? { ...link, badge: badges[link.href] } : link));
   const filteredMainLinks = filterLinks(mainLinksWithBadge);
   // Same name for the balance as the home and payments pages
@@ -203,7 +204,7 @@ export function DashboardSidebar() {
               variant="ghost"
               size="icon"
               aria-label={collapsed ? "توسيع القائمة" : "تصغير القائمة"}
-              className="h-9 w-9 rounded-lg text-muted-foreground hover:text-foreground"
+              className="h-11 w-11 rounded-lg text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary"
               onClick={() => setCollapsed(!collapsed)}
             >
               {collapsed ? (
@@ -238,7 +239,7 @@ export function DashboardSidebar() {
       <div className="flex-1 overflow-y-auto p-3">
         <p
           className={cn(
-            "text-[10px] uppercase tracking-wider text-muted-foreground/60 font-semibold px-3 mb-2",
+            "text-xs tracking-wide text-muted-foreground font-semibold px-3 mb-2",
             collapsed && "text-center px-0"
           )}
         >
@@ -257,7 +258,7 @@ export function DashboardSidebar() {
 
         <p
           className={cn(
-            "text-[10px] uppercase tracking-wider text-muted-foreground/60 font-semibold px-3 mb-2",
+            "text-xs tracking-wide text-muted-foreground font-semibold px-3 mb-2",
             collapsed && "text-center px-0"
           )}
         >
@@ -280,7 +281,7 @@ export function DashboardSidebar() {
         <button
           onClick={handleSignOut}
           className={cn(
-            "flex items-center gap-3 w-full rounded-xl px-3 py-2.5 text-sm font-medium text-destructive/80 hover:text-destructive hover:bg-destructive/5 transition-all duration-200",
+            "flex items-center gap-3 w-full rounded-xl px-3 py-2.5 text-sm font-medium text-destructive hover:text-destructive hover:bg-destructive/5 transition-all duration-200",
             collapsed && "justify-center px-2"
           )}
           title={collapsed ? "تسجيل الخروج" : undefined}
@@ -338,7 +339,7 @@ export function DashboardSidebar() {
               className="relative h-11 w-11 rounded-xl flex items-center justify-center hover:bg-muted/60 transition-colors">
               <Bell className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
               {unreadCount > 0 && (
-                <span aria-hidden="true" className="absolute top-1 start-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-bold text-white shadow-sm animate-in zoom-in duration-300">
+                <span aria-hidden="true" className="absolute top-1 start-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[11px] font-bold text-white shadow-sm animate-in zoom-in duration-300">
                   {unreadCount > 99 ? "99+" : unreadCount}
                 </span>
               )}
@@ -353,7 +354,8 @@ export function DashboardSidebar() {
           aria-label="التنقل الرئيسي"
           className="md:hidden fixed bottom-0 inset-x-0 z-40 border-t border-border/50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/85 pb-[env(safe-area-inset-bottom)]"
         >
-          <ul className="flex h-16 items-stretch">
+          {/* min-h: at 200% text the labels grow the bar instead of being clipped (QA WM-05) */}
+          <ul className="flex min-h-16 items-stretch">
             {bottomLinks.map((link) => {
               const active = link.active(pathname);
               const badge = link.badge ?? 0;
@@ -371,7 +373,7 @@ export function DashboardSidebar() {
                     <span className={cn("relative flex h-8 w-14 items-center justify-center rounded-full transition-colors", active && "bg-primary/10")}>
                       <link.icon className="h-5 w-5" aria-hidden />
                       {badge > 0 ? (
-                        <span aria-hidden className="absolute -top-1 end-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-white">
+                        <span aria-hidden className="absolute -top-1 end-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[11px] font-bold text-white">
                           {badge > 99 ? "99+" : badge}
                         </span>
                       ) : null}

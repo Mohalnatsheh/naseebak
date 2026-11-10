@@ -140,14 +140,14 @@ export function DealbreakersCard() {
                 key={a.key}
                 type="button"
                 onClick={openEditor}
-                className="h-8 max-w-[11rem] shrink-0 truncate rounded-full border border-primary/20 bg-primary/5 px-3 text-xs font-semibold text-primary"
+                className="h-8 max-md:min-h-11 max-w-[11rem] shrink-0 truncate rounded-full border border-primary/20 bg-primary/5 px-3 text-xs font-semibold text-primary"
                 title={`${DEALBREAKER_LABELS[a.key]}: ${a.summary}`}
               >
                 {DEALBREAKER_LABELS[a.key]}: {a.summary}
               </button>
             ))
           ) : prefs && !loadFailed ? (
-            <button type="button" onClick={openEditor} className="inline-flex h-8 min-w-0 items-center gap-1 truncate rounded-full border border-dashed border-border px-3 text-xs font-semibold text-muted-foreground">
+            <button type="button" onClick={openEditor} className="inline-flex h-8 max-md:min-h-11 min-w-0 items-center gap-1 truncate rounded-full border border-dashed border-border px-3 text-xs font-semibold text-muted-foreground">
               <Plus className="h-3.5 w-3.5 shrink-0" aria-hidden /> <span className="truncate">{g("حدّد ما لا تتنازل عنه", "حدّدي ما لا تتنازلين عنه")}</span>
             </button>
           ) : null}

@@ -641,7 +641,7 @@ export default function ProfileEditPage() {
     return (
       <div className="max-w-2xl mx-auto py-8 space-y-4">
         <LoadError
-          message="تعذّر تحميل بيانات ملفك، فلا يمكن التعديل الآن. تحقّق من الاتصال وحاول مرة أخرى."
+          message="تعذّر تحميل بيانات ملفك، فلا يمكن التعديل الآن. يمكنك التحقق من الاتصال والمحاولة مرة أخرى."
           onRetry={() => {
             setLoading(true);
             setReloadKey((k) => k + 1);
@@ -673,11 +673,11 @@ export default function ProfileEditPage() {
         // 404: it was already reviewed or withdrawn — either way nothing is pending any more
         setHasPendingRequest(false);
       } else {
-        setError(data.error || "تعذّر سحب الطلب. حاول مرة أخرى.");
+        setError(data.error || "تعذّر سحب الطلب. يمكنك المحاولة مرة أخرى.");
         scrollToError();
       }
     } catch {
-      setError("حدث خطأ في الاتصال. حاول مرة أخرى.");
+      setError("حدث خطأ في الاتصال. يمكنك المحاولة مرة أخرى.");
       scrollToError();
     } finally {
       setWithdrawing(false);

@@ -38,7 +38,7 @@ export const IMAGE_PREVIEW = REPLY_IMAGE_LABEL;
 export const VOICE_PREVIEW = REPLY_VOICE_LABEL;
 
 export { UNSUPPORTED_IMAGE_MESSAGE };
-export const IMAGE_BUSY_MESSAGE = "تعذّر تجهيز الصورة الآن، حاول مرة أخرى";
+export const IMAGE_BUSY_MESSAGE = "تعذّر تجهيز الصورة الآن، يمكنك المحاولة مرة أخرى";
 
 const VOICE_EXT: Record<(typeof VOICE_TYPES)[number], string> = {
   "audio/webm": "webm",

@@ -23,7 +23,7 @@ export const PRO_ERROR_MESSAGES: Record<ProErrorCode, string> = {
 /** The checkout route's own refusals, next to the Pro ones */
 export const PRO_ROUTE_MESSAGES = {
   APP_PURCHASES_DISABLED: "الشراء غير متاح في التطبيق حالياً",
-  CHECKOUT_FAILED: "تعذّر بدء عملية الدفع الآن. حاول مرة أخرى بعد قليل.",
+  CHECKOUT_FAILED: "تعذّر بدء عملية الدفع الآن. يمكنك المحاولة مرة أخرى بعد قليل.",
 } as const;
 
 export class ProError extends Error {

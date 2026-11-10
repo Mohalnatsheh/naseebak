@@ -64,7 +64,7 @@ function InfoRow({
         <Icon className="h-3.5 w-3.5 text-primary/60" />
       </div>
       <div className="flex-1 min-w-0">
-        <span className="text-[11px] text-muted-foreground/70 block leading-tight">{label}</span>
+        <span className="text-xs text-muted-foreground block leading-tight">{label}</span>
         <span className="text-sm font-semibold text-foreground truncate block">{value}</span>
       </div>
     </div>
@@ -160,7 +160,7 @@ export function CandidateDetails({ c }: { c: CandidateDetailsData }) {
         <Section title="الهوايات والاهتمامات" icon={Sparkles} defaultOpen={true}>
           {c.hobbies && (
             <div className="col-span-2 py-2">
-              <span className="text-[11px] text-muted-foreground/70 block mb-2">الهوايات</span>
+              <span className="text-xs text-muted-foreground block mb-2">الهوايات</span>
               <div className="flex flex-wrap gap-1.5">
                 {c.hobbies.split("،").map((h, i) => (
                   <span key={`h-${i}`} className="inline-flex items-center rounded-full bg-accent/10 border border-accent/20 px-3 py-1 text-xs font-medium text-accent-foreground">{h.trim()}</span>
@@ -170,7 +170,7 @@ export function CandidateDetails({ c }: { c: CandidateDetailsData }) {
           )}
           {c.interests && (
             <div className="col-span-2 py-2">
-              <span className="text-[11px] text-muted-foreground/70 block mb-2">الاهتمامات</span>
+              <span className="text-xs text-muted-foreground block mb-2">الاهتمامات</span>
               <div className="flex flex-wrap gap-1.5">
                 {c.interests.split("،").map((interest2, i) => (
                   <span key={`i-${i}`} className="inline-flex items-center rounded-full bg-primary/10 border border-primary/20 px-3 py-1 text-xs font-medium text-primary">{interest2.trim()}</span>

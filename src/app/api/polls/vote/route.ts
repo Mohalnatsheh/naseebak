@@ -25,7 +25,7 @@ export async function POST(request: Request) {
     if (!parsed.success) return NextResponse.json({ error: ERRORS.BAD_OPTION[0] }, { status: 400 });
 
     const limit = await rateLimitDb(`poll:ip:${clientIp(request)}`, { maxAttempts: 30, windowMs: 60 * 60 * 1000 });
-    if (!limit.success) return NextResponse.json({ error: "محاولات كثيرة. حاول مرة أخرى بعد قليل." }, { status: 429 });
+    if (!limit.success) return NextResponse.json({ error: "محاولات كثيرة. يمكنك المحاولة مرة أخرى بعد قليل." }, { status: 429 });
 
     const voter = await resolveVoter({ createCookie: true });
     if (voter.kind === "blocked") return NextResponse.json({ error: "حسابك غير مفعّل" }, { status: 403 });
@@ -46,6 +46,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: message, code: error.code }, { status });
     }
     console.error("[polls] vote failed:", error);
-    return NextResponse.json({ error: "تعذّر تسجيل صوتك. حاول مرة أخرى." }, { status: 500 });
+    return NextResponse.json({ error: "تعذّر تسجيل صوتك. يمكنك المحاولة مرة أخرى." }, { status: 500 });
   }
 }

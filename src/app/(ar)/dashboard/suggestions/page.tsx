@@ -227,11 +227,11 @@ export default function SuggestionsPage() {
         toast.success("تم الحظر");
         setBlockFor(null);
       } else {
-        toast.error("تعذّر الحظر، حاول مرة أخرى");
+        toast.error("تعذّر الحظر، يمكنك المحاولة مرة أخرى");
       }
     } catch (err) {
       console.error(err);
-      toast.error("تعذّر الحظر، حاول مرة أخرى");
+      toast.error("تعذّر الحظر، يمكنك المحاولة مرة أخرى");
     } finally {
       setBlocking(false);
     }
@@ -268,13 +268,17 @@ export default function SuggestionsPage() {
   }
 
   // Page 1 load from the effect below, with the current page (not a reason to re-run it)
-  const loadSuggestions = useEffectEvent(() => fetchSuggestions());
+  const loadSuggestions = useEffectEvent((started?: Promise<Response>) => fetchSuggestions(undefined, started));
+  const startSuggestions = useEffectEvent(() => fetch(`/api/suggestions?page=${sugPage}`));
 
   useEffect(() => {
     // Wait for the switches: the gate (and its copy) differs per mode
     if (switchesLoading) return;
     async function init() {
       setLoadFailed(false);
+      // The list starts together with the profile, not after it (QA WM-07: one round instead of two)
+      const suggestionsReq = startSuggestions();
+      suggestionsReq.catch(() => {});
       try {
         const res = await sharedGet("/api/profile");
         if (!res.ok) throw new Error(`profile ${res.status}`);
@@ -301,7 +305,7 @@ export default function SuggestionsPage() {
           })
         );
 
-        await loadSuggestions();
+        await loadSuggestions(suggestionsReq);
       } catch {
         // A failed load is not an incomplete profile: show an error with retry
         setLoadFailed(true);
@@ -312,9 +316,9 @@ export default function SuggestionsPage() {
     // Re-check once the new-cycle switches arrive (the gate differs per mode)
   }, [perRequestCredits, switchesLoading, reloadKey]);
 
-  async function fetchSuggestions(p = sugPage) {
+  async function fetchSuggestions(p = sugPage, started?: Promise<Response>) {
     try {
-      const res = await fetch(`/api/suggestions?page=${p}`);
+      const res = await (started ?? fetch(`/api/suggestions?page=${p}`));
       if (!res.ok) throw new Error(`suggestions ${res.status}`);
       const data = await res.json();
       if (data.mutualView) {
@@ -342,7 +346,7 @@ export default function SuggestionsPage() {
       setSentTotalPages(data.totalPages || 1);
     } catch (err) {
       console.error(err);
-      toast.error("تعذّر تحميل الطلبات، حاول مرة أخرى");
+      toast.error("تعذّر تحميل الطلبات، يمكنك المحاولة مرة أخرى");
     } finally {
       setSentLoading(false);
     }
@@ -357,7 +361,7 @@ export default function SuggestionsPage() {
       setIntTotalPages(data.totalPages || 1);
     } catch (err) {
       console.error(err);
-      toast.error("تعذّر تحميل الطلبات، حاول مرة أخرى");
+      toast.error("تعذّر تحميل الطلبات، يمكنك المحاولة مرة أخرى");
     } finally {
       setInterestsLoading(false);
     }
@@ -406,7 +410,7 @@ toast.success("تهانينا! لديك توافق متبادل!", {
       }
     } catch (err) {
       console.error(err);
-      toast.error("تعذّر حفظ قرارك، تحقّق من الاتصال وحاول مرة أخرى");
+      toast.error("تعذّر حفظ قرارك، يمكنك التحقق من الاتصال والمحاولة مرة أخرى");
     } finally {
       setActing(null);
     }
@@ -439,7 +443,7 @@ toast.success("تهانينا! لديك توافق متبادل!", {
       }
     } catch (err) {
       console.error(err);
-      toast.error("تعذّر حفظ قرارك، تحقّق من الاتصال وحاول مرة أخرى");
+      toast.error("تعذّر حفظ قرارك، يمكنك التحقق من الاتصال والمحاولة مرة أخرى");
     } finally {
       setActing(null);
     }
@@ -447,10 +451,10 @@ toast.success("تهانينا! لديك توافق متبادل!", {
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 gap-4">
+      <div role="status" className="flex min-h-[70vh] flex-col items-center justify-center py-20 gap-4">
         <div className="relative">
           <div className="h-16 w-16 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <Loader2 className="h-8 w-8 animate-spin text-primary" aria-hidden />
           </div>
           <div className="absolute inset-0 h-16 w-16 rounded-full bg-primary/10 animate-ping" />
         </div>
@@ -463,7 +467,7 @@ toast.success("تهانينا! لديك توافق متبادل!", {
     return (
       <div className="max-w-2xl mx-auto py-8">
         <LoadError
-          message="تعذّر تحميل الاقتراحات. تحقّق من الاتصال وحاول مرة أخرى."
+          message="تعذّر تحميل الاقتراحات. يمكنك التحقق من الاتصال والمحاولة مرة أخرى."
           onRetry={() => {
             setLoading(true);
             setReloadKey((k) => k + 1);
@@ -583,7 +587,7 @@ toast.success("تهانينا! لديك توافق متبادل!", {
           <span className="hidden sm:inline">اقتراحات جديدة</span>
           <span className="sm:hidden">اقتراحات</span>
           {suggestions.length > 0 && (
-            <span className={`inline-flex items-center justify-center h-5 min-w-5 px-1.5 rounded-full text-[10px] font-bold ${
+            <span className={`inline-flex items-center justify-center h-5 min-w-5 px-1.5 rounded-full text-[11px] font-bold ${
               activeTab === "new" ? "bg-primary text-primary-foreground" : "bg-muted-foreground/20 text-muted-foreground"
             }`}>
               {suggestions.length}
@@ -602,7 +606,7 @@ toast.success("تهانينا! لديك توافق متبادل!", {
           <span className="hidden sm:inline">الطلبات المرسلة</span>
           <span className="sm:hidden">المرسلة</span>
           {sentRequests.length > 0 && (
-            <span className={`inline-flex items-center justify-center h-5 min-w-5 px-1.5 rounded-full text-[10px] font-bold ${
+            <span className={`inline-flex items-center justify-center h-5 min-w-5 px-1.5 rounded-full text-[11px] font-bold ${
               activeTab === "sent" ? "bg-primary text-primary-foreground" : "bg-muted-foreground/20 text-muted-foreground"
             }`}>
               {sentRequests.length}
@@ -621,7 +625,7 @@ toast.success("تهانينا! لديك توافق متبادل!", {
           <span className="hidden sm:inline">طلبات الاهتمام</span>
           <span className="sm:hidden">الاهتمام</span>
           {interests.length > 0 && (
-            <span className={`inline-flex items-center justify-center h-5 min-w-5 px-1.5 rounded-full text-[10px] font-bold ${
+            <span className={`inline-flex items-center justify-center h-5 min-w-5 px-1.5 rounded-full text-[11px] font-bold ${
               activeTab === "interests" ? "bg-primary text-primary-foreground" : "bg-primary/20 text-primary"
             }`}>
               {interests.length}
@@ -671,7 +675,7 @@ toast.success("تهانينا! لديك توافق متبادل!", {
                     لا توجد اقتراحات جديدة الآن. سنرسل لك إشعاراً فور وصول اقتراح يناسبك، وإكمال ملفك واختبار الشخصية يجعل الاقتراحات أدق.
                   </p>
                 </div>
-                <div className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground/60 pt-2">
+                <div className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground pt-2">
                   <Sparkles className="h-3.5 w-3.5" />
                   <span>يتم تحديث الاقتراحات بشكل دوري</span>
                 </div>
@@ -713,7 +717,7 @@ toast.success("تهانينا! لديك توافق متبادل!", {
                       }
                       badges={
                         s.isManual ? (
-                          <Badge className="bg-gradient-to-l from-accent/20 to-accent/10 text-accent-foreground border border-accent/20 text-[10px] px-2 py-0">
+                          <Badge className="bg-gradient-to-l from-accent/20 to-accent/10 text-accent-foreground border border-accent/20 text-xs px-2 py-0">
                             اقتراح الإدارة
                           </Badge>
                         ) : undefined
@@ -802,10 +806,10 @@ toast.success("تهانينا! لديك توافق متبادل!", {
       {activeTab === "sent" && (
         <>
           {sentLoading ? (
-            <div className="flex flex-col items-center justify-center py-16 gap-4">
+            <div role="status" className="flex flex-col items-center justify-center py-16 gap-4">
               <div className="relative">
                 <div className="h-14 w-14 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
-                  <Loader2 className="h-7 w-7 animate-spin text-primary" />
+                  <Loader2 className="h-7 w-7 animate-spin text-primary" aria-hidden />
                 </div>
               </div>
               <p className="text-sm text-muted-foreground animate-pulse">جاري تحميل الطلبات...</p>
@@ -863,7 +867,7 @@ toast.success("تهانينا! لديك توافق متبادل!", {
                       tags={[{ icon: GraduationCap, label: req.candidate.education }]}
                       actions={
                         <div className="flex items-center justify-between gap-2">
-                          <span className="text-xs text-muted-foreground/70">أُرسل في {sentDate}</span>
+                          <span className="text-xs text-muted-foreground">أُرسل في {sentDate}</span>
                           {req.status === "matched" && (
                             <Link
                               href="/dashboard/matches"

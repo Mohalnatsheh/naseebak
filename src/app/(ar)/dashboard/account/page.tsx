@@ -64,8 +64,9 @@ export default function AccountPage() {
   // Same width as the loaded page, so nothing jumps when it fills in (QA WA-06)
   if (loading) {
     return (
-      <div className="mx-auto flex max-w-xl justify-center py-24">
+      <div role="status" className="mx-auto flex min-h-[70vh] max-w-xl justify-center py-24">
         <Loader2 className="h-8 w-8 animate-spin text-primary" aria-hidden />
+        <span className="sr-only">جارٍ التحميل…</span>
       </div>
     );
   }
@@ -75,7 +76,7 @@ export default function AccountPage() {
     return (
       <div className="mx-auto max-w-xl space-y-5 py-6">
         <LoadError
-          message="تعذّر تحميل حسابك. تحقّق من الاتصال وحاول مرة أخرى."
+          message="تعذّر تحميل حسابك. يمكنك التحقق من الاتصال والمحاولة مرة أخرى."
           onRetry={
             retrying
               ? undefined

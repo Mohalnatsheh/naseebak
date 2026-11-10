@@ -34,7 +34,7 @@ export async function POST(request: Request) {
       if (error instanceof CredentialsSignin && error.code?.startsWith(RATE_LIMITED_CODE)) {
         const minutes = Number(error.code.split(":")[1]) || 15;
         return NextResponse.json(
-          { error: `محاولات كثيرة غير ناجحة. حاول مرة أخرى بعد ${minutes} دقيقة.`, code: "RATE_LIMITED", retryAfterMinutes: minutes },
+          { error: `محاولات كثيرة غير ناجحة. يمكنك المحاولة مرة أخرى بعد ${minutes} دقيقة.`, code: "RATE_LIMITED", retryAfterMinutes: minutes },
           { status: 429 },
         );
       }

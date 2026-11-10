@@ -53,7 +53,7 @@ export function useProCheckout() {
         window.location.assign(data.url);
         return; // keep the spinner while the page leaves
       }
-      setError(data.error || "تعذّر بدء عملية الدفع الآن. حاول مرة أخرى بعد قليل.");
+      setError(data.error || "تعذّر بدء عملية الدفع الآن. يمكنك المحاولة مرة أخرى بعد قليل.");
     } catch {
       setError("حدث خطأ في الاتصال");
     }
@@ -224,7 +224,7 @@ export function ProSection({
   onChanged: () => void;
 }) {
   if (loadFailed) {
-    return <LoadError message="تعذّر تحميل جزء من هذه الصفحة. تحقّق من الاتصال وحاول مرة أخرى." onRetry={onRetry} />;
+    return <LoadError message="تعذّر تحميل جزء من هذه الصفحة. يمكنك التحقق من الاتصال والمحاولة مرة أخرى." onRetry={onRetry} />;
   }
   if (!state) return null;
   if (state.isPro) return <MyProCard state={state} onChanged={onChanged} />;

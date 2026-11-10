@@ -116,8 +116,8 @@ function CompletionRing({
             x2="100%"
             y2="0%"
           >
-            <stop offset="0%" stopColor="hsl(var(--primary))" />
-            <stop offset="100%" stopColor="hsl(var(--accent))" />
+            <stop offset="0%" stopColor="var(--primary)" />
+            <stop offset="100%" stopColor="var(--accent)" />
           </linearGradient>
         </defs>
       </svg>
@@ -294,7 +294,7 @@ export default function ProfilePage() {
       try {
         imageData = await compressImage(file);
       } catch {
-        toast.error("تعذّر قراءة الصورة. جرّب صورة بصيغة JPG أو PNG.");
+        toast.error("تعذّر قراءة الصورة. يمكنك تجربة صورة بصيغة JPG أو PNG.");
         return;
       }
 
@@ -319,11 +319,11 @@ export default function ProfilePage() {
         toast.success("تم تحديث الصورة");
       } else {
         const data = await res.json().catch(() => ({}));
-        toast.error(data.error || "تعذّر رفع الصورة. حاول مرة أخرى.");
+        toast.error(data.error || "تعذّر رفع الصورة. يمكنك المحاولة مرة أخرى.");
       }
     } catch (err) {
       console.error("Avatar upload failed", err);
-      toast.error("تعذّر رفع الصورة. تحقّق من الاتصال وحاول مرة أخرى.");
+      toast.error("تعذّر رفع الصورة. يمكنك التحقق من الاتصال والمحاولة مرة أخرى.");
     } finally {
       setAvatarUploading(false);
       if (avatarInputRef.current) avatarInputRef.current.value = "";
@@ -437,7 +437,7 @@ export default function ProfilePage() {
                 onClick={() => avatarInputRef.current?.click()}
                 disabled={avatarUploading}
                 aria-label="تغيير الصورة"
-                className="absolute inset-0 rounded-2xl bg-black/40 opacity-0 group-hover/avatar:opacity-100 transition-all duration-300 flex items-center justify-center cursor-pointer"
+                className="absolute inset-0 rounded-2xl bg-black/40 opacity-0 group-hover/avatar:opacity-100 focus-visible:opacity-100 transition-all duration-300 flex items-center justify-center cursor-pointer max-md:hidden"
               >
                 {avatarUploading ? (
                   <Loader2 className="h-5 w-5 text-white animate-spin" />
@@ -451,7 +451,7 @@ export default function ProfilePage() {
                 onClick={() => avatarInputRef.current?.click()}
                 disabled={avatarUploading}
                 aria-label="تغيير الصورة"
-                className="absolute -bottom-2.5 -start-2.5 flex h-10 w-10 items-center justify-center rounded-full bg-card text-primary shadow-md ring-2 ring-primary md:hidden"
+                className="absolute -bottom-2.5 -start-2.5 flex h-11 w-11 items-center justify-center rounded-full bg-card text-primary shadow-md ring-2 ring-primary md:hidden"
               >
                 <Camera className="h-4 w-4" />
               </button>
@@ -616,7 +616,7 @@ export default function ProfilePage() {
                       </div>
                       {section.missingFields.length > 0 &&
                         section.percentage < 100 && (
-                          <p className="text-[10px] text-muted-foreground mt-1 truncate">
+                          <p className="text-xs text-muted-foreground mt-1 truncate">
                             ينقص:{" "}
                             {section.missingFields.slice(0, 3).join("، ")}
                             {section.missingFields.length > 3 &&
@@ -1383,9 +1383,9 @@ export default function ProfilePage() {
                           return;
                         }
                         const data = await res.json().catch(() => ({}));
-                        toast.error(data.error || "تعذّر تعطيل الحساب. حاول مرة أخرى.");
+                        toast.error(data.error || "تعذّر تعطيل الحساب. يمكنك المحاولة مرة أخرى.");
                       } catch {
-                        toast.error("حدث خطأ في الاتصال. حاول مرة أخرى.");
+                        toast.error("حدث خطأ في الاتصال. يمكنك المحاولة مرة أخرى.");
                       } finally {
                         setDeactivating(false);
                       }
@@ -1455,10 +1455,10 @@ export default function ProfilePage() {
                         setDeletionRequest(null);
                         setShowDeleteConfirm(false);
                       } else {
-                        toast.error("تعذّر إلغاء طلب الحذف. حاول مرة أخرى.");
+                        toast.error("تعذّر إلغاء طلب الحذف. يمكنك المحاولة مرة أخرى.");
                       }
                     } catch {
-                      toast.error("حدث خطأ في الاتصال. حاول مرة أخرى.");
+                      toast.error("حدث خطأ في الاتصال. يمكنك المحاولة مرة أخرى.");
                     } finally {
                       setDeletionLoading(false);
                     }
@@ -1552,9 +1552,9 @@ export default function ProfilePage() {
                           return;
                         }
                         const data = await res.json().catch(() => ({}));
-                        toast.error(data.error || "تعذّر إرسال طلب الحذف. حاول مرة أخرى.");
+                        toast.error(data.error || "تعذّر إرسال طلب الحذف. يمكنك المحاولة مرة أخرى.");
                       } catch {
-                        toast.error("حدث خطأ في الاتصال. حاول مرة أخرى.");
+                        toast.error("حدث خطأ في الاتصال. يمكنك المحاولة مرة أخرى.");
                       } finally {
                         setDeletionLoading(false);
                       }

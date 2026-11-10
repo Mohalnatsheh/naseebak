@@ -79,7 +79,9 @@ async function DashboardShell({ children }: { children: React.ReactNode }) {
         <div className={`flex min-h-screen overflow-x-hidden`}>
           <DashboardSidebar />
           <main id="main" tabIndex={-1} className="flex-1 md:pt-0 pt-[58px] pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0 min-w-0">
-            <div className="max-w-5xl mx-auto px-4 md:px-6 py-6 md:py-8">
+            {/* At least a screen tall: the footer stays below the fold while a page loads, instead of sitting under the
+                spinner and jumping when the content arrives (QA PA-M4) */}
+            <div className="max-w-5xl mx-auto min-h-[calc(100dvh-58px-4rem)] px-4 md:min-h-dvh md:px-6 py-6 md:py-8">
               {/* Every page, until notifications are on (replaces the one-time popup) */}
               <NotificationBar />
               {/* The admin's popup alert, once per member (admin → Popup Alerts) */}

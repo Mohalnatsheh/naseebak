@@ -92,7 +92,7 @@ export function ScoreRing({ score, compact }: { score: number; compact?: boolean
           {score}
           <span className="text-[0.6em]">%</span>
         </span>
-        <span className="text-[10px] text-foreground/70 font-semibold leading-none mt-0.5">توافق</span>
+        <span className="text-xs text-foreground/70 font-semibold leading-none mt-0.5">توافق</span>
       </div>
     </div>
   );
@@ -273,7 +273,7 @@ export function PersonCard({
               type="button"
               onClick={onToggleExpand}
               aria-expanded={!!expanded}
-              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-border/50 bg-muted/30 hover:bg-muted/50 transition-colors text-sm font-semibold text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="w-full min-h-11 flex items-center justify-center gap-2 py-2.5 rounded-xl border border-border/50 bg-muted/30 hover:bg-muted/50 transition-colors text-sm font-semibold text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               {expanded ? (
                 <>

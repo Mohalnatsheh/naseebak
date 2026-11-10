@@ -148,7 +148,7 @@ describe("sendMediaMessage: checks before any upload", () => {
       conversationId: "c1", senderId: "u1", kind: "IMAGE", file: Buffer.from("not an image"), type: "image/heic",
     }).catch((e) => e);
     expect(err).toBeInstanceOf(IntroError);
-    expect(err.message).toBe("صيغة الصورة غير مدعومة، جرّب صورة JPG أو PNG");
+    expect(err.message).toBe("صيغة الصورة غير مدعومة، يمكنك تجربة صورة JPG أو PNG");
     expect(bunny.uploadToBunny).not.toHaveBeenCalled();
   });
 
@@ -389,7 +389,7 @@ describe("HEIC / HEIF (iPhone)", () => {
     const corrupt = Buffer.concat([heic().subarray(0, 40), Buffer.alloc(200, 7)]);
     const err = await processImage(corrupt).catch((e) => e);
     expect(err).toBeInstanceOf(IntroError);
-    expect(err.message).toBe("صيغة الصورة غير مدعومة، جرّب صورة JPG أو PNG");
+    expect(err.message).toBe("صيغة الصورة غير مدعومة، يمكنك تجربة صورة JPG أو PNG");
   });
 });
 

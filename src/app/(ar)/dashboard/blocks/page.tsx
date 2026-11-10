@@ -33,13 +33,13 @@ export default function BlocksPage() {
       if (!res.ok) {
         // A fixed message, never the server's own text (QA WA-19)
         console.error("Blocks load failed:", res.status, data.error);
-        setError("تعذّر تحميل قائمة المحظورين. حاول مرة أخرى.");
+        setError("تعذّر تحميل قائمة المحظورين. يمكنك المحاولة مرة أخرى.");
         return;
       }
       setError(null);
       setBlocks(data.blocks ?? []);
     } catch {
-      setError("تعذّر الاتصال. تحقق من الإنترنت وحاول مرة أخرى.");
+      setError("تعذّر الاتصال. يمكنك التحقق من الإنترنت والمحاولة مرة أخرى.");
     } finally {
       setLoading(false);
     }
@@ -56,14 +56,14 @@ export default function BlocksPage() {
       const res = await fetch(`/api/blocks/${target.id}`, { method: "DELETE" });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        toast.error(data.error ?? "تعذّر إلغاء الحظر، حاول مرة أخرى");
+        toast.error(data.error ?? "تعذّر إلغاء الحظر، يمكنك المحاولة مرة أخرى");
         return;
       }
       toast.success("تم إلغاء الحظر");
       setTarget(null);
       await load();
     } catch {
-      toast.error("تعذّر الاتصال. تحقق من الإنترنت وحاول مرة أخرى.");
+      toast.error("تعذّر الاتصال. يمكنك التحقق من الإنترنت والمحاولة مرة أخرى.");
     } finally {
       setBusy(false);
     }
@@ -78,8 +78,9 @@ export default function BlocksPage() {
       />
 
       {loading ? (
-        <div className="flex justify-center py-16">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <div role="status" className="flex min-h-[50vh] justify-center py-16">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" aria-hidden />
+          <span className="sr-only">جارٍ التحميل…</span>
         </div>
       ) : error ? (
         <LoadError message={error} onRetry={() => { setLoading(true); load(); }} />

@@ -549,7 +549,7 @@ export default function ProfileSetupPage() {
   if (profileFailed) {
     return (
       <div className="max-w-2xl mx-auto py-12">
-        <LoadError message="تعذّر تحميل ملفك. تحقّق من اتصالك وحاول مرة أخرى." onRetry={loadProfile} />
+        <LoadError message="تعذّر تحميل ملفك. يمكنك التحقق من اتصالك والمحاولة مرة أخرى." onRetry={loadProfile} />
       </div>
     );
   }
@@ -557,7 +557,7 @@ export default function ProfileSetupPage() {
   if (!flags && flagsFailed) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] gap-4 text-center">
-        <p className="text-sm text-muted-foreground">تعذّر تحميل الصفحة. تحقّق من اتصالك وحاول مرة أخرى.</p>
+        <p className="text-sm text-muted-foreground">تعذّر تحميل الصفحة. يمكنك التحقق من اتصالك والمحاولة مرة أخرى.</p>
         <Button variant="outline" onClick={loadFlags}>إعادة المحاولة</Button>
       </div>
     );

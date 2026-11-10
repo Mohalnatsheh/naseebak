@@ -24,12 +24,13 @@ interface State {
   creditOnInterest: boolean;
   activeFirstFeed: boolean;
   saRelaxedMatching: boolean;
+  lbRelaxedMatching: boolean;
   freeInterestReply: boolean;
   proEnabled: boolean;
   creditsMigratedAt: string | null;
 }
 
-type Key = "introRequests" | "chat" | "mutualSuggestions" | "creditOnInterest" | "activeFirstFeed" | "saRelaxedMatching" | "freeInterestReply" | "proEnabled";
+type Key = "introRequests" | "chat" | "mutualSuggestions" | "creditOnInterest" | "activeFirstFeed" | "saRelaxedMatching" | "lbRelaxedMatching" | "freeInterestReply" | "proEnabled";
 
 /** Admin → Settings: the switches for the new user cycle, in plain words. */
 export function NewCycleSettingsCard() {
@@ -66,7 +67,7 @@ export function NewCycleSettingsCard() {
 
   function toggle(key: Key, value: boolean) {
     // The feed order, Saudi matching and the free reply are safe to turn off at once: nothing in flight depends on them
-    const quickOff = key === "activeFirstFeed" || key === "saRelaxedMatching" || key === "freeInterestReply" || key === "proEnabled";
+    const quickOff = key === "activeFirstFeed" || key === "saRelaxedMatching" || key === "lbRelaxedMatching" || key === "freeInterestReply" || key === "proEnabled";
     if (!value && !quickOff) setConfirmOff(key);
     else if (value && key === "introRequests") setConfirmIntroOn(true);
     else save(key, value);
@@ -152,6 +153,14 @@ export function NewCycleSettingsCard() {
       disabled: !state?.introRequests || !state?.mutualSuggestions,
     },
     {
+      key: "lbRelaxedMatching" as const,
+      icon: Globe,
+      title: "Lebanon: relaxed matching",
+      text: "Lebanese members get suggestions with no score minimum, best score first; «شروط أساسية» still apply, and members still meet only within Lebanon. Jordan and Saudi Arabia are unchanged. Turning it off makes no new low-score cards; ones already made run their 7 days. Needs Simultaneous suggestions on.",
+      on: !!state?.introRequests && !!state?.mutualSuggestions && !!state?.lbRelaxedMatching,
+      disabled: !state?.introRequests || !state?.mutualSuggestions,
+    },
+    {
       key: "proEnabled" as const,
       icon: Crown,
       title: "Pro membership sales",
@@ -188,7 +197,7 @@ export function NewCycleSettingsCard() {
                   <p className="text-xs font-medium text-amber-700">
                     {r.key === "freeInterestReply"
                       ? "Turn on credit on interest first."
-                      : r.key === "creditOnInterest" || r.key === "activeFirstFeed" || r.key === "saRelaxedMatching"
+                      : r.key === "creditOnInterest" || r.key === "activeFirstFeed" || r.key === "saRelaxedMatching" || r.key === "lbRelaxedMatching"
                         ? "Turn on simultaneous suggestions first."
                         : "Turn on family and chat requests first."}
                   </p>

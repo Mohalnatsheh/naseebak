@@ -745,6 +745,13 @@ describe("credit on interest: open cap 10", () => {
     expect(db.suggestion.createMany.mock.calls[0][0].data.map((d: { candidateId: string }) => d.candidateId)).toEqual(["sa-hi", "sa-lo"]);
   });
 
+  it("lb_relaxed_matching: no minimum for Lebanon, 60 without it; Jordan and Saudi Arabia keep 60", () => {
+    expect(minSuggestionScore({ ...on, relaxedCountries: ["LB"] }, "LB")).toBe(0);
+    expect(minSuggestionScore({ ...on, relaxedCountries: ["LB"] }, "JO")).toBe(60);
+    expect(minSuggestionScore({ ...on, relaxedCountries: ["LB"] }, "SA")).toBe(60);
+    expect(minSuggestionScore({ ...on, relaxedCountries: [] }, "LB")).toBe(60);
+  });
+
   it("sa_relaxed_matching still honours «شروط أساسية»", async () => {
     flags.getCycleFlags.mockResolvedValue({ ...on, relaxedCountries: ["SA"] });
     openRows(0);

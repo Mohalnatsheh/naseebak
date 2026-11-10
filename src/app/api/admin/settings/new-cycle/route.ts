@@ -6,13 +6,14 @@ import { db } from "@/lib/db";
 import { closeLegacyInFlight } from "@/lib/suggestions/mutual";
 
 async function state() {
-  const [flags, chatRaw, mutualRaw, creditRaw, activeFirstRaw, saRelaxedRaw, freeReplyRaw, proRaw, migration] = await Promise.all([
+  const [flags, chatRaw, mutualRaw, creditRaw, activeFirstRaw, saRelaxedRaw, lbRelaxedRaw, freeReplyRaw, proRaw, migration] = await Promise.all([
     getCycleFlags(),
     getSetting("chat_enabled"),
     getSetting("new_suggestions_flow"),
     getSetting("credit_on_interest"),
     getSetting("feed_active_first"),
     getSetting("sa_relaxed_matching"),
+    getSetting("lb_relaxed_matching"),
     getSetting("free_interest_reply"),
     getSetting("pro_enabled"),
     db.systemSetting.findUnique({ where: { key: "migration_new_cycle_v1" } }),
@@ -24,6 +25,7 @@ async function state() {
     creditOnInterest: creditRaw === "true",
     activeFirstFeed: activeFirstRaw === "true",
     saRelaxedMatching: saRelaxedRaw === "true",
+    lbRelaxedMatching: lbRelaxedRaw === "true",
     freeInterestReply: freeReplyRaw === "true",
     proEnabled: proRaw === "true",
     creditsMigratedAt: migration?.value ?? null,
@@ -48,6 +50,7 @@ const schema = z.object({
   creditOnInterest: z.boolean().optional(),
   activeFirstFeed: z.boolean().optional(),
   saRelaxedMatching: z.boolean().optional(),
+  lbRelaxedMatching: z.boolean().optional(),
   freeInterestReply: z.boolean().optional(),
   /** Pro membership: new sales and offers only; members already subscribed keep Pro */
   proEnabled: z.boolean().optional(),
@@ -79,6 +82,9 @@ export async function PATCH(request: Request) {
     }
     if (parsed.data.saRelaxedMatching !== undefined) {
       await setSetting("sa_relaxed_matching", String(parsed.data.saRelaxedMatching));
+    }
+    if (parsed.data.lbRelaxedMatching !== undefined) {
+      await setSetting("lb_relaxed_matching", String(parsed.data.lbRelaxedMatching));
     }
     if (parsed.data.freeInterestReply !== undefined) {
       await setSetting("free_interest_reply", String(parsed.data.freeInterestReply));

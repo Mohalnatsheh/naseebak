@@ -76,6 +76,14 @@ describe("new-cycle settings PATCH", () => {
     expect(mutualMod.closeLegacyInFlight).not.toHaveBeenCalled();
   });
 
+  it("saves and reports the Lebanese relaxed matching switch, off by default", async () => {
+    expect((await (await patch({})).json()).lbRelaxedMatching).toBe(false);
+    const res = await patch({ lbRelaxedMatching: true });
+    expect(store.value.lb_relaxed_matching).toBe("true");
+    expect((await res.json()).lbRelaxedMatching).toBe(true);
+    expect(settings.setSetting.mock.calls.map((c) => c[0])).toEqual(["lb_relaxed_matching"]);
+  });
+
   it("saves and reports the Saudi relaxed matching switch, off by default", async () => {
     expect((await (await patch({})).json()).saRelaxedMatching).toBe(false);
     const res = await patch({ saRelaxedMatching: true });

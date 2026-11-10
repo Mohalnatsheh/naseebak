@@ -78,7 +78,7 @@ async function notifyNewForMe(userId: string, count: number): Promise<void> {
 
 /**
  * Lowest compatibility score that may be suggested (credit-on-interest raises it, since an "interested" costs a credit).
- * A country under relaxed matching (`sa_relaxed_matching`) has none: everyone who passes «شروط أساسية» may be suggested,
+ * A country under relaxed matching (`sa_relaxed_matching`, `lb_relaxed_matching`) has none: everyone who passes «شروط أساسية» may be suggested,
  * still best score first.
  */
 export function minSuggestionScore(flags: CycleFlags, country?: string | null): number {

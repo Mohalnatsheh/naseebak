@@ -12,6 +12,8 @@ const DEFAULTS: Record<string, string> = {
   feed_active_first: "false",
   // Saudi Arabia while it is small (2026-11-08): no score minimum for Saudi members. «شروط أساسية» still apply
   sa_relaxed_matching: "false",
+  // Lebanon, same as Saudi Arabia (2026-11-10): no score minimum for Lebanese members. «شروط أساسية» still apply
+  lb_relaxed_matching: "false",
   // Answering a «مهتم» with «مهتم» costs no credit; the first «مهتم» still does (2026-11-08)
   free_interest_reply: "false",
   // Pro membership: gates new sales and offers only, never what a member already paid for
@@ -81,7 +83,7 @@ export interface CycleFlags {
   activeFirstFeed?: boolean;
   /** Answering «مهتم» on a card the other side already said «مهتم» on costs no credit — only on with credit on interest */
   freeInterestReply?: boolean;
-  /** Countries whose members are suggested without the score minimum (switch `sa_relaxed_matching`). «شروط أساسية» still apply */
+  /** Countries whose members are suggested without the score minimum (switches `sa_relaxed_matching`, `lb_relaxed_matching`). «شروط أساسية» still apply */
   relaxedCountries?: string[];
 }
 
@@ -92,7 +94,7 @@ export async function getProEnabled(): Promise<boolean> {
 
 /** New user cycle switches (Admin → Settings). Both default to off. */
 export async function getCycleFlags(): Promise<CycleFlags> {
-  const [intro, chat, mutual, creditOnInterest, activeFirst, saRelaxed, freeReply] = await Promise.all([
+  const [intro, chat, mutual, creditOnInterest, activeFirst, saRelaxed, freeReply, lbRelaxed] = await Promise.all([
     getSetting("intro_requests_enabled"),
     getSetting("chat_enabled"),
     getSetting("new_suggestions_flow"),
@@ -100,6 +102,7 @@ export async function getCycleFlags(): Promise<CycleFlags> {
     getSetting("feed_active_first"),
     getSetting("sa_relaxed_matching"),
     getSetting("free_interest_reply"),
+    getSetting("lb_relaxed_matching"),
   ]);
   const introRequests = intro === "true";
   const mutualSuggestions = introRequests && mutual === "true";
@@ -111,6 +114,6 @@ export async function getCycleFlags(): Promise<CycleFlags> {
     creditOnInterest: creditOn,
     freeInterestReply: creditOn && freeReply === "true",
     activeFirstFeed: mutualSuggestions && activeFirst === "true",
-    relaxedCountries: saRelaxed === "true" ? ["SA"] : [],
+    relaxedCountries: [...(saRelaxed === "true" ? ["SA"] : []), ...(lbRelaxed === "true" ? ["LB"] : [])],
   };
 }

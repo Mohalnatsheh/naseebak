@@ -67,6 +67,14 @@ describe("getCycleFlags.relaxedCountries", () => {
   it("is Saudi Arabia with sa_relaxed_matching on", async () => {
     expect((await flagsWith({ ...allOn, sa_relaxed_matching: "true" })).relaxedCountries).toEqual(["SA"]);
   });
+
+  it("is Lebanon only with lb_relaxed_matching on", async () => {
+    expect((await flagsWith({ ...allOn, lb_relaxed_matching: "true" })).relaxedCountries).toEqual(["LB"]);
+  });
+
+  it("holds both with both switches on", async () => {
+    expect((await flagsWith({ ...allOn, sa_relaxed_matching: "true", lb_relaxed_matching: "true" })).relaxedCountries).toEqual(["SA", "LB"]);
+  });
 });
 
 describe("getCycleFlags.freeInterestReply", () => {

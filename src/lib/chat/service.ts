@@ -559,7 +559,9 @@ export async function getConversation(
       ? db.message.findMany({
           where: { conversationId: id, reactedAt: { gte: reactionsSince } },
           select: { id: true, reactions: messageInclude.reactions },
-          orderBy: { reactedAt: "asc" },
+          // Newest changes first: each entry carries the message's full reactions, so order doesn't matter to clients,
+          // and after a long gap the cap drops the oldest changes, not the newest (final review minor 7)
+          orderBy: { reactedAt: "desc" },
           take: 200,
         })
       : null,

@@ -639,6 +639,7 @@ describe("polling: reactions on older messages (?after= with reactionsSince)", (
     ]);
     const query = db.message.findMany.mock.calls.find((call) => call[0].where.reactedAt)![0];
     expect(query.where).toEqual({ conversationId: c.id, reactedAt: { gte: new Date(since) } });
+    expect(query).toMatchObject({ orderBy: { reactedAt: "desc" }, take: 200 });
     expect(JSON.stringify(res.reactionUpdates)).not.toContain("f1");
   });
 

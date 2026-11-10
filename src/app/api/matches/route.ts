@@ -182,7 +182,9 @@ export async function GET(request: Request) {
       };
     });
 
-    // Open matches first, closed ones after them (on this page; the order is otherwise newest first)
+    // Open matches first, closed ones after them, per page only (`closed` is derived, not a column, so the query
+    // can't sort by it): a closed match on page 1 still shows before open ones on page 2. Accepted (final review
+    // minor 3): pages are newest first, so open matches mostly sit on the first pages anyway
     formatted.sort((a, b) => Number(!!a.closed) - Number(!!b.closed));
     return NextResponse.json({ matches: formatted, page, totalPages: Math.ceil(total / pageSize), total });
   } catch (error) {

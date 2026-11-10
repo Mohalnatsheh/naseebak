@@ -7,6 +7,11 @@ import '../features/alerts/alert_gate.dart';
 import '../features/home/counts.dart';
 
 /// A tab's name for screen readers, with what waits there after it
+/// The «الاقتراحات» tab badge, one rule with the website's nav (review X4b minor 5): someone already said «مهتم» (good
+/// news, gold) wins; else how many new cards wait (navy)
+(int, BadgeTone) suggestionsBadgeOf({required int likedYou, required int newSuggestions}) =>
+    likedYou > 0 ? (likedYou, BadgeTone.good) : (newSuggestions, BadgeTone.count);
+
 String tabTooltip(String label, int count) => count > 0 ? '$label، ${count > 99 ? 'أكثر من 99' : count} جديدة' : label;
 
 /// Bottom navigation: home, suggestions, matches, chats, account.
@@ -26,7 +31,8 @@ class AppShell extends ConsumerWidget {
             child: Icon(i),
           )
         : Icon(i);
-    final suggestionsBadge = (c?.newSuggestions ?? 0) + (c?.likedYou ?? 0);
+    final (suggestionsBadge, suggestionsTone) =
+        suggestionsBadgeOf(likedYou: c?.likedYou ?? 0, newSuggestions: c?.newSuggestions ?? 0);
     final matchesBadge = c?.pendingIntros ?? 0;
     // Back on another tab goes to «الرئيسية» first (Android); only home's back leaves the app
     return PopScope(
@@ -52,7 +58,7 @@ class AppShell extends ConsumerWidget {
         },
         destinations: [
           const NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home_rounded), label: 'الرئيسية'),
-          NavigationDestination(icon: icon(Icons.auto_awesome_outlined, suggestionsBadge), label: 'الاقتراحات', tooltip: tabTooltip('الاقتراحات', suggestionsBadge)),
+          NavigationDestination(icon: icon(Icons.auto_awesome_outlined, suggestionsBadge, tone: suggestionsTone), label: 'الاقتراحات', tooltip: tabTooltip('الاقتراحات', suggestionsBadge)),
           NavigationDestination(icon: icon(Icons.handshake_outlined, matchesBadge, tone: BadgeTone.act), label: 'التوافقات', tooltip: tabTooltip('التوافقات', matchesBadge)),
           NavigationDestination(icon: icon(Icons.forum_outlined, c?.unreadChats ?? 0), label: 'المحادثات', tooltip: tabTooltip('المحادثات', c?.unreadChats ?? 0)),
           const NavigationDestination(icon: Icon(Icons.person_outline_rounded), selectedIcon: Icon(Icons.person_rounded), label: 'حسابي'),

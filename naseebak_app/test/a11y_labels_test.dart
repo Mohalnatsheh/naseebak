@@ -4,7 +4,8 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:naseebak_app/app/app.dart' show appMaxTextScale;
 import 'package:naseebak_app/app/material_labels.dart';
-import 'package:naseebak_app/app/shell.dart' show tabTooltip;
+import 'package:naseebak_app/app/shell.dart' show suggestionsBadgeOf, tabTooltip;
+import 'package:naseebak_app/core/theme/app_theme.dart' show BadgeTone;
 
 void main() {
   testWidgets('a dialog or sheet backdrop says «إغلاق»', (tester) async {
@@ -32,6 +33,12 @@ void main() {
     expect(tabTooltip('الاقتراحات', 10), 'الاقتراحات، 10 جديدة');
     expect(tabTooltip('المحادثات', 0), 'المحادثات');
     expect(tabTooltip('الاقتراحات', 120), 'الاقتراحات، أكثر من 99 جديدة');
+  });
+
+  test('«الاقتراحات» badge: «مهتم» waiting in gold wins, else the new cards in navy (one rule with the website)', () {
+    expect(suggestionsBadgeOf(likedYou: 2, newSuggestions: 9), (2, BadgeTone.good));
+    expect(suggestionsBadgeOf(likedYou: 0, newSuggestions: 9), (9, BadgeTone.count));
+    expect(suggestionsBadgeOf(likedYou: 0, newSuggestions: 0), (0, BadgeTone.count));
   });
 
   test('system text is followed up to 2×', () => expect(appMaxTextScale, 2.0));

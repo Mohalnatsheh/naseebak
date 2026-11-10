@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const db = vi.hoisted(() => ({
-  user: { findUnique: vi.fn(), findMany: vi.fn(), updateMany: vi.fn(), update: vi.fn() },
+  user: { findUnique: vi.fn(), findMany: vi.fn(), updateMany: vi.fn(), update: vi.fn(), count: vi.fn(async () => 0) },
   suggestion: { count: vi.fn(), findMany: vi.fn(), createMany: vi.fn(), create: vi.fn(), groupBy: vi.fn() },
   mutualMatch: { findMany: vi.fn() },
   block: { findMany: vi.fn() },
@@ -86,7 +86,8 @@ describe("flagged users and automatic suggestions", () => {
 
   it("admin Generate only considers unflagged users (both sides come from that list)", async () => {
     const res = (await generate(new Request("http://localhost/api/admin/suggestions/generate", { method: "POST" })))!;
-    expect(res.status).toBe(200);
+    // A background run since ADM-10: it answers 202 at once
+    expect(res.status).toBe(202);
     expect(db.user.findMany.mock.calls[0][0].where).toMatchObject({ isFlagged: false });
   });
 });

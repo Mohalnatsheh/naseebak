@@ -65,14 +65,20 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
   const [pending, setPending] = useState<Pending | null>(null);
   const [text, setText] = useState("");
   const settled = useRef(false);
+  // The open question, so a second confirm() can cancel it instead of leaving its promise hanging
+  const open = useRef<Pending | null>(null);
   const fieldId = useId();
 
   const ask = useCallback(
     (opts: ConfirmOptions) =>
       new Promise<boolean | string | null>((resolve) => {
+        const previous = open.current;
+        if (previous && !settled.current) previous.resolve(previous.opts.input ? null : false);
         settled.current = false;
+        const next = { opts, resolve };
+        open.current = next;
         setText(opts.input?.defaultValue ?? "");
-        setPending({ opts, resolve });
+        setPending(next);
       }),
     [],
   );
@@ -84,6 +90,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
     const { opts, resolve } = pending;
     if (opts.input) resolve(ok ? text.trim() : null);
     else resolve(ok);
+    open.current = null;
     setPending(null);
   }
 

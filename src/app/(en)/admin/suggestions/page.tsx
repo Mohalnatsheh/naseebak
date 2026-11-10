@@ -51,6 +51,9 @@ interface CycleFlags {
 }
 
 /** Live numbers from the server (src/lib/matching/auto-suggest.ts, src/lib/credits.ts) */
+/** WEEKLY_SUGGEST_LIMIT (src/lib/cron/suggestions.ts, a db module): the cap of one «Generate All» run */
+const GENERATE_CAP = 600;
+
 interface GenerateNumbers {
   minScore: number;
   maxOpen: number;
@@ -461,7 +464,9 @@ export default function AdminSuggestionsPage() {
         : "suggestions for every eligible user — each one uses 1 of the recipient's credits";
     const ok = await confirm({
       title: "Generate suggestions?",
-      description: `Generate ${what}? Everyone who gets one is notified.`,
+      description: flags?.mutualSuggestions
+        ? `Generate ${what}? A run handles at most ${GENERATE_CAP} members, most recently active first, in the background. Everyone who gets one is notified.`
+        : `Generate ${what}? Everyone who gets one is notified.`,
       confirmLabel: "Generate",
     });
     if (!ok) return;
@@ -473,6 +478,7 @@ export default function AdminSuggestionsPage() {
       if (data.job) {
         // Shared flow: a capped background run (ADM-10); the progress below follows it
         setJob(data.job);
+        setPollKey((n) => n + 1);
         setGenerateResult(res.ok ? data.message || "Started" : "A run is already going: its progress is below.");
       } else if (res.ok) {
         setGenerateResult(`Generated ${data.count} suggestions successfully!`);
@@ -488,6 +494,7 @@ export default function AdminSuggestionsPage() {
 
   // A running «Generate All»: read its progress every 2 s while this tab is open (ADM-10)
   const polling = useRef(false);
+  const [pollKey, setPollKey] = useState(0);
   useEffect(() => {
     if (tab !== "generate") return;
     let cancelled = false;
@@ -511,7 +518,8 @@ export default function AdminSuggestionsPage() {
       cancelled = true;
       if (timer) clearTimeout(timer);
     };
-  }, [tab, job?.id, job?.status]);
+    // Restarts only on opening the tab or starting a run, not on each progress update (one GET every 2 s)
+  }, [tab, pollKey]);
 
   // ── Render ──
   const allUserSuggestions = [

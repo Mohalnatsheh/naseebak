@@ -45,7 +45,8 @@ export default function AdminNotificationsPage() {
   const [userSearch, setUserSearch] = useState("");
   const [searchingUsers, setSearchingUsers] = useState(false);
   const [loadError, setLoadError] = useState("");
-  const [kind, setKind] = useState<"admin" | "auto" | "all">("admin");
+  // «All» first: admin sends before 11 Nov 2026 aren't marked, so «Sent by admins» starts nearly empty
+  const [kind, setKind] = useState<"admin" | "auto" | "all">("all");
   const confirm = useConfirm();
   const fid = useId();
 

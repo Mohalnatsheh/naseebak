@@ -60,6 +60,24 @@ describe("ConfirmDialog (ADM-12)", () => {
     await waitFor(() => expect(onResult).toHaveBeenLastCalledWith(null));
   });
 
+  it("a second question cancels the first one instead of leaving it unanswered", async () => {
+    const first = vi.fn();
+    const second = vi.fn();
+    render(
+      <ConfirmProvider>
+        <Asker onResult={first} />
+        <Asker onResult={second} input />
+      </ConfirmProvider>,
+    );
+    const [a, b] = screen.getAllByText("ask");
+    fireEvent.click(a);
+    await screen.findByRole("dialog");
+    fireEvent.click(b);
+    await waitFor(() => expect(first).toHaveBeenCalledWith(false));
+    fireEvent.click(await screen.findByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(second).toHaveBeenCalledWith(null));
+  });
+
   it("the dialog's close button is named in English", async () => {
     render(
       <ConfirmProvider>

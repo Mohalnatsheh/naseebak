@@ -90,6 +90,8 @@ function AdminVoice({ url, declared }: { url: string; declared: number | null })
 
 /** Messages drawn at first; «Load older» adds this many more (ADM-26: long chats no longer render 3,000 at once) */
 const PAGE = 200;
+/** Most messages the page holds (the old single page's cap); «Load all» stops here */
+const MAX_LOADED = 3000;
 
 function fmtTime(d: string) {
   return new Date(d).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Amman" });
@@ -160,7 +162,9 @@ export default function AdminChatPage({ params }: { params: Promise<{ id: string
       let pages = 0;
       while (
         before &&
-        (msgId === "one" ? pages === 0 : msgId === null ? list.length < 3000 : !list.some((m) => m.id === msgId))
+        // Never more than MAX_LOADED, also for a reported id that isn't in this chat
+        list.length < MAX_LOADED &&
+        (msgId === "one" ? pages === 0 : msgId === null || !list.some((m) => m.id === msgId))
       ) {
         pages++;
         const d = await fetchPage(before, pageSize);
@@ -237,7 +241,7 @@ export default function AdminChatPage({ params }: { params: Promise<{ id: string
   }, [target, messages.length]);
 
   async function jumpReported(step: 1 | -1) {
-    if (!reportedInOrder.length) return;
+    if (!reportedInOrder.length || loadingOlder) return;
     setFind("");
     setOnly("");
     const next = reportAt < 0 ? (step === 1 ? 0 : reportedInOrder.length - 1) : (reportAt + step + reportedInOrder.length) % reportedInOrder.length;
@@ -320,7 +324,7 @@ export default function AdminChatPage({ params }: { params: Promise<{ id: string
               ? ` · Paused ${fmtDateTime(chat.endedAt)} while reports are reviewed (resumes by itself if cleared)`
               : chat.endedAt && <>{` · Ended ${fmtDate(chat.endedAt)} `}{endedByLabel(chat.endedBy)}</>}
             {` · ${hasMore ? "latest " : ""}${messages.length} message${messages.length === 1 ? "" : "s"}${hasMore ? " loaded" : ""} (`}
-            <bdi>{left.firstName}</bdi> {countOf(left.id)} · <bdi>{right.firstName}</bdi> {countOf(right.id)})
+            {hasMore && "of which "}<bdi>{left.firstName}</bdi> {countOf(left.id)} · <bdi>{right.firstName}</bdi> {countOf(right.id)})
             {messages.length > 0 && ` · last ${fmtDate(messages[messages.length - 1].createdAt)} ${fmtTime(messages[messages.length - 1].createdAt)}`}
           </p>
           {messages.length > 0 && (
@@ -362,6 +366,7 @@ export default function AdminChatPage({ params }: { params: Promise<{ id: string
                 <span className="inline-flex h-9 items-center rounded-md border border-accent bg-accent/10 text-sm">
                   <button
                     type="button"
+                    disabled={loadingOlder}
                     onClick={() => jumpReported(1)}
                     className="inline-flex h-full items-center gap-1.5 px-2.5 font-medium text-foreground hover:bg-accent/20"
                   >
@@ -370,10 +375,10 @@ export default function AdminChatPage({ params }: { params: Promise<{ id: string
                   </button>
                   {reportedInOrder.length > 1 && (
                     <>
-                      <button type="button" aria-label="Previous reported message" onClick={() => jumpReported(-1)} className="inline-flex h-full items-center border-s border-accent/40 px-1.5 hover:bg-accent/20">
+                      <button type="button" aria-label="Previous reported message" disabled={loadingOlder} onClick={() => jumpReported(-1)} className="inline-flex h-full items-center border-s border-accent/40 px-1.5 hover:bg-accent/20">
                         <ChevronUp className="h-4 w-4" />
                       </button>
-                      <button type="button" aria-label="Next reported message" onClick={() => jumpReported(1)} className="inline-flex h-full items-center border-s border-accent/40 px-1.5 hover:bg-accent/20">
+                      <button type="button" aria-label="Next reported message" disabled={loadingOlder} onClick={() => jumpReported(1)} className="inline-flex h-full items-center border-s border-accent/40 px-1.5 hover:bg-accent/20">
                         <ChevronDown className="h-4 w-4" />
                       </button>
                     </>
@@ -387,10 +392,12 @@ export default function AdminChatPage({ params }: { params: Promise<{ id: string
         <CardContent>
           {filteringNow && hasMore && (
             <p className="mb-3 flex flex-wrap items-center gap-2 rounded-md bg-amber-100 px-3 py-2 text-sm text-amber-800">
-              Searching the {messages.length.toLocaleString("en-GB")} loaded messages only.
-              <Button size="sm" variant="outline" className="h-7" disabled={loadingOlder} onClick={() => loadOlderUntil(null, 500)}>
-                {loadingOlder ? <Loader2 className="h-3 w-3 animate-spin" /> : "Load all"}
-              </Button>
+              Searching the {messages.length.toLocaleString("en-GB")} {messages.length >= MAX_LOADED ? "newest" : "loaded"} messages only.
+              {messages.length < MAX_LOADED && (
+                <Button size="sm" variant="outline" className="h-7" disabled={loadingOlder} onClick={() => loadOlderUntil(null, 500)}>
+                  {loadingOlder ? <Loader2 className="h-3 w-3 animate-spin" /> : "Load all"}
+                </Button>
+              )}
             </p>
           )}
           {messages.length === 0 ? (

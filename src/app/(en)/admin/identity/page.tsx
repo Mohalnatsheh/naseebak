@@ -335,7 +335,7 @@ export default function AdminIdentityPage() {
                       </td>
                       <td className="p-3 text-sm text-muted-foreground min-w-[160px]">{doc.rejectionReason || doc.reviewNotes || "—"}</td>
                       <td className="p-3 text-sm">
-                        {doc.reviewedBy ? `${doc.reviewedBy.firstName} ${doc.reviewedBy.lastName}` : "—"}
+                        {doc.reviewedBy ? <bdi>{`${doc.reviewedBy.firstName} ${doc.reviewedBy.lastName}`}</bdi> : "—"}
                       </td>
                       <td className="p-3 text-sm text-muted-foreground whitespace-nowrap">
                         {fmtDate(doc.reviewedAt)}

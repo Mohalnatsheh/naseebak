@@ -252,7 +252,7 @@ export default function AdminAlertsPage() {
       setButtonLabel("");
       setStartsAt("");
       setEndsAt("");
-      await reload();
+      await loadList();
     } catch {
       setResult({ ok: false, text: "Failed to create the alert" });
     } finally {
@@ -278,7 +278,7 @@ export default function AdminAlertsPage() {
       return;
     }
     toast.success("Alert stopped");
-    await reload();
+    await loadList();
   }
 
   async function remove(a: AlertItem) {
@@ -295,7 +295,7 @@ export default function AdminAlertsPage() {
       return;
     }
     toast.success("Alert deleted");
-    await reload();
+    await loadList();
   }
 
   /** Prefills the form from a past alert: saving creates a new one, the old alert is left as it is */

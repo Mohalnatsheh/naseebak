@@ -1,5 +1,6 @@
 "use client";
 
+import { AdminLoadError } from "@/components/admin/admin-states";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Bell, Loader2, MessageSquare, Search, Smartphone } from "lucide-react";
@@ -31,6 +32,7 @@ export default function AutomaticNotificationsPage() {
   const [search, setSearch] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     fetch("/api/admin/notifications/automatic")
@@ -41,10 +43,11 @@ export default function AutomaticNotificationsPage() {
         setGroups(data.groups ?? {});
         setSmsNotices(!!data.smsNotices);
         setCode(data.countries?.[0]?.code ?? "");
+        setError("");
       })
       .catch((e) => setError(e instanceof Error ? e.message : "Could not load the list"))
       .finally(() => setLoading(false));
-  }, []);
+  }, [attempt]);
 
   const list = countries.find((c) => c.code === code);
   const shown = useMemo(() => {
@@ -98,7 +101,7 @@ export default function AutomaticNotificationsPage() {
         </div>
       </div>
 
-      {error && <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
+      {error && <AdminLoadError message={error} onRetry={() => { setLoading(true); setAttempt((n) => n + 1); }} />}
       {loading && <Loader2 className="mx-auto h-6 w-6 animate-spin text-primary" />}
       {!loading && !error && shown.length === 0 && <p className="text-sm text-muted-foreground">No message matches.</p>}
 

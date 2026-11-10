@@ -81,7 +81,7 @@ describe("admin chat detail (ADM-26, design P2)", () => {
 
   it("an ended chat names who ended it, never «[object Object]»", async () => {
     const body = chatResponse(2);
-    body.chat = { ...body.chat, status: "ENDED", endedAt: "2026-11-10T10:00:00Z", endedBy: "سلمى" } as typeof body.chat;
+    body.chat = { ...body.chat, status: "ENDED", endedAt: "2026-11-10T10:00:00Z", endedBy: "سلمى" } as unknown as typeof body.chat;
     await renderPage(body);
     await screen.findByText("msg 1");
     expect(document.body.textContent).not.toContain("[object Object]");

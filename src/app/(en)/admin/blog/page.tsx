@@ -482,7 +482,7 @@ export default function AdminBlogPage() {
                     {catsLoading ? (
                       Array.from({ length: 3 }).map((_, i) => (
                         <tr key={i} className="border-b">
-                          <td colSpan={6} className="p-3">
+                          <td colSpan={5} className="p-3">
                             <div className="h-6 bg-muted animate-pulse rounded" />
                           </td>
                         </tr>

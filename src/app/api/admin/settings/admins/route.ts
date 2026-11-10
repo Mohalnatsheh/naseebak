@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import bcrypt from "bcryptjs";
+import { z } from "zod/v4";
 
 export async function GET() {
   try {
@@ -27,23 +28,33 @@ export async function GET() {
   }
 }
 
+/** Add Admin (QA ADM-08): every field checked, the email lowercased; a malformed body is a 400, never a 500 */
+const addAdminSchema = z.object({
+  firstName: z.string().trim().min(1, "First name is required").max(50),
+  lastName: z.string().trim().min(1, "Last name is required").max(50),
+  email: z.string().trim().toLowerCase().pipe(z.email("Enter a valid email")),
+  password: z.string().min(8, "Password must be at least 8 characters").max(200),
+});
+
 export async function POST(request: Request) {
   try {
     const result = await requireAdmin();
     if ("error" in result) return result.error;
 
-    const body = await request.json();
-    const { firstName, lastName, email, password } = body;
-
-    if (!firstName || !lastName || !email || !password) {
-      return NextResponse.json({ error: "All fields are required" }, { status: 400 });
+    const body = await request.json().catch(() => null);
+    const parsed = addAdminSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: parsed.error.issues.map((issue) => issue.message).join(" · ") },
+        { status: 400 },
+      );
     }
+    const { firstName, lastName, email, password } = parsed.data;
 
-    if (password.length < 8) {
-      return NextResponse.json({ error: "Password must be at least 8 characters" }, { status: 400 });
-    }
-
-    const existing = await db.user.findUnique({ where: { email } });
+    const existing = await db.user.findFirst({
+      where: { email: { equals: email, mode: "insensitive" } },
+      select: { id: true },
+    });
     if (existing) {
       return NextResponse.json({ error: "Email already in use" }, { status: 409 });
     }

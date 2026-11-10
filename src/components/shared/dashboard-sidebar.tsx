@@ -31,9 +31,9 @@ import { useDashboardData } from "@/contexts/dashboard-context";
 import { PRO_PAGE_PATH } from "@/lib/pro/plans";
 import { matchesHref } from "@/lib/matches/links";
 import { MemberAvatar } from "@/components/shared/member-avatar";
+import { navBadges, type BadgeTone } from "@/lib/nav-badges";
 
 /** Badge colours (design review P2-4 / DS-16): red only for "act now", navy for plain counts, gold for good news */
-type BadgeTone = "urgent" | "count" | "news";
 const BADGE_TONE: Record<BadgeTone, string> = {
   urgent: "bg-destructive text-white",
   count: "bg-primary text-primary-foreground",
@@ -154,24 +154,25 @@ export function DashboardSidebar() {
   const filterLinks = (links: NavLink[]) =>
     links.filter((l) => !l.femaleOnly || !isMale);
 
-  const badges: Record<string, { n: number; tone: BadgeTone }> = {
-    "/dashboard/notifications": { n: unreadCount, tone: "count" },
-    // Someone said «مهتم»: good news
-    "/dashboard/suggestions": { n: counts.likedYou ?? 0, tone: "news" },
-    // A family or chat request to answer: act now
-    "/dashboard/matches": { n: counts.pendingIntros, tone: "urgent" },
-    "/dashboard/chats": { n: counts.unreadChats, tone: "count" },
-  };
+  // Keyed by each link's own page, before «التوافقات» is pointed at the suggestions page's tab (review X4a)
+  const badges = navBadges({
+    unreadNotifications: unreadCount,
+    unreadChats: counts.unreadChats,
+    pendingIntros: counts.pendingIntros,
+    mutualSuggestions: !!counts.flags.mutualSuggestions,
+    likedYou: counts.likedYou,
+    newSuggestions: counts.newSuggestions,
+  });
   const mainLinksWithBadge = mainLinks
     // Chats appear once the chat switch is on (or the user already has chats to read). Until the switches load,
     // the slots are those of the switches-on cycle, so nothing is inserted or removed under the reader (QA WM-02)
     .filter((link) => link.href !== "/dashboard/chats" || loading || counts.flags.chat || counts.hasChats)
-    // «التوافقات» opens the matches: the tab of the suggestions page with shared suggestions on, else the old page
-    .map((link) => (link.href === "/dashboard/matches" ? { ...link, href: matchesHref(counts.flags.mutualSuggestions) } : link))
     .map((link) => {
-      const b = badges[link.href.split("?")[0]];
+      const b = badges[link.href];
       return b && b.n > 0 ? { ...link, badge: b.n, tone: b.tone } : link;
-    });
+    })
+    // «التوافقات» opens the matches: the tab of the suggestions page with shared suggestions on, else the old page
+    .map((link) => (link.href === "/dashboard/matches" ? { ...link, href: matchesHref(counts.flags.mutualSuggestions) } : link));
   const filteredMainLinks = filterLinks(mainLinksWithBadge);
   // Same name for the balance as the home and payments pages
   const creditsLabel = counts.flags.introRequests ? "رصيدك" : "رصيد الاقتراحات";

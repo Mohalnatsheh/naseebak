@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
+import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { BellOff, BellRing, ChevronLeft, Coins, Heart, Inbox, Lightbulb, PencilLine, X } from "lucide-react";
@@ -12,26 +12,7 @@ import { pickBanner, PUSH_SNOOZE_MS, type BannerKind } from "@/lib/banner-slot";
 import { pageWidth, PAGE_WIDTH_CLASS } from "@/lib/page-width";
 import { PushSetupSheet, usePushState } from "@/components/shared/push-setup";
 import { OPEN_PUSH_SETUP_EVENT } from "@/components/shared/notification-bar";
-import { cn } from "@/lib/utils";
-
-/* ─── The page's own tip (priority 5): a page registers it with <PageTip>, the slot shows it when nothing else ─── */
-
-interface Tip {
-  storageKey: string;
-  title: string;
-  body: string;
-}
-const TipContext = createContext<{ tip: Tip | null; setTip: (t: Tip | null) => void }>({ tip: null, setTip: () => {} });
-
-/** Registers this page's tip in the banner slot (shown once, until dismissed). Renders nothing itself. */
-export function PageTip({ storageKey, title, body }: Tip) {
-  const { setTip } = useContext(TipContext);
-  useEffect(() => {
-    setTip({ storageKey, title, body });
-    return () => setTip(null);
-  }, [setTip, storageKey, title, body]);
-  return null;
-}
+import { arabicCount, cn } from "@/lib/utils";
 
 /* ─── Remembered dismissals (localStorage, read only in the browser) ─── */
 
@@ -134,12 +115,11 @@ function ActionLink({ href, children }: { href: string; children: ReactNode }) {
  * The one banner slot (P1-5): picks the most important line for this member on this page and shows only that, above
  * the page title. Also hosts the guided notifications sheet (opened by any `openPushSetup()`).
  */
-export function BannerSlot({ tip }: { tip: Tip | null }) {
+export function BannerSlot() {
   const pathname = usePathname() ?? "";
   const { profile, completeness, counts, loading } = useDashboardData();
   const { stage } = usePushState();
   const pushSnoozed = useSyncExternalStore(subscribeStore, readPushSnoozed, () => true);
-  const tipDismissed = useSyncExternalStore(subscribeStore, () => readTipDismissed(tip?.storageKey), () => true);
   const [sheetOpen, setSheetOpen] = useState(false);
   const gender = profile?.gender;
   const known = gender === "MALE" || gender === "FEMALE";
@@ -171,7 +151,6 @@ export function BannerSlot({ tip }: { tip: Tip | null }) {
           pendingIntros: counts.flags.introRequests ? counts.pendingIntros : 0,
           pushNeeded: !!stage && stage !== "done" && stage !== "none",
           pushSnoozed,
-          tip: !!tip && !tipDismissed,
         });
 
   let line: ReactNode = null;
@@ -181,7 +160,7 @@ export function BannerSlot({ tip }: { tip: Tip | null }) {
         kind={kind}
         icon={PencilLine}
         title={v("أكمل إعداد ملفك", "أكملي إعداد ملفكِ", "إعداد الملف لم يكتمل")}
-        body="لتبدأ اقتراحاتك."
+        body={v("لتبدأ اقتراحاتك.", "لتبدأ اقتراحاتكِ.")}
         action={<ActionLink href="/dashboard/profile/setup">متابعة</ActionLink>}
       />
     );
@@ -207,7 +186,7 @@ export function BannerSlot({ tip }: { tip: Tip | null }) {
       <BannerLine
         kind={kind}
         icon={Inbox}
-        title={counts.pendingIntros === 1 ? "طلب تعارف بانتظار ردّك." : `${counts.pendingIntros} طلبات تعارف بانتظار ردّك.`}
+        title={`${requestsWaiting(counts.pendingIntros)} ${v("بانتظار ردّك.", "بانتظار ردّكِ.")}`}
         body="تنتهي بعد 7 أيام من إرسالها."
         action={<ActionLink href={matchesHref(counts.flags.mutualSuggestions, counts.pendingIntroMatchId)}>{v("ردّ الآن", "ردّي الآن", "الرد")}</ActionLink>}
       />
@@ -228,17 +207,6 @@ export function BannerSlot({ tip }: { tip: Tip | null }) {
         onDismiss={() => remember(PUSH_SNOOZE_KEY, String(Date.now()))}
       />
     );
-  } else if (kind === "tip" && tip) {
-    line = (
-      <BannerLine
-        kind={kind}
-        icon={Lightbulb}
-        title={tip.title}
-        body={tip.body}
-        onDismiss={() => remember(tip.storageKey, "true")}
-        dismissLabel="إخفاء النصيحة"
-      />
-    );
   }
 
   return (
@@ -249,24 +217,45 @@ export function BannerSlot({ tip }: { tip: Tip | null }) {
   );
 }
 
+/** «طلب تعارف» counted (review X4a minor 2): «طلب تعارف» · «طلبا تعارف» · «3 طلبات تعارف» · «11 طلباً للتعارف» */
+export function requestsWaiting(n: number): string {
+  return arabicCount(n, { one: "طلب تعارف", two: "طلبا تعارف", few: "طلبات تعارف", many: "طلباً للتعارف" });
+}
+
+/**
+ * The page's own tip (P1-5: "tips move into the page content"): an inline line inside the page, under its title, until
+ * dismissed for good. Never in the banner slot, so it never competes with the notifications nudge.
+ */
+export function PageTip({ storageKey, title, body }: { storageKey: string; title: string; body: string }) {
+  const dismissed = useSyncExternalStore(subscribeStore, () => readTipDismissed(storageKey), () => true);
+  if (dismissed) return null;
+  return (
+    <BannerLine
+      kind="tip"
+      icon={Lightbulb}
+      title={title}
+      body={body}
+      onDismiss={() => remember(storageKey, "true")}
+      dismissLabel="إخفاء النصيحة"
+    />
+  );
+}
+
 /**
  * The dashboard's content column: one of the two widths for this page, the banner slot on top, then the page.
  */
 export function DashboardColumn({ children }: { children: ReactNode }) {
   const pathname = usePathname() ?? "";
-  const [tip, setTip] = useState<Tip | null>(null);
   return (
-    <TipContext.Provider value={{ tip, setTip }}>
-      <div
-        data-page-width={pageWidth(pathname)}
-        className={cn(
-          PAGE_WIDTH_CLASS[pageWidth(pathname)],
-          "mx-auto min-h-[calc(100dvh-58px-4rem)] px-4 py-6 md:min-h-dvh md:px-6 md:py-8",
-        )}
-      >
-        <BannerSlot tip={tip} />
-        {children}
-      </div>
-    </TipContext.Provider>
+    <div
+      data-page-width={pageWidth(pathname)}
+      className={cn(
+        PAGE_WIDTH_CLASS[pageWidth(pathname)],
+        "mx-auto min-h-[calc(100dvh-58px-4rem)] px-4 py-6 md:min-h-dvh md:px-6 md:py-8",
+      )}
+    >
+      <BannerSlot />
+      {children}
+    </div>
   );
 }

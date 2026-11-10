@@ -403,11 +403,6 @@ export default function PersonalityQuizPage() {
   // --- Quiz Screen ---
   return (
     <div className="space-y-8 pb-8">
-      <PageTip
-        storageKey="naseeb_tip_quiz"
-        title="اختبار الشخصية يحسّن التوافق"
-        body={`اختبار قصير من ${arabicCount(questions.length, { one: "سؤال واحد", two: "سؤالين", few: "أسئلة", many: "سؤالاً" })} يساعدنا في فهم شخصيتك وتقديم اقتراحات توافق أدق. نتائجك تُستخدم لحساب نسبة التوافق مع المرشحين.`}
-      />
       <PageHeader
         icon={Brain}
         title="اختبار الشخصية"
@@ -418,6 +413,12 @@ export default function PersonalityQuizPage() {
           <span>يستغرق نحو 5 دقائق</span>
         </span>
       </PageHeader>
+      {/* The page's tip sits in its content, under the title (P1-5) */}
+      <PageTip
+        storageKey="naseeb_tip_quiz"
+        title="اختبار الشخصية يحسّن التوافق"
+        body={`اختبار قصير من ${arabicCount(questions.length, { one: "سؤال واحد", two: "سؤالين", few: "أسئلة", many: "سؤالاً" })} يساعدنا في فهم شخصيتك وتقديم اقتراحات توافق أدق. نتائجك تُستخدم لحساب نسبة التوافق مع المرشحين.`}
+      />
 
       {/* Progress Bar Section */}
       <div

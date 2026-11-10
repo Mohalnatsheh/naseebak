@@ -566,7 +566,7 @@ export function MutualSuggestionsView({
           {tabs.map((t) => {
             const on = activeKey === t.key;
             const badge = badgeFor(t.key);
-                        return (
+            return (
               <button
                 key={t.key}
                 type="button"

@@ -208,8 +208,8 @@ export function PersonCard({
                   {age && place ? <span aria-hidden>·</span> : null}
                   {place && <span>{place}</span>}
                   {activity && (
-                    <span className="inline-flex items-center gap-1 text-emerald-700">
-                      {(age || place) && <span aria-hidden className="text-muted-ink">·</span>}
+                    <span className="inline-flex items-center gap-1">
+                      {(age || place) && <span aria-hidden>·</span>}
                       <span className="h-1.5 w-1.5 rounded-full bg-emerald-600" aria-hidden />
                       {activity}
                     </span>

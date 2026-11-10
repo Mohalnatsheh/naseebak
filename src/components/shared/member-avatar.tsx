@@ -20,6 +20,7 @@ export function MemberAvatar({
   matched = false,
   pro = false,
   dimmed = false,
+  onNavy = false,
   className,
 }: {
   name: string;
@@ -30,6 +31,8 @@ export function MemberAvatar({
   matched?: boolean;
   pro?: boolean;
   dimmed?: boolean;
+  /** Sits on a navy card (the home greeting, the account identity card): a light veil so it doesn't vanish */
+  onNavy?: boolean;
   className?: string;
 }) {
   const initial = name.trim().charAt(0) || "؟";
@@ -60,7 +63,11 @@ export function MemberAvatar({
           aria-hidden
           className={cn(
             "member-veil relative flex h-full w-full flex-col items-center justify-center overflow-hidden rounded-full font-display leading-none",
-            dimmed ? "bg-muted text-muted-foreground" : "bg-gradient-to-br from-primary to-primary-2 text-primary-foreground",
+            dimmed
+              ? "bg-muted text-muted-foreground"
+              : onNavy
+                ? "bg-white/15 text-white ring-1 ring-inset ring-accent/60"
+                : "bg-gradient-to-br from-primary to-primary-2 text-primary-foreground",
           )}
           style={{ fontSize: Math.max(12, Math.round(inner * 0.4)) }}
         >

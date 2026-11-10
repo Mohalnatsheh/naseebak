@@ -18,6 +18,7 @@ import type { FeedItem } from "@/lib/suggestions/feed-types";
 import { homeZeroCreditLine } from "@/lib/suggestions/copy";
 import { ProBadge } from "@/components/shared/pro-badge";
 import { MemberAvatar } from "@/components/shared/member-avatar";
+import { requestsWaiting } from "@/components/shared/banner-slot";
 
 /** Local time in Jordan and Saudi Arabia (both UTC+3 all year), whatever the device clock says */
 function ammanHour(): number {
@@ -177,7 +178,7 @@ export default function DashboardPage() {
       ? [{
           key: "requests",
           icon: Inbox,
-          title: counts.pendingIntros === 1 ? "طلب تعارف بانتظار ردّك" : `${counts.pendingIntros} طلبات تعارف بانتظار ردّك`,
+          title: `${requestsWaiting(counts.pendingIntros)} ${g("بانتظار ردّك", "بانتظار ردّكِ")}`,
           note: "على أحد توافقاتك المتبادلة، وتنتهي بعد 7 أيام من إرسالها.",
           href: matchesHref(counts.flags.mutualSuggestions, counts.pendingIntroMatchId),
           cta: g("ردّ الآن", "ردّي الآن"),
@@ -218,7 +219,7 @@ export default function DashboardPage() {
       {/* Greeting: the navy brand card, compact */}
       <section className="landing-night relative flex items-center gap-3 overflow-hidden rounded-2xl px-4 py-3.5 text-white shadow-md shadow-primary/15">
         <div className="landing-khatam absolute inset-0" aria-hidden />
-        <MemberAvatar name={profile.firstName ?? ""} size={44} pro={!!counts.pro?.isPro} className="relative" />
+        <MemberAvatar name={profile.firstName ?? ""} size={44} pro={!!counts.pro?.isPro} onNavy className="relative" />
         <div className="relative min-w-0 flex-1">
           <h1 className="font-display truncate text-xl leading-tight">
             {getGreeting()}، {profile.firstName}

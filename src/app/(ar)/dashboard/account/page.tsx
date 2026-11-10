@@ -157,7 +157,7 @@ export default function AccountPage() {
         <div className="landing-khatam absolute inset-0" aria-hidden />
         <div className="relative flex items-center gap-4">
           <div className="relative shrink-0">
-            <MemberAvatar name={profile.firstName ?? ""} size={80} photoUrl={photo} pro={!!counts.pro?.isPro} />
+            <MemberAvatar name={profile.firstName ?? ""} size={80} photoUrl={photo} pro={!!counts.pro?.isPro} onNavy />
             <Link
               href="/dashboard/photos"
               aria-label={photo ? "إدارة صوري" : g("أضف صورة", "أضيفي صورة")}

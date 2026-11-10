@@ -224,7 +224,7 @@ function LoginPageContent() {
           <div
             className="mb-8 text-center lg:hidden"
             style={{
-              animation: mounted ? "fadeSlideDown 0.6s ease-out both" : "none",
+              animation: mounted ? "fadeSlideDown var(--motion-sheet) var(--motion-ease) both" : "none",
             }}
           >
             <Link href="/" className="inline-block">
@@ -248,7 +248,7 @@ function LoginPageContent() {
             }`}
             style={{
               animation: mounted
-                ? "fadeSlideUp 0.6s ease-out 0.1s both"
+                ? "fadeSlideUp var(--motion-sheet) var(--motion-ease) 0.1s both"
                 : "none",
             }}
           >
@@ -290,7 +290,7 @@ function LoginPageContent() {
                 {showExistsBanner && (
                   <div
                     className="rounded-xl bg-primary/10 border border-primary/20 p-4 text-sm text-primary flex items-center gap-2"
-                    style={{ animation: "fadeSlideDown 0.3s ease-out both" }}
+                    style={{ animation: "fadeSlideDown var(--motion-appear) var(--motion-ease) both" }}
                   >
                     <Info className="size-4 shrink-0" />
                     رقم {phoneWord(country)} مسجل مسبقاً. يمكنك تسجيل الدخول من هنا
@@ -303,7 +303,7 @@ function LoginPageContent() {
                     id="login-error"
                     role="alert"
                     className="rounded-xl bg-destructive/10 border border-destructive/20 p-4 text-sm text-destructive flex items-center gap-2"
-                    style={{ animation: "fadeSlideDown 0.3s ease-out both" }}
+                    style={{ animation: "fadeSlideDown var(--motion-appear) var(--motion-ease) both" }}
                   >
                     <div className="size-2 rounded-full bg-destructive shrink-0" />
                     {error}
@@ -315,7 +315,7 @@ function LoginPageContent() {
                   className="space-y-2"
                   style={{
                     animation: mounted
-                      ? "fadeSlideRight 0.5s ease-out 0.2s both"
+                      ? "fadeSlideRight var(--motion-sheet) var(--motion-ease) 0.2s both"
                       : "none",
                   }}
                 >
@@ -367,7 +367,7 @@ function LoginPageContent() {
                   <div
                     style={{
                       animation: mounted
-                        ? "fadeSlideUp 0.5s ease-out 0.3s both"
+                        ? "fadeSlideUp var(--motion-sheet) var(--motion-ease) 0.3s both"
                         : "none",
                     }}
                   >
@@ -394,7 +394,7 @@ function LoginPageContent() {
                   <>
                     <div
                       className="space-y-2"
-                      style={{ animation: "fadeSlideRight 0.5s ease-out both" }}
+                      style={{ animation: "fadeSlideRight var(--motion-sheet) var(--motion-ease) both" }}
                     >
                       <Label htmlFor="otp" className="text-sm font-semibold">
                         رمز التحقق
@@ -430,7 +430,7 @@ function LoginPageContent() {
 
                     {/* Submit button */}
                     <div
-                      style={{ animation: "fadeSlideUp 0.5s ease-out 0.1s both" }}
+                      style={{ animation: "fadeSlideUp var(--motion-sheet) var(--motion-ease) 0.1s both" }}
                     >
                       <Button
                         type="submit"
@@ -465,7 +465,7 @@ function LoginPageContent() {
                 className="text-center text-sm text-muted-foreground"
                 style={{
                   animation: mounted
-                    ? "fadeSlideUp 0.5s ease-out 0.5s both"
+                    ? "fadeSlideUp var(--motion-sheet) var(--motion-ease) 0.5s both"
                     : "none",
                 }}
               >
@@ -485,7 +485,7 @@ function LoginPageContent() {
             className="mt-8 px-4 text-center text-xs leading-relaxed text-muted-foreground text-balance"
             style={{
               animation: mounted
-                ? "fadeSlideUp 0.5s ease-out 0.6s both"
+                ? "fadeSlideUp var(--motion-sheet) var(--motion-ease) 0.6s both"
                 : "none",
             }}
           >

@@ -167,12 +167,6 @@ export default function PhotosPage() {
 
   return (
     <div className="space-y-6 pb-8">
-      <PageTip
-        storageKey="naseeb_tip_photos"
-        title="صور واضحة، فرص أكبر"
-        // The privacy sentence is the banner below; the tip doesn't repeat it (QA WA-20)
-        body={`${female ? "تأكدي" : "تأكد"} من إضافة صور واضحة لزيادة فرصك في التوافق.`}
-      />
       <PageHeader
         icon={Camera}
         title="صوري الشخصية"
@@ -207,6 +201,13 @@ export default function PhotosPage() {
           {uploading ? "جاري الرفع..." : "رفع صورة"}
         </Button>
       </PageHeader>
+      {/* The page's tip sits in its content, under the title (P1-5) */}
+      <PageTip
+        storageKey="naseeb_tip_photos"
+        title="صور واضحة، فرص أكبر"
+        // The privacy sentence is the banner below; the tip doesn't repeat it (QA WA-20)
+        body={`${female ? "تأكدي" : "تأكد"} من إضافة صور واضحة لزيادة فرصك في التوافق.`}
+      />
 
       {/* Privacy: one quiet line, not a second banner (the slot above holds the one banner; QA DS-05) */}
       <p className="flex items-start gap-2 text-label font-normal text-muted-ink">

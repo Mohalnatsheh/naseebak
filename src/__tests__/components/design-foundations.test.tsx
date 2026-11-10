@@ -18,7 +18,6 @@ const base: BannerInput = {
   pendingIntros: 0,
   pushNeeded: false,
   pushSnoozed: false,
-  tip: false,
 };
 
 describe("banner slot priority", () => {
@@ -26,13 +25,14 @@ describe("banner slot priority", () => {
     expect(pickBanner(base)).toBeNull();
   });
 
-  it("setup > 0 credits with likedYou > family request > push > tip", () => {
-    const all = { ...base, setupDone: false, credits: 0, likedYou: 2, pendingIntros: 1, pushNeeded: true, tip: true };
+  it("setup > 0 credits with likedYou > family request > push", () => {
+    const all = { ...base, setupDone: false, credits: 0, likedYou: 2, pendingIntros: 1, pushNeeded: true };
     expect(pickBanner(all)).toBe("setup");
     expect(pickBanner({ ...all, setupDone: true })).toBe("zeroCredits");
     expect(pickBanner({ ...all, setupDone: true, credits: 1 })).toBe("familyRequest");
     expect(pickBanner({ ...all, setupDone: true, credits: 1, pendingIntros: 0 })).toBe("push");
-    expect(pickBanner({ ...all, setupDone: true, credits: 1, pendingIntros: 0, pushNeeded: false })).toBe("tip");
+    // A page's tip is never in the slot: it sits in the page content (P1-5, review X4a)
+    expect(pickBanner({ ...all, setupDone: true, credits: 1, pendingIntros: 0, pushNeeded: false })).toBeNull();
   });
 
   it("0 credits alone is not a banner: only with someone's «مهتم» waiting, and only with credit on interest", () => {
@@ -40,8 +40,8 @@ describe("banner slot priority", () => {
     expect(pickBanner({ ...base, credits: 0, likedYou: 1, creditOnInterest: false })).toBeNull();
   });
 
-  it("a snoozed push nudge gives way to the tip; the snooze is 7 days", () => {
-    expect(pickBanner({ ...base, pushNeeded: true, pushSnoozed: true, tip: true })).toBe("tip");
+  it("a snoozed push nudge leaves the slot empty; the snooze is 7 days", () => {
+    expect(pickBanner({ ...base, pushNeeded: true, pushSnoozed: true })).toBeNull();
     expect(PUSH_SNOOZE_MS).toBe(7 * 24 * 60 * 60 * 1000);
   });
 
@@ -94,7 +94,7 @@ describe("BannerSlot", () => {
 
   it("shows one line: the free reply for someone's «مهتم» at 0 credits, gendered", async () => {
     const { BannerSlot } = await import("@/components/shared/banner-slot");
-    render(<BannerSlot tip={{ storageKey: "t", title: "نصيحة", body: "x" }} />);
+    render(<BannerSlot />);
     const regions = screen.getAllByRole("region", { name: "تنبيه" });
     expect(regions).toHaveLength(1);
     expect(regions[0].getAttribute("data-banner")).toBe("zeroCredits");
@@ -105,7 +105,7 @@ describe("BannerSlot", () => {
   it("«لاحقاً» on the push line remembers the time and hides it", async () => {
     dash.value = { ...dash.value, counts: { ...dash.value.counts, likedYou: 0 } };
     const { BannerSlot } = await import("@/components/shared/banner-slot");
-    render(<BannerSlot tip={null} />);
+    render(<BannerSlot />);
     expect(screen.getByRole("region", { name: "تنبيه" }).getAttribute("data-banner")).toBe("push");
     const dismiss = screen.getByRole("button", { name: "لاحقاً" });
     expect(dismiss.className).toContain("h-11");

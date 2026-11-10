@@ -3,15 +3,16 @@
  * page title, picked by priority. Pure and db-free (shared by the slot component and its tests).
  *
  * Priority: 1 setup not done → 2 0 credits with someone's «مهتم» waiting → 3 a family request waiting →
- * 4 notifications off on this device → 5 the page's own tip.
+ * 4 notifications off on this device. A page's own tip is not in the slot: it sits in the page content (`PageTip`).
  *
  * A page that already shows an item in its content "covers" it (home lists setup, requests and likedYou; the
  * suggestions page has its own credit notes). When the top item is covered, the slot stays empty rather than
  * showing a lower one above it: the most important thing is never pushed down by a lesser banner.
  */
 export type BannerKind = "setup" | "zeroCredits" | "familyRequest" | "push" | "tip";
+/** What the slot can show, by priority ("tip" is the inline page tip's kind, never picked here) */
 
-export const BANNER_PRIORITY: readonly BannerKind[] = ["setup", "zeroCredits", "familyRequest", "push", "tip"];
+export const BANNER_PRIORITY: readonly BannerKind[] = ["setup", "zeroCredits", "familyRequest", "push"];
 
 /** After «لاحقاً» on the notifications nudge it stays away this long */
 export const PUSH_SNOOZE_MS = 7 * 24 * 60 * 60 * 1000;
@@ -27,8 +28,6 @@ export interface BannerInput {
   pushNeeded: boolean;
   /** «لاحقاً» was pressed less than PUSH_SNOOZE_MS ago */
   pushSnoozed: boolean;
-  /** The page registered a tip that wasn't dismissed */
-  tip: boolean;
 }
 
 /** Pages with no slot at all: a chat room is full screen, the guide and the setup are the task itself */
@@ -60,7 +59,7 @@ function wants(kind: BannerKind, i: BannerInput): boolean {
     case "push":
       return i.pushNeeded && !i.pushSnoozed;
     case "tip":
-      return i.tip;
+      return false;
   }
 }
 

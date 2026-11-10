@@ -897,7 +897,7 @@ function RegisterPageContent() {
 
                 {/* OTP input (shown after send succeeds) */}
                 {otpSent && (
-                  <div className="space-y-2" style={{ animation: "fadeSlideIn 0.3s ease-out both" }}>
+                  <div className="space-y-2" style={{ animation: "fadeSlideIn var(--motion-appear) var(--motion-ease) both" }}>
                     <Label
                       htmlFor="otp"
                       className="text-xs font-semibold text-muted-foreground"
@@ -957,7 +957,7 @@ function RegisterPageContent() {
                     لديك رمز دعوة؟
                   </button>
                 ) : (
-                  <div className="space-y-2" style={{ animation: "fadeSlideIn 0.3s ease-out both" }}>
+                  <div className="space-y-2" style={{ animation: "fadeSlideIn var(--motion-appear) var(--motion-ease) both" }}>
                     <Label
                       htmlFor="referralCode"
                       className="text-xs font-semibold text-muted-foreground"
@@ -998,7 +998,7 @@ function RegisterPageContent() {
                   </div>
 
                   {wantsPhoto && (
-                    <div className="animate-[fadeSlideIn_0.3s_ease-out]">
+                    <div className="animate-appear">
                       <input
                         ref={photoInputRef}
                         type="file"

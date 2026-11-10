@@ -26,6 +26,7 @@ import { VEIL_CHOICES, veilChoice, veilFromChoice, type VeilChoice } from "@/lib
 import { PageLoading } from "@/components/shared/page-loading";
 import { sharedGet } from "@/lib/shared-get";
 import { PageHeader } from "@/components/shared/page-header";
+import { LineArt } from "@/components/shared/line-art";
 import { UserPen } from "lucide-react";
 
 const asOpts = (values: readonly string[]): Opt[] => values.map((v) => ({ value: v, label: v }));
@@ -609,6 +610,19 @@ export default function ProfileSetupPage() {
         <div className="rounded-lg bg-destructive/10 border border-destructive/20 p-3 text-sm text-destructive flex items-center gap-2">
           <AlertCircle className="h-4 w-4 flex-shrink-0" />
           <span>يرجى تصحيح الحقول المطلوبة أدناه ({arabicCount(Object.keys(fieldErrors).length, { one: "حقل واحد", two: "حقلان", few: "حقول", many: "حقلاً" })})</span>
+        </div>
+      )}
+
+      {/* First steps (S5): the line-art welcome, only on the first step */}
+      {step === 1 && (
+        <div data-testid="setup-welcome" className="flex items-center gap-4 rounded-2xl border border-border bg-card p-4">
+          <LineArt kind="dallah" size={72} />
+          <div className="min-w-0 flex-1">
+            <h2 className="text-headline text-ink">{forViewer(gender, "أهلاً بك في نصيبك", "أهلاً بكِ في نصيبك")}</h2>
+            <p className="mt-0.5 text-label font-normal text-muted-ink">
+              {arabicCount(totalSteps, { one: "خطوة واحدة", two: "خطوتان", few: "خطوات", many: "خطوة" })} قصيرة، ثم تبدأ الاقتراحات. صورك تبقى مخفية حتى التوافق المتبادل.
+            </p>
+          </div>
         </div>
       )}
 

@@ -40,9 +40,9 @@ describe("banner slot priority", () => {
     expect(pickBanner({ ...base, credits: 0, likedYou: 1, creditOnInterest: false })).toBeNull();
   });
 
-  it("a snoozed push nudge leaves the slot empty; the snooze is 7 days", () => {
+  it("a snoozed push nudge leaves the slot empty; the snooze is one day (owner: daily)", () => {
     expect(pickBanner({ ...base, pushNeeded: true, pushSnoozed: true })).toBeNull();
-    expect(PUSH_SNOOZE_MS).toBe(7 * 24 * 60 * 60 * 1000);
+    expect(PUSH_SNOOZE_MS).toBe(24 * 60 * 60 * 1000);
   });
 
   it("a new member's home shows no push card above the setup hero (DS-06)", () => {

@@ -14,8 +14,8 @@ export type BannerKind = "setup" | "zeroCredits" | "familyRequest" | "push" | "t
 
 export const BANNER_PRIORITY: readonly BannerKind[] = ["setup", "zeroCredits", "familyRequest", "push"];
 
-/** After «لاحقاً» on the notifications nudge it stays away this long */
-export const PUSH_SNOOZE_MS = 7 * 24 * 60 * 60 * 1000;
+/** After «لاحقاً» on the notifications nudge it stays away this long: one day, so it asks again daily (owner, 2026-11-11) */
+export const PUSH_SNOOZE_MS = 24 * 60 * 60 * 1000;
 
 export interface BannerInput {
   pathname: string;

@@ -12,7 +12,7 @@ import { EndChatDialog, reportDoneText } from "@/components/chat/end-chat-dialog
 import { PhotoViewer } from "@/components/chat/photo-viewer";
 import { usePartnerTyping, useTypingSignal } from "@/components/chat/use-typing";
 import type { UiMessage } from "@/components/chat/chat-utils";
-import { pushChipDismissed, pushChipHideValue } from "@/components/chat/chat-push-banner";
+import { PUSH_CHIP_HIDE_MS, pushChipDismissed, pushChipHideValue } from "@/components/chat/chat-push-banner";
 
 // Radix popper / dialog need these in jsdom
 class RO {
@@ -429,14 +429,18 @@ describe("photo viewer", () => {
   });
 });
 
-describe("push chip: ✕ hides the variant that was showing (Task 2 review minor 4)", () => {
-  it("hiding «تفعيل» doesn't hide «طريقة الفتح» once notifications get blocked, and the other way round", () => {
-    expect(pushChipDismissed(null, false)).toBe(false);
-    expect(pushChipDismissed(pushChipHideValue(false), false)).toBe(true);
-    expect(pushChipDismissed(pushChipHideValue(false), true)).toBe(false);
-    expect(pushChipDismissed(pushChipHideValue(true), true)).toBe(true);
-    // Hidden before this change ("1"): that was the «تفعيل» chip
-    expect(pushChipDismissed("1", false)).toBe(true);
-    expect(pushChipDismissed("1", true)).toBe(false);
+describe("push chip: ✕ hides the variant that was showing, for one day (owner: daily)", () => {
+  it("hides only the variant that was showing, and only for a day", () => {
+    const now = 1_000_000_000_000;
+    expect(pushChipDismissed(null, false, now)).toBe(false);
+    expect(pushChipDismissed(pushChipHideValue(false, now), false, now)).toBe(true);
+    expect(pushChipDismissed(pushChipHideValue(false, now), true, now)).toBe(false);
+    expect(pushChipDismissed(pushChipHideValue(true, now), true, now)).toBe(true);
+    // One day later it asks again
+    expect(pushChipDismissed(pushChipHideValue(false, now), false, now + PUSH_CHIP_HIDE_MS)).toBe(false);
+    expect(pushChipDismissed(pushChipHideValue(false, now), false, now + PUSH_CHIP_HIDE_MS - 1)).toBe(true);
+    // Values stored before the daily rule (no time) no longer hide it
+    expect(pushChipDismissed("1", false, now)).toBe(false);
+    expect(pushChipDismissed("off", false, now)).toBe(false);
   });
 });

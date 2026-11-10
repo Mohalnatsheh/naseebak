@@ -26,16 +26,20 @@ final pushAllowedProvider = FutureProvider<bool?>((ref) async {
   }
 });
 
-/// «لاحقاً» on the home card: hidden for 7 days (design P1-5; the notifications screens always show it)
+/// «لاحقاً» on the home card: hidden for one day, so it asks daily (owner, 2026-11-11; the notifications screens always
+/// show it)
 const pushCardHiddenUntilKey = 'push_card_hidden_until';
-const pushCardSnooze = Duration(days: 7);
+const pushCardSnooze = Duration(days: 1);
+
+/// ✕ on the chat's push chip hides it this long (daily, like the home card)
+const pushChipHide = Duration(days: 1);
 
 final pushCardHiddenProvider = StateProvider<bool>((ref) {
   final until = ref.watch(sharedPreferencesProvider).getInt(pushCardHiddenUntilKey);
   return until != null && DateTime.now().millisecondsSinceEpoch < until;
 });
 
-/// «لاحقاً»: hidden now, and for the next 7 days
+/// «لاحقاً»: hidden now, and for the next day
 void snoozePushCard(WidgetRef ref) {
   ref.read(pushCardHiddenProvider.notifier).state = true;
   ref

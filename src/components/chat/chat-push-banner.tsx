@@ -18,24 +18,29 @@ function readHidden(): string | null {
   }
 }
 
-/** What ✕ stores: which chip was hidden, «تفعيل» (off) or «طريقة الفتح» (blocked) */
-export function pushChipHideValue(blocked: boolean): string {
-  return blocked ? "blocked" : "off";
+/** ✕ hides the chip for one day, then it asks again (owner, 2026-11-11: daily) */
+export const PUSH_CHIP_HIDE_MS = 24 * 60 * 60 * 1000;
+
+/** What ✕ stores: which chip was hidden, «تفعيل» (off) or «طريقة الفتح» (blocked), and when */
+export function pushChipHideValue(blocked: boolean, now: number = Date.now()): string {
+  return `${blocked ? "blocked" : "off"}:${now}`;
 }
 
-/** Hidden only for the chip that was showing: a member who later blocks notifications sees «طريقة الفتح» once.
- *  "1" was stored before 2026-11-10, when only «تفعيل» could be hidden that way */
-export function pushChipDismissed(stored: string | null, blocked: boolean): boolean {
+/** Hidden only for the chip that was showing (a member who later blocks notifications sees «طريقة الفتح»), and only
+ *  for a day. Values stored before 2026-11-11 had no time ("1", "off", "blocked"): they no longer hide anything */
+export function pushChipDismissed(stored: string | null, blocked: boolean, now: number = Date.now()): boolean {
   if (!stored) return false;
-  if (stored === "1") return !blocked;
-  return stored === pushChipHideValue(blocked);
+  const [kind, at] = stored.split(":");
+  const time = Number(at);
+  if (!at || !Number.isFinite(time)) return false;
+  return kind === (blocked ? "blocked" : "off") && now - time < PUSH_CHIP_HIDE_MS;
 }
 
 /**
  * The chat's push chip (the lowest of the one status bar's three priorities): shown while this device can't get
  * notifications yet; its button opens the guided setup (open in Safari/Chrome → add to Home Screen → allow).
- * ✕ hides that chip on this browser for good (the «طريقة الفتح» variant still shows once if notifications get blocked
- * later). Owner idea 2026-10-28: 62% of members in open chats had no push device.
+ * ✕ hides that chip on this browser for a day (the «طريقة الفتح» variant still shows if notifications get blocked
+ * meanwhile). Owner idea 2026-10-28: 62% of members in open chats had no push device.
  */
 export function useChatPushChip() {
   const { stage } = usePushState();

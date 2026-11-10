@@ -128,7 +128,8 @@ needed a release.
   disagrees with it.
 - **Push permission (2026-11-10):** signing in no longer shows the system prompt (it came bare over setup step 1);
   home asks once after setup (`PushAskGate`, prefs `push_explained`) with what the notices are for, then the system
-  prompt; «لاحقاً» leaves the «الإشعارات غير مفعّلة» card.
+  prompt; «لاحقاً» hides the «الإشعارات غير مفعّلة» card for one day, so it asks daily (owner, 2026-11-11; same on the
+  website, and ✕ on the chat's push chip also hides it for one day).
 - **Chat on the phone (2026-11-10):** failed texts are kept in `ChatCache` (`failed`) and sorted by time with «حذف»;
   the composer draft is kept per chat in the cache directory like `ChatCache` (`ChatDrafts`, never backed up), wiped
   on send and sign-out (a chat room disposed after a sign-out writes nothing back); photo-picker copies are deleted
@@ -146,7 +147,7 @@ needed a release.
     active) / the time left while not urgent.
   - **Status bar:** one slim bar by priority (`chatStatusBar`, same as the website): (1) ending soon, only when it can
     be extended; (2) the family step to act on (offer or request received), with «تبقّى …» inline in the last days; (3)
-    ending soon with no action; (4) a family step with nothing to do; (5) the push chip until dismissed. The **offer**
+    ending soon with no action; (4) a family step with nothing to do; (5) the push chip (✕ hides it for one day). The **offer**
     waits until both have written: the chat GET's `bothWrote` (whole chat; older servers: the loaded messages decide). The family step is re-read on open, on return from
     the match page and about once a minute while the chat is open.
   - **Composer:** a pill field with the photo button inside, one round button: mic when empty, send with text. Starter

@@ -40,7 +40,7 @@ One look for the website and the app (QA round 2 design pass, November 2026). Th
   (`max-w-5xl`: home, suggestions, matches, payments, a chat room).
 - **One banner slot** (`components/shared/banner-slot.tsx`) above the page title, at most one line, by priority
   (`pickBanner`): setup not finished > 0 credits with someone waiting > a family request > notifications off (snoozes
-  7 days). Home places the slot itself under its greeting (`slotInPage`). Page tips are inline (`PageTip`), never in
+  one day, so it asks daily). Home places the slot itself under its greeting (`slotInPage`). Page tips are inline (`PageTip`), never in
   the slot. The guided notifications sheet is `PushSetupHost`, mounted once by `DashboardColumn`; open it with
   `openPushSetup()`.
 - Desktop home has two columns (greeting, slot, what waits, today's suggestions | count tiles, chats, consent, profile

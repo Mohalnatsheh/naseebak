@@ -777,11 +777,18 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     _loadFamilyStep();
   }
 
-  static const _pushChipKey = 'chat_push_chip_dismissed';
+  /// ✕ on the push chip hides it for one day, then it asks again (owner, 2026-11-11: daily). The old bool key
+  /// ('chat_push_chip_dismissed', hidden for good) is no longer read
+  static const _pushChipKey = 'chat_push_chip_hidden_at';
 
   void _dismissPushChip() {
-    unawaited(ref.read(sharedPreferencesProvider).setBool(_pushChipKey, true));
+    unawaited(ref.read(sharedPreferencesProvider).setInt(_pushChipKey, DateTime.now().millisecondsSinceEpoch));
     setState(() {});
+  }
+
+  bool get _pushChipDismissed {
+    final at = ref.read(sharedPreferencesProvider).getInt(_pushChipKey);
+    return at != null && DateTime.now().millisecondsSinceEpoch - at < pushChipHide.inMilliseconds;
   }
 
   /// Sticky date chip: the day of the topmost message row on screen, shown while scrolling and briefly after
@@ -1921,7 +1928,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
       canExtend: chat.canExtend,
       family: chat.matchHidden ? null : _family,
       pushOff: pushOff,
-      pushDismissed: ref.read(sharedPreferencesProvider).getBool(_pushChipKey) ?? false,
+      pushDismissed: _pushChipDismissed,
       // The family offer waits for both to have written (X3 minor 3): the server counts the whole chat, the loaded
       // messages cover my first message sent since its last answer (and servers before the field)
       bothWrote: _serverBothWrote ||

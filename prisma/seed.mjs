@@ -798,6 +798,75 @@ async function main() {
   });
   console.log("Suggestion: هديل ← يزن (91%, PENDING — ready for walkthrough)");
 
+  // ─── Lebanon demo members (local QA only; numbers match SEEDED_PHONES in src/lib/test-accounts.ts) ───
+  const lebanonDemo = [
+    { phone: "96171000012", gender: "FEMALE", firstName: "ريما", lastName: "خوري", dob: "1998-02-11", city: "بيروت", area: "الحمرا", job: "مصممة", sect: "سني", prefSect: ["سني"], hijab: true, prefCity: ["بيروت", "المتن"] },
+    { phone: "96171000013", gender: "FEMALE", firstName: "زينب", lastName: "حمادة", dob: "1996-09-03", city: "صور", area: "العباسية", job: "معلمة", sect: "شيعي", prefSect: ["شيعي"], hijab: true, prefCity: ["صور", "صيدا", "بيروت"] },
+    { phone: "96171000014", gender: "FEMALE", firstName: "لارا", lastName: "مخلوف", dob: "1999-05-21", city: "طرابلس", area: "القبة", job: "صيدلانية", sect: "أفضّل عدم الذكر", prefSect: [], hijab: false, prefCity: ["طرابلس", "بيروت"] },
+    { phone: "96171000015", gender: "MALE", firstName: "كريم", lastName: "الأحمد", dob: "1994-12-30", city: "صيدا", area: "عبرا", job: "مهندس", sect: "سني", prefSect: ["سني"], hijab: false, prefCity: ["صيدا", "بيروت"] },
+    { phone: "96171000016", gender: "MALE", firstName: "علي", lastName: "شرارة", dob: "1993-07-17", city: "النبطية", area: "كفرتبنيت", job: "محاسب", sect: "شيعي", prefSect: ["شيعي", "سني"], hijab: false, prefCity: ["النبطية", "بيروت", "صور"] },
+  ];
+  for (const d of lebanonDemo) {
+    const female = d.gender === "FEMALE";
+    const email = `phone_${d.phone}@naseeb.local`;
+    await db.user.upsert({
+      where: { email },
+      update: {},
+      create: {
+        email,
+        phone: d.phone,
+        firstName: d.firstName,
+        lastName: d.lastName,
+        gender: d.gender,
+        country: "LB",
+        status: "VERIFIED",
+        isVerified: true,
+        verifiedAt: new Date(),
+        matchCredits: 10,
+        profile: {
+          create: {
+            dateOfBirth: new Date(d.dob),
+            city: d.city,
+            area: d.area,
+            nationality: female ? "لبنانية" : "لبناني",
+            education: "بكالوريوس",
+            job: d.job,
+            height: female ? 164 : 178,
+            weight: female ? 57 : 76,
+            childrenCount: 0,
+            willingToRelocate: "maybe",
+            maritalStatus: "أعزب/عزباء",
+            religiosity: "ملتزم",
+            familyValues: "أؤمن بأهمية الاحترام والتواصل بين أفراد العائلة",
+            partnerExpectations: "أبحث عن شريك حياة صادق ومستقر",
+            aboutMe: "عضو تجريبي من لبنان لاختبار المحلي فقط.",
+            tribe: d.lastName,
+            numberOfSiblings: 2,
+            housingType: "مع العائلة",
+            hijab: female ? d.hijab : null,
+            smokingStatus: "لا أدخن",
+            sect: d.sect,
+            prefSect: d.prefSect,
+            prefAgeMin: 24,
+            prefAgeMax: 40,
+            prefCity: d.prefCity,
+            prefEducation: ["بكالوريوس", "ماجستير"],
+            prefMaritalStatus: ["أعزب/عزباء"],
+            isComplete: true,
+          },
+        },
+        personalityResult: {
+          create: {
+            answers: { q1: 4, q2: 4, q3: 3, q4: 4, q5: 4, q6: 3, q7: 4, q8: 4, q9: 3, q10: 4, q11: 4, q12: 3, q13: 4, q14: 3, q15: 4, q16: 4, q17: 3, q18: 4, q19: 4, q20: 4 },
+            vector: [0.75, 0.70, 0.70, 0.35, 0.80],
+            personalityType: "متوازن",
+          },
+        },
+      },
+    });
+    console.log(`Lebanon demo created: ${d.firstName} ${d.lastName} (${d.phone}, ${d.sect})`);
+  }
+
   // ─── Summary ─────────────────────────────────────────────────────────────
   console.log("\n╔══════════════════════════════════════════════════════════════╗");
   console.log("║                 Test Accounts (OTP = 111111)                ║");

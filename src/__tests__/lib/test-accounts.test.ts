@@ -1,4 +1,5 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
+import { isValidPhone } from "@/lib/phone";
 import { TEST_OTP, hasFixedOtp, isTestPhone, testPhones } from "@/lib/test-accounts";
 
 afterEach(() => {
@@ -44,5 +45,24 @@ describe("test accounts", () => {
     process.env.ALLOW_BUILTIN_TEST_PHONES = "true";
     expect(hasFixedOtp("962777000001")).toBe(true);
     expect(isTestPhone("962790000004")).toBe(true);
+  });
+
+  it("Lebanese test numbers log in with 111111 and join the group; seeded ones join without a code", () => {
+    for (const p of ["9613000001", "9613000002", "96171000003"]) {
+      expect(isValidPhone(p, "LB")).toBe(true);
+      expect(hasFixedOtp(p)).toBe(true);
+      expect(isTestPhone(p)).toBe(true);
+    }
+    for (const p of ["96171000012", "96171000013", "96171000014", "96171000015", "96171000016"]) {
+      expect(isValidPhone(p, "LB")).toBe(true);
+      expect(isTestPhone(p)).toBe(true);
+      expect(hasFixedOtp(p)).toBe(false);
+    }
+  });
+
+  it("on production the Lebanese built-ins are ordinary numbers", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    expect(hasFixedOtp("9613000001")).toBe(false);
+    expect(isTestPhone("96171000012")).toBe(false);
   });
 });

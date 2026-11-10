@@ -4,7 +4,7 @@
  * real people or their credits. They log in with a fixed code instead of an SMS.
  *
  * Extra test numbers (fixed code + test group) come from the server setting EXTRA_TEST_PHONES,
- * comma separated, any Jordanian or Saudi format ("0790000777, 962790000778, 0500000777").
+ * comma separated, any Jordanian, Saudi or Lebanese format ("0790000777, 962790000778, 0500000777, 03000777").
  *
  * On production (NODE_ENV=production) only EXTRA_TEST_PHONES count: the built-in and seeded demo
  * numbers are ordinary numbers there (no fixed code, not in the test group), since a real person
@@ -17,12 +17,13 @@ import { normalizePhone } from "@/lib/phone";
 export const TEST_OTP = "111111";
 
 /** Built-in numbers that log in with TEST_OTP (development only) */
-const FIXED_OTP_PHONES = ["962796922292", "962777000001", "962777000002", "966500000001", "966500000002", "966500000003"];
+const FIXED_OTP_PHONES = ["962796922292", "962777000001", "962777000002", "966500000001", "966500000002", "966500000003", "9613000001", "9613000002", "96171000003"];
 
 /** Demo accounts created by prisma/seed.mjs (test group in development only; no fixed code) */
 const SEEDED_PHONES = [
   "962790000002", "962790000003", "962790000004", "962790000005", "962790000006",
   "966500000012", "966500000013", "966500000014", "966500000015", "966500000016",
+  "96171000012", "96171000013", "96171000014", "96171000015", "96171000016",
 ];
 
 function builtInsAllowed(): boolean {

@@ -87,13 +87,18 @@ const SOCIAL_KEYWORDS_LATIN = [
   "telegram",
   "facebook", "messenger",
   "tiktok",
-  "viber", "twitter", "signal", "discord",
+  "viber", "twitter", "discord",
   "skype", "wechat", "we chat", "botim", "linkedin", "imessage", "facetime",
   "gmail", "hotmail", "yahoo", "outlook", "icloud", "protonmail", "proton mail", "yandex",
 ];
 const WHOLE_WORD_MAX = 5;
 /** "line: ahmad99", "line id ahmad" (the app): never the word "line" in a sentence */
 const LINE_APP_RE = /\bline\s*(?:[:：=]|\s(?:id|اي دي)\b)/;
+/**
+ * Signal only with context (QA WC2-09): "signal: ahmad99", "signal id", "on signal", "signal ahmad99" — never
+ * "signal was weak in the mountains". Read after the look-alike swap (l → i)
+ */
+const SIGNAL_APP_RE = /\bsignai\s*(?:[:：=]|\s(?:id|me)\b|\s+@?[a-z][a-z0-9_.]*\d)|\bon\s+signai\b/;
 /** Kik only with context ("kik: ahmad", "on kik", "kik me", «كيك:»): «كيك» alone is cake */
 const KIK_RE = /\bkik\s*[:：=]|\bon\s+kik\b|\bkik\s+me\b|كيك\s*[:：=]/;
 // Short names only blocked as a whole word ("ig", not "big"; "وتس", not "وتسلم" / "وتسعين"; «لاين», not «اونلاين»)
@@ -104,10 +109,24 @@ function lookAlikeLatin(s: string): string {
   return s.replace(/[l1|!]/g, "i").replace(/0/g, "o");
 }
 
-function hasSocialKeyword(lower: string): boolean {
+/**
+ * Letters spaced or dotted apart, joined back (QA WC2-02): "w h a t s a p p", "w.h.a.t.s.a.p.p", «ا ن س ت ا»,
+ * "s n a p". Only runs of 3+ single letters (Latin or Arabic) with 1–3 spaces, dots, dashes, underscores or
+ * asterisks between them; ordinary words are never touched.
+ */
+function joinSpacedLetters(s: string): string {
+  return s.replace(/(?<![\p{L}\p{N}])\p{L}(?:[\s.\-_*·]{1,3}\p{L}(?![\p{L}\p{N}])){2,}/gu, (run) => run.replace(/[^\p{L}]/gu, ""));
+}
+
+function hasSocialKeyword(text: string): boolean {
+  return hasSocialKeywordIn(text) || hasSocialKeywordIn(joinSpacedLetters(text));
+}
+
+function hasSocialKeywordIn(lower: string): boolean {
   if (SOCIAL_KEYWORDS_AR.some((k) => lower.includes(normaliseArabic(k)))) return true;
   if (LINE_APP_RE.test(lower) || KIK_RE.test(lower)) return true;
   const latin = lookAlikeLatin(lower);
+  if (SIGNAL_APP_RE.test(latin)) return true;
   return SOCIAL_KEYWORDS_LATIN.some((k) => {
     const key = lookAlikeLatin(k);
     if (k.length > WHOLE_WORD_MAX) return latin.includes(key);
@@ -145,6 +164,19 @@ const HUNDREDS_WORDS: Record<string, number> = {
   تسعميه: 900, تسعمايه: 900, تسعمائه: 900,
   hundred: 100,
 };
+
+/**
+ * English number words written in Arabic letters («زيرو سفن ناين ون تو ثري…», iOS audit A-H01). Several are
+ * ordinary Arabic words («فور» = at once, «تو» = just now, «ون»), so they count as digits only inside a run of
+ * 4+ number words or digit groups in a row (`readTransliterated`). After normalising (أإآ → ا, harakat gone).
+ */
+const TRANSLITERATED_UNITS: Record<string, string> = {
+  زيرو: "zero", زيروو: "zero", ون: "one", وان: "one", تو: "two", تيو: "two", ثري: "three", تري: "three",
+  فور: "four", فايف: "five", فايڤ: "five", فيف: "five", سكس: "six", سيكس: "six", سفن: "seven", سيفن: "seven",
+  سيڤن: "seven", ايت: "eight", ايث: "eight", ناين: "nine",
+};
+/** Number words or digit groups in a row that make the transliterated words count as digits */
+const TRANSLITERATED_RUN = 4;
 
 function numberWordExact(word: string): NumberWord | null {
   if (word in UNIT_WORDS) return { place: "u", value: UNIT_WORDS[word] };
@@ -245,6 +277,25 @@ function words(s: string): string[] {
 }
 
 /**
+ * Words for the number checks: also split where letters meet digits ("zero7nine1two3" → zero 7 nine 1 two 3,
+ * QA WC2-01), and transliterated number words read as digits inside a run of 4+ (`TRANSLITERATED_UNITS`).
+ */
+function numberWords(s: string): string[] {
+  const list = words(s).flatMap((w) => w.split(/(?<=\p{L})(?=\p{N})|(?<=\p{N})(?=\p{L})/u).filter(Boolean));
+  const counts = (w: string) => /^\d+$/.test(w) || numberWord(w) !== null || w in TRANSLITERATED_UNITS;
+  const out = [...list];
+  let start = 0;
+  for (let i = 0; i <= list.length; i++) {
+    if (i < list.length && counts(list[i])) continue;
+    if (i - start >= TRANSLITERATED_RUN) {
+      for (let j = start; j < i; j++) if (numberWord(list[j]) === null && list[j] in TRANSLITERATED_UNITS) out[j] = TRANSLITERATED_UNITS[list[j]];
+    }
+    start = i + 1;
+  }
+  return out;
+}
+
+/**
  * A message read as tokens: written digit groups, spelled numbers (consecutive number words read as one
  * number the way people say them: «مية وثلاثة وعشرين» = 123, 3 digits; «سبع مية» = 700; "twenty one" = 21)
  * and other words. `single` marks a spelled number that is one digit word on its own («صفر», «سبعة»).
@@ -259,7 +310,7 @@ function tokens(s: string): Token[] {
     out.push({ kind: "spelled", digits: group.value === 0 ? 1 : String(group.value).length, single: group.parts === 1 && group.last === "u" });
     group = null;
   };
-  for (const word of words(s)) {
+  for (const word of numberWords(s)) {
     const n = numberWord(word);
     if (!n) {
       flush();
@@ -352,12 +403,17 @@ function hasSpelledNumber(s: string): boolean {
  * In a message with words around the numbers, years and round amounts ("مواليد 1995", "المهر 5000")
  * are ordinary talk and don't count.
  */
-export function numberShape(body: string): { digits: number; numberish: boolean; longestGroup: number } {
+export function numberShape(body: string): { digits: number; numberish: boolean; longestGroup: number; spelledRun: number } {
   const list = tokens(normaliseNumberDisguise(forChecks(body ?? "")));
   const numberish = list.length > 0 && list.every((t) => t.kind !== "word");
   let digits = 0;
   let longestGroup = 0;
+  // Spelled numbers in a row («سبعة وسبعين واحد اثنين ثلاثة»): 4+ make the message a piece of a number
+  let spelledRun = 0;
+  let run = 0;
   for (const t of list) {
+    run = t.kind === "spelled" ? run + 1 : 0;
+    spelledRun = Math.max(spelledRun, run);
     if (t.kind === "spelled") digits += t.digits;
     // Years never count ("1995", then "2020"); round amounts only in a message that is just the number
     else if (t.kind === "written" && !isYear(t.text) && (numberish || !ordinaryNumber(t.text))) {
@@ -366,13 +422,19 @@ export function numberShape(body: string): { digits: number; numberish: boolean;
     }
   }
   // "رقمي 079" has a word, so it is a wrapped piece (mayBePartOfNumber) and needs the higher total
-  return { digits, numberish, longestGroup };
+  return { digits, numberish, longestGroup, spelledRun };
 }
 
-/** Worth reading together with the sender's previous messages: only a number, or carries a 3+ digit group */
+/** Spelled numbers in a row that make a message with words around them a piece of a number */
+const SPELLED_PIECE_RUN = 4;
+
+/**
+ * Worth reading together with the sender's previous messages: only a number, carries a 3+ digit group, or 4+
+ * spelled numbers in a row («رقمي سبعة وسبعين واحد اثنين ثلاثة», iOS audit A-H01)
+ */
 export function mayBePartOfNumber(body: string): boolean {
   const shape = numberShape(body);
-  return shape.digits > 0 && (shape.numberish || shape.longestGroup >= 3);
+  return shape.digits > 0 && (shape.numberish || shape.longestGroup >= 3 || shape.spelledRun >= SPELLED_PIECE_RUN);
 }
 
 /** Minutes within which the sender's messages are read together */

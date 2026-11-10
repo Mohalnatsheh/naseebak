@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { checkMessage, completesSplitNumber, numberShape, ownRecentPieces } from "@/lib/chat/filter";
+import { checkMessage, completesSplitNumber, mayBePartOfNumber, numberShape, ownRecentPieces } from "@/lib/chat/filter";
 
 const blocked = (body: string) => {
   const r = checkMessage(body);
@@ -402,4 +402,46 @@ describe("W2 review round 2: composite numbers across short connectors", () => {
     "عندي ثلاث اولاد واعمارهم خمسة وسبعة وعشرة",
     "1995 و 2017 و 5000",
   ])("still passes %s", (t) => expect(checkMessage(t).ok, t).toBe(true));
+});
+
+describe("QA round 2: glued, spaced and transliterated (WC2-01, WC2-02, WC2-09, A-H01)", () => {
+  it.each([
+    // WC2-01: digits glued to spelled English words
+    "Zero7Nine1Two3Four5Six7",
+    "zero7nine5five5one2three4",
+    // WC2-02: spaced or dotted app names
+    "w h a t s a p p: ahmad99",
+    "s n a p: ahmad99",
+    "t e l e g r a m",
+    "w.h.a.t.s.a.p.p",
+    "ضيفني ع ا ل ا ن س ت ا ahmad99",
+    "i n s t a ahmad",
+    // WC2-09: signal with context still blocked
+    "signal: ahmad99",
+    "add me on signal",
+    // A-H01: English number words in Arabic letters
+    "زيرو سفن ناين ون تو ثري فور فايف سكس سفن",
+    "زيروو سيفن ناين وان تو تري فور فايڤ سيكس سيفن",
+    "رقمي زيرو سفن ناين فايف فايف فايف ون تو ثري فور",
+    "زيرو 7 ناين 5 فايف 5 ون",
+  ])("blocks %s", (t) => expect(checkMessage(t).ok, t).toBe(false));
+
+  it.each([
+    "signal was weak in the mountains",
+    "the signal on my phone is bad today",
+    "فور ما توصل البيت طمنيني",
+    "تو ما رجعت من الشغل",
+    "ون تو ثري يلا نبدا",
+    "اشتريت 3 كتب و 4 دفاتر",
+    "covid19 was a hard time",
+    "I live in a b c street",
+    "ع ا لسريع",
+  ])("still passes %s", (t) => expect(checkMessage(t).ok, t).toBe(true));
+
+  it("a message with 4+ spelled numbers in a row is a piece of a number (A-H01)", () => {
+    expect(mayBePartOfNumber("رقمي سبعة وسبعين واحد اثنين ثلاثة")).toBe(true);
+    expect(completesSplitNumber("اربعة خمسة ستة سبعة", ["رقمي سبعة وسبعين واحد اثنين ثلاثة"])).toBe(true);
+    // Three in a row with words around them stay ordinary talk
+    expect(mayBePartOfNumber("عندي ثلاث اولاد واعمارهم خمسة وسبعة وعشرة")).toBe(false);
+  });
 });

@@ -26,3 +26,13 @@ export function proLeaveBody(reason: "paused" | "deletion", date: string): strin
     ? `أوقفت حسابك مؤقتاً، فأوقفنا تجديد اشتراك Pro دون استرداد. تبقى مزايا Pro حتى ${date}، ويمكنك متابعة الاشتراك من صفحة عضوية Pro بعد إعادة تفعيل حسابك.`
     : `طلبت حذف حسابك، فأوقفنا تجديد اشتراك Pro دون استرداد. تبقى مزايا Pro حتى ${date} ما لم يُحذف الحساب قبل ذلك.`;
 }
+
+/**
+ * The member paused or asked to delete the account while a renewal payment was failing (PAST_DUE): Stripe would keep
+ * retrying the open invoice, so Pro ends now, with no further charge and no refund (QA WP2-05 ruling). Title: PRO_ENDED_TITLE
+ */
+export function proLeavePastDueBody(reason: "paused" | "deletion"): string {
+  return reason === "paused"
+    ? "أوقفت حسابك مؤقتاً بينما لم يكتمل دفع تجديد Pro، فأنهينا العضوية دون أي دفعة أخرى ودون استرداد. يمكنك الاشتراك من جديد بعد إعادة تفعيل حسابك."
+    : "طلبت حذف حسابك بينما لم يكتمل دفع تجديد Pro، فأنهينا العضوية دون أي دفعة أخرى ودون استرداد.";
+}

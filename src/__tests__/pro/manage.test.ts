@@ -135,6 +135,20 @@ describe("stopProRenewalOnLeave (IOS-H01 ruling)", () => {
     expect(alert.sendAdminAlert).toHaveBeenCalledWith("Pro renewal not stopped for a member who left", expect.any(String), { userId: "u1" });
   });
 
+  it("a failing renewal (PAST_DUE) ends Pro now: Stripe stops retrying, no refund, the member is told (WP2-05)", async () => {
+    addSub({ status: "PAST_DUE" });
+    addPayment("pay1", new Date());
+    expect(await stopProRenewalOnLeave("u1", "paused")).toBe("ended");
+    expect(stripe.subscriptions.cancel).toHaveBeenCalledWith("sub_1", { invoice_now: false, prorate: false });
+    expect(stripe.subscriptions.update).not.toHaveBeenCalled();
+    expect(s().subs[0].status).toBe("ENDED");
+    expect(s().payments[0].status).toBe("COMPLETED");
+    expect(notifyMock.notify).toHaveBeenCalledTimes(1);
+    const n = notifyMock.notify.mock.calls[0][0];
+    expect(n).toMatchObject({ title: "انتهت عضوية Pro", sms: false });
+    expect(n.body).toContain("دون أي دفعة أخرى ودون استرداد");
+  });
+
   it("resuming the account never resumes Pro on its own", async () => {
     addSub();
     await stopProRenewalOnLeave("u1", "paused");

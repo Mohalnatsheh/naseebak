@@ -37,9 +37,15 @@ export async function POST(request: Request) {
       await db.user.update({ where: { id: userId }, data: { isDeactivated: true } });
       // Pausing: end open chats and pending requests, so partners aren't left waiting
       await closeActivityForLeaving(userId, "paused").catch((e) => console.error("Leave cleanup error:", e));
-      // A paused member must not keep paying: Pro stops renewing at the period end, no refund (IOS-H01 ruling)
+      // A paused member must not keep paying: Pro stops renewing at the period end, no refund (IOS-H01 ruling); a
+      // failing renewal ends now (WP2-05)
       const pro = await stopProRenewalOnLeave(userId, "paused");
-      return NextResponse.json({ message: "تم تعطيل الحساب بنجاح", isDeactivated: true, proRenewalStopped: pro === "stopped" });
+      return NextResponse.json({
+        message: "تم تعطيل الحساب بنجاح",
+        isDeactivated: true,
+        proRenewalStopped: pro === "stopped" || pro === "ended",
+        ...(pro === "ended" && { proEnded: true }),
+      });
     }
 
     // resume

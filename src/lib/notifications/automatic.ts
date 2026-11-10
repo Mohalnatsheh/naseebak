@@ -1466,7 +1466,7 @@ export const AUTOMATIC_NOTIFICATIONS: AutomaticNotification[] = [
   {
     "key": "pro-renewal-stopped-on-leave",
     "group": "pro",
-    "when": "A member with a live Pro membership pauses the account or asks to delete it: the renewal stops at the period end, with no refund. Reactivating never resumes it on its own.",
+    "when": "A member with a live Pro membership pauses the account or asks to delete it: the renewal stops at the period end, with no refund. Reactivating never resumes it on its own. If a renewal payment is failing (past due), Pro ends at once instead, with no further charge and no refund.",
     "who": "The subscriber",
     "channels": [
       "bell",
@@ -1482,6 +1482,16 @@ export const AUTOMATIC_NOTIFICATIONS: AutomaticNotification[] = [
         "variant": "deletion requested",
         "title": "توقّف تجديد Pro",
         "body": "طلبت حذف حسابك، فأوقفنا تجديد اشتراك Pro دون استرداد. تبقى مزايا Pro حتى {date} ما لم يُحذف الحساب قبل ذلك."
+      },
+      {
+        "variant": "paused while a renewal was failing (Pro ends now)",
+        "title": "انتهت عضوية Pro",
+        "body": "أوقفت حسابك مؤقتاً بينما لم يكتمل دفع تجديد Pro، فأنهينا العضوية دون أي دفعة أخرى ودون استرداد. يمكنك الاشتراك من جديد بعد إعادة تفعيل حسابك."
+      },
+      {
+        "variant": "deletion requested while a renewal was failing (Pro ends now)",
+        "title": "انتهت عضوية Pro",
+        "body": "طلبت حذف حسابك بينما لم يكتمل دفع تجديد Pro، فأنهينا العضوية دون أي دفعة أخرى ودون استرداد."
       }
     ]
   },

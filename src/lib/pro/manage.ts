@@ -8,7 +8,7 @@ import { db } from "@/lib/db";
 import { getStripe } from "@/lib/stripe";
 import { notify } from "@/lib/notify";
 import { currentProSubscription } from "@/lib/pro/status";
-import { PRO_ENDED_BODY, PRO_ENDED_TITLE, PRO_LEAVE_TITLE, proLeaveBody } from "@/lib/pro/notices";
+import { PRO_ENDED_BODY, PRO_ENDED_TITLE, PRO_LEAVE_TITLE, proLeaveBody, proLeavePastDueBody } from "@/lib/pro/notices";
 import { PRO_PAGE_PATH } from "@/lib/pro/plans";
 import { sendAdminAlert } from "@/lib/admin-alert";
 import { formatDate } from "@/lib/countries";
@@ -72,7 +72,7 @@ export async function endProLocally(subscriptionId: string): Promise<boolean> {
  */
 export async function cancelProNow(
   subscriptionId: string,
-  by: { adminId?: string; reason: "admin" | "deletion" | "refund" },
+  by: { adminId?: string; reason: "admin" | "deletion" | "refund" | "leave" },
 ): Promise<"ended" | "already" | "not_found"> {
   const sub = await db.proSubscription.findUnique({
     where: { id: subscriptionId },
@@ -123,9 +123,30 @@ export async function cancelProForDeletion(userId: string): Promise<number> {
  * paying, so the live membership stops renewing at the period end, with no refund, and the member is told. Coming back
  * never resumes it on its own: «متابعة الاشتراك» on the Pro page does. (Deletion itself ends Pro at once:
  * cancelProForDeletion.) Never throws: a Stripe failure is logged and emailed to the admins to stop it by hand.
+ *
+ * A failing renewal (PAST_DUE) is different (QA WP2-05 ruling): `cancel_at_period_end` doesn't stop Stripe retrying the
+ * invoice already open, so that membership ends now ("ended"), with no further charge and no refund.
  */
-export async function stopProRenewalOnLeave(userId: string, reason: "paused" | "deletion"): Promise<"stopped" | "none" | "already" | "failed"> {
+export async function stopProRenewalOnLeave(
+  userId: string,
+  reason: "paused" | "deletion",
+): Promise<"stopped" | "ended" | "none" | "already" | "failed"> {
   try {
+    const pastDue = await db.proSubscription.findMany({
+      where: { userId, status: { in: ["PAST_DUE"] } },
+      select: { id: true },
+    });
+    if (pastDue.length > 0) {
+      let ended = false;
+      for (const sub of pastDue) {
+        if ((await cancelProNow(sub.id, { reason: "leave" })) === "ended") ended = true;
+      }
+      if (!ended) return "already";
+      await notify({ userId, type: "PAYMENT", title: PRO_ENDED_TITLE, body: proLeavePastDueBody(reason), url: PRO_PAGE_PATH, sms: false }).catch((e) =>
+        console.error("[pro] leave notice failed", userId, e),
+      );
+      return "ended";
+    }
     const sub = await currentProSubscription(userId);
     if (!sub) return "none";
     if (sub.cancelAtPeriodEnd) return "already";
@@ -141,7 +162,8 @@ export async function stopProRenewalOnLeave(userId: string, reason: "paused" | "
     await sendAdminAlert(
       "Pro renewal not stopped for a member who left",
       `Member ${userId} ${reason === "paused" ? "paused the account" : "asked to delete the account"}, but stopping the Pro renewal failed ` +
-        `(${e instanceof Error ? e.message : String(e)}). Set it to cancel at the period end in Stripe by hand (no refund).`,
+        `(${e instanceof Error ? e.message : String(e)}). Set it to cancel at the period end in Stripe by hand (no refund); ` +
+        `if its renewal is failing (past due), cancel it now so Stripe stops retrying.`,
       { userId },
     ).catch(() => {});
     return "failed";

@@ -115,7 +115,7 @@ class _CountryTile extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
             child: Row(
               children: [
-                Text(country.flagEmoji, style: const TextStyle(fontSize: 30)),
+                Text(country.flagEmoji, style: AppText.display),
                 const SizedBox(width: 14),
                 Expanded(
                   child: Column(
@@ -123,13 +123,13 @@ class _CountryTile extends StatelessWidget {
                     children: [
                       Text(country.nameAr, style: Theme.of(context).textTheme.titleMedium),
                       if (!country.registrationOpen)
-                        const Text('التسجيل مغلق مؤقتاً', style: TextStyle(color: AppColors.muted, fontSize: 13)),
+                        Text('التسجيل مغلق مؤقتاً', style: AppText.labelRegular.copyWith(color: AppColors.muted)),
                     ],
                   ),
                 ),
                 Directionality(
                   textDirection: TextDirection.ltr,
-                  child: Text(country.dialCode, style: const TextStyle(color: AppColors.muted, fontSize: 15)),
+                  child: Text(country.dialCode, style: AppText.body.copyWith(color: AppColors.muted)),
                 ),
                 const SizedBox(width: 10),
                 if (busy)

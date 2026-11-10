@@ -138,7 +138,7 @@ class AlertDialogView extends StatelessWidget {
                       child: Icon(Icons.campaign_rounded, color: AppColors.gold, size: 40),
                     ),
                   Text(alert.title,
-                      textAlign: TextAlign.center, style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w800)),
+                      textAlign: TextAlign.center, style: AppText.headline.copyWith(fontWeight: FontWeight.w800)),
                   const SizedBox(height: 10),
                   Text(alert.body,
                       textAlign: TextAlign.center, style: const TextStyle(height: 1.6, color: AppColors.muted)),

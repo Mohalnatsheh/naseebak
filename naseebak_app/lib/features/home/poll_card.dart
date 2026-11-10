@@ -129,9 +129,9 @@ class _PollCardState extends ConsumerState<PollCard> {
             ],
             if (poll.answered && poll.percents == null && poll.votesNeeded > 0)
               Text('تظهر النتائج بعد ${poll.votesNeeded} أصوات أخرى.',
-                  style: const TextStyle(color: AppColors.muted, fontSize: 13)),
+                  style: AppText.labelRegular.copyWith(color: AppColors.muted)),
             if (poll.note != null && poll.note!.isNotEmpty)
-              Text(poll.note!, style: const TextStyle(color: AppColors.muted, fontSize: 13)),
+              Text(poll.note!, style: AppText.labelRegular.copyWith(color: AppColors.muted)),
           ],
         ),
       ),

@@ -1437,7 +1437,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
                       const SizedBox(width: 6),
                       Text(
                         formatVoiceDuration(_voiceElapsed),
-                        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16, color: AppColors.ink),
+                        style: AppText.body.copyWith(fontWeight: FontWeight.w700, color: AppColors.ink),
                       ),
                     ],
                   ),
@@ -1447,7 +1447,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
                       child: Text(
                         _voiceAtLimit ? 'بلغ التسجيل الحد الأقصى' : 'توقف التسجيل',
                         textAlign: TextAlign.center,
-                        style: const TextStyle(fontSize: 12, color: AppColors.muted),
+                        style: AppText.caption.copyWith(color: AppColors.muted),
                       ),
                     ),
                 ],
@@ -1734,7 +1734,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
                   backgroundColor: AppColors.navy,
                   child: Text(
                     (chat?.partnerName ?? '').isEmpty ? '؟' : chat!.partnerName.characters.first,
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 16),
+                    style: AppText.body.copyWith(color: Colors.white, fontWeight: FontWeight.w700),
                   ),
                 )),
                 const SizedBox(width: 10),
@@ -1847,7 +1847,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
         key: const Key('chat-typing'),
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
-        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.success),
+        style: AppText.caption.copyWith(fontWeight: FontWeight.w600, color: AppColors.success),
       );
     }
     final activity = chat.partnerActivity;
@@ -1857,7 +1857,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
         key: const Key('chat-status-line'),
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
-        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.success),
+        style: AppText.caption.copyWith(fontWeight: FontWeight.w600, color: AppColors.success),
       );
     }
     // An urgent time left is always in the status bar (the expiry bar, or inline in the family bar)
@@ -1867,7 +1867,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
       key: const Key('chat-time-left'),
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
-      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.muted),
+      style: AppText.caption.copyWith(fontWeight: FontWeight.w600, color: AppColors.muted),
     );
   }
 
@@ -1969,7 +1969,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
                           maxLines: 2,
                           textAlign: TextAlign.center,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(color: AppColors.goldText, fontSize: 12.5),
+                          style: AppText.caption.copyWith(color: AppColors.goldText),
                         ),
                       ),
                       const SizedBox(width: 4),
@@ -2208,7 +2208,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
               onChanged: _onTyped,
               // A tap anywhere else (the messages, the header) closes the keyboard
               onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
-              style: const TextStyle(fontSize: 16),
+              style: AppText.body,
               decoration: InputDecoration(
                 hintText: forViewer(female, 'اكتب رسالتك…', 'اكتبي رسالتكِ…'),
                 counterText: '',
@@ -2346,9 +2346,9 @@ class _MediaButton extends StatelessWidget {
                   key: tagKey,
                   padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
                   decoration: BoxDecoration(color: AppColors.gold, borderRadius: BorderRadius.circular(6)),
-                  child: const Text(
+                  child: Text(
                     'Pro',
-                    style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800, height: 1.2),
+                    style: AppText.caption.copyWith(color: Colors.white, fontWeight: FontWeight.w800, height: 1.2),
                   ),
                 ),
               ),

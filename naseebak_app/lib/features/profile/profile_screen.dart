@@ -108,7 +108,7 @@ class ProfileScreen extends ConsumerWidget {
                               ]),
                             ),
                             const SizedBox(height: 4),
-                            const Text('اكتمال الملف', style: TextStyle(fontSize: 12, color: AppColors.muted)),
+                            Text('اكتمال الملف', style: AppText.caption.copyWith(color: AppColors.muted)),
                           ],
                         ),
                       ],
@@ -123,8 +123,8 @@ class ProfileScreen extends ConsumerWidget {
                       for (final f in facts.where((f) => f.$2 != null && f.$2!.isNotEmpty))
                         ListTile(
                           dense: true,
-                          title: Text(f.$1, style: const TextStyle(color: AppColors.muted, fontSize: 13)),
-                          subtitle: Text(f.$2!, style: const TextStyle(fontSize: 15.5, color: AppColors.ink, fontWeight: FontWeight.w600)),
+                          title: Text(f.$1, style: AppText.labelRegular.copyWith(color: AppColors.muted)),
+                          subtitle: Text(f.$2!, style: AppText.body.copyWith(color: AppColors.ink, fontWeight: FontWeight.w600)),
                         ),
                     ],
                   ),
@@ -140,9 +140,9 @@ class ProfileScreen extends ConsumerWidget {
                   },
                 ),
                 const SizedBox(height: 8),
-                const Text(
+                Text(
                   'الحقول الفارغة تُحفظ فوراً، وتغيير بيانات محفوظة يُراجع من فريق نصيبك قبل اعتماده.',
-                  style: TextStyle(color: AppColors.muted, fontSize: 12.5),
+                  style: AppText.caption.copyWith(color: AppColors.muted),
                 ),
                 const SizedBox(height: 16),
                 const SectionTitle('عنّي'),
@@ -279,7 +279,7 @@ class _TextEditSheetState extends State<_TextEditSheet> {
             Text(widget.title, style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 6),
             if (widget.initial.isNotEmpty)
-              const Text('تغيير قيمة محفوظة يُرسل للمراجعة قبل ظهوره.', style: TextStyle(color: AppColors.muted, fontSize: 13)),
+              Text('تغيير قيمة محفوظة يُرسل للمراجعة قبل ظهوره.', style: AppText.labelRegular.copyWith(color: AppColors.muted)),
             const SizedBox(height: 12),
             TextField(controller: _c, maxLength: widget.maxLength, maxLines: widget.maxLength > 100 ? 5 : 1, autofocus: true),
             const SizedBox(height: 8),

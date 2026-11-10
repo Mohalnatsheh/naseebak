@@ -208,7 +208,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 if (_fieldErrors['gender'] != null)
                   Padding(
                     padding: const EdgeInsets.only(top: 6),
-                    child: Text(_fieldErrors['gender']!, style: const TextStyle(color: AppColors.danger, fontSize: 13)),
+                    child: Text(_fieldErrors['gender']!, style: AppText.labelRegular.copyWith(color: AppColors.danger)),
                   ),
                 const SizedBox(height: 20),
                 InkWell(
@@ -269,7 +269,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 if (_fieldErrors['terms'] != null)
                   Padding(
                     padding: const EdgeInsetsDirectional.only(start: 12, top: 4),
-                    child: Text(_fieldErrors['terms']!, style: const TextStyle(color: AppColors.danger, fontSize: 13)),
+                    child: Text(_fieldErrors['terms']!, style: AppText.labelRegular.copyWith(color: AppColors.danger)),
                   ),
                 if (_error != null) ...[const SizedBox(height: 14), InfoBanner(text: _error!, tone: BannerTone.danger)],
                 const SizedBox(height: 24),
@@ -307,8 +307,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             children: [
               Icon(icon, size: 30, color: selected ? AppColors.navy : AppColors.muted),
               const SizedBox(height: 6),
-              Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
-              Text(sub, style: const TextStyle(color: AppColors.muted, fontSize: 13)),
+              Text(title, style: AppText.body.copyWith(fontWeight: FontWeight.w700)),
+              Text(sub, style: AppText.labelRegular.copyWith(color: AppColors.muted)),
             ],
           ),
         ),

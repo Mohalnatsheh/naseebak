@@ -79,9 +79,9 @@ class _PersonDetailsViewState extends State<PersonDetailsView> {
           ...more.where((e) => e.value.isNotEmpty).map((e) => _FactRow(fact: e)),
           for (final t in texts) ...[
             const SizedBox(height: 10),
-            Text(t.$1, style: const TextStyle(color: AppColors.muted, fontSize: 13, fontWeight: FontWeight.w600)),
+            Text(t.$1, style: AppText.label.copyWith(color: AppColors.muted, fontWeight: FontWeight.w600)),
             const SizedBox(height: 2),
-            Text(t.$2, style: const TextStyle(fontSize: 14.5, height: 1.6)),
+            Text(t.$2, style: AppText.labelRegular.copyWith(height: 1.6)),
           ],
         ],
         if (hasMore)
@@ -134,9 +134,9 @@ class _FactRow extends StatelessWidget {
           const SizedBox(width: 10),
           SizedBox(
             width: 110,
-            child: Text(fact.label, style: const TextStyle(color: AppColors.muted, fontSize: 13.5)),
+            child: Text(fact.label, style: AppText.labelRegular.copyWith(color: AppColors.muted)),
           ),
-          Expanded(child: Text(fact.value, style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w600))),
+          Expanded(child: Text(fact.value, style: AppText.label.copyWith(fontWeight: FontWeight.w600))),
         ],
       ),
     );
@@ -170,7 +170,7 @@ class ScoreRing extends StatelessWidget {
                 color: AppColors.gold,
               ),
             ),
-            Text('$v%', style: TextStyle(fontWeight: FontWeight.w800, fontSize: size * 0.27, color: AppColors.navy)),
+            Text('$v%', style: AppText.ringValue(size).copyWith(color: AppColors.navy)),
           ],
         ),
       ),

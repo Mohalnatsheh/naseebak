@@ -121,7 +121,7 @@ class _IntroScreenState extends ConsumerState<IntroScreen> {
                     child: TextButton(
                       key: const Key('intro-skip'),
                       onPressed: last ? null : _finish,
-                      child: const Text('تخطّي', style: TextStyle(color: Colors.white, fontSize: 15)),
+                      child: Text('تخطّي', style: AppText.body.copyWith(color: Colors.white)),
                     ),
                   ),
                 ]),
@@ -209,12 +209,12 @@ class _IntroSlide extends StatelessWidget {
                     offset: Offset((rtl ? -d : d) * 60, 0),
                     child: Transform.scale(scale: 1.18, child: Image.asset(page.image, fit: BoxFit.cover)),
                   ),
-                  const DecoratedBox(
+                  DecoratedBox(
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
-                        colors: [Colors.transparent, Color(0xAA15304A)],
+                        colors: [Colors.transparent, AppColors.navyDeep.withValues(alpha: 0.67)],
                         stops: [0.55, 1],
                       ),
                     ),
@@ -230,12 +230,12 @@ class _IntroSlide extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(page.kicker, style: const TextStyle(color: AppColors.goldLight, fontWeight: FontWeight.w700, fontSize: 14)),
+                    Text(page.kicker, style: AppText.label.copyWith(color: AppColors.goldLight, fontWeight: FontWeight.w700)),
                     const SizedBox(height: 6),
                     Text(page.title,
-                        style: const TextStyle(color: Colors.white, fontSize: 25, fontWeight: FontWeight.w800, height: 1.35)),
+                        style: AppText.title.copyWith(color: Colors.white, fontWeight: FontWeight.w800, height: 1.35)),
                     const SizedBox(height: 10),
-                    Text(page.body, style: TextStyle(color: Colors.white.withValues(alpha: 0.82), fontSize: 15.5, height: 1.7)),
+                    Text(page.body, style: AppText.body.copyWith(color: Colors.white.withValues(alpha: 0.82), height: 1.7)),
                     const SizedBox(height: 14),
                     for (final (icon, text) in page.points)
                       Padding(
@@ -247,7 +247,7 @@ class _IntroSlide extends StatelessWidget {
                             child: Icon(icon, size: 16, color: AppColors.goldLight),
                           ),
                           const SizedBox(width: 10),
-                          Expanded(child: Text(text, style: const TextStyle(color: Colors.white, fontSize: 14.5))),
+                          Expanded(child: Text(text, style: AppText.labelRegular.copyWith(color: Colors.white))),
                         ]),
                       ),
                   ],
@@ -302,7 +302,7 @@ class _NextButton extends StatelessWidget {
               height: 52,
               alignment: Alignment.center,
               child: last
-                  ? const Text('لنبدأ', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 16))
+                  ? Text('لنبدأ', style: AppText.body.copyWith(color: Colors.white, fontWeight: FontWeight.w800))
                   : const Icon(Icons.arrow_forward_rounded, color: Colors.white),
             ),
           ),

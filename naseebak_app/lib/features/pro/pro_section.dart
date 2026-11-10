@@ -105,7 +105,7 @@ class ProSection extends StatelessWidget {
               // The title is the screen's own (AppBar «عضوية Pro»)
               child: Text(
                 state.isPro ? proActiveText : proPitch(state.offers),
-                style: const TextStyle(color: AppColors.ink, fontSize: 14, fontWeight: FontWeight.w600),
+                style: AppText.label.copyWith(color: AppColors.ink, fontWeight: FontWeight.w600),
               ),
             ),
           ],
@@ -126,7 +126,7 @@ class ProSection extends StatelessWidget {
             proFootnote(state.offers),
             key: const Key('pro-footnote'),
             textAlign: TextAlign.center,
-            style: const TextStyle(color: AppColors.muted, fontSize: 12),
+            style: AppText.caption.copyWith(color: AppColors.muted),
           ),
         ],
       ],
@@ -239,21 +239,17 @@ class _ProPlansCardState extends State<ProPlansCard> {
                               Text(
                                 price,
                                 key: const Key('pro-price'),
-                                style: const TextStyle(
-                                  fontSize: 26,
+                                style: AppText.title.copyWith(
                                   fontWeight: FontWeight.w900,
-                                  color: AppColors.navy,
-                                ),
+                                  color: AppColors.navy),
                               ),
                               Padding(
                                 padding: const EdgeInsets.only(bottom: 4),
                                 child: Text(
                                   _perPeriod[offer.id] ?? '',
-                                  style: const TextStyle(
+                                  style: AppText.label.copyWith(
                                     color: AppColors.muted,
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 13.5,
-                                  ),
+                                    fontWeight: FontWeight.w600),
                                 ),
                               ),
                             ],
@@ -261,11 +257,9 @@ class _ProPlansCardState extends State<ProPlansCard> {
                           if (offer.chargeCurrency.toLowerCase() == 'usd')
                             Text(
                               '${forViewer(widget.female, 'تدفع', 'تدفعين')} ${_ltr('${(offer.chargeAmount / 100).toStringAsFixed(2)}\$')} بالدولار',
-                              style: const TextStyle(
+                              style: AppText.caption.copyWith(
                                 color: AppColors.navy,
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.w600,
-                              ),
+                                fontWeight: FontWeight.w600),
                             ),
                         ],
                       ),
@@ -304,7 +298,7 @@ class _ProPlansCardState extends State<ProPlansCard> {
                           )
                         : Text(
                             forViewer(widget.female, 'اشترك الآن', 'اشتركي الآن'),
-                            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+                            style: AppText.body.copyWith(fontWeight: FontWeight.w800),
                           ),
                   ),
                 ),
@@ -347,11 +341,9 @@ class _Segment extends StatelessWidget {
                 : null,
             child: Text(
               label,
-              style: TextStyle(
+              style: AppText.label.copyWith(
                 fontWeight: FontWeight.w700,
-                fontSize: 14,
-                color: selected ? AppColors.navy : AppColors.muted,
-              ),
+                color: selected ? AppColors.navy : AppColors.muted),
             ),
           ),
         ),
@@ -378,11 +370,9 @@ class _FeatureLine extends StatelessWidget {
           Expanded(
             child: Text(
               text,
-              style: TextStyle(
-                fontSize: 13.5,
+              style: AppText.label.copyWith(
                 color: strong ? AppColors.ink : AppColors.muted,
-                fontWeight: strong ? FontWeight.w700 : FontWeight.w500,
-              ),
+                fontWeight: strong ? FontWeight.w700 : FontWeight.w500),
             ),
           ),
         ],
@@ -523,7 +513,7 @@ class _MyProCardState extends ConsumerState<MyProCard> {
                   Text(
                     myProEndingText(stoppedByPause: stoppedByPause, paused: paused),
                     key: const Key('pro-ending-text'),
-                    style: const TextStyle(color: AppColors.muted, fontSize: 13),
+                    style: AppText.labelRegular.copyWith(color: AppColors.muted),
                   ),
                 ],
                 const SizedBox(height: 10),

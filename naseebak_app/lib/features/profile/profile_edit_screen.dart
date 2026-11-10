@@ -15,6 +15,7 @@ import '../onboarding/setup_screen.dart' show dateOfBirthError;
 import 'profile_edit_plan.dart';
 import 'profile_repository.dart';
 import 'profile_screen.dart' show requiredPayload;
+import '../../core/theme/app_theme.dart';
 
 /// Arabic names of the profile fields (pending-request summary, errors)
 const profileFieldLabels = <String, String>{
@@ -284,7 +285,7 @@ class _ProfileEditFormState extends ConsumerState<ProfileEditForm> {
 
   Widget _label(String key, {String? text}) => Padding(
         padding: const EdgeInsets.only(top: 16, bottom: 8),
-        child: Text(text ?? profileFieldLabels[key]!, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+        child: Text(text ?? profileFieldLabels[key]!, style: AppText.body.copyWith(fontWeight: FontWeight.w700)),
       );
 
   void _pick(String key, String? value) {

@@ -22,8 +22,8 @@ class ProfileStrengthCard extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Row(children: [
-              const Expanded(
-                child: Text('قوة ملفك', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+              Expanded(
+                child: Text('قوة ملفك', style: AppText.body.copyWith(fontWeight: FontWeight.w800)),
               ),
               Text('${p.completeness}%', style: const TextStyle(fontWeight: FontWeight.w800, color: AppColors.gold)),
             ]),
@@ -36,7 +36,7 @@ class ProfileStrengthCard extends ConsumerWidget {
               backgroundColor: AppColors.line,
             ),
             const SizedBox(height: 6),
-            const Text('الملف الأكمل يعطي اقتراحات أدق ونسبة توافق أوضح.', style: TextStyle(color: AppColors.muted, fontSize: 13)),
+            Text('الملف الأكمل يعطي اقتراحات أدق ونسبة توافق أوضح.', style: AppText.labelRegular.copyWith(color: AppColors.muted)),
             for (final s in open)
               ListTile(
                 contentPadding: EdgeInsets.zero,

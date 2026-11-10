@@ -222,7 +222,7 @@ class _PhotoViewerState extends State<PhotoViewer> {
                 '${_index + 1} / $n',
                 key: const Key('photo-viewer-count'),
                 textDirection: TextDirection.ltr,
-                style: const TextStyle(color: Colors.white, fontSize: 16),
+                style: AppText.body.copyWith(color: Colors.white),
               )
             : null,
         actions: [
@@ -364,7 +364,7 @@ class _MediaPlaceholder extends StatelessWidget {
               Text(
                 text,
                 textAlign: TextAlign.center,
-                style: TextStyle(color: color, fontSize: 13),
+                style: AppText.labelRegular.copyWith(color: color),
               ),
             ],
           ),
@@ -644,7 +644,7 @@ class _VoiceBubbleState extends ConsumerState<VoiceBubble> {
                 child: Text(
                   formatVoiceSpeed(speed),
                   textDirection: TextDirection.ltr,
-                  style: TextStyle(color: c, fontSize: 12, fontWeight: FontWeight.w700),
+                  style: AppText.caption.copyWith(color: c, fontWeight: FontWeight.w700),
                 ),
               ),
             ),
@@ -672,7 +672,7 @@ class _VoiceBubbleState extends ConsumerState<VoiceBubble> {
                   Icon(Icons.refresh_rounded, color: c.withValues(alpha: 0.8), size: 20),
                   const SizedBox(width: 6),
                   Flexible(
-                    child: Text(voiceErrorText, style: TextStyle(color: c, fontSize: 14)),
+                    child: Text(voiceErrorText, style: AppText.labelRegular.copyWith(color: c)),
                   ),
                 ],
               ),
@@ -720,7 +720,7 @@ class _VoiceBubbleState extends ConsumerState<VoiceBubble> {
                       children: [
                         Text(
                           formatVoiceDuration(started ? s.position : shown),
-                          style: TextStyle(color: c.withValues(alpha: 0.8), fontSize: 12),
+                          style: AppText.caption.copyWith(color: c.withValues(alpha: 0.8)),
                         ),
                         if (_tracksPlayed)
                           ListenableBuilder(

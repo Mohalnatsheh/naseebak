@@ -341,7 +341,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                         children: [
                           Text(n.body),
                           if (n.createdAt != null)
-                            Text(formatRelative(n.createdAt!), style: const TextStyle(fontSize: 12, color: AppColors.muted)),
+                            Text(formatRelative(n.createdAt!), style: AppText.caption.copyWith(color: AppColors.muted)),
                         ],
                       ),
                       onTap: () => _open(i),

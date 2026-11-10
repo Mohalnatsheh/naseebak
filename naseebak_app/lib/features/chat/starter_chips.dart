@@ -24,7 +24,7 @@ class StarterChips extends StatelessWidget {
           final s = starters[i];
           return ActionChip(
             key: Key('chat-starter-$i'),
-            label: Text(s, style: const TextStyle(fontSize: 14, color: AppColors.navy)),
+            label: Text(s, style: AppText.labelRegular.copyWith(color: AppColors.navy)),
             avatar: const Icon(Icons.chat_bubble_outline_rounded, size: 16, color: AppColors.gold),
             backgroundColor: Colors.white,
             side: const BorderSide(color: AppColors.line),

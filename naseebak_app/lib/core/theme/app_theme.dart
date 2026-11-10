@@ -82,8 +82,14 @@ class AppText {
   /// 14/22 600: chips, secondary lines, list subtitles
   static const label = TextStyle(fontFamily: _f, fontSize: 14, height: 22 / 14, fontWeight: FontWeight.w600);
 
+  /// 14/22 400: the label size for running text (muted lines, notes)
+  static const labelRegular = TextStyle(fontFamily: _f, fontSize: 14, height: 22 / 14, fontWeight: FontWeight.w400);
+
   /// 12/18 500: times, captions, badges (the floor)
   static const caption = TextStyle(fontFamily: _f, fontSize: 12, height: 18 / 12, fontWeight: FontWeight.w500);
+
+  /// A one-pixel transparent text: the OTP field's hidden input (never read, never seen)
+  static const invisible = TextStyle(fontSize: 1, color: Colors.transparent);
 
   /// Fixed-width digits (rings, prices, clocks, counts)
   static const tabular = [FontFeature.tabularFigures()];
@@ -182,12 +188,19 @@ class AppTheme {
     final text = base.textTheme.apply(bodyColor: AppColors.ink, displayColor: AppColors.ink);
 
     return base.copyWith(
+      // Material's slots follow the one Cairo scale (P1-2)
       textTheme: text.copyWith(
-        headlineSmall: text.headlineSmall?.copyWith(fontWeight: FontWeight.w700, height: 1.35),
-        titleLarge: text.titleLarge?.copyWith(fontWeight: FontWeight.w700, height: 1.35),
-        titleMedium: text.titleMedium?.copyWith(fontWeight: FontWeight.w700, height: 1.4),
-        bodyLarge: text.bodyLarge?.copyWith(height: 1.6),
-        bodyMedium: text.bodyMedium?.copyWith(height: 1.6),
+        displaySmall: AppText.display.copyWith(color: AppColors.ink),
+        headlineSmall: AppText.title.copyWith(color: AppColors.ink),
+        titleLarge: AppText.headline.copyWith(color: AppColors.ink),
+        titleMedium: AppText.body.copyWith(fontWeight: FontWeight.w700, color: AppColors.ink),
+        titleSmall: AppText.label.copyWith(color: AppColors.ink),
+        bodyLarge: AppText.body.copyWith(color: AppColors.ink),
+        bodyMedium: AppText.labelRegular.copyWith(color: AppColors.ink),
+        bodySmall: AppText.caption.copyWith(color: AppColors.muted),
+        labelLarge: AppText.label.copyWith(color: AppColors.ink),
+        labelMedium: AppText.caption.copyWith(fontWeight: FontWeight.w600, color: AppColors.ink),
+        labelSmall: AppText.caption.copyWith(color: AppColors.muted),
       ),
       appBarTheme: const AppBarTheme(
         backgroundColor: AppColors.offWhite,
@@ -197,7 +210,8 @@ class AppTheme {
         centerTitle: false,
         titleTextStyle: TextStyle(
           fontFamily: fontFamily,
-          fontSize: 19,
+          fontSize: 18,
+          height: 28 / 18,
           fontWeight: FontWeight.w700,
           color: AppColors.ink,
         ),
@@ -207,7 +221,7 @@ class AppTheme {
         elevation: 0,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(AppRadius.card),
           side: const BorderSide(color: AppColors.line),
         ),
       ),
@@ -215,17 +229,17 @@ class AppTheme {
         style: FilledButton.styleFrom(
           backgroundColor: AppColors.navy,
           foregroundColor: Colors.white,
-          minimumSize: const Size(64, 52),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          minimumSize: const Size(64, 48),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
           textStyle: const TextStyle(fontFamily: fontFamily, fontSize: 16, fontWeight: FontWeight.w700),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: AppColors.navy,
-          minimumSize: const Size(64, 52),
+          minimumSize: const Size(64, 48),
           side: const BorderSide(color: AppColors.line, width: 1.2),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
           textStyle: const TextStyle(fontFamily: fontFamily, fontSize: 16, fontWeight: FontWeight.w600),
         ),
       ),
@@ -241,31 +255,37 @@ class AppTheme {
         fillColor: AppColors.surface,
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(AppRadius.md),
           borderSide: const BorderSide(color: AppColors.line),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(AppRadius.md),
           borderSide: const BorderSide(color: AppColors.line),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(AppRadius.md),
           borderSide: const BorderSide(color: AppColors.navy, width: 1.6),
         ),
         errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(AppRadius.md),
           borderSide: const BorderSide(color: AppColors.danger),
         ),
       ),
+      // A picked chip is navy with white text, clear at a glance (design review P2)
       chipTheme: base.chipTheme.copyWith(
         backgroundColor: AppColors.surface,
-        selectedColor: AppColors.navy.withValues(alpha: 0.1),
-        // A picked chip also gets a navy edge (same width as the grey one)
+        selectedColor: AppColors.navy,
+        checkmarkColor: Colors.white,
         side: WidgetStateBorderSide.resolveWith(
           (states) => BorderSide(color: states.contains(WidgetState.selected) ? AppColors.navy : AppColors.line),
         ),
-        labelStyle: const TextStyle(fontFamily: fontFamily, color: AppColors.ink, fontSize: 14),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        labelStyle: WidgetStateTextStyle.resolveWith(
+          (states) => AppText.label.copyWith(
+            color: states.contains(WidgetState.selected) ? Colors.white : AppColors.ink,
+            fontWeight: states.contains(WidgetState.selected) ? FontWeight.w700 : FontWeight.w500,
+          ),
+        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
       ),
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: AppColors.surface,
@@ -317,7 +337,7 @@ class AppTheme {
       ),
       dialogTheme: DialogThemeData(
         backgroundColor: AppColors.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.sheet)),
       ),
     );
   }

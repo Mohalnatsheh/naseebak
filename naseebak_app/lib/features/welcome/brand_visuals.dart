@@ -92,7 +92,7 @@ class _NightBackdropState extends State<NightBackdrop> with SingleTickerProvider
         gradient: LinearGradient(
           begin: AlignmentDirectional.topStart,
           end: AlignmentDirectional.bottomEnd,
-          colors: [AppColors.navyDeep, AppColors.navy, Color(0xFF2B5A84)],
+          colors: [AppColors.navyDeep, AppColors.navy, AppColors.navy2],
         ),
       ),
       child: AnimatedBuilder(
@@ -223,7 +223,7 @@ class _AuthHeroState extends State<AuthHero> with WidgetsBindingObserver {
                         key: const Key('auth-hero-compact'),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(color: Colors.white, fontSize: 19, fontWeight: FontWeight.w800),
+                        style: AppText.headline.copyWith(color: Colors.white, fontWeight: FontWeight.w800),
                       ),
                     )
                   else
@@ -238,7 +238,7 @@ class _AuthHeroState extends State<AuthHero> with WidgetsBindingObserver {
                       key: const Key('auth-hero-compact-line'),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: Colors.white.withValues(alpha: 0.82), fontSize: 14),
+                      style: AppText.labelRegular.copyWith(color: Colors.white.withValues(alpha: 0.82)),
                     ),
                   ),
                 if (!compact) ...[
@@ -248,7 +248,7 @@ class _AuthHeroState extends State<AuthHero> with WidgetsBindingObserver {
                     delay: const Duration(milliseconds: 120),
                     child: Text(
                       title,
-                      style: const TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.w800, height: 1.3),
+                      style: AppText.title.copyWith(color: Colors.white, fontWeight: FontWeight.w800, height: 1.3),
                     ),
                   ),
                   if (subtitle != null) ...[
@@ -257,7 +257,7 @@ class _AuthHeroState extends State<AuthHero> with WidgetsBindingObserver {
                       delay: const Duration(milliseconds: 220),
                       child: Text(
                         subtitle,
-                        style: TextStyle(color: Colors.white.withValues(alpha: 0.82), fontSize: 15, height: 1.65),
+                        style: AppText.body.copyWith(color: Colors.white.withValues(alpha: 0.82), height: 1.65),
                       ),
                     ),
                   ],

@@ -239,7 +239,7 @@ class _TicketCard extends StatelessWidget {
                         textAlign: TextAlign.end,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(color: AppColors.muted, fontSize: 12),
+                        style: AppText.caption.copyWith(color: AppColors.muted),
                       ),
               ),
             ]),

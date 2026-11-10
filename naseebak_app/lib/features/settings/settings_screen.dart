@@ -164,7 +164,7 @@ class AccountScreen extends ConsumerWidget {
             },
           ),
           const SizedBox(height: 12),
-          const Center(child: Text('تغيير الدولة متاح قبل تسجيل الدخول فقط.', style: TextStyle(color: AppColors.muted, fontSize: 12))),
+          Center(child: Text('تغيير الدولة متاح قبل تسجيل الدخول فقط.', style: AppText.caption.copyWith(color: AppColors.muted))),
         ],
       ),
     );

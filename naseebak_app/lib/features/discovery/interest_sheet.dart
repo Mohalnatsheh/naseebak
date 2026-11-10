@@ -178,7 +178,7 @@ class _InterestSheetState extends State<InterestSheet> {
                 contentPadding: EdgeInsets.zero,
                 title: const Text(
                   'أوافق على مشاركة اسم وليّ أمري ورقمه مع عائلة الطرف الآخر عند التوافق.',
-                  style: TextStyle(fontSize: 14),
+                  style: AppText.labelRegular,
                 ),
               ),
             ],
@@ -301,9 +301,9 @@ class _Option extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15.5)),
+                    Text(title, style: AppText.body.copyWith(fontWeight: FontWeight.w700)),
                     const SizedBox(height: 2),
-                    Text(body, style: const TextStyle(color: AppColors.muted, fontSize: 13.5, height: 1.5)),
+                    Text(body, style: AppText.labelRegular.copyWith(color: AppColors.muted, height: 1.5)),
                   ],
                 ),
               ),

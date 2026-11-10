@@ -182,7 +182,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                             inputFormatters: [SafeInputFormatter(allowed: RegExp(r'[0-9٠-٩۰-۹]'), maxLength: 6)],
                             showCursor: false,
                             enableInteractiveSelection: false,
-                            style: const TextStyle(color: Colors.transparent, fontSize: 1),
+                            style: AppText.invisible,
                             decoration: const InputDecoration(
                               counterText: '',
                               border: InputBorder.none,
@@ -291,7 +291,7 @@ class _CodeBox extends StatelessWidget {
         child: Text(
           char ?? '',
           key: ValueKey(char),
-          style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: AppColors.navy),
+          style: AppText.title.copyWith(fontWeight: FontWeight.w800, color: AppColors.navy),
         ),
       ),
     );

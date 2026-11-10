@@ -194,12 +194,18 @@ void main() {
           ),
         ),
       )));
-      expect(find.text('أحمد، 33 سنة'), findsOneWidget);
+      // The shared card (design P1-4): name, «33 سنة · city», the ring, up to 3 chips, the "why" line; the rest
+      // of the details one tap away
+      expect(find.text('أحمد'), findsOneWidget);
+      expect(find.textContaining('33 سنة'), findsOneWidget);
       expect(find.text('72%'), findsOneWidget);
       expect(find.text('يوافق ما تبحثين عنه في العمر والمدينة'), findsOneWidget);
-      // Third-person label for a man
+      // Third-person label for a man, as a chip
       expect(find.text('أعزب'), findsOneWidget);
       expect(find.byType(Image), findsNothing);
+      expect(find.text('الصور تظهر بعد التوافق المتبادل فقط'), findsNothing);
+      await tester.tap(find.byKey(const Key('card-details-open')));
+      await tester.pumpAndSettle();
       expect(find.text('الصور تظهر بعد التوافق المتبادل فقط'), findsOneWidget);
       await tester.tap(find.byKey(const Key('interested-s1')));
       expect(taps, 1);

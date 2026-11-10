@@ -167,16 +167,16 @@ class _RequiredUpdate extends StatelessWidget {
             children: [
               const Icon(Icons.system_update_rounded, size: 72, color: AppColors.gold),
               const SizedBox(height: 24),
-              const Text(
+              Text(
                 'تحديث التطبيق',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.w800),
+                style: AppText.title.copyWith(color: Colors.white, fontWeight: FontWeight.w800),
               ),
               const SizedBox(height: 12),
-              const Text(
+              Text(
                 'يتوفر إصدار جديد من نصيبك فيه تحسينات مهمة، ويلزم تحديثه لمتابعة استخدامه.',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.white70, fontSize: 16, height: 1.6),
+                style: AppText.body.copyWith(color: Colors.white70, height: 1.6),
               ),
               const SizedBox(height: 32),
               SizedBox(
@@ -190,7 +190,7 @@ class _RequiredUpdate extends StatelessWidget {
                   ),
                   onPressed: status.storeUrl.isEmpty ? null : onUpdate,
                   icon: const Icon(Icons.download_rounded),
-                  label: const Text('تحديث الآن', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+                  label: Text('تحديث الآن', style: AppText.body.copyWith(fontWeight: FontWeight.w700)),
                 ),
               ),
               if (status.storeUrl.isEmpty) ...[

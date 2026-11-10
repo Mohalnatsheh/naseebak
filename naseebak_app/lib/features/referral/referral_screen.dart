@@ -71,7 +71,7 @@ class ReferralScreen extends ConsumerWidget {
                     const SizedBox(height: 8),
                     SelectableText(r.code,
                         key: const Key('referral-code'),
-                        style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w800, letterSpacing: 4, color: AppColors.navy)),
+                        style: AppText.display.copyWith(fontWeight: FontWeight.w800, letterSpacing: 4, color: AppColors.navy)),
                     const SizedBox(height: 16),
                     Row(children: [
                       Expanded(
@@ -120,7 +120,7 @@ class _Stat extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(children: [
-            Text('$value', style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: AppColors.gold)),
+            Text('$value', style: AppText.title.copyWith(fontWeight: FontWeight.w800, color: AppColors.gold)),
             Text(label, style: const TextStyle(color: AppColors.muted)),
           ]),
         ),

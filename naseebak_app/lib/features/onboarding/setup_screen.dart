@@ -511,7 +511,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
           ),
           const SizedBox(height: 10),
           Text('${forViewer(female, 'يمكنك', 'يمكنكِ')} إضافة تفضيلات أخرى لاحقاً من «تفضيلاتي» في حسابك.',
-              style: const TextStyle(color: AppColors.muted, fontSize: 13)),
+              style: AppText.labelRegular.copyWith(color: AppColors.muted)),
         ];
       default:
         return [
@@ -526,7 +526,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
 
   Widget _label(String t) => Padding(
         padding: const EdgeInsets.only(bottom: 8),
-        child: Text(t, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+        child: Text(t, style: AppText.body.copyWith(fontWeight: FontWeight.w700)),
       );
 
   Widget _chips(List<String> options, String? value, ValueChanged<String> onPick, String? error,
@@ -558,7 +558,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
               ? const SizedBox(width: double.infinity)
               : Padding(
                   padding: const EdgeInsets.only(top: 6),
-                  child: Text(error, style: const TextStyle(color: AppColors.danger, fontSize: 13)),
+                  child: Text(error, style: AppText.labelRegular.copyWith(color: AppColors.danger)),
                 ),
         ),
       ],

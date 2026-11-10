@@ -165,11 +165,9 @@ class _MatchTile extends StatelessWidget {
                 alignment: Alignment.center,
                 child: Text(
                   p.firstName.isEmpty ? '؟' : p.firstName.characters.first,
-                  style: TextStyle(
-                    fontSize: 21,
+                  style: AppText.title.copyWith(
                     fontWeight: FontWeight.w700,
-                    color: closed != null ? AppColors.muted : AppColors.navy,
-                  ),
+                    color: closed != null ? AppColors.muted : AppColors.navy),
                 ),
               ),
               const SizedBox(width: 12),
@@ -187,7 +185,7 @@ class _MatchTile extends StatelessWidget {
                       [p.city, if (match.createdAt != null) 'منذ ${formatDate(match.createdAt!, withYear: false)}']
                           .whereType<String>()
                           .join(' · '),
-                      style: const TextStyle(color: AppColors.muted, fontSize: 13.5),
+                      style: AppText.labelRegular.copyWith(color: AppColors.muted),
                     ),
                     const SizedBox(height: 6),
                     if (onUnblock != null)

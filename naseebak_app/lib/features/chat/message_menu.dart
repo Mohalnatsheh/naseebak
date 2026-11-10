@@ -136,7 +136,7 @@ class _ReactionButton extends StatelessWidget {
           child: SizedBox(
             width: 52,
             height: 52,
-            child: Center(child: Text(emoji, style: const TextStyle(fontSize: 26))),
+            child: Center(child: Text(emoji, style: AppText.title)),
           ),
         ),
       ),

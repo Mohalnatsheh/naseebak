@@ -242,7 +242,7 @@ class InfoBanner extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(text, style: TextStyle(color: fg, fontSize: 14, height: 1.55)),
+                Text(text, style: AppText.labelRegular.copyWith(color: fg, height: 1.55)),
                 if (action != null) ...[const SizedBox(height: 6), action!],
               ],
             ),
@@ -272,7 +272,7 @@ class Pill extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (icon != null) ...[Icon(icon, size: 14, color: color), const SizedBox(width: 4)],
-          Text(text, style: TextStyle(color: color, fontSize: 12.5, fontWeight: FontWeight.w700)),
+          Text(text, style: AppText.caption.copyWith(color: color, fontWeight: FontWeight.w700)),
         ],
       ),
     );
@@ -295,7 +295,7 @@ class CountBadge extends StatelessWidget {
       child: Text(
         count > 99 ? '99+' : '$count',
         textAlign: TextAlign.center,
-        style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700),
+        style: AppText.caption.copyWith(color: Colors.white, fontWeight: FontWeight.w700),
       ),
     );
   }

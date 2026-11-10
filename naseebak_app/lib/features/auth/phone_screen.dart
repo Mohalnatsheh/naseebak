@@ -167,7 +167,7 @@ class _PhoneFormState extends ConsumerState<PhoneForm> {
               FadeSlideIn(
                 delay: const Duration(milliseconds: 300),
                 child: Text('رقم ${country.phoneWord}',
-                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: AppColors.ink)),
+                    style: AppText.body.copyWith(fontWeight: FontWeight.w700, color: AppColors.ink)),
               ),
               const SizedBox(height: 10),
               FadeSlideIn(
@@ -197,10 +197,10 @@ class _PhoneFormState extends ConsumerState<PhoneForm> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Row(mainAxisSize: MainAxisSize.min, children: [
-                          Text(country.flagEmoji, style: const TextStyle(fontSize: 20)),
+                          Text(country.flagEmoji, style: AppText.headline),
                           const SizedBox(width: 6),
                           Text(country.dialCode,
-                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.navy)),
+                              style: AppText.body.copyWith(fontWeight: FontWeight.w700, color: AppColors.navy)),
                         ]),
                       ),
                       Expanded(
@@ -212,7 +212,7 @@ class _PhoneFormState extends ConsumerState<PhoneForm> {
                           textInputAction: TextInputAction.done,
                           autofillHints: const [AutofillHints.telephoneNumberNational],
                           inputFormatters: [SafeInputFormatter(allowed: RegExp(r'[0-9٠-٩۰-۹+ ]'), maxLength: 16)],
-                          style: const TextStyle(fontSize: 20, letterSpacing: 1.5, fontWeight: FontWeight.w600),
+                          style: AppText.headline.copyWith(letterSpacing: 1.5, fontWeight: FontWeight.w600),
                           onSubmitted: (_) => _submit(),
                           decoration: InputDecoration(
                             hintText: country.phoneExample,
@@ -246,7 +246,7 @@ class _PhoneFormState extends ConsumerState<PhoneForm> {
                     ? const SizedBox(width: double.infinity)
                     : Padding(
                         padding: const EdgeInsets.only(top: 8),
-                        child: Text(_fieldError!, style: const TextStyle(color: AppColors.danger, fontSize: 13)),
+                        child: Text(_fieldError!, style: AppText.labelRegular.copyWith(color: AppColors.danger)),
                       ),
               ),
               const SizedBox(height: 8),
@@ -257,7 +257,7 @@ class _PhoneFormState extends ConsumerState<PhoneForm> {
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text('سنرسل رمز تحقق من 6 أرقام ${widget.country.code == 'SA' ? 'عبر واتساب' : 'برسالة نصية'}.',
-                        style: TextStyle(color: AppColors.muted.withValues(alpha: 0.9), fontSize: 13)),
+                        style: AppText.labelRegular.copyWith(color: AppColors.muted.withValues(alpha: 0.9))),
                   ),
                 ]),
               ),
@@ -332,12 +332,10 @@ class _ModeSwitch extends StatelessWidget {
                 child: Center(
                   child: AnimatedDefaultTextStyle(
                     duration: const Duration(milliseconds: 250),
-                    style: TextStyle(
+                    style: AppText.body.copyWith(
                       fontFamily: AppTheme.fontFamily,
-                      fontSize: 15,
                       fontWeight: FontWeight.w700,
-                      color: (value == OtpContext.register) == register ? AppColors.navy : AppColors.muted,
-                    ),
+                      color: (value == OtpContext.register) == register ? AppColors.navy : AppColors.muted),
                     child: Text(label),
                   ),
                 ),
@@ -361,7 +359,7 @@ class _GoldButton extends StatelessWidget {
     return Container(
       height: 58,
       decoration: BoxDecoration(
-        gradient: const LinearGradient(colors: [AppColors.navy, Color(0xFF2E6496)]),
+        gradient: const LinearGradient(colors: [AppColors.navy, AppColors.navy2]),
         borderRadius: BorderRadius.circular(18),
         boxShadow: [BoxShadow(color: AppColors.navy.withValues(alpha: 0.3), blurRadius: 18, offset: const Offset(0, 8))],
       ),
@@ -381,7 +379,7 @@ class _GoldButton extends StatelessWidget {
                       child: CircularProgressIndicator(strokeWidth: 2.6, color: Colors.white),
                     )
                   : Row(key: const ValueKey('label'), mainAxisSize: MainAxisSize.min, children: [
-                      Text(label, style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w800)),
+                      Text(label, style: AppText.body.copyWith(color: Colors.white, fontWeight: FontWeight.w800)),
                       const SizedBox(width: 10),
                       Container(
                         padding: const EdgeInsets.all(4),
@@ -414,7 +412,7 @@ class _Promise extends StatelessWidget {
       child: Column(children: [
         Icon(icon, color: AppColors.gold, size: 22),
         const SizedBox(height: 6),
-        Text(text, textAlign: TextAlign.center, style: const TextStyle(fontSize: 12, height: 1.45, color: AppColors.ink)),
+        Text(text, textAlign: TextAlign.center, style: AppText.caption.copyWith(height: 1.45, color: AppColors.ink)),
       ]),
     );
   }
@@ -438,7 +436,7 @@ class _CountryChip extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
           child: Row(mainAxisSize: MainAxisSize.min, children: [
-            Text(country.flagEmoji, style: const TextStyle(fontSize: 16)),
+            Text(country.flagEmoji, style: AppText.body),
             const SizedBox(width: 6),
             Text(country.nameAr, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
             const Icon(Icons.expand_more_rounded, color: Colors.white70, size: 18),

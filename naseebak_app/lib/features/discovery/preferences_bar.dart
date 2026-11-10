@@ -61,13 +61,13 @@ class PreferencesBar extends ConsumerWidget {
                       children: [
                         Text(
                           withDealbreakers ? 'تفضيلاتي وشروطي الأساسية' : 'تفضيلاتي',
-                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+                          style: AppText.body.copyWith(fontWeight: FontWeight.w700),
                         ),
                         Text(
                           prefs == null
                               ? 'الاقتراحات تُختار حسب ما ${forViewer(female, 'تبحث', 'تبحثين')} عنه'
                               : [?age, active.isEmpty ? 'لا شروط أساسية' : '${active.length} شروط أساسية'].join(' · '),
-                          style: TextStyle(color: Theme.of(context).hintColor, fontSize: 13),
+                          style: AppText.labelRegular.copyWith(color: Theme.of(context).hintColor),
                         ),
                       ],
                     ),

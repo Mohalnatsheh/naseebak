@@ -47,7 +47,11 @@ void main() {
         ..on('POST', '/api/auth/verify-otp', const FakeResponse(400, {'error': 'رمز التحقق غير صحيح'}))
         ..on('POST', '/api/mobile/auth/token',
             FakeResponse(201, {'token': 'nsb_x', 'expiresAt': '2026-12-28T00:00:00Z', 'user': meJson()}));
+      // The button slides in (FadeSlideIn: 350 ms wait, 650 ms slide): let it arrive before tapping its centre (a 48 px button is
+      // exactly as tall as the slide is long)
+      await tester.pump(const Duration(milliseconds: 1200));
       await tester.ensureVisible(find.byKey(const Key('verify-otp')));
+      await tester.pump(const Duration(milliseconds: 300));
       await tester.tap(find.byKey(const Key('verify-otp')));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 50));

@@ -23,12 +23,10 @@ class ProBadge extends StatelessWidget {
         ),
         child: Text(
           'Pro',
-          style: TextStyle(
-            fontSize: 11,
+          style: AppText.caption.copyWith(
             height: 1.3,
             fontWeight: FontWeight.w800,
-            color: onDark ? AppColors.navyDeep : AppColors.goldText,
-          ),
+            color: onDark ? AppColors.navyDeep : AppColors.goldText),
         ),
       ),
     );

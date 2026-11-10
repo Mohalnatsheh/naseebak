@@ -170,7 +170,7 @@ class HomeScreen extends ConsumerWidget {
                     onDark: true,
                     child: Text(
                       greetingFor(DateTime.now(), me?.firstName),
-                      style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w700),
+                      style: AppText.title.copyWith(color: Colors.white, fontWeight: FontWeight.w700),
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -190,7 +190,7 @@ class HomeScreen extends ConsumerWidget {
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(step.title,
-                                  style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w700)),
+                                  style: AppText.body.copyWith(color: Colors.white, fontWeight: FontWeight.w700)),
                             ),
                           ],
                         ),
@@ -360,7 +360,7 @@ class _StatusChip extends StatelessWidget {
                 child: Icon(icon, color: AppColors.gold, size: 20),
               ),
               const SizedBox(height: 8),
-              Text(value, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: AppColors.navy)),
+              Text(value, style: AppText.title.copyWith(fontWeight: FontWeight.w800, color: AppColors.navy)),
               // Two lines at large text: «توافقات تنتظرك» is never cut to «توافقات تنتظ…» (QA A-L14)
               Text(label,
                   maxLines: 2,
@@ -473,7 +473,7 @@ class _SuggestionPreview extends ConsumerWidget {
                             decoration:
                                 BoxDecoration(color: AppColors.gold.withValues(alpha: 0.15), shape: BoxShape.circle),
                             child: Text(p.firstName.isEmpty ? '؟' : p.firstName.characters.first,
-                                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700, color: AppColors.navy)),
+                                style: AppText.title.copyWith(fontWeight: FontWeight.w700, color: AppColors.navy)),
                           ),
                     if (showVerified)
                       const PositionedDirectional(
@@ -489,18 +489,18 @@ class _SuggestionPreview extends ConsumerWidget {
                   p.age != null ? '${p.firstName}، ${p.age}' : p.firstName,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+                  style: AppText.body.copyWith(fontWeight: FontWeight.w800),
                 ),
                 if (p.city != null)
                   Text(p.city!,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(color: AppColors.muted, fontSize: 12.5)),
+                      style: AppText.caption.copyWith(color: AppColors.muted)),
                 const Spacer(),
                 if (item.likedYou)
                   const Pill(text: 'مهتم بك', color: AppColors.success, icon: Icons.favorite_rounded)
                 else
-                  Text('عرض الملف', style: TextStyle(color: AppColors.navy.withValues(alpha: 0.8), fontSize: 12.5)),
+                  Text('عرض الملف', style: AppText.caption.copyWith(color: AppColors.navy.withValues(alpha: 0.8))),
               ],
             ),
           ),

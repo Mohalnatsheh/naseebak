@@ -479,7 +479,7 @@ class _IntroPanelState extends ConsumerState<IntroPanel> {
           if (s.chatExpiresAt != null) {
             gap();
             children.add(Text('تنتهي المحادثة في ${formatDate(s.chatExpiresAt!, withYear: false)}',
-                style: const TextStyle(color: AppColors.muted, fontSize: 13)));
+                style: AppText.labelRegular.copyWith(color: AppColors.muted)));
           }
           gap();
         } else if ((s.chatStatus == 'ended' || s.chatStatus == 'expired') && s.conversationId != null) {
@@ -573,7 +573,7 @@ class _IntroPanelState extends ConsumerState<IntroPanel> {
                   'انتهت مدة المحادثة. هل تنتقلان لتعارف عائلي؟${s.familyFree ? ' الانتقال مجاني' : ''}'
                   '${s.familyFree ? ' و' : ' '}متاح حتى ${formatDate(s.familyOpenUntil!, withYear: false)}.',
                   key: const Key('family-open-until'),
-                  style: const TextStyle(color: AppColors.muted, fontSize: 13),
+                  style: AppText.labelRegular.copyWith(color: AppColors.muted),
                 ));
               }
               gap();
@@ -748,11 +748,11 @@ class _GuardianCard extends StatelessWidget {
         children: [
           const Text('بيانات التواصل العائلي', style: TextStyle(fontWeight: FontWeight.w700, color: AppColors.success)),
           const SizedBox(height: 8),
-          Text('${contact.name} (${contact.relationshipLabel})', style: const TextStyle(fontSize: 15.5)),
+          Text('${contact.name} (${contact.relationshipLabel})', style: AppText.body),
           const SizedBox(height: 4),
           Directionality(
             textDirection: TextDirection.ltr,
-            child: SelectableText(formatGuardianPhone(contact.phone, dialCode: (dialCode ?? '').isEmpty ? '962' : dialCode!), style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+            child: SelectableText(formatGuardianPhone(contact.phone, dialCode: (dialCode ?? '').isEmpty ? '962' : dialCode!), style: AppText.body.copyWith(fontWeight: FontWeight.w700)),
           ),
         ],
       ),
@@ -776,9 +776,9 @@ class _FollowUp extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('كيف يسير التعارف العائلي؟', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15.5)),
+            Text('كيف يسير التعارف العائلي؟', style: AppText.body.copyWith(fontWeight: FontWeight.w700)),
             const SizedBox(height: 4),
-            Text(text, style: const TextStyle(color: AppColors.muted, fontSize: 13.5, height: 1.5)),
+            Text(text, style: AppText.labelRegular.copyWith(color: AppColors.muted, height: 1.5)),
             const SizedBox(height: 8),
             Wrap(
               spacing: 8,

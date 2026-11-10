@@ -183,9 +183,9 @@ class _ReportSheetState extends State<ReportSheet> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
+                    Text(
                       'الرسالة المُبلَّغ عنها',
-                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.muted),
+                      style: AppText.caption.copyWith(fontWeight: FontWeight.w600, color: AppColors.muted),
                     ),
                     const SizedBox(height: 2),
                     Text(

@@ -190,7 +190,7 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> with WidgetsBindingOb
         backgroundColor: ended ? AppColors.muted.withValues(alpha: 0.18) : AppColors.navy,
         child: Text(
           c.partnerName.isEmpty ? '؟' : c.partnerName.characters.first,
-          style: TextStyle(color: ended ? AppColors.muted : Colors.white, fontWeight: FontWeight.w700, fontSize: 19),
+          style: AppText.headline.copyWith(color: ended ? AppColors.muted : Colors.white, fontWeight: FontWeight.w700),
         ),
       ),
       title: Row(
@@ -207,11 +207,9 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> with WidgetsBindingOb
           if (c.lastMessageAt != null)
             Text(
               formatRelative(c.lastMessageAt!),
-              style: TextStyle(
+              style: AppText.caption.copyWith(
                 color: c.unread > 0 ? AppColors.navy : AppColors.muted,
-                fontSize: 12,
-                fontWeight: c.unread > 0 ? FontWeight.w700 : null,
-              ),
+                fontWeight: c.unread > 0 ? FontWeight.w700 : null),
             ),
         ],
       ),
@@ -255,11 +253,9 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> with WidgetsBindingOb
               padding: const EdgeInsets.only(top: 3),
               child: Text(
                 left.text,
-                style: TextStyle(
-                  fontSize: 12,
+                style: AppText.caption.copyWith(
                   color: left.urgent ? AppColors.warning : AppColors.muted,
-                  fontWeight: left.urgent ? FontWeight.w700 : null,
-                ),
+                  fontWeight: left.urgent ? FontWeight.w700 : null),
               ),
             ),
         ],

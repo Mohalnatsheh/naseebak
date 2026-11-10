@@ -87,7 +87,7 @@ class ChatStatusStrip extends StatelessWidget {
                 text,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: tone),
+                style: AppText.label.copyWith(fontWeight: FontWeight.w600, color: tone),
               ),
             ),
             if (actionLabel != null && onAction != null)
@@ -97,7 +97,7 @@ class ChatStatusStrip extends StatelessWidget {
                   minimumSize: const Size(44, 40),
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   foregroundColor: AppColors.navy,
-                  textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5),
+                  textStyle: AppText.label.copyWith(fontWeight: FontWeight.w700),
                 ),
                 child: Text(actionLabel!),
               ),

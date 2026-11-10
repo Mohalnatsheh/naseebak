@@ -120,7 +120,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerPr
                       child: Column(children: [
                         Text(
                           'زواج تقليدي بروح عصرية',
-                          style: TextStyle(color: AppColors.goldLight.withValues(alpha: 0.95), fontSize: 16, letterSpacing: 0.3),
+                          style: AppText.body.copyWith(color: AppColors.goldLight.withValues(alpha: 0.95), letterSpacing: 0.3),
                         ),
                       ]),
                     ),
@@ -132,7 +132,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerPr
                       child: Text(
                         auth.error ?? ApiException.networkMessage,
                         textAlign: TextAlign.center,
-                        style: const TextStyle(color: Colors.white, fontSize: 15, height: 1.6),
+                        style: AppText.body.copyWith(color: Colors.white, height: 1.6),
                       ),
                     ),
                     const SizedBox(height: 16),

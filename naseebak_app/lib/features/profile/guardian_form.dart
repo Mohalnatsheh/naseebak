@@ -114,12 +114,12 @@ class GuardianFieldsView extends ConsumerWidget {
           contentPadding: EdgeInsets.zero,
           title: const Text(
             'أوافق على مشاركة اسم وليّ أمري ورقمه مع عائلة الطرف الآخر بعد قبول تعارف عائلي.',
-            style: TextStyle(fontSize: 14),
+            style: AppText.labelRegular,
           ),
         ),
-        const Text(
+        Text(
           'لا تظهر هذه البيانات لأي عضو إلا بعد تعارف عائلي مقبول وبموافقتك.',
-          style: TextStyle(color: AppColors.muted, fontSize: 12.5),
+          style: AppText.caption.copyWith(color: AppColors.muted),
         ),
       ],
     );

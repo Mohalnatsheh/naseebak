@@ -156,7 +156,7 @@ class _PreferencesFormState extends ConsumerState<PreferencesForm> {
       padding: const EdgeInsets.only(top: 18, bottom: 8),
       child: Row(
         children: [
-          Expanded(child: Text(text, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15))),
+          Expanded(child: Text(text, style: AppText.body.copyWith(fontWeight: FontWeight.w700))),
           if (widget.withDealbreakers)
             FilterChip(
               key: Key('db-$key'),
@@ -249,7 +249,7 @@ class _PreferencesFormState extends ConsumerState<PreferencesForm> {
         if (_ageError != null)
           Padding(
             padding: const EdgeInsets.only(top: 6),
-            child: Text(_ageError!, style: const TextStyle(color: AppColors.danger, fontSize: 13)),
+            child: Text(_ageError!, style: AppText.labelRegular.copyWith(color: AppColors.danger)),
           ),
         _title('المدن المفضلة', 'city', filled: _cities.isNotEmpty),
         _multi(widget.cities, _cities),

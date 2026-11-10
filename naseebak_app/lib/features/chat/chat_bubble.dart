@@ -162,7 +162,7 @@ class ChatBubble extends StatelessWidget {
                   ),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                    child: Text(label, textDirection: TextDirection.ltr, style: const TextStyle(fontSize: 14, height: 1.3)),
+                    child: Text(label, textDirection: TextDirection.ltr, style: AppText.labelRegular.copyWith(height: 1.3)),
                   ),
                 ),
               ),
@@ -173,7 +173,7 @@ class ChatBubble extends StatelessWidget {
     );
   }
 
-  TextStyle _timeStyle(Color fg) => TextStyle(color: fg.withValues(alpha: 0.72), fontSize: 11, height: 1.2);
+  TextStyle _timeStyle(Color fg) => AppText.caption.copyWith(color: fg.withValues(alpha: 0.72), height: 1.2);
 
   /// Time and (mine) the tick, always read left to right («14:05 ✓»)
   Widget _meta(Color fg, {Color? tickColor}) {
@@ -213,7 +213,7 @@ class ChatBubble extends StatelessWidget {
   /// members know
   Widget _text(BuildContext context, Color fg) {
     final scaler = MediaQuery.textScalerOf(context);
-    final style = DefaultTextStyle.of(context).style.merge(TextStyle(color: fg, fontSize: 16, height: 1.45));
+    final style = DefaultTextStyle.of(context).style.merge(AppText.body.copyWith(color: fg, height: 1.45));
     // Each message in its own direction (an English line, a number) within the Arabic chat; the time follows it
     final dir = messageDirection(message.body);
     final time = TextPainter(
@@ -297,7 +297,7 @@ class ChatBubble extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (message.error != null)
-              Text(message.error!, style: const TextStyle(color: AppColors.danger, fontSize: 12.5)),
+              Text(message.error!, style: AppText.caption.copyWith(color: AppColors.danger)),
             Wrap(
               spacing: 4,
               children: [

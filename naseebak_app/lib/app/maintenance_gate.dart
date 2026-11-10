@@ -100,17 +100,17 @@ class _MaintenanceGateState extends ConsumerState<MaintenanceGate> with WidgetsB
                 children: [
                   const Icon(Icons.construction_rounded, size: 72, color: AppColors.gold),
                   const SizedBox(height: 24),
-                  const Text(
+                  Text(
                     'نصيبك تحت الصيانة',
                     textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.w800),
+                    style: AppText.title.copyWith(color: Colors.white, fontWeight: FontWeight.w800),
                   ),
                   const SizedBox(height: 12),
                   Text(
                     m.message.isEmpty ? MaintenanceState.defaultMessage : m.message,
                     key: const Key('maintenance-message'),
                     textAlign: TextAlign.center,
-                    style: const TextStyle(color: Colors.white70, fontSize: 16, height: 1.6),
+                    style: AppText.body.copyWith(color: Colors.white70, height: 1.6),
                   ),
                   const SizedBox(height: 32),
                   SizedBox(

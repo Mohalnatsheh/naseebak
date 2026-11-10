@@ -95,7 +95,7 @@ class PushStepsSheet extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text('تفعيل الإشعارات', style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800)),
+            Text('تفعيل الإشعارات', style: AppText.headline.copyWith(fontWeight: FontWeight.w800)),
             const SizedBox(height: 6),
             Text(
               'الإشعارات مغلقة لنصيبك في إعدادات ${onIos ? 'الآيفون' : 'الهاتف'}. ${g('فعّلها', 'فعّليها')} '
@@ -113,7 +113,7 @@ class PushStepsSheet extends StatelessWidget {
                       radius: 13,
                       backgroundColor: AppColors.gold.withValues(alpha: 0.15),
                       child: Text('${i + 1}',
-                          style: const TextStyle(color: AppColors.gold, fontWeight: FontWeight.w800, fontSize: 13)),
+                          style: AppText.label.copyWith(color: AppColors.gold, fontWeight: FontWeight.w800)),
                     ),
                     const SizedBox(width: 10),
                     Expanded(child: Text(steps[i], style: const TextStyle(height: 1.6))),
@@ -195,13 +195,13 @@ class _PushOffCardState extends ConsumerState<PushOffCard> with WidgetsBindingOb
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('الإشعارات غير مفعّلة',
-                          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: AppColors.warning)),
+                      Text('الإشعارات غير مفعّلة',
+                          style: AppText.body.copyWith(fontWeight: FontWeight.w800, color: AppColors.warning)),
                       const SizedBox(height: 4),
                       Text(
                         '${g('قد تفوتك', 'قد تفوتكِ')} التوافقات الجديدة والرسائل وطلبات التعارف. '
                         '${g('فعّلها', 'فعّليها')} ${g('لتصلك', 'لتصلكِ')} أولاً بأول.',
-                        style: const TextStyle(height: 1.55, fontSize: 13.5),
+                        style: AppText.labelRegular.copyWith(height: 1.55),
                       ),
                     ],
                   ),
@@ -298,7 +298,7 @@ class PushAskSheet extends StatelessWidget {
           children: [
             const Icon(Icons.notifications_active_outlined, color: AppColors.gold, size: 40),
             const SizedBox(height: 10),
-            const Text('الإشعارات', textAlign: TextAlign.center, style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800)),
+            Text('الإشعارات', textAlign: TextAlign.center, style: AppText.headline.copyWith(fontWeight: FontWeight.w800)),
             const SizedBox(height: 6),
             Text(
               'لا نرسل إلا ما يهمّ${g('ك', 'كِ')}، فتعرف${g('', 'ين')} فوراً:',

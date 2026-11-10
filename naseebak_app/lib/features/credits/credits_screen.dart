@@ -341,11 +341,11 @@ class _CreditsScreenState extends ConsumerState<CreditsScreen> with WidgetsBindi
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('رصيدك الحالي', style: TextStyle(color: Colors.white70, fontSize: 14)),
+                        Text('رصيدك الحالي', style: AppText.labelRegular.copyWith(color: Colors.white70)),
                         Text(
                           '${me?.credits ?? 0}',
                           key: const Key('balance'),
-                          style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.w800),
+                          style: AppText.display.copyWith(color: Colors.white, fontWeight: FontWeight.w800),
                         ),
                       ],
                     ),
@@ -354,7 +354,7 @@ class _CreditsScreenState extends ConsumerState<CreditsScreen> with WidgetsBindi
               ),
             ),
             const SizedBox(height: 12),
-            Text(creditRuleLine(ref.watch(countsProvider).valueOrNull?.flags), style: const TextStyle(color: AppColors.muted, fontSize: 13.5)),
+            Text(creditRuleLine(ref.watch(countsProvider).valueOrNull?.flags), style: AppText.labelRegular.copyWith(color: AppColors.muted)),
             if (_pendingId != null && !_dialogOpen) ...[
               const SizedBox(height: 12),
               _PendingPaymentCard(offerCancel: _offerCancel, cancelling: _cancelling, onCancel: _cancel),
@@ -447,7 +447,7 @@ class _PackageTile extends StatelessWidget {
                     spacing: 8,
                     crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
-                      Text(price, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17, color: AppColors.navy)),
+                      Text(price, style: AppText.body.copyWith(fontWeight: FontWeight.w800, color: AppColors.navy)),
                       if (pkg.wasPrice != null && pkg.wasPrice! > pkg.price)
                         Text(
                           '${formatAmount(pkg.wasPrice!)} ${pkg.currencySymbol}',
@@ -456,7 +456,7 @@ class _PackageTile extends StatelessWidget {
                     ],
                   ),
                   if (pkg.chargeLabel != null && !pkg.chargeLabel!.contains(pkg.currencySymbol))
-                    Text('يُحصَّل ${ltrIsolate(pkg.chargeLabel!)}', style: const TextStyle(color: AppColors.muted, fontSize: 12.5)),
+                    Text('يُحصَّل ${ltrIsolate(pkg.chargeLabel!)}', style: AppText.caption.copyWith(color: AppColors.muted)),
                 ],
               ),
             ),
@@ -555,7 +555,7 @@ class _PaymentWaitDialogState extends State<_PaymentWaitDialog> {
   Widget build(BuildContext context) {
     return AlertDialog(
       key: const Key('payment-wait'),
-      content: const Column(
+      content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           SizedBox(height: 8),
@@ -564,7 +564,7 @@ class _PaymentWaitDialogState extends State<_PaymentWaitDialog> {
           Text('بانتظار تأكيد الدفع…', textAlign: TextAlign.center),
           SizedBox(height: 4),
           Text('يمكنك إكمال الدفع في الصفحة المفتوحة ثم العودة إلى التطبيق.',
-              textAlign: TextAlign.center, style: TextStyle(color: AppColors.muted, fontSize: 13)),
+              textAlign: TextAlign.center, style: AppText.labelRegular.copyWith(color: AppColors.muted)),
         ],
       ),
       actions: [

@@ -145,7 +145,7 @@ class _SecureAreaState extends State<SecureArea> {
                     color: AppColors.navyDeep.withValues(alpha: 0.55),
                     alignment: Alignment.center,
                     padding: const EdgeInsets.all(24),
-                    child: const Column(
+                    child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(Icons.visibility_off_rounded, color: Colors.white, size: 40),
@@ -153,7 +153,7 @@ class _SecureAreaState extends State<SecureArea> {
                         Text(
                           'المحتوى مخفي أثناء تسجيل الشاشة أو مشاركتها، حفاظاً على الخصوصية.',
                           textAlign: TextAlign.center,
-                          style: TextStyle(color: Colors.white, fontSize: 15, height: 1.6),
+                          style: AppText.body.copyWith(color: Colors.white, height: 1.6),
                         ),
                       ],
                     ),

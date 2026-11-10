@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Sparkles, Loader2, Zap, Trash2, ChevronLeft, ChevronRight,
   Search, ArrowRight, ArrowLeft, ChevronDown, ChevronUp,
@@ -15,6 +15,21 @@ import { fmtDate, fmtDateTime, PersonLink, SearchBox, type PersonRef } from "@/c
 import { effectiveRequestStatus } from "@/lib/admin/cycle-stats";
 import { enumLabel } from "@/lib/admin/enum-labels";
 import { fmtLeft } from "@/lib/admin/matching-time";
+import { AdminEmptyState, AdminLoadError } from "@/components/admin/admin-states";
+import { useConfirm } from "@/components/admin/confirm-dialog";
+
+/** Admin «Generate All» background run (src/lib/admin/generate-job.ts, GET /api/admin/suggestions/generate) */
+interface GenerateJob {
+  id: string;
+  status: "running" | "done" | "failed";
+  startedAt: string;
+  finishedAt: string | null;
+  total: number;
+  eligible: number;
+  done: number;
+  created: number;
+  failed: number;
+}
 
 // --- Types ---
 
@@ -234,10 +249,22 @@ export default function AdminSuggestionsPage() {
   const [flags, setFlags] = useState<CycleFlags | null>(null);
   const [numbers, setNumbers] = useState<GenerateNumbers | null>(null);
   const [assignError, setAssignError] = useState("");
+  const [job, setJob] = useState<GenerateJob | null>(null);
+  const [browseError, setBrowseError] = useState("");
+  /** ADM-09: the member can't get suggestions yet (setup not done): «Assign» is hidden and this says why */
+  const [notReady, setNotReady] = useState<string | null>(null);
+  const confirm = useConfirm();
+  const removeQuestion = {
+    title: "Remove this suggestion?",
+    description: "A shared suggestion is closed, not deleted: an unanswered «مهتم» is refunded.",
+    confirmLabel: "Remove suggestion",
+    destructive: true,
+  };
 
   // ── Browse data ──
   const fetchSuggestions = useCallback(async () => {
     setBrowseLoading(true);
+    setBrowseError("");
     try {
       const params = new URLSearchParams({ page: String(browsePage) });
       if (browseFilter) params.set("status", browseFilter);
@@ -253,7 +280,7 @@ export default function AdminSuggestionsPage() {
       setBrowseTotal(data.total ?? 0);
     } catch (err) {
       console.error(err);
-      toast.error("Could not load suggestions");
+      setBrowseError("Couldn't load the suggestions.");
     } finally {
       setBrowseLoading(false);
     }
@@ -264,7 +291,7 @@ export default function AdminSuggestionsPage() {
   }, [tab, fetchSuggestions]);
 
   async function handleDeleteBrowse(id: string) {
-    if (!confirm("Remove this suggestion? A shared suggestion is closed (an unanswered «مهتم» is refunded), not deleted.")) return;
+    if (!(await confirm(removeQuestion))) return;
     setDeleting(id);
     try {
       const res = await fetch(`/api/admin/suggestions/${id}`, { method: "DELETE" });
@@ -322,6 +349,7 @@ export default function AdminSuggestionsPage() {
       setUserSuggestionsCandidate(sugData.asCandidate || []);
       setCandidates(candData.candidates || []);
       setCandidatesTotal(candData.total || 0);
+      setNotReady(candData.recipientReady === false ? candData.reason || "This member can't get suggestions yet" : null);
     } catch (err) {
       console.error(err);
     } finally {
@@ -387,7 +415,7 @@ export default function AdminSuggestionsPage() {
 
   // ── Manage User: delete suggestion ──
   async function handleDeleteUserSuggestion(id: string) {
-    if (!confirm("Remove this suggestion? A shared suggestion is closed (an unanswered «مهتم» is refunded), not deleted.")) return;
+    if (!(await confirm(removeQuestion))) return;
     setDeleting(id);
     try {
       const res = await fetch(`/api/admin/suggestions/${id}`, { method: "DELETE" });
@@ -431,13 +459,22 @@ export default function AdminSuggestionsPage() {
       : flags?.introRequests
         ? "free suggestions for every eligible user (weekly cap applies)"
         : "suggestions for every eligible user — each one uses 1 of the recipient's credits";
-    if (!confirm(`Generate ${what}? Everyone who gets one is notified.`)) return;
+    const ok = await confirm({
+      title: "Generate suggestions?",
+      description: `Generate ${what}? Everyone who gets one is notified.`,
+      confirmLabel: "Generate",
+    });
+    if (!ok) return;
     setGenerating(true);
     setGenerateResult("");
     try {
       const res = await fetch("/api/admin/suggestions/generate", { method: "POST" });
-      const data = await res.json();
-      if (res.ok) {
+      const data = await res.json().catch(() => ({}));
+      if (data.job) {
+        // Shared flow: a capped background run (ADM-10); the progress below follows it
+        setJob(data.job);
+        setGenerateResult(res.ok ? data.message || "Started" : "A run is already going: its progress is below.");
+      } else if (res.ok) {
         setGenerateResult(`Generated ${data.count} suggestions successfully!`);
       } else {
         setGenerateResult(data.error || "Failed to generate suggestions");
@@ -448,6 +485,33 @@ export default function AdminSuggestionsPage() {
       setGenerating(false);
     }
   }
+
+  // A running «Generate All»: read its progress every 2 s while this tab is open (ADM-10)
+  const polling = useRef(false);
+  useEffect(() => {
+    if (tab !== "generate") return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const tick = async () => {
+      if (polling.current) return;
+      polling.current = true;
+      try {
+        const r = await fetch("/api/admin/suggestions/generate", { cache: "no-store" });
+        const d = r.ok ? await r.json() : null;
+        if (!cancelled && d) setJob(d.job ?? null);
+        if (!cancelled && d?.job?.status === "running") timer = setTimeout(tick, 2000);
+      } catch {
+        if (!cancelled) timer = setTimeout(tick, 5000);
+      } finally {
+        polling.current = false;
+      }
+    };
+    void tick();
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [tab, job?.id, job?.status]);
 
   // ── Render ──
   const allUserSuggestions = [
@@ -476,7 +540,7 @@ export default function AdminSuggestionsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold flex items-center gap-3">
+        <h1 className="text-2xl font-display flex items-center gap-3">
           <Sparkles className="h-7 w-7 text-primary" />
           Suggestions Management
         </h1>
@@ -531,7 +595,7 @@ export default function AdminSuggestionsPage() {
               ))}
             </div>
             <p className="text-xs text-muted-foreground">
-              {browseLoading ? "Loading…" : `${browseTotal} suggestion${browseTotal === 1 ? "" : "s"}`}
+              {browseLoading ? "Loading…" : browseError ? "—" : `${browseTotal} suggestion${browseTotal === 1 ? "" : "s"}`}
               {browseSearch && (
                 <>
                   {" "}· search «{browseSearch}»{" "}
@@ -570,8 +634,10 @@ export default function AdminSuggestionsPage() {
                           <td colSpan={8} className="p-3"><div className="h-6 bg-muted animate-pulse rounded" /></td>
                         </tr>
                       ))
+                    ) : browseError ? (
+                      <tr><td colSpan={8} className="p-3"><AdminLoadError message={browseError} onRetry={fetchSuggestions} /></td></tr>
                     ) : suggestions.length === 0 ? (
-                      <tr><td colSpan={8} className="text-center p-8 text-muted-foreground">No suggestions found</td></tr>
+                      <tr><td colSpan={8} className="p-3"><AdminEmptyState icon={Sparkles} title="No suggestions found" hint="Try another status or clear the search." /></td></tr>
                     ) : (
                       suggestions.map((s) => (
                         <tr key={s.id} className="border-b hover:bg-muted/30 transition-colors">
@@ -644,10 +710,10 @@ export default function AdminSuggestionsPage() {
                 <div className="flex items-center justify-between p-3 border-t">
                   <p className="text-sm text-muted-foreground">Page {browsePage} of {browseTotalPages}</p>
                   <div className="flex gap-2">
-                    <Button variant="outline" size="sm" disabled={browsePage <= 1} onClick={() => setBrowsePage(browsePage - 1)}>
+                    <Button variant="outline" size="sm" aria-label="Previous page" disabled={browsePage <= 1} onClick={() => setBrowsePage(browsePage - 1)}>
                       <ChevronLeft className="h-4 w-4" />
                     </Button>
-                    <Button variant="outline" size="sm" disabled={browsePage >= browseTotalPages} onClick={() => setBrowsePage(browsePage + 1)}>
+                    <Button variant="outline" size="sm" aria-label="Next page" disabled={browsePage >= browseTotalPages} onClick={() => setBrowsePage(browsePage + 1)}>
                       <ChevronRight className="h-4 w-4" />
                     </Button>
                   </div>
@@ -691,7 +757,7 @@ export default function AdminSuggestionsPage() {
                             <UserRound className="h-4 w-4 text-primary" />
                           </div>
                           <div>
-                            <p className="text-sm font-medium">{u.firstName} {u.lastName}</p>
+                            <p className="text-sm font-medium"><bdi>{`${u.firstName} ${u.lastName}`}</bdi></p>
                             <div className="flex items-center gap-2 mt-0.5">
                               <Badge variant={u.gender === "MALE" ? "default" : "secondary"} className="text-xs">
                                 {u.gender === "MALE" ? "Male" : "Female"}
@@ -724,7 +790,7 @@ export default function AdminSuggestionsPage() {
                         <UserRound className="h-6 w-6 text-primary" />
                       </div>
                       <div>
-                        <h3 className="font-semibold text-lg">{selectedUser.firstName} {selectedUser.lastName}</h3>
+                        <h3 className="font-semibold text-lg"><bdi>{`${selectedUser.firstName} ${selectedUser.lastName}`}</bdi></h3>
                         <div className="flex flex-wrap items-center gap-2 mt-1">
                           <Badge variant={selectedUser.gender === "MALE" ? "default" : "secondary"}>
                             {selectedUser.gender === "MALE" ? "Male" : "Female"}
@@ -784,7 +850,7 @@ export default function AdminSuggestionsPage() {
                                 )}
                               </td>
                               <td className="p-2">
-                                <p className="text-sm">{s.otherUser.firstName} {s.otherUser.lastName}</p>
+                                <p className="text-sm"><bdi>{`${s.otherUser.firstName} ${s.otherUser.lastName}`}</bdi></p>
                                 <Badge variant={s.otherUser.gender === "MALE" ? "default" : "secondary"} className="text-xs">
                                   {s.otherUser.gender === "MALE" ? "M" : "F"}
                                 </Badge>
@@ -823,14 +889,16 @@ export default function AdminSuggestionsPage() {
                 <CardHeader>
                   <CardTitle className="text-base">System Candidates ({candidatesTotal} total)</CardTitle>
                   <CardDescription>
-                    AI-scored candidates for {selectedUser.firstName}. Click a card to see the detailed breakdown.
+                    AI-scored candidates for <bdi>{selectedUser.firstName}</bdi>. Click a card to see the detailed breakdown.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   {assignError && (
                     <p className="text-sm text-destructive bg-destructive/10 rounded-md px-3 py-2">{assignError}</p>
                   )}
-                  {candidatesLoading && candidates.length === 0 ? (
+                  {notReady ? (
+                    <p className="rounded-md bg-amber-100 px-3 py-2 text-sm text-amber-800">{notReady}. «Assign» is off until then.</p>
+                  ) : candidatesLoading && candidates.length === 0 ? (
                     <div className="space-y-3">
                       {Array.from({ length: 3 }).map((_, i) => (
                         <div key={i} className="h-20 bg-muted animate-pulse rounded-lg" />
@@ -870,7 +938,7 @@ export default function AdminSuggestionsPage() {
                                 </div>
 
                                 <div>
-                                  <p className="text-sm font-medium">{c.user.firstName} {c.user.lastName}</p>
+                                  <p className="text-sm font-medium"><bdi>{`${c.user.firstName} ${c.user.lastName}`}</bdi></p>
                                   <div className="flex flex-wrap items-center gap-2 mt-0.5">
                                     <Badge variant={c.user.gender === "MALE" ? "default" : "secondary"} className="text-xs">
                                       {c.user.gender === "MALE" ? "M" : "F"}
@@ -1048,14 +1116,15 @@ export default function AdminSuggestionsPage() {
             {flags && <GenerateRules flags={flags} numbers={numbers} />}
             {generateResult && (
               <div className={`rounded-lg p-3 text-sm mb-4 ${
-                generateResult.includes("successfully") || generateResult.includes("Generated")
+                generateResult.includes("successfully") || generateResult.includes("Generated") || generateResult.startsWith("Started")
                   ? "bg-green-50 border border-green-200 text-green-800"
                   : "bg-destructive/10 border border-destructive/20 text-destructive"
               }`}>
                 {generateResult}
               </div>
             )}
-            <Button onClick={handleGenerate} disabled={generating}>
+            {job && <GenerateProgress job={job} />}
+            <Button onClick={handleGenerate} disabled={generating || job?.status === "running"}>
               {generating ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
@@ -1065,6 +1134,32 @@ export default function AdminSuggestionsPage() {
           </CardContent>
         </Card>
       )}
+    </div>
+  );
+}
+
+/** «Generate All» progress: members handled of the capped total, cards made, failures (ADM-10) */
+function GenerateProgress({ job }: { job: GenerateJob }) {
+  const pct = job.total > 0 ? Math.round((job.done / job.total) * 100) : 100;
+  return (
+    <div className="mb-4 space-y-2 rounded-lg border p-3 text-sm" role="status" aria-live="polite">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="font-medium">
+          {job.status === "running" ? "Generating…" : job.status === "done" ? "Last run finished" : "Last run stopped"}
+        </span>
+        <span className="text-xs text-muted-foreground">
+          started {fmtDateTime(job.startedAt)}
+          {job.finishedAt && ` · finished ${fmtDateTime(job.finishedAt)}`}
+        </span>
+      </div>
+      <div className="h-2 overflow-hidden rounded-full bg-muted" role="progressbar" aria-valuemin={0} aria-valuemax={job.total} aria-valuenow={job.done} aria-label="Members handled">
+        <div className="h-full rounded-full bg-primary transition-[width]" style={{ width: `${pct}%` }} />
+      </div>
+      <p className="text-xs text-muted-foreground">
+        {job.done.toLocaleString("en-GB")} of {job.total.toLocaleString("en-GB")} members
+        {job.eligible > job.total && ` (the most recently active of ${job.eligible.toLocaleString("en-GB")})`} · {job.created.toLocaleString("en-GB")} cards made
+        {job.failed > 0 && <span className="text-destructive"> · {job.failed} failed (see logs)</span>}
+      </p>
     </div>
   );
 }

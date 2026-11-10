@@ -50,15 +50,15 @@ export const POLL_COPY: Record<CountryCode, PollCopy> = {
     answerInAccount: "وأجب عن سؤال جديد من داخل حسابك كل 3 أيام.",
     share: "ما رأيك؟ أجب عن سؤال نصيبك:",
   },
-  // No Lebanese Instagram account yet: the questions are published here only
+  // No Lebanese Instagram account yet: the questions are published here only. Lebanese dialect, no gendered command
   LB: {
-    title: "سؤال نصيبك: جاوب وشوف رأي الناس | نصيبك",
-    description: "سؤال جديد كل 3 أيام من نصيبك، منصة الزواج الجاد: جاوب بكبسة وشوف رأي الناس.",
-    socialDescription: "جاوب بكبسة وشوف رأي الناس.",
-    nextQuestion: "ننشر سؤالاً جديداً هنا كل بضعة أيام. ارجع قريباً.",
-    notDating: "نصيبك منصة زواج جاد، مش تطبيق تعارف",
-    answerInAccount: "وجاوب على سؤال جديد من داخل حسابك كل 3 أيام.",
-    share: "شو رأيك؟ جاوب على سؤال نصيبك:",
+    title: "سؤال نصيبك: رأيك ورأي الناس | نصيبك",
+    description: "سؤال جديد كل 3 أيام من نصيبك، منصة الزواج الجدّي: الجواب بكبسة، ورأي الناس قدّامك.",
+    socialDescription: "الجواب بكبسة، ورأي الناس قدّامك.",
+    nextQuestion: "منحطّ سؤال جديد هون كل كم يوم، ومنشوفك قريباً.",
+    notDating: "نصيبك منصة زواج جدّي، مش تطبيق تعارف",
+    answerInAccount: "وجوّا حسابك في سؤال جديد كل 3 أيام.",
+    share: "شو رأيك؟ هيدا سؤال نصيبك:",
   },
 };
 

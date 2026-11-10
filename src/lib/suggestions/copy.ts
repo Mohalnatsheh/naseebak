@@ -17,6 +17,14 @@ export function creditLine(freeReply = false): string {
   return freeReply ? `${CREDIT_ON_INTEREST_LINE} ${FREE_REPLY_LINE}` : CREDIT_ON_INTEREST_LINE;
 }
 
+/** The same lines in Lebanese dialect, for Lebanon's public pages (landing, FAQ) */
+export const LB_CREDIT_ON_INTEREST_LINE = "«مهتم» بتاخد رصيد واحد، والتوافق والطلبات والمحادثة ببلاش.";
+export const LB_FREE_REPLY_LINE = "والردّ بـ«مهتم» على يلّي بيّن اهتمامه ببلاش.";
+
+export function lbCreditLine(freeReply = false): string {
+  return freeReply ? `${LB_CREDIT_ON_INTEREST_LINE} ${LB_FREE_REPLY_LINE}` : LB_CREDIT_ON_INTEREST_LINE;
+}
+
 /** Dashboard home at 0 credits: what to say under «بانتظار ردّك» (null = no line). */
 export function homeZeroCreditLine(o: { freeReply: boolean; likedYou: number; fresh: number; female: boolean }): string | null {
   const repliesNeedCredit = o.likedYou > 0 && !o.freeReply;

@@ -67,6 +67,70 @@ const lbContactInfo = [
 
 const CONTACT_INFO: Record<CountryCode, typeof contactInfo> = { JO: contactInfo, SA: saContactInfo, LB: lbContactInfo };
 
+/** The page's own wording: Jordan's text for JO and SA, Lebanese dialect for LB (owner, 2026-11-10) */
+interface ContactCopy {
+  sendFailed: string;
+  offline: string;
+  heading: string;
+  headingAccent: string;
+  lead: string;
+  formTitle: string;
+  sentTitle: string;
+  /** `handset` = «هاتف» / «جوال» */
+  sentText: (handset: string) => string;
+  sendAnother: string;
+  namePlaceholder: string;
+  /** After «البريد الإلكتروني» */
+  emailOptional: (handset: string) => string;
+  subjectPlaceholder: string;
+  messagePlaceholder: string;
+  faqTitle: string;
+  faqText: string;
+  faqButton: string;
+}
+
+const CONTACT_JO: ContactCopy = {
+  sendFailed: "تعذّر إرسال رسالتك. يمكنك المحاولة مرة أخرى.",
+  offline: "تعذّر الاتصال. يمكنك التحقق من الإنترنت والمحاولة مرة أخرى.",
+  heading: "نحن هنا",
+  headingAccent: "لمساعدتك",
+  lead: "لديك سؤال أو استفسار؟ فريقنا جاهز لمساعدتك. يمكنك التواصل معنا وسنرد عليك في أقرب وقت ممكن.",
+  formTitle: "أرسل لنا رسالة",
+  sentTitle: "وصلتنا رسالتك",
+  sentText: (handset) => `شكراً لتواصلك مع نصيبك. سنرد عليك على رقم ${handset}ك أو بريدك الإلكتروني في أقرب وقت ممكن.`,
+  sendAnother: "إرسال رسالة أخرى",
+  namePlaceholder: "أدخل اسمك الكامل",
+  emailOptional: (handset) => `(اختياري إذا أدخلت رقم ال${handset})`,
+  subjectPlaceholder: "موضوع رسالتك",
+  messagePlaceholder: "اكتب رسالتك هنا...",
+  faqTitle: "لم تجد إجابتك؟",
+  faqText: "يمكنك الاطلاع على صفحة الأسئلة الشائعة للحصول على إجابات لأكثر الأسئلة تكراراً حول منصة نصيبك.",
+  faqButton: "عرض جميع الأسئلة الشائعة",
+};
+
+const CONTACT_COPY: Record<CountryCode, ContactCopy> = {
+  JO: CONTACT_JO,
+  SA: CONTACT_JO,
+  LB: {
+    sendFailed: "ما قدرنا نبعت رسالتك. منجرّب كمان مرة؟",
+    offline: "الاتصال ما زبط. بعد التأكد من الإنترنت، منجرّب كمان مرة؟",
+    heading: "نحنا هون",
+    headingAccent: "لنساعدك",
+    lead: "عندك سؤال أو استفسار؟ فريقنا حاضر يساعدك. منستقبل رسالتك ومنردّ عليك بأقرب وقت.",
+    formTitle: "رسالتك إلنا",
+    sentTitle: "وصلتنا رسالتك",
+    sentText: (handset) => `شكراً لأنك تواصلت مع نصيبك. منردّ عليك على رقم ${handset}ك أو على بريدك الإلكتروني بأقرب وقت.`,
+    sendAnother: "رسالة تانية",
+    namePlaceholder: "اسمك الكامل",
+    emailOptional: (handset) => `(اختياري إذا في رقم ${handset})`,
+    subjectPlaceholder: "موضوع رسالتك",
+    messagePlaceholder: "رسالتك هون...",
+    faqTitle: "ما لقيت الجواب؟",
+    faqText: "صفحة الأسئلة الشائعة فيها أجوبة على أكتر الأسئلة يلّي بتنسأل عن منصة نصيبك.",
+    faqButton: "كل الأسئلة الشائعة",
+  },
+};
+
 /** The phone field's placeholder, in the local form */
 const PHONE_PLACEHOLDER: Record<CountryCode, string> = { JO: "07XXXXXXXX", SA: "05XXXXXXXX", LB: "03XXXXXX" };
 
@@ -78,6 +142,7 @@ export default function ContactPage() {
   const country = useVisitorCountry();
   /** «هاتف» / «جوال» */
   const handset = countryConfig(country).words.phone;
+  const copy = CONTACT_COPY[country];
   const { ref: formRef, inView: formInView } = useInView(0.15);
 
   const [formData, setFormData] = useState({
@@ -119,14 +184,14 @@ export default function ContactPage() {
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        setError({ message: data.error || "تعذّر إرسال رسالتك. يمكنك المحاولة مرة أخرى.", field: data.field ?? null });
+        setError({ message: data.error || copy.sendFailed, field: data.field ?? null });
         setStatus("idle");
         return;
       }
       setStatus("sent");
       setFormData({ name: "", phone: "", email: "", subject: "", message: "" });
     } catch {
-      setError({ message: "تعذّر الاتصال. يمكنك التحقق من الإنترنت والمحاولة مرة أخرى.", field: null });
+      setError({ message: copy.offline, field: null });
       setStatus("idle");
     }
   }
@@ -158,9 +223,9 @@ export default function ContactPage() {
               className="mx-auto max-w-4xl text-4xl font-bold leading-tight tracking-tight sm:text-5xl md:text-6xl"
               style={{ animation: "fadeSlideUp var(--motion-sheet) var(--motion-ease) 0.2s both" }}
             >
-              نحن هنا{" "}
+              {copy.heading}{" "}
               <span className="text-accent">
-                لمساعدتك
+                {copy.headingAccent}
               </span>
             </h1>
 
@@ -169,8 +234,7 @@ export default function ContactPage() {
               className="mx-auto mt-6 max-w-xl text-lg leading-relaxed text-white/75"
               style={{ animation: "fadeSlideUp var(--motion-sheet) var(--motion-ease) 0.4s both" }}
             >
-              لديك سؤال أو استفسار؟ فريقنا جاهز لمساعدتك. يمكنك التواصل معنا
-              وسنرد عليك في أقرب وقت ممكن.
+              {copy.lead}
             </p>
           </div>
         </section>
@@ -197,7 +261,7 @@ export default function ContactPage() {
 
                 <CardHeader>
                   <CardTitle className="text-xl font-bold">
-                    أرسل لنا رسالة
+                    {copy.formTitle}
                   </CardTitle>
                 </CardHeader>
 
@@ -205,12 +269,12 @@ export default function ContactPage() {
                   {status === "sent" ? (
                     <div role="status" className="flex flex-col items-center gap-3 py-10 text-center">
                       <CheckCircle2 className="size-12 text-emerald-600" aria-hidden="true" />
-                      <h3 className="text-lg font-bold">وصلتنا رسالتك</h3>
+                      <h3 className="text-lg font-bold">{copy.sentTitle}</h3>
                       <p className="max-w-sm text-sm leading-relaxed text-muted-foreground">
-                        شكراً لتواصلك مع نصيبك. سنرد عليك على رقم {handset}ك أو بريدك الإلكتروني في أقرب وقت ممكن.
+                        {copy.sentText(handset)}
                       </p>
                       <Button variant="outline" className="mt-2 rounded-xl" onClick={() => setStatus("idle")}>
-                        إرسال رسالة أخرى
+                        {copy.sendAnother}
                       </Button>
                     </div>
                   ) : (
@@ -234,7 +298,7 @@ export default function ContactPage() {
                         aria-invalid={invalid("name")}
                         required
                         type="text"
-                        placeholder="أدخل اسمك الكامل"
+                        placeholder={copy.namePlaceholder}
                         value={formData.name}
                         onChange={handleChange}
                         className="h-12 rounded-xl border-border/60 bg-background/50 backdrop-blur-sm"
@@ -261,7 +325,7 @@ export default function ContactPage() {
                     {/* Email */}
                     <div className="space-y-2">
                       <Label htmlFor="email">
-                        البريد الإلكتروني <span className="text-muted-foreground font-normal">(اختياري إذا أدخلت رقم ال{handset})</span>
+                        البريد الإلكتروني <span className="text-muted-foreground font-normal">{copy.emailOptional(handset)}</span>
                       </Label>
                       <Input
                         id="email"
@@ -285,7 +349,7 @@ export default function ContactPage() {
                         aria-invalid={invalid("subject")}
                         required
                         type="text"
-                        placeholder="موضوع رسالتك"
+                        placeholder={copy.subjectPlaceholder}
                         value={formData.subject}
                         onChange={handleChange}
                         className="h-12 rounded-xl border-border/60 bg-background/50 backdrop-blur-sm"
@@ -302,7 +366,7 @@ export default function ContactPage() {
                         required
                         maxLength={2000}
                         rows={6}
-                        placeholder="اكتب رسالتك هنا..."
+                        placeholder={copy.messagePlaceholder}
                         value={formData.message}
                         onChange={handleChange}
                         className="w-full rounded-xl border border-border/60 bg-background/50 backdrop-blur-sm px-3 py-3 text-base shadow-xs transition-[color,box-shadow] outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] md:text-sm resize-none"
@@ -395,11 +459,10 @@ export default function ContactPage() {
                 <Sparkles className="size-6" />
               </div>
               <h2 className="text-2xl font-bold sm:text-3xl">
-                لم تجد إجابتك؟
+                {copy.faqTitle}
               </h2>
               <p className="mt-4 text-muted-foreground leading-relaxed">
-                يمكنك الاطلاع على صفحة الأسئلة الشائعة للحصول على إجابات
-                لأكثر الأسئلة تكراراً حول منصة نصيبك.
+                {copy.faqText}
               </p>
               <div className="mt-8">
                 <Button
@@ -410,7 +473,7 @@ export default function ContactPage() {
                 >
                   <Link href="/faq">
                     <span className="flex items-center gap-2">
-                      عرض جميع الأسئلة الشائعة
+                      {copy.faqButton}
                     </span>
                   </Link>
                 </Button>

@@ -5,7 +5,7 @@ export function LandingSteps({ content }: { content: LandingContent }) {
   return (
     <section id="how-it-works" className="scroll-mt-20 border-b border-border/60 bg-background py-16 sm:py-20">
       <div className="container mx-auto px-4">
-        <h2 className="text-center text-3xl font-extrabold text-primary sm:text-4xl">كيف تعمل المنصة</h2>
+        <h2 className="text-center text-3xl font-extrabold text-primary sm:text-4xl">{content.ui.stepsTitle}</h2>
         <ol className="mx-auto mt-10 grid max-w-6xl gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {content.steps.map((s, i) => (
             <li

@@ -9,7 +9,7 @@
  * Each pair is a sentence or a piece between placeholders, so names, numbers, dates and prices pass through
  * untouched. Rules: everyday Lebanese, warm and respectful; no gendered command in a text written for everyone
  * (gendered variants get their own pairs); product terms («مهتم», «التوافقات», «المحادثات», tab names, «Pro»,
- * «نصيبك») unchanged; Western digits. «صفر: اشح» stays: Admin Insights counts the top-up line by that text.
+ * «نصيبك») and quoted button labels unchanged; Western digits. «صفر: اشح» stays: Admin Insights counts the top-up line by that text.
  *
  * A new automatic text (src/lib/notifications/automatic.ts) needs its pair here:
  * src/__tests__/lib/lebanese-notices.test.ts fails otherwise. No Lebanese piece may contain an MSA one, so running
@@ -65,7 +65,7 @@ const PAIRS: ReadonlyArray<readonly [msa: string, lb: string]> = [
   ["انتهت مدة مشاركة بيانات وليّ أمرك، فأغلقنا هذا التوافق.", "خلصت مدة مشاركة بيانات وليّ أمرك، فسكّرنا هالتوافق."],
   ["نتمنى لك التوفيق في اقتراحاتك القادمة.", "منتمنّالك التوفيق بالاقتراحات الجاية."],
   ["أوقف الطرف الآخر مشاركة بيانات وليّ أمره، فلم تعد ظاهرة في صفحة التوافق.", "الطرف التاني وقّف مشاركة بيانات وليّ أمره، فما عادت ظاهرة بصفحة التوافق."],
-  ["أخبرنا بما وصلتم إليه: ما زلنا نتعارف، تمت الخطبة، أو لم يُكتب نصيب.", "خبّرونا لوين وصلتوا: بعدنا عم نتعرّف، صارت الخطبة، أو ما في نصيب."],
+  ["أخبرنا بما وصلتم إليه: ما زلنا نتعارف، تمت الخطبة، أو لم يُكتب نصيب.", "خبّرونا لوين وصلتوا: ما زلنا نتعارف، تمت الخطبة، أو لم يُكتب نصيب."],
   ["أخبرنا الطرف الآخر أنه لم يُكتب نصيب في هذا التعارف.", "خبّرنا الطرف التاني إنو ما في نصيب بهالتعارف."],
   ["أخبرنا الطرف الآخر أن التعارف انتهى بالخطبة.", "خبّرنا الطرف التاني إنو التعارف انتهى بخطبة."],
   ["يمكنك تأكيد ذلك من صفحة التوافق لنتوقف عن إرسال الاقتراحات.", "التأكيد موجود بصفحة التوافق، وبعدها منوقّف نبعت اقتراحات."],

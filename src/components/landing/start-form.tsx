@@ -11,6 +11,37 @@ import { COUNTRIES, DEFAULT_COUNTRY, type CountryCode } from "@/lib/countries";
 /** The phone field's placeholder after the dial code, grouped as people write it */
 const PHONE_PLACEHOLDER: Record<CountryCode, string> = { JO: "7X XXX XXXX", SA: "5X XXX XXXX", LB: "3 XXX XXX" };
 
+/** The form's lines: Jordan's for JO and SA, Lebanese dialect for LB (no gendered command) */
+interface StartCopy {
+  lookingFor: string;
+  pickFirst: string;
+  /** `handset` = «هاتف» / «جوال» */
+  badPhone: (handset: string, example: string) => string;
+  optional: string;
+  start: string;
+  hint: string;
+}
+const START_JO: StartCopy = {
+  lookingFor: "أبحث عن",
+  pickFirst: "اختر من تبحث عنه أولاً",
+  badPhone: (handset, example) => `رقم ال${handset} غير صالح. مثال: ${example}`,
+  optional: "(اختياري الآن)",
+  start: "ابدأ التسجيل",
+  hint: "رقمك لا يظهر لأي مستخدم، ونرسل عليه رمز التحقق فقط. التسجيل مجاني.",
+};
+const START_COPY: Record<CountryCode, StartCopy> = {
+  JO: START_JO,
+  SA: START_JO,
+  LB: {
+    lookingFor: "عم دوّر على",
+    pickFirst: "أول شي: زوجة أو زوج؟",
+    badPhone: (handset, example) => `رقم ال${handset} مش صحيح. مثال: ${example}`,
+    optional: "(اختياري هلّق)",
+    start: "يلّا نبلّش",
+    hint: "رقمك ما بيظهر لحدا، ومنبعتلك عليه رمز التحقق بس. التسجيل ببلاش.",
+  },
+};
+
 const CHOICES: { value: StartGender; label: string }[] = [
   { value: "MALE", label: "زوجة" },
   { value: "FEMALE", label: "زوج" },
@@ -38,6 +69,7 @@ export function StartForm({
   country?: CountryCode;
 }) {
   const cfg = COUNTRIES[country];
+  const copy = START_COPY[country];
   /** «هاتف» / «جوال» */
   const handset = cfg.words.phone;
   const router = useRouter();
@@ -50,12 +82,12 @@ export function StartForm({
   function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!gender) {
-      setError("اختر من تبحث عنه أولاً");
+      setError(copy.pickFirst);
       return;
     }
     const clean = cleanStartPhone(phone, country);
     if (clean === null) {
-      setError(`رقم ال${handset} غير صالح. مثال: ${cfg.phone.example}`);
+      setError(copy.badPhone(handset, cfg.phone.example));
       return;
     }
     setError("");
@@ -68,7 +100,7 @@ export function StartForm({
   return (
     <form id={id} onSubmit={submit} noValidate className="w-full max-w-md scroll-mt-28" aria-describedby={error ? `${uid}-err` : undefined}>
       <fieldset>
-        <legend className={cn("mb-2.5 text-sm font-semibold", dark ? "text-white/80" : "text-foreground/80")}>أبحث عن</legend>
+        <legend className={cn("mb-2.5 text-sm font-semibold", dark ? "text-white/80" : "text-foreground/80")}>{copy.lookingFor}</legend>
         <div role="radiogroup" className="grid grid-cols-2 gap-2">
           {CHOICES.map((c) => {
             const on = gender === c.value;
@@ -100,7 +132,7 @@ export function StartForm({
       </fieldset>
 
       <label htmlFor={`${uid}-phone`} className={cn("mt-4 block text-sm font-semibold", dark ? "text-white/80" : "text-foreground/80")}>
-        رقم {handset}ك <span className={dark ? "text-white/50" : "text-muted-foreground"}>(اختياري الآن)</span>
+        رقم {handset}ك <span className={dark ? "text-white/50" : "text-muted-foreground"}>{copy.optional}</span>
       </label>
       <div className="mt-2 flex flex-col gap-2 sm:flex-row">
         <div
@@ -140,12 +172,12 @@ export function StartForm({
               : "bg-primary text-primary-foreground focus-visible:ring-primary"
           )}
         >
-          {going ? "لحظة…" : "ابدأ التسجيل"}
+          {going ? "لحظة…" : copy.start}
           <ArrowLeft className="h-5 w-5" aria-hidden />
         </button>
       </div>
       <p id={`${uid}-hint`} className={cn("mt-2 text-xs", dark ? "text-white/60" : "text-muted-foreground")}>
-        رقمك لا يظهر لأي مستخدم، ونرسل عليه رمز التحقق فقط. التسجيل مجاني.
+        {copy.hint}
       </p>
       <p id={`${uid}-err`} role="alert" className={cn("mt-1 min-h-5 text-sm font-semibold", dark ? "text-amber-200" : "text-destructive")}>
         {error}

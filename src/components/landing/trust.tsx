@@ -1,10 +1,6 @@
 import Link from "@/components/shared/site-link";
 import { EyeOff, Flag, MessageSquareLock, ShieldCheck } from "lucide-react";
-import type { CountryCode } from "@/lib/countries";
 import type { LandingContent } from "./content";
-
-/** «هاتفك الأردني» / «جوالك السعودي» / «هاتفك اللبناني» */
-const MY_LOCAL_PHONE: Record<CountryCode, string> = { JO: "هاتفك الأردني", SA: "جوالك السعودي", LB: "هاتفك اللبناني" };
 
 const SAFETY_ICONS = [ShieldCheck, Flag, MessageSquareLock];
 
@@ -17,9 +13,9 @@ export function LandingTrust({ content }: { content: LandingContent }) {
           <p className="inline-flex items-center gap-2 text-sm font-bold text-accent-foreground">
             <EyeOff className="h-4 w-4 text-accent" aria-hidden /> الخصوصية
           </p>
-          <h2 className="mt-2 text-3xl font-extrabold text-primary sm:text-4xl">من يرى ماذا… ومتى؟</h2>
+          <h2 className="mt-2 text-3xl font-extrabold text-primary sm:text-4xl">{content.ui.privacyTitle}</h2>
           <p className="mt-3 max-w-lg leading-relaxed text-muted-foreground">
-            للتسجيل نطلب اسمك وجنسك ورقم {MY_LOCAL_PHONE[content.country]} فقط، ولا يظهر للآخرين منها إلا اسمك الأول.
+            {content.ui.privacyLead}
           </p>
 
           <ol className="relative mt-8 space-y-5 border-s-2 border-accent/40 ps-6">

@@ -38,8 +38,8 @@ export function LandingReasons({ content }: { content: LandingContent }) {
       <div className="landing-khatam absolute inset-0" aria-hidden />
       <div className="container relative mx-auto px-4">
         <div className="mx-auto max-w-2xl text-center">
-          <h2 className="text-3xl font-extrabold sm:text-4xl">لماذا نصيبك؟</h2>
-          <p className="mt-3 text-lg leading-relaxed text-white/75">طريق جادّ للزواج، مبني على الستر واحترام العائلة.</p>
+          <h2 className="text-3xl font-extrabold sm:text-4xl">{content.ui.reasonsTitle}</h2>
+          <p className="mt-3 text-lg leading-relaxed text-white/75">{content.ui.reasonsLead}</p>
         </div>
 
         <div className="mx-auto mt-12 grid max-w-6xl gap-4 sm:grid-cols-2 lg:grid-cols-4">

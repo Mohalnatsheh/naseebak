@@ -4,10 +4,12 @@ import { join, relative } from "node:path";
 import { contentFor } from "@/components/landing/content";
 import { faqsFor } from "@/app/(ar)/faq/faq-data";
 import { packagesSentence } from "@/lib/payments/packages";
+import { LB_CREDIT_ON_INTEREST_LINE, LB_FREE_REPLY_LINE } from "@/lib/suggestions/copy";
 import { publicCopy } from "@/lib/public-copy";
 import { countryPageDefaults } from "@/lib/countries/content";
 import { pollInputSchema } from "@/lib/validations/poll";
 import { createBlogPostSchema } from "@/lib/validations/blog";
+import { POLL_COPY } from "@/lib/engagement/poll-types";
 
 const MODES = [
   { introRequests: true, chat: true, creditOnInterest: true },
@@ -76,10 +78,38 @@ describe("Lebanese public copy", () => {
     }
   });
 
-  it("the free-reply line replaces the credit line in Lebanon too", () => {
+  it("the free-reply line replaces the credit line in Lebanon too (in Lebanese dialect)", () => {
     const a = faqsFor(true, true, true, "LB", null, true).find((f) => f.id === 4)!.a;
-    expect(a).toContain("مجاني");
-    expect(a).toContain("الرد بـ«مهتم»");
+    expect(a).toContain(`${LB_CREDIT_ON_INTEREST_LINE} ${LB_FREE_REPLY_LINE}`);
+    expect(faqsFor(true, true, true, "LB").find((f) => f.id === 4)!.a).not.toContain(LB_FREE_REPLY_LINE);
+  });
+});
+
+describe("Lebanese dialect on the public pages", () => {
+  /** Masculine commands the Jordanian copy uses; the Lebanese copy is written without gendered commands */
+  const COMMANDS = ["سجّل", "اختر", "أكمل", "ابدأ", "انضم", "اضغط", "ادخل", "جاوب", "ارجع", "قرّر", "استلم", "عرّف", "حدّد", "شوف"];
+  const words = (text: string) => text.split(/[\s.,،:!؟«»"()—]+/).map((w) => w.replace(/^[وف](?=..)/, ""));
+  const commands = (text: string) => words(text).filter((w) => COMMANDS.includes(w));
+
+  it("landing, FAQ and «سؤال نصيبك» copy have no gendered command", () => {
+    for (const mode of MODES) expect(commands(JSON.stringify(contentFor(mode, "LB")))).toEqual([]);
+    for (const [nc, chat, coi, free] of [
+      [true, true, true, true],
+      [true, true, true, false],
+      [true, false, false, false],
+      [false, false, false, false],
+    ] as const) {
+      expect(commands(JSON.stringify(faqsFor(nc, chat, coi, "LB", null, free)))).toEqual([]);
+    }
+    expect(commands(JSON.stringify(POLL_COPY.LB))).toEqual([]);
+  });
+
+  it("reads differently from Jordan's copy", () => {
+    const jo = contentFor(MODES[0], "JO");
+    const lb = contentFor(MODES[0], "LB");
+    expect(lb.hero.lead).not.toBe(jo.hero.lead);
+    expect(lb.ui.stepsTitle).toBe("كيف بتشتغل المنصة");
+    expect(faqsFor(true, true, true, "LB")[0].q).toBe("شو هي منصة نصيبك؟");
   });
 });
 

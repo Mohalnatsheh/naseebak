@@ -32,7 +32,7 @@ export function LandingProductTour({ content }: { content: LandingContent }) {
     <section id="product" className="scroll-mt-20 bg-muted/40 py-20 sm:py-28">
       <div className="container mx-auto px-4">
         <div className="mx-auto max-w-2xl text-center">
-          <h2 className="text-3xl font-extrabold text-primary sm:text-4xl">تعرّف على نصيبك من الداخل</h2>
+          <h2 className="text-3xl font-extrabold text-primary sm:text-4xl">{content.ui.tourTitle}</h2>
           <p className="mt-3 text-lg leading-relaxed text-muted-foreground">لقطات حقيقية من المنصة، بحسابات تجريبية.</p>
         </div>
 

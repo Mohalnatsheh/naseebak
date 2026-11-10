@@ -13,8 +13,8 @@ export function LandingFaq({ content }: { content: LandingContent }) {
     <section id="faq-preview" className="scroll-mt-20 bg-muted/40 py-20 sm:py-28">
       <div className="container mx-auto grid max-w-5xl gap-10 px-4 lg:grid-cols-[0.8fr_1.2fr]">
         <div className="text-center lg:text-start">
-          <h2 className="text-3xl font-extrabold text-primary sm:text-4xl">أسئلة تهمّك</h2>
-          <p className="mt-4 leading-relaxed text-muted-foreground">إجابات مختصرة عن أكثر ما يسأل عنه الأهل والمستخدمون.</p>
+          <h2 className="text-3xl font-extrabold text-primary sm:text-4xl">{content.ui.faqTitle}</h2>
+          <p className="mt-4 leading-relaxed text-muted-foreground">{content.ui.faqLead}</p>
           <div className="mt-5 flex flex-wrap justify-center gap-x-5 gap-y-2 lg:justify-start">
             <Link href="/faq" className="font-semibold text-primary underline-offset-4 hover:underline">
               كل الأسئلة الشائعة

@@ -22,6 +22,8 @@ const DEFAULTS: Record<string, string> = {
   pro_enabled: "false",
   // Pro members delete a message or clear a chat (hidden from members, never erased)
   chat_delete_enabled: "false",
+  // Jordan charged in JOD instead of USD for new purchases (2026-11-11). Open checkouts and Pro subscriptions keep theirs
+  jod_charging: "false",
   engagement_polls_enabled: "false",
   poll_round_days: "3",
   poll_reward_credits: "1",
@@ -94,6 +96,11 @@ export interface CycleFlags {
 /** Pro chat delete switch (`chat_delete_enabled`, Admin → Settings). Default off */
 export async function getChatDeleteEnabled(): Promise<boolean> {
   return (await getSetting("chat_delete_enabled")) === "true";
+}
+
+/** Whether a new purchase by a member of this country is charged in JOD (switch `jod_charging`, Jordan only) */
+export async function jodChargingFor(country: string | null | undefined): Promise<boolean> {
+  return country === "JO" && (await getSetting("jod_charging")) === "true";
 }
 
 /** Pro membership sales switch (Admin → Settings). Default off. Never gates existing subscriptions */

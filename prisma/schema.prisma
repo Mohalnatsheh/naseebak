@@ -576,6 +576,9 @@ model Payment {
   stripeSessionId String?
   /// Arabic payment page (2026-11-05): the Stripe PaymentIntent (pi_…) used instead of a Checkout session
   stripePaymentIntentId String?
+  /// The currency the card is charged in: "jod" | "usd" | "sar" (rows since 2026-11-11). Null on older rows: a JOD row was
+  /// then charged in USD at 1.41. Set when the checkout is created and never re-read from the switch `jod_charging`
+  chargeCurrency  String?
   /// Private part of the /pay/<id>?t=<token> link (the page opens without signing in, e.g. from the app's browser)
   payToken        String?
   /// A Stripe dispute (chargeback) was opened on this payment

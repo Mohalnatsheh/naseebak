@@ -151,4 +151,14 @@ describe("new-cycle settings PATCH", () => {
     expect(settings.setSetting).toHaveBeenCalledWith("chat_delete_enabled", "true");
     expect((await res.json()).chatDeleteEnabled).toBe(true);
   });
+
+  it("reads and saves jod_charging", async () => {
+    store.value.jod_charging = "true";
+    expect((await (await GET()).json()).jodCharging).toBe(true);
+    store.value.jod_charging = "false";
+    expect((await (await GET()).json()).jodCharging).toBe(false);
+    const res = await patch({ jodCharging: true });
+    expect(settings.setSetting).toHaveBeenCalledWith("jod_charging", "true");
+    expect((await res.json()).jodCharging).toBe(true);
+  });
 });

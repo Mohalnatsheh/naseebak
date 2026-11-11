@@ -7,7 +7,7 @@ import { NewCycleSettingsCard } from "@/components/admin/new-cycle-settings-card
 
 const base = {
   introRequests: true, chat: true, mutualSuggestions: true, creditOnInterest: true,
-  activeFirstFeed: true, saRelaxedMatching: true, lbRelaxedMatching: true, freeInterestReply: true, interestPaywall: true, proEnabled: true, chatDeleteEnabled: true, creditsMigratedAt: null,
+  activeFirstFeed: true, saRelaxedMatching: true, lbRelaxedMatching: true, freeInterestReply: true, interestPaywall: true, proEnabled: true, chatDeleteEnabled: true, jodCharging: true, creditsMigratedAt: null,
 };
 const fetchMock = vi.fn();
 
@@ -32,6 +32,7 @@ describe("NewCycleSettingsCard quick switches", () => {
     ["Lebanon: relaxed matching", "lbRelaxedMatching"],
     ["Pro membership sales", "proEnabled"],
     ["Pro: delete messages and clear chats", "chatDeleteEnabled"],
+    ["Charge Jordan in JOD", "jodCharging"],
   ] as const) {
     it(`turning «${title}» off saves false at once (no confirmation)`, async () => {
       render(<NewCycleSettingsCard />);

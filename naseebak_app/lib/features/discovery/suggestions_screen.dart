@@ -407,6 +407,10 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
     if (e is ApiException) {
       if (e.kind == ApiErrorKind.noCredits) {
         ref.read(authControllerProvider.notifier).updateCredits(0);
+        if (_paywall(ref.read(countsProvider).valueOrNull)) {
+          unawaited(_openRecharge());
+          return;
+        }
         showSnack(
           context,
           e.message,
@@ -424,15 +428,19 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
     showSnack(context, ApiException.messageOf(e));
   }
 
+  /// The «انتهى رصيدك» step; «اشحن» opens the credits screen
+  Future<void> _openRecharge() async {
+    final buy = await RechargeSheet.show(context, viewerFemale: _viewerFemale);
+    if (buy && mounted) context.push('/credits');
+  }
+
   Future<void> _interested(FeedItem item) async {
     if (_busy.contains(item.id)) return;
     final counts0 = ref.read(countsProvider).valueOrNull;
     if (_outOfCredits(counts0, ref.read(authControllerProvider).me?.credits) &&
         !_freeReply(counts0, item) &&
         _paywall(counts0)) {
-      final buy = await RechargeSheet.show(context, viewerFemale: _viewerFemale);
-      if (buy && mounted) context.push('/credits');
-      return;
+      return _openRecharge();
     }
     final repo = ref.read(suggestionsRepositoryProvider);
     var counts = ref.read(countsProvider).valueOrNull;
@@ -467,6 +475,7 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
             likedYou: item.likedYou,
             credits: me?.credits,
             canRecharge: ref.read(appPaymentsProvider),
+            closeOnNoCredits: _paywall(counts),
             guardianConsented: counts?.guardianConsented ?? false,
             viewerFemale: me?.isFemale ?? false,
             onNoCredits: () => ref.read(authControllerProvider.notifier).updateCredits(0),

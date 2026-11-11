@@ -446,6 +446,23 @@ void main() {
       expect(find.byKey(const Key('interested-s1')), findsOneWidget);
     });
 
+    testWidgets('NO_CREDITS while sending (balance spent elsewhere): the sheet becomes «انتهى رصيدكِ»', (tester) async {
+      final h = Harness(credits: 1, interestPaywall: true);
+      h.adapter.on('POST', '/api/suggestions/s1/decide',
+          const FakeResponse(402, {'error': 'رصيدك لا يكفي', 'code': 'NO_CREDITS'}));
+      await h.pump(tester);
+      await tester.tap(find.byKey(const Key('interested-s1')));
+      await pumpFor(tester);
+      await tester.tap(find.byKey(const Key('pref-chat')));
+      await tester.tap(find.byKey(const Key('send-interest')));
+      await pumpFor(tester, 30);
+      expect(find.byKey(const Key('send-interest')), findsNothing);
+      expect(find.byKey(const Key('recharge-sheet')), findsOneWidget);
+      expect(find.text('انتهى رصيدكِ'), findsOneWidget);
+      expect(find.text('رصيدك لا يكفي'), findsNothing);
+      expect(h.container.read(authControllerProvider).me!.credits, 0);
+    });
+
     testWidgets('payments hidden in the app: still greyed even if the server says paywall', (tester) async {
       final h = Harness(credits: 0, interestPaywall: true, appPayments: false);
       await h.pump(tester);

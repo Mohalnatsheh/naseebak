@@ -159,6 +159,8 @@ export function MutualSuggestionsView({
     setBalance(credits);
   }
   const outOfCredits = creditOnInterest && balance <= 0;
+  // Switch interest_paywall, members who can buy: at 0 credits «مهتم» stays tappable and opens the «انتهى رصيدك» step
+  const interestPaywall = !!counts.interestPaywall;
   // A reply to someone who already said «مهتم» costs nothing with free_interest_reply on
   const isFreeReply = (item: OpenFeedItem) => creditOnInterest && freeInterestReply && item.kind === "mutual" && !!item.likedYou;
   // Nothing left because of my own «شروط أساسية»: which one to ease (never changed for me)
@@ -968,7 +970,7 @@ export function MutualSuggestionsView({
                               // The person's name in the button's name: one «مهتم» per card on the page (QA PA-L2)
                               aria-label={`مهتم · ${c.firstName}`}
                               onClick={() => onInterested(item)}
-                              disabled={acting === item.id || (outOfCredits && !isFreeReply(item))}
+                              disabled={acting === item.id || (outOfCredits && !isFreeReply(item) && !interestPaywall)}
                               size="cta"
                               className="flex-[2]"
                             >

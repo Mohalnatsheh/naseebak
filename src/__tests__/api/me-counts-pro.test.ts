@@ -16,6 +16,8 @@ vi.mock("@/lib/matches/state", () => ({
   hiddenPartnerIds: vi.fn(async () => []),
   visibleConversationsWhere: vi.fn(() => ({})),
 }));
+const paywall = vi.hoisted(() => ({ interestPaywallFor: vi.fn(async () => false) }));
+vi.mock("@/lib/payments/interest-paywall", () => paywall);
 vi.mock("@/lib/pro/my-state", async (orig) => ({ ...(await orig<typeof import("@/lib/pro/my-state")>()), getMyProState: proState.getMyProState }));
 
 import { GET } from "@/app/api/me/counts/route";
@@ -60,5 +62,25 @@ describe("GET /api/me/counts: the Pro page link rule", () => {
     proState.getMyProState.mockResolvedValue(state({}));
     await GET(web);
     expect(db.user.findUnique).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("GET /api/me/counts: interestPaywall («مهتم» at 0 credits opens the paywall)", () => {
+  it("is the server's answer for this member, website or app", async () => {
+    proState.getMyProState.mockResolvedValue(state({}));
+    paywall.interestPaywallFor.mockResolvedValueOnce(true);
+    expect((await (await GET(app)).json()).interestPaywall).toBe(true);
+    expect(paywall.interestPaywallFor).toHaveBeenCalledWith({ creditOnInterest: false, country: "JO", phone: "962770000000", app: true });
+    expect((await (await GET(web)).json()).interestPaywall).toBe(false);
+    expect(paywall.interestPaywallFor).toHaveBeenLastCalledWith(expect.objectContaining({ app: false }));
+  });
+  it("a failed lookup is false (the button stays as today), never fails the poll", async () => {
+    proState.getMyProState.mockResolvedValue(state({}));
+    paywall.interestPaywallFor.mockRejectedValueOnce(new Error("db"));
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    const res = await GET(web);
+    expect(res.status).toBe(200);
+    expect((await res.json()).interestPaywall).toBe(false);
+    err.mockRestore();
   });
 });

@@ -47,6 +47,7 @@ class Counts {
     this.likedYou,
     this.isPro = false,
     this.proCancelAtPeriodEnd = false,
+    this.interestPaywall = false,
   });
 
   factory Counts.fromJson(Map<String, dynamic> j) {
@@ -66,6 +67,7 @@ class Counts {
       likedYou: asInt(j['likedYou']),
       isPro: asBool(pro['isPro']) ?? false,
       proCancelAtPeriodEnd: asBool(pro['cancelAtPeriodEnd']) ?? false,
+      interestPaywall: asBool(j['interestPaywall']) ?? false,
     );
   }
 
@@ -88,6 +90,10 @@ class Counts {
   /// Pro membership of the signed-in member (`pro` of the response)
   final bool isPro;
   final bool proCancelAtPeriodEnd;
+
+  /// Switch interest_paywall, for a member who can buy: at 0 credits «مهتم» opens the «انتهى رصيدك» step
+  /// instead of being greyed. Missing (older server) = false
+  final bool interestPaywall;
 }
 
 /// The signed-in member's id: providers that cache member data watch it, so signing in as someone else

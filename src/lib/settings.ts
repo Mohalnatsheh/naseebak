@@ -16,6 +16,8 @@ const DEFAULTS: Record<string, string> = {
   lb_relaxed_matching: "false",
   // Answering a «مهتم» with «مهتم» costs no credit; the first «مهتم» still does (2026-11-08)
   free_interest_reply: "false",
+  // At 0 credits «مهتم» stays tappable and opens the «انتهى رصيدك» step, for members who can buy (2026-11-11)
+  interest_paywall: "false",
   // Pro membership: gates new sales and offers only, never what a member already paid for
   pro_enabled: "false",
   // Pro members delete a message or clear a chat (hidden from members, never erased)

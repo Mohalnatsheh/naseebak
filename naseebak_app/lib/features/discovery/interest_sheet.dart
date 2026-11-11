@@ -23,6 +23,7 @@ class InterestSheet extends StatefulWidget {
     this.onNoCredits,
     this.free = false,
     this.likedYou = false,
+    this.closeOnNoCredits = false,
   });
 
   final String firstName;
@@ -46,6 +47,10 @@ class InterestSheet extends StatefulWidget {
 
   /// The other side already said «مهتم»: sending makes the match at once
   final bool likedYou;
+
+  /// The «مهتم» paywall applies (switch interest_paywall, a member who can buy): NO_CREDITS closes the sheet with the
+  /// [ApiException] so the caller opens the «انتهى رصيدك» step, instead of an error line here
+  final bool closeOnNoCredits;
 
   /// A [DecisionResult] when sent, the [ApiException] when the card is gone (404: the sheet closes so the
   /// card can leave the list), null when dismissed.
@@ -103,6 +108,10 @@ class _InterestSheetState extends State<InterestSheet> {
       }
       final code = e.code ?? (e.kind == ApiErrorKind.noCredits ? 'NO_CREDITS' : null);
       if (code == 'NO_CREDITS') widget.onNoCredits?.call();
+      if (code == 'NO_CREDITS' && widget.closeOnNoCredits) {
+        Navigator.of(context).pop(e);
+        return;
+      }
       setState(() {
         if (code == 'NO_CREDITS') _credits = 0;
         _error = e.message;

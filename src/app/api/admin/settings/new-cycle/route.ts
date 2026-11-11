@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 import { closeLegacyInFlight } from "@/lib/suggestions/mutual";
 
 async function state() {
-  const [flags, chatRaw, mutualRaw, creditRaw, activeFirstRaw, saRelaxedRaw, lbRelaxedRaw, freeReplyRaw, proRaw, chatDeleteRaw, migration] = await Promise.all([
+  const [flags, chatRaw, mutualRaw, creditRaw, activeFirstRaw, saRelaxedRaw, lbRelaxedRaw, freeReplyRaw, paywallRaw, proRaw, chatDeleteRaw, migration] = await Promise.all([
     getCycleFlags(),
     getSetting("chat_enabled"),
     getSetting("new_suggestions_flow"),
@@ -15,6 +15,7 @@ async function state() {
     getSetting("sa_relaxed_matching"),
     getSetting("lb_relaxed_matching"),
     getSetting("free_interest_reply"),
+    getSetting("interest_paywall"),
     getSetting("pro_enabled"),
     getSetting("chat_delete_enabled"),
     db.systemSetting.findUnique({ where: { key: "migration_new_cycle_v1" } }),
@@ -28,6 +29,7 @@ async function state() {
     saRelaxedMatching: saRelaxedRaw === "true",
     lbRelaxedMatching: lbRelaxedRaw === "true",
     freeInterestReply: freeReplyRaw === "true",
+    interestPaywall: paywallRaw === "true",
     proEnabled: proRaw === "true",
     chatDeleteEnabled: chatDeleteRaw === "true",
     creditsMigratedAt: migration?.value ?? null,
@@ -54,6 +56,8 @@ const schema = z.object({
   saRelaxedMatching: z.boolean().optional(),
   lbRelaxedMatching: z.boolean().optional(),
   freeInterestReply: z.boolean().optional(),
+  /** At 0 credits «مهتم» opens the «انتهى رصيدك» step, for members who can buy */
+  interestPaywall: z.boolean().optional(),
   /** Pro membership: new sales and offers only; members already subscribed keep Pro */
   proEnabled: z.boolean().optional(),
   /** Pro members delete a message or clear a chat; off hides the buttons only, earlier deletions stay hidden */
@@ -90,6 +94,9 @@ export async function PATCH(request: Request) {
     if (parsed.data.lbRelaxedMatching !== undefined) {
       await setSetting("lb_relaxed_matching", String(parsed.data.lbRelaxedMatching));
     }
+    if (parsed.data.interestPaywall !== undefined) {
+      await setSetting("interest_paywall", String(parsed.data.interestPaywall));
+    }
     if (parsed.data.freeInterestReply !== undefined) {
       await setSetting("free_interest_reply", String(parsed.data.freeInterestReply));
     }
@@ -109,6 +116,7 @@ export async function PATCH(request: Request) {
     // The free reply depends on credit on interest: off with it, so turning that back on never revives it silently
     if (parsed.data.creditOnInterest === false || parsed.data.mutualSuggestions === false || parsed.data.introRequests === false) {
       await setSetting("free_interest_reply", "false");
+      await setSetting("interest_paywall", "false");
     }
     return NextResponse.json(await state());
   } catch (error) {

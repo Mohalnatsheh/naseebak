@@ -53,6 +53,8 @@ export interface CycleCounts {
   newSuggestions?: number;
   /** Shared suggestions only: the other side said «مهتم», I haven't decided («مهتمون بالتحدث معك») */
   likedYou?: number;
+  /** At 0 credits «مهتم» opens the «انتهى رصيدك» step instead of being greyed (switch interest_paywall, can buy) */
+  interestPaywall?: boolean;
   /** My own Pro state, for the badge (independent of the `pro_enabled` switch). `showPage`: link the Pro page
    * (plans I can buy right now, or my subscription) */
   pro?: { isPro: boolean; cancelAtPeriodEnd: boolean; showPage?: boolean };

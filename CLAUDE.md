@@ -33,6 +33,7 @@ Rules for working on Naseebak (نصيبك). This file holds what you need in eve
 - `sa_relaxed_matching` (Admin → Settings, off by default, 2026-11-08): Saudi members get suggestions with no score minimum (`minSuggestionScore(flags, country)` = 0), best score first. «شروط أساسية», same country and test-account separation still apply. Jordan unchanged.
 - `lb_relaxed_matching` (Admin → Settings, off by default, 2026-11-10): the same for Lebanese members (`minSuggestionScore` = 0 for LB), «شروط أساسية» incl. the sect kept.
 - `chat_delete_enabled` (Admin → Settings, off by default, 2026-11-11): Pro chat delete. Off stops new deletes; existing hides stay applied.
+- `interest_paywall` (Admin → Settings, off by default, needs `credit_on_interest`, 2026-11-11, owner): at 0 credits «مهتم» stays tappable and opens a short «انتهى رصيدك» step with a buy button (website: the «مهتم» dialog → `/dashboard/payments`; app: `RechargeSheet` → `/credits`). Only for members who can buy: the server sends `interestPaywall` in `/api/me/counts` (`interestPaywallFor`, `src/lib/payments/interest-paywall.ts`): false for test accounts, countries not selling (`purchasesAvailable`) and, in the app, while «Payments in the app» is off. They keep the greyed «مهتم». «لا» and the free reply are unchanged; the server's `NO_CREDITS` stays the safety net. App part needs the version after 1.2.1; older apps keep the greyed button.
 - `pro_enabled` (Admin → Settings, off by default, 2026-11-09): Pro membership. It gates new sales and offers only (checkout, `/api/pro` offers and `canBuy`, the Pro page `/dashboard/pro` and its links, the chat's greyed buttons and offer). The badge and media sending follow `isPro()` whatever the switch. Subscribers keep Pro and their credits while it is off (`isPro()` never reads it). **On** in production since 2026-11-10 (Jordan 3 / 10 / 89 JOD, Saudi 6 / 20 / 178 SAR; 5 / 20 / 20-a-month credits).
 
 ## Commands
@@ -423,7 +424,7 @@ Reach the app at once, no version: list contents and order, limits, prices, API 
 
 Needs a new app version:
 
-- Anything the app decides itself, such as the «مهتم» lock at 0 credits.
+- Anything the app decides itself, such as the «مهتم» lock at 0 credits. The «مهتم» paywall (`interest_paywall`, 2026-11-11) is built in the app after 1.2.1 (`RechargeSheet`, `Counts.interestPaywall`), not released yet.
 - New screens, new fields the app sends, analytics events, push channels, deep links.
 - A `purchase` event, popup tap actions.
 - The filter tip on the app's empty «جديدة» page.

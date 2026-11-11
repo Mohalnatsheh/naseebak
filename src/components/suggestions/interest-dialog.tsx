@@ -20,7 +20,7 @@ import { GuardianQuickForm } from "@/components/intro/guardian-quick-form";
 export type IntroPreferenceChoice = "CHAT" | "FAMILY";
 
 
-/** Recharge prompt when "مهتم" can't proceed (disabled button, API NO_CREDITS). */
+/** Recharge prompt when "مهتم" can't proceed (0 credits: the card line, the «انتهى رصيدك» step, API NO_CREDITS). */
 export function rechargeToContinue(viewerFemale: boolean): string {
   return viewerFemale ? "اشحني رصيدك للمتابعة" : "اشحن رصيدك للمتابعة";
 }
@@ -92,7 +92,7 @@ export function InterestDialog({ open, onOpenChange, partnerGender, credits, cha
   const canConfirm = costOnly ? !busy : !busy && !!choice && !missingGuardian && (!needsConsent || consent);
   // Why «تأكيد» is still disabled: never leave a greyed-out button without a reason
   const blockedHint =
-    costOnly || busy || noCredits
+    costOnly || busy
       ? null
       : !choice
         ? g("اختر طريقة التعارف أولاً.", "اختاري طريقة التعارف أولاً.")
@@ -142,6 +142,28 @@ export function InterestDialog({ open, onOpenChange, partnerGender, credits, cha
       {/* The focus goes to the dialog itself, not the first option (its ring looked like a default choice), so the
           keyboard is inside and the title is read (QA PA-H1) */}
       <DialogContent dir="rtl" className="sm:max-w-md text-right" onOpenAutoFocus={focusDialogItself} onCloseAutoFocus={onCloseAutoFocus}>
+        {noCredits ? (
+          /* 0 credits (not a free reply): the short «انتهى رصيدك» step, the way to buy and nothing else. Opened by an
+             enabled «مهتم» (switch interest_paywall) or by a NO_CREDITS answer while confirming */
+          <>
+            <DialogHeader className="text-right sm:text-right">
+              <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-50">
+                <Coins className="h-6 w-6 text-amber-700" aria-hidden="true" />
+              </div>
+              <DialogTitle className="text-lg">{g("انتهى رصيدك", "انتهى رصيدكِ")}</DialogTitle>
+              <DialogDescription className="text-right leading-relaxed">{CREDIT_ON_INTEREST_LINE}</DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="gap-2 max-sm:flex-col sm:flex-row-reverse sm:justify-start">
+              <Button asChild className="flex-1 sm:flex-none">
+                <Link href="/dashboard/payments">{rechargeToContinue(viewerFemale)}</Link>
+              </Button>
+              <Button variant="ghost" onClick={() => onOpenChange(false)} className="flex-1 sm:flex-none">
+                إلغاء
+              </Button>
+            </DialogFooter>
+          </>
+        ) : (
+        <>
         <DialogHeader className="text-right sm:text-right">
           <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/15 to-accent/15">
             <HeartHandshake className="h-6 w-6 text-primary" aria-hidden="true" />
@@ -252,11 +274,6 @@ export function InterestDialog({ open, onOpenChange, partnerGender, credits, cha
               </p>
             </div>
           </div>
-        ) : noCredits ? (
-          <div className="rounded-xl border border-amber-200/60 bg-amber-50/70 p-3 text-sm text-amber-800">
-            <p className="font-semibold">انتهى رصيدك</p>
-            <p className="mt-1">{CREDIT_ON_INTEREST_LINE}</p>
-          </div>
         ) : (
           <div className="flex items-start gap-3 rounded-xl border border-accent/30 bg-accent/10 p-3 text-sm">
             <Coins className="mt-0.5 h-4 w-4 flex-shrink-0 text-accent-foreground" aria-hidden="true" />
@@ -287,25 +304,21 @@ export function InterestDialog({ open, onOpenChange, partnerGender, credits, cha
 
         {/* Phones: «تأكيد» first (right under the hint), «إلغاء» below it */}
         <DialogFooter className="gap-2 max-sm:flex-col sm:flex-row-reverse sm:justify-start">
-          {noCredits ? (
-            <Button asChild className="flex-1 sm:flex-none">
-              <Link href="/dashboard/payments">{rechargeToContinue(viewerFemale)}</Link>
-            </Button>
-          ) : (
-            <Button
-              onClick={confirm}
-              disabled={!canConfirm}
-              aria-describedby={blockedHint ? "interest-confirm-hint" : undefined}
-              className="flex-1 sm:flex-none min-w-28"
-            >
-              {busy && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
-              تأكيد «مهتم»
-            </Button>
-          )}
+          <Button
+            onClick={confirm}
+            disabled={!canConfirm}
+            aria-describedby={blockedHint ? "interest-confirm-hint" : undefined}
+            className="flex-1 sm:flex-none min-w-28"
+          >
+            {busy && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
+            تأكيد «مهتم»
+          </Button>
           <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={busy} className="flex-1 sm:flex-none">
             إلغاء
           </Button>
         </DialogFooter>
+        </>
+        )}
       </DialogContent>
     </Dialog>
   );

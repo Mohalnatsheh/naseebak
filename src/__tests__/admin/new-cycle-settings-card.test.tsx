@@ -7,7 +7,7 @@ import { NewCycleSettingsCard } from "@/components/admin/new-cycle-settings-card
 
 const base = {
   introRequests: true, chat: true, mutualSuggestions: true, creditOnInterest: true,
-  activeFirstFeed: true, saRelaxedMatching: true, lbRelaxedMatching: true, freeInterestReply: true, proEnabled: true, chatDeleteEnabled: true, creditsMigratedAt: null,
+  activeFirstFeed: true, saRelaxedMatching: true, lbRelaxedMatching: true, freeInterestReply: true, interestPaywall: true, proEnabled: true, chatDeleteEnabled: true, creditsMigratedAt: null,
 };
 const fetchMock = vi.fn();
 
@@ -26,6 +26,7 @@ const patches = () =>
 describe("NewCycleSettingsCard quick switches", () => {
   for (const [title, key] of [
     ["Free «مهتم» reply", "freeInterestReply"],
+    ["«مهتم» at 0 credits opens the paywall", "interestPaywall"],
     ["Active first, busy last", "activeFirstFeed"],
     ["Saudi Arabia: suggest everyone", "saRelaxedMatching"],
     ["Lebanon: relaxed matching", "lbRelaxedMatching"],
@@ -41,12 +42,13 @@ describe("NewCycleSettingsCard quick switches", () => {
     });
   }
 
-  it("the free reply switch is disabled while credit on interest is off", async () => {
+  it("the free reply and «مهتم» paywall switches are disabled while credit on interest is off", async () => {
     fetchMock.mockImplementation(async () => ({ ok: true, json: async () => ({ ...base, creditOnInterest: false }) }));
     render(<NewCycleSettingsCard />);
     const sw = await screen.findByRole("switch", { name: "Free «مهتم» reply" });
     await waitFor(() => expect(sw).toBeDisabled());
-    expect(screen.getByText("Turn on credit on interest first.")).toBeInTheDocument();
+    expect(screen.getByRole("switch", { name: "«مهتم» at 0 credits opens the paywall" })).toBeDisabled();
+    expect(screen.getAllByText("Turn on credit on interest first.")).toHaveLength(2);
   });
 
   it("shows the Pro chat delete switch", async () => {

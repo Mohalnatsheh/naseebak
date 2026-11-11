@@ -109,6 +109,22 @@ describe("new-cycle settings PATCH", () => {
     }
   });
 
+  it("saves and reports the «مهتم» paywall switch, off by default", async () => {
+    expect((await (await patch({})).json()).interestPaywall).toBe(false);
+    const res = await patch({ interestPaywall: true });
+    expect(store.value.interest_paywall).toBe("true");
+    expect((await res.json()).interestPaywall).toBe(true);
+    expect(settings.setSetting.mock.calls.map((c) => c[0])).toEqual(["interest_paywall"]);
+  });
+
+  it("turning credit on interest (or a parent) off also turns the «مهتم» paywall off", async () => {
+    for (const off of [{ creditOnInterest: false }, { mutualSuggestions: false }, { introRequests: false }]) {
+      store.value = { ...store.value, intro_requests_enabled: "true", new_suggestions_flow: "true", credit_on_interest: "true", interest_paywall: "true" };
+      await patch(off);
+      expect(store.value.interest_paywall).toBe("false");
+    }
+  });
+
   it("refuses a non-boolean order switch", async () => {
     expect((await patch({ activeFirstFeed: "yes" })).status).toBe(400);
   });

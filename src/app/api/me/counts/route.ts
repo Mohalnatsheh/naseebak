@@ -9,6 +9,7 @@ import { recordActivityDay } from "@/lib/activity-days";
 import { countMutualTabs } from "@/lib/suggestions/feed";
 import { getMyProState, isAppRequest } from "@/lib/pro/my-state";
 import { proPageShown } from "@/lib/pro/plans";
+import { interestPaywallFor } from "@/lib/payments/interest-paywall";
 
 /**
  * Dashboard badges for the new cycle, polled with the unread-notification count:
@@ -18,6 +19,8 @@ import { proPageShown } from "@/lib/pro/plans";
  * With credit_on_interest on, also my balance (`credits`).
  * `pro`: my own Pro state for the badge, and `showPage`: whether the Pro page is linked (plans I can buy, or my
  * subscription), the same rule as the Pro page link card.
+ * `interestPaywall`: at 0 credits «مهتم» stays tappable and opens the «انتهى رصيدك» step (switch `interest_paywall`,
+ * only for a member who can buy). Old apps ignore it.
  */
 export async function GET(request: Request) {
   try {
@@ -44,12 +47,22 @@ export async function GET(request: Request) {
     const pro = proState
       ? { isPro: proState.isPro, cancelAtPeriodEnd: proState.cancelAtPeriodEnd, showPage: proPageShown(proState) }
       : undefined;
+    // A failure leaves «مهتم» as today (greyed at 0 credits), never fails the poll
+    const interestPaywall = await interestPaywallFor({
+      creditOnInterest: !!flags.creditOnInterest,
+      country: me?.country,
+      phone: me?.phone,
+      app: isAppRequest(request),
+    }).catch((e) => {
+      console.error("Counts interest paywall:", e);
+      return false;
+    });
     // Chats with someone who blocked me are hidden from me, so they never count (badge, "has chats")
     const mine = visibleConversationsWhere(userId, hidden);
     if (!flags.introRequests) {
       // Switch off: existing chats stay readable, so keep the chats link for people who have one
       const hasChats = (await db.conversation.count({ where: mine })) > 0;
-      return NextResponse.json({ flags, pendingIntros: 0, pendingIntroMatchId: null, unreadChats: 0, hasChats, guardian: null, actionableMatches: 0, pro });
+      return NextResponse.json({ flags, pendingIntros: 0, pendingIntroMatchId: null, unreadChats: 0, hasChats, guardian: null, actionableMatches: 0, pro, interestPaywall });
     }
 
     // Expire overdue chats and send "2 days left" warnings (no scheduler needed)
@@ -95,6 +108,7 @@ export async function GET(request: Request) {
       actionableMatches,
       openMatches,
       pro,
+      interestPaywall,
       // Credit on interest: the balance gates "مهتم" (dashboard next step)
       ...(flags.creditOnInterest && { credits: me?.matchCredits ?? 0 }),
       ...(tabs && { newSuggestions: tabs.fresh, likedYou: tabs.likedYou }),

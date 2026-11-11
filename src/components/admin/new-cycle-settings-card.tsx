@@ -26,12 +26,13 @@ interface State {
   saRelaxedMatching: boolean;
   lbRelaxedMatching: boolean;
   freeInterestReply: boolean;
+  interestPaywall: boolean;
   proEnabled: boolean;
   chatDeleteEnabled: boolean;
   creditsMigratedAt: string | null;
 }
 
-type Key = "introRequests" | "chat" | "mutualSuggestions" | "creditOnInterest" | "activeFirstFeed" | "saRelaxedMatching" | "lbRelaxedMatching" | "freeInterestReply" | "proEnabled" | "chatDeleteEnabled";
+type Key = "introRequests" | "chat" | "mutualSuggestions" | "creditOnInterest" | "activeFirstFeed" | "saRelaxedMatching" | "lbRelaxedMatching" | "freeInterestReply" | "interestPaywall" | "proEnabled" | "chatDeleteEnabled";
 
 /** Admin → Settings: the switches for the new user cycle, in plain words. */
 export function NewCycleSettingsCard() {
@@ -68,7 +69,7 @@ export function NewCycleSettingsCard() {
 
   function toggle(key: Key, value: boolean) {
     // The feed order, Saudi and Lebanese relaxed matching, the free reply and Pro sales are safe to turn off at once: nothing in flight depends on them
-    const quickOff = key === "activeFirstFeed" || key === "saRelaxedMatching" || key === "lbRelaxedMatching" || key === "freeInterestReply" || key === "proEnabled" || key === "chatDeleteEnabled";
+    const quickOff = key === "activeFirstFeed" || key === "saRelaxedMatching" || key === "lbRelaxedMatching" || key === "freeInterestReply" || key === "interestPaywall" || key === "proEnabled" || key === "chatDeleteEnabled";
     if (!value && !quickOff) setConfirmOff(key);
     else if (value && key === "introRequests") setConfirmIntroOn(true);
     else save(key, value);
@@ -138,6 +139,14 @@ export function NewCycleSettingsCard() {
       disabled: !state?.introRequests || !state?.mutualSuggestions || !state?.creditOnInterest,
     },
     {
+      key: "interestPaywall" as const,
+      icon: Coins,
+      title: "«مهتم» at 0 credits opens the paywall",
+      text: "At 0 credits «مهتم» stays tappable and opens a short «انتهى رصيدك» step with a button to the credit packages, instead of being greyed out. Only for members who can buy: test accounts, countries not selling (Lebanon, Saudi Arabia before prices are approved) and the app while «Payments in the app» is off keep the greyed button. «لا» and the free reply are unchanged. Needs app 1.2.2 or later in the app; older apps keep the greyed button. Needs Credit on interest on.",
+      on: !!state?.introRequests && !!state?.mutualSuggestions && !!state?.creditOnInterest && !!state?.interestPaywall,
+      disabled: !state?.introRequests || !state?.mutualSuggestions || !state?.creditOnInterest,
+    },
+    {
       key: "activeFirstFeed" as const,
       icon: ListOrdered,
       title: "Active first, busy last",
@@ -204,7 +213,7 @@ export function NewCycleSettingsCard() {
                 <p className="text-sm text-muted-foreground leading-relaxed">{r.text}</p>
                 {r.disabled && (
                   <p className="text-xs font-medium text-amber-700">
-                    {r.key === "freeInterestReply"
+                    {r.key === "freeInterestReply" || r.key === "interestPaywall"
                       ? "Turn on credit on interest first."
                       : r.key === "creditOnInterest" || r.key === "activeFirstFeed" || r.key === "saRelaxedMatching" || r.key === "lbRelaxedMatching"
                         ? "Turn on simultaneous suggestions first."

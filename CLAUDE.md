@@ -222,6 +222,7 @@ src/
 - Copy follows the switches: never say requests cost credit while `credit_on_interest` is on. Never describe a switched-off feature.
 - Referral: friend +1, referrer +2 after the friend finishes short setup, referrer's reward stops after 10 (`maybeAwardReferral()`).
 - Jordan: shown in JOD, charged in USD (dinar × 1.41). Saudi Arabia: shown and charged in SAR.
+- `jod_charging` (Admin → Settings, off by default, 2026-11-11, spec `docs/superpowers/specs/2026-11-11-jod-charging-design.md`): new Jordanian purchases (credits, new Pro subscriptions) are charged in JOD for the shown price (fils, ×1000, `minorUnits`/`fromMinor`), and no page or notice mentions dollars for Jordan. `Payment.chargeCurrency` (`jod`/`usd`/`sar`) records what each row was really charged, set when the checkout is created (a Pro invoice row: `invoice.currency`); null = older row, read as USD ×1.41. Pro subscribers who started in USD keep renewing in USD. No app version needed. Off = today exactly. Apple Pay / Google Pay in JOD still to check on a real phone once on.
 - Lebanon: shown and charged in USD (draft, not approved).
 - Prices are set in Admin → Countries. A package id's credits stay in code, because refunds read them, so a different size needs a new package id.
 - Credits are added only by `fulfilCheckoutSession()` / `fulfilPaymentIntent`, once, when paid.

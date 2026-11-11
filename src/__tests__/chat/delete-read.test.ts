@@ -234,3 +234,66 @@ describe("chat GET route", () => {
     expect(db.messageHide.findMany).not.toHaveBeenCalled();
   });
 });
+
+describe("first page widens to 100 in chats with deletion state (old apps' 100-message cache)", () => {
+  /** The deletion-state probe: one message.findFirst with an OR of deletedAt / my hides */
+  const probeHits = (hit: boolean) =>
+    db.message.findFirst.mockImplementation(async ({ where }: { where: Record<string, unknown> }) =>
+      "OR" in where && hit ? { id: "x" } : null);
+  const pageTake = () => {
+    const call = db.message.findMany.mock.calls.find(([a]) => (a as { orderBy?: unknown }).orderBy && Array.isArray((a as { orderBy: unknown }).orderBy));
+    return (call?.[0] as { take: number }).take;
+  };
+
+  it("a chat with a deleted message (or a hide by me) gets take: 101 on the first page", async () => {
+    probeHits(true);
+    await getConversation("c1", "u1");
+    expect(pageTake()).toBe(101);
+    expect(db.message.findFirst).toHaveBeenCalledWith({
+      where: { conversationId: "c1", OR: [{ deletedAt: { not: null } }, { hides: { some: { userId: "u1" } } }] },
+      select: { id: true },
+    });
+  });
+
+  it("hasMore stays right on the widened page", async () => {
+    probeHits(true);
+    db.message.findMany.mockResolvedValue(Array.from({ length: 101 }, (_, i) => row({ id: `m${i}`, createdAt: new Date(Date.now() - i * 1000) })));
+    const res = await getConversation("c1", "u1");
+    expect(res.messages).toHaveLength(100);
+    expect(res.hasMore).toBe(true);
+  });
+
+  it("a chat with no deletion state keeps the normal limit", async () => {
+    probeHits(false);
+    await getConversation("c1", "u1");
+    expect(pageTake()).toBe(31);
+    db.message.findMany.mockClear();
+    await getConversation("c1", "u1", { limit: 50 });
+    expect(pageTake()).toBe(51);
+  });
+
+  it("my own clear alone triggers it", async () => {
+    probeHits(false);
+    db.conversationClear.findUnique.mockResolvedValue({ clearedAt: new Date(Date.now() - DAY) });
+    await getConversation("c1", "u1");
+    expect(pageTake()).toBe(101);
+  });
+
+  it("a chat-wide clear triggers it", async () => {
+    probeHits(false);
+    db.conversation.findUnique.mockResolvedValue(conv({ clearedAt: new Date(Date.now() - DAY), clearedById: "f1" }));
+    await getConversation("c1", "u1");
+    expect(pageTake()).toBe(101);
+  });
+
+  it("before / after requests are unchanged and never probe", async () => {
+    probeHits(true);
+    await getConversation("c1", "u1", { before: new Date().toISOString() });
+    expect(pageTake()).toBe(31);
+    db.message.findMany.mockClear();
+    await getConversation("c1", "u1", { after: new Date(Date.now() - 1000).toISOString() });
+    const afterCall = db.message.findMany.mock.calls.find(([a]) => (a as { orderBy?: unknown }).orderBy && Array.isArray((a as { orderBy: unknown }).orderBy));
+    expect((afterCall?.[0] as { take: number }).take).toBe(100);
+    expect(db.message.findFirst).not.toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ OR: expect.anything() }) }));
+  });
+});

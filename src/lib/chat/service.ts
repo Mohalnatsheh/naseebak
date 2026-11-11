@@ -584,15 +584,26 @@ export async function getConversation(
   hiddenIds?: string[];
 }> {
   const polledAt = new Date().toISOString();
-  const [c, myClear] = await Promise.all([
+  const firstPage = !opts.after && !opts.before;
+  const [c, myClear, deletionState] = await Promise.all([
     loadForUser(id, userId, { readOnly: true }),
     db.conversationClear.findUnique({ where: { conversationId_userId: { conversationId: id, userId } }, select: { clearedAt: true } }),
+    // First page only: any message deleted for everyone, or hidden by me, in this chat (one indexed lookup, stops at the first)
+    firstPage
+      ? db.message.findFirst({
+          where: { conversationId: id, OR: [{ deletedAt: { not: null } }, { hides: { some: { userId } } }] },
+          select: { id: true },
+        })
+      : null,
   ]);
   const cutoff = viewerCutoff(c.clearedAt ?? null, myClear?.clearedAt ?? null);
   // Hides and clears are applied in SQL, so paging (`take: limit + 1`, `hasMore`) stays right
   const visible = visibleMessageWhere(id, userId, cutoff);
   const include = messageIncludeFor(userId);
-  const limit = Math.min(Math.max(opts.limit ?? 30, 1), 100);
+  // Apps 1.0.0–1.2.x keep the newest 100 messages on the device and only replace the part the first page covers: in a
+  // chat with a deletion, a hide or a clear the first page is 100 long, so a deleted or cleared message never survives
+  // in that cache once the chat is reopened. Older pages (`before`) and polls (`after`) are unchanged
+  const limit = firstPage && (cutoff || deletionState) ? 100 : Math.min(Math.max(opts.limit ?? 30, 1), 100);
 
   // Two messages can share a millisecond: pages are ordered by (createdAt, id), and a cursor that is only a time is
   // inclusive (clients merge by id), so a message on a page boundary is never skipped

@@ -89,11 +89,12 @@ export interface CycleFlags {
   relaxedCountries?: string[];
 }
 
-/** Pro membership sales switch (Admin → Settings). Default off. Never gates existing subscriptions */
+/** Pro chat delete switch (`chat_delete_enabled`, Admin → Settings). Default off */
 export async function getChatDeleteEnabled(): Promise<boolean> {
   return (await getSetting("chat_delete_enabled")) === "true";
 }
 
+/** Pro membership sales switch (Admin → Settings). Default off. Never gates existing subscriptions */
 export async function getProEnabled(): Promise<boolean> {
   return (await getSetting("pro_enabled")) === "true";
 }

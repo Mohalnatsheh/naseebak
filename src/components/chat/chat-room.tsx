@@ -17,6 +17,7 @@ import {
   Lock,
   ChevronDown,
   WifiOff,
+  Eraser,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -40,7 +41,7 @@ import type { MessageActions } from "./message-menu";
 import { PhotoViewer, type ViewerPhoto } from "./photo-viewer";
 import { useTypingSignal, usePartnerTyping } from "./use-typing";
 import {
-  applyMyReaction, applyReactionUpdates, emptyChatHint, nextReaction, quoteOf, reactionsSinceFor, showStarters,
+  applyMyReaction, applyReactionUpdates, emptyChatHint, newerRowCount, nextReaction, quoteOf, reactionsSinceFor, showStarters,
 } from "./chat-interactions";
 import type { ChatReaction } from "@/lib/chat/reactions";
 import type { ReplyQuote } from "@/lib/chat/reply";
@@ -67,6 +68,8 @@ import type { PendingUpload } from "./chat-utils";
 import { MemberAvatar, chatTimeFraction } from "@/components/shared/member-avatar";
 import { SealMark } from "@/components/shared/match-seal";
 import { TimeArcButton } from "./time-arc-button";
+import { deleteEntryMode } from "@/lib/chat/visibility";
+import { useChatDelete } from "./delete-dialogs";
 
 /** Id for an optimistic message until the server answers (also its clientNonce); only called from send() / sendMedia().
  *  Random, so two sends in the same millisecond (or two tabs) never share a nonce. */
@@ -128,6 +131,14 @@ interface ChatResponse {
   polledAt?: string;
   /** Polls with reactionsSince: older messages whose reactions changed (the polling fallback for the live event) */
   reactionUpdates?: { messageId: string; reactions: ChatReaction[] }[];
+  /** Chat delete is switched on (the entries show for Pro, or as the Pro offer for members who could buy it) */
+  deleteEnabled?: boolean;
+  /** My clear point: loaded messages at or before it leave the view */
+  clearedBefore?: string | null;
+  /** Polls with reactionsSince: messages deleted for everyone since then (shown as the trace) */
+  deletedIds?: string[];
+  /** Polls with reactionsSince: messages I hid since then (on another device): dropped */
+  hiddenIds?: string[];
 }
 
 type LatestResult = { kind: "ok"; data: ChatResponse } | { kind: "notFound" } | { kind: "error" };
@@ -184,6 +195,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
     hasMoreRef.current = hasMore;
   }, [hasMore]);
   const [chatEnabled, setChatEnabled] = useState(true);
+  const [deleteEnabled, setDeleteEnabled] = useState(false);
   // «يكتب الآن…» to the other person (at most every 3 s while I type in an open chat)
   const typing = useTypingSignal(conversationId, !!conversation && conversation.status === "ACTIVE" && !conversation.blocked && chatEnabled);
   const [notFound, setNotFound] = useState(false);
@@ -273,6 +285,25 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
     };
   }, []);
 
+  // Chat delete (Pro): the menu entries, «مسح المحادثة», the confirms and the Pro offer. «لدى الجميع» only while I can write
+  // Set once fetchLatest exists (below): a refused delete loads the chat again
+  const fetchLatestRef = useRef<(mode: "replace" | "merge") => Promise<void>>(async () => {});
+  const writableNow = !!conversation && conversation.status === "ACTIVE" && !conversation.blocked && chatEnabled;
+  const deleteMode = deleteEntryMode({ deleteEnabled, isPro: !!pro?.isPro || !!counts.pro?.isPro, canBuy: !!pro?.canBuy });
+  const chatDelete = useChatDelete({
+    conversationId,
+    mode: deleteMode,
+    canEveryone: writableNow,
+    messagesRef,
+    setMessages,
+    setHasMore,
+    hasMoreRef,
+    returnFocus,
+    onProRequired: () => void loadPro(),
+    onRefused: () => void fetchLatestRef.current("merge"),
+  });
+  const { settle: settleDeletes } = chatDelete;
+
   // «رسائل جديدة»: fixed when the chat opens (the first unread message of theirs), gone once I write
   const [unreadFromId, setUnreadFromId] = useState<string | null>(null);
   const dividerPending = useRef(false);
@@ -297,13 +328,15 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
     if (data.polledAt) polledAt.current = data.polledAt;
     setConversation(data.conversation);
     setChatEnabled(data.chatEnabled);
+    setDeleteEnabled(!!data.deleteEnabled);
     if (data.starters) setStarters(data.starters);
     if (data.bothWrote) setServerBothWrote(true);
     if (data.partnerTyping) markTyping();
     else if (data.partnerTyping === false) clearTyping();
-    setMessages((prev) => (mode === "replace" ? data.messages : keepMyReactions(mergeMessages(prev, data.messages))));
+    // Hides and the clear point, then traces: after my pending reactions, so a trace never shows any
+    setMessages((prev) => settleDeletes(mode === "replace" ? data.messages : keepMyReactions(mergeMessages(prev, data.messages)), data));
     if (mode === "replace") setHasMore(data.hasMore);
-  }, [markTyping, clearTyping, keepMyReactions]);
+  }, [markTyping, clearTyping, keepMyReactions, settleDeletes]);
 
   const applyLatest = useCallback(
     (result: LatestResult, mode: "replace" | "merge") => {
@@ -322,6 +355,9 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
     async (mode: "replace" | "merge") => applyLatest(await requestLatest(conversationId), mode),
     [conversationId, applyLatest]
   );
+  useEffect(() => {
+    fetchLatestRef.current = fetchLatest;
+  }, [fetchLatest]);
 
   /** A poll: only what came after the newest saved message (plus read ticks); true when something new arrived */
   const fetchNewer = useCallback(async (): Promise<boolean> => {
@@ -346,23 +382,27 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
     const updates = result.data.reactionUpdates;
     const reacted = applyReactionUpdates(messagesRef.current, updates).changed;
     applyLatest(result, "merge");
-    if (reacted) setMessages((prev) => keepMyReactions(applyReactionUpdates(prev, updates).messages));
+    // Deletions again after the reaction updates: a trace never shows reactions
+    if (reacted) setMessages((prev) => settleDeletes(keepMyReactions(applyReactionUpdates(prev, updates).messages), result.data));
     if (read) {
       setMessages((prev) =>
         prev.map((m) => (m.mine && !m.readAt && !m.pending && m.createdAt <= read.createdAt ? { ...m, readAt: read.readAt } : m))
       );
     }
-    // A full page (the server's cap): more came while away, so keep paging forward until caught up
+    // A full page (the server's cap): more came while away, so keep paging forward until caught up. Only rows from the
+    // cursor on count: older rows deleted since then come back as traces and are not part of the page
     let page = result.data.messages;
-    for (let i = 0; i < 10 && page.length >= NEWER_PAGE_SIZE; i++) {
-      const more = await requestLatest(conversationId, page[page.length - 1].createdAt);
+    let cursor = since;
+    for (let i = 0; i < 10 && newerRowCount(page, cursor) >= NEWER_PAGE_SIZE; i++) {
+      cursor = page[page.length - 1].createdAt;
+      const more = await requestLatest(conversationId, cursor);
       if (more.kind !== "ok") break;
       applyLatest(more, "merge");
       page = more.data.messages;
     }
     // While the other person types, keep the fast pace (their message is on its way)
     return fresh || reacted || !!result.data.partnerTyping;
-  }, [conversationId, applyLatest, fetchLatest, keepMyReactions]);
+  }, [conversationId, applyLatest, fetchLatest, keepMyReactions, settleDeletes]);
 
   const loadIntro = useCallback(async (matchId: string) => {
     const data = await requestIntro(matchId);
@@ -417,6 +457,8 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
     onTyping: (e) => {
       if (partnerId && e.userId === partnerId) markTyping();
     },
+    onDeleted: chatDelete.onDeleted,
+    onCleared: chatDelete.onCleared,
     onRead: (e) => {
       if (e.by !== partnerId) return;
       setMessages((prev) => prev.map((m) => (m.mine && !m.readAt ? { ...m, readAt: e.at } : m)));
@@ -526,7 +568,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
     if (res?.ok) {
       const data: ChatResponse = await res.json();
       stickToBottom.current = false;
-      setMessages((prev) => mergeMessages(prev, data.messages));
+      setMessages((prev) => settleDeletes(mergeMessages(prev, data.messages), data));
       setHasMore(data.hasMore);
       hasMoreRef.current = data.hasMore;
       requestAnimationFrame(() => {
@@ -788,7 +830,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
   // Desktop: the composer has the focus when a chat opens, as in WhatsApp Web (QA PA-M7). Not on phones: the keyboard
   // would cover the thread
   const focusedOnOpen = useRef<string | null>(null);
-  const writable = !!conversation && conversation.status === "ACTIVE" && !conversation.blocked && chatEnabled;
+  const writable = writableNow;
   useEffect(() => {
     if (!writable || focusedOnOpen.current === conversationId) return;
     focusedOnOpen.current = conversationId;
@@ -885,6 +927,12 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
     },
     onOpenQuote: (id) => void revealMessage(id),
     onOpenPhoto: (id) => setViewerId(id),
+    deleteMode,
+    canDeleteForEveryone: canSend,
+    onDelete: (m, scope) => {
+      returnFocus.current = scroller.current?.querySelector<HTMLElement>(`[data-message-id="${CSS.escape(m.id)}"]`) ?? null;
+      chatDelete.requestDelete(m, scope);
+    },
   };
   const viewerPhotos: ViewerPhoto[] = messages
     .filter((m) => m.kind === "IMAGE" && m.media)
@@ -1011,6 +1059,16 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
                 <Link href={`/dashboard/matches?match=${conversation.matchId}`}>
                   <Users className="h-4 w-4" /> عرض التوافق
                 </Link>
+              </DropdownMenuItem>
+            )}
+            {deleteMode && (
+              <DropdownMenuItem
+                onClick={() => {
+                  returnFocus.current = optionsButton.current;
+                  chatDelete.requestClear();
+                }}
+              >
+                <Eraser className="h-4 w-4" /> مسح المحادثة
               </DropdownMenuItem>
             )}
             {endable && (
@@ -1258,6 +1316,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
       )}
 
       <ProOfferDialog open={offerOpen} onOpenChange={setOfferOpen} />
+      {chatDelete.dialogs}
       <IntroConfirmDialog
         open={familyDialog}
         onOpenChange={setFamilyDialog}

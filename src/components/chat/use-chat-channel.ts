@@ -17,6 +17,10 @@ export interface ChannelHandlers {
   onReaction?: (e: { messageId: string; reactions: { emoji: string; userId: string }[] }) => void;
   /** Someone signalled typing (the room ignores my own) */
   onTyping?: (e: { userId: string }) => void;
+  /** A message was deleted for everyone (both see the trace) */
+  onDeleted?: (e: { messageId: string }) => void;
+  /** The chat was cleared for everyone: messages at or before `before` (ISO) leave the view */
+  onCleared?: (e: { before: string }) => void;
   /** Called every few seconds when real-time isn't available; resolves true when something new arrived */
   poll: () => Promise<boolean> | void;
 }
@@ -144,6 +148,8 @@ export function useChatChannel(
           else if (msg.name === "status") ref.current.onStatus(msg.data);
           else if (msg.name === "reaction") ref.current.onReaction?.(msg.data);
           else if (msg.name === "typing") ref.current.onTyping?.(msg.data);
+          else if (msg.name === "deleted") ref.current.onDeleted?.(msg.data);
+          else if (msg.name === "cleared") ref.current.onCleared?.(msg.data);
         });
       } catch {
         startPolling();

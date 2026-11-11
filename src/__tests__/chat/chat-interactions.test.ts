@@ -13,6 +13,9 @@ import {
   emptyChatHint,
   reactionsSinceFor,
   showStarters,
+  applyDeletions,
+  dropHidden,
+  newerRowCount,
 } from "@/components/chat/chat-interactions";
 import type { UiMessage } from "@/components/chat/chat-utils";
 
@@ -169,5 +172,43 @@ describe("holdReleaseSends (final review minor 3: the app's holdLeaveDistance)",
     expect(holdReleaseSends({ dx: 72, dy: 0 })).toBe(true);
     expect(holdReleaseSends({ dx: 60, dy: 60 })).toBe(false);
     expect(holdReleaseSends({ dx: 0, dy: 120 })).toBe(false);
+  });
+});
+
+describe("chat delete: applyDeletions / dropHidden", () => {
+  it("applyDeletions turns a message into the trace and fixes quotes pointing at it", () => {
+    const list = [
+      msg({ id: "a", kind: "IMAGE", body: "📷", media: { url: "/m", type: "image/webp", durationSec: null, width: 1, height: 1 }, reactions: [{ emoji: "❤️", mine: true }], replyTo: { id: "z", mine: true, kind: "TEXT", snippet: "x" } }),
+      msg({ id: "b", replyTo: { id: "a", mine: false, kind: "IMAGE", snippet: "📷 صورة" } }),
+      msg({ id: "c" }),
+    ];
+    const out = applyDeletions(list, ["a"]);
+    expect(out[0]).toMatchObject({ id: "a", deleted: true, body: "تم حذف الرسالة", kind: "TEXT", media: null, replyTo: null, reactions: [] });
+    expect(out[1].replyTo).toEqual({ id: "a", mine: false, kind: "TEXT", snippet: "تم حذف الرسالة" });
+    expect(out[2]).toBe(list[2]);
+    expect(applyDeletions(list, [])).toBe(list);
+  });
+
+  it("dropHidden removes the ids and every sent message up to the cutoff; pending sends and later ones stay", () => {
+    const list = [
+      msg({ id: "a", createdAt: "2026-11-10T10:00:00.000Z" }),
+      msg({ id: "b", createdAt: "2026-11-10T11:00:00.000Z" }),
+      msg({ id: "p", createdAt: "2026-11-10T09:00:00.000Z", pending: "sending", mine: true }),
+      msg({ id: "c", createdAt: "2026-11-10T12:00:00.000Z", replyTo: { id: "b", mine: false, kind: "TEXT", snippet: "hi" } }),
+      msg({ id: "d", createdAt: "2026-11-10T13:00:00.000Z" }),
+    ];
+    const out = dropHidden(list, ["d"], "2026-11-10T11:00:00.000Z");
+    expect(out.map((m) => m.id)).toEqual(["p", "c"]);
+    // A quote of a message gone from my view reads as the trace (as the server sends it)
+    expect(out[1].replyTo?.snippet).toBe("تم حذف الرسالة");
+    expect(dropHidden(list, [], null)).toBe(list);
+  });
+});
+
+describe("newerRowCount: the catch-up counts only rows from the poll's cursor on", () => {
+  it("older trace rows in a poll don't count towards a full page", () => {
+    const rows = [{ createdAt: "2026-11-10T09:00:00.000Z" }, { createdAt: "2026-11-10T10:00:00.000Z" }, { createdAt: "2026-11-10T11:00:00.000Z" }];
+    expect(newerRowCount(rows, "2026-11-10T10:00:00.000Z")).toBe(2);
+    expect(newerRowCount([], "2026-11-10T10:00:00.000Z")).toBe(0);
   });
 });

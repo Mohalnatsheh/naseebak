@@ -1,10 +1,11 @@
 "use client";
 
 import { useRef } from "react";
-import { ChevronDown, Copy, Flag, Reply } from "lucide-react";
+import { ChevronDown, Copy, Flag, Lock, Reply, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { REACTION_EMOJI } from "@/lib/chat/reactions";
+import type { DeleteScope } from "@/lib/chat/visibility";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -27,17 +28,38 @@ export interface MessageActions {
   onOpenQuote: (id: string) => void;
   /** Tapping a photo: the full-screen viewer */
   onOpenPhoto: (id: string) => void;
+  /** Chat delete: "use" (Pro), "upsell" (could buy Pro: the same entries open the offer), null/absent: no entries */
+  deleteMode?: "use" | "upsell" | null;
+  /** «حذف لدى الجميع» (my own messages): only in a chat I can still write in */
+  canDeleteForEveryone?: boolean;
+  onDelete?: (m: UiMessage, scope: DeleteScope) => void;
 }
 
-/** Which items the menu has for this message (none = no menu at all) */
-export function menuItemsFor(m: UiMessage, canInteract: boolean) {
+/**
+ * Which items the menu has for this message (none = no menu at all). A trace (deleted for everyone) keeps only
+ * «إبلاغ عن الرسالة» (theirs: the report stays possible) and «حذف لديّ».
+ */
+export function menuItemsFor(
+  m: UiMessage,
+  canInteract: boolean,
+  del: { mode?: "use" | "upsell" | null; forEveryone?: boolean } = {}
+) {
   const saved = !m.pending;
+  const live = !m.deleted;
+  const deletable = saved && !!del.mode;
   return {
-    reply: saved && canInteract,
-    react: saved && canInteract,
-    copy: m.kind === "TEXT" && !!m.body,
+    reply: saved && live && canInteract,
+    react: saved && live && canInteract,
+    copy: live && m.kind === "TEXT" && !!m.body,
     report: saved && !m.mine,
+    deleteMe: deletable,
+    deleteEveryone: deletable && live && m.mine && !!del.forEveryone,
   };
+}
+
+/** The menu items of a message as the room's actions allow them */
+export function menuItemsForActions(m: UiMessage, a: MessageActions) {
+  return menuItemsFor(m, a.canInteract, { mode: a.onDelete ? a.deleteMode : null, forEveryone: a.canDeleteForEveryone });
 }
 
 export async function copyText(text: string) {
@@ -50,8 +72,8 @@ export async function copyText(text: string) {
 }
 
 /**
- * The hover / long-press menu of a message: the four reactions, «رد», «نسخ» (text only), «إبلاغ عن الرسالة» (theirs).
- * No delete for everyone: what was sent stays as evidence for a report. The trigger shows on hover or keyboard focus
+ * The hover / long-press menu of a message: the four reactions, «رد», «نسخ» (text only), «إبلاغ عن الرسالة» (theirs),
+ * and for Pro «حذف لديّ» / «حذف لدى الجميع» (mine only; nothing is erased: reports and admins keep the original). The trigger shows on hover or keyboard focus
  * (desktop); on phones a long press opens it (the bubble controls `open`).
  */
 export function MessageMenu({
@@ -65,11 +87,12 @@ export function MessageMenu({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const items = menuItemsFor(message, actions.canInteract);
+  const items = menuItemsForActions(message, actions);
   const rowTab = useRowTabIndex();
   // «رد» / «إبلاغ» move the focus on (the composer, the dialog): the menu doesn't pull it back to its button (PA-L7)
   const movesFocus = useRef(false);
-  if (!items.reply && !items.react && !items.copy && !items.report) return null;
+  if (!Object.values(items).some(Boolean)) return null;
+  const upsell = actions.deleteMode === "upsell";
   const mine = message.mine;
   const myEmoji = message.reactions.find((r) => r.mine)?.emoji;
   return (
@@ -149,6 +172,30 @@ export function MessageMenu({
         {items.copy && (
           <DropdownMenuItem onSelect={() => void copyText(message.body)} className="min-h-11">
             <Copy className="h-4 w-4" /> نسخ
+          </DropdownMenuItem>
+        )}
+        {items.deleteMe && (
+          <DropdownMenuItem
+            onSelect={() => {
+              movesFocus.current = true;
+              actions.onDelete?.(message, "me");
+            }}
+            className="min-h-11"
+          >
+            <Trash2 className="h-4 w-4" /> حذف لديّ
+            {upsell && <Lock className="ms-auto h-3.5 w-3.5 text-muted-foreground" aria-label="ميزة Pro" />}
+          </DropdownMenuItem>
+        )}
+        {items.deleteEveryone && (
+          <DropdownMenuItem
+            onSelect={() => {
+              movesFocus.current = true;
+              actions.onDelete?.(message, "everyone");
+            }}
+            className="min-h-11"
+          >
+            <Trash2 className="h-4 w-4" /> حذف لدى الجميع
+            {upsell && <Lock className="ms-auto h-3.5 w-3.5 text-muted-foreground" aria-label="ميزة Pro" />}
           </DropdownMenuItem>
         )}
         {items.report && (

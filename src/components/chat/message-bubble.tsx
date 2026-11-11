@@ -1,14 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Check, CheckCheck, Clock, RotateCcw } from "lucide-react";
+import { Ban, Check, CheckCheck, Clock, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { timeLabel, type UiMessage } from "./chat-utils";
 import { useDashboardData } from "@/contexts/dashboard-context";
 import { PhotoBubble, VoiceBubble } from "./media-bubble";
-import { MessageMenu, menuItemsFor, type MessageActions } from "./message-menu";
+import { MessageMenu, menuItemsForActions, type MessageActions } from "./message-menu";
 import { BubbleQuote } from "./reply-strip";
 import { groupReactions } from "./chat-interactions";
+import { DELETED_TRACE } from "@/lib/chat/visibility";
 import { RowTabContext, rowAfterKey } from "./row-focus";
 
 /** A press this long on a touch screen opens the message menu */
@@ -51,13 +52,15 @@ export function MessageBubble({
   const mine = message.mine;
   const { country } = useDashboardData();
   // Photos and voice notes render as media; their `body` is only the fallback text for old apps
-  const media = (message.kind === "IMAGE" || message.kind === "VOICE") && message.media ? message.media : null;
+  // Deleted for everyone: only the trace (no media, quote or reactions, whatever a stale copy still carries)
+  const deleted = !!message.deleted;
+  const media = !deleted && (message.kind === "IMAGE" || message.kind === "VOICE") && message.media ? message.media : null;
   const photo = !!media && message.kind === "IMAGE";
-  const chips = groupReactions(message.reactions);
+  const chips = deleted ? [] : groupReactions(message.reactions);
   const rowTab = rowActive === false ? -1 : undefined;
 
   const [menuOpen, setMenuOpen] = useState(false);
-  const hasMenu = !!actions && Object.values(menuItemsFor(message, actions.canInteract)).some(Boolean);
+  const hasMenu = !!actions && Object.values(menuItemsForActions(message, actions)).some(Boolean);
   // Long press (touch): opens the menu; the click that follows the press is swallowed (no photo viewer, no play)
   const press = useRef<{ x: number; y: number; timer: ReturnType<typeof setTimeout> } | null>(null);
   const pressed = useRef(false);
@@ -183,7 +186,7 @@ export function MessageBubble({
           )}
           {/* Who wrote it, for screen readers (QA WC2-05): the side and colour say it to sighted readers */}
           <span className="sr-only">{mine ? "أنت:" : partnerName ? `${partnerName}:` : ""} </span>
-          {message.replyTo && (
+          {message.replyTo && !deleted && (
             <BubbleQuote quote={message.replyTo} partnerName={partnerName} mine={mine} onOpen={actions?.onOpenQuote} />
           )}
           {photo && media ? (
@@ -198,6 +201,14 @@ export function MessageBubble({
             </div>
           ) : media ? (
             <VoiceBubble media={media} mine={mine} messageId={message.id} />
+          ) : deleted ? (
+            <span
+              data-testid="deleted-trace"
+              className={cn("inline-flex items-center gap-1 italic", mine ? "text-primary-foreground/75" : "text-muted-foreground")}
+            >
+              <Ban className="h-3.5 w-3.5 shrink-0" aria-hidden />
+              {DELETED_TRACE}
+            </span>
           ) : (
             // Its own direction from its first letter: a Latin or mixed message keeps its punctuation in place
             <span dir="auto">{message.body}</span>

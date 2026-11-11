@@ -16,4 +16,6 @@ export interface MyProState {
   nextGrantAt?: string | null;
   canBuy: boolean;
   offers: ProPlanOffer[];
+  /** `chat_delete_enabled`: the plan lists «حذف الرسائل ومسح المحادثة» only while it is on (additive; older apps ignore it) */
+  chatDelete?: boolean;
 }

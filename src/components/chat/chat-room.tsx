@@ -1066,6 +1066,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
                 }}
               >
                 <Eraser className="h-4 w-4" /> مسح المحادثة
+                {deleteMode === "upsell" && <Lock className="ms-auto h-3.5 w-3.5 text-muted-foreground" aria-label="ميزة Pro" />}
               </DropdownMenuItem>
             )}
             {endable && (

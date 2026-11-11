@@ -20,8 +20,17 @@ const _perPeriod = {'weekly': 'في الأسبوع', 'monthly': 'في الشهر
 /// Weekly and monthly grant on each renewal; yearly grants a monthly amount every month
 const _creditsEvery = {'weekly': 'كل أسبوع', 'monthly': 'كل شهر', 'yearly': 'كل شهر'};
 
+/// Pro chat delete, listed only while the server's `chat_delete_enabled` is on (copy never names a switched-off feature)
+const proChatDeleteLabel = 'حذف الرسائل ومسح المحادثة';
+
 /// What every Pro plan gives (plans card and «اشتراكي»)
-const proFeatureLabels = ['إرسال الصور في المحادثة', 'الرسائل الصوتية في المحادثة', 'شارة Pro على بطاقتك', 'أولوية في الاقتراحات'];
+List<String> proFeatureLabels({bool chatDelete = false}) => [
+      'إرسال الصور في المحادثة',
+      'الرسائل الصوتية في المحادثة',
+      if (chatDelete) proChatDeleteLabel,
+      'شارة Pro على بطاقتك',
+      'أولوية في الاقتراحات',
+    ];
 
 String _currencySymbol(String code) => switch (code.toUpperCase()) {
   'JOD' => 'د.أ',
@@ -138,6 +147,7 @@ class ProSection extends StatelessWidget {
           ProPlansCard(
             offers: state.offers,
             canBuy: state.canBuy,
+            chatDelete: state.chatDelete,
             female: female,
             busy: subscribing,
             onSubscribe: onSubscribe,
@@ -165,10 +175,14 @@ class ProPlansCard extends StatefulWidget {
     required this.female,
     required this.busy,
     required this.onSubscribe,
+    this.chatDelete = false,
   });
 
   final List<ProOffer> offers;
   final bool canBuy;
+
+  /// List «حذف الرسائل ومسح المحادثة» (server `chatDelete`)
+  final bool chatDelete;
   final bool female;
   final bool busy;
   final void Function(ProOffer offer) onSubscribe;
@@ -298,7 +312,7 @@ class _ProPlansCardState extends State<ProPlansCard> {
                     text: proCreditsLine(offer),
                     strong: true,
                   ),
-                for (final f in proFeatureLabels)
+                for (final f in proFeatureLabels(chatDelete: widget.chatDelete))
                   _FeatureLine(icon: Icons.check_circle_outline_rounded, color: AppColors.navy, text: f),
                 const SizedBox(height: 12),
                 SizedBox(
@@ -565,7 +579,7 @@ class _MyProCardState extends ConsumerState<MyProCard> {
                     text: creditsLine,
                     strong: true,
                   ),
-                for (final f in proFeatureLabels)
+                for (final f in proFeatureLabels(chatDelete: widget.state.chatDelete))
                   _FeatureLine(icon: Icons.check_circle_outline_rounded, color: AppColors.navy, text: f),
                 const SizedBox(height: 12),
                 // Paused: resume is refused until reactivation, so no button (the line above says when)

@@ -59,6 +59,7 @@ class MyProState {
     this.offers = const [],
     this.creditsPerGrant,
     this.nextGrantAt,
+    this.chatDelete = false,
   });
 
   factory MyProState.fromJson(Map<String, dynamic> j) => MyProState(
@@ -72,7 +73,11 @@ class MyProState {
         offers: asMapList(j['offers']).map(ProOffer.fromJson).toList(),
         creditsPerGrant: asInt(j['creditsPerGrant']),
         nextGrantAt: asDate(j['nextGrantAt']),
+        chatDelete: asBool(j['chatDelete']) ?? false,
       );
+
+  /// `chat_delete_enabled` on the server: the plans list «حذف الرسائل ومسح المحادثة» (an older server sends none)
+  final bool chatDelete;
 
   final bool enabled;
   final bool isPro;

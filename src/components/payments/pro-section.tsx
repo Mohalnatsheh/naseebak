@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { LoadError } from "@/components/shared/load-error";
 import { ProBadge } from "@/components/shared/pro-badge";
-import { MyProCard, PRO_FEATURE_LABELS } from "@/components/payments/my-pro-card";
+import { MyProCard, proFeatureLabels } from "@/components/payments/my-pro-card";
 import { useDashboardData } from "@/contexts/dashboard-context";
 import { trackEvent } from "@/lib/analytics";
 import { forViewer } from "@/lib/gendered-copy";
@@ -100,7 +100,16 @@ export function rememberedProPlan(): ProPlanId | null {
  * (monthly first), the chosen plan's price, its free credits, what Pro gives and one subscribe button.
  * The button is disabled when buying isn't possible.
  */
-export function ProPlanChooser({ offers, canBuy }: { offers: ProPlanOffer[]; canBuy: boolean }) {
+export function ProPlanChooser({
+  offers,
+  canBuy,
+  chatDelete = false,
+}: {
+  offers: ProPlanOffer[];
+  canBuy: boolean;
+  /** `chat_delete_enabled`: list «حذف الرسائل ومسح المحادثة» */
+  chatDelete?: boolean;
+}) {
   const { profile } = useDashboardData();
   const gender = profile?.gender;
   const { buying, error, buy } = useProCheckout();
@@ -244,7 +253,7 @@ export function ProPlanChooser({ offers, canBuy }: { offers: ProPlanOffer[]; can
                 {proCreditsLine(offer)}
               </li>
             )}
-            {PRO_FEATURE_LABELS.map((f) => (
+            {proFeatureLabels(chatDelete).map((f) => (
               <li key={f} className="flex items-center gap-2.5">
                 <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
                   <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
@@ -324,7 +333,7 @@ export function ProSection({
           الاشتراك في Pro غير متاح في دولتك حالياً.
         </div>
       )}
-      {state.offers.length > 0 && <ProPlanChooser offers={state.offers} canBuy={state.canBuy} />}
+      {state.offers.length > 0 && <ProPlanChooser offers={state.offers} canBuy={state.canBuy} chatDelete={state.chatDelete} />}
     </section>
   );
 }

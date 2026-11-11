@@ -13,8 +13,19 @@ import { PRO_PLAN_LABELS } from "@/lib/pro/plans";
 import type { MyProState } from "@/lib/pro/pro-types";
 import { arabicCount } from "@/lib/utils";
 
+/** Pro chat delete, listed only while `chat_delete_enabled` is on (copy never names a switched-off feature) */
+export const PRO_CHAT_DELETE_LABEL = "حذف الرسائل ومسح المحادثة";
+
 /** What every Pro plan gives (plan cards and «اشتراكي») */
-export const PRO_FEATURE_LABELS = ["إرسال الصور في المحادثة", "الرسائل الصوتية في المحادثة", "شارة Pro على بطاقتك", "أولوية في الاقتراحات"] as const;
+export function proFeatureLabels(chatDelete = false): string[] {
+  return [
+    "إرسال الصور في المحادثة",
+    "الرسائل الصوتية في المحادثة",
+    ...(chatDelete ? [PRO_CHAT_DELETE_LABEL] : []),
+    "شارة Pro على بطاقتك",
+    "أولوية في الاقتراحات",
+  ];
+}
 
 /** «اشتراكي»: the member's live Pro subscription, its renewal or end date, and cancel / resume */
 export function MyProCard({ state, onChanged }: { state: MyProState; onChanged: () => void }) {
@@ -111,7 +122,7 @@ export function MyProCard({ state, onChanged }: { state: MyProState; onChanged: 
               {creditsLine}
             </li>
           )}
-          {PRO_FEATURE_LABELS.map((f) => (
+          {proFeatureLabels(state.chatDelete).map((f) => (
             <li key={f} className="flex items-center gap-2">
               <CheckCircle2 className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
               {f}

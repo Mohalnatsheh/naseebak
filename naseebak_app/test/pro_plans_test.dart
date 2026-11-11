@@ -220,6 +220,23 @@ void main() {
     }
   });
 
+  testWidgets('the plans card lists «حذف الرسائل ومسح المحادثة» only while the server says chatDelete', (tester) async {
+    final o = _offers.map(ProOffer.fromJson).toList();
+    Widget card({required bool chatDelete}) => rtlApp(Scaffold(
+          body: SingleChildScrollView(
+            child: ProPlansCard(
+                offers: o, canBuy: true, chatDelete: chatDelete, female: false, busy: false, onSubscribe: (_) {}),
+          ),
+        ));
+    await tester.pumpWidget(card(chatDelete: true));
+    expect(find.text(proChatDeleteLabel), findsOneWidget);
+    await tester.pumpWidget(card(chatDelete: false));
+    expect(find.text(proChatDeleteLabel), findsNothing);
+    // An older server sends no chatDelete: the line stays hidden
+    expect(MyProState.fromJson(const {}).chatDelete, isFalse);
+    expect(MyProState.fromJson(const {'chatDelete': true}).chatDelete, isTrue);
+  });
+
   testWidgets('a picked plan that a reload no longer offers falls back to the default, not a stale choice',
       (tester) async {
     List<ProOffer> offers(List<Map<String, dynamic>> l) => l.map(ProOffer.fromJson).toList();

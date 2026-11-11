@@ -2,7 +2,7 @@ import { db } from "@/lib/db";
 import { toCountry } from "@/lib/countries";
 import { getCountrySettings, purchasesAvailable } from "@/lib/countries/settings";
 import { appPaymentsFor } from "@/lib/mobile-config";
-import { getProEnabled } from "@/lib/settings";
+import { getChatDeleteEnabled, getProEnabled } from "@/lib/settings";
 import type { ProPlan } from "@prisma/client";
 import { proOffersFor, type ProPlanId } from "@/lib/pro/plans";
 import type { MyProState } from "@/lib/pro/pro-types";
@@ -21,10 +21,11 @@ export async function getMyProState(
   userId: string,
   { app, me: known }: { app: boolean; /** The member's country and phone when the caller already read them */ me?: ProStateUser | null },
 ): Promise<MyProState> {
-  const [enabled, sub, me] = await Promise.all([
+  const [enabled, sub, me, chatDelete] = await Promise.all([
     getProEnabled(),
     currentProSubscription(userId),
     known !== undefined ? known : db.user.findUnique({ where: { id: userId }, select: { country: true, phone: true } }),
+    getChatDeleteEnabled(),
   ]);
   const country = toCountry(me?.country);
   const [countrySettings, sellable] = await Promise.all([
@@ -42,6 +43,7 @@ export async function getMyProState(
     ...(sub && { creditsPerGrant: sub.creditsPerGrant, nextGrantAt: nextGrantOf(sub) }),
     canBuy: enabled && sellable && purchasesAvailable(countrySettings) && !sub && offers.length > 0,
     offers,
+    chatDelete,
   };
 }
 

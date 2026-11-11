@@ -27,6 +27,16 @@ afterEach(() => {
   sessionStorage.clear();
 });
 
+describe("ProPlanChooser: chat delete line follows the switch", () => {
+  it("lists «حذف الرسائل ومسح المحادثة» only when chatDelete is on", () => {
+    render(<ProPlanChooser offers={offers} canBuy chatDelete />);
+    expect(screen.getByText("حذف الرسائل ومسح المحادثة")).toBeTruthy();
+    cleanup();
+    render(<ProPlanChooser offers={offers} canBuy />);
+    expect(screen.queryByText("حذف الرسائل ومسح المحادثة")).toBeNull();
+  });
+});
+
 describe("ProPlanChooser (one compact Pro card)", () => {
   it("one card, monthly picked first, one subscribe button, the three features and the credits line", () => {
     render(<ProPlanChooser offers={offers} canBuy />);

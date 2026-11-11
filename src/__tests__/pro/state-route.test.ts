@@ -4,6 +4,7 @@ const db = vi.hoisted(() => ({ user: { findUnique: vi.fn() } }));
 const m = vi.hoisted(() => ({
   appPaymentsFor: vi.fn(),
   getProEnabled: vi.fn(),
+  getChatDeleteEnabled: vi.fn(),
   getCountrySettings: vi.fn(),
   purchasesAvailable: vi.fn(),
   currentProSubscription: vi.fn(),
@@ -12,7 +13,7 @@ vi.mock("@/lib/db", () => ({ db }));
 const requireUser = vi.hoisted(() => vi.fn(async () => ({ session: { user: { id: "u1" } } })));
 vi.mock("@/lib/auth", () => ({ requireUser }));
 vi.mock("@/lib/mobile-config", () => ({ appPaymentsFor: m.appPaymentsFor }));
-vi.mock("@/lib/settings", () => ({ getProEnabled: m.getProEnabled }));
+vi.mock("@/lib/settings", () => ({ getProEnabled: m.getProEnabled, getChatDeleteEnabled: m.getChatDeleteEnabled }));
 vi.mock("@/lib/countries/settings", () => ({ getCountrySettings: m.getCountrySettings, purchasesAvailable: m.purchasesAvailable }));
 vi.mock("@/lib/pro/status", () => ({ currentProSubscription: m.currentProSubscription }));
 
@@ -25,6 +26,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   m.appPaymentsFor.mockResolvedValue(true);
   m.getProEnabled.mockResolvedValue(true);
+  m.getChatDeleteEnabled.mockResolvedValue(false);
   m.purchasesAvailable.mockReturnValue(true);
   m.getCountrySettings.mockResolvedValue({ proPlans: { monthly: { enabled: true, price: 4, credits: 8 } } });
   m.currentProSubscription.mockResolvedValue(null);
@@ -50,6 +52,11 @@ describe("GET /api/pro", () => {
     const s = await (await GET(web)).json();
     expect(s).toMatchObject({ enabled: true, isPro: false, canBuy: true, plan: null });
     expect(s.offers).toHaveLength(1);
+  });
+  it("chatDelete follows chat_delete_enabled (the plans list the delete line only while it is on)", async () => {
+    expect((await (await GET(web)).json()).chatDelete).toBe(false);
+    m.getChatDeleteEnabled.mockResolvedValue(true);
+    expect((await (await GET(web)).json()).chatDelete).toBe(true);
   });
   it("switch off: no offers, cannot buy", async () => {
     m.getProEnabled.mockResolvedValue(false);

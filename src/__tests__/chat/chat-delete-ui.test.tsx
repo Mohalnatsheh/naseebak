@@ -285,6 +285,18 @@ describe("chat room: delete for Pro", () => {
     expect(screen.getByText("رسالتي")).toBeTruthy();
   });
 
+  it("«مسح المحادثة» carries the Pro lock in upsell mode only (like the message menu)", async () => {
+    setup({ isPro: false, canBuy: true });
+    await ready();
+    await openHeader();
+    expect(within(item("مسح المحادثة")!).getByLabelText("ميزة Pro")).toBeTruthy();
+    cleanup();
+    setup({ isPro: true });
+    await ready();
+    await openHeader();
+    expect(within(item("مسح المحادثة")!).queryByLabelText("ميزة Pro")).toBeNull();
+  });
+
   it("mode upsell: «مسح المحادثة» opens the upsell and sends nothing", async () => {
     const fetchMock = setup({ isPro: false, canBuy: true });
     await ready();

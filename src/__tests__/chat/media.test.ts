@@ -3,6 +3,9 @@ import sharp from "sharp";
 import { NextResponse } from "next/server";
 
 const db = vi.hoisted(() => ({
+  // Chat delete (task 3): my clear and my hides, none here
+  conversationClear: { findUnique: vi.fn(async () => null), findMany: vi.fn(async () => []) },
+  messageHide: { findMany: vi.fn(async () => []) },
   conversation: { findUnique: vi.fn(), findMany: vi.fn(), findFirst: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
   message: { create: vi.fn(), findMany: vi.fn(), findFirst: vi.fn(), findUnique: vi.fn(), updateMany: vi.fn(), count: vi.fn() },
   block: { findFirst: vi.fn(), findMany: vi.fn(), create: vi.fn() },

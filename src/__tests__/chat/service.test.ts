@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const db = vi.hoisted(() => ({
+  // Chat delete (task 3): my clear and my hides, none here
+  conversationClear: { findUnique: vi.fn(async () => null), findMany: vi.fn(async () => []) },
+  messageHide: { findMany: vi.fn(async () => []) },
   conversation: { findUnique: vi.fn(), findMany: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
   message: { create: vi.fn(), findMany: vi.fn(), findFirst: vi.fn(), updateMany: vi.fn(), count: vi.fn() },
   block: { findFirst: vi.fn(), findMany: vi.fn(), create: vi.fn() },
@@ -464,7 +467,7 @@ describe("getConversation paging (two messages in one millisecond)", () => {
     await getConversation("c", "u1", { before: T, beforeId: "m5" });
     expect(db.message.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { conversationId: "c", OR: [{ createdAt: { lt: new Date(T) } }, { createdAt: new Date(T), id: { lt: "m5" } }] },
+        where: { AND: [{ conversationId: "c", hides: { none: { userId: "u1" } } }, { OR: [{ createdAt: { lt: new Date(T) } }, { createdAt: new Date(T), id: { lt: "m5" } }] }] },
         orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       }),
     );
@@ -476,11 +479,11 @@ describe("getConversation paging (two messages in one millisecond)", () => {
     db.message.count.mockResolvedValue(0);
     await getConversation("c", "u1", { before: T });
     expect(db.message.findMany).toHaveBeenLastCalledWith(
-      expect.objectContaining({ where: { conversationId: "c", createdAt: { lte: new Date(T) } } }),
+      expect.objectContaining({ where: { AND: [{ conversationId: "c", hides: { none: { userId: "u1" } } }, { createdAt: { lte: new Date(T) } }] } }),
     );
     await getConversation("c", "u1", { after: T });
     expect(db.message.findMany).toHaveBeenLastCalledWith(
-      expect.objectContaining({ where: { conversationId: "c", createdAt: { gte: new Date(T) } } }),
+      expect.objectContaining({ where: { AND: [{ conversationId: "c", hides: { none: { userId: "u1" } } }, { createdAt: { gte: new Date(T) } }] } }),
     );
   });
 });
@@ -492,7 +495,7 @@ describe("getConversation polls with ?after= (QA chat WC-06)", () => {
     const T = "2026-11-10T10:00:00.000Z";
     db.message.findFirst.mockResolvedValueOnce({ createdAt: new Date(T), readAt: new Date("2026-11-10T10:05:00.000Z") });
     const res = await getConversation("c", "u1", { after: T });
-    expect(db.message.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { conversationId: "c", createdAt: { gte: new Date(T) } } }));
+    expect(db.message.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { AND: [{ conversationId: "c", hides: { none: { userId: "u1" } } }, { createdAt: { gte: new Date(T) } }] } }));
     expect(res.readUpTo).toEqual({ createdAt: T, readAt: "2026-11-10T10:05:00.000Z" });
   });
 

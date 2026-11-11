@@ -161,6 +161,12 @@ class _Room {
 final _deleteMe = find.byKey(const Key('menu-delete-me'));
 final _deleteAll = find.byKey(const Key('menu-delete-everyone'));
 
+/// A message of theirs quoting [id] with the snippet [snippet]
+Map<String, dynamic> _quoting(int n, String id, String snippet) => {
+      ...msg(n),
+      'replyTo': {'id': id, 'mine': true, 'kind': 'TEXT', 'snippet': snippet},
+    };
+
 Future<void> _menuOn(WidgetTester tester, String text) async {
   await tester.longPress(find.text(text));
   await tester.pumpAndSettle();
@@ -320,6 +326,25 @@ void main() {
       expect(find.text('حذف الرسائل ومسح المحادثة متاح لأعضاء Pro'), findsOneWidget);
       expect(r.adapter.to('GET', '/api/pro').length, greaterThan(proReads));
     });
+
+    testWidgets('PRO_REQUIRED on «حذف لدى الجميع»: the message and the quotes of it come back as they were',
+        (tester) async {
+      final r = _Room(messages: [msg(1), msg(2, mine: true), _quoting(3, 'm002', 'نص الأصل')])
+        ..deleteAnswer = const FakeResponse(403, {'error': 'حذف الرسائل ومسح المحادثة متاح لأعضاء Pro', 'code': 'PRO_REQUIRED'});
+      await r.open(tester);
+      await _menuOn(tester, 'رسالة 2');
+      await tester.tap(_deleteAll);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('delete-confirm')));
+      await tester.pumpAndSettle();
+      expect(r.deletes('m002'), hasLength(1));
+      expect(find.text('رسالة 2'), findsOneWidget);
+      expect(find.text('نص الأصل'), findsOneWidget);
+      expect(find.text(deletedTrace), findsNothing);
+      final saved = (await r.cache.read('u1', 'c1'))!;
+      expect(saved.messages.firstWhere((m) => m.id == 'm003').replyTo!.snippet, 'نص الأصل');
+      expect(saved.messages.firstWhere((m) => m.id == 'm002').deleted, isFalse);
+    });
   });
 
   group('room', () {
@@ -343,7 +368,8 @@ void main() {
     });
 
     testWidgets('«حذف لديّ»: gone at once, scope me; a refusal brings it back with the server message', (tester) async {
-      final r = _Room()..deleteAnswer = const FakeResponse(403, {'error': 'لا يمكن حذف هذه الرسالة', 'code': 'NOT_ALLOWED'});
+      final r = _Room(messages: [msg(1), msg(2, mine: true), _quoting(3, 'm001', 'نص الأصل')])
+        ..deleteAnswer = const FakeResponse(403, {'error': 'لا يمكن حذف هذه الرسالة', 'code': 'NOT_ALLOWED'});
       await r.open(tester);
       await _menuOn(tester, 'رسالة 1');
       await tester.tap(_deleteMe);
@@ -351,6 +377,12 @@ void main() {
       expect((r.deletes('m001').single.data as Map)['scope'], 'me');
       expect(find.text('رسالة 1'), findsOneWidget);
       expect(find.text('لا يمكن حذف هذه الرسالة'), findsOneWidget);
+      // The quote of it reads its own text again, on screen and in the device copy
+      expect(find.text('نص الأصل'), findsOneWidget);
+      expect(find.text(deletedTrace), findsNothing);
+      final saved = (await r.cache.read('u1', 'c1'))!;
+      expect(saved.messages.map((m) => m.id), ['m001', 'm002', 'm003']);
+      expect(saved.messages.last.replyTo!.snippet, 'نص الأصل');
     });
 
     testWidgets('«حذف لديّ» that works: the message leaves the screen and the device copy', (tester) async {
@@ -397,16 +429,33 @@ void main() {
       expect(find.text('رسالة 1'), findsNothing);
     });
 
-    testWidgets('a failed clear brings the messages back', (tester) async {
+    testWidgets('a failed clear brings the messages back, and a send on its way keeps its quote', (tester) async {
+      final gate = Completer<void>();
       final r = _Room()..clearAnswer = const FakeResponse(400, {'error': 'تعذّر المسح', 'code': 'DISABLED'});
       await r.open(tester);
+      addTearDown(() {
+        if (!gate.isCompleted) gate.complete();
+      });
+      // A reply to message 1 that is still sending (kept through the clear, its quote rewritten meanwhile)
+      r.adapter.hold('POST', '/api/chats/c1/messages', gate.future);
+      await _menuOn(tester, 'رسالة 1');
+      await tester.tap(find.byKey(const Key('menu-reply')));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byKey(const Key('chat-input')), 'ردّي');
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('chat-send')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
       await _openClear(tester);
       await tester.tap(find.byKey(const Key('clear-me')));
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('delete-confirm')));
       await tester.pumpAndSettle();
-      expect(find.text('رسالة 1'), findsOneWidget);
+      // Message 1 itself, and the pending reply's quote of it
+      expect(find.text('رسالة 1'), findsNWidgets(2));
       expect(find.text('رسالة 2'), findsOneWidget);
+      expect(find.text('ردّي'), findsOneWidget);
+      expect(find.text(deletedTrace), findsNothing);
       expect(find.text('تعذّر المسح'), findsOneWidget);
     });
 

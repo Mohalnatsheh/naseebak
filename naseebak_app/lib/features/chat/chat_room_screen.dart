@@ -277,7 +277,8 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
   /// before it leave the list.
   DateTime? _clearedBefore;
 
-  /// Deleted for everyone / hidden for me in this visit: a poll that left before the change can't bring them back
+  /// Deleted for everyone / hidden for me, as known in this visit (mine, the server's, live events): a poll that left
+  /// before the change can't bring them back, and undoing a refused change of mine never undoes them
   final Set<String> _goneForAll = {};
   final Set<String> _hiddenHere = {};
 
@@ -701,6 +702,10 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
   /// on top; true when the list changed. Never adds a row: ids that aren't loaded change nothing. Called inside
   /// setState.
   bool _applyDeletes({DateTime? clearedBefore, Iterable<String> hidden = const [], Iterable<String> deleted = const []}) {
+    _goneForAll
+      ..addAll(deleted)
+      ..addAll(_messages.where((m) => m.deleted).map((m) => m.id));
+    _hiddenHere.addAll(hidden);
     final cutoff = _later(_clearedBefore, clearedBefore);
     final newClear = cutoff != null && cutoff != _clearedBefore;
     _clearedBefore = cutoff;
@@ -723,6 +728,28 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     final reply = _replyTo;
     if (reply != null && !_messages.any((m) => m.id == reply.id && !m.deleted)) _replyTo = null;
     return true;
+  }
+
+  /// An optimistic delete or clear was refused: every message back as it was in [snapshot] (the trace undone, quotes
+  /// that read as the trace given their text again, dropped messages re-inserted), keeping what a poll or live event
+  /// added meanwhile; then what is really deleted, hidden or cleared applies again. Called inside setState, after the
+  /// caller has taken its own change out of the sets and the clear point.
+  void _restoreFrom(List<ChatMessage> snapshot) {
+    final before = {for (final m in snapshot) m.id: m};
+    for (var i = 0; i < _messages.length; i++) {
+      final now = _messages[i];
+      final was = before[now.id];
+      if (was == null) continue;
+      // Untraced only if nothing else says it is deleted (a poll, a live event, the server's own copy)
+      if (now.deleted && !was.deleted && !_goneForAll.contains(now.id)) {
+        _messages[i] = was;
+      } else if (now.replyTo?.snippet != was.replyTo?.snippet || now.replyTo?.kind != was.replyTo?.kind) {
+        _messages[i] = now.withQuote(was.replyTo);
+      }
+    }
+    final held = _messages.map((m) => m.id).toSet();
+    _insertSorted(snapshot.where((m) => m.state == SendState.sent && !held.contains(m.id)).toList());
+    _applyDeletes();
   }
 
   Future<void> _poll() async {
@@ -1016,6 +1043,8 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
       setState(() {
         _messages.insertAll(0, page.messages.where((m) => !known.contains(m.id)));
         _hasMore = page.hasMore;
+        // The server already filtered this page (hides, clears, traces): only this visit's own changes still in
+        // flight can apply, and nothing here needs saving, so the result is not used
         _applyDeletes();
       });
     } catch (e) {
@@ -1764,13 +1793,17 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
       if (!ok || !mounted || !_open) return;
     }
     // The copy held now (a poll may have changed it since the long-press)
-    final original = _messages.where((x) => x.id == m.id).firstOrNull ?? m;
+    // Everything as it is now: a refusal puts back the message and the quotes of it that read as the trace
+    final snapshot = List.of(_messages);
     // Taken before the request: `ref` can't be used once the chat was left meanwhile
     final container = ProviderScope.containerOf(context, listen: false);
     setState(() {
       forEveryone ? _goneForAll.add(m.id) : _hiddenHere.add(m.id);
       _applyDeletes();
     });
+    // Known narrow race: a poll during the request can save this optimistic state to the device copy, and a refusal
+    // that arrives after the chat was left can't be reverted there (the page and the deletions poll on the next open
+    // only correct what the server changed)
     try {
       await _repo.deleteMessage(widget.chatId, m.id, forEveryone: forEveryone);
       if (!mounted) return;
@@ -1782,15 +1815,10 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
       }
       if (!mounted) return;
       setState(() {
-        if (forEveryone) {
-          _goneForAll.remove(m.id);
-          final i = _messages.indexWhere((x) => x.id == m.id);
-          if (i >= 0) _messages[i] = original;
-        } else {
-          _hiddenHere.remove(m.id);
-          if (!_messages.any((x) => x.id == m.id)) _insertSorted([original]);
-        }
+        forEveryone ? _goneForAll.remove(m.id) : _hiddenHere.remove(m.id);
+        _restoreFrom(snapshot);
       });
+      _saveCache();
       _deleteRefused(e);
     }
   }
@@ -1811,7 +1839,8 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     );
     if (!ok || !mounted || (everyone && !_open)) return;
     final container = ProviderScope.containerOf(context, listen: false);
-    final before = List.of(_messages);
+    // Everything as it is now (a refusal restores it; same narrow cache race as `_deleteMessage`)
+    final snapshot = List.of(_messages);
     final clearedBefore = _clearedBefore;
     final hadMore = _hasMore;
     // Shown at once up to the newest message held (server time, never the phone's clock); the server's point follows
@@ -1835,9 +1864,9 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
       setState(() {
         _clearedBefore = clearedBefore;
         _hasMore = hadMore;
-        final held = _messages.map((m) => m.id).toSet();
-        _insertSorted(before.where((m) => m.state == SendState.sent && !held.contains(m.id)).toList());
+        _restoreFrom(snapshot);
       });
+      _saveCache();
       _deleteRefused(e);
     }
   }

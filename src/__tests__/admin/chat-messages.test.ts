@@ -126,6 +126,87 @@ describe("GET /api/admin/chats/[id]/messages", () => {
   });
 });
 
+describe("GET /api/admin/chats/[id]/messages deletion info", () => {
+  const T = (min: number) => new Date(Date.UTC(2026, 10, 11, 10, min));
+  const base = { senderId: "f1", readAt: null, kind: "TEXT", mediaType: null, mediaDurationSec: null, mediaWidth: null, mediaHeight: null };
+  const chat = (over: Record<string, unknown>, messages: unknown[]) => ({
+    ...{
+      id: "c1", status: "ACTIVE", createdAt: T(0), expiresAt: new Date(Date.now() + 864e5), extended: false,
+      endedById: null, endedByAdminId: null, endedAt: null,
+      match: { id: "mm1", female: sara, male: yazan },
+      clearedAt: null, clearedById: null, clears: [],
+    },
+    ...over,
+    messages,
+  });
+
+  beforeEach(() => {
+    vi.spyOn(console, "info").mockImplementation(() => {});
+  });
+
+  it("keeps the real body of a deleted message and marks it deleted for everyone", async () => {
+    db.conversation.findUnique.mockResolvedValue(
+      chat({}, [{ ...base, id: "d", body: "نص أصلي", createdAt: T(5), deletedAt: T(6), hides: [] }]),
+    );
+    const d = await (await call()).json();
+    expect(d.messages[0].body).toBe("نص أصلي");
+    expect(d.messages[0].deletion).toEqual({ forEveryone: true, hiddenBy: [], clearedForEveryone: false, beforeClearOf: [] });
+    const select = db.conversation.findUnique.mock.calls[0][0].select;
+    expect(select.messages.select.deletedAt).toBe(true);
+    expect(select.messages.select.hides).toBeDefined();
+    expect(select.clearedAt).toBe(true);
+    expect(select.clearedById).toBe(true);
+    expect(select.clears).toBeDefined();
+  });
+
+  it("lists who hid a message for themselves", async () => {
+    db.conversation.findUnique.mockResolvedValue(
+      chat({}, [{ ...base, id: "h", body: "x", createdAt: T(5), deletedAt: null, hides: [{ userId: "f1" }] }]),
+    );
+    const d = await (await call()).json();
+    expect(d.messages[0].deletion).toEqual({ forEveryone: false, hiddenBy: ["f1"], clearedForEveryone: false, beforeClearOf: [] });
+  });
+
+  it("marks messages at or before the chat's clear for everyone, and returns the clear info", async () => {
+    db.conversation.findUnique.mockResolvedValue(
+      chat({ clearedAt: T(10), clearedById: "m1" }, [
+        { ...base, id: "after", body: "b", createdAt: T(11), deletedAt: null, hides: [] },
+        { ...base, id: "edge", body: "a", createdAt: T(10), deletedAt: null, hides: [] },
+        { ...base, id: "before", body: "a", createdAt: T(9), deletedAt: null, hides: [] },
+      ]),
+    );
+    const d = await (await call()).json();
+    expect(d.chat.clearedAt).toBe(T(10).toISOString());
+    expect(d.chat.clearedById).toBe("m1");
+    const by = Object.fromEntries(d.messages.map((m: { id: string; deletion: { clearedForEveryone: boolean } }) => [m.id, m.deletion.clearedForEveryone]));
+    expect(by).toEqual({ before: true, edge: true, after: false });
+  });
+
+  it("lists the members whose own clear covers the message", async () => {
+    db.conversation.findUnique.mockResolvedValue(
+      chat({ clears: [{ userId: "m1", clearedAt: T(8) }] }, [
+        { ...base, id: "late", body: "b", createdAt: T(9), deletedAt: null, hides: [] },
+        { ...base, id: "edge", body: "a", createdAt: T(8), deletedAt: null, hides: [] },
+        { ...base, id: "early", body: "a", createdAt: T(7), deletedAt: null, hides: [] },
+      ]),
+    );
+    const d = await (await call()).json();
+    expect(d.chat.clears).toEqual([{ userId: "m1", clearedAt: T(8).toISOString() }]);
+    const by = Object.fromEntries(d.messages.map((m: { id: string; deletion: { beforeClearOf: string[] } }) => [m.id, m.deletion.beforeClearOf]));
+    expect(by).toEqual({ early: ["m1"], edge: ["m1"], late: [] });
+  });
+
+  it("an untouched message has every field false or empty", async () => {
+    db.conversation.findUnique.mockResolvedValue(
+      chat({}, [{ ...base, id: "u", body: "x", createdAt: T(5), deletedAt: null, hides: [] }]),
+    );
+    const d = await (await call()).json();
+    expect(d.messages[0].deletion).toEqual({ forEveryone: false, hiddenBy: [], clearedForEveryone: false, beforeClearOf: [] });
+    expect(d.chat.clearedAt).toBeNull();
+    expect(d.chat.clears).toEqual([]);
+  });
+});
+
 describe("GET /api/admin/chats/[id]/messages paging (ADM-26)", () => {
   const chatWith = (ids: string[]) => ({
     id: "c1", status: "ACTIVE", createdAt: new Date(), expiresAt: new Date(Date.now() + 864e5), extended: false,

@@ -28,6 +28,11 @@ interface ChatDetail {
   endedBy: string | null;
   /** `messageId`: «إبلاغ عن الرسالة» (that message is highlighted) */
   reports: { id: string; status: string; createdAt: string; messageId?: string | null }[];
+  /** Chat cleared for everyone (by this member) */
+  clearedAt?: string | null;
+  clearedById?: string | null;
+  /** Each member's own «clear for me» */
+  clears?: { userId: string; clearedAt: string }[];
 }
 
 interface Msg {
@@ -42,6 +47,8 @@ interface Msg {
   /** The quoted message (read-only) */
   replyTo?: { id: string; senderId: string; kind: string; snippet: string } | null;
   reactions?: { emoji: string; userId: string }[];
+  /** Nothing is erased: members don't see these, admins see them all with tags */
+  deletion?: { forEveryone: boolean; hiddenBy: string[]; clearedForEveryone: boolean; beforeClearOf: string[] };
 }
 
 /** A photo (opens full size in a new tab) or a voice note (native player); every fetch is logged server-side */
@@ -456,6 +463,7 @@ export default function AdminChatPage({ params }: { params: Promise<{ id: string
                           {fmtTime(m.createdAt)}
                           {m.readAt ? <CheckCheck className="h-3 w-3" aria-label="Read" /> : <Check className="h-3 w-3" aria-label="Sent" />}
                         </p>
+                        <DeletionTags m={m} nameOf={nameOf} clearedById={chat.clearedById ?? null} />
                         {m.reactions && m.reactions.length > 0 && (
                           <p className={cn("mt-1 flex flex-wrap gap-1 text-[11px]", mine ? "text-muted-foreground" : "text-primary-foreground/80")}>
                             {m.reactions.map((r) => (
@@ -477,6 +485,22 @@ export default function AdminChatPage({ params }: { params: Promise<{ id: string
       </Card>
     </div>
   );
+}
+
+/** Small tags under a message: who deleted, hid or cleared it (members no longer see it; admins always do) */
+function DeletionTags({ m, nameOf, clearedById }: { m: Msg; nameOf: (uid: string) => string; clearedById: string | null }) {
+  const d = m.deletion;
+  if (!d) return null;
+  const tag = "rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground";
+  const tags: React.ReactNode[] = [];
+  if (d.forEveryone) tags.push(<span key="all" className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-destructive">Deleted for everyone by sender</span>);
+  for (const uid of d.hiddenBy) tags.push(<span key={`h${uid}`} className={tag}>Hidden by <bdi>{nameOf(uid)}</bdi></span>);
+  if (d.clearedForEveryone) {
+    tags.push(<span key="clear" className={tag}>Cleared for everyone{clearedById ? <> by <bdi>{nameOf(clearedById)}</bdi></> : ""}</span>);
+  }
+  for (const uid of d.beforeClearOf) tags.push(<span key={`c${uid}`} className={tag}>Before <bdi>{nameOf(uid)}</bdi>&apos;s clear</span>);
+  if (tags.length === 0) return null;
+  return <p className="mt-1 flex flex-wrap gap-1">{tags}</p>;
 }
 
 /** Marks every occurrence of the search term (case-insensitive) */

@@ -1,7 +1,7 @@
 # Pro chat delete — design
 
 Date: 2026-11-11
-Status: approved in brainstorming, awaiting plan
+Status: implemented (branch feature/chat-delete, not deployed)
 Owner decision captured: yes (see "Decisions")
 
 ## Intent and why

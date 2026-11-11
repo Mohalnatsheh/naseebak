@@ -142,7 +142,7 @@ export function NewCycleSettingsCard() {
       key: "interestPaywall" as const,
       icon: Coins,
       title: "«مهتم» at 0 credits opens the paywall",
-      text: "At 0 credits «مهتم» stays tappable and opens a short «انتهى رصيدك» step with a button to the credit packages, instead of being greyed out. Only for members who can buy: test accounts, countries not selling (Lebanon, Saudi Arabia before prices are approved) and the app while «Payments in the app» is off keep the greyed button. «لا» and the free reply are unchanged. Needs app 1.2.2 or later in the app; older apps keep the greyed button. Needs Credit on interest on.",
+      text: "At 0 credits «مهتم» stays tappable and opens a short «انتهى رصيدك» step with a button to the credit packages, instead of being greyed out. Only for members who can buy: test accounts, countries not selling (Lebanon, Saudi Arabia before prices are approved) and the app while «Payments in the app» is off keep the greyed button. «لا» and the free reply are unchanged. In the app it needs the app version after 1.2.1; older apps keep the greyed button. Needs Credit on interest on.",
       on: !!state?.introRequests && !!state?.mutualSuggestions && !!state?.creditOnInterest && !!state?.interestPaywall,
       disabled: !state?.introRequests || !state?.mutualSuggestions || !state?.creditOnInterest,
     },

@@ -973,6 +973,7 @@ model ConversationClear {
   clearedAt      DateTime
 
   @@id([conversationId, userId])
+  @@index([userId])
   @@map("conversation_clears")
 }
 

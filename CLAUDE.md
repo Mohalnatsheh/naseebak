@@ -358,7 +358,7 @@ Detail: [docs/reference/suggestions-and-credits.md](docs/reference/suggestions-a
 
 ## Deployment
 
-**Production: `644ab4e` (Pro chat delete, switch `chat_delete_enabled` ON since 2026-11-11, owner; «مهتم» paywall, switch `interest_paywall` ON since 2026-11-11, owner; Pro page delete line and lock; app crash and keyboard fixes), deployed 2026-11-11 with `--db-push` (3 nullable columns, tables `message_hides` and `conversation_clears`; backup `/root/backups/naseeb-before-deploy-644ab4e-20261111-2039.dump`), slot a. Lebanon is on since 2026-11-10 (owner): active, registration open, no sales (no prices approved), polls off.**
+**Production: `129ea8f` (JOD charging behind `jod_charging`, OFF in production; Pro chat delete and the «مهتم» paywall, both ON since 2026-11-11), deployed 2026-11-11 with `--db-push` (one nullable column `payments.chargeCurrency`; backup `/root/backups/naseeb-before-deploy-129ea8f-20261111-2222.dump`), slot b. Lebanon is on since 2026-11-10 (owner): active, registration open, no sales (no prices approved), polls off.**
 
 Update that one line after each deploy. Don't list past versions. The live revision is in `/var/www/naseebak/REVISION`.
 

@@ -286,6 +286,8 @@ model User {
   receivedIntroRequests IntroRequest[] @relation("IntroReceiver")
   messages              Message[]
   messageReactions      MessageReaction[]
+  messageHides          MessageHide[]
+  conversationClears    ConversationClear[]
   creditLedger          CreditLedger[]
   pollVotes             PollVote[]
   alertsForMe           Alert[]          @relation("AlertTarget")
@@ -897,6 +899,10 @@ model Conversation {
   endedByAdminId String?
   endedAt        DateTime?
   messages       Message[]
+  /// Cleared for everyone by a Pro member (hidden, never erased): messages before this are hidden from both
+  clearedAt      DateTime?
+  clearedById    String?
+  clears         ConversationClear[]
   createdAt      DateTime           @default(now())
   updatedAt      DateTime           @updatedAt
 
@@ -928,6 +934,9 @@ model Message {
   replyTo        Message?     @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
   replies        Message[]    @relation("MessageReplies")
   reactions      MessageReaction[]
+  /// Deleted for everyone by its sender (Pro): hidden from members, never erased
+  deletedAt      DateTime?
+  hides          MessageHide[]
   /// Last time a reaction on this message was set or removed: polling clients ask for changes since (chat/service.ts)
   reactedAt      DateTime?
   createdAt      DateTime     @default(now())
@@ -940,6 +949,31 @@ model Message {
   @@index([conversationId, senderId, clientNonce])
   @@index([readAt, createdAt])
   @@map("messages")
+}
+
+/// A message a member deleted for themselves only
+model MessageHide {
+  messageId String
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@id([messageId, userId])
+  @@index([userId, createdAt])
+  @@map("message_hides")
+}
+
+/// A chat a member cleared for themselves only: messages up to clearedAt are hidden from them
+model ConversationClear {
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clearedAt      DateTime
+
+  @@id([conversationId, userId])
+  @@map("conversation_clears")
 }
 
 /// One reaction per member per message (❤️ 👍 😊 🤲, lib/chat/reactions.ts). No push, no unread count.

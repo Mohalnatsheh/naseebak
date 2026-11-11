@@ -7,7 +7,7 @@ import { NewCycleSettingsCard } from "@/components/admin/new-cycle-settings-card
 
 const base = {
   introRequests: true, chat: true, mutualSuggestions: true, creditOnInterest: true,
-  activeFirstFeed: true, saRelaxedMatching: true, lbRelaxedMatching: true, freeInterestReply: true, proEnabled: true, creditsMigratedAt: null,
+  activeFirstFeed: true, saRelaxedMatching: true, lbRelaxedMatching: true, freeInterestReply: true, proEnabled: true, chatDeleteEnabled: true, creditsMigratedAt: null,
 };
 const fetchMock = vi.fn();
 
@@ -30,6 +30,7 @@ describe("NewCycleSettingsCard quick switches", () => {
     ["Saudi Arabia: suggest everyone", "saRelaxedMatching"],
     ["Lebanon: relaxed matching", "lbRelaxedMatching"],
     ["Pro membership sales", "proEnabled"],
+    ["Pro: delete messages and clear chats", "chatDeleteEnabled"],
   ] as const) {
     it(`turning «${title}» off saves false at once (no confirmation)`, async () => {
       render(<NewCycleSettingsCard />);
@@ -46,5 +47,12 @@ describe("NewCycleSettingsCard quick switches", () => {
     const sw = await screen.findByRole("switch", { name: "Free «مهتم» reply" });
     await waitFor(() => expect(sw).toBeDisabled());
     expect(screen.getByText("Turn on credit on interest first.")).toBeInTheDocument();
+  });
+
+  it("shows the Pro chat delete switch", async () => {
+    render(<NewCycleSettingsCard />);
+    const sw = await screen.findByRole("switch", { name: "Pro: delete messages and clear chats" });
+    expect(screen.getByText(/Off by default\. Members' existing deletions stay hidden when off\./)).toBeInTheDocument();
+    await waitFor(() => expect(sw).toHaveAttribute("aria-checked", "true"));
   });
 });

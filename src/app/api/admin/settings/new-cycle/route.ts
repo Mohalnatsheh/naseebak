@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 import { closeLegacyInFlight } from "@/lib/suggestions/mutual";
 
 async function state() {
-  const [flags, chatRaw, mutualRaw, creditRaw, activeFirstRaw, saRelaxedRaw, lbRelaxedRaw, freeReplyRaw, proRaw, migration] = await Promise.all([
+  const [flags, chatRaw, mutualRaw, creditRaw, activeFirstRaw, saRelaxedRaw, lbRelaxedRaw, freeReplyRaw, proRaw, chatDeleteRaw, migration] = await Promise.all([
     getCycleFlags(),
     getSetting("chat_enabled"),
     getSetting("new_suggestions_flow"),
@@ -16,6 +16,7 @@ async function state() {
     getSetting("lb_relaxed_matching"),
     getSetting("free_interest_reply"),
     getSetting("pro_enabled"),
+    getSetting("chat_delete_enabled"),
     db.systemSetting.findUnique({ where: { key: "migration_new_cycle_v1" } }),
   ]);
   return {
@@ -28,6 +29,7 @@ async function state() {
     lbRelaxedMatching: lbRelaxedRaw === "true",
     freeInterestReply: freeReplyRaw === "true",
     proEnabled: proRaw === "true",
+    chatDeleteEnabled: chatDeleteRaw === "true",
     creditsMigratedAt: migration?.value ?? null,
   };
 }
@@ -54,6 +56,8 @@ const schema = z.object({
   freeInterestReply: z.boolean().optional(),
   /** Pro membership: new sales and offers only; members already subscribed keep Pro */
   proEnabled: z.boolean().optional(),
+  /** Pro members delete a message or clear a chat; off hides the buttons only, earlier deletions stay hidden */
+  chatDeleteEnabled: z.boolean().optional(),
 });
 
 export async function PATCH(request: Request) {
@@ -92,6 +96,10 @@ export async function PATCH(request: Request) {
     if (parsed.data.proEnabled !== undefined) {
       await setSetting("pro_enabled", String(parsed.data.proEnabled));
       console.log(`[admin settings] pro_enabled=${parsed.data.proEnabled} by ${result.session.user.id}`);
+    }
+    if (parsed.data.chatDeleteEnabled !== undefined) {
+      await setSetting("chat_delete_enabled", String(parsed.data.chatDeleteEnabled));
+      console.log(`[admin settings] chat_delete_enabled=${parsed.data.chatDeleteEnabled} by ${result.session.user.id}`);
     }
     // Credit on interest depends on both: turning either off turns it off too, so switching
     // them back on later never silently re-enables it

@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { readFromBunny } from "@/lib/bunny";
 import { parseRange } from "@/lib/chat/media";
 import { readMediaCached } from "@/lib/chat/media-cache";
+import { hiddenForViewer, viewerCutoff } from "@/lib/chat/visibility";
 import { shouldLogMediaView } from "@/lib/admin/media-view-log";
 
 /**
@@ -29,7 +30,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       where: { id: messageId },
       select: {
         id: true, conversationId: true, kind: true, mediaPath: true, mediaType: true,
-        conversation: { select: { match: { select: { femaleId: true, maleId: true } } } },
+        createdAt: true, deletedAt: true,
+        // Only my own hides matter (an admin has none to read)
+        hides: { where: { userId: "error" in member ? "" : member.session.user.id }, select: { userId: true } },
+        conversation: { select: { clearedAt: true, match: { select: { femaleId: true, maleId: true } } } },
       },
     });
     if (!message || message.conversationId !== id || message.kind === "TEXT" || !message.mediaPath) return notFound();
@@ -39,6 +43,18 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       const admin = await requireAdmin();
       if ("error" in admin) return notFound();
       adminId = admin.session.user.id;
+    }
+    // Chat delete: a member never gets media they can't see (deleted for everyone, hidden by them, or before their clear),
+    // the sender included. Admins keep seeing everything.
+    if (!adminId && !("error" in member)) {
+      const userId = member.session.user.id;
+      if (message.deletedAt) return notFound();
+      const myClear = await db.conversationClear.findUnique({
+        where: { conversationId_userId: { conversationId: id, userId } },
+        select: { clearedAt: true },
+      });
+      const cutoff = viewerCutoff(message.conversation.clearedAt, myClear?.clearedAt ?? null);
+      if (hiddenForViewer({ createdAt: message.createdAt, hides: message.hides }, userId, cutoff)) return notFound();
     }
     // Once per admin and file per minute: one play is several Range requests (ADM-28)
     if (adminId && shouldLogMediaView(adminId, messageId)) console.info(`[admin-chat-view] admin=${adminId} chat=${id} media=${messageId} at=${new Date().toISOString()}`);

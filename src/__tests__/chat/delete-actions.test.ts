@@ -28,11 +28,12 @@ vi.mock("@/lib/chat/bell", () => bell);
 vi.mock("@/lib/settings", () => settings);
 vi.mock("@/lib/pro/status", () => pro);
 vi.mock("@/lib/rate-limit", () => ({ rateLimit: vi.fn(() => ({ success: true })) }));
-vi.mock("@/lib/reports", () => ({ fileReport: vi.fn() }));
+const reports = vi.hoisted(() => ({ fileReport: vi.fn() }));
+vi.mock("@/lib/reports", () => reports);
 vi.mock("@/lib/auth", () => auth);
 
 import { clearChat, deleteMessage } from "@/lib/chat/delete";
-import { getConversation, setReaction } from "@/lib/chat/service";
+import { endConversation, getConversation, setReaction } from "@/lib/chat/service";
 import { DELETED_TRACE, visibleMessageWhere } from "@/lib/chat/visibility";
 import { IntroError } from "@/lib/intro/errors";
 import { POST as deleteRoute } from "@/app/api/chats/[id]/messages/[messageId]/delete/route";
@@ -370,5 +371,13 @@ describe("readers around a delete (rulings)", () => {
     const ids = db.message.findMany.mock.calls.map((c) => c[0]).find((a) => "deletedAt" in a.where)!;
     expect(ids).toMatchObject({ orderBy: { deletedAt: "desc" }, take: 200 });
     expect(db.messageHide.findMany).toHaveBeenCalledWith(expect.objectContaining({ orderBy: { createdAt: "desc" }, take: 200 }));
+  });
+});
+
+describe("reports", () => {
+  it("a deleted-for-everyone partner message can still be reported", async () => {
+    db.message.findUnique.mockResolvedValue(msg({ id: "pm1", senderId: "f1", deletedAt: new Date() }));
+    await endConversation({ conversationId: "c1", userId: "u1", end: false, report: { reason: "OTHER" as never, messageId: "pm1" } });
+    expect(reports.fileReport).toHaveBeenCalledWith(expect.objectContaining({ conversationId: "c1", messageId: "pm1" }));
   });
 });

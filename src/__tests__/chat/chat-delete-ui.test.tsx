@@ -129,7 +129,10 @@ describe("message menu: delete entries", () => {
 
 // ── The room: upsell, header clear, live events ─────────────────────────────────────────────────────────────────
 
-type Opts = { isPro?: boolean; canBuy?: boolean; deleteEnabled?: boolean; status?: string; blocked?: boolean; clear?: Response; del?: Response };
+type Opts = {
+  isPro?: boolean; canBuy?: boolean; deleteEnabled?: boolean; status?: string; blocked?: boolean; clear?: Response; del?: Response;
+  hasMore?: boolean; poll?: Record<string, unknown>;
+};
 const T1 = "2026-11-10T10:00:00.000Z";
 const T2 = "2026-11-10T10:05:00.000Z";
 
@@ -150,7 +153,7 @@ function chatData(o: Opts) {
       { id: "a", body: "رسالتي", createdAt: T1, mine: true, readAt: T2, kind: "TEXT", media: null, replyTo: null, reactions: [] },
       { id: "b", body: "رسالتها", createdAt: T2, mine: false, readAt: T2, kind: "TEXT", media: null, replyTo: null, reactions: [] },
     ],
-    hasMore: false,
+    hasMore: !!o.hasMore,
     chatEnabled: true,
     deleteEnabled: o.deleteEnabled ?? true,
     clearedBefore: null,
@@ -167,6 +170,8 @@ function setup(o: Opts = {}) {
     if (url === "/api/chats/c1/clear") return o.clear ?? json({ clearedBefore: new Date().toISOString() });
     if (url.includes("/delete")) return o.del ?? json({ ok: true });
     if (url.startsWith("/api/chats/c1/read")) return json({});
+    if (url.startsWith("/api/chats/c1?after=") && o.poll) return json({ ...chatData(o), messages: [], ...o.poll });
+    if (url.startsWith("/api/chats/c1?before=")) return json({ ...chatData(o), messages: [], hasMore: false });
     if (url.startsWith("/api/chats/c1") && (!init || init.method === undefined)) return json(chatData(o));
     return json({});
   });
@@ -310,5 +315,24 @@ describe("chat room: delete for Pro", () => {
     act(() => subscriber.fn!({ name: "cleared", data: { before: T1 } }));
     expect(screen.queryByText("رسالتي")).toBeNull();
     expect(screen.getByText("تم حذف الرسالة")).toBeTruthy();
+  });
+
+  it("a poll whose `deletedIds` names a message not loaded changes nothing (no row, same load-older cursor)", async () => {
+    const fetchMock = setup({ isPro: true, hasMore: true, poll: { deletedIds: ["older-unloaded"], hiddenIds: [] } });
+    await ready();
+    const before = screen.getByRole("log").querySelectorAll("[data-message-id]");
+    expect([...before].map((el) => el.getAttribute("data-message-id"))).toEqual(["a", "b"]);
+    await act(async () => {
+      document.dispatchEvent(new Event("visibilitychange"));
+      for (let i = 0; i < 10; i++) await new Promise((r) => setTimeout(r, 0));
+    });
+    expect(fetchMock.mock.calls.some(([u]) => String(u).startsWith("/api/chats/c1?after="))).toBe(true);
+    const after = screen.getByRole("log").querySelectorAll("[data-message-id]");
+    expect([...after].map((el) => el.getAttribute("data-message-id"))).toEqual(["a", "b"]);
+    expect(screen.queryByText("تم حذف الرسالة")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "تحميل رسائل أقدم" }));
+    await waitFor(() => expect(fetchMock.mock.calls.some(([u]) => String(u).startsWith("/api/chats/c1?before="))).toBe(true));
+    const olderUrl = String(fetchMock.mock.calls.find(([u]) => String(u).startsWith("/api/chats/c1?before="))![0]);
+    expect(olderUrl).toBe(`/api/chats/c1?before=${encodeURIComponent(T1)}`);
   });
 });

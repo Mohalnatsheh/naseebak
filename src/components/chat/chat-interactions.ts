@@ -172,12 +172,3 @@ export function dropHidden<T extends UiMessage>(list: T[], ids: readonly string[
   if (gone.size === 0) return list;
   return traceQuotes(kept, new Set([...gone, ...hidden]));
 }
-
-/**
- * How many rows of a poll (`?after=`) are from the cursor on: a poll also carries older rows deleted since then (as
- * traces), which never count towards the full page that asks for the next one.
- */
-export function newerRowCount(rows: readonly { createdAt: string }[], after: string): number {
-  const from = Date.parse(after);
-  return rows.filter((m) => Date.parse(m.createdAt) >= from).length;
-}

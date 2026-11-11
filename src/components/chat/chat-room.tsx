@@ -41,7 +41,7 @@ import type { MessageActions } from "./message-menu";
 import { PhotoViewer, type ViewerPhoto } from "./photo-viewer";
 import { useTypingSignal, usePartnerTyping } from "./use-typing";
 import {
-  applyMyReaction, applyReactionUpdates, emptyChatHint, newerRowCount, nextReaction, quoteOf, reactionsSinceFor, showStarters,
+  applyMyReaction, applyReactionUpdates, emptyChatHint, nextReaction, quoteOf, reactionsSinceFor, showStarters,
 } from "./chat-interactions";
 import type { ChatReaction } from "@/lib/chat/reactions";
 import type { ReplyQuote } from "@/lib/chat/reply";
@@ -389,13 +389,10 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
         prev.map((m) => (m.mine && !m.readAt && !m.pending && m.createdAt <= read.createdAt ? { ...m, readAt: read.readAt } : m))
       );
     }
-    // A full page (the server's cap): more came while away, so keep paging forward until caught up. Only rows from the
-    // cursor on count: older rows deleted since then come back as traces and are not part of the page
+    // A full page (the server's cap): more came while away, so keep paging forward until caught up
     let page = result.data.messages;
-    let cursor = since;
-    for (let i = 0; i < 10 && newerRowCount(page, cursor) >= NEWER_PAGE_SIZE; i++) {
-      cursor = page[page.length - 1].createdAt;
-      const more = await requestLatest(conversationId, cursor);
+    for (let i = 0; i < 10 && page.length >= NEWER_PAGE_SIZE; i++) {
+      const more = await requestLatest(conversationId, page[page.length - 1].createdAt);
       if (more.kind !== "ok") break;
       applyLatest(more, "merge");
       page = more.data.messages;

@@ -336,31 +336,36 @@ describe("readers around a delete (rulings)", () => {
     expect(db.messageReaction.upsert).not.toHaveBeenCalled();
   });
 
-  it("a poll returns an older message deleted since `after` as a trace row (old apps merge by id)", async () => {
+  it("a poll never adds an older message deleted since `after` to `messages`: its id goes in `deletedIds` only", async () => {
     const after = "2026-11-10T10:00:00.000Z";
-    const old = {
-      id: "old", conversationId: "c1", senderId: "f1", body: "سر", kind: "TEXT", readAt: null, reactions: [], hides: [], replyTo: null,
-      createdAt: new Date("2026-11-10T09:00:00.000Z"), deletedAt: new Date("2026-11-10T10:00:30.000Z"),
-    };
-    const fresh = { ...old, id: "new", body: "جديدة", createdAt: new Date("2026-11-10T10:00:10.000Z"), deletedAt: null };
-    db.message.findMany.mockImplementation(async ({ where }: { where: { AND?: object[] } }) => {
-      const and = JSON.stringify(where.AND ?? []);
-      return and.includes("deletedAt") ? [old] : [fresh];
-    });
-    const res = await getConversation("c1", "u1", { after });
-    expect(res.messages.map((m) => m.id)).toEqual(["old", "new"]);
-    expect(res.messages[0]).toMatchObject({ id: "old", body: DELETED_TRACE, deleted: true, kind: "TEXT" });
-    expect(JSON.stringify(res.messages)).not.toContain("سر");
-    const q = db.message.findMany.mock.calls.map((c) => c[0]).find((a) => JSON.stringify(a.where).includes("deletedAt"))!;
-    expect(q.where).toEqual({
-      AND: [visibleMessageWhere("c1", "u1", null), { deletedAt: { gte: new Date(after) } }, { createdAt: { lt: new Date(after) } }],
-    });
-    expect(q).toMatchObject({ take: 50 });
-    // The newest real row stays the last message (the client's next cursor)
+    const base = { conversationId: "c1", senderId: "f1", kind: "TEXT", readAt: null, reactions: [], hides: [], replyTo: null };
+    const fresh = { ...base, id: "new", body: "جديدة", createdAt: new Date("2026-11-10T10:00:10.000Z"), deletedAt: null };
+    db.message.findMany.mockImplementation(async (args: { where: Record<string, unknown>; select?: unknown }) =>
+      // The deletedIds query (select id only, no AND) finds the older deleted message; the poll page only the new one
+      "deletedAt" in args.where ? [{ id: "old" }] : [fresh]
+    );
+    const res = await getConversation("c1", "u1", { after, reactionsSince: after });
+    expect(res.messages.map((m) => m.id)).toEqual(["new"]);
+    expect(res.deletedIds).toEqual(["old"]);
+    // The poll page asks only for rows from `after` on
+    const pageQueries = db.message.findMany.mock.calls.map((c) => c[0]).filter((a) => "AND" in a.where);
+    expect(pageQueries).toHaveLength(1);
+    expect(pageQueries[0].where).toEqual({ AND: [visibleMessageWhere("c1", "u1", null), { createdAt: { gte: new Date(after) } }] });
     expect(res.conversation.lastMessage?.body).toBe("جديدة");
   });
 
-  it("a full page (no `after`) makes no trace query", async () => {
+  it("a row from `after` on that was deleted for everyone still comes back as the trace", async () => {
+    const after = "2026-11-10T10:00:00.000Z";
+    db.message.findMany.mockResolvedValue([
+      { id: "d", conversationId: "c1", senderId: "f1", body: "سر", kind: "TEXT", readAt: null, reactions: [], hides: [], replyTo: null,
+        createdAt: new Date("2026-11-10T10:00:10.000Z"), deletedAt: new Date("2026-11-10T10:00:20.000Z") },
+    ]);
+    const res = await getConversation("c1", "u1", { after });
+    expect(res.messages[0]).toMatchObject({ id: "d", body: DELETED_TRACE, deleted: true, kind: "TEXT" });
+    expect(JSON.stringify(res.messages)).not.toContain("سر");
+  });
+
+  it("a full page (no `after`) makes one message query", async () => {
     await getConversation("c1", "u1");
     expect(db.message.findMany).toHaveBeenCalledTimes(1);
   });

@@ -15,7 +15,6 @@ import {
   showStarters,
   applyDeletions,
   dropHidden,
-  newerRowCount,
 } from "@/components/chat/chat-interactions";
 import type { UiMessage } from "@/components/chat/chat-utils";
 
@@ -202,13 +201,5 @@ describe("chat delete: applyDeletions / dropHidden", () => {
     // A quote of a message gone from my view reads as the trace (as the server sends it)
     expect(out[1].replyTo?.snippet).toBe("تم حذف الرسالة");
     expect(dropHidden(list, [], null)).toBe(list);
-  });
-});
-
-describe("newerRowCount: the catch-up counts only rows from the poll's cursor on", () => {
-  it("older trace rows in a poll don't count towards a full page", () => {
-    const rows = [{ createdAt: "2026-11-10T09:00:00.000Z" }, { createdAt: "2026-11-10T10:00:00.000Z" }, { createdAt: "2026-11-10T11:00:00.000Z" }];
-    expect(newerRowCount(rows, "2026-11-10T10:00:00.000Z")).toBe(2);
-    expect(newerRowCount([], "2026-11-10T10:00:00.000Z")).toBe(0);
   });
 });

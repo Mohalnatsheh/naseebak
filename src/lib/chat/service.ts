@@ -598,30 +598,19 @@ export async function getConversation(
   // inclusive (clients merge by id), so a message on a page boundary is never skipped
   let messages;
   let hasMore = false;
-  /** The newest new row of a poll (the client's next cursor), never an older trace row */
+  /** The newest row of the page (the conversation's last message) */
   let last: MessageRow | null = null;
   if (opts.after) {
-    const after = new Date(opts.after);
-    // Older messages deleted for everyone since `after` come back as trace rows: old apps merge poll rows by id, so the
-    // text is swapped for the trace live. Only rows older than `after` (newer ones are in the poll itself), so the
-    // newest row, the client's next cursor, is never a trace that skips past unseen messages
-    const [traces, fresh] = await Promise.all([
-      db.message.findMany({
-        where: { AND: [visible, { deletedAt: { gte: after } }, { createdAt: { lt: after } }] },
-        orderBy: { deletedAt: "desc" },
-        take: 50,
-        include,
-      }),
-      db.message.findMany({
-        where: { AND: [visible, { createdAt: { gte: after } }] },
-        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-        take: 100,
-        include,
-      }),
-    ]);
-    last = fresh.length ? fresh[fresh.length - 1] : null;
-    const byId = new Map([...traces, ...fresh].map((m) => [m.id, m]));
-    messages = [...byId.values()].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime() || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+    // Only rows from `after` on (a row deleted for everyone comes back as the trace). Older messages deleted since then
+    // are NOT added here: shipped apps insert unknown poll rows into the thread, above a gap that older pages then skip.
+    // Their ids go in `deletedIds` (polls with `reactionsSince`) instead; older apps see the trace on their next full load
+    messages = await db.message.findMany({
+      where: { AND: [visible, { createdAt: { gte: new Date(opts.after) } }] },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      take: 100,
+      include,
+    });
+    last = messages.length ? messages[messages.length - 1] : null;
   } else {
     const before = opts.before ? new Date(opts.before) : null;
     const page = await db.message.findMany({

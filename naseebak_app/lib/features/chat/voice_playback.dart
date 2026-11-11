@@ -273,6 +273,14 @@ class VoicePlayback {
     return s._player != null;
   }
 
+  /// A note deleted for everyone, hidden or cleared: it stops and its player closes (a bubble still holding the
+  /// session lets go of it by session, see [detach])
+  void forget(String key) {
+    final s = _sessions.remove(key);
+    if (_current == key) _current = null;
+    s?._close();
+  }
+
   void _closeIfIdle(VoiceSession s) {
     if (s._attached > 0 || _current == s.key) return;
     _sessions.remove(s.key);

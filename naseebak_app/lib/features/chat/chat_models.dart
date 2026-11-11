@@ -217,6 +217,9 @@ class ReplyQuote {
   final String snippet;
 }
 
+/// What a message deleted for everyone reads, for both members (the server sends it as the body; Pro chat delete)
+const deletedTrace = 'تم حذف الرسالة';
+
 /// `ChatMessage` of src/lib/chat/service.ts, plus local sending state for my own pending messages.
 class ChatMessage {
   const ChatMessage({
@@ -236,6 +239,7 @@ class ChatMessage {
     this.localPath,
     this.replyTo,
     this.reactions = const [],
+    this.deleted = false,
   });
 
   factory ChatMessage.fromJson(Map<String, dynamic> j) => ChatMessage(
@@ -248,6 +252,7 @@ class ChatMessage {
         media: ChatMedia.fromJsonOrNull(j['media']),
         replyTo: ReplyQuote.fromJsonOrNull(j['replyTo']),
         reactions: parseReactions(j['reactions']),
+        deleted: asBool(j['deleted']) ?? false,
       );
 
   /// Same shape as the API (chat cache). `localPath` is never written.
@@ -261,6 +266,7 @@ class ChatMessage {
         'media': media?.toJson(),
         'replyTo': replyTo?.toJson(),
         'reactions': [for (final r in reactions) r.toJson()],
+        if (deleted) 'deleted': true,
       };
 
   final String id;
@@ -295,12 +301,16 @@ class ChatMessage {
   /// One per member at most (empty from servers before the field)
   final List<ChatReaction> reactions;
 
+  /// Deleted for everyone: [body] is [deletedTrace], no media, quote or reactions (false from servers before the field)
+  final bool deleted;
+
   String? get myReaction => reactions.where((r) => r.mine).map((r) => r.emoji).firstOrNull;
 
   /// Same server copy (a newer one differs, e.g. by its read tick)
   bool sameAs(ChatMessage o) =>
       id == o.id && body == o.body && mine == o.mine && createdAt == o.createdAt && readAt == o.readAt &&
-      kind == o.kind && media?.url == o.media?.url && replyTo?.id == o.replyTo?.id && _sameReactions(o.reactions);
+      kind == o.kind && media?.url == o.media?.url && replyTo?.id == o.replyTo?.id &&
+      replyTo?.snippet == o.replyTo?.snippet && deleted == o.deleted && _sameReactions(o.reactions);
 
   bool _sameReactions(List<ChatReaction> o) {
     if (o.length != reactions.length) return false;
@@ -326,7 +336,42 @@ class ChatMessage {
         media: media,
         localPath: localPath,
         replyTo: replyTo,
-        reactions: next,
+        // A trace never shows reactions (a late poll or live event can't put them back)
+        reactions: deleted ? const [] : next,
+        deleted: deleted,
+      );
+
+  /// The trace, as the server sends a message deleted for everyone
+  ChatMessage asDeleted() => ChatMessage(
+        id: id,
+        body: deletedTrace,
+        createdAt: createdAt,
+        mine: mine,
+        readAt: readAt,
+        state: state,
+        nonce: nonce,
+        deleted: true,
+      );
+
+  /// The same message quoting [quote] (a quote of a message gone from my view reads as the trace)
+  ChatMessage withQuote(ReplyQuote? quote) => ChatMessage(
+        id: id,
+        body: body,
+        createdAt: createdAt,
+        mine: mine,
+        readAt: readAt,
+        state: state,
+        error: error,
+        nonce: nonce,
+        filtered: filtered,
+        maybeSent: maybeSent,
+        proRequired: proRequired,
+        kind: kind,
+        media: media,
+        localPath: localPath,
+        replyTo: quote,
+        reactions: reactions,
+        deleted: deleted,
       );
 
   ChatMessage copyWith({
@@ -352,7 +397,74 @@ class ChatMessage {
         localPath: localPath,
         replyTo: replyTo,
         reactions: reactions,
+        deleted: deleted,
       );
+}
+
+/// A quote of a message gone from my view (deleted for everyone, hidden or cleared) reads as the trace, as the server
+/// sends it
+List<ChatMessage> _traceQuotes(List<ChatMessage> list, Set<String> gone) => [
+      for (final m in list)
+        if (m.replyTo case final q? when gone.contains(q.id) && q.snippet != deletedTrace)
+          m.withQuote(ReplyQuote(id: q.id, mine: q.mine, kind: MessageKind.text, snippet: deletedTrace))
+        else
+          m,
+    ];
+
+/// Messages deleted for everyone ([ids]) become the trace, and quotes of them read as the trace (same rules as the
+/// website's `applyDeletions`). Ids that aren't loaded change nothing: the same list back when nothing applies.
+List<ChatMessage> applyDeletions(List<ChatMessage> list, Iterable<String> ids) {
+  final gone = ids.toSet();
+  if (gone.isEmpty) return list;
+  var hit = false;
+  final out = [
+    for (final m in list)
+      if (gone.contains(m.id) && m.state == SendState.sent && !m.deleted) m.asDeleted() else m,
+  ];
+  for (var i = 0; i < out.length && !hit; i++) {
+    hit = !identical(out[i], list[i]);
+  }
+  final quoted = _traceQuotes(out, gone);
+  for (var i = 0; i < quoted.length && !hit; i++) {
+    hit = !identical(quoted[i], out[i]);
+  }
+  return hit ? quoted : list;
+}
+
+/// Drops what left my view: messages I hid ([ids]) and every saved message at or before my clear point
+/// ([clearedBefore]). Sends still on their way (or failed) stay. Quotes of dropped messages read as the trace. The same
+/// list back when nothing applies (the website's `dropHidden`).
+List<ChatMessage> dropHidden(List<ChatMessage> list, Iterable<String> ids, DateTime? clearedBefore) {
+  final hidden = ids.toSet();
+  if (hidden.isEmpty && clearedBefore == null) return list;
+  final gone = <String>{};
+  final kept = list.where((m) {
+    if (m.state != SendState.sent) return true;
+    if (hidden.contains(m.id) || (clearedBefore != null && !m.createdAt.isAfter(clearedBefore))) {
+      gone.add(m.id);
+      return false;
+    }
+    return true;
+  }).toList();
+  if (gone.isEmpty) return list;
+  return _traceQuotes(kept, {...gone, ...hidden});
+}
+
+/// The delete entries (message menu, «مسح المحادثة»): [use] for Pro, [upsell] (opens `/pro`, sends nothing) for a member
+/// who could buy it, [hidden] otherwise
+enum DeleteMode { hidden, use, upsell }
+
+/// Shown only with the server's switch on and where the app shows payments (never a test or review account, nor where
+/// Pro can't be bought, e.g. Lebanon before sales): `deleteEnabled && appPayments && (isPro || canBuy)`
+DeleteMode deleteModeOf({
+  required bool deleteEnabled,
+  required bool appPayments,
+  required bool isPro,
+  required bool canBuy,
+}) {
+  if (!deleteEnabled || !appPayments) return DeleteMode.hidden;
+  if (isPro) return DeleteMode.use;
+  return canBuy ? DeleteMode.upsell : DeleteMode.hidden;
 }
 
 class ChatPage {
@@ -366,6 +478,10 @@ class ChatPage {
     this.bothWrote,
     this.polledAt,
     this.reactionUpdates,
+    this.deleteEnabled = false,
+    this.clearedBefore,
+    this.deletedIds = const [],
+    this.hiddenIds = const [],
   });
   final ChatSummary conversation;
   final List<ChatMessage> messages;
@@ -389,6 +505,18 @@ class ChatPage {
   /// A poll with `reactionsSince`: message id → all its reactions now (empty = the last one was removed), for
   /// messages whose reactions changed since then, older ones included. The polling fallback for the live `reaction`.
   final Map<String, List<ChatReaction>>? reactionUpdates;
+
+  /// Pro chat delete is switched on (false from servers before the field: no entries)
+  final bool deleteEnabled;
+
+  /// My clear point (the later of a chat-wide clear and my own): messages at or before it leave my view
+  final DateTime? clearedBefore;
+
+  /// A poll with `reactionsSince`: messages deleted for everyone since then (they read as the trace)
+  final List<String> deletedIds;
+
+  /// A poll with `reactionsSince`: messages I hid since then (on another device)
+  final List<String> hiddenIds;
 }
 
 /// `reactionUpdates` of the chat GET: `[{messageId, reactions: [{emoji, mine}]}]` (null when absent)
@@ -430,7 +558,22 @@ class ChatRepository {
       bothWrote: asBool(j['bothWrote']),
       polledAt: asDate(j['polledAt']),
       reactionUpdates: parseReactionUpdates(j['reactionUpdates']),
+      deleteEnabled: asBool(j['deleteEnabled']) ?? false,
+      clearedBefore: asDate(j['clearedBefore']),
+      deletedIds: asStringList(j['deletedIds']),
+      hiddenIds: asStringList(j['hiddenIds']),
     );
+  }
+
+  /// Pro: a message deleted for me, or for everyone (my own only; the server refuses any other)
+  Future<void> deleteMessage(String chatId, String messageId, {required bool forEveryone}) async {
+    await _api.post('/api/chats/$chatId/messages/$messageId/delete', body: {'scope': forEveryone ? 'everyone' : 'me'});
+  }
+
+  /// Pro: the whole chat cleared for me, or for both. Returns the server's clear point.
+  Future<DateTime?> clearChat(String chatId, {required bool forEveryone}) async {
+    final j = await _api.post('/api/chats/$chatId/clear', body: {'scope': forEveryone ? 'everyone' : 'me'});
+    return asDate(j['clearedBefore']);
   }
 
   /// A text message; [replyToId] quotes a message of the same chat (the server refuses any other with 400)

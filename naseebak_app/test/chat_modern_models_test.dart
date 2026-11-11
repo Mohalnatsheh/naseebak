@@ -149,6 +149,70 @@ void main() {
     });
   });
 
+  group('chat delete (Pro)', () {
+    test('deleteEnabled, clearedBefore, deletedIds, hiddenIds and `deleted`; an old server gives the defaults', () async {
+      final adapter = FakeAdapter()
+        ..on('GET', '/api/chats/c1', const FakeResponse(200, {
+          'conversation': {'id': 'c1', 'matchId': 'x1', 'partner': {'id': 'p1', 'firstName': 'عمر'}, 'status': 'ACTIVE'},
+          'messages': [
+            {
+              'id': 'm1',
+              'body': 'تم حذف الرسالة',
+              'createdAt': '2026-11-10T10:00:00.000Z',
+              'mine': false,
+              'deleted': true,
+              'kind': 'TEXT',
+              'media': null,
+              'replyTo': null,
+              'reactions': [],
+            },
+          ],
+          'hasMore': false,
+          'deleteEnabled': true,
+          'clearedBefore': '2026-11-10T09:00:00.000Z',
+          'deletedIds': ['m1', 'm0'],
+          'hiddenIds': ['m5'],
+        }))
+        ..on('GET', '/api/chats/c2', const FakeResponse(200, {
+          'conversation': {'id': 'c2', 'matchId': 'x2', 'partner': {'id': 'p1', 'firstName': 'عمر'}, 'status': 'ACTIVE'},
+          'messages': [
+            {'id': 'm1', 'body': 'x', 'createdAt': '2026-11-10T10:00:00.000Z', 'mine': false},
+          ],
+          'hasMore': false,
+        }));
+      final repo = ChatRepository(fakeClient(adapter));
+      final a = await repo.load('c1');
+      expect(a.deleteEnabled, isTrue);
+      expect(a.clearedBefore, DateTime.utc(2026, 11, 10, 9));
+      expect(a.deletedIds, ['m1', 'm0']);
+      expect(a.hiddenIds, ['m5']);
+      expect(a.messages.single.deleted, isTrue);
+      expect(a.messages.single.body, deletedTrace);
+      final b = await repo.load('c2');
+      expect(b.deleteEnabled, isFalse);
+      expect(b.clearedBefore, isNull);
+      expect(b.deletedIds, isEmpty);
+      expect(b.hiddenIds, isEmpty);
+      expect(b.messages.single.deleted, isFalse);
+    });
+
+    test('deleteMessage and clearChat post the scope; clearChat returns the server clear point', () async {
+      final adapter = FakeAdapter()
+        ..on('POST', '/api/chats/c1/messages/m1/delete', const FakeResponse(200, {'ok': true}))
+        ..on('POST', '/api/chats/c1/clear', const FakeResponse(200, {'clearedBefore': '2026-11-10T10:00:00.000Z'}));
+      final repo = ChatRepository(fakeClient(adapter, store: MemoryTokenStore('t')));
+      await repo.deleteMessage('c1', 'm1', forEveryone: true);
+      await repo.deleteMessage('c1', 'm1', forEveryone: false);
+      final at = await repo.clearChat('c1', forEveryone: false);
+      expect(adapter.to('POST', '/api/chats/c1/messages/m1/delete').map((r) => r.data), [
+        {'scope': 'everyone'},
+        {'scope': 'me'},
+      ]);
+      expect(adapter.to('POST', '/api/chats/c1/clear').single.data, {'scope': 'me'});
+      expect(at, DateTime.utc(2026, 11, 10, 10));
+    });
+  });
+
   group('the repository', () {
     late FakeAdapter adapter;
     late ChatRepository repo;

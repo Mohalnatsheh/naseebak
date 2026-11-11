@@ -1002,7 +1002,17 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
     return null;
   }
 
+  /// The list is attached AND laid out. `hasClients` alone is not enough: until the first layout the position's
+  /// `pixels` / `maxScrollExtent` / `viewportDimension` are null and their getters throw «Null check operator used on
+  /// a null value» (Crashlytics, 1.2.x: `_fillScreen` and `_revealUnread` → `_scrollToRow` right after a load).
+  bool get _scrollReady {
+    if (!_scroll.hasClients) return false;
+    final pos = _scroll.position;
+    return pos.hasContentDimensions && pos.hasPixels && pos.hasViewportDimension;
+  }
+
   void _onScroll() {
+    if (!_scrollReady) return;
     // reverse: true — offset 0 is the newest message, older ones are at the far end
     final pos = _scroll.position;
     if (pos.pixels > pos.maxScrollExtent - 200) _loadOlder();
@@ -1016,9 +1026,14 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
   }
 
   /// A first page too short to scroll can't trigger «older»: keep loading until the list fills the screen
-  void _fillScreen() {
+  void _fillScreen([int waits = 0]) {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted || !_hasMore || !_scroll.hasClients) return;
+      // Attached but not laid out yet: look again next frame (a few times), never read the null extent
+      if (!_scrollReady) {
+        if (waits < 10) _fillScreen(waits + 1);
+        return;
+      }
       if (_scroll.position.maxScrollExtent > 0) return;
       await _loadOlder();
       _fillScreen();
@@ -1130,6 +1145,23 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
   Future<void> _pickPhoto() async {
     if (_picking) return;
     _picking = true;
+    // The keyboard closes before the system picker opens: an open text field under the picker and the preview could
+    // get the iPhone keyboard back afterwards with nothing focused, so nothing could close it (TestFlight report)
+    _inputFocus.unfocus();
+    try {
+      await _pickPhotoAndSend();
+    } finally {
+      _hideOrphanKeyboard();
+    }
+  }
+
+  /// After the photo flow: the keyboard stays hidden unless the member tapped back into the text box
+  void _hideOrphanKeyboard() {
+    if (!mounted || _inputFocus.hasFocus) return;
+    SystemChannels.textInput.invokeMethod<void>('TextInput.hide');
+  }
+
+  Future<void> _pickPhotoAndSend() async {
     PickedPhoto? photo;
     try {
       photo = await ref.read(chatPhotoPickerProvider)();
@@ -1967,6 +1999,11 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> with WidgetsBin
           curve: Curves.easeOutCubic,
         );
         return true;
+      }
+      // Not laid out yet (a chat opening on unread messages): wait a frame instead of reading the null extent
+      if (!_scrollReady) {
+        await WidgetsBinding.instance.endOfFrame;
+        continue;
       }
       final pos = _scroll.position;
       if (pos.pixels >= pos.maxScrollExtent) return false;

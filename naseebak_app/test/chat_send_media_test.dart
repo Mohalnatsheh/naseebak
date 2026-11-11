@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -181,6 +182,29 @@ void main() {
     expect(cached.messages.map((m) => m.id), ['m001', 'srv-$nonce']);
     // The picker's copy is deleted once the server has the photo
     expect(h.photo.existsSync(), isFalse);
+  });
+
+  testWidgets('sending a photo with the keyboard open: the keyboard closes and stays closed (TestFlight report)',
+      (tester) async {
+    final h = _Harness();
+    await h.open(tester);
+    final hides = <String>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.textInput, (call) async {
+      if (call.method == 'TextInput.hide') hides.add(call.method);
+      return null;
+    });
+    addTearDown(() => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.textInput, null));
+    // The composer focused: the keyboard is up
+    await tester.tap(find.byKey(const Key('chat-input')));
+    await tester.pump();
+    final field = tester.widget<TextField>(find.byKey(const Key('chat-input')));
+    expect(field.focusNode!.hasFocus, isTrue);
+    await pickAndSendPhoto(tester);
+    await tester.pumpAndSettle();
+    expect(h.uploads, hasLength(1));
+    // Nothing is left focused under the picker and preview, and the keyboard is told to go
+    expect(field.focusNode!.hasFocus, isFalse);
+    expect(hides, isNotEmpty);
   });
 
   testWidgets('a photo over 10 MB is refused in the app and nothing is sent', (tester) async {

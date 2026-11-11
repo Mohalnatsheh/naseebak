@@ -19,6 +19,7 @@ import '../home/gendered_copy.dart';
 import '../matches/safety_actions.dart';
 import '../profile/preferences_screen.dart';
 import 'interest_sheet.dart';
+import 'recharge_sheet.dart';
 import 'preferences_bar.dart';
 import 'suggestion_card.dart';
 import 'suggestion_models.dart';
@@ -260,6 +261,10 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
 
   static const _freeReplyNote = 'الرد بـ«مهتم» مجاني';
 
+  /// Switch interest_paywall, for a member who can buy (the server decides; the app also needs its payments on):
+  /// at 0 credits «مهتم» stays tappable and opens the «انتهى رصيدك» step
+  bool _paywall(Counts? counts) => (counts?.interestPaywall ?? false) && ref.read(appPaymentsProvider);
+
   /// [keepPages]: read every page already loaded again (in order) instead of only the first
   Future<void> _load({bool keepPages = false}) async {
     final generation = ++_generation;
@@ -421,6 +426,14 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
 
   Future<void> _interested(FeedItem item) async {
     if (_busy.contains(item.id)) return;
+    final counts0 = ref.read(countsProvider).valueOrNull;
+    if (_outOfCredits(counts0, ref.read(authControllerProvider).me?.credits) &&
+        !_freeReply(counts0, item) &&
+        _paywall(counts0)) {
+      final buy = await RechargeSheet.show(context, viewerFemale: _viewerFemale);
+      if (buy && mounted) context.push('/credits');
+      return;
+    }
     final repo = ref.read(suggestionsRepositoryProvider);
     var counts = ref.read(countsProvider).valueOrNull;
     // The switches aren't known (the counts failed or are still loading): read them first. Guessing showed the
@@ -542,6 +555,7 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
     if (_error != null && _items.isEmpty) return ErrorView(error: _error!, onRetry: _load);
     final onEdit = widget.onEditPreferences;
     final outOfCredits = _outOfCredits(counts, me?.credits);
+    final paywall = (counts?.interestPaywall ?? false) && ref.watch(appPaymentsProvider);
     final creditNote =
         (counts?.flags.creditOnInterest ?? false) && !outOfCredits ? '«مهتم» يستخدم رصيداً واحداً' : null;
     final bar = widget.tab == FeedTab.newTab && onEdit != null ? PreferencesBar(onEdit: onEdit) : null;
@@ -594,7 +608,7 @@ class _FeedListState extends ConsumerState<FeedList> with AutomaticKeepAliveClie
                     candidateFemale: !(me?.isFemale ?? false),
                     tribeLabel: me?.country.tribeWord ?? 'العائلة',
                     busy: _busy.contains(item.id),
-                    interestDisabled: outOfCredits && !_freeReply(counts, item),
+                    interestDisabled: outOfCredits && !_freeReply(counts, item) && !paywall,
                     creditNote: _freeReply(counts, item) ? _freeReplyNote : creditNote,
                     onInterested: () => _interested(item),
                     onDecline: () => _decline(item),

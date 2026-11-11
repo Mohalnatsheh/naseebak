@@ -760,7 +760,16 @@ function onceByNonce(
 async function savedByNonce(conversationId: string, senderId: string, clientNonce?: string): Promise<ChatMessage | null> {
   if (!clientNonce) return null;
   const saved = await db.message.findFirst({ where: { conversationId, senderId, clientNonce }, include: messageIncludeFor(senderId) });
-  return saved ? toMessage(saved, senderId) : null;
+  if (!saved) return null;
+  // The sender's clear point, as on a read: a quote of a message cleared since comes back as the trace
+  const [chat, myClear] = await Promise.all([
+    db.conversation.findUnique({ where: { id: conversationId }, select: { clearedAt: true } }),
+    db.conversationClear.findUnique({
+      where: { conversationId_userId: { conversationId, userId: senderId } },
+      select: { clearedAt: true },
+    }),
+  ]);
+  return toMessage(saved, senderId, viewerCutoff(chat?.clearedAt ?? null, myClear?.clearedAt ?? null));
 }
 
 type SendContext = {

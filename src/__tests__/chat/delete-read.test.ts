@@ -26,7 +26,7 @@ vi.mock("@/lib/reports", () => ({ fileReport: vi.fn() }));
 vi.mock("@/lib/pro/status", () => ({ isPro: vi.fn(async () => false), proUserIds: vi.fn(async () => new Set()) }));
 vi.mock("@/lib/auth", () => auth);
 
-import { getConversation, listConversations } from "@/lib/chat/service";
+import { getConversation, listConversations, sendMessage } from "@/lib/chat/service";
 import { DELETED_TRACE, visibleMessageWhere } from "@/lib/chat/visibility";
 import { GET as chatRoute } from "@/app/api/chats/[id]/route";
 
@@ -295,5 +295,30 @@ describe("first page widens to 100 in chats with deletion state (old apps' 100-m
     const afterCall = db.message.findMany.mock.calls.find(([a]) => (a as { orderBy?: unknown }).orderBy && Array.isArray((a as { orderBy: unknown }).orderBy));
     expect((afterCall?.[0] as { take: number }).take).toBe(100);
     expect(db.message.findFirst).not.toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ OR: expect.anything() }) }));
+  });
+});
+
+describe("a retried send (same nonce) applies the clear point to its quote", () => {
+  const quote = (createdAt: Date) => ({
+    id: "q", conversationId: "c1", senderId: "f1", kind: "TEXT", body: "سر", createdAt, deletedAt: null, hides: [],
+  });
+
+  it("a quote of a message cleared for everyone comes back as the trace", async () => {
+    const cleared = new Date(Date.now() - DAY);
+    db.conversation.findUnique.mockResolvedValue(conv({ clearedAt: cleared, clearedById: "f1" }));
+    db.message.findFirst.mockResolvedValueOnce(row({ id: "s1", senderId: "u1", body: "رد", replyToId: "q", replyTo: quote(cleared) }));
+    const m = await sendMessage({ conversationId: "c1", senderId: "u1", body: "رد", clientNonce: "n-clear" });
+    expect(m.id).toBe("s1");
+    expect(m.replyTo).toMatchObject({ id: "q", snippet: DELETED_TRACE });
+    expect(JSON.stringify(m)).not.toContain("سر");
+    expect(db.message.create).not.toHaveBeenCalled();
+  });
+
+  it("my own clear applies too", async () => {
+    const mine = new Date(Date.now() - DAY);
+    db.conversationClear.findUnique.mockResolvedValue({ clearedAt: mine });
+    db.message.findFirst.mockResolvedValueOnce(row({ id: "s2", senderId: "u1", body: "رد", replyToId: "q", replyTo: quote(mine) }));
+    const m = await sendMessage({ conversationId: "c1", senderId: "u1", body: "رد", clientNonce: "n-myclear" });
+    expect(m.replyTo).toMatchObject({ id: "q", snippet: DELETED_TRACE });
   });
 });

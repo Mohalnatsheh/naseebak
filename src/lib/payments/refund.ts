@@ -15,7 +15,7 @@ import { notify } from "@/lib/notify";
 import { recordCredit } from "@/lib/credits";
 import { sendAdminAlert } from "@/lib/admin-alert";
 import type { CountryCode } from "@/lib/countries";
-import { findAnyPackage, formatPaidAmount } from "@/lib/payments/packages";
+import { findAnyPackage, formatPaidAmount, fromMinor } from "@/lib/payments/packages";
 import { PRO_PAGE_PATH, planFromName } from "@/lib/pro/plans";
 import { cancelProNow, endProLocally } from "@/lib/pro/manage";
 import { invoiceIdForPaymentIntent } from "@/lib/pro/invoice-payments";
@@ -198,7 +198,7 @@ export async function handleChargeRefunded(charge: Stripe.Charge): Promise<Refun
     await sendAdminAlert(
       "Partial Stripe refund",
       `Payment ${payment.id} (user ${payment.userId ?? "deleted"}) was partly refunded in Stripe ` +
-        `(${(charge.amount_refunded / 100).toFixed(2)} of ${(charge.amount / 100).toFixed(2)} ${charge.currency.toUpperCase()}). ` +
+        `(${fromMinor(charge.amount_refunded, charge.currency).toFixed(2)} of ${fromMinor(charge.amount, charge.currency).toFixed(2)} ${charge.currency.toUpperCase()}). ` +
         "Credits were not changed — adjust them in Admin → Users if needed.",
       alertAbout(payment),
     );
@@ -217,7 +217,7 @@ export async function flagDispute(dispute: Stripe.Dispute): Promise<"flagged" | 
   });
   await sendAdminAlert(
     "Stripe dispute opened",
-    `A dispute (${dispute.reason}, ${(dispute.amount / 100).toFixed(2)} ${dispute.currency.toUpperCase()}) was opened on ` +
+    `A dispute (${dispute.reason}, ${fromMinor(dispute.amount, dispute.currency).toFixed(2)} ${dispute.currency.toUpperCase()}) was opened on ` +
       `payment ${payment.id} (user ${payment.userId ?? "deleted"}, package ${payment.planName ?? "?"}). ` +
       "Respond in the Stripe dashboard before the deadline. Credits were not changed.",
     alertAbout(payment),

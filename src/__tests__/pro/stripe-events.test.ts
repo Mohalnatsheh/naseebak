@@ -203,6 +203,17 @@ describe("handleProInvoicePaid", () => {
     expect(notifyMock.notify).toHaveBeenCalledTimes(1);
   });
 
+  it("records the invoice's own currency: the first invoice on the checkout row, a renewal on its new row", async () => {
+    pendingCheckoutRow();
+    await handleProInvoicePaid(firstInvoice());
+    expect(store.payments[0]).toMatchObject({ id: "pay1", chargeCurrency: "usd" });
+    // A subscription started in USD keeps renewing in USD after the switch: the row says so, display price unchanged
+    await handleProInvoicePaid(firstInvoice({ id: "in_2", periodStart: T1, periodEnd: T2, billingReason: "subscription_cycle" }));
+    expect(store.payments.find((p) => p.providerTxId === "in_2")).toMatchObject({ amount: 4, currency: "JOD", chargeCurrency: "usd" });
+    await handleProInvoicePaid(firstInvoice({ id: "in_3", periodStart: T2, periodEnd: T2 + 1000, currency: "jod", amountPaid: 4000, billingReason: "subscription_cycle" }));
+    expect(store.payments.find((p) => p.providerTxId === "in_3")).toMatchObject({ chargeCurrency: "jod" });
+  });
+
   it("an older invoice delivered late never moves the period back", async () => {
     pendingCheckoutRow();
     await handleProInvoicePaid(firstInvoice());

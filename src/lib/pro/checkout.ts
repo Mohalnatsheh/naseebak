@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { db } from "@/lib/db";
 import { getStripe } from "@/lib/stripe";
-import { getProEnabled } from "@/lib/settings";
+import { getProEnabled, jodChargingFor } from "@/lib/settings";
 import { toCountry } from "@/lib/countries";
 import { getCountrySettings, purchasesAvailable } from "@/lib/countries/settings";
 import { CHECKOUT_APP } from "@/lib/payments/fulfil";
@@ -83,7 +83,7 @@ export async function startProCheckout(userId: string, plan: ProPlanId): Promise
   const countrySettings = await getCountrySettings(country);
   if (!purchasesAvailable(countrySettings)) throw new ProError("UNAVAILABLE");
   if (await currentProSubscription(userId)) throw new ProError("ALREADY_PRO");
-  const offer = proOffersFor(country, countrySettings.proPlans).find((o) => o.id === plan);
+  const offer = proOffersFor(country, countrySettings.proPlans, await jodChargingFor(country)).find((o) => o.id === plan);
   if (!offer) throw new ProError("UNKNOWN_PLAN");
 
   await expireOpenProCheckouts(userId);
@@ -132,6 +132,8 @@ export async function startProCheckout(userId: string, plan: ProPlanId): Promise
       planName: proPlanName(plan),
       amount: offer.price,
       currency: offer.currency,
+      // Stripe bills every renewal of this subscription in this currency
+      chargeCurrency: offer.chargeCurrency,
       provider: "STRIPE",
       status: "PENDING",
       stripeSessionId: sessionId,

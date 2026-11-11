@@ -11,10 +11,11 @@ const mocks = vi.hoisted(() => ({
   purchasesAvailable: vi.fn(),
   currentProSubscription: vi.fn(),
   paymentsMockEnabled: vi.fn(),
+  jodChargingFor: vi.fn(),
 }));
 vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/stripe", () => ({ getStripe: () => ({ checkout: { sessions: { create: stripe.create, expire: stripe.expire } } }) }));
-vi.mock("@/lib/settings", () => ({ getProEnabled: mocks.getProEnabled }));
+vi.mock("@/lib/settings", () => ({ getProEnabled: mocks.getProEnabled, jodChargingFor: mocks.jodChargingFor }));
 vi.mock("@/lib/countries/settings", () => ({ getCountrySettings: mocks.getCountrySettings, purchasesAvailable: mocks.purchasesAvailable }));
 vi.mock("@/lib/pro/status", () => ({ currentProSubscription: mocks.currentProSubscription }));
 vi.mock("@/lib/payments/mock", () => ({ MOCK_SESSION_PREFIX: "mock_", paymentsMockEnabled: mocks.paymentsMockEnabled }));
@@ -35,6 +36,7 @@ beforeEach(() => {
   mocks.getCountrySettings.mockResolvedValue({ proPlans: plans });
   mocks.currentProSubscription.mockResolvedValue(null);
   mocks.paymentsMockEnabled.mockReturnValue(false);
+  mocks.jodChargingFor.mockResolvedValue(false);
   db.user.findUnique.mockResolvedValue({ country: "JO" });
   db.payment.create.mockResolvedValue({});
   db.payment.findMany.mockResolvedValue([]);
@@ -52,6 +54,22 @@ async function code(p: Promise<unknown>) {
   }
   return null;
 }
+
+describe("startProCheckout, switch jod_charging", () => {
+  it("off: USD charge, the row records usd", async () => {
+    await startProCheckout("u1", "monthly");
+    expect(stripe.create.mock.calls[0][0].line_items[0].price_data).toMatchObject({ currency: "usd", unit_amount: 564 });
+    expect(db.payment.create.mock.calls[0][0].data).toMatchObject({ amount: 4, currency: "JOD", chargeCurrency: "usd" });
+  });
+
+  it("on: JOD charge in fils, the row records jod", async () => {
+    mocks.jodChargingFor.mockResolvedValue(true);
+    await startProCheckout("u1", "monthly");
+    expect(mocks.jodChargingFor).toHaveBeenCalledWith("JO");
+    expect(stripe.create.mock.calls[0][0].line_items[0].price_data).toMatchObject({ currency: "jod", unit_amount: 4000 });
+    expect(db.payment.create.mock.calls[0][0].data).toMatchObject({ amount: 4, currency: "JOD", chargeCurrency: "jod" });
+  });
+});
 
 describe("startProCheckout", () => {
   it("refuses while the switch is off", async () => {

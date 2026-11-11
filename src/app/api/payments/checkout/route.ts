@@ -11,6 +11,7 @@ import { newPayToken, payPagePath, paymentIntentParams, usesArabicCheckout } fro
 import { MOCK_SESSION_PREFIX, paymentsMockEnabled } from "@/lib/payments/mock";
 import { toCountry } from "@/lib/countries";
 import { getCountrySettings, purchasesAvailable } from "@/lib/countries/settings";
+import { jodChargingFor } from "@/lib/settings";
 
 /** Stripe's error fields worth logging (never the full request) */
 function stripeErrorInfo(error: unknown) {
@@ -46,7 +47,8 @@ export async function POST(request: Request) {
     if (!purchasesAvailable(countrySettings)) {
       return NextResponse.json({ error: "الشراء غير متاح في دولتك حالياً", code: "PURCHASES_DISABLED" }, { status: 403 });
     }
-    const pkg = findPackage(body?.packageId, country, countrySettings.packagePrices);
+    // Switch jod_charging: read once here; the row records the currency, so a later flip never changes this checkout
+    const pkg = findPackage(body?.packageId, country, countrySettings.packagePrices, await jodChargingFor(country));
     if (!pkg) {
       return NextResponse.json({ error: "الباقة غير صالحة", code: "INVALID_PACKAGE" }, { status: 400 });
     }
@@ -85,7 +87,7 @@ export async function POST(request: Request) {
       try {
         const lineItems = [{ price_data: { currency: pkg.chargeCurrency, product_data: { name: productName(pkg) }, unit_amount: pkg.chargeAmount }, quantity: 1 }];
         const expiresAt = Math.floor((Date.now() + CHECKOUT_TTL_MS) / 1000);
-        // Jordan: charged in USD, shown in JOD · Saudi Arabia: SAR (lib/payments/packages)
+        // Jordan: shown in JOD, charged in USD (in JOD with jod_charging) · Saudi Arabia: SAR (lib/payments/packages)
         const base = hosted
           ? {
               mode: "payment" as const,
@@ -124,7 +126,7 @@ export async function POST(request: Request) {
       }
     }
 
-    // Amount stored in the display currency (JOD / SAR); the charge itself is pkg.chargeAmount
+    // Amount stored in the display currency (JOD / SAR); the charge itself is pkg.chargeAmount in pkg.chargeCurrency
     await db.payment.create({
       data: {
         id: paymentId,
@@ -133,6 +135,7 @@ export async function POST(request: Request) {
         planName: pkg.id,
         amount: pkg.price,
         currency: pkg.currency,
+        chargeCurrency: pkg.chargeCurrency,
         provider: "STRIPE",
         status: "PENDING",
         stripeSessionId: sessionId,

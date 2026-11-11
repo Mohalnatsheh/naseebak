@@ -199,15 +199,20 @@ export async function handleProInvoicePaid(invoice: Stripe.Invoice): Promise<Pro
     } else {
       paymentNew = true;
       const checkoutRow = meta!.paymentId
-        ? await tx.payment.findUnique({ where: { id: meta!.paymentId }, select: { id: true, status: true, providerTxId: true } })
+        ? await tx.payment.findUnique({ where: { id: meta!.paymentId }, select: { id: true, status: true, providerTxId: true, chargeCurrency: true } })
         : null;
       // A renewal (billing_reason subscription_cycle) delivered before the first invoice never takes the checkout's row
       const renewal = invoice.billing_reason === "subscription_cycle";
+      // What the card was really charged in: the invoice's own currency (a subscription started in USD renews in USD)
+      const chargeCurrency = invoice.currency ? invoice.currency.toLowerCase() : null;
+      if (checkoutRow?.chargeCurrency && chargeCurrency && checkoutRow.chargeCurrency !== chargeCurrency) {
+        console.warn("[pro] invoice currency differs from the checkout's:", invoice.id, checkoutRow.id, chargeCurrency, checkoutRow.chargeCurrency);
+      }
       if (!renewal && checkoutRow && !checkoutRow.providerTxId && (checkoutRow.status === "PENDING" || checkoutRow.status === "FAILED")) {
         // The first invoice completes the checkout's row (also a FAILED one: the app gave up while the member paid)
         await tx.payment.update({
           where: { id: checkoutRow.id },
-          data: { status: "COMPLETED", providerTxId: invoice.id, proSubscriptionId: sub.id, failureReason: null },
+          data: { status: "COMPLETED", providerTxId: invoice.id, proSubscriptionId: sub.id, failureReason: null, chargeCurrency },
         });
         paymentId = checkoutRow.id;
       } else {
@@ -222,6 +227,7 @@ export async function handleProInvoicePaid(invoice: Stripe.Invoice): Promise<Pro
             planName: proPlanName(plan),
             amount: sub.price,
             currency: sub.currency,
+            chargeCurrency,
             provider: "STRIPE",
             status: "COMPLETED",
             providerTxId: invoice.id,

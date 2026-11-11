@@ -158,4 +158,14 @@ describe("Stripe charge events", () => {
     expect(await handleChargeRefunded(charge)).toBe("partial");
     expect(alert.sendAdminAlert).toHaveBeenCalledWith("Partial Stripe refund", expect.any(String), { country: "LB" });
   });
+
+  it("admin alerts read a JOD charge in dinars (1,000 fils), not cents", async () => {
+    db.payment.findFirst.mockResolvedValue({ id: "p1", status: "COMPLETED", userId: "u1", planName: "launch_10", currency: "JOD" });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const charge: any = { id: "ch_1", payment_intent: "pi_1", refunded: false, amount: 3000, amount_refunded: 1000, currency: "jod" };
+    await handleChargeRefunded(charge);
+    expect(alert.sendAdminAlert.mock.calls[0][1]).toContain("1.00 of 3.00 JOD");
+    await flagDispute({ payment_intent: "pi_1", reason: "fraudulent", amount: 3000, currency: "jod" } as never);
+    expect(alert.sendAdminAlert.mock.calls[1][1]).toContain("fraudulent, 3.00 JOD");
+  });
 });

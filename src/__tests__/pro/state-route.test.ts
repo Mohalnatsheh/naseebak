@@ -13,7 +13,7 @@ vi.mock("@/lib/db", () => ({ db }));
 const requireUser = vi.hoisted(() => vi.fn(async () => ({ session: { user: { id: "u1" } } })));
 vi.mock("@/lib/auth", () => ({ requireUser }));
 vi.mock("@/lib/mobile-config", () => ({ appPaymentsFor: m.appPaymentsFor }));
-vi.mock("@/lib/settings", () => ({ getProEnabled: m.getProEnabled, getChatDeleteEnabled: m.getChatDeleteEnabled }));
+vi.mock("@/lib/settings", () => ({ getProEnabled: m.getProEnabled, getChatDeleteEnabled: m.getChatDeleteEnabled, jodChargingFor: async () => false }));
 vi.mock("@/lib/countries/settings", () => ({ getCountrySettings: m.getCountrySettings, purchasesAvailable: m.purchasesAvailable }));
 vi.mock("@/lib/pro/status", () => ({ currentProSubscription: m.currentProSubscription }));
 

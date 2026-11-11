@@ -15,6 +15,12 @@ vi.mock("@/lib/countries/settings", async (orig) => {
   const real = await orig<typeof import("@/lib/countries/settings")>();
   return { ...real, purchasesAvailable: (s: Parameters<typeof real.purchasesAvailable>[0]) => gate.selling ?? real.purchasesAvailable(s) };
 });
+// Switch jod_charging (null = the real setting, off here)
+const jod = vi.hoisted(() => ({ on: false }));
+vi.mock("@/lib/settings", async (orig) => {
+  const real = await orig<typeof import("@/lib/settings")>();
+  return { ...real, jodChargingFor: async (c: string | null | undefined) => jod.on && c === "JO" };
+});
 vi.mock("@/lib/stripe", () => ({
   getStripe: () => ({ checkout: { sessions: { create: stripe.create, expire: stripe.expire, retrieve: stripe.retrieve } } }),
 }));
@@ -29,6 +35,39 @@ beforeEach(() => {
   process.env.STRIPE_SECRET_KEY = "sk_test";
   db.payment.updateMany.mockResolvedValue({ count: 1 });
   db.user.findUnique.mockResolvedValue({ country: "JO" });
+  jod.on = false;
+});
+
+describe("POST /api/payments/checkout, switch jod_charging", () => {
+  it("off: Jordan is charged in USD and the row records usd", async () => {
+    stripe.create.mockResolvedValue({ id: "cs_1", client_secret: "sec" });
+    await checkout(post({ packageId: "launch_10" }));
+    expect(stripe.create.mock.calls[0][0].line_items[0].price_data).toMatchObject({ currency: "usd", unit_amount: 423 });
+    expect(db.payment.create.mock.calls[0][0].data).toMatchObject({ amount: 3, currency: "JOD", chargeCurrency: "usd" });
+  });
+
+  it("on: Jordan is charged the dinar price in fils, no dollars on the page, and the row records jod", async () => {
+    jod.on = true;
+    stripe.create.mockResolvedValue({ id: "cs_1", url: "https://checkout.stripe.com/x" });
+    await checkout(post({ packageId: "launch_10", mode: "hosted" }));
+    const args = stripe.create.mock.calls[0][0];
+    expect(args.line_items[0].price_data).toMatchObject({ currency: "jod", unit_amount: 3000 });
+    expect(args.custom_text.submit.message).toContain("10 أرصدة مقابل 3 د.أ");
+    expect(args.custom_text.submit.message).not.toContain("$");
+    expect(args.custom_text.submit.message).not.toContain("بالدولار");
+    expect(db.payment.create.mock.calls[0][0].data).toMatchObject({ amount: 3, currency: "JOD", chargeCurrency: "jod" });
+  });
+
+  it("on: a Saudi member is still charged in SAR", async () => {
+    jod.on = true;
+    db.user.findUnique.mockResolvedValue({ country: "SA" });
+    gate.selling = true;
+    stripe.create.mockResolvedValue({ id: "cs_1", client_secret: "sec" });
+    await checkout(post({ packageId: "sa_10" }));
+    gate.selling = null;
+    expect(stripe.create.mock.calls[0][0].line_items[0].price_data).toMatchObject({ currency: "sar", unit_amount: 1500 });
+    expect(db.payment.create.mock.calls[0][0].data).toMatchObject({ currency: "SAR", chargeCurrency: "sar" });
+  });
 });
 
 describe("POST /api/payments/checkout", () => {

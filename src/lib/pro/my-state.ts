@@ -2,7 +2,7 @@ import { db } from "@/lib/db";
 import { toCountry } from "@/lib/countries";
 import { getCountrySettings, purchasesAvailable } from "@/lib/countries/settings";
 import { appPaymentsFor } from "@/lib/mobile-config";
-import { getChatDeleteEnabled, getProEnabled } from "@/lib/settings";
+import { getChatDeleteEnabled, getProEnabled, jodChargingFor } from "@/lib/settings";
 import type { ProPlan } from "@prisma/client";
 import { proOffersFor, type ProPlanId } from "@/lib/pro/plans";
 import type { MyProState } from "@/lib/pro/pro-types";
@@ -28,11 +28,13 @@ export async function getMyProState(
     getChatDeleteEnabled(),
   ]);
   const country = toCountry(me?.country);
-  const [countrySettings, sellable] = await Promise.all([
+  const [countrySettings, sellable, jod] = await Promise.all([
     getCountrySettings(country),
     app ? appPaymentsFor(me?.phone) : Promise.resolve(true),
+    jodChargingFor(country),
   ]);
-  const offers = enabled && sellable ? proOffersFor(country, countrySettings.proPlans) : [];
+  // jod: the offers say what a new checkout charges (no dollar line once Jordan is charged in JOD)
+  const offers = enabled && sellable ? proOffersFor(country, countrySettings.proPlans, jod) : [];
   return {
     enabled,
     isPro: !!sub,

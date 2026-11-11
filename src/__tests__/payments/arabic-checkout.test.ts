@@ -11,11 +11,14 @@ const stripe = vi.hoisted(() => ({
   intentsRetrieve: vi.fn(),
   intentsCancel: vi.fn(),
 }));
-const setting = vi.hoisted(() => ({ arabic: "off" }));
+const setting = vi.hoisted(() => ({ arabic: "off", jod: false }));
 const sideEffects = vi.hoisted(() => ({ recordCredit: vi.fn(), notify: vi.fn() }));
 vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/auth", () => ({ requireUser: async () => ({ session: { user: { id: "u1" } } }) }));
-vi.mock("@/lib/settings", () => ({ getSetting: async (k: string) => (k === "arabic_checkout" ? setting.arabic : "") }));
+vi.mock("@/lib/settings", () => ({
+  getSetting: async (k: string) => (k === "arabic_checkout" ? setting.arabic : ""),
+  jodChargingFor: async (c: string | null | undefined) => setting.jod && c === "JO",
+}));
 vi.mock("@/lib/credits", () => ({ recordCredit: sideEffects.recordCredit }));
 vi.mock("@/lib/notify", () => ({ notify: sideEffects.notify }));
 vi.mock("@/lib/mobile-config", () => ({ appPaymentsFor: async () => true }));
@@ -77,6 +80,15 @@ describe("Arabic payment page: creating a payment", () => {
     expect(row).toMatchObject({ stripePaymentIntentId: "pi_1", stripeSessionId: null, status: "PENDING", amount: 6 });
     expect(body.payUrl).toContain(row.payToken);
     expect(row.id).toBe(params.metadata.paymentId);
+  });
+
+  it("with jod_charging on: the intent charges the dinar price in fils and the row records jod", async () => {
+    setting.arabic = "all";
+    setting.jod = true;
+    await checkout(post({ packageId: "launch_25" }));
+    setting.jod = false;
+    expect(stripe.intentsCreate.mock.calls[0][0]).toMatchObject({ amount: 6000, currency: "jod" });
+    expect(db.payment.create.mock.calls[0][0].data).toMatchObject({ amount: 6, currency: "JOD", chargeCurrency: "jod" });
   });
 
   it("switch on, app: a full https link the app can open", async () => {
@@ -165,6 +177,8 @@ describe("Arabic payment page: the private link", () => {
   });
 
   it("intent params: amount and currency are the package's charge", () => {
+    const j = paymentIntentParams({ id: "launch_10", name: "10 أرصدة", credits: 10, chargeCurrency: "jod", chargeAmount: 3000 }, { paymentId: "p", userId: "u" });
+    expect(j).toMatchObject({ amount: 3000, currency: "jod" });
     const p = paymentIntentParams({ id: "sa_10", name: "10 أرصدة", credits: 10, chargeCurrency: "sar", chargeAmount: 1500 }, { paymentId: "p", userId: "u" });
     expect(p).toMatchObject({ amount: 1500, currency: "sar", automatic_payment_methods: { enabled: true } });
   });

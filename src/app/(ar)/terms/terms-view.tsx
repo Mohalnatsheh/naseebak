@@ -34,7 +34,8 @@ import { FREE_REPLY_LINE } from "@/lib/suggestions/copy";
  * free, up to 5 open suggestions, refund on no answer) the suggestion, request, chat and credit
  * items read differently from the per-request mode.
  */
-function buildSections(coi: boolean, freeReply = false) {
+/** `jod`: switch jod_charging (Jordan charged in dinars) */
+function buildSections(coi: boolean, freeReply = false, jod = false) {
   return [
   {
     icon: UserCheck,
@@ -125,7 +126,9 @@ function buildSections(coi: boolean, freeReply = false) {
             "يُخصم رصيد واحد من المُرسِل عند إرسال طلب تعارف عائلي أو طلب محادثة، أما قبول الطلب فمجاني.",
             "لا يُسترد الرصيد في حال رفض الطلب أو انتهاء مهلته دون رد.",
           ]),
-      "يمكن شراء أرصدة إضافية من لوحة التحكم. الأسعار معروضة بالدينار الأردني، ويُحصَّل ما يعادلها بالدولار الأمريكي (المبلغ ظاهر تحت كل باقة) ببطاقات Visa وMastercard عبر Stripe.",
+      jod
+        ? "يمكن شراء أرصدة إضافية من لوحة التحكم. الأسعار معروضة بالدينار الأردني وتُحصَّل بالدينار الأردني ببطاقات Visa وMastercard عبر Stripe، والسعر المعروض لكل باقة هو المبلغ المدفوع."
+        : "يمكن شراء أرصدة إضافية من لوحة التحكم. الأسعار معروضة بالدينار الأردني، ويُحصَّل ما يعادلها بالدولار الأمريكي (المبلغ ظاهر تحت كل باقة) ببطاقات Visa وMastercard عبر Stripe.",
       "لا يوجد اشتراك شهري، ويبقى الرصيد المشترى في الحساب حتى استخدامه.",
       "يمكن استرداد المبالغ المدفوعة وفق «سياسة الاسترداد» المنشورة على المنصة (naseebak.com/refund-policy)، ونحتفظ بحق تعديل الأسعار، ويُعرض السعر المعتمد قبل إتمام أي عملية شراء.",
       "تتم عمليات الدفع باسم شركة LOGIC CENTER FOR WEBSITE DESIGN المشغّلة للمنصة، وتظهر في كشف الحساب باسم LOGICCR.",
@@ -442,6 +445,11 @@ function buildLbSections(coi: boolean, freeReply = false) {
 
 const BUILD_SECTIONS: Record<CountryCode, typeof buildSections> = { JO: buildSections, SA: buildSaSections, LB: buildLbSections };
 
+/** The terms of a country (Pro sections aside). `jod` only changes Jordan's payment line */
+export function termsSectionsFor(country: CountryCode, coi: boolean, freeReply = false, jod = false) {
+  return country === "JO" ? buildSections(coi, freeReply, jod) : BUILD_SECTIONS[country](coi, freeReply);
+}
+
 /** «آخر تحديث» of each country's terms without Pro */
 const UPDATED: Record<CountryCode, string> = { JO: "17 أكتوبر 2026", SA: "24 أكتوبر 2026", LB: "10 نوفمبر 2026" };
 
@@ -453,15 +461,18 @@ export function TermsView({
   creditOnInterest,
   freeInterestReply = false,
   proSold = { JO: false, SA: false, LB: false },
+  jodCharging = false,
 }: {
   creditOnInterest: boolean;
   freeInterestReply?: boolean;
   /** Pro on sale per country: the «no subscription» line then describes Pro (QA WP2-01) */
   proSold?: Record<CountryCode, boolean>;
+  /** Switch jod_charging: Jordan's payment line says dinars */
+  jodCharging?: boolean;
 }) {
   const country = useVisitorCountry();
   const withPro = proSold[country];
-  const sections = withProTerms(BUILD_SECTIONS[country](creditOnInterest, freeInterestReply), withPro);
+  const sections = withProTerms(termsSectionsFor(country, creditOnInterest, freeInterestReply, jodCharging), withPro);
   const { ref: introRef, inView: introInView } = useInView(0.15);
   const { ref: sectionsRef, inView: sectionsInView } = useInView(0.1);
   const { ref: contactRef, inView: contactInView } = useInView(0.15);

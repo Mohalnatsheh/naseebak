@@ -25,7 +25,9 @@ something. Known cases:
 
 - **Locks decided in the app:** «مهتم» is disabled at 0 credits on the phone (`_outOfCredits` in
   `features/discovery/suggestions_screen.dart`, `interestDisabled`). Since 1.0.1 a card that liked you stays usable at 0
-  while `flags.freeInterestReply` is on (`_freeReply`).
+  while `flags.freeInterestReply` is on (`_freeReply`). After 1.2.1 (built 2026-11-11, not released): with `interestPaywall` of
+  `/api/me/counts` true (switch `interest_paywall`, a member who can buy) and `appPaymentsProvider` on, «مهتم» stays
+  enabled at 0 and opens `RechargeSheet` («انتهى رصيدك» → `/credits`).
 - New screens, new fields the app must send, analytics events, push channel or deep-link changes.
 
 Tell the owner which kind a change is before building it; on 2026-11-04 they parked a feature because its app part

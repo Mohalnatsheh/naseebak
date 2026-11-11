@@ -169,7 +169,7 @@ needed a release.
     tints it. A swipe the system cancels never replies.
   - **Menu (long-press a sent message):** reactions ❤️ 👍 😊 🤲 and «رد» while the chat is open, «نسخ» for text,
     «إبلاغ عن الرسالة» for the partner's messages: the sheet quotes the message and `POST /api/chats/{id}/end` sends
-    `report.messageId` (the details stay the member's own). Delete (Pro, switch `chat_delete_enabled`, chat `deleteEnabled`): «حذف لديّ» / «حذف لدى الجميع» (own messages, open chat) and «مسح المحادثة» (for me / for everyone) in the chat menu; shown only when the member is Pro or can buy (`appPaymentsProvider`), else none. Opening a chat does a one-time deletions poll for cached messages older than the first page. The report sheet offers «إبلاغ فقط» (`end: false`,
+    `report.messageId` (the details stay the member's own). Delete (Pro, switch `chat_delete_enabled`, on in production since 2026-11-11; chat `deleteEnabled`): «حذف لديّ» / «حذف لدى الجميع» (own messages, open chat) and «مسح المحادثة» (for me / for everyone) in the chat menu; shown only when the member is Pro or can buy (`appPaymentsProvider`), else none. Opening a chat does a one-time deletions poll for cached messages older than the first page. The report sheet offers «إبلاغ فقط» (`end: false`,
     the chat stays open) or «إبلاغ وإنهاء المحادثة» (says it blocks and closes the match); a closed chat offers
     «إبلاغ وحظر» and never says it ended. An older server ignores `end: false` and ends the chat.
   - **Reactions:** optimistic, then the server's list, reverted on failure; a chip under the bubble (tap mine to

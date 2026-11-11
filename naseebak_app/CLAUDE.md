@@ -12,7 +12,7 @@ accounts and troubleshooting are in `README.md`; the website/server rules are in
 - **Mirror:** `~/Documents/EvoKey-Projects/naseebak_app/` = `github.com/Mohalnatsheh/naseebak_app`
   (`main` and `feature/fcm-push`). After an app change, copy the changed files over and push
   (`git push git@github.com:Mohalnatsheh/naseebak_app.git HEAD:main HEAD:feature/fcm-push`; the https remote has no
-  saved login). In step with this copy since 2026-11-09 (mirror `20ad85f` = main `f523654`); find what to copy with
+  saved login). In step with this copy since 2026-11-11 (mirror `e84b6e6` = main `f39e9a3`); find what to copy with
   `git diff --name-only <last synced main commit>..HEAD -- naseebak_app`.
 - `~/Desktop/Evokey-APPS/Naseebak/naseebak` is an old website checkout — never work there.
 
